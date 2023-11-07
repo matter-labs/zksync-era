@@ -24,8 +24,6 @@ DROP INDEX idx_proof_compression_jobs_fri_status_processing_attempts;
 DROP INDEX idx_proof_compressor_jobs_fri_queued_order;
 DROP TABLE proof_compression_jobs_fri;
 
-DROP TABLE protocol_versions;
-
 DROP TABLE prover_fri_protocol_versions;
 
 DROP INDEX prover_jobs_composite_index

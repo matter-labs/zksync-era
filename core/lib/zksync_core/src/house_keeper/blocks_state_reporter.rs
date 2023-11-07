@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_prover_utils::periodic_job::PeriodicJob;
 use zksync_server_dal::ServerConnectionPool;
 use zksync_utils::time::seconds_since_epoch;
@@ -9,36 +10,46 @@ use crate::metrics::{BlockL1Stage, BlockStage, L1StageLatencyLabel, APP_METRICS}
 #[derive(Debug)]
 pub struct L1BatchMetricsReporter {
     reporting_interval_ms: u64,
-    connection_pool: ServerConnectionPool,
+    server_connection_pool: ServerConnectionPool,
+    prover_connection_pool: ProverConnectionPool,
 }
 
 impl L1BatchMetricsReporter {
-    pub fn new(reporting_interval_ms: u64, connection_pool: ServerConnectionPool) -> Self {
+    pub fn new(
+        reporting_interval_ms: u64,
+        server_connection_pool: ServerConnectionPool,
+        prover_connection_pool: ProverConnectionPool,
+    ) -> Self {
         Self {
             reporting_interval_ms,
-            connection_pool,
+            server_connection_pool,
+            prover_connection_pool,
         }
     }
 
     async fn report_metrics(&self) {
-        let mut conn = self.connection_pool.access_storage().await.unwrap();
+        let mut server_conn = self.server_connection_pool.access_storage().await.unwrap();
+        let mut prover_conn = self.prover_connection_pool.access_storage().await.unwrap();
         let mut block_metrics = vec![
             (
-                conn.blocks_dal()
+                server_conn
+                    .blocks_dal()
                     .get_sealed_l1_batch_number()
                     .await
                     .unwrap(),
                 BlockStage::Sealed,
             ),
             (
-                conn.blocks_dal()
+                server_conn
+                    .blocks_dal()
                     .get_last_l1_batch_number_with_metadata()
                     .await
                     .unwrap(),
                 BlockStage::MetadataCalculated,
             ),
             (
-                conn.blocks_dal()
+                prover_conn
+                    .witness_generator_dal()
                     .get_last_l1_batch_number_with_witness_inputs()
                     .await
                     .unwrap(),
@@ -46,7 +57,7 @@ impl L1BatchMetricsReporter {
             ),
         ];
 
-        let eth_stats = conn.eth_sender_dal().get_eth_l1_batches().await;
+        let eth_stats = server_conn.eth_sender_dal().get_eth_l1_batches().await;
         for (tx_type, l1_batch) in eth_stats.saved {
             let stage = BlockStage::L1 {
                 l1_stage: BlockL1Stage::Saved,
@@ -69,17 +80,17 @@ impl L1BatchMetricsReporter {
             APP_METRICS.block_number[&stage].set(l1_batch_number.0.into());
         }
 
-        let oldest_uncommitted_batch_timestamp = conn
+        let oldest_uncommitted_batch_timestamp = server_conn
             .blocks_dal()
             .oldest_uncommitted_batch_timestamp()
             .await
             .unwrap();
-        let oldest_unproved_batch_timestamp = conn
+        let oldest_unproved_batch_timestamp = server_conn
             .blocks_dal()
             .oldest_unproved_batch_timestamp()
             .await
             .unwrap();
-        let oldest_unexecuted_batch_timestamp = conn
+        let oldest_unexecuted_batch_timestamp = server_conn
             .blocks_dal()
             .oldest_unexecuted_batch_timestamp()
             .await

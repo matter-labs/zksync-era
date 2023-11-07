@@ -1218,6 +1218,24 @@
     },
     "query": "\n                SELECT region, zone, SUM(num_gpu) AS total_gpus\n                FROM gpu_prover_queue\n                GROUP BY region, zone\n               "
   },
+  "5a27a65fa105897b60a99c1e0015e4b8c93c45e0c448e77b03565db5c36695ed": {
+    "describe": {
+      "columns": [
+        {
+          "name": "max",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        null
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT MAX(l1_batch_number) FROM witness_inputs WHERE merkel_tree_paths_blob_url IS NOT NULL"
+  },
   "5a5844af61cc685a414fcd3cad70900bdce8f48e905c105f8dd50dc52e0c6f14": {
     "describe": {
       "columns": [
@@ -1678,6 +1696,32 @@
       }
     },
     "query": "\n                    INSERT INTO leaf_aggregation_witness_jobs\n                        (l1_batch_number, basic_circuits, basic_circuits_inputs, basic_circuits_blob_url, basic_circuits_inputs_blob_url, number_of_basic_circuits, protocol_version, status, created_at, updated_at)\n                    VALUES ($1, $2, $3, $4, $5, $6, $7, 'waiting_for_proofs', now(), now())\n                    "
+  },
+  "7acba1f016450b084a5fd97199a757a471f8b8a880a800c29737f1bceae3ff46": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "merkel_tree_paths_blob_url",
+          "ordinal": 1,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        true
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT l1_batch_number, merkel_tree_paths_blob_url FROM witness_inputs WHERE status = 'successful' AND is_blob_cleaned = FALSE AND merkel_tree_paths_blob_url is NOT NULL AND updated_at < NOW() - INTERVAL '30 days' LIMIT $1"
   },
   "7b8043a59029a19a3ba2433a438e8a4fe560aba7eda57b7a63b580de2e19aacb": {
     "describe": {
@@ -2761,6 +2805,18 @@
     },
     "query": "\n                UPDATE node_aggregation_witness_jobs\n                SET is_blob_cleaned=TRUE\n                WHERE l1_batch_number = ANY($1);\n            "
   },
+  "c92a84c15a8641f73417a03de99a0fb7e07fd0da7b376e65b3ed61209e55a5fa": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8Array"
+        ]
+      }
+    },
+    "query": "UPDATE witness_inputs SET is_blob_cleaned = TRUE WHERE l1_batch_number = ANY($1)"
+  },
   "ca8fa3521dab5ee985a837572e8625bd5b26bf79f58950698218b28110c29d1f": {
     "describe": {
       "columns": [],
@@ -2938,6 +2994,26 @@
       }
     },
     "query": "\n                UPDATE node_aggregation_witness_jobs_fri\n                SET status = 'queued', attempts = attempts + 1, updated_at = now(), processing_started_at = now()\n                WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)\n                OR (status = 'failed' AND attempts < $2)\n                RETURNING id, status, attempts\n                "
+  },
+  "dd330bc075a163974c59ec55ecfddd769d05801963b3e0e840e7f11e7bc6d3e9": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT l1_batch_number FROM witness_inputs WHERE length(merkle_tree_paths) <> 0 ORDER BY l1_batch_number DESC LIMIT $1"
   },
   "ddb3b38be2b6038b63288961f46ba7d3bb7250caff1146e13c5ee77b6a994ffc": {
     "describe": {

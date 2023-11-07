@@ -3083,24 +3083,6 @@
     },
     "query": "SELECT hashed_key, index FROM initial_writes WHERE l1_batch_number = $1 ORDER BY index"
   },
-  "5a27a65fa105897b60a99c1e0015e4b8c93c45e0c448e77b03565db5c36695ed": {
-    "describe": {
-      "columns": [
-        {
-          "name": "max",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        null
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "SELECT MAX(l1_batch_number) FROM witness_inputs WHERE merkel_tree_paths_blob_url IS NOT NULL"
-  },
   "5a2f35f3b0135ab88451ea141e97b1160ea1b4cf495b6700b5d178a43499e0d8": {
     "describe": {
       "columns": [
@@ -3909,32 +3891,6 @@
       }
     },
     "query": "SELECT * FROM call_traces WHERE tx_hash IN (SELECT hash FROM transactions WHERE miniblock_number = $1)"
-  },
-  "7acba1f016450b084a5fd97199a757a471f8b8a880a800c29737f1bceae3ff46": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "merkel_tree_paths_blob_url",
-          "ordinal": 1,
-          "type_info": "Text"
-        }
-      ],
-      "nullable": [
-        false,
-        true
-      ],
-      "parameters": {
-        "Left": [
-          "Int8"
-        ]
-      }
-    },
-    "query": "SELECT l1_batch_number, merkel_tree_paths_blob_url FROM witness_inputs WHERE status = 'successful' AND is_blob_cleaned = FALSE AND merkel_tree_paths_blob_url is NOT NULL AND updated_at < NOW() - INTERVAL '30 days' LIMIT $1"
   },
   "7ca78be8b18638857111cdbc6117ed2c204e3eb22682d5e4553ac4f47efab6e2": {
     "describe": {
@@ -6625,24 +6581,6 @@
     },
     "query": "SELECT * FROM eth_txs WHERE confirmed_eth_tx_history_id IS NULL \n                 AND id <= (SELECT COALESCE(MAX(eth_tx_id), 0) FROM eth_txs_history WHERE sent_at_block IS NOT NULL)\n                 ORDER BY id"
   },
-  "b6f9874059c57e5e59f3021936437e9ff71a68065dfc19c295d806d7a9aafc93": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Int4",
-          "Int8",
-          "Bytea",
-          "Bytea",
-          "Bytea",
-          "Bytea",
-          "Bytea"
-        ]
-      }
-    },
-    "query": "INSERT INTO prover_protocol_versions\n                    (id, timestamp, recursion_scheduler_level_vk_hash, recursion_node_level_vk_hash,\n                        recursion_leaf_level_vk_hash, recursion_circuits_set_vks_hash, verifier_address, created_at)\n                VALUES ($1, $2, $3, $4, $5, $6, $7, now())\n                "
-  },
   "b79f02c8663c6b99d0aa46b430de32103afa0333e8293cf8661cfc1c3f9fc12e": {
     "describe": {
       "columns": [
@@ -7120,18 +7058,6 @@
     },
     "query": "SELECT usd_price, usd_price_updated_at FROM tokens WHERE l2_address = $1"
   },
-  "c92a84c15a8641f73417a03de99a0fb7e07fd0da7b376e65b3ed61209e55a5fa": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Int8Array"
-        ]
-      }
-    },
-    "query": "UPDATE witness_inputs SET is_blob_cleaned = TRUE WHERE l1_batch_number = ANY($1)"
-  },
   "cc20350af9e837ae6b6160be65f88e6b675f62e207252f91f2ce7dcaaddb12b1": {
     "describe": {
       "columns": [],
@@ -7259,29 +7185,6 @@
     },
     "query": "UPDATE tokens SET token_list_name = $2, token_list_symbol = $3,\n                token_list_decimals = $4, well_known = true, updated_at = now()\n                WHERE l1_address = $1\n                "
   },
-  "d7060880fe56fd99af7b7ed3f4c7fb9d0858cee30f44c5197821aae83c6c9666": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Int4"
-        }
-      ],
-      "nullable": [
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Bytea",
-          "Bytea",
-          "Bytea",
-          "Bytea"
-        ]
-      }
-    },
-    "query": "\n                SELECT id\n                FROM prover_protocol_versions\n                WHERE recursion_circuits_set_vks_hash = $1\n                AND recursion_leaf_level_vk_hash = $2\n                AND recursion_node_level_vk_hash = $3\n                AND recursion_scheduler_level_vk_hash = $4\n               "
-  },
   "d8515595d34dca53e50bbd4ed396f6208e33f596195a5ed02fba9e8364ceb33c": {
     "describe": {
       "columns": [
@@ -7351,26 +7254,6 @@
       }
     },
     "query": "SELECT COUNT(miniblocks.number) FROM miniblocks WHERE l1_batch_number IS NULL"
-  },
-  "dd330bc075a163974c59ec55ecfddd769d05801963b3e0e840e7f11e7bc6d3e9": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Int8"
-        ]
-      }
-    },
-    "query": "SELECT l1_batch_number FROM witness_inputs WHERE length(merkle_tree_paths) <> 0 ORDER BY l1_batch_number DESC LIMIT $1"
   },
   "dd8aa1c9d4dcea22c9a13cca5ae45e951cf963b0608046b88be40309d7379ec2": {
     "describe": {
@@ -8724,26 +8607,6 @@
       }
     },
     "query": "\n                UPDATE contract_verification_requests\n                SET status = 'successful', updated_at = now()\n                WHERE id = $1\n                "
-  },
-  "ff7ff36b86b0e8d1cd7280aa447baef172cb054ffe7e1d742c59bf09b4f414cb": {
-    "describe": {
-      "columns": [
-        {
-          "name": "count!",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        null
-      ],
-      "parameters": {
-        "Left": [
-          "Int4"
-        ]
-      }
-    },
-    "query": "SELECT COUNT(*) as \"count!\" FROM prover_protocol_versions WHERE id = $1"
   },
   "ff9c6a53717f0455089e27018e069809891249555e7ee38393927b2b25555fea": {
     "describe": {

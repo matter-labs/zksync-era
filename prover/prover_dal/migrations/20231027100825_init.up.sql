@@ -1,17 +1,3 @@
-CREATE TABLE IF NOT EXISTS protocol_versions (
-    id INTEGER NOT NULL PRIMARY KEY,
-    timestamp BIGINT NOT NULL,
-    recursion_scheduler_level_vk_hash BYTEA NOT NULL,
-    recursion_node_level_vk_hash BYTEA NOT NULL,
-    recursion_leaf_level_vk_hash BYTEA NOT NULL,
-    recursion_circuits_set_vks_hash BYTEA NOT NULL,
-    bootloader_code_hash BYTEA NOT NULL,
-    default_account_code_hash BYTEA NOT NULL,
-    verifier_address BYTEA NOT NULL,
-    upgrade_tx_hash BYTEA,
-    created_at TIMESTAMP NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS prover_protocol_versions (
     id INTEGER NOT NULL PRIMARY KEY,
     timestamp BIGINT NOT NULL,

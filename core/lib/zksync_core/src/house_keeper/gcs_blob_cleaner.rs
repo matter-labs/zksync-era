@@ -96,16 +96,16 @@ impl GcsBlobCleaner {
     }
 
     async fn cleanup_witness_inputs_blobs(&self) {
-        let mut conn = self.server_pool.access_storage().await.unwrap();
+        let mut conn = self.prover_pool.access_storage().await.unwrap();
         let blob_urls = conn
-            .blocks_dal()
+            .witness_generator_dal()
             .get_merkle_tree_paths_blob_urls_to_be_cleaned(BATCH_CLEANUP_SIZE)
             .await
             .unwrap();
         let l1_batch_numbers = self
             .cleanup_blob_urls(Bucket::WitnessInput, blob_urls)
             .await;
-        conn.blocks_dal()
+        conn.witness_generator_dal()
             .mark_gcs_blobs_as_cleaned(&l1_batch_numbers)
             .await
             .unwrap();

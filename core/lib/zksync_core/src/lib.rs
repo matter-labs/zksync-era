@@ -987,16 +987,17 @@ async fn add_house_keeper_to_task_futures(
         .build()
         .await
         .context("failed to build a server connection pool")?;
-    let l1_batch_metrics_reporter = L1BatchMetricsReporter::new(
-        house_keeper_config.l1_batch_metrics_reporting_interval_ms,
-        server_connection_pool.clone(),
-    );
-
     let prover_connection_pool = ProverConnectionPool::builder(connection::DbVariant::Real)
         .set_max_size(Some(house_keeper_config.prover_db_pool_size))
         .build()
         .await
         .context("failed to build a prover connection pool")?;
+    let l1_batch_metrics_reporter = L1BatchMetricsReporter::new(
+        house_keeper_config.l1_batch_metrics_reporting_interval_ms,
+        server_connection_pool.clone(),
+        prover_connection_pool.clone(),
+    );
+
     let gpu_prover_queue = GpuProverQueueMonitor::new(
         ProverGroupConfig::from_env()
             .context("ProverGroupConfig::from_env()")?

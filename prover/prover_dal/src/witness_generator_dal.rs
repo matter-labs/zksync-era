@@ -26,6 +26,79 @@ pub struct WitnessGeneratorDal<'a, 'c> {
 }
 
 impl WitnessGeneratorDal<'_, '_> {
+    pub async fn get_last_l1_batch_number_with_witness_inputs(
+        &mut self,
+    ) -> sqlx::Result<L1BatchNumber> {
+        let row = sqlx::query!(
+            "SELECT MAX(l1_batch_number) FROM witness_inputs \
+            WHERE merkel_tree_paths_blob_url IS NOT NULL",
+        )
+        .fetch_one(self.storage.conn())
+        .await?;
+
+        Ok(row
+            .max
+            .map(|l1_batch_number| L1BatchNumber(l1_batch_number as u32))
+            .unwrap_or_default())
+    }
+
+    pub async fn get_l1_batches_with_blobs_in_db(
+        &mut self,
+        limit: u8,
+    ) -> sqlx::Result<Vec<L1BatchNumber>> {
+        let rows = sqlx::query!(
+            "SELECT l1_batch_number FROM witness_inputs \
+            WHERE length(merkle_tree_paths) <> 0 \
+            ORDER BY l1_batch_number DESC \
+            LIMIT $1",
+            limit as i32
+        )
+        .fetch_all(self.storage.conn())
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| L1BatchNumber(row.l1_batch_number as u32))
+            .collect())
+    }
+
+    pub async fn get_merkle_tree_paths_blob_urls_to_be_cleaned(
+        &mut self,
+        limit: u8,
+    ) -> Result<Vec<(i64, String)>, sqlx::Error> {
+        let rows = sqlx::query!(
+            "SELECT l1_batch_number, merkel_tree_paths_blob_url \
+            FROM witness_inputs \
+            WHERE status = 'successful' AND is_blob_cleaned = FALSE \
+                AND merkel_tree_paths_blob_url is NOT NULL \
+                AND updated_at < NOW() - INTERVAL '30 days' \
+            LIMIT $1",
+            limit as i32
+        )
+        .fetch_all(self.storage.conn())
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.l1_batch_number, row.merkel_tree_paths_blob_url.unwrap()))
+            .collect())
+    }
+
+    pub async fn mark_gcs_blobs_as_cleaned(
+        &mut self,
+        l1_batch_numbers: &[i64],
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            "UPDATE witness_inputs \
+            SET is_blob_cleaned = TRUE \
+            WHERE l1_batch_number = ANY($1)",
+            l1_batch_numbers
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
+    }
+
     pub async fn get_next_basic_circuit_witness_job(
         &mut self,
         processing_timeout: Duration,
