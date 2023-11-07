@@ -6,9 +6,10 @@ use serde::{Deserialize, Serialize};
 use zksync_consensus_roles::validator::{
     BlockHeader, BlockHeaderHash, BlockNumber, CommitQC, FinalBlock, Payload,
 };
-use zksync_types::block::ConsensusBlockFields;
 use zksync_types::{
-    api::en::SyncBlock, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
+    api::en::SyncBlock,
+    block::{CommitQCBytes, ConsensusBlockFields},
+    Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
 };
 
 use crate::sync_layer::fetcher::FetchedBlock;
@@ -52,8 +53,9 @@ pub(super) fn sync_block_to_consensus_block(mut block: SyncBlock) -> anyhow::Res
         number,
         payload: payload.hash(),
     };
-    let justification: CommitQC = zksync_consensus_schema::decode(&consensus.commit_qc_bytes.0)
-        .context("Failed deserializing commit QC from Protobuf")?;
+    let justification: CommitQC =
+        zksync_consensus_schema::decode(consensus.commit_qc_bytes.as_ref())
+            .context("Failed deserializing commit QC from Protobuf")?;
     Ok(FinalBlock {
         header,
         payload,
@@ -84,7 +86,9 @@ impl FetchedBlock {
             transactions: payload.transactions,
             consensus: Some(ConsensusBlockFields {
                 prev_block_hash: H256(*block.header.parent.as_bytes()),
-                commit_qc_bytes: zksync_consensus_schema::canonical(&block.justification).into(),
+                commit_qc_bytes: CommitQCBytes::new(zksync_consensus_schema::canonical(
+                    &block.justification,
+                )),
             }),
         })
     }

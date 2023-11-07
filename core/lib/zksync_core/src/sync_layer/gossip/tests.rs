@@ -8,7 +8,10 @@ use zksync_consensus_executor::testonly::FullValidatorConfig;
 use zksync_consensus_roles::validator::{self, FinalBlock};
 use zksync_consensus_storage::{InMemoryStorage, WriteBlockStore};
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_types::{block::ConsensusBlockFields, Address, L1BatchNumber, MiniblockNumber, H256};
+use zksync_types::{
+    block::{CommitQCBytes, ConsensusBlockFields},
+    Address, L1BatchNumber, MiniblockNumber, H256,
+};
 
 use super::*;
 use crate::sync_layer::{
@@ -73,7 +76,7 @@ pub(super) async fn add_consensus_fields(
 
         let consensus = ConsensusBlockFields {
             prev_block_hash: H256(*prev_block_hash.as_bytes()),
-            commit_qc_bytes: zksync_consensus_schema::canonical(&commit_qc).into(),
+            commit_qc_bytes: CommitQCBytes::new(zksync_consensus_schema::canonical(&commit_qc)),
         };
         storage
             .blocks_dal()

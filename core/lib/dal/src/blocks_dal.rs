@@ -478,7 +478,7 @@ impl BlocksDal<'_, '_> {
             WHERE number = $1",
             miniblock_number.0 as i64,
             consensus.prev_block_hash.as_bytes(),
-            &consensus.commit_qc_bytes.0
+            consensus.commit_qc_bytes.as_ref()
         )
         .execute(self.storage.conn())
         .await?;

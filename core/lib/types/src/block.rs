@@ -84,14 +84,33 @@ pub struct MiniblockHeader {
     pub virtual_blocks: u32,
 }
 
+/// Protobuf serialization of a quorum certificate for an L2 block (= miniblock).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct CommitQCBytes(pub Bytes);
+
+impl CommitQCBytes {
+    /// It is caller's responsibility to ensure that `bytes` is actually a valid Protobuf message
+    /// for a quorum certificate.
+    pub fn new(bytes: Vec<u8>) -> Self {
+        Self(Bytes(bytes))
+    }
+}
+
+impl AsRef<[u8]> for CommitQCBytes {
+    fn as_ref(&self) -> &[u8] {
+        &(self.0).0
+    }
+}
+
 /// Consensus-related L2 block (= miniblock) fields.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConsensusBlockFields {
     /// Hash of the previous consensus block.
     pub prev_block_hash: H256,
-    /// Protobuf serialization of quorum certificate for the block.
-    pub commit_qc_bytes: Bytes,
+    /// Protobuf serialization of a quorum certificate for the block.
+    pub commit_qc_bytes: CommitQCBytes,
 }
 
 /// Data needed to execute a miniblock in the VM.

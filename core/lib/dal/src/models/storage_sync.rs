@@ -3,7 +3,8 @@ use std::convert::TryInto;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::api::en::SyncBlock;
 use zksync_types::{
-    block::ConsensusBlockFields, Address, Bytes, L1BatchNumber, MiniblockNumber, Transaction, H256,
+    block::{CommitQCBytes, ConsensusBlockFields},
+    Address, L1BatchNumber, MiniblockNumber, Transaction, H256,
 };
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -69,7 +70,7 @@ impl StorageSyncBlock {
             consensus: self.prev_consensus_block_hash.and_then(|hash| {
                 Some(ConsensusBlockFields {
                     prev_block_hash: H256::from_slice(&hash),
-                    commit_qc_bytes: Bytes(commit_qc?),
+                    commit_qc_bytes: CommitQCBytes::new(commit_qc?),
                 })
             }),
         }
