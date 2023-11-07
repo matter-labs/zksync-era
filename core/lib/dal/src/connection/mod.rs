@@ -8,8 +8,6 @@ use std::env;
 use std::fmt;
 use std::time::Duration;
 
-use zksync_utils::parse_env;
-
 pub mod holder;
 
 use crate::{metrics::CONNECTION_METRICS, StorageProcessor};
@@ -90,9 +88,14 @@ impl ConnectionPoolBuilder {
     }
 
     async fn build_inner(&self, database_url: &str) -> anyhow::Result<ConnectionPool> {
-        let max_connections = self
-            .max_size
-            .unwrap_or_else(|| parse_env("DATABASE_POOL_SIZE"));
+        let max_connections = if let Some(max_size) = self.max_size {
+            max_size
+        } else {
+            std::env::var("DATABASE_POOL_SIZE")
+                .context("DATABASE_POOL_SIZE variable is absent")?
+                .parse()
+                .context("DATABASE_POOL_SIZE is incorrect")?
+        };
 
         let options = PgPoolOptions::new().max_connections(max_connections);
         let mut connect_options: PgConnectOptions = database_url
