@@ -1,6 +1,6 @@
-use zk_evm_1_3_3::aux_structures::MemoryPage;
-use zk_evm_1_3_3::zkevm_opcode_defs::{FarCallABI, FarCallForwardPageType};
-use zk_evm_1_3_3::{
+use zk_evm_1_4_0::aux_structures::MemoryPage;
+use zk_evm_1_4_0::zkevm_opcode_defs::{FarCallABI, FarCallForwardPageType};
+use zk_evm_1_4_0::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{FatPointer, LogOpcode, Opcode, UMAOpcode},
 };
@@ -35,6 +35,8 @@ pub(crate) enum VmHook {
     NotifyAboutRefund,
     ExecutionResult,
     FinalBatchInfo,
+    // Hook used to signal that the final pubdata for a batch is requested.
+    PubdataRequested,
 }
 
 impl VmHook {
@@ -73,7 +75,8 @@ impl VmHook {
             9 => Self::NotifyAboutRefund,
             10 => Self::ExecutionResult,
             11 => Self::FinalBatchInfo,
-            _ => panic!("Unkown hook"),
+            12 => Self::PubdataRequested,
+            _ => panic!("Unknown hook: {}", value.as_u32()),
         }
     }
 }

@@ -2,8 +2,8 @@ use once_cell::sync::OnceCell;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use zk_evm_1_3_3::tracing::{AfterExecutionData, VmLocalStateData};
-use zk_evm_1_3_3::zkevm_opcode_defs::{
+use zk_evm_1_4_0::tracing::{AfterExecutionData, VmLocalStateData};
+use zk_evm_1_4_0::zkevm_opcode_defs::{
     FarCallABI, FarCallOpcode, FatPointer, Opcode, RetOpcode,
     CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER, RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
 };

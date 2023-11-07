@@ -1,7 +1,7 @@
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 
 use crate::interface::{L1BatchEnv, Refunds};
-use zk_evm_1_3_3::{
+use zk_evm_1_4_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
     vm_state::VmLocalState,
@@ -48,6 +48,7 @@ pub(crate) struct RefundsTracer {
     spent_pubdata_counter_before: u32,
     gas_spent_on_bytecodes_and_long_messages: u32,
     l1_batch: L1BatchEnv,
+    pubdata_published: u32,
 }
 
 impl RefundsTracer {
@@ -62,6 +63,7 @@ impl RefundsTracer {
             spent_pubdata_counter_before: 0,
             gas_spent_on_bytecodes_and_long_messages: 0,
             l1_batch,
+            pubdata_published: 0,
         }
     }
 }
@@ -141,6 +143,10 @@ impl RefundsTracer {
 
     pub(crate) fn gas_spent_on_pubdata(&self, vm_local_state: &VmLocalState) -> u32 {
         self.gas_spent_on_bytecodes_and_long_messages + vm_local_state.spent_pubdata_counter
+    }
+
+    pub(crate) fn pubdata_published(&self) -> u32 {
+        self.pubdata_published
     }
 }
 
@@ -235,6 +241,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer {
                 self.l1_batch.number,
             );
 
+            self.pubdata_published = pubdata_published;
             let current_ergs_per_pubdata_byte = state.local_state.current_ergs_per_pubdata_byte;
             let tx_body_refund = self.tx_body_refund(
                 bootloader_refund,
@@ -319,7 +326,7 @@ pub(crate) fn pubdata_published<S: WriteStorage, H: HistoryMode>(
         })
         .filter(|log| log.sender != SYSTEM_CONTEXT_ADDRESS)
         .count() as u32)
-        * zk_evm_1_3_3::zkevm_opcode_defs::system_params::L1_MESSAGE_PUBDATA_BYTES;
+        * zk_evm_1_4_0::zkevm_opcode_defs::system_params::L1_MESSAGE_PUBDATA_BYTES;
     let l2_l1_long_messages_bytes: u32 = extract_long_l2_to_l1_messages(&events)
         .iter()
         .map(|event| event.len() as u32)

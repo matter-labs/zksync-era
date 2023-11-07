@@ -1,4 +1,4 @@
-use zk_evm_1_3_3::aux_structures::Timestamp;
+use zk_evm_1_4_0::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
 use crate::interface::{VmExecutionMode, VmExecutionResultAndLogs};
@@ -8,7 +8,7 @@ use crate::vm_latest::old_vm::{
 };
 use crate::vm_latest::tracers::{
     traits::{TracerExecutionStatus, VmTracer},
-    DefaultExecutionTracer, RefundsTracer,
+    DefaultExecutionTracer, PubdataTracer, RefundsTracer,
 };
 use crate::vm_latest::vm::Vm;
 use crate::vm_latest::VmExecutionStopReason;
@@ -25,6 +25,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             self.bootloader_state.move_tx_to_execute_pointer();
             enable_refund_tracer = true;
         }
+
         let (_, result) =
             self.inspect_and_collect_results(tracers, execution_mode, enable_refund_tracer);
         result
@@ -46,6 +47,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             tracers,
             self.storage.clone(),
             refund_tracers,
+            Some(PubdataTracer::new(self.batch_env.clone(), execution_mode)),
         );
 
         let timestamp_initial = Timestamp(self.state.local_state.timestamp);
@@ -59,6 +61,12 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
 
         let logs = self.collect_execution_logs_after_timestamp(timestamp_initial);
 
+        let (refunds, pubdata_published) = tx_tracer
+            .refund_tracer
+            .as_ref()
+            .map(|x| (x.get_refunds(), x.pubdata_published()))
+            .unwrap_or_default();
+
         let statistics = self.get_statistics(
             timestamp_initial,
             cycles_initial,
@@ -66,15 +74,10 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             gas_remaining_before,
             gas_remaining_after,
             spent_pubdata_counter_before,
+            pubdata_published,
             logs.total_log_queries_count,
         );
-
         let result = tx_tracer.result_tracer.into_result();
-
-        let refunds = tx_tracer
-            .refund_tracer
-            .map(|x| x.get_refunds())
-            .unwrap_or_default();
 
         let result = VmExecutionResultAndLogs {
             result,

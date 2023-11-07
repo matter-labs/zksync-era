@@ -7,6 +7,7 @@ services:
 
   zk:
     image: "matterlabs/zk-environment:cuda-11-8-latest"
+    container_name: zk
     depends_on:
       - geth
       - postgres

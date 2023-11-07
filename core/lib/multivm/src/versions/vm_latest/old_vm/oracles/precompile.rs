@@ -1,9 +1,9 @@
-use zk_evm_1_3_3::{
+use zk_evm_1_4_0::{
     abstractions::Memory,
     abstractions::PrecompileCyclesWitness,
     abstractions::PrecompilesProcessor,
     aux_structures::{LogQuery, MemoryQuery, Timestamp},
-    precompiles::DefaultPrecompilesProcessor,
+    zk_evm_abstractions::precompiles::DefaultPrecompilesProcessor,
 };
 
 use crate::vm_latest::old_vm::history_recorder::{HistoryEnabled, HistoryMode, HistoryRecorder};
