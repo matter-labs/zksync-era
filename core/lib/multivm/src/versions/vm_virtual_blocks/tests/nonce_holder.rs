@@ -1,12 +1,13 @@
 use zksync_types::{Execute, Nonce};
 
 use crate::interface::{
-    ExecutionResult, Halt, TxExecutionMode, TxRevertReason, VmExecutionMode, VmRevertReason,
+    ExecutionResult, Halt, TxExecutionMode, TxRevertReason, VmExecutionMode, VmInterface,
+    VmRevertReason,
 };
+use crate::vm_latest::HistoryEnabled;
 use crate::vm_virtual_blocks::tests::tester::{Account, VmTesterBuilder};
 use crate::vm_virtual_blocks::tests::utils::read_nonce_holder_tester;
 use crate::vm_virtual_blocks::types::internals::TransactionData;
-use crate::vm_virtual_blocks::HistoryEnabled;
 
 pub enum NonceHolderTestMode {
     SetValueUnderNonce,

@@ -1,8 +1,8 @@
 use zksync_types::{Execute, Nonce};
 
-use crate::interface::TxExecutionMode;
 use crate::interface::VmRevertReason;
 use crate::interface::{ExecutionResult, Halt, TxRevertReason, VmExecutionMode};
+use crate::interface::{TxExecutionMode, VmInterface};
 use crate::vm_latest::tests::tester::{Account, VmTesterBuilder};
 use crate::vm_latest::tests::utils::read_nonce_holder_tester;
 use crate::vm_latest::types::internals::TransactionData;

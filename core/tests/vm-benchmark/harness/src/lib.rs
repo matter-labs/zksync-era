@@ -1,4 +1,6 @@
-use multivm::interface::{L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs};
+use multivm::interface::{
+    L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+};
 use multivm::vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryEnabled, Vm};
 use once_cell::sync::Lazy;
 use std::{cell::RefCell, rc::Rc};
@@ -85,7 +87,6 @@ impl BenchmarkingVm {
                 chain_id: L2ChainId::from(270),
             },
             Rc::new(RefCell::new(StorageView::new(&*STORAGE))),
-            HistoryEnabled,
         ))
     }
 

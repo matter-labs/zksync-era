@@ -7,9 +7,9 @@ use zksync_state::WriteStorage;
 use zksync_types::l1::is_l1_tx_type;
 use zksync_types::Transaction;
 
-use crate::vm_refunds_enhancement::old_vm::history_recorder::HistoryMode;
 use crate::vm_refunds_enhancement::types::internals::TransactionData;
 use crate::vm_refunds_enhancement::vm::Vm;
+use crate::HistoryMode;
 
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     pub(crate) fn push_raw_transaction(
