@@ -1,4 +1,5 @@
 pub mod vm_latest;
+pub mod vm_refunds_enhancement;
 pub mod vm_virtual_blocks;
 
 /// Tracer responsible for calculating the number of storage invocations and

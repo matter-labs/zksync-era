@@ -47,7 +47,7 @@ pub trait MultivmTracer<S: WriteStorage, H: HistoryMode>:
 }
 
 pub trait IntoLatestTracer<S: WriteStorage, H: HistoryMode> {
-    fn latest(&self) -> crate::vm_latest::TracerPointer<S, H::VmVirtualBlocksRefundsEnhancement>;
+    fn latest(&self) -> crate::vm_latest::TracerPointer<S, H::VmBoojumIntegration>;
 }
 
 pub trait IntoVmVirtualBlocksTracer<S: WriteStorage, H: HistoryMode> {
@@ -68,7 +68,7 @@ where
     H: HistoryMode,
     T: crate::vm_latest::VmTracer<S, H::VmBoojumIntegration> + Clone + 'static,
 {
-    fn latest(&self) -> crate::vm_latest::TracerPointer<S, H::VmVirtualBlocksRefundsEnhancement> {
+    fn latest(&self) -> crate::vm_latest::TracerPointer<S, H::VmBoojumIntegration> {
         Box::new(self.clone())
     }
 }
@@ -86,10 +86,28 @@ where
     }
 }
 
+impl<S, T, H> IntoVmRefundsEnhancementTracer<S, H> for T
+where
+    S: WriteStorage,
+    H: HistoryMode,
+    T: crate::vm_refunds_enhancement::VmTracer<S, H::VmVirtualBlocksRefundsEnhancement>
+        + Clone
+        + 'static,
+{
+    fn vm_refunds_enhancement(
+        &self,
+    ) -> Box<dyn crate::vm_refunds_enhancement::VmTracer<S, H::VmVirtualBlocksRefundsEnhancement>>
+    {
+        Box::new(self.clone())
+    }
+}
+
 impl<S, H, T> MultivmTracer<S, H> for T
 where
     S: WriteStorage,
     H: HistoryMode,
-    T: IntoLatestTracer<S, H> + IntoVmVirtualBlocksTracer<S, H>,
+    T: IntoLatestTracer<S, H>
+        + IntoVmVirtualBlocksTracer<S, H>
+        + IntoVmRefundsEnhancementTracer<S, H>,
 {
 }

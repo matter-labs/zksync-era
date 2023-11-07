@@ -5,6 +5,8 @@ use zk_evm_1_3_3::{
 };
 use zksync_state::{StoragePtr, WriteStorage};
 
+use crate::interface::dyn_tracers::vm_1_3_3::DynTracer;
+use crate::interface::tracer::{TracerExecutionStopReason, VmExecutionStopReason};
 use crate::interface::{ExecutionResult, Halt, TxRevertReason, VmExecutionMode, VmRevertReason};
 use zksync_types::U256;
 
@@ -14,15 +16,11 @@ use crate::vm_refunds_enhancement::old_vm::{
     memory::SimpleMemory,
     utils::{vm_may_have_ended_inner, VmExecutionResult},
 };
-use crate::vm_refunds_enhancement::tracers::{
-    traits::{DynTracer, VmTracer},
-    utils::{get_vm_hook_params, read_pointer, VmHook},
-};
+use crate::vm_refunds_enhancement::tracers::utils::{get_vm_hook_params, read_pointer, VmHook};
 
 use crate::vm_refunds_enhancement::constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT};
-use crate::vm_refunds_enhancement::tracers::traits::TracerExecutionStopReason;
 use crate::vm_refunds_enhancement::types::internals::ZkSyncVmState;
-use crate::vm_refunds_enhancement::VmExecutionStopReason;
+use crate::vm_refunds_enhancement::VmTracer;
 
 #[derive(Debug, Clone)]
 enum Result {
@@ -56,7 +54,7 @@ fn current_frame_is_bootloader(local_state: &VmLocalState) -> bool {
     local_state.callstack.inner.len() == 1
 }
 
-impl<S, H: HistoryMode> DynTracer<S, H> for ResultTracer {
+impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer {
     fn after_decoding(
         &mut self,
         state: VmLocalStateData<'_>,
