@@ -9,7 +9,7 @@ use zksync_state::{ReadStorage, StorageView};
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
 
 use crate::glue::history_mode::HistoryMode;
-use crate::glue::tracers::MultivmTracer;
+use crate::glue::tracers::MultiVMTracer;
 use crate::glue::GlueInto;
 
 pub struct VmInstance<S: ReadStorage, H: HistoryMode> {
@@ -205,7 +205,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     /// Execute next transaction with custom tracers
     pub fn inspect_next_transaction(
         &mut self,
-        tracers: Vec<Box<dyn MultivmTracer<StorageView<S>, H>>>,
+        tracers: Vec<Box<dyn MultiVMTracer<StorageView<S>, H>>>,
     ) -> crate::interface::VmExecutionResultAndLogs {
         match &mut self.vm {
             VmInstanceVersion::VmVirtualBlocks(vm) => {
@@ -388,7 +388,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     /// Inspect transaction with optional bytecode compression.
     pub fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracers: Vec<Box<dyn MultivmTracer<StorageView<S>, H>>>,
+        tracers: Vec<Box<dyn MultiVMTracer<StorageView<S>, H>>>,
         tx: zksync_types::Transaction,
         with_compression: bool,
     ) -> Result<

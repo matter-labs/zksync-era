@@ -42,7 +42,7 @@ impl TreeEntry {
         }
     }
 
-    /// Returns `true` iff this entry encodes lack of a value.
+    /// Returns `true` if this entry encodes lack of a value.
     pub fn is_empty(&self) -> bool {
         self.leaf_index == 0 && self.value_hash.is_zero()
     }

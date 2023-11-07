@@ -58,7 +58,7 @@ impl PartialEq for ModifiedKeysMap {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct DecommitterTestInnerState {
-    /// There is no way to "trully" compare the storage pointer,
+    /// There is no way to "truly" compare the storage pointer,
     /// so we just compare the modified keys. This is reasonable enough.
     pub modified_storage_keys: ModifiedKeysMap,
     pub known_bytecodes: HistoryRecorder<HashMap<U256, Vec<U256>>>,
@@ -67,7 +67,7 @@ pub struct DecommitterTestInnerState {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct StorageOracleInnerState {
-    /// There is no way to "trully" compare the storage pointer,
+    /// There is no way to "truly" compare the storage pointer,
     /// so we just compare the modified keys. This is reasonable enough.
     pub modified_storage_keys: ModifiedKeysMap,
 

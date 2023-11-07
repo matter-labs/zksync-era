@@ -8,7 +8,7 @@ pub use crate::{
         block_properties::BlockProperties,
         history_mode::HistoryMode,
         oracle_tools::OracleTools,
-        tracers::{MultiVmTracerPointer, MultivmTracer},
+        tracers::{MultiVMTracer, MultiVmTracerPointer},
     },
     vm_instance::VmInstance,
 };

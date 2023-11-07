@@ -107,7 +107,7 @@ impl ZkSyncTree {
         }
     }
 
-    /// Returns a readonly handle to the tree. The handle **does not** see uncommitted changes to the tree,
+    /// Returns a read only handle to the tree. The handle **does not** see uncommitted changes to the tree,
     /// only ones flushed to RocksDB.
     pub fn reader(&self) -> ZkSyncTreeReader {
         let db = self.tree.db.inner().clone();
@@ -424,7 +424,7 @@ impl ZkSyncTree {
     }
 }
 
-/// Readonly handle to a [`ZkSyncTree`].
+/// Read only handle to a [`ZkSyncTree`].
 #[derive(Debug)]
 pub struct ZkSyncTreeReader(MerkleTree<'static, RocksDBWrapper>);
 

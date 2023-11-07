@@ -5,7 +5,7 @@ use tracing::{span, Level};
 use multivm::interface::{TxExecutionMode, VmExecutionResultAndLogs};
 use multivm::tracers::StorageInvocations;
 use multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
-use multivm::MultivmTracer;
+use multivm::MultiVMTracer;
 use zksync_dal::ConnectionPool;
 
 use zksync_types::{
