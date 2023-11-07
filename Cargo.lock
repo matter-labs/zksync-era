@@ -924,6 +924,7 @@ dependencies = [
  "zksync_config",
  "zksync_core",
  "zksync_dal",
+ "zksync_env_config",
  "zksync_types",
 ]
 
@@ -3811,6 +3812,7 @@ dependencies = [
  "tracing",
  "vlog",
  "zksync_config",
+ "zksync_env_config",
  "zksync_merkle_tree",
  "zksync_storage",
  "zksync_types",
@@ -5471,6 +5473,7 @@ dependencies = [
  "clap 4.4.6",
  "tempfile",
  "zksync_config",
+ "zksync_env_config",
  "zksync_storage",
 ]
 
@@ -7935,17 +7938,10 @@ name = "zksync_config"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bigdecimal",
  "envy",
- "hex",
- "num 0.3.1",
- "once_cell",
  "serde",
- "serde_json",
- "url",
  "zksync_basic_types",
  "zksync_contracts",
- "zksync_utils",
 ]
 
 [[package]]
@@ -7973,6 +7969,7 @@ dependencies = [
  "zksync_config",
  "zksync_contracts",
  "zksync_dal",
+ "zksync_env_config",
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
@@ -8099,6 +8096,17 @@ dependencies = [
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
+]
+
+[[package]]
+name = "zksync_env_config"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "envy",
+ "serde",
+ "zksync_basic_types",
+ "zksync_config",
 ]
 
 [[package]]
@@ -8287,6 +8295,7 @@ dependencies = [
  "vlog",
  "zksync_config",
  "zksync_core",
+ "zksync_env_config",
  "zksync_storage",
  "zksync_types",
  "zksync_utils",
