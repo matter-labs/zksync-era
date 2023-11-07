@@ -113,7 +113,7 @@ pub fn get_deploy_tx(code: &[u8]) -> Transaction {
         calldata,
         Nonce(0),
         Fee {
-            gas_limit: U256::from(10000000u32),
+            gas_limit: U256::from(30000000u32),
             max_fee_per_gas: U256::from(250_000_000),
             max_priority_fee_per_gas: U256::from(0),
             gas_per_pubdata_limit: U256::from(MAX_GAS_PER_PUBDATA_BYTE),

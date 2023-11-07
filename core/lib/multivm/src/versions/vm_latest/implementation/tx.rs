@@ -1,7 +1,7 @@
 use crate::vm_latest::constants::BOOTLOADER_HEAP_PAGE;
 use crate::vm_latest::implementation::bytecode::{bytecode_to_factory_dep, compress_bytecodes};
 use crate::HistoryMode;
-use zk_evm_1_3_3::aux_structures::Timestamp;
+use zk_evm_1_4_0::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 use zksync_types::l1::is_l1_tx_type;
 use zksync_types::Transaction;

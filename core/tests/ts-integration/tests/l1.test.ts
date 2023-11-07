@@ -206,7 +206,7 @@ describe('Tests for L1 behavior', () => {
         // We check that we will run out of gas if we do a bit smaller amount of writes.
         // In order for writes to be repeated we should firstly write to the keys initially.
         const initialWritesInOneTx = 500;
-        const repeatedWritesInOneTx = 7000;
+        const repeatedWritesInOneTx = 8500;
         const gasLimit = await contract.estimateGas.writes(0, initialWritesInOneTx, 1);
 
         let proms = [];
@@ -251,7 +251,7 @@ describe('Tests for L1 behavior', () => {
         const contract = await deployContract(alice, contracts.writesAndMessages, []);
         // The circuit allows us to have 512 L2->L1 logs for an L1 batch.
         // We check that we will run out of gas if we send a bit smaller amount of L2->L1 logs.
-        const calldata = contract.interface.encodeFunctionData('l2_l1_messages', [500]);
+        const calldata = contract.interface.encodeFunctionData('l2_l1_messages', [1000]);
         const gasPrice = scaledGasPrice(alice);
 
         const l2GasLimit = maxL2GasLimitForPriorityTxs();
@@ -278,11 +278,11 @@ describe('Tests for L1 behavior', () => {
         }
 
         const contract = await deployContract(alice, contracts.writesAndMessages, []);
-        const MAX_PUBDATA_PER_BLOCK = ethers.BigNumber.from(SYSTEM_CONFIG['MAX_PUBDATA_PER_BLOCK']);
+        const MAX_PUBDATA_PER_BATCH = ethers.BigNumber.from(SYSTEM_CONFIG['MAX_PUBDATA_PER_BATCH']);
         // We check that we will run out of gas if we send a bit
-        // smaller than `MAX_PUBDATA_PER_BLOCK` amount of pubdata in a single tx.
+        // smaller than `MAX_PUBDATA_PER_BATCH` amount of pubdata in a single tx.
         const calldata = contract.interface.encodeFunctionData('big_l2_l1_message', [
-            MAX_PUBDATA_PER_BLOCK.mul(9).div(10)
+            MAX_PUBDATA_PER_BATCH.mul(9).div(10)
         ]);
         const gasPrice = scaledGasPrice(alice);
 
@@ -352,21 +352,21 @@ function getOverheadForTransaction(
     gasPricePerPubdata: ethers.BigNumber,
     encodingLength: ethers.BigNumber
 ): number {
-    const BLOCK_OVERHEAD_L2_GAS = ethers.BigNumber.from(SYSTEM_CONFIG['BLOCK_OVERHEAD_L2_GAS']);
+    const BATCH_OVERHEAD_L2_GAS = ethers.BigNumber.from(SYSTEM_CONFIG['BATCH_OVERHEAD_L2_GAS']);
     const L1_GAS_PER_PUBDATA_BYTE = ethers.BigNumber.from(SYSTEM_CONFIG['L1_GAS_PER_PUBDATA_BYTE']);
-    const BLOCK_OVERHEAD_L1_GAS = ethers.BigNumber.from(SYSTEM_CONFIG['BLOCK_OVERHEAD_L1_GAS']);
-    const BLOCK_OVERHEAD_PUBDATA = BLOCK_OVERHEAD_L1_GAS.div(L1_GAS_PER_PUBDATA_BYTE);
+    const BATCH_OVERHEAD_L1_GAS = ethers.BigNumber.from(SYSTEM_CONFIG['BATCH_OVERHEAD_L1_GAS']);
+    const BATCH_OVERHEAD_PUBDATA = BATCH_OVERHEAD_L1_GAS.div(L1_GAS_PER_PUBDATA_BYTE);
 
-    const MAX_TRANSACTIONS_IN_BLOCK = ethers.BigNumber.from(SYSTEM_CONFIG['MAX_TRANSACTIONS_IN_BLOCK']);
+    const MAX_TRANSACTIONS_IN_BATCH = ethers.BigNumber.from(SYSTEM_CONFIG['MAX_TRANSACTIONS_IN_BATCH']);
     const BOOTLOADER_TX_ENCODING_SPACE = ethers.BigNumber.from(SYSTEM_CONFIG['BOOTLOADER_TX_ENCODING_SPACE']);
     // TODO (EVM-67): possibly charge overhead for pubdata
-    // const MAX_PUBDATA_PER_BLOCK = ethers.BigNumber.from(SYSTEM_CONFIG['MAX_PUBDATA_PER_BLOCK']);
+    // const MAX_PUBDATA_PER_BATCH = ethers.BigNumber.from(SYSTEM_CONFIG['MAX_PUBDATA_PER_BATCH']);
     const L2_TX_MAX_GAS_LIMIT = ethers.BigNumber.from(SYSTEM_CONFIG['L2_TX_MAX_GAS_LIMIT']);
 
-    const maxBlockOverhead = BLOCK_OVERHEAD_L2_GAS.add(BLOCK_OVERHEAD_PUBDATA.mul(gasPricePerPubdata));
+    const maxBlockOverhead = BATCH_OVERHEAD_L2_GAS.add(BATCH_OVERHEAD_PUBDATA.mul(gasPricePerPubdata));
 
     // The overhead from taking up the transaction's slot
-    const txSlotOverhead = ceilDiv(maxBlockOverhead, MAX_TRANSACTIONS_IN_BLOCK);
+    const txSlotOverhead = ceilDiv(maxBlockOverhead, MAX_TRANSACTIONS_IN_BATCH);
     let blockOverheadForTransaction = txSlotOverhead;
 
     // The overhead for occupying the bootloader memory can be derived from encoded_len
@@ -378,7 +378,7 @@ function getOverheadForTransaction(
     // The overhead for possible published public data
     // TODO (EVM-67): possibly charge overhead for pubdata
     // let maxPubdataInTx = ceilDiv(bodyGasLimit, gasPricePerPubdata);
-    // let overheadForPublicData = ceilDiv(maxPubdataInTx.mul(maxBlockOverhead), MAX_PUBDATA_PER_BLOCK);
+    // let overheadForPublicData = ceilDiv(maxPubdataInTx.mul(maxBlockOverhead), MAX_PUBDATA_PER_BATCH);
     // if (overheadForPublicData.gt(blockOverheadForTransaction)) {
     //     blockOverheadForTransaction = overheadForPublicData;
     // }

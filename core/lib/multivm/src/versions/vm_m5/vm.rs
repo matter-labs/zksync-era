@@ -6,7 +6,7 @@ use crate::interface::{
 use std::any::Any;
 
 use zksync_state::StoragePtr;
-use zksync_types::l2_to_l1_log::L2ToL1Log;
+use zksync_types::l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log};
 use zksync_types::{Transaction, VmVersion};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 use zksync_utils::{h256_to_u256, u256_to_h256};
@@ -127,13 +127,15 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             .collect();
         let l2_to_l1_logs = l1_messages
             .into_iter()
-            .map(|m| L2ToL1Log {
-                shard_id: m.shard_id,
-                is_service: m.is_first,
-                tx_number_in_block: m.tx_number_in_block,
-                sender: m.address,
-                key: u256_to_h256(m.key),
-                value: u256_to_h256(m.value),
+            .map(|m| {
+                UserL2ToL1Log(L2ToL1Log {
+                    shard_id: m.shard_id,
+                    is_service: m.is_first,
+                    tx_number_in_block: m.tx_number_in_block,
+                    sender: m.address,
+                    key: u256_to_h256(m.key),
+                    value: u256_to_h256(m.value),
+                })
             })
             .collect();
         let total_log_queries = self.vm.state.event_sink.get_log_queries()
@@ -159,10 +161,12 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             events,
             storage_log_queries: self.vm.get_final_log_queries(),
             used_contract_hashes,
-            l2_to_l1_logs,
+            system_logs: vec![],
+            user_l2_to_l1_logs: l2_to_l1_logs,
             total_log_queries,
             cycles_used: self.vm.state.local_state.monotonic_cycle_counter,
             // It's not applicable for vm5
+            deduplicated_events_logs: vec![],
             storage_refunds: vec![],
         }
     }

@@ -109,6 +109,15 @@ impl TxRevertReason {
             BootloaderErrorCode::PaymasterReturnedInvalidMagic => {
                 Self::Halt(Halt::ValidationFailed(VmRevertReason::General { msg: String::from("Paymaster validation returned invalid magic value. Please refer to the documentation of the paymaster for more details"), data: vec![] }))
             }
+            BootloaderErrorCode::L1MessengerLogSendingFailed => {
+                Self::Halt(Halt::UnexpectedVMBehavior(format!("Failed to send log via L1Messenger for: {}", revert_reason)))
+            },
+            BootloaderErrorCode::L1MessengerPublishingFailed => {
+                Self::Halt(Halt::UnexpectedVMBehavior(format!("Failed to publish pubdata via L1Messenger for: {}", revert_reason)))
+            },
+            BootloaderErrorCode::FailedToCallSystemContext => {
+                Self::Halt(Halt::UnexpectedVMBehavior(format!("Failed to call system context contract: {}", revert_reason)))
+            },
             BootloaderErrorCode::Unknown => Self::Halt(Halt::UnexpectedVMBehavior(format!(
                 "Unsupported error code: {}. Revert reason: {}",
                 error_code[0], revert_reason
@@ -121,8 +130,8 @@ impl TxRevertReason {
                 Self::Halt(Halt::FailedToSetL2Block(format!("{}", revert_reason)))
 
             }
-            BootloaderErrorCode::FailedToPublishBlockDataToL1 => {
-                Self::Halt(Halt::UnexpectedVMBehavior(format!("Failed to publish block data to L1: {}", revert_reason)))
+            BootloaderErrorCode::FailedToPublishTimestampDataToL1 => {
+                Self::Halt(Halt::UnexpectedVMBehavior(format!("Failed to publish timestamp data to L1: {}", revert_reason)))
             }
         }
     }

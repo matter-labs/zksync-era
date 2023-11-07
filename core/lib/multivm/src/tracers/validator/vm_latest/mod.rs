@@ -1,4 +1,4 @@
-use zk_evm_1_3_3::{
+use zk_evm_1_4_0::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{ContextOpcode, FarCallABI, LogOpcode, Opcode},
 };
@@ -15,23 +15,25 @@ use zksync_utils::{h256_to_account_address, u256_to_account_address, u256_to_h25
 use crate::vm_latest::tracers::utils::{
     computational_gas_price, get_calldata_page_via_abi, print_debug_if_needed, VmHook,
 };
-use crate::vm_latest::SimpleMemory;
-use crate::vm_latest::VmTracer;
 
-use crate::interface::traits::tracers::dyn_tracers::vm_1_3_3::DynTracer;
-use crate::interface::types::tracer::{TracerExecutionStatus, TracerExecutionStopReason};
-use crate::interface::Halt;
-use crate::tracers::validator::types::{NewTrustedValidationItems, ValidationTracerMode};
-use crate::tracers::validator::{ValidationRoundResult, ValidationTracer};
+use crate::interface::{
+    traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
+    types::tracer::{TracerExecutionStatus, TracerExecutionStopReason},
+    Halt,
+};
+use crate::tracers::validator::{
+    types::{NewTrustedValidationItems, ValidationTracerMode},
+    {ValidationRoundResult, ValidationTracer},
+};
 
-use crate::vm_latest::{BootloaderState, ZkSyncVmState};
+use crate::vm_latest::{BootloaderState, SimpleMemory, VmTracer, ZkSyncVmState};
 
 impl<H: HistoryMode> ValidationTracer<H> {
     fn check_user_restrictions_vm_latest<S: WriteStorage>(
         &mut self,
         state: VmLocalStateData<'_>,
         data: BeforeExecutionData,
-        memory: &SimpleMemory<H::VmVirtualBlocksRefundsEnhancement>,
+        memory: &SimpleMemory<H::VmBoojumIntegration>,
         storage: StoragePtr<S>,
     ) -> ValidationRoundResult {
         if self.computational_gas_used > self.computational_gas_limit {
@@ -125,14 +127,14 @@ impl<H: HistoryMode> ValidationTracer<H> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode>
-    DynTracer<S, SimpleMemory<H::VmVirtualBlocksRefundsEnhancement>> for ValidationTracer<H>
+impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H::VmBoojumIntegration>>
+    for ValidationTracer<H>
 {
     fn before_execution(
         &mut self,
         state: VmLocalStateData<'_>,
         data: BeforeExecutionData,
-        memory: &SimpleMemory<H::VmVirtualBlocksRefundsEnhancement>,
+        memory: &SimpleMemory<H::VmBoojumIntegration>,
         storage: StoragePtr<S>,
     ) {
         // For now, we support only validations for users.
@@ -180,12 +182,10 @@ impl<S: WriteStorage, H: HistoryMode>
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H::VmVirtualBlocksRefundsEnhancement>
-    for ValidationTracer<H>
-{
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H::VmBoojumIntegration> for ValidationTracer<H> {
     fn finish_cycle(
         &mut self,
-        _state: &mut ZkSyncVmState<S, H::VmVirtualBlocksRefundsEnhancement>,
+        _state: &mut ZkSyncVmState<S, H::VmBoojumIntegration>,
         _bootloader_state: &mut BootloaderState,
     ) -> TracerExecutionStatus {
         if self.should_stop_execution {

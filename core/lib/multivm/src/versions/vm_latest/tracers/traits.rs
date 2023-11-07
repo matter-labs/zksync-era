@@ -1,6 +1,5 @@
-use crate::interface::tracer::VmExecutionStopReason;
-use crate::interface::traits::tracers::dyn_tracers::vm_1_3_3::DynTracer;
-use crate::interface::types::tracer::TracerExecutionStatus;
+use crate::interface::dyn_tracers::vm_1_4_0::DynTracer;
+use crate::interface::tracer::{TracerExecutionStatus, VmExecutionStopReason};
 use zksync_state::WriteStorage;
 
 use crate::vm_latest::bootloader_state::BootloaderState;

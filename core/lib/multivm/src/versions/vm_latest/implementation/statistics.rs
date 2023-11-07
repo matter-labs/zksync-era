@@ -1,4 +1,4 @@
-use zk_evm_1_3_3::aux_structures::Timestamp;
+use zk_evm_1_4_0::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
 use crate::HistoryMode;
@@ -18,7 +18,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         &self,
         timestamp_initial: Timestamp,
         cycles_initial: u32,
-        tracer: &DefaultExecutionTracer<S, H::VmVirtualBlocksRefundsEnhancement>,
+        tracer: &DefaultExecutionTracer<S, H::VmBoojumIntegration>,
         gas_remaining_before: u32,
         gas_remaining_after: u32,
         spent_pubdata_counter_before: u32,

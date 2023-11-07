@@ -7,6 +7,7 @@ macro_rules! dispatch_vm {
             VmInstance::Vm1_3_2(vm) => vm.$function($($params)*),
             VmInstance::VmVirtualBlocks(vm) => vm.$function($($params)*),
             VmInstance::VmVirtualBlocksRefundsEnhancement(vm) => vm.$function($($params)*),
+            VmInstance::VmBoojumIntegration(vm) => vm.$function($($params)*),
         }
     };
 }

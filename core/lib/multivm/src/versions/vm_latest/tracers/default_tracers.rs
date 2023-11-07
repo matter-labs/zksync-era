@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use crate::dispatch_tracers;
 use crate::interface::tracer::{TracerExecutionStopReason, VmExecutionStopReason};
 use crate::interface::{Halt, VmExecutionMode};
-use zk_evm_1_3_3::{
+use zk_evm_1_4_0::{
     tracing::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
     },
@@ -15,7 +15,7 @@ use zk_evm_1_3_3::{
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::Timestamp;
 
-use crate::interface::traits::tracers::dyn_tracers::vm_1_3_3::DynTracer;
+use crate::interface::traits::tracers::dyn_tracers::vm_1_4_0::DynTracer;
 use crate::interface::types::tracer::TracerExecutionStatus;
 use crate::vm_latest::bootloader_state::utils::apply_l2_block;
 use crate::vm_latest::bootloader_state::BootloaderState;
@@ -30,6 +30,8 @@ use crate::vm_latest::tracers::utils::{
 use crate::vm_latest::tracers::{RefundsTracer, ResultTracer};
 use crate::vm_latest::types::internals::ZkSyncVmState;
 use crate::vm_latest::VmTracer;
+
+use super::PubdataTracer;
 
 /// Default tracer for the VM. It manages the other tracers execution and stop the vm when needed.
 pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
@@ -48,6 +50,10 @@ pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     // ensures static dispatch, enhancing performance by avoiding dynamic dispatch overhead.
     // Additionally, being an internal tracer, it saves the results directly to VmResultAndLogs.
     pub(crate) refund_tracer: Option<RefundsTracer<S>>,
+    // The pubdata tracer is responsible for inserting the pubdata packing information into the bootloader
+    // memory at the end of the batch. Its separation from the custom tracer
+    // ensures static dispatch, enhancing performance by avoiding dynamic dispatch overhead.
+    pub(crate) pubdata_tracer: Option<PubdataTracer<S>>,
     pub(crate) dispatcher: TracerDispatcher<S, H>,
     ret_from_the_bootloader: Option<RetOpcode>,
     storage: StoragePtr<S>,
@@ -82,7 +88,7 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
     ) {
         dispatch_tracers!(
         required: [result_tracer, dispatcher],
-        optional: [refund_tracer],
+        optional: [refund_tracer, pubdata_tracer],
             self.after_decoding(state, data, memory)
         );
     }
@@ -115,7 +121,7 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
 
         dispatch_tracers!(
         required: [result_tracer, dispatcher],
-        optional: [refund_tracer],
+        optional: [refund_tracer, pubdata_tracer],
         self.before_execution(state, data, memory, self.storage.clone())
         );
     }
@@ -127,7 +133,7 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
         memory: &Self::SupportedMemory,
     ) {
         if let VmExecutionMode::Bootloader = self.execution_mode {
-            let (next_opcode, _, _) = zk_evm_1_3_3::vm_state::read_and_decode(
+            let (next_opcode, _, _) = zk_evm_1_4_0::vm_state::read_and_decode(
                 state.vm_local_state,
                 memory,
                 &mut DummyTracer,
@@ -142,7 +148,7 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
 
         dispatch_tracers!(
         required: [result_tracer, dispatcher],
-        optional: [refund_tracer],
+        optional: [refund_tracer, pubdata_tracer],
             self.after_execution(state, data, memory, self.storage.clone())
         );
     }
@@ -155,6 +161,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         dispatcher: TracerDispatcher<S, H>,
         storage: StoragePtr<S>,
         refund_tracer: Option<RefundsTracer<S>>,
+        pubdata_tracer: Option<PubdataTracer<S>>,
     ) -> Self {
         Self {
             tx_has_been_processed: false,
@@ -167,6 +174,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             result_tracer: ResultTracer::new(execution_mode),
             refund_tracer,
             dispatcher,
+            pubdata_tracer,
             ret_from_the_bootloader: None,
             storage,
             _phantom: Default::default(),
@@ -224,7 +232,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
     pub(crate) fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
         dispatch_tracers!(
         required: [result_tracer, dispatcher],
-        optional: [refund_tracer],
+        optional: [refund_tracer, pubdata_tracer],
             self.initialize_tracer(state)
         );
     }
@@ -248,6 +256,11 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             .dispatcher
             .finish_cycle(state, bootloader_state)
             .stricter(&result);
+        if let Some(pubdata_tracer) = &mut self.pubdata_tracer {
+            result = pubdata_tracer
+                .finish_cycle(state, bootloader_state)
+                .stricter(&result);
+        }
         result.stricter(&self.should_stop_execution())
     }
 
@@ -259,7 +272,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
     ) {
         dispatch_tracers!(
         required: [result_tracer, dispatcher],
-        optional: [refund_tracer],
+        optional: [refund_tracer, pubdata_tracer],
             self.after_vm_execution(state, bootloader_state, stop_reason.clone())
         );
     }

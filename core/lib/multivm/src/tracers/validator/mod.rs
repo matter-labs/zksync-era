@@ -1,5 +1,6 @@
 mod types;
 mod vm_latest;
+mod vm_refunds_enhancement;
 mod vm_virtual_blocks;
 
 use std::sync::Arc;

@@ -1,9 +1,9 @@
-use crate::interface::dyn_tracers::vm_1_3_3::DynTracer;
+use crate::interface::dyn_tracers::vm_1_4_0::DynTracer;
 use crate::interface::tracer::{TracerExecutionStatus, VmExecutionStopReason};
 use crate::vm_latest::{
     BootloaderState, HistoryMode, SimpleMemory, TracerPointer, VmTracer, ZkSyncVmState,
 };
-use zk_evm_1_3_3::tracing::{
+use zk_evm_1_4_0::tracing::{
     AfterDecodingData, AfterExecutionData, BeforeExecutionData, VmLocalStateData,
 };
 use zksync_state::{StoragePtr, WriteStorage};

@@ -18,7 +18,8 @@ pub enum VmInstance<S: WriteStorage, H: HistoryMode> {
     VmM6(crate::vm_m6::Vm<S, H>),
     Vm1_3_2(crate::vm_1_3_2::Vm<S, H>),
     VmVirtualBlocks(crate::vm_virtual_blocks::Vm<S, H>),
-    VmVirtualBlocksRefundsEnhancement(crate::vm_latest::Vm<S, H>),
+    VmVirtualBlocksRefundsEnhancement(crate::vm_refunds_enhancement::Vm<S, H>),
+    VmBoojumIntegration(crate::vm_latest::Vm<S, H>),
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for VmInstance<S, H> {
@@ -169,8 +170,13 @@ impl<S: WriteStorage, H: HistoryMode> VmInstance<S, H> {
                 VmInstance::VmVirtualBlocks(vm)
             }
             VmVersion::VmVirtualBlocksRefundsEnhancement => {
-                let vm = crate::vm_latest::Vm::new(l1_batch_env, system_env, storage_view);
+                let vm =
+                    crate::vm_refunds_enhancement::Vm::new(l1_batch_env, system_env, storage_view);
                 VmInstance::VmVirtualBlocksRefundsEnhancement(vm)
+            }
+            VmVersion::VmBoojumIntegration => {
+                let vm = crate::vm_latest::Vm::new(l1_batch_env, system_env, storage_view);
+                VmInstance::VmBoojumIntegration(vm)
             }
         }
     }
