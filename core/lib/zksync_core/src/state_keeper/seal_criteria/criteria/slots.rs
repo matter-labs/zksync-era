@@ -36,7 +36,12 @@ mod tests {
 
     #[test]
     fn test_slots_seal_criterion() {
-        let config = StateKeeperConfig::from_env().unwrap();
+        // Create an empty config and only setup fields relevant for the test.
+        let config = StateKeeperConfig {
+            transaction_slots: 2,
+            ..Default::default()
+        };
+
         let criterion = SlotsCriterion;
 
         let almost_full_block_resolution = criterion.should_seal(

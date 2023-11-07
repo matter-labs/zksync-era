@@ -35,7 +35,7 @@ use crate::vm_1_3_2::{
     utils::{
         code_page_candidate_from_base, heap_page_from_base, BLOCK_GAS_LIMIT, INITIAL_BASE_PAGE,
     },
-    vm::ZkSyncVmState,
+    vm_instance::ZkSyncVmState,
     OracleTools, VmInstance,
 };
 

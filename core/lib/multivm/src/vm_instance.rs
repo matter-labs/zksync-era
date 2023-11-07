@@ -1,13 +1,15 @@
 use crate::interface::{
-    FinishedL1Batch, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmMemoryMetrics,
+    FinishedL1Batch, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
+    VmInterfaceHistoryEnabled, VmMemoryMetrics,
 };
+
 use std::collections::HashSet;
 
 use zksync_state::{ReadStorage, StorageView};
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
 
 use crate::glue::history_mode::HistoryMode;
-use crate::glue::tracer::MultivmTracer;
+use crate::glue::tracers::MultivmTracer;
 use crate::glue::GlueInto;
 
 pub struct VmInstance<S: ReadStorage, H: HistoryMode> {
@@ -21,13 +23,9 @@ pub(crate) enum VmInstanceVersion<S: ReadStorage, H: HistoryMode> {
     VmM5(Box<crate::vm_m5::VmInstance<StorageView<S>>>),
     VmM6(Box<crate::vm_m6::VmInstance<StorageView<S>, H::VmM6Mode>>),
     Vm1_3_2(Box<crate::vm_1_3_2::VmInstance<StorageView<S>, H::Vm1_3_2Mode>>),
-    VmVirtualBlocks(Box<crate::vm_virtual_blocks::Vm<StorageView<S>, H::VmVirtualBlocksMode>>),
-    VmVirtualBlocksRefundsEnhancement(
-        Box<
-            crate::vm_refunds_enhancement::Vm<StorageView<S>, H::VmVirtualBlocksRefundsEnhancement>,
-        >,
-    ),
-    VmBoojumIntegration(Box<crate::vm_latest::Vm<StorageView<S>, H::VmBoojumIntegration>>),
+    VmVirtualBlocks(Box<crate::vm_virtual_blocks::Vm<StorageView<S>, H>>),
+    VmVirtualBlocksRefundsEnhancement(Box<crate::vm_refunds_enhancement::Vm<StorageView<S>, H>>),
+    VmBoojumIntegration(Box<crate::vm_latest::Vm<StorageView<S>, H>>),
 }
 
 impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
@@ -210,26 +208,21 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
         tracers: Vec<Box<dyn MultivmTracer<StorageView<S>, H>>>,
     ) -> crate::interface::VmExecutionResultAndLogs {
         match &mut self.vm {
-            VmInstanceVersion::VmVirtualBlocks(vm) => vm
-                .inspect(
-                    tracers
-                        .into_iter()
-                        .map(|tracer| tracer.vm_virtual_blocks())
-                        .collect(),
-                    VmExecutionMode::OneTx.glue_into(),
-                )
-                .glue_into(),
-            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => vm.inspect(
-                tracers
+            VmInstanceVersion::VmVirtualBlocks(vm) => {
+                let tracers: Vec<_> = tracers.into_iter().map(|t| t.vm_virtual_blocks()).collect();
+                vm.inspect(tracers.into(), VmExecutionMode::OneTx)
+            }
+            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
+                let tracers: Vec<_> = tracers
                     .into_iter()
-                    .map(|tracer| tracer.vm_refunds_enhancement())
-                    .collect(),
-                VmExecutionMode::OneTx,
-            ),
-            VmInstanceVersion::VmBoojumIntegration(vm) => vm.inspect(
-                tracers.into_iter().map(|tracer| tracer.latest()).collect(),
-                VmExecutionMode::OneTx,
-            ),
+                    .map(|t| t.vm_refunds_enhancement())
+                    .collect();
+                vm.inspect(tracers.into(), VmExecutionMode::OneTx)
+            }
+            VmInstanceVersion::VmBoojumIntegration(vm) => {
+                let tracers: Vec<_> = tracers.into_iter().map(|t| t.latest()).collect();
+                vm.inspect(tracers.into(), VmExecutionMode::OneTx)
+            }
             _ => self.execute_next_transaction(),
         }
     }
@@ -403,31 +396,33 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
         crate::interface::BytecodeCompressionError,
     > {
         match &mut self.vm {
-            VmInstanceVersion::VmVirtualBlocks(vm) => vm
-                .inspect_transaction_with_bytecode_compression(
-                    tracers
-                        .into_iter()
-                        .map(|tracer| tracer.vm_virtual_blocks())
-                        .collect(),
+            VmInstanceVersion::VmVirtualBlocks(vm) => {
+                let tracers: Vec<_> = tracers.into_iter().map(|t| t.vm_virtual_blocks()).collect();
+                vm.inspect_transaction_with_bytecode_compression(
+                    tracers.into(),
                     tx,
                     with_compression,
                 )
-                .glue_into(),
-            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => vm
-                .inspect_transaction_with_bytecode_compression(
-                    tracers
-                        .into_iter()
-                        .map(|tracer| tracer.vm_refunds_enhancement())
-                        .collect(),
+            }
+            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
+                let tracers: Vec<_> = tracers
+                    .into_iter()
+                    .map(|t| t.vm_refunds_enhancement())
+                    .collect();
+                vm.inspect_transaction_with_bytecode_compression(
+                    tracers.into(),
                     tx,
                     with_compression,
-                ),
-            VmInstanceVersion::VmBoojumIntegration(vm) => vm
-                .inspect_transaction_with_bytecode_compression(
-                    tracers.into_iter().map(|tracer| tracer.latest()).collect(),
+                )
+            }
+            VmInstanceVersion::VmBoojumIntegration(vm) => {
+                let tracers: Vec<_> = tracers.into_iter().map(|t| t.latest()).collect();
+                vm.inspect_transaction_with_bytecode_compression(
+                    tracers.into(),
                     tx,
                     with_compression,
-                ),
+                )
+            }
             _ => {
                 self.last_tx_compressed_bytecodes = vec![];
                 self.execute_transaction_with_bytecode_compression(tx, with_compression)

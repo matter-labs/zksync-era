@@ -4,7 +4,6 @@
 //! Poll interval is configured using the `ETH_POLL_INTERVAL` constant.
 //! Number of confirmations is configured using the `CONFIRMATIONS_FOR_ETH_EVENT` environment variable.
 
-use anyhow::Context as _;
 use tokio::{sync::watch, task::JoinHandle};
 
 use std::time::Duration;
@@ -188,18 +187,18 @@ impl<W: EthClient + Sync> EthWatch<W> {
 }
 
 pub async fn start_eth_watch<E: EthInterface + Send + Sync + 'static>(
+    config: ETHWatchConfig,
     pool: ConnectionPool,
     eth_gateway: E,
     diamond_proxy_addr: Address,
     governance: (Contract, Address),
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<JoinHandle<anyhow::Result<()>>> {
-    let eth_watch = ETHWatchConfig::from_env().context("ETHWatchConfig::from_env()")?;
     let eth_client = EthHttpQueryClient::new(
         eth_gateway,
         diamond_proxy_addr,
         Some(governance.1),
-        eth_watch.confirmations_for_eth_event,
+        config.confirmations_for_eth_event,
     );
 
     let mut eth_watch = EthWatch::new(
@@ -207,7 +206,7 @@ pub async fn start_eth_watch<E: EthInterface + Send + Sync + 'static>(
         Some(governance.0),
         eth_client,
         &pool,
-        eth_watch.poll_interval(),
+        config.poll_interval(),
     )
     .await;
 

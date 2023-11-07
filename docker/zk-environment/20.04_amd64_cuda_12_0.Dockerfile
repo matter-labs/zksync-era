@@ -69,7 +69,6 @@ RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y
 RUN rustup install nightly-2023-07-21
 RUN rustup default stable
 RUN cargo install --version=0.5.13 sqlx-cli
-RUN cargo install cargo-tarpaulin
 RUN cargo install cargo-nextest
 
 # Copy compiler (both solc and zksolc) binaries
