@@ -352,12 +352,12 @@ impl BlocksDal<'_, '_> {
         let l2_to_l1_logs: Vec<_> = header
             .l2_to_l1_logs
             .iter()
-            .map(|log| log.to_bytes().to_vec())
+            .map(|log| log.0.to_bytes().to_vec())
             .collect();
         let system_logs = header
             .system_logs
             .iter()
-            .map(|log| log.to_bytes().to_vec())
+            .map(|log| log.0.to_bytes().to_vec())
             .collect::<Vec<Vec<u8>>>();
 
         // Serialization should always succeed.
@@ -994,6 +994,52 @@ impl BlocksDal<'_, '_> {
         })
     }
 
+    pub async fn pre_boojum_get_ready_for_commit_l1_batches(
+        &mut self,
+        limit: usize,
+        bootloader_hash: H256,
+        default_aa_hash: H256,
+        protocol_version_id: ProtocolVersionId,
+    ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
+        let raw_batches = sqlx::query_as!(
+            StorageL1Batch,
+            "SELECT number, l1_batches.timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, \
+                bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, \
+                compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, \
+                merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, \
+                used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, \
+                l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, \
+                rollup_last_leaf_index, zkporter_is_available, l1_batches.bootloader_code_hash, \
+                l1_batches.default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
+                meta_parameters_hash, protocol_version, compressed_state_diffs, \
+                system_logs, events_queue_commitment, bootloader_initial_content_commitment \
+            FROM l1_batches \
+            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
+            JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version \
+            WHERE eth_commit_tx_id IS NULL \
+                AND number != 0 \
+                AND protocol_versions.bootloader_code_hash = $1 AND protocol_versions.default_account_code_hash = $2 \
+                AND commitment IS NOT NULL \
+                AND (protocol_versions.id = $3 OR protocol_versions.upgrade_tx_hash IS NULL) \
+            ORDER BY number LIMIT $4",
+            bootloader_hash.as_bytes(),
+            default_aa_hash.as_bytes(),
+            protocol_version_id as i32,
+            limit as i64,
+        )
+            .instrument("get_ready_for_commit_l1_batches")
+            .with_arg("limit", &limit)
+            .with_arg("bootloader_hash", &bootloader_hash)
+            .with_arg("default_aa_hash", &default_aa_hash)
+            .with_arg("protocol_version_id", &protocol_version_id)
+            .fetch_all(self.storage.conn())
+            .await?;
+
+        self.map_l1_batches(raw_batches)
+            .await
+            .context("map_l1_batches()")
+    }
+
     pub async fn get_ready_for_commit_l1_batches(
         &mut self,
         limit: usize,
@@ -1021,6 +1067,7 @@ impl BlocksDal<'_, '_> {
                 AND protocol_versions.bootloader_code_hash = $1 AND protocol_versions.default_account_code_hash = $2 \
                 AND commitment IS NOT NULL \
                 AND (protocol_versions.id = $3 OR protocol_versions.upgrade_tx_hash IS NULL) \
+                AND events_queue_commitment IS NOT NULL AND bootloader_initial_content_commitment IS NOT NULL \
             ORDER BY number LIMIT $4",
             bootloader_hash.as_bytes(),
             default_aa_hash.as_bytes(),
@@ -1479,7 +1526,10 @@ impl BlocksDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_contracts::BaseSystemContractsHashes;
-    use zksync_types::{l2_to_l1_log::L2ToL1Log, Address, ProtocolVersion, ProtocolVersionId};
+    use zksync_types::{
+        l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
+        Address, ProtocolVersion, ProtocolVersionId,
+    };
 
     use super::*;
     use crate::ConnectionPool;
@@ -1508,14 +1558,14 @@ mod tests {
         );
         header.l1_tx_count = 3;
         header.l2_tx_count = 5;
-        header.l2_to_l1_logs.push(L2ToL1Log {
+        header.l2_to_l1_logs.push(UserL2ToL1Log(L2ToL1Log {
             shard_id: 0,
             is_service: false,
             tx_number_in_block: 2,
             sender: Address::repeat_byte(2),
             key: H256::repeat_byte(3),
             value: H256::zero(),
-        });
+        }));
         header.l2_to_l1_messages.push(vec![22; 22]);
         header.l2_to_l1_messages.push(vec![33; 33]);
 

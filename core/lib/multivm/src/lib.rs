@@ -22,4 +22,5 @@ pub use versions::vm_1_3_2;
 pub use versions::vm_latest;
 pub use versions::vm_m5;
 pub use versions::vm_m6;
+pub use versions::vm_refunds_enhancement;
 pub use versions::vm_virtual_blocks;
