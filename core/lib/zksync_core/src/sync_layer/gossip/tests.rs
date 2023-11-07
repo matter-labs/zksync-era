@@ -3,8 +3,6 @@
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 
-use std::future::Future;
-
 use zksync_concurrency::{ctx, scope, time};
 use zksync_consensus_executor::testonly::FullValidatorConfig;
 use zksync_consensus_roles::validator::{self, FinalBlock};
@@ -133,15 +131,6 @@ pub(super) async fn assert_second_block_actions(actions: &mut ActionQueue) -> Ve
     received_actions
 }
 
-/// Wraps a background task so that it returns `Ok(())` if it's canceled.
-async fn wrap_bg_task(task: impl Future<Output = anyhow::Result<()>>) -> anyhow::Result<()> {
-    match task.await {
-        Ok(()) => Ok(()),
-        Err(err) if err.root_cause().is::<ctx::Canceled>() => Ok(()),
-        Err(err) => Err(err),
-    }
-}
-
 #[test_casing(4, Product(([false, true], [false, true])))]
 #[tokio::test]
 async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block: bool) {
@@ -187,14 +176,14 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
     let (keeper_actions_sender, keeper_actions) = ActionQueue::new();
     let state_keeper = StateKeeperHandles::new(pool.clone(), keeper_actions, &[&tx_hashes]).await;
     scope::run!(ctx, |ctx, s| async {
-        s.spawn_bg(wrap_bg_task(validator.run(ctx)));
-        s.spawn_bg(wrap_bg_task(start_gossip_fetcher_inner(
+        s.spawn_bg(validator.run(ctx));
+        s.spawn_bg(run_gossip_fetcher_inner(
             ctx,
             pool.clone(),
             actions_sender,
             external_node.node_config,
             external_node.node_key,
-        )));
+        ));
 
         if delay_first_block {
             ctx.sleep(POLL_INTERVAL).await?;
@@ -308,7 +297,7 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
     let (actions_sender, actions) = ActionQueue::new();
     let state_keeper = StateKeeperHandles::new(pool.clone(), actions, &tx_hashes).await;
     scope::run!(ctx, |ctx, s| async {
-        s.spawn_bg(wrap_bg_task(validator.run(ctx)));
+        s.spawn_bg(validator.run(ctx));
         s.spawn_bg(async {
             for block in delayed_blocks {
                 ctx.sleep(POLL_INTERVAL).await?;
@@ -322,13 +311,13 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
             mock_l1_batch_hash_computation(cloned_pool, 1).await;
             Ok(())
         });
-        s.spawn_bg(wrap_bg_task(start_gossip_fetcher_inner(
+        s.spawn_bg(run_gossip_fetcher_inner(
             ctx,
             pool.clone(),
             actions_sender,
             external_node.node_config,
             external_node.node_key,
-        )));
+        ));
 
         state_keeper
             .wait(|state| state.get_local_block() == MiniblockNumber(3))

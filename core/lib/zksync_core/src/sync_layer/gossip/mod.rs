@@ -22,39 +22,33 @@ use self::{buffered::Buffered, storage::PostgresBlockStorage};
 use super::{fetcher::FetcherCursor, sync_action::ActionQueueSender};
 
 /// Starts fetching L2 blocks using peer-to-peer gossip network.
-pub async fn start_gossip_fetcher(
+pub async fn run_gossip_fetcher(
     pool: ConnectionPool,
     actions: ActionQueueSender,
     executor_config: ExecutorConfig,
     node_key: node::SecretKey,
     mut stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
-    let result = scope::run!(&ctx::root(), |ctx, s| {
-        s.spawn_bg(async {
-            if stop_receiver.changed().await.is_err() {
-                tracing::warn!(
-                    "Stop signal sender for gossip fetcher was dropped without sending a signal"
-                );
-            }
-            s.cancel();
-            tracing::info!("Stop signal received, gossip fetcher is shutting down");
-            Ok(())
-        });
-        start_gossip_fetcher_inner(ctx, pool, actions, executor_config, node_key)
-    })
-    .await;
-
-    result.or_else(|err| {
-        if err.root_cause().is::<ctx::Canceled>() {
-            tracing::info!("Gossip fetcher is shut down");
-            Ok(())
-        } else {
-            Err(err)
+    scope::run!(&ctx::root(), |ctx, s| async {
+        s.spawn_bg(run_gossip_fetcher_inner(
+            ctx,
+            pool,
+            actions,
+            executor_config,
+            node_key,
+        ));
+        if stop_receiver.changed().await.is_err() {
+            tracing::warn!(
+                "Stop signal sender for gossip fetcher was dropped without sending a signal"
+            );
         }
+        tracing::info!("Stop signal received, gossip fetcher is shutting down");
+        Ok(())
     })
+    .await
 }
 
-async fn start_gossip_fetcher_inner(
+async fn run_gossip_fetcher_inner(
     ctx: &ctx::Ctx,
     pool: ConnectionPool,
     actions: ActionQueueSender,

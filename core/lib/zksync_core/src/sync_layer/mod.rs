@@ -11,6 +11,6 @@ mod sync_state;
 mod tests;
 
 pub use self::{
-    client::MainNodeClient, external_io::ExternalIO, gossip::start_gossip_fetcher,
+    client::MainNodeClient, external_io::ExternalIO, gossip::run_gossip_fetcher,
     sync_action::ActionQueue, sync_state::SyncState,
 };
