@@ -18,6 +18,7 @@ impl<S: WriteStorage, H: HistoryMode> TracerDispatcher<S, H> {
         Self { tracers }
     }
 }
+
 impl<S: WriteStorage, H: HistoryMode> From<TracerPointer<S, H>> for TracerDispatcher<S, H> {
     fn from(value: TracerPointer<S, H>) -> Self {
         Self {

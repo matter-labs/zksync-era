@@ -6,7 +6,7 @@ use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 use zksync_state::WriteStorage;
 use zksync_types::{get_nonce_key, Execute, U256};
 
-use crate::interface::dyn_tracers::vm_1_3_3::DynTracer;
+use crate::interface::dyn_tracers::vm_1_4_0::DynTracer;
 use crate::interface::tracer::{TracerExecutionStatus, TracerExecutionStopReason};
 use crate::interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceHistoryEnabled};
 use crate::vm_latest::tests::tester::{
@@ -158,7 +158,7 @@ struct MaxRecursionTracer {
 
 /// Tracer responsible for calculating the number of storage invocations and
 /// stopping the VM execution if the limit is reached.
-impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for MaxRecursionTracer {}
+impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for MaxRecursionTracer {}
 
 impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for MaxRecursionTracer {
     fn finish_cycle(

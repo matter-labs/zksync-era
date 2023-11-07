@@ -15,11 +15,9 @@ use crate::vm_latest::utils::l2_blocks::get_l2_block_hash_key;
 use crate::vm_latest::{HistoryEnabled, Vm};
 use crate::HistoryMode;
 use zk_evm_1_4_0::aux_structures::Timestamp;
-use zksync_state::{ReadStorage, WriteStorage};
-use zksync_system_constants::{
-    CURRENT_VIRTUAL_BLOCK_INFO_POSITION, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
-};
-use zksync_types::block::{pack_block_info, unpack_block_info};
+use zksync_state::WriteStorage;
+use zksync_system_constants::REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE;
+use zksync_types::block::pack_block_info;
 use zksync_types::{
     block::{legacy_miniblock_hash, miniblock_hash},
     AccountTreeId, Execute, ExecuteTransactionCommon, L1BatchNumber, L1TxCommonData,
