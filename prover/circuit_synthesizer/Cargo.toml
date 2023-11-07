@@ -12,6 +12,7 @@ zksync_dal = { path = "../../core/lib/dal" }
 zksync_types = { path = "../../core/lib/types" }
 zksync_queued_job_processor = { path = "../../core/lib/queued_job_processor" }
 zksync_config = { path = "../../core/lib/config" }
+zksync_env_config = { path = "../../core/lib/env_config" }
 zksync_object_store = { path = "../../core/lib/object_store" }
 zksync_utils = { path = "../../core/lib/utils" }
 zksync_prover_fri_utils = { path = "../prover_fri_utils" }
