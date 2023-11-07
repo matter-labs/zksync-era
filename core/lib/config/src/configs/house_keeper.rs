@@ -4,7 +4,6 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct HouseKeeperConfig {
     pub l1_batch_metrics_reporting_interval_ms: u64,
-    pub blob_cleaning_interval_ms: u64,
     pub gpu_prover_queue_reporting_interval_ms: u64,
     pub prover_job_retrying_interval_ms: u64,
     pub prover_stats_reporting_interval_ms: u64,
