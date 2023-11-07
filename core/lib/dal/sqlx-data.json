@@ -244,21 +244,6 @@
     },
     "query": "\n                WITH events_select AS (\n                    SELECT\n                        address, topic1, topic2, topic3, topic4, value,\n                        miniblock_number, tx_hash, tx_index_in_block,\n                        event_index_in_block, event_index_in_tx\n                    FROM events\n                    WHERE miniblock_number > $1\n                    ORDER BY miniblock_number ASC, event_index_in_block ASC\n                )\n                SELECT miniblocks.hash as \"block_hash?\",\n                    address as \"address!\", topic1 as \"topic1!\", topic2 as \"topic2!\", topic3 as \"topic3!\", topic4 as \"topic4!\", value as \"value!\",\n                    miniblock_number as \"miniblock_number!\", miniblocks.l1_batch_number as \"l1_batch_number?\", tx_hash as \"tx_hash!\",\n                    tx_index_in_block as \"tx_index_in_block!\", event_index_in_block as \"event_index_in_block!\", event_index_in_tx as \"event_index_in_tx!\"\n                FROM events_select\n                INNER JOIN miniblocks ON events_select.miniblock_number = miniblocks.number\n                ORDER BY miniblock_number ASC, event_index_in_block ASC\n                "
   },
-  "073582051133075adfc51a18d15639129dd00628aa4994b602843ac979ad4419": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Int8",
-          "Bytea",
-          "Text",
-          "Int4"
-        ]
-      }
-    },
-    "query": "INSERT INTO witness_inputs(l1_batch_number, merkle_tree_paths, merkel_tree_paths_blob_url, status, protocol_version, created_at, updated_at) VALUES ($1, $2, $3, 'queued', $4, now(), now())\n                 ON CONFLICT (l1_batch_number) DO NOTHING"
-  },
   "073d304fe756940303f00b514ef1e24036a1d3d3c3c7fb204b484f681a3520d7": {
     "describe": {
       "columns": [],
@@ -5387,6 +5372,18 @@
     },
     "query": "INSERT INTO commitments (l1_batch_number, events_queue_commitment, bootloader_initial_content_commitment) VALUES ($1, $2, $3) ON CONFLICT (l1_batch_number) DO UPDATE SET events_queue_commitment = $2, bootloader_initial_content_commitment = $3"
   },
+  "694f1d154f3f38b123d8f845fef6e876d35dc3743f1c5b69dce6be694e5e726c": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "UPDATE witness_inputs SET status='queued' WHERE l1_batch_number=$1 AND status='waiting_for_artifacts'"
+  },
   "697835cdd5be1b99a0f332c4c8f3245e317b0282b46e55f15e728a7642382b25": {
     "describe": {
       "columns": [
@@ -7137,6 +7134,21 @@
       }
     },
     "query": "SELECT number, timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, meta_parameters_hash, protocol_version, compressed_state_diffs, system_logs, events_queue_commitment, bootloader_initial_content_commitment FROM l1_batches LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number WHERE eth_prove_tx_id IS NOT NULL AND eth_execute_tx_id IS NULL ORDER BY number LIMIT $1"
+  },
+  "8ff9d76b4791af1177231661847b6c8879ad625fd11c15de51a16c81d8712129": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Bytea",
+          "Text",
+          "Int4"
+        ]
+      }
+    },
+    "query": "INSERT INTO witness_inputs(l1_batch_number, merkle_tree_paths, merkel_tree_paths_blob_url, status, protocol_version, created_at, updated_at) VALUES ($1, $2, $3, 'waiting_for_artifacts', $4, now(), now()) ON CONFLICT (l1_batch_number) DO NOTHING"
   },
   "9008367aad7877f269b765c4d0772d0f60689fcde6987c620fe5749a259a8db7": {
     "describe": {

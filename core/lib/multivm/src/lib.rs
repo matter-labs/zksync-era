@@ -5,8 +5,10 @@
 
 pub use crate::{
     glue::{
-        block_properties::BlockProperties, history_mode::HistoryMode, oracle_tools::OracleTools,
-        tracer::MultivmTracer,
+        block_properties::BlockProperties,
+        history_mode::HistoryMode,
+        oracle_tools::OracleTools,
+        tracers::{MultiVmTracerPointer, MultivmTracer},
     },
     vm_instance::VmInstance,
 };
@@ -16,6 +18,7 @@ mod glue;
 mod vm_instance;
 
 pub mod interface;
+pub mod tracers;
 pub mod versions;
 
 pub use versions::vm_1_3_2;

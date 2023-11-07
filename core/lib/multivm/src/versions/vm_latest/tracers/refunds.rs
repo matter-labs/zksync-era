@@ -1,5 +1,7 @@
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 
+use crate::interface::traits::tracers::dyn_tracers::vm_1_4_0::DynTracer;
+use crate::interface::types::tracer::TracerExecutionStatus;
 use crate::interface::{L1BatchEnv, Refunds};
 use zk_evm_1_4_0::{
     aux_structures::Timestamp,
@@ -27,11 +29,10 @@ use crate::vm_latest::old_vm::{
 use crate::vm_latest::bootloader_state::BootloaderState;
 use crate::vm_latest::tracers::utils::gas_spent_on_bytecodes_and_long_messages_this_opcode;
 use crate::vm_latest::tracers::{
-    traits::{DynTracer, VmTracer},
+    traits::VmTracer,
     utils::{get_vm_hook_params, VmHook},
 };
 use crate::vm_latest::types::internals::ZkSyncVmState;
-use crate::vm_latest::TracerExecutionStatus;
 
 /// Tracer responsible for collecting information about refunds.
 #[derive(Debug, Clone)]
@@ -150,7 +151,7 @@ impl RefundsTracer {
     }
 }
 
-impl<S, H: HistoryMode> DynTracer<S, H> for RefundsTracer {
+impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for RefundsTracer {
     fn before_execution(
         &mut self,
         state: VmLocalStateData<'_>,
