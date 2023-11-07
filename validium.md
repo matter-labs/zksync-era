@@ -1,6 +1,6 @@
 ## Validium
 
-In order to start the node as a validium: 
+In order to start the node as a validium:
 
 - Run the zksync era node normally (`zk init --validium && zk server`)
 - `cargo run --bin zksync_full_stack` inits a wallet, deploys a contract and executes a tx

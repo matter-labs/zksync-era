@@ -1,14 +1,13 @@
-use std::str::FromStr;
+use ethers::abi::Abi;
 use ethers::providers::Http;
 use ethers::utils::parse_units;
+use std::str::FromStr;
 use zksync_web3_rs::providers::{Middleware, Provider};
 use zksync_web3_rs::signers::{LocalWallet, Signer};
-use zksync_web3_rs::ZKSWallet;
 use zksync_web3_rs::zks_provider::ZKSProvider;
-use zksync_web3_rs::zks_wallet::{DeployRequest, DepositRequest};
 use zksync_web3_rs::zks_wallet::CallRequest;
-use ethers::abi::Abi;
-
+use zksync_web3_rs::zks_wallet::{DeployRequest, DepositRequest};
+use zksync_web3_rs::ZKSWallet;
 
 static ERA_PROVIDER_URL: &str = "http://127.0.0.1:3050";
 static PRIVATE_KEY: &str = "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
@@ -18,11 +17,10 @@ static CONTRACT_ABI: &str = include_str!("../Greeter.abi");
 
 static L1_URL: &str = "http://localhost:8545";
 
-
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     let l1_provider =
-    Provider::<Http>::try_from(L1_URL).expect("Could not instantiate L1 Provider");
+        Provider::<Http>::try_from(L1_URL).expect("Could not instantiate L1 Provider");
     let zk_wallet = {
         let era_provider = Provider::try_from(ERA_PROVIDER_URL).unwrap();
 
@@ -30,7 +28,13 @@ async fn main() {
         let l2_wallet = LocalWallet::from_str(PRIVATE_KEY)
             .unwrap()
             .with_chain_id(chain_id.as_u64());
-        ZKSWallet::new(l2_wallet, None, Some(era_provider.clone()),Some(l1_provider.clone())).unwrap()
+        ZKSWallet::new(
+            l2_wallet,
+            None,
+            Some(era_provider.clone()),
+            Some(l1_provider.clone()),
+        )
+        .unwrap()
     };
 
     let deposit_transaction_hash = {
@@ -41,7 +45,7 @@ async fn main() {
             .await
             .expect("Failed to perform deposit transaction")
     };
-    
+
     println!("Deposit transaction hash: {:?}", deposit_transaction_hash);
 
     // Deploy contract:
@@ -102,11 +106,11 @@ async fn main() {
     {
         let era_provider = zk_wallet.get_era_provider().unwrap();
         let call_request = CallRequest::new(contract_address, "greet()(string)".to_owned());
-    
+
         let greet = ZKSProvider::call(era_provider.as_ref(), &call_request)
             .await
             .unwrap();
-    
+
         println!("greet: {}", greet[0]);
     }
 }
