@@ -1,4 +1,4 @@
-use std::{time::Duration, env};
+use std::{env, time::Duration};
 
 use zksync_dal::ConnectionPool;
 use zksync_types::{
@@ -34,12 +34,15 @@ impl ConsistencyChecker {
 
     async fn check_commitments(&self, batch_number: L1BatchNumber) -> Result<bool, error::Error> {
         let mut storage = self.db.access_storage().await.unwrap();
-        let validium: bool = env::var("VALIDIUM").map(|v| 
-            match v.as_str() {
-                "true" => true,
-                _ => false,
-            }
-        ).unwrap_or(false);
+        let validium: bool = env::var("VALIDIUM")
+            .map(|v| {
+                println!("env var validium: {}", v);
+                match v.as_str() {
+                    "true" => true,
+                    _ => false,
+                }
+            })
+            .unwrap_or(false);
 
         let storage_l1_batch = storage
             .blocks_dal()

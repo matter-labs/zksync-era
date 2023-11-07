@@ -28,7 +28,6 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
         deployerL2ContractInput
     } = initArgs;
 
-
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
         await announced('Checking environment', checkEnv());
@@ -191,9 +190,9 @@ export const reinitCommand = new Command('reinit')
     .description('"reinitializes" network. Runs faster than `init`, but requires `init` to be executed prior')
     .action(async (cmd: Command) => {
         await reinit(cmd.validium);
-    });;
+    });
 export const lightweightInitCommand = new Command('lightweight-init')
     .description('perform lightweight zksync network initialization for development')
     .action(async (cmd: Command) => {
         await lightweightInit(cmd.validium);
-    });;
+    });

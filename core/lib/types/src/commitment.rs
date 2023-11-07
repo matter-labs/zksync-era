@@ -184,6 +184,7 @@ impl L1BatchWithMetadata {
 
         if validium {
             res.extend(vec![1u8, 2u8, 3u8, 9u8]); // to check on eth_getTransactionByHash for the commit op
+            println!("entered validium path in  construct_pubdata()");
         } else {
             // Process and Pack Msgs
             res.extend((self.header.l2_to_l1_messages.len() as u32).to_be_bytes());
@@ -191,7 +192,7 @@ impl L1BatchWithMetadata {
                 res.extend((msg.len() as u32).to_be_bytes());
                 res.extend(msg);
             }
-            
+
             // Process and Pack Bytecodes
             res.extend((self.factory_deps.len() as u32).to_be_bytes());
             for bytecode in &self.factory_deps {

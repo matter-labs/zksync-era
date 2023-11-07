@@ -1,5 +1,6 @@
 #![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
 
+use std::env;
 use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
@@ -585,12 +586,21 @@ pub async fn initialize_components(
         let eth_client =
             PKSigningClient::from_config(&eth_sender, &contracts_config, &eth_client_config);
         let nonce = eth_client.pending_nonce("eth_sender").await.unwrap();
+        let validium: bool = env::var("VALIDIUM")
+            .map(|v| {
+                println!("validium env var is {}", v);
+                match v.as_str() {
+                    "true" => true,
+                    _ => false,
+                }
+            })
+            .unwrap_or(false);
         let eth_tx_aggregator_actor = EthTxAggregator::new(
             eth_sender.sender.clone(),
             Aggregator::new(
                 eth_sender.sender.clone(),
                 store_factory.create_store().await,
-                true //todo change
+                validium,
             ),
             contracts_config.validator_timelock_addr,
             contracts_config.l1_multicall3_addr,

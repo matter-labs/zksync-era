@@ -125,6 +125,7 @@ export async function deployL1(args: any[]) {
     await utils.spawn(`${baseCommand} deploy-no-build ${args.join(' ')} | tee deployL1.log`);
     const deployLog = fs.readFileSync('deployL1.log').toString();
     const envVars = [
+        'VALIDIUM',
         'CONTRACTS_CREATE2_FACTORY_ADDR',
         'CONTRACTS_ADMIN_FACET_ADDR',
         'CONTRACTS_DIAMOND_UPGRADE_INIT_ADDR',
@@ -153,8 +154,8 @@ export async function deployL1(args: any[]) {
 }
 
 export async function redeployL1(args: any[], validium: boolean) {
-    if (validium) { 
-        await deployL1([...args, '--only-verifier']);
+    if (validium) {
+        await deployL1([...args, '--validium']);
     } else {
         await deployL1(args);
     }

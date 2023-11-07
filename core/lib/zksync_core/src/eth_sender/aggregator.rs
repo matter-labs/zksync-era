@@ -44,7 +44,7 @@ impl Aggregator {
                 Box::from(DataSizeCriterion {
                     op: AggregatedActionType::Commit,
                     data_limit: config.max_eth_tx_data_size,
-                    validium
+                    validium,
                 }),
                 Box::from(TimestampDeadlineCriterion {
                     op: AggregatedActionType::Commit,
@@ -87,7 +87,7 @@ impl Aggregator {
             ],
             config,
             blob_store,
-            validium
+            validium,
         }
     }
 
@@ -131,7 +131,7 @@ impl Aggregator {
                 last_sealed_l1_batch_number,
                 base_system_contracts_hashes,
                 protocol_version_id,
-                self.validium
+                self.validium,
             )
             .await
             .map(AggregatedOperation::Commit)
