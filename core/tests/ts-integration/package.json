@@ -13,8 +13,8 @@
     "devDependencies": {
         "@matterlabs/hardhat-zksync-deploy": "^0.6.1",
         "@matterlabs/hardhat-zksync-solc": "^0.3.15",
-        "@matterlabs/hardhat-zksync-vyper": "^0.2.0",
-        "@nomiclabs/hardhat-vyper": "^3.0.3",
+        "@matterlabs/hardhat-zksync-vyper": "^1.0.0",
+        "@nomiclabs/hardhat-vyper": "^3.0.5",
         "@types/jest": "^29.0.3",
         "@types/node": "^14.14.5",
         "@types/node-fetch": "^2.5.7",
