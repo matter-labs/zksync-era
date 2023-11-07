@@ -5,6 +5,13 @@ use zksync_basic_types::{Address, H256};
 // Local uses
 use super::envy_load;
 
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum ProverAtGenesis {
+    Fri,
+    Old,
+}
+
 /// Data about deployed contracts.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ContractsConfig {
@@ -34,7 +41,7 @@ pub struct ContractsConfig {
     pub fri_recursion_scheduler_level_vk_hash: H256,
     pub fri_recursion_node_level_vk_hash: H256,
     pub fri_recursion_leaf_level_vk_hash: H256,
-    pub prover_at_genesis: String,
+    pub prover_at_genesis: ProverAtGenesis,
     pub snark_wrapper_vk_hash: H256,
 }
 
@@ -95,7 +102,7 @@ mod tests {
             fri_recursion_leaf_level_vk_hash: hash(
                 "0x72167c43a46cf38875b267d67716edc4563861364a3c03ab7aee73498421e828",
             ),
-            prover_at_genesis: "fri".to_string(),
+            prover_at_genesis: ProverAtGenesis::Fri,
             snark_wrapper_vk_hash: hash(
                 "0x4be443afd605a782b6e56d199df2460a025c81b3dea144e135bece83612563f2",
             ),

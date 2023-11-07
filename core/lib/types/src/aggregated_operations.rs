@@ -9,7 +9,7 @@ use zkevm_test_harness::bellman::plonk::better_better_cs::proof::Proof;
 use zkevm_test_harness::witness::oracle::VmWitnessOracle;
 use zksync_basic_types::{ethabi::Token, L1BatchNumber};
 
-use crate::commitment::L1BatchWithMetadata;
+use crate::{commitment::L1BatchWithMetadata, ProtocolVersionId, U256};
 
 fn l1_batch_range_from_batches(
     batches: &[L1BatchWithMetadata],
@@ -97,14 +97,29 @@ impl L1BatchProofOperation {
             assert_eq!(self.l1_batches.len(), 1);
 
             let L1BatchProofForL1 {
-                aggregation_result_coords: _,
+                aggregation_result_coords,
                 scheduler_proof,
             } = self.proofs.first().unwrap();
 
-            let (_inputs, proof) = serialize_proof(scheduler_proof);
+            let (_, proof) = serialize_proof(scheduler_proof);
 
+            let aggregation_result_coords = if self.l1_batches[0]
+                .header
+                .protocol_version
+                .unwrap()
+                .is_pre_boojum()
+            {
+                Token::Array(
+                    aggregation_result_coords
+                        .iter()
+                        .map(|bytes| Token::Uint(U256::from_big_endian(bytes)))
+                        .collect(),
+                )
+            } else {
+                Token::Array(Vec::new())
+            };
             let proof_input = Token::Tuple(vec![
-                Token::Array(vec![]),
+                aggregation_result_coords,
                 Token::Array(proof.into_iter().map(Token::Uint).collect()),
             ]);
 
@@ -213,6 +228,14 @@ impl AggregatedOperation {
             Self::Commit(_) => "commit",
             Self::PublishProofOnchain(_) => "proof",
             Self::Execute(_) => "execute",
+        }
+    }
+
+    pub fn protocol_version(&self) -> ProtocolVersionId {
+        match self {
+            Self::Commit(op) => op.l1_batches[0].header.protocol_version.unwrap(),
+            Self::PublishProofOnchain(op) => op.l1_batches[0].header.protocol_version.unwrap(),
+            Self::Execute(op) => op.l1_batches[0].header.protocol_version.unwrap(),
         }
     }
 }

@@ -1,5 +1,6 @@
 import * as hre from 'hardhat';
 import * as fs from 'fs';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { exec as _exec, spawn as _spawn } from 'child_process';
 
 import { getZksolcUrl, saltFromUrl } from '@matterlabs/hardhat-zksync-solc';

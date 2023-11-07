@@ -9,7 +9,7 @@ use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::protocol_version::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData};
 use zksync_types::web3::types::{Address, BlockNumber};
 use zksync_types::{
-    ethabi::{encode, Contract, Hash, Token},
+    ethabi::{encode, Hash, Token},
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     web3::types::Log,
     Execute, L1TxCommonData, PriorityOpId, ProtocolUpgrade, ProtocolVersion, ProtocolVersionId,
@@ -18,7 +18,7 @@ use zksync_types::{
 
 use super::client::Error;
 use crate::eth_watch::{
-    client::EthClient, event_processors::upgrades::old_zksync_contract, EthWatch,
+    client::EthClient, event_processors::upgrades::UPGRADE_PROPOSAL_SIGNATURE, EthWatch,
 };
 
 struct FakeEthClientData {
@@ -593,10 +593,7 @@ fn upgrade_into_diamond_proxy_log(upgrade: ProtocolUpgrade, eth_block: u64) -> L
     let data = encode(&[diamond_cut, Token::FixedBytes(vec![0u8; 32])]);
     Log {
         address: Address::repeat_byte(0x1),
-        topics: vec![old_zksync_contract()
-            .event("ProposeTransparentUpgrade")
-            .expect("ProposeTransparentUpgrade event is missing in abi")
-            .signature()],
+        topics: vec![UPGRADE_PROPOSAL_SIGNATURE],
         data: data.into(),
         block_hash: Some(H256::repeat_byte(0x11)),
         block_number: Some(eth_block.into()),

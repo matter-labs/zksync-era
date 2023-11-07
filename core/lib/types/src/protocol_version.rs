@@ -38,15 +38,16 @@ pub enum ProtocolVersionId {
     Version16,
     Version17,
     Version18,
+    Version19,
 }
 
 impl ProtocolVersionId {
     pub fn latest() -> Self {
-        Self::Version17
+        Self::Version18
     }
 
     pub fn next() -> Self {
-        Self::Version18
+        Self::Version19
     }
 
     /// Returns VM version to be used by API for this protocol version.
@@ -71,8 +72,13 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version15 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
-            ProtocolVersionId::Version18 => VmVersion::VmVirtualBlocksRefundsEnhancement,
+            ProtocolVersionId::Version18 => VmVersion::VmBoojumIntegration,
+            ProtocolVersionId::Version19 => VmVersion::VmBoojumIntegration,
         }
+    }
+
+    pub fn is_pre_boojum(&self) -> bool {
+        self < &ProtocolVersionId::Version18
     }
 }
 
@@ -685,7 +691,8 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version15 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
-            ProtocolVersionId::Version18 => VmVersion::VmVirtualBlocksRefundsEnhancement,
+            ProtocolVersionId::Version18 => VmVersion::VmBoojumIntegration,
+            ProtocolVersionId::Version19 => VmVersion::VmBoojumIntegration,
         }
     }
 }

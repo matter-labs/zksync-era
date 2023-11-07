@@ -154,13 +154,6 @@ impl RequestProcessor {
 
                 let mut storage = self.pool.access_storage().await.unwrap();
 
-                // let header = storage
-                //     .blocks_dal()
-                //     .get_l1_batch_header(l1_batch_number)
-                //     .await
-                //     .unwrap()
-                //     .expect("Proved block without a header");
-
                 let l1_batch = storage
                     .blocks_dal()
                     .get_l1_batch_metadata(l1_batch_number)
@@ -183,8 +176,9 @@ impl RequestProcessor {
                     .header
                     .system_logs
                     .into_iter()
-                    .find(|elem| elem.key == u256_to_h256(2.into()))
+                    .find(|elem| elem.0.key == u256_to_h256(2.into()))
                     .expect("No state diff hash key")
+                    .0
                     .value;
 
                 if events_queue_state != events_queue_state_from_prover
@@ -195,7 +189,10 @@ impl RequestProcessor {
                 {
                     let server_values = format!("{system_logs_hash} {state_diff_hash} {events_queue_state} {bootloader_heap_initial_content}");
                     let prover_values = format!("{system_logs_hash_from_prover} {state_diff_hash_from_prover} {events_queue_state_from_prover} {bootloader_heap_initial_content_from_prover}");
-                    tracing::error!("Auxilary output doesn't match, server values: {server_values} prover values: {prover_values}");
+                    panic!(
+                        "Auxilary output doesn't match, server values: {} prover values: {}",
+                        server_values, prover_values
+                    );
                 }
                 storage
                     .proof_generation_dal()

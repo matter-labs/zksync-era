@@ -6,7 +6,7 @@ use crate::{
     vm_latest::old_vm::history_recorder::HistoryMode, vm_latest::types::internals::ZkSyncVmState,
 };
 
-pub(crate) fn collect_events_and_l1_logs_after_timestamp<S: WriteStorage, H: HistoryMode>(
+pub(crate) fn collect_events_and_l1_system_logs_after_timestamp<S: WriteStorage, H: HistoryMode>(
     vm_state: &ZkSyncVmState<S, H>,
     batch_env: &L1BatchEnv,
     from_timestamp: Timestamp,

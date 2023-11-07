@@ -1,11 +1,11 @@
 use multivm::interface::{ExecutionResult, L2BlockEnv, VmExecutionResultAndLogs};
 use multivm::vm_latest::TransactionVmExt;
 use std::collections::HashMap;
+use zksync_types::l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log};
 
 use zksync_types::{
     block::{legacy_miniblock_hash, miniblock_hash, BlockGasCount},
     event::extract_bytecodes_marked_as_known,
-    l2_to_l1_log::L2ToL1Log,
     tx::tx_execution_info::TxExecutionStatus,
     tx::{ExecutionMetrics, TransactionExecutionResult},
     vm_trace::Call,
@@ -19,8 +19,8 @@ pub struct MiniblockUpdates {
     pub executed_transactions: Vec<TransactionExecutionResult>,
     pub events: Vec<VmEvent>,
     pub storage_logs: Vec<StorageLogQuery>,
-    pub user_l2_to_l1_logs: Vec<L2ToL1Log>,
-    pub system_l2_to_l1_logs: Vec<L2ToL1Log>,
+    pub user_l2_to_l1_logs: Vec<UserL2ToL1Log>,
+    pub system_l2_to_l1_logs: Vec<SystemL2ToL1Log>,
     pub new_factory_deps: HashMap<H256, Vec<u8>>,
     /// How much L1 gas will it take to submit this block?
     pub l1_gas_count: BlockGasCount,

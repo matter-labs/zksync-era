@@ -2,7 +2,7 @@ use zk_evm_1_3_3::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
 use crate::interface::types::outputs::VmExecutionLogs;
-use zksync_types::l2_to_l1_log::L2ToL1Log;
+use zksync_types::l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log};
 use zksync_types::VmEvent;
 
 use crate::vm_virtual_blocks::old_vm::events::merge_events;
@@ -42,7 +42,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         VmExecutionLogs {
             storage_logs,
             events,
-            user_l2_to_l1_logs: l2_to_l1_logs,
+            user_l2_to_l1_logs: l2_to_l1_logs.into_iter().map(UserL2ToL1Log).collect(),
             system_l2_to_l1_logs: vec![],
             total_log_queries_count,
         }
