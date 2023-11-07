@@ -300,9 +300,13 @@ impl BlockReverter {
         let signer = PrivateKeySigner::new(eth_config.reverter_private_key);
         let chain_id = web3.eth().chain_id().await.unwrap().as_u64();
 
-        let data = contract
-            .function("revertBatches")
-            .unwrap()
+        let revert_function = contract
+            .function("revertBlocks")
+            .or_else(|_| contract.function("revertBatches"))
+            .expect(
+                "Either `revertBlocks` or `revertBatches` function must be present in contract",
+            );
+        let data = revert_function
             .encode_input(&[Token::Uint(last_l1_batch_to_keep.0.into())])
             .unwrap();
 

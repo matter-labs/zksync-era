@@ -10,12 +10,7 @@ export async function compileTestContracts() {
 export async function compileSystemContracts() {
     await utils.spawn('yarn workspace zksync-erc20 build');
 
-    process.chdir('etc/system-contracts');
-    await utils.spawn('yarn');
-    await utils.spawn('yarn hardhat compile');
-    await utils.spawn('yarn preprocess');
-    await utils.spawn('yarn hardhat run ./scripts/compile-yul.ts');
-    process.chdir('../..');
+    await utils.spawn('yarn workspace system-contracts build');
 }
 
 export async function compileAll() {

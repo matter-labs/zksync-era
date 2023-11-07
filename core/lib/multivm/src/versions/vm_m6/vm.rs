@@ -9,7 +9,7 @@ use zk_evm_1_3_1::zkevm_opcode_defs::decoding::{
 };
 use zk_evm_1_3_1::zkevm_opcode_defs::definitions::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER;
 use zksync_system_constants::MAX_TXS_IN_BLOCK;
-use zksync_types::l2_to_l1_log::L2ToL1Log;
+use zksync_types::l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log};
 use zksync_types::tx::tx_execution_info::TxExecutionStatus;
 use zksync_types::vm_trace::{Call, VmExecutionTrace, VmTrace};
 use zksync_types::{L1BatchNumber, StorageLogQuery, VmEvent, U256};
@@ -447,7 +447,7 @@ impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
         VmExecutionLogs {
             storage_logs,
             events,
-            user_l2_to_l1_logs: l2_to_l1_logs,
+            user_l2_to_l1_logs: l2_to_l1_logs.into_iter().map(UserL2ToL1Log).collect(),
             system_l2_to_l1_logs: vec![],
             total_log_queries_count: storage_logs_count
                 + log_queries.len()

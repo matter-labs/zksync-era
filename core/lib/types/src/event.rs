@@ -66,12 +66,12 @@ static L1_MESSAGE_EVENT_SIGNATURE: Lazy<H256> = Lazy::new(|| {
 /// ```
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct L1MessengerL2ToL1Log {
-    l2_shard_id: u8,
-    is_service: bool,
-    tx_number_in_block: u16,
-    sender: Address,
-    key: U256,
-    value: U256,
+    pub l2_shard_id: u8,
+    pub is_service: bool,
+    pub tx_number_in_block: u16,
+    pub sender: Address,
+    pub key: U256,
+    pub value: U256,
 }
 
 impl L1MessengerL2ToL1Log {

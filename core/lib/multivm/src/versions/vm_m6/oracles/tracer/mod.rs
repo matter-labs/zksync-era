@@ -1,5 +1,5 @@
-use zk_evm_1_3_1::abstractions::Tracer;
-use zk_evm_1_3_1::vm_state::VmLocalState;
+use zk_evm_1_3_3::tracing::Tracer;
+use zk_evm_1_3_3::vm_state::VmLocalState;
 
 mod bootloader;
 mod call;
@@ -17,8 +17,8 @@ pub use validation::{
 
 pub(crate) use transaction_result::TransactionResultTracer;
 
-use crate::vm_m6::history_recorder::HistoryMode;
-use crate::vm_m6::memory::SimpleMemory;
+use crate::vm_1_3_2::history_recorder::HistoryMode;
+use crate::vm_1_3_2::memory::SimpleMemory;
 
 pub trait ExecutionEndTracer<H: HistoryMode>: Tracer<SupportedMemory = SimpleMemory<H>> {
     // Returns whether the vm execution should stop.

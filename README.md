@@ -41,10 +41,11 @@ at your option.
 - [Twitter](https://twitter.com/zksync)
 - [Twitter for Devs](https://twitter.com/zkSyncDevs)
 - [Discord](https://join.zksync.dev/)
+- [Mirror](https://zksync.mirror.xyz/)
 
 ## Disclaimer
 
 zkSync Era has been through lots of testing and audits. Although it is live, it is still in alpha state and will go
-through more audits and bug bounties programs. We would love to hear our community's thoughts and suggestions about it!
-It is important to state that forking it now can potentially lead to missing important security updates, critical
-features, and performance improvements.
+through more audits and bug bounty programs. We would love to hear our community's thoughts and suggestions about it! It
+is important to state that forking it now can potentially lead to missing important security updates, critical features,
+and performance improvements.

@@ -13,16 +13,6 @@ const EXTENSIONS = Object.keys(LINT_COMMANDS);
 const CONFIG_PATH = 'etc/lint-config';
 
 export async function lint(extension: string, check: boolean = false) {
-    if (extension == 'rust') {
-        await clippy();
-        return;
-    }
-
-    if (extension == 'prover') {
-        await proverClippy();
-        return;
-    }
-
     if (!EXTENSIONS.includes(extension)) {
         throw new Error('Unsupported extension');
     }
@@ -32,6 +22,18 @@ export async function lint(extension: string, check: boolean = false) {
     const fixOption = check ? '' : '--fix';
 
     await utils.spawn(`yarn --silent ${command} ${fixOption} --config ${CONFIG_PATH}/${extension}.js ${files}`);
+}
+
+async function lintL1Contracts(check: boolean = false) {
+    await utils.spawn(`yarn --silent --cwd contracts/ethereum lint:${check ? 'check' : 'fix'}`);
+}
+
+async function lintL2Contracts(check: boolean = false) {
+    await utils.spawn(`yarn --silent --cwd contracts/zksync lint:${check ? 'check' : 'fix'}`);
+}
+
+async function lintSystemContracts(check: boolean = false) {
+    await utils.spawn(`yarn --silent --cwd etc/system-contracts lint:${check ? 'check' : 'fix'}`);
 }
 
 async function clippy() {
@@ -44,18 +46,39 @@ async function proverClippy() {
     await utils.spawn('cargo clippy --tests -- -D warnings -A incomplete_features');
 }
 
+const ARGS = [...EXTENSIONS, 'rust', 'prover', 'l1-contracts', 'l2-contracts', 'system-contracts'];
+
 export const command = new Command('lint')
     .description('lint code')
     .option('--check')
-    .arguments('[extension] rust|md|sol|js|ts|prover')
+    .arguments(`[extension] ${ARGS.join('|')}`)
     .action(async (extension: string | null, cmd: Command) => {
         if (extension) {
-            await lint(extension, cmd.check);
-        } else {
-            for (const ext of EXTENSIONS) {
-                await lint(ext, cmd.check);
+            switch (extension) {
+                case 'rust':
+                    await clippy();
+                    break;
+                case 'prover':
+                    await proverClippy();
+                    break;
+                case 'l1-contracts':
+                    await lintL1Contracts(cmd.check);
+                    break;
+                case 'l2-contracts':
+                    await lintL2Contracts(cmd.check);
+                    break;
+                case 'system-contracts':
+                    await lintSystemContracts(cmd.check);
+                    break;
+                default:
+                    await lint(extension, cmd.check);
             }
-
-            await clippy();
+        } else {
+            const promises = EXTENSIONS.map((ext) => lint(ext, cmd.check));
+            promises.push(lintL1Contracts(cmd.check));
+            promises.push(lintL2Contracts(cmd.check));
+            promises.push(lintSystemContracts(cmd.check));
+            promises.push(clippy());
+            await Promise.all(promises);
         }
     });

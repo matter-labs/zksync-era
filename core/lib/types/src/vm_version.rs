@@ -7,6 +7,7 @@ pub enum VmVersion {
     Vm1_3_2,
     VmVirtualBlocks,
     VmVirtualBlocksRefundsEnhancement,
+    VmBoojumIntegration,
     // kl todo delete local vm verion
     Local,
 }
@@ -14,7 +15,7 @@ pub enum VmVersion {
 impl VmVersion {
     /// Returns the latest supported VM version.
     pub const fn latest() -> VmVersion {
-        // Self::VmVirtualBlocksRefundsEnhancement
+        // Self::VmBoojumIntegration
         // kl todo delete local vm verion
         Self::Local
     }

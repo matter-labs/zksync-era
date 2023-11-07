@@ -33,9 +33,11 @@ impl BlockProperties {
                 };
                 Self::Vm1_3_2(inner)
             }
-            VmVersion::VmVirtualBlocks | VmVersion::VmVirtualBlocksRefundsEnhancement => {
+            VmVersion::VmVirtualBlocks
+            | VmVersion::VmVirtualBlocksRefundsEnhancement
+            | VmVersion::VmBoojumIntegration => {
                 unreachable!(
-                    "From VmVirtualBlocks we have another initialization logic, \
+                    "Starting from VmVirtualBlocks we have another initialization logic, \
                      so it's not required to have BlockProperties for it"
                 )
             }
