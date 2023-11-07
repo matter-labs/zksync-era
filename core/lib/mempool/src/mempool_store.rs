@@ -29,7 +29,7 @@ pub struct MempoolStore {
     /// Next priority operation
     next_priority_id: PriorityOpId,
     stashed_accounts: Vec<Address>,
-    /// Number of l2 transactions in the mempool.
+    /// Number of L2 transactions in the mempool.
     size: u64,
     capacity: u64,
 }

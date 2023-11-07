@@ -66,7 +66,7 @@ impl PackedEthSignature {
         Ok(PackedEthSignature(ETHSignature::from(signature)))
     }
 
-    /// Signs message using ethereum private key, results are identical to signature created
+    /// Signs message using Ethereum private key, results are identical to signature created
     /// using `geth`, `ethers.js`, etc. No hashing and prefixes required.
     pub fn sign(private_key: &H256, msg: &[u8]) -> Result<PackedEthSignature, ParityCryptoError> {
         let signed_bytes = Self::message_to_signed_bytes(msg);
@@ -85,7 +85,7 @@ impl PackedEthSignature {
         Ok(PackedEthSignature(signature))
     }
 
-    /// Signs typed struct using ethereum private key by EIP-712 signature standard.
+    /// Signs typed struct using Ethereum private key by EIP-712 signature standard.
     /// Result of this function is the equivalent of RPC calling `eth_signTypedData`.
     pub fn sign_typed_data(
         private_key: &H256,

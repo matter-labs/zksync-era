@@ -18,7 +18,7 @@ use multivm::vm_latest::{
     constants::{BLOCK_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK},
     utils::{
         fee::derive_base_fee_and_gas_per_pubdata,
-        overhead::{derive_overhead, OverheadCoeficients},
+        overhead::{coefficients, derive_overhead},
     },
 };
 
@@ -600,7 +600,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
                 tx_gas_limit,
                 gas_per_pubdata_byte as u32,
                 tx.encoding_len(),
-                OverheadCoeficients::from_tx_type(tx.tx_format() as u8),
+                OverheadCoefficients::from_tx_type(tx.tx_format() as u8),
             );
 
         match &mut tx.common_data {
@@ -832,7 +832,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             suggested_gas_limit,
             gas_per_pubdata_byte as u32,
             tx.encoding_len(),
-            OverheadCoeficients::from_tx_type(tx.tx_format() as u8),
+            OverheadCoefficients::from_tx_type(tx.tx_format() as u8),
         );
 
         let full_gas_limit =

@@ -68,7 +68,7 @@ impl<S: WriteStorage, const B: bool, H: HistoryMode> DecommitterOracle<S, B, H> 
         }
     }
 
-    /// Adds additional bytecodes. They will take precendent over the bytecodes from storage.
+    /// Adds additional bytecodes. They will take precedent over the bytecodes from storage.
     pub fn populate(&mut self, bytecodes: Vec<(U256, Vec<U256>)>, timestamp: Timestamp) {
         for (hash, bytecode) in bytecodes {
             self.known_bytecodes.insert(hash, bytecode, timestamp);

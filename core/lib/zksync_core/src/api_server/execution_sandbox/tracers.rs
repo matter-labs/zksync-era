@@ -1,6 +1,6 @@
 use multivm::tracers::CallTracer;
 use multivm::vm_latest::HistoryMode;
-use multivm::{MultiVmTracerPointer, MultivmTracer};
+use multivm::{MultiVMTracer, MultiVmTracerPointer};
 use once_cell::sync::OnceCell;
 
 use std::sync::Arc;
