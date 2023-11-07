@@ -227,7 +227,7 @@ impl<T: ContiguousBlockStore> Buffered<T> {
             .cloned())
     }
 
-    /// Schedules background tasks for this store. This method **must** be spawned as a background task
+    /// Runs background tasks for this store. This method **must** be spawned as a background task
     /// which should be running as long at the [`Buffered`] is in use; otherwise, it will function incorrectly.
     pub async fn run_background_tasks(&self, ctx: &ctx::Ctx) -> StorageResult<()> {
         scope::run!(ctx, |ctx, s| {
