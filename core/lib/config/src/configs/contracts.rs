@@ -5,13 +5,20 @@ use zksync_basic_types::{Address, H256};
 // Local uses
 use super::envy_load;
 
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum ProverAtGenesis {
+    Fri,
+    Old,
+}
+
 /// Data about deployed contracts.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ContractsConfig {
+    pub governance_addr: Address,
     pub mailbox_facet_addr: Address,
     pub executor_facet_addr: Address,
-    pub governance_facet_addr: Address,
-    pub diamond_cut_facet_addr: Address,
+    pub admin_facet_addr: Address,
     pub getters_facet_addr: Address,
     pub verifier_addr: Address,
     pub diamond_init_addr: Address,
@@ -34,7 +41,7 @@ pub struct ContractsConfig {
     pub fri_recursion_scheduler_level_vk_hash: H256,
     pub fri_recursion_node_level_vk_hash: H256,
     pub fri_recursion_leaf_level_vk_hash: H256,
-    pub governance_addr: Option<Address>,
+    pub prover_at_genesis: ProverAtGenesis,
     pub snark_wrapper_vk_hash: H256,
 }
 
@@ -53,10 +60,10 @@ mod tests {
 
     fn expected_config() -> ContractsConfig {
         ContractsConfig {
+            governance_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
             mailbox_facet_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
             executor_facet_addr: addr("18B631537801963A964211C0E86645c1aBfbB2d3"),
-            governance_facet_addr: addr("1e12b20BE86bEc3A0aC95aA52ade345cB9AE7a32"),
-            diamond_cut_facet_addr: addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888"),
+            admin_facet_addr: addr("1e12b20BE86bEc3A0aC95aA52ade345cB9AE7a32"),
             getters_facet_addr: addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888"),
             verifier_addr: addr("34782eE00206EAB6478F2692caa800e4A581687b"),
             diamond_init_addr: addr("FFC35A5e767BE36057c34586303498e3de7C62Ba"),
@@ -95,7 +102,7 @@ mod tests {
             fri_recursion_leaf_level_vk_hash: hash(
                 "0x72167c43a46cf38875b267d67716edc4563861364a3c03ab7aee73498421e828",
             ),
-            governance_addr: None,
+            prover_at_genesis: ProverAtGenesis::Fri,
             snark_wrapper_vk_hash: hash(
                 "0x4be443afd605a782b6e56d199df2460a025c81b3dea144e135bece83612563f2",
             ),
@@ -106,10 +113,10 @@ mod tests {
     fn from_env() {
         let mut lock = MUTEX.lock();
         let config = r#"
+CONTRACTS_GOVERNANCE_ADDR="0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
 CONTRACTS_MAILBOX_FACET_ADDR="0x0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
 CONTRACTS_EXECUTOR_FACET_ADDR="0x18B631537801963A964211C0E86645c1aBfbB2d3"
-CONTRACTS_GOVERNANCE_FACET_ADDR="0x1e12b20BE86bEc3A0aC95aA52ade345cB9AE7a32"
-CONTRACTS_DIAMOND_CUT_FACET_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
+CONTRACTS_ADMIN_FACET_ADDR="0x1e12b20BE86bEc3A0aC95aA52ade345cB9AE7a32"
 CONTRACTS_GETTERS_FACET_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_VERIFIER_ADDR="0x34782eE00206EAB6478F2692caa800e4A581687b"
 CONTRACTS_DIAMOND_INIT_ADDR="0xFFC35A5e767BE36057c34586303498e3de7C62Ba"
@@ -132,6 +139,7 @@ CONTRACTS_L1_MULTICALL3_ADDR="0xcA11bde05977b3631167028862bE2a173976CA11"
 CONTRACTS_FRI_RECURSION_SCHEDULER_LEVEL_VK_HASH="0x201d4c7d8e781d51a3bbd451a43a8f45240bb765b565ae6ce69192d918c3563d"
 CONTRACTS_FRI_RECURSION_NODE_LEVEL_VK_HASH="0x5a3ef282b21e12fe1f4438e5bb158fc5060b160559c5158c6389d62d9fe3d080"
 CONTRACTS_FRI_RECURSION_LEAF_LEVEL_VK_HASH="0x72167c43a46cf38875b267d67716edc4563861364a3c03ab7aee73498421e828"
+CONTRACTS_PROVER_AT_GENESIS="fri"
 CONTRACTS_SNARK_WRAPPER_VK_HASH="0x4be443afd605a782b6e56d199df2460a025c81b3dea144e135bece83612563f2"
         "#;
         lock.set_env(config);

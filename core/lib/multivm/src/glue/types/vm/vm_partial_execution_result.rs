@@ -1,5 +1,4 @@
 use crate::glue::{GlueFrom, GlueInto};
-use zksync_types::tx::tx_execution_info::VmExecutionLogs;
 
 impl GlueFrom<crate::vm_m5::vm::VmPartialExecutionResult>
     for crate::interface::VmExecutionResultAndLogs
@@ -7,12 +6,7 @@ impl GlueFrom<crate::vm_m5::vm::VmPartialExecutionResult>
     fn glue_from(value: crate::vm_m5::vm::VmPartialExecutionResult) -> Self {
         Self {
             result: value.revert_reason.glue_into(),
-            logs: VmExecutionLogs {
-                events: value.logs.events.clone(),
-                l2_to_l1_logs: value.logs.l2_to_l1_logs.clone(),
-                storage_logs: value.logs.storage_logs.clone(),
-                total_log_queries_count: value.logs.total_log_queries_count,
-            },
+            logs: value.logs.clone(),
             statistics: crate::interface::VmExecutionStatistics {
                 contracts_used: value.contracts_used,
                 cycles_used: value.cycles_used,
@@ -37,12 +31,7 @@ impl GlueFrom<crate::vm_m6::vm::VmPartialExecutionResult>
     fn glue_from(value: crate::vm_m6::vm::VmPartialExecutionResult) -> Self {
         Self {
             result: value.revert_reason.glue_into(),
-            logs: VmExecutionLogs {
-                events: value.logs.events.clone(),
-                l2_to_l1_logs: value.logs.l2_to_l1_logs.clone(),
-                storage_logs: value.logs.storage_logs.clone(),
-                total_log_queries_count: value.logs.total_log_queries_count,
-            },
+            logs: value.logs.clone(),
             statistics: crate::interface::VmExecutionStatistics {
                 contracts_used: value.contracts_used,
                 cycles_used: value.cycles_used,
@@ -65,12 +54,7 @@ impl GlueFrom<crate::vm_1_3_2::vm::VmPartialExecutionResult>
     fn glue_from(value: crate::vm_1_3_2::vm::VmPartialExecutionResult) -> Self {
         Self {
             result: value.revert_reason.glue_into(),
-            logs: VmExecutionLogs {
-                events: value.logs.events.clone(),
-                l2_to_l1_logs: value.logs.l2_to_l1_logs.clone(),
-                storage_logs: value.logs.storage_logs.clone(),
-                total_log_queries_count: value.logs.total_log_queries_count,
-            },
+            logs: value.logs.clone(),
             statistics: crate::interface::VmExecutionStatistics {
                 contracts_used: value.contracts_used,
                 cycles_used: value.cycles_used,
