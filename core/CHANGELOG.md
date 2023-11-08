@@ -1,5 +1,29 @@
 # Changelog
 
+## [17.1.0](https://github.com/matter-labs/zksync-era/compare/core-v16.2.0...core-v17.1.0) (2023-11-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* Update to protocol version 17 ([#384](https://github.com/matter-labs/zksync-era/issues/384))
+
+### Features
+
+* **en:** Cache blocks in `fetch_l2_block` ([#403](https://github.com/matter-labs/zksync-era/issues/403)) ([b94c845](https://github.com/matter-labs/zksync-era/commit/b94c8450a4b4905a7db8967bf42d37493cf31e0b))
+* Port boojum eth-sender changes ([#293](https://github.com/matter-labs/zksync-era/issues/293)) ([8027326](https://github.com/matter-labs/zksync-era/commit/80273264a9512bc1e6f1d1f4372107f9167260b1))
+* **state-keeper:** Disable some seal criteria for boojum ([#390](https://github.com/matter-labs/zksync-era/issues/390)) ([2343532](https://github.com/matter-labs/zksync-era/commit/2343532cd48bcc07ec939a25c205d521955dd05a))
+* Update to protocol version 17 ([#384](https://github.com/matter-labs/zksync-era/issues/384)) ([ba271a5](https://github.com/matter-labs/zksync-era/commit/ba271a5f34d64d04c0135b8811685b80f26a8c32))
+* **vm:** Make calculation for pubdata a bit more percise ([#392](https://github.com/matter-labs/zksync-era/issues/392)) ([6d0e61c](https://github.com/matter-labs/zksync-era/commit/6d0e61cba86d61b68f3657852283dd99d2b6530f))
+
+
+### Bug Fixes
+
+* bump zksolc from yanked version to 1.3.16 ([#348](https://github.com/matter-labs/zksync-era/issues/348)) ([c32b88f](https://github.com/matter-labs/zksync-era/commit/c32b88fe8fe7e8892c857b8fc36037ecd0892fa1))
+* **db-index:** Add missing index from FRI prover jobs ([#334](https://github.com/matter-labs/zksync-era/issues/334)) ([730447f](https://github.com/matter-labs/zksync-era/commit/730447f90efb2478097f06c2ed5d965ac65b7874))
+* **db-query:** use join instead of nested query for FRI prover extracting ([#364](https://github.com/matter-labs/zksync-era/issues/364)) ([f9cc831](https://github.com/matter-labs/zksync-era/commit/f9cc831ddc96467395a48a8ba2e6238c0fcb7341))
+* **db-query:** use nested query for requeuing FRI prover jobs ([#399](https://github.com/matter-labs/zksync-era/issues/399)) ([3890542](https://github.com/matter-labs/zksync-era/commit/3890542c8e736a313306391259b9b356d00e2ef9))
+* incorrect directory of intrinsic.rs generated.  ([#332](https://github.com/matter-labs/zksync-era/issues/332)) ([#336](https://github.com/matter-labs/zksync-era/issues/336)) ([eefaad0](https://github.com/matter-labs/zksync-era/commit/eefaad0e7e7766a269ee9022b3758be4ee32f1a1))
+
 ## [16.2.0](https://github.com/matter-labs/zksync-era/compare/core-v16.1.0...core-v16.2.0) (2023-10-26)
 
 

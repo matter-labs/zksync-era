@@ -7,5 +7,5 @@ All state keeper data is currently stored in Postgres. (Beside it, we provide an
 benchmarking / testing purposes.) We also keep a secondary copy for part of it in RocksDB for performance reasons.
 Currently, we only duplicate the data needed by the [`vm`] crate.
 
-[`zksync_core`]: ../../bin/zksync_core
+[`zksync_core`]: ../zksync_core
 [`vm`]: ../vm

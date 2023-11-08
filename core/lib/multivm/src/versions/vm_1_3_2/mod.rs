@@ -13,7 +13,7 @@ mod refunds;
 pub mod test_utils;
 pub mod transaction_data;
 pub mod utils;
-pub mod vm;
+pub mod vm_instance;
 pub mod vm_with_bootloader;
 
 #[cfg(test)]
@@ -23,7 +23,7 @@ pub use errors::TxRevertReason;
 pub use history_recorder::{HistoryDisabled, HistoryEnabled, HistoryMode};
 pub use oracle_tools::OracleTools;
 pub use oracles::storage::StorageOracle;
-pub use vm::{VmBlockResult, VmExecutionResult, VmInstance};
+pub use vm_instance::{VmBlockResult, VmExecutionResult, VmInstance};
 pub use zk_evm_1_3_3;
 pub use zk_evm_1_3_3::block_properties::BlockProperties;
 pub use zksync_types::vm_trace::VmExecutionTrace;
