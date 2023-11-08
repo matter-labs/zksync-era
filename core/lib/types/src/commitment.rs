@@ -132,80 +132,46 @@ impl L1BatchWithMetadata {
         ])
     }
 
-    pub fn l1_commit_data(&self) -> Token {
-        if self.header.protocol_version.unwrap().is_pre_boojum() {
-            Token::Tuple(vec![
-                Token::Uint(U256::from(self.header.number.0)),
-                Token::Uint(U256::from(self.header.timestamp)),
-                Token::Uint(U256::from(self.metadata.rollup_last_leaf_index)),
-                Token::FixedBytes(self.metadata.merkle_root_hash.as_bytes().to_vec()),
-                Token::Uint(U256::from(self.header.l1_tx_count)),
-                Token::FixedBytes(self.metadata.l2_l1_merkle_root.as_bytes().to_vec()),
-                Token::FixedBytes(
-                    self.header
-                        .priority_ops_onchain_data_hash()
-                        .as_bytes()
-                        .to_vec(),
-                ),
-                Token::Bytes(self.metadata.initial_writes_compressed.clone()),
-                Token::Bytes(self.metadata.repeated_writes_compressed.clone()),
-                Token::Bytes(self.metadata.l2_l1_messages_compressed.clone()),
-                Token::Array(
-                    self.header
-                        .l2_to_l1_messages
-                        .iter()
-                        .map(|message| Token::Bytes(message.to_vec()))
-                        .collect(),
-                ),
-                Token::Array(
-                    self.factory_deps
-                        .iter()
-                        .map(|bytecode| Token::Bytes(bytecode.to_vec()))
-                        .collect(),
-                ),
-            ])
-        } else {
-            Token::Tuple(vec![
-                Token::Uint(U256::from(self.header.number.0)),
-                Token::Uint(U256::from(self.header.timestamp)),
-                Token::Uint(U256::from(self.metadata.rollup_last_leaf_index)),
-                Token::FixedBytes(self.metadata.merkle_root_hash.as_bytes().to_vec()),
-                Token::Uint(U256::from(self.header.l1_tx_count)),
-                Token::FixedBytes(
-                    self.header
-                        .priority_ops_onchain_data_hash()
-                        .as_bytes()
-                        .to_vec(),
-                ),
-                Token::FixedBytes(
-                    self.metadata
-                        .bootloader_initial_content_commitment
-                        .unwrap()
-                        .as_bytes()
-                        .to_vec(),
-                ),
-                Token::FixedBytes(
-                    self.metadata
-                        .events_queue_commitment
-                        .unwrap()
-                        .as_bytes()
-                        .to_vec(),
-                ),
-                Token::Bytes(self.metadata.l2_l1_messages_compressed.clone()),
-                Token::Bytes(self.construct_pubdata()),
-            ])
-        }
+    pub fn l1_commit_data(&self, validium: bool) -> Token {
+        Token::Tuple(vec![
+            Token::Uint(U256::from(self.header.number.0)),
+            Token::Uint(U256::from(self.header.timestamp)),
+            Token::Uint(U256::from(self.metadata.rollup_last_leaf_index)),
+            Token::FixedBytes(self.metadata.merkle_root_hash.as_bytes().to_vec()),
+            Token::Uint(U256::from(self.header.l1_tx_count)),
+            Token::FixedBytes(
+                self.header
+                    .priority_ops_onchain_data_hash()
+                    .as_bytes()
+                    .to_vec(),
+            ),
+            Token::FixedBytes(
+                self.metadata
+                    .bootloader_initial_content_commitment
+                    .unwrap()
+                    .as_bytes()
+                    .to_vec(),
+            ),
+            Token::FixedBytes(
+                self.metadata
+                    .events_queue_commitment
+                    .unwrap()
+                    .as_bytes()
+                    .to_vec(),
+            ),
+            Token::Bytes(self.metadata.l2_l1_messages_compressed.clone()),
+            Token::Bytes(self.construct_pubdata(validium)),
+        ])
     }
 
-    pub fn l1_commit_data_size(&self) -> usize {
-        crate::ethabi::encode(&[Token::Array(vec![self.l1_commit_data()])]).len()
+    pub fn l1_commit_data_size(&self, validium: bool) -> usize {
+        crate::ethabi::encode(&[Token::Array(vec![self.l1_commit_data(validium)])]).len()
     }
 
     /// Packs all pubdata needed for batch commitment in boojum into one bytes array. The packing contains the
     /// following: logs, messages, bytecodes, and compressed state diffs.
     /// This data is currently part of calldata but will be submitted as part of the blob section post EIP-4844.
-    pub fn construct_pubdata(&self) -> Vec<u8> {
-        println!("entered construct_pubdata()");
+    pub fn construct_pubdata(&self, validium: bool) -> Vec<u8> {
         let mut res: Vec<u8> = vec![];
 
         // Process and Pack Logs
@@ -214,14 +180,26 @@ impl L1BatchWithMetadata {
             res.extend(l2_to_l1_log.0.to_bytes());
         }
 
-        // Process and Pack Msgs
-        res.extend((self.header.l2_to_l1_messages.len() as u32).to_be_bytes());
-        for msg in &self.header.l2_to_l1_messages {
-            res.extend((msg.len() as u32).to_be_bytes());
-            res.extend(msg);
-        }
+        if validium {
+            res.extend(vec![1u8, 2u8, 3u8, 9u8]); // To check on eth_getTransactionByHash for the commit op
+        } else {
+            // Process and Pack Msgs
+            res.extend((self.header.l2_to_l1_messages.len() as u32).to_be_bytes());
+            for msg in &self.header.l2_to_l1_messages {
+                res.extend((msg.len() as u32).to_be_bytes());
+                res.extend(msg);
+            }
 
-        res.extend(vec![1u8, 2u8, 3u8, 9u8]); // to check on eth_getTransactionByHash for the commit op
+            // Process and Pack Bytecodes
+            res.extend((self.factory_deps.len() as u32).to_be_bytes());
+            for bytecode in &self.factory_deps {
+                res.extend((bytecode.len() as u32).to_be_bytes());
+                res.extend(bytecode);
+            }
+
+            // Extend with Compressed StateDiffs
+            res.extend(&self.metadata.state_diffs_compressed);
+        }
 
         res
     }
