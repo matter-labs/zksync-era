@@ -115,7 +115,7 @@ pub(crate) struct VmTesterBuilder<H: HistoryMode> {
 impl<H: HistoryMode> Clone for VmTesterBuilder<H> {
     fn clone(&self) -> Self {
         Self {
-            _phantom: Default::default(),
+            _phantom: PhantomData,
             storage: None,
             l1_batch_env: self.l1_batch_env.clone(),
             system_env: self.system_env.clone(),
@@ -130,7 +130,7 @@ impl<H: HistoryMode> Clone for VmTesterBuilder<H> {
 impl<H: HistoryMode> VmTesterBuilder<H> {
     pub(crate) fn new(_: H) -> Self {
         Self {
-            _phantom: Default::default(),
+            _phantom: PhantomData,
             storage: None,
             l1_batch_env: None,
             system_env: SystemEnv {
@@ -236,7 +236,7 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
             test_contract: None,
             rich_accounts: self.rich_accounts.clone(),
             custom_contracts: self.custom_contracts.clone(),
-            _phantom: Default::default(),
+            _phantom: PhantomData,
         }
     }
 }

@@ -563,14 +563,7 @@ fn push_raw_transaction_to_bootloader_memory_v1<S: Storage, H: HistoryMode>(
         tx.factory_deps
             .iter()
             .filter_map(|bytecode| {
-                if vm
-                    .state
-                    .storage
-                    .storage
-                    .get_ptr()
-                    .borrow_mut()
-                    .is_bytecode_exists(&hash_bytecode(bytecode))
-                {
+                if vm.is_bytecode_exists(&hash_bytecode(bytecode)) {
                     return None;
                 }
 
@@ -647,14 +640,7 @@ fn push_raw_transaction_to_bootloader_memory_v2<S: Storage, H: HistoryMode>(
         tx.factory_deps
             .iter()
             .filter_map(|bytecode| {
-                if vm
-                    .state
-                    .storage
-                    .storage
-                    .get_ptr()
-                    .borrow_mut()
-                    .is_bytecode_exists(&hash_bytecode(bytecode))
-                {
+                if vm.is_bytecode_exists(&hash_bytecode(bytecode)) {
                     return None;
                 }
 

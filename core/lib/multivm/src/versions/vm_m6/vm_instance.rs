@@ -13,7 +13,7 @@ use zksync_system_constants::MAX_TXS_IN_BLOCK;
 use zksync_types::l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log};
 use zksync_types::tx::tx_execution_info::TxExecutionStatus;
 use zksync_types::vm_trace::{Call, VmExecutionTrace, VmTrace};
-use zksync_types::{L1BatchNumber, StorageLogQuery, VmEvent, U256};
+use zksync_types::{L1BatchNumber, StorageLogQuery, VmEvent, H256, U256};
 
 use crate::interface::types::outputs::VmExecutionLogs;
 use crate::vm_m6::bootloader_state::BootloaderState;
@@ -339,6 +339,15 @@ impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
                 | NewVmExecutionResult::Panic,
             ) => true,
         }
+    }
+
+    pub(crate) fn is_bytecode_exists(&self, bytecode_hash: &H256) -> bool {
+        self.state
+            .storage
+            .storage
+            .get_ptr()
+            .borrow_mut()
+            .is_bytecode_exists(bytecode_hash)
     }
 
     fn revert_reason(&self) -> Option<VmRevertReasonParsingResult> {

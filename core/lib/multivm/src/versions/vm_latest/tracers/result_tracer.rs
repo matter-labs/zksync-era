@@ -46,7 +46,7 @@ impl<S> ResultTracer<S> {
             result: None,
             bootloader_out_of_gas: false,
             execution_mode,
-            _phantom: Default::default(),
+            _phantom: PhantomData,
         }
     }
 }

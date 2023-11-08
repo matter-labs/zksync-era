@@ -67,7 +67,7 @@ impl<S> RefundsTracer<S> {
             gas_spent_on_bytecodes_and_long_messages: 0,
             l1_batch,
             pubdata_published: 0,
-            _phantom: Default::default(),
+            _phantom: PhantomData,
         }
     }
 }
