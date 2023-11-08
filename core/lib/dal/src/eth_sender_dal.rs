@@ -154,10 +154,10 @@ impl EthSenderDal<'_, '_> {
         tx_hash: H256,
         raw_signed_tx: Vec<u8>,
     ) -> anyhow::Result<Option<u32>> {
-        let priority_fee_per_gas = i64::try_from(priority_fee_per_gas)
-            .map_err(|err| anyhow::anyhow!("Can't convert U256 to i64: {err}"))?;
-        let base_fee_per_gas = i64::try_from(base_fee_per_gas)
-            .map_err(|err| anyhow::anyhow!("Can't convert U256 to i64: {err}"))?;
+        let priority_fee_per_gas =
+            i64::try_from(priority_fee_per_gas).context("Can't convert u64 to i64")?;
+        let base_fee_per_gas =
+            i64::try_from(base_fee_per_gas).context("Can't convert u64 to i64")?;
         let tx_hash = format!("{:#x}", tx_hash);
 
         Ok(sqlx::query!(
