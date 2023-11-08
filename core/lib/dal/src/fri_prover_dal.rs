@@ -166,6 +166,17 @@ impl FriProverDal<'_, '_> {
         }
     }
 
+    pub async fn get_prover_job_attempts(&mut self, id: u32) -> Option<u32> {
+        sqlx::query!(
+            "SELECT attempts FROM prover_jobs_fri WHERE id = $1",
+            id as i64,
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| row.attempts as u32)
+    }
+
     pub async fn save_proof(
         &mut self,
         id: u32,
@@ -213,7 +224,7 @@ impl FriProverDal<'_, '_> {
             sqlx::query!(
                 "
                 UPDATE prover_jobs_fri
-                SET status = 'queued', attempts = attempts + 1, updated_at = now(), processing_started_at = now()
+                SET status = 'queued', updated_at = now(), processing_started_at = now()
                 WHERE id in (
                     SELECT id
                     FROM prover_jobs_fri

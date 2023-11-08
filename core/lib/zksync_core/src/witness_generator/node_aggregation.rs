@@ -174,6 +174,15 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         update_database(&self.prover_connection_pool, started_at, job_id, blob_urls).await;
         Ok(())
     }
+
+    fn max_attempts(&self) -> u32 {
+        self.config.max_attempts
+    }
+
+    async fn get_job_attempts(&self, _job_id: &Self::JobId) -> Option<u32> {
+        // Witness generator will be removed soon in favor of FRI one, so returning blank value.
+        None
+    }
 }
 
 pub fn process_node_aggregation_job(

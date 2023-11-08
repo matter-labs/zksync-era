@@ -26,6 +26,7 @@ pub struct WitnessVectorGenerator {
     zone: String,
     config: FriWitnessVectorGeneratorConfig,
     vk_commitments: L1VerifierConfig,
+    max_attempts: u32,
 }
 
 impl WitnessVectorGenerator {
@@ -36,6 +37,7 @@ impl WitnessVectorGenerator {
         zone: String,
         config: FriWitnessVectorGeneratorConfig,
         vk_commitments: L1VerifierConfig,
+        max_attempts: u32,
     ) -> Self {
         Self {
             blob_store,
@@ -44,6 +46,7 @@ impl WitnessVectorGenerator {
             zone,
             config,
             vk_commitments,
+            max_attempts,
         }
     }
 
@@ -165,6 +168,18 @@ impl JobProcessor for WitnessVectorGenerator {
             "Not able to get any free prover instance for sending witness vector for job: {job_id}"
         );
         Ok(())
+    }
+
+    fn max_attempts(&self) -> u32 {
+        self.max_attempts
+    }
+
+    async fn get_job_attempts(&self, job_id: &u32) -> Option<u32> {
+        let mut prover_storage = self.pool.access_storage().await.unwrap();
+        prover_storage
+            .fri_prover_jobs_dal()
+            .get_prover_job_attempts(*job_id)
+            .await
     }
 }
 

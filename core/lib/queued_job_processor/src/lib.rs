@@ -9,10 +9,26 @@ use tokio::time::sleep;
 
 use zksync_utils::panic_extractor::try_extract_panic_message;
 
+use vise::{Buckets, Counter, Histogram, LabeledFamily, Metrics};
+
+const BYTE_SIZE_BUCKETS: Buckets = Buckets::exponential(1.0..=64.0, 2.0);
+
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "job_processor")]
+struct JobProcessorMetrics {
+    #[metrics(labels = ["service", "job_id"])]
+    max_attempts_reached: LabeledFamily<(&'static str, String), Counter, 2>,
+    #[metrics(labels = ["service"], buckets = BYTE_SIZE_BUCKETS)]
+    attempts: LabeledFamily<&'static str, Histogram<usize>>,
+}
+
+#[vise::register]
+static METRICS: vise::Global<JobProcessorMetrics> = vise::Global::new();
+
 #[async_trait]
 pub trait JobProcessor: Sync + Send {
     type Job: Send + 'static;
-    type JobId: Send + Debug + 'static;
+    type JobId: Send + Sync + Debug + 'static;
     type JobArtifacts: Send + 'static;
 
     const POLLING_INTERVAL_MS: u64 = 1000;
@@ -94,6 +110,7 @@ pub trait JobProcessor: Sync + Send {
         started_at: Instant,
         task: JoinHandle<anyhow::Result<Self::JobArtifacts>>,
     ) -> anyhow::Result<()> {
+        let attempts = self.get_job_attempts(&job_id).await;
         let result = loop {
             tracing::trace!(
                 "Polling {} task with id {:?}. Is finished: {}",
@@ -113,6 +130,9 @@ pub trait JobProcessor: Sync + Send {
                     Self::SERVICE_NAME,
                     job_id
                 );
+                if let Some(attempts) = attempts {
+                    METRICS.attempts[&Self::SERVICE_NAME].observe(attempts as usize);
+                }
                 return self
                     .save_result(job_id, started_at, data)
                     .await
@@ -127,6 +147,10 @@ pub trait JobProcessor: Sync + Send {
             job_id,
             error_message
         );
+
+        if attempts == Some(self.max_attempts()) {
+            METRICS.max_attempts_reached[&(Self::SERVICE_NAME, format!("{job_id:?}"))].inc();
+        }
         self.save_failure(job_id, started_at, error_message).await;
         Ok(())
     }
@@ -138,4 +162,8 @@ pub trait JobProcessor: Sync + Send {
         started_at: Instant,
         artifacts: Self::JobArtifacts,
     ) -> anyhow::Result<()>;
+
+    fn max_attempts(&self) -> u32;
+
+    async fn get_job_attempts(&self, job_id: &Self::JobId) -> Option<u32>;
 }

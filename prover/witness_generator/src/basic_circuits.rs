@@ -264,6 +264,18 @@ impl JobProcessor for BasicWitnessGenerator {
             }
         }
     }
+
+    fn max_attempts(&self) -> u32 {
+        self.config.max_attempts
+    }
+
+    async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> Option<u32> {
+        let mut prover_storage = self.prover_connection_pool.access_storage().await.unwrap();
+        prover_storage
+            .fri_witness_generator_dal()
+            .get_basic_circuit_witness_job_attempts(*job_id)
+            .await
+    }
 }
 
 async fn process_basic_circuits_job(

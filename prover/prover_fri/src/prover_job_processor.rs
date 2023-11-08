@@ -259,6 +259,18 @@ impl JobProcessor for Prover {
         .await;
         Ok(())
     }
+
+    fn max_attempts(&self) -> u32 {
+        self.config.max_attempts
+    }
+
+    async fn get_job_attempts(&self, job_id: &u32) -> Option<u32> {
+        let mut prover_storage = self.prover_connection_pool.access_storage().await.unwrap();
+        prover_storage
+            .fri_prover_jobs_dal()
+            .get_prover_job_attempts(*job_id)
+            .await
+    }
 }
 
 #[allow(dead_code)]

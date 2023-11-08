@@ -64,7 +64,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         picked_by: &str,
     ) -> Option<L1BatchNumber> {
         let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
-        let result: Option<L1BatchNumber> = sqlx::query!(
+        sqlx::query!(
             "
                 UPDATE witness_inputs_fri
                 SET status = 'in_progress', attempts = attempts + 1,
@@ -90,8 +90,22 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| L1BatchNumber(row.l1_batch_number as u32));
-        result
+        .map(|row| L1BatchNumber(row.l1_batch_number as u32))
+    }
+
+    pub async fn get_basic_circuit_witness_job_attempts(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Option<u32> {
+        sqlx::query!(
+            "SELECT attempts FROM witness_inputs_fri \
+            WHERE l1_batch_number = $1",
+            l1_batch_number.0 as i64,
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| row.attempts as u32)
     }
 
     pub async fn mark_witness_job(
@@ -184,7 +198,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         sqlx::query!(
                 "
                 UPDATE witness_inputs_fri
-                SET status = 'queued', attempts = attempts + 1, updated_at = now(), processing_started_at = now()
+                SET status = 'queued', updated_at = now(), processing_started_at = now()
                 WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)
                 OR (status = 'in_gpu_proof' AND  processing_started_at <= now() - $1::interval AND attempts < $2)
                 OR (status = 'failed' AND attempts < $2)
@@ -325,6 +339,18 @@ impl FriWitnessGeneratorDal<'_, '_> {
         })
     }
 
+    pub async fn get_leaf_aggregation_job_attempts(&mut self, id: u32) -> Option<u32> {
+        sqlx::query!(
+            "SELECT attempts FROM leaf_aggregation_witness_jobs_fri \
+            WHERE id = $1",
+            id as i64,
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| row.attempts as u32)
+    }
+
     async fn prover_job_ids_for(
         &mut self,
         block_number: L1BatchNumber,
@@ -461,6 +487,18 @@ impl FriWitnessGeneratorDal<'_, '_> {
         })
     }
 
+    pub async fn get_node_aggregation_job_attempts(&mut self, id: u32) -> Option<u32> {
+        sqlx::query!(
+            "SELECT attempts FROM node_aggregation_witness_jobs_fri \
+            WHERE id = $1",
+            id as i64,
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| row.attempts as u32)
+    }
+
     pub async fn mark_node_aggregation_job_failed(&mut self, error: &str, id: u32) {
         sqlx::query!(
             "
@@ -583,7 +621,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         sqlx::query!(
                 "
                 UPDATE leaf_aggregation_witness_jobs_fri
-                SET status = 'queued', attempts = attempts + 1, updated_at = now(), processing_started_at = now()
+                SET status = 'queued', updated_at = now(), processing_started_at = now()
                 WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)
                 OR (status = 'failed' AND attempts < $2)
                 RETURNING id, status, attempts
@@ -608,7 +646,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         sqlx::query!(
                 "
                 UPDATE node_aggregation_witness_jobs_fri
-                SET status = 'queued', attempts = attempts + 1, updated_at = now(), processing_started_at = now()
+                SET status = 'queued', updated_at = now(), processing_started_at = now()
                 WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)
                 OR (status = 'failed' AND attempts < $2)
                 RETURNING id, status, attempts
@@ -649,7 +687,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         sqlx::query!(
                 "
                 UPDATE scheduler_witness_jobs_fri
-                SET status = 'queued', attempts = attempts + 1, updated_at = now(), processing_started_at = now()
+                SET status = 'queued', updated_at = now(), processing_started_at = now()
                 WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)
                 OR (status = 'failed' AND attempts < $2)
                 RETURNING l1_batch_number, status, attempts
@@ -671,7 +709,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         picked_by: &str,
     ) -> Option<L1BatchNumber> {
         let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
-        let result: Option<L1BatchNumber> = sqlx::query!(
+        sqlx::query!(
             "
                 UPDATE scheduler_witness_jobs_fri
                 SET status = 'in_progress', attempts = attempts + 1,
@@ -695,8 +733,22 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| L1BatchNumber(row.l1_batch_number as u32));
-        result
+        .map(|row| L1BatchNumber(row.l1_batch_number as u32))
+    }
+
+    pub async fn get_scheduler_witness_job_attempts(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Option<u32> {
+        sqlx::query!(
+            "SELECT attempts FROM scheduler_witness_jobs_fri \
+            WHERE l1_batch_number = $1",
+            l1_batch_number.0 as i64,
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| row.attempts as u32)
     }
 
     pub async fn mark_scheduler_job_as_successful(

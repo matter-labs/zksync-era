@@ -161,6 +161,7 @@ async fn main() -> anyhow::Result<()> {
         }
         AggregationRound::NodeAggregation => {
             let generator = NodeAggregationWitnessGenerator::new(
+                config,
                 &store_factory,
                 prover_connection_pool,
                 protocol_versions.clone(),
@@ -170,6 +171,7 @@ async fn main() -> anyhow::Result<()> {
         }
         AggregationRound::Scheduler => {
             let generator = SchedulerWitnessGenerator::new(
+                config,
                 &store_factory,
                 prover_connection_pool,
                 protocol_versions,

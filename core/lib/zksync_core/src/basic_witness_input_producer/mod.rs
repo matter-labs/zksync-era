@@ -2,7 +2,7 @@ use anyhow::Context;
 use std::sync::Arc;
 use std::time::Instant;
 
-use zksync_dal::ConnectionPool;
+use zksync_dal::{basic_witness_input_producer_dal::JOB_MAX_ATTEMPT, ConnectionPool};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::witness_block_state::WitnessBlockState;
@@ -190,5 +190,13 @@ impl JobProcessor for BasicWitnessInputProducer {
             .context("failed to mark job as successful for BasicWitnessInputProducer")?;
         METRICS.block_number_processed.set(job_id.0 as i64);
         Ok(())
+    }
+
+    fn max_attempts(&self) -> u32 {
+        JOB_MAX_ATTEMPT as u32
+    }
+
+    async fn get_job_attempts(&self, job_id: &Self::JobId) -> Option<u32> {
+        todo!()
     }
 }

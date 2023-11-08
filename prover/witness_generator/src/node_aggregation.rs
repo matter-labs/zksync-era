@@ -20,6 +20,7 @@ use crate::utils::{
     load_proofs_for_job_ids, save_node_aggregations_artifacts,
     save_recursive_layer_prover_input_artifacts, AggregationWrapper,
 };
+use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{AggregationsKey, ObjectStore, ObjectStoreFactory};
 use zksync_prover_fri_types::{get_current_pod_name, FriProofWrapper};
@@ -63,6 +64,7 @@ pub struct NodeAggregationWitnessGeneratorJob {
 
 #[derive(Debug)]
 pub struct NodeAggregationWitnessGenerator {
+    config: FriWitnessGeneratorConfig,
     object_store: Box<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool,
     protocol_versions: Vec<FriProtocolVersionId>,
@@ -70,11 +72,13 @@ pub struct NodeAggregationWitnessGenerator {
 
 impl NodeAggregationWitnessGenerator {
     pub async fn new(
+        config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
         prover_connection_pool: ConnectionPool,
         protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {
+            config,
             object_store: store_factory.create_store().await,
             prover_connection_pool,
             protocol_versions,
@@ -196,6 +200,18 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         )
         .await;
         Ok(())
+    }
+
+    fn max_attempts(&self) -> u32 {
+        self.config.max_attempts
+    }
+
+    async fn get_job_attempts(&self, job_id: &u32) -> Option<u32> {
+        let mut prover_storage = self.prover_connection_pool.access_storage().await.unwrap();
+        prover_storage
+            .fri_witness_generator_dal()
+            .get_node_aggregation_job_attempts(*job_id)
+            .await
     }
 }
 
