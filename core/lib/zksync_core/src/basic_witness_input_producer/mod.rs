@@ -9,7 +9,7 @@ use zksync_types::witness_block_state::WitnessBlockState;
 use zksync_types::{L1BatchNumber, L2ChainId};
 
 use async_trait::async_trait;
-use multivm::interface::L2BlockEnv;
+use multivm::interface::{L2BlockEnv, VmInterface};
 use tokio::runtime::Handle;
 use tokio::task::JoinHandle;
 
