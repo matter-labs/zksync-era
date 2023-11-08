@@ -183,11 +183,23 @@ impl JobProcessor for BasicWitnessInputProducer {
             .access_storage()
             .await
             .context("failed to acquire DB connection for BasicWitnessInputProducer")?;
-        connection
+        let mut transaction = connection
+            .start_transaction()
+            .await
+            .context("failed to acquire DB transaction for BasicWitnessInputProducer")?;
+        transaction
             .basic_witness_input_producer_dal()
             .mark_job_as_successful(job_id, started_at, &object_path)
             .await
             .context("failed to mark job as successful for BasicWitnessInputProducer")?;
+        transaction
+            .witness_generator_dal()
+            .mark_witness_inputs_job_as_queued(job_id)
+            .await;
+        transaction
+            .commit()
+            .await
+            .context("failed to commit DB transaction for BasicWitnessInputProducer")?;
         METRICS.block_number_processed.set(job_id.0 as i64);
         Ok(())
     }

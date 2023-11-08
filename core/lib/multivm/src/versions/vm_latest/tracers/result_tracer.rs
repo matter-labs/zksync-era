@@ -5,24 +5,23 @@ use zk_evm_1_4_0::{
 };
 use zksync_state::{StoragePtr, WriteStorage};
 
-use crate::interface::{ExecutionResult, Halt, TxRevertReason, VmExecutionMode, VmRevertReason};
+use crate::interface::{
+    tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
+    types::tracer::TracerExecutionStopReason, ExecutionResult, Halt, TxRevertReason,
+    VmExecutionMode, VmRevertReason,
+};
 use zksync_types::U256;
 
-use crate::vm_latest::bootloader_state::BootloaderState;
-use crate::vm_latest::old_vm::{
-    history_recorder::HistoryMode,
-    memory::SimpleMemory,
-    utils::{vm_may_have_ended_inner, VmExecutionResult},
+use crate::vm_latest::{
+    constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT},
+    old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
+    tracers::{
+        traits::VmTracer,
+        utils::{get_vm_hook_params, read_pointer, VmHook},
+    },
+    types::internals::ZkSyncVmState,
+    BootloaderState, HistoryMode, SimpleMemory,
 };
-use crate::vm_latest::tracers::{
-    traits::{DynTracer, VmTracer},
-    utils::{get_vm_hook_params, read_pointer, VmHook},
-};
-
-use crate::vm_latest::constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT};
-use crate::vm_latest::tracers::traits::TracerExecutionStopReason;
-use crate::vm_latest::types::internals::ZkSyncVmState;
-use crate::vm_latest::VmExecutionStopReason;
 
 #[derive(Debug, Clone)]
 enum Result {
@@ -56,7 +55,7 @@ fn current_frame_is_bootloader(local_state: &VmLocalState) -> bool {
     local_state.callstack.inner.len() == 1
 }
 
-impl<S, H: HistoryMode> DynTracer<S, H> for ResultTracer {
+impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer {
     fn after_decoding(
         &mut self,
         state: VmLocalStateData<'_>,

@@ -29,6 +29,7 @@ mod leaf_aggregation;
 mod node_aggregation;
 mod precalculated_merkle_paths_provider;
 mod scheduler;
+mod storage_oracle;
 mod utils;
 
 #[derive(Debug, StructOpt)]
