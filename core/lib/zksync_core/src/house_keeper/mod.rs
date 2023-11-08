@@ -6,7 +6,6 @@ pub mod fri_prover_queue_monitor;
 pub mod fri_scheduler_circuit_queuer;
 pub mod fri_witness_generator_jobs_retry_manager;
 pub mod fri_witness_generator_queue_monitor;
-pub mod gcs_blob_cleaner;
 pub mod gpu_prover_queue_monitor;
 pub mod prover_job_retry_manager;
 pub mod prover_queue_monitor;

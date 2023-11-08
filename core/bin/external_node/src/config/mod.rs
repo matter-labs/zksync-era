@@ -3,8 +3,7 @@ use serde::Deserialize;
 use std::{env, time::Duration};
 use url::Url;
 
-use zksync_basic_types::{Address, L1ChainId, L2ChainId, MiniblockNumber, H256};
-use zksync_contracts::BaseSystemContractsHashes;
+use zksync_basic_types::{Address, L1ChainId, L2ChainId, MiniblockNumber};
 use zksync_core::api_server::{
     tx_sender::TxSenderConfig, web3::state::InternalApiConfig, web3::Namespace,
 };
@@ -31,9 +30,6 @@ pub struct RemoteENConfig {
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l2_chain_id: L2ChainId,
     pub l1_chain_id: L1ChainId,
-
-    pub default_aa_hash: H256,
-    pub bootloader_hash: H256,
 
     pub fair_l2_gas_price: u64,
 }
@@ -76,7 +72,6 @@ impl RemoteENConfig {
             .await
             .context("Failed to fetch last miniblock header")?
             .expect("Block is known to exist");
-        let base_system_contract_hashes = block_header.base_system_contracts_hashes;
 
         Ok(Self {
             diamond_proxy_addr,
@@ -87,17 +82,8 @@ impl RemoteENConfig {
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
             l2_chain_id,
             l1_chain_id,
-            default_aa_hash: base_system_contract_hashes.default_aa,
-            bootloader_hash: base_system_contract_hashes.bootloader,
             fair_l2_gas_price: block_header.l2_fair_gas_price,
         })
-    }
-
-    pub fn base_system_contracts_hashes(&self) -> BaseSystemContractsHashes {
-        BaseSystemContractsHashes {
-            default_aa: self.default_aa_hash,
-            bootloader: self.bootloader_hash,
-        }
     }
 }
 
@@ -509,8 +495,6 @@ impl From<ExternalNodeConfig> for TxSenderConfig {
             max_nonce_ahead: config.optional.max_nonce_ahead,
             fair_l2_gas_price: config.remote.fair_l2_gas_price,
             vm_execution_cache_misses_limit: config.optional.vm_execution_cache_misses_limit,
-            default_aa: config.remote.default_aa_hash,
-            bootloader: config.remote.bootloader_hash,
             // We set these values to the maximum since we don't know the actual values
             // and they will be enforced by the main node anyway.
             max_allowed_l2_tx_gas_limit: u32::MAX,

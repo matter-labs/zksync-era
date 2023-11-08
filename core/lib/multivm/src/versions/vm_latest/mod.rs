@@ -6,16 +6,21 @@ pub use old_vm::{
 pub use oracles::storage::StorageOracle;
 
 pub use tracers::{
-    call::CallTracer,
-    traits::{BoxedTracer, DynTracer, TracerExecutionStatus, TracerExecutionStopReason, VmTracer},
-    utils::VmExecutionStopReason,
-    StorageInvocations, ValidationError, ValidationTracer, ValidationTracerParams,
+    dispatcher::TracerDispatcher,
+    traits::{ToTracerPointer, TracerPointer, VmTracer},
 };
 
+pub use crate::interface::types::{
+    inputs::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode},
+    outputs::{
+        BootloaderMemory, CurrentExecutionState, ExecutionResult, FinishedL1Batch, L2Block,
+        Refunds, VmExecutionLogs, VmExecutionResultAndLogs, VmExecutionStatistics, VmMemoryMetrics,
+    },
+};
+pub use types::internals::ZkSyncVmState;
 pub use utils::transaction_encoding::TransactionVmExt;
 
 pub use bootloader_state::BootloaderState;
-pub use types::internals::ZkSyncVmState;
 
 pub use vm::Vm;
 
@@ -23,7 +28,7 @@ mod bootloader_state;
 mod implementation;
 mod old_vm;
 mod oracles;
-mod tracers;
+pub(crate) mod tracers;
 mod types;
 mod vm;
 

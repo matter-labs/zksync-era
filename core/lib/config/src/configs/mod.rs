@@ -13,9 +13,6 @@ pub use self::{
     witness_generator::WitnessGeneratorConfig,
 };
 
-use anyhow::Context as _;
-use serde::de::DeserializeOwned;
-
 pub mod alerts;
 pub mod api;
 pub mod chain;
@@ -41,18 +38,4 @@ pub mod prover_group;
 pub mod utils;
 pub mod witness_generator;
 
-#[cfg(test)]
-pub(crate) mod test_utils;
-
 const BYTES_IN_MEGABYTE: usize = 1_024 * 1_024;
-
-/// Convenience function that loads the structure from the environment variable given the prefix.
-/// Panics if the config cannot be loaded from the environment variables.
-pub fn envy_load<T: DeserializeOwned>(name: &str, prefix: &str) -> anyhow::Result<T> {
-    envy_try_load(prefix).with_context(|| format!("Cannot load config <{name}>"))
-}
-
-/// Convenience function that loads the structure from the environment variable given the prefix.
-pub fn envy_try_load<T: DeserializeOwned>(prefix: &str) -> Result<T, envy::Error> {
-    envy::prefixed(prefix).from_env()
-}
