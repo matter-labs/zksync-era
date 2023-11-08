@@ -26,10 +26,11 @@ pub struct Aggregator {
     execute_criteria: Vec<Box<dyn L1BatchPublishCriterion>>,
     config: SenderConfig,
     blob_store: Box<dyn ObjectStore>,
+    validium: bool,
 }
 
 impl Aggregator {
-    pub fn new(config: SenderConfig, blob_store: Box<dyn ObjectStore>) -> Self {
+    pub fn new(config: SenderConfig, blob_store: Box<dyn ObjectStore>, validium: bool) -> Self {
         Self {
             commit_criteria: vec![
                 Box::from(NumberCriterion {
@@ -43,6 +44,7 @@ impl Aggregator {
                 Box::from(DataSizeCriterion {
                     op: AggregatedActionType::Commit,
                     data_limit: config.max_eth_tx_data_size,
+                    validium,
                 }),
                 Box::from(TimestampDeadlineCriterion {
                     op: AggregatedActionType::Commit,
@@ -85,6 +87,7 @@ impl Aggregator {
             ],
             config,
             blob_store,
+            validium,
         }
     }
 
@@ -128,6 +131,7 @@ impl Aggregator {
                 last_sealed_l1_batch_number,
                 base_system_contracts_hashes,
                 protocol_version_id,
+                self.validium,
             )
             .await
             .map(AggregatedOperation::Commit)
@@ -167,6 +171,7 @@ impl Aggregator {
         last_sealed_batch: L1BatchNumber,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version_id: ProtocolVersionId,
+        is_validium: bool,
     ) -> Option<L1BatchCommitOperation> {
         let mut blocks_dal = storage.blocks_dal();
         let last_committed_l1_batch = blocks_dal
@@ -218,6 +223,7 @@ impl Aggregator {
         batches.map(|batches| L1BatchCommitOperation {
             last_committed_l1_batch,
             l1_batches: batches,
+            is_validium,
         })
     }
 

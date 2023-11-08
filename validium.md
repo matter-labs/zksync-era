@@ -1,9 +1,11 @@
-- checkout validium branch
-- init the era-contracts submodule
-- replace `Executor.sol` in the submodule for the file in the root of this repo
-- run the zksync era node normally (`zk init && zk server`)
-- `cd zksync_full_stack && cargo run` inits a wallet, deploys a contract and executes a tx
-- query the node for the tx hash (output of the zksync_full_stack binary):
+## Validium
+
+In order to start the node as a validium:
+
+- Make sure `zk` has been built and then run `zk init --validium`. This will set up the Ethereum node with the validium contracts, and also define an env var which the server will pick up in order to run as a validium node
+- Start the server (`zk server`)
+- Execute transactions. For testing, `cargo run --bin zksync_full_stack` inits a wallet, deploys a contract and executes a tx
+- Query the node for the tx hash (output of the zksync_full_stack binary):
 
 ```
 curl -X POST -H 'content-type: application/json' 127.0.0.1:3050 -d '{"jsonrpc": "2.0", "id": 1, "method": "zks_getTransactionDetails", "params": ["0xa1ae38705aa3f3e65ec9f2ce2692aaff6e531d56031998d33ac3e015bf676680"]}' | jq
@@ -26,8 +28,7 @@ curl -X POST -H 'content-type: application/json' 127.0.0.1:3050 -d '{"jsonrpc": 
 }
 ```
 
-Not all the eth-related transaction hashes might be displayed depending on how much time passes between sending the tx
-and querying the node, since the transactions are bundled into batches which get entered into the batch pipeline
+Not all the eth-related transaction hashes might be displayed depending on how much time passes between sending the tx and querying the node, since the transactions are bundled into batches which get entered into the batch pipeline
 
 - query the geth node with the commit tx hash
 
@@ -61,8 +62,8 @@ curl -X POST -H 'content-type: application/json' 127.0.0.1:8545 -d '{"jsonrpc": 
 }
 ```
 
-if the same process is followed for the boojum-integration branch, there is more data in the input field (see after the
-`01020309` sub-array which was put in place for detecting these changes):
+if the same process is followed for a non-validium node, there is more data in the input field (see after the `01020309`
+sub-array which was put in place for detecting these changes):
 
 ````
  block-explorer git:(main) ✗ curl -X POST -H 'content-type: application/json' 127.0.0.1:8545 -d '{"jsonrpc": "2.0", "id": 1, "method": "eth_getTransactionByHash", "params": ["0xf2daa7aeba7ded2c4dcb1ceb7892c6fa34ef57fec3a175f8593d313bf2c5d314"]}' | jq
