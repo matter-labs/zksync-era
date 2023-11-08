@@ -22,11 +22,11 @@ use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::blo
 use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness;
 use zksync_prover_fri_types::{AuxOutputWitnessWrapper, get_current_pod_name};
 
+use crate::storage_oracle::StorageOracle;
 use multivm::vm_latest::{
     constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_core::witness_generator::storage_oracle::StorageOracle;
 use zksync_dal::fri_witness_generator_dal::FriWitnessJobStatus;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{
