@@ -49,7 +49,7 @@ pub mod leaf_aggregation;
 pub mod node_aggregation;
 mod precalculated_merkle_paths_provider;
 pub mod scheduler;
-pub mod storage_oracle;
+mod storage_oracle;
 #[cfg(test)]
 mod tests;
 mod utils;

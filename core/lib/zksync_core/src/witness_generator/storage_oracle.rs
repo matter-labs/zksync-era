@@ -4,7 +4,7 @@ use zksync_types::zkevm_test_harness::zk_evm::abstractions::{
 use zksync_types::{LogQuery, Timestamp};
 
 #[derive(Debug)]
-pub struct StorageOracle<T> {
+pub(super) struct StorageOracle<T> {
     inn: T,
     storage_refunds: std::vec::IntoIter<u32>,
 }
