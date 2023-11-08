@@ -110,7 +110,7 @@ pub trait JobProcessor: Sync + Send {
         started_at: Instant,
         task: JoinHandle<anyhow::Result<Self::JobArtifacts>>,
     ) -> anyhow::Result<()> {
-        let attempts = self.get_job_attempts(&job_id).await;
+        let attempts = self.get_job_attempts(&job_id).await?;
         let result = loop {
             tracing::trace!(
                 "Polling {} task with id {:?}. Is finished: {}",
@@ -165,5 +165,5 @@ pub trait JobProcessor: Sync + Send {
 
     fn max_attempts(&self) -> u32;
 
-    async fn get_job_attempts(&self, job_id: &Self::JobId) -> Option<u32>;
+    async fn get_job_attempts(&self, job_id: &Self::JobId) -> anyhow::Result<Option<u32>>;
 }

@@ -208,7 +208,16 @@ impl JobProcessor for BasicWitnessInputProducer {
         JOB_MAX_ATTEMPT as u32
     }
 
-    async fn get_job_attempts(&self, job_id: &Self::JobId) -> Option<u32> {
-        todo!()
+    async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<Option<u32>> {
+        let mut connection = self
+            .connection_pool
+            .access_storage()
+            .await
+            .context("failed to acquire DB connection for BasicWitnessInputProducer")?;
+        connection
+            .basic_witness_input_producer_dal()
+            .get_basic_witness_input_producer_job_attempts(*job_id)
+            .await
+            .context("failed to get job attempts for BasicWitnessInputProducer")
     }
 }

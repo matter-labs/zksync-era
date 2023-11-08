@@ -264,12 +264,12 @@ impl JobProcessor for Prover {
         self.config.max_attempts
     }
 
-    async fn get_job_attempts(&self, job_id: &u32) -> Option<u32> {
+    async fn get_job_attempts(&self, job_id: &u32) -> anyhow::Result<Option<u32>> {
         let mut prover_storage = self.prover_connection_pool.access_storage().await.unwrap();
-        prover_storage
+        Ok(prover_storage
             .fri_prover_jobs_dal()
             .get_prover_job_attempts(*job_id)
-            .await
+            .await)
     }
 }
 

@@ -98,6 +98,24 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         Ok(l1_batch_number)
     }
 
+    pub async fn get_basic_witness_input_producer_job_attempts(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> sqlx::Result<Option<u32>> {
+        let attempts = sqlx::query!(
+            "SELECT attempts FROM basic_witness_input_producer_jobs \
+            WHERE l1_batch_number = $1",
+            l1_batch_number.0 as i64,
+        )
+        .instrument("get_basic_witness_input_producer_job_attempts")
+        .report_latency()
+        .fetch_optional(self.storage.conn())
+        .await?
+        .map(|job| job.attempts as u32);
+
+        Ok(attempts)
+    }
+
     pub async fn mark_job_as_successful(
         &mut self,
         l1_batch_number: L1BatchNumber,

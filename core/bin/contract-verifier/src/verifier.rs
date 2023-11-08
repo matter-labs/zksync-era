@@ -529,7 +529,7 @@ impl JobProcessor for ContractVerifier {
         u32::MAX
     }
 
-    async fn get_job_attempts(&self, _job_id: &Self::JobId) -> Option<u32> {
-        None
+    async fn get_job_attempts(&self, _job_id: &Self::JobId) -> anyhow::Result<Option<u32>> {
+        Ok(None)
     }
 }
