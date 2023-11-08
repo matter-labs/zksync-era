@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_db_utils::instrument::InstrumentExt;
 use zksync_types::{
     block::{miniblock_hash, MiniblockHeader},
     fee::{Fee, TransactionExecutionMetrics},
@@ -249,5 +250,38 @@ async fn remove_stuck_txs() {
         .get_transaction_receipt(executed_tx.hash())
         .await
         .unwrap()
+        .unwrap();
+}
+
+// DB utils tests
+#[tokio::test]
+async fn instrumenting_erroneous_query() {
+    let pool = ServerConnectionPool::test_pool().await;
+    // Add `vlog::init()` here to debug this test
+
+    let mut conn = pool.access_storage().await.unwrap();
+    sqlx::query("WHAT")
+        .map(drop)
+        .instrument("erroneous")
+        .with_arg("miniblock", &MiniblockNumber(1))
+        .with_arg("hash", &H256::zero())
+        .fetch_optional(conn.conn())
+        .await
+        .unwrap_err();
+}
+
+#[tokio::test]
+async fn instrumenting_slow_query() {
+    let pool = ServerConnectionPool::test_pool().await;
+    // Add `vlog::init()` here to debug this test
+
+    let mut conn = pool.access_storage().await.unwrap();
+    sqlx::query("SELECT pg_sleep(1.5)")
+        .map(drop)
+        .instrument("slow")
+        .with_arg("miniblock", &MiniblockNumber(1))
+        .with_arg("hash", &H256::zero())
+        .fetch_optional(conn.conn())
+        .await
         .unwrap();
 }

@@ -1,7 +1,7 @@
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryFrom;
 use zksync_types::{
-    protocol_version::{L1VerifierConfig, ProtocolUpgradeTx, ProtocolVersion, VerifierParams},
-    Address, ProtocolVersionId, H256,
+    protocol_version::{L1VerifierConfig, ProtocolVersion},
+    ProtocolVersionId,
 };
 
 use crate::ProverStorageProcessor;

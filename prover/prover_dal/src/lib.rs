@@ -40,6 +40,9 @@ pub mod prover_dal;
 pub mod prover_protocol_versions_dal;
 pub mod witness_generator_dal;
 
+#[cfg(test)]
+mod tests;
+
 /// Obtains the master prover database URL from the environment variable.
 pub fn get_prover_database_url() -> anyhow::Result<String> {
     Ok(env::var("DATABASE_PROVER_URL")?)

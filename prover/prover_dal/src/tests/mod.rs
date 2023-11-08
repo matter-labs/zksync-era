@@ -1,50 +1,28 @@
-use crate::prover_dal::{GetProverJobsParams, ProverDal};
-use crate::witness_generator_dal::WitnessGeneratorDal;
+use std::{fs, time::Duration};
 
-fn create_circuits() -> Vec<(&'static str, String)> {
-    vec![
-        ("Main VM", "1_0_Main VM_BasicCircuits.bin".to_owned()),
-        ("SHA256", "1_1_SHA256_BasicCircuits.bin".to_owned()),
-        (
-            "Code decommitter",
-            "1_2_Code decommitter_BasicCircuits.bin".to_owned(),
-        ),
-        (
-            "Log demuxer",
-            "1_3_Log demuxer_BasicCircuits.bin".to_owned(),
-        ),
-    ]
-}
+use zksync_types::{proofs::AggregationRound, L1BatchNumber, ProtocolVersionId};
+
+use crate::{
+    prover_dal::{GetProverJobsParams, ProverDal},
+    witness_generator_dal::WitnessGeneratorDal,
+    ProverConnectionPool,
+};
 
 #[tokio::test]
 async fn test_duplicate_insert_prover_jobs() {
-    let connection_pool = ServerConnectionPool::test_pool().await;
+    let connection_pool = ProverConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
+
     storage
-        .protocol_versions_dal()
-        .save_protocol_version_with_tx(Default::default())
-        .await;
-    storage
-        .protocol_versions_dal()
+        .prover_protocol_versions_dal()
         .save_prover_protocol_version(Default::default())
         .await;
     let block_number = 1;
-    let header = L1BatchHeader::new(
-        L1BatchNumber(block_number),
-        0,
-        Default::default(),
-        Default::default(),
-        Default::default(),
-    );
-    storage
-        .blocks_dal()
-        .insert_l1_batch(&header, &[], Default::default(), &[], &[])
-        .await
-        .unwrap();
 
     let mut prover_dal = ProverDal { storage };
     let circuits = create_circuits();
     let l1_batch_number = L1BatchNumber(block_number);
+
     prover_dal
         .insert_prover_jobs(
             l1_batch_number,
@@ -80,30 +58,14 @@ async fn test_duplicate_insert_prover_jobs() {
 
 #[tokio::test]
 async fn test_requeue_prover_jobs() {
-    let connection_pool = ServerConnectionPool::test_pool().await;
+    let connection_pool = ProverConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
-    let protocol_version = ProtocolVersion::default();
+
     storage
-        .protocol_versions_dal()
-        .save_protocol_version_with_tx(protocol_version)
-        .await;
-    storage
-        .protocol_versions_dal()
+        .prover_protocol_versions_dal()
         .save_prover_protocol_version(Default::default())
         .await;
     let block_number = 1;
-    let header = L1BatchHeader::new(
-        L1BatchNumber(block_number),
-        0,
-        Default::default(),
-        Default::default(),
-        ProtocolVersionId::latest(),
-    );
-    storage
-        .blocks_dal()
-        .insert_l1_batch(&header, &[], Default::default(), &[], &[])
-        .await
-        .unwrap();
 
     let mut prover_dal = ProverDal { storage };
     let circuits = create_circuits();
@@ -144,30 +106,13 @@ async fn test_requeue_prover_jobs() {
 
 #[tokio::test]
 async fn test_move_leaf_aggregation_jobs_from_waiting_to_queued() {
-    let connection_pool = ServerConnectionPool::test_pool().await;
+    let connection_pool = ProverConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
-    let protocol_version = ProtocolVersion::default();
     storage
-        .protocol_versions_dal()
-        .save_protocol_version_with_tx(protocol_version)
-        .await;
-    storage
-        .protocol_versions_dal()
+        .prover_protocol_versions_dal()
         .save_prover_protocol_version(Default::default())
         .await;
     let block_number = 1;
-    let header = L1BatchHeader::new(
-        L1BatchNumber(block_number),
-        0,
-        Default::default(),
-        Default::default(),
-        ProtocolVersionId::latest(),
-    );
-    storage
-        .blocks_dal()
-        .insert_l1_batch(&header, &[], Default::default(), &[], &[])
-        .await
-        .unwrap();
 
     let mut prover_dal = ProverDal { storage };
     let circuits = create_circuits();
@@ -225,30 +170,14 @@ async fn test_move_leaf_aggregation_jobs_from_waiting_to_queued() {
 
 #[tokio::test]
 async fn test_move_node_aggregation_jobs_from_waiting_to_queued() {
-    let connection_pool = ServerConnectionPool::test_pool().await;
+    let connection_pool = ProverConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
-    let protocol_version = ProtocolVersion::default();
+
     storage
-        .protocol_versions_dal()
-        .save_protocol_version_with_tx(protocol_version)
-        .await;
-    storage
-        .protocol_versions_dal()
+        .prover_protocol_versions_dal()
         .save_prover_protocol_version(Default::default())
         .await;
     let block_number = 1;
-    let header = L1BatchHeader::new(
-        L1BatchNumber(block_number),
-        0,
-        Default::default(),
-        Default::default(),
-        ProtocolVersionId::latest(),
-    );
-    storage
-        .blocks_dal()
-        .insert_l1_batch(&header, &[], Default::default(), &[], &[])
-        .await
-        .unwrap();
 
     let mut prover_dal = ProverDal { storage };
     let circuits = create_circuits();
@@ -313,30 +242,15 @@ async fn test_move_node_aggregation_jobs_from_waiting_to_queued() {
 
 #[tokio::test]
 async fn test_move_scheduler_jobs_from_waiting_to_queued() {
-    let connection_pool = ServerConnectionPool::test_pool().await;
+    let connection_pool = ProverConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
-    let protocol_version = ProtocolVersion::default();
+
     storage
-        .protocol_versions_dal()
-        .save_protocol_version_with_tx(protocol_version)
-        .await;
-    storage
-        .protocol_versions_dal()
+        .prover_protocol_versions_dal()
         .save_prover_protocol_version(Default::default())
         .await;
+
     let block_number = 1;
-    let header = L1BatchHeader::new(
-        L1BatchNumber(block_number),
-        0,
-        Default::default(),
-        Default::default(),
-        ProtocolVersionId::latest(),
-    );
-    storage
-        .blocks_dal()
-        .insert_l1_batch(&header, &[], Default::default(), &[], &[])
-        .await
-        .unwrap();
 
     let mut prover_dal = ProverDal { storage };
     let circuits = vec![(
@@ -395,6 +309,21 @@ async fn test_move_scheduler_jobs_from_waiting_to_queued() {
         )
         .await;
     assert_eq!(l1_batch_number, job.unwrap().block_number);
+}
+
+fn create_circuits() -> Vec<(&'static str, String)> {
+    vec![
+        ("Main VM", "1_0_Main VM_BasicCircuits.bin".to_owned()),
+        ("SHA256", "1_1_SHA256_BasicCircuits.bin".to_owned()),
+        (
+            "Code decommitter",
+            "1_2_Code decommitter_BasicCircuits.bin".to_owned(),
+        ),
+        (
+            "Log demuxer",
+            "1_3_Log demuxer_BasicCircuits.bin".to_owned(),
+        ),
+    ]
 }
 
 fn get_default_prover_jobs_params(l1_batch_number: L1BatchNumber) -> GetProverJobsParams {

@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use zksync_prover_dal::ProverConnectionPool;
-use zksync_server_dal::ServerConnectionPool;
-use zksync_types::proofs::{AggregationRound, JobCountStatistics};
 
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_prover_utils::periodic_job::PeriodicJob;
+use zksync_types::proofs::{AggregationRound, JobCountStatistics};
 
 const WITNESS_GENERATOR_SERVICE_NAME: &str = "witness_generator";
 

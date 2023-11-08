@@ -1,18 +1,15 @@
+use anyhow::Context as _;
+use std::{fmt, time::Duration};
+
 use sqlx::{
     pool::PoolConnection,
     postgres::{PgConnectOptions, PgPool, PgPoolOptions, Postgres},
 };
 
-use anyhow::Context as _;
-use std::fmt;
-use std::time::Duration;
-
+use zksync_db_utils::metrics::CONNECTION_METRICS;
 use zksync_utils::parse_env;
 
-use crate::{get_prover_database_url, get_test_prover_database_url};
-use zksync_db_utils::metrics::CONNECTION_METRICS;
-
-use crate::ProverStorageProcessor;
+use crate::{get_prover_database_url, get_test_prover_database_url, ProverStorageProcessor};
 
 #[derive(Debug, Clone, Copy)]
 pub enum DbVariant {
@@ -98,7 +95,7 @@ pub(super) async fn create_test_prover_db() -> anyhow::Result<url::Url> {
     use rand::Rng as _;
     use sqlx::{Connection as _, Executor as _};
     const PREFIX: &str = "test-";
-    let db_url = crate::get_test_prover_database_url().unwrap();
+    let db_url = get_test_prover_database_url().unwrap();
     let mut db_url = url::Url::parse(&db_url)
         .with_context(|| format!("{} is not a valid prover database address", db_url))?;
     let db_name = db_url

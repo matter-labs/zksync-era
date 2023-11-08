@@ -11,12 +11,12 @@ export async function resetMain() {
 export async function resetTest() {
     process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
     await utils.confirmAction();
-    console.log('recreating postgres container for unit tests');
-    await utils.spawn('docker compose -f docker-compose-unit-tests.yml down');
-    await utils.spawn('docker compose -f docker-compose-unit-tests.yml up -d');
+
     await waitMain(100);
+
     console.log('setting up a database template');
     await setupMain();
+
     console.log('disallowing connections to the template');
     await utils.spawn(
         `psql "${process.env.DATABASE_URL}" -c "update pg_database set datallowconn = false where datname = current_database()"`
@@ -87,6 +87,25 @@ export async function resetProver() {
     await waitProver();
     await dropProver();
     await setupProver();
+}
+
+export async function resetTestProver() {
+    process.env.DATABASE_PROVER_URL = process.env.TEST_DATABASE_PROVER_URL;
+    await utils.confirmAction();
+
+    // console.log('recreating postgres container for unit tests');
+    // await utils.spawn('docker compose -f docker-compose-unit-tests.yml down');
+    // await utils.spawn('docker compose -f docker-compose-unit-tests.yml up -d');
+
+    await waitProver(100);
+
+    console.log('setting up a prover database template');
+    await setupProver();
+
+    console.log('disallowing connections to the template');
+    await utils.spawn(
+        `psql "${process.env.DATABASE_PROVER_URL}" -c "update pg_database set datallowconn = false where datname = current_database()"`
+    );
 }
 
 export async function dropProver() {
@@ -171,10 +190,7 @@ command
     .action(setupProver);
 command.command('prover-wait').description('wait for prover database to get ready for interaction').action(waitProver);
 command.command('prover-reset').description('reinitialize the prover database').action(resetProver);
-// command
-//     .command('prover-reset-test')
-//     .description('reinitialize the database for test')
-//     .action(resetTest);
+command.command('prover-reset-test').description('reinitialize the prover database for test').action(resetTestProver);
 command
     .command('prover-check-sqlx-data')
     .description('check prover sqlx-data.json is up to date')

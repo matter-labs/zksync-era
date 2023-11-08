@@ -1029,7 +1029,6 @@ async fn add_house_keeper_to_task_futures(
     let gcs_blob_cleaner = GcsBlobCleaner::new(
         store_factory,
         prover_connection_pool.clone(),
-        server_connection_pool,
         house_keeper_config.blob_cleaning_interval_ms,
     )
     .await;

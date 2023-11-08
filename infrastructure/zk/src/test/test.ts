@@ -20,7 +20,12 @@ export async function js() {
 }
 
 export async function rust(options: string[]) {
+    console.log('recreating postgres container for unit tests');
+    await utils.spawn('docker compose -f docker-compose-unit-tests.yml down');
+    await utils.spawn('docker compose -f docker-compose-unit-tests.yml up -d');
+
     await db.resetTest();
+    await db.resetTestProver();
 
     let result = await utils.exec('cargo install --list');
     let test_runner = 'cargo nextest run';
