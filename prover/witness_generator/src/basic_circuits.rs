@@ -22,8 +22,11 @@ use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::blo
 use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness;
 use zksync_prover_fri_types::{AuxOutputWitnessWrapper, get_current_pod_name};
 
-use multivm::vm_latest::{constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle};
+use multivm::vm_latest::{
+    constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
+};
 use zksync_config::configs::FriWitnessGeneratorConfig;
+use zksync_core::witness_generator::storage_oracle::StorageOracle;
 use zksync_dal::fri_witness_generator_dal::FriWitnessJobStatus;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{
@@ -537,6 +540,13 @@ async fn generate_witness(
         .map(|hash| u256_to_h256(*hash))
         .collect();
 
+    let storage_refunds = connection
+        .blocks_dal()
+        .get_storage_refunds(input.block_number)
+        .await
+        .unwrap()
+        .unwrap();
+
     let mut used_bytecodes = connection.storage_dal().get_factory_deps(&hashes).await;
     if input.used_bytecodes_hashes.contains(&account_code_hash) {
         used_bytecodes.insert(account_code_hash, account_bytecode);
@@ -608,10 +618,14 @@ async fn generate_witness(
         let connection = rt_handle
             .block_on(connection_pool.access_storage())
             .unwrap();
+
         let storage = PostgresStorage::new(rt_handle, connection, last_miniblock_number, true);
         let storage_view = StorageView::new(storage).to_rc_ptr();
-        let storage_oracle: StorageOracle<StorageView<PostgresStorage<'_>>, HistoryDisabled> =
-            StorageOracle::new(storage_view.clone());
+
+        let vm_storage_oracle: VmStorageOracle<StorageView<PostgresStorage<'_>>, HistoryDisabled> =
+            VmStorageOracle::new(storage_view.clone());
+        let storage_oracle = StorageOracle::new(vm_storage_oracle, storage_refunds);
+
         zkevm_test_harness::external_calls::run_with_fixed_params(
             Address::zero(),
             BOOTLOADER_ADDRESS,
