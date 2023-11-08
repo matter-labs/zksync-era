@@ -38,7 +38,7 @@ describe('Snapshots API tests', () => {
         return rpcRequest('snapshots_getSnapshot', [snapshotL1Batch]);
     }
 
-    test('snapshots can be created and contain valid values', async () => {
+    async function createAndValidateSnapshot() {
         let existingL1Batches = (await getAllSnapshots()).snapshots as any[];
         await runCreator();
         let newSnapshotsBatches = await getAllSnapshots();
@@ -52,8 +52,7 @@ describe('Snapshots API tests', () => {
         let miniblockNumber = fullSnapshot.miniblockNumber;
 
         expect(fullSnapshot.l1BatchNumber).toEqual(addedSnapshots[0].l1BatchNumber);
-        //TODO make this more generic so that it for instance works in GCS
-        let path = `${process.env.ZKSYNC_HOME}/${fullSnapshot.chunks[0].filepath}`;
+        let path = `${process.env.ZKSYNC_HOME}/${fullSnapshot.storageLogsChunks[0].filepath}`;
 
         let output = JSON.parse(fs.readFileSync(path).toString());
 
@@ -68,14 +67,14 @@ describe('Snapshots API tests', () => {
             expect(snapshotValue).toEqual(valueOnBlockchain);
             expect(snapshotL1BatchNumber).toBeLessThanOrEqual(l1BatchNumber);
         }
-    });
+    }
 
     test('ext-node can be restored from snapshot', async () => {
-        await utils.exec(' cargo build --release');
-        await utils.exec(' zk docker build integration-test-node');
-        await runCreator();
+        await utils.spawn(' cargo build --release');
+        await utils.spawn(' zk docker build integration-test-node');
+        await createAndValidateSnapshot();
         await isolatedExternalNode();
         await utils.sleep(5);
-        await utils.exec('zk run cross-en-checker');
+        await utils.spawn('zk run cross-en-checker');
     });
 });

@@ -8,31 +8,31 @@ use multivm::vm_1_3_2::zk_evm_1_3_3::ethereum_types::Address;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::path::Path;
-use std::time::Instant;
 use tokio::sync::watch;
 use zksync_dal::connection::DbVariant;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_merkle_tree::recovery::{MerkleTreeRecovery, RecoveryEntry};
-use zksync_merkle_tree::{PruneDatabase, RocksDBWrapper};
+use zksync_merkle_tree::RocksDBWrapper;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_storage::RocksDB;
 use zksync_types::block::{BlockGasCount, MiniblockHeader};
 use zksync_types::snapshots::{
-    AppliedSnapshotStatus, SnapshotChunk, SnapshotChunkMetadata, SnapshotFactoryDependency,
-    SnapshotHeader, SnapshotStorageLog,
+    AppliedSnapshotStatus, SnapshotFactoryDependencies, SnapshotHeader, SnapshotStorageLog,
+    SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
 };
-use zksync_types::{L2ChainId, ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, H256};
+use zksync_types::{
+    L1BatchNumber, L2ChainId, ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, H256,
+};
 
 pub struct StateKeeperConfig {
-    pub state_keeper_db_path: String,
     pub connection_pool: ConnectionPool,
+    pub state_keeper_db_path: String,
     pub l2_erc20_bridge_addr: Address,
     pub chain_id: L2ChainId,
     pub main_node_url: String,
     pub enum_index_migration_chunk_size: usize,
 }
-pub struct SnapshotApplier<'a, 'b, 'c, 'd> {
-    storage: &'a mut StorageProcessor<'c>,
+pub struct SnapshotApplier<'a, 'b, 'd> {
+    connection_pool: &'a ConnectionPool,
     client: &'a dyn MainNodeClient,
     recovery: MerkleTreeRecovery<'b, RocksDBWrapper>,
     blob_store: Box<dyn ObjectStore>,
@@ -52,14 +52,20 @@ pub enum SnapshotApplierError {
     Retryable(String),
 }
 
-impl<'a, 'b, 'c, 'd> SnapshotApplier<'a, 'b, 'c, 'd> {
+impl<'a, 'b, 'd> SnapshotApplier<'a, 'b, 'd> {
     pub async fn new(
-        storage: &'a mut StorageProcessor<'c>,
+        connection_pool: &'a ConnectionPool,
         client: &'a dyn MainNodeClient,
         merkle_tree_db_path: &String,
         state_keeper_config: StateKeeperConfig,
         metadata_calculator_config: MetadataCalculatorConfig<'d>,
-    ) -> anyhow::Result<SnapshotApplier<'a, 'b, 'c, 'd>, SnapshotApplierError> {
+    ) -> anyhow::Result<SnapshotApplier<'a, 'b, 'd>, SnapshotApplierError> {
+        let mut storage = connection_pool
+            .access_storage_tagged("snapshots_applier")
+            .await
+            .unwrap();
+        let mut storage = storage.start_transaction().await.unwrap();
+
         let mut applied_snapshot_status = storage
             .applied_snapshot_status_dal()
             .get_applied_snapshot_status()
@@ -88,7 +94,7 @@ impl<'a, 'b, 'c, 'd> SnapshotApplier<'a, 'b, 'c, 'd> {
         }
         let snapshot = snapshot_response.unwrap();
         let l1_batch_number = snapshot.l1_batch_number;
-        tracing::info!("Found snapshot with data up to l1_batch {}, created at {}, storage_logs are divided into {} chunk(s)", l1_batch_number, snapshot.generated_at, snapshot.chunks.len());
+        tracing::info!("Found snapshot with data up to l1_batch {}, created at {}, storage_logs are divided into {} chunk(s)", l1_batch_number, snapshot.generated_at, snapshot.storage_logs_chunks.len());
 
         if applied_snapshot_status.is_none() {
             applied_snapshot_status = Some(AppliedSnapshotStatus {
@@ -116,7 +122,7 @@ impl<'a, 'b, 'c, 'd> SnapshotApplier<'a, 'b, 'c, 'd> {
             .await
             .unwrap();
         Ok(Self {
-            storage,
+            connection_pool,
             client,
             recovery,
             blob_store,
@@ -126,6 +132,7 @@ impl<'a, 'b, 'c, 'd> SnapshotApplier<'a, 'b, 'c, 'd> {
             metadata_calculator_config,
         })
     }
+
     async fn build_state_keeper(config: StateKeeperConfig) -> ZkSyncStateKeeper {
         let (_, stop_receiver) = watch::channel(false);
 
@@ -188,13 +195,17 @@ impl<'a, 'b, 'c, 'd> SnapshotApplier<'a, 'b, 'c, 'd> {
 
         ZkSyncStateKeeper::without_sealer(stop_receiver, Box::new(io), batch_executor_base)
     }
-    async fn sync_protocol_version(&mut self, id: ProtocolVersionId) {
+    async fn sync_protocol_version(
+        &mut self,
+        id: ProtocolVersionId,
+        storage: &mut StorageProcessor<'_>,
+    ) {
         let protocol_version = self
             .client
             .fetch_protocol_version(id)
             .await
             .expect("Failed to fetch protocol version from the main node");
-        self.storage
+        storage
             .protocol_versions_dal()
             .save_protocol_version(
                 protocol_version.version_id.try_into().unwrap(),
@@ -208,16 +219,16 @@ impl<'a, 'b, 'c, 'd> SnapshotApplier<'a, 'b, 'c, 'd> {
             .await;
     }
 
-    async fn insert_dummy_miniblock_header(&mut self) {
+    async fn insert_dummy_miniblock_header(&mut self, storage: &mut StorageProcessor<'_>) {
         let sync_block = self
             .client
             .fetch_l2_block(self.snapshot.miniblock_number, false)
             .await
             .expect("Failed to fetch block from the main node")
             .expect("Block must exist");
-        self.sync_protocol_version(sync_block.protocol_version)
+        self.sync_protocol_version(sync_block.protocol_version, storage)
             .await;
-        self.storage
+        storage
             .blocks_dal()
             .insert_miniblock(&MiniblockHeader {
                 number: sync_block.number,
@@ -234,7 +245,7 @@ impl<'a, 'b, 'c, 'd> SnapshotApplier<'a, 'b, 'c, 'd> {
             })
             .await
             .unwrap();
-        self.storage
+        storage
             .blocks_dal()
             .update_hashes(&[(sync_block.number, sync_block.hash.unwrap())])
             .await
@@ -242,38 +253,46 @@ impl<'a, 'b, 'c, 'd> SnapshotApplier<'a, 'b, 'c, 'd> {
         tracing::info!("Fetched miniblock {} from main node", sync_block.number)
     }
 
-    async fn insert_dummy_l1_batch_metadata(&mut self) {
+    async fn insert_dummy_l1_batch_metadata(&mut self, storage: &mut StorageProcessor<'_>) {
         let l1_batch_header_with_metadata = &self.snapshot.last_l1_batch_with_metadata;
         let l1_batch_header = &l1_batch_header_with_metadata.header;
         let l1_batch_metadata = &l1_batch_header_with_metadata.metadata;
 
-        self.storage
+        storage
             .blocks_dal()
             .insert_l1_batch(l1_batch_header, &[], BlockGasCount::default(), &[], &[])
             .await
             .unwrap();
-        self.storage
+        storage
             .blocks_dal()
             .save_l1_batch_metadata(l1_batch_header.number, l1_batch_metadata, H256::zero())
             .await
             .unwrap();
-        self.storage
+        storage
             .blocks_dal()
             .mark_miniblocks_as_executed_in_l1_batch(l1_batch_header.number)
             .await
             .unwrap();
     }
 
-    async fn sync_initial_writes_chunk(&mut self, storage_logs: &[SnapshotStorageLog]) {
+    async fn sync_initial_writes_chunk(
+        &mut self,
+        storage_logs: &[SnapshotStorageLog],
+        storage: &mut StorageProcessor<'_>,
+    ) {
         let l1_batch_number = self.snapshot.l1_batch_number;
         tracing::info!("Loading {} storage logs into postgres", storage_logs.len());
         let storage_logs_keys: Vec<StorageKey> = storage_logs.iter().map(|log| log.key).collect();
-        self.storage
+        storage
             .storage_logs_dedup_dal()
             .insert_initial_writes(l1_batch_number, &storage_logs_keys)
             .await;
     }
-    async fn sync_storage_logs_chunk(&mut self, storage_logs: &[SnapshotStorageLog]) {
+    async fn sync_storage_logs_chunk(
+        &mut self,
+        storage_logs: &[SnapshotStorageLog],
+        storage: &mut StorageProcessor<'_>,
+    ) {
         let miniblock_number = self.snapshot.miniblock_number;
         let transformed_logs = storage_logs
             .iter()
@@ -283,7 +302,7 @@ impl<'a, 'b, 'c, 'd> SnapshotApplier<'a, 'b, 'c, 'd> {
                 value: log.value,
             })
             .collect();
-        self.storage
+        storage
             .storage_logs_dal()
             .append_storage_logs(miniblock_number, &[(H256::zero(), transformed_logs)])
             .await;
@@ -303,23 +322,42 @@ impl<'a, 'b, 'c, 'd> SnapshotApplier<'a, 'b, 'c, 'd> {
         self.recovery.extend(logs_for_merkle_tree);
     }
 
-    async fn sync_factory_deps_chunk(&mut self, factory_deps: Vec<SnapshotFactoryDependency>) {
-        if !factory_deps.is_empty() {
-            let all_deps_hashmap: HashMap<H256, Vec<u8>> = factory_deps
-                .into_iter()
-                .map(|dep| (dep.bytecode_hash, dep.bytecode))
-                .collect();
-            self.storage
-                .storage_dal()
-                .insert_factory_deps(self.snapshot.miniblock_number, &all_deps_hashmap)
-                .await;
-        }
+    async fn sync_factory_deps(&mut self, storage: &mut StorageProcessor<'_>) {
+        let factory_deps: SnapshotFactoryDependencies = self
+            .blob_store
+            .get(self.snapshot.l1_batch_number)
+            .await
+            .unwrap();
+
+        let all_deps_hashmap: HashMap<H256, Vec<u8>> = factory_deps
+            .factory_deps
+            .into_iter()
+            .map(|dep| (dep.bytecode_hash, dep.bytecode))
+            .collect();
+        storage
+            .storage_dal()
+            .insert_factory_deps(self.snapshot.miniblock_number, &all_deps_hashmap)
+            .await;
     }
 
-    async fn sync_single_chunk(&mut self, chunk_metadata: &SnapshotChunkMetadata) {
-        let storage_key = chunk_metadata.key;
+    async fn sync_storage_logs_single_chunk(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+        chunk_id: u64,
+        filepath: &str,
+    ) {
+        let mut storage = self
+            .connection_pool
+            .access_storage_tagged("snapshots_applier")
+            .await
+            .unwrap();
+        let mut storage = storage.start_transaction().await.unwrap();
 
-        let chunk_id = storage_key.chunk_id;
+        let storage_key = SnapshotStorageLogsStorageKey {
+            l1_batch_number,
+            chunk_id,
+        };
+
         if self
             .applied_snapshot_status
             .last_finished_chunk_id
@@ -331,30 +369,28 @@ impl<'a, 'b, 'c, 'd> SnapshotApplier<'a, 'b, 'c, 'd> {
                 chunk_id
             );
         }
-        tracing::info!(
-            "Processing chunk {} located in {}",
-            chunk_id,
-            &chunk_metadata.filepath
-        );
+        tracing::info!("Processing chunk {chunk_id} located in {filepath}");
 
-        let storage_snapshot_chunk: SnapshotChunk = self.blob_store.get(storage_key).await.unwrap();
-
-        let factory_deps = storage_snapshot_chunk.factory_deps;
-        self.sync_factory_deps_chunk(factory_deps).await;
+        let storage_snapshot_chunk: SnapshotStorageLogsChunk =
+            self.blob_store.get(storage_key).await.unwrap();
 
         let storage_logs = &storage_snapshot_chunk.storage_logs;
-        self.sync_storage_logs_chunk(storage_logs).await;
+        self.sync_storage_logs_chunk(storage_logs, &mut storage)
+            .await;
 
-        self.sync_initial_writes_chunk(storage_logs).await;
+        self.sync_initial_writes_chunk(storage_logs, &mut storage)
+            .await;
 
         self.sync_tree_chunk(storage_logs).await;
 
         self.applied_snapshot_status.last_finished_chunk_id = Some(chunk_id);
-        self.storage
+        storage
             .applied_snapshot_status_dal()
             .set_applied_snapshot_status(&self.applied_snapshot_status)
             .await
             .unwrap();
+
+        storage.commit().await.unwrap();
     }
 
     async fn clear_dummy_headers(storage: &mut StorageProcessor<'_>, snapshot: SnapshotHeader) {
@@ -365,6 +401,13 @@ impl<'a, 'b, 'c, 'd> SnapshotApplier<'a, 'b, 'c, 'd> {
             .unwrap();
     }
     async fn finalize_applying_snapshot(mut self) {
+        let mut storage = self
+            .connection_pool
+            .access_storage_tagged("snapshots_applier")
+            .await
+            .unwrap();
+        let mut storage = storage.start_transaction().await.unwrap();
+
         tracing::info!("Processing chunks finished, finalizing merkle tree");
         {
             self.recovery.finalize();
@@ -376,14 +419,13 @@ impl<'a, 'b, 'c, 'd> SnapshotApplier<'a, 'b, 'c, 'd> {
         tracing::info!("Finished running state keeper for snapshot applier, updating status");
         let metadata_calculator = MetadataCalculator::new(&self.metadata_calculator_config).await;
 
-        let (stop_sender, stop_receiver) = watch::channel(false);
+        let (_, stop_receiver) = watch::channel(false);
         let tree_stop_receiver = stop_receiver.clone();
         let tree_pool = ConnectionPool::singleton(DbVariant::Master)
             .build()
             .await
             .context("failed to build a tree_pool")
             .unwrap();
-        // todo: PLA-335
         let prover_tree_pool = ConnectionPool::singleton(DbVariant::Prover)
             .build()
             .await
@@ -396,23 +438,44 @@ impl<'a, 'b, 'c, 'd> SnapshotApplier<'a, 'b, 'c, 'd> {
             .unwrap();
 
         self.applied_snapshot_status.is_finished = true;
-        self.storage
+        storage
             .applied_snapshot_status_dal()
             .set_applied_snapshot_status(&self.applied_snapshot_status)
             .await
             .unwrap();
-        SnapshotApplier::clear_dummy_headers(self.storage, self.snapshot).await;
+        SnapshotApplier::clear_dummy_headers(&mut storage, self.snapshot).await;
 
+        storage.commit().await.unwrap();
         tracing::info!("Finished applying snapshot");
     }
 
+    pub async fn sync_initial_data_and_factory_deps(&mut self) {
+        let mut storage = self
+            .connection_pool
+            .access_storage_tagged("snapshots_applier")
+            .await
+            .unwrap();
+        let mut storage = storage.start_transaction().await.unwrap();
+
+        self.insert_dummy_miniblock_header(&mut storage).await;
+
+        self.insert_dummy_l1_batch_metadata(&mut storage).await;
+
+        self.sync_factory_deps(&mut storage).await;
+
+        storage.commit().await.unwrap();
+    }
+
     pub async fn load_snapshot(mut self) -> Result<(), SnapshotApplierError> {
-        self.insert_dummy_miniblock_header().await;
+        self.sync_initial_data_and_factory_deps().await;
 
-        self.insert_dummy_l1_batch_metadata().await;
-
-        for chunk_metadata in self.snapshot.chunks.clone().iter() {
-            self.sync_single_chunk(chunk_metadata).await;
+        for chunk_metadata in self.snapshot.storage_logs_chunks.clone().iter() {
+            self.sync_storage_logs_single_chunk(
+                self.snapshot.l1_batch_number,
+                chunk_metadata.chunk_id,
+                &chunk_metadata.filepath,
+            )
+            .await;
         }
 
         self.finalize_applying_snapshot().await;
@@ -422,14 +485,14 @@ impl<'a, 'b, 'c, 'd> SnapshotApplier<'a, 'b, 'c, 'd> {
 }
 
 pub async fn load_from_snapshot_if_needed(
-    storage: &mut StorageProcessor<'_>,
+    pool: ConnectionPool,
     client: &dyn MainNodeClient,
     merkle_tree_db_path: &String,
     state_keeper_params: StateKeeperConfig,
     metadata_calculator_config: MetadataCalculatorConfig<'_>,
 ) -> anyhow::Result<()> {
     let applier = SnapshotApplier::new(
-        storage,
+        &pool,
         client,
         merkle_tree_db_path,
         state_keeper_params,

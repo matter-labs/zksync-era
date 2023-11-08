@@ -3,7 +3,9 @@ use anyhow::Context as _;
 use zksync_dal::connection::DbVariant;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_types::snapshots::{SnapshotChunk, SnapshotFactoryDependency, SnapshotStorageKey};
+use zksync_types::snapshots::{
+    SnapshotFactoryDependencies, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
+};
 use zksync_utils::ceil_div;
 
 async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) {
@@ -44,29 +46,32 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) {
     );
 
     let mut output_files = vec![];
+
+    let factory_deps = conn
+        .storage_logs_snapshots_dal()
+        .get_all_factory_deps(miniblock_number)
+        .await;
+    let factory_deps = SnapshotFactoryDependencies { factory_deps };
+    blob_store
+        .put(l1_batch_number, &factory_deps)
+        .await
+        .unwrap();
+    let factory_deps_output_file =
+        blob_store.get_full_path::<SnapshotFactoryDependencies>(l1_batch_number);
+
     for chunk_id in 0..chunks_count {
         let logs = conn
             .storage_logs_snapshots_dal()
             .get_storage_logs_chunk(l1_batch_number, chunk_id, chunk_size)
             .await
             .unwrap();
-        let mut factory_deps: Vec<SnapshotFactoryDependency> = vec![];
-        if chunk_id == 0 {
-            factory_deps = conn
-                .storage_logs_snapshots_dal()
-                .get_all_factory_deps(miniblock_number)
-                .await;
-        }
-        let result = SnapshotChunk {
-            storage_logs: logs,
-            factory_deps,
-        };
-        let key = SnapshotStorageKey {
+        let storage_logs_chunk = SnapshotStorageLogsChunk { storage_logs: logs };
+        let key = SnapshotStorageLogsStorageKey {
             l1_batch_number,
             chunk_id,
         };
-        blob_store.put(key, &result).await.unwrap();
-        let output_file = blob_store.get_full_path::<SnapshotChunk>(key);
+        blob_store.put(key, &storage_logs_chunk).await.unwrap();
+        let output_file = blob_store.get_full_path::<SnapshotStorageLogsChunk>(key);
         output_files.push(output_file.clone());
         tracing::info!(
             "Finished storing chunk {}/{} in {}",
@@ -77,7 +82,7 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) {
     }
 
     conn.snapshots_dal()
-        .add_snapshot(l1_batch_number, &output_files)
+        .add_snapshot(l1_batch_number, &output_files, factory_deps_output_file)
         .await
         .unwrap();
 }

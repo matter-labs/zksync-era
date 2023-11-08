@@ -419,7 +419,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     load_from_snapshot_if_needed(
-        &mut connection_pool.access_storage().await.unwrap(),
+        connection_pool.clone(),
         &main_node_client,
         &config.required.merkle_tree_path,
         state_keeper_params,

@@ -1,8 +1,6 @@
 use crate::api_server::web3::state::RpcState;
 use crate::l1_gas_price::L1GasPriceProvider;
-use zksync_types::snapshots::{
-    AllSnapshots, SnapshotChunkMetadata, SnapshotHeader, SnapshotStorageKey,
-};
+use zksync_types::snapshots::{AllSnapshots, SnapshotHeader, SnapshotStorageLogsChunkMetadata};
 use zksync_types::L1BatchNumber;
 use zksync_web3_decl::error::Web3Error;
 
@@ -50,11 +48,8 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
             let chunks = snapshot_files
                 .iter()
                 .enumerate()
-                .map(|(chunk_id, filepath)| SnapshotChunkMetadata {
-                    key: SnapshotStorageKey {
-                        l1_batch_number,
-                        chunk_id: chunk_id as u64,
-                    },
+                .map(|(chunk_id, filepath)| SnapshotStorageLogsChunkMetadata {
+                    chunk_id: chunk_id as u64,
                     filepath: filepath.clone(),
                 })
                 .collect();
@@ -74,7 +69,8 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
                 generated_at: snapshot_metadata.generated_at,
                 miniblock_number,
                 last_l1_batch_with_metadata: l1_batch_with_metadata,
-                chunks,
+                storage_logs_chunks: chunks,
+                factory_deps_filepath: snapshot_metadata.factory_deps_filepath,
             }))
         }
     }
