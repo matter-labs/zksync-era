@@ -146,47 +146,21 @@ impl<S: WriteStorage, H: HistoryMode> Debug for DefaultExecutionTracer<S, H> {
 /// Usage:
 /// ```
 /// dispatch_tracers!(
-///   required: [result_tracer, dispatcher],
-///   optional: [refund_tracer, pubdata_tracer],
 ///   self.after_decoding(state, data, memory)
 /// );
 /// ```
-///
-/// - "required tracers" are non-optional tracers in the struct of the default tracer.
-/// - "optional tracers" are optional tracers in the struct of the default tracer.
+/// Whenever a new tracer is added, it should be added to the macro call.
 ///
 /// The macro passes the function call to all tracers.
 macro_rules! dispatch_tracers {
     ($self:ident.$function:ident($( $params:expr ),*)) => {
-        dispatch_tracers!(
-            @call required: [result_tracer, dispatcher],
-            optional: [refund_tracer, pubdata_tracer],
-            $self.$function($( $params ),*)
-
-        );
-    };
-
-    (@call required:[$( $required:ident ),*],
-     optional:[$( $optional:ident ),*],
-    /// Please note: We use $params:tt here because it's not allowed to pass ($params:expr ),* multiple times.
-    /// This is necessary because we have multiple required and optional tracers.
-     $self:ident.$function:ident $params:tt
-    ) => {
-        $(
-            dispatch_tracers!(@call req $required $self.$function $params);
-        )*
-        $(
-            dispatch_tracers!(@call opt $optional $self.$function $params);
-        )*
-    };
-
-    (@call req $required:ident $self:ident.$function:ident($( $params:expr ),*)) => {
-       $self.$required.$function($( $params ),*)
-    };
-
-    (@call opt $optional:ident $self:ident.$function:ident($( $params:expr ),*)) => {
-        if let Some(tracer) = &mut $self.$optional {
-            tracer.$function($( $params ),*)
+       $self.result_tracer.$function($( $params ),*);
+       $self.dispatcher.$function($( $params ),*);
+        if let Some(tracer) = &mut $self.refund_tracer {
+            tracer.$function($( $params ),*);
+        }
+        if let Some(tracer) = &mut $self.pubdata_tracer {
+            tracer.$function($( $params ),*);
         }
     };
 }
