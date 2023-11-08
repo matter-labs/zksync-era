@@ -157,7 +157,16 @@ impl<S: WriteStorage, H: HistoryMode> Debug for DefaultExecutionTracer<S, H> {
 ///
 /// The macro passes the function call to all tracers.
 macro_rules! dispatch_tracers {
-    (required:[$( $required:ident ),*],
+    ($self:ident.$function:ident($( $params:expr ),*)) => {
+        dispatch_tracers!(
+            @call required: [result_tracer, dispatcher],
+            optional: [refund_tracer, pubdata_tracer],
+            $self.$function($( $params ),*)
+
+        );
+    };
+
+    (@call required:[$( $required:ident ),*],
      optional:[$( $optional:ident ),*],
     /// Please note: We use $params:tt here because it's not allowed to pass ($params:expr ),* multiple times.
     /// This is necessary because we have multiple required and optional tracers.
@@ -202,11 +211,7 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
         data: AfterDecodingData,
         memory: &Self::SupportedMemory,
     ) {
-        dispatch_tracers!(
-        required: [result_tracer, dispatcher],
-        optional: [refund_tracer, pubdata_tracer],
-            self.after_decoding(state, data, memory)
-        );
+        dispatch_tracers!(self.after_decoding(state, data, memory));
     }
 
     fn before_execution(
@@ -235,11 +240,7 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
         self.gas_spent_on_bytecodes_and_long_messages +=
             gas_spent_on_bytecodes_and_long_messages_this_opcode(&state, &data);
 
-        dispatch_tracers!(
-        required: [result_tracer, dispatcher],
-        optional: [refund_tracer, pubdata_tracer],
-        self.before_execution(state, data, memory, self.storage.clone())
-        );
+        dispatch_tracers!(self.before_execution(state, data, memory, self.storage.clone()));
     }
 
     fn after_execution(
@@ -262,21 +263,13 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
             }
         }
 
-        dispatch_tracers!(
-        required: [result_tracer, dispatcher],
-        optional: [refund_tracer, pubdata_tracer],
-            self.after_execution(state, data, memory, self.storage.clone())
-        );
+        dispatch_tracers!(self.after_execution(state, data, memory, self.storage.clone()));
     }
 }
 
 impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
     pub(crate) fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
-        dispatch_tracers!(
-        required: [result_tracer, dispatcher],
-        optional: [refund_tracer, pubdata_tracer],
-            self.initialize_tracer(state)
-        );
+        dispatch_tracers!(self.initialize_tracer(state));
     }
 
     pub(crate) fn finish_cycle(
@@ -312,11 +305,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         bootloader_state: &BootloaderState,
         stop_reason: VmExecutionStopReason,
     ) {
-        dispatch_tracers!(
-        required: [result_tracer, dispatcher],
-        optional: [refund_tracer, pubdata_tracer],
-            self.after_vm_execution(state, bootloader_state, stop_reason.clone())
-        );
+        dispatch_tracers!(self.after_vm_execution(state, bootloader_state, stop_reason.clone()));
     }
 }
 
