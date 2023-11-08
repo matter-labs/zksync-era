@@ -1,10 +1,10 @@
 use zksync_state::ReadStorage;
 use zksync_types::get_nonce_key;
 
-use crate::interface::{TxExecutionMode, VmExecutionMode};
+use crate::interface::{TxExecutionMode, VmExecutionMode, VmInterface};
+use crate::vm_latest::HistoryDisabled;
 use crate::vm_virtual_blocks::tests::tester::{Account, TxType, VmTesterBuilder};
 use crate::vm_virtual_blocks::tests::utils::read_test_contract;
-use crate::vm_virtual_blocks::HistoryDisabled;
 
 #[test]
 fn test_is_write_initial_behaviour() {
