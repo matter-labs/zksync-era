@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package zksync.config.configs.api;
+
+import "zksync/config/configs/utils.proto";
+
+message PrivateKeys {
+  repeated bytes keys = 1;
+}
+
+message Web3JsonRpc {
+  optional uint32 http_port = 1; // required
+  optional string http_url = 2; // required
+  optional uint32 ws_port = 3; // required
+  optional string ws_url = 4; // required
+  optional uint32 req_entities_limit = 5;
+  optional uint32 filters_limit = 6;
+  optional uint32 subscriptions_limit = 7;
+  optional uint64 pubsub_polling_interval = 8;
+  optional uint32 threads_per_server = 9; // required
+  optional uint32 max_nonce_ahread = 10; // required
+  optional double gas_price_scale_factor = 11; // required
+  optional uint32 transactions_per_sec_limit = 12;
+  optional uint64 request_timeout = 13; // seconds
+  optional PrivateKeys account_pks = 14;
+  optional double estimate_gas_scale_factor = 15; // required
+  optional uint32 estimate_gas_acceptable_overestimation = 16; // required
+  optional uint64 max_tx_size = 17; // required; bytes
+  optional uint64 vm_execution_cache_misses_limit = 18;
+  optional uint64 vm_concurrency_limit = 19;
+  optional uint64 factory_deps_cache_size_mb = 20;
+  optional uint64 initial_writes_cache_size_mb = 21;
+  optional uint64 latest_values_cache_size_mb = 22;
+  optional uint32 http_threads = 23;
+  optional uint32 ws_threads = 24;
+  optional uint64 fee_history_limit = 25;
+  optional uint64 max_batch_request_size = 26;
+  optional uint64 max_response_body_size_mb = 27;
+  optional uint32 websocker_requests_per_minute_limit = 28;
+}
+
+message ContractVerificationApi {
+  optional uint32 port = 1; // required
+  optional string url = 2; // required
+  optional uint32 threads_per_server = 3; // required
+}
+
+message HealthCheck {
+  optional uint32 port = 1; // required
+}
+
+message MerkleTreeApi {
+  optional uint32 port = 1; // required
+}
+
+message Api {
+  optional Web3JsonRpc web3_json_rpc = 1; // required
+  optional ContractVerificationApi contract_verification_api = 2; // required
+  optional utils.Prometheus prometheus = 3; // required
+  optional HealthCheck healthcheck = 4; // required
+  optional MerkleTreeApi merkle_tree_api = 5; // required
+}
