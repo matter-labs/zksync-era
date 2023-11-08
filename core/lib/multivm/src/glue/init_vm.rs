@@ -1,6 +1,6 @@
 use super::GlueInto;
 use crate::glue::history_mode::HistoryMode;
-use crate::interface::{L1BatchEnv, SystemEnv};
+use crate::interface::{L1BatchEnv, SystemEnv, VmInterface};
 use crate::vm_instance::VmInstanceVersion;
 use crate::VmInstance;
 use zksync_state::{ReadStorage, StoragePtr, StorageView};
@@ -28,7 +28,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
             VmVersion::M5WithoutRefunds => {
                 let oracle_tools = crate::vm_m5::OracleTools::new(
                     storage_view.clone(),
-                    crate::vm_m5::vm::MultiVMSubversion::V1,
+                    crate::vm_m5::vm_instance::MultiVMSubversion::V1,
                 );
                 let block_properties = zk_evm_1_3_1::block_properties::BlockProperties {
                     default_aa_code_hash: h256_to_u256(
@@ -37,7 +37,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     zkporter_is_available: false,
                 };
                 let inner_vm = crate::vm_m5::vm_with_bootloader::init_vm_with_gas_limit(
-                    crate::vm_m5::vm::MultiVMSubversion::V1,
+                    crate::vm_m5::vm_instance::MultiVMSubversion::V1,
                     oracle_tools,
                     l1_batch_env.glue_into(),
                     block_properties,
@@ -54,7 +54,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
             VmVersion::M5WithRefunds => {
                 let oracle_tools = crate::vm_m5::OracleTools::new(
                     storage_view.clone(),
-                    crate::vm_m5::vm::MultiVMSubversion::V2,
+                    crate::vm_m5::vm_instance::MultiVMSubversion::V2,
                 );
                 let block_properties = zk_evm_1_3_1::block_properties::BlockProperties {
                     default_aa_code_hash: h256_to_u256(
@@ -63,7 +63,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     zkporter_is_available: false,
                 };
                 let inner_vm = crate::vm_m5::vm_with_bootloader::init_vm_with_gas_limit(
-                    crate::vm_m5::vm::MultiVMSubversion::V2,
+                    crate::vm_m5::vm_instance::MultiVMSubversion::V2,
                     oracle_tools,
                     l1_batch_env.glue_into(),
                     block_properties,
@@ -88,7 +88,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 };
 
                 let inner_vm = crate::vm_m6::vm_with_bootloader::init_vm_with_gas_limit(
-                    crate::vm_m6::vm::MultiVMSubversion::V1,
+                    crate::vm_m6::vm_instance::MultiVMSubversion::V1,
                     oracle_tools,
                     l1_batch_env.glue_into(),
                     block_properties,
@@ -113,7 +113,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 };
 
                 let inner_vm = crate::vm_m6::vm_with_bootloader::init_vm_with_gas_limit(
-                    crate::vm_m6::vm::MultiVMSubversion::V2,
+                    crate::vm_m6::vm_instance::MultiVMSubversion::V2,
                     oracle_tools,
                     l1_batch_env.glue_into(),
                     block_properties,
@@ -154,7 +154,6 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     l1_batch_env.glue_into(),
                     system_env.clone().glue_into(),
                     storage_view.clone(),
-                    H::VmVirtualBlocksMode::default(),
                 );
                 let vm = VmInstanceVersion::VmVirtualBlocks(Box::new(vm));
                 Self {
@@ -168,7 +167,6 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     l1_batch_env.glue_into(),
                     system_env.clone(),
                     storage_view.clone(),
-                    H::VmVirtualBlocksRefundsEnhancement::default(),
                 );
                 let vm = VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(Box::new(vm));
                 Self {
@@ -182,7 +180,6 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     l1_batch_env.glue_into(),
                     system_env.clone(),
                     storage_view.clone(),
-                    H::VmBoojumIntegration::default(),
                 );
                 let vm = VmInstanceVersion::VmBoojumIntegration(Box::new(vm));
                 Self {
