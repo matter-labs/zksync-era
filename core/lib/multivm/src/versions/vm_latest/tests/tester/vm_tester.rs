@@ -122,7 +122,7 @@ impl<H: HistoryMode> Clone for VmTesterBuilder<H> {
             deployer: self.deployer.clone(),
             rich_accounts: self.rich_accounts.clone(),
             custom_contracts: self.custom_contracts.clone(),
-            _phantom: Default::default(),
+            _phantom: PhantomData,
         }
     }
 }
@@ -145,7 +145,7 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
             deployer: None,
             rich_accounts: vec![],
             custom_contracts: vec![],
-            _phantom: Default::default(),
+            _phantom: PhantomData,
         }
     }
 
@@ -237,7 +237,7 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
             test_contract: None,
             rich_accounts: self.rich_accounts.clone(),
             custom_contracts: self.custom_contracts.clone(),
-            _phantom: Default::default(),
+            _phantom: PhantomData,
         }
     }
 }

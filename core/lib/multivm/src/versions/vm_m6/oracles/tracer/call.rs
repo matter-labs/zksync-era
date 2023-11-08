@@ -1,5 +1,5 @@
+use crate::glue::GlueInto;
 use crate::vm_m6::errors::VmRevertReason;
-use crate::vm_m6::glue::GlueInto;
 use crate::vm_m6::history_recorder::HistoryMode;
 use crate::vm_m6::memory::SimpleMemory;
 use std::convert::TryFrom;
@@ -283,10 +283,8 @@ fn filter_near_call(mut call: Call) -> Vec<Call> {
 
 #[cfg(test)]
 mod tests {
-    use crate::vm_m6::{
-        glue::GlueInto,
-        oracles::tracer::call::{filter_near_call, Call, CallType},
-    };
+    use crate::glue::GlueInto;
+    use crate::vm_m6::oracles::tracer::call::{filter_near_call, Call, CallType};
     use zk_evm_1_3_1::zkevm_opcode_defs::FarCallOpcode;
 
     #[test]

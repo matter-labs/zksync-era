@@ -82,8 +82,6 @@ jobs:
           DOCKER_ACTION: ${{ inputs.action }}
           COMPONENT: ${{ matrix.component }}
         run: |
-          ci_run docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-          ci_run gcloud auth configure-docker us-docker.pkg.dev,asia-docker.pkg.dev -q
           ci_run rustup default nightly-2023-07-21
           ci_run zk docker $DOCKER_ACTION $COMPONENT -- --public
       - name: Show sccache stats
