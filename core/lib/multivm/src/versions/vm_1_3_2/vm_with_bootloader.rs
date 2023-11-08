@@ -464,14 +464,7 @@ pub fn push_raw_transaction_to_bootloader_memory<H: HistoryMode, S: WriteStorage
             .enumerate()
             .sorted_by_key(|(_idx, dep)| *dep)
             .dedup_by(|x, y| x.1 == y.1)
-            .filter(|(_idx, dep)| {
-                !vm.state
-                    .storage
-                    .storage
-                    .get_ptr()
-                    .borrow_mut()
-                    .is_bytecode_known(&hash_bytecode(dep))
-            })
+            .filter(|(_idx, dep)| !vm.is_bytecode_known(&hash_bytecode(dep)))
             .sorted_by_key(|(idx, _dep)| *idx)
             .filter_map(|(_idx, dep)| {
                 compress_bytecode(dep)

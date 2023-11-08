@@ -139,9 +139,28 @@ impl<S: WriteStorage, H: HistoryMode> Debug for DefaultExecutionTracer<S, H> {
     }
 }
 
+/// The default tracer for the VM manages all other tracers. For the sake of optimization, these tracers are statically dispatched.
+/// At the same time, the boilerplate for calling these tracers for all tracer calls is quite extensive.
+/// This macro is used to reduce the boilerplate.
+///
+/// Usage:
+/// ```
+/// dispatch_tracers!(
+///   required: [result_tracer, dispatcher],
+///   optional: [refund_tracer, pubdata_tracer],
+///   self.after_decoding(state, data, memory)
+/// );
+/// ```
+///
+/// - "required tracers" are non-optional tracers in the struct of the default tracer.
+/// - "optional tracers" are optional tracers in the struct of the default tracer.
+///
+/// The macro passes the function call to all tracers.
 macro_rules! dispatch_tracers {
     (required:[$( $required:ident ),*],
      optional:[$( $optional:ident ),*],
+    /// Please note: We use $params:tt here because it's not allowed to pass ($params:expr ),* multiple times.
+    /// This is necessary because we have multiple required and optional tracers.
      $self:ident.$function:ident $params:tt
     ) => {
         $(

@@ -26,7 +26,7 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
-    /// Tracers are not supported for vm 1.3.2. So we use `Vec<Box<dyn Any>>` as a placeholder
+    /// Tracers are not supported for vm 1.3.2. So we use `()` as a placeholder
     type TracerDispatcher = ();
 
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
@@ -167,15 +167,8 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             let mut bytecode_hashes = vec![];
             let filtered_deps = deps.iter().filter_map(|bytecode| {
                 let bytecode_hash = hash_bytecode(bytecode);
-                let is_known = !deps_hashes.insert(bytecode_hash)
-                    || self
-                        .vm
-                        .state
-                        .storage
-                        .storage
-                        .get_ptr()
-                        .borrow_mut()
-                        .is_bytecode_known(&bytecode_hash);
+                let is_known =
+                    !deps_hashes.insert(bytecode_hash) || self.vm.is_bytecode_known(&bytecode_hash);
 
                 if is_known {
                     None
@@ -209,16 +202,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             self.system_env.default_validation_computational_gas_limit,
             false,
         );
-        if bytecodes.iter().any(|info| {
-            !self
-                .vm
-                .state
-                .storage
-                .storage
-                .get_ptr()
-                .borrow_mut()
-                .is_bytecode_known(info)
-        }) {
+        if bytecodes
+            .iter()
+            .any(|info| !self.vm.is_bytecode_known(info))
+        {
             Err(crate::interface::BytecodeCompressionError::BytecodeCompressionFailed)
         } else {
             Ok(result.glue_into())
