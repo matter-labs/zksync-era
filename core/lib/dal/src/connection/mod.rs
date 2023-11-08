@@ -44,7 +44,7 @@ impl ConnectionPoolBuilder {
         let mut connect_options: PgConnectOptions = self
             .database_url
             .parse()
-            .with_context(|| format!("Failed parsing database URL: {}", self.database_url))?;
+            .with_context(|| "Failed parsing database URL")?;
         if let Some(timeout) = self.statement_timeout {
             let timeout_string = format!("{}s", timeout.as_secs());
             connect_options = connect_options.options([("statement_timeout", timeout_string)]);
@@ -52,12 +52,7 @@ impl ConnectionPoolBuilder {
         let pool = options
             .connect_with(connect_options)
             .await
-            .with_context(|| {
-                format!(
-                    "Failed connecting to database with URL: {}",
-                    self.database_url
-                )
-            })?;
+            .with_context(|| "Failed connecting to database")?;
         tracing::info!(
             "Created pool with {max_connections} max connections \
              and {statement_timeout:?} statement timeout",

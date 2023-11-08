@@ -1,3 +1,4 @@
+use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 
 use std::time::Duration;
@@ -166,29 +167,22 @@ pub struct PostgresConfig {
 impl PostgresConfig {
     /// Returns a copy of the master database URL as a `Result` to simplify error propagation.
     pub fn master_url(&self) -> anyhow::Result<String> {
-        self.master_url
-            .clone()
-            .ok_or_else(|| anyhow::anyhow!("Master DB URL is absent"))
+        self.master_url.clone().context("Master DB URL is absent")
     }
 
     /// Returns a copy of the replica database URL as a `Result` to simplify error propagation.
     pub fn replica_url(&self) -> anyhow::Result<String> {
-        self.replica_url
-            .clone()
-            .ok_or_else(|| anyhow::anyhow!("Replica DB URL is absent"))
+        self.replica_url.clone().context("Replica DB URL is absent")
     }
 
     /// Returns a copy of the prover database URL as a `Result` to simplify error propagation.
     pub fn prover_url(&self) -> anyhow::Result<String> {
-        self.prover_url
-            .clone()
-            .ok_or_else(|| anyhow::anyhow!("Prover DB URL is absent"))
+        self.prover_url.clone().context("Prover DB URL is absent")
     }
 
     /// Returns the maximum size of the connection pool as a `Result` to simplify error propagation.
     pub fn max_connections(&self) -> anyhow::Result<u32> {
-        self.max_connections
-            .ok_or_else(|| anyhow::anyhow!("Max connections is absent"))
+        self.max_connections.context("Max connections is absent")
     }
 
     /// Returns the Postgres statement timeout.

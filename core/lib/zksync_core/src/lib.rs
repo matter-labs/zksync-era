@@ -193,10 +193,7 @@ pub async fn genesis_init(
 }
 
 pub async fn is_genesis_needed(postgres_config: &PostgresConfig) -> bool {
-    let db_url = postgres_config
-        .master_url
-        .clone()
-        .expect("Master DB URL is missing");
+    let db_url = postgres_config.master_url().unwrap();
     let pool = ConnectionPool::singleton(db_url)
         .build()
         .await
