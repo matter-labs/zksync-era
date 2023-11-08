@@ -8,6 +8,7 @@ module.exports = {
     //
     // TODO (ZKS-329): Turn on the majority of the rules and make the solhint comply with them.
     "state-visibility": "off",
+    "func-visibility": ["warn", { "ignoreConstructors": true }],
     "var-name-mixedcase": "off",
     "avoid-call-value": "off",
     "no-empty-blocks": "off",
@@ -20,6 +21,6 @@ module.exports = {
     "func-name-mixedcase": "off",
     "no-unused-vars": "off",
     "max-states-count": "off",
-    "compiler-version": ["warn", "^0.7.0"]
+    "compiler-version": ["warn", "^0.8.0"]
   }
 };

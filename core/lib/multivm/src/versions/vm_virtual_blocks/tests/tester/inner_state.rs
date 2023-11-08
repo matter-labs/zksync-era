@@ -11,6 +11,7 @@ use crate::vm_virtual_blocks::old_vm::history_recorder::{
     AppDataFrameManagerWithHistory, HistoryRecorder,
 };
 use crate::vm_virtual_blocks::{HistoryEnabled, HistoryMode, SimpleMemory, Vm};
+use crate::HistoryMode as CommonHistoryMode;
 
 #[derive(Clone, Debug)]
 pub(crate) struct ModifiedKeysMap(HashMap<StorageKey, StorageValue>);
@@ -68,9 +69,9 @@ pub(crate) struct VmInstanceInnerState<H: HistoryMode> {
     local_state: VmLocalState,
 }
 
-impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
+impl<S: WriteStorage, H: CommonHistoryMode> Vm<S, H> {
     // Dump inner state of the VM.
-    pub(crate) fn dump_inner_state(&self) -> VmInstanceInnerState<H> {
+    pub(crate) fn dump_inner_state(&self) -> VmInstanceInnerState<H::VmVirtualBlocksMode> {
         let event_sink = self.state.event_sink.clone();
         let precompile_processor_state = PrecompileProcessorTestInnerState {
             timestamp_history: self.state.precompiles_processor.timestamp_history.clone(),

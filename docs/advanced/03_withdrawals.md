@@ -95,7 +95,7 @@ bytes memory message = _getL1WithdrawMessage(_l1Receiver, amount);
 L1_MESSENGER_CONTRACT.sendToL1(message);
 ```
 
-And `L1MessagerContract` (that is deployed at 0x8008).
+And `L1MessengerContract` (that is deployed at 0x8008).
 
 ### Committing to L1
 

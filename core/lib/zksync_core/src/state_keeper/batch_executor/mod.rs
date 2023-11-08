@@ -5,14 +5,16 @@ use tokio::{
     task::JoinHandle,
 };
 
+use multivm::MultivmTracer;
 use std::{fmt, sync::Arc};
 
 use multivm::interface::{
     ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv,
     VmExecutionResultAndLogs,
 };
-use multivm::vm_latest::{CallTracer, HistoryEnabled};
-use multivm::{MultivmTracer, VmInstance};
+use multivm::tracers::CallTracer;
+use multivm::vm_latest::HistoryEnabled;
+use multivm::VmInstance;
 use zksync_dal::ConnectionPool;
 use zksync_state::{ReadStorage, RocksdbStorage, StorageView};
 use zksync_types::{vm_trace::Call, witness_block_state::WitnessBlockState, Transaction, U256};
@@ -394,7 +396,7 @@ impl BatchExecutor {
             ExecutionResult::Halt { reason } => match reason {
                 Halt::BootloaderOutOfGas => TxExecutionResult::BootloaderOutOfGasForBlockTip,
                 _ => {
-                    panic!("VM must not revert when finalizing block (except `BootloaderOutOfGas`)")
+                    panic!("VM must not revert when finalizing block (except `BootloaderOutOfGas`). Reason: {:#?}", reason)
                 }
             },
         }
@@ -422,7 +424,10 @@ impl BatchExecutor {
         // There is some post-processing work that the VM needs to do before the block is fully processed.
         let result = vm.finish_batch();
         if result.block_tip_execution_result.result.is_failed() {
-            panic!("VM must not fail when finalizing block");
+            panic!(
+                "VM must not fail when finalizing block: {:#?}",
+                result.block_tip_execution_result.result
+            );
         }
         result
     }
@@ -453,13 +458,14 @@ impl BatchExecutor {
         vm.make_snapshot();
 
         let call_tracer_result = Arc::new(OnceCell::default());
-        let custom_tracers = if self.save_call_traces {
-            vec![CallTracer::new(call_tracer_result.clone(), HistoryEnabled).into_boxed()]
+        let tracer = if self.save_call_traces {
+            vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()]
         } else {
             vec![]
         };
+
         if let Ok(result) =
-            vm.inspect_transaction_with_bytecode_compression(custom_tracers, tx.clone(), true)
+            vm.inspect_transaction_with_bytecode_compression(tracer, tx.clone(), true)
         {
             let compressed_bytecodes = vm.get_last_tx_compressed_bytecodes();
             vm.pop_snapshot_no_rollback();
@@ -470,16 +476,17 @@ impl BatchExecutor {
                 .unwrap_or_default();
             return (result, compressed_bytecodes, trace);
         }
+        vm.rollback_to_the_latest_snapshot();
 
         let call_tracer_result = Arc::new(OnceCell::default());
-        let custom_tracers = if self.save_call_traces {
-            vec![CallTracer::new(call_tracer_result.clone(), HistoryEnabled).into_boxed()]
+        let tracer = if self.save_call_traces {
+            vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()]
         } else {
             vec![]
         };
-        vm.rollback_to_the_latest_snapshot();
+
         let result = vm
-            .inspect_transaction_with_bytecode_compression(custom_tracers, tx.clone(), false)
+            .inspect_transaction_with_bytecode_compression(tracer, tx.clone(), false)
             .expect("Compression can't fail if we don't apply it");
         let compressed_bytecodes = vm.get_last_tx_compressed_bytecodes();
 
