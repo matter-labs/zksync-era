@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
-use zksync_config::{configs::PrometheusConfig, ApiConfig, ContractVerifierConfig};
+use zksync_config::{configs::PrometheusConfig, ApiConfig, ContractVerifierConfig, PostgresConfig};
 use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;
 use zksync_queued_job_processor::JobProcessor;
@@ -113,7 +113,6 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool) {
 }
 
 use structopt::StructOpt;
-use zksync_dal::connection::DbVariant;
 
 #[derive(StructOpt)]
 #[structopt(name = "zkSync contract code verifier", author = "Matter Labs")]
@@ -132,10 +131,15 @@ async fn main() -> anyhow::Result<()> {
         listener_port: verifier_config.prometheus_port,
         ..ApiConfig::from_env().context("ApiConfig")?.prometheus
     };
-    let pool = ConnectionPool::singleton(DbVariant::Master)
-        .build()
-        .await
-        .unwrap();
+    let postgres_config = PostgresConfig::from_env().context("PostgresConfig")?;
+    let pool = ConnectionPool::singleton(
+        postgres_config
+            .master_url
+            .context("Master DB URL is absent")?,
+    )
+    .build()
+    .await
+    .unwrap();
 
     #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
     let log_format = vlog::log_format_from_env();

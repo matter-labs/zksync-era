@@ -22,10 +22,10 @@ use zksync_config::{
         contracts::ProverAtGenesis,
         database::MerkleTreeMode,
     },
-    ApiConfig, ContractsConfig, DBConfig, ETHSenderConfig,
+    ApiConfig, ContractsConfig, DBConfig, ETHSenderConfig, PostgresConfig,
 };
 use zksync_contracts::{governance_contract, BaseSystemContracts};
-use zksync_dal::{connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
+use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_eth_client::clients::http::QueryClient;
 use zksync_eth_client::EthInterface;
 use zksync_eth_client::{clients::http::PKSigningClient, BoundEthInterface};
@@ -106,12 +106,17 @@ use crate::{
 
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(
+    postgres_config: &PostgresConfig,
     eth_sender: &ETHSenderConfig,
     network_config: &NetworkConfig,
     contracts_config: &ContractsConfig,
     eth_client_url: &str,
 ) -> anyhow::Result<()> {
-    let pool = ConnectionPool::singleton(DbVariant::Master)
+    let db_url = postgres_config
+        .master_url
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("Master DB URL is missing"))?;
+    let pool = ConnectionPool::singleton(db_url)
         .build()
         .await
         .context("failed to build connection_pool")?;
@@ -187,8 +192,12 @@ pub async fn genesis_init(
     Ok(())
 }
 
-pub async fn is_genesis_needed() -> bool {
-    let pool = ConnectionPool::singleton(DbVariant::Master)
+pub async fn is_genesis_needed(postgres_config: &PostgresConfig) -> bool {
+    let db_url = postgres_config
+        .master_url
+        .clone()
+        .expect("Master DB URL is missing");
+    let pool = ConnectionPool::singleton(db_url)
         .build()
         .await
         .expect("failed to build connection_pool");
@@ -343,19 +352,27 @@ pub async fn initialize_components(
         .db_config
         .clone()
         .ok_or_else(|| anyhow::anyhow!("db_config"))?;
-    let connection_pool = ConnectionPool::builder(DbVariant::Master)
+    let postgres_config = configs
+        .postgres_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("postgres_config"))?;
+
+    let statement_timeout = postgres_config.statement_timeout();
+    let pool_size = postgres_config.max_connections()?;
+    let connection_pool = ConnectionPool::builder(postgres_config.master_url()?, pool_size)
         .build()
         .await
         .context("failed to build connection_pool")?;
-    let prover_connection_pool = ConnectionPool::builder(DbVariant::Prover)
+    let prover_connection_pool = ConnectionPool::builder(postgres_config.prover_url()?, pool_size)
         .build()
         .await
         .context("failed to build prover_connection_pool")?;
-    let replica_connection_pool = ConnectionPool::builder(DbVariant::Replica)
-        .set_statement_timeout(db_config.statement_timeout())
-        .build()
-        .await
-        .context("failed to build replica_connection_pool")?;
+    let replica_connection_pool =
+        ConnectionPool::builder(postgres_config.replica_url()?, pool_size)
+            .set_statement_timeout(statement_timeout)
+            .build()
+            .await
+            .context("failed to build replica_connection_pool")?;
 
     let mut healthchecks: Vec<Box<dyn CheckHealth>> = Vec::new();
     let contracts_config = configs
@@ -372,7 +389,7 @@ pub async fn initialize_components(
         .ok_or_else(|| anyhow::anyhow!("circuit_breaker_config"))?;
 
     let circuit_breaker_checker = CircuitBreakerChecker::new(
-        circuit_breakers_for_components(&components, &circuit_breaker_config)
+        circuit_breakers_for_components(&components, &postgres_config, &circuit_breaker_config)
             .await
             .context("circuit_breakers_for_components")?,
         &circuit_breaker_config,
@@ -465,6 +482,7 @@ pub async fn initialize_components(
                 .await
                 .context("gas_adjuster.get_or_init_bounded()")?;
             let server_handles = run_http_api(
+                &postgres_config,
                 &tx_sender_config,
                 &state_keeper_config,
                 &internal_api_config,
@@ -504,6 +522,7 @@ pub async fn initialize_components(
                 .await
                 .context("gas_adjuster.get_or_init_bounded()")?;
             let server_handles = run_ws_api(
+                &postgres_config,
                 &tx_sender_config,
                 &state_keeper_config,
                 &internal_api_config,
@@ -558,6 +577,7 @@ pub async fn initialize_components(
             .context("gas_adjuster.get_or_init_bounded()")?;
         add_state_keeper_to_task_futures(
             &mut task_futures,
+            &postgres_config,
             &contracts_config,
             configs
                 .state_keeper_config
@@ -588,7 +608,7 @@ pub async fn initialize_components(
     if components.contains(&Component::EthWatcher) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-Watcher");
-        let eth_watch_pool = ConnectionPool::singleton(DbVariant::Master)
+        let eth_watch_pool = ConnectionPool::singleton(postgres_config.master_url()?)
             .build()
             .await
             .context("failed to build eth_watch_pool")?;
@@ -617,11 +637,11 @@ pub async fn initialize_components(
     if components.contains(&Component::EthTxAggregator) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-TxAggregator");
-        let eth_sender_pool = ConnectionPool::singleton(DbVariant::Master)
+        let eth_sender_pool = ConnectionPool::singleton(postgres_config.master_url()?)
             .build()
             .await
             .context("failed to build eth_sender_pool")?;
-        let eth_sender_prover_pool = ConnectionPool::singleton(DbVariant::Prover)
+        let eth_sender_prover_pool = ConnectionPool::singleton(postgres_config.prover_url()?)
             .build()
             .await
             .context("failed to build eth_sender_prover_pool")?;
@@ -658,7 +678,7 @@ pub async fn initialize_components(
     if components.contains(&Component::EthTxManager) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-TxManager");
-        let eth_manager_pool = ConnectionPool::singleton(DbVariant::Master)
+        let eth_manager_pool = ConnectionPool::singleton(postgres_config.master_url()?)
             .build()
             .await
             .context("failed to build eth_manager_pool")?;
@@ -729,7 +749,7 @@ pub async fn initialize_components(
     .context("add_witness_generator_to_task_futures()")?;
 
     if components.contains(&Component::BasicWitnessInputProducer) {
-        let singleton_connection_pool = ConnectionPool::singleton(DbVariant::Master)
+        let singleton_connection_pool = ConnectionPool::singleton(postgres_config.master_url()?)
             .build()
             .await
             .context("failed to build singleton connection_pool")?;
@@ -791,6 +811,7 @@ pub async fn initialize_components(
 #[allow(clippy::too_many_arguments)]
 async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 'static>(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    postgres_config: &PostgresConfig,
     contracts_config: &ContractsConfig,
     state_keeper_config: StateKeeperConfig,
     network_config: &NetworkConfig,
@@ -801,7 +822,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let fair_l2_gas_price = state_keeper_config.fair_l2_gas_price;
-    let pool_builder = ConnectionPool::singleton(DbVariant::Master);
+    let pool_builder = ConnectionPool::singleton(postgres_config.master_url()?);
     let state_keeper_pool = pool_builder
         .build()
         .await
@@ -883,6 +904,10 @@ async fn add_trees_to_task_futures(
         .clone()
         .ok_or_else(|| anyhow::anyhow!("api_config"))?
         .merkle_tree;
+    let postgres_config = configs
+        .postgres_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("postgres_config"))?;
     let api_config = components
         .contains(&Component::TreeApi)
         .then_some(&api_config);
@@ -914,6 +939,7 @@ async fn add_trees_to_task_futures(
     run_tree(
         task_futures,
         healthchecks,
+        &postgres_config,
         &db_config,
         api_config,
         &operation_config,
@@ -924,9 +950,11 @@ async fn add_trees_to_task_futures(
     .context("run_tree()")
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_tree(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     healthchecks: &mut Vec<Box<dyn CheckHealth>>,
+    postgres_config: &PostgresConfig,
     db_config: &DBConfig,
     api_config: Option<&MerkleTreeApiConfig>,
     operation_manager: &OperationsManagerConfig,
@@ -954,11 +982,11 @@ async fn run_tree(
 
     let tree_health_check = metadata_calculator.tree_health_check();
     healthchecks.push(Box::new(tree_health_check));
-    let pool = ConnectionPool::singleton(DbVariant::Master)
+    let pool = ConnectionPool::singleton(postgres_config.master_url()?)
         .build()
         .await
         .context("failed to build connection pool")?;
-    let prover_pool = ConnectionPool::singleton(DbVariant::Prover)
+    let prover_pool = ConnectionPool::singleton(postgres_config.prover_url()?)
         .build()
         .await
         .context("failed to build prover_pool")?;
@@ -1101,7 +1129,11 @@ async fn add_house_keeper_to_task_futures(
         .house_keeper_config
         .clone()
         .ok_or_else(|| anyhow::anyhow!("house_keeper_config"))?;
-    let connection_pool = ConnectionPool::singleton(DbVariant::Replica)
+    let postgres_config = configs
+        .postgres_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("postgres_config"))?;
+    let connection_pool = ConnectionPool::singleton(postgres_config.replica_url()?)
         .build()
         .await
         .context("failed to build a connection pool")?;
@@ -1110,11 +1142,13 @@ async fn add_house_keeper_to_task_futures(
         connection_pool,
     );
 
-    let prover_connection_pool = ConnectionPool::builder(DbVariant::Prover)
-        .set_max_size(Some(house_keeper_config.prover_db_pool_size))
-        .build()
-        .await
-        .context("failed to build a prover_connection_pool")?;
+    let prover_connection_pool = ConnectionPool::builder(
+        postgres_config.prover_url()?,
+        postgres_config.max_connections()?,
+    )
+    .build()
+    .await
+    .context("failed to build a prover_connection_pool")?;
     let prover_group_config = configs
         .prover_group_config
         .clone()
@@ -1292,6 +1326,7 @@ async fn build_tx_sender<G: L1GasPriceProvider>(
 
 #[allow(clippy::too_many_arguments)]
 async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
+    postgres_config: &PostgresConfig,
     tx_sender_config: &TxSenderConfig,
     state_keeper_config: &StateKeeperConfig,
     internal_api: &InternalApiConfig,
@@ -1320,7 +1355,7 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     } else {
         Namespace::NON_DEBUG.to_vec()
     };
-    let last_miniblock_pool = ConnectionPool::singleton(DbVariant::Replica)
+    let last_miniblock_pool = ConnectionPool::singleton(postgres_config.replica_url()?)
         .build()
         .await
         .context("failed to build last_miniblock_pool")?;
@@ -1343,6 +1378,7 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
 
 #[allow(clippy::too_many_arguments)]
 async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
+    postgres_config: &PostgresConfig,
     tx_sender_config: &TxSenderConfig,
     state_keeper_config: &StateKeeperConfig,
     internal_api: &InternalApiConfig,
@@ -1364,7 +1400,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
         storage_caches,
     )
     .await;
-    let last_miniblock_pool = ConnectionPool::singleton(DbVariant::Replica)
+    let last_miniblock_pool = ConnectionPool::singleton(postgres_config.replica_url()?)
         .build()
         .await
         .context("failed to build last_miniblock_pool")?;
@@ -1395,6 +1431,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
 
 async fn circuit_breakers_for_components(
     components: &[Component],
+    postgres_config: &PostgresConfig,
     circuit_breaker_config: &CircuitBreakerConfig,
 ) -> anyhow::Result<Vec<Box<dyn CircuitBreaker>>> {
     let mut circuit_breakers: Vec<Box<dyn CircuitBreaker>> = Vec::new();
@@ -1405,7 +1442,7 @@ async fn circuit_breakers_for_components(
             Component::EthTxAggregator | Component::EthTxManager | Component::StateKeeper
         )
     }) {
-        let pool = ConnectionPool::singleton(DbVariant::Replica)
+        let pool = ConnectionPool::singleton(postgres_config.replica_url()?)
             .build()
             .await
             .context("failed to build a connection pool")?;
@@ -1421,7 +1458,7 @@ async fn circuit_breakers_for_components(
                 | Component::ContractVerificationApi
         )
     }) {
-        let pool = ConnectionPool::singleton(DbVariant::Replica)
+        let pool = ConnectionPool::singleton(postgres_config.replica_url()?)
             .build()
             .await?;
         circuit_breakers.push(Box::new(ReplicationLagChecker {
