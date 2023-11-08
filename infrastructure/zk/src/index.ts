@@ -20,7 +20,7 @@ import { command as config } from './config';
 import { command as clean } from './clean';
 import { command as db } from './database';
 import { command as verifyUpgrade } from './verify-upgrade';
-import { proverCommand } from './proverSetup';
+import { proverCommand } from './prover_setup';
 import { command as status } from './status';
 import * as env from './env';
 

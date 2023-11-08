@@ -12,7 +12,7 @@ import * as fs from 'fs';
 import fetch from 'node-fetch';
 import { up } from './up';
 import * as Handlebars from 'handlebars';
-import { ProverType, setupProver } from './proverSetup';
+import { ProverType, setupProver } from './prover_setup';
 
 const title = chalk.blueBright;
 const warning = chalk.yellowBright;
@@ -665,9 +665,11 @@ async function _generateDockerImages(_orgName?: string) {
 
     if (process.env.ETH_SENDER_SENDER_PROOF_SENDING_MODE !== 'SkipEveryProof') {
         hasProver = true;
-        proverArtifacts = process.env.OBJECT_STORE_FILE_BACKED_BASE_PATH;
-        serverArtifacts = process.env.OBJECT_STORE_FILE_BACKED_BASE_PATH;
-        proverSetupArtifacts = process.env.FRI_PROVER_ARTIFACTS_PATH;
+        if (process.env.OBJECT_STORE_MODE === 'FileBacked') {
+            proverArtifacts = process.env.OBJECT_STORE_FILE_BACKED_BASE_PATH;
+            serverArtifacts = process.env.OBJECT_STORE_FILE_BACKED_BASE_PATH;
+            proverSetupArtifacts = process.env.FRI_PROVER_ARTIFACTS_PATH;
+        }
         await docker.customBuildForHyperchain('prover', orgName);
     }
 

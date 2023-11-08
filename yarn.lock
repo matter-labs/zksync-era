@@ -1569,10 +1569,10 @@
     chalk "4.1.2"
     dockerode "^3.3.4"
 
-"@matterlabs/hardhat-zksync-vyper@^0.2.0":
-  version "0.2.2"
-  resolved "https://registry.yarnpkg.com/@matterlabs/hardhat-zksync-vyper/-/hardhat-zksync-vyper-0.2.2.tgz#d42e171b58c7c3bfacc79817ff975fb3952587a9"
-  integrity sha512-FU22i4XrSR6WqISrsjVXDIY9BEEGUtb5ictOH4SR+EwzGgfSPm4C7cCTKXdtJ5ZHCOR99cwx/okVfKCwv7XVFw==
+"@matterlabs/hardhat-zksync-vyper@^1.0.0":
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/@matterlabs/hardhat-zksync-vyper/-/hardhat-zksync-vyper-1.0.0.tgz#661227401db08ffa6f3934f29d5a0c83ebac713f"
+  integrity sha512-RKrzuy/SqnB9AS62lTfm70Z0Wg571Di3B/IOSf3fqiEhwt6Jjc8og3acEUdIdn0TNQUNBoLqZdQdVG9T00yDJA==
   dependencies:
     "@nomiclabs/hardhat-docker" "^2.0.0"
     chalk "4.1.2"
@@ -2050,10 +2050,10 @@
     fs-extra "^7.0.1"
     solpp "^0.11.5"
 
-"@nomiclabs/hardhat-vyper@^3.0.3":
-  version "3.0.4"
-  resolved "https://registry.yarnpkg.com/@nomiclabs/hardhat-vyper/-/hardhat-vyper-3.0.4.tgz#ebd5590812225bea63a2e8a297be07802ae707e6"
-  integrity sha512-VSmNCs0MQCn7qgWubfSkJkFEJmsTvbimPsbxknM5jLFi7pNeDVB5eO00GaoweuZiWKBVTHYJsylVK5686GoPrQ==
+"@nomiclabs/hardhat-vyper@^3.0.5":
+  version "3.0.5"
+  resolved "https://registry.yarnpkg.com/@nomiclabs/hardhat-vyper/-/hardhat-vyper-3.0.5.tgz#44594b8a27e9c627534013fdebe6a485275f846e"
+  integrity sha512-i/Q771sr4vnSTaNTMGe3kX4Nl2on7hiXHHcz1MrW0+MKAJfi3A4sEloXX3aim6TylCPFq0M1/esDX+Y0WPmfbQ==
   dependencies:
     debug "^4.1.1"
     fs-extra "^7.0.1"

@@ -18,7 +18,7 @@ export async function setupProver(proverType: ProverType) {
         wrapEnvModify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'OnlyRealProofs');
         wrapEnvModify('ETH_SENDER_SENDER_PROOF_LOADING_MODE', 'FriProofFromGcs');
         await setupArtifactsMode();
-        if (process.env.CI) {
+        if (!process.env.CI) {
             await setupProverKeys(proverType);
         } else {
             wrapEnvModify(
