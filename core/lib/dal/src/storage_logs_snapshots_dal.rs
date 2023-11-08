@@ -1,3 +1,4 @@
+use crate::instrument::InstrumentExt;
 use crate::StorageProcessor;
 use zksync_types::snapshots::{SnapshotFactoryDependency, SnapshotStorageLog};
 use zksync_types::{AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, H256};
@@ -79,6 +80,8 @@ impl SnapshotChunksDal<'_, '_> {
             chunk_size as i64,
             (chunk_size * chunk_id) as i64
         )
+        .instrument("get_storage_logs_chunk")
+        .report_latency()
         .fetch_all(self.storage.conn())
         .await?
         .iter()
@@ -103,6 +106,8 @@ impl SnapshotChunksDal<'_, '_> {
             "SELECT bytecode, bytecode_hash FROM factory_deps WHERE miniblock_number <= $1",
             miniblock_number.0 as i64,
         )
+        .instrument("get_all_factory_deps")
+        .report_latency()
         .fetch_all(self.storage.conn())
         .await
         .unwrap()
