@@ -1,6 +1,6 @@
 use zksync_types::U256;
 
-use crate::interface::{Halt, TxExecutionMode, VmExecutionMode};
+use crate::interface::{Halt, TxExecutionMode, VmExecutionMode, VmInterface};
 use crate::vm_latest::constants::BOOTLOADER_HEAP_PAGE;
 use crate::vm_latest::tests::tester::VmTesterBuilder;
 use crate::vm_latest::tests::utils::{
