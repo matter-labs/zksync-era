@@ -1,6 +1,7 @@
 use crate::StorageProcessor;
 use sqlx::types::chrono::Utc;
 use std::collections::HashSet;
+use zksync_types::snapshots::SnapshotStorageLog;
 use zksync_types::{AccountTreeId, Address, L1BatchNumber, LogQuery, StorageKey, H256};
 use zksync_utils::u256_to_h256;
 
@@ -42,6 +43,39 @@ impl StorageLogsDedupDal<'_, '_> {
 
     /// Insert initial writes and assigns indices to them.
     /// Assumes indices are already assigned for all saved initial_writes, so must be called only after the migration.
+
+    pub async fn insert_initial_writes_from_snapshot(
+        &mut self,
+        snapshot_storage_logs: &[SnapshotStorageLog],
+    ) {
+        let mut copy = self
+            .storage
+            .conn()
+            .copy_in_raw(
+                "COPY initial_writes (hashed_key, index, l1_batch_number, created_at, updated_at) \
+                FROM STDIN WITH (DELIMITER '|')",
+            )
+            .await
+            .unwrap();
+
+        let mut bytes: Vec<u8> = Vec::new();
+        let now = Utc::now().naive_utc().to_string();
+        for log in snapshot_storage_logs.iter() {
+            let hashed_key_str = format!("\\\\x{}", hex::encode(log.key.hashed_key().0));
+            let row = format!(
+                "{}|{}|{}|{}|{}\n",
+                hashed_key_str,
+                log.enumeration_index,
+                log.l1_batch_number_of_initial_write,
+                now,
+                now,
+            );
+            bytes.extend_from_slice(row.as_bytes());
+        }
+        copy.send(bytes).await.unwrap();
+        copy.finish().await.unwrap();
+    }
+
     pub async fn insert_initial_writes(
         &mut self,
         l1_batch_number: L1BatchNumber,

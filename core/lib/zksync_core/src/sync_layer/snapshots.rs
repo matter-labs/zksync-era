@@ -280,12 +280,10 @@ impl<'a, 'b, 'd> SnapshotApplier<'a, 'b, 'd> {
         storage_logs: &[SnapshotStorageLog],
         storage: &mut StorageProcessor<'_>,
     ) {
-        let l1_batch_number = self.snapshot.l1_batch_number;
         tracing::info!("Loading {} storage logs into postgres", storage_logs.len());
-        let storage_logs_keys: Vec<StorageKey> = storage_logs.iter().map(|log| log.key).collect();
         storage
             .storage_logs_dedup_dal()
-            .insert_initial_writes(l1_batch_number, &storage_logs_keys)
+            .insert_initial_writes_from_snapshot(&storage_logs)
             .await;
     }
     async fn sync_storage_logs_chunk(
@@ -293,18 +291,9 @@ impl<'a, 'b, 'd> SnapshotApplier<'a, 'b, 'd> {
         storage_logs: &[SnapshotStorageLog],
         storage: &mut StorageProcessor<'_>,
     ) {
-        let miniblock_number = self.snapshot.miniblock_number;
-        let transformed_logs = storage_logs
-            .iter()
-            .map(|log| StorageLog {
-                kind: StorageLogKind::Write,
-                key: log.key,
-                value: log.value,
-            })
-            .collect();
         storage
             .storage_logs_dal()
-            .append_storage_logs(miniblock_number, &[(H256::zero(), transformed_logs)])
+            .insert_storage_logs_from_snapshot(self.snapshot.miniblock_number, storage_logs)
             .await;
     }
 
