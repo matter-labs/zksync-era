@@ -1,6 +1,5 @@
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 
-use crate::interface::{L1BatchEnv, Refunds};
 use zk_evm_1_3_3::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
@@ -16,22 +15,25 @@ use zksync_types::{
 use zksync_utils::bytecode::bytecode_len_in_bytes;
 use zksync_utils::{ceil_div_u256, u256_to_h256};
 
+use crate::interface::{
+    dyn_tracers::vm_1_3_3::DynTracer, tracer::TracerExecutionStatus, L1BatchEnv, Refunds,
+};
 use crate::vm_refunds_enhancement::constants::{
     BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET,
 };
-use crate::vm_refunds_enhancement::old_vm::{
-    events::merge_events, history_recorder::HistoryMode, memory::SimpleMemory,
-    utils::eth_price_per_pubdata_byte,
-};
 
-use crate::vm_refunds_enhancement::bootloader_state::BootloaderState;
-use crate::vm_refunds_enhancement::tracers::utils::gas_spent_on_bytecodes_and_long_messages_this_opcode;
-use crate::vm_refunds_enhancement::tracers::{
-    traits::{DynTracer, VmTracer},
-    utils::{get_vm_hook_params, VmHook},
+use crate::vm_refunds_enhancement::{
+    bootloader_state::BootloaderState,
+    old_vm::{
+        events::merge_events, history_recorder::HistoryMode, memory::SimpleMemory,
+        utils::eth_price_per_pubdata_byte,
+    },
+    tracers::{
+        traits::VmTracer,
+        utils::{gas_spent_on_bytecodes_and_long_messages_this_opcode, get_vm_hook_params, VmHook},
+    },
+    types::internals::ZkSyncVmState,
 };
-use crate::vm_refunds_enhancement::types::internals::ZkSyncVmState;
-use crate::vm_refunds_enhancement::TracerExecutionStatus;
 
 /// Tracer responsible for collecting information about refunds.
 #[derive(Debug, Clone)]
@@ -150,7 +152,7 @@ impl RefundsTracer {
     }
 }
 
-impl<S, H: HistoryMode> DynTracer<S, H> for RefundsTracer {
+impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for RefundsTracer {
     fn before_execution(
         &mut self,
         state: VmLocalStateData<'_>,

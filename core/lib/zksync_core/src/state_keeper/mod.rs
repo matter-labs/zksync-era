@@ -1,4 +1,5 @@
 use tokio::sync::watch;
+use zksync_object_store::ObjectStore;
 
 use std::sync::Arc;
 
@@ -44,6 +45,7 @@ pub(crate) async fn create_state_keeper<G>(
     mempool: MempoolGuard,
     l1_gas_price_provider: Arc<G>,
     miniblock_sealer_handle: MiniblockSealerHandle,
+    object_store: Box<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
 ) -> ZkSyncStateKeeper
 where
@@ -67,6 +69,7 @@ where
 
     let io = MempoolIO::new(
         mempool,
+        object_store,
         miniblock_sealer_handle,
         l1_gas_price_provider,
         pool,
