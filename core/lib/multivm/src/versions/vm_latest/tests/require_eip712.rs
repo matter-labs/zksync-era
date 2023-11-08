@@ -13,7 +13,7 @@ use zksync_types::{
     AccountTreeId, Address, Eip712Domain, Execute, L2ChainId, Nonce, Transaction, U256,
 };
 
-use crate::interface::{TxExecutionMode, VmExecutionMode};
+use crate::interface::{TxExecutionMode, VmExecutionMode, VmInterface};
 use crate::vm_latest::tests::tester::{Account, VmTester, VmTesterBuilder};
 use crate::vm_latest::tests::utils::read_many_owners_custom_account_contract;
 use crate::vm_latest::HistoryDisabled;

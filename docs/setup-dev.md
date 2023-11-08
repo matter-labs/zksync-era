@@ -167,6 +167,12 @@ On mac:
 brew install postgresql@14
 ```
 
+On linux:
+
+```bash
+sudo apt-get install postgresql
+```
+
 ### Cargo nextest
 
 [cargo-nextest](https://nexte.st/) is the next-generation test runner for Rust projects. `zk test rust` uses
@@ -174,12 +180,6 @@ brew install postgresql@14
 
 ```bash
 cargo install cargo-nextest
-```
-
-On linux:
-
-```bash
-sudo apt-get install postgresql
 ```
 
 ### SQLx CLI

@@ -216,9 +216,3 @@ pub(crate) fn get_vm_hook_params<H: HistoryMode>(memory: &SimpleMemory<H>) -> Ve
         VM_HOOK_PARAMS_START_POSITION..VM_HOOK_PARAMS_START_POSITION + VM_HOOK_PARAMS_COUNT,
     )
 }
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum VmExecutionStopReason {
-    VmFinished,
-    TracerRequestedStop,
-}

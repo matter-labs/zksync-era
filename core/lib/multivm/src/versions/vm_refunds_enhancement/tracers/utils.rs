@@ -1,8 +1,9 @@
-use zk_evm_1_3_3::aux_structures::MemoryPage;
-use zk_evm_1_3_3::zkevm_opcode_defs::{FarCallABI, FarCallForwardPageType};
 use zk_evm_1_3_3::{
+    aux_structures::MemoryPage,
     tracing::{BeforeExecutionData, VmLocalStateData},
-    zkevm_opcode_defs::{FatPointer, LogOpcode, Opcode, UMAOpcode},
+    zkevm_opcode_defs::{
+        FarCallABI, FarCallForwardPageType, FatPointer, LogOpcode, Opcode, UMAOpcode,
+    },
 };
 
 use zksync_system_constants::{
@@ -15,10 +16,11 @@ use zksync_utils::u256_to_h256;
 use crate::vm_refunds_enhancement::constants::{
     BOOTLOADER_HEAP_PAGE, VM_HOOK_PARAMS_COUNT, VM_HOOK_PARAMS_START_POSITION, VM_HOOK_POSITION,
 };
-use crate::vm_refunds_enhancement::old_vm::history_recorder::HistoryMode;
-use crate::vm_refunds_enhancement::old_vm::memory::SimpleMemory;
-use crate::vm_refunds_enhancement::old_vm::utils::{aux_heap_page_from_base, heap_page_from_base};
-use crate::vm_refunds_enhancement::tracers::traits::TracerExecutionStopReason;
+use crate::vm_refunds_enhancement::old_vm::{
+    history_recorder::HistoryMode,
+    memory::SimpleMemory,
+    utils::{aux_heap_page_from_base, heap_page_from_base},
+};
 
 #[derive(Clone, Debug, Copy)]
 pub(crate) enum VmHook {
@@ -216,10 +218,4 @@ pub(crate) fn get_vm_hook_params<H: HistoryMode>(memory: &SimpleMemory<H>) -> Ve
         BOOTLOADER_HEAP_PAGE,
         VM_HOOK_PARAMS_START_POSITION..VM_HOOK_PARAMS_START_POSITION + VM_HOOK_PARAMS_COUNT,
     )
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum VmExecutionStopReason {
-    VmFinished,
-    TracerRequestedStop(TracerExecutionStopReason),
 }
