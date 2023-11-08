@@ -77,7 +77,7 @@ impl EventsDal<'_, '_> {
                     topic2 = EventTopic(event.indexed_topics.get(2)),
                     topic3 = EventTopic(event.indexed_topics.get(3))
                 );
-                zksync_db_utils::write_str!(
+                zksync_db_utils::writeln_str!(
                     &mut buffer,
                     r"\\x{value}|\\x{tx_initiator_address:x}|{now}|{now}",
                     value = hex::encode(&event.value)
@@ -152,7 +152,7 @@ impl EventsDal<'_, '_> {
                     &mut buffer,
                     r"{tx_index_in_miniblock}|{tx_number_in_block}|{shard_id}|{is_service}|"
                 );
-                zksync_db_utils::write_str!(
+                zksync_db_utils::writeln_str!(
                     &mut buffer,
                     r"\\x{sender:x}|\\x{key:x}|\\x{value:x}|{now}|{now}"
                 );
