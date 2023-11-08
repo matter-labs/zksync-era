@@ -107,7 +107,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             total_log_queries,
             cycles_used: self.state.local_state.monotonic_cycle_counter,
             deduplicated_events_logs,
-            storage_refunds: Vec::new(),
+            storage_refunds: self.state.storage.returned_refunds.inner().clone(),
         }
     }
 
