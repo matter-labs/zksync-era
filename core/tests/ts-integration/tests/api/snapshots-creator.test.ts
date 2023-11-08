@@ -1,6 +1,7 @@
 import { TestMaster } from '../../src/index';
 import * as utils from 'zk/build/utils';
 import fs from 'fs';
+import { isolatedExternalNode } from 'zk/build/server';
 // import * as db from 'zk/build/database';
 // import { clean } from 'zk/build/clean';
 // import path from 'path';
@@ -50,7 +51,7 @@ describe('Snapshots API tests', () => {
         let fullSnapshot = await getSnapshot(l1BatchNumber);
         let miniblockNumber = fullSnapshot.miniblockNumber;
 
-        expect(fullSnapshot.metadata.l1BatchNumber).toEqual(addedSnapshots[0].l1BatchNumber);
+        expect(fullSnapshot.l1BatchNumber).toEqual(addedSnapshots[0].l1BatchNumber);
         //TODO make this more generic so that it for instance works in GCS
         let path = `${process.env.ZKSYNC_HOME}/${fullSnapshot.chunks[0].filepath}`;
 
@@ -60,7 +61,7 @@ describe('Snapshots API tests', () => {
             let snapshotAccountAddress = storageLog['key']['account']['address'];
             let snapshotKey = storageLog['key']['key'];
             let snapshotValue = storageLog['value'];
-            let snapshotL1BatchNumber = storageLog['l1BatchNumber'];
+            let snapshotL1BatchNumber = storageLog['l1BatchNumberOfInitialWrite'];
             const valueOnBlockchain = await testMaster
                 .mainAccount()
                 .provider.getStorageAt(snapshotAccountAddress, snapshotKey, miniblockNumber);
@@ -69,15 +70,12 @@ describe('Snapshots API tests', () => {
         }
     });
 
-    // test('ext-node can be started using snapshot', async () => {
-    //     process.chdir(process.env.ZKSYNC_HOME as string);
-    //     let start_env = env.get();
-    //     try {
-    //         env.set('ext-node');
-    //         await db.resetTest();
-    //         await externalNode();
-    //     } finally {
-    //         env.set(start_env);
-    //     }
-    // });
+    test('ext-node can be restored from snapshot', async () => {
+        await utils.exec(' cargo build --release');
+        await utils.exec(' zk docker build integration-test-node');
+        await runCreator();
+        await isolatedExternalNode();
+        await utils.sleep(5);
+        await utils.exec('zk run cross-en-checker');
+    });
 });

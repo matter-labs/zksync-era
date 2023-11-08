@@ -1,6 +1,8 @@
 use crate::api_server::web3::state::RpcState;
 use crate::l1_gas_price::L1GasPriceProvider;
-use zksync_types::snapshots::{AllSnapshots, Snapshot, SnapshotChunkMetadata, SnapshotStorageKey};
+use zksync_types::snapshots::{
+    AllSnapshots, SnapshotChunkMetadata, SnapshotHeader, SnapshotStorageKey,
+};
 use zksync_types::L1BatchNumber;
 use zksync_web3_decl::error::Web3Error;
 
@@ -29,7 +31,7 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
     pub async fn get_snapshot_by_l1_batch_number_impl(
         &self,
         l1_batch_number: L1BatchNumber,
-    ) -> Result<Option<Snapshot>, Web3Error> {
+    ) -> Result<Option<SnapshotHeader>, Web3Error> {
         let mut storage_processor = self.state.connection_pool.access_storage().await.unwrap();
         let mut snapshots_dal = storage_processor.snapshots_dal();
         let snapshot_files = snapshots_dal
@@ -67,8 +69,9 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
                 .get_last_miniblock_number(l1_batch_number)
                 .await
                 .unwrap();
-            Ok(Some(Snapshot {
-                metadata: snapshot_metadata,
+            Ok(Some(SnapshotHeader {
+                l1_batch_number: snapshot_metadata.l1_batch_number,
+                generated_at: snapshot_metadata.generated_at,
                 miniblock_number,
                 last_l1_batch_with_metadata: l1_batch_with_metadata,
                 chunks,

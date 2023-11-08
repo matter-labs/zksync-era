@@ -7,6 +7,7 @@ use std::{sync::Arc, time::Duration};
 use futures::{future::FusedFuture, FutureExt};
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_basic_types::{Address, L2ChainId};
+use zksync_core::sync_layer::snapshots::StateKeeperConfig;
 use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,
@@ -189,14 +190,18 @@ async fn init_tasks(
         .build()
         .await
         .context("failed to build a prover_tree_pool")?;
-    let tree_handle =
-        task::spawn(metadata_calculator.run(tree_pool, prover_tree_pool, tree_stop_receiver));
+    let tree_handle = task::spawn(metadata_calculator.run(
+        tree_pool,
+        prover_tree_pool,
+        tree_stop_receiver,
+        false,
+    ));
 
     let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
 
     let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
-    let sk_handle = task::spawn(state_keeper.run());
-    let fetcher_handle = tokio::spawn(fetcher.run());
+    let sk_handle = task::spawn(state_keeper.run(false));
+    let fetcher_handle = tokio::spawn(fetcher.run(false));
     let gas_adjuster_handle = tokio::spawn(gas_adjuster.clone().run(stop_receiver.clone()));
 
     let (tx_sender, vm_barrier, cache_update_handle) = {
@@ -394,10 +399,31 @@ async fn main() -> anyhow::Result<()> {
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
 
+    let state_keeper_params = StateKeeperConfig {
+        chain_id: config.remote.l2_chain_id,
+        connection_pool: connection_pool.clone(),
+        enum_index_migration_chunk_size: config.optional.enum_index_migration_chunk_size,
+        l2_erc20_bridge_addr: config.remote.l2_erc20_bridge_addr,
+        main_node_url: main_node_url.clone(),
+        state_keeper_db_path: config.required.state_cache_path.clone(),
+    };
+
+    let metadata_calculator_config = MetadataCalculatorConfig {
+        db_path: &config.required.merkle_tree_path,
+        mode: MetadataCalculatorModeConfig::Lightweight,
+        delay_interval: config.optional.metadata_calculator_delay(),
+        max_l1_batches_per_iter: 1,
+        multi_get_chunk_size: config.optional.merkle_tree_multi_get_chunk_size,
+        block_cache_capacity: config.optional.merkle_tree_block_cache_size(),
+        memtable_capacity: config.optional.merkle_tree_memtable_capacity(),
+    };
+
     load_from_snapshot_if_needed(
         &mut connection_pool.access_storage().await.unwrap(),
         &main_node_client,
         &config.required.merkle_tree_path,
+        state_keeper_params,
+        metadata_calculator_config,
     )
     .await
     .context("Loading newest snapshot failed")?;

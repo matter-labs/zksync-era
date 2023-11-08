@@ -28,6 +28,25 @@ pub struct BlocksDal<'a, 'c> {
 }
 
 impl BlocksDal<'_, '_> {
+    pub async fn clear_dummy_snapshot_headers(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+        miniblock_number: MiniblockNumber,
+    ) -> sqlx::Result<()> {
+        sqlx::query!(
+            "DELETE FROM l1_batches WHERE number = $1",
+            l1_batch_number.0 as i64
+        )
+        .execute(self.storage.conn())
+        .await?;
+        sqlx::query!(
+            "DELETE FROM miniblocks WHERE number = $1",
+            miniblock_number.0 as i64
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
+    }
     pub async fn is_genesis_needed(&mut self) -> sqlx::Result<bool> {
         let count = sqlx::query!("SELECT COUNT(*) as \"count!\" FROM l1_batches")
             .fetch_one(self.storage.conn())

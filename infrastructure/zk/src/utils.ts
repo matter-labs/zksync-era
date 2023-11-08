@@ -46,10 +46,9 @@ export function augment_command_with_env_changes(command: string) {
             variable !== 'ZKSYNC_JEST_TEST_CONTEXT' &&
             variable !== 'JEST_WORKER_ID'
         ) {
-            command = `export ${variable}="${process.env[variable]}"; ${command}`;
+            command = `${variable}="${process.env[variable]}"; ${command}`;
         }
     }
-    console.log(command);
     return command;
 }
 
@@ -62,7 +61,7 @@ export function spawn(command: string) {
     return new Promise((resolve, reject) => {
         child.on('error', reject);
         child.on('close', (code) => {
-            code == 0 ? resolve(code) : reject(`Child process exited with code ${code}`);
+            code == 0 ? resolve(code) : reject(`Child process exited with code ${code}, cmd was ${command}`);
         });
     });
 }

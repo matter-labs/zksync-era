@@ -20,8 +20,6 @@ zksync_object_store = { path = "../../lib/object_store" }
 vlog = { path = "../../lib/vlog" }
 
 anyhow = "1.0"
-clap = { version = "4.2.4", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 futures = "0.3"
-serde = { version = "1.0.175", features = ["derive"] }

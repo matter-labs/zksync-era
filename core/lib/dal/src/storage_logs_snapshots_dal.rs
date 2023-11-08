@@ -88,8 +88,8 @@ impl SnapshotChunksDal<'_, '_> {
                 H256::from_slice(&row.key),
             ),
             value: H256::from_slice(&row.value),
-            miniblock_number: MiniblockNumber(row.miniblock_number as u32),
-            l1_batch_number: L1BatchNumber(row.l1_batch_number as u32),
+            miniblock_number_of_initial_write: MiniblockNumber(row.miniblock_number as u32),
+            l1_batch_number_of_initial_write: L1BatchNumber(row.l1_batch_number as u32),
             enumeration_index: row.index as u64,
         })
         .collect();

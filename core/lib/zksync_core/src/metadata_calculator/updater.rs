@@ -300,6 +300,7 @@ impl TreeUpdater {
         prover_pool: &ConnectionPool,
         mut stop_receiver: watch::Receiver<bool>,
         health_updater: HealthUpdater,
+        stop_after_one_batch: bool,
     ) -> anyhow::Result<()> {
         let mut storage = pool
             .access_storage_tagged("metadata_calculator")
@@ -380,6 +381,9 @@ impl TreeUpdater {
             let snapshot = *next_l1_batch_to_seal;
             self.step(storage, prover_storage, &mut next_l1_batch_to_seal)
                 .await;
+            if stop_after_one_batch {
+                return Ok(());
+            }
             let delay = if snapshot == *next_l1_batch_to_seal {
                 tracing::trace!(
                     "Metadata calculator (next L1 batch: #{next_l1_batch_to_seal}) \

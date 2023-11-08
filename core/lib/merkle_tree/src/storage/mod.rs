@@ -185,7 +185,6 @@ impl TreeUpdater {
             TraverseOutcome::MissingChild(nibbles) if nibbles.nibble_count() == 0 => {
                 // The root is currently empty; we replace it with a leaf.
                 let leaf_index = leaf_index_fn();
-                debug_assert_eq!(leaf_index, 1);
                 let root_leaf = LeafNode::new(key, value_hash, leaf_index);
                 self.set_root_node(root_leaf.into());
                 let leaf_data = NewLeafData::new(Nibbles::EMPTY, root_leaf);

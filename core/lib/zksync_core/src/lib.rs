@@ -835,7 +835,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         stop_receiver.clone(),
     )
     .await;
-    task_futures.push(tokio::spawn(state_keeper.run()));
+    task_futures.push(tokio::spawn(state_keeper.run(false)));
 
     let mempool_fetcher_pool = pool_builder
         .build()
@@ -957,7 +957,7 @@ async fn run_tree(
         .build()
         .await
         .context("failed to build prover_pool")?;
-    let tree_task = tokio::spawn(metadata_calculator.run(pool, prover_pool, stop_receiver));
+    let tree_task = tokio::spawn(metadata_calculator.run(pool, prover_pool, stop_receiver, false));
     task_futures.push(tree_task);
 
     let elapsed = started_at.elapsed();

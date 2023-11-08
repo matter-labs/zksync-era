@@ -6,6 +6,8 @@ import { lookupPrerequisites } from './prerequisites';
 import { Reporter } from './reporter';
 import { scaledGasPrice } from './helpers';
 import { RetryProvider } from './retry-provider';
+import fs from 'fs';
+import * as utils from 'zk/build/utils';
 
 // These amounts of ETH would be provided to each test suite through its "main" account.
 // It is assumed to be enough to run a set of "normal" transactions.
@@ -98,6 +100,7 @@ export class TestContextOwner {
             this.reporter.startAction('Setting up the context');
             await this.cancelPendingTxs();
             this.wallets = await this.prepareWallets();
+            await this.cleanUpDockerAndPostgres();
             this.reporter.finishAction();
         } catch (error: any) {
             // Report the issue to the console and mark the last action as failed.
@@ -380,6 +383,8 @@ export class TestContextOwner {
 
             await this.collectFunds();
 
+            await this.cleanUpDockerAndPostgres();
+
             this.reporter.finishAction();
         } catch (error: any) {
             // Report the issue to the console and mark the last action as failed.
@@ -389,6 +394,43 @@ export class TestContextOwner {
             // Then propagate the exception.
             throw error;
         }
+    }
+
+    async cleanUpDockerAndPostgres() {
+        this.reporter.startAction(`Stopping docker containers`);
+        const filepath = `${process.env.ZKSYNC_HOME}.instances_to_clean`;
+        if (!fs.existsSync(filepath)) {
+            return;
+        }
+        const instancesToClean = fs.readFileSync(filepath).toString().trim().split('\n');
+        for (const instance of instancesToClean) {
+            try {
+                const logPath = `${process.env.ZKSYNC_HOME}logs/ts-integration-${new Date()
+                    .toISOString()
+                    .slice(0, 19)}-${instance}.log`;
+                await utils.spawn(`docker logs ${instance} > ${logPath} 2>&1`);
+                const { stdout: status } = await utils.exec(
+                    `docker container inspect ${instance} --format={{.State.Status}}`
+                );
+                if (status.trim() == 'running') {
+                    await utils.spawn(`docker container kill ${instance}`);
+                }
+            } catch (e) {}
+        }
+        this.reporter.finishAction();
+        this.reporter.startAction(`Deleting temporary postgres databases`);
+        for (const instance of instancesToClean) {
+            try {
+                const localDbUrl = 'postgres://postgres@localhost';
+                const databaseUrl = `${localDbUrl}/${instance}`;
+                if (databaseUrl.trim().length == 0) {
+                    continue; //sanity check, we really don't want sqlx to delete main postgres database
+                }
+                await utils.spawn(`cargo sqlx database drop -y --database-url ${databaseUrl}`);
+            } catch (e) {}
+        }
+        fs.rmSync(filepath);
+        this.reporter.finishAction();
     }
 
     /**

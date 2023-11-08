@@ -9627,6 +9627,18 @@
     },
     "query": "SELECT l1_address, l2_address FROM tokens WHERE well_known = true"
   },
+  "b6f719d6e80dd29fffe7d1e79a6248cb4a516b0abf5ca8ecb3b14b46e251a1d2": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "DELETE FROM l1_batches WHERE number = $1"
+  },
   "b6f9874059c57e5e59f3021936437e9ff71a68065dfc19c295d806d7a9aafc93": {
     "describe": {
       "columns": [],
@@ -10248,6 +10260,18 @@
       }
     },
     "query": "\n                SELECT COUNT(*) as \"count!\", circuit_type as \"circuit_type!\", status as \"status!\"\n                FROM prover_jobs\n                WHERE status <> 'skipped' and status <> 'successful' \n                GROUP BY circuit_type, status\n                "
+  },
+  "d007e0fd35d52da98e9ccca4cbdcfd09dac6bc3b03e6cf58a434d1b266026a9b": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "DELETE FROM miniblocks WHERE number = $1"
   },
   "d0ff67e7c59684a0e4409726544cf850dbdbb36d038ebbc6a1c5bf0e76b0358c": {
     "describe": {

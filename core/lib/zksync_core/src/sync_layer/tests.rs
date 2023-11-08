@@ -84,7 +84,7 @@ impl MockMainNodeClient {
 
 #[async_trait]
 impl MainNodeClient for MockMainNodeClient {
-    async fn fetch_newest_snapshot(&self) -> anyhow::Result<Option<Snapshot>> {
+    async fn fetch_newest_snapshot(&self) -> anyhow::Result<Option<SnapshotHeader>> {
         anyhow::bail!("Not implemented");
     }
     async fn fetch_system_contract_by_hash(
@@ -225,7 +225,7 @@ async fn run_state_keeper(pool: ConnectionPool, tx_hashes: &[&[H256]]) -> StateK
         actions_sender,
         stop_sender,
         sync_state,
-        task: tokio::spawn(state_keeper.run()),
+        task: tokio::spawn(state_keeper.run(false)),
     }
 }
 
@@ -520,7 +520,7 @@ async fn fetcher_basics() {
         sync_state.clone(),
         stop_receiver,
     );
-    let fetcher_task = tokio::spawn(fetcher.run());
+    let fetcher_task = tokio::spawn(fetcher.run(false));
 
     // Check that sync_state is updated.
     while sync_state.get_main_node_block() < MiniblockNumber(5) {
@@ -603,7 +603,7 @@ async fn fetcher_with_real_server() {
         sync_state.clone(),
         stop_receiver,
     );
-    let fetcher_task = tokio::spawn(fetcher.run());
+    let fetcher_task = tokio::spawn(fetcher.run(false));
 
     // Check generated actions.
     let mut current_miniblock_number = MiniblockNumber(0);

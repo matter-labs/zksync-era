@@ -19,11 +19,12 @@ pub struct SnapshotMetadata {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Snapshot {
-    pub metadata: SnapshotMetadata,
+pub struct SnapshotHeader {
+    pub l1_batch_number: L1BatchNumber,
     pub miniblock_number: MiniblockNumber,
     pub chunks: Vec<SnapshotChunkMetadata>,
     pub last_l1_batch_with_metadata: L1BatchWithMetadata,
+    pub generated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,8 +53,8 @@ pub struct SnapshotChunk {
 pub struct SnapshotStorageLog {
     pub key: StorageKey,
     pub value: StorageValue,
-    pub miniblock_number: MiniblockNumber,
-    pub l1_batch_number: L1BatchNumber,
+    pub miniblock_number_of_initial_write: MiniblockNumber,
+    pub l1_batch_number_of_initial_write: L1BatchNumber,
     pub enumeration_index: u64,
 }
 

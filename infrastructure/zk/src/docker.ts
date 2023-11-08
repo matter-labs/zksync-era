@@ -17,7 +17,8 @@ const IMAGES = [
     'prover-gpu-fri',
     'witness-vector-generator',
     'prover-fri-gateway',
-    'proof-fri-compressor'
+    'proof-fri-compressor',
+    'integration-test-node'
 ];
 const UNIX_TIMESTAMP = Date.now();
 
@@ -78,7 +79,8 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
         'prover-gpu-fri',
         'witness-vector-generator',
         'prover-fri-gateway',
-        'proof-fri-compressor'
+        'proof-fri-compressor',
+        'integration-test-node'
     ].includes(image)
         ? ['latest', 'latest2.0', `2.0-${imageTagSha}`, `${imageTagSha}`, `2.0-${imageTagShaTS}`, `${imageTagShaTS}`]
         : [`latest2.0`, 'latest'];

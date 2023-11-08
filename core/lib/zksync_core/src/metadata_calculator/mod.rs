@@ -143,6 +143,7 @@ impl MetadataCalculator {
         pool: ConnectionPool,
         prover_pool: ConnectionPool,
         stop_receiver: watch::Receiver<bool>,
+        stop_after_one_batch: bool,
     ) -> anyhow::Result<()> {
         self.updater
             .loop_updating_tree(
@@ -151,6 +152,7 @@ impl MetadataCalculator {
                 &prover_pool,
                 stop_receiver,
                 self.health_updater,
+                stop_after_one_batch,
             )
             .await
     }

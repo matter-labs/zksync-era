@@ -6143,9 +6143,7 @@ name = "snapshot_creator"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 4.3.4",
  "futures 0.3.28",
- "serde",
  "tokio",
  "tracing",
  "vlog",

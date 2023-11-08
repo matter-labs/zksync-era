@@ -88,8 +88,8 @@ impl ZkSyncStateKeeper {
         }
     }
 
-    pub async fn run(mut self) -> anyhow::Result<()> {
-        match self.run_inner().await {
+    pub async fn run(mut self, stop_after_one_batch: bool) -> anyhow::Result<()> {
+        match self.run_inner(stop_after_one_batch).await {
             Ok(_) => unreachable!(),
             Err(Error::Fatal(err)) => Err(err).context("state_keeper failed"),
             Err(Error::Canceled) => {
@@ -100,7 +100,7 @@ impl ZkSyncStateKeeper {
     }
 
     /// Fallible version of `run` routine that allows to easily exit upon cancellation.
-    async fn run_inner(&mut self) -> Result<Infallible, Error> {
+    async fn run_inner(&mut self, stop_after_one_batch: bool) -> Result<Infallible, Error> {
         tracing::info!(
             "Starting state keeper. Next l1 batch to seal: {}, Next miniblock to seal: {}",
             self.io.current_l1_batch_number(),
@@ -208,6 +208,11 @@ impl ZkSyncStateKeeper {
                 )
                 .await
                 .context("seal_l1_batch")?;
+
+            if stop_after_one_batch {
+                return Err(Error::Canceled);
+            }
+
             if let Some(delta) = l1_batch_seal_delta {
                 L1_BATCH_METRICS.seal_delta.observe(delta.elapsed());
             }

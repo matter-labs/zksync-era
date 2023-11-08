@@ -26,6 +26,11 @@ pub struct MainNodeFetcherCursor {
     pub(super) l1_batch: L1BatchNumber,
 }
 
+struct FetcherIterationResult {
+    has_progressed: bool,
+    was_l1_batch_sealed: bool,
+}
+
 impl MainNodeFetcherCursor {
     /// Loads the cursor
     pub async fn new(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
@@ -94,7 +99,7 @@ pub struct MainNodeFetcher {
 }
 
 impl MainNodeFetcher {
-    pub async fn run(mut self) -> anyhow::Result<()> {
+    pub async fn run(mut self, stop_after_one_batch: bool) -> anyhow::Result<()> {
         tracing::info!(
             "Starting the fetcher routine. Initial miniblock: {}, initial l1 batch: {}",
             self.cursor.miniblock,
@@ -102,7 +107,7 @@ impl MainNodeFetcher {
         );
         // Run the main routine and reconnect upon the network errors.
         loop {
-            match self.run_inner().await {
+            match self.run_inner(stop_after_one_batch).await {
                 Ok(()) => {
                     tracing::info!("Stop signal received, exiting the fetcher routine");
                     return Ok(());
@@ -126,7 +131,7 @@ impl MainNodeFetcher {
         *self.stop_receiver.borrow()
     }
 
-    async fn run_inner(&mut self) -> anyhow::Result<()> {
+    async fn run_inner(&mut self, stop_after_one_batch: bool) -> anyhow::Result<()> {
         loop {
             if self.check_if_cancelled() {
                 return Ok(());
@@ -141,7 +146,11 @@ impl MainNodeFetcher {
                 .await;
             let has_action_capacity = self.actions.has_action_capacity();
             if has_action_capacity {
-                progressed |= self.fetch_next_miniblock().await?;
+                let status = self.fetch_next_miniblock().await?;
+                progressed |= status.has_progressed;
+                if stop_after_one_batch && status.was_l1_batch_sealed {
+                    return Ok(());
+                }
             }
 
             if !progressed {
@@ -158,12 +167,19 @@ impl MainNodeFetcher {
     }
 
     /// Tries to fetch the next miniblock and insert it to the sync queue.
-    /// Returns `true` if a miniblock was processed and `false` otherwise.
-    async fn fetch_next_miniblock(&mut self) -> anyhow::Result<bool> {
+    async fn fetch_next_miniblock(&mut self) -> anyhow::Result<FetcherIterationResult> {
         let total_latency = FETCHER_METRICS.fetch_next_miniblock.start();
         let request_latency = FETCHER_METRICS.requests[&FetchStage::SyncL2Block].start();
+        tracing::info!(
+            "Fething new miniblock for l1_batch_number: {}, miniblock_number: {}",
+            self.cursor.l1_batch,
+            self.cursor.miniblock,
+        );
         let Some(block) = self.client.fetch_l2_block(self.cursor.miniblock).await? else {
-            return Ok(false);
+            return Ok(FetcherIterationResult {
+                has_progressed: false,
+                was_l1_batch_sealed: false,
+            });
         };
 
         // This will be fetched from cache.
@@ -243,6 +259,9 @@ impl MainNodeFetcher {
         self.actions.push_actions(new_actions).await;
 
         total_latency.observe();
-        Ok(true)
+        Ok(FetcherIterationResult {
+            has_progressed: true,
+            was_l1_batch_sealed: block.last_in_batch,
+        })
     }
 }
