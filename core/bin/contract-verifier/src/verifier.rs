@@ -11,6 +11,7 @@ use regex::Regex;
 use tokio::time;
 
 use zksync_config::ContractVerifierConfig;
+use zksync_env_config::FromEnv;
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_server_dal::{ServerConnectionPool, ServerStorageProcessor};
 use zksync_types::{

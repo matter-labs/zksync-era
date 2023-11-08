@@ -11,6 +11,7 @@ pub struct VmExecutionStatistics {
     pub computational_gas_used: u32,
     /// Number of log queries produced by the VM during the tx execution.
     pub total_log_queries: usize,
+    pub pubdata_published: u32,
 }
 
 /// Oracle metrics of the VM.

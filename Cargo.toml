@@ -21,6 +21,7 @@ members = [
     "core/lib/circuit_breaker",
     "core/lib/commitment_utils",
     "core/lib/server_dal",
+    "core/lib/env_config",
     "core/lib/eth_client",
     "core/lib/eth_signer",
     "core/lib/mempool",

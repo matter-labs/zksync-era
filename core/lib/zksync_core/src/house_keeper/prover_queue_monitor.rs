@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use async_trait::async_trait;
 use zksync_config::configs::ProverGroupConfig;
 use zksync_prover_dal::ProverConnectionPool;
@@ -10,13 +9,19 @@ use zksync_prover_utils::periodic_job::PeriodicJob;
 pub struct ProverStatsReporter {
     reporting_interval_ms: u64,
     prover_connection_pool: ProverConnectionPool,
+    config: ProverGroupConfig,
 }
 
 impl ProverStatsReporter {
-    pub fn new(reporting_interval_ms: u64, prover_connection_pool: ProverConnectionPool) -> Self {
+    pub fn new(
+        reporting_interval_ms: u64,
+        prover_connection_pool: ProverConnectionPool,
+        config: ProverGroupConfig,
+    ) -> Self {
         Self {
             reporting_interval_ms,
             prover_connection_pool,
+            config,
         }
     }
 }
@@ -28,13 +33,12 @@ impl PeriodicJob for ProverStatsReporter {
     const SERVICE_NAME: &'static str = "ProverStatsReporter";
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
-        let prover_group_config =
-            ProverGroupConfig::from_env().context("ProverGroupConfig::from_env()")?;
         let mut conn = self.prover_connection_pool.access_storage().await.unwrap();
         let stats = conn.prover_dal().get_prover_jobs_stats_per_circuit().await;
 
         for (circuit_name, stats) in stats.into_iter() {
-            let group_id = prover_group_config
+            let group_id = self
+                .config
                 .get_group_id_for_circuit_id(circuit_name_to_numeric_index(&circuit_name).unwrap())
                 .unwrap();
 

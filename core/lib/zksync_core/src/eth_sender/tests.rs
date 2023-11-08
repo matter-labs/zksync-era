@@ -65,8 +65,8 @@ impl EthSenderTester {
         history: Vec<u64>,
         non_ordering_confirmations: bool,
     ) -> Self {
-        let eth_sender_config = ETHSenderConfig::from_env().unwrap();
-        let contracts_config = ContractsConfig::from_env().unwrap();
+        let eth_sender_config = ETHSenderConfig::for_tests();
+        let contracts_config = ContractsConfig::for_tests();
         let aggregator_config = SenderConfig {
             aggregated_proof_sizes: vec![1],
             ..eth_sender_config.sender.clone()
@@ -100,7 +100,7 @@ impl EthSenderTester {
             .await
             .unwrap(),
         );
-        let store_factory = ObjectStoreFactory::from_env().unwrap();
+        let store_factory = ObjectStoreFactory::mock();
 
         let aggregator = EthTxAggregator::new(
             SenderConfig {
@@ -945,7 +945,7 @@ async fn send_operation(
         .save_eth_tx(
             &mut tester.conn.access_storage().await.unwrap(),
             &aggregated_operation,
-            true,
+            false,
         )
         .await
         .unwrap();

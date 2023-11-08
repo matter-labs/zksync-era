@@ -16,6 +16,9 @@ use zkevm_test_harness::witness::oracle::VmWitnessOracle;
 use zksync_config::configs::prover_group::ProverGroupConfig;
 use zksync_config::configs::CircuitSynthesizerConfig;
 use zksync_config::ProverConfigs;
+
+use zksync_env_config::FromEnv;
+
 use zksync_object_store::{CircuitKey, ObjectStore, ObjectStoreError, ObjectStoreFactory};
 use zksync_prover_dal::ProverConnectionPool;
 use zksync_prover_fri_utils::socket_utils::send_assembly;
@@ -90,10 +93,10 @@ impl CircuitSynthesizer {
             blob_store: store_factory.create_store().await,
             allowed_circuit_types: allowed_circuit_types
                 .map(|x| x.into_iter().map(|x| x.1).collect()),
-            region: get_region()
+            region: get_region(&prover_groups)
                 .await
                 .map_err(CircuitSynthesizerError::GetRegionFailed)?,
-            zone: get_zone()
+            zone: get_zone(&prover_groups)
                 .await
                 .map_err(CircuitSynthesizerError::GetZoneFailed)?,
             vk_commitments,

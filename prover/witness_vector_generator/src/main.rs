@@ -7,7 +7,10 @@ use tokio::{sync::oneshot, sync::watch};
 
 use crate::generator::WitnessVectorGenerator;
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
-use zksync_config::configs::FriWitnessVectorGeneratorConfig;
+
+use zksync_config::configs::{FriWitnessVectorGeneratorConfig, ProverGroupConfig};
+use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
+
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{connection::DbVariant, ProverConnectionPool};
 use zksync_prover_fri_utils::get_all_circuit_id_round_tuples_for;
@@ -57,16 +60,20 @@ async fn main() -> anyhow::Result<()> {
         .build()
         .await
         .context("failed to build a connection pool")?;
-    let blob_store = ObjectStoreFactory::prover_from_env()
-        .context("ObjectStoreFactor::prover_from_env()")?
+    let object_store_config =
+        ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;
+    let blob_store = ObjectStoreFactory::new(object_store_config.0)
         .create_store()
         .await;
     let circuit_ids_for_round_to_be_proven = FriProverGroupConfig::from_env()
+        .context("FriProverGroupConfig::from_env()")?
         .get_circuit_ids_for_group_id(specialized_group_id)
         .unwrap_or_default();
     let circuit_ids_for_round_to_be_proven =
         get_all_circuit_id_round_tuples_for(circuit_ids_for_round_to_be_proven);
-    let zone = get_zone().await.context("get_zone()")?;
+    let prover_group_config =
+        ProverGroupConfig::from_env().context("ProverGroupConfig::from_env()")?;
+    let zone = get_zone(&prover_group_config).await.context("get_zone()")?;
     let vk_commitments = get_cached_commitments();
     let witness_vector_generator = WitnessVectorGenerator::new(
         blob_store,

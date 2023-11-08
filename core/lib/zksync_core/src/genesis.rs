@@ -127,7 +127,7 @@ pub async fn ensure_genesis_state(
     // We need to `println` this value because it will be used to initialize the smart contract.
     println!("CONTRACTS_GENESIS_ROOT={:?}", genesis_root_hash);
     println!(
-        "CONTRACTS_GENESIS_BLOCK_COMMITMENT={:?}",
+        "CONTRACTS_GENESIS_BATCH_COMMITMENT={:?}",
         block_commitment.hash().commitment
     );
     println!(

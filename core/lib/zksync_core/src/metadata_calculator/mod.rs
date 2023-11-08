@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use zksync_config::configs::{
     chain::OperationsManagerConfig,
-    database::{DBConfig, MerkleTreeMode},
+    database::{MerkleTreeConfig, MerkleTreeMode},
 };
 use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_merkle_tree::domain::TreeMetadata;
@@ -82,19 +82,19 @@ pub struct MetadataCalculatorConfig<'a> {
 
 impl<'a> MetadataCalculatorConfig<'a> {
     pub(crate) fn for_main_node(
-        db_config: &'a DBConfig,
+        merkle_tree_config: &'a MerkleTreeConfig,
         operation_config: &'a OperationsManagerConfig,
         mode: MetadataCalculatorModeConfig<'a>,
     ) -> Self {
         Self {
-            db_path: &db_config.merkle_tree.path,
+            db_path: &merkle_tree_config.path,
             mode,
             delay_interval: operation_config.delay_interval(),
-            max_l1_batches_per_iter: db_config.merkle_tree.max_l1_batches_per_iter,
-            multi_get_chunk_size: db_config.merkle_tree.multi_get_chunk_size,
-            block_cache_capacity: db_config.merkle_tree.block_cache_size(),
-            memtable_capacity: db_config.merkle_tree.memtable_capacity(),
-            stalled_writes_timeout: db_config.merkle_tree.stalled_writes_timeout(),
+            max_l1_batches_per_iter: merkle_tree_config.max_l1_batches_per_iter,
+            multi_get_chunk_size: merkle_tree_config.multi_get_chunk_size,
+            block_cache_capacity: merkle_tree_config.block_cache_size(),
+            memtable_capacity: merkle_tree_config.memtable_capacity(),
+            stalled_writes_timeout: merkle_tree_config.stalled_writes_timeout(),
         }
     }
 }
@@ -211,7 +211,7 @@ impl MetadataCalculator {
             initial_writes_compressed: commitment.initial_writes_compressed().to_vec(),
             repeated_writes_compressed: commitment.repeated_writes_compressed().to_vec(),
             commitment: commitment_hash.commitment,
-            l2_l1_messages_compressed: commitment.l2_l1_logs_compressed().to_vec(),
+            l2_l1_messages_compressed: commitment.system_logs_compressed().to_vec(),
             l2_l1_merkle_root: commitment.l2_l1_logs_merkle_root(),
             block_meta_params: commitment.meta_parameters(),
             aux_data_hash: commitment_hash.aux_output,

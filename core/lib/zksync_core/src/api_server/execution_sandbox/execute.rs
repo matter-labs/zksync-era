@@ -3,7 +3,8 @@
 use tracing::{span, Level};
 
 use multivm::interface::{TxExecutionMode, VmExecutionResultAndLogs};
-use multivm::vm_latest::{constants::ETH_CALL_GAS_LIMIT, StorageInvocations};
+use multivm::tracers::StorageInvocations;
+use multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use multivm::MultivmTracer;
 use zksync_server_dal::ServerConnectionPool;
 
@@ -169,7 +170,7 @@ async fn execute_tx_in_sandbox(
                 let custom_tracers: Vec<_> = custom_tracers
                     .into_iter()
                     .map(|tracer| tracer.into_boxed())
-                    .chain(vec![storage_invocation_tracer.into_boxed()])
+                    .chain(vec![storage_invocation_tracer.into_tracer_pointer()])
                     .collect();
                 vm.inspect_next_transaction(custom_tracers)
             },

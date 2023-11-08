@@ -3,6 +3,7 @@ use std::cell::RefCell;
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::{configs::PrometheusConfig, ApiConfig, ContractVerifierConfig};
+use zksync_env_config::FromEnv;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_server_dal::ServerConnectionPool;
 use zksync_utils::wait_for_tasks::wait_for_tasks;

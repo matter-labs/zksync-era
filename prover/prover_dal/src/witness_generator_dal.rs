@@ -800,7 +800,7 @@ impl WitnessGeneratorDal<'_, '_> {
         {
             sqlx::query!(
                 "INSERT INTO witness_inputs(l1_batch_number, merkle_tree_paths, merkel_tree_paths_blob_url, status, protocol_version, created_at, updated_at) \
-                 VALUES ($1, $2, $3, 'queued', $4, now(), now())
+                 VALUES ($1, $2, $3, 'waiting_for_artifacts', $4, now(), now()) \
                  ON CONFLICT (l1_batch_number) DO NOTHING",
                 block_number.0 as i64,
                 // TODO(SMA-1476): remove the below column once blob is migrated to GCS.
@@ -814,38 +814,17 @@ impl WitnessGeneratorDal<'_, '_> {
         }
     }
 
-    pub async fn get_basic_circuit_and_circuit_inputs_blob_urls_to_be_cleaned(
-        &mut self,
-        limit: u8,
-    ) -> Vec<(i64, (String, String))> {
-        {
-            let job_ids = sqlx::query!(
-                r#"
-                    SELECT l1_batch_number, basic_circuits_blob_url, basic_circuits_inputs_blob_url FROM leaf_aggregation_witness_jobs
-                    WHERE status='successful' AND is_blob_cleaned=FALSE
-                    AND basic_circuits_blob_url is NOT NULL
-                    AND basic_circuits_inputs_blob_url is NOT NULL
-                    AND updated_at < NOW() - INTERVAL '30 days'
-                    LIMIT $1;
-                "#,
-                limit as i32
-            )
-                .fetch_all(self.storage.conn())
-                .await
-                .unwrap();
-            job_ids
-                .into_iter()
-                .map(|row| {
-                    (
-                        row.l1_batch_number,
-                        (
-                            row.basic_circuits_blob_url.unwrap(),
-                            row.basic_circuits_inputs_blob_url.unwrap(),
-                        ),
-                    )
-                })
-                .collect()
-        }
+    pub async fn mark_witness_inputs_job_as_queued(&mut self, block_number: L1BatchNumber) {
+        sqlx::query!(
+            "UPDATE witness_inputs \
+            SET status='queued' \
+            WHERE l1_batch_number=$1 \
+                AND status='waiting_for_artifacts'",
+            block_number.0 as i64,
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
     }
 
     pub async fn get_leaf_layer_subqueues_and_aggregation_outputs_blob_urls_to_be_cleaned(
@@ -856,7 +835,7 @@ impl WitnessGeneratorDal<'_, '_> {
             let job_ids = sqlx::query!(
                 r#"
                     SELECT l1_batch_number, leaf_layer_subqueues_blob_url, aggregation_outputs_blob_url FROM node_aggregation_witness_jobs
-                    WHERE status='successful' AND is_blob_cleaned=FALSE
+                    WHERE status='successful'
                     AND leaf_layer_subqueues_blob_url is NOT NULL
                     AND aggregation_outputs_blob_url is NOT NULL
                     AND updated_at < NOW() - INTERVAL '30 days'
@@ -890,7 +869,7 @@ impl WitnessGeneratorDal<'_, '_> {
             let job_ids = sqlx::query!(
                 r#"
                     SELECT l1_batch_number, scheduler_witness_blob_url, final_node_aggregations_blob_url FROM scheduler_witness_jobs
-                    WHERE status='successful' AND is_blob_cleaned=FALSE
+                    WHERE status='successful'
                     AND updated_at < NOW() - INTERVAL '30 days'
                     AND scheduler_witness_blob_url is NOT NULL
                     AND final_node_aggregations_blob_url is NOT NULL
@@ -913,57 +892,6 @@ impl WitnessGeneratorDal<'_, '_> {
                     )
                 })
                 .collect()
-        }
-    }
-
-    pub async fn mark_leaf_aggregation_gcs_blobs_as_cleaned(&mut self, l1_batch_numbers: Vec<i64>) {
-        {
-            sqlx::query!(
-                r#"
-                UPDATE leaf_aggregation_witness_jobs
-                SET is_blob_cleaned=TRUE
-                WHERE l1_batch_number = ANY($1);
-            "#,
-                &l1_batch_numbers[..]
-            )
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
-        }
-    }
-
-    pub async fn mark_node_aggregation_gcs_blobs_as_cleaned(&mut self, l1_batch_numbers: Vec<i64>) {
-        {
-            sqlx::query!(
-                r#"
-                UPDATE node_aggregation_witness_jobs
-                SET is_blob_cleaned=TRUE
-                WHERE l1_batch_number = ANY($1);
-            "#,
-                &l1_batch_numbers[..]
-            )
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
-        }
-    }
-
-    pub async fn mark_scheduler_witness_gcs_blobs_as_cleaned(
-        &mut self,
-        l1_batch_numbers: Vec<i64>,
-    ) {
-        {
-            sqlx::query!(
-                r#"
-                UPDATE scheduler_witness_jobs
-                SET is_blob_cleaned=TRUE
-                WHERE l1_batch_number = ANY($1);
-            "#,
-                &l1_batch_numbers[..]
-            )
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
         }
     }
 

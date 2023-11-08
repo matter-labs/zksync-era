@@ -5,6 +5,7 @@ use tokio::{sync::oneshot, sync::watch};
 use crate::api_data_fetcher::{PeriodicApiStruct, PROOF_GENERATION_DATA_PATH, SUBMIT_PROOF_PATH};
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::configs::FriProverGatewayConfig;
+use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{connection::DbVariant, ProverConnectionPool};
 use zksync_types::prover_server_api::{ProofGenerationDataRequest, SubmitProofRequest};
@@ -38,8 +39,9 @@ async fn main() -> anyhow::Result<()> {
         .build()
         .await
         .context("failed to build a connection pool")?;
-    let store_factory =
-        ObjectStoreFactory::prover_from_env().context("ObjectStoreFactory::prover_from_env()")?;
+    let object_store_config =
+        ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;
+    let store_factory = ObjectStoreFactory::new(object_store_config.0);
 
     let proof_submitter = PeriodicApiStruct {
         blob_store: store_factory.create_store().await,

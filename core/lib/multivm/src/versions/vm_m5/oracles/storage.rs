@@ -6,7 +6,7 @@ use crate::vm_m5::storage::{Storage, StoragePtr};
 use crate::vm_m5::history_recorder::{
     AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryRecorder, StorageWrapper,
 };
-use crate::vm_m5::vm::MultiVMSubversion;
+use crate::vm_m5::vm_instance::MultiVMSubversion;
 
 use zk_evm_1_3_1::abstractions::RefundedAmounts;
 use zk_evm_1_3_1::zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES;

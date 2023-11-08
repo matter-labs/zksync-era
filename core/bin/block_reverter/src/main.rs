@@ -3,6 +3,7 @@ use clap::{Parser, Subcommand};
 use tokio::io::{self, AsyncReadExt};
 
 use zksync_config::{ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig};
+use zksync_env_config::FromEnv;
 use zksync_server_dal::{connection::DbVariant, ServerConnectionPool};
 use zksync_types::{L1BatchNumber, U256};
 

@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use async_trait::async_trait;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -13,11 +12,13 @@ use std::{
 use multivm::vm_latest::{
     constants::MAX_CYCLES_FOR_TX, HistoryDisabled, SimpleMemory, StorageOracle as VmStorageOracle,
 };
-use zksync_config::configs::witness_generator::BasicWitnessGeneratorDataSource;
-use zksync_config::configs::WitnessGeneratorConfig;
 
 use zksync_prover_dal::ProverConnectionPool;
 use zksync_server_dal::ServerConnectionPool;
+
+use zksync_config::configs::{
+    witness_generator::BasicWitnessGeneratorDataSource, WitnessGeneratorConfig,
+};
 
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory, StoredObject};
 use zksync_queued_job_processor::JobProcessor;
@@ -91,14 +92,13 @@ impl BasicWitnessGenerator {
     }
 
     async fn process_job_impl(
+        config: WitnessGeneratorConfig,
         object_store: Arc<dyn ObjectStore>,
         server_connection_pool: ServerConnectionPool,
         prover_connection_pool: ProverConnectionPool,
         basic_job: BasicWitnessGeneratorJob,
         started_at: Instant,
     ) -> anyhow::Result<Option<BasicCircuitArtifacts>> {
-        let config =
-            WitnessGeneratorConfig::from_env().context("WitnessGeneratorConfig::from_env()")?;
         let BasicWitnessGeneratorJob { block_number, job } = basic_job;
 
         if let Some(blocks_proving_percentage) = config.blocks_proving_percentage {
@@ -216,7 +216,9 @@ impl JobProcessor for BasicWitnessGenerator {
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<Option<BasicCircuitArtifacts>>> {
         let object_store = Arc::clone(&self.object_store);
+        let config = self.config.clone();
         tokio::spawn(Self::process_job_impl(
+            config,
             object_store,
             self.server_connection_pool.clone(),
             self.prover_connection_pool.clone(),

@@ -6,7 +6,12 @@ use std::time::Instant;
 use structopt::StructOpt;
 use tokio::sync::watch;
 use zksync_config::configs::{FriWitnessGeneratorConfig, PrometheusConfig};
-use zksync_config::ObjectStoreConfig;
+
+use zksync_env_config::{
+    object_store::{ProverObjectStoreConfig, PublicObjectStoreConfig},
+    FromEnv,
+};
+
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{connection::DbVariant, ProverConnectionPool};
 use zksync_prover_utils::get_stop_signal_receiver;
@@ -26,6 +31,7 @@ mod leaf_aggregation;
 mod node_aggregation;
 mod precalculated_merkle_paths_provider;
 mod scheduler;
+mod storage_oracle;
 mod utils;
 
 #[derive(Debug, StructOpt)]
@@ -71,8 +77,9 @@ async fn main() -> anyhow::Result<()> {
     let started_at = Instant::now();
     let use_push_gateway = opt.batch_size.is_some();
 
-    let store_factory =
-        ObjectStoreFactory::prover_from_env().context("ObjectStoreFactor::prover_from_env()")?;
+    let object_store_config =
+        ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;
+    let store_factory = ObjectStoreFactory::new(object_store_config.0);
     let config =
         FriWitnessGeneratorConfig::from_env().context("FriWitnessGeneratorConfig::from_env()")?;
     let prometheus_config = PrometheusConfig::from_env().context("PrometheusConfig::from_env()")?;
@@ -123,17 +130,16 @@ async fn main() -> anyhow::Result<()> {
     };
     let prometheus_task = prometheus_config.run(stop_receiver.clone());
 
+    let public_object_store_config =
+        PublicObjectStoreConfig::from_env().context("PublicObjectStoreConfig::from_env()")?;
     let witness_generator_task = match opt.round {
         AggregationRound::BasicCircuits => {
             let public_blob_store = match config.shall_save_to_public_bucket {
                 false => None,
                 true => Some(
-                    ObjectStoreFactory::new(
-                        ObjectStoreConfig::public_from_env()
-                            .context("ObjectStoreConfig::public_from_env()")?,
-                    )
-                    .create_store()
-                    .await,
+                    ObjectStoreFactory::new(public_object_store_config.0)
+                        .create_store()
+                        .await,
                 ),
             };
             let generator = BasicWitnessGenerator::new(

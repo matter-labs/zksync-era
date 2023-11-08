@@ -21,6 +21,9 @@ use zkevm_test_harness::prover_utils::{prove_base_layer_circuit, prove_recursion
 
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_config::configs::FriProverConfig;
+
+use zksync_env_config::FromEnv;
+
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::ProverConnectionPool;
 use zksync_prover_fri_types::{CircuitWrapper, FriProofWrapper, ProverJob, ProverServiceDataKey};
@@ -271,6 +274,7 @@ pub fn load_setup_data_cache(config: &FriProverConfig) -> anyhow::Result<SetupLo
                 &config.specialized_group_id
             );
             let prover_setup_metadata_list = FriProverGroupConfig::from_env()
+                .context("FriProverGroupConfig::from_env()")?
                 .get_circuit_ids_for_group_id(config.specialized_group_id)
                 .expect(
                     "At least one circuit should be configured for group when running in FromMemory mode",

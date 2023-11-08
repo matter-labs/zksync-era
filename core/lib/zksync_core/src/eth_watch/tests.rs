@@ -4,12 +4,12 @@ use std::sync::Arc;
 
 use tokio::sync::RwLock;
 
-use zksync_contracts::zksync_contract;
+use zksync_contracts::{governance_contract, zksync_contract};
 use zksync_server_dal::{ServerConnectionPool, ServerStorageProcessor};
 use zksync_types::protocol_version::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData};
 use zksync_types::web3::types::{Address, BlockNumber};
 use zksync_types::{
-    ethabi::{encode, Contract, Hash, Token},
+    ethabi::{encode, Hash, Token},
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     web3::types::Log,
     Execute, L1TxCommonData, PriorityOpId, ProtocolUpgrade, ProtocolVersion, ProtocolVersionId,
@@ -17,7 +17,9 @@ use zksync_types::{
 };
 
 use super::client::Error;
-use crate::eth_watch::{client::EthClient, EthWatch};
+use crate::eth_watch::{
+    client::EthClient, event_processors::upgrades::UPGRADE_PROPOSAL_SIGNATURE, EthWatch,
+};
 
 struct FakeEthClientData {
     transactions: HashMap<u64, Vec<Log>>,
@@ -591,10 +593,7 @@ fn upgrade_into_diamond_proxy_log(upgrade: ProtocolUpgrade, eth_block: u64) -> L
     let data = encode(&[diamond_cut, Token::FixedBytes(vec![0u8; 32])]);
     Log {
         address: Address::repeat_byte(0x1),
-        topics: vec![zksync_contract()
-            .event("ProposeTransparentUpgrade")
-            .expect("ProposeTransparentUpgrade event is missing in abi")
-            .signature()],
+        topics: vec![UPGRADE_PROPOSAL_SIGNATURE],
         data: data.into(),
         block_hash: Some(H256::repeat_byte(0x11)),
         block_number: Some(eth_block.into()),
@@ -776,69 +775,4 @@ async fn setup_db(connection_pool: &ServerConnectionPool) {
             ..Default::default()
         })
         .await;
-}
-
-fn governance_contract() -> Contract {
-    let json = r#"[
-        {
-          "anonymous": false,
-          "inputs": [
-            {
-              "indexed": true,
-              "internalType": "bytes32",
-              "name": "_id",
-              "type": "bytes32"
-            },
-            {
-              "indexed": false,
-              "internalType": "uint256",
-              "name": "delay",
-              "type": "uint256"
-            },
-            {
-              "components": [
-                {
-                  "components": [
-                    {
-                      "internalType": "address",
-                      "name": "target",
-                      "type": "address"
-                    },
-                    {
-                      "internalType": "uint256",
-                      "name": "value",
-                      "type": "uint256"
-                    },
-                    {
-                      "internalType": "bytes",
-                      "name": "data",
-                      "type": "bytes"
-                    }
-                  ],
-                  "internalType": "struct IGovernance.Call[]",
-                  "name": "calls",
-                  "type": "tuple[]"
-                },
-                {
-                  "internalType": "bytes32",
-                  "name": "predecessor",
-                  "type": "bytes32"
-                },
-                {
-                  "internalType": "bytes32",
-                  "name": "salt",
-                  "type": "bytes32"
-                }
-              ],
-              "indexed": false,
-              "internalType": "struct IGovernance.Operation",
-              "name": "_operation",
-              "type": "tuple"
-            }
-          ],
-          "name": "TransparentOperationScheduled",
-          "type": "event"
-        }
-    ]"#;
-    serde_json::from_str(json).unwrap()
 }

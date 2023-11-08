@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use async_trait::async_trait;
 
 use std::{collections::HashMap, env, time::Instant};
@@ -77,11 +76,10 @@ impl NodeAggregationWitnessGenerator {
     }
 
     fn process_job_sync(
+        config: WitnessGeneratorConfig,
         node_job: NodeAggregationWitnessGeneratorJob,
         started_at: Instant,
     ) -> anyhow::Result<NodeAggregationArtifacts> {
-        let config =
-            WitnessGeneratorConfig::from_env().context("WitnessGeneratorConfig::from_env()")?;
         let NodeAggregationWitnessGeneratorJob { block_number, job } = node_job;
 
         tracing::info!(
@@ -163,7 +161,8 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         job: NodeAggregationWitnessGeneratorJob,
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<NodeAggregationArtifacts>> {
-        tokio::task::spawn_blocking(move || Self::process_job_sync(job, started_at))
+        let config = self.config.clone();
+        tokio::task::spawn_blocking(move || Self::process_job_sync(config, job, started_at))
     }
 
     async fn save_result(

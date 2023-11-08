@@ -71,6 +71,8 @@ pub struct MultiVMBaseSystemContracts {
     pub(crate) post_virtual_blocks: BaseSystemContracts,
     /// Contracts to be used for protocol versions after virtual block upgrade fix.
     pub(crate) post_virtual_blocks_finish_upgrade_fix: BaseSystemContracts,
+    /// Contracts to be used for post-boojum protocol versions.
+    pub(crate) post_boojum: BaseSystemContracts,
 }
 
 impl MultiVMBaseSystemContracts {
@@ -94,6 +96,7 @@ impl MultiVMBaseSystemContracts {
             | ProtocolVersionId::Version15
             | ProtocolVersionId::Version16
             | ProtocolVersionId::Version17 => self.post_virtual_blocks_finish_upgrade_fix,
+            ProtocolVersionId::Version18 | ProtocolVersionId::Version19 => self.post_boojum,
         }
     }
 }
@@ -123,12 +126,14 @@ impl ApiContracts {
                 post_virtual_blocks: BaseSystemContracts::estimate_gas_post_virtual_blocks(),
                 post_virtual_blocks_finish_upgrade_fix:
                     BaseSystemContracts::estimate_gas_post_virtual_blocks_finish_upgrade_fix(),
+                post_boojum: BaseSystemContracts::estimate_gas_post_boojum(),
             },
             eth_call: MultiVMBaseSystemContracts {
                 pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
                 post_virtual_blocks: BaseSystemContracts::playground_post_virtual_blocks(),
                 post_virtual_blocks_finish_upgrade_fix:
                     BaseSystemContracts::playground_post_virtual_blocks_finish_upgrade_fix(),
+                post_boojum: BaseSystemContracts::playground_post_boojum(),
             },
         }
     }
@@ -233,8 +238,6 @@ pub struct TxSenderConfig {
     pub fair_l2_gas_price: u64,
     pub vm_execution_cache_misses_limit: Option<usize>,
     pub validation_computational_gas_limit: u32,
-    pub default_aa: H256,
-    pub bootloader: H256,
     pub chain_id: L2ChainId,
 }
 
@@ -253,8 +256,6 @@ impl TxSenderConfig {
             vm_execution_cache_misses_limit: web3_json_config.vm_execution_cache_misses_limit,
             validation_computational_gas_limit: state_keeper_config
                 .validation_computational_gas_limit,
-            default_aa: state_keeper_config.default_aa_hash,
-            bootloader: state_keeper_config.bootloader_hash,
             chain_id,
         }
     }
@@ -909,8 +910,14 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             H256::zero()
         };
 
-        let seal_data = SealData::for_transaction(transaction, tx_metrics);
-        if let Some(reason) = ConditionalSealer::find_unexecutable_reason(sk_config, &seal_data) {
+        // Using `ProtocolVersionId::latest()` for a short period we might end up in a scenario where the StateKeeper is still pre-boojum
+        // but the API assumes we are post boojum. In this situation we will determine a tx as being executable but the StateKeeper will
+        // still reject them as it's not.
+        let protocol_version = ProtocolVersionId::latest();
+        let seal_data = SealData::for_transaction(transaction, tx_metrics, protocol_version);
+        if let Some(reason) =
+            ConditionalSealer::find_unexecutable_reason(sk_config, &seal_data, protocol_version)
+        {
             let message = format!(
                 "Tx is Unexecutable because of {reason}; inputs for decision: {seal_data:?}"
             );

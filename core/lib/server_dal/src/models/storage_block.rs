@@ -13,7 +13,7 @@ use zksync_types::{
     api,
     block::{L1BatchHeader, MiniblockHeader},
     commitment::{L1BatchMetaParameters, L1BatchMetadata},
-    l2_to_l1_log::L2ToL1Log,
+    l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
     Address, L1BatchNumber, MiniblockNumber, H2048, H256,
 };
 
@@ -61,11 +61,8 @@ impl From<StorageL1BatchHeader> for L1BatchHeader {
             .map(|raw_data| raw_data.into())
             .collect();
 
-        let system_logs: Vec<_> = l1_batch
-            .system_logs
-            .into_iter()
-            .map(|raw_log| L2ToL1Log::from_slice(&raw_log))
-            .collect();
+        let system_logs = convert_l2_to_l1_logs(l1_batch.system_logs);
+        let user_l2_to_l1_logs = convert_l2_to_l1_logs(l1_batch.l2_to_l1_logs);
 
         L1BatchHeader {
             number: L1BatchNumber(l1_batch.number as u32),
@@ -75,7 +72,7 @@ impl From<StorageL1BatchHeader> for L1BatchHeader {
             priority_ops_onchain_data,
             l1_tx_count: l1_batch.l1_tx_count as u16,
             l2_tx_count: l1_batch.l2_tx_count as u16,
-            l2_to_l1_logs: convert_l2_to_l1_logs(l1_batch.l2_to_l1_logs),
+            l2_to_l1_logs: user_l2_to_l1_logs.into_iter().map(UserL2ToL1Log).collect(),
             l2_to_l1_messages: l1_batch.l2_to_l1_messages,
 
             bloom: H2048::from_slice(&l1_batch.bloom),
@@ -91,7 +88,7 @@ impl From<StorageL1BatchHeader> for L1BatchHeader {
             ),
             l1_gas_price: l1_batch.l1_gas_price as u64,
             l2_fair_gas_price: l1_batch.l2_fair_gas_price as u64,
-            system_logs,
+            system_logs: system_logs.into_iter().map(SystemL2ToL1Log).collect(),
             protocol_version: l1_batch
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
@@ -183,11 +180,8 @@ impl From<StorageL1Batch> for L1BatchHeader {
             .map(Vec::into)
             .collect();
 
-        let system_logs: Vec<_> = l1_batch
-            .system_logs
-            .into_iter()
-            .map(|raw_log| L2ToL1Log::from_slice(&raw_log))
-            .collect();
+        let system_logs = convert_l2_to_l1_logs(l1_batch.system_logs);
+        let user_l2_to_l1_logs = convert_l2_to_l1_logs(l1_batch.l2_to_l1_logs);
 
         L1BatchHeader {
             number: L1BatchNumber(l1_batch.number as u32),
@@ -197,7 +191,7 @@ impl From<StorageL1Batch> for L1BatchHeader {
             priority_ops_onchain_data,
             l1_tx_count: l1_batch.l1_tx_count as u16,
             l2_tx_count: l1_batch.l2_tx_count as u16,
-            l2_to_l1_logs: convert_l2_to_l1_logs(l1_batch.l2_to_l1_logs),
+            l2_to_l1_logs: user_l2_to_l1_logs.into_iter().map(UserL2ToL1Log).collect(),
             l2_to_l1_messages: l1_batch.l2_to_l1_messages,
 
             bloom: H2048::from_slice(&l1_batch.bloom),
@@ -213,7 +207,7 @@ impl From<StorageL1Batch> for L1BatchHeader {
             ),
             l1_gas_price: l1_batch.l1_gas_price as u64,
             l2_fair_gas_price: l1_batch.l2_fair_gas_price as u64,
-            system_logs,
+            system_logs: system_logs.into_iter().map(SystemL2ToL1Log).collect(),
             protocol_version: l1_batch
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),

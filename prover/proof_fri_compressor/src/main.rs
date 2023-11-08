@@ -7,6 +7,9 @@ use std::time::Duration;
 
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::configs::FriProofCompressorConfig;
+
+use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
+
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::connection::DbVariant;
 use zksync_prover_dal::ProverConnectionPool;
@@ -52,8 +55,9 @@ async fn main() -> anyhow::Result<()> {
         .build()
         .await
         .context("failed to build a connection pool")?;
-    let blob_store = ObjectStoreFactory::prover_from_env()
-        .context("ObjectSToreFactor::prover_from_env()")?
+    let object_store_config =
+        ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;
+    let blob_store = ObjectStoreFactory::new(object_store_config.0)
         .create_store()
         .await;
     let proof_compressor = ProofCompressor::new(

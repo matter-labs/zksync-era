@@ -7,8 +7,11 @@ use tokio::task::JoinHandle;
 
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
-use zksync_config::configs::FriProverConfig;
-use zksync_config::ObjectStoreConfig;
+use zksync_config::configs::{FriProverConfig, ProverGroupConfig};
+use zksync_env_config::{
+    object_store::{ProverObjectStoreConfig, PublicObjectStoreConfig},
+    FromEnv,
+};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_dal::{connection::DbVariant, ProverConnectionPool};
 use zksync_prover_fri_utils::get_all_circuit_id_round_tuples_for;
@@ -32,7 +35,9 @@ async fn graceful_shutdown(port: u16) -> anyhow::Result<impl Future<Output = ()>
         .await
         .context("failed to build a connection pool")?;
     let host = local_ip().context("Failed obtaining local IP address")?;
-    let zone = get_zone().await.context("get_zone()")?;
+    let prover_group_config =
+        ProverGroupConfig::from_env().context("ProverGroupConfig::from_env()")?;
+    let zone = get_zone(&prover_group_config).await.context("get_zone()")?;
     let address = SocketAddress { host, port };
     Ok(async move {
         pool.access_storage()
@@ -82,22 +87,23 @@ async fn main() -> anyhow::Result<()> {
     .context("Error setting Ctrl+C handler")?;
 
     let (stop_sender, stop_receiver) = tokio::sync::watch::channel(false);
-    let blob_store =
-        ObjectStoreFactory::prover_from_env().context("ObjectStoreFactory::prover_from_env()")?;
+    let object_store_config =
+        ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;
+    let object_store_factory = ObjectStoreFactory::new(object_store_config.0);
+    let public_object_store_config =
+        PublicObjectStoreConfig::from_env().context("PublicObjectStoreConfig::from_env()")?;
     let public_blob_store = match prover_config.shall_save_to_public_bucket {
         false => None,
         true => Some(
-            ObjectStoreFactory::new(
-                ObjectStoreConfig::public_from_env()
-                    .context("ObjectStoreConfig::public_from_env()")?,
-            )
-            .create_store()
-            .await,
+            ObjectStoreFactory::new(public_object_store_config.0)
+                .create_store()
+                .await,
         ),
     };
     let specialized_group_id = prover_config.specialized_group_id;
 
     let circuit_ids_for_round_to_be_proven = FriProverGroupConfig::from_env()
+        .context("FriProverGroupConfig::from_env()")?
         .get_circuit_ids_for_group_id(specialized_group_id)
         .unwrap_or_default();
     let circuit_ids_for_round_to_be_proven =
@@ -116,7 +122,7 @@ async fn main() -> anyhow::Result<()> {
     let prover_tasks = get_prover_tasks(
         prover_config,
         stop_receiver.clone(),
-        blob_store,
+        object_store_factory,
         public_blob_store,
         pool,
         circuit_ids_for_round_to_be_proven,
@@ -201,7 +207,10 @@ async fn get_prover_tasks(
     let witness_vector_queue = FixedSizeQueue::new(prover_config.queue_capacity);
     let shared_witness_vector_queue = Arc::new(Mutex::new(witness_vector_queue));
     let consumer = shared_witness_vector_queue.clone();
-    let zone = get_zone().await.context("get_zone()")?;
+
+    let prover_group_config =
+        ProverGroupConfig::from_env().context("ProverGroupConfig::from_env()")?;
+    let zone = get_zone(&prover_group_config).await.context("get_zone()")?;
     let local_ip = local_ip().context("Failed obtaining local IP address")?;
     let address = SocketAddress {
         host: local_ip,
