@@ -426,10 +426,16 @@ export class TestContextOwner {
                 if (databaseUrl.trim().length == 0) {
                     continue; //sanity check, we really don't want sqlx to delete main postgres database
                 }
-                await utils.spawn(`cargo sqlx database drop -y --database-url ${databaseUrl}`);
+                if (process.env.TS_INTEGRATION_PRESERVE_TEST_DATABASES === undefined) {
+                    await utils.spawn(`cargo sqlx database drop -y --database-url ${databaseUrl}`);
+                } else {
+                    console.log(`skipped cleaning ${databaseUrl}`);
+                }
             } catch (e) {}
         }
-        fs.rmSync(filepath);
+        if (process.env.TS_INTEGRATION_PRESERVE_TEST_DATABASES === undefined) {
+            fs.rmSync(filepath);
+        }
         this.reporter.finishAction();
     }
 
