@@ -510,7 +510,8 @@ impl EthTxAggregator {
                 self.timelock_contract_address,
                 eth_tx_predicted_gas,
             )
-            .await;
+            .await
+            .unwrap();
 
         transaction
             .blocks_dal()
@@ -525,7 +526,12 @@ impl EthTxAggregator {
         &self,
         storage: &mut StorageProcessor<'_>,
     ) -> Result<u64, ETHSenderError> {
-        let db_nonce = storage.eth_sender_dal().get_next_nonce().await.unwrap_or(0);
+        let db_nonce = storage
+            .eth_sender_dal()
+            .get_next_nonce()
+            .await
+            .unwrap()
+            .unwrap_or(0);
         // Between server starts we can execute some txs using operator account or remove some txs from the database
         // At the start we have to consider this fact and get the max nonce.
         Ok(db_nonce.max(self.base_nonce))
