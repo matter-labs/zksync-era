@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use itertools::Itertools;
 
+use crate::HistoryMode;
 use zksync_state::WriteStorage;
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_test_account::Account;
@@ -9,10 +10,11 @@ use zksync_types::{Execute, U256};
 use zksync_utils::bytecode::hash_bytecode;
 use zksync_utils::h256_to_u256;
 
-use crate::interface::{TxExecutionMode, VmExecutionMode};
+use crate::interface::{TxExecutionMode, VmExecutionMode, VmInterface};
+use crate::vm_latest::HistoryDisabled;
 use crate::vm_virtual_blocks::tests::tester::{TxType, VmTesterBuilder};
 use crate::vm_virtual_blocks::tests::utils::{read_test_contract, BASE_SYSTEM_CONTRACTS};
-use crate::vm_virtual_blocks::{HistoryDisabled, HistoryMode, Vm};
+use crate::vm_virtual_blocks::Vm;
 
 #[test]
 fn test_get_used_contracts() {

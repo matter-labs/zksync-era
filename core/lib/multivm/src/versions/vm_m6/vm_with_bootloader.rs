@@ -32,7 +32,7 @@ use crate::vm_m6::{
     utils::{
         code_page_candidate_from_base, heap_page_from_base, BLOCK_GAS_LIMIT, INITIAL_BASE_PAGE,
     },
-    vm::{MultiVMSubversion, ZkSyncVmState},
+    vm_instance::{MultiVMSubversion, ZkSyncVmState},
     OracleTools, VmInstance,
 };
 

@@ -20,16 +20,12 @@ use crate::vm_latest::{
     old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
     types::internals::pubdata::PubdataInput,
 };
-use crate::{
-    vm_latest::StorageOracle,
-    vm_latest::{constants::BOOTLOADER_HEAP_PAGE, TracerExecutionStatus},
-};
+use crate::{vm_latest::constants::BOOTLOADER_HEAP_PAGE, vm_latest::StorageOracle};
 
+use crate::interface::dyn_tracers::vm_1_4_0::DynTracer;
+use crate::interface::tracer::{TracerExecutionStatus, TracerExecutionStopReason};
 use crate::interface::types::inputs::L1BatchEnv;
-use crate::vm_latest::tracers::{
-    traits::{DynTracer, TracerExecutionStopReason, VmTracer},
-    utils::VmHook,
-};
+use crate::vm_latest::tracers::{traits::VmTracer, utils::VmHook};
 use crate::vm_latest::types::internals::ZkSyncVmState;
 use crate::vm_latest::utils::logs::collect_events_and_l1_system_logs_after_timestamp;
 use crate::{
@@ -164,7 +160,7 @@ impl PubdataTracer {
     }
 }
 
-impl<S, H: HistoryMode> DynTracer<S, H> for PubdataTracer {
+impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for PubdataTracer {
     fn before_execution(
         &mut self,
         state: VmLocalStateData<'_>,
