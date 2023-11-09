@@ -36,9 +36,9 @@ RUN add-apt-repository ppa:savoury1/virtualisation && \
     curl \
     gnutls-bin git \
     build-essential \
-    clang-7 \
-    lldb-7 \
-    lld-7 \
+    clang \
+    lldb \
+    lld \
     liburing-dev \
     libclang-dev
 
