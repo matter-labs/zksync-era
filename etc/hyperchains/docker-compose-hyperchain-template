@@ -125,7 +125,7 @@ services:
     volumes:
       - prover_artifacts:/etc_prover_artifacts
       - server_artifacts:/etc_server_artifacts
-      - ./prover_setup-data:/etc/prover_setup_data
+      - {{proverSetupArtifacts}}:/etc/prover_setup_data
   zkstack-proof-fri-compressor:
     networks:
       - zkstack
