@@ -707,7 +707,7 @@ async function _generateDockerImages(_orgName?: string) {
 
     console.log(
         announce(
-            `Docker images generated successfully, and compose file generate (hyperchain-${envName}.yml). Run the images with "docker compose -f hyperchain-${envName}.yml up)".\n\n`
+            `Docker images generated successfully, and compose file generate (hyperchain-${envName}.yml). Run the images with "docker compose -f hyperchain-${envName}.yml up".\n\n`
         )
     );
 }
