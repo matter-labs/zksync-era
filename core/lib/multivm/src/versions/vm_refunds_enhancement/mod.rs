@@ -5,6 +5,7 @@ pub use old_vm::{
 
 pub use oracles::storage::StorageOracle;
 
+pub use tracers::dispatcher::TracerDispatcher;
 pub use tracers::traits::{TracerPointer, VmTracer};
 
 pub use utils::transaction_encoding::TransactionVmExt;

@@ -1,28 +1,4 @@
-pub trait GlueFrom<T>: Sized {
-    fn glue_from(value: T) -> Self;
-}
-
-/// See the description of [`GlueFrom`] trait above.
-pub trait GlueInto<T>: Sized {
-    fn glue_into(self) -> T;
-}
-
-// Blaknet `GlueInto` impl for any type that implements `GlueFrom`.
-impl<T, U> GlueInto<U> for T
-where
-    U: GlueFrom<T>,
-{
-    fn glue_into(self) -> U {
-        U::glue_from(self)
-    }
-}
-
-// Identity impl.
-impl<T> GlueFrom<T> for T {
-    fn glue_from(this: T) -> Self {
-        this
-    }
-}
+use crate::glue::{GlueFrom, GlueInto};
 
 impl GlueFrom<zk_evm_1_3_1::aux_structures::Timestamp> for zksync_types::Timestamp {
     fn glue_from(timestamp: zk_evm_1_3_1::aux_structures::Timestamp) -> Self {

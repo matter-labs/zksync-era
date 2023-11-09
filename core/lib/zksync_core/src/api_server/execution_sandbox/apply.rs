@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 
 use multivm::vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryDisabled};
 
+use multivm::interface::VmInterface;
 use multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv};
 use multivm::VmInstance;
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
@@ -41,7 +42,10 @@ pub(super) fn apply_vm_in_sandbox<T>(
     connection_pool: &ConnectionPool,
     tx: Transaction,
     block_args: BlockArgs,
-    apply: impl FnOnce(&mut VmInstance<PostgresStorage<'_>, HistoryDisabled>, Transaction) -> T,
+    apply: impl FnOnce(
+        &mut VmInstance<StorageView<PostgresStorage<'_>>, HistoryDisabled>,
+        Transaction,
+    ) -> T,
 ) -> T {
     let stage_started_at = Instant::now();
     let span = tracing::debug_span!("initialization").entered();
@@ -222,14 +226,12 @@ pub(super) fn apply_vm_in_sandbox<T>(
     let vm_execution_took = execution_latency.observe();
 
     let memory_metrics = vm.record_vm_memory_metrics();
-    if let Some(memory_metrics) = memory_metrics {
-        vm_metrics::report_vm_memory_metrics(
-            &tx_id,
-            &memory_metrics,
-            vm_execution_took,
-            storage_view.as_ref().borrow_mut().metrics(),
-        );
-    }
+    vm_metrics::report_vm_memory_metrics(
+        &tx_id,
+        &memory_metrics,
+        vm_execution_took,
+        storage_view.as_ref().borrow_mut().metrics(),
+    );
     drop(vm_permit); // Ensure that the permit lives until this point
 
     result

@@ -31,6 +31,10 @@ impl L2ToL1Log {
     /// for a certain batch.
     pub const MIN_L2_L1_LOGS_TREE_SIZE: usize = 2048;
 
+    /// Determines the minimum number of items in the Merkle tree built from L2-to-L1 logs
+    /// for a pre-boojum batch.
+    pub const PRE_BOOJUM_MIN_L2_L1_LOGS_TREE_SIZE: usize = 512;
+
     pub fn from_slice(data: &[u8]) -> Self {
         assert_eq!(data.len(), Self::SERIALIZED_SIZE);
         Self {
