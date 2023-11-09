@@ -264,12 +264,18 @@ impl JobProcessor for Prover {
         self.config.max_attempts
     }
 
-    async fn get_job_attempts(&self, job_id: &u32) -> anyhow::Result<Option<u32>> {
-        let mut prover_storage = self.prover_connection_pool.access_storage().await.unwrap();
-        Ok(prover_storage
+    async fn get_job_attempts(&self, job_id: &u32) -> anyhow::Result<u32> {
+        let mut prover_storage = self
+            .prover_connection_pool
+            .access_storage()
+            .await
+            .context("failed to acquire DB connection for Prover")?;
+        prover_storage
             .fri_prover_jobs_dal()
             .get_prover_job_attempts(*job_id)
-            .await)
+            .await
+            .map(|attempts| attempts.unwrap_or(0))
+            .context("failed to get job attempts for Prover")
     }
 }
 

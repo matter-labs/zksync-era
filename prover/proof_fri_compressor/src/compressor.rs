@@ -210,11 +210,17 @@ impl JobProcessor for ProofCompressor {
         self.max_attempts
     }
 
-    async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<Option<u32>> {
-        let mut prover_storage = self.pool.access_storage().await.unwrap();
-        Ok(prover_storage
+    async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<u32> {
+        let mut prover_storage = self
+            .pool
+            .access_storage()
+            .await
+            .context("failed to acquire DB connection for ProofCompressor")?;
+        prover_storage
             .fri_proof_compressor_dal()
             .get_proof_compression_job_attempts(*job_id)
-            .await)
+            .await
+            .map(|attempts| attempts.unwrap_or(0))
+            .context("failed to get job attempts for ProofCompressor")
     }
 }

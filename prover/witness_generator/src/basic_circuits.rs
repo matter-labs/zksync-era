@@ -6,6 +6,7 @@ use std::{
     time::Instant,
 };
 
+use anyhow::Context as _;
 use async_trait::async_trait;
 use zksync_prover_fri_types::circuit_definitions::ZkSyncDefaultRoundFunction;
 use rand::Rng;
@@ -272,12 +273,18 @@ impl JobProcessor for BasicWitnessGenerator {
         self.config.max_attempts
     }
 
-    async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<Option<u32>> {
-        let mut prover_storage = self.prover_connection_pool.access_storage().await.unwrap();
-        Ok(prover_storage
+    async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<u32> {
+        let mut prover_storage = self
+            .prover_connection_pool
+            .access_storage()
+            .await
+            .context("failed to acquire DB connection for BasicWitnessGenerator")?;
+        prover_storage
             .fri_witness_generator_dal()
             .get_basic_circuit_witness_job_attempts(*job_id)
-            .await)
+            .await
+            .map(|attempts| attempts.unwrap_or(0))
+            .context("failed to get job attempts for BasicWitnessGenerator")
     }
 }
 

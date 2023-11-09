@@ -277,9 +277,9 @@ impl JobProcessor for CircuitSynthesizer {
         self.config.max_attempts
     }
 
-    async fn get_job_attempts(&self, _job_id: &u32) -> anyhow::Result<Option<u32>> {
+    async fn get_job_attempts(&self, _job_id: &u32) -> anyhow::Result<u32> {
         // Circuit synthesizer will be removed soon in favor of FRI one, so returning blank value.
-        Ok(None)
+        Ok(1)
     }
 }
 

@@ -166,15 +166,16 @@ impl FriProverDal<'_, '_> {
         }
     }
 
-    pub async fn get_prover_job_attempts(&mut self, id: u32) -> Option<u32> {
-        sqlx::query!(
+    pub async fn get_prover_job_attempts(&mut self, id: u32) -> sqlx::Result<Option<u32>> {
+        let attempts = sqlx::query!(
             "SELECT attempts FROM prover_jobs_fri WHERE id = $1",
             id as i64,
         )
         .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| row.attempts as u32)
+        .await?
+        .map(|row| row.attempts as u32);
+
+        Ok(attempts)
     }
 
     pub async fn save_proof(

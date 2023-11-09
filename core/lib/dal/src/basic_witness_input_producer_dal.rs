@@ -107,8 +107,6 @@ impl BasicWitnessInputProducerDal<'_, '_> {
             WHERE l1_batch_number = $1",
             l1_batch_number.0 as i64,
         )
-        .instrument("get_basic_witness_input_producer_job_attempts")
-        .report_latency()
         .fetch_optional(self.storage.conn())
         .await?
         .map(|job| job.attempts as u32);

@@ -130,9 +130,7 @@ pub trait JobProcessor: Sync + Send {
                     Self::SERVICE_NAME,
                     job_id
                 );
-                if let Some(attempts) = attempts {
-                    METRICS.attempts[&Self::SERVICE_NAME].observe(attempts as usize);
-                }
+                METRICS.attempts[&Self::SERVICE_NAME].observe(attempts as usize);
                 return self
                     .save_result(job_id, started_at, data)
                     .await
@@ -149,7 +147,7 @@ pub trait JobProcessor: Sync + Send {
         );
 
         let max_attempts = self.max_attempts();
-        if attempts == Some(max_attempts) {
+        if attempts == max_attempts {
             METRICS.max_attempts_reached[&(Self::SERVICE_NAME, format!("{job_id:?}"))].inc();
             tracing::error!(
                 "Max attempts ({max_attempts}) reached for {} job {:?}",
@@ -171,5 +169,6 @@ pub trait JobProcessor: Sync + Send {
 
     fn max_attempts(&self) -> u32;
 
-    async fn get_job_attempts(&self, job_id: &Self::JobId) -> anyhow::Result<Option<u32>>;
+    /// Invoked in `wait_for_task` for in-progress job.
+    async fn get_job_attempts(&self, job_id: &Self::JobId) -> anyhow::Result<u32>;
 }

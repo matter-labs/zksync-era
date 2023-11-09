@@ -95,16 +95,17 @@ impl FriProofCompressorDal<'_, '_> {
     pub async fn get_proof_compression_job_attempts(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> Option<u32> {
-        sqlx::query!(
+    ) -> sqlx::Result<Option<u32>> {
+        let attempts = sqlx::query!(
             "SELECT attempts FROM proof_compression_jobs_fri \
             WHERE l1_batch_number = $1",
             l1_batch_number.0 as i64,
         )
         .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| row.attempts as u32)
+        .await?
+        .map(|row| row.attempts as u32);
+
+        Ok(attempts)
     }
 
     pub async fn mark_proof_compression_job_successful(

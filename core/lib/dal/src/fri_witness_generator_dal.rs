@@ -96,16 +96,17 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn get_basic_circuit_witness_job_attempts(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> Option<u32> {
-        sqlx::query!(
+    ) -> sqlx::Result<Option<u32>> {
+        let attempts = sqlx::query!(
             "SELECT attempts FROM witness_inputs_fri \
             WHERE l1_batch_number = $1",
             l1_batch_number.0 as i64,
         )
         .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| row.attempts as u32)
+        .await?
+        .map(|row| row.attempts as u32);
+
+        Ok(attempts)
     }
 
     pub async fn mark_witness_job(
@@ -339,8 +340,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
         })
     }
 
-    pub async fn get_leaf_aggregation_job_attempts(&mut self, id: u32) -> Option<u32> {
-        sqlx::query!(
+    pub async fn get_leaf_aggregation_job_attempts(
+        &mut self,
+        id: u32,
+    ) -> sqlx::Result<Option<u32>> {
+        let attempts = sqlx::query!(
             "SELECT attempts FROM leaf_aggregation_witness_jobs_fri \
             WHERE id = $1",
             id as i64,
@@ -348,7 +352,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| row.attempts as u32)
+        .map(|row| row.attempts as u32);
+
+        Ok(attempts)
     }
 
     async fn prover_job_ids_for(
@@ -487,8 +493,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
         })
     }
 
-    pub async fn get_node_aggregation_job_attempts(&mut self, id: u32) -> Option<u32> {
-        sqlx::query!(
+    pub async fn get_node_aggregation_job_attempts(
+        &mut self,
+        id: u32,
+    ) -> sqlx::Result<Option<u32>> {
+        let attempts = sqlx::query!(
             "SELECT attempts FROM node_aggregation_witness_jobs_fri \
             WHERE id = $1",
             id as i64,
@@ -496,7 +505,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| row.attempts as u32)
+        .map(|row| row.attempts as u32);
+
+        Ok(attempts)
     }
 
     pub async fn mark_node_aggregation_job_failed(&mut self, error: &str, id: u32) {
@@ -739,16 +750,17 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn get_scheduler_witness_job_attempts(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> Option<u32> {
-        sqlx::query!(
+    ) -> sqlx::Result<Option<u32>> {
+        let attempts = sqlx::query!(
             "SELECT attempts FROM scheduler_witness_jobs_fri \
             WHERE l1_batch_number = $1",
             l1_batch_number.0 as i64,
         )
         .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| row.attempts as u32)
+        .await?
+        .map(|row| row.attempts as u32);
+
+        Ok(attempts)
     }
 
     pub async fn mark_scheduler_job_as_successful(

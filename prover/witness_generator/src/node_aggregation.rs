@@ -206,12 +206,18 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         self.config.max_attempts
     }
 
-    async fn get_job_attempts(&self, job_id: &u32) -> anyhow::Result<Option<u32>> {
-        let mut prover_storage = self.prover_connection_pool.access_storage().await.unwrap();
-        Ok(prover_storage
+    async fn get_job_attempts(&self, job_id: &u32) -> anyhow::Result<u32> {
+        let mut prover_storage = self
+            .prover_connection_pool
+            .access_storage()
+            .await
+            .context("failed to acquire DB connection for NodeAggregationWitnessGenerator")?;
+        prover_storage
             .fri_witness_generator_dal()
             .get_node_aggregation_job_attempts(*job_id)
-            .await)
+            .await
+            .map(|attempts| attempts.unwrap_or(0))
+            .context("failed to get job attempts for NodeAggregationWitnessGenerator")
     }
 }
 
