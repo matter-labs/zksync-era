@@ -4,8 +4,8 @@ networks:
     driver: bridge
 {{#if hasProver}}
 volumes:
-  prover_artifacts: {{proverArtifacts}}
-  server_artifacts: {{serverArtifacts}}
+  prover_artifacts:
+  server_artifacts:
 {{/if}}
 services:
   zkstack_core:
@@ -49,7 +49,7 @@ services:
     image: matterlabs//prover-fri-gateway:latest
     env_file:
       - {{envFilePath}}
-    env:
+    environment:
       FRI_PROVER_GATEWAY_API_URL: http://zkstack-core:3075
     ports: # assumes default ports in .env
       - "3312:3312" # prometheus metrics
@@ -110,7 +110,7 @@ services:
     image: matterlabs/prover-fri:latest
     env_file:
       - {{envFilePath}}
-    env:
+    environment:
       FRI_PROVER_SETUP_DATA_PATH: /etc/prover_setup_data
     ports: # assumes default ports in .env
       - "3312:3312" # prometheus metrics
@@ -130,3 +130,4 @@ services:
       - prover_artifacts:/etc_prover_artifacts
       - server_artifacts:/etc_server_artifacts
   {{/if}}
+  
