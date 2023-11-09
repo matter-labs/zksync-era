@@ -134,7 +134,7 @@ async fn main() -> anyhow::Result<()> {
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig")?;
     let pool = ConnectionPool::singleton(
         postgres_config
-            .master_url
+            .master_url()
             .context("Master DB URL is absent")?,
     )
     .build()

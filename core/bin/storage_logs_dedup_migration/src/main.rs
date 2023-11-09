@@ -48,7 +48,7 @@ impl StateCache {
 async fn main() {
     let config = PostgresConfig::from_env().unwrap();
     let opt = Cli::parse();
-    let pool = ConnectionPool::singleton(config.master_url.unwrap())
+    let pool = ConnectionPool::singleton(config.master_url().unwrap())
         .build()
         .await
         .unwrap();

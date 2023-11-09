@@ -122,7 +122,7 @@ async fn init_tasks(
 
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
-    let singleton_pool_builder = ConnectionPool::singleton(config.postgres.database_url.clone());
+    let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
     let fetcher_cursor = {
         let pool = singleton_pool_builder
             .build()
@@ -184,7 +184,7 @@ async fn init_tasks(
         .context("failed to build a tree_pool")?;
     // todo: PLA-335
     // Note: This pool isn't actually used by the metadata calculator, but it has to be provided anyway.
-    let prover_tree_pool = ConnectionPool::singleton(config.postgres.database_url.clone())
+    let prover_tree_pool = ConnectionPool::singleton(&config.postgres.database_url)
         .build()
         .await
         .context("failed to build a prover_tree_pool")?;
@@ -350,7 +350,7 @@ async fn main() -> anyhow::Result<()> {
         .context("Main node URL is incorrect")?;
 
     let connection_pool = ConnectionPool::builder(
-        config.postgres.database_url.clone(),
+        &config.postgres.database_url,
         config.postgres.max_connections,
     )
     .build()

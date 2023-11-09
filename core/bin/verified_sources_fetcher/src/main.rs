@@ -7,7 +7,7 @@ use zksync_types::contract_verification_api::SourceCodeData;
 #[tokio::main]
 async fn main() {
     let config = PostgresConfig::from_env().unwrap();
-    let pool = ConnectionPool::singleton(config.replica_url.unwrap())
+    let pool = ConnectionPool::singleton(config.replica_url().unwrap())
         .build()
         .await
         .unwrap();

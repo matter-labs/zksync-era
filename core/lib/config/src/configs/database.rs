@@ -166,18 +166,24 @@ pub struct PostgresConfig {
 
 impl PostgresConfig {
     /// Returns a copy of the master database URL as a `Result` to simplify error propagation.
-    pub fn master_url(&self) -> anyhow::Result<String> {
-        self.master_url.clone().context("Master DB URL is absent")
+    pub fn master_url(&self) -> anyhow::Result<&str> {
+        self.master_url
+            .as_deref()
+            .context("Master DB URL is absent")
     }
 
     /// Returns a copy of the replica database URL as a `Result` to simplify error propagation.
-    pub fn replica_url(&self) -> anyhow::Result<String> {
-        self.replica_url.clone().context("Replica DB URL is absent")
+    pub fn replica_url(&self) -> anyhow::Result<&str> {
+        self.replica_url
+            .as_deref()
+            .context("Replica DB URL is absent")
     }
 
     /// Returns a copy of the prover database URL as a `Result` to simplify error propagation.
-    pub fn prover_url(&self) -> anyhow::Result<String> {
-        self.prover_url.clone().context("Prover DB URL is absent")
+    pub fn prover_url(&self) -> anyhow::Result<&str> {
+        self.prover_url
+            .as_deref()
+            .context("Prover DB URL is absent")
     }
 
     /// Returns the maximum size of the connection pool as a `Result` to simplify error propagation.

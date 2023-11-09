@@ -21,14 +21,23 @@ fn get_test_database_url() -> anyhow::Result<String> {
 }
 
 /// Builder for [`ConnectionPool`]s.
-#[derive(Debug)]
-pub struct ConnectionPoolBuilder {
-    database_url: String,
+pub struct ConnectionPoolBuilder<'a> {
+    database_url: &'a str,
     max_size: u32,
     statement_timeout: Option<Duration>,
 }
 
-impl ConnectionPoolBuilder {
+impl<'a> fmt::Debug for ConnectionPoolBuilder<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Database URL is potentially sensitive, thus we omit it.
+        f.debug_struct("ConnectionPoolBuilder")
+            .field("max_size", &self.max_size)
+            .field("statement_timeout", &self.statement_timeout)
+            .finish()
+    }
+}
+
+impl<'a> ConnectionPoolBuilder<'a> {
     /// Sets the statement timeout for the pool. See [Postgres docs] for semantics.
     /// If not specified, the statement timeout will not be set.
     ///
@@ -44,7 +53,7 @@ impl ConnectionPoolBuilder {
         let mut connect_options: PgConnectOptions = self
             .database_url
             .parse()
-            .with_context(|| "Failed parsing database URL")?;
+            .context("Failed parsing database URL")?;
         if let Some(timeout) = self.statement_timeout {
             let timeout_string = format!("{}s", timeout.as_secs());
             connect_options = connect_options.options([("statement_timeout", timeout_string)]);
@@ -52,7 +61,7 @@ impl ConnectionPoolBuilder {
         let pool = options
             .connect_with(connect_options)
             .await
-            .with_context(|| "Failed connecting to database")?;
+            .context("Failed connecting to database")?;
         tracing::info!(
             "Created pool with {max_connections} max connections \
              and {statement_timeout:?} statement timeout",
@@ -124,14 +133,14 @@ impl ConnectionPool {
             .to_string();
 
         const TEST_MAX_CONNECTIONS: u32 = 50; // Expected to be enough for any unit test.
-        Self::builder(db_url, TEST_MAX_CONNECTIONS)
+        Self::builder(&db_url, TEST_MAX_CONNECTIONS)
             .build()
             .await
             .unwrap()
     }
 
     /// Initializes a builder for connection pools.
-    pub fn builder(database_url: String, max_pool_size: u32) -> ConnectionPoolBuilder {
+    pub fn builder(database_url: &str, max_pool_size: u32) -> ConnectionPoolBuilder<'_> {
         ConnectionPoolBuilder {
             database_url,
             max_size: max_pool_size,
@@ -141,7 +150,7 @@ impl ConnectionPool {
 
     /// Initializes a builder for connection pools with a single connection. This is equivalent
     /// to calling `Self::builder(db_url, 1)`.
-    pub fn singleton(database_url: String) -> ConnectionPoolBuilder {
+    pub fn singleton(database_url: &str) -> ConnectionPoolBuilder<'_> {
         Self::builder(database_url, 1)
     }
 
@@ -238,7 +247,7 @@ mod tests {
             .expect("Unable to prepare test database")
             .to_string();
 
-        let pool = ConnectionPool::singleton(db_url)
+        let pool = ConnectionPool::singleton(&db_url)
             .set_statement_timeout(Some(Duration::from_secs(1)))
             .build()
             .await
