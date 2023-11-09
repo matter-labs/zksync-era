@@ -37,7 +37,7 @@ impl ConsistencyChecker {
         let mut storage = self.db.access_storage().await.unwrap();
         let validium: bool = env::var("VALIDIUM")
             .map(|v| {
-                println!("env var validium: {}", v);
+                println!("validium env var: {}", v);
                 match v.as_str() {
                     "true" => true,
                     _ => false,

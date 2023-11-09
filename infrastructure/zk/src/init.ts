@@ -52,8 +52,8 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     }
     await announced('Deploying L1 verifier', contract.deployVerifier([]));
     await announced('Reloading env', env.reload());
-    await announced('Deploying L1 contracts', contract.redeployL1(governorPrivateKeyArgs, validium));
     await announced('Running server genesis setup', server.genesisFromSources());
+    await announced('Deploying L1 contracts', contract.redeployL1(governorPrivateKeyArgs, validium));
     await announced('Initializing validator', contract.initializeValidator(governorPrivateKeyArgs));
     await announced('Initialize L1 allow list', contract.initializeL1AllowList(governorPrivateKeyArgs));
     await announced(

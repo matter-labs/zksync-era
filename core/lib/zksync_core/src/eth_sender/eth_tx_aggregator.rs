@@ -433,7 +433,7 @@ impl EthTxAggregator {
 
         // For "commit" and "prove" operations it's necessary that the contracts are of the same version as L1 batches are.
         // For "execute" it's not required, i.e. we can "execute" pre-boojum batches with post-boojum contracts.
-        let return_value = match &op {
+        match &op {
             AggregatedOperation::Commit(op) => {
                 assert_eq!(contracts_are_pre_boojum, operation_is_pre_boojum);
                 let f = if contracts_are_pre_boojum {
@@ -470,10 +470,7 @@ impl EthTxAggregator {
                 f.encode_input(&op.get_eth_tx_args())
             }
         }
-        .expect("Failed to encode transaction data");
-
-        println!("encoding worked");
-        return return_value;
+        .expect("Failed to encode transaction data")
     }
 
     pub(super) async fn save_eth_tx(

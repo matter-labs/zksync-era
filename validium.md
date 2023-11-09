@@ -2,9 +2,11 @@
 
 In order to start the node as a validium:
 
-- Make sure `zk` has been built and then run `zk init --validium`. This will set up the Ethereum node with the validium contracts, and also define an env var which the server will pick up in order to run as a validium node
+- Make sure `zk` has been built and then run `zk init --validium`. This will set up the Ethereum node with the validium
+  contracts, and also define an env var which the server will pick up in order to run as a validium node
 - Start the server (`zk server`)
-- Execute transactions. For testing, `cargo run --bin zksync_full_stack` inits a wallet, deploys a contract and executes a tx
+- Execute transactions. For testing, `cargo run --bin zksync_full_stack` inits a wallet, deploys a contract and executes
+  a tx
 - Query the node for the tx hash (output of the zksync_full_stack binary):
 
 ```
@@ -28,7 +30,8 @@ curl -X POST -H 'content-type: application/json' 127.0.0.1:3050 -d '{"jsonrpc": 
 }
 ```
 
-Not all the eth-related transaction hashes might be displayed depending on how much time passes between sending the tx and querying the node, since the transactions are bundled into batches which get entered into the batch pipeline
+Not all the eth-related transaction hashes might be displayed depending on how much time passes between sending the tx
+and querying the node, since the transactions are bundled into batches which get entered into the batch pipeline
 
 - query the geth node with the commit tx hash
 
