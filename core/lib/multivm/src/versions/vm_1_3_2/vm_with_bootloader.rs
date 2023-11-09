@@ -221,7 +221,7 @@ pub fn init_vm<S: WriteStorage, H: HistoryMode>(
     block_properties: BlockProperties,
     execution_mode: TxExecutionMode,
     base_system_contract: &BaseSystemContracts,
-) -> Box<VmInstance<S, H>> {
+) -> VmInstance<S, H> {
     init_vm_with_gas_limit(
         oracle_tools,
         block_context,
@@ -239,7 +239,7 @@ pub fn init_vm_with_gas_limit<S: WriteStorage, H: HistoryMode>(
     execution_mode: TxExecutionMode,
     base_system_contract: &BaseSystemContracts,
     gas_limit: u32,
-) -> Box<VmInstance<S, H>> {
+) -> VmInstance<S, H> {
     init_vm_inner(
         oracle_tools,
         block_context,
@@ -334,7 +334,7 @@ pub fn init_vm_inner<S: WriteStorage, H: HistoryMode>(
     gas_limit: u32,
     base_system_contract: &BaseSystemContracts,
     execution_mode: TxExecutionMode,
-) -> Box<VmInstance<S, H>> {
+) -> VmInstance<S, H> {
     oracle_tools.decommittment_processor.populate(
         vec![(
             h256_to_u256(base_system_contract.default_aa.hash),
@@ -359,14 +359,14 @@ pub fn init_vm_inner<S: WriteStorage, H: HistoryMode>(
 
     let state = get_default_local_state(oracle_tools, block_properties, gas_limit);
 
-    Box::new(VmInstance {
+    VmInstance {
         gas_limit,
         state,
         execution_mode,
         block_context: block_context.inner_block_context(),
         bootloader_state: BootloaderState::new(),
         snapshots: Vec::new(),
-    })
+    }
 }
 
 fn bootloader_initial_memory(block_properties: &BlockContextMode) -> Vec<(usize, U256)> {
@@ -464,14 +464,7 @@ pub fn push_raw_transaction_to_bootloader_memory<H: HistoryMode, S: WriteStorage
             .enumerate()
             .sorted_by_key(|(_idx, dep)| *dep)
             .dedup_by(|x, y| x.1 == y.1)
-            .filter(|(_idx, dep)| {
-                !vm.state
-                    .storage
-                    .storage
-                    .get_ptr()
-                    .borrow_mut()
-                    .is_bytecode_known(&hash_bytecode(dep))
-            })
+            .filter(|(_idx, dep)| !vm.is_bytecode_known(&hash_bytecode(dep)))
             .sorted_by_key(|(idx, _dep)| *idx)
             .filter_map(|(_idx, dep)| {
                 compress_bytecode(dep)

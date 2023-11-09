@@ -1,8 +1,8 @@
 use crate::vm_m5::storage::Storage;
+use crate::vm_m5::vm_instance::VmInstance;
 use crate::vm_m5::vm_with_bootloader::{
     eth_price_per_pubdata_byte, BOOTLOADER_HEAP_PAGE, TX_GAS_LIMIT_OFFSET,
 };
-use crate::vm_m5::VmInstance;
 use zk_evm_1_3_1::aux_structures::Timestamp;
 
 use zksync_types::U256;
