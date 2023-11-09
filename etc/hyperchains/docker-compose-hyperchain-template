@@ -46,7 +46,7 @@ services:
   zkstack-prover-fri-gateway:
     networks:
       - zkstack
-    image: {{orgName}}/prover-fri-gateway:latest
+    image: matterlabs//prover-fri-gateway:latest
     env_file:
       - {{envFilePath}}
     env:
@@ -59,7 +59,7 @@ services:
   zkstack-witness-generator-basic-circuits:
     networks:
       - zkstack
-    image: {{orgName}}/witness-generator:latest
+    image: matterlabs//witness-generator:latest
     command: ["--round", "basic_circuits"]
     env_file:
       - {{envFilePath}}
@@ -71,7 +71,7 @@ services:
   zkstack-witness-generator-leaf-aggregation:
     networks:
       - zkstack
-    image: {{orgName}}/witness-generator:latest
+    image: matterlabs//witness-generator:latest
     command: ["--round", "leaf_aggregation"]
     env_file:
       - {{envFilePath}}
@@ -83,7 +83,7 @@ services:
   zkstack-witness-generator-node-aggregation:
     networks:
       - zkstack
-    image: {{orgName}}/witness-generator:latest
+    image: matterlabs//witness-generator:latest
     command: ["--round", "node_aggregation"]
     env_file:
       - {{envFilePath}}
@@ -95,7 +95,7 @@ services:
   zkstack-witness-generator-scheduler:
     networks:
       - zkstack
-    image: {{orgName}}/witness-generator:latest
+    image: matterlabs//witness-generator:latest
     command: ["--round", "scheduler"]
     env_file:
       - {{envFilePath}}
@@ -104,27 +104,10 @@ services:
     volumes:
       - prover_artifacts:/etc_prover_artifacts
       - server_artifacts:/etc_server_artifacts
-  {{#if !isCPUProver}}
-  zkstack-witness-vector-generator:
-    networks:
-      - zkstack
-    image: {{orgName}}/witness-vector-generator:latest
-    env_file:
-      - {{envFilePath}}
-    ports: # assumes default ports in .env
-      - "3312:3312" # prometheus metrics
-    volumes:
-      - prover_artifacts:/etc_prover_artifacts
-      - server_artifacts:/etc_server_artifacts
-  {{/if}}
   zkstack-prover-fri:
     networks:
       - zkstack
-    {{#if isCPUProver}}
-    image: {{orgName}}/prover-fri:latest
-    {{else}}
-    image: {{orgName}}/prover-gpu-fri:latest
-    {{/if}}
+    image: matterlabs/prover-fri:latest
     env_file:
       - {{envFilePath}}
     env:
@@ -138,7 +121,7 @@ services:
   zkstack-proof-fri-compressor:
     networks:
       - zkstack
-    image: {{orgName}}/proof-fri-compressor:latest
+    image: matterlabs//proof-fri-compressor:latest
     env_file:
       - {{envFilePath}}
     ports: # assumes default ports in .env
