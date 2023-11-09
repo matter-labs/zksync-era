@@ -19,7 +19,7 @@ use zksync_types::{
 use zksync_web3_decl::types::{Filter, Log, Token};
 
 // Local uses
-use crate::web3::namespaces::ZksNamespace;
+use crate::{api_server::tree::TreeEntryWithProof, web3::namespaces::ZksNamespace};
 use crate::{l1_gas_price::L1GasPriceProvider, web3::backend_jsonrpc::error::into_jsrpc_error};
 
 #[rpc]
@@ -111,6 +111,13 @@ pub trait ZksNamespaceT {
 
     #[rpc(name = "zks_getLogsWithVirtualBlocks")]
     fn get_logs_with_virtual_blocks(&self, filter: Filter) -> BoxFuture<Result<Vec<Log>>>;
+
+    #[rpc(name = "zks_getProof")]
+    fn get_proof(
+        &self,
+        hashed_keys: Vec<U256>,
+        l1_batch_number: L1BatchNumber,
+    ) -> BoxFuture<Result<Vec<TreeEntryWithProof>>>;
 }
 
 impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceT for ZksNamespace<G> {
@@ -304,6 +311,20 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceT for ZksNamespa
         Box::pin(async move {
             self_
                 .get_logs_with_virtual_blocks_impl(filter)
+                .await
+                .map_err(into_jsrpc_error)
+        })
+    }
+
+    fn get_proof(
+        &self,
+        hashed_keys: Vec<U256>,
+        l1_batch_number: L1BatchNumber,
+    ) -> BoxFuture<Result<Vec<TreeEntryWithProof>>> {
+        let self_ = self.clone();
+        Box::pin(async move {
+            self_
+                .get_proofs_impl(hashed_keys, l1_batch_number)
                 .await
                 .map_err(into_jsrpc_error)
         })

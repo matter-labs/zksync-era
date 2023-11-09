@@ -1380,6 +1380,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
             )
             .with_polling_interval(api_config.web3_json_rpc.pubsub_interval())
             .with_threads(api_config.web3_json_rpc.ws_server_threads())
+            .with_tree_api(api_config.web3_json_rpc.tree_api_url())
             .with_tx_sender(tx_sender, vm_barrier)
             .enable_api_namespaces(Namespace::NON_DEBUG.to_vec());
 

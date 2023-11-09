@@ -87,6 +87,8 @@ pub struct Web3JsonRpcConfig {
     /// The value is per active connection.
     /// Note: For HTTP, rate limiting is expected to be configured on the infra level.
     pub websocket_requests_per_minute_limit: Option<u32>,
+    /// Api of the tree API, currently used to proxy `getProof` calls to the tree
+    pub tree_api_url: Option<String>,
 }
 
 impl Web3JsonRpcConfig {
@@ -123,6 +125,7 @@ impl Web3JsonRpcConfig {
             max_batch_request_size: Default::default(),
             max_response_body_size_mb: Default::default(),
             websocket_requests_per_minute_limit: Default::default(),
+            tree_api_url: None,
         }
     }
 
@@ -204,6 +207,10 @@ impl Web3JsonRpcConfig {
     pub fn websocket_requests_per_minute_limit(&self) -> u32 {
         // The default limit is chosen to be reasonably permissive.
         self.websocket_requests_per_minute_limit.unwrap_or(6000)
+    }
+
+    pub fn tree_api_url(&self) -> Option<String> {
+        self.tree_api_url.clone()
     }
 }
 

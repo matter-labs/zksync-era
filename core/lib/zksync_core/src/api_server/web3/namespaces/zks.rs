@@ -24,8 +24,9 @@ use zksync_web3_decl::{
     types::{Address, Filter, Log, Token, H256},
 };
 
-use crate::api_server::web3::{
-    backend_jsonrpc::error::internal_error, metrics::API_METRICS, RpcState,
+use crate::api_server::{
+    tree::{TreeApiClient, TreeEntryWithProof},
+    web3::{backend_jsonrpc::error::internal_error, metrics::API_METRICS, RpcState},
 };
 use crate::l1_gas_price::L1GasPriceProvider;
 
@@ -619,5 +620,23 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         filter: Filter,
     ) -> Result<Vec<Log>, Web3Error> {
         self.state.translate_get_logs(filter).await
+    }
+
+    #[tracing::instrument(skip_all)]
+    pub async fn get_proofs_impl(
+        &self,
+        hashed_keys: Vec<U256>,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<Vec<TreeEntryWithProof>, Web3Error> {
+        let keys = self
+            .state
+            .tree_api
+            .as_ref()
+            .ok_or(Web3Error::GetProofsUnavailable)?
+            .get_proofs(l1_batch_number, hashed_keys)
+            .await
+            .unwrap();
+
+        Ok(keys)
     }
 }

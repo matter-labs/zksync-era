@@ -27,7 +27,7 @@ use zksync_web3_decl::{
 
 use crate::{
     api_server::{
-        execution_sandbox::VmConcurrencyBarrier, tx_sender::TxSender,
+        execution_sandbox::VmConcurrencyBarrier, tree::TreeApiHttpClient, tx_sender::TxSender,
         web3::backend_jsonrpc::batch_limiter_middleware::RateLimitMetadata,
     },
     l1_gas_price::L1GasPriceProvider,
@@ -136,6 +136,7 @@ pub struct ApiBuilder<G> {
     polling_interval: Option<Duration>,
     namespaces: Option<Vec<Namespace>>,
     logs_translator_enabled: bool,
+    tree_api_url: Option<String>,
 }
 
 impl<G> ApiBuilder<G> {
@@ -159,6 +160,7 @@ impl<G> ApiBuilder<G> {
             namespaces: None,
             config,
             logs_translator_enabled: false,
+            tree_api_url: None,
         }
     }
 
@@ -255,6 +257,11 @@ impl<G> ApiBuilder<G> {
         self.logs_translator_enabled = true;
         self
     }
+
+    pub fn with_tree_api(mut self, tree_api_url: Option<String>) -> Self {
+        self.tree_api_url = tree_api_url;
+        self
+    }
 }
 
 impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
@@ -280,6 +287,9 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
             api_config: self.config,
             last_sealed_miniblock,
             logs_translator_enabled: self.logs_translator_enabled,
+            tree_api: self
+                .tree_api_url
+                .map(|url| Arc::new(TreeApiHttpClient::new(url.as_str()))),
         }
     }
 
