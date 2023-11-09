@@ -11,8 +11,8 @@ use crate::interface::{
 // Bootloader memory required only for producing witnesses,
 // and server doesn't need to generate witnesses for old blocks
 
-impl GlueFrom<crate::vm_m5::vm::VmBlockResult> for crate::interface::FinishedL1Batch {
-    fn glue_from(value: crate::vm_m5::vm::VmBlockResult) -> Self {
+impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult> for crate::interface::FinishedL1Batch {
+    fn glue_from(value: crate::vm_m5::vm_instance::VmBlockResult) -> Self {
         crate::interface::FinishedL1Batch {
             block_tip_execution_result: VmExecutionResultAndLogs {
                 result: value.block_tip_result.revert_reason.glue_into(),
@@ -48,8 +48,8 @@ impl GlueFrom<crate::vm_m5::vm::VmBlockResult> for crate::interface::FinishedL1B
     }
 }
 
-impl GlueFrom<crate::vm_m6::vm::VmBlockResult> for crate::interface::FinishedL1Batch {
-    fn glue_from(value: crate::vm_m6::vm::VmBlockResult) -> Self {
+impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult> for crate::interface::FinishedL1Batch {
+    fn glue_from(value: crate::vm_m6::vm_instance::VmBlockResult) -> Self {
         crate::interface::FinishedL1Batch {
             block_tip_execution_result: VmExecutionResultAndLogs {
                 result: value.block_tip_result.revert_reason.glue_into(),
@@ -85,8 +85,8 @@ impl GlueFrom<crate::vm_m6::vm::VmBlockResult> for crate::interface::FinishedL1B
     }
 }
 
-impl GlueFrom<crate::vm_1_3_2::vm::VmBlockResult> for crate::interface::FinishedL1Batch {
-    fn glue_from(value: crate::vm_1_3_2::vm::VmBlockResult) -> Self {
+impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult> for crate::interface::FinishedL1Batch {
+    fn glue_from(value: crate::vm_1_3_2::vm_instance::VmBlockResult) -> Self {
         crate::interface::FinishedL1Batch {
             block_tip_execution_result: VmExecutionResultAndLogs {
                 result: value.block_tip_result.revert_reason.glue_into(),
@@ -128,8 +128,10 @@ impl GlueFrom<crate::vm_1_3_2::vm::VmBlockResult> for crate::interface::Finished
     }
 }
 
-impl GlueFrom<crate::vm_1_3_2::vm::VmBlockResult> for crate::interface::VmExecutionResultAndLogs {
-    fn glue_from(value: crate::vm_1_3_2::vm::VmBlockResult) -> Self {
+impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult>
+    for crate::interface::VmExecutionResultAndLogs
+{
+    fn glue_from(value: crate::vm_1_3_2::vm_instance::VmBlockResult) -> Self {
         let mut result = value
             .full_result
             .revert_reason
@@ -167,8 +169,10 @@ impl GlueFrom<crate::vm_1_3_2::vm::VmBlockResult> for crate::interface::VmExecut
     }
 }
 
-impl GlueFrom<crate::vm_m5::vm::VmBlockResult> for crate::interface::VmExecutionResultAndLogs {
-    fn glue_from(value: crate::vm_m5::vm::VmBlockResult) -> Self {
+impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult>
+    for crate::interface::VmExecutionResultAndLogs
+{
+    fn glue_from(value: crate::vm_m5::vm_instance::VmBlockResult) -> Self {
         let mut result = value
             .full_result
             .revert_reason
@@ -195,8 +199,10 @@ impl GlueFrom<crate::vm_m5::vm::VmBlockResult> for crate::interface::VmExecution
     }
 }
 
-impl GlueFrom<crate::vm_m6::vm::VmBlockResult> for crate::interface::VmExecutionResultAndLogs {
-    fn glue_from(value: crate::vm_m6::vm::VmBlockResult) -> Self {
+impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult>
+    for crate::interface::VmExecutionResultAndLogs
+{
+    fn glue_from(value: crate::vm_m6::vm_instance::VmBlockResult) -> Self {
         let mut result = value
             .full_result
             .revert_reason

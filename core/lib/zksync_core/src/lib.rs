@@ -76,7 +76,6 @@ use crate::house_keeper::fri_prover_queue_monitor::FriProverStatsReporter;
 use crate::house_keeper::fri_scheduler_circuit_queuer::SchedulerCircuitQueuer;
 use crate::house_keeper::fri_witness_generator_jobs_retry_manager::FriWitnessGeneratorJobRetryManager;
 use crate::house_keeper::fri_witness_generator_queue_monitor::FriWitnessGeneratorStatsReporter;
-use crate::house_keeper::gcs_blob_cleaner::GcsBlobCleaner;
 use crate::house_keeper::{
     blocks_state_reporter::L1BatchMetricsReporter, gpu_prover_queue_monitor::GpuProverQueueMonitor,
     prover_job_retry_manager::ProverJobRetryManager, prover_queue_monitor::ProverStatsReporter,
@@ -745,7 +744,7 @@ pub async fn initialize_components(
     }
 
     if components.contains(&Component::Housekeeper) {
-        add_house_keeper_to_task_futures(configs, &mut task_futures, &store_factory)
+        add_house_keeper_to_task_futures(configs, &mut task_futures)
             .await
             .context("add_house_keeper_to_task_futures()")?;
     }
@@ -1091,7 +1090,6 @@ async fn add_witness_generator_to_task_futures(
 async fn add_house_keeper_to_task_futures(
     configs: &TempConfigStore,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
-    store_factory: &ObjectStoreFactory,
 ) -> anyhow::Result<()> {
     let house_keeper_config = configs
         .house_keeper_config
@@ -1144,14 +1142,7 @@ async fn add_house_keeper_to_task_futures(
         house_keeper_config.witness_generator_stats_reporting_interval_ms,
         prover_connection_pool.clone(),
     );
-    let gcs_blob_cleaner = GcsBlobCleaner::new(
-        store_factory,
-        prover_connection_pool.clone(),
-        house_keeper_config.blob_cleaning_interval_ms,
-    )
-    .await;
 
-    task_futures.push(tokio::spawn(gcs_blob_cleaner.run()));
     task_futures.push(tokio::spawn(witness_generator_stats_reporter.run()));
     task_futures.push(tokio::spawn(gpu_prover_queue.run()));
     task_futures.push(tokio::spawn(l1_batch_metrics_reporter.run()));

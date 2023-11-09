@@ -32,7 +32,7 @@ use crate::vm_1_3_2::{
         AppDataFrameManagerWithHistory, HistoryEnabled, HistoryMode, HistoryRecorder,
     },
     memory::SimpleMemory,
-    vm::ZkSyncVmState,
+    vm_instance::ZkSyncVmState,
     VmInstance,
 };
 

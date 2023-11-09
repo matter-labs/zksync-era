@@ -6,7 +6,7 @@ use crate::vm_m6::{
         utils::{gas_spent_on_bytecodes_and_long_messages_this_opcode, VmHook},
         BootloaderTracer, ExecutionEndTracer, PendingRefundTracer, PubdataSpentTracer,
     },
-    vm::get_vm_hook_params,
+    vm_instance::get_vm_hook_params,
 };
 
 use crate::vm_m6::oracles::tracer::{CallTracer, StorageInvocationTracer};

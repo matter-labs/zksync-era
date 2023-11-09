@@ -5,12 +5,8 @@ pub use old_vm::{
 
 pub use oracles::storage::StorageOracle;
 
-pub use tracers::{
-    call::CallTracer,
-    traits::{BoxedTracer, DynTracer, TracerExecutionStatus, TracerExecutionStopReason, VmTracer},
-    utils::VmExecutionStopReason,
-    StorageInvocations, ValidationError, ValidationTracer, ValidationTracerParams,
-};
+pub use tracers::dispatcher::TracerDispatcher;
+pub use tracers::traits::{TracerPointer, VmTracer};
 
 pub use utils::transaction_encoding::TransactionVmExt;
 
@@ -23,7 +19,7 @@ mod bootloader_state;
 mod implementation;
 mod old_vm;
 mod oracles;
-mod tracers;
+pub(crate) mod tracers;
 mod types;
 mod vm;
 

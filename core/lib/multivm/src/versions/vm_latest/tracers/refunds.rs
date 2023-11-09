@@ -1,5 +1,8 @@
+use std::marker::PhantomData;
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 
+use crate::interface::traits::tracers::dyn_tracers::vm_1_4_0::DynTracer;
+use crate::interface::types::tracer::TracerExecutionStatus;
 use crate::interface::{L1BatchEnv, Refunds};
 use zk_evm_1_4_0::{
     aux_structures::Timestamp,
@@ -27,15 +30,14 @@ use crate::vm_latest::old_vm::{
 use crate::vm_latest::bootloader_state::BootloaderState;
 use crate::vm_latest::tracers::utils::gas_spent_on_bytecodes_and_long_messages_this_opcode;
 use crate::vm_latest::tracers::{
-    traits::{DynTracer, VmTracer},
+    traits::VmTracer,
     utils::{get_vm_hook_params, VmHook},
 };
 use crate::vm_latest::types::internals::ZkSyncVmState;
-use crate::vm_latest::TracerExecutionStatus;
 
 /// Tracer responsible for collecting information about refunds.
 #[derive(Debug, Clone)]
-pub(crate) struct RefundsTracer {
+pub(crate) struct RefundsTracer<S> {
     // Some(x) means that the bootloader has asked the operator
     // to provide the refund the user, where `x` is the refund proposed
     // by the bootloader itself.
@@ -49,9 +51,10 @@ pub(crate) struct RefundsTracer {
     gas_spent_on_bytecodes_and_long_messages: u32,
     l1_batch: L1BatchEnv,
     pubdata_published: u32,
+    _phantom: PhantomData<S>,
 }
 
-impl RefundsTracer {
+impl<S> RefundsTracer<S> {
     pub(crate) fn new(l1_batch: L1BatchEnv) -> Self {
         Self {
             pending_operator_refund: None,
@@ -64,11 +67,12 @@ impl RefundsTracer {
             gas_spent_on_bytecodes_and_long_messages: 0,
             l1_batch,
             pubdata_published: 0,
+            _phantom: PhantomData,
         }
     }
 }
 
-impl RefundsTracer {
+impl<S> RefundsTracer<S> {
     fn requested_refund(&self) -> Option<u32> {
         self.pending_operator_refund
     }
@@ -150,7 +154,7 @@ impl RefundsTracer {
     }
 }
 
-impl<S, H: HistoryMode> DynTracer<S, H> for RefundsTracer {
+impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for RefundsTracer<S> {
     fn before_execution(
         &mut self,
         state: VmLocalStateData<'_>,
@@ -173,7 +177,7 @@ impl<S, H: HistoryMode> DynTracer<S, H> for RefundsTracer {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
     fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
         self.timestamp_initial = Timestamp(state.local_state.timestamp);
         self.gas_remaining_before = state.local_state.callstack.current.ergs_remaining;
