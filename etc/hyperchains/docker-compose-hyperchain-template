@@ -13,12 +13,17 @@ services:
       - zkstack
     image: {{orgName}}/server-v2:latest
     command: ["--components", "tree_new,eth,data_fetcher,state_keeper,housekeeper,proof_data_handler"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3071/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     env_file:
       - {{envFilePath}}
     environment:
       ZKSYNC_HOME: /
     ports: # assumes default ports in .env
-      # - "3312:3312" # prometheus metrics # we need a separate metrics port for each component
+      #- "3312:3312" # prometheus metrics # we need a separate metrics port for each component
       - "3320:3320" # proof_data_handler api
     volumes:
       - prover_artifacts:/etc_prover_artifacts
@@ -47,6 +52,9 @@ services:
     networks:
       - zkstack
     image: matterlabs/prover-fri-gateway:latest
+    depends_on:
+      zkstack-core:
+        condition: "service_healthy"
     env_file:
       - {{envFilePath}}
     environment:
