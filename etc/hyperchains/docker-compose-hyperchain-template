@@ -8,7 +8,7 @@ volumes:
   server_artifacts:
 {{/if}}
 services:
-  zkstack_core:
+  zkstack-core:
     networks:
       - zkstack
     image: {{orgName}}/server-v2:latest
