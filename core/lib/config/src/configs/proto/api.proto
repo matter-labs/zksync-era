@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package zksync.config.configs.api;
+package zksync.config.configs;
 
 import "zksync/config/configs/utils.proto";
 
@@ -18,7 +18,7 @@ message Web3JsonRpc {
   optional uint32 subscriptions_limit = 7;
   optional uint64 pubsub_polling_interval = 8;
   optional uint32 threads_per_server = 9; // required
-  optional uint32 max_nonce_ahread = 10; // required
+  optional uint32 max_nonce_ahead = 10; // required
   optional double gas_price_scale_factor = 11; // required
   optional uint32 transactions_per_sec_limit = 12;
   optional uint64 request_timeout = 13; // seconds
@@ -36,7 +36,7 @@ message Web3JsonRpc {
   optional uint64 fee_history_limit = 25;
   optional uint64 max_batch_request_size = 26;
   optional uint64 max_response_body_size_mb = 27;
-  optional uint32 websocker_requests_per_minute_limit = 28;
+  optional uint32 websocket_requests_per_minute_limit = 28;
 }
 
 message ContractVerificationApi {
@@ -55,8 +55,8 @@ message MerkleTreeApi {
 
 message Api {
   optional Web3JsonRpc web3_json_rpc = 1; // required
-  optional ContractVerificationApi contract_verification_api = 2; // required
-  optional utils.Prometheus prometheus = 3; // required
+  optional ContractVerificationApi contract_verification = 2; // required
+  optional Prometheus prometheus = 3; // required
   optional HealthCheck healthcheck = 4; // required
-  optional MerkleTreeApi merkle_tree_api = 5; // required
+  optional MerkleTreeApi merkle_tree = 5; // required
 }
