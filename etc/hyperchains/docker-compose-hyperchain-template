@@ -118,14 +118,11 @@ services:
     image: matterlabs/prover-fri:latest
     env_file:
       - {{envFilePath}}
-    environment:
-      FRI_PROVER_SETUP_DATA_PATH: /etc/prover_setup_data
     # ports: # assumes default ports in .env
     #   - "3312:3312" # prometheus metrics
     volumes:
       - prover_artifacts:/etc_prover_artifacts
       - server_artifacts:/etc_server_artifacts
-      - {{proverSetupArtifacts}}:/etc/prover_setup_data
   zkstack-proof-fri-compressor:
     networks:
       - zkstack
