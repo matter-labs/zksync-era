@@ -660,7 +660,7 @@ async function _generateDockerImages(_orgName?: string) {
 
     console.log(warning(`\nDocker image for server created: Server image: ${orgName}/server-v2:latest\n`));
 
-    let hasProver = false;
+    let hasProver = false, isCPUProver = false;
     let proverArtifacts, serverArtifacts, proverSetupArtifacts;
 
     if (process.env.ETH_SENDER_SENDER_PROOF_SENDING_MODE !== 'SkipEveryProof') {
@@ -670,7 +670,17 @@ async function _generateDockerImages(_orgName?: string) {
             serverArtifacts = process.env.OBJECT_STORE_FILE_BACKED_BASE_PATH;
             proverSetupArtifacts = process.env.FRI_PROVER_ARTIFACTS_PATH;
         }
-        await docker.customBuildForHyperchain('prover', orgName);
+        await docker.customBuildForHyperchain('witness-generator', orgName);
+        await docker.customBuildForHyperchain('witness-vector-generator', orgName);
+        await docker.customBuildForHyperchain('prover-fri-gateway', orgName);
+        await docker.customBuildForHyperchain('proof-fri-compressor', orgName);
+        if(process.env.PROVER_TYPE === ProverType.CPU) {
+            isCPUProver = true;
+            await docker.customBuildForHyperchain('prover-fri', orgName);
+        } else {
+            await docker.customBuildForHyperchain('witness-vector-generator', orgName);
+            await docker.customBuildForHyperchain('prover-gpu-fri', orgName);
+        }
     }
 
     const composeArgs = {
@@ -679,7 +689,8 @@ async function _generateDockerImages(_orgName?: string) {
         hasProver,
         proverArtifacts,
         serverArtifacts,
-        proverSetupArtifacts
+        proverSetupArtifacts,
+        isCPUProver
     };
 
     const templateFileName = './etc/hyperchains/docker-compose-hyperchain-template';

@@ -15,6 +15,7 @@ export enum ProverType {
 export async function setupProver(proverType: ProverType) {
     // avoid doing work if receives the wrong param from the CLI
     if (proverType == ProverType.GPU || proverType == ProverType.CPU) {
+        wrapEnvModify('PROVER_TYPE', proverType);
         wrapEnvModify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'OnlyRealProofs');
         wrapEnvModify('ETH_SENDER_SENDER_PROOF_LOADING_MODE', 'FriProofFromGcs');
         await setupArtifactsMode();
