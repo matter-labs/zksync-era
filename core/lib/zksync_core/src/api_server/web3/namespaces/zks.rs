@@ -628,6 +628,8 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         hashed_keys: Vec<U256>,
         l1_batch_number: L1BatchNumber,
     ) -> Result<Vec<TreeEntryWithProof>, Web3Error> {
+        const METHOD_NAME: &str = "get_proofs";
+
         let keys = self
             .state
             .tree_api
@@ -635,7 +637,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .ok_or(Web3Error::GetProofsUnavailable)?
             .get_proofs(l1_batch_number, hashed_keys)
             .await
-            .unwrap();
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
 
         Ok(keys)
     }
