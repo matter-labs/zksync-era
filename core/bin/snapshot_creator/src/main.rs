@@ -20,10 +20,12 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) {
         - 1; // we subtract 1 so that after restore, EN node has at least one l1 batch to fetch
 
     let miniblock_number = conn
-        .storage_logs_snapshots_dal()
-        .get_last_miniblock_number(l1_batch_number)
+        .blocks_dal()
+        .get_miniblock_range_of_l1_batch(l1_batch_number)
         .await
-        .unwrap();
+        .unwrap()
+        .unwrap()
+        .1;
     let storage_logs_count = conn
         .storage_logs_snapshots_dal()
         .get_storage_logs_count(l1_batch_number)

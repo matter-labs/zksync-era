@@ -60,10 +60,12 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
                 .unwrap()
                 .unwrap();
             let miniblock_number = storage_processor
-                .storage_logs_snapshots_dal()
-                .get_last_miniblock_number(l1_batch_number)
+                .blocks_dal()
+                .get_miniblock_range_of_l1_batch(l1_batch_number)
                 .await
-                .unwrap();
+                .unwrap()
+                .unwrap()
+                .1;
             Ok(Some(SnapshotHeader {
                 l1_batch_number: snapshot_metadata.l1_batch_number,
                 generated_at: snapshot_metadata.generated_at,

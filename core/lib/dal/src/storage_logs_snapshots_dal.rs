@@ -9,21 +9,6 @@ pub struct SnapshotChunksDal<'a, 'c> {
 }
 
 impl SnapshotChunksDal<'_, '_> {
-    // not yet used by snapshot_creator
-    pub async fn get_last_miniblock_number(
-        &mut self,
-        l1_batch_number: L1BatchNumber,
-    ) -> Result<MiniblockNumber, sqlx::Error> {
-        let miniblock_number: i64 = sqlx::query!(
-            "select MAX(number) from miniblocks where l1_batch_number = $1",
-            l1_batch_number.0 as i64
-        )
-        .fetch_one(self.storage.conn())
-        .await?
-        .max
-        .unwrap_or_default();
-        Ok(MiniblockNumber(miniblock_number as u32))
-    }
     pub async fn get_storage_logs_count(
         &mut self,
         l1_batch_number: L1BatchNumber,
@@ -46,10 +31,14 @@ impl SnapshotChunksDal<'_, '_> {
         chunk_id: u64,
         chunk_size: u64,
     ) -> Result<Vec<SnapshotStorageLog>, sqlx::Error> {
-        let miniblock_number = self
-            .get_last_miniblock_number(l1_batch_number)
-            .await
-            .unwrap();
+        let miniblock_number: i64 = sqlx::query!(
+            "select MAX(number) from miniblocks where l1_batch_number = $1",
+            l1_batch_number.0 as i64
+        )
+        .fetch_one(self.storage.conn())
+        .await?
+        .max
+        .unwrap_or_default();
 
         let storage_logs = sqlx::query!(
             r#"
@@ -76,7 +65,7 @@ impl SnapshotChunksDal<'_, '_> {
              )
             LIMIT $2 OFFSET $3;
              "#,
-            miniblock_number.0 as i64,
+            miniblock_number,
             chunk_size as i64,
             (chunk_size * chunk_id) as i64
         )
