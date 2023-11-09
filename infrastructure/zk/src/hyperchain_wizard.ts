@@ -660,7 +660,8 @@ async function _generateDockerImages(_orgName?: string) {
 
     console.log(warning(`\nDocker image for server created: Server image: ${orgName}/server-v2:latest\n`));
 
-    let hasProver = false, isCPUProver = false;
+    let hasProver = false,
+        isCPUProver = false;
     let proverArtifacts, serverArtifacts, proverSetupArtifacts;
 
     if (process.env.ETH_SENDER_SENDER_PROOF_SENDING_MODE !== 'SkipEveryProof') {
@@ -674,7 +675,7 @@ async function _generateDockerImages(_orgName?: string) {
         await docker.customBuildForHyperchain('witness-vector-generator', orgName);
         await docker.customBuildForHyperchain('prover-fri-gateway', orgName);
         await docker.customBuildForHyperchain('proof-fri-compressor', orgName);
-        if(process.env.PROVER_TYPE === ProverType.CPU) {
+        if (process.env.PROVER_TYPE === ProverType.CPU) {
             isCPUProver = true;
             await docker.customBuildForHyperchain('prover-fri', orgName);
         } else {
