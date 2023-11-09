@@ -19,7 +19,7 @@ services:
       ZKSYNC_HOME: /
     ports: # assumes default ports in .env
       # - "3312:3312" # prometheus metrics # we need a separate metrics port for each component
-      - "3075:3075" # proof_data_handler api
+      - "3320:3320" # proof_data_handler api
     volumes:
       - prover_artifacts:/etc_prover_artifacts
       - server_artifacts:/etc_server_artifacts
@@ -50,7 +50,7 @@ services:
     env_file:
       - {{envFilePath}}
     environment:
-      FRI_PROVER_GATEWAY_API_URL: http://zkstack-core:3075
+      FRI_PROVER_GATEWAY_API_URL: http://zkstack-core:3320
     # ports: # assumes default ports in .env
     #   - "3312:3312" # prometheus metrics
     volumes:
