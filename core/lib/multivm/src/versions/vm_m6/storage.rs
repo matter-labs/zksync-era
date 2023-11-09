@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::rc::Rc;
 
-use zksync_state::{ReadStorage, StorageView, WriteStorage};
+use zksync_state::{ReadStorage, WriteStorage};
 use zksync_types::{get_known_code_key, StorageKey, StorageValue, H256};
 
 pub trait Storage: Debug {
@@ -32,7 +32,7 @@ pub trait Storage: Debug {
     fn missed_storage_invocations(&self) -> usize;
 }
 
-impl<S: ReadStorage + Debug> Storage for StorageView<S> {
+impl<T: WriteStorage> Storage for T {
     fn get_value(&mut self, key: &StorageKey) -> StorageValue {
         ReadStorage::read_value(self, key)
     }
