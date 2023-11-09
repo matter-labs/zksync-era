@@ -11,14 +11,14 @@ use zksync_utils::panic_extractor::try_extract_panic_message;
 
 use vise::{Buckets, Counter, Histogram, LabeledFamily, Metrics};
 
-const BYTE_SIZE_BUCKETS: Buckets = Buckets::exponential(1.0..=64.0, 2.0);
+const ATTEMPT_BUCKETS: Buckets = Buckets::exponential(1.0..=64.0, 2.0);
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "job_processor")]
 struct JobProcessorMetrics {
     #[metrics(labels = ["service", "job_id"])]
     max_attempts_reached: LabeledFamily<(&'static str, String), Counter, 2>,
-    #[metrics(labels = ["service"], buckets = BYTE_SIZE_BUCKETS)]
+    #[metrics(labels = ["service"], buckets = ATTEMPT_BUCKETS)]
     attempts: LabeledFamily<&'static str, Histogram<usize>>,
 }
 
@@ -148,8 +148,14 @@ pub trait JobProcessor: Sync + Send {
             error_message
         );
 
-        if attempts == Some(self.max_attempts()) {
+        let max_attempts = self.max_attempts();
+        if attempts == Some(max_attempts) {
             METRICS.max_attempts_reached[&(Self::SERVICE_NAME, format!("{job_id:?}"))].inc();
+            tracing::error!(
+                "Max attempts ({max_attempts}) reached for {} job {:?}",
+                Self::SERVICE_NAME,
+                job_id,
+            );
         }
         self.save_failure(job_id, started_at, error_message).await;
         Ok(())
