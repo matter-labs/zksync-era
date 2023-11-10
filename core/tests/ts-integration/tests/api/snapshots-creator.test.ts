@@ -21,7 +21,7 @@ describe('Snapshots API tests', () => {
 
     async function runCreator() {
         console.log('Starting creator');
-        await utils.spawn(`cd $ZKSYNC_HOME && cargo run --bin snapshot_creator --release`);
+        await utils.spawn(`cd $ZKSYNC_HOME && cargo run --bin snapshots_creator --release`);
     }
 
     async function rpcRequest(name: string, params: any) {
