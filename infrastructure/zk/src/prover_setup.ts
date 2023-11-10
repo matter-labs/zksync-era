@@ -179,22 +179,6 @@ async function generateSetupData(isBaseLayer: boolean, proverType: ProverType) {
     process.chdir(process.env.ZKSYNC_HOME as string);
 }
 
-async function generateVKSetupData(isBaseLayer: boolean, proverType: ProverType) {
-    const currentEnv = env.get();
-    fs.mkdirSync(`${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`, {
-        recursive: true
-    });
-    process.chdir(`${process.env.ZKSYNC_HOME}/prover`);
-    await utils.spawn(
-        `for i in {1..${isBaseLayer ? '13' : '15'}}; do zk f cargo run ${
-            proverType == ProverType.GPU ? '--features "gpu"' : ''
-        } --release --bin zksync_setup_data_generator_fri -- --numeric-circuit $i ${
-            isBaseLayer ? '--is_base_layer' : ''
-        }; done`
-    );
-    process.chdir(process.env.ZKSYNC_HOME as string);
-}
-
 async function generateAllSetupData(proverType: ProverType) {
     await generateSetupDataForBaseLayer(proverType);
     await generateSetupDataForRecursiveLayers(proverType);
