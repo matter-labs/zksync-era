@@ -1,5 +1,5 @@
-import '@nomiclabs/hardhat-vyper';
 import '@matterlabs/hardhat-zksync-solc';
+import '@nomiclabs/hardhat-vyper';
 import '@matterlabs/hardhat-zksync-vyper';
 
 export default {
