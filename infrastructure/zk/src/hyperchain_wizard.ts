@@ -382,6 +382,7 @@ async function setupHyperchainProver() {
     switch (proverType) {
         case ProverTypeOption.NONE:
             wrapEnvModify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'SkipEveryProof');
+            env.mergeInitToEnv();
             break;
         default:
             await setupProver(proverType === ProverTypeOption.CPU ? ProverType.CPU : ProverType.GPU);
