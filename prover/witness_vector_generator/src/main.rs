@@ -7,7 +7,7 @@ use tokio::{sync::oneshot, sync::watch};
 
 use crate::generator::WitnessVectorGenerator;
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
-use zksync_config::configs::{FriWitnessVectorGeneratorConfig, ProverGroupConfig};
+use zksync_config::configs::{FriProverConfig, FriWitnessVectorGeneratorConfig, ProverGroupConfig};
 use zksync_dal::connection::DbVariant;
 use zksync_dal::ConnectionPool;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
@@ -74,6 +74,7 @@ async fn main() -> anyhow::Result<()> {
         ProverGroupConfig::from_env().context("ProverGroupConfig::from_env()")?;
     let zone = get_zone(&prover_group_config).await.context("get_zone()")?;
     let vk_commitments = get_cached_commitments();
+    let fri_prover_config = FriProverConfig::from_env().context("FriProverConfig::from_env()")?;
     let witness_vector_generator = WitnessVectorGenerator::new(
         blob_store,
         pool,
@@ -81,6 +82,7 @@ async fn main() -> anyhow::Result<()> {
         zone.clone(),
         config,
         vk_commitments,
+        fri_prover_config.max_attempts,
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);

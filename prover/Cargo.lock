@@ -7037,6 +7037,7 @@ dependencies = [
  "async-trait",
  "tokio",
  "tracing",
+ "vise",
  "zksync_utils",
 ]
 
