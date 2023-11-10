@@ -18,6 +18,7 @@ export async function setupProver(proverType: ProverType) {
         wrapEnvModify('PROVER_TYPE', proverType);
         wrapEnvModify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'OnlyRealProofs');
         wrapEnvModify('ETH_SENDER_SENDER_PROOF_LOADING_MODE', 'FriProofFromGcs');
+        wrapEnvModify('FRI_PROVER_GATEWAY_API_POLL_DURATION_SECS', '120');
         await setupArtifactsMode();
         if (!process.env.CI) {
             await setupProverKeys(proverType);
@@ -44,8 +45,8 @@ async function downloadCSR(proverType: ProverType) {
     console.log(chalk.yellow('Downloading ceremony (CSR) file'));
     await utils.spawn('wget -c https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^24.key');
     await utils.sleep(1);
-    wrapEnvModify('CRS_FILE', `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`);
     process.chdir(process.env.ZKSYNC_HOME as string);
+    wrapEnvModify('CRS_FILE', `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`);
 }
 
 async function setupProverKeys(proverType: ProverType) {
@@ -87,6 +88,7 @@ async function setupArtifactsMode() {
         wrapEnvModify('PROVER_OBJECT_STORE_MODE', 'FileBacked');
         wrapEnvModify('OBJECT_STORE_FILE_BACKED_BASE_PATH', path);
         wrapEnvModify('PUBLIC_OBJECT_STORE_FILE_BACKED_BASE_PATH', path);
+        wrapEnvModify('PROVER_OBJECT_STORE_FILE_BACKED_BASE_PATH', path);
         return;
     }
 
@@ -123,6 +125,7 @@ async function setupArtifactsMode() {
         wrapEnvModify('PROVER_OBJECT_STORE_MODE', 'FileBacked');
         wrapEnvModify('OBJECT_STORE_FILE_BACKED_BASE_PATH', folder.path);
         wrapEnvModify('PUBLIC_OBJECT_STORE_FILE_BACKED_BASE_PATH', folder.path);
+        wrapEnvModify('PROVER_OBJECT_STORE_FILE_BACKED_BASE_PATH', folder.path);
     } else {
         const gcpQuestions: BasePromptOptions[] = [
             {
@@ -205,7 +208,7 @@ async function downloadDefaultSetupKeys(proverType: ProverType, region: 'us' | '
     );
 
     await utils.spawn(
-        `cp -r ${process.env.ZKSYNC_HOME}/prover/vk_setup_data_generator_server_fri/data ${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`
+        `cp -r ${process.env.ZKSYNC_HOME}/prover/vk_setup_data_generator_server_fri/data/* ${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`
     );
 }
 
