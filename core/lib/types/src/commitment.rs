@@ -422,7 +422,7 @@ impl L1BatchAuxiliaryOutput {
         let l2_l1_logs_merkle_root =
             MiniMerkleTree::new(merkle_tree_leaves, Some(min_tree_size)).merkle_root();
 
-        if !protocol_version.is_pre_boojum() {
+        if system_logs.len() > 0 {
             assert!(state_diffs_hash == state_diff_hash_from_logs.unwrap());
             assert!(l2_l1_logs_merkle_root == merke_tree_root_from_logs.unwrap());
         }
