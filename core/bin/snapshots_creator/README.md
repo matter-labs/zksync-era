@@ -10,7 +10,7 @@ First run
 then the creator can be run using:  
 `cargo run --bin snapshots_creator --release`
 
-Snapshot contents can be stored based on blob_store config either in local filesystem or GS 
+Snapshot contents can be stored based on blob_store config either in local filesystem or GS.
 
 ## Snapshots format
 
