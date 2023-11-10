@@ -6,31 +6,74 @@ use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_types::snapshots::{
     SnapshotFactoryDependencies, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
 };
+use zksync_types::{L1BatchNumber, MiniblockNumber};
 use zksync_utils::ceil_div;
 
-async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) {
-    // TODO metrics
-    let mut conn = pool.access_storage().await.unwrap();
-
-    let l1_batch_number = conn
-        .blocks_dal()
-        .get_sealed_l1_batch_number()
+async fn process_storage_logs_single_chunk(
+    blob_store: &dyn ObjectStore,
+    pool: &ConnectionPool,
+    l1_batch_number: L1BatchNumber,
+    chunk_id: u64,
+    chunk_size: u64,
+) -> anyhow::Result<String> {
+    let mut conn = pool.access_storage().await?;
+    let logs = conn
+        .storage_logs_snapshots_dal()
+        .get_storage_logs_chunk(l1_batch_number, chunk_id, chunk_size)
         .await
-        .unwrap()
-        - 1; // we subtract 1 so that after restore, EN node has at least one l1 batch to fetch
+        .context("Error fetching storage logs count")?;
+    let storage_logs_chunk = SnapshotStorageLogsChunk { storage_logs: logs };
+    let key = SnapshotStorageLogsStorageKey {
+        l1_batch_number,
+        chunk_id,
+    };
+    blob_store
+        .put(key, &storage_logs_chunk)
+        .await
+        .context("Error storing storage logs chunk in blob store")?;
+
+    let output_file = blob_store.get_full_path::<SnapshotStorageLogsChunk>(key);
+
+    Ok(output_file)
+}
+
+async fn process_factory_deps(
+    blob_store: &dyn ObjectStore,
+    pool: &ConnectionPool,
+    miniblock_number: MiniblockNumber,
+    l1_batch_number: L1BatchNumber,
+) -> anyhow::Result<String> {
+    let mut conn = pool.access_storage().await?;
+    let factory_deps = conn
+        .storage_logs_snapshots_dal()
+        .get_all_factory_deps(miniblock_number)
+        .await;
+    let factory_deps = SnapshotFactoryDependencies { factory_deps };
+    blob_store
+        .put(l1_batch_number, &factory_deps)
+        .await
+        .context("Error storing factory deps in blob store")?;
+    let factory_deps_output_file =
+        blob_store.get_full_path::<SnapshotFactoryDependencies>(l1_batch_number);
+    Ok(factory_deps_output_file)
+}
+
+async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::Result<()> {
+    // TODO metrics
+    let mut conn = pool.access_storage().await?;
+
+    let l1_batch_number = conn.blocks_dal().get_sealed_l1_batch_number().await? - 1; // we subtract 1 so that after restore, EN node has at least one l1 batch to fetch
 
     let miniblock_number = conn
         .blocks_dal()
         .get_miniblock_range_of_l1_batch(l1_batch_number)
-        .await
-        .unwrap()
+        .await?
         .unwrap()
         .1;
     let storage_logs_count = conn
         .storage_logs_snapshots_dal()
         .get_storage_logs_count(l1_batch_number)
-        .await
-        .unwrap();
+        .await?;
 
     //TODO load this from config
     let chunk_size = 1_000_000;
@@ -47,46 +90,35 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) {
         chunk_size
     );
 
-    let mut output_files = vec![];
-
-    let factory_deps = conn
-        .storage_logs_snapshots_dal()
-        .get_all_factory_deps(miniblock_number)
-        .await;
-    let factory_deps = SnapshotFactoryDependencies { factory_deps };
-    blob_store
-        .put(l1_batch_number, &factory_deps)
-        .await
-        .unwrap();
     let factory_deps_output_file =
-        blob_store.get_full_path::<SnapshotFactoryDependencies>(l1_batch_number);
+        process_factory_deps(&*blob_store, &pool, miniblock_number, l1_batch_number).await?;
+
+    let mut storage_logs_output_files = vec![];
 
     for chunk_id in 0..chunks_count {
-        let logs = conn
-            .storage_logs_snapshots_dal()
-            .get_storage_logs_chunk(l1_batch_number, chunk_id, chunk_size)
-            .await
-            .unwrap();
-        let storage_logs_chunk = SnapshotStorageLogsChunk { storage_logs: logs };
-        let key = SnapshotStorageLogsStorageKey {
+        let output_file = process_storage_logs_single_chunk(
+            &*blob_store,
+            &pool,
             l1_batch_number,
             chunk_id,
-        };
-        blob_store.put(key, &storage_logs_chunk).await.unwrap();
-        let output_file = blob_store.get_full_path::<SnapshotStorageLogsChunk>(key);
-        output_files.push(output_file.clone());
+            chunk_size,
+        )
+        .await?;
+        storage_logs_output_files.push(output_file.clone());
         tracing::info!(
-            "Finished storing chunk {}/{} in {}",
-            key.chunk_id + 1,
-            chunks_count,
-            output_file
+            "Finished storing chunk {}/{chunks_count} in {output_file}",
+            chunk_id + 1,
         );
     }
 
     conn.snapshots_dal()
-        .add_snapshot(l1_batch_number, &output_files, factory_deps_output_file)
-        .await
-        .unwrap();
+        .add_snapshot(
+            l1_batch_number,
+            &storage_logs_output_files,
+            factory_deps_output_file,
+        )
+        .await?;
+    Ok(())
 }
 
 #[tokio::main]
@@ -118,7 +150,7 @@ async fn main() -> anyhow::Result<()> {
         .await
         .unwrap();
 
-    run(blob_store, pool).await;
+    run(blob_store, pool).await?;
     tracing::info!("Finished running snapshot creator!");
     Ok(())
 }
