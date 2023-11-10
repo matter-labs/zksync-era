@@ -115,7 +115,8 @@ pub trait ZksNamespaceT {
     #[rpc(name = "zks_getProof")]
     fn get_proof(
         &self,
-        hashed_keys: Vec<U256>,
+        address: Address,
+        keys: Vec<H256>,
         l1_batch_number: L1BatchNumber,
     ) -> BoxFuture<Result<Vec<TreeEntryWithProof>>>;
 }
@@ -318,13 +319,14 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceT for ZksNamespa
 
     fn get_proof(
         &self,
-        hashed_keys: Vec<U256>,
+        address: Address,
+        keys: Vec<H256>,
         l1_batch_number: L1BatchNumber,
     ) -> BoxFuture<Result<Vec<TreeEntryWithProof>>> {
         let self_ = self.clone();
         Box::pin(async move {
             self_
-                .get_proofs_impl(hashed_keys, l1_batch_number)
+                .get_proofs_impl(address, keys, l1_batch_number)
                 .await
                 .map_err(into_jsrpc_error)
         })

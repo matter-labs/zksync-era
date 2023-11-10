@@ -15,8 +15,9 @@ use zksync_types::{
     l2_to_l1_log::L2ToL1Log,
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
-    L1BatchNumber, MiniblockNumber, Transaction, L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS,
-    MAX_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
+    AccountTreeId, L1BatchNumber, MiniblockNumber, StorageKey, Transaction, L1_MESSENGER_ADDRESS,
+    L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
+    U64,
 };
 use zksync_utils::{address_to_h256, ratio_to_big_decimal_normalized};
 use zksync_web3_decl::{
@@ -625,10 +626,16 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
     #[tracing::instrument(skip_all)]
     pub async fn get_proofs_impl(
         &self,
-        hashed_keys: Vec<U256>,
+        address: Address,
+        keys: Vec<H256>,
         l1_batch_number: L1BatchNumber,
     ) -> Result<Vec<TreeEntryWithProof>, Web3Error> {
         const METHOD_NAME: &str = "get_proofs";
+
+        let hashed_keys = keys
+            .into_iter()
+            .map(|key| StorageKey::new(AccountTreeId::new(address), key).hashed_key_u256())
+            .collect();
 
         let keys = self
             .state
