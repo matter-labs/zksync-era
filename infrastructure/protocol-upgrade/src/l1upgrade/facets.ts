@@ -13,19 +13,7 @@ async function deployAllFacets(
     environment: string
 ) {
     const file = getFacetsFileName(environment);
-    await callFacetDeployer(
-        l1RpcProvider,
-        privateKey,
-        gasPrice,
-        create2Address,
-        nonce,
-        true,
-        true,
-        true,
-        true,
-        true,
-        file
-    );
+    await callFacetDeployer(l1RpcProvider, privateKey, gasPrice, create2Address, nonce, true, true, true, true, file);
 }
 
 async function deployFacetsAndMergeFiles(
@@ -35,8 +23,7 @@ async function deployFacetsAndMergeFiles(
     create2Address: string,
     nonce: string,
     executor: boolean,
-    governance: boolean,
-    diamondCut: boolean,
+    admin: boolean,
     getters: boolean,
     mailbox: boolean,
     environment
@@ -51,8 +38,7 @@ async function deployFacetsAndMergeFiles(
         create2Address,
         nonce,
         executor,
-        governance,
-        diamondCut,
+        admin,
         getters,
         mailbox,
         tmpFacetsFile
@@ -77,9 +63,9 @@ async function generateFacetCuts(l1RpcProvider?: string, zksyncAddress?: string,
     if (gettersAddress) {
         gettersAddress = gettersAddress['address'];
     }
-    let diamondCutAddress = facets['DiamondCutFacet'];
-    if (diamondCutAddress) {
-        diamondCutAddress = diamondCutAddress['address'];
+    let adminAddress = facets['AdminFacet'];
+    if (adminAddress) {
+        adminAddress = adminAddress['address'];
     }
     let mailboxAddress = facets['MailboxFacet'];
     if (mailboxAddress) {
@@ -89,20 +75,15 @@ async function generateFacetCuts(l1RpcProvider?: string, zksyncAddress?: string,
     if (executorAddress) {
         executorAddress = executorAddress['address'];
     }
-    let governanceAddress = facets['GovernanceFacet'];
-    if (governanceAddress) {
-        governanceAddress = governanceAddress['address'];
-    }
 
     await callGenerateFacetCuts(
         zksyncAddress,
         getFacetCutsFileName(environment),
         l1RpcProvider,
-        diamondCutAddress,
+        adminAddress,
         gettersAddress,
         mailboxAddress,
-        executorAddress,
-        governanceAddress
+        executorAddress
     );
 }
 
@@ -110,11 +91,10 @@ async function callGenerateFacetCuts(
     zksyncAddress: string,
     file: string,
     l1RpcProvider?: string,
-    diamondCutAddress?: string,
+    adminAddress?: string,
     gettersAddress?: string,
     mailboxAddress?: string,
-    executorAddress?: string,
-    governanceAddress?: string
+    executorAddress?: string
 ) {
     const cwd = process.cwd();
     process.chdir(`${process.env.ZKSYNC_HOME}/contracts/ethereum/`);
@@ -122,8 +102,8 @@ async function callGenerateFacetCuts(
     if (l1RpcProvider) {
         argsString += ` --l1Rpc ${l1RpcProvider}`;
     }
-    if (diamondCutAddress) {
-        argsString += ` --diamond-cut-facet-address ${diamondCutAddress}`;
+    if (adminAddress) {
+        argsString += ` --admin-address ${adminAddress}`;
     }
     if (gettersAddress) {
         argsString += ` --getters-address ${gettersAddress}`;
@@ -133,9 +113,6 @@ async function callGenerateFacetCuts(
     }
     if (executorAddress) {
         argsString += ` --executor-address ${executorAddress}`;
-    }
-    if (governanceAddress) {
-        argsString += ` --governance-address ${governanceAddress}`;
     }
 
     argsString += ` --zkSyncAddress ${zksyncAddress}`;
@@ -196,8 +173,7 @@ command
     .option('--nonce <nonce>')
     .option('--l1rpc <l1Rpc>')
     .option('--executor')
-    .option('--governance')
-    .option('--diamond-cut')
+    .option('--admin')
     .option('--getters')
     .option('--mailbox')
     .action(async (cmd) => {
@@ -208,8 +184,7 @@ command
             cmd.create2Address,
             cmd.nonce,
             cmd.executor,
-            cmd.governance,
-            cmd.diamondCut,
+            cmd.admin,
             cmd.getters,
             cmd.mailbox,
             cmd.environment

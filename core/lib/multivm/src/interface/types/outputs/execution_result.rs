@@ -1,9 +1,9 @@
 use crate::interface::{Halt, VmExecutionStatistics, VmRevertReason};
 use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
 use zksync_types::event::{extract_long_l2_to_l1_messages, extract_published_bytecodes};
-use zksync_types::tx::tx_execution_info::VmExecutionLogs;
+use zksync_types::l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log};
 use zksync_types::tx::ExecutionMetrics;
-use zksync_types::Transaction;
+use zksync_types::{StorageLogQuery, Transaction, VmEvent};
 use zksync_utils::bytecode::bytecode_len_in_bytes;
 
 /// Refunds produced for the user.
@@ -11,6 +11,25 @@ use zksync_utils::bytecode::bytecode_len_in_bytes;
 pub struct Refunds {
     pub gas_refunded: u32,
     pub operator_suggested_refund: u32,
+}
+
+/// Events/storage logs/l2->l1 logs created within transaction execution.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct VmExecutionLogs {
+    pub storage_logs: Vec<StorageLogQuery>,
+    pub events: Vec<VmEvent>,
+    // For pre-boojum VMs, there was no distinction between user logs and system
+    // logs and so all the outputted logs were treated as user_l2_to_l1_logs.
+    pub user_l2_to_l1_logs: Vec<UserL2ToL1Log>,
+    pub system_l2_to_l1_logs: Vec<SystemL2ToL1Log>,
+    // This field moved to statistics, but we need to keep it for backward compatibility
+    pub total_log_queries_count: usize,
+}
+
+impl VmExecutionLogs {
+    pub fn total_l2_to_l1_logs_count(&self) -> usize {
+        self.user_l2_to_l1_logs.len() + self.system_l2_to_l1_logs.len()
+    }
 }
 
 /// Result and logs of the VM execution.
@@ -70,7 +89,7 @@ impl VmExecutionResultAndLogs {
             gas_used: self.statistics.gas_used as usize,
             published_bytecode_bytes,
             l2_l1_long_messages,
-            l2_l1_logs: self.logs.l2_to_l1_logs.len(),
+            l2_to_l1_logs: self.logs.total_l2_to_l1_logs_count(),
             contracts_used: self.statistics.contracts_used,
             contracts_deployed,
             vm_events: self.logs.events.len(),
@@ -78,6 +97,7 @@ impl VmExecutionResultAndLogs {
             total_log_queries: self.statistics.total_log_queries,
             cycles_used: self.statistics.cycles_used,
             computational_gas_used: self.statistics.computational_gas_used,
+            pubdata_published: self.statistics.pubdata_published,
         }
     }
 }

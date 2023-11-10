@@ -2,8 +2,8 @@ use crate::glue::{GlueFrom, GlueInto};
 use crate::interface::{ExecutionResult, Refunds, TxRevertReason, VmExecutionResultAndLogs};
 use zksync_types::tx::tx_execution_info::TxExecutionStatus;
 
-impl GlueFrom<crate::vm_m5::vm::VmTxExecutionResult> for VmExecutionResultAndLogs {
-    fn glue_from(value: crate::vm_m5::vm::VmTxExecutionResult) -> Self {
+impl GlueFrom<crate::vm_m5::vm_instance::VmTxExecutionResult> for VmExecutionResultAndLogs {
+    fn glue_from(value: crate::vm_m5::vm_instance::VmTxExecutionResult) -> Self {
         let mut result: VmExecutionResultAndLogs = value.result.glue_into();
         if result.result.is_failed() {
             assert_eq!(value.status, TxExecutionStatus::Failure);
@@ -17,8 +17,8 @@ impl GlueFrom<crate::vm_m5::vm::VmTxExecutionResult> for VmExecutionResultAndLog
     }
 }
 
-impl GlueFrom<crate::vm_m6::vm::VmTxExecutionResult> for VmExecutionResultAndLogs {
-    fn glue_from(value: crate::vm_m6::vm::VmTxExecutionResult) -> Self {
+impl GlueFrom<crate::vm_m6::vm_instance::VmTxExecutionResult> for VmExecutionResultAndLogs {
+    fn glue_from(value: crate::vm_m6::vm_instance::VmTxExecutionResult) -> Self {
         let mut result: VmExecutionResultAndLogs = value.result.glue_into();
         if result.result.is_failed() {
             assert_eq!(value.status, TxExecutionStatus::Failure);
@@ -32,8 +32,8 @@ impl GlueFrom<crate::vm_m6::vm::VmTxExecutionResult> for VmExecutionResultAndLog
     }
 }
 
-impl GlueFrom<crate::vm_1_3_2::vm::VmTxExecutionResult> for VmExecutionResultAndLogs {
-    fn glue_from(value: crate::vm_1_3_2::vm::VmTxExecutionResult) -> Self {
+impl GlueFrom<crate::vm_1_3_2::vm_instance::VmTxExecutionResult> for VmExecutionResultAndLogs {
+    fn glue_from(value: crate::vm_1_3_2::vm_instance::VmTxExecutionResult) -> Self {
         let mut result: VmExecutionResultAndLogs = value.result.glue_into();
         if result.result.is_failed() {
             assert_eq!(value.status, TxExecutionStatus::Failure);
@@ -47,11 +47,11 @@ impl GlueFrom<crate::vm_1_3_2::vm::VmTxExecutionResult> for VmExecutionResultAnd
     }
 }
 
-impl GlueFrom<Result<crate::vm_m6::vm::VmTxExecutionResult, crate::vm_m6::TxRevertReason>>
+impl GlueFrom<Result<crate::vm_m6::vm_instance::VmTxExecutionResult, crate::vm_m6::TxRevertReason>>
     for VmExecutionResultAndLogs
 {
     fn glue_from(
-        value: Result<crate::vm_m6::vm::VmTxExecutionResult, crate::vm_m6::TxRevertReason>,
+        value: Result<crate::vm_m6::vm_instance::VmTxExecutionResult, crate::vm_m6::TxRevertReason>,
     ) -> Self {
         match value {
             Ok(result) => result.glue_into(),
@@ -76,11 +76,16 @@ impl GlueFrom<Result<crate::vm_m6::vm::VmTxExecutionResult, crate::vm_m6::TxReve
     }
 }
 
-impl GlueFrom<Result<crate::vm_1_3_2::vm::VmTxExecutionResult, crate::vm_1_3_2::TxRevertReason>>
-    for VmExecutionResultAndLogs
+impl
+    GlueFrom<
+        Result<crate::vm_1_3_2::vm_instance::VmTxExecutionResult, crate::vm_1_3_2::TxRevertReason>,
+    > for VmExecutionResultAndLogs
 {
     fn glue_from(
-        value: Result<crate::vm_1_3_2::vm::VmTxExecutionResult, crate::vm_1_3_2::TxRevertReason>,
+        value: Result<
+            crate::vm_1_3_2::vm_instance::VmTxExecutionResult,
+            crate::vm_1_3_2::TxRevertReason,
+        >,
     ) -> Self {
         match value {
             Ok(result) => result.glue_into(),
@@ -105,11 +110,11 @@ impl GlueFrom<Result<crate::vm_1_3_2::vm::VmTxExecutionResult, crate::vm_1_3_2::
     }
 }
 
-impl GlueFrom<Result<crate::vm_m5::vm::VmTxExecutionResult, crate::vm_m5::TxRevertReason>>
+impl GlueFrom<Result<crate::vm_m5::vm_instance::VmTxExecutionResult, crate::vm_m5::TxRevertReason>>
     for VmExecutionResultAndLogs
 {
     fn glue_from(
-        value: Result<crate::vm_m5::vm::VmTxExecutionResult, crate::vm_m5::TxRevertReason>,
+        value: Result<crate::vm_m5::vm_instance::VmTxExecutionResult, crate::vm_m5::TxRevertReason>,
     ) -> Self {
         match value {
             Ok(result) => result.glue_into(),

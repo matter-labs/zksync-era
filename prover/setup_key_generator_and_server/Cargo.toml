@@ -21,6 +21,7 @@ path = "src/main.rs"
 zksync_types = { path = "../../core/lib/types" }
 vlog = { path = "../../core/lib/vlog" }
 zksync_config = { path = "../../core/lib/config" }
+zksync_env_config = { path = "../../core/lib/env_config" }
 
 circuit_testing = { git = "https://github.com/matter-labs/era-circuit_testing.git", branch = "main" }
 api = { git = "https://github.com/matter-labs/era-heavy-ops-service.git", branch = "v1.3.3", features = [
