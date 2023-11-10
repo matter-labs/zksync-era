@@ -41,8 +41,8 @@ async function downloadCSR(proverType: ProverType) {
         recursive: true
     });
     process.chdir(`${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`);
-    console.log(chalk.yellow("Downloading ceremony (CSR) file"));
-    await utils.spawn("wget -c https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^24.key");
+    console.log(chalk.yellow('Downloading ceremony (CSR) file'));
+    await utils.spawn('wget -c https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^24.key');
     await utils.sleep(1);
     wrapEnvModify('CRS_FILE', `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`);
     process.chdir(process.env.ZKSYNC_HOME as string);
@@ -69,8 +69,6 @@ async function setupProverKeys(proverType: ProverType) {
     } else {
         await generateAllSetupData(proverType);
     }
-
-
 
     wrapEnvModify(
         'FRI_PROVER_SETUP_DATA_PATH',
@@ -206,7 +204,9 @@ async function downloadDefaultSetupKeys(proverType: ProverType, region: 'us' | '
         `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`
     );
 
-    await utils.spawn(`cp -r ${process.env.ZKSYNC_HOME}/prover/vk_setup_data_generator_server_fri/data ${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`);    
+    await utils.spawn(
+        `cp -r ${process.env.ZKSYNC_HOME}/prover/vk_setup_data_generator_server_fri/data ${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`
+    );
 }
 
 async function listFilesFromGCP(gcpUri: string): Promise<string[]> {
