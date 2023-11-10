@@ -340,6 +340,30 @@
     },
     "query": "INSERT INTO eth_txs_history (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at) VALUES ($1, 0, 0, $2, '\\x00', now(), now(), $3) RETURNING id"
   },
+  "09768b376996b96add16a02d1a59231cb9b525cd5bd19d22a76149962d4c91c2": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Bytea",
+          "Bytea",
+          "Bytea",
+          "Bytea",
+          "Bytea",
+          "Bytea",
+          "Bool",
+          "Bytea",
+          "Int8",
+          "Bytea",
+          "Bytea",
+          "Bytea",
+          "Int8"
+        ]
+      }
+    },
+    "query": "UPDATE l1_batches SET hash = $1, merkle_root_hash = $2, compressed_repeated_writes = $3, compressed_initial_writes = $4, l2_l1_compressed_messages = $5, l2_l1_merkle_root = $6, zkporter_is_available = $7, parent_hash = $8, rollup_last_leaf_index = $9, pass_through_data_hash = $10, meta_parameters_hash = $11, compressed_state_diffs = $12, updated_at = now() WHERE number = $13 AND hash IS NULL"
+  },
   "0c212f47b9a0e719f947a419be8284837b1b01aa23994ba6401b420790b802b8": {
     "describe": {
       "columns": [],
@@ -1961,6 +1985,20 @@
       }
     },
     "query": "SELECT recursion_scheduler_level_vk_hash, recursion_node_level_vk_hash, recursion_leaf_level_vk_hash, recursion_circuits_set_vks_hash\n                FROM protocol_versions\n                WHERE id = $1\n            "
+  },
+  "21c29846f4253081057b86cc1b7ce4ef3ae618c5561c876502dc7f4e773ee91e": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Bytea",
+          "Bytea"
+        ]
+      }
+    },
+    "query": "INSERT INTO commitments (l1_batch_number, events_queue_commitment, bootloader_initial_content_commitment) VALUES ($1, $2, $3) ON CONFLICT (l1_batch_number) DO NOTHING"
   },
   "22b57675a726d9cfeb82a60ba50c36cab1548d197ea56a7658d3f005df07c60b": {
     "describe": {
@@ -5592,20 +5630,6 @@
       }
     },
     "query": "\n                UPDATE leaf_aggregation_witness_jobs\n                SET status='queued'\n                WHERE l1_batch_number IN\n                      (SELECT prover_jobs.l1_batch_number\n                       FROM prover_jobs\n                                JOIN leaf_aggregation_witness_jobs lawj ON prover_jobs.l1_batch_number = lawj.l1_batch_number\n                       WHERE lawj.status = 'waiting_for_proofs'\n                         AND prover_jobs.status = 'successful'\n                         AND prover_jobs.aggregation_round = 0\n                       GROUP BY prover_jobs.l1_batch_number, lawj.number_of_basic_circuits\n                       HAVING COUNT(*) = lawj.number_of_basic_circuits)\n                RETURNING l1_batch_number;\n            "
-  },
-  "68a9ba78f60674bc047e4af6eb2a379725da047f2e6c06bce96a33852565cc95": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Int8",
-          "Bytea",
-          "Bytea"
-        ]
-      }
-    },
-    "query": "INSERT INTO commitments (l1_batch_number, events_queue_commitment, bootloader_initial_content_commitment) VALUES ($1, $2, $3) ON CONFLICT (l1_batch_number) DO UPDATE SET events_queue_commitment = $2, bootloader_initial_content_commitment = $3"
   },
   "694f1d154f3f38b123d8f845fef6e876d35dc3743f1c5b69dce6be694e5e726c": {
     "describe": {
@@ -9603,6 +9627,20 @@
     },
     "query": "SELECT bytecode, bytecode_hash FROM factory_deps WHERE bytecode_hash = ANY($1)"
   },
+  "c0904ee4179531cfb9d458a17f753085dc2ed957b30a89119d7534112add3876": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Bytea",
+          "Bytea"
+        ]
+      }
+    },
+    "query": "UPDATE l1_batches SET commitment = $2, aux_data_hash = $3, updated_at = now() WHERE number = $1"
+  },
   "c178e1574d2a16cb90bcc5d5333a4f8dd2a69e0c12b4e7e108a8dcc6000669a5": {
     "describe": {
       "columns": [
@@ -10676,32 +10714,6 @@
       }
     },
     "query": "\n                UPDATE witness_inputs\n                SET status = 'in_progress', attempts = attempts + 1,\n                    updated_at = now(), processing_started_at = now()\n                WHERE l1_batch_number = (\n                        SELECT l1_batch_number\n                        FROM witness_inputs\n                        WHERE l1_batch_number <= $3\n                        AND\n                        (   status = 'queued'\n                            OR (status = 'in_progress' AND processing_started_at < now() - $1::interval)\n                            OR (status = 'failed' AND attempts < $2)\n                        )\n                        AND protocol_version = ANY($4)\n                        ORDER BY l1_batch_number ASC\n                        LIMIT 1\n                        FOR UPDATE\n                        SKIP LOCKED\n                )\n                RETURNING witness_inputs.*\n               "
-  },
-  "e03756d19dfdf4cdffa81154e690dc7c36024dad5363e0c5440606a5a50eef53": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Bytea",
-          "Bytea",
-          "Bytea",
-          "Bytea",
-          "Bytea",
-          "Bytea",
-          "Bytea",
-          "Bool",
-          "Bytea",
-          "Int8",
-          "Bytea",
-          "Bytea",
-          "Bytea",
-          "Bytea",
-          "Int8"
-        ]
-      }
-    },
-    "query": "UPDATE l1_batches SET hash = $1, merkle_root_hash = $2, commitment = $3, compressed_repeated_writes = $4, compressed_initial_writes = $5, l2_l1_compressed_messages = $6, l2_l1_merkle_root = $7, zkporter_is_available = $8, parent_hash = $9, rollup_last_leaf_index = $10, aux_data_hash = $11, pass_through_data_hash = $12, meta_parameters_hash = $13, compressed_state_diffs = $14, updated_at = now() WHERE number = $15 AND hash IS NULL"
   },
   "e05a8c74653afc78c892ddfd08e60ab040d2b2f7c4b5ee110988eac2dd0dd90d": {
     "describe": {
