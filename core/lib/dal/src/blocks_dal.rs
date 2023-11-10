@@ -739,6 +739,21 @@ impl BlocksDal<'_, '_> {
         Ok(L1BatchNumber(row.number as u32))
     }
 
+    pub async fn get_eth_commit_tx_id(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> sqlx::Result<Option<u64>> {
+        let row = sqlx::query!(
+            "SELECT eth_commit_tx_id FROM l1_batches \
+            WHERE number = $1",
+            l1_batch_number.0 as i64
+        )
+        .fetch_optional(self.storage.conn())
+        .await?;
+
+        Ok(row.and_then(|row| row.eth_commit_tx_id.map(|n| n as u64)))
+    }
+
     /// Returns the number of the last L1 batch for which an Ethereum prove tx was sent and confirmed.
     pub async fn get_number_of_last_l1_batch_proven_on_eth(
         &mut self,
