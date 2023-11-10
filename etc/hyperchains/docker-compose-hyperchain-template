@@ -2,6 +2,8 @@ version: '3.2'
 networks:
   zkstack:
     driver: bridge
+volumes:
+  artifacts:
 services:
   zkstack-core:
     networks:
@@ -21,8 +23,7 @@ services:
       #- "3312:3312" # prometheus metrics # we need a separate metrics port for each component
       - "3320:3320" # proof_data_handler api
     volumes:
-      - {{proverArtifacts}}:{{proverArtifacts}}
-      - {{serverArtifacts}}:{{serverArtifacts}}
+      - artifacts:{{artifactsPath}}
   zkstack-apis:
     networks:
       - zkstack
@@ -57,8 +58,8 @@ services:
     # ports: # assumes default ports in .env
     #   - "3312:3312" # prometheus metrics
     volumes:
-      - {{proverArtifacts}}:{{proverArtifacts}}
-      - {{serverArtifacts}}:{{serverArtifacts}}
+      - artifacts:{{artifactsPath}}
+      - {{proverSetupArtifacts}}:{{proverSetupArtifacts}}
   zkstack-witness-generator-basic-circuits:
     networks:
       - zkstack
@@ -69,8 +70,7 @@ services:
     # ports: # assumes default ports in .env
     #   - "3312:3312" # prometheus metrics
     volumes:
-      - {{proverArtifacts}}:{{proverArtifacts}}
-      - {{serverArtifacts}}:{{serverArtifacts}}
+      - artifacts:{{artifactsPath}}
       - {{proverSetupArtifacts}}:{{proverSetupArtifacts}}
   zkstack-witness-generator-leaf-aggregation:
     networks:
@@ -82,8 +82,7 @@ services:
     # ports: # assumes default ports in .env
     #   - "3312:3312" # prometheus metrics
     volumes:
-      - {{proverArtifacts}}:{{proverArtifacts}}
-      - {{serverArtifacts}}:{{serverArtifacts}}
+      - artifacts:{{artifactsPath}}
       - {{proverSetupArtifacts}}:{{proverSetupArtifacts}}
   zkstack-witness-generator-node-aggregation:
     networks:
@@ -95,8 +94,7 @@ services:
     # ports: # assumes default ports in .env
     #   - "3312:3312" # prometheus metrics
     volumes:
-      - {{proverArtifacts}}:{{proverArtifacts}}
-      - {{serverArtifacts}}:{{serverArtifacts}}
+      - artifacts:{{artifactsPath}}
       - {{proverSetupArtifacts}}:{{proverSetupArtifacts}}
   zkstack-witness-generator-scheduler:
     networks:
@@ -108,8 +106,7 @@ services:
     # ports: # assumes default ports in .env
     #   - "3312:3312" # prometheus metrics
     volumes:
-      - {{proverArtifacts}}:{{proverArtifacts}}
-      - {{serverArtifacts}}:{{serverArtifacts}}
+      - artifacts:{{artifactsPath}}
       - {{proverSetupArtifacts}}:{{proverSetupArtifacts}}
   zkstack-prover-fri:
     networks:
@@ -120,8 +117,7 @@ services:
     # ports: # assumes default ports in .env
     #   - "3312:3312" # prometheus metrics
     volumes:
-      - {{proverArtifacts}}:{{proverArtifacts}}
-      - {{serverArtifacts}}:{{serverArtifacts}}
+      - artifacts:{{artifactsPath}}
       - {{proverSetupArtifacts}}:{{proverSetupArtifacts}}
   zkstack-proof-fri-compressor:
     networks:
@@ -132,7 +128,7 @@ services:
     # ports: # assumes default ports in .env
     #   - "3312:3312" # prometheus metrics
     volumes:
-      - {{proverArtifacts}}:{{proverArtifacts}}
-      - {{serverArtifacts}}:{{serverArtifacts}}
+      - artifacts:{{artifactsPath}}
+      - {{proverSetupArtifacts}}:{{proverSetupArtifacts}}
   {{/if}}
   

@@ -35,6 +35,19 @@ export async function setupProver(proverType: ProverType) {
     }
 }
 
+async function downloadCSR(proverType: ProverType) {
+    const currentEnv = env.get();
+    fs.mkdirSync(`${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`, {
+        recursive: true
+    });
+    process.chdir(`${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`);
+    console.log(chalk.yellow("Downloading ceremony (CSR) file"));
+    await utils.spawn("wget -c https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^24.key");
+    await utils.sleep(1);
+    wrapEnvModify('CRS_FILE', `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`);
+    process.chdir(process.env.ZKSYNC_HOME as string);
+}
+
 async function setupProverKeys(proverType: ProverType) {
     const DOWNLOAD = 'Download default keys';
     const GENERATE = 'Generate locally';
@@ -50,11 +63,14 @@ async function setupProverKeys(proverType: ProverType) {
 
     const results: any = await enquirer.prompt(questions);
 
+    await downloadCSR(proverType);
     if (results.proverKeys == DOWNLOAD) {
         await downloadDefaultSetupKeys(proverType);
     } else {
         await generateAllSetupData(proverType);
     }
+
+
 
     wrapEnvModify(
         'FRI_PROVER_SETUP_DATA_PATH',
@@ -161,6 +177,22 @@ async function generateSetupData(isBaseLayer: boolean, proverType: ProverType) {
     process.chdir(process.env.ZKSYNC_HOME as string);
 }
 
+async function generateVKSetupData(isBaseLayer: boolean, proverType: ProverType) {
+    const currentEnv = env.get();
+    fs.mkdirSync(`${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`, {
+        recursive: true
+    });
+    process.chdir(`${process.env.ZKSYNC_HOME}/prover`);
+    await utils.spawn(
+        `for i in {1..${isBaseLayer ? '13' : '15'}}; do zk f cargo run ${
+            proverType == ProverType.GPU ? '--features "gpu"' : ''
+        } --release --bin zksync_setup_data_generator_fri -- --numeric-circuit $i ${
+            isBaseLayer ? '--is_base_layer' : ''
+        }; done`
+    );
+    process.chdir(process.env.ZKSYNC_HOME as string);
+}
+
 async function generateAllSetupData(proverType: ProverType) {
     await generateSetupDataForBaseLayer(proverType);
     await generateSetupDataForRecursiveLayers(proverType);
@@ -173,6 +205,8 @@ async function downloadDefaultSetupKeys(proverType: ProverType, region: 'us' | '
         proverKeysUrls[region],
         `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`
     );
+
+    await utils.spawn(`cp -r ${process.env.ZKSYNC_HOME}/prover/vk_setup_data_generator_server_fri/data ${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`);    
 }
 
 async function listFilesFromGCP(gcpUri: string): Promise<string[]> {

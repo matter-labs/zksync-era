@@ -661,13 +661,12 @@ async function _generateDockerImages(_orgName?: string) {
     console.log(warning(`\nDocker image for server created: Server image: ${orgName}/server-v2:latest\n`));
 
     let hasProver = false;
-    let proverArtifacts, serverArtifacts, proverSetupArtifacts;
+    let artifactsPath, proverSetupArtifacts;
 
     if (process.env.ETH_SENDER_SENDER_PROOF_SENDING_MODE !== 'SkipEveryProof') {
         hasProver = true;
         if (process.env.OBJECT_STORE_MODE === 'FileBacked') {
-            proverArtifacts = process.env.OBJECT_STORE_FILE_BACKED_BASE_PATH;
-            serverArtifacts = process.env.OBJECT_STORE_FILE_BACKED_BASE_PATH;
+            artifactsPath = process.env.OBJECT_STORE_FILE_BACKED_BASE_PATH;
             proverSetupArtifacts = process.env.FRI_PROVER_SETUP_DATA_PATH;
         }
 
@@ -693,8 +692,7 @@ async function _generateDockerImages(_orgName?: string) {
         envFilePath: `./etc/env/${envName}.env`,
         orgName,
         hasProver,
-        proverArtifacts,
-        serverArtifacts,
+        artifactsPath,
         proverSetupArtifacts
     };
 
