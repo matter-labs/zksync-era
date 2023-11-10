@@ -7,11 +7,14 @@
 //! transactions, thus the calculations are done separately and asynchronously.
 
 use serde::{Deserialize, Serialize};
+use zksync_utils::u256_to_h256;
 
 use std::{collections::HashMap, convert::TryFrom};
 
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
+use zksync_system_constants::{
+    L2_TO_L1_LOGS_TREE_ROOT_KEY, STATE_DIFF_HASH_KEY, ZKPORTER_IS_AVAILABLE,
+};
 
 use crate::{
     block::L1BatchHeader,
@@ -353,6 +356,22 @@ impl L1BatchAuxiliaryOutput {
         events_state_queue_hash: H256,
         protocol_version: ProtocolVersionId,
     ) -> Self {
+        let state_diff_hash_from_logs = system_logs.iter().find_map(|log| {
+            if log.0.key == u256_to_h256(STATE_DIFF_HASH_KEY.into()) {
+                Some(log.0.value)
+            } else {
+                None
+            }
+        });
+
+        let merke_tree_root_from_logs = system_logs.iter().find_map(|log| {
+            if log.0.key == u256_to_h256(L2_TO_L1_LOGS_TREE_ROOT_KEY.into()) {
+                Some(log.0.value)
+            } else {
+                None
+            }
+        });
+
         let (
             l2_l1_logs_compressed,
             initial_writes_compressed,
@@ -402,6 +421,11 @@ impl L1BatchAuxiliaryOutput {
         };
         let l2_l1_logs_merkle_root =
             MiniMerkleTree::new(merkle_tree_leaves, Some(min_tree_size)).merkle_root();
+
+        if !protocol_version.is_pre_boojum() {
+            assert!(state_diffs_hash == state_diff_hash_from_logs.unwrap());
+            assert!(l2_l1_logs_merkle_root == merke_tree_root_from_logs.unwrap());
+        }
 
         Self {
             l2_l1_logs_compressed,
