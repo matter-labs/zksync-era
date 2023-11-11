@@ -1,11 +1,11 @@
-use crate::vm_m5::glue::GlueInto;
 use crate::vm_m5::oracles::storage::storage_key_of_log;
 use crate::vm_m5::storage::Storage;
 use crate::vm_m5::utils::collect_storage_log_queries_after_timestamp;
-use crate::vm_m5::VmInstance;
+use crate::vm_m5::vm_instance::VmInstance;
 use std::collections::HashMap;
 use zk_evm_1_3_1::aux_structures::Timestamp;
 
+use crate::glue::GlueInto;
 use zksync_types::event::{extract_long_l2_to_l1_messages, extract_published_bytecodes};
 use zksync_types::zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{StorageKey, PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS};

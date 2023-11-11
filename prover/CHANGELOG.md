@@ -1,5 +1,24 @@
 # Changelog
 
+## [9.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v8.1.0...prover-v9.0.0) (2023-11-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* boojum integration ([#112](https://github.com/matter-labs/zksync-era/issues/112))
+
+### Features
+
+* boojum integration ([#112](https://github.com/matter-labs/zksync-era/issues/112)) ([e76d346](https://github.com/matter-labs/zksync-era/commit/e76d346d02ded771dea380aa8240da32119d7198))
+* **core:** Split config definitions and deserialization ([#414](https://github.com/matter-labs/zksync-era/issues/414)) ([c7c6b32](https://github.com/matter-labs/zksync-era/commit/c7c6b321a63dbcc7f1af045aa7416e697beab08f))
+
+
+### Bug Fixes
+
+* **crypto:** update deps to include circuit fixes ([#402](https://github.com/matter-labs/zksync-era/issues/402)) ([4c82015](https://github.com/matter-labs/zksync-era/commit/4c820150714dfb01c304c43e27f217f17deba449))
+* **path:** update gpu prover setup data path to remove extra gpu suffix ([#454](https://github.com/matter-labs/zksync-era/issues/454)) ([2e145c1](https://github.com/matter-labs/zksync-era/commit/2e145c192b348b2756acf61fac5bfe0ca5a6575f))
+* Update prover to use the correct storage oracle ([#446](https://github.com/matter-labs/zksync-era/issues/446)) ([835dd82](https://github.com/matter-labs/zksync-era/commit/835dd828ef5610a446ec8c456e4df1def0e213ab))
+
 ## [8.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v7.2.0...prover-v8.1.0) (2023-11-03)
 
 

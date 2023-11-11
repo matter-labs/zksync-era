@@ -29,8 +29,9 @@ use crate::vm_m5::{
     utils::{
         code_page_candidate_from_base, heap_page_from_base, BLOCK_GAS_LIMIT, INITIAL_BASE_PAGE,
     },
+    vm_instance::VmInstance,
     vm_instance::{MultiVMSubversion, ZkSyncVmState},
-    OracleTools, VmInstance,
+    OracleTools,
 };
 
 // TODO (SMA-1703): move these to config and make them programmatically generatable.
@@ -184,7 +185,7 @@ pub fn init_vm<S: Storage>(
     block_properties: BlockProperties,
     execution_mode: TxExecutionMode,
     base_system_contract: &BaseSystemContracts,
-) -> Box<VmInstance<S>> {
+) -> VmInstance<S> {
     init_vm_with_gas_limit(
         refund_state,
         oracle_tools,
@@ -204,7 +205,7 @@ pub fn init_vm_with_gas_limit<S: Storage>(
     execution_mode: TxExecutionMode,
     base_system_contract: &BaseSystemContracts,
     gas_limit: u32,
-) -> Box<VmInstance<S>> {
+) -> VmInstance<S> {
     init_vm_inner(
         refund_state,
         oracle_tools,
@@ -301,7 +302,7 @@ pub fn init_vm_inner<S: Storage>(
     gas_limit: u32,
     base_system_contract: &BaseSystemContracts,
     execution_mode: TxExecutionMode,
-) -> Box<VmInstance<S>> {
+) -> VmInstance<S> {
     oracle_tools.decommittment_processor.populate(
         vec![(
             h256_to_u256(base_system_contract.default_aa.hash),
@@ -326,7 +327,7 @@ pub fn init_vm_inner<S: Storage>(
 
     let state = get_default_local_state(oracle_tools, block_properties, gas_limit);
 
-    Box::new(VmInstance {
+    VmInstance {
         refund_state,
         gas_limit,
         state,
@@ -334,7 +335,7 @@ pub fn init_vm_inner<S: Storage>(
         block_context: block_context.inner_block_context(),
         bootloader_state: BootloaderState::new(),
         snapshots: Vec::new(),
-    })
+    }
 }
 
 fn bootloader_initial_memory(block_properties: &BlockContextMode) -> Vec<(usize, U256)> {

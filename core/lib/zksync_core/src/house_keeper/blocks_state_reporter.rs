@@ -46,7 +46,7 @@ impl L1BatchMetricsReporter {
             ),
         ];
 
-        let eth_stats = conn.eth_sender_dal().get_eth_l1_batches().await;
+        let eth_stats = conn.eth_sender_dal().get_eth_l1_batches().await.unwrap();
         for (tx_type, l1_batch) in eth_stats.saved {
             let stage = BlockStage::L1 {
                 l1_stage: BlockL1Stage::Saved,

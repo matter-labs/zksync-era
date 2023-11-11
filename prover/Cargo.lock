@@ -4968,6 +4968,7 @@ dependencies = [
  "vlog",
  "zkevm_test_harness 1.3.3",
  "zksync_config",
+ "zksync_env_config",
  "zksync_types",
 ]
 
@@ -6093,6 +6094,7 @@ dependencies = [
  "vlog",
  "zkevm_test_harness 1.4.0",
  "zksync_config",
+ "zksync_env_config",
  "zksync_prover_fri_types",
  "zksync_prover_utils",
  "zksync_types",
@@ -6701,6 +6703,7 @@ dependencies = [
  "zkevm_test_harness 1.3.3",
  "zksync_config",
  "zksync_dal",
+ "zksync_env_config",
  "zksync_object_store",
  "zksync_prover_fri_utils",
  "zksync_prover_utils",
@@ -6715,17 +6718,10 @@ name = "zksync_config"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bigdecimal",
  "envy",
- "hex",
- "num 0.3.1",
- "once_cell",
  "serde",
- "serde_json",
- "url",
  "zksync_basic_types",
  "zksync_contracts",
- "zksync_utils",
 ]
 
 [[package]]
@@ -6781,6 +6777,17 @@ dependencies = [
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
+]
+
+[[package]]
+name = "zksync_env_config"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "envy",
+ "serde",
+ "zksync_basic_types",
+ "zksync_config",
 ]
 
 [[package]]
@@ -6877,6 +6884,7 @@ dependencies = [
  "zkevm_test_harness 1.4.0",
  "zksync_config",
  "zksync_dal",
+ "zksync_env_config",
  "zksync_object_store",
  "zksync_prover_fri_types",
  "zksync_prover_utils",
@@ -6914,6 +6922,7 @@ dependencies = [
  "zksync_circuit_breaker",
  "zksync_config",
  "zksync_dal",
+ "zksync_env_config",
  "zksync_eth_client",
  "zksync_object_store",
  "zksync_prover_utils",
@@ -6943,6 +6952,7 @@ dependencies = [
  "zkevm_test_harness 1.4.0",
  "zksync_config",
  "zksync_dal",
+ "zksync_env_config",
  "zksync_object_store",
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
@@ -6970,6 +6980,7 @@ dependencies = [
  "vlog",
  "zksync_config",
  "zksync_dal",
+ "zksync_env_config",
  "zksync_object_store",
  "zksync_types",
  "zksync_utils",
@@ -7026,6 +7037,7 @@ dependencies = [
  "async-trait",
  "tokio",
  "tracing",
+ "vise",
  "zksync_utils",
 ]
 
@@ -7169,6 +7181,7 @@ dependencies = [
  "zkevm_test_harness 1.4.0",
  "zksync_config",
  "zksync_dal",
+ "zksync_env_config",
  "zksync_object_store",
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
@@ -7200,6 +7213,7 @@ dependencies = [
  "vlog",
  "zksync_config",
  "zksync_dal",
+ "zksync_env_config",
  "zksync_object_store",
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
