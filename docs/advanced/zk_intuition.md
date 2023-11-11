@@ -139,8 +139,7 @@ version 1.4.0.
 
 [witness_example]:
   https://github.com/matter-labs/era-zkevm_test_harness/tree/main/src/witness/individual_circuits/decommit_code.rs#L24
-[verifier]:
-  https://github.com/matter-labs/zksync-2-contracts/blob/d9785355518edc7f686fb2c91ff7d1caced9f9b8/ethereum/contracts/zksync/Plonk4VerifierWithAccessToDNext.sol#L284
+[verifier]: https://github.com/matter-labs/era-contracts/blob/main/ethereum/contracts/zksync/Verifier.sol
 [bellman repo]: https://github.com/matter-labs/bellman
 [bellman cuda repo]: https://github.com/matter-labs/era-bellman-cuda
 [example ecrecover circuit]:
