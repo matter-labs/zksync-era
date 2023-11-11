@@ -185,7 +185,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             dispatcher,
             ret_from_the_bootloader: None,
             storage,
-            _phantom: Default::default(),
+            _phantom: PhantomData,
         }
     }
 
