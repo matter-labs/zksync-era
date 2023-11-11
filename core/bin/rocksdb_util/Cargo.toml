@@ -12,6 +12,7 @@ publish = false # We don't want to publish our binaries.
 
 [dependencies]
 zksync_config = { path = "../../lib/config" }
+zksync_env_config = { path = "../../lib/env_config" }
 zksync_storage = { path = "../../lib/storage" }
 
 anyhow = "1.0"

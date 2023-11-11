@@ -2,13 +2,28 @@ use anyhow::Context as _;
 use clap::Parser;
 
 use std::{str::FromStr, time::Duration};
-use zksync_config::configs::chain::NetworkConfig;
 
-use zksync_config::{ContractsConfig, ETHSenderConfig};
+use zksync_config::{
+    configs::{
+        api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
+        chain::{
+            CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
+            StateKeeperConfig,
+        },
+        house_keeper::HouseKeeperConfig,
+        FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, PrometheusConfig,
+        ProofDataHandlerConfig, ProverGroupConfig, WitnessGeneratorConfig,
+    },
+    ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
+    FetcherConfig, GasAdjusterConfig, ObjectStoreConfig, ProverConfigs,
+};
+
+use zksync_core::temp_config_store::TempConfigStore;
 use zksync_core::{
     genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler, Component,
     Components,
 };
+use zksync_env_config::FromEnv;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
@@ -80,7 +95,8 @@ async fn main() -> anyhow::Result<()> {
         let network = NetworkConfig::from_env().context("NetworkConfig")?;
         let eth_sender = ETHSenderConfig::from_env().context("ETHSenderConfig")?;
         let contracts = ContractsConfig::from_env().context("ContractsConfig")?;
-        genesis_init(&eth_sender, &network, &contracts)
+        let eth_client = ETHClientConfig::from_env().context("EthClientConfig")?;
+        genesis_init(&eth_sender, &network, &contracts, &eth_client.web3_url)
             .await
             .context("genesis_init")?;
         if opt.genesis {
@@ -101,9 +117,42 @@ async fn main() -> anyhow::Result<()> {
         [Component::WitnessGenerator(Some(_), _)]
     );
 
+    // TODO (QIT-22): Only deserialize configs on demand.
+    // Right now, we are trying to deserialize all the configs that may be needed by `zksync_core`.
+    // "May" is the key word here, since some configs are only used by certain component configuration,
+    // hence we are using `Option`s.
+    let configs = TempConfigStore {
+        health_check_config: HealthCheckConfig::from_env().ok(),
+        merkle_tree_api_config: MerkleTreeApiConfig::from_env().ok(),
+        web3_json_rpc_config: Web3JsonRpcConfig::from_env().ok(),
+        circuit_breaker_config: CircuitBreakerConfig::from_env().ok(),
+        mempool_config: MempoolConfig::from_env().ok(),
+        network_config: NetworkConfig::from_env().ok(),
+        operations_manager_config: OperationsManagerConfig::from_env().ok(),
+        state_keeper_config: StateKeeperConfig::from_env().ok(),
+        house_keeper_config: HouseKeeperConfig::from_env().ok(),
+        fri_proof_compressor_config: FriProofCompressorConfig::from_env().ok(),
+        fri_prover_config: FriProverConfig::from_env().ok(),
+        fri_witness_generator_config: FriWitnessGeneratorConfig::from_env().ok(),
+        prometheus_config: PrometheusConfig::from_env().ok(),
+        proof_data_handler_config: ProofDataHandlerConfig::from_env().ok(),
+        prover_group_config: ProverGroupConfig::from_env().ok(),
+        witness_generator_config: WitnessGeneratorConfig::from_env().ok(),
+        api_config: ApiConfig::from_env().ok(),
+        contracts_config: ContractsConfig::from_env().ok(),
+        db_config: DBConfig::from_env().ok(),
+        eth_client_config: ETHClientConfig::from_env().ok(),
+        eth_sender_config: ETHSenderConfig::from_env().ok(),
+        eth_watch_config: ETHWatchConfig::from_env().ok(),
+        fetcher_config: FetcherConfig::from_env().ok(),
+        gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
+        prover_configs: ProverConfigs::from_env().ok(),
+        object_store_config: ObjectStoreConfig::from_env().ok(),
+    };
+
     // Run core actors.
     let (core_task_handles, stop_sender, cb_receiver, health_check_handle) =
-        initialize_components(components, is_only_oneshot_witness_generator_task)
+        initialize_components(&configs, components, is_only_oneshot_witness_generator_task)
             .await
             .context("Unable to start Core actors")?;
 
