@@ -64,6 +64,7 @@ impl ConsistencyChecker {
             .eth_sender_dal()
             .get_confirmed_tx_hash_by_eth_tx_id(commit_tx_id)
             .await
+            .unwrap()
             .unwrap_or_else(|| {
                 panic!(
                     "Commit tx hash not found in the database. Commit tx id: {}",
@@ -98,6 +99,7 @@ impl ConsistencyChecker {
             Some(1.into()),
             "Main node gave us a failed commit tx"
         );
+
         let commit_function = if block_metadata
             .header
             .protocol_version
