@@ -274,18 +274,19 @@ impl TryFrom<Log> for ProtocolUpgrade {
                 ParamType::Uint(256),                         // version id
                 ParamType::Address,                           // allow list address
             ])],
-            &init_calldata[4..],
+            init_calldata
+                .get(4..)
+                .ok_or(crate::ethabi::Error::InvalidData)?,
         )?;
 
-        let mut decoded = match decoded.remove(0) {
-            Token::Tuple(x) => x,
-            _ => unreachable!(),
+        let Token::Tuple(mut decoded) = decoded.remove(0) else {
+            unreachable!();
         };
 
-        let mut transaction = match decoded.remove(0) {
-            Token::Tuple(x) => x,
-            _ => unreachable!(),
+        let Token::Tuple(mut transaction) = decoded.remove(0) else {
+            unreachable!()
         };
+
         let factory_deps = decoded.remove(0).into_array().unwrap();
 
         let tx = {
@@ -399,9 +400,8 @@ impl TryFrom<Log> for ProtocolUpgrade {
         let default_account_code_hash =
             H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
         let verifier_address = decoded.remove(0).into_address().unwrap();
-        let mut verifier_params = match decoded.remove(0) {
-            Token::Tuple(tx) => tx,
-            _ => unreachable!(),
+        let Token::Tuple(mut verifier_params) = decoded.remove(0) else {
+            unreachable!()
         };
         let recursion_node_level_vk_hash =
             H256::from_slice(&verifier_params.remove(0).into_fixed_bytes().unwrap());
