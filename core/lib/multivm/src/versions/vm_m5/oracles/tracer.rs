@@ -9,7 +9,7 @@ use crate::vm_m5::{
     memory::SimpleMemory,
     storage::StoragePtr,
     utils::{aux_heap_page_from_base, heap_page_from_base},
-    vm::{get_vm_hook_params, VM_HOOK_POSITION},
+    vm_instance::{get_vm_hook_params, VM_HOOK_POSITION},
     vm_with_bootloader::BOOTLOADER_HEAP_PAGE,
 };
 // use zk_evm_1_3_1::testing::memory::SimpleMemory;
@@ -785,7 +785,7 @@ impl VmHook {
             8 => Self::AskOperatorForRefund,
             9 => Self::NotifyAboutRefund,
             10 => Self::ExecutionResult,
-            _ => panic!("Unkown hook"),
+            _ => panic!("Unknown hook: {}", value.as_u32()),
         }
     }
 }

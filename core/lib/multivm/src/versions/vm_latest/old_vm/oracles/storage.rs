@@ -5,9 +5,9 @@ use crate::vm_latest::old_vm::history_recorder::{
     HistoryRecorder, StorageWrapper, WithHistory,
 };
 
-use zk_evm_1_3_3::abstractions::RefundedAmounts;
-use zk_evm_1_3_3::zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES;
-use zk_evm_1_3_3::{
+use zk_evm_1_4_0::abstractions::RefundedAmounts;
+use zk_evm_1_4_0::zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES;
+use zk_evm_1_4_0::{
     abstractions::{RefundType, Storage as VmStorageOracle},
     aux_structures::{LogQuery, Timestamp},
 };
@@ -117,7 +117,6 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         storage_log_query.log_query.rollback = true;
         self.frames_stack
             .push_rollback(Box::new(storage_log_query), query.timestamp);
-        storage_log_query.log_query.rollback = false;
 
         query
     }
@@ -331,8 +330,8 @@ fn get_pubdata_price_bytes(_query: &LogQuery, is_initial: bool) -> u32 {
     // TODO (SMA-1702): take into account the content of the log query, i.e. values that contain mostly zeroes
     // should cost less.
     if is_initial {
-        zk_evm_1_3_3::zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32
+        zk_evm_1_4_0::zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32
     } else {
-        zk_evm_1_3_3::zkevm_opcode_defs::system_params::REPEATED_STORAGE_WRITE_PUBDATA_BYTES as u32
+        zk_evm_1_4_0::zkevm_opcode_defs::system_params::REPEATED_STORAGE_WRITE_PUBDATA_BYTES as u32
     }
 }

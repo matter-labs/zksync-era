@@ -7,9 +7,10 @@ use zksync_basic_types::{H2048, H256, U256};
 use zksync_contracts::BaseSystemContractsHashes;
 
 use crate::{
-    l2_to_l1_log::L2ToL1Log, priority_op_onchain_data::PriorityOpOnchainData,
-    web3::signing::keccak256, AccountTreeId, Address, L1BatchNumber, MiniblockNumber,
-    ProtocolVersionId, Transaction,
+    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    priority_op_onchain_data::PriorityOpOnchainData,
+    web3::signing::keccak256,
+    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction,
 };
 
 /// Represents a successfully deployed smart contract.
@@ -45,8 +46,8 @@ pub struct L1BatchHeader {
     pub l2_tx_count: u16,
     /// The data of the processed priority operations hash which must be sent to the smart contract.
     pub priority_ops_onchain_data: Vec<PriorityOpOnchainData>,
-    /// All L2 -> L1 logs in the block.
-    pub l2_to_l1_logs: Vec<L2ToL1Log>,
+    /// All user generated L2 -> L1 logs in the block.
+    pub l2_to_l1_logs: Vec<UserL2ToL1Log>,
     /// Preimages of the hashes that were sent as value of L2 logs by special system L2 contract.
     pub l2_to_l1_messages: Vec<Vec<u8>>,
     /// Bloom filter for the event logs in the block.
@@ -60,6 +61,8 @@ pub struct L1BatchHeader {
     /// The L2 gas price that the operator agrees on.
     pub l2_fair_gas_price: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
+    /// System logs are those emitted as part of the Vm excecution.
+    pub system_logs: Vec<SystemL2ToL1Log>,
     /// Version of protocol used for the L1 batch.
     pub protocol_version: Option<ProtocolVersionId>,
 }
@@ -82,9 +85,9 @@ pub struct MiniblockHeader {
     pub virtual_blocks: u32,
 }
 
-/// Data needed to re-execute miniblock.
+/// Data needed to execute a miniblock in the VM.
 #[derive(Debug)]
-pub struct MiniblockReexecuteData {
+pub struct MiniblockExecutionData {
     pub number: MiniblockNumber,
     pub timestamp: u64,
     pub prev_block_hash: H256,
@@ -116,6 +119,7 @@ impl L1BatchHeader {
             l1_gas_price: 0,
             l2_fair_gas_price: 0,
             base_system_contracts_hashes,
+            system_logs: vec![],
             protocol_version: Some(protocol_version),
         }
     }

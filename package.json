@@ -5,11 +5,11 @@
   "private": true,
   "workspaces": {
     "packages": [
-      "sdk/zksync-web3.js",
       "contracts/ethereum",
       "contracts/zksync",
       "etc/contracts-test-data",
       "etc/ERC20",
+      "etc/system-contracts",
       "infrastructure/zk",
       "infrastructure/local-setup-preparation",
       "core/tests/revert-test",
@@ -23,20 +23,17 @@
     ]
   },
   "scripts": {
-    "build:zksync-sdk-web3": "yarn web3 build",
-    "web3": "yarn workspace zksync-web3",
     "local-prep": "yarn workspace local-setup-preparation",
     "l1-contracts": "yarn workspace l1-zksync-contracts",
     "l2-contracts": "yarn workspace l2-zksync-contracts",
     "revert-test": "yarn workspace revert-test",
     "upgrade-test": "yarn workspace upgrade-test",
     "ts-integration": "yarn workspace ts-integration",
-    "zk": "yarn workspace zk",
-    "init-build": "yarn npm-run-all --parallel build:*"
+    "zk": "yarn workspace zk"
   },
   "devDependencies": {
     "@ethersproject/bignumber": "~5.5.0",
-    "@typescript-eslint/eslint-plugin": "^4.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.7.4",
     "@typescript-eslint/parser": "^4.10.0",
     "babel-eslint": "^10.1.0",
     "eslint": "^7.16.0",

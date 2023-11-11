@@ -25,6 +25,8 @@ jobs:
     runs-on: [ubuntu-latest]
     outputs:
       image_tag_suffix: ${{ steps.set.outputs.image_tag_suffix }}
+      prover_fri_cpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.cpu_short_commit_sha }}
+      prover_fri_gpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.gpu_short_commit_sha }}
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
@@ -41,6 +43,20 @@ jobs:
           fi
           version=$(cut -d "-" -f2 <<< ${git_tag})
           echo "image_tag_suffix=${version}" >> $GITHUB_OUTPUT
+
+      - name: Generate outputs with Prover FRI setup data keys IDs
+        id: extract-prover-fri-setup-key-ids
+        run: |
+          declare -A json_files=(
+            ["cpu"]="setup-data-cpu-keys.json"
+            ["gpu"]="setup-data-gpu-keys.json"
+          )
+          for type in "${!json_files[@]}"; do
+            file=${json_files[$type]}
+            value=$(jq -r '.us' "./prover/$file")
+            short_sha=$(echo $value | sed 's|gs://matterlabs-setup-data-us/\(.*\)/|\1|')
+            echo "${type}_short_commit_sha=$short_sha" >> $GITHUB_OUTPUT
+          done
 
   build-push-core-images:
     name: Build and push image
@@ -73,9 +89,10 @@ jobs:
     uses: ./.github/workflows/build-gar-reusable.yml
     if: contains(github.ref_name, 'prover')
     with:
-      setup_keys_id: 4989f12
+      setup_keys_id: bccc7de
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       push_asia: true
+      push_europe: true
 
   build-gar-prover-fri-gpu:
     name: Build GAR prover FRI GPU
@@ -83,5 +100,5 @@ jobs:
     uses: ./.github/workflows/build-prover-fri-gpu-gar.yml
     if: contains(github.ref_name, 'prover')
     with:
-      setup_keys_id: 2d33a27-gpu
+      setup_keys_id: ${{ needs.setup.outputs.prover_fri_gpu_key_id }}
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}

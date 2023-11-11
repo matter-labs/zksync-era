@@ -13,7 +13,7 @@ There are many ways to contribute to the ZK Stack:
    issues.
 3. Resolve issues: either by showing an issue isn't a problem and the current state is ok as is or by fixing the problem
    and opening a PR.
-4. Report security issues, see [our security policy](./github/SECURITY.md).
+4. Report security issues, see [our security policy](./SECURITY.md).
 5. [Join the team!](https://matterlabs.notion.site/Shape-the-future-of-Ethereum-at-Matter-Labs-dfb3b5a037044bb3a8006af2eb0575e0)
 
 ## Fixing issues

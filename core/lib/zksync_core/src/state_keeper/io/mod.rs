@@ -10,7 +10,7 @@ use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    block::MiniblockReexecuteData, protocol_version::ProtocolUpgradeTx,
+    block::MiniblockExecutionData, protocol_version::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, L1BatchNumber, MiniblockNumber, ProtocolVersionId,
     Transaction,
 };
@@ -44,7 +44,7 @@ pub struct PendingBatchData {
     pub(crate) l1_batch_env: L1BatchEnv,
     pub(crate) system_env: SystemEnv,
     /// List of miniblocks and corresponding transactions that were executed within batch.
-    pub(crate) pending_miniblocks: Vec<MiniblockReexecuteData>,
+    pub(crate) pending_miniblocks: Vec<MiniblockExecutionData>,
 }
 
 #[derive(Debug, Copy, Clone, Default)]

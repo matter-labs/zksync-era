@@ -22,6 +22,7 @@ use zkevm_test_harness::prover_utils::{prove_base_layer_circuit, prove_recursion
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_config::configs::FriProverConfig;
 use zksync_dal::ConnectionPool;
+use zksync_env_config::FromEnv;
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{CircuitWrapper, FriProofWrapper, ProverJob, ProverServiceDataKey};
 use zksync_prover_fri_utils::fetch_next_circuit;
@@ -31,7 +32,9 @@ use zksync_vk_setup_data_server_fri::{
     get_cpu_setup_data_for_circuit_type, GoldilocksProverSetupData,
 };
 
-use crate::utils::{save_proof, setup_metadata_to_setup_data_key, verify_proof, ProverArtifacts};
+use crate::utils::{
+    get_setup_data_key, save_proof, setup_metadata_to_setup_data_key, verify_proof, ProverArtifacts,
+};
 
 pub enum SetupLoadMode {
     FromMemory(HashMap<ProverServiceDataKey, Arc<GoldilocksProverSetupData>>),
@@ -76,6 +79,7 @@ impl Prover {
         &self,
         key: ProverServiceDataKey,
     ) -> anyhow::Result<Arc<GoldilocksProverSetupData>> {
+        let key = get_setup_data_key(key);
         Ok(match &self.setup_load_mode {
             SetupLoadMode::FromMemory(cache) => cache
                 .get(&key)
@@ -255,6 +259,24 @@ impl JobProcessor for Prover {
         .await;
         Ok(())
     }
+
+    fn max_attempts(&self) -> u32 {
+        self.config.max_attempts
+    }
+
+    async fn get_job_attempts(&self, job_id: &u32) -> anyhow::Result<u32> {
+        let mut prover_storage = self
+            .prover_connection_pool
+            .access_storage()
+            .await
+            .context("failed to acquire DB connection for Prover")?;
+        prover_storage
+            .fri_prover_jobs_dal()
+            .get_prover_job_attempts(*job_id)
+            .await
+            .map(|attempts| attempts.unwrap_or(0))
+            .context("failed to get job attempts for Prover")
+    }
 }
 
 #[allow(dead_code)]
@@ -268,6 +290,7 @@ pub fn load_setup_data_cache(config: &FriProverConfig) -> anyhow::Result<SetupLo
                 &config.specialized_group_id
             );
             let prover_setup_metadata_list = FriProverGroupConfig::from_env()
+                .context("FriProverGroupConfig::from_env()")?
                 .get_circuit_ids_for_group_id(config.specialized_group_id)
                 .expect(
                     "At least one circuit should be configured for group when running in FromMemory mode",

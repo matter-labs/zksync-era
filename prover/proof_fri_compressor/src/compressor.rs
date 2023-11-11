@@ -29,6 +29,7 @@ pub struct ProofCompressor {
     pool: ConnectionPool,
     compression_mode: u8,
     verify_wrapper_proof: bool,
+    max_attempts: u32,
 }
 
 impl ProofCompressor {
@@ -37,12 +38,14 @@ impl ProofCompressor {
         pool: ConnectionPool,
         compression_mode: u8,
         verify_wrapper_proof: bool,
+        max_attempts: u32,
     ) -> Self {
         Self {
             blob_store,
             pool,
             compression_mode,
             verify_wrapper_proof,
+            max_attempts,
         }
     }
 
@@ -201,5 +204,23 @@ impl JobProcessor for ProofCompressor {
             .mark_proof_compression_job_successful(job_id, started_at.elapsed(), &blob_url)
             .await;
         Ok(())
+    }
+
+    fn max_attempts(&self) -> u32 {
+        self.max_attempts
+    }
+
+    async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<u32> {
+        let mut prover_storage = self
+            .pool
+            .access_storage()
+            .await
+            .context("failed to acquire DB connection for ProofCompressor")?;
+        prover_storage
+            .fri_proof_compressor_dal()
+            .get_proof_compression_job_attempts(*job_id)
+            .await
+            .map(|attempts| attempts.unwrap_or(0))
+            .context("failed to get job attempts for ProofCompressor")
     }
 }
