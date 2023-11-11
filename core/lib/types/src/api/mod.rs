@@ -463,7 +463,7 @@ pub struct Transaction {
     pub from: Option<Address>,
     /// Recipient (None when contract creation)
     pub to: Option<Address>,
-    /// Transfered value
+    /// Transferred value
     pub value: U256,
     /// Gas Price
     #[serde(rename = "gasPrice")]
