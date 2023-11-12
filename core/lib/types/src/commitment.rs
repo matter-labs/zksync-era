@@ -237,9 +237,9 @@ impl L1BatchWithMetadata {
 
             // Extend with Compressed StateDiffs
             res.extend(&self.metadata.state_diffs_compressed);
-      }
+        }
 
-      res
+        res
     }
 }
 
