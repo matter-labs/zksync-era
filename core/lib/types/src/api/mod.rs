@@ -637,7 +637,7 @@ pub struct CallTracerConfig {
 #[serde(rename_all = "camelCase")]
 pub struct TracerConfig {
     pub tracer: SupportedTracers,
-    pub tracer_config: CallTracerConfig,
+    pub tracer_config: Option<CallTracerConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
