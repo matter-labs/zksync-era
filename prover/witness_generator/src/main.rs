@@ -219,7 +219,7 @@ async fn main() -> anyhow::Result<()> {
             "stage" => format!("fri_witness_generator_{:?}", round)
         );
     }
-        
+
     let mut stop_signal_receiver = get_stop_signal_receiver();
     let graceful_shutdown = None::<futures::future::Ready<()>>;
     let tasks_allowed_to_finish = true;

@@ -13,14 +13,16 @@
 ### Overview of the pipeline
 
 These are the main components to this process:
- - Sequencer
- - Prover gateway
- - Witness
- - Prover
- - Compressor
 
-All of them will be sharing information through a SQL database.
-The general idea is that the sequencer will produce blocks and the gateway will place them into the database to be proven. Then, the rest of the components will pull jobs from the database and do their part of the pipeline. 
+- Sequencer
+- Prover gateway
+- Witness
+- Prover
+- Compressor
+
+All of them will be sharing information through a SQL database. The general idea is that the sequencer will produce
+blocks and the gateway will place them into the database to be proven. Then, the rest of the components will pull jobs
+from the database and do their part of the pipeline.
 
 ```mermaid
 flowchart LR
@@ -41,17 +43,18 @@ flowchart LR
 
 ### Prerequisites
 
-Make sure these dependencies are installed and available on your machine: [Installing dependencies](./setup-dev.md)
-Once that is done, before starting, make sure you go into the root of the repository, then run
+Make sure these dependencies are installed and available on your machine: [Installing dependencies](./setup-dev.md) Once
+that is done, before starting, make sure you go into the root of the repository, then run
 
 ```
 export ZKSYNC_HOME=$(pwd)
 ```
 
-The whole setup below will NOT work if you don't have this environment variable properly set, as the entirety of the `zk`
-CLI tool depends on it.
+The whole setup below will NOT work if you don't have this environment variable properly set, as the entirety of the
+`zk` CLI tool depends on it.
 
 ### Block proving with CPU
+
 Below steps can be used to prove a block on local machine using CPU prover. This is useful for debugging and testing
 Machine specs:
 
@@ -61,6 +64,7 @@ Machine specs:
 
 1. Install the correct nightly version using command: `rustup install nightly-2023-07-21`
 2. Initialize DB and run migrations. Go into the root of the repository, then run
+
    ```
    zk init
    ```
@@ -97,11 +101,15 @@ monitor logs for each one.
    API_PROMETHEUS_LISTENER_PORT=3118 zk f cargo run --release --bin zksync_witness_generator -- --round=node_aggregation
    API_PROMETHEUS_LISTENER_PORT=3119 zk f cargo run --release --bin zksync_witness_generator -- --round=scheduler
    ```
+
    These 4 steps can be reduced to a single command
+
    ```
    API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --all_rounds
    ```
-   Note that this will automatically open the three ports after the one specified in enviromental variable, in this case 3117, 3118 and 3119. 
+
+   Note that this will automatically open the three ports after the one specified in enviromental variable, in this case
+   3117, 3118 and 3119.
 
 7. Run prover to perform actual proving:
    ```
@@ -114,8 +122,8 @@ monitor logs for each one.
 
 ## Proving a block using GPU prover locally
 
-Below steps can be used to prove a block on local machine using GPU prover.
-Running a GPU prover requires a Cuda 12.0 installation as a pre-requisite, alongside these machine specs:
+Below steps can be used to prove a block on local machine using GPU prover. Running a GPU prover requires a Cuda 12.0
+installation as a pre-requisite, alongside these machine specs:
 
 - CPU: At least 8 physical cores
 - RAM: 16GB of RAM(if you have lower RAM machine enable swap)
@@ -167,12 +175,12 @@ Running a GPU prover requires a Cuda 12.0 installation as a pre-requisite, along
    ```
 
 9. Finally, run proof compressor to compress the proof to be sent on L1:
-    `zk f cargo run --release --bin zksync_proof_fri_compressor`
-
+   `zk f cargo run --release --bin zksync_proof_fri_compressor`
 
 ## Checking the status of the prover
 
-Once everything is running (either with the CPU or GPU prover), the server should have at least three blocks, and you can see the first one by running
+Once everything is running (either with the CPU or GPU prover), the server should have at least three blocks, and you
+can see the first one by running
 
 ```
 curl -X POST -H 'content-type: application/json' localhost:3050 -d '{"jsonrpc": "2.0", "id": 1, "method": "zks_getBlockDetails", "params": [0]}'
@@ -189,8 +197,8 @@ You can follow the status of this pipeline by running
 zk status prover
 ```
 
-This might take a while (around an hour and a half on my machine using the CPU prover), you can check on it once in a while. A succesful flow
-should output something like
+This might take a while (around an hour and a half on my machine using the CPU prover), you can check on it once in a
+while. A succesful flow should output something like
 
 ```
 ==== FRI Prover status ====

@@ -28,7 +28,15 @@ do
     fi
 done
 
-for i in {1..15}
+if ! [ -f vk_setup_data_generator_server_fri/data/setup_scheduler_data.bin ]; then
+    zk f cargo run $GPU_FLAG --release --bin zksync_setup_data_generator_fri -- --numeric-circuit 1
+fi
+
+if ! [ -f vk_setup_data_generator_server_fri/data/setup_node_data.bin ]; then
+    zk f cargo run $GPU_FLAG --release --bin zksync_setup_data_generator_fri -- --numeric-circuit 2
+fi
+
+for i in {3..15}
 do
     if ! [ -f vk_setup_data_generator_server_fri/data/setup_leaf_${i}_data.bin ]; then
         zk f cargo run $GPU_FLAG --release --bin zksync_setup_data_generator_fri -- --numeric-circuit $i
