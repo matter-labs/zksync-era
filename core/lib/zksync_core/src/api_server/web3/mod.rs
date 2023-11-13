@@ -289,7 +289,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
             logs_translator_enabled: self.logs_translator_enabled,
             tree_api: self
                 .tree_api_url
-                .map(|url| Arc::new(TreeApiHttpClient::new(url.as_str()))),
+                .map(|url| TreeApiHttpClient::new(url.as_str())),
         }
     }
 

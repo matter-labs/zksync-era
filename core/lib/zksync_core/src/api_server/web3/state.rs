@@ -168,7 +168,7 @@ impl SealedMiniblockNumber {
 pub struct RpcState<E> {
     pub installed_filters: Arc<RwLock<Filters>>,
     pub connection_pool: ConnectionPool,
-    pub tree_api: Option<Arc<TreeApiHttpClient>>,
+    pub tree_api: Option<TreeApiHttpClient>,
     pub tx_sender: TxSender<E>,
     pub sync_state: Option<SyncState>,
     pub(super) api_config: InternalApiConfig,
