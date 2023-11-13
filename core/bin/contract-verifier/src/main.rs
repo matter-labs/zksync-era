@@ -1,15 +1,16 @@
 use std::cell::RefCell;
 
 use anyhow::Context as _;
+use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
+use structopt::StructOpt;
+use tokio::sync::watch;
+
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::{configs::PrometheusConfig, ApiConfig, ContractVerifierConfig};
 use zksync_env_config::FromEnv;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_server_dal::ServerConnectionPool;
+use zksync_server_dal::{connection::DbVariant, ServerConnectionPool};
 use zksync_utils::wait_for_tasks::wait_for_tasks;
-
-use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
-use tokio::sync::watch;
 
 use crate::verifier::ContractVerifier;
 
@@ -111,9 +112,6 @@ async fn update_compiler_versions(connection_pool: &ServerConnectionPool) {
 
     transaction.commit().await.unwrap();
 }
-
-use structopt::StructOpt;
-use zksync_server_dal::connection::DbVariant;
 
 #[derive(StructOpt)]
 #[structopt(name = "zkSync contract code verifier", author = "Matter Labs")]

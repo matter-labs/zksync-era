@@ -1,5 +1,9 @@
-use std::fmt::{Display, Formatter};
-use std::time::Duration;
+use std::{
+    fmt::{Display, Formatter},
+    time::Duration,
+};
+
+use sqlx::postgres::types::PgInterval;
 
 use zksync_types::{
     contract_verification_api::{
@@ -9,11 +13,10 @@ use zksync_types::{
     get_code_key, Address, CONTRACT_DEPLOYER_ADDRESS, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH,
 };
 
-use sqlx::postgres::types::PgInterval;
-
-use crate::models::storage_verification_request::StorageVerificationRequest;
-use crate::ServerStorageProcessor;
-use crate::SqlxError;
+use crate::{
+    models::storage_verification_request::StorageVerificationRequest, ServerStorageProcessor,
+    SqlxError,
+};
 
 #[derive(Debug)]
 pub struct ContractVerificationDal<'a, 'c> {

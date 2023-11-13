@@ -1,13 +1,14 @@
-use sqlx::types::chrono::Utc;
-
 use std::fmt;
 
-use crate::{models::storage_event::StorageL2ToL1Log, ServerStorageProcessor, SqlxError};
+use sqlx::types::chrono::Utc;
+
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     tx::IncludedTxLocation,
     MiniblockNumber, VmEvent, H256,
 };
+
+use crate::{models::storage_event::StorageL2ToL1Log, ServerStorageProcessor, SqlxError};
 
 /// Wrapper around an optional event topic allowing to hex-format it for `COPY` instructions.
 #[derive(Debug)]

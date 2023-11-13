@@ -142,6 +142,8 @@ impl MetadataCalculator {
     pub async fn run(
         self,
         pool: ServerConnectionPool,
+        // short-term change for the prover pool
+        // to be an Option to allow EN to run the tree
         prover_pool: Option<ProverConnectionPool>,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {

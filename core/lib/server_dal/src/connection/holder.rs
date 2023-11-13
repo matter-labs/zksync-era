@@ -1,7 +1,7 @@
-// Built-in deps
-use sqlx::pool::PoolConnection;
-use sqlx::{postgres::Postgres, PgConnection, Transaction};
 use std::fmt;
+
+// Built-in deps
+use sqlx::{pool::PoolConnection, postgres::Postgres, PgConnection, Transaction};
 
 /// Connection holder unifies the type of underlying connection, which
 /// can be either pooled or direct.

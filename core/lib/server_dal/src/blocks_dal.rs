@@ -8,6 +8,7 @@ use anyhow::Context as _;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
 use sqlx::Row;
 
+use zksync_db_utils::instrument::InstrumentExt;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
@@ -21,7 +22,6 @@ use crate::{
     ServerStorageProcessor,
 };
 
-use zksync_db_utils::instrument::InstrumentExt;
 #[derive(Debug)]
 pub struct BlocksDal<'a, 'c> {
     pub(crate) storage: &'a mut ServerStorageProcessor<'c>,

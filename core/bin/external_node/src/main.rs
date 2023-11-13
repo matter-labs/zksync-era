@@ -1,10 +1,10 @@
-use anyhow::Context;
-use clap::Parser;
-use tokio::{sync::watch, task, time::sleep};
-
 use std::{sync::Arc, time::Duration};
 
+use anyhow::Context;
+use clap::Parser;
 use futures::{future::FusedFuture, FutureExt};
+use tokio::{sync::watch, task, time::sleep};
+
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_basic_types::{Address, L2ChainId};
 use zksync_core::{
@@ -184,6 +184,9 @@ async fn init_tasks(
         .build()
         .await
         .context("failed to build a tree_pool")?;
+
+    // running metadata_calculator without access to the prover db,
+    // since EN is not required to save witness inputs.
     let tree_handle = task::spawn(metadata_calculator.run(tree_pool, None, tree_stop_receiver));
 
     let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));

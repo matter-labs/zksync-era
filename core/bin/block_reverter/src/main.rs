@@ -3,13 +3,12 @@ use clap::{Parser, Subcommand};
 use tokio::io::{self, AsyncReadExt};
 
 use zksync_config::{ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig};
-use zksync_env_config::FromEnv;
-use zksync_server_dal::{connection::DbVariant, ServerConnectionPool};
-use zksync_types::{L1BatchNumber, U256};
-
 use zksync_core::block_reverter::{
     BlockReverter, BlockReverterEthConfig, BlockReverterFlags, L1ExecutedBatchesRevert,
 };
+use zksync_env_config::FromEnv;
+use zksync_server_dal::{connection::DbVariant, ServerConnectionPool};
+use zksync_types::{L1BatchNumber, U256};
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Block revert utility", long_about = None)]

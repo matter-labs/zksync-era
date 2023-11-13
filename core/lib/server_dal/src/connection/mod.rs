@@ -1,18 +1,17 @@
+use std::{fmt, time::Duration};
+
+use anyhow::Context as _;
 use sqlx::{
     pool::PoolConnection,
     postgres::{PgConnectOptions, PgPool, PgPoolOptions, Postgres},
 };
 
-use anyhow::Context as _;
-use std::fmt;
-use std::time::Duration;
-
+use zksync_db_utils::metrics::CONNECTION_METRICS;
 use zksync_utils::parse_env;
 
-pub mod holder;
-
 use crate::{get_master_database_url, get_replica_database_url, ServerStorageProcessor};
-use zksync_db_utils::metrics::CONNECTION_METRICS;
+
+pub mod holder;
 
 #[derive(Debug, Clone, Copy)]
 pub enum DbVariant {

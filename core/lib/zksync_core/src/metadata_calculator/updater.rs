@@ -378,10 +378,9 @@ impl TreeUpdater {
                 .unwrap();
 
             let prover_storage: Option<ProverStorageProcessor>;
-            if let Some(prover_pool) = prover_pool {
+            if let Some(pool) = prover_pool {
                 prover_storage = Some(
-                    prover_pool
-                        .access_storage_tagged("metadata_calculator")
+                    pool.access_storage_tagged("metadata_calculator")
                         .await
                         .unwrap(),
                 );
