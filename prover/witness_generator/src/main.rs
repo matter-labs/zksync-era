@@ -5,8 +5,8 @@ use prometheus_exporter::PrometheusExporterConfig;
 use std::time::Instant;
 use structopt::StructOpt;
 use tokio::sync::watch;
-use zksync_config::configs::{FriWitnessGeneratorConfig, PrometheusConfig};
-use zksync_dal::{connection::DbVariant, ConnectionPool};
+use zksync_config::configs::{FriWitnessGeneratorConfig, PostgresConfig, PrometheusConfig};
+use zksync_dal::ConnectionPool;
 use zksync_env_config::{
     object_store::{ProverObjectStoreConfig, PublicObjectStoreConfig},
     FromEnv,
@@ -81,14 +81,21 @@ async fn main() -> anyhow::Result<()> {
     let config =
         FriWitnessGeneratorConfig::from_env().context("FriWitnessGeneratorConfig::from_env()")?;
     let prometheus_config = PrometheusConfig::from_env().context("PrometheusConfig::from_env()")?;
-    let connection_pool = ConnectionPool::builder(DbVariant::Master)
-        .build()
-        .await
-        .context("failed to build a connection_pool")?;
-    let prover_connection_pool = ConnectionPool::builder(DbVariant::Prover)
-        .build()
-        .await
-        .context("failed to build a prover_connection_pool")?;
+    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
+    let connection_pool = ConnectionPool::builder(
+        postgres_config.master_url()?,
+        postgres_config.max_connections()?,
+    )
+    .build()
+    .await
+    .context("failed to build a connection_pool")?;
+    let prover_connection_pool = ConnectionPool::builder(
+        postgres_config.prover_url()?,
+        postgres_config.max_connections()?,
+    )
+    .build()
+    .await
+    .context("failed to build a prover_connection_pool")?;
     let (stop_sender, stop_receiver) = watch::channel(false);
     let vk_commitments = get_cached_commitments();
     let protocol_versions = prover_connection_pool
@@ -162,6 +169,7 @@ async fn main() -> anyhow::Result<()> {
         }
         AggregationRound::NodeAggregation => {
             let generator = NodeAggregationWitnessGenerator::new(
+                config,
                 &store_factory,
                 prover_connection_pool,
                 protocol_versions.clone(),
@@ -171,6 +179,7 @@ async fn main() -> anyhow::Result<()> {
         }
         AggregationRound::Scheduler => {
             let generator = SchedulerWitnessGenerator::new(
+                config,
                 &store_factory,
                 prover_connection_pool,
                 protocol_versions,

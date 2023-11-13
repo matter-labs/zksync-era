@@ -17,6 +17,7 @@ use zksync_vk_setup_data_server_fri::get_recursive_layer_vk_for_circuit_type;
 use zksync_vk_setup_data_server_fri::utils::get_leaf_vk_params;
 
 use crate::utils::{load_proofs_for_job_ids, SchedulerPartialInputWrapper};
+use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{FriCircuitKey, ObjectStore, ObjectStoreFactory};
 use zksync_prover_fri_types::{get_current_pod_name, CircuitWrapper, FriProofWrapper};
@@ -42,6 +43,7 @@ pub struct SchedulerWitnessGeneratorJob {
 
 #[derive(Debug)]
 pub struct SchedulerWitnessGenerator {
+    config: FriWitnessGeneratorConfig,
     object_store: Box<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool,
     protocol_versions: Vec<FriProtocolVersionId>,
@@ -49,11 +51,13 @@ pub struct SchedulerWitnessGenerator {
 
 impl SchedulerWitnessGenerator {
     pub async fn new(
+        config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
         prover_connection_pool: ConnectionPool,
         protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {
+            config,
             object_store: store_factory.create_store().await,
             prover_connection_pool,
             protocol_versions,
@@ -202,6 +206,24 @@ impl JobProcessor for SchedulerWitnessGenerator {
 
         transaction.commit().await.unwrap();
         Ok(())
+    }
+
+    fn max_attempts(&self) -> u32 {
+        self.config.max_attempts
+    }
+
+    async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<u32> {
+        let mut prover_storage = self
+            .prover_connection_pool
+            .access_storage()
+            .await
+            .context("failed to acquire DB connection for SchedulerWitnessGenerator")?;
+        prover_storage
+            .fri_witness_generator_dal()
+            .get_scheduler_witness_job_attempts(*job_id)
+            .await
+            .map(|attempts| attempts.unwrap_or(0))
+            .context("failed to get job attempts for SchedulerWitnessGenerator")
     }
 }
 
