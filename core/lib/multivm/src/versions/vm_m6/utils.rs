@@ -1,4 +1,3 @@
-use crate::vm_m6::glue::GlueInto;
 use crate::vm_m6::history_recorder::HistoryMode;
 use crate::vm_m6::{
     memory::SimpleMemory, oracles::tracer::PubdataSpentTracer, vm_with_bootloader::BlockContext,
@@ -6,6 +5,7 @@ use crate::vm_m6::{
 };
 use once_cell::sync::Lazy;
 
+use crate::glue::GlueInto;
 use crate::vm_m6::storage::Storage;
 use zk_evm_1_3_1::block_properties::BlockProperties;
 use zk_evm_1_3_1::{

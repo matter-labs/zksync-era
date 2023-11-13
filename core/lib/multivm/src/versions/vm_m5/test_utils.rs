@@ -27,12 +27,12 @@ use zksync_utils::{
 };
 
 use crate::vm_m5::storage::Storage;
+use crate::vm_m5::vm_instance::VmInstance;
 /// The tests here help us with the testing the VM
 use crate::vm_m5::{
     event_sink::InMemoryEventSink,
     history_recorder::{FrameManager, HistoryRecorder},
     memory::SimpleMemory,
-    VmInstance,
 };
 
 #[derive(Clone, Debug)]

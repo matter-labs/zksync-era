@@ -1,6 +1,7 @@
 use crate::interface::{
     BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, L1BatchEnv, L2BlockEnv,
     SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
+    VmMemoryMetrics,
 };
 use crate::vm_latest::HistoryEnabled;
 use crate::HistoryMode;
@@ -31,7 +32,6 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
     _phantom: std::marker::PhantomData<H>,
 }
 
-/// Public interface for VM
 impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     type TracerDispatcher = TracerDispatcher<S, H::VmVirtualBlocksMode>;
 
@@ -125,6 +125,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         } else {
             Ok(result)
         }
+    }
+
+    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
+        self.record_vm_memory_metrics_inner()
     }
 }
 
