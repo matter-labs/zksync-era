@@ -87,7 +87,7 @@ pub struct Web3JsonRpcConfig {
     /// The value is per active connection.
     /// Note: For HTTP, rate limiting is expected to be configured on the infra level.
     pub websocket_requests_per_minute_limit: Option<u32>,
-    /// Api of the tree API, currently used to proxy `getProof` calls to the tree
+    /// Tree API url, currently used to proxy `getProof` calls to the tree
     pub tree_api_url: Option<String>,
 }
 
