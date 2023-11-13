@@ -652,7 +652,7 @@ dependencies = [
 [[package]]
 name = "boojum-cuda"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum-cuda?branch=main#af269f667e0609f08a9cf303f330461ed5cd00ba"
+source = "git+https://github.com/matter-labs/era-boojum-cuda?branch=main#6731d9a8d0c439a4fa3cde14b494c9eca642bb2e"
 dependencies = [
  "boojum",
  "cmake",
@@ -1334,7 +1334,7 @@ dependencies = [
 [[package]]
 name = "cudart"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum-cuda?branch=main#af269f667e0609f08a9cf303f330461ed5cd00ba"
+source = "git+https://github.com/matter-labs/era-cuda?branch=main#492f2afad93ad156ac0cfb69e6efbfc03a7a2652"
 dependencies = [
  "bitflags 2.4.1",
  "criterion",
@@ -1344,7 +1344,7 @@ dependencies = [
 [[package]]
 name = "cudart-sys"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum-cuda?branch=main#af269f667e0609f08a9cf303f330461ed5cd00ba"
+source = "git+https://github.com/matter-labs/era-cuda?branch=main#492f2afad93ad156ac0cfb69e6efbfc03a7a2652"
 dependencies = [
  "bindgen 0.69.1",
  "serde_json",
@@ -5055,7 +5055,7 @@ dependencies = [
 [[package]]
 name = "shivini"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-shivini.git?branch=main#c4e713e7d15071769e3c3593e261dc634ae92889"
+source = "git+https://github.com/matter-labs/era-shivini.git?branch=main#937b5e82dd58563c1ae0e862f5497165cec815d1"
 dependencies = [
  "bincode",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
