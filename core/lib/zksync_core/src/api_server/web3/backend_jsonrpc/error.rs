@@ -22,7 +22,7 @@ pub fn into_jsrpc_error(err: Web3Error) -> Error {
             Web3Error::SubmitTransactionError(_, _) | Web3Error::SerializationError(_) => 3.into(),
             Web3Error::PubSubTimeout => 4.into(),
             Web3Error::RequestTimeout => 5.into(),
-            Web3Error::GetProofsUnavailable => 6.into(),
+            Web3Error::TreeApiUnavailable => 6.into(),
         },
         message: match err {
             Web3Error::SubmitTransactionError(_, _) => err.to_string(),

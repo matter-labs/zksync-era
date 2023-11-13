@@ -641,7 +641,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .state
             .tree_api
             .as_ref()
-            .ok_or(Web3Error::GetProofsUnavailable)?
+            .ok_or(Web3Error::TreeApiUnavailable)?
             .get_proofs(l1_batch_number, hashed_keys)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?

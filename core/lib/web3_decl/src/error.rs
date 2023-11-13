@@ -37,6 +37,6 @@ pub enum Web3Error {
     InvalidFilterBlockHash,
     #[error("Query returned more than {0} results. Try smaller range of blocks")]
     TooManyLogs(usize),
-    #[error("getProofs API is not available")]
-    GetProofsUnavailable,
+    #[error("Tree API is not available")]
+    TreeApiUnavailable,
 }
