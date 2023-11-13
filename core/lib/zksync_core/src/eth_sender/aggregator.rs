@@ -235,15 +235,12 @@ impl Aggregator {
             .unwrap();
         let batch_to_prove = previous_proven_batch_number + 1;
 
-        let commit_id = storage
+        // Return `None` if batch is not committed yet.
+        storage
             .blocks_dal()
             .get_eth_commit_tx_id(batch_to_prove)
             .await
-            .unwrap();
-        if commit_id.is_none() {
-            // Batch wasn't committed, so we can't send the proof yet.
-            return None;
-        }
+            .unwrap()?;
 
         if let Some(version_id) = storage
             .blocks_dal()
