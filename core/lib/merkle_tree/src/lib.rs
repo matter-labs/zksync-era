@@ -78,7 +78,7 @@ pub use crate::{
     },
 };
 
-use crate::{storage::Storage, types::Root};
+use crate::{hasher::HasherWithStats, storage::Storage, types::Root};
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 
 /// Binary Merkle tree implemented using AR16MT from Diem [Jellyfish Merkle tree] white paper.
@@ -123,9 +123,9 @@ use zksync_crypto::hasher::blake2::Blake2Hasher;
 ///
 /// [Jellyfish Merkle tree]: https://developers.diem.com/papers/jellyfish-merkle-tree/2021-01-14.pdf
 #[derive(Debug)]
-pub struct MerkleTree<DB> {
+pub struct MerkleTree<DB, H = Blake2Hasher> {
     db: DB,
-    hasher: &'static dyn HashTree,
+    hasher: H,
 }
 
 impl<DB: Database> MerkleTree<DB> {
@@ -135,19 +135,21 @@ impl<DB: Database> MerkleTree<DB> {
     ///
     /// Panics in the same situations as [`Self::with_hasher()`].
     pub fn new(db: DB) -> Self {
-        Self::with_hasher(db, &Blake2Hasher)
+        Self::with_hasher(db, Blake2Hasher)
     }
+}
 
+impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     /// Loads a tree with the specified hasher.
     ///
     /// # Panics
     ///
     /// Panics if the hasher or basic tree parameters (e.g., the tree depth)
     /// do not match those of the tree loaded from the database.
-    pub fn with_hasher(db: DB, hasher: &'static dyn HashTree) -> Self {
+    pub fn with_hasher(db: DB, hasher: H) -> Self {
         let tags = db.manifest().and_then(|manifest| manifest.tags);
         if let Some(tags) = tags {
-            tags.assert_consistency(hasher, false);
+            tags.assert_consistency(&hasher, false);
         }
         // If there are currently no tags in the tree, we consider that it fits
         // for backward compatibility. The tags will be added the next time the tree is saved.
@@ -162,7 +164,7 @@ impl<DB: Database> MerkleTree<DB> {
         let Root::Filled { node, .. } = root else {
             return Some(self.hasher.empty_tree_hash());
         };
-        Some(node.hash(&mut self.hasher.into(), 0))
+        Some(node.hash(&mut HasherWithStats::new(&self.hasher), 0))
     }
 
     pub(crate) fn root(&self, version: u64) -> Option<Root> {
@@ -209,7 +211,7 @@ impl<DB: Database> MerkleTree<DB> {
     /// Returns information about the update such as the final tree hash.
     pub fn extend(&mut self, key_value_pairs: Vec<(Key, ValueHash)>) -> BlockOutput {
         let next_version = self.db.manifest().unwrap_or_default().version_count;
-        let storage = Storage::new(&self.db, self.hasher, next_version, true);
+        let storage = Storage::new(&self.db, &self.hasher, next_version, true);
         let (output, patch) = storage.extend(key_value_pairs);
         self.db.apply_patch(patch);
         output
@@ -227,7 +229,7 @@ impl<DB: Database> MerkleTree<DB> {
         instructions: Vec<(Key, TreeInstruction)>,
     ) -> BlockOutputWithProofs {
         let next_version = self.db.manifest().unwrap_or_default().version_count;
-        let storage = Storage::new(&self.db, self.hasher, next_version, true);
+        let storage = Storage::new(&self.db, &self.hasher, next_version, true);
         let (output, patch) = storage.extend_with_proofs(instructions);
         self.db.apply_patch(patch);
         output

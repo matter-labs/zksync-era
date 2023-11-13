@@ -350,7 +350,7 @@ impl WorkingPatchSet {
         manifest: Manifest,
         leaf_count: u64,
         operation: Operation,
-        hasher: &'static dyn HashTree,
+        hasher: &dyn HashTree,
     ) -> (ValueHash, PatchSet, HashingStats) {
         let mut stats = HashingStats::default();
         let (root_hash, patch) = self.finalize_inner(

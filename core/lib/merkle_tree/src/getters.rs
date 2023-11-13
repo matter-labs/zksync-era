@@ -4,10 +4,10 @@ use crate::{
     hasher::HasherWithStats,
     storage::{LoadAncestorsResult, SortedKeys, WorkingPatchSet},
     types::{Nibbles, Node, TreeEntry, TreeEntryWithProof},
-    Database, Key, MerkleTree, NoVersionError, ValueHash,
+    Database, HashTree, Key, MerkleTree, NoVersionError, ValueHash,
 };
 
-impl<DB: Database> MerkleTree<DB> {
+impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     /// Reads entries with the specified keys from the tree. The entries are returned in the same order
     /// as requested.
     ///
@@ -69,7 +69,7 @@ impl<DB: Database> MerkleTree<DB> {
         version: u64,
         leaf_keys: &[Key],
     ) -> Result<Vec<TreeEntryWithProof>, NoVersionError> {
-        let mut hasher = HasherWithStats::from(self.hasher);
+        let mut hasher = HasherWithStats::new(&self.hasher);
         self.load_and_transform_entries(
             version,
             leaf_keys,
@@ -107,7 +107,7 @@ mod tests {
         let entries = tree.entries_with_proofs(0, &[missing_key]).unwrap();
         assert_eq!(entries.len(), 1);
         assert!(entries[0].base.is_empty());
-        entries[0].verify(tree.hasher, missing_key, tree.hasher.empty_tree_hash());
+        entries[0].verify(&tree.hasher, missing_key, tree.hasher.empty_tree_hash());
     }
 
     #[test]
@@ -125,8 +125,8 @@ mod tests {
         let entries = tree.entries_with_proofs(0, &[key, missing_key]).unwrap();
         assert_eq!(entries.len(), 2);
         assert!(!entries[0].base.is_empty());
-        entries[0].verify(tree.hasher, key, output.root_hash);
+        entries[0].verify(&tree.hasher, key, output.root_hash);
         assert!(entries[1].base.is_empty());
-        entries[1].verify(tree.hasher, missing_key, output.root_hash);
+        entries[1].verify(&tree.hasher, missing_key, output.root_hash);
     }
 }

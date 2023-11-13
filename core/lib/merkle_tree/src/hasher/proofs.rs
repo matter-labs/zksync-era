@@ -125,20 +125,16 @@ impl TreeEntryWithProof {
 // right hashes from the provided path, and left hashes from the left contour (left hashes from
 // the final entry Merkle path are discarded).
 #[derive(Debug)]
-pub struct TreeRangeDigest {
-    hasher: HasherWithStats<'static>,
+pub struct TreeRangeDigest<'a> {
+    hasher: HasherWithStats<'a>,
     current_leaf: LeafNode,
     left_contour: Box<[ValueHash; TREE_DEPTH]>,
 }
 
-impl TreeRangeDigest {
+impl<'a> TreeRangeDigest<'a> {
     /// Starts a new Merkle tree range.
     #[allow(clippy::missing_panics_doc)] // false positive
-    pub fn new(
-        hasher: &'static dyn HashTree,
-        start_key: Key,
-        start_entry: &TreeEntryWithProof,
-    ) -> Self {
+    pub fn new(hasher: &'a dyn HashTree, start_key: Key, start_entry: &TreeEntryWithProof) -> Self {
         let full_path = hasher.extend_merkle_path(&start_entry.merkle_path);
         let left_contour = full_path.enumerate().map(|(depth, adjacent_hash)| {
             if start_key.bit(depth) {
@@ -149,7 +145,7 @@ impl TreeRangeDigest {
         });
         let left_contour: Vec<_> = left_contour.collect();
         Self {
-            hasher: hasher.into(),
+            hasher: HasherWithStats::new(hasher),
             current_leaf: LeafNode::new(
                 start_key,
                 start_entry.base.value_hash,

@@ -16,7 +16,7 @@ use crate::{
 use zksync_crypto::hasher::{blake2::Blake2Hasher, Hasher};
 
 /// Tree hashing functionality.
-pub trait HashTree: 'static + Send + Sync {
+pub trait HashTree: Send + Sync {
     /// Returns the unique name of the hasher. This is used in Merkle tree tags to ensure
     /// that the tree remains consistent.
     fn name(&self) -> &'static str;
@@ -29,13 +29,32 @@ pub trait HashTree: 'static + Send + Sync {
     /// Returns the hash of an empty subtree with the given depth. Implementations
     /// are encouraged to cache the returned values.
     fn empty_subtree_hash(&self, depth: usize) -> ValueHash;
-}
 
-impl dyn HashTree {
-    pub(crate) fn empty_tree_hash(&self) -> ValueHash {
+    /// Returns the hash of the empty tree. The default implementation uses [`Self::empty_subtree_hash()`].
+    fn empty_tree_hash(&self) -> ValueHash {
         self.empty_subtree_hash(TREE_DEPTH)
     }
+}
 
+impl<H: HashTree + ?Sized> HashTree for &H {
+    fn name(&self) -> &'static str {
+        (**self).name()
+    }
+
+    fn hash_leaf(&self, value_hash: &ValueHash, leaf_index: u64) -> ValueHash {
+        (**self).hash_leaf(value_hash, leaf_index)
+    }
+
+    fn hash_branch(&self, lhs: &ValueHash, rhs: &ValueHash) -> ValueHash {
+        (**self).hash_branch(lhs, rhs)
+    }
+
+    fn empty_subtree_hash(&self, depth: usize) -> ValueHash {
+        (**self).empty_subtree_hash(depth)
+    }
+}
+
+impl dyn HashTree + '_ {
     /// Extends the provided `path` to length `TREE_DEPTH`.
     fn extend_merkle_path<'a>(
         &'a self,
@@ -65,15 +84,15 @@ impl dyn HashTree {
         hash
     }
 
-    pub(crate) fn with_stats<'a>(&'static self, stats: &'a HashingStats) -> HasherWithStats<'a> {
+    pub(crate) fn with_stats<'a>(&'a self, stats: &'a HashingStats) -> HasherWithStats<'a> {
         HasherWithStats {
             shared_metrics: Some(stats),
-            ..HasherWithStats::from(self)
+            ..HasherWithStats::new(self)
         }
     }
 }
 
-impl fmt::Debug for dyn HashTree {
+impl fmt::Debug for dyn HashTree + '_ {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.debug_struct("HashTree").finish_non_exhaustive()
     }
@@ -138,13 +157,13 @@ fn compute_empty_tree_hashes() -> Vec<ValueHash> {
 /// via a wrapping `HashTree` implementation), this would tank performance because of contention.
 #[derive(Debug)]
 pub(crate) struct HasherWithStats<'a> {
-    inner: &'static dyn HashTree,
+    inner: &'a dyn HashTree,
     shared_metrics: Option<&'a HashingStats>,
     local_hashed_bytes: u64,
 }
 
-impl From<&'static dyn HashTree> for HasherWithStats<'_> {
-    fn from(inner: &'static dyn HashTree) -> Self {
+impl<'a> HasherWithStats<'a> {
+    pub fn new(inner: &'a dyn HashTree) -> Self {
         Self {
             inner,
             shared_metrics: None,
@@ -153,8 +172,8 @@ impl From<&'static dyn HashTree> for HasherWithStats<'_> {
     }
 }
 
-impl AsRef<dyn HashTree> for HasherWithStats<'_> {
-    fn as_ref(&self) -> &dyn HashTree {
+impl<'a> AsRef<(dyn HashTree + 'a)> for HasherWithStats<'a> {
+    fn as_ref(&self) -> &(dyn HashTree + 'a) {
         self.inner
     }
 }
@@ -257,7 +276,7 @@ mod tests {
         let key = key.hashed_key_u256();
         let leaf = LeafNode::new(key, H256([1; 32]), 1);
 
-        let mut hasher = (&Blake2Hasher as &dyn HashTree).into();
+        let mut hasher = HasherWithStats::new(&Blake2Hasher);
         let leaf_hash = leaf.hash(&mut hasher, 2);
         assert!(key.bit(254) && !key.bit(255));
         let merkle_path = [H256([2; 32]), H256([3; 32])];
