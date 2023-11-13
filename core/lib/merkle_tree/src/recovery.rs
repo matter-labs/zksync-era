@@ -175,7 +175,6 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
         fields(
             recovered_version = self.recovered_version,
             entries.len = entries.len(),
-            %entries.key_range = entries_key_range(&entries),
         ),
     )]
     pub fn extend_random(&mut self, entries: Vec<RecoveryEntry>) {
