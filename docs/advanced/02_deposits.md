@@ -57,10 +57,10 @@ and now let's bridge it over to L2.
 
 ## Bridging over to L2
 
-We'll use the zksync-cli from: <https://github.com/matter-labs/zksync-cli> and then run:
+For an easy way to bridge we'll use [zkSync CLI](https://github.com/matter-labs/zksync-cli)
 
 ```shell
-npx zksync-cli deposit --chain=local-dockerized
+npx zksync-cli bridge deposit --chain=local-dockerized
 # Amount of ETH to deposit: 3
 # Private key of the sender: 0x5090c024edb3bdf4ce2ebc2da96bedee925d9d77d729687e5e2d56382cf0a5a6
 # Recipient address on L2: 0x618263CE921F7dd5F4f40C29f6c524Aaf97b9bbd
@@ -117,7 +117,7 @@ returns
 
 The deposit command has called the contract on address `0x54e8` (which is exactly the `CONTRACTS_DIAMOND_PROXY_ADDR`
 from `deployL1.log`), and it has called the method `0xeb672419` - which is the `requestL2Transaction` from
-[Mailbox.sol](https://github.com/matter-labs/zksync-2-contracts/blob/main/ethereum/contracts/zksync/facets/Mailbox.sol#L205)
+[Mailbox.sol](https://github.com/matter-labs/era-contracts/blob/f06a58360a2b8e7129f64413998767ac169d1efd/ethereum/contracts/zksync/facets/Mailbox.sol#L220)
 
 #### Quick note on our L1 contracts
 
@@ -127,7 +127,7 @@ the requests to different contracts (facets) that can be independently updated a
 ![Diamond proxy layout](https://user-images.githubusercontent.com/128217157/229521292-1532a59b-665c-4cc4-8342-d25ad45a8fcd.png)
 
 You can find more detailed description in
-[Contract docs](https://github.com/matter-labs/zksync-2-contracts/blob/main/docs/Overview.md)
+[Contract docs](https://github.com/matter-labs/era-contracts/blob/main/docs/Overview.md)
 
 #### requestL2Transaction Function details
 
@@ -158,7 +158,7 @@ The call to requestL2Transaction, is adding the transaction to the priorityQueue
 
 The zk server (that you started with `zk server` command) is listening on events that are emitted from this contract
 (via eth_watcher module -
-[`loop_iteration` function](https://github.com/matter-labs/zksync-2-dev/blob/main/core/bin/zksync_core/src/eth_watch/mod.rs#L128])
+[`loop_iteration` function](https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/eth_watch/mod.rs#L163)
 ) and adds them to the postgres database (into `transactions` table).
 
 You can actually check it - by running the psql and looking at the contents of the table - then you'll notice that

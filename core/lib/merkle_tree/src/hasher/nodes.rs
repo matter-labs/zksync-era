@@ -259,7 +259,6 @@ impl Node {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hasher::HashTree;
     use zksync_crypto::hasher::{blake2::Blake2Hasher, Hasher};
     use zksync_types::H256;
 
@@ -272,7 +271,7 @@ mod tests {
             internal_node.child_ref_mut(nibble).unwrap().hash = H256([nibble; 32]);
         }
 
-        let mut hasher = (&Blake2Hasher as &dyn HashTree).into();
+        let mut hasher = HasherWithStats::new(&Blake2Hasher);
         let node_hash =
             InternalNode::hash_inner(internal_node.child_hashes(), &mut hasher, 252, None);
 
@@ -311,7 +310,7 @@ mod tests {
 
     fn test_updating_child_hash_in_internal_node(child_indexes: &[u8]) {
         let mut internal_node = InternalNode::default();
-        let mut hasher = (&Blake2Hasher as &dyn HashTree).into();
+        let mut hasher = HasherWithStats::new(&Blake2Hasher);
 
         for (child_idx, &nibble) in child_indexes.iter().enumerate() {
             internal_node.insert_child_ref(nibble, ChildRef::leaf(1));

@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use multivm::interface::{Halt, L1BatchEnv, SystemEnv};
 use zksync_types::{
-    block::MiniblockReexecuteData, l2::TransactionType, protocol_version::ProtocolUpgradeTx,
+    block::MiniblockExecutionData, l2::TransactionType, protocol_version::ProtocolUpgradeTx,
     storage_writes_deduplicator::StorageWritesDeduplicator, Transaction,
 };
 
@@ -285,7 +285,7 @@ impl ZkSyncStateKeeper {
         &mut self,
         batch_executor: &BatchExecutorHandle,
         updates_manager: &mut UpdatesManager,
-        miniblocks_to_reexecute: Vec<MiniblockReexecuteData>,
+        miniblocks_to_reexecute: Vec<MiniblockExecutionData>,
     ) -> Result<(), Error> {
         if miniblocks_to_reexecute.is_empty() {
             return Ok(());
@@ -622,11 +622,15 @@ impl ZkSyncStateKeeper {
                 let block_writes_metrics = updates_manager
                     .storage_writes_deduplicator
                     .apply_and_rollback(logs_to_apply_iter.clone());
-                let block_writes_l1_gas = gas_count_from_writes(&block_writes_metrics);
+                let block_writes_l1_gas = gas_count_from_writes(
+                    &block_writes_metrics,
+                    updates_manager.protocol_version(),
+                );
 
                 let tx_writes_metrics =
                     StorageWritesDeduplicator::apply_on_empty_state(logs_to_apply_iter);
-                let tx_writes_l1_gas = gas_count_from_writes(&tx_writes_metrics);
+                let tx_writes_l1_gas =
+                    gas_count_from_writes(&tx_writes_metrics, updates_manager.protocol_version());
                 let tx_gas_excluding_writes = tx_l1_gas_this_tx + finish_block_l1_gas;
 
                 let tx_data = SealData {
@@ -653,6 +657,7 @@ impl ZkSyncStateKeeper {
                         updates_manager.pending_executed_transactions_len() + 1,
                         &block_data,
                         &tx_data,
+                        updates_manager.protocol_version(),
                     )
                 } else {
                     SealResolution::NoSeal

@@ -4,9 +4,9 @@ use tokio::{sync::oneshot, sync::watch};
 
 use crate::api_data_fetcher::{PeriodicApiStruct, PROOF_GENERATION_DATA_PATH, SUBMIT_PROOF_PATH};
 use prometheus_exporter::PrometheusExporterConfig;
-use zksync_config::configs::FriProverGatewayConfig;
-use zksync_dal::connection::DbVariant;
+use zksync_config::configs::{FriProverGatewayConfig, PostgresConfig};
 use zksync_dal::ConnectionPool;
+use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::prover_server_api::{ProofGenerationDataRequest, SubmitProofRequest};
 use zksync_utils::wait_for_tasks::wait_for_tasks;
@@ -35,12 +35,17 @@ async fn main() -> anyhow::Result<()> {
 
     let config =
         FriProverGatewayConfig::from_env().context("FriProverGatewayConfig::from_env()")?;
-    let pool = ConnectionPool::builder(DbVariant::Prover)
-        .build()
-        .await
-        .context("failed to build a connection pool")?;
-    let store_factory =
-        ObjectStoreFactory::prover_from_env().context("ObjectStoreFactory::prover_from_env()")?;
+    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
+    let pool = ConnectionPool::builder(
+        postgres_config.prover_url()?,
+        postgres_config.max_connections()?,
+    )
+    .build()
+    .await
+    .context("failed to build a connection pool")?;
+    let object_store_config =
+        ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;
+    let store_factory = ObjectStoreFactory::new(object_store_config.0);
 
     let proof_submitter = PeriodicApiStruct {
         blob_store: store_factory.create_store().await,

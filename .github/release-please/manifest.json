@@ -1,6 +1,5 @@
 {
-  "sdk/zksync-web3.js": "0.15.4",
   "sdk/zksync-rs": "0.4.0",
-  "core": "16.0.2",
-  "prover": "7.2.0"
+  "core": "17.1.0",
+  "prover": "9.0.0"
 }

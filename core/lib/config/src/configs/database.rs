@@ -1,8 +1,7 @@
+use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 
 use std::time::Duration;
-
-use super::envy_load;
 
 /// Mode of operation for the Merkle tree.
 ///
@@ -10,8 +9,8 @@ use super::envy_load;
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MerkleTreeMode {
-    /// In this mode, `MetadataCalculator` will compute witness inputs for all storage operations
-    /// and put them into the object store as provided by `store_factory` (e.g., GCS).
+    /// In this mode, `MetadataCalculator` will compute commitments and witness inputs for all storage operations
+    /// and optionally put witness inputs into the object store as provided by `store_factory` (e.g., GCS).
     #[default]
     Full,
     /// In this mode, `MetadataCalculator` computes Merkle tree root hashes and some auxiliary information
@@ -38,6 +37,13 @@ pub struct MerkleTreeConfig {
     /// The default value is 128 MB.
     #[serde(default = "MerkleTreeConfig::default_block_cache_size_mb")]
     pub block_cache_size_mb: usize,
+    /// Byte capacity of memtables (recent, non-persisted changes to RocksDB). Setting this to a reasonably
+    /// large value (order of 512 MiB) is helpful for large DBs that experience write stalls.
+    #[serde(default = "MerkleTreeConfig::default_memtable_capacity_mb")]
+    pub memtable_capacity_mb: usize,
+    /// Timeout to wait for the Merkle tree database to run compaction on stalled writes.
+    #[serde(default = "MerkleTreeConfig::default_stalled_writes_timeout_sec")]
+    pub stalled_writes_timeout_sec: u64,
     /// Maximum number of L1 batches to be processed by the Merkle tree at a time.
     #[serde(default = "MerkleTreeConfig::default_max_l1_batches_per_iter")]
     pub max_l1_batches_per_iter: usize,
@@ -51,6 +57,8 @@ impl Default for MerkleTreeConfig {
             mode: MerkleTreeMode::default(),
             multi_get_chunk_size: Self::default_multi_get_chunk_size(),
             block_cache_size_mb: Self::default_block_cache_size_mb(),
+            memtable_capacity_mb: Self::default_memtable_capacity_mb(),
+            stalled_writes_timeout_sec: Self::default_stalled_writes_timeout_sec(),
             max_l1_batches_per_iter: Self::default_max_l1_batches_per_iter(),
         }
     }
@@ -73,6 +81,14 @@ impl MerkleTreeConfig {
         128
     }
 
+    const fn default_memtable_capacity_mb() -> usize {
+        256
+    }
+
+    const fn default_stalled_writes_timeout_sec() -> u64 {
+        30
+    }
+
     const fn default_max_l1_batches_per_iter() -> usize {
         20
     }
@@ -81,14 +97,21 @@ impl MerkleTreeConfig {
     pub fn block_cache_size(&self) -> usize {
         self.block_cache_size_mb * super::BYTES_IN_MEGABYTE
     }
+
+    /// Returns the memtable capacity in bytes.
+    pub fn memtable_capacity(&self) -> usize {
+        self.memtable_capacity_mb * super::BYTES_IN_MEGABYTE
+    }
+
+    /// Returns the timeout to wait for the Merkle tree database to run compaction on stalled writes.
+    pub fn stalled_writes_timeout(&self) -> Duration {
+        Duration::from_secs(self.stalled_writes_timeout_sec)
+    }
 }
 
 /// Database configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct DBConfig {
-    /// Statement timeout in seconds for Postgres connections. Applies only to the replica
-    /// connection pool used by the API servers.
-    pub statement_timeout_sec: Option<u64>,
     /// Path to the RocksDB data directory that serves state cache.
     #[serde(default = "DBConfig::default_state_keeper_db_path")]
     pub state_keeper_db_path: String,
@@ -118,97 +141,58 @@ impl DBConfig {
         60_000
     }
 
-    pub fn from_env() -> anyhow::Result<Self> {
-        Ok(Self {
-            merkle_tree: envy_load("database_merkle_tree", "DATABASE_MERKLE_TREE_")?,
-            ..envy_load("database", "DATABASE_")?
-        })
-    }
-
-    /// Returns the Postgres statement timeout.
-    pub fn statement_timeout(&self) -> Option<Duration> {
-        self.statement_timeout_sec.map(Duration::from_secs)
-    }
-
     pub fn backup_interval(&self) -> Duration {
         Duration::from_millis(self.backup_interval_ms)
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::configs::test_utils::EnvMutex;
+/// Collection of different database URLs and general PostgreSQL options.
+/// All the entries are optional, since some components may only require a subset of them,
+/// and any component may have overrides.
+#[derive(Debug, Clone)]
+pub struct PostgresConfig {
+    /// URL for the main (sequencer) database.
+    pub master_url: Option<String>,
+    /// URL for the replica database.
+    pub replica_url: Option<String>,
+    /// URL for the prover database.
+    pub prover_url: Option<String>,
+    /// Maximum size of the connection pool.
+    pub max_connections: Option<u32>,
+    /// Statement timeout in seconds for Postgres connections. Applies only to the replica
+    /// connection pool used by the API servers.
+    pub statement_timeout_sec: Option<u64>,
+}
 
-    static MUTEX: EnvMutex = EnvMutex::new();
-
-    #[test]
-    fn from_env() {
-        let mut lock = MUTEX.lock();
-        let config = r#"
-            DATABASE_STATE_KEEPER_DB_PATH="/db/state_keeper"
-            DATABASE_MERKLE_TREE_BACKUP_PATH="/db/backups"
-            DATABASE_MERKLE_TREE_PATH="/db/tree"
-            DATABASE_MERKLE_TREE_MODE=lightweight
-            DATABASE_MERKLE_TREE_MULTI_GET_CHUNK_SIZE=250
-            DATABASE_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER=50
-            DATABASE_BACKUP_COUNT=5
-            DATABASE_BACKUP_INTERVAL_MS=60000
-        "#;
-        lock.set_env(config);
-
-        let db_config = DBConfig::from_env().unwrap();
-        assert_eq!(db_config.state_keeper_db_path, "/db/state_keeper");
-        assert_eq!(db_config.merkle_tree.path, "/db/tree");
-        assert_eq!(db_config.merkle_tree.backup_path, "/db/backups");
-        assert_eq!(db_config.merkle_tree.mode, MerkleTreeMode::Lightweight);
-        assert_eq!(db_config.merkle_tree.multi_get_chunk_size, 250);
-        assert_eq!(db_config.merkle_tree.max_l1_batches_per_iter, 50);
-        assert_eq!(db_config.backup_count, 5);
-        assert_eq!(db_config.backup_interval().as_secs(), 60);
+impl PostgresConfig {
+    /// Returns a copy of the master database URL as a `Result` to simplify error propagation.
+    pub fn master_url(&self) -> anyhow::Result<&str> {
+        self.master_url
+            .as_deref()
+            .context("Master DB URL is absent")
     }
 
-    #[test]
-    fn from_empty_env() {
-        let mut lock = MUTEX.lock();
-        lock.remove_env(&[
-            "DATABASE_STATE_KEEPER_DB_PATH",
-            "DATABASE_MERKLE_TREE_BACKUP_PATH",
-            "DATABASE_MERKLE_TREE_PATH",
-            "DATABASE_MERKLE_TREE_MODE",
-            "DATABASE_MERKLE_TREE_MULTI_GET_CHUNK_SIZE",
-            "DATABASE_MERKLE_TREE_BLOCK_CACHE_SIZE_MB",
-            "DATABASE_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER",
-            "DATABASE_BACKUP_COUNT",
-            "DATABASE_BACKUP_INTERVAL_MS",
-        ]);
+    /// Returns a copy of the replica database URL as a `Result` to simplify error propagation.
+    pub fn replica_url(&self) -> anyhow::Result<&str> {
+        self.replica_url
+            .as_deref()
+            .context("Replica DB URL is absent")
+    }
 
-        let db_config = DBConfig::from_env().unwrap();
-        assert_eq!(db_config.state_keeper_db_path, "./db/state_keeper");
-        assert_eq!(db_config.merkle_tree.path, "./db/lightweight-new");
-        assert_eq!(db_config.merkle_tree.backup_path, "./db/backups");
-        assert_eq!(db_config.merkle_tree.mode, MerkleTreeMode::Full);
-        assert_eq!(db_config.merkle_tree.multi_get_chunk_size, 500);
-        assert_eq!(db_config.merkle_tree.max_l1_batches_per_iter, 20);
-        assert_eq!(db_config.merkle_tree.block_cache_size_mb, 128);
-        assert_eq!(db_config.backup_count, 5);
-        assert_eq!(db_config.backup_interval().as_secs(), 60);
+    /// Returns a copy of the prover database URL as a `Result` to simplify error propagation.
+    pub fn prover_url(&self) -> anyhow::Result<&str> {
+        self.prover_url
+            .as_deref()
+            .context("Prover DB URL is absent")
+    }
 
-        // Check that new env variable for Merkle tree path is supported
-        lock.set_env("DATABASE_MERKLE_TREE_PATH=/db/tree/main");
-        let db_config = DBConfig::from_env().unwrap();
-        assert_eq!(db_config.merkle_tree.path, "/db/tree/main");
+    /// Returns the maximum size of the connection pool as a `Result` to simplify error propagation.
+    pub fn max_connections(&self) -> anyhow::Result<u32> {
+        self.max_connections.context("Max connections is absent")
+    }
 
-        lock.set_env("DATABASE_MERKLE_TREE_MULTI_GET_CHUNK_SIZE=200");
-        let db_config = DBConfig::from_env().unwrap();
-        assert_eq!(db_config.merkle_tree.multi_get_chunk_size, 200);
-
-        lock.set_env("DATABASE_MERKLE_TREE_BLOCK_CACHE_SIZE_MB=256");
-        let db_config = DBConfig::from_env().unwrap();
-        assert_eq!(db_config.merkle_tree.block_cache_size_mb, 256);
-
-        lock.set_env("DATABASE_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER=50");
-        let db_config = DBConfig::from_env().unwrap();
-        assert_eq!(db_config.merkle_tree.max_l1_batches_per_iter, 50);
+    /// Returns the Postgres statement timeout.
+    pub fn statement_timeout(&self) -> Option<Duration> {
+        self.statement_timeout_sec.map(Duration::from_secs)
     }
 }

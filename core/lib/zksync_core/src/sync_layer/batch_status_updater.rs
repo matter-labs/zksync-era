@@ -179,7 +179,7 @@ impl BatchStatusUpdater {
             else {
                 // We cannot recover from an external API inconsistency.
                 panic!(
-                    "Node API is inconsistent: miniblock {} was reported to be a part of {} L1batch, \
+                    "Node API is inconsistent: miniblock {} was reported to be a part of {} L1 batch, \
                     but API has no information about this miniblock", start_miniblock, batch
                 );
             };
@@ -306,7 +306,8 @@ impl BatchStatusUpdater {
                     change.l1_tx_hash,
                     change.happened_at,
                 )
-                .await;
+                .await
+                .unwrap();
             self.last_committed_l1_batch = change.number;
         }
         for change in changes.prove.into_iter() {
@@ -324,7 +325,8 @@ impl BatchStatusUpdater {
                     change.l1_tx_hash,
                     change.happened_at,
                 )
-                .await;
+                .await
+                .unwrap();
             self.last_proven_l1_batch = change.number;
         }
         for change in changes.execute.into_iter() {
@@ -343,7 +345,8 @@ impl BatchStatusUpdater {
                     change.l1_tx_hash,
                     change.happened_at,
                 )
-                .await;
+                .await
+                .unwrap();
             self.last_executed_l1_batch = change.number;
         }
 

@@ -7,10 +7,13 @@ use queues::Buffer;
 
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::{
-    configs::{api::PrometheusConfig, prover_group::ProverGroupConfig, AlertsConfig},
-    ApiConfig, ProverConfig, ProverConfigs,
+    configs::{
+        api::PrometheusConfig, prover_group::ProverGroupConfig, AlertsConfig, ObjectStoreConfig,
+    },
+    ApiConfig, PostgresConfig, ProverConfig, ProverConfigs,
 };
-use zksync_dal::{connection::DbVariant, ConnectionPool};
+use zksync_dal::ConnectionPool;
+use zksync_env_config::FromEnv;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_utils::region_fetcher::{get_region, get_zone};
 use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
@@ -23,7 +26,8 @@ use crate::socket_listener::incoming_socket_listener;
 use crate::synthesized_circuit_provider::SynthesizedCircuitProvider;
 
 async fn graceful_shutdown() -> anyhow::Result<impl Future<Output = ()>> {
-    let pool = ConnectionPool::singleton(DbVariant::Prover)
+    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
+    let pool = ConnectionPool::singleton(postgres_config.prover_url()?)
         .build()
         .await
         .context("failed to build a connection pool")?;
@@ -32,8 +36,12 @@ async fn graceful_shutdown() -> anyhow::Result<impl Future<Output = ()>> {
         .context("ProverConfigs")?
         .non_gpu
         .assembly_receiver_port;
-    let region = get_region().await.context("get_region()")?;
-    let zone = get_zone().await.context("get_zone()")?;
+    let prover_group_config =
+        ProverGroupConfig::from_env().context("ProverGroupConfig::from_env()")?;
+    let region = get_region(&prover_group_config)
+        .await
+        .context("get_region()")?;
+    let zone = get_zone(&prover_group_config).await.context("get_zone()")?;
     let address = SocketAddress { host, port };
     Ok(async move {
         pool.access_storage()
@@ -119,8 +127,12 @@ pub async fn run() -> anyhow::Result<()> {
             .prometheus
     };
 
-    let region = get_region().await.context("get_regtion()")?;
-    let zone = get_zone().await.context("get_zone()")?;
+    let prover_group_config =
+        ProverGroupConfig::from_env().context("ProverGroupConfig::from_env()")?;
+    let region = get_region(&prover_group_config)
+        .await
+        .context("get_region()")?;
+    let zone = get_zone(&prover_group_config).await.context("get_zone()")?;
 
     let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
     let mut stop_signal_sender = Some(stop_signal_sender);
@@ -143,9 +155,8 @@ pub async fn run() -> anyhow::Result<()> {
     // Though we still need to create a channel because circuit breaker expects `stop_receiver`.
     let (_stop_sender, stop_receiver) = tokio::sync::watch::channel(false);
 
-    let circuit_ids = ProverGroupConfig::from_env()
-        .context("ProverGroupConfig::from_env()")?
-        .get_circuit_ids_for_group_id(prover_config.specialized_prover_group_id);
+    let circuit_ids =
+        prover_group_config.get_circuit_ids_for_group_id(prover_config.specialized_prover_group_id);
 
     tracing::info!(
         "Starting proof generation for circuits: {circuit_ids:?} \
@@ -168,11 +179,12 @@ pub async fn run() -> anyhow::Result<()> {
     };
     tracing::info!("local IP address is: {:?}", local_ip);
 
+    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
     tasks.push(tokio::task::spawn(incoming_socket_listener(
         local_ip,
         prover_config.assembly_receiver_port,
         producer,
-        ConnectionPool::singleton(DbVariant::Prover)
+        ConnectionPool::singleton(postgres_config.prover_url()?)
             .build()
             .await
             .context("failed to build a connection pool")?,
@@ -183,9 +195,11 @@ pub async fn run() -> anyhow::Result<()> {
     )));
 
     let params = ProverParams::new(&prover_config);
-    let store_factory = ObjectStoreFactory::from_env().context("ObjectStoreFactory::from_env()")?;
+    let object_store_config =
+        ObjectStoreConfig::from_env().context("ObjectStoreConfig::from_env()")?;
+    let store_factory = ObjectStoreFactory::new(object_store_config);
 
-    let circuit_provider_pool = ConnectionPool::singleton(DbVariant::Prover)
+    let circuit_provider_pool = ConnectionPool::singleton(postgres_config.prover_url()?)
         .build()
         .await
         .context("failed to build circuit_provider_pool")?;
@@ -199,8 +213,9 @@ pub async fn run() -> anyhow::Result<()> {
             zone,
             rt_handle.clone(),
         );
-        let prover_job_reporter = ProverReporter::new(prover_config, &store_factory, rt_handle)
-            .context("ProverReporter::new()")?;
+        let prover_job_reporter =
+            ProverReporter::new(postgres_config, prover_config, &store_factory, rt_handle)
+                .context("ProverReporter::new()")?;
         prover_service::run_prover::run_prover_with_remote_synthesizer(
             synthesized_circuit_provider,
             ProverArtifactProvider,

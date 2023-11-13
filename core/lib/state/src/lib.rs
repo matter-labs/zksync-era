@@ -55,6 +55,9 @@ pub trait ReadStorage: fmt::Debug {
         let code_key = get_known_code_key(bytecode_hash);
         self.read_value(&code_key) != H256::zero()
     }
+
+    /// Retrieves the enumeration index for a given `key`.
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64>;
 }
 
 /// Functionality to write to the VM storage in a batch.

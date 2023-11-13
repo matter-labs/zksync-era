@@ -1,5 +1,5 @@
 # Will work locally only after prior contracts build
-# syntax=docker/dockerfile:experimental
+
 FROM debian:bookworm-slim as builder
 
 RUN apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ \

@@ -77,21 +77,17 @@ The transaction can have three different results in state keeper:
   happen - as we cannot charge the fee in such scenario, and it opens the possiblity for the DDoS attack.
 
 [transaction_request_from_bytes]:
-  https://github.com/matter-labs/zksync-2-dev/blob/e0820f994982f179c0466cd724a0a327327a501a/core/lib/types/src/transaction_request.rs#L539
+  https://github.com/matter-labs/zksync-era/blob/main/core/lib/types/src/transaction_request.rs#L196
   'transaction request from bytes'
 [get_priority_op_events]:
-  https://github.com/matter-labs/zksync-2-dev/blob/e0820f994982f179c0466cd724a0a327327a501a/core/bin/zksync_core/src/eth_watch/client.rs#L112
+  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/eth_watch/client.rs
   'get priority op events'
-[l1_tx]:
-  https://github.com/matter-labs/zksync-2-dev/blob/e0820f994982f179c0466cd724a0a327327a501a/core/lib/types/src/l1/mod.rs#L196
-  'l1 tx'
-[l2_tx]:
-  https://github.com/matter-labs/zksync-2-dev/blob/e0820f994982f179c0466cd724a0a327327a501a/core/lib/types/src/l2/mod.rs#L110
-  'l2 tx'
+[l1_tx]: https://github.com/matter-labs/zksync-era/blob/main/core/lib/types/src/l1/mod.rs#L183 'l1 tx'
+[l2_tx]: https://github.com/matter-labs/zksync-era/blob/main/core/lib/types/src/l2/mod.rs#L140 'l2 tx'
 [submit_tx]:
-  https://github.com/matter-labs/zksync-2-dev/blob/e0820f994982f179c0466cd724a0a327327a501a/core/bin/zksync_core/src/api_server/tx_sender/mod.rs#L146
+  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/api_server/tx_sender/mod.rs#L309
   'submit tx'
 [process_l1_batch]:
-  https://github.com/matter-labs/zksync-2-dev/blob/e0820f994982f179c0466cd724a0a327327a501a/core/bin/zksync_core/src/state_keeper/keeper.rs#L257
+  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/state_keeper/keeper.rs#L257
   'process l1 batch'
 [life_of_call]: how_call_works.md 'life of call'

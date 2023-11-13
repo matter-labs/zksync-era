@@ -185,22 +185,21 @@ transmitted to L1 for final verification.
 [overview_image]: https://user-images.githubusercontent.com/128217157/257739371-f971c10b-87c7-4ee9-bd0e-731670c616ac.png
 [user_docs]: https://era.zksync.io/docs/dev/how-to/send-message-l2-l1.html
 [l1_messenger]:
-  https://github.com/matter-labs/system-contracts/blob/f01df555c03860b6093dd669d119eed4d9f8ec99/contracts/L1Messenger.sol#L22
+  https://github.com/matter-labs/era-system-contracts/blob/f01df555c03860b6093dd669d119eed4d9f8ec99/contracts/L1Messenger.sol#L22
 [list_of_opcodes]:
-  https://github.com/matter-labs/system-contracts/blob/e96dfe0b5093fa95c2fb340c0411c646327db921/contracts/libraries/SystemContractsCaller.sol#L12
-[opcode_catch_compiler]: https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/evm/call.rs#L39
+  https://github.com/matter-labs/era-system-contracts/blob/e96dfe0b5093fa95c2fb340c0411c646327db921/contracts/libraries/SystemContractsCaller.sol#L12
+[opcode_catch_compiler]: https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/evm/call.rs
 [iterate_over_events]:
-  https://github.com/matter-labs/zksync-2-dev/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/types/src/event.rs#L147
+  https://github.com/matter-labs/zksync-era/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/types/src/event.rs#L147
 [vm_execution_result]:
-  https://github.com/matter-labs/zksync-2-dev/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/vm/src/vm.rs#L81
+  https://github.com/matter-labs/zksync-era/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/vm/src/vm.rs#L81
 [log_queries]:
   https://github.com/matter-labs/zk_evm_abstractions/blob/839721a4ae2093c5c0aa8ffd49758f32ecd172ed/src/queries.rs#L30C2-L30C2
 [aux_bytes]:
   https://github.com/matter-labs/zkevm_opcode_defs/blob/780ce4129a95ab9a68abf0d60c156ee8df6008c2/src/system_params.rs#L37C39-L37C39
 [event_sink]:
-  https://github.com/matter-labs/zksync-2-dev/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/vm/src/event_sink.rs#L116
-[log_writing_in_vm]:
-  https://github.com/matter-labs/zk_evm/blob/be4da71446924f739b9fb10cfd310231adf2a542/src/opcodes/execution/log.rs#L231
+  https://github.com/matter-labs/zksync-era/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/vm/src/event_sink.rs#L116
+[log_writing_in_vm]: https://github.com/matter-labs/era-zk_evm/blob/v1.3.2/src/opcodes/execution/log.rs
 [log_opcode]: https://github.com/matter-labs/zkevm_opcode_defs/blob/v1.3.2/src/definitions/log.rs#L16
 [zkevm_assembly_parse]:
   https://github.com/matter-labs/zkEVM-assembly/blob/fcfeb51e45544a629d4279b3455def847dcc2505/src/assembly/instruction/log.rs#L32
