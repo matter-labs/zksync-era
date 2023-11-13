@@ -11,8 +11,6 @@ categories = ["cryptography"]
 
 [dependencies]
 zksync_basic_types = { path = "../../lib/basic_types" }
-zksync_contracts = { path = "../../lib/contracts" }
 
 anyhow = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-envy = "0.4"
