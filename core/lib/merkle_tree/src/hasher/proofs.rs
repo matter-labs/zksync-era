@@ -145,7 +145,7 @@ impl<'a> TreeRangeDigest<'a> {
         });
         let left_contour: Vec<_> = left_contour.collect();
         Self {
-            hasher: hasher.into(),
+            hasher: HasherWithStats::new(hasher),
             current_leaf: LeafNode::new(
                 start_key,
                 start_entry.base.value_hash,
