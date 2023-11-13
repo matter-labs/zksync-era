@@ -6332,7 +6332,9 @@ version = "0.1.0"
 dependencies = [
  "clap 4.4.6",
  "tokio",
+ "zksync_config",
  "zksync_dal",
+ "zksync_env_config",
  "zksync_types",
 ]
 
@@ -7160,7 +7162,9 @@ dependencies = [
  "anyhow",
  "serde_json",
  "tokio",
+ "zksync_config",
  "zksync_dal",
+ "zksync_env_config",
  "zksync_types",
 ]
 
@@ -7938,10 +7942,8 @@ name = "zksync_config"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "envy",
  "serde",
  "zksync_basic_types",
- "zksync_contracts",
 ]
 
 [[package]]

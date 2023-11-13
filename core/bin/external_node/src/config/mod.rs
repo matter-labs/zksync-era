@@ -375,11 +375,35 @@ impl RequiredENConfig {
     }
 }
 
+/// Configuration for Postgres database.
+/// While also mandatory, it historically used different naming scheme for corresponding
+/// environment variables.
+/// Thus it is kept separately for backward compatibility and ease of deserialization.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct PostgresConfig {
+    pub database_url: String,
+    pub max_connections: u32,
+}
+
+impl PostgresConfig {
+    pub fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            database_url: env::var("DATABASE_URL")
+                .context("DATABASE_URL env variable is not set")?,
+            max_connections: env::var("DATABASE_POOL_SIZE")
+                .context("DATABASE_POOL_SIZE env variable is not set")?
+                .parse()
+                .context("Unable to parse DATABASE_POOL_SIZE env variable")?,
+        })
+    }
+}
+
 /// External Node Config contains all the configuration required for the EN operation.
 /// It is split into three parts: required, optional and remote for easier navigation.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ExternalNodeConfig {
     pub required: RequiredENConfig,
+    pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
     pub remote: RemoteENConfig,
 }
@@ -440,8 +464,11 @@ impl ExternalNodeConfig {
             );
         }
 
+        let postgres = PostgresConfig::from_env()?;
+
         Ok(Self {
             remote,
+            postgres,
             required,
             optional,
         })

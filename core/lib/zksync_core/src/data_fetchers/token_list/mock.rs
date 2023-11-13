@@ -8,7 +8,6 @@ use zksync_types::{
     tokens::{TokenMetadata, ETHEREUM_ADDRESS},
     Address,
 };
-use zksync_utils::parse_env;
 
 use crate::data_fetchers::error::ApiFetchError;
 
@@ -69,7 +68,10 @@ struct TokenGenesisListItem {
 }
 
 fn get_genesis_token_list(network: &str) -> Vec<TokenGenesisListItem> {
-    let mut file_path = parse_env::<PathBuf>("ZKSYNC_HOME");
+    let mut file_path: PathBuf = std::env::var("ZKSYNC_HOME")
+        .unwrap_or_else(|_| panic!("ZKSYNC_HOME variable should be set"))
+        .parse()
+        .unwrap_or_else(|_| panic!("Failed to parse ZKSYNC_HOME env variable"));
     file_path.push("etc");
     file_path.push("tokens");
     file_path.push(network);
