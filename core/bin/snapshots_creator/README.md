@@ -1,12 +1,13 @@
 # Snapshots Creator
 
-Snapshot creator is small command line tool for creating a snapshot of zkSync node for EN node to be able to initialize to a certain L1 Batch.
+Snapshot creator is small command line tool for creating a snapshot of zkSync node for EN node to be able to initialize
+to a certain L1 Batch.
 
-Snapshots do not contain full transactions history, but rather a minimal subset of information needed to bootstrap EN node. 
+Snapshots do not contain full transactions history, but rather a minimal subset of information needed to bootstrap EN
+node.
 
 Usage (local development):\
-First run
-`zk env dev` \
+First run `zk env dev` \
 then the creator can be run using:  
 `cargo run --bin snapshots_creator --release`
 
@@ -31,7 +32,7 @@ pub struct SnapshotHeader {
 
 pub struct SnapshotStorageLogsChunkMetadata {
     pub chunk_id: u64,
-    // can be either a gs or filesystem path 
+    // can be either a gs or filesystem path
     pub filepath: String,
 }
 ```
@@ -41,7 +42,7 @@ pub struct SnapshotStorageLogsChunkMetadata {
 ```rust
 pub struct SnapshotStorageLogsChunk {
     // sorted by hashed_keys interpreted as little-endian numbers
-    pub storage_logs: Vec<SnapshotStorageLog>, 
+    pub storage_logs: Vec<SnapshotStorageLog>,
 }
 
 // "most recent" for each key together with info when the key was first used
