@@ -99,7 +99,7 @@ impl Cli {
                     }
                 })
                 .collect();
-            recovery.extend(recovery_entries);
+            recovery.extend_linear(recovery_entries);
             tracing::info!(
                 "Updated tree with recovery chunk #{updated_idx} in {:?}",
                 started_at.elapsed()

@@ -6718,10 +6718,8 @@ name = "zksync_config"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "envy",
  "serde",
  "zksync_basic_types",
- "zksync_contracts",
 ]
 
 [[package]]
