@@ -58,7 +58,7 @@ jobs:
       - name: Generate outputs with Prover FRI setup data keys IDs
         id: extract-prover-fri-setup-key-ids
         run: |
-          ./prover/extract-keys.sh >> $GITHUB_OUTPUT
+          ./prover/extract-setup-data-keys.sh >> $GITHUB_OUTPUT
 
   build-push-core-images:
     name: Build and push images
