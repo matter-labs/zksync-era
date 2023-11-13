@@ -620,7 +620,7 @@ checksum = "8d696c370c750c948ada61c69a0ee2cbbb9c50b1019ddb86d9317157a99c2cae"
 [[package]]
 name = "boojum"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum?branch=main#1588de7669b016df3f81f7139a1a4b131840e48b"
+source = "git+https://github.com/matter-labs/era-boojum?branch=main#84754b066959c8fdfb77edf730fc13ed87404907"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
@@ -1292,7 +1292,7 @@ dependencies = [
 [[package]]
 name = "cs_derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum?branch=main#1588de7669b016df3f81f7139a1a4b131840e48b"
+source = "git+https://github.com/matter-labs/era-boojum?branch=main#84754b066959c8fdfb77edf730fc13ed87404907"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.69",
@@ -5055,7 +5055,7 @@ dependencies = [
 [[package]]
 name = "shivini"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-shivini.git?branch=main#937b5e82dd58563c1ae0e862f5497165cec815d1"
+source = "git+https://github.com/matter-labs/era-shivini.git?branch=main#bb3d4ad1fa454d7be54a819cc0c16561806c49fe"
 dependencies = [
  "bincode",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
