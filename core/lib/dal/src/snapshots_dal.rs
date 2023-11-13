@@ -80,11 +80,11 @@ impl SnapshotsDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use crate::ConnectionPool;
-    use db_test_macro::db_test;
     use zksync_types::L1BatchNumber;
 
-    #[db_test(dal_crate)]
-    async fn adding_snapshot(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn adding_snapshot() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         let mut dal = conn.snapshots_dal();
         let l1_batch_number = L1BatchNumber(100);
@@ -117,8 +117,9 @@ mod tests {
         );
     }
 
-    #[db_test(dal_crate)]
-    async fn adding_files(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn adding_files() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         let mut dal = conn.snapshots_dal();
         let l1_batch_number = L1BatchNumber(100);

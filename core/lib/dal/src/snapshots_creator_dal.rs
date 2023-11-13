@@ -4,11 +4,11 @@ use zksync_types::snapshots::{SnapshotFactoryDependency, SnapshotStorageLog};
 use zksync_types::{AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, H256};
 
 #[derive(Debug)]
-pub struct SnapshotChunksDal<'a, 'c> {
+pub struct SnapshotsCreatorDal<'a, 'c> {
     pub(crate) storage: &'a mut StorageProcessor<'c>,
 }
 
-impl SnapshotChunksDal<'_, '_> {
+impl SnapshotsCreatorDal<'_, '_> {
     pub async fn get_storage_logs_count(
         &mut self,
         l1_batch_number: L1BatchNumber,

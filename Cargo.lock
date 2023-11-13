@@ -6129,17 +6129,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "snark_wrapper"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/snark-wrapper.git?branch=main#52f9ef98a7e6c86b405dd0ec42291dacf6e2bcb4"
-dependencies = [
- "derivative",
- "rand 0.4.6",
- "rescue_poseidon 0.4.1 (git+https://github.com/matter-labs/rescue-poseidon.git?branch=poseidon2)",
-]
-
-[[package]]
-name = "snapshot_creator"
+name = "snapshots_creator"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -6150,9 +6140,20 @@ dependencies = [
  "zksync_config",
  "zksync_core",
  "zksync_dal",
+ "zksync_env_config",
  "zksync_object_store",
  "zksync_types",
  "zksync_utils",
+]
+
+[[package]]
+name = "snark_wrapper"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/snark-wrapper.git?branch=main#52f9ef98a7e6c86b405dd0ec42291dacf6e2bcb4"
+dependencies = [
+ "derivative",
+ "rand 0.4.6",
+ "rescue_poseidon 0.4.1 (git+https://github.com/matter-labs/rescue-poseidon.git?branch=poseidon2)",
 ]
 
 [[package]]

@@ -5,10 +5,13 @@ use crate::sync_layer::snapshots::SnapshotApplierError::*;
 use crate::sync_layer::{ActionQueue, ExternalIO, MainNodeClient, SyncState};
 use anyhow::Context;
 use multivm::vm_1_3_2::zk_evm_1_3_3::ethereum_types::Address;
+use serde_json::Value::Object;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::path::Path;
 use tokio::sync::watch;
+use zksync_config::configs::object_store::ObjectStoreMode;
+use zksync_config::ObjectStoreConfig;
 use zksync_dal::connection::DbVariant;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_merkle_tree::recovery::{MerkleTreeRecovery, RecoveryEntry};
@@ -19,9 +22,7 @@ use zksync_types::snapshots::{
     AppliedSnapshotStatus, SnapshotFactoryDependencies, SnapshotHeader, SnapshotStorageLog,
     SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
 };
-use zksync_types::{
-    L1BatchNumber, L2ChainId, ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, H256,
-};
+use zksync_types::{L1BatchNumber, L2ChainId, ProtocolVersionId, H256};
 
 pub struct StateKeeperConfig {
     pub connection_pool: ConnectionPool,
@@ -111,8 +112,14 @@ impl<'a, 'b, 'd> SnapshotApplier<'a, 'b, 'd> {
 
         let recovery = MerkleTreeRecovery::new(rocks_db, recovered_version);
 
-        let blob_store = ObjectStoreFactory::snapshots_from_env()
-            .context("ObjectStoreFactor::snapshots_from_env()")?
+        let object_store_config = ObjectStoreConfig {
+            bucket_base_url: "".to_string(),
+            mode: ObjectStoreMode::FileBacked,
+            file_backed_base_path: "artifacts".to_string(),
+            gcs_credential_file_path: "".to_string(),
+            max_retries: 5,
+        };
+        let blob_store = ObjectStoreFactory::new(object_store_config)
             .create_store()
             .await;
 

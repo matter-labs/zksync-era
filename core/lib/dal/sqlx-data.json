@@ -298,6 +298,26 @@
     },
     "query": "\n                WITH events_select AS (\n                    SELECT\n                        address, topic1, topic2, topic3, topic4, value,\n                        miniblock_number, tx_hash, tx_index_in_block,\n                        event_index_in_block, event_index_in_tx\n                    FROM events\n                    WHERE miniblock_number > $1\n                    ORDER BY miniblock_number ASC, event_index_in_block ASC\n                )\n                SELECT miniblocks.hash as \"block_hash?\",\n                    address as \"address!\", topic1 as \"topic1!\", topic2 as \"topic2!\", topic3 as \"topic3!\", topic4 as \"topic4!\", value as \"value!\",\n                    miniblock_number as \"miniblock_number!\", miniblocks.l1_batch_number as \"l1_batch_number?\", tx_hash as \"tx_hash!\",\n                    tx_index_in_block as \"tx_index_in_block!\", event_index_in_block as \"event_index_in_block!\", event_index_in_tx as \"event_index_in_tx!\"\n                FROM events_select\n                INNER JOIN miniblocks ON events_select.miniblock_number = miniblocks.number\n                ORDER BY miniblock_number ASC, event_index_in_block ASC\n                "
   },
+  "05dd7740e61d65a8204f3f39191fbe75bba682c2442e44f9aac28c367e6c47df": {
+    "describe": {
+      "columns": [
+        {
+          "name": "count",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        null
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT count(*) FROM initial_writes WHERE l1_batch_number <= $1"
+  },
   "07310d96fc7e258154ad510684e33d196907ebd599e926d305e5ef9f26afa2fa": {
     "describe": {
       "columns": [
@@ -1218,112 +1238,6 @@
       }
     },
     "query": "\n                SELECT storage.value as \"value!\",\n                    tokens.l1_address as \"l1_address!\", tokens.l2_address as \"l2_address!\",\n                    tokens.symbol as \"symbol!\", tokens.name as \"name!\", tokens.decimals as \"decimals!\", tokens.usd_price as \"usd_price?\"\n                    FROM storage\n                INNER JOIN tokens ON\n                    storage.address = tokens.l2_address OR (storage.address = $2 AND tokens.l2_address = $3)\n                WHERE storage.hashed_key = ANY($1) AND storage.value != $4\n            "
-  },
-  "1a91acea72e56513a2a9e667bd5a2c171baa5fec01c51dcb7c7cf33f736c854d": {
-    "describe": {
-      "columns": [
-        {
-          "name": "tx_hash",
-          "ordinal": 0,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "index_in_block",
-          "ordinal": 1,
-          "type_info": "Int4"
-        },
-        {
-          "name": "l1_batch_tx_index",
-          "ordinal": 2,
-          "type_info": "Int4"
-        },
-        {
-          "name": "block_number",
-          "ordinal": 3,
-          "type_info": "Int8"
-        },
-        {
-          "name": "error",
-          "ordinal": 4,
-          "type_info": "Varchar"
-        },
-        {
-          "name": "effective_gas_price",
-          "ordinal": 5,
-          "type_info": "Numeric"
-        },
-        {
-          "name": "initiator_address",
-          "ordinal": 6,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "transfer_to?",
-          "ordinal": 7,
-          "type_info": "Jsonb"
-        },
-        {
-          "name": "execute_contract_address?",
-          "ordinal": 8,
-          "type_info": "Jsonb"
-        },
-        {
-          "name": "tx_format?",
-          "ordinal": 9,
-          "type_info": "Int4"
-        },
-        {
-          "name": "refunded_gas",
-          "ordinal": 10,
-          "type_info": "Int8"
-        },
-        {
-          "name": "gas_limit",
-          "ordinal": 11,
-          "type_info": "Numeric"
-        },
-        {
-          "name": "block_hash?",
-          "ordinal": 12,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "l1_batch_number?",
-          "ordinal": 13,
-          "type_info": "Int8"
-        },
-        {
-          "name": "contract_address?",
-          "ordinal": 14,
-          "type_info": "Bytea"
-        }
-      ],
-      "nullable": [
-        false,
-        true,
-        true,
-        true,
-        true,
-        true,
-        false,
-        null,
-        null,
-        true,
-        false,
-        true,
-        false,
-        true,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Bytea",
-          "Bytea",
-          "Bytea"
-        ]
-      }
-    },
-    "query": "\n                WITH sl AS (\n                    SELECT * FROM storage_logs\n                    WHERE storage_logs.address = $1 AND storage_logs.tx_hash = $2\n                    ORDER BY storage_logs.miniblock_number DESC, storage_logs.operation_number DESC\n                    LIMIT 1\n                )\n                SELECT\n                     transactions.hash as tx_hash,\n                     transactions.index_in_block as index_in_block,\n                     transactions.l1_batch_tx_index as l1_batch_tx_index,\n                     transactions.miniblock_number as block_number,\n                     transactions.error as error,\n                     transactions.effective_gas_price as effective_gas_price,\n                     transactions.initiator_address as initiator_address,\n                     transactions.data->'to' as \"transfer_to?\",\n                     transactions.data->'contractAddress' as \"execute_contract_address?\",\n                     transactions.tx_format as \"tx_format?\",\n                     transactions.refunded_gas as refunded_gas,\n                     transactions.gas_limit as gas_limit,\n                     miniblocks.hash as \"block_hash?\",\n                     miniblocks.l1_batch_number as \"l1_batch_number?\",\n                     sl.key as \"contract_address?\"\n                FROM transactions\n                LEFT JOIN miniblocks\n                    ON miniblocks.number = transactions.miniblock_number\n                LEFT JOIN sl\n                    ON sl.value != $3\n                WHERE transactions.hash = $2\n                "
   },
   "1becc0cdf3dbc9160853bb20c9130417cc6e17f576e9d239f889a1932eda9f4f": {
     "describe": {
@@ -4524,6 +4438,20 @@
     },
     "query": "\n                UPDATE scheduler_dependency_tracker_fri\n                SET status='queuing'\n                WHERE l1_batch_number IN\n                      (SELECT l1_batch_number FROM scheduler_dependency_tracker_fri\n                       WHERE status != 'queued'\n                         AND circuit_1_final_prover_job_id IS NOT NULL\n                         AND circuit_2_final_prover_job_id IS NOT NULL\n                         AND circuit_3_final_prover_job_id IS NOT NULL\n                         AND circuit_4_final_prover_job_id IS NOT NULL\n                         AND circuit_5_final_prover_job_id IS NOT NULL\n                         AND circuit_6_final_prover_job_id IS NOT NULL\n                         AND circuit_7_final_prover_job_id IS NOT NULL\n                         AND circuit_8_final_prover_job_id IS NOT NULL\n                         AND circuit_9_final_prover_job_id IS NOT NULL\n                         AND circuit_10_final_prover_job_id IS NOT NULL\n                         AND circuit_11_final_prover_job_id IS NOT NULL\n                         AND circuit_12_final_prover_job_id IS NOT NULL\n                         AND circuit_13_final_prover_job_id IS NOT NULL\n                       )\n                RETURNING l1_batch_number;\n            "
   },
+  "530603ddb0d22d1bee4d74106a50adfb8a98fbaabc5beda463d67fe7297dd631": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Bool",
+          "Int4"
+        ]
+      }
+    },
+    "query": "\n            INSERT INTO applied_snapshot_status(l1_batch_number, is_finished, last_finished_chunk_id)\n            VALUES ($1, $2, $3)\n            ON CONFLICT\n                (l1_batch_number)\n                DO UPDATE\n                SET l1_batch_number        = excluded.l1_batch_number,\n                    is_finished            = excluded.is_finished,\n                    last_finished_chunk_id = excluded.last_finished_chunk_id\n            "
+  },
   "5490012051be6faaaa11fad0f196eb53160a9c5c045fe9d66afcef7f33403fe2": {
     "describe": {
       "columns": [
@@ -5167,6 +5095,38 @@
     },
     "query": "SELECT (SELECT l1_batch_number FROM miniblocks WHERE number = $1) as \"block_batch?\", (SELECT MAX(number) + 1 FROM l1_batches) as \"max_batch?\""
   },
+  "5f1a47d24c50743838fe55d7e8933a5a100175ab272b03274a4fa069227ddebb": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "created_at",
+          "ordinal": 1,
+          "type_info": "Timestamp"
+        },
+        {
+          "name": "factory_deps_filepath",
+          "ordinal": 2,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT l1_batch_number, created_at, factory_deps_filepath FROM snapshots WHERE l1_batch_number = $1"
+  },
   "5f40849646bb7436e29cda8fb87fece2a4dcb580644f45ecb82388dece04f222": {
     "describe": {
       "columns": [
@@ -5289,6 +5249,20 @@
       }
     },
     "query": "\n                UPDATE prover_jobs_fri\n                SET status = 'in_progress', attempts = attempts + 1,\n                    updated_at = now(), processing_started_at = now(),\n                    picked_by = $4\n                WHERE id = (\n                    SELECT pj.id\n                    FROM prover_jobs_fri AS pj\n                    JOIN (\n                        SELECT * FROM unnest($1::smallint[], $2::smallint[])\n                    )\n                    AS tuple (circuit_id, round)\n                    ON tuple.circuit_id = pj.circuit_id AND tuple.round = pj.aggregation_round\n                    WHERE pj.status = 'queued'\n                    AND pj.protocol_version = ANY($3)\n                    ORDER BY pj.l1_batch_number ASC, pj.aggregation_round DESC, pj.id ASC\n                    LIMIT 1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n                RETURNING prover_jobs_fri.id, prover_jobs_fri.l1_batch_number, prover_jobs_fri.circuit_id,\n                prover_jobs_fri.aggregation_round, prover_jobs_fri.sequence_number, prover_jobs_fri.depth,\n                prover_jobs_fri.is_node_final_proof\n                "
+  },
+  "62cccc6c5943244d1be19147d908419f581a69098c254119d10fa644f4250eba": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "TextArray",
+          "Text"
+        ]
+      }
+    },
+    "query": "INSERT INTO snapshots (l1_batch_number, created_at, storage_logs_filepaths, factory_deps_filepath) VALUES ($1, now(), $2, $3)"
   },
   "6317155050a5dae24ea202cfd54d1e58cc7aeb0bfd4d95aa351f85cff04d3bff": {
     "describe": {
@@ -5653,6 +5627,26 @@
     },
     "query": "\n                UPDATE leaf_aggregation_witness_jobs\n                SET status='queued'\n                WHERE l1_batch_number IN\n                      (SELECT prover_jobs.l1_batch_number\n                       FROM prover_jobs\n                                JOIN leaf_aggregation_witness_jobs lawj ON prover_jobs.l1_batch_number = lawj.l1_batch_number\n                       WHERE lawj.status = 'waiting_for_proofs'\n                         AND prover_jobs.status = 'successful'\n                         AND prover_jobs.aggregation_round = 0\n                       GROUP BY prover_jobs.l1_batch_number, lawj.number_of_basic_circuits\n                       HAVING COUNT(*) = lawj.number_of_basic_circuits)\n                RETURNING l1_batch_number;\n            "
   },
+  "687b4bbd2902f7636f3e83a2f5d8929e09f455c418003c816415d84a3fb64492": {
+    "describe": {
+      "columns": [
+        {
+          "name": "max",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        null
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "select MAX(number) from miniblocks where l1_batch_number = $1"
+  },
   "68a9ba78f60674bc047e4af6eb2a379725da047f2e6c06bce96a33852565cc95": {
     "describe": {
       "columns": [],
@@ -5666,6 +5660,36 @@
       }
     },
     "query": "INSERT INTO commitments (l1_batch_number, events_queue_commitment, bootloader_initial_content_commitment) VALUES ($1, $2, $3) ON CONFLICT (l1_batch_number) DO UPDATE SET events_queue_commitment = $2, bootloader_initial_content_commitment = $3"
+  },
+  "68f8d7f1c9661f9c9fea0be9d40910a3a7e21ae368db46b5f9df3ac3973b7f4e": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "created_at",
+          "ordinal": 1,
+          "type_info": "Timestamp"
+        },
+        {
+          "name": "factory_deps_filepath",
+          "ordinal": 2,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT l1_batch_number, created_at, factory_deps_filepath FROM snapshots"
   },
   "6939e766e122458b2ac618d19b2759c4a7298ef72b81e8c3957e0a5cf35c9552": {
     "describe": {
@@ -5869,6 +5893,58 @@
     },
     "query": "INSERT INTO compiler_versions (version, compiler, created_at, updated_at) SELECT u.version, $2, now(), now() FROM UNNEST($1::text[]) AS u(version) ON CONFLICT (version, compiler) DO NOTHING"
   },
+  "6fbed24f9ba45f083b00ebd80b02b33915a04c7609bcaaedd26a133d5fa420df": {
+    "describe": {
+      "columns": [
+        {
+          "name": "key",
+          "ordinal": 0,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "value",
+          "ordinal": 1,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "address",
+          "ordinal": 2,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "miniblock_number",
+          "ordinal": 3,
+          "type_info": "Int8"
+        },
+        {
+          "name": "l1_batch_number",
+          "ordinal": 4,
+          "type_info": "Int8"
+        },
+        {
+          "name": "index",
+          "ordinal": 5,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8",
+          "Int8"
+        ]
+      }
+    },
+    "query": "\n            SELECT storage_logs.key,\n                   storage_logs.value,\n                   storage_logs.address,\n                   storage_logs.miniblock_number,\n                   initial_writes.l1_batch_number,\n                   initial_writes.index\n            FROM (SELECT hashed_key,\n                         max(ARRAY [miniblock_number, operation_number]::int[]) AS op\n                  FROM storage_logs\n                  WHERE miniblock_number <= $1\n                  GROUP BY hashed_key\n                  ORDER BY hashed_key) AS keys\n                     INNER JOIN storage_logs ON keys.hashed_key = storage_logs.hashed_key\n                AND storage_logs.miniblock_number = keys.op[1]\n                AND storage_logs.operation_number = keys.op[2]\n                     INNER JOIN initial_writes ON keys.hashed_key = initial_writes.hashed_key\n            WHERE miniblock_number <= $1\n            ORDER BY ARRAY(\n                 SELECT get_byte(storage_logs.hashed_key, 32 - generate_series)\n                 FROM generate_series(1, 32)\n             )\n            LIMIT $2 OFFSET $3;\n             "
+  },
   "6ffd22b0590341c38ce3957dccdb5a4edf47fb558bc64e4df08897a0c72dbf23": {
     "describe": {
       "columns": [
@@ -5888,6 +5964,36 @@
       }
     },
     "query": "\n                SELECT protocol_version\n                FROM witness_inputs\n                WHERE l1_batch_number = $1\n                "
+  },
+  "700b0511437995b86c095fb2c23d62bcef67529ea16283431556298cef4aa299": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "is_finished",
+          "ordinal": 1,
+          "type_info": "Bool"
+        },
+        {
+          "name": "last_finished_chunk_id",
+          "ordinal": 2,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        true
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT l1_batch_number, is_finished, last_finished_chunk_id FROM applied_snapshot_status"
   },
   "715aba794d60ce2faf937eacd9498b203dbb8e620d6d8850b9071cd72902ffbf": {
     "describe": {
@@ -8697,6 +8803,32 @@
     },
     "query": "INSERT INTO prover_fri_protocol_versions (id, recursion_scheduler_level_vk_hash, recursion_node_level_vk_hash, recursion_leaf_level_vk_hash, recursion_circuits_set_vks_hash, created_at) VALUES ($1, $2, $3, $4, $5, now()) ON CONFLICT(id) DO NOTHING"
   },
+  "a2ac8d74aec70c50cd1919c9d532965bfc38d89bf6379bf649318e55071f1b41": {
+    "describe": {
+      "columns": [
+        {
+          "name": "bytecode",
+          "ordinal": 0,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "bytecode_hash",
+          "ordinal": 1,
+          "type_info": "Bytea"
+        }
+      ],
+      "nullable": [
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT bytecode, bytecode_hash FROM factory_deps WHERE miniblock_number <= $1"
+  },
   "a39f760d2cd879a78112e57d8611d7099802b03b7cc4933cafb4c47e133ad543": {
     "describe": {
       "columns": [
@@ -8884,6 +9016,26 @@
       }
     },
     "query": "SELECT MAX(operation_number) as \"max?\" FROM storage_logs WHERE miniblock_number = $1"
+  },
+  "a82efd1b7c8823c7ab274ae894e9e6bef3577ebba3e3eef8189a90109c588b65": {
+    "describe": {
+      "columns": [
+        {
+          "name": "storage_logs_filepaths",
+          "ordinal": 0,
+          "type_info": "TextArray"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT storage_logs_filepaths FROM snapshots WHERE l1_batch_number = $1"
   },
   "a8b32073a67ad77caab11e73a5cac5aa5b5382648ff95d6787a309eb3f64d434": {
     "describe": {
@@ -12312,6 +12464,112 @@
       }
     },
     "query": "SELECT * FROM eth_txs WHERE id = $1"
+  },
+  "fc98531b7b8c10cd3eadfe26f17a8545032e0a7220d698cd7aff87f497245101": {
+    "describe": {
+      "columns": [
+        {
+          "name": "tx_hash",
+          "ordinal": 0,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "index_in_block",
+          "ordinal": 1,
+          "type_info": "Int4"
+        },
+        {
+          "name": "l1_batch_tx_index",
+          "ordinal": 2,
+          "type_info": "Int4"
+        },
+        {
+          "name": "block_number",
+          "ordinal": 3,
+          "type_info": "Int8"
+        },
+        {
+          "name": "error",
+          "ordinal": 4,
+          "type_info": "Varchar"
+        },
+        {
+          "name": "effective_gas_price",
+          "ordinal": 5,
+          "type_info": "Numeric"
+        },
+        {
+          "name": "initiator_address",
+          "ordinal": 6,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "transfer_to?",
+          "ordinal": 7,
+          "type_info": "Jsonb"
+        },
+        {
+          "name": "execute_contract_address?",
+          "ordinal": 8,
+          "type_info": "Jsonb"
+        },
+        {
+          "name": "tx_format?",
+          "ordinal": 9,
+          "type_info": "Int4"
+        },
+        {
+          "name": "refunded_gas",
+          "ordinal": 10,
+          "type_info": "Int8"
+        },
+        {
+          "name": "gas_limit",
+          "ordinal": 11,
+          "type_info": "Numeric"
+        },
+        {
+          "name": "block_hash?",
+          "ordinal": 12,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "l1_batch_number?",
+          "ordinal": 13,
+          "type_info": "Int8"
+        },
+        {
+          "name": "contract_address?",
+          "ordinal": 14,
+          "type_info": "Bytea"
+        }
+      ],
+      "nullable": [
+        false,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        null,
+        null,
+        true,
+        false,
+        true,
+        false,
+        true,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Bytea",
+          "Bytea",
+          "Bytea"
+        ]
+      }
+    },
+    "query": "\n                WITH sl AS (\n                    SELECT * FROM storage_logs\n                    WHERE storage_logs.address = $1 AND storage_logs.tx_hash = $2\n                    ORDER BY storage_logs.miniblock_number DESC, storage_logs.hashed_key DESC\n                    LIMIT 1\n                )\n                SELECT\n                     transactions.hash as tx_hash,\n                     transactions.index_in_block as index_in_block,\n                     transactions.l1_batch_tx_index as l1_batch_tx_index,\n                     transactions.miniblock_number as block_number,\n                     transactions.error as error,\n                     transactions.effective_gas_price as effective_gas_price,\n                     transactions.initiator_address as initiator_address,\n                     transactions.data->'to' as \"transfer_to?\",\n                     transactions.data->'contractAddress' as \"execute_contract_address?\",\n                     transactions.tx_format as \"tx_format?\",\n                     transactions.refunded_gas as refunded_gas,\n                     transactions.gas_limit as gas_limit,\n                     miniblocks.hash as \"block_hash?\",\n                     miniblocks.l1_batch_number as \"l1_batch_number?\",\n                     sl.key as \"contract_address?\"\n                FROM transactions\n                LEFT JOIN miniblocks\n                    ON miniblocks.number = transactions.miniblock_number\n                LEFT JOIN sl\n                    ON sl.value != $3\n                WHERE transactions.hash = $2\n                "
   },
   "ff7ff36b86b0e8d1cd7280aa447baef172cb054ffe7e1d742c59bf09b4f414cb": {
     "describe": {

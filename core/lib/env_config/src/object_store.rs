@@ -30,6 +30,16 @@ impl FromEnv for ProverObjectStoreConfig {
     }
 }
 
+#[derive(Debug)]
+pub struct SnapshotsObjectStoreConfig(pub ObjectStoreConfig);
+
+impl FromEnv for SnapshotsObjectStoreConfig {
+    fn from_env() -> anyhow::Result<Self> {
+        let config = envy_load("snapshots_object_store", "SNAPSHOTS_OBJECT_STORE_")?;
+        Ok(Self(config))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};

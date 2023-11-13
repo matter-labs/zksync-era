@@ -190,6 +190,9 @@ pub struct OptionalENConfig {
     /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
     #[serde(default = "OptionalENConfig::default_enum_index_migration_chunk_size")]
     pub enum_index_migration_chunk_size: usize,
+
+    #[serde(default = "OptionalENConfig::initialization_from_snapshot_enabled")]
+    pub initialization_from_snapshot_enabled: bool,
 }
 
 impl OptionalENConfig {
@@ -334,6 +337,10 @@ impl OptionalENConfig {
 
     pub fn max_response_body_size(&self) -> usize {
         self.max_response_body_size_mb * BYTES_IN_MEGABYTE
+    }
+
+    const fn initialization_from_snapshot_enabled() -> bool {
+        false
     }
 }
 

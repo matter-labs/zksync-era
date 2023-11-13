@@ -26,8 +26,6 @@ use zksync_core::{
     state_keeper::{L1BatchExecutorBuilder, MainBatchExecutorBuilder, ZkSyncStateKeeper},
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
-        fetcher::MainNodeFetcherCursor, genesis::perform_genesis_if_needed, ActionQueue,
-        MainNodeClient, SyncState,
         fetcher::MainNodeFetcherCursor, genesis::perform_genesis_if_needed,
         snapshots::load_from_snapshot_if_needed, ActionQueue, MainNodeClient, SyncState,
     },
@@ -416,6 +414,7 @@ async fn main() -> anyhow::Result<()> {
         multi_get_chunk_size: config.optional.merkle_tree_multi_get_chunk_size,
         block_cache_capacity: config.optional.merkle_tree_block_cache_size(),
         memtable_capacity: config.optional.merkle_tree_memtable_capacity(),
+        stalled_writes_timeout: config.optional.merkle_tree_stalled_writes_timeout(),
     };
 
     load_from_snapshot_if_needed(

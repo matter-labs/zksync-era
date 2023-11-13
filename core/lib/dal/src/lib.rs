@@ -9,9 +9,11 @@ use sqlx::{postgres::Postgres, Connection, PgConnection, Transaction};
 use anyhow::Context as _;
 use sqlx::pool::PoolConnection;
 pub use sqlx::types::BigDecimal;
+use zksync_types::snapshots::AppliedSnapshotStatus;
 
 // Local imports
 use crate::accounts_dal::AccountsDal;
+use crate::applied_snapshot_status_dal::AppliedSnapshotStatusDal;
 use crate::basic_witness_input_producer_dal::BasicWitnessInputProducerDal;
 use crate::blocks_dal::BlocksDal;
 use crate::blocks_web3_dal::BlocksWeb3Dal;
@@ -32,11 +34,11 @@ use crate::proof_generation_dal::ProofGenerationDal;
 use crate::protocol_versions_dal::ProtocolVersionsDal;
 use crate::protocol_versions_web3_dal::ProtocolVersionsWeb3Dal;
 use crate::prover_dal::ProverDal;
+use crate::snapshots_creator_dal::SnapshotsCreatorDal;
 use crate::snapshots_dal::SnapshotsDal;
 use crate::storage_dal::StorageDal;
 use crate::storage_logs_dal::StorageLogsDal;
 use crate::storage_logs_dedup_dal::StorageLogsDedupDal;
-use crate::storage_logs_snapshots_dal::StorageLogsSnapshotsDal;
 use crate::storage_web3_dal::StorageWeb3Dal;
 use crate::sync_dal::SyncDal;
 use crate::system_dal::SystemDal;
@@ -49,6 +51,7 @@ use crate::witness_generator_dal::WitnessGeneratorDal;
 #[macro_use]
 mod macro_utils;
 pub mod accounts_dal;
+pub mod applied_snapshot_status_dal;
 pub mod basic_witness_input_producer_dal;
 pub mod blocks_dal;
 pub mod blocks_web3_dal;
@@ -72,11 +75,11 @@ pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
 pub mod protocol_versions_web3_dal;
 pub mod prover_dal;
+pub mod snapshots_creator_dal;
 pub mod snapshots_dal;
 pub mod storage_dal;
 pub mod storage_logs_dal;
 pub mod storage_logs_dedup_dal;
-pub mod storage_logs_snapshots_dal;
 pub mod storage_web3_dal;
 pub mod sync_dal;
 pub mod system_dal;
@@ -314,7 +317,11 @@ impl<'a> StorageProcessor<'a> {
         SnapshotsDal { storage: self }
     }
 
-    pub fn storage_logs_snapshots_dal(&mut self) -> StorageLogsSnapshotsDal<'_, 'a> {
-        StorageLogsSnapshotsDal { storage: self }
+    pub fn snapshots_creator_dal(&mut self) -> SnapshotsCreatorDal<'_, 'a> {
+        SnapshotsCreatorDal { storage: self }
+    }
+
+    pub fn applied_snapshot_status_dal(&mut self) -> AppliedSnapshotStatusDal<'_, 'a> {
+        AppliedSnapshotStatusDal { storage: self }
     }
 }

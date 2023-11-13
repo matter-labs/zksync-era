@@ -2,6 +2,8 @@ use anyhow::Context as _;
 
 use zksync_dal::connection::DbVariant;
 use zksync_dal::ConnectionPool;
+use zksync_env_config::object_store::SnapshotsObjectStoreConfig;
+use zksync_env_config::FromEnv;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_types::snapshots::{
     SnapshotFactoryDependencies, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
@@ -18,7 +20,7 @@ async fn process_storage_logs_single_chunk(
 ) -> anyhow::Result<String> {
     let mut conn = pool.access_storage().await?;
     let logs = conn
-        .storage_logs_snapshots_dal()
+        .snapshots_creator_dal()
         .get_storage_logs_chunk(l1_batch_number, chunk_id, chunk_size)
         .await
         .context("Error fetching storage logs count")?;
@@ -45,7 +47,7 @@ async fn process_factory_deps(
 ) -> anyhow::Result<String> {
     let mut conn = pool.access_storage().await?;
     let factory_deps = conn
-        .storage_logs_snapshots_dal()
+        .snapshots_creator_dal()
         .get_all_factory_deps(miniblock_number)
         .await;
     let factory_deps = SnapshotFactoryDependencies { factory_deps };
@@ -71,7 +73,7 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::
         .unwrap()
         .1;
     let storage_logs_count = conn
-        .storage_logs_snapshots_dal()
+        .snapshots_creator_dal()
         .get_storage_logs_count(l1_batch_number)
         .await?;
 
@@ -140,8 +142,9 @@ async fn main() -> anyhow::Result<()> {
     }
     let _guard = builder.build();
 
-    let blob_store = ObjectStoreFactory::snapshots_from_env()
-        .context("ObjectStoreFactor::snapshots_from_env()")?
+    let object_store_config =
+        SnapshotsObjectStoreConfig::from_env().context("SnapshotsObjectStoreConfig::from_env()")?;
+    let blob_store = ObjectStoreFactory::new(object_store_config.0)
         .create_store()
         .await;
 
