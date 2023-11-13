@@ -10,7 +10,7 @@ use zksync_config::{
         ProofDataHandlerConfig, ProverGroupConfig, WitnessGeneratorConfig,
     },
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
-    FetcherConfig, GasAdjusterConfig, ObjectStoreConfig, ProverConfigs,
+    FetcherConfig, GasAdjusterConfig, ObjectStoreConfig, PostgresConfig, ProverConfigs,
 };
 
 // TODO (QIT-22): This structure is going to be removed when components will be respnsible for their own configs.
@@ -18,6 +18,7 @@ use zksync_config::{
 /// All the configs are optional, since for some component combination it is not needed to pass all the configs.
 #[derive(Debug)]
 pub struct TempConfigStore {
+    pub postgres_config: Option<PostgresConfig>,
     pub health_check_config: Option<HealthCheckConfig>,
     pub merkle_tree_api_config: Option<MerkleTreeApiConfig>,
     pub web3_json_rpc_config: Option<Web3JsonRpcConfig>,

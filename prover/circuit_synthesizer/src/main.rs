@@ -4,9 +4,8 @@ use structopt::StructOpt;
 use tokio::{sync::oneshot, sync::watch};
 
 use zksync_config::configs::{
-    AlertsConfig, CircuitSynthesizerConfig, ObjectStoreConfig, ProverGroupConfig,
+    AlertsConfig, CircuitSynthesizerConfig, ObjectStoreConfig, PostgresConfig, ProverGroupConfig,
 };
-use zksync_dal::connection::DbVariant;
 use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;
 use zksync_object_store::ObjectStoreFactory;
@@ -47,10 +46,14 @@ async fn main() -> anyhow::Result<()> {
     let opt = Opt::from_args();
     let config: CircuitSynthesizerConfig =
         CircuitSynthesizerConfig::from_env().context("CircuitSynthesizerConfig::from_env()")?;
-    let pool = ConnectionPool::builder(DbVariant::Prover)
-        .build()
-        .await
-        .context("failed to build a connection pool")?;
+    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
+    let pool = ConnectionPool::builder(
+        postgres_config.prover_url()?,
+        postgres_config.max_connections()?,
+    )
+    .build()
+    .await
+    .context("failed to build a connection pool")?;
     let vk_commitments = get_cached_commitments();
 
     let object_store_config =

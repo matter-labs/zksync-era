@@ -53,14 +53,16 @@ use crate::interface::types::outputs::{
     BootloaderMemory, CurrentExecutionState, VmExecutionResultAndLogs,
 };
 
+use crate::interface::{FinishedL1Batch, VmMemoryMetrics};
+use crate::tracers::TracerDispatcher;
 use crate::vm_latest::HistoryEnabled;
 use crate::HistoryMode;
-use zksync_state::{StoragePtr, WriteStorage};
+use zksync_state::StoragePtr;
 use zksync_types::Transaction;
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
-pub trait VmInterface<S: WriteStorage, H: HistoryMode> {
-    type TracerDispatcher: Default;
+pub trait VmInterface<S, H: HistoryMode> {
+    type TracerDispatcher: Default + From<TracerDispatcher<S, H>>;
 
     /// Initialize VM.
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self;
@@ -113,10 +115,26 @@ pub trait VmInterface<S: WriteStorage, H: HistoryMode> {
         tx: Transaction,
         with_compression: bool,
     ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError>;
+
+    /// Record VM memory metrics.
+    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics;
+
+    /// Execute batch till the end and return the result, with final execution state
+    /// and bootloader memory.
+    fn finish_batch(&mut self) -> FinishedL1Batch {
+        let result = self.execute(VmExecutionMode::Batch);
+        let execution_state = self.get_current_execution_state();
+        let bootloader_memory = self.get_bootloader_memory();
+        FinishedL1Batch {
+            block_tip_execution_result: result,
+            final_execution_state: execution_state,
+            final_bootloader_memory: Some(bootloader_memory),
+        }
+    }
 }
 
 /// Methods of VM requiring history manipulations.
-pub trait VmInterfaceHistoryEnabled<S: WriteStorage>: VmInterface<S, HistoryEnabled> {
+pub trait VmInterfaceHistoryEnabled<S>: VmInterface<S, HistoryEnabled> {
     /// Create a snapshot of the current VM state and push it into memory.
     fn make_snapshot(&mut self);
 
