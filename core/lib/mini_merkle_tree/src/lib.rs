@@ -25,13 +25,13 @@ const MAX_TREE_DEPTH: usize = 32;
 /// can be specified larger than the number of provided leaves. In this case, the remaining leaves
 /// will be considered to equal `[0_u8; LEAF_SIZE]`.
 #[derive(Debug, Clone)]
-pub struct MiniMerkleTree<'a, const LEAF_SIZE: usize> {
-    hasher: &'a dyn HashEmptySubtree<LEAF_SIZE>,
+pub struct MiniMerkleTree<const LEAF_SIZE: usize> {
+    hasher: &'static dyn HashEmptySubtree<LEAF_SIZE>,
     hashes: Box<[H256]>,
     binary_tree_size: usize,
 }
 
-impl<const LEAF_SIZE: usize> MiniMerkleTree<'static, LEAF_SIZE>
+impl<const LEAF_SIZE: usize> MiniMerkleTree<LEAF_SIZE>
 where
     KeccakHasher: HashEmptySubtree<LEAF_SIZE>,
 {
@@ -50,7 +50,7 @@ where
     }
 }
 
-impl<'a, const LEAF_SIZE: usize> MiniMerkleTree<'a, LEAF_SIZE> {
+impl<const LEAF_SIZE: usize> MiniMerkleTree<LEAF_SIZE> {
     /// Creates a new Merkle tree from the supplied leaves. If `min_tree_size` is supplied and is larger than the
     /// number of the supplied leaves, the leaves are padded to `min_tree_size` with `[0_u8; LEAF_SIZE]` entries.
     ///
@@ -60,7 +60,7 @@ impl<'a, const LEAF_SIZE: usize> MiniMerkleTree<'a, LEAF_SIZE> {
     ///
     /// - `min_tree_size` (if supplied) is not a power of 2.
     pub fn with_hasher(
-        hasher: &'a dyn HashEmptySubtree<LEAF_SIZE>,
+        hasher: &'static dyn HashEmptySubtree<LEAF_SIZE>,
         leaves: impl Iterator<Item = [u8; LEAF_SIZE]>,
         min_tree_size: Option<usize>,
     ) -> Self {
@@ -154,13 +154,15 @@ fn tree_depth_by_size(tree_size: usize) -> usize {
 }
 
 /// Hashing of empty binary Merkle trees.
-pub trait HashEmptySubtree<const LEAF_SIZE: usize>: Hasher<Hash = H256> {
+pub trait HashEmptySubtree<const LEAF_SIZE: usize>:
+    'static + Send + Sync + Hasher<Hash = H256>
+{
     /// Returns the hash of an empty subtree with the given depth. Implementations
     /// are encouraged to cache the returned values.
     fn empty_subtree_hash(&self, depth: usize) -> H256;
 }
 
-impl<const LEAF_SIZE: usize> fmt::Debug for dyn HashEmptySubtree<LEAF_SIZE> + '_ {
+impl<const LEAF_SIZE: usize> fmt::Debug for dyn HashEmptySubtree<LEAF_SIZE> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("HashTree")
