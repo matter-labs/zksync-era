@@ -21,7 +21,7 @@ pub struct StorageSyncBlock {
     pub protocol_version: i32,
     pub virtual_blocks: i64,
     pub hash: Vec<u8>,
-    pub consensus: Option<Vec<u8>>,
+    pub consensus: Option<serde_json::Value>,
 }
 
 impl StorageSyncBlock {
@@ -62,7 +62,7 @@ impl StorageSyncBlock {
             virtual_blocks: Some(self.virtual_blocks as u32),
             hash: Some(H256::from_slice(&self.hash)),
             protocol_version: (self.protocol_version as u16).try_into().unwrap(),
-            consensus: self.consensus.map(|v| zksync_protobuf::decode(&v).unwrap()),
+            consensus: self.consensus.map(|v| serde_json::from_value(v).unwrap()),
         }
     }
 }

@@ -134,13 +134,14 @@ impl ProtoFmt for ConsensusBlockFields {
 
 impl Serialize for ConsensusBlockFields {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        zksync_protobuf::serde_serialize(&self.build(), s)
+        self.build().serialize(s)
     }
 }
 
 impl<'de> Deserialize<'de> for ConsensusBlockFields {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        Ok(ProtoFmt::read(&zksync_protobuf::serde_deserialize(d)?).unwrap())
+        Self::read(&<Self as ProtoFmt>::Proto::deserialize(d)?)
+            .map_err(|err| serde::de::Error::custom(err))
     }
 }
 

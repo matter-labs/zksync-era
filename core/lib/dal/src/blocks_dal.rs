@@ -473,11 +473,9 @@ impl BlocksDal<'_, '_> {
         consensus: &ConsensusBlockFields,
     ) -> anyhow::Result<()> {
         let result = sqlx::query!(
-            "UPDATE miniblocks \
-            SET prev_consensus_block_hash = $2, commit_qc = $3 \
-            WHERE number = $1",
+            "UPDATE miniblocks SET consensus = $2 WHERE number = $1",
             miniblock_number.0 as i64,
-            &zksync_protobuf::encode_json(consensus),
+            serde_json::to_value(consensus).unwrap(),
         )
         .execute(self.storage.conn())
         .await?;
