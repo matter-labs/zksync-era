@@ -79,12 +79,13 @@ address constant L2_ETH_TOKEN_SYSTEM_CONTRACT_ADDR = address(0x800a);
 
 This is a good opportunity to talk about system contracts that are automatically deployed on L2. You can find the full
 list here
-[in github](https://github.com/matter-labs/system-contracts/blob/436d57da2fb35c40e38bcb6637c3a090ddf60701/scripts/constants.ts#L29)
+[in github](https://github.com/matter-labs/era-system-contracts/blob/436d57da2fb35c40e38bcb6637c3a090ddf60701/scripts/constants.ts#L29)
 
 This is the place were we specify that `bootloader` is at address 0x8001, `NonceHolder` at 0x8003 etc.
 
-This brings us to [L2EthToken.sol](https://github.com/matter-labs/system-contracts/blob/main/contracts/L2EthToken.sol)
-that has the implementation of the L2 Eth.
+This brings us to
+[L2EthToken.sol](https://github.com/matter-labs/era-system-contracts/blob/main/contracts/L2EthToken.sol) that has the
+implementation of the L2 Eth.
 
 When we look inside, we can see:
 
@@ -94,7 +95,7 @@ bytes memory message = _getL1WithdrawMessage(_l1Receiver, amount);
 L1_MESSENGER_CONTRACT.sendToL1(message);
 ```
 
-And `L1MessagerContract` (that is deployed at 0x8008).
+And `L1MessengerContract` (that is deployed at 0x8008).
 
 ### Committing to L1
 
@@ -119,10 +120,10 @@ BTW - all the transactions are sent to the 0x54e address - which is the `Diamond
 be different on your local node - see previous tutorial for more info) .
 
 And inside, all three methods above belong to
-[Executor.sol](https://github.com/matter-labs/zksync-2-contracts/blob/main/ethereum/contracts/zksync/facets/Executor.sol)
+[Executor.sol](https://github.com/matter-labs/era-contracts/blob/main/ethereum/contracts/zksync/facets/Executor.sol)
 facet and you can look at
-[README](https://github.com/matter-labs/zksync-2-contracts/blob/main/docs/Overview.md#executorfacet) to see the details
-of what each method does.
+[README](https://github.com/matter-labs/era-contracts/blob/main/docs/Overview.md#executorfacet) to see the details of
+what each method does.
 
 The short description is:
 

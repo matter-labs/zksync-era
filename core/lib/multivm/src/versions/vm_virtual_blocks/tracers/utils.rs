@@ -72,7 +72,7 @@ impl VmHook {
             9 => Self::NotifyAboutRefund,
             10 => Self::ExecutionResult,
             11 => Self::FinalBatchInfo,
-            _ => panic!("Unkown hook"),
+            _ => panic!("Unknown hook: {}", value.as_u32()),
         }
     }
 }
@@ -215,10 +215,4 @@ pub(crate) fn get_vm_hook_params<H: HistoryMode>(memory: &SimpleMemory<H>) -> Ve
         BOOTLOADER_HEAP_PAGE,
         VM_HOOK_PARAMS_START_POSITION..VM_HOOK_PARAMS_START_POSITION + VM_HOOK_PARAMS_COUNT,
     )
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum VmExecutionStopReason {
-    VmFinished,
-    TracerRequestedStop,
 }

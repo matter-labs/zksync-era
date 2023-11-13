@@ -32,6 +32,7 @@ circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_har
 ] }
 shivini = { git = "https://github.com/matter-labs/era-shivini.git", branch = "main", optional = true }
 zksync_config = { path = "../../core/lib/config" }
+zksync_env_config = { path = "../../core/lib/env_config" }
 
 anyhow = "1.0"
 tracing = "0.1"

@@ -16,4 +16,6 @@ path = "src/consistency.rs"
 tokio = { version = "1" }
 zksync_dal = { path = "../../lib/dal" }
 zksync_types = { path = "../../lib/types" }
+zksync_config = { path = "../../lib/config" }
+zksync_env_config = { path = "../../lib/env_config" }
 clap = { version = "4.2.4", features = ["derive"] }

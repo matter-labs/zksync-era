@@ -6,11 +6,11 @@ use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 use zksync_types::{Execute, U256};
 
 use crate::interface::TxExecutionMode;
+use crate::vm_latest::HistoryEnabled;
 use crate::vm_virtual_blocks::tests::tester::{
     DeployContractsTx, TransactionTestInfo, TxModifier, TxType, VmTesterBuilder,
 };
 use crate::vm_virtual_blocks::tests::utils::read_test_contract;
-use crate::vm_virtual_blocks::HistoryEnabled;
 
 #[test]
 fn test_vm_rollbacks() {
