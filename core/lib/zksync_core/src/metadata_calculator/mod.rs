@@ -187,8 +187,6 @@ impl MetadataCalculator {
     ) -> L1BatchMetadata {
         let merkle_root_hash = tree_metadata.root_hash;
 
-        tracing::trace!("State diffs from tree {:#?}", tree_metadata.state_diffs);
-
         let commitment = L1BatchCommitment::new(
             header.l2_to_l1_logs.clone(),
             tree_metadata.rollup_last_leaf_index,
