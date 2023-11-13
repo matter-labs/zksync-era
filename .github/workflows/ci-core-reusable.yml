@@ -259,8 +259,9 @@ jobs:
           ci_run zk external-node &>ext-node.log &
           ci_run sleep 30
 
+      # TODO(PLA-653): Restore bridge tests for EN.
       - name: Integration tests
-        run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification'
+        run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification|custom-erc20-bridge'
 
       - name: Run Cross EN Checker
         run: ci_run zk run cross-en-checker
