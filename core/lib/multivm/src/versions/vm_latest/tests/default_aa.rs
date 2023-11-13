@@ -4,7 +4,7 @@ use zksync_types::system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREM
 use zksync_types::{get_code_key, get_known_code_key, get_nonce_key, AccountTreeId, U256};
 use zksync_utils::u256_to_h256;
 
-use crate::interface::{TxExecutionMode, VmExecutionMode};
+use crate::interface::{TxExecutionMode, VmExecutionMode, VmInterface};
 use crate::vm_latest::tests::tester::{DeployContractsTx, TxType, VmTesterBuilder};
 use crate::vm_latest::tests::utils::{get_balance, read_test_contract, verify_required_storage};
 use crate::vm_latest::HistoryEnabled;

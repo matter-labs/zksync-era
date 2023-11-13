@@ -585,7 +585,7 @@ async fn fetcher_with_real_server() {
     drop(connection);
 
     // Start the API server.
-    let network_config = NetworkConfig::from_env().unwrap();
+    let network_config = NetworkConfig::for_tests();
     let (stop_sender, stop_receiver) = watch::channel(false);
     let server_handles =
         spawn_http_server(&network_config, pool.clone(), stop_receiver.clone()).await;
