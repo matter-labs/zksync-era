@@ -38,6 +38,7 @@ jobs:
               - '!prover/CHANGELOG.md'
               - '!prover/setup-data-cpu-keys.json'
               - '!prover/setup-data-gpu-keys.json'
+              - '!prover/extract-setup-data-keys.sh'
               - 'docker/prover*/**'
               - '.github/workflows/build-prover-template.yml'
               - '.github/workflows/ci-prover-reusable.yml'
