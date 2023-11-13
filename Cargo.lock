@@ -8533,6 +8533,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "prost",
+ "zksync_basic_types",
  "zksync_config",
  "zksync_protobuf",
 ]

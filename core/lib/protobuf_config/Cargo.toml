@@ -10,6 +10,7 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
+zksync_basic_types = { path = "../../lib/basic_types" }
 zksync_config = { path = "../../lib/config" }
 zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "9b300371512a4e443d086ecd19c1877719c15646" }
 

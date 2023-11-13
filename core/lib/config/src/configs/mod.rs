@@ -35,8 +35,6 @@ pub mod object_store;
 pub mod proof_data_handler;
 pub mod prover;
 pub mod prover_group;
-#[cfg(test)]
-mod tests;
 pub mod utils;
 pub mod witness_generator;
 

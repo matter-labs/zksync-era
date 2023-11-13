@@ -1,6 +1,8 @@
-pub use crate::configs::PrometheusConfig;
 use serde::Deserialize;
+
 use std::{net::SocketAddr, time::Duration};
+
+pub use crate::configs::PrometheusConfig;
 use zksync_basic_types::H256;
 
 /// API configuration.

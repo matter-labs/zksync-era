@@ -12,46 +12,51 @@ use zksync_config::configs::{
 use zksync_protobuf::required;
 
 pub mod proto;
+#[cfg(test)]
+mod tests;
 
 /// Trait reverse to `zksync_protobuf::ProtoFmt` for cases where
 /// you would like to specify a custom proto encoding for an externally defined type.
-trait ProtoRepr<T>: prost::Message {
-    fn read(r: &Self) -> anyhow::Result<T>;
-    fn build(this: &T) -> Self;
+trait ProtoRepr: zksync_protobuf::build::prost_reflect::ReflectMessage + Default {
+    type Type;
+    fn read(&self) -> anyhow::Result<Self::Type>;
+    fn build(this: &Self::Type) -> Self;
 }
 
-fn read_required_repr<T, P: ProtoRepr<T>>(field: &Option<P>) -> anyhow::Result<T> {
-    ProtoRepr::read(field.as_ref().context("missing field")?)
+fn read_required_repr<P: ProtoRepr>(field: &Option<P>) -> anyhow::Result<P::Type> {
+    field.as_ref().context("missing field")?.read()
 }
 
-impl ProtoRepr<AlertsConfig> for proto::Alerts {
-    fn read(r: &Self) -> anyhow::Result<AlertsConfig> {
-        Ok(AlertsConfig {
-            sporadic_crypto_errors_substrs: r.sporadic_crypto_errors_substrs.clone(),
+impl ProtoRepr for proto::Alerts {
+    type Type = AlertsConfig;
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok(Self::Type {
+            sporadic_crypto_errors_substrs: self.sporadic_crypto_errors_substrs.clone(),
         })
     }
 
-    fn build(this: &AlertsConfig) -> Self {
+    fn build(this: &Self::Type) -> Self {
         Self {
             sporadic_crypto_errors_substrs: this.sporadic_crypto_errors_substrs.clone(),
         }
     }
 }
 
-impl ProtoRepr<PrometheusConfig> for proto::Prometheus {
-    fn read(r: &Self) -> anyhow::Result<PrometheusConfig> {
+impl ProtoRepr for proto::Prometheus {
+    type Type = PrometheusConfig;
+    fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(PrometheusConfig {
-            listener_port: required(&r.listener_port)
+            listener_port: required(&self.listener_port)
                 .and_then(|p| Ok((*p).try_into()?))
                 .context("listener_port")?,
-            pushgateway_url: required(&r.pushgateway_url)
+            pushgateway_url: required(&self.pushgateway_url)
                 .context("pushgateway_url")?
                 .clone(),
-            push_interval_ms: r.push_interval_ms,
+            push_interval_ms: self.push_interval_ms,
         })
     }
 
-    fn build(this: &PrometheusConfig) -> Self {
+    fn build(this: &Self::Type) -> Self {
         Self {
             listener_port: Some(this.listener_port.into()),
             pushgateway_url: Some(this.pushgateway_url.clone()),
@@ -60,19 +65,20 @@ impl ProtoRepr<PrometheusConfig> for proto::Prometheus {
     }
 }
 
-impl ProtoRepr<ApiConfig> for proto::Api {
-    fn read(r: &Self) -> anyhow::Result<ApiConfig> {
+impl ProtoRepr for proto::Api {
+    type Type = ApiConfig;
+    fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(ApiConfig {
-            web3_json_rpc: read_required_repr(&r.web3_json_rpc).context("web3_json_rpc")?,
-            contract_verification: read_required_repr(&r.contract_verification)
+            web3_json_rpc: read_required_repr(&self.web3_json_rpc).context("web3_json_rpc")?,
+            contract_verification: read_required_repr(&self.contract_verification)
                 .context("contract_verification")?,
-            prometheus: read_required_repr(&r.prometheus).context("prometheus")?,
-            healthcheck: read_required_repr(&r.healthcheck).context("healthcheck")?,
-            merkle_tree: read_required_repr(&r.merkle_tree).context("merkle_tree")?,
+            prometheus: read_required_repr(&self.prometheus).context("prometheus")?,
+            healthcheck: read_required_repr(&self.healthcheck).context("healthcheck")?,
+            merkle_tree: read_required_repr(&self.merkle_tree).context("merkle_tree")?,
         })
     }
 
-    fn build(this: &ApiConfig) -> Self {
+    fn build(this: &Self::Type) -> Self {
         Self {
             web3_json_rpc: Some(ProtoRepr::build(&this.web3_json_rpc)),
             contract_verification: Some(ProtoRepr::build(&this.contract_verification)),
@@ -83,28 +89,30 @@ impl ProtoRepr<ApiConfig> for proto::Api {
     }
 }
 
-impl ProtoRepr<Web3JsonRpcConfig> for proto::Web3JsonRpc {
-    fn read(r: &Self) -> anyhow::Result<Web3JsonRpcConfig> {
-        Ok(Web3JsonRpcConfig {
-            http_port: required(&r.http_port)
+impl ProtoRepr for proto::Web3JsonRpc {
+    type Type = Web3JsonRpcConfig;
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok(Self::Type {
+            http_port: required(&self.http_port)
                 .and_then(|p| Ok((*p).try_into()?))
                 .context("http_port")?,
-            http_url: required(&r.http_url).context("http_url")?.clone(),
-            ws_port: required(&r.ws_port)
+            http_url: required(&self.http_url).context("http_url")?.clone(),
+            ws_port: required(&self.ws_port)
                 .and_then(|p| Ok((*p).try_into()?))
                 .context("ws_port")?,
-            ws_url: required(&r.ws_url).context("ws_url")?.clone(),
-            req_entities_limit: r.req_entities_limit,
-            filters_limit: r.filters_limit,
-            subscriptions_limit: r.subscriptions_limit,
-            pubsub_polling_interval: r.pubsub_polling_interval,
-            threads_per_server: *required(&r.threads_per_server).context("threads_per_server")?,
-            max_nonce_ahead: *required(&r.max_nonce_ahead).context("max_nonce_ahead")?,
-            gas_price_scale_factor: *required(&r.gas_price_scale_factor)
+            ws_url: required(&self.ws_url).context("ws_url")?.clone(),
+            req_entities_limit: self.req_entities_limit,
+            filters_limit: self.filters_limit,
+            subscriptions_limit: self.subscriptions_limit,
+            pubsub_polling_interval: self.pubsub_polling_interval,
+            threads_per_server: *required(&self.threads_per_server)
+                .context("threads_per_server")?,
+            max_nonce_ahead: *required(&self.max_nonce_ahead).context("max_nonce_ahead")?,
+            gas_price_scale_factor: *required(&self.gas_price_scale_factor)
                 .context("gas_price_scale_factor")?,
-            transactions_per_sec_limit: r.transactions_per_sec_limit,
-            request_timeout: r.request_timeout,
-            account_pks: match &r.account_pks {
+            transactions_per_sec_limit: self.transactions_per_sec_limit,
+            request_timeout: self.request_timeout,
+            account_pks: match &self.account_pks {
                 None => None,
                 Some(r) => {
                     let mut keys = vec![];
@@ -118,57 +126,57 @@ impl ProtoRepr<Web3JsonRpcConfig> for proto::Web3JsonRpc {
                     Some(keys)
                 }
             },
-            estimate_gas_scale_factor: *required(&r.estimate_gas_scale_factor)
+            estimate_gas_scale_factor: *required(&self.estimate_gas_scale_factor)
                 .context("estimate_gas_scale_factor")?,
             estimate_gas_acceptable_overestimation: *required(
-                &r.estimate_gas_acceptable_overestimation,
+                &self.estimate_gas_acceptable_overestimation,
             )
             .context("acceptable_overestimation")?,
-            max_tx_size: required(&r.max_tx_size)
+            max_tx_size: required(&self.max_tx_size)
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("max_tx_size")?,
-            vm_execution_cache_misses_limit: r
+            vm_execution_cache_misses_limit: self
                 .vm_execution_cache_misses_limit
                 .map(|x| x.try_into())
                 .transpose()
                 .context("vm_execution_cache_misses_limit")?,
-            vm_concurrency_limit: r
+            vm_concurrency_limit: self
                 .vm_concurrency_limit
                 .map(|x| x.try_into())
                 .transpose()
                 .context("vm_concurrency_limit")?,
-            factory_deps_cache_size_mb: r
+            factory_deps_cache_size_mb: self
                 .factory_deps_cache_size_mb
                 .map(|x| x.try_into())
                 .transpose()
                 .context("factory_deps_cache_size_mb")?,
-            initial_writes_cache_size_mb: r
+            initial_writes_cache_size_mb: self
                 .initial_writes_cache_size_mb
                 .map(|x| x.try_into())
                 .transpose()
                 .context("initial_writes_cache_size_mb")?,
-            latest_values_cache_size_mb: r
+            latest_values_cache_size_mb: self
                 .latest_values_cache_size_mb
                 .map(|x| x.try_into())
                 .transpose()
                 .context("latests_values_cache_size_mb")?,
-            http_threads: r.http_threads,
-            ws_threads: r.ws_threads,
-            fee_history_limit: r.fee_history_limit,
-            max_batch_request_size: r
+            http_threads: self.http_threads,
+            ws_threads: self.ws_threads,
+            fee_history_limit: self.fee_history_limit,
+            max_batch_request_size: self
                 .max_batch_request_size
                 .map(|x| x.try_into())
                 .transpose()
                 .context("max_batch_requres_size")?,
-            max_response_body_size_mb: r
+            max_response_body_size_mb: self
                 .max_response_body_size_mb
                 .map(|x| x.try_into())
                 .transpose()
                 .context("max_response_body_size_mb")?,
-            websocket_requests_per_minute_limit: r.websocket_requests_per_minute_limit,
+            websocket_requests_per_minute_limit: self.websocket_requests_per_minute_limit,
         })
     }
-    fn build(this: &Web3JsonRpcConfig) -> Self {
+    fn build(this: &Self::Type) -> Self {
         Self {
             http_port: Some(this.http_port.into()),
             http_url: Some(this.http_url.clone()),
@@ -216,17 +224,19 @@ impl ProtoRepr<Web3JsonRpcConfig> for proto::Web3JsonRpc {
     }
 }
 
-impl ProtoRepr<ContractVerificationApiConfig> for proto::ContractVerificationApi {
-    fn read(r: &Self) -> anyhow::Result<ContractVerificationApiConfig> {
-        Ok(ContractVerificationApiConfig {
-            port: required(&r.port)
+impl ProtoRepr for proto::ContractVerificationApi {
+    type Type = ContractVerificationApiConfig;
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok(Self::Type {
+            port: required(&self.port)
                 .and_then(|p| Ok((*p).try_into()?))
                 .context("port")?,
-            url: required(&r.url).context("url")?.clone(),
-            threads_per_server: *required(&r.threads_per_server).context("threads_per_server")?,
+            url: required(&self.url).context("url")?.clone(),
+            threads_per_server: *required(&self.threads_per_server)
+                .context("threads_per_server")?,
         })
     }
-    fn build(this: &ContractVerificationApiConfig) -> Self {
+    fn build(this: &Self::Type) -> Self {
         Self {
             port: Some(this.port.into()),
             url: Some(this.url.clone()),
@@ -235,30 +245,32 @@ impl ProtoRepr<ContractVerificationApiConfig> for proto::ContractVerificationApi
     }
 }
 
-impl ProtoRepr<HealthCheckConfig> for proto::HealthCheck {
-    fn read(r: &Self) -> anyhow::Result<HealthCheckConfig> {
-        Ok(HealthCheckConfig {
-            port: required(&r.port)
+impl ProtoRepr for proto::HealthCheck {
+    type Type = HealthCheckConfig;
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok(Self::Type {
+            port: required(&self.port)
                 .and_then(|p| Ok((*p).try_into()?))
                 .context("port")?,
         })
     }
-    fn build(this: &HealthCheckConfig) -> Self {
+    fn build(this: &Self::Type) -> Self {
         Self {
             port: Some(this.port.into()),
         }
     }
 }
 
-impl ProtoRepr<MerkleTreeApiConfig> for proto::MerkleTreeApi {
-    fn read(r: &Self) -> anyhow::Result<MerkleTreeApiConfig> {
-        Ok(MerkleTreeApiConfig {
-            port: required(&r.port)
+impl ProtoRepr for proto::MerkleTreeApi {
+    type Type = MerkleTreeApiConfig;
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok(Self::Type {
+            port: required(&self.port)
                 .and_then(|p| Ok((*p).try_into()?))
                 .context("port")?,
         })
     }
-    fn build(this: &MerkleTreeApiConfig) -> Self {
+    fn build(this: &Self::Type) -> Self {
         Self {
             port: Some(this.port.into()),
         }
