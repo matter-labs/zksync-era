@@ -16,9 +16,9 @@ const ATTEMPT_BUCKETS: Buckets = Buckets::exponential(1.0..=64.0, 2.0);
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "job_processor")]
 struct JobProcessorMetrics {
-    #[metrics(labels = ["service", "job_id"])]
+    #[metrics(labels = ["service_name", "job_id"])]
     max_attempts_reached: LabeledFamily<(&'static str, String), Counter, 2>,
-    #[metrics(labels = ["service"], buckets = ATTEMPT_BUCKETS)]
+    #[metrics(labels = ["service_name"], buckets = ATTEMPT_BUCKETS)]
     attempts: LabeledFamily<&'static str, Histogram<usize>>,
 }
 

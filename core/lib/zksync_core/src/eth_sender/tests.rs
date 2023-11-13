@@ -897,6 +897,7 @@ async fn insert_l1_batch(tester: &EthSenderTester, number: L1BatchNumber) -> L1B
             header.number,
             &default_l1_batch_metadata(),
             Default::default(),
+            Default::default(),
         )
         .await
         .unwrap();
