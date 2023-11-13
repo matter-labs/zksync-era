@@ -6,8 +6,8 @@ use zksync_dal::StorageProcessor;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
     api::{
-        BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof,
-        ProtocolVersion, TransactionDetails,
+        BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof, Proof,
+        ProtocolVersion, StorageProof, TransactionDetails,
     },
     fee::Fee,
     l1::L1Tx,
@@ -26,7 +26,7 @@ use zksync_web3_decl::{
 };
 
 use crate::api_server::{
-    tree::{TreeApiClient, TreeEntryWithProof},
+    tree::TreeApiClient,
     web3::{backend_jsonrpc::error::internal_error, metrics::API_METRICS, RpcState},
 };
 use crate::l1_gas_price::L1GasPriceProvider;
@@ -629,23 +629,35 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         address: Address,
         keys: Vec<H256>,
         l1_batch_number: L1BatchNumber,
-    ) -> Result<Vec<TreeEntryWithProof>, Web3Error> {
+    ) -> Result<Proof, Web3Error> {
         const METHOD_NAME: &str = "get_proofs";
 
         let hashed_keys = keys
-            .into_iter()
-            .map(|key| StorageKey::new(AccountTreeId::new(address), key).hashed_key_u256())
+            .iter()
+            .map(|key| StorageKey::new(AccountTreeId::new(address), *key).hashed_key_u256())
             .collect();
 
-        let keys = self
+        let storage_proof = self
             .state
             .tree_api
             .as_ref()
             .ok_or(Web3Error::GetProofsUnavailable)?
             .get_proofs(l1_batch_number, hashed_keys)
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
+            .map_err(|err| internal_error(METHOD_NAME, err))?
+            .into_iter()
+            .zip(keys)
+            .map(|(proof, key)| StorageProof {
+                key,
+                proof: proof.merkle_path,
+                value: proof.value,
+                index: proof.index,
+            })
+            .collect();
 
-        Ok(keys)
+        Ok(Proof {
+            address,
+            storage_proof,
+        })
     }
 }

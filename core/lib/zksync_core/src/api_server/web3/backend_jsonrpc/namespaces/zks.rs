@@ -9,7 +9,7 @@ use jsonrpc_derive::rpc;
 // Workspace uses
 use zksync_types::{
     api::{
-        BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, ProtocolVersion,
+        BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
         TransactionDetails,
     },
     fee::Fee,
@@ -19,7 +19,7 @@ use zksync_types::{
 use zksync_web3_decl::types::{Filter, Log, Token};
 
 // Local uses
-use crate::{api_server::tree::TreeEntryWithProof, web3::namespaces::ZksNamespace};
+use crate::web3::namespaces::ZksNamespace;
 use crate::{l1_gas_price::L1GasPriceProvider, web3::backend_jsonrpc::error::into_jsrpc_error};
 
 #[rpc]
@@ -118,7 +118,7 @@ pub trait ZksNamespaceT {
         address: Address,
         keys: Vec<H256>,
         l1_batch_number: L1BatchNumber,
-    ) -> BoxFuture<Result<Vec<TreeEntryWithProof>>>;
+    ) -> BoxFuture<Result<Proof>>;
 }
 
 impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceT for ZksNamespace<G> {
@@ -322,11 +322,11 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceT for ZksNamespa
         address: Address,
         keys: Vec<H256>,
         l1_batch_number: L1BatchNumber,
-    ) -> BoxFuture<Result<Vec<TreeEntryWithProof>>> {
+    ) -> BoxFuture<Result<Proof>> {
         let self_ = self.clone();
         Box::pin(async move {
             self_
-                .get_proofs_impl(address, keys, l1_batch_number)
+                .get_proofs_impl(address, keys.clone(), l1_batch_number)
                 .await
                 .map_err(into_jsrpc_error)
         })

@@ -35,7 +35,7 @@ struct TreeProofsResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct TreeEntryWithProof {
+pub(crate) struct TreeEntryWithProof {
     #[serde(default, skip_serializing_if = "H256::is_zero")]
     pub value: H256,
     #[serde(default, skip_serializing_if = "TreeEntryWithProof::is_zero")]
