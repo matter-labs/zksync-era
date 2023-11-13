@@ -422,9 +422,17 @@ impl L1BatchAuxiliaryOutput {
         let l2_l1_logs_merkle_root =
             MiniMerkleTree::new(merkle_tree_leaves, Some(min_tree_size)).merkle_root();
 
-        if system_logs.len() > 0 {
-            assert!(state_diffs_hash == state_diff_hash_from_logs.unwrap());
-            assert!(l2_l1_logs_merkle_root == merke_tree_root_from_logs.unwrap());
+        if !system_logs.is_empty() {
+            assert_eq!(
+                state_diffs_hash,
+                state_diff_hash_from_logs.unwrap(),
+                "State diff hash mismatch"
+            );
+            assert_eq!(
+                l2_l1_logs_merkle_root,
+                merke_tree_root_from_logs.unwrap(),
+                "L2 L1 logs tree root mismatch"
+            );
         }
 
         Self {
