@@ -2,14 +2,14 @@ use anyhow::Context;
 use std::sync::Arc;
 use std::time::Instant;
 
-use zksync_dal::ConnectionPool;
+use zksync_dal::{basic_witness_input_producer_dal::JOB_MAX_ATTEMPT, ConnectionPool};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::witness_block_state::WitnessBlockState;
 use zksync_types::{L1BatchNumber, L2ChainId};
 
 use async_trait::async_trait;
-use multivm::interface::L2BlockEnv;
+use multivm::interface::{L2BlockEnv, VmInterface};
 use tokio::runtime::Handle;
 use tokio::task::JoinHandle;
 
@@ -183,12 +183,42 @@ impl JobProcessor for BasicWitnessInputProducer {
             .access_storage()
             .await
             .context("failed to acquire DB connection for BasicWitnessInputProducer")?;
-        connection
+        let mut transaction = connection
+            .start_transaction()
+            .await
+            .context("failed to acquire DB transaction for BasicWitnessInputProducer")?;
+        transaction
             .basic_witness_input_producer_dal()
             .mark_job_as_successful(job_id, started_at, &object_path)
             .await
             .context("failed to mark job as successful for BasicWitnessInputProducer")?;
+        transaction
+            .witness_generator_dal()
+            .mark_witness_inputs_job_as_queued(job_id)
+            .await;
+        transaction
+            .commit()
+            .await
+            .context("failed to commit DB transaction for BasicWitnessInputProducer")?;
         METRICS.block_number_processed.set(job_id.0 as i64);
         Ok(())
+    }
+
+    fn max_attempts(&self) -> u32 {
+        JOB_MAX_ATTEMPT as u32
+    }
+
+    async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<u32> {
+        let mut connection = self
+            .connection_pool
+            .access_storage()
+            .await
+            .context("failed to acquire DB connection for BasicWitnessInputProducer")?;
+        connection
+            .basic_witness_input_producer_dal()
+            .get_basic_witness_input_producer_job_attempts(*job_id)
+            .await
+            .map(|attempts| attempts.unwrap_or(0))
+            .context("failed to get job attempts for BasicWitnessInputProducer")
     }
 }

@@ -29,6 +29,7 @@ mod leaf_aggregation;
 mod node_aggregation;
 mod precalculated_merkle_paths_provider;
 mod scheduler;
+mod storage_oracle;
 mod utils;
 
 #[derive(Debug, StructOpt)]
@@ -168,6 +169,7 @@ async fn main() -> anyhow::Result<()> {
         }
         AggregationRound::NodeAggregation => {
             let generator = NodeAggregationWitnessGenerator::new(
+                config,
                 &store_factory,
                 prover_connection_pool,
                 protocol_versions.clone(),
@@ -177,6 +179,7 @@ async fn main() -> anyhow::Result<()> {
         }
         AggregationRound::Scheduler => {
             let generator = SchedulerWitnessGenerator::new(
+                config,
                 &store_factory,
                 prover_connection_pool,
                 protocol_versions,

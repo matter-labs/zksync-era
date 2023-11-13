@@ -106,8 +106,7 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
-          # TODO (EVM-374): Change the following to `true` after https://github.com/NomicFoundation/hardhat/pull/4552 is merged and released.
-          echo RUN_CONTRACT_VERIFICATION_TEST=false >> .env
+          echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
           echo ZKSYNC_DEBUG_LOGS=true >> .env
 
       - name: Download zksolc/solc and zkvyper/vyper
@@ -205,8 +204,7 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
-          # TODO (EVM-374): Change the following to `true` after https://github.com/NomicFoundation/hardhat/pull/4552 is merged and released.
-          echo RUN_CONTRACT_VERIFICATION_TEST=false >> .env
+          echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
           echo ZKSYNC_DEBUG_LOGS=true >> .env
 
       - name: Download zksolc/solc and zkvyper/vyper
