@@ -163,24 +163,21 @@ impl PostgresBlockStorage {
 #[async_trait]
 impl BlockStore for PostgresBlockStorage {
     async fn head_block(&self, ctx: &ctx::Ctx) -> StorageResult<FinalBlock> {
-        tokio::select! {
-            () = ctx.canceled() => Err(ctx::Canceled.into()),
-            result = self.head_block() => result.map_err(StorageError::Database),
-        }
+        ctx.wait(self.head_block())
+            .await?
+            .map_err(StorageError::Database)
     }
 
     async fn first_block(&self, ctx: &ctx::Ctx) -> StorageResult<FinalBlock> {
-        tokio::select! {
-            () = ctx.canceled() => Err(ctx::Canceled.into()),
-            result = self.first_block() => result.map_err(StorageError::Database),
-        }
+        ctx.wait(self.first_block())
+            .await?
+            .map_err(StorageError::Database)
     }
 
     async fn last_contiguous_block_number(&self, ctx: &ctx::Ctx) -> StorageResult<BlockNumber> {
-        tokio::select! {
-            () = ctx.canceled() => Err(ctx::Canceled.into()),
-            result = self.sealed_miniblock_number() => result.map_err(StorageError::Database),
-        }
+        ctx.wait(self.sealed_miniblock_number())
+            .await?
+            .map_err(StorageError::Database)
     }
 
     async fn block(
@@ -188,15 +185,13 @@ impl BlockStore for PostgresBlockStorage {
         ctx: &ctx::Ctx,
         number: BlockNumber,
     ) -> StorageResult<Option<FinalBlock>> {
-        let get_block = async {
+        ctx.wait(async {
             let number = u32::try_from(number.0).context("block number is too large")?;
             let mut storage = self.storage().await?;
             Self::block(&mut storage, MiniblockNumber(number)).await
-        };
-        tokio::select! {
-            () = ctx.canceled() => Err(ctx::Canceled.into()),
-            result = get_block => result.map_err(StorageError::Database),
-        }
+        })
+        .await?
+        .map_err(StorageError::Database)
     }
 
     async fn missing_block_numbers(
@@ -219,14 +214,12 @@ impl ContiguousBlockStore for PostgresBlockStorage {
         let fetched_block =
             FetchedBlock::from_gossip_block(block, false).map_err(StorageError::Database)?;
         let actions = sync::lock(ctx, &self.cursor).await?.advance(fetched_block);
-        let push_all_actions = async {
+        ctx.wait(async {
             for actions_chunk in actions {
                 self.actions.push_actions(actions_chunk).await;
             }
-        };
-        tokio::select! {
-            () = ctx.canceled() => Err(ctx::Canceled.into()),
-            () = push_all_actions => Ok(()),
-        }
+        })
+        .await?;
+        Ok(())
     }
 }
