@@ -36,7 +36,12 @@ impl EthereumSigner for PrivateKeySigner {
     /// The sign method calculates an Ethereum specific signature with:
     /// sign(keccak256("\x19Ethereum Signed Message:\n" + len(message) + message))).
     async fn sign_message(&self, message: &[u8]) -> Result<PackedEthSignature, SignerError> {
-        let signature = PackedEthSignature::sign(&self.private_key, message)
+        let prefix = format!("\x19Ethereum Signed Message:\n{}", message.len());
+        let mut bytes = Vec::with_capacity(prefix.len() + message.len());
+        bytes.extend_from_slice(prefix.as_bytes());
+        bytes.extend_from_slice(message);
+
+        let signature = PackedEthSignature::sign(&self.private_key, &bytes)
             .map_err(|err| SignerError::SigningFailed(err.to_string()))?;
         Ok(signature)
     }
