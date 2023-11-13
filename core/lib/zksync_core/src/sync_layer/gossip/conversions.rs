@@ -53,9 +53,8 @@ pub(super) fn sync_block_to_consensus_block(mut block: SyncBlock) -> anyhow::Res
         number,
         payload: payload.hash(),
     };
-    let justification: CommitQC =
-        zksync_consensus_schema::decode(consensus.commit_qc_bytes.as_ref())
-            .context("Failed deserializing commit QC from Protobuf")?;
+    let justification: CommitQC = zksync_protobuf::decode(consensus.commit_qc_bytes.as_ref())
+        .context("Failed deserializing commit QC from Protobuf")?;
     Ok(FinalBlock {
         header,
         payload,
@@ -87,7 +86,7 @@ impl FetchedBlock {
             transactions: payload.transactions,
             consensus: Some(ConsensusBlockFields {
                 prev_block_hash: H256(*block.header.parent.as_bytes()),
-                commit_qc_bytes: CommitQCBytes::new(zksync_consensus_schema::canonical(
+                commit_qc_bytes: CommitQCBytes::new(zksync_protobuf::canonical(
                     &block.justification,
                 )),
             }),

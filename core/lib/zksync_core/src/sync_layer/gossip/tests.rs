@@ -76,7 +76,7 @@ pub(super) async fn add_consensus_fields(
 
         let consensus = ConsensusBlockFields {
             prev_block_hash: H256(*prev_block_hash.as_bytes()),
-            commit_qc_bytes: CommitQCBytes::new(zksync_consensus_schema::canonical(&commit_qc)),
+            commit_qc_bytes: CommitQCBytes::new(zksync_protobuf::canonical(&commit_qc)),
         };
         storage
             .blocks_dal()
