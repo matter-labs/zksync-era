@@ -9,7 +9,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "617a8268e3537fe1d8c9ead925fca49ef6400927ee7bc26750e90ecee14ce4b8"
 dependencies = [
  "bitflags 1.3.2",
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "futures-core",
  "futures-sink",
  "memchr",
@@ -48,7 +48,7 @@ dependencies = [
  "base64 0.21.2",
  "bitflags 1.3.2",
  "brotli",
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "bytestring",
  "derive_more",
  "encoding_rs",
@@ -162,7 +162,7 @@ dependencies = [
  "actix-utils",
  "actix-web-codegen",
  "ahash 0.7.6",
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "bytestring",
  "cfg-if 1.0.0",
  "cookie",
@@ -440,9 +440,126 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.71"
+version = "1.0.75"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c7d0618f0e0b7e8ff11427422b64564d5fb0be1940354bfe2e0529b18a9d9b8"
+checksum = "a4668cab20f66d8d020e1fbc0ebe47217433c1b6c8f2040faf858554e394ace6"
+
+[[package]]
+name = "ark-bn254"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a22f4561524cd949590d78d7d4c5df8f592430d221f7f3c9497bbafd8972120f"
+dependencies = [
+ "ark-ec",
+ "ark-ff",
+ "ark-std",
+]
+
+[[package]]
+name = "ark-ec"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "defd9a439d56ac24968cca0571f598a61bc8c55f71d50a89cda591cb750670ba"
+dependencies = [
+ "ark-ff",
+ "ark-poly",
+ "ark-serialize",
+ "ark-std",
+ "derivative",
+ "hashbrown 0.13.1",
+ "itertools",
+ "num-traits",
+ "zeroize",
+]
+
+[[package]]
+name = "ark-ff"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec847af850f44ad29048935519032c33da8aa03340876d351dfab5660d2966ba"
+dependencies = [
+ "ark-ff-asm",
+ "ark-ff-macros",
+ "ark-serialize",
+ "ark-std",
+ "derivative",
+ "digest 0.10.7",
+ "itertools",
+ "num-bigint 0.4.3",
+ "num-traits",
+ "paste",
+ "rustc_version",
+ "zeroize",
+]
+
+[[package]]
+name = "ark-ff-asm"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ed4aa4fe255d0bc6d79373f7e31d2ea147bcf486cba1be5ba7ea85abdb92348"
+dependencies = [
+ "quote 1.0.33",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "ark-ff-macros"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7abe79b0e4288889c4574159ab790824d0033b9fdcb2a112a3182fac2e514565"
+dependencies = [
+ "num-bigint 0.4.3",
+ "num-traits",
+ "proc-macro2 1.0.66",
+ "quote 1.0.33",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "ark-poly"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d320bfc44ee185d899ccbadfa8bc31aab923ce1558716e1997a1e74057fe86bf"
+dependencies = [
+ "ark-ff",
+ "ark-serialize",
+ "ark-std",
+ "derivative",
+ "hashbrown 0.13.1",
+]
+
+[[package]]
+name = "ark-serialize"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "adb7b85a02b83d2f22f89bd5cac66c9c89474240cb6207cb1efc16d098e822a5"
+dependencies = [
+ "ark-serialize-derive",
+ "ark-std",
+ "digest 0.10.7",
+ "num-bigint 0.4.3",
+]
+
+[[package]]
+name = "ark-serialize-derive"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae3281bc6d0fd7e549af32b52511e1302185bd688fd3359fa36423346ff682ea"
+dependencies = [
+ "proc-macro2 1.0.66",
+ "quote 1.0.33",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "ark-std"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94893f1e0c6eeab764ade8dc4c0db24caf4fe7cbbaafc0eba0a9030f447b5185"
+dependencies = [
+ "num-traits",
+ "rand 0.8.5",
+]
 
 [[package]]
 name = "arr_macro"
@@ -600,7 +717,7 @@ dependencies = [
  "async-trait",
  "axum-core",
  "bitflags 1.3.2",
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "futures-util",
  "http",
  "http-body",
@@ -629,7 +746,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "759fa577a247914fd3f7f76d62972792636412fbfd634cd452f6a385a74d2d2c"
 dependencies = [
  "async-trait",
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "futures-util",
  "http",
  "http-body",
@@ -784,7 +901,7 @@ dependencies = [
  "lazy_static",
  "lazycell",
  "peeking_take_while",
- "prettyplease 0.2.6",
+ "prettyplease",
  "proc-macro2 1.0.66",
  "quote 1.0.33",
  "regex",
@@ -1104,9 +1221,9 @@ dependencies = [
 
 [[package]]
 name = "bytes"
-version = "1.4.0"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89b2fd2a0dcf38d7971e2194b6b6eebab45ae01067456a7fd93d5547a61b70be"
+checksum = "a2bd12c1caf447e69cd4528f47f94d203fd2582878ecb9e9465484c4148a8223"
 
 [[package]]
 name = "bytestring"
@@ -1114,7 +1231,7 @@ version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "238e4886760d98c4f899360c834fa93e62cf7f721ac3c2da375cbdf4b8679aae"
 dependencies = [
- "bytes 1.4.0",
+ "bytes 1.5.0",
 ]
 
 [[package]]
@@ -1436,46 +1553,8 @@ version = "4.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "35ed6e9d84f0b51a7f52daf1c7d71dd136fd7a3f41a8462b8cdb8c78d920fad4"
 dependencies = [
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "memchr",
-]
-
-[[package]]
-name = "concurrency"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=a0905d4896a12d60296e24130dee6a0c0b730c32#a0905d4896a12d60296e24130dee6a0c0b730c32"
-dependencies = [
- "anyhow",
- "once_cell",
- "pin-project",
- "rand 0.8.5",
- "sha2 0.10.8",
- "thiserror",
- "time",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "vise",
-]
-
-[[package]]
-name = "consensus"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=a0905d4896a12d60296e24130dee6a0c0b730c32#a0905d4896a12d60296e24130dee6a0c0b730c32"
-dependencies = [
- "anyhow",
- "concurrency",
- "crypto",
- "network",
- "once_cell",
- "rand 0.8.5",
- "roles",
- "schema",
- "storage",
- "thiserror",
- "tracing",
- "utils",
- "vise",
 ]
 
 [[package]]
@@ -1801,20 +1880,6 @@ name = "crunchy"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
-
-[[package]]
-name = "crypto"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=a0905d4896a12d60296e24130dee6a0c0b730c32#a0905d4896a12d60296e24130dee6a0c0b730c32"
-dependencies = [
- "anyhow",
- "blst",
- "ed25519-dalek",
- "hex",
- "rand 0.8.5",
- "sha2 0.10.8",
- "thiserror",
-]
 
 [[package]]
 name = "crypto-bigint"
@@ -2366,26 +2431,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 
 [[package]]
-name = "executor"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=a0905d4896a12d60296e24130dee6a0c0b730c32#a0905d4896a12d60296e24130dee6a0c0b730c32"
-dependencies = [
- "anyhow",
- "concurrency",
- "consensus",
- "crypto",
- "network",
- "rand 0.8.5",
- "roles",
- "schema",
- "storage",
- "sync_blocks",
- "tracing",
- "utils",
- "vise",
-]
-
-[[package]]
 name = "fake-simd"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2909,7 +2954,7 @@ checksum = "215abab97e07d144428425509c1dad07e57ea72b84b21bcdb6a8a5f12a5c4932"
 dependencies = [
  "async-stream",
  "base64 0.21.2",
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "futures-util",
  "google-cloud-auth",
  "google-cloud-metadata",
@@ -2974,7 +3019,7 @@ version = "0.3.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d357c7ae988e7d2182f7d7871d0b963962420b0678b0997ce7de72001aeab782"
 dependencies = [
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "fnv",
  "futures-core",
  "futures-sink",
@@ -3064,7 +3109,7 @@ checksum = "f3e372db8e5c0d213e0cd0b9be18be2aca3d44cf2fe30a9d46a65581cd454584"
 dependencies = [
  "base64 0.13.1",
  "bitflags 1.3.2",
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "headers-core",
  "http",
  "httpdate",
@@ -3183,7 +3228,7 @@ version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bd6effc99afb63425aff9b05836f029929e345a6148a14b7ecd5ab67af944482"
 dependencies = [
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "fnv",
  "itoa",
 ]
@@ -3194,7 +3239,7 @@ version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d5f38f16d184e36f2408a55281cd658ecbd3ca05cce6d6510a176eca393e26d1"
 dependencies = [
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "http",
  "pin-project-lite",
 ]
@@ -3229,7 +3274,7 @@ version = "0.14.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ffb1cfd654a8219eaef89881fdb3bb3b1cdc5fa75ded05d6933b2b382e395468"
 dependencies = [
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "futures-channel",
  "futures-core",
  "futures-util",
@@ -3268,7 +3313,7 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6183ddfa99b85da61a140bea0efc93fdf56ceaa041b37d553518030827f9905"
 dependencies = [
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "hyper",
  "native-tls",
  "tokio",
@@ -3617,7 +3662,7 @@ name = "jsonrpc-server-utils"
 version = "18.0.0"
 source = "git+https://github.com/matter-labs/jsonrpc.git?branch=master#12c53e3e20c09c2fb9966a4ef1b0ea63de172540"
 dependencies = [
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "futures 0.3.28",
  "globset",
  "jsonrpc-core 18.0.0 (git+https://github.com/matter-labs/jsonrpc.git?branch=master)",
@@ -4019,6 +4064,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b06a4cde4c0f271a446782e3eff8de789548ce57dbc8eca9292c27f4a42004b4"
 
 [[package]]
+name = "logos"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c000ca4d908ff18ac99b93a062cb8958d331c3220719c52e77cb19cc6ac5d2c1"
+dependencies = [
+ "logos-derive",
+]
+
+[[package]]
+name = "logos-codegen"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc487311295e0002e452025d6b580b77bb17286de87b57138f3b5db711cded68"
+dependencies = [
+ "beef",
+ "fnv",
+ "proc-macro2 1.0.66",
+ "quote 1.0.33",
+ "regex-syntax 0.6.29",
+ "syn 2.0.32",
+]
+
+[[package]]
+name = "logos-derive"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dbfc0d229f1f42d790440136d941afd806bc9e949e2bcb8faa813b0f00d1267e"
+dependencies = [
+ "logos-codegen",
+]
+
+[[package]]
 name = "mach"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4163,6 +4240,29 @@ dependencies = [
  "num_cpus",
  "quanta 0.11.1",
  "sketches-ddsketch",
+]
+
+[[package]]
+name = "miette"
+version = "5.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59bb584eaeeab6bd0226ccf3509a69d7936d148cf3d036ad350abe35e8c6856e"
+dependencies = [
+ "miette-derive",
+ "once_cell",
+ "thiserror",
+ "unicode-width",
+]
+
+[[package]]
+name = "miette-derive"
+version = "5.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "49e7bc1560b95a3c4a25d03de42fe76ca718ab92d1a22a55b9b4cf67b3ae635c"
+dependencies = [
+ "proc-macro2 1.0.66",
+ "quote 1.0.33",
+ "syn 2.0.32",
 ]
 
 [[package]]
@@ -4332,28 +4432,6 @@ dependencies = [
  "cfg-if 0.1.10",
  "libc",
  "winapi 0.3.9",
-]
-
-[[package]]
-name = "network"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=a0905d4896a12d60296e24130dee6a0c0b730c32#a0905d4896a12d60296e24130dee6a0c0b730c32"
-dependencies = [
- "anyhow",
- "async-trait",
- "concurrency",
- "crypto",
- "im",
- "once_cell",
- "pin-project",
- "rand 0.8.5",
- "roles",
- "schema",
- "snow",
- "thiserror",
- "tracing",
- "utils",
- "vise",
 ]
 
 [[package]]
@@ -4574,9 +4652,9 @@ dependencies = [
 
 [[package]]
 name = "num-traits"
-version = "0.2.15"
+version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "578ede34cf02f8924ab9447f50c28075b4d3e5b269972345e7e0372b38c6cdcd"
+checksum = "39e3200413f237f41ab11ad6d161bc7239c84dcb631773ccd7de3dfe4b5c267c"
 dependencies = [
  "autocfg 1.1.0",
  "libm",
@@ -5178,16 +5256,6 @@ checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 
 [[package]]
 name = "prettyplease"
-version = "0.1.25"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c8646e95016a7a6c4adea95bafa8a16baab64b583356217f2c85db4a39d9a86"
-dependencies = [
- "proc-macro2 1.0.66",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "prettyplease"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3b69d39aab54d069e7f2fe8cb970493e7834601ca2d8c65fd7bbd183578080d1"
@@ -5326,143 +5394,100 @@ dependencies = [
 
 [[package]]
 name = "prost"
-version = "0.11.9"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b82eaa1d779e9a4bc1c3217db8ffbeabaae1dca241bf70183242128d48681cd"
+checksum = "f4fdd22f3b9c31b53c060df4a0613a1c7f062d4115a2b984dd15b1858f7e340d"
 dependencies = [
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "prost-derive",
 ]
 
 [[package]]
 name = "prost-build"
-version = "0.11.9"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "119533552c9a7ffacc21e099c24a0ac8bb19c2a2a3f363de84cd9b844feab270"
+checksum = "8bdf592881d821b83d471f8af290226c8d51402259e9bb5be7f9f8bdebbb11ac"
 dependencies = [
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "heck 0.4.1",
  "itertools",
- "lazy_static",
  "log",
  "multimap",
+ "once_cell",
  "petgraph",
- "prettyplease 0.1.25",
+ "prettyplease",
  "prost",
  "prost-types",
  "regex",
- "syn 1.0.109",
+ "syn 2.0.32",
  "tempfile",
  "which",
 ]
 
 [[package]]
 name = "prost-derive"
-version = "0.11.9"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5d2d8d10f3c6ded6da8b05b5fb3b8a5082514344d56c9f871412d29b4e075b4"
+checksum = "265baba7fabd416cf5078179f7d2cbeca4ce7a9041111900675ea7c4cb8a4c32"
 dependencies = [
  "anyhow",
  "itertools",
- "proc-macro2 1.0.66",
- "quote 1.0.33",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "prost-reflect"
-version = "0.11.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b823de344848e011658ac981009100818b322421676740546f8b52ed5249428"
-dependencies = [
- "base64 0.21.2",
- "once_cell",
- "prost",
- "prost-reflect-derive",
- "prost-types",
- "serde",
- "serde-value",
-]
-
-[[package]]
-name = "prost-reflect-build"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d959f576df574d088e0409c45ef11897f64727158c554ce65edc2d345f8afcf"
-dependencies = [
- "prost-build",
- "prost-reflect",
-]
-
-[[package]]
-name = "prost-reflect-derive"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7718375aa8f966df66e583b608a305a45bc87eeb1ffd5db87fae673bea17a7e4"
-dependencies = [
  "proc-macro2 1.0.66",
  "quote 1.0.33",
  "syn 2.0.32",
 ]
 
 [[package]]
-name = "prost-types"
-version = "0.11.9"
+name = "prost-reflect"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "213622a1460818959ac1181aaeb2dc9c7f63df720db7d788b3e24eacd1983e13"
+checksum = "057237efdb71cf4b3f9396302a3d6599a92fa94063ba537b66130980ea9909f3"
+dependencies = [
+ "base64 0.21.2",
+ "logos",
+ "miette",
+ "once_cell",
+ "prost",
+ "prost-types",
+ "serde",
+ "serde-value",
+]
+
+[[package]]
+name = "prost-types"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e081b29f63d83a4bc75cfc9f3fe424f9156cf92d8a4f0c9407cce9a1b67327cf"
 dependencies = [
  "prost",
 ]
 
 [[package]]
-name = "protoc-bin-vendored"
-version = "3.0.0"
+name = "protox"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "005ca8623e5633e298ad1f917d8be0a44bcf406bf3cde3b80e63003e49a3f27d"
+checksum = "00bb76c5f6221de491fe2c8f39b106330bbd9762c6511119c07940e10eb9ff11"
 dependencies = [
- "protoc-bin-vendored-linux-aarch_64",
- "protoc-bin-vendored-linux-ppcle_64",
- "protoc-bin-vendored-linux-x86_32",
- "protoc-bin-vendored-linux-x86_64",
- "protoc-bin-vendored-macos-x86_64",
- "protoc-bin-vendored-win32",
+ "bytes 1.5.0",
+ "miette",
+ "prost",
+ "prost-reflect",
+ "prost-types",
+ "protox-parse",
+ "thiserror",
 ]
 
 [[package]]
-name = "protoc-bin-vendored-linux-aarch_64"
-version = "3.0.0"
+name = "protox-parse"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fb9fc9cce84c8694b6ea01cc6296617b288b703719b725b8c9c65f7c5874435"
-
-[[package]]
-name = "protoc-bin-vendored-linux-ppcle_64"
-version = "3.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02d2a07dcf7173a04d49974930ccbfb7fd4d74df30ecfc8762cf2f895a094516"
-
-[[package]]
-name = "protoc-bin-vendored-linux-x86_32"
-version = "3.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d54fef0b04fcacba64d1d80eed74a20356d96847da8497a59b0a0a436c9165b0"
-
-[[package]]
-name = "protoc-bin-vendored-linux-x86_64"
-version = "3.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8782f2ce7d43a9a5c74ea4936f001e9e8442205c244f7a3d4286bd4c37bc924"
-
-[[package]]
-name = "protoc-bin-vendored-macos-x86_64"
-version = "3.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5de656c7ee83f08e0ae5b81792ccfdc1d04e7876b1d9a38e6876a9e09e02537"
-
-[[package]]
-name = "protoc-bin-vendored-win32"
-version = "3.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9653c3ed92974e34c5a6e0a510864dab979760481714c172e0a34e437cb98804"
+checksum = "7b4581f441c58863525a3e6bec7b8de98188cf75239a56c725a3e7288450a33f"
+dependencies = [
+ "logos",
+ "miette",
+ "prost-types",
+ "thiserror",
+]
 
 [[package]]
 name = "pulldown-cmark"
@@ -5874,7 +5899,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cde824a14b7c14f85caff81225f411faacc04a2013f41670f41443742b1c1c55"
 dependencies = [
  "base64 0.21.2",
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "encoding_rs",
  "futures-core",
  "futures-util",
@@ -5997,7 +6022,7 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bb919243f34364b6bd2fc10ef797edbfa75f33c252e7998527479c6d6b47e1ec"
 dependencies = [
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "rustc-hex",
 ]
 
@@ -6020,23 +6045,6 @@ dependencies = [
  "tempfile",
  "zksync_config",
  "zksync_storage",
-]
-
-[[package]]
-name = "roles"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=a0905d4896a12d60296e24130dee6a0c0b730c32#a0905d4896a12d60296e24130dee6a0c0b730c32"
-dependencies = [
- "anyhow",
- "bit-vec",
- "concurrency",
- "crypto",
- "hex",
- "rand 0.8.5",
- "schema",
- "serde",
- "tracing",
- "utils",
 ]
 
 [[package]]
@@ -6190,29 +6198,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "713cfb06c7059f3588fb8044c0fad1d09e3c01d225e25b9220dbfdcf16dbb1b3"
 dependencies = [
  "windows-sys 0.42.0",
-]
-
-[[package]]
-name = "schema"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=a0905d4896a12d60296e24130dee6a0c0b730c32#a0905d4896a12d60296e24130dee6a0c0b730c32"
-dependencies = [
- "anyhow",
- "bit-vec",
- "concurrency",
- "once_cell",
- "prettyplease 0.2.6",
- "prost",
- "prost-build",
- "prost-reflect",
- "prost-reflect-build",
- "protoc-bin-vendored",
- "quick-protobuf",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "syn 2.0.32",
- "tokio",
 ]
 
 [[package]]
@@ -6795,7 +6780,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "41d1c5305e39e09653383c2c7244f2f78b3bcae37cf50c64cb4789c9f5096ec2"
 dependencies = [
  "base64 0.13.1",
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "futures 0.3.28",
  "http",
  "httparse",
@@ -6879,7 +6864,7 @@ dependencies = [
  "bigdecimal",
  "bitflags 1.3.2",
  "byteorder",
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "chrono",
  "crc",
  "crossbeam-queue 0.3.8",
@@ -6965,21 +6950,6 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
-
-[[package]]
-name = "storage"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=a0905d4896a12d60296e24130dee6a0c0b730c32#a0905d4896a12d60296e24130dee6a0c0b730c32"
-dependencies = [
- "anyhow",
- "async-trait",
- "concurrency",
- "rand 0.8.5",
- "roles",
- "schema",
- "thiserror",
- "tracing",
-]
 
 [[package]]
 name = "storage_logs_dedup_migration"
@@ -7096,21 +7066,6 @@ dependencies = [
  "proc-macro2 1.0.66",
  "quote 1.0.33",
  "unicode-ident",
-]
-
-[[package]]
-name = "sync_blocks"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=a0905d4896a12d60296e24130dee6a0c0b730c32#a0905d4896a12d60296e24130dee6a0c0b730c32"
-dependencies = [
- "anyhow",
- "concurrency",
- "network",
- "roles",
- "storage",
- "thiserror",
- "tracing",
- "utils",
 ]
 
 [[package]]
@@ -7250,18 +7205,18 @@ checksum = "222a222a5bfe1bba4a77b45ec488a741b3cb8872e5e499451fd7d0129c9c7c3d"
 
 [[package]]
 name = "thiserror"
-version = "1.0.40"
+version = "1.0.50"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "978c9a314bd8dc99be594bc3c175faaa9794be04a5a5e153caba6915336cebac"
+checksum = "f9a7210f5c9a7156bb50aa36aed4c95afb51df0df00713949448cf9e97d382d2"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.40"
+version = "1.0.50"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9456a42c5b0d803c8cd86e73dd7cc9edd429499f37a3550d286d5e86720569f"
+checksum = "266b2e40bc00e5a6c09c3584011e08b06f123c00362c92b975ba9843aaaa14b8"
 dependencies = [
  "proc-macro2 1.0.66",
  "quote 1.0.33",
@@ -7386,7 +7341,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94d7b1cfd2aa4011f2de74c2c4c63665e27a71006b0a192dcd2710272e73dfa2"
 dependencies = [
  "autocfg 1.1.0",
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "libc",
  "mio 0.8.8",
  "num_cpus",
@@ -7446,7 +7401,7 @@ version = "0.6.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "36943ee01a6d67977dd3f84a5a1d2efeb4ada3a1ae771cadfaa535d9d9fc6507"
 dependencies = [
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "futures-core",
  "futures-sink",
  "log",
@@ -7460,7 +7415,7 @@ version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "806fe8c2c87eccc8b3267cbae29ed3ab2d0bd37fca70ab622e46aaa9375ddb7d"
 dependencies = [
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "futures-core",
  "futures-io",
  "futures-sink",
@@ -7536,7 +7491,7 @@ dependencies = [
  "async-compression",
  "base64 0.20.0",
  "bitflags 2.3.2",
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "futures-core",
  "futures-util",
  "http",
@@ -7815,15 +7770,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "711b9620af191e0cdc7468a8d14e709c3dcdb115b36f838e601583af800a370a"
 
 [[package]]
-name = "utils"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=a0905d4896a12d60296e24130dee6a0c0b730c32#a0905d4896a12d60296e24130dee6a0c0b730c32"
-dependencies = [
- "concurrency",
- "thiserror",
-]
-
-[[package]]
 name = "uuid"
 version = "1.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8074,7 +8020,7 @@ checksum = "5388522c899d1e1c96a4c307e3797e0f697ba7c77dd8e0e625ecba9dd0342937"
 dependencies = [
  "arrayvec 0.7.3",
  "base64 0.21.2",
- "bytes 1.4.0",
+ "bytes 1.5.0",
  "derive_more",
  "ethabi",
  "ethereum-types 0.14.1",
@@ -8664,6 +8610,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_concurrency"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-consensus.git?branch=gprusak-proto-serde#d104d3baa0be97c048fd3c67e28c35a918cc71f4"
+dependencies = [
+ "anyhow",
+ "once_cell",
+ "pin-project",
+ "rand 0.8.5",
+ "sha3 0.10.8",
+ "thiserror",
+ "time",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "vise",
+]
+
+[[package]]
 name = "zksync_config"
 version = "0.1.0"
 dependencies = [
@@ -8679,6 +8643,147 @@ dependencies = [
  "zksync_basic_types",
  "zksync_contracts",
  "zksync_utils",
+]
+
+[[package]]
+name = "zksync_consensus_bft"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-consensus.git?branch=gprusak-proto-serde#d104d3baa0be97c048fd3c67e28c35a918cc71f4"
+dependencies = [
+ "anyhow",
+ "once_cell",
+ "rand 0.8.5",
+ "thiserror",
+ "tracing",
+ "vise",
+ "zksync_concurrency",
+ "zksync_consensus_crypto",
+ "zksync_consensus_network",
+ "zksync_consensus_roles",
+ "zksync_consensus_storage",
+ "zksync_consensus_utils",
+ "zksync_protobuf",
+]
+
+[[package]]
+name = "zksync_consensus_crypto"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-consensus.git?branch=gprusak-proto-serde#d104d3baa0be97c048fd3c67e28c35a918cc71f4"
+dependencies = [
+ "anyhow",
+ "ark-bn254",
+ "ark-ec",
+ "ark-serialize",
+ "blst",
+ "ed25519-dalek",
+ "hex",
+ "num-traits",
+ "rand 0.8.5",
+ "sha3 0.10.8",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
+name = "zksync_consensus_executor"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-consensus.git?branch=gprusak-proto-serde#d104d3baa0be97c048fd3c67e28c35a918cc71f4"
+dependencies = [
+ "anyhow",
+ "prost",
+ "rand 0.8.5",
+ "tracing",
+ "vise",
+ "zksync_concurrency",
+ "zksync_consensus_bft",
+ "zksync_consensus_crypto",
+ "zksync_consensus_network",
+ "zksync_consensus_roles",
+ "zksync_consensus_storage",
+ "zksync_consensus_sync_blocks",
+ "zksync_consensus_utils",
+ "zksync_protobuf",
+]
+
+[[package]]
+name = "zksync_consensus_network"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-consensus.git?branch=gprusak-proto-serde#d104d3baa0be97c048fd3c67e28c35a918cc71f4"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "im",
+ "once_cell",
+ "pin-project",
+ "prost",
+ "rand 0.8.5",
+ "snow",
+ "thiserror",
+ "tracing",
+ "vise",
+ "zksync_concurrency",
+ "zksync_consensus_crypto",
+ "zksync_consensus_roles",
+ "zksync_consensus_utils",
+ "zksync_protobuf",
+]
+
+[[package]]
+name = "zksync_consensus_roles"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-consensus.git?branch=gprusak-proto-serde#d104d3baa0be97c048fd3c67e28c35a918cc71f4"
+dependencies = [
+ "anyhow",
+ "bit-vec",
+ "hex",
+ "prost",
+ "rand 0.8.5",
+ "serde",
+ "tracing",
+ "zksync_concurrency",
+ "zksync_consensus_crypto",
+ "zksync_consensus_utils",
+ "zksync_protobuf",
+]
+
+[[package]]
+name = "zksync_consensus_storage"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-consensus.git?branch=gprusak-proto-serde#d104d3baa0be97c048fd3c67e28c35a918cc71f4"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "prost",
+ "rand 0.8.5",
+ "thiserror",
+ "tracing",
+ "zksync_concurrency",
+ "zksync_consensus_roles",
+ "zksync_protobuf",
+]
+
+[[package]]
+name = "zksync_consensus_sync_blocks"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-consensus.git?branch=gprusak-proto-serde#d104d3baa0be97c048fd3c67e28c35a918cc71f4"
+dependencies = [
+ "anyhow",
+ "thiserror",
+ "tracing",
+ "zksync_concurrency",
+ "zksync_consensus_network",
+ "zksync_consensus_roles",
+ "zksync_consensus_storage",
+ "zksync_consensus_utils",
+]
+
+[[package]]
+name = "zksync_consensus_utils"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-consensus.git?branch=gprusak-proto-serde#d104d3baa0be97c048fd3c67e28c35a918cc71f4"
+dependencies = [
+ "thiserror",
+ "zksync_concurrency",
 ]
 
 [[package]]
@@ -8738,9 +8843,7 @@ dependencies = [
  "bigdecimal",
  "bitflags 1.3.2",
  "chrono",
- "concurrency",
  "ctrlc",
- "executor",
  "futures 0.3.28",
  "governor",
  "hex",
@@ -8758,11 +8861,8 @@ dependencies = [
  "prometheus_exporter",
  "rand 0.8.5",
  "reqwest",
- "roles",
- "schema",
  "serde",
  "serde_json",
- "storage",
  "tempfile",
  "test-casing",
  "thiserror",
@@ -8774,7 +8874,11 @@ dependencies = [
  "vlog",
  "zksync_circuit_breaker",
  "zksync_commitment_utils",
+ "zksync_concurrency",
  "zksync_config",
+ "zksync_consensus_executor",
+ "zksync_consensus_roles",
+ "zksync_consensus_storage",
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
@@ -8823,6 +8927,7 @@ dependencies = [
  "itertools",
  "num 0.3.1",
  "once_cell",
+ "prost",
  "rand 0.8.5",
  "serde",
  "serde_json",
@@ -8984,6 +9089,48 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_protobuf"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-consensus.git?branch=gprusak-proto-serde#d104d3baa0be97c048fd3c67e28c35a918cc71f4"
+dependencies = [
+ "anyhow",
+ "bit-vec",
+ "once_cell",
+ "prost",
+ "prost-reflect",
+ "quick-protobuf",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "zksync_concurrency",
+ "zksync_protobuf_build",
+]
+
+[[package]]
+name = "zksync_protobuf_build"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-consensus.git?branch=gprusak-proto-serde#d104d3baa0be97c048fd3c67e28c35a918cc71f4"
+dependencies = [
+ "anyhow",
+ "heck 0.4.1",
+ "once_cell",
+ "prettyplease",
+ "proc-macro2 1.0.66",
+ "prost",
+ "prost-build",
+ "prost-reflect",
+ "prost-types",
+ "protox",
+ "protox-parse",
+ "quote 1.0.33",
+ "rand 0.8.5",
+ "syn 2.0.32",
+]
+
+[[package]]
 name = "zksync_prover_utils"
 version = "0.1.0"
 dependencies = [
@@ -9095,6 +9242,7 @@ dependencies = [
 name = "zksync_types"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono",
  "codegen 0.1.0",
@@ -9104,6 +9252,7 @@ dependencies = [
  "num_enum",
  "once_cell",
  "parity-crypto",
+ "prost",
  "rlp",
  "secp256k1 0.27.0",
  "serde",
@@ -9115,8 +9264,10 @@ dependencies = [
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zkevm_test_harness 1.3.3",
  "zksync_basic_types",
+ "zksync_consensus_roles",
  "zksync_contracts",
  "zksync_mini_merkle_tree",
+ "zksync_protobuf",
  "zksync_system_constants",
  "zksync_utils",
 ]

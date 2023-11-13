@@ -1,53 +1,23 @@
 //! Conversion logic between server and consensus types.
 
 use anyhow::Context as _;
-use serde::{Deserialize, Serialize};
 
 use zksync_consensus_roles::validator::{
-    BlockHeader, BlockHeaderHash, BlockNumber, CommitQC, FinalBlock, Payload,
+    BlockHeader, BlockHeaderHash, BlockNumber, CommitQC, FinalBlock,
 };
 use zksync_types::{
     api::en::SyncBlock,
     block::{CommitQCBytes, ConsensusBlockFields},
-    Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
+    MiniblockNumber, ProtocolVersionId, H256,
 };
 
 use crate::sync_layer::fetcher::FetchedBlock;
-
-// FIXME: should use Protobuf
-#[derive(Debug, Serialize, Deserialize)]
-struct BlockPayload {
-    hash: H256,
-    l1_batch_number: L1BatchNumber,
-    timestamp: u64,
-    l1_gas_price: u64,
-    l2_fair_gas_price: u64,
-    virtual_blocks: u32,
-    operator_address: Address,
-    transactions: Vec<zksync_types::Transaction>,
-}
-
-pub(super) fn sync_block_to_payload(block: SyncBlock) -> Payload {
-    let payload = serde_json::to_vec(&BlockPayload {
-        hash: block.hash.unwrap_or_default(),
-        l1_batch_number: block.l1_batch_number,
-        timestamp: block.timestamp,
-        l1_gas_price: block.l1_gas_price,
-        l2_fair_gas_price: block.l2_fair_gas_price,
-        virtual_blocks: block.virtual_blocks.unwrap_or(0),
-        operator_address: block.operator_address,
-        transactions: block
-            .transactions
-            .expect("Transactions are always requested"),
-    });
-    Payload(payload.expect("Failed serializing block payload"))
-}
 
 pub(super) fn sync_block_to_consensus_block(mut block: SyncBlock) -> anyhow::Result<FinalBlock> {
     let number = BlockNumber(block.number.0.into());
     let consensus = block.consensus.take().context("Missing consensus fields")?;
     let prev_block_hash = consensus.prev_block_hash;
-    let payload = sync_block_to_payload(block);
+    let payload = crate::consensus::payload::sync_block_to_payload(block);
     let header = BlockHeader {
         parent: BlockHeaderHash::from_bytes(prev_block_hash.0),
         number,
@@ -70,7 +40,7 @@ impl FetchedBlock {
     ) -> anyhow::Result<Self> {
         let number = u32::try_from(block.header.number.0)
             .context("Integer overflow converting block number")?;
-        let payload: BlockPayload = serde_json::from_slice(&block.payload.0)
+        let payload: crate::consensus::payload::Payload = serde_json::from_slice(&block.payload.0)
             .context("Failed deserializing block payload")?;
 
         Ok(Self {

@@ -47,7 +47,7 @@ pub async fn block_payload(storage: &mut StorageProcessor<'_>, number: u32) -> v
         .await
         .unwrap()
         .unwrap_or_else(|| panic!("no sync block #{number}"));
-    conversions::sync_block_to_payload(sync_block)
+    crate::consensus::payload::sync_block_to_payload(sync_block)
 }
 
 /// Adds consensus information for the specified `count` of miniblocks, starting from the genesis.

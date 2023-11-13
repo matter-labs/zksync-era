@@ -40,11 +40,10 @@ vlog = { path = "../vlog" }
 
 multivm = { path = "../multivm" }
 # Consensus dependenices
-zksync_concurrency = { package = "concurrency", version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "a0905d4896a12d60296e24130dee6a0c0b730c32" }
-zksync_consensus_schema = { package = "schema", version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "a0905d4896a12d60296e24130dee6a0c0b730c32" }
-zksync_consensus_roles = { package = "roles", version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "a0905d4896a12d60296e24130dee6a0c0b730c32" }
-zksync_consensus_storage = { package = "storage", version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "a0905d4896a12d60296e24130dee6a0c0b730c32" }
-zksync_consensus_executor = { package = "executor", version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "a0905d4896a12d60296e24130dee6a0c0b730c32" }
+zksync_concurrency.workspace = true
+zksync_consensus_roles.workspace = true
+zksync_consensus_storage.workspace = true
+zksync_consensus_executor.workspace = true
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

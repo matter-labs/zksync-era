@@ -2,10 +2,7 @@ use std::convert::TryInto;
 
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::api::en::SyncBlock;
-use zksync_types::{
-    block::{CommitQCBytes, ConsensusBlockFields},
-    Address, L1BatchNumber, MiniblockNumber, Transaction, H256,
-};
+use zksync_types::{Address, L1BatchNumber, MiniblockNumber, Transaction, H256};
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct StorageSyncBlock {
@@ -24,8 +21,7 @@ pub struct StorageSyncBlock {
     pub protocol_version: i32,
     pub virtual_blocks: i64,
     pub hash: Vec<u8>,
-    pub commit_qc: Option<Vec<u8>>,
-    pub prev_consensus_block_hash: Option<Vec<u8>>,
+    pub consensus: Option<Vec<u8>>,
 }
 
 impl StorageSyncBlock {
@@ -35,7 +31,6 @@ impl StorageSyncBlock {
         transactions: Option<Vec<Transaction>>,
     ) -> SyncBlock {
         let number = self.number;
-        let commit_qc = self.commit_qc;
 
         SyncBlock {
             number: MiniblockNumber(self.number as u32),
@@ -67,12 +62,7 @@ impl StorageSyncBlock {
             virtual_blocks: Some(self.virtual_blocks as u32),
             hash: Some(H256::from_slice(&self.hash)),
             protocol_version: (self.protocol_version as u16).try_into().unwrap(),
-            consensus: self.prev_consensus_block_hash.and_then(|hash| {
-                Some(ConsensusBlockFields {
-                    prev_block_hash: H256::from_slice(&hash),
-                    commit_qc_bytes: CommitQCBytes::new(commit_qc?),
-                })
-            }),
+            consensus: self.consensus.map(|v| zksync_protobuf::decode(&v).unwrap()),
         }
     }
 }

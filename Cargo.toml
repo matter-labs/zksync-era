@@ -56,3 +56,11 @@ exclude = []
 [profile.perf]
 inherits = "release"
 debug = true
+
+[workspace.dependencies]
+zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", branch = "gprusak-proto-serde" }
+zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", branch = "gprusak-proto-serde" }
+zksync_consensus_storage = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", branch = "gprusak-proto-serde" }
+zksync_consensus_executor = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", branch = "gprusak-proto-serde" }
+zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", branch = "gprusak-proto-serde" }
+

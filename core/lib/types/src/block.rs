@@ -1,10 +1,13 @@
+use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 use zksync_system_constants::SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER;
 
 use std::{fmt, ops};
 
 use zksync_basic_types::{Bytes, H2048, H256, U256};
+use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_protobuf::{read_required, ProtoFmt};
 
 use crate::{
     l2_to_l1_log::L2ToL1Log, priority_op_onchain_data::PriorityOpOnchainData,
@@ -104,13 +107,40 @@ impl AsRef<[u8]> for CommitQCBytes {
 }
 
 /// Consensus-related L2 block (= miniblock) fields.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone)]
 pub struct ConsensusBlockFields {
     /// Hash of the previous consensus block.
-    pub prev_block_hash: H256,
-    /// Protobuf serialization of a quorum certificate for the block.
-    pub commit_qc_bytes: CommitQCBytes,
+    pub parent: validator::BlockHeaderHash,
+    /// Quorum certificate for the block.
+    pub justification: validator::CommitQC,
+}
+
+impl ProtoFmt for ConsensusBlockFields {
+    type Proto = crate::proto::ConsensusBlockFields;
+    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
+        Ok(Self {
+            parent: read_required(&r.parent).context("parent")?,
+            justification: read_required(&r.justification).context("justification")?,
+        })
+    }
+    fn build(&self) -> Self::Proto {
+        Self::Proto {
+            parent: Some(self.parent.build()),
+            justification: Some(self.justification.build()),
+        }
+    }
+}
+
+impl Serialize for ConsensusBlockFields {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        zksync_protobuf::serde_serialize(&self.build(), s)
+    }
+}
+
+impl<'de> Deserialize<'de> for ConsensusBlockFields {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        Ok(ProtoFmt::read(&zksync_protobuf::serde_deserialize(d)?).unwrap())
+    }
 }
 
 /// Data needed to execute a miniblock in the VM.

@@ -477,8 +477,7 @@ impl BlocksDal<'_, '_> {
             SET prev_consensus_block_hash = $2, commit_qc = $3 \
             WHERE number = $1",
             miniblock_number.0 as i64,
-            consensus.prev_block_hash.as_bytes(),
-            consensus.commit_qc_bytes.as_ref()
+            &zksync_protobuf::encode_json(consensus),
         )
         .execute(self.storage.conn())
         .await?;
