@@ -8171,11 +8171,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "envy",
- "prost",
  "serde",
  "zksync_basic_types",
  "zksync_contracts",
- "zksync_protobuf",
 ]
 
 [[package]]
@@ -8525,6 +8523,16 @@ dependencies = [
  "quote 1.0.33",
  "rand 0.8.5",
  "syn 2.0.38",
+]
+
+[[package]]
+name = "zksync_protobuf_config"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "prost",
+ "zksync_config",
+ "zksync_protobuf",
 ]
 
 [[package]]

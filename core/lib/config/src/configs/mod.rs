@@ -33,7 +33,6 @@ pub mod fri_witness_vector_generator;
 pub mod house_keeper;
 pub mod object_store;
 pub mod proof_data_handler;
-mod proto;
 pub mod prover;
 pub mod prover_group;
 #[cfg(test)]

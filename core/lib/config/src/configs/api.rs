@@ -1,13 +1,7 @@
 pub use crate::configs::PrometheusConfig;
-use anyhow::Context as _;
 use serde::Deserialize;
-use std::{
-    convert::{TryFrom as _, TryInto as _},
-    net::SocketAddr,
-    time::Duration,
-};
+use std::{net::SocketAddr, time::Duration};
 use zksync_basic_types::H256;
-use zksync_protobuf::{read_required, required, ProtoFmt};
 
 /// API configuration.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -22,30 +16,6 @@ pub struct ApiConfig {
     pub healthcheck: HealthCheckConfig,
     /// Configuration options for Merkle tree API.
     pub merkle_tree: MerkleTreeApiConfig,
-}
-
-impl ProtoFmt for ApiConfig {
-    type Proto = super::proto::Api;
-    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
-        Ok(Self {
-            web3_json_rpc: read_required(&r.web3_json_rpc).context("web3_json_rpc")?,
-            contract_verification: read_required(&r.contract_verification)
-                .context("contract_verification")?,
-            prometheus: read_required(&r.prometheus).context("prometheus")?,
-            healthcheck: read_required(&r.healthcheck).context("healthcheck")?,
-            merkle_tree: read_required(&r.merkle_tree).context("merkle_tree")?,
-        })
-    }
-
-    fn build(&self) -> Self::Proto {
-        Self::Proto {
-            web3_json_rpc: Some(self.web3_json_rpc.build()),
-            contract_verification: Some(self.contract_verification.build()),
-            prometheus: Some(self.prometheus.build()),
-            healthcheck: Some(self.healthcheck.build()),
-            merkle_tree: Some(self.merkle_tree.build()),
-        }
-    }
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -235,143 +205,6 @@ impl Web3JsonRpcConfig {
     }
 }
 
-impl ProtoFmt for Web3JsonRpcConfig {
-    type Proto = super::proto::Web3JsonRpc;
-    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
-        Ok(Self {
-            http_port: required(&r.http_port)
-                .and_then(|p| Ok((*p).try_into()?))
-                .context("http_port")?,
-            http_url: required(&r.http_url).context("http_url")?.clone(),
-            ws_port: required(&r.ws_port)
-                .and_then(|p| Ok((*p).try_into()?))
-                .context("ws_port")?,
-            ws_url: required(&r.ws_url).context("ws_url")?.clone(),
-            req_entities_limit: r.req_entities_limit,
-            filters_limit: r.filters_limit,
-            subscriptions_limit: r.subscriptions_limit,
-            pubsub_polling_interval: r.pubsub_polling_interval,
-            threads_per_server: *required(&r.threads_per_server).context("threads_per_server")?,
-            max_nonce_ahead: *required(&r.max_nonce_ahead).context("max_nonce_ahead")?,
-            gas_price_scale_factor: *required(&r.gas_price_scale_factor)
-                .context("gas_price_scale_factor")?,
-            transactions_per_sec_limit: r.transactions_per_sec_limit,
-            request_timeout: r.request_timeout,
-            account_pks: match &r.account_pks {
-                None => None,
-                Some(r) => {
-                    let mut keys = vec![];
-                    for (i, k) in r.keys.iter().enumerate() {
-                        keys.push(
-                            <[u8; 32]>::try_from(&k[..])
-                                .with_context(|| format!("keys[{i}]"))?
-                                .into(),
-                        );
-                    }
-                    Some(keys)
-                }
-            },
-            estimate_gas_scale_factor: *required(&r.estimate_gas_scale_factor)
-                .context("estimate_gas_scale_factor")?,
-            estimate_gas_acceptable_overestimation: *required(
-                &r.estimate_gas_acceptable_overestimation,
-            )
-            .context("acceptable_overestimation")?,
-            max_tx_size: required(&r.max_tx_size)
-                .and_then(|x| Ok((*x).try_into()?))
-                .context("max_tx_size")?,
-            vm_execution_cache_misses_limit: r
-                .vm_execution_cache_misses_limit
-                .map(|x| x.try_into())
-                .transpose()
-                .context("vm_execution_cache_misses_limit")?,
-            vm_concurrency_limit: r
-                .vm_concurrency_limit
-                .map(|x| x.try_into())
-                .transpose()
-                .context("vm_concurrency_limit")?,
-            factory_deps_cache_size_mb: r
-                .factory_deps_cache_size_mb
-                .map(|x| x.try_into())
-                .transpose()
-                .context("factory_deps_cache_size_mb")?,
-            initial_writes_cache_size_mb: r
-                .initial_writes_cache_size_mb
-                .map(|x| x.try_into())
-                .transpose()
-                .context("initial_writes_cache_size_mb")?,
-            latest_values_cache_size_mb: r
-                .latest_values_cache_size_mb
-                .map(|x| x.try_into())
-                .transpose()
-                .context("latests_values_cache_size_mb")?,
-            http_threads: r.http_threads,
-            ws_threads: r.ws_threads,
-            fee_history_limit: r.fee_history_limit,
-            max_batch_request_size: r
-                .max_batch_request_size
-                .map(|x| x.try_into())
-                .transpose()
-                .context("max_batch_requres_size")?,
-            max_response_body_size_mb: r
-                .max_response_body_size_mb
-                .map(|x| x.try_into())
-                .transpose()
-                .context("max_response_body_size_mb")?,
-            websocket_requests_per_minute_limit: r.websocket_requests_per_minute_limit,
-        })
-    }
-    fn build(&self) -> Self::Proto {
-        Self::Proto {
-            http_port: Some(self.http_port.into()),
-            http_url: Some(self.http_url.clone()),
-            ws_port: Some(self.ws_port.into()),
-            ws_url: Some(self.ws_url.clone()),
-            req_entities_limit: self.req_entities_limit,
-            filters_limit: self.filters_limit,
-            subscriptions_limit: self.subscriptions_limit,
-            pubsub_polling_interval: self.pubsub_polling_interval,
-            threads_per_server: Some(self.threads_per_server),
-            max_nonce_ahead: Some(self.max_nonce_ahead),
-            gas_price_scale_factor: Some(self.gas_price_scale_factor),
-            transactions_per_sec_limit: self.transactions_per_sec_limit,
-            request_timeout: self.request_timeout,
-            account_pks: self
-                .account_pks
-                .as_ref()
-                .map(|keys| super::proto::PrivateKeys {
-                    keys: keys.iter().map(|k| k.as_bytes().into()).collect(),
-                }),
-            estimate_gas_scale_factor: Some(self.estimate_gas_scale_factor),
-            estimate_gas_acceptable_overestimation: Some(
-                self.estimate_gas_acceptable_overestimation,
-            ),
-            max_tx_size: Some(self.max_tx_size.try_into().unwrap()),
-            vm_execution_cache_misses_limit: self
-                .vm_execution_cache_misses_limit
-                .map(|x| x.try_into().unwrap()),
-            vm_concurrency_limit: self.vm_concurrency_limit.map(|x| x.try_into().unwrap()),
-            factory_deps_cache_size_mb: self
-                .factory_deps_cache_size_mb
-                .map(|x| x.try_into().unwrap()),
-            initial_writes_cache_size_mb: self
-                .initial_writes_cache_size_mb
-                .map(|x| x.try_into().unwrap()),
-            latest_values_cache_size_mb: self
-                .latest_values_cache_size_mb
-                .map(|x| x.try_into().unwrap()),
-            http_threads: self.http_threads,
-            ws_threads: self.ws_threads,
-            fee_history_limit: self.fee_history_limit,
-            max_batch_request_size: self.max_batch_request_size.map(|x| x.try_into().unwrap()),
-            max_response_body_size_mb: self
-                .max_response_body_size_mb
-                .map(|x| x.try_into().unwrap()),
-            websocket_requests_per_minute_limit: self.websocket_requests_per_minute_limit,
-        }
-    }
-}
-
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct HealthCheckConfig {
     /// Port to which the REST server is listening.
@@ -381,22 +214,6 @@ pub struct HealthCheckConfig {
 impl HealthCheckConfig {
     pub fn bind_addr(&self) -> SocketAddr {
         SocketAddr::new("0.0.0.0".parse().unwrap(), self.port)
-    }
-}
-
-impl ProtoFmt for HealthCheckConfig {
-    type Proto = super::proto::HealthCheck;
-    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
-        Ok(Self {
-            port: required(&r.port)
-                .and_then(|p| Ok((*p).try_into()?))
-                .context("port")?,
-        })
-    }
-    fn build(&self) -> Self::Proto {
-        Self::Proto {
-            port: Some(self.port.into()),
-        }
     }
 }
 
@@ -416,26 +233,6 @@ impl ContractVerificationApiConfig {
     }
 }
 
-impl ProtoFmt for ContractVerificationApiConfig {
-    type Proto = super::proto::ContractVerificationApi;
-    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
-        Ok(Self {
-            port: required(&r.port)
-                .and_then(|p| Ok((*p).try_into()?))
-                .context("port")?,
-            url: required(&r.url).context("url")?.clone(),
-            threads_per_server: *required(&r.threads_per_server).context("threads_per_server")?,
-        })
-    }
-    fn build(&self) -> Self::Proto {
-        Self::Proto {
-            port: Some(self.port.into()),
-            url: Some(self.url.clone()),
-            threads_per_server: Some(self.threads_per_server),
-        }
-    }
-}
-
 /// Configuration for the Merkle tree API.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct MerkleTreeApiConfig {
@@ -447,21 +244,5 @@ pub struct MerkleTreeApiConfig {
 impl MerkleTreeApiConfig {
     const fn default_port() -> u16 {
         3_072
-    }
-}
-
-impl ProtoFmt for MerkleTreeApiConfig {
-    type Proto = super::proto::MerkleTreeApi;
-    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
-        Ok(Self {
-            port: required(&r.port)
-                .and_then(|p| Ok((*p).try_into()?))
-                .context("port")?,
-        })
-    }
-    fn build(&self) -> Self::Proto {
-        Self::Proto {
-            port: Some(self.port.into()),
-        }
     }
 }

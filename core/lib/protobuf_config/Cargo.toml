@@ -1,0 +1,21 @@
+[package]
+name = "zksync_protobuf_config"
+version = "0.1.0"
+edition = "2021"
+authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
+homepage = "https://zksync.io/"
+repository = "https://github.com/matter-labs/zksync-era"
+license = "MIT OR Apache-2.0"
+keywords = ["blockchain", "zksync"]
+categories = ["cryptography"]
+
+[dependencies]
+zksync_config = { path = "../../lib/config" }
+zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "9b300371512a4e443d086ecd19c1877719c15646" }
+
+anyhow = "1.0"
+prost = "0.12.1"
+
+[build-dependencies]
+zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "9b300371512a4e443d086ecd19c1877719c15646" }
+

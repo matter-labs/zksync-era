@@ -33,6 +33,7 @@ members = [
     "core/lib/state",
     "core/lib/storage",
     "core/lib/types",
+    "core/lib/protobuf_config",
     "core/lib/prover_utils",
     "core/lib/utils",
     "core/lib/vlog",
@@ -57,6 +58,3 @@ exclude = []
 [profile.perf]
 inherits = "release"
 debug = true
-
-[workspace.dependencies]
-zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "9b300371512a4e443d086ecd19c1877719c15646" }
