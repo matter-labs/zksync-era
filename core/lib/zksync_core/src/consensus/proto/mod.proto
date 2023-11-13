@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package zksync.zksync_core.consensus;
+
+message Transaction {
+
+}
+
+message Payload {
+  optional bytes hash = 1; // required
+  optional uint32 l1_batch_number = 2; // required
+  optional uint64 timestamp = 3; // required
+  optional uint64 l2_fair_gas_price = 4; // required
+  optional uint32 virtual_blocks = 5; // required
+  optional ? operator_address = 6; // required
+  repeated Transaction transactions = 7;
+}

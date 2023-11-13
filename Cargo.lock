@@ -8785,6 +8785,8 @@ dependencies = [
  "zksync_merkle_tree",
  "zksync_mini_merkle_tree",
  "zksync_object_store",
+ "zksync_protobuf",
+ "zksync_protobuf_build",
  "zksync_prover_utils",
  "zksync_queued_job_processor",
  "zksync_state",

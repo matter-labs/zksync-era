@@ -16,7 +16,7 @@ pub trait BlockChainState {
         ctx: &ctx::Ctx,
         block_number: validator::BlockNumber,
     ) -> anyhow::Result<validator::Payload>;
-    // Verify that `payload` is a correct proposal for th block `block_number`.
+    // Verify that `payload` is a correct proposal for the block `block_number`.
     async fn verify(
         &self,
         ctx: &ctx::Ctx,
