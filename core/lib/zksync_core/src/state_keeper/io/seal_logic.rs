@@ -2,7 +2,6 @@
 //! It contains the logic of the block sealing, which is used by both the mempool-based and external node IO.
 
 use itertools::Itertools;
-
 use std::{
     collections::HashMap,
     time::{Duration, Instant},
@@ -12,12 +11,13 @@ use multivm::interface::{FinishedL1Batch, L1BatchEnv};
 use zksync_dal::StorageProcessor;
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
-    block::unpack_block_info, CURRENT_VIRTUAL_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_ADDRESS,
+    block::unpack_block_info,
+    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    CURRENT_VIRTUAL_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_types::{
     block::{ConsensusBlockFields, L1BatchHeader, MiniblockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
-    l2_to_l1_log::L2ToL1Log,
     storage_writes_deduplicator::{ModifiedSlot, StorageWritesDeduplicator},
     tx::{
         tx_execution_info::DeduplicatedWritesMetrics, IncludedTxLocation,
@@ -92,7 +92,10 @@ impl UpdatesManager {
              {event_count} events, {reads_count} reads ({dedup_reads_count} deduped), \
              {writes_count} writes ({dedup_writes_count} deduped)",
             total_tx_count = l1_tx_count + l2_tx_count,
-            l2_to_l1_log_count = finished_batch.final_execution_state.l2_to_l1_logs.len(),
+            l2_to_l1_log_count = finished_batch
+                .final_execution_state
+                .user_l2_to_l1_logs
+                .len(),
             event_count = finished_batch.final_execution_state.events.len(),
             current_l1_batch_number = l1_batch_env.number
         );
@@ -109,6 +112,9 @@ impl UpdatesManager {
             extractors::display_timestamp(l1_batch_env.timestamp)
         );
 
+        let l2_to_l1_messages =
+            extract_long_l2_to_l1_messages(&finished_batch.final_execution_state.events);
+
         let l1_batch = L1BatchHeader {
             number: l1_batch_env.number,
             is_finished: true,
@@ -117,10 +123,8 @@ impl UpdatesManager {
             priority_ops_onchain_data: self.l1_batch.priority_ops_onchain_data.clone(),
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
-            l2_to_l1_logs: finished_batch.final_execution_state.l2_to_l1_logs,
-            l2_to_l1_messages: extract_long_l2_to_l1_messages(
-                &finished_batch.final_execution_state.events,
-            ),
+            l2_to_l1_logs: finished_batch.final_execution_state.user_l2_to_l1_logs,
+            l2_to_l1_messages,
             bloom: Default::default(),
             used_contract_hashes: finished_batch.final_execution_state.used_contract_hashes,
             base_fee_per_gas: l1_batch_env.base_fee(),
@@ -128,18 +132,18 @@ impl UpdatesManager {
             l2_fair_gas_price: self.fair_l2_gas_price(),
             base_system_contracts_hashes: self.base_system_contract_hashes(),
             protocol_version: Some(self.protocol_version()),
-            system_logs: vec![],
+            system_logs: finished_batch.final_execution_state.system_logs,
         };
 
-        let initial_bootloader_contents =
-            finished_batch.final_bootloader_memory.unwrap_or_default();
+        let events_queue = finished_batch
+            .final_execution_state
+            .deduplicated_events_logs;
 
-        let events_queue = Vec::new(); // TODO: put actual value when new VM is merged.
         transaction
             .blocks_dal()
             .insert_l1_batch(
                 &l1_batch,
-                &initial_bootloader_contents,
+                finished_batch.final_bootloader_memory.as_ref().unwrap(),
                 self.l1_batch.l1_gas_count,
                 &events_queue,
                 &finished_batch.final_execution_state.storage_refunds,
@@ -387,18 +391,27 @@ impl MiniblockSealCommand {
         progress.observe(miniblock_event_count);
 
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::ExtractL2ToL1Logs, is_fictive);
-        let l2_to_l1_logs = self.extract_l2_to_l1_logs(is_fictive);
-        let l2_to_l1_log_count: usize = l2_to_l1_logs
+
+        let system_l2_to_l1_logs = self.extract_system_l2_to_l1_logs(is_fictive);
+        let user_l2_to_l1_logs = self.extract_user_l2_to_l1_logs(is_fictive);
+
+        let system_l2_to_l1_log_count: usize = system_l2_to_l1_logs
             .iter()
             .map(|(_, l2_to_l1_logs)| l2_to_l1_logs.len())
             .sum();
-        progress.observe(l2_to_l1_log_count);
+        let user_l2_to_l1_log_count: usize = user_l2_to_l1_logs
+            .iter()
+            .map(|(_, l2_to_l1_logs)| l2_to_l1_logs.len())
+            .sum();
+
+        progress.observe(system_l2_to_l1_log_count + user_l2_to_l1_log_count);
+
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::InsertL2ToL1Logs, is_fictive);
         transaction
             .events_dal()
-            .save_l2_to_l1_logs(miniblock_number, &l2_to_l1_logs)
+            .save_user_l2_to_l1_logs(miniblock_number, &user_l2_to_l1_logs)
             .await;
-        progress.observe(l2_to_l1_log_count);
+        progress.observe(user_l2_to_l1_log_count);
 
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::CommitMiniblock, is_fictive);
         let current_l2_virtual_block_info = transaction
@@ -451,7 +464,14 @@ impl MiniblockSealCommand {
 
         deduplicated_logs
             .into_iter()
-            .map(|(key, ModifiedSlot { value, tx_index })| (tx_index, (key, value)))
+            .map(
+                |(
+                    key,
+                    ModifiedSlot {
+                        value, tx_index, ..
+                    },
+                )| (tx_index, (key, value)),
+            )
             .sorted_by_key(|(tx_index, _)| *tx_index)
             .group_by(|(tx_index, _)| *tx_index)
             .into_iter()
@@ -527,12 +547,21 @@ impl MiniblockSealCommand {
         grouped_entries.collect()
     }
 
-    fn extract_l2_to_l1_logs(
+    fn extract_system_l2_to_l1_logs(
         &self,
         is_fictive: bool,
-    ) -> Vec<(IncludedTxLocation, Vec<&L2ToL1Log>)> {
-        self.group_by_tx_location(&self.miniblock.l2_to_l1_logs, is_fictive, |log| {
-            u32::from(log.tx_number_in_block)
+    ) -> Vec<(IncludedTxLocation, Vec<&SystemL2ToL1Log>)> {
+        self.group_by_tx_location(&self.miniblock.system_l2_to_l1_logs, is_fictive, |log| {
+            u32::from(log.0.tx_number_in_block)
+        })
+    }
+
+    fn extract_user_l2_to_l1_logs(
+        &self,
+        is_fictive: bool,
+    ) -> Vec<(IncludedTxLocation, Vec<&UserL2ToL1Log>)> {
+        self.group_by_tx_location(&self.miniblock.user_l2_to_l1_logs, is_fictive, |log| {
+            u32::from(log.0.tx_number_in_block)
         })
     }
 

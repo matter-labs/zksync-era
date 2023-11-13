@@ -10,9 +10,10 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_protobuf::{read_required, ProtoFmt};
 
 use crate::{
-    l2_to_l1_log::L2ToL1Log, priority_op_onchain_data::PriorityOpOnchainData,
-    web3::signing::keccak256, AccountTreeId, Address, L1BatchNumber, MiniblockNumber,
-    ProtocolVersionId, Transaction,
+    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    priority_op_onchain_data::PriorityOpOnchainData,
+    web3::signing::keccak256,
+    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction,
 };
 
 /// Represents a successfully deployed smart contract.
@@ -49,7 +50,7 @@ pub struct L1BatchHeader {
     /// The data of the processed priority operations hash which must be sent to the smart contract.
     pub priority_ops_onchain_data: Vec<PriorityOpOnchainData>,
     /// All user generated L2 -> L1 logs in the block.
-    pub l2_to_l1_logs: Vec<L2ToL1Log>,
+    pub l2_to_l1_logs: Vec<UserL2ToL1Log>,
     /// Preimages of the hashes that were sent as value of L2 logs by special system L2 contract.
     pub l2_to_l1_messages: Vec<Vec<u8>>,
     /// Bloom filter for the event logs in the block.
@@ -64,7 +65,7 @@ pub struct L1BatchHeader {
     pub l2_fair_gas_price: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     /// System logs are those emitted as part of the Vm excecution.
-    pub system_logs: Vec<L2ToL1Log>,
+    pub system_logs: Vec<SystemL2ToL1Log>,
     /// Version of protocol used for the L1 batch.
     pub protocol_version: Option<ProtocolVersionId>,
 }
