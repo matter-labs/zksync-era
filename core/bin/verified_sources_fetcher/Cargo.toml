@@ -13,6 +13,8 @@ publish = false # We don't want to publish our binaries.
 [dependencies]
 zksync_dal = { path = "../../lib/dal" }
 zksync_types = { path = "../../lib/types" }
+zksync_config = { path = "../../lib/config" }
+zksync_env_config = { path = "../../lib/env_config" }
 
 anyhow = "1.0"
 tokio = { version = "1", features = ["full"] }
