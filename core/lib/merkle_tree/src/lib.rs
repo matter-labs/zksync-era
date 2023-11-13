@@ -123,12 +123,12 @@ use zksync_crypto::hasher::blake2::Blake2Hasher;
 ///
 /// [Jellyfish Merkle tree]: https://developers.diem.com/papers/jellyfish-merkle-tree/2021-01-14.pdf
 #[derive(Debug)]
-pub struct MerkleTree<'a, DB> {
+pub struct MerkleTree<DB> {
     db: DB,
-    hasher: &'a dyn HashTree,
+    hasher: &'static dyn HashTree,
 }
 
-impl<'a, DB: Database> MerkleTree<'a, DB> {
+impl<DB: Database> MerkleTree<DB> {
     /// Loads a tree with the default Blake2 hasher.
     ///
     /// # Panics
@@ -144,7 +144,7 @@ impl<'a, DB: Database> MerkleTree<'a, DB> {
     ///
     /// Panics if the hasher or basic tree parameters (e.g., the tree depth)
     /// do not match those of the tree loaded from the database.
-    pub fn with_hasher(db: DB, hasher: &'a dyn HashTree) -> Self {
+    pub fn with_hasher(db: DB, hasher: &'static dyn HashTree) -> Self {
         let tags = db.manifest().and_then(|manifest| manifest.tags);
         if let Some(tags) = tags {
             tags.assert_consistency(hasher, false);

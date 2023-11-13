@@ -59,13 +59,13 @@ pub struct RecoveryEntry {
 
 /// Handle to a Merkle tree during its recovery.
 #[derive(Debug)]
-pub struct MerkleTreeRecovery<'a, DB> {
+pub struct MerkleTreeRecovery<DB> {
     db: DB,
-    hasher: &'a dyn HashTree,
+    hasher: &'static dyn HashTree,
     recovered_version: u64,
 }
 
-impl<'a, DB: PruneDatabase> MerkleTreeRecovery<'a, DB> {
+impl<DB: PruneDatabase> MerkleTreeRecovery<DB> {
     /// Creates tree recovery with the default Blake2 hasher.
     ///
     /// # Panics
@@ -83,7 +83,7 @@ impl<'a, DB: PruneDatabase> MerkleTreeRecovery<'a, DB> {
     ///   for a different tree version.
     /// - Panics if the hasher or basic tree parameters (e.g., the tree depth)
     ///   do not match those of the tree loaded from the database.
-    pub fn with_hasher(mut db: DB, recovered_version: u64, hasher: &'a dyn HashTree) -> Self {
+    pub fn with_hasher(mut db: DB, recovered_version: u64, hasher: &'static dyn HashTree) -> Self {
         let manifest = db.manifest();
         let mut manifest = if let Some(manifest) = manifest {
             if manifest.version_count > 0 {
@@ -172,7 +172,7 @@ impl<'a, DB: PruneDatabase> MerkleTreeRecovery<'a, DB> {
         fields(recovered_version = self.recovered_version),
     )]
     #[allow(clippy::missing_panics_doc, clippy::range_plus_one)]
-    pub fn finalize(mut self) -> MerkleTree<'a, DB> {
+    pub fn finalize(mut self) -> MerkleTree<DB> {
         let mut manifest = self.db.manifest().unwrap();
         // ^ `unwrap()` is safe: manifest is inserted into the DB on creation
 

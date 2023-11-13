@@ -241,7 +241,7 @@ impl TreeUpdater {
 #[derive(Debug)]
 pub(crate) struct Storage<'a, DB: ?Sized> {
     db: &'a DB,
-    hasher: &'a dyn HashTree,
+    hasher: &'static dyn HashTree,
     manifest: Manifest,
     leaf_count: u64,
     operation: Operation,
@@ -252,7 +252,7 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
     /// Creates storage for a new version of the tree.
     pub fn new(
         db: &'a DB,
-        hasher: &'a dyn HashTree,
+        hasher: &'static dyn HashTree,
         version: u64,
         create_new_version: bool,
     ) -> Self {

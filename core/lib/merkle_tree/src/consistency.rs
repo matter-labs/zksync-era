@@ -65,10 +65,7 @@ pub enum ConsistencyError {
     RootVersionMismatch { max_child_version: u64 },
 }
 
-impl<DB> MerkleTree<'_, DB>
-where
-    DB: Database,
-{
+impl<DB: Database> MerkleTree<DB> {
     /// Verifies the internal tree consistency as stored in the database.
     ///
     /// # Errors

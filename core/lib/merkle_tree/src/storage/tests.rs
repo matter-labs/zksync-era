@@ -703,7 +703,7 @@ fn recovery_workflow_with_multiple_stages() {
 fn test_recovery_pruning_equivalence(
     chunk_size: usize,
     recovery_chunk_size: usize,
-    hasher: &dyn HashTree,
+    hasher: &'static dyn HashTree,
 ) {
     const RNG_SEED: u64 = 123;
 

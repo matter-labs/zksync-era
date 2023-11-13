@@ -16,7 +16,7 @@ use crate::{
 use zksync_crypto::hasher::{blake2::Blake2Hasher, Hasher};
 
 /// Tree hashing functionality.
-pub trait HashTree: Send + Sync {
+pub trait HashTree: 'static + Send + Sync {
     /// Returns the unique name of the hasher. This is used in Merkle tree tags to ensure
     /// that the tree remains consistent.
     fn name(&self) -> &'static str;
@@ -31,7 +31,7 @@ pub trait HashTree: Send + Sync {
     fn empty_subtree_hash(&self, depth: usize) -> ValueHash;
 }
 
-impl dyn HashTree + '_ {
+impl dyn HashTree {
     pub(crate) fn empty_tree_hash(&self) -> ValueHash {
         self.empty_subtree_hash(TREE_DEPTH)
     }
@@ -65,7 +65,7 @@ impl dyn HashTree + '_ {
         hash
     }
 
-    pub(crate) fn with_stats<'a>(&'a self, stats: &'a HashingStats) -> HasherWithStats<'a> {
+    pub(crate) fn with_stats<'a>(&'static self, stats: &'a HashingStats) -> HasherWithStats<'a> {
         HasherWithStats {
             shared_metrics: Some(stats),
             ..HasherWithStats::from(self)
@@ -73,7 +73,7 @@ impl dyn HashTree + '_ {
     }
 }
 
-impl fmt::Debug for dyn HashTree + '_ {
+impl fmt::Debug for dyn HashTree {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.debug_struct("HashTree").finish_non_exhaustive()
     }
@@ -138,13 +138,13 @@ fn compute_empty_tree_hashes() -> Vec<ValueHash> {
 /// via a wrapping `HashTree` implementation), this would tank performance because of contention.
 #[derive(Debug)]
 pub(crate) struct HasherWithStats<'a> {
-    inner: &'a dyn HashTree,
+    inner: &'static dyn HashTree,
     shared_metrics: Option<&'a HashingStats>,
     local_hashed_bytes: u64,
 }
 
-impl<'a> From<&'a dyn HashTree> for HasherWithStats<'a> {
-    fn from(inner: &'a dyn HashTree) -> Self {
+impl From<&'static dyn HashTree> for HasherWithStats<'_> {
+    fn from(inner: &'static dyn HashTree) -> Self {
         Self {
             inner,
             shared_metrics: None,
@@ -153,8 +153,8 @@ impl<'a> From<&'a dyn HashTree> for HasherWithStats<'a> {
     }
 }
 
-impl<'a> AsRef<dyn HashTree + 'a> for HasherWithStats<'a> {
-    fn as_ref(&self) -> &(dyn HashTree + 'a) {
+impl AsRef<dyn HashTree> for HasherWithStats<'_> {
+    fn as_ref(&self) -> &dyn HashTree {
         self.inner
     }
 }

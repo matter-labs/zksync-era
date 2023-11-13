@@ -7,10 +7,7 @@ use crate::{
     Database, Key, MerkleTree, NoVersionError, ValueHash,
 };
 
-impl<DB> MerkleTree<'_, DB>
-where
-    DB: Database,
-{
+impl<DB: Database> MerkleTree<DB> {
     /// Reads entries with the specified keys from the tree. The entries are returned in the same order
     /// as requested.
     ///
