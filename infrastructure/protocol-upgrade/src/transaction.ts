@@ -3,8 +3,8 @@ import { BytesLike, ethers } from 'ethers';
 import { ForceDeployUpgraderFactory as ForceDeployUpgraderFactoryL2 } from 'l2-zksync-contracts/typechain';
 import { DefaultUpgradeFactory as DefaultUpgradeFactoryL1 } from 'l1-zksync-contracts/typechain';
 import { FacetCut } from 'l1-zksync-contracts/src.ts/diamondCut';
-import { IZkSyncFactory } from 'l1-zksync-contracts/typechain/IZkSyncFactory';
-import { ComplexUpgraderFactory } from '../../../etc/system-contracts/typechain';
+import { IZkSyncFactory } from '../pre-boojum/IZkSyncFactory';
+import { ComplexUpgrader__factory } from '../../../etc/system-contracts/typechain-types';
 import {
     getCommonDataFileName,
     getCryptoFileName,
@@ -146,7 +146,7 @@ export function forceDeploymentCalldata(forcedDeployments: ForceDeployment[]): B
 }
 
 export function prepareCallDataForComplexUpgrader(calldata: BytesLike, to: string): BytesLike {
-    const upgrader = new ComplexUpgraderFactory();
+    const upgrader = new ComplexUpgrader__factory();
     let finalCalldata = upgrader.interface.encodeFunctionData('upgrade', [to, calldata]);
     return finalCalldata;
 }
