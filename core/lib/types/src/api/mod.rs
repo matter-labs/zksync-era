@@ -684,3 +684,19 @@ pub struct L1BatchDetails {
     #[serde(flatten)]
     pub base: BlockDetailsBase,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageProof {
+    pub key: H256,
+    pub proof: Vec<H256>,
+    pub value: H256,
+    pub index: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Proof {
+    pub address: Address,
+    pub storage_proof: Vec<StorageProof>,
+}
