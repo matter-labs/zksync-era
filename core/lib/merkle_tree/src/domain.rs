@@ -49,7 +49,7 @@ enum TreeMode {
 /// or discarded via [`Self::reset()`].
 #[derive(Debug)]
 pub struct ZkSyncTree {
-    tree: MerkleTree<'static, Patched<RocksDBWrapper>>,
+    tree: MerkleTree<Patched<RocksDBWrapper>>,
     thread_pool: Option<ThreadPool>,
     mode: TreeMode,
 }
@@ -426,7 +426,7 @@ impl ZkSyncTree {
 
 /// Readonly handle to a [`ZkSyncTree`].
 #[derive(Debug)]
-pub struct ZkSyncTreeReader(MerkleTree<'static, RocksDBWrapper>);
+pub struct ZkSyncTreeReader(MerkleTree<RocksDBWrapper>);
 
 // While cloning `MerkleTree` is logically unsound, cloning a reader is reasonable since it is readonly.
 impl Clone for ZkSyncTreeReader {

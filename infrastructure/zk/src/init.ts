@@ -21,9 +21,8 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     const {
         skipSubmodulesCheckout,
         skipEnvSetup,
+        skipPlonkStep,
         testTokens,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        deployerL1ContractInputArgs,
         governorPrivateKeyArgs,
         deployerL2ContractInput
     } = initArgs;
@@ -33,7 +32,7 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
         await announced('Checking environment', checkEnv());
         await announced('Checking git hooks', env.gitHooks());
         await announced('Setting up containers', up());
-        await announced('Checking PLONK setup', run.plonkSetup());
+        !skipPlonkStep && (await announced('Checking PLONK setup', run.plonkSetup()));
     }
     if (!skipSubmodulesCheckout) {
         await announced('Checkout system-contracts submodule', submoduleUpdate());
@@ -69,7 +68,13 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     if (deployerL2ContractInput.includeL2WETH) {
         await announced('Initializing L2 WETH token', contract.initializeWethToken(governorPrivateKeyArgs));
     }
-    await announced('Initializing governance', contract.initializeGovernance(governorPrivateKeyArgs));
+    await announced(
+        'Initializing governance',
+        contract.initializeGovernance([
+            ...governorPrivateKeyArgs,
+            !deployerL2ContractInput.includeL2WETH ? ['--skip-weth-bridge'] : []
+        ])
+    );
 }
 
 // A smaller version of `init` that "resets" the localhost environment, for which `init` was already called before.
@@ -148,7 +153,7 @@ async function checkEnv() {
 export interface InitArgs {
     skipSubmodulesCheckout: boolean;
     skipEnvSetup: boolean;
-    deployerL1ContractInputArgs: any[];
+    skipPlonkStep: boolean;
     governorPrivateKeyArgs: any[];
     deployerL2ContractInput: {
         args: any[];
@@ -164,7 +169,7 @@ export interface InitArgs {
 const DEFAULT_ARGS: InitArgs = {
     skipSubmodulesCheckout: false,
     skipEnvSetup: false,
-    deployerL1ContractInputArgs: [],
+    skipPlonkStep: false,
     governorPrivateKeyArgs: [],
     deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
     testTokens: { deploy: true, args: [] }
@@ -178,7 +183,7 @@ export const initCommand = new Command('init')
         const initArgs: InitArgs = {
             skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
             skipEnvSetup: cmd.skipEnvSetup,
-            deployerL1ContractInputArgs: [],
+            skipPlonkStep: false,
             governorPrivateKeyArgs: [],
             deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
             testTokens: { deploy: true, args: [] }
