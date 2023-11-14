@@ -7,7 +7,7 @@ understanding. We're leaving out a lot of details to keep things brief.
 
 In our case, the prover takes public input and witness (which is huge - you'll see below), and produces a proof, but the
 verifier takes (public input, proof) only, without witness. This means that the huge witness doesn't have to be
-submitted to L1. This property can be used for many things, like privacy, but here we use it to ipmlement an efficient
+submitted to L1. This property can be used for many things, like privacy, but here we use it to implement an efficient
 rollup that publishes the least required amount of data to L1.
 
 ## Basic overview
@@ -85,7 +85,7 @@ located in a module [zksync core witness]. However, for the new proof system, th
 new location called [separate witness binary].
 
 Inside this new location, after the necessary data is fetched from storage, the witness generator calls another piece of
-code from [zkevm_test_harness witness] named `run_with_fixed_params`. This code is responsible for createing the
+code from [zkevm_test_harness witness] named `run_with_fixed_params`. This code is responsible for creating the
 witnesses themselves (which can get really HUGE).
 
 ## Generating the Proof
