@@ -67,13 +67,9 @@ impl DebugNamespace {
         const METHOD_NAME: &str = "debug_trace_block";
 
         let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
-        let only_top_call = match options {
-            None => false,
-            Some(tracer_config) => tracer_config
-                .tracer_config
-                .map(|tracer_config| tracer_config.only_top_call)
-                .unwrap_or(false),
-        };
+        let only_top_call = options
+            .map(|options| options.tracer_config.only_top_call)
+            .unwrap_or(false);
         let mut connection = self
             .connection_pool
             .access_storage_tagged("api")
@@ -107,13 +103,9 @@ impl DebugNamespace {
         tx_hash: H256,
         options: Option<TracerConfig>,
     ) -> Option<DebugCall> {
-        let only_top_call = match options {
-            None => false,
-            Some(tracer_config) => tracer_config
-                .tracer_config
-                .map(|tracer_config| tracer_config.only_top_call)
-                .unwrap_or(false),
-        };
+        let only_top_call = options
+            .map(|options| options.tracer_config.only_top_call)
+            .unwrap_or(false);
         let call_trace = self
             .connection_pool
             .access_storage_tagged("api")
@@ -142,13 +134,9 @@ impl DebugNamespace {
 
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
-        let only_top_call = match options {
-            None => false,
-            Some(tracer_config) => tracer_config
-                .tracer_config
-                .map(|tracer_config| tracer_config.only_top_call)
-                .unwrap_or(false),
-        };
+        let only_top_call = options
+            .map(|options| options.tracer_config.only_top_call)
+            .unwrap_or(false);
 
         let mut connection = self
             .connection_pool
