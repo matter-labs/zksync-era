@@ -150,7 +150,7 @@
   "bootloader": {
     "name": "Bootloader",
     "bytecodeHashes": [
-      "0x010009657432df24acfe7950b2d1a0707520ca6b7acb699e58c0f378c0ed7a11"
+      "0x01000983d4ac4f797cf5c077e022f72284969b13248c2a8e9846f574bdeb5b88"
     ]
   },
   "forcedDeployments": [
