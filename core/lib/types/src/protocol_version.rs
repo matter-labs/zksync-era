@@ -428,8 +428,8 @@ impl TryFrom<Log> for ProtocolUpgrade {
             default_account_code_hash: (default_account_code_hash != H256::zero())
                 .then_some(default_account_code_hash),
             verifier_params: (recursion_node_level_vk_hash != H256::zero()
-                && recursion_leaf_level_vk_hash != H256::zero()
-                && recursion_circuits_set_vks_hash != H256::zero())
+                || recursion_leaf_level_vk_hash != H256::zero()
+                || recursion_circuits_set_vks_hash != H256::zero())
             .then_some(VerifierParams {
                 recursion_node_level_vk_hash,
                 recursion_leaf_level_vk_hash,
