@@ -4,7 +4,7 @@ use zksync_system_constants::SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER;
 
 use std::{fmt, ops};
 
-use zksync_basic_types::{Bytes, H2048, H256, U256};
+use zksync_basic_types::{H2048, H256, U256};
 use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_protobuf::{read_required, ProtoFmt};
