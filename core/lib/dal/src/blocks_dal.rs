@@ -10,7 +10,7 @@ use sqlx::Row;
 
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
+    block::{BlockGasCount, ConsensusBlockFields, L1BatchHeader, MiniblockHeader},
     commitment::{L1BatchMetadata, L1BatchWithMetadata},
     Address, L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256,
     MAX_GAS_PER_PUBDATA_BYTE, U256,
@@ -463,6 +463,27 @@ impl BlocksDal<'_, '_> {
         )
         .execute(self.storage.conn())
         .await?;
+        Ok(())
+    }
+
+    /// Sets consensus-related fields for the specified miniblock.
+    pub async fn set_miniblock_consensus_fields(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+        consensus: &ConsensusBlockFields,
+    ) -> anyhow::Result<()> {
+        let result = sqlx::query!(
+            "UPDATE miniblocks SET consensus = $2 WHERE number = $1",
+            miniblock_number.0 as i64,
+            serde_json::to_value(consensus).unwrap(),
+        )
+        .execute(self.storage.conn())
+        .await?;
+
+        anyhow::ensure!(
+            result.rows_affected() == 1,
+            "Miniblock #{miniblock_number} is not present in Postgres"
+        );
         Ok(())
     }
 
