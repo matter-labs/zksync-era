@@ -121,8 +121,7 @@ impl Serialize for ConsensusBlockFields {
 
 impl<'de> Deserialize<'de> for ConsensusBlockFields {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        Self::read(&<Self as ProtoFmt>::Proto::deserialize(d)?)
-            .map_err(|err| serde::de::Error::custom(err))
+        Self::read(&<Self as ProtoFmt>::Proto::deserialize(d)?).map_err(serde::de::Error::custom)
     }
 }
 
