@@ -30,9 +30,7 @@ use zksync_core::{
     },
 };
 use zksync_health_check::CheckHealth;
-use zksync_server_dal::{
-    connection::DbVariant, healthcheck::ServerConnectionPoolHealthCheck, ServerConnectionPool,
-};
+use zksync_server_dal::{healthcheck::ServerConnectionPoolHealthCheck, ServerConnectionPool};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
@@ -124,7 +122,7 @@ async fn init_tasks(
 
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
-    let singleton_pool_builder = ServerConnectionPool::singleton(DbVariant::Master);
+    let singleton_pool_builder = ServerConnectionPool::singleton(&config.postgres.database_url);
     let fetcher_cursor = {
         let pool = singleton_pool_builder
             .build()
@@ -184,7 +182,6 @@ async fn init_tasks(
         .build()
         .await
         .context("failed to build a tree_pool")?;
-
     // running metadata_calculator without access to the prover db,
     // since EN is not required to save witness inputs.
     let tree_handle = task::spawn(metadata_calculator.run(tree_pool, None, tree_stop_receiver));
@@ -349,10 +346,13 @@ async fn main() -> anyhow::Result<()> {
         .main_node_url()
         .context("Main node URL is incorrect")?;
 
-    let connection_pool = ServerConnectionPool::builder(DbVariant::Master)
-        .build()
-        .await
-        .context("failed to build a connection_pool")?;
+    let connection_pool = ServerConnectionPool::builder(
+        &config.postgres.database_url,
+        config.postgres.max_connections,
+    )
+    .build()
+    .await
+    .context("failed to build a connection_pool")?;
 
     if opt.revert_pending_l1_batch {
         tracing::info!("Rolling pending L1 batch back..");

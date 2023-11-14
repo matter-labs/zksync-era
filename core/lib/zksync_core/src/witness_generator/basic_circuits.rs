@@ -242,6 +242,15 @@ impl JobProcessor for BasicWitnessGenerator {
         }
         Ok(())
     }
+
+    fn max_attempts(&self) -> u32 {
+        self.config.max_attempts
+    }
+
+    async fn get_job_attempts(&self, _job_id: &Self::JobId) -> anyhow::Result<u32> {
+        // Witness generator will be removed soon in favor of FRI one, so returning blank value.
+        Ok(1)
+    }
 }
 
 pub async fn process_basic_circuits_job(

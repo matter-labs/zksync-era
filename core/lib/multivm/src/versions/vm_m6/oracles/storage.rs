@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use crate::vm_m6::glue::GlueInto;
 use crate::vm_m6::storage::{Storage, StoragePtr};
 
+use crate::glue::GlueInto;
 use crate::vm_m6::history_recorder::{
     AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
     HistoryRecorder, StorageWrapper, WithHistory,

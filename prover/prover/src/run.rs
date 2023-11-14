@@ -10,7 +10,7 @@ use zksync_config::{
     configs::{
         api::PrometheusConfig, prover_group::ProverGroupConfig, AlertsConfig, ObjectStoreConfig,
     },
-    ApiConfig, ProverConfig, ProverConfigs,
+    ApiConfig, PostgresConfig, ProverConfig, ProverConfigs,
 };
 use zksync_env_config::FromEnv;
 
@@ -27,7 +27,8 @@ use crate::socket_listener::incoming_socket_listener;
 use crate::synthesized_circuit_provider::SynthesizedCircuitProvider;
 
 async fn graceful_shutdown() -> anyhow::Result<impl Future<Output = ()>> {
-    let pool = ProverConnectionPool::singleton(DbVariant::Real)
+    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
+    let pool = ProverConnectionPool::singleton(postgres_config.prover_url()?)
         .build()
         .await
         .context("failed to build a connection pool")?;
@@ -179,11 +180,12 @@ pub async fn run() -> anyhow::Result<()> {
     };
     tracing::info!("local IP address is: {:?}", local_ip);
 
+    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
     tasks.push(tokio::task::spawn(incoming_socket_listener(
         local_ip,
         prover_config.assembly_receiver_port,
         producer,
-        ProverConnectionPool::singleton(DbVariant::Real)
+        ProverConnectionPool::singleton(postgres_config.prover_url()?)
             .build()
             .await
             .context("failed to build a connection pool")?,
@@ -198,7 +200,7 @@ pub async fn run() -> anyhow::Result<()> {
         ObjectStoreConfig::from_env().context("ObjectStoreConfig::from_env()")?;
     let store_factory = ObjectStoreFactory::new(object_store_config);
 
-    let circuit_provider_pool = ProverConnectionPool::singleton(DbVariant::Real)
+    let circuit_provider_pool = ProverConnectionPool::singleton(postgres_config.prover_url()?)
         .build()
         .await
         .context("failed to build circuit_provider_pool")?;
@@ -212,8 +214,9 @@ pub async fn run() -> anyhow::Result<()> {
             zone,
             rt_handle.clone(),
         );
-        let prover_job_reporter = ProverReporter::new(prover_config, &store_factory, rt_handle)
-            .context("ProverReporter::new()")?;
+        let prover_job_reporter =
+            ProverReporter::new(postgres_config, prover_config, &store_factory, rt_handle)
+                .context("ProverReporter::new()")?;
         prover_service::run_prover::run_prover_with_remote_synthesizer(
             synthesized_circuit_provider,
             ProverArtifactProvider,

@@ -2,7 +2,11 @@ use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use tokio::io::{self, AsyncReadExt};
 
-use zksync_config::{ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig};
+use zksync_config::{ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, PostgresConfig};
+use zksync_dal::ConnectionPool;
+use zksync_env_config::FromEnv;
+use zksync_types::{L1BatchNumber, U256};
+
 use zksync_core::block_reverter::{
     BlockReverter, BlockReverterEthConfig, BlockReverterFlags, L1ExecutedBatchesRevert,
 };
@@ -91,12 +95,17 @@ async fn main() -> anyhow::Result<()> {
     let default_priority_fee_per_gas =
         U256::from(eth_sender.gas_adjuster.default_priority_fee_per_gas);
     let contracts = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
+    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
     let config = BlockReverterEthConfig::new(eth_sender, contracts, eth_client.web3_url.clone());
 
-    let connection_pool = ServerConnectionPool::builder(DbVariant::Master)
-        .build()
-        .await
-        .context("failed to build a connection pool")?;
+    let connection_pool = ServerConnectionPool::builder(
+        postgres_config.master_url()?,
+        postgres_config.max_connections()?,
+    )
+    .build()
+    .await
+    .context("failed to build a connection pool")?;
+
     let mut block_reverter = BlockReverter::new(
         db_config.state_keeper_db_path,
         db_config.merkle_tree.path,

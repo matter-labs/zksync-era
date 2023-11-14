@@ -22,7 +22,7 @@ use zksync_config::{
         contracts::ProverAtGenesis,
         database::MerkleTreeMode,
     },
-    ApiConfig, ContractsConfig, DBConfig, ETHSenderConfig,
+    ApiConfig, ContractsConfig, DBConfig, ETHSenderConfig, PostgresConfig,
 };
 use zksync_contracts::{governance_contract, BaseSystemContracts};
 use zksync_eth_client::clients::http::QueryClient;
@@ -109,14 +109,18 @@ use crate::{
 
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(
+    postgres_config: &PostgresConfig,
     eth_sender: &ETHSenderConfig,
     network_config: &NetworkConfig,
     contracts_config: &ContractsConfig,
     eth_client_url: &str,
 ) -> anyhow::Result<()> {
-    let mut storage = ServerStorageProcessor::establish_connection(true)
+    let db_url = postgres_config.master_url()?;
+    let pool = ServerStorageProcessor::singleton(db_url)
+        .build()
         .await
-        .context("establish_connection")?;
+        .context("failed to build connection_pool")?;
+    let mut storage = pool.access_storage().await.context("access_storage()")?;
     let operator_address = PackedEthSignature::address_from_private_key(
         &eth_sender
             .sender
@@ -188,10 +192,13 @@ pub async fn genesis_init(
     Ok(())
 }
 
-pub async fn is_genesis_needed() -> bool {
-    let mut storage = ServerStorageProcessor::establish_connection(true)
+pub async fn is_genesis_needed(postgres_config: &PostgresConfig) -> bool {
+    let db_url = postgres_config.master_url().unwrap();
+    let pool = ServerConnectionPool::singleton(db_url)
+        .build()
         .await
-        .unwrap();
+        .expect("failed to build connection_pool");
+    let mut storage = pool.access_storage().await.expect("access_storage()");
     storage.blocks_dal().is_genesis_needed().await.unwrap()
 }
 
@@ -338,40 +345,44 @@ pub async fn initialize_components(
 )> {
     tracing::info!("Starting the components: {components:?}");
 
-    let db_config = configs
-        .db_config
-        .clone()
-        .ok_or_else(|| anyhow::anyhow!("db_config"))?;
-    let server_connection_pool = ServerConnectionPool::builder(DbVariant::Master)
-        .build()
-        .await
-        .context("failed to build connection_pool")?;
-    let prover_connection_pool = ProverConnectionPool::builder(connection::DbVariant::Real)
-        .build()
-        .await
-        .context("failed to build prover_connection_pool")?;
-    let replica_connection_pool = ServerConnectionPool::builder(DbVariant::Replica)
-        .set_statement_timeout(db_config.statement_timeout())
-        .build()
-        .await
-        .context("failed to build replica_connection_pool")?;
+    let db_config = configs.db_config.clone().context("db_config")?;
+    let postgres_config = configs.postgres_config.clone().context("postgres_config")?;
+
+    let statement_timeout = postgres_config.statement_timeout();
+    let pool_size = postgres_config.max_connections()?;
+    let server_connection_pool =
+        ServerConnectionPool::builder(postgres_config.master_url()?, pool_size)
+            .build()
+            .await
+            .context("failed to build server connection pool")?;
+    let prover_connection_pool =
+        ServerConnectionPool::builder(postgres_config.prover_url()?, pool_size)
+            .build()
+            .await
+            .context("failed to build prover connection pool")?;
+    let replica_connection_pool =
+        ServerConnectionPool::builder(postgres_config.replica_url()?, pool_size)
+            .set_statement_timeout(statement_timeout)
+            .build()
+            .await
+            .context("failed to build server replica connection pool")?;
 
     let mut healthchecks: Vec<Box<dyn CheckHealth>> = Vec::new();
     let contracts_config = configs
         .contracts_config
         .clone()
-        .ok_or_else(|| anyhow::anyhow!("contracts_config"))?;
+        .context("contracts_config")?;
     let eth_client_config = configs
         .eth_client_config
         .clone()
-        .ok_or_else(|| anyhow::anyhow!("eth_client_config"))?;
+        .context("eth_client_config")?;
     let circuit_breaker_config = configs
         .circuit_breaker_config
         .clone()
-        .ok_or_else(|| anyhow::anyhow!("circuit_breaker_config"))?;
+        .context("circuit_breaker_config")?;
 
     let circuit_breaker_checker = CircuitBreakerChecker::new(
-        circuit_breakers_for_components(&components, &circuit_breaker_config)
+        circuit_breakers_for_components(&components, &postgres_config, &circuit_breaker_config)
             .await
             .context("circuit_breakers_for_components")?,
         &circuit_breaker_config,
@@ -381,9 +392,7 @@ pub async fn initialize_components(
     });
 
     let query_client = QueryClient::new(&eth_client_config.web3_url).unwrap();
-    let gas_adjuster_config = configs
-        .gas_adjuster_config
-        .ok_or_else(|| anyhow::anyhow!("gas_adjuster_config"))?;
+    let gas_adjuster_config = configs.gas_adjuster_config.context("gas_adjuster_config")?;
     let mut gas_adjuster =
         GasAdjusterSingleton::new(eth_client_config.web3_url.clone(), gas_adjuster_config);
 
@@ -394,7 +403,7 @@ pub async fn initialize_components(
     let prom_config = configs
         .prometheus_config
         .clone()
-        .ok_or_else(|| anyhow::anyhow!("prometheus_config"))?;
+        .context("prometheus_config")?;
     let prom_config = if use_prometheus_push_gateway {
         PrometheusExporterConfig::push(prom_config.gateway_endpoint(), prom_config.push_interval())
     } else {
@@ -422,18 +431,12 @@ pub async fn initialize_components(
         || components.contains(&Component::ContractVerificationApi)
         || components.contains(&Component::ApiTranslator)
     {
-        let api_config = configs
-            .api_config
-            .clone()
-            .ok_or_else(|| anyhow::anyhow!("api_config"))?;
+        let api_config = configs.api_config.clone().context("api_config")?;
         let state_keeper_config = configs
             .state_keeper_config
             .clone()
-            .ok_or_else(|| anyhow::anyhow!("state_keeper_config"))?;
-        let network_config = configs
-            .network_config
-            .clone()
-            .ok_or_else(|| anyhow::anyhow!("network_config"))?;
+            .context("state_keeper_config")?;
+        let network_config = configs.network_config.clone().context("network_config")?;
         let tx_sender_config = TxSenderConfig::new(
             &state_keeper_config,
             &api_config.web3_json_rpc,
@@ -464,11 +467,12 @@ pub async fn initialize_components(
                 .await
                 .context("gas_adjuster.get_or_init_bounded()")?;
             let server_handles = run_http_api(
+                &postgres_config,
                 &tx_sender_config,
                 &state_keeper_config,
                 &internal_api_config,
                 &api_config,
-                connection_pool.clone(),
+                server_connection_pool.clone(),
                 replica_connection_pool.clone(),
                 stop_receiver.clone(),
                 bounded_gas_adjuster.clone(),
@@ -503,12 +507,13 @@ pub async fn initialize_components(
                 .await
                 .context("gas_adjuster.get_or_init_bounded()")?;
             let server_handles = run_ws_api(
+                &postgres_config,
                 &tx_sender_config,
                 &state_keeper_config,
                 &internal_api_config,
                 &api_config,
                 bounded_gas_adjuster.clone(),
-                connection_pool.clone(),
+                server_connection_pool.clone(),
                 replica_connection_pool.clone(),
                 stop_receiver.clone(),
                 storage_caches,
@@ -531,7 +536,7 @@ pub async fn initialize_components(
             let started_at = Instant::now();
             tracing::info!("initializing contract verification REST API");
             task_futures.push(contract_verification::start_server_thread_detached(
-                connection_pool.clone(),
+                server_connection_pool.clone(),
                 replica_connection_pool.clone(),
                 api_config.contract_verification.clone(),
                 stop_receiver.clone(),
@@ -545,7 +550,7 @@ pub async fn initialize_components(
     let object_store_config = configs
         .object_store_config
         .clone()
-        .ok_or_else(|| anyhow::anyhow!("object_store_config"))?;
+        .context("object_store_config")?;
     let store_factory = ObjectStoreFactory::new(object_store_config);
 
     if components.contains(&Component::StateKeeper) {
@@ -557,20 +562,15 @@ pub async fn initialize_components(
             .context("gas_adjuster.get_or_init_bounded()")?;
         add_state_keeper_to_task_futures(
             &mut task_futures,
+            &postgres_config,
             &contracts_config,
             configs
                 .state_keeper_config
                 .clone()
-                .ok_or_else(|| anyhow::anyhow!("state_keeper_config"))?,
-            &configs
-                .network_config
-                .clone()
-                .ok_or_else(|| anyhow::anyhow!("network_config"))?,
+                .context("state_keeper_config")?,
+            &configs.network_config.clone().context("network_config")?,
             &db_config,
-            &configs
-                .mempool_config
-                .clone()
-                .ok_or_else(|| anyhow::anyhow!("mempool_config"))?,
+            &configs.mempool_config.clone().context("mempool_config")?,
             bounded_gas_adjuster,
             store_factory.create_store().await,
             stop_receiver.clone(),
@@ -587,7 +587,7 @@ pub async fn initialize_components(
     if components.contains(&Component::EthWatcher) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-Watcher");
-        let eth_watch_pool = ServerConnectionPool::singleton(DbVariant::Master)
+        let eth_watch_pool = ServerConnectionPool::singleton(postgres_config.master_url()?)
             .build()
             .await
             .context("failed to build eth_watch_pool")?;
@@ -595,7 +595,7 @@ pub async fn initialize_components(
         let eth_watch_config = configs
             .eth_watch_config
             .clone()
-            .ok_or_else(|| anyhow::anyhow!("eth_watch_config"))?;
+            .context("eth_watch_config")?;
         task_futures.push(
             start_eth_watch(
                 eth_watch_config,
@@ -616,11 +616,11 @@ pub async fn initialize_components(
     if components.contains(&Component::EthTxAggregator) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-TxAggregator");
-        let eth_sender_pool = ServerConnectionPool::singleton(DbVariant::Master)
+        let eth_sender_pool = ServerConnectionPool::singleton(postgres_config.master_url()?)
             .build()
             .await
             .context("failed to build eth_sender_pool")?;
-        let eth_sender_prover_pool = ProverConnectionPool::singleton(connection::DbVariant::Real)
+        let eth_sender_prover_pool = ProverConnectionPool::singleton(postgres_config.prover_url()?)
             .build()
             .await
             .context("failed to build eth_sender_prover_pool")?;
@@ -628,7 +628,7 @@ pub async fn initialize_components(
         let eth_sender = configs
             .eth_sender_config
             .clone()
-            .ok_or_else(|| anyhow::anyhow!("eth_sender_config"))?;
+            .context("eth_sender_config")?;
         let eth_client =
             PKSigningClient::from_config(&eth_sender, &contracts_config, &eth_client_config);
         let nonce = eth_client.pending_nonce("eth_sender").await.unwrap();
@@ -657,14 +657,14 @@ pub async fn initialize_components(
     if components.contains(&Component::EthTxManager) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-TxManager");
-        let eth_manager_pool = ServerConnectionPool::singleton(DbVariant::Master)
+        let eth_manager_pool = ServerConnectionPool::singleton(postgres_config.master_url()?)
             .build()
             .await
             .context("failed to build eth_manager_pool")?;
         let eth_sender = configs
             .eth_sender_config
             .clone()
-            .ok_or_else(|| anyhow::anyhow!("eth_sender_config"))?;
+            .context("eth_sender_config")?;
         let eth_client =
             PKSigningClient::from_config(&eth_sender, &contracts_config, &eth_client_config);
         let eth_tx_manager_actor = EthTxManager::new(
@@ -685,19 +685,13 @@ pub async fn initialize_components(
 
     if components.contains(&Component::DataFetcher) {
         let started_at = Instant::now();
-        let fetcher_config = configs
-            .fetcher_config
-            .clone()
-            .ok_or_else(|| anyhow::anyhow!("fetcher_config"))?;
-        let eth_network = configs
-            .network_config
-            .clone()
-            .ok_or_else(|| anyhow::anyhow!("network_config"))?;
+        let fetcher_config = configs.fetcher_config.clone().context("fetcher_config")?;
+        let eth_network = configs.network_config.clone().context("network_config")?;
         tracing::info!("initializing data fetchers");
         task_futures.extend(run_data_fetchers(
             &fetcher_config,
             eth_network.network,
-            connection_pool.clone(),
+            server_connection_pool.clone(),
             stop_receiver.clone(),
         ));
         let elapsed = started_at.elapsed();
@@ -719,7 +713,7 @@ pub async fn initialize_components(
         configs,
         &mut task_futures,
         &components,
-        &connection_pool,
+        &server_connection_pool,
         &prover_connection_pool,
         &store_factory,
         &stop_receiver,
@@ -728,14 +722,12 @@ pub async fn initialize_components(
     .context("add_witness_generator_to_task_futures()")?;
 
     if components.contains(&Component::BasicWitnessInputProducer) {
-        let singleton_connection_pool = ServerConnectionPool::singleton(DbVariant::Master)
-            .build()
-            .await
-            .context("failed to build singleton connection_pool")?;
-        let network_config = configs
-            .network_config
-            .clone()
-            .ok_or_else(|| anyhow::anyhow!("network_config"))?;
+        let singleton_connection_pool =
+            ServerConnectionPool::singleton(postgres_config.master_url()?)
+                .build()
+                .await
+                .context("failed to build singleton connection_pool")?;
+        let network_config = configs.network_config.clone().context("network_config")?;
         add_basic_witness_input_producer_to_task_futures(
             &mut task_futures,
             &singleton_connection_pool,
@@ -758,13 +750,13 @@ pub async fn initialize_components(
             configs
                 .proof_data_handler_config
                 .clone()
-                .ok_or_else(|| anyhow::anyhow!("proof_data_handler_config"))?,
+                .context("proof_data_handler_config")?,
             configs
                 .contracts_config
                 .clone()
-                .ok_or_else(|| anyhow::anyhow!("contracts_config"))?,
+                .context("contracts_config")?,
             store_factory.create_store().await,
-            connection_pool.clone(),
+            server_connection_pool.clone(),
             stop_receiver.clone(),
         )));
     }
@@ -777,7 +769,7 @@ pub async fn initialize_components(
     let healtcheck_api_config = configs
         .health_check_config
         .clone()
-        .ok_or_else(|| anyhow::anyhow!("health_check_config"))?;
+        .context("health_check_config")?;
     let health_check_handle =
         HealthCheckHandle::spawn_server(healtcheck_api_config.bind_addr(), healthchecks);
 
@@ -790,6 +782,7 @@ pub async fn initialize_components(
 #[allow(clippy::too_many_arguments)]
 async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 'static>(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    postgres_config: &PostgresConfig,
     contracts_config: &ContractsConfig,
     state_keeper_config: StateKeeperConfig,
     network_config: &NetworkConfig,
@@ -800,7 +793,8 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let fair_l2_gas_price = state_keeper_config.fair_l2_gas_price;
-    let pool_builder = ServerConnectionPool::singleton(DbVariant::Master);
+    let pool_builder = ServerConnectionPool::singleton(postgres_config.master_url()?);
+
     let state_keeper_pool = pool_builder
         .build()
         .await
@@ -869,19 +863,17 @@ async fn add_trees_to_task_futures(
         anyhow::bail!("Tree backup mode is disabled");
     }
 
-    let db_config = configs
-        .db_config
-        .clone()
-        .ok_or_else(|| anyhow::anyhow!("db_config"))?;
+    let db_config = configs.db_config.clone().context("db_config")?;
     let operation_config = configs
         .operations_manager_config
         .clone()
-        .ok_or_else(|| anyhow::anyhow!("operations_manager_config"))?;
+        .context("operations_manager_config")?;
     let api_config = configs
         .api_config
         .clone()
-        .ok_or_else(|| anyhow::anyhow!("api_config"))?
+        .context("api_config")?
         .merkle_tree;
+    let postgres_config = configs.postgres_config.clone().context("postgres_config")?;
     let api_config = components
         .contains(&Component::TreeApi)
         .then_some(&api_config);
@@ -913,6 +905,7 @@ async fn add_trees_to_task_futures(
     run_tree(
         task_futures,
         healthchecks,
+        &postgres_config,
         &db_config,
         api_config,
         &operation_config,
@@ -923,9 +916,11 @@ async fn add_trees_to_task_futures(
     .context("run_tree()")
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_tree(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     healthchecks: &mut Vec<Box<dyn CheckHealth>>,
+    postgres_config: &PostgresConfig,
     db_config: &DBConfig,
     api_config: Option<&MerkleTreeApiConfig>,
     operation_manager: &OperationsManagerConfig,
@@ -953,12 +948,11 @@ async fn run_tree(
 
     let tree_health_check = metadata_calculator.tree_health_check();
     healthchecks.push(Box::new(tree_health_check));
-
-    let server_pool = ServerConnectionPool::singleton(DbVariant::Master)
+    let pool = ServerConnectionPool::singleton(postgres_config.master_url()?)
         .build()
         .await
         .context("failed to build connection pool")?;
-    let prover_pool = ProverConnectionPool::singleton(connection::DbVariant::Real)
+    let prover_pool = ProverConnectionPool::singleton(postgres_config.prover_url()?)
         .build()
         .await
         .context("failed to build prover_pool")?;
@@ -1038,7 +1032,7 @@ async fn add_witness_generator_to_task_futures(
         let config = configs
             .witness_generator_config
             .clone()
-            .ok_or_else(|| anyhow::anyhow!("witness_generator_config"))?;
+            .context("witness_generator_config")?;
         let task = match component_type {
             AggregationRound::BasicCircuits => {
                 let witness_generator = BasicWitnessGenerator::new(
@@ -1101,32 +1095,36 @@ async fn add_house_keeper_to_task_futures(
     let house_keeper_config = configs
         .house_keeper_config
         .clone()
-        .ok_or_else(|| anyhow::anyhow!("house_keeper_config"))?;
-    let server_connection_pool = ServerConnectionPool::singleton(DbVariant::Replica)
+        .context("house_keeper_config")?;
+    let postgres_config = configs.postgres_config.clone().context("postgres_config")?;
+    let server_connection_pool = ServerConnectionPool::singleton(postgres_config.replica_url()?)
         .build()
         .await
-        .context("failed to build a server connection pool")?;
-    let prover_connection_pool = ProverConnectionPool::builder(connection::DbVariant::Real)
-        .set_max_size(Some(house_keeper_config.prover_db_pool_size))
+        .context("failed to build server connection pool")?;
+
+    let prover_connection_pool = ProverConnectionPool::singleton(postgres_config.prover_url()?)
         .build()
         .await
-        .context("failed to build a prover connection pool")?;
+        .context("failed to build prover connection pool")?;
 
     let l1_batch_metrics_reporter = L1BatchMetricsReporter::new(
         house_keeper_config.l1_batch_metrics_reporting_interval_ms,
-        server_connection_pool.clone(),
-        prover_connection_pool.clone(),
+        server_connection_pool,
+        prover_connection_pool,
     );
 
+    let prover_connection_pool: ProverConnectionPool = ProverConnectionPool::builder(
+        postgres_config.prover_url()?,
+        postgres_config.max_connections()?,
+    )
+    .build()
+    .await
+    .context("failed to build a prover_connection_pool")?;
     let prover_group_config = configs
         .prover_group_config
         .clone()
-        .ok_or_else(|| anyhow::anyhow!("prover_group_config"))?;
-    let prover_configs = configs
-        .prover_configs
-        .clone()
-        .ok_or_else(|| anyhow::anyhow!("prover_configs"))?;
-
+        .context("prover_group_config")?;
+    let prover_configs = configs.prover_configs.clone().context("prover_configs")?;
     let gpu_prover_queue = GpuProverQueueMonitor::new(
         prover_group_config.synthesizer_per_gpu,
         house_keeper_config.gpu_prover_queue_reporting_interval_ms,
@@ -1164,7 +1162,7 @@ async fn add_house_keeper_to_task_futures(
     let fri_prover_config = configs
         .fri_prover_config
         .clone()
-        .ok_or_else(|| anyhow::anyhow!("fri_prover_config"))?;
+        .context("fri_prover_config")?;
     let fri_prover_job_retry_manager = FriProverJobRetryManager::new(
         fri_prover_config.max_attempts,
         fri_prover_config.proof_generation_timeout(),
@@ -1176,7 +1174,7 @@ async fn add_house_keeper_to_task_futures(
     let fri_witness_gen_config = configs
         .fri_witness_generator_config
         .clone()
-        .ok_or_else(|| anyhow::anyhow!("fri_witness_generator_config"))?;
+        .context("fri_witness_generator_config")?;
     let fri_witness_gen_job_retry_manager = FriWitnessGeneratorJobRetryManager::new(
         fri_witness_gen_config.max_attempts,
         fri_witness_gen_config.witness_generation_timeout(),
@@ -1212,7 +1210,7 @@ async fn add_house_keeper_to_task_futures(
     let proof_compressor_config = configs
         .fri_proof_compressor_config
         .clone()
-        .ok_or_else(|| anyhow::anyhow!("fri_proof_compressor_config"))?;
+        .context("fri_proof_compressor_config")?;
     let fri_proof_compressor_stats_reporter = FriProofCompressorStatsReporter::new(
         house_keeper_config.fri_proof_compressor_stats_reporting_interval_ms,
         prover_connection_pool.clone(),
@@ -1237,7 +1235,7 @@ fn build_storage_caches(
     let rpc_config = configs
         .web3_json_rpc_config
         .clone()
-        .ok_or_else(|| anyhow::anyhow!("web3_json_rpc_config"))?;
+        .context("web3_json_rpc_config")?;
     let factory_deps_capacity = rpc_config.factory_deps_cache_size() as u64;
     let initial_writes_capacity = rpc_config.initial_writes_cache_size() as u64;
     let values_capacity = rpc_config.latest_values_cache_size() as u64;
@@ -1289,6 +1287,7 @@ async fn build_tx_sender<G: L1GasPriceProvider>(
 
 #[allow(clippy::too_many_arguments)]
 async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
+    postgres_config: &PostgresConfig,
     tx_sender_config: &TxSenderConfig,
     state_keeper_config: &StateKeeperConfig,
     internal_api: &InternalApiConfig,
@@ -1317,7 +1316,7 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     } else {
         Namespace::NON_DEBUG.to_vec()
     };
-    let last_miniblock_pool = ServerConnectionPool::singleton(DbVariant::Replica)
+    let last_miniblock_pool = ServerConnectionPool::singleton(postgres_config.replica_url()?)
         .build()
         .await
         .context("failed to build last_miniblock_pool")?;
@@ -1340,6 +1339,7 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
 
 #[allow(clippy::too_many_arguments)]
 async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
+    postgres_config: &PostgresConfig,
     tx_sender_config: &TxSenderConfig,
     state_keeper_config: &StateKeeperConfig,
     internal_api: &InternalApiConfig,
@@ -1361,7 +1361,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
         storage_caches,
     )
     .await;
-    let last_miniblock_pool = ServerConnectionPool::singleton(DbVariant::Replica)
+    let last_miniblock_pool = ServerConnectionPool::singleton(postgres_config.replica_url()?)
         .build()
         .await
         .context("failed to build last_miniblock_pool")?;
@@ -1392,6 +1392,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
 
 async fn circuit_breakers_for_components(
     components: &[Component],
+    postgres_config: &PostgresConfig,
     circuit_breaker_config: &CircuitBreakerConfig,
 ) -> anyhow::Result<Vec<Box<dyn CircuitBreaker>>> {
     let mut circuit_breakers: Vec<Box<dyn CircuitBreaker>> = Vec::new();
@@ -1402,7 +1403,7 @@ async fn circuit_breakers_for_components(
             Component::EthTxAggregator | Component::EthTxManager | Component::StateKeeper
         )
     }) {
-        let pool = ServerConnectionPool::singleton(DbVariant::Replica)
+        let pool = ServerConnectionPool::singleton(postgres_config.replica_url()?)
             .build()
             .await
             .context("failed to build a connection pool")?;
@@ -1418,7 +1419,7 @@ async fn circuit_breakers_for_components(
                 | Component::ContractVerificationApi
         )
     }) {
-        let pool = ServerConnectionPool::singleton(DbVariant::Replica)
+        let pool = ServerConnectionPool::singleton(postgres_config.replica_url()?)
             .build()
             .await?;
         circuit_breakers.push(Box::new(ReplicationLagChecker {

@@ -1,41 +1,41 @@
-use std::{fmt, time::Duration};
-
-use anyhow::Context as _;
 use sqlx::{
     pool::PoolConnection,
     postgres::{PgConnectOptions, PgPool, PgPoolOptions, Postgres},
 };
 
-use zksync_db_utils::metrics::CONNECTION_METRICS;
-use zksync_utils::parse_env;
+use anyhow::Context as _;
+use std::env;
+use std::fmt;
+use std::time::Duration;
 
-use crate::{get_master_database_url, get_replica_database_url, ServerStorageProcessor};
+use crate::{metrics::CONNECTION_METRICS, StorageProcessor};
 
-pub mod holder;
-
-#[derive(Debug, Clone, Copy)]
-pub enum DbVariant {
-    Master,
-    Replica,
-    TestTmp,
+/// Obtains the test database URL from the environment variable.
+fn get_test_database_url() -> anyhow::Result<String> {
+    env::var("TEST_DATABASE_URL").context(
+        "TEST_DATABASE_URL must be set. Normally, this is done by the 'zk' tool. \
+        Make sure that you are running the tests with 'zk test rust' command or equivalent.",
+    )
 }
 
-/// Builder for [`ServerConnectionPool`]s.
-#[derive(Debug)]
-pub struct ServerConnectionPoolBuilder {
-    db: DbVariant,
-    max_size: Option<u32>,
+/// Builder for [`ConnectionPool`]s.
+pub struct ServerConnectionPoolBuilder<'a> {
+    database_url: &'a str,
+    max_size: u32,
     statement_timeout: Option<Duration>,
 }
 
-impl ServerConnectionPoolBuilder {
-    /// Sets the maximum size of the created pool. If not specified, the max pool size will be
-    /// taken from the `DATABASE_POOL_SIZE` env variable.
-    pub fn set_max_size(&mut self, max_size: Option<u32>) -> &mut Self {
-        self.max_size = max_size;
-        self
+impl<'a> fmt::Debug for ServerConnectionPoolBuilder<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Database URL is potentially sensitive, thus we omit it.
+        f.debug_struct("ConnectionPoolBuilder")
+            .field("max_size", &self.max_size)
+            .field("statement_timeout", &self.statement_timeout)
+            .finish()
     }
+}
 
+impl<'a> ServerConnectionPoolBuilder<'a> {
     /// Sets the statement timeout for the pool. See [Postgres docs] for semantics.
     /// If not specified, the statement timeout will not be set.
     ///
@@ -47,28 +47,11 @@ impl ServerConnectionPoolBuilder {
 
     /// Builds a connection pool from this builder.
     pub async fn build(&self) -> anyhow::Result<ServerConnectionPool> {
-        let database_url = match self.db {
-            DbVariant::Master => get_master_database_url()?,
-            DbVariant::Replica => get_replica_database_url()?,
-            DbVariant::TestTmp => create_test_db()
-                .await
-                .context("create_test_db()")?
-                .to_string(),
-        };
-        self.build_inner(&database_url)
-            .await
-            .context("build_inner()")
-    }
-
-    pub async fn build_inner(&self, database_url: &str) -> anyhow::Result<ServerConnectionPool> {
-        let max_connections = self
-            .max_size
-            .unwrap_or_else(|| parse_env("DATABASE_POOL_SIZE"));
-
-        let options = PgPoolOptions::new().max_connections(max_connections);
-        let mut connect_options: PgConnectOptions = database_url
+        let options = PgPoolOptions::new().max_connections(self.max_size);
+        let mut connect_options: PgConnectOptions = self
+            .database_url
             .parse()
-            .with_context(|| format!("Failed parsing {:?} database URL", self.db))?;
+            .context("Failed parsing database URL")?;
         if let Some(timeout) = self.statement_timeout {
             let timeout_string = format!("{}s", timeout.as_secs());
             connect_options = connect_options.options([("statement_timeout", timeout_string)]);
@@ -76,11 +59,11 @@ impl ServerConnectionPoolBuilder {
         let pool = options
             .connect_with(connect_options)
             .await
-            .with_context(|| format!("Failed connecting to {:?} database", self.db))?;
+            .context("Failed connecting to database")?;
         tracing::info!(
-            "Created pool for {db:?} database with {max_connections} max connections \
+            "Created pool with {max_connections} max connections \
              and {statement_timeout:?} statement timeout",
-            db = self.db,
+            max_connections = self.max_size,
             statement_timeout = self.statement_timeout
         );
         Ok(ServerConnectionPool(pool))
@@ -99,7 +82,7 @@ pub(super) async fn create_test_db() -> anyhow::Result<url::Url> {
     use rand::Rng as _;
     use sqlx::{Connection as _, Executor as _};
     const PREFIX: &str = "test-";
-    let db_url = crate::get_test_database_url().unwrap();
+    let db_url = get_test_database_url().unwrap();
     let mut db_url = url::Url::parse(&db_url)
         .with_context(|| format!("{} is not a valid database address", db_url))?;
     let db_name = db_url
@@ -136,35 +119,40 @@ pub struct ServerConnectionPool(pub(crate) PgPool);
 
 impl fmt::Debug for ServerConnectionPool {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_tuple("ServerConnectionPool").finish()
+        f.debug_tuple("ConnectionPool").finish()
     }
 }
 
 impl ServerConnectionPool {
     pub async fn test_pool() -> ServerConnectionPool {
-        Self::builder(DbVariant::TestTmp).build().await.unwrap()
+        let db_url = create_test_db()
+            .await
+            .expect("Unable to prepare test database")
+            .to_string();
+
+        const TEST_MAX_CONNECTIONS: u32 = 50; // Expected to be enough for any unit test.
+        Self::builder(&db_url, TEST_MAX_CONNECTIONS)
+            .build()
+            .await
+            .unwrap()
     }
 
     /// Initializes a builder for connection pools.
-    pub fn builder(db: DbVariant) -> ServerConnectionPoolBuilder {
+    pub fn builder(database_url: &str, max_pool_size: u32) -> ServerConnectionPoolBuilder<'_> {
         ServerConnectionPoolBuilder {
-            db,
-            max_size: None,
+            database_url,
+            max_size: max_pool_size,
             statement_timeout: None,
         }
     }
 
     /// Initializes a builder for connection pools with a single connection. This is equivalent
-    /// to calling `Self::builder(db).set_max_size(Some(1))`.
-    pub fn singleton(db: DbVariant) -> ServerConnectionPoolBuilder {
-        ServerConnectionPoolBuilder {
-            db,
-            max_size: Some(1),
-            statement_timeout: None,
-        }
+    /// to calling `Self::builder(db_url, 1)`.
+    pub fn singleton(database_url: &str) -> ServerConnectionPoolBuilder<'_> {
+        Self::builder(database_url, 1)
     }
 
-    /// Creates a `ServerStorageProcessor` entity over a recoverable connection.
+    /// Creates a `StorageProcessor` entity over a recoverable connection.
     /// Upon a database outage connection will block the thread until
     /// it will be able to recover the connection (or, if connection cannot
     /// be restored after several retries, this will be considered as
@@ -172,7 +160,7 @@ impl ServerConnectionPool {
     ///
     /// This method is intended to be used in crucial contexts, where the
     /// database access is must-have (e.g. block committer).
-    pub async fn access_storage(&self) -> anyhow::Result<ServerStorageProcessor<'_>> {
+    pub async fn access_storage(&self) -> anyhow::Result<StorageProcessor<'_>> {
         self.access_storage_inner(None).await
     }
 
@@ -184,14 +172,14 @@ impl ServerConnectionPool {
     pub async fn access_storage_tagged(
         &self,
         requester: &'static str,
-    ) -> anyhow::Result<ServerStorageProcessor<'_>> {
+    ) -> anyhow::Result<StorageProcessor<'_>> {
         self.access_storage_inner(Some(requester)).await
     }
 
     async fn access_storage_inner(
         &self,
         requester: Option<&'static str>,
-    ) -> anyhow::Result<ServerStorageProcessor<'_>> {
+    ) -> anyhow::Result<StorageProcessor<'_>> {
         let acquire_latency = CONNECTION_METRICS.acquire.start();
         let conn = self
             .acquire_connection_retried()
@@ -201,7 +189,7 @@ impl ServerConnectionPool {
         if let Some(requester) = requester {
             CONNECTION_METRICS.acquire_tagged[&requester].observe(elapsed);
         }
-        Ok(ServerStorageProcessor::from_pool(conn))
+        Ok(StorageProcessor::from_pool(conn))
     }
 
     async fn acquire_connection_retried(&self) -> anyhow::Result<PoolConnection<Postgres>> {
@@ -252,7 +240,12 @@ mod tests {
 
     #[tokio::test]
     async fn setting_statement_timeout() {
-        let pool = ServerConnectionPool::builder(DbVariant::TestTmp)
+        let db_url = create_test_db()
+            .await
+            .expect("Unable to prepare test database")
+            .to_string();
+
+        let pool = ServerConnectionPool::singleton(&db_url)
             .set_statement_timeout(Some(Duration::from_secs(1)))
             .build()
             .await

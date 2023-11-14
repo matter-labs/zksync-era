@@ -2,8 +2,10 @@ use std::collections::hash_map::{Entry, HashMap};
 
 use clap::Parser;
 
-use zksync_server_dal::connection::DbVariant;
-use zksync_server_dal::ServerConnectionPool;
+use zksync_config::PostgresConfig;
+use zksync_dal::ServerConnectionPool;
+use zksync_env_config::FromEnv;
+
 use zksync_types::{MiniblockNumber, H256};
 
 /// When the threshold is reached then the migration is blocked on vacuuming.
@@ -45,8 +47,9 @@ impl StateCache {
 
 #[tokio::main]
 async fn main() {
+    let config = PostgresConfig::from_env().unwrap();
     let opt = Cli::parse();
-    let pool = ServerConnectionPool::singleton(DbVariant::Master)
+    let pool = ServerConnectionPool::singleton(config.master_url().unwrap())
         .build()
         .await
         .unwrap();

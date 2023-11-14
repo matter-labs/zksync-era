@@ -524,4 +524,12 @@ impl JobProcessor for ContractVerifier {
         // Do nothing
         Ok(())
     }
+
+    fn max_attempts(&self) -> u32 {
+        u32::MAX
+    }
+
+    async fn get_job_attempts(&self, _job_id: &Self::JobId) -> anyhow::Result<u32> {
+        Ok(1)
+    }
 }

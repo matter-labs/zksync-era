@@ -6,10 +6,11 @@ use structopt::StructOpt;
 use tokio::sync::watch;
 
 use prometheus_exporter::PrometheusExporterConfig;
-use zksync_config::{configs::PrometheusConfig, ApiConfig, ContractVerifierConfig};
+use zksync_config::{configs::PrometheusConfig, ApiConfig, ContractVerifierConfig, PostgresConfig};
+
 use zksync_env_config::FromEnv;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_server_dal::{connection::DbVariant, ServerConnectionPool};
+use zksync_server_dal::ServerConnectionPool;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 use crate::verifier::ContractVerifier;
@@ -113,6 +114,8 @@ async fn update_compiler_versions(connection_pool: &ServerConnectionPool) {
     transaction.commit().await.unwrap();
 }
 
+use structopt::StructOpt;
+
 #[derive(StructOpt)]
 #[structopt(name = "zkSync contract code verifier", author = "Matter Labs")]
 struct Opt {
@@ -130,10 +133,15 @@ async fn main() -> anyhow::Result<()> {
         listener_port: verifier_config.prometheus_port,
         ..ApiConfig::from_env().context("ApiConfig")?.prometheus
     };
-    let pool = ServerConnectionPool::singleton(DbVariant::Master)
-        .build()
-        .await
-        .unwrap();
+    let postgres_config = PostgresConfig::from_env().context("PostgresConfig")?;
+    let pool = ServerConnectionPool::singleton(
+        postgres_config
+            .master_url()
+            .context("Master DB URL is absent")?,
+    )
+    .build()
+    .await
+    .unwrap();
 
     #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
     let log_format = vlog::log_format_from_env();

@@ -7,7 +7,7 @@ use tokio::task::JoinHandle;
 
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
-use zksync_config::configs::{FriProverConfig, ProverGroupConfig};
+use zksync_config::configs::{FriProverConfig, PostgresConfig, ProverGroupConfig};
 use zksync_env_config::{
     object_store::{ProverObjectStoreConfig, PublicObjectStoreConfig},
     FromEnv,
@@ -30,7 +30,8 @@ mod socket_listener;
 mod utils;
 
 async fn graceful_shutdown(port: u16) -> anyhow::Result<impl Future<Output = ()>> {
-    let pool = ProverConnectionPool::singleton(DbVariant::Real)
+    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
+    let pool = ProverConnectionPool::singleton(postgres_config.prover_url()?)
         .build()
         .await
         .context("failed to build a connection pool")?;
@@ -114,10 +115,16 @@ async fn main() -> anyhow::Result<()> {
         specialized_group_id,
         circuit_ids_for_round_to_be_proven.clone()
     );
-    let pool = ProverConnectionPool::builder(DbVariant::Real)
-        .build()
-        .await
-        .context("failed to build a connection pool")?;
+
+    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
+    let pool = ProverConnectionPool::builder(
+        postgres_config.prover_url()?,
+        postgres_config.max_connections()?,
+    )
+    .build()
+    .await
+    .context("failed to build a connection pool")?;
+
     let port = prover_config.witness_vector_receiver_port;
     let prover_tasks = get_prover_tasks(
         prover_config,

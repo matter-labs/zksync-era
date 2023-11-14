@@ -1,7 +1,9 @@
 use clap::Parser;
 
-use zksync_server_dal::connection::DbVariant;
-use zksync_server_dal::ServerConnectionPool;
+use zksync_config::PostgresConfig;
+use zksync_dal::ServerConnectionPool;
+use zksync_env_config::FromEnv;
+
 use zksync_types::MiniblockNumber;
 
 const MIGRATED_TABLE: &str = "storage_logs";
@@ -23,8 +25,9 @@ struct Cli {
 
 #[tokio::main]
 async fn main() {
+    let config = PostgresConfig::from_env().unwrap();
     let opt = Cli::parse();
-    let pool = ServerConnectionPool::singleton(DbVariant::Replica)
+    let pool = ServerConnectionPool::singleton(config.replica_url().unwrap())
         .build()
         .await
         .unwrap();

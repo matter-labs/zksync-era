@@ -86,6 +86,7 @@ where
             .eth_sender_dal()
             .get_tx_history_to_check(op.id)
             .await
+            .unwrap()
         {
             // `status` is a Result here and we don't unwrap it with `?`
             // because if we do and get an `Err`, we won't finish the for loop,
@@ -152,6 +153,7 @@ where
             .eth_sender_dal()
             .get_last_sent_eth_tx(eth_tx_id)
             .await
+            .unwrap()
             .unwrap();
 
         let previous_base_fee = previous_sent_tx.base_fee_per_gas;
@@ -208,6 +210,7 @@ where
                 signed_tx.raw_tx.clone(),
             )
             .await
+            .unwrap()
         {
             if let Err(error) = self
                 .send_raw_transaction(storage, tx_history_id, signed_tx.raw_tx, current_block)
@@ -237,14 +240,16 @@ where
                 storage
                     .eth_sender_dal()
                     .set_sent_at_block(tx_history_id, current_block.0)
-                    .await;
+                    .await
+                    .unwrap();
                 Ok(tx_hash)
             }
             Err(error) => {
                 storage
                     .eth_sender_dal()
                     .remove_tx_history(tx_history_id)
-                    .await;
+                    .await
+                    .unwrap();
                 Err(error.into())
             }
         }
@@ -309,7 +314,7 @@ where
             .last_known_l1_block
             .set(l1_block_numbers.latest.0.into());
         let operator_nonce = self.get_operator_nonce(l1_block_numbers).await?;
-        let inflight_txs = storage.eth_sender_dal().get_inflight_txs().await;
+        let inflight_txs = storage.eth_sender_dal().get_inflight_txs().await.unwrap();
         METRICS.number_of_inflight_txs.set(inflight_txs.len());
 
         tracing::trace!(
@@ -335,6 +340,7 @@ where
                     .eth_sender_dal()
                     .get_block_number_on_first_sent_attempt(tx.id)
                     .await
+                    .unwrap()
                     .unwrap_or(l1_block_numbers.latest.0);
                 return Ok(Some((tx, first_sent_at_block)));
             }
@@ -402,7 +408,7 @@ where
         storage: &mut ServerStorageProcessor<'_>,
         l1_block_numbers: L1BlockNumbers,
     ) {
-        for tx in storage.eth_sender_dal().get_unsent_txs().await {
+        for tx in storage.eth_sender_dal().get_unsent_txs().await.unwrap() {
             // Check already sent txs not marked as sent and mark them as sent.
             // The common reason for this behaviour is that we sent tx and stop the server
             // before updating the database
@@ -413,12 +419,14 @@ where
                 storage
                     .eth_sender_dal()
                     .set_sent_at_block(tx.id, tx_status.receipt.block_number.unwrap().as_u32())
-                    .await;
+                    .await
+                    .unwrap();
 
                 let eth_tx = storage
                     .eth_sender_dal()
                     .get_eth_tx(tx.eth_tx_id)
                     .await
+                    .unwrap()
                     .expect("Eth tx should exist");
 
                 self.apply_tx_status(storage, &eth_tx, tx_status, l1_block_numbers.finalized)
@@ -469,7 +477,8 @@ where
         storage
             .eth_sender_dal()
             .mark_failed_transaction(tx.id)
-            .await;
+            .await
+            .unwrap();
         let failure_reason = self
             .ethereum_gateway
             .failure_reason(tx_status.receipt.transaction_hash)
@@ -502,7 +511,8 @@ where
         storage
             .eth_sender_dal()
             .confirm_tx(tx_status.tx_hash, gas_used)
-            .await;
+            .await
+            .unwrap();
 
         METRICS
             .track_eth_tx_metrics(storage, BlockL1Stage::Mined, tx)
@@ -531,6 +541,7 @@ where
             .eth_sender_dal()
             .get_block_number_on_first_sent_attempt(tx.id)
             .await
+            .unwrap()
             .unwrap_or(0);
         let waited_blocks = tx_status.receipt.block_number.unwrap().as_u32() - sent_at_block;
         METRICS.l1_blocks_waited_in_mempool[&tx_type_label].observe(waited_blocks.into());
@@ -580,7 +591,12 @@ where
         storage: &mut ServerStorageProcessor<'_>,
         current_block: L1BlockNumber,
     ) {
-        let number_inflight_txs = storage.eth_sender_dal().get_inflight_txs().await.len();
+        let number_inflight_txs = storage
+            .eth_sender_dal()
+            .get_inflight_txs()
+            .await
+            .unwrap()
+            .len();
         let number_of_available_slots_for_eth_txs = self
             .config
             .max_txs_in_flight
@@ -591,7 +607,8 @@ where
             let new_eth_tx = storage
                 .eth_sender_dal()
                 .get_new_eth_txs(number_of_available_slots_for_eth_txs)
-                .await;
+                .await
+                .unwrap();
 
             for tx in new_eth_tx {
                 let _ = self.send_eth_tx(storage, &tx, 0, current_block).await;

@@ -6323,6 +6323,8 @@ version = "0.1.0"
 dependencies = [
  "clap 4.3.4",
  "tokio",
+ "zksync_config",
+ "zksync_env_config",
  "zksync_server_dal",
  "zksync_types",
 ]
@@ -7132,6 +7134,8 @@ dependencies = [
  "anyhow",
  "serde_json",
  "tokio",
+ "zksync_config",
+ "zksync_env_config",
  "zksync_server_dal",
  "zksync_types",
 ]
@@ -7917,10 +7921,8 @@ name = "zksync_config"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "envy",
  "serde",
  "zksync_basic_types",
- "zksync_contracts",
 ]
 
 [[package]]
@@ -8262,6 +8264,7 @@ dependencies = [
  "async-trait",
  "tokio",
  "tracing",
+ "vise",
  "zksync_utils",
 ]
 

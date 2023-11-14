@@ -17,6 +17,7 @@ impl CircuitBreaker for FailedL1TransactionChecker {
             .eth_sender_dal()
             .get_number_of_failed_transactions()
             .await
+            .unwrap()
             > 0
         {
             return Err(CircuitBreakerError::FailedL1Transaction);
