@@ -261,7 +261,7 @@ fn proving_keys_existence_and_absence() {
     updater.patch_set.ensure_internal_root_node(); // Necessary for proofs to work.
     updater.insert(FIRST_KEY, H256([1; 32]), &Nibbles::EMPTY, || 1);
 
-    let mut hasher = (&() as &dyn HashTree).into();
+    let mut hasher = HasherWithStats::new(&());
     let (op, merkle_path) = updater.prove(&mut hasher, FIRST_KEY, &Nibbles::EMPTY);
     assert_matches!(op, TreeLogEntry::Read { .. });
     let merkle_path = finalize_merkle_path(merkle_path, &hasher);
