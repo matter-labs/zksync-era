@@ -149,7 +149,7 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::
         l1_batch_number.0
     );
     tracing::info!(
-        "{} chunks of max size {} will be generated",
+        "Starting to generate {} chunks of max size {}",
         chunks_count,
         chunk_size
     );
