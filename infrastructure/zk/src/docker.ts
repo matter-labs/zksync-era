@@ -27,11 +27,14 @@ async function dockerCommand(
     customTag?: string,
     dockerOrg: string = 'matterlabs'
 ) {
+    // Generating all tags for containers. We need 2 tags here: SHA and SHA+TS
     const { stdout: COMMIT_SHORT_SHA }: { stdout: string } = await utils.exec('git rev-parse --short HEAD');
+    // COMMIT_SHORT_SHA returns with newline, so we need to trim it
     const imageTagShaTS: string = process.env.IMAGE_TAG_SUFFIX
         ? process.env.IMAGE_TAG_SUFFIX
         : `${COMMIT_SHORT_SHA.trim()}-${UNIX_TIMESTAMP}`;
 
+    // We want an alternative flow for Rust image
     if (image == 'rust') {
         await dockerCommand(command, 'server-v2', customTag, dockerOrg);
         await dockerCommand(command, 'prover', customTag, dockerOrg);
@@ -47,6 +50,7 @@ async function dockerCommand(
 
     const tagList = customTag ? [customTag] : defaultTagList(image, COMMIT_SHORT_SHA.trim(), imageTagShaTS);
 
+    // Main build\push flow
     switch (command) {
         case 'build':
             await _build(image, tagList, dockerOrg);
