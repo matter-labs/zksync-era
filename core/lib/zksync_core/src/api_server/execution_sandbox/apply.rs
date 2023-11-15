@@ -203,6 +203,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
         fee_account: *operator_account.address(),
         enforced_base_fee: execution_args.enforced_base_fee,
         first_l2_block: next_l2_block_info,
+        pubdata_price: l1_gas_price * 17,
     };
 
     let storage_view = storage_view.to_rc_ptr();

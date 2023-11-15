@@ -80,6 +80,7 @@ pub(super) fn default_l1_batch_env(
             prev_block_hash: legacy_miniblock_hash(MiniblockNumber(number - 1)),
             max_virtual_blocks_to_create: 1,
         },
+        pubdata_price: 17,
     }
 }
 

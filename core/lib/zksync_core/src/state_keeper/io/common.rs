@@ -54,6 +54,7 @@ pub(crate) fn l1_batch_params(
                 prev_block_hash: prev_miniblock_hash,
                 max_virtual_blocks_to_create: virtual_blocks,
             },
+            pubdata_price: l1_gas_price * 17,
         },
     )
 }

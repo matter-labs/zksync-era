@@ -17,6 +17,9 @@ pub const MAX_CYCLES_FOR_TX: u32 = u32::MAX;
 /// The first 32 slots are reserved for debugging purposes
 pub(crate) const DEBUG_SLOTS_OFFSET: usize = 8;
 pub(crate) const DEBUG_FIRST_SLOTS: usize = 32;
+/// The next 2 slots are reserved for cached fee params
+pub(crate) const CACHED_FEE_PARAMS_SLOTS: usize = 2;
+
 /// The next 33 slots are reserved for dealing with the paymaster context (1 slot for storing length + 32 slots for storing the actual context).
 pub(crate) const PAYMASTER_CONTEXT_SLOTS: usize = 32 + 1;
 /// The next PAYMASTER_CONTEXT_SLOTS + 7 slots free slots are needed before each tx, so that the
@@ -37,6 +40,7 @@ const NEW_FACTORY_DEPS_RESERVED_SLOTS: usize = MAX_NEW_FACTORY_DEPS + 4;
 pub(crate) const OPERATOR_REFUNDS_SLOTS: usize = MAX_TXS_IN_BLOCK;
 
 pub(crate) const OPERATOR_REFUNDS_OFFSET: usize = DEBUG_SLOTS_OFFSET
+    + CACHED_FEE_PARAMS_SLOTS
     + DEBUG_FIRST_SLOTS
     + PAYMASTER_CONTEXT_SLOTS
     + CURRENT_L2_TX_HASHES_SLOTS
@@ -89,6 +93,8 @@ const INITIAL_BASE_PAGE: u32 = 8;
 pub const BOOTLOADER_HEAP_PAGE: u32 = heap_page_from_base(MemoryPage(INITIAL_BASE_PAGE)).0;
 pub const BLOCK_OVERHEAD_GAS: u32 = 1200000;
 pub const BLOCK_OVERHEAD_L1_GAS: u32 = 1000000;
+
+// TODO: maybe remove this consstant
 pub const BLOCK_OVERHEAD_PUBDATA: u32 = BLOCK_OVERHEAD_L1_GAS / L1_GAS_PER_PUBDATA_BYTE;
 
 /// VM Hooks are used for communication between bootloader and tracers.

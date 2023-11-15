@@ -597,8 +597,9 @@ impl<G: L1GasPriceProvider> TxSender<G> {
     ) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics) {
         let gas_limit_with_overhead = tx_gas_limit
             + derive_overhead(
-                tx_gas_limit,
-                gas_per_pubdata_byte as u32,
+                l1_gas_price,
+                self.0.sender_config.fair_l2_gas_price,
+                base_fee,
                 tx.encoding_len(),
                 OverheadCoeficients::from_tx_type(tx.tx_format() as u8),
             );
@@ -829,8 +830,9 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         self.ensure_tx_executable(tx.clone(), &tx_metrics, false)?;
 
         let overhead = derive_overhead(
-            suggested_gas_limit,
-            gas_per_pubdata_byte as u32,
+            l1_gas_price,
+            self.0.sender_config.fair_l2_gas_price,
+            base_fee,
             tx.encoding_len(),
             OverheadCoeficients::from_tx_type(tx.tx_format() as u8),
         );

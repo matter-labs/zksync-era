@@ -58,8 +58,11 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         with_compression: bool,
     ) {
         let tx: TransactionData = tx.into();
-        let block_gas_per_pubdata_byte = self.batch_env.block_gas_price_per_pubdata();
-        let overhead = tx.overhead_gas(block_gas_per_pubdata_byte as u32);
+        let overhead = tx.overhead_gas(
+            self.batch_env.l1_gas_price,
+            self.batch_env.fair_l2_gas_price,
+            self.batch_env.base_fee(),
+        );
         self.push_raw_transaction(tx, overhead, 0, with_compression);
     }
 }

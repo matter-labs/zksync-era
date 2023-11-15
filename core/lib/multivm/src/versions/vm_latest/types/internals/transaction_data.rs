@@ -199,11 +199,12 @@ impl TransactionData {
         }
     }
 
-    pub(crate) fn overhead_gas(&self, block_gas_price_per_pubdata: u32) -> u32 {
-        let total_gas_limit = self.gas_limit.as_u32();
-        let gas_price_per_pubdata =
-            self.effective_gas_price_per_pubdata(block_gas_price_per_pubdata);
-
+    pub(crate) fn overhead_gas(
+        &self,
+        batch_l1_gas_price: u64,
+        batch_l2_fair_gas_price: u64,
+        batch_base_fee: u64,
+    ) -> u32 {
         let encoded_len = encoding_len(
             self.data.len() as u64,
             self.signature.len() as u64,
@@ -212,10 +213,37 @@ impl TransactionData {
             self.reserved_dynamic.len() as u64,
         );
 
+        let (l1_gas_price, l2_fair_gas_price, base_fee) = if is_l1_tx_type(self.tx_type) {
+            // todo: please move this constant outside
+            const LEGACY_PRIORITY_OP_GAS_LIMIT: u64 = 72_000_000;
+
+            let l1_gas_price = self.reserved[2].as_u64();
+            if l1_gas_price == 0 {
+                // It is assumed that l1GasPrice is 0 for legacy L1->L2 transactions.
+                // We could in theory duplicate the previous logic for such transactions, but
+                // in order to avoid maintaining big edge cases, the approach of considering whatever overhead is required to get the
+                // maximal gaslimit is used.
+
+                return self
+                    .gas_limit
+                    .saturating_sub(LEGACY_PRIORITY_OP_GAS_LIMIT.into())
+                    .as_u32();
+            }
+
+            (
+                l1_gas_price,
+                self.max_fee_per_gas.as_u64(),
+                self.max_fee_per_gas.as_u64(),
+            )
+        } else {
+            (batch_l1_gas_price, batch_l2_fair_gas_price, batch_base_fee)
+        };
+
         let coeficients = OverheadCoeficients::from_tx_type(self.tx_type);
         get_amortized_overhead(
-            total_gas_limit,
-            gas_price_per_pubdata,
+            l1_gas_price,
+            l2_fair_gas_price,
+            base_fee,
             encoded_len,
             coeficients,
         )
