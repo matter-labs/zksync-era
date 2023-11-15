@@ -102,7 +102,8 @@ async function _build(image: string, tagList: string[], dockerOrg: string) {
     // For prover-v2 which is not a prover, but should be built from the prover dockerfile. So here we go.
     const imagePath = image == 'prover-v2' ? 'prover' : image;
 
-    const buildCommand = `DOCKER_BUILDKIT=1 docker build ${tagsToBuild}` +
+    const buildCommand =
+        `DOCKER_BUILDKIT=1 docker build ${tagsToBuild}` +
         (buildArgs ? ` ${buildArgs}` : '') +
         ` -f ./docker/${imagePath}/Dockerfile .`;
 
