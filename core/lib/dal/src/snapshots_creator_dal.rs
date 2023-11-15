@@ -59,10 +59,7 @@ impl SnapshotsCreatorDal<'_, '_> {
                 AND storage_logs.operation_number = keys.op[2]
                      INNER JOIN initial_writes ON keys.hashed_key = initial_writes.hashed_key
             WHERE miniblock_number <= $1
-            ORDER BY ARRAY(
-                 SELECT get_byte(storage_logs.hashed_key, 32 - generate_series)
-                 FROM generate_series(1, 32)
-             )
+            ORDER BY hashed_key
             LIMIT $2 OFFSET $3;
              "#,
             miniblock_number,
