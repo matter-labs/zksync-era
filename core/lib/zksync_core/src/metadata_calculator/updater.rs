@@ -165,13 +165,17 @@ impl TreeUpdater {
             reestimate_gas_cost_latency.observe();
 
             let save_postgres_latency = METRICS.start_stage(TreeUpdateStage::SavePostgres);
+            let is_pre_boojum = header
+                .protocol_version
+                .map(|v| v.is_pre_boojum())
+                .unwrap_or(true);
             storage
                 .blocks_dal()
                 .save_l1_batch_metadata(
                     l1_batch_number,
                     &metadata,
                     previous_root_hash,
-                    header.protocol_version.unwrap(),
+                    is_pre_boojum,
                 )
                 .await
                 .unwrap();
@@ -246,11 +250,14 @@ impl TreeUpdater {
             .await
             .unwrap();
 
-        let protocol_version = header.protocol_version.unwrap();
-        let events_queue_commitment = (!protocol_version.is_pre_boojum()).then(|| {
+        let is_pre_boojum = header
+            .protocol_version
+            .map(|v| v.is_pre_boojum())
+            .unwrap_or(true);
+        let events_queue_commitment = (!is_pre_boojum).then(|| {
             let events_queue =
                 events_queue.expect("Events queue is required for post-boojum batch");
-            events_queue_commitment(&events_queue, protocol_version)
+            events_queue_commitment(&events_queue, is_pre_boojum)
                 .expect("Events queue commitment is required for post-boojum batch")
         });
         events_queue_commitment_latency.observe();
@@ -264,7 +271,7 @@ impl TreeUpdater {
             .unwrap()
             .unwrap();
         let bootloader_initial_content_commitment =
-            bootloader_initial_content_commitment(&initial_bootloader_contents, protocol_version);
+            bootloader_initial_content_commitment(&initial_bootloader_contents, is_pre_boojum);
         bootloader_commitment_latency.observe();
 
         (
