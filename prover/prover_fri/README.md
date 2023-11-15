@@ -23,9 +23,9 @@ Machine specs:
 
    ```markdown
    for i in {1..13}; do zk f cargo run --release --bin zksync_setup_data_generator_fri -- --numeric-circuit $i
-   --is_base_layer done
+   --is_base_layer; done
 
-   for i in {1..15}; do zk f cargo run --release --bin zksync_setup_data_generator_fri -- --numeric-circuit $i done
+   for i in {1..15}; do zk f cargo run --release --bin zksync_setup_data_generator_fri -- --numeric-circuit $i; done
    ```
 
 3. Initialize DB and run migrations: `zk init`

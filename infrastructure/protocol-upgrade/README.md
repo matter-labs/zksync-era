@@ -80,8 +80,7 @@ $ zk f yarn start facets deploy \
 --zksync-address <zksync-address> \
 --environment <environment> \
 --executor \
---governance \
---diamond-cut \
+--admin \
 --getters \
 --mailbox
 ```
@@ -174,7 +173,6 @@ $ zk f yarn start crypto deploy-verifier
 --gas-price <gas-price> \
 --nonce <nonce> \
 --create2-address <create2-address> \
---zksync-address <zksync-address> \
 --environment <environment>
 ```
 

@@ -87,6 +87,7 @@ mod tests {
                 max_batch_request_size: Some(200),
                 max_response_body_size_mb: Some(10),
                 websocket_requests_per_minute_limit: Some(10),
+                tree_api_url: None,
             },
             contract_verification: ContractVerificationApiConfig {
                 port: 3070,
