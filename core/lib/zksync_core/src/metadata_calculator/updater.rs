@@ -245,8 +245,13 @@ impl TreeUpdater {
             .get_events_queue(header.number)
             .await
             .unwrap();
-        let events_queue_commitment = events_queue.and_then(|events_queue| {
-            events_queue_commitment(&events_queue, header.protocol_version.unwrap())
+
+        let protocol_version = header.protocol_version.unwrap();
+        let events_queue_commitment = (!protocol_version.is_pre_boojum()).then(|| {
+            let events_queue =
+                events_queue.expect("Events queue is required for post-boojum batch");
+            events_queue_commitment(&events_queue, protocol_version)
+                .expect("Events queue commitment is required for post-boojum batch")
         });
         events_queue_commitment_latency.observe();
 
@@ -258,10 +263,8 @@ impl TreeUpdater {
             .await
             .unwrap()
             .unwrap();
-        let bootloader_initial_content_commitment = bootloader_initial_content_commitment(
-            &initial_bootloader_contents,
-            header.protocol_version.unwrap(),
-        );
+        let bootloader_initial_content_commitment =
+            bootloader_initial_content_commitment(&initial_bootloader_contents, protocol_version);
         bootloader_commitment_latency.observe();
 
         (
