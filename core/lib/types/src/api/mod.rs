@@ -627,7 +627,7 @@ pub enum SupportedTracers {
     CallTracer,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct CallTracerConfig {
     pub only_top_call: bool,
@@ -637,6 +637,7 @@ pub struct CallTracerConfig {
 #[serde(rename_all = "camelCase")]
 pub struct TracerConfig {
     pub tracer: SupportedTracers,
+    #[serde(default)]
     pub tracer_config: CallTracerConfig,
 }
 
