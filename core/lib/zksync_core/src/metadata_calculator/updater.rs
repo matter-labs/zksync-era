@@ -244,10 +244,10 @@ impl TreeUpdater {
             .blocks_dal()
             .get_events_queue(header.number)
             .await
-            .unwrap()
             .unwrap();
-        let events_queue_commitment =
-            events_queue_commitment(&events_queue, header.protocol_version.unwrap());
+        let events_queue_commitment = events_queue.and_then(|events_queue| {
+            events_queue_commitment(&events_queue, header.protocol_version.unwrap())
+        });
         events_queue_commitment_latency.observe();
 
         let bootloader_commitment_latency =
