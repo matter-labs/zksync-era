@@ -4,7 +4,6 @@ mod bootloader_state;
 pub mod errors;
 pub mod event_sink;
 mod events;
-pub(crate) mod glue;
 mod history_recorder;
 pub mod memory;
 mod oracle_tools;
@@ -15,18 +14,19 @@ pub mod storage;
 pub mod test_utils;
 pub mod transaction_data;
 pub mod utils;
-pub mod vm;
+pub mod vm_instance;
 pub mod vm_with_bootloader;
 
 #[cfg(test)]
 mod tests;
+mod vm;
 
 pub use errors::TxRevertReason;
 pub use oracle_tools::OracleTools;
 pub use oracles::storage::StorageOracle;
-pub use vm::VmBlockResult;
-pub use vm::VmExecutionResult;
-pub use vm::VmInstance;
+pub use vm::Vm;
+pub use vm_instance::VmBlockResult;
+pub use vm_instance::VmExecutionResult;
 pub use zk_evm_1_3_1;
 pub use zksync_types::vm_trace::VmExecutionTrace;
 

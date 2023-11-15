@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use zk_evm_1_3_3::aux_structures::Timestamp;
-use zk_evm_1_3_3::vm_state::VmLocalState;
+use zk_evm_1_4_0::aux_structures::Timestamp;
+use zk_evm_1_4_0::vm_state::VmLocalState;
 use zksync_state::WriteStorage;
 
 use zksync_types::{StorageKey, StorageLogQuery, StorageValue, U256};
@@ -9,6 +9,7 @@ use zksync_types::{StorageKey, StorageLogQuery, StorageValue, U256};
 use crate::vm_latest::old_vm::event_sink::InMemoryEventSink;
 use crate::vm_latest::old_vm::history_recorder::{AppDataFrameManagerWithHistory, HistoryRecorder};
 use crate::vm_latest::{HistoryEnabled, HistoryMode, SimpleMemory, Vm};
+use crate::HistoryMode as CommonHistoryMode;
 
 #[derive(Clone, Debug)]
 pub(crate) struct ModifiedKeysMap(HashMap<StorageKey, StorageValue>);
@@ -51,6 +52,7 @@ pub(crate) struct StorageOracleInnerState<H: HistoryMode> {
     pub(crate) pre_paid_changes: HistoryRecorder<HashMap<StorageKey, u32>, H>,
     pub(crate) paid_changes: HistoryRecorder<HashMap<StorageKey, u32>, H>,
     pub(crate) initial_values: HistoryRecorder<HashMap<StorageKey, U256>, H>,
+    pub(crate) returned_refunds: HistoryRecorder<Vec<u32>, H>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -70,9 +72,9 @@ pub(crate) struct VmInstanceInnerState<H: HistoryMode> {
     local_state: VmLocalState,
 }
 
-impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
+impl<S: WriteStorage, H: CommonHistoryMode> Vm<S, H> {
     // Dump inner state of the VM.
-    pub(crate) fn dump_inner_state(&self) -> VmInstanceInnerState<H> {
+    pub(crate) fn dump_inner_state(&self) -> VmInstanceInnerState<H::VmBoojumIntegration> {
         let event_sink = self.state.event_sink.clone();
         let precompile_processor_state = PrecompileProcessorTestInnerState {
             timestamp_history: self.state.precompiles_processor.timestamp_history.clone(),
@@ -108,6 +110,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             pre_paid_changes: self.state.storage.pre_paid_changes.clone(),
             paid_changes: self.state.storage.paid_changes.clone(),
             initial_values: self.state.storage.initial_values.clone(),
+            returned_refunds: self.state.storage.returned_refunds.clone(),
         };
         let local_state = self.state.local_state.clone();
 

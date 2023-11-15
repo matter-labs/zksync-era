@@ -10,7 +10,7 @@ use zksync_types::{
     aggregated_operations::AggregatedOperation,
     contracts::{Multicall3Call, Multicall3Result},
     eth_sender::EthTx,
-    ethabi::Token,
+    ethabi::{Contract, Token},
     protocol_version::{L1VerifierConfig, VerifierParams},
     vk_transform::l1_vk_commitment,
     web3::contract::{tokens::Tokenizable, Error, Options},
@@ -304,21 +304,50 @@ impl EthTxAggregator {
         &mut self,
         eth_client: &E,
         verifier_address: Address,
+        contracts_are_pre_boojum: bool,
     ) -> Result<H256, ETHSenderError> {
-        let token: Token = eth_client
-            .call_contract_function(
-                &self.functions.get_verification_key.name,
-                (),
-                None,
-                Default::default(),
-                None,
-                verifier_address,
-                self.functions.verifier_contract.clone(),
-            )
-            .await?;
-        let recursion_scheduler_level_vk_hash = l1_vk_commitment(token);
-
-        Ok(recursion_scheduler_level_vk_hash)
+        // This is here for backward compatibility with the old verifier:
+        // Pre-boojum verifier returns the full verification key;
+        // New verifier returns the hash of the verification key
+        tracing::debug!("Calling get_verification_key");
+        if contracts_are_pre_boojum {
+            let abi = Contract {
+                functions: vec![(
+                    self.functions.get_verification_key.name.clone(),
+                    vec![self.functions.get_verification_key.clone()],
+                )]
+                .into_iter()
+                .collect(),
+                ..Default::default()
+            };
+            let vk = eth_client
+                .call_contract_function(
+                    &self.functions.get_verification_key.name,
+                    (),
+                    None,
+                    Default::default(),
+                    None,
+                    verifier_address,
+                    abi,
+                )
+                .await?;
+            Ok(l1_vk_commitment(vk))
+        } else {
+            let get_vk_hash = self.functions.verification_key_hash.as_ref();
+            tracing::debug!("Calling verificationKeyHash");
+            let vk_hash = eth_client
+                .call_contract_function(
+                    &get_vk_hash.unwrap().name,
+                    (),
+                    None,
+                    Default::default(),
+                    None,
+                    verifier_address,
+                    self.functions.verifier_contract.clone(),
+                )
+                .await?;
+            Ok(vk_hash)
+        }
     }
 
     #[tracing::instrument(skip(self, storage, eth_client))]
@@ -333,11 +362,23 @@ impl EthTxAggregator {
             verifier_params,
             verifier_address,
             protocol_version_id,
-        } = self.get_multicall_data(eth_client).await?;
+        } = self.get_multicall_data(eth_client).await.map_err(|err| {
+            tracing::error!("Failed to get multicall data {err:?}");
+            err
+        })?;
+        let contracts_are_pre_boojum = protocol_version_id.is_pre_boojum();
 
         let recursion_scheduler_level_vk_hash = self
-            .get_recursion_scheduler_level_vk_hash(eth_client, verifier_address)
-            .await?;
+            .get_recursion_scheduler_level_vk_hash(
+                eth_client,
+                verifier_address,
+                contracts_are_pre_boojum,
+            )
+            .await
+            .map_err(|err| {
+                tracing::error!("Failed to get VK hash from the Verifier {err:?}");
+                err
+            })?;
         let l1_verifier_config = L1VerifierConfig {
             params: verifier_params,
             recursion_scheduler_level_vk_hash,
@@ -353,7 +394,9 @@ impl EthTxAggregator {
             )
             .await
         {
-            let tx = self.save_eth_tx(storage, &agg_op).await?;
+            let tx = self
+                .save_eth_tx(storage, &agg_op, contracts_are_pre_boojum)
+                .await?;
             Self::report_eth_tx_saving(storage, agg_op, &tx).await;
         }
         Ok(())
@@ -390,20 +433,51 @@ impl EthTxAggregator {
             .await;
     }
 
-    fn encode_aggregated_op(&self, op: &AggregatedOperation) -> Vec<u8> {
+    fn encode_aggregated_op(
+        &self,
+        op: &AggregatedOperation,
+        contracts_are_pre_boojum: bool,
+    ) -> Vec<u8> {
+        let operation_is_pre_boojum = op.protocol_version().is_pre_boojum();
+
+        // For "commit" and "prove" operations it's necessary that the contracts are of the same version as L1 batches are.
+        // For "execute" it's not required, i.e. we can "execute" pre-boojum batches with post-boojum contracts.
         match &op {
-            AggregatedOperation::Commit(op) => self
-                .functions
-                .commit_blocks
-                .encode_input(&op.get_eth_tx_args()),
-            AggregatedOperation::PublishProofOnchain(op) => self
-                .functions
-                .prove_blocks
-                .encode_input(&op.get_eth_tx_args()),
-            AggregatedOperation::Execute(op) => self
-                .functions
-                .execute_blocks
-                .encode_input(&op.get_eth_tx_args()),
+            AggregatedOperation::Commit(op) => {
+                assert_eq!(contracts_are_pre_boojum, operation_is_pre_boojum);
+                let f = if contracts_are_pre_boojum {
+                    &self.functions.pre_boojum_commit
+                } else {
+                    self.functions
+                        .post_boojum_commit
+                        .as_ref()
+                        .expect("Missing ABI for commitBatches")
+                };
+                f.encode_input(&op.get_eth_tx_args())
+            }
+            AggregatedOperation::PublishProofOnchain(op) => {
+                assert_eq!(contracts_are_pre_boojum, operation_is_pre_boojum);
+                let f = if contracts_are_pre_boojum {
+                    &self.functions.pre_boojum_prove
+                } else {
+                    self.functions
+                        .post_boojum_prove
+                        .as_ref()
+                        .expect("Missing ABI for proveBatches")
+                };
+                f.encode_input(&op.get_eth_tx_args())
+            }
+            AggregatedOperation::Execute(op) => {
+                let f = if contracts_are_pre_boojum {
+                    &self.functions.pre_boojum_execute
+                } else {
+                    self.functions
+                        .post_boojum_execute
+                        .as_ref()
+                        .expect("Missing ABI for executeBatches")
+                };
+                f.encode_input(&op.get_eth_tx_args())
+            }
         }
         .expect("Failed to encode transaction data")
     }
@@ -412,10 +486,11 @@ impl EthTxAggregator {
         &self,
         storage: &mut StorageProcessor<'_>,
         aggregated_op: &AggregatedOperation,
+        contracts_are_pre_boojum: bool,
     ) -> Result<EthTx, ETHSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
         let nonce = self.get_next_nonce(&mut transaction).await?;
-        let calldata = self.encode_aggregated_op(aggregated_op);
+        let calldata = self.encode_aggregated_op(aggregated_op, contracts_are_pre_boojum);
         let l1_batch_number_range = aggregated_op.l1_batch_range();
         let op_type = aggregated_op.get_action_type();
 
@@ -435,7 +510,8 @@ impl EthTxAggregator {
                 self.timelock_contract_address,
                 eth_tx_predicted_gas,
             )
-            .await;
+            .await
+            .unwrap();
 
         transaction
             .blocks_dal()
@@ -450,7 +526,12 @@ impl EthTxAggregator {
         &self,
         storage: &mut StorageProcessor<'_>,
     ) -> Result<u64, ETHSenderError> {
-        let db_nonce = storage.eth_sender_dal().get_next_nonce().await.unwrap_or(0);
+        let db_nonce = storage
+            .eth_sender_dal()
+            .get_next_nonce()
+            .await
+            .unwrap()
+            .unwrap_or(0);
         // Between server starts we can execute some txs using operator account or remove some txs from the database
         // At the start we have to consider this fact and get the max nonce.
         Ok(db_nonce.max(self.base_nonce))

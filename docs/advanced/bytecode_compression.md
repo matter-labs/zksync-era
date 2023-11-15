@@ -8,9 +8,9 @@ reconstructed from L1 if needed).
 Given the want/need to cutdown on space used, bytecode is compressed prior to being posted to L1. At a high level
 bytecode is chunked into opcodes (which have a size of 8 bytes), assigned a 2 byte index, and the newly formed byte
 sequence (indexes) are verified and sent to L1. This process is split into 2 different parts: (1)
-[the server side operator](https://github.com/matter-labs/zksync-2-dev/blob/main/core/lib/utils/src/bytecode.rs#L31)
+[the server side operator](https://github.com/matter-labs/zksync-era/blob/main/core/lib/utils/src/bytecode.rs#L31)
 handling the compression and (2)
-[the system contract](https://github.com/matter-labs/system-contracts/blob/main/contracts/BytecodeCompressor.sol)
+[the system contract](https://github.com/matter-labs/era-system-contracts/blob/main/contracts/BytecodeCompressor.sol)
 verifying that the compression is correct before sending to L1.
 
 ## Example
@@ -55,7 +55,7 @@ For bytecode to be considered valid it must satisfy the following:
 2. Bytecode length must be a multiple of 32.
 3. Number of words cannot be even.
 
-[Source](https://github.com/matter-labs/zksync-2-dev/blob/ec4037ca0d9dc148eda3ca9e04380302574e03d8/core/lib/utils/src/bytecode.rs#L133)
+[Source](https://github.com/matter-labs/zksync-era/blob/main/core/lib/utils/src/bytecode.rs#L133)
 
 ### Compression Algorithm
 
@@ -90,7 +90,8 @@ return [len(dictionary), dictionary.keys(order=index asc), encoded_data]
 
 ## System Contract Compression Verification & Publishing
 
-The [Bytecode Compressor](https://github.com/matter-labs/system-contracts/blob/main/contracts/BytecodeCompressor.sol)
+The
+[Bytecode Compressor](https://github.com/matter-labs/era-system-contracts/blob/main/contracts/BytecodeCompressor.sol)
 contract performs validation on the compressed bytecode generated on the server side. At the current moment, publishing
 bytecode to L1 may only be called by the bootloader but in the future anyone will be able to publish compressed bytecode
 with no change to the underlying algorithm.

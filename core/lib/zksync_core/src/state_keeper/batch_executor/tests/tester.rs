@@ -41,8 +41,7 @@ pub(super) struct TestConfig {
 
 impl TestConfig {
     pub(super) fn new() -> Self {
-        // It's OK to use env config here, since we would load the postgres URL from there anyway.
-        let config = StateKeeperConfig::from_env().unwrap();
+        let config = StateKeeperConfig::for_tests();
 
         Self {
             vm_gas_limit: None,
@@ -98,6 +97,7 @@ impl Tester {
             .access_storage_tagged("state_keeper")
             .await
             .unwrap();
+
         secondary_storage.update_from_postgres(&mut conn).await;
         drop(conn);
 

@@ -107,6 +107,11 @@ pub async fn ensure_genesis_state(
         vec![],
         base_system_contracts_hashes.bootloader,
         base_system_contracts_hashes.default_aa,
+        vec![],
+        vec![],
+        H256::zero(),
+        H256::zero(),
+        protocol_version.is_pre_boojum(),
     );
 
     save_genesis_l1_batch_metadata(
@@ -123,7 +128,7 @@ pub async fn ensure_genesis_state(
     // We need to `println` this value because it will be used to initialize the smart contract.
     println!("CONTRACTS_GENESIS_ROOT={:?}", genesis_root_hash);
     println!(
-        "CONTRACTS_GENESIS_BLOCK_COMMITMENT={:?}",
+        "CONTRACTS_GENESIS_BATCH_COMMITMENT={:?}",
         block_commitment.hash().commitment
     );
     println!(
@@ -308,7 +313,13 @@ pub(crate) async fn create_genesis_l1_batch(
         .await;
     transaction
         .blocks_dal()
-        .insert_l1_batch(&genesis_l1_batch_header, &[], BlockGasCount::default(), &[])
+        .insert_l1_batch(
+            &genesis_l1_batch_header,
+            &[],
+            BlockGasCount::default(),
+            &[],
+            &[],
+        )
         .await
         .unwrap();
     transaction
@@ -378,6 +389,7 @@ pub(crate) async fn save_genesis_l1_batch_metadata(
         pass_through_data_hash: commitment_hash.pass_through_data,
         events_queue_commitment: None,
         bootloader_initial_content_commitment: None,
+        state_diffs_compressed: vec![],
     };
     storage
         .blocks_dal()
@@ -388,14 +400,14 @@ pub(crate) async fn save_genesis_l1_batch_metadata(
 
 #[cfg(test)]
 mod tests {
-    use db_test_macro::db_test;
     use zksync_dal::ConnectionPool;
     use zksync_types::system_contracts::get_system_smart_contracts;
 
     use super::*;
 
-    #[db_test]
-    async fn running_genesis(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn running_genesis() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal().delete_genesis().await.unwrap();
 
@@ -426,8 +438,9 @@ mod tests {
             .unwrap();
     }
 
-    #[db_test]
-    async fn running_genesis_with_big_chain_id(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn running_genesis_with_big_chain_id() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn: StorageProcessor<'_> = pool.access_storage().await.unwrap();
         conn.blocks_dal().delete_genesis().await.unwrap();
 

@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::ConnectionPool;
 use zksync_types::{
     web3::{error, ethabi, transports::Http, types::TransactionId, Web3},
@@ -63,6 +64,7 @@ impl ConsistencyChecker {
             .eth_sender_dal()
             .get_confirmed_tx_hash_by_eth_tx_id(commit_tx_id)
             .await
+            .unwrap()
             .unwrap_or_else(|| {
                 panic!(
                     "Commit tx hash not found in the database. Commit tx id: {}",
@@ -98,10 +100,18 @@ impl ConsistencyChecker {
             "Main node gave us a failed commit tx"
         );
 
-        let commitments = self
-            .contract
-            .function("commitBlocks")
+        let commit_function = if block_metadata
+            .header
+            .protocol_version
             .unwrap()
+            .is_pre_boojum()
+        {
+            PRE_BOOJUM_COMMIT_FUNCTION.clone()
+        } else {
+            self.contract.function("commitBatches").unwrap().clone()
+        };
+
+        let commitments = commit_function
             .decode_input(&commit_tx.input.0[4..])
             .unwrap()
             .pop()
@@ -113,7 +123,7 @@ impl ConsistencyChecker {
         // the one that corresponds to the batch we're checking.
         let first_batch_number = match &commitments[0] {
             ethabi::Token::Tuple(tuple) => tuple[0].clone().into_uint().unwrap().as_usize(),
-            _ => panic!("ABI does not match the commitBlocks() function on the zkSync contract"),
+            _ => panic!("ABI does not match the expected one"),
         };
         let commitment = &commitments[batch_number.0 as usize - first_batch_number];
 
@@ -152,7 +162,7 @@ impl ConsistencyChecker {
                 break;
             }
 
-            let batch_has_metadata = self
+            let metadata = self
                 .db
                 .access_storage()
                 .await
@@ -160,8 +170,13 @@ impl ConsistencyChecker {
                 .blocks_dal()
                 .get_l1_batch_metadata(batch_number)
                 .await
-                .unwrap()
-                .is_some();
+                .unwrap();
+            let batch_has_metadata = metadata
+                .map(|m| {
+                    m.metadata.bootloader_initial_content_commitment.is_some()
+                        && m.metadata.events_queue_commitment.is_some()
+                })
+                .unwrap_or(false);
 
             // The batch might be already committed but not yet processed by the external node's tree
             // OR the batch might be processed by the external node's tree but not yet committed.

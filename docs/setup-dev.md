@@ -150,7 +150,7 @@ installed toolchains
 active toolchain
 ----------------
 
-1.67.1-aarch64-apple-darwin (overridden by '/Users/user/workspace/zksync-2-dev/rust-toolchain')
+1.67.1-aarch64-apple-darwin (overridden by '/Users/user/workspace/zksync-era/rust-toolchain')
 ```
 
 If you see `x86_64` mentioned in the output, probably you're running (or used to run) your IDE/terminal in Rosetta. If
@@ -167,6 +167,12 @@ On mac:
 brew install postgresql@14
 ```
 
+On linux:
+
+```bash
+sudo apt-get install postgresql
+```
+
 ### Cargo nextest
 
 [cargo-nextest](https://nexte.st/) is the next-generation test runner for Rust projects. `zk test rust` uses
@@ -174,12 +180,6 @@ brew install postgresql@14
 
 ```bash
 cargo install cargo-nextest
-```
-
-On linux:
-
-```bash
-sudo apt-get install postgresql
 ```
 
 ### SQLx CLI

@@ -1,4 +1,4 @@
-use crate::vm_m6::glue::GlueInto;
+use crate::glue::GlueInto;
 use crate::vm_m6::history_recorder::HistoryMode;
 use crate::vm_m6::oracles::storage::storage_key_of_log;
 use crate::vm_m6::storage::Storage;

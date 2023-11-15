@@ -4,7 +4,6 @@ use tempfile::TempDir;
 
 use std::net::Ipv4Addr;
 
-use db_test_macro::db_test;
 use zksync_dal::ConnectionPool;
 
 use super::*;
@@ -12,8 +11,10 @@ use crate::metadata_calculator::tests::{
     gen_storage_logs, reset_db_state, run_calculator, setup_calculator,
 };
 
-#[db_test]
-async fn merkle_tree_api(pool: ConnectionPool, prover_pool: ConnectionPool) {
+#[tokio::test]
+async fn merkle_tree_api() {
+    let pool = ConnectionPool::test_pool().await;
+    let prover_pool = ConnectionPool::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
     let api_addr = (Ipv4Addr::LOCALHOST, 0).into();

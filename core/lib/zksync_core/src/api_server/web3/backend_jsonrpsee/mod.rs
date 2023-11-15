@@ -29,6 +29,7 @@ pub fn into_jsrpc_error(err: Web3Error) -> ErrorObjectOwned {
             Web3Error::SubmitTransactionError(_, _) | Web3Error::SerializationError(_) => 3,
             Web3Error::PubSubTimeout => 4,
             Web3Error::RequestTimeout => 5,
+            Web3Error::TreeApiUnavailable => 6,
         },
         match err {
             Web3Error::SubmitTransactionError(ref message, _) => message.clone(),

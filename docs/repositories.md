@@ -4,10 +4,10 @@
 
 ### Core components
 
-| Internal repository                                         | Public repository                                                     | Description                                               |
-| ----------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------- |
-| [zksync-2-dev](https://github.com/matter-labs/zksync-2-dev) | [zksync-era](https://github.com/matter-labs/zksync-era)               | zk server logic, including the APIs and database accesses |
-| -                                                           | [zksync-wallet-vue](https://github.com/matter-labs/zksync-wallet-vue) | Wallet frontend                                           |
+| Public repository                                                     | Description                                               |
+| --------------------------------------------------------------------- | --------------------------------------------------------- |
+| [zksync-era](https://github.com/matter-labs/zksync-era)               | zk server logic, including the APIs and database accesses |
+| [zksync-wallet-vue](https://github.com/matter-labs/zksync-wallet-vue) | Wallet frontend                                           |
 
 ### Contracts
 
@@ -68,8 +68,8 @@
 
 ## zkSync Lite (v1)
 
-| Internal repository                                     | Public repository                                                           | Description                        |
-| ------------------------------------------------------- | --------------------------------------------------------------------------- | ---------------------------------- |
-| [zksync-dev](https://github.com/matter-labs/zksync-dev) | [zksync](https://github.com/matter-labs/zksync)                             | zksync Lite/v1 implementation      |
-|                                                         | [zksync-docs](https://github.com/matter-labs/zksync-docs)                   | Public documentation for zkSync v1 |
-|                                                         | [zksync-dapp-checkout](https://github.com/matter-labs/zksync-dapp-checkout) | ??                                 |
+| Public repository                                                           | Description                        |
+| --------------------------------------------------------------------------- | ---------------------------------- |
+| [zksync](https://github.com/matter-labs/zksync)                             | zksync Lite/v1 implementation      |
+| [zksync-docs](https://github.com/matter-labs/zksync-docs)                   | Public documentation for zkSync v1 |
+| [zksync-dapp-checkout](https://github.com/matter-labs/zksync-dapp-checkout) | ??                                 |
