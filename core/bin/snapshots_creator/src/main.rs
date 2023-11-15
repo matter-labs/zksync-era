@@ -113,11 +113,11 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::
 
     let l1_batch_number = conn.blocks_dal().get_sealed_l1_batch_number().await? - 1; // we subtract 1 so that after restore, EN node has at least one l1 batch to fetch
 
-    if !conn
+    if conn
         .snapshots_dal()
         .get_snapshot_metadata(l1_batch_number)
         .await?
-        .is_none()
+        .is_some()
     {
         tracing::info!(
             "Snapshot for L1 batch number {} already exists, exiting",
