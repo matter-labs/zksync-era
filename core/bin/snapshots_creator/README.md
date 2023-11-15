@@ -58,7 +58,7 @@ pub struct SnapshotStorageLog {
 
 ```rust
 pub struct SnapshotFactoryDependencies {
-		pub factory_deps: Vec<SnapshotFactoryDependency>
+  pub factory_deps: Vec<SnapshotFactoryDependency>
 }
 
 pub struct SnapshotFactoryDependency {

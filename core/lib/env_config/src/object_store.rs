@@ -116,5 +116,6 @@ mod tests {
         "#;
         lock.set_env(config);
         let actual = SnapshotsObjectStoreConfig::from_env().unwrap().0;
+        assert_eq!(actual, expected_config("/snapshots_base_url"));
     }
 }
