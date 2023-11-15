@@ -106,64 +106,6 @@ impl ExternalIO {
         }
     }
 
-    pub async fn recalculate_miniblock_hashes(&self) {
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
-        let last_blocks: Vec<_> = storage
-            .blocks_dal()
-            .get_last_miniblocks_for_version(5, ProtocolVersionId::Version12)
-            .await
-            .unwrap();
-
-        // All last miniblocks are good that means we have already applied this migrations
-        if last_blocks
-            .into_iter()
-            .all(|(number, hash)| legacy_miniblock_hash(number) == hash)
-        {
-            return;
-        }
-
-        // August 29 2023
-        let timestamp = 1693267200;
-        let mut miniblock_and_hashes = storage
-            .blocks_dal()
-            .get_miniblock_hashes_from_date(timestamp, 1000, ProtocolVersionId::Version12)
-            .await
-            .unwrap();
-
-        let mut updated_hashes = vec![];
-
-        let mut last_miniblock_number = 0;
-        while !miniblock_and_hashes.is_empty() {
-            for (number, hash) in miniblock_and_hashes {
-                if hash != legacy_miniblock_hash(number) {
-                    updated_hashes.push((number, legacy_miniblock_hash(number)))
-                }
-                last_miniblock_number = number.0;
-            }
-            if !updated_hashes.is_empty() {
-                storage
-                    .blocks_dal()
-                    .update_hashes(&updated_hashes)
-                    .await
-                    .unwrap();
-                updated_hashes = vec![];
-            }
-
-            miniblock_and_hashes = storage
-                .blocks_dal()
-                .get_miniblocks_since_block(
-                    last_miniblock_number as i64 + 1,
-                    1000,
-                    ProtocolVersionId::Version12,
-                )
-                .await
-                .unwrap();
-            tracing::info!("Last updated miniblock {}", last_miniblock_number);
-        }
-
-        tracing::info!("Finish the hash recalculation")
-    }
-
     async fn load_previous_l1_batch_hash(&self) -> U256 {
         let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
 

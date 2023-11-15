@@ -36,75 +36,6 @@ impl BlocksDal<'_, '_> {
         Ok(count == 0)
     }
 
-    pub async fn get_miniblock_hashes_from_date(
-        &mut self,
-        timestamp: u64,
-        limit: u32,
-        version: ProtocolVersionId,
-    ) -> sqlx::Result<Vec<(MiniblockNumber, H256)>> {
-        let number = sqlx::query!(
-            "SELECT number from miniblocks where timestamp > $1 ORDER BY number ASC LIMIT 1",
-            timestamp as i64
-        )
-        .fetch_one(self.storage.conn())
-        .await?
-        .number;
-        self.storage
-            .blocks_dal()
-            .get_miniblocks_since_block(number, limit, version)
-            .await
-    }
-
-    pub async fn get_last_miniblocks_for_version(
-        &mut self,
-        limit: u32,
-        version: ProtocolVersionId,
-    ) -> sqlx::Result<Vec<(MiniblockNumber, H256)>> {
-        let minibloks = sqlx::query!(
-            "SELECT number, hash FROM miniblocks WHERE protocol_version = $1 ORDER BY number DESC LIMIT $2",
-            version as i32,
-            limit as i32
-        )
-            .fetch_all(self.storage.conn())
-            .await?
-            .iter()
-            .map(|block| {
-                (
-                    MiniblockNumber(block.number as u32),
-                    H256::from_slice(&block.hash),
-                )
-            })
-            .collect();
-
-        Ok(minibloks)
-    }
-
-    pub async fn get_miniblocks_since_block(
-        &mut self,
-        number: i64,
-        limit: u32,
-        version: ProtocolVersionId,
-    ) -> sqlx::Result<Vec<(MiniblockNumber, H256)>> {
-        let minibloks = sqlx::query!(
-            "SELECT number, hash FROM miniblocks WHERE number >= $1 and protocol_version = $2 ORDER BY number LIMIT $3",
-            number,
-            version as i32,
-            limit as i32
-        )
-        .fetch_all(self.storage.conn())
-        .await?
-        .iter()
-        .map(|block| {
-            (
-                MiniblockNumber(block.number as u32),
-                H256::from_slice(&block.hash),
-            )
-        })
-        .collect();
-
-        Ok(minibloks)
-    }
-
     pub async fn get_sealed_l1_batch_number(&mut self) -> anyhow::Result<L1BatchNumber> {
         let number = sqlx::query!(
             "SELECT MAX(number) as \"number\" FROM l1_batches WHERE is_finished = TRUE"
@@ -460,30 +391,6 @@ impl BlocksDal<'_, '_> {
                 .as_bytes(),
             miniblock_header.protocol_version.map(|v| v as i32),
             miniblock_header.virtual_blocks as i64,
-        )
-        .execute(self.storage.conn())
-        .await?;
-        Ok(())
-    }
-
-    pub async fn update_hashes(
-        &mut self,
-        number_and_hashes: &[(MiniblockNumber, H256)],
-    ) -> sqlx::Result<()> {
-        let mut numbers = vec![];
-        let mut hashes = vec![];
-        for (number, hash) in number_and_hashes {
-            numbers.push(number.0 as i64);
-            hashes.push(hash.as_bytes().to_vec());
-        }
-
-        sqlx::query!(
-            "UPDATE miniblocks SET hash = u.hash   \
-            FROM UNNEST($1::bigint[], $2::bytea[]) AS u(number, hash) \
-            WHERE miniblocks.number = u.number
-        ",
-            &numbers,
-            &hashes
         )
         .execute(self.storage.conn())
         .await?;
