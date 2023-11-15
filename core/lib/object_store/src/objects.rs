@@ -78,13 +78,13 @@ impl StoredObject for SnapshotFactoryDependencies {
     type Key<'a> = L1BatchNumber;
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        format!("snapshot_l1_batch_{}_factory_deps.json.gzip", key)
+        format!("snapshot_l1_batch_{key}_factory_deps.json.gzip")
     }
 
     //TODO use better language agnostic serialization format like protobuf
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        serde_json::to_writer(&mut encoder, self).map_err(|e| BoxedError::from(e))?;
+        serde_json::to_writer(&mut encoder, self).map_err(BoxedError::from)?;
         encoder.finish().map_err(From::from)
     }
 
@@ -93,7 +93,7 @@ impl StoredObject for SnapshotFactoryDependencies {
         let mut decompressed_bytes = Vec::new();
         decoder
             .read_to_end(&mut decompressed_bytes)
-            .map_err(|e| BoxedError::from(e))?;
+            .map_err(BoxedError::from)?;
         serde_json::from_slice(&decompressed_bytes).map_err(From::from)
     }
 }
@@ -112,7 +112,7 @@ impl StoredObject for SnapshotStorageLogsChunk {
     //TODO use better language agnostic serialization format like protobuf
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        serde_json::to_writer(&mut encoder, self).map_err(|e| BoxedError::from(e))?;
+        serde_json::to_writer(&mut encoder, self).map_err(BoxedError::from)?;
         encoder.finish().map_err(From::from)
     }
 
@@ -121,7 +121,7 @@ impl StoredObject for SnapshotStorageLogsChunk {
         let mut decompressed_bytes = Vec::new();
         decoder
             .read_to_end(&mut decompressed_bytes)
-            .map_err(|e| BoxedError::from(e))?;
+            .map_err(BoxedError::from)?;
         serde_json::from_slice(&decompressed_bytes).map_err(From::from)
     }
 }
