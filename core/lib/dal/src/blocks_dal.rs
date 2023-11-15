@@ -582,7 +582,7 @@ impl BlocksDal<'_, '_> {
         number: L1BatchNumber,
         metadata: &L1BatchMetadata,
         previous_root_hash: H256,
-        protocol_version: ProtocolVersionId,
+        is_pre_boojum: bool,
     ) -> anyhow::Result<()> {
         let mut transaction = self.storage.start_transaction().await?;
 
@@ -615,7 +615,7 @@ impl BlocksDal<'_, '_> {
         .execute(transaction.conn())
         .await?;
 
-        if metadata.events_queue_commitment.is_some() || protocol_version.is_pre_boojum() {
+        if metadata.events_queue_commitment.is_some() || is_pre_boojum {
             // Save `commitment`, `aux_data_hash`, `events_queue_commitment`, `bootloader_initial_content_commitment`.
             sqlx::query!(
                 "INSERT INTO commitments (l1_batch_number, events_queue_commitment, bootloader_initial_content_commitment) \
