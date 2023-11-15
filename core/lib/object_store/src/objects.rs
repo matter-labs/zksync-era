@@ -1,8 +1,13 @@
 //! Stored objects.
 
+use flate2::{read::GzDecoder, write::GzEncoder, Compression};
+use std::io::Read;
+use zksync_types::aggregated_operations::L1BatchProofForL1;
+use zksync_types::snapshots::{SnapshotFactoryDependencies, SnapshotStorageLogsStorageKey};
 use zksync_types::{
     aggregated_operations::L1BatchProofForL1,
     proofs::{AggregationRound, PrepareBasicCircuitsJob},
+    snapshots::SnapshotStorageLogsChunk,
     storage::witness_block_state::WitnessBlockState,
     zkevm_test_harness::{
         abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
@@ -63,6 +68,62 @@ macro_rules! serialize_using_bincode {
             $crate::bincode::deserialize(&bytes).map_err(std::convert::From::from)
         }
     };
+}
+
+/// Derives [`StoredObject::serialize()`] and [`StoredObject::deserialize()`] using
+/// the `json` (de)serializer. Should be used in `impl StoredObject` blocks.
+
+impl StoredObject for SnapshotFactoryDependencies {
+    const BUCKET: Bucket = Bucket::StorageSnapshot;
+    type Key<'a> = L1BatchNumber;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!("snapshot_l1_batch_{}_factory_deps.json.gzip", key)
+    }
+
+    //TODO use better language agnostic serialization format like protobuf
+    fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        serde_json::to_writer(&mut encoder, self).map_err(|e| BoxedError::from(e))?;
+        encoder.finish().map_err(From::from)
+    }
+
+    fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
+        let mut decoder = GzDecoder::new(&bytes[..]);
+        let mut decompressed_bytes = Vec::new();
+        decoder
+            .read_to_end(&mut decompressed_bytes)
+            .map_err(|e| BoxedError::from(e))?;
+        serde_json::from_slice(&decompressed_bytes).map_err(From::from)
+    }
+}
+
+impl StoredObject for SnapshotStorageLogsChunk {
+    const BUCKET: Bucket = Bucket::StorageSnapshot;
+    type Key<'a> = SnapshotStorageLogsStorageKey;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!(
+            "snapshot_l1_batch_{}_storage_logs_part_{:0<3}.json.gzip",
+            key.l1_batch_number, key.chunk_id
+        )
+    }
+
+    //TODO use better language agnostic serialization format like protobuf
+    fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        serde_json::to_writer(&mut encoder, self).map_err(|e| BoxedError::from(e))?;
+        encoder.finish().map_err(From::from)
+    }
+
+    fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
+        let mut decoder = GzDecoder::new(&bytes[..]);
+        let mut decompressed_bytes = Vec::new();
+        decoder
+            .read_to_end(&mut decompressed_bytes)
+            .map_err(|e| BoxedError::from(e))?;
+        serde_json::from_slice(&decompressed_bytes).map_err(From::from)
+    }
 }
 
 impl StoredObject for WitnessBlockState {
@@ -243,5 +304,9 @@ impl dyn ObjectStore + '_ {
         let bytes = value.serialize().map_err(ObjectStoreError::Serialization)?;
         self.put_raw(V::BUCKET, &key, bytes).await?;
         Ok(key)
+    }
+
+    pub fn get_storage_prefix<V: StoredObject>(&self) -> String {
+        self.get_storage_prefix_raw(V::BUCKET)
     }
 }

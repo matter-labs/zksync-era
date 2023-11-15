@@ -32,6 +32,7 @@ impl FileBackedObjectStore {
             Bucket::NodeAggregationWitnessJobsFri,
             Bucket::SchedulerWitnessJobsFri,
             Bucket::ProofsFri,
+            Bucket::StorageSnapshot,
         ] {
             let bucket_path = format!("{base_dir}/{bucket}");
             fs::create_dir_all(&bucket_path)
@@ -68,6 +69,10 @@ impl ObjectStore for FileBackedObjectStore {
     async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError> {
         let filename = self.filename(bucket, key);
         fs::remove_file(filename).await.map_err(From::from)
+    }
+
+    fn get_storage_prefix_raw(&self, bucket: Bucket) -> String {
+        format!("{}/{}", self.base_dir, bucket)
     }
 }
 

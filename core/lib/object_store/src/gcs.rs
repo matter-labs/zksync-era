@@ -207,6 +207,14 @@ impl ObjectStore for GoogleCloudStorage {
     async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError> {
         self.remove_inner(bucket.as_str(), key).await
     }
+
+    fn get_storage_prefix_raw(&self, bucket: Bucket) -> String {
+        format!(
+            "https://storage.googleapis.com/{}/{}",
+            self.bucket_prefix.clone(),
+            bucket.as_str()
+        )
+    }
 }
 
 #[cfg(test)]

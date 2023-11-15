@@ -119,6 +119,10 @@ export async function cross_en_checker() {
     await utils.spawn(`${logLevel} ${suffix}`);
 }
 
+export async function snapshots_creator() {
+    let logLevel = 'RUST_LOG=snapshots_creator=debug';
+    await utils.spawn(`${logLevel} cargo run --bin snapshots_creator --release`);
+}
 export const command = new Command('run').description('run miscellaneous applications').addCommand(dataRestore.command);
 
 command.command('test-accounts').description('print ethereum test accounts').action(testAccounts);
@@ -187,6 +191,8 @@ command
     .action(async (address: string, contractName: string, variableName: string, cmd: Command) => {
         await readVariable(address, contractName, variableName, cmd.file);
     });
+
+command.command('snapshots-creator').action(snapshots_creator);
 
 command
     .command('cross-en-checker')

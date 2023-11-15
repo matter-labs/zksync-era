@@ -19,6 +19,7 @@ pub enum Bucket {
     NodeAggregationWitnessJobsFri,
     SchedulerWitnessJobsFri,
     ProofsFri,
+    StorageSnapshot,
 }
 
 impl Bucket {
@@ -34,6 +35,7 @@ impl Bucket {
             Self::NodeAggregationWitnessJobsFri => "node_aggregation_witness_jobs_fri",
             Self::SchedulerWitnessJobsFri => "scheduler_witness_jobs_fri",
             Self::ProofsFri => "proofs_fri",
+            Self::StorageSnapshot => "storage_logs_snapshots",
         }
     }
 }
@@ -113,6 +115,8 @@ pub trait ObjectStore: fmt::Debug + Send + Sync {
     ///
     /// Returns an error if removal fails.
     async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError>;
+
+    fn get_storage_prefix_raw(&self, bucket: Bucket) -> String;
 }
 
 #[async_trait]
@@ -132,6 +136,10 @@ impl<T: ObjectStore + ?Sized> ObjectStore for Arc<T> {
 
     async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError> {
         (**self).remove_raw(bucket, key).await
+    }
+
+    fn get_storage_prefix_raw(&self, bucket: Bucket) -> String {
+        (**self).get_storage_prefix_raw(bucket)
     }
 }
 

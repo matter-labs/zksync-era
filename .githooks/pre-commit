@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # Pre-commit hook verifying that inappropriate code will not be committed.
 
