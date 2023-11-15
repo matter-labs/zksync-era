@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::{
     errors::DeserializeError,
+    hasher::{HashTree, HasherWithStats},
     types::{LeafNode, Nibbles, Node, NodeKey, Root},
     Database, Key, MerkleTree, ValueHash,
 };
@@ -65,10 +66,7 @@ pub enum ConsistencyError {
     RootVersionMismatch { max_child_version: u64 },
 }
 
-impl<DB> MerkleTree<'_, DB>
-where
-    DB: Database,
-{
+impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     /// Verifies the internal tree consistency as stored in the database.
     ///
     /// # Errors
@@ -169,7 +167,7 @@ where
         }
 
         let level = key.nibbles.nibble_count() * 4;
-        Ok(node.hash(&mut self.hasher.into(), level))
+        Ok(node.hash(&mut HasherWithStats::new(&self.hasher), level))
     }
 }
 

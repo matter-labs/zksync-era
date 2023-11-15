@@ -167,7 +167,12 @@ impl TreeUpdater {
             let save_postgres_latency = METRICS.start_stage(TreeUpdateStage::SavePostgres);
             storage
                 .blocks_dal()
-                .save_l1_batch_metadata(l1_batch_number, &metadata, previous_root_hash)
+                .save_l1_batch_metadata(
+                    l1_batch_number,
+                    &metadata,
+                    previous_root_hash,
+                    header.protocol_version.unwrap(),
+                )
                 .await
                 .unwrap();
             // ^ Note that `save_l1_batch_metadata()` will not blindly overwrite changes if L1 batch
