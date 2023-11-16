@@ -11,9 +11,9 @@ use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    block::legacy_miniblock_hash, ethabi::Address, l1::L1Tx, l2::L2Tx,
-    protocol_version::ProtocolUpgradeTx, witness_block_state::WitnessBlockState, L1BatchNumber,
-    L1BlockNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256, U256,
+    ethabi::Address, l1::L1Tx, l2::L2Tx, protocol_version::ProtocolUpgradeTx,
+    witness_block_state::WitnessBlockState, L1BatchNumber, L1BlockNumber, L2ChainId,
+    MiniblockNumber, ProtocolVersionId, Transaction, H256, U256,
 };
 use zksync_utils::{be_words_to_bytes, bytes_to_be_words};
 
