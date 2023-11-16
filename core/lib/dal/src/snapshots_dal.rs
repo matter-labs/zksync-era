@@ -29,7 +29,7 @@ impl SnapshotsDal<'_, '_> {
 
     pub async fn get_all_snapshots(&mut self) -> Result<AllSnapshots, sqlx::Error> {
         let records: Vec<SnapshotMetadata> = sqlx::query!(
-            "SELECT l1_batch_number, created_at, factory_deps_filepath FROM snapshots"
+            "SELECT l1_batch_number, created_at, factory_deps_filepath, storage_logs_filepaths FROM snapshots"
         )
         .fetch_all(self.storage.conn())
         .await?
@@ -38,6 +38,7 @@ impl SnapshotsDal<'_, '_> {
             l1_batch_number: L1BatchNumber(r.l1_batch_number as u32),
             generated_at: DateTime::<Utc>::from_naive_utc_and_offset(r.created_at, Utc),
             factory_deps_filepath: r.factory_deps_filepath,
+            storage_logs_filepaths: r.storage_logs_filepaths,
         })
         .collect();
         Ok(AllSnapshots { snapshots: records })
@@ -48,7 +49,7 @@ impl SnapshotsDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
     ) -> Result<Option<SnapshotMetadata>, sqlx::Error> {
         let record: Option<SnapshotMetadata> = sqlx::query!(
-            "SELECT l1_batch_number, created_at, factory_deps_filepath FROM snapshots WHERE l1_batch_number = $1",
+            "SELECT l1_batch_number, created_at, factory_deps_filepath, storage_logs_filepaths FROM snapshots WHERE l1_batch_number = $1",
             l1_batch_number.0 as i32
         )
         .fetch_optional(self.storage.conn())
@@ -57,23 +58,9 @@ impl SnapshotsDal<'_, '_> {
             l1_batch_number: L1BatchNumber(r.l1_batch_number as u32),
             generated_at: DateTime::<Utc>::from_naive_utc_and_offset(r.created_at, Utc),
             factory_deps_filepath: r.factory_deps_filepath,
+            storage_logs_filepaths: r.storage_logs_filepaths,
         });
         Ok(record)
-    }
-
-    pub async fn get_snapshot_files(
-        &mut self,
-        l1_batch_number: L1BatchNumber,
-    ) -> Result<Option<Vec<String>>, sqlx::Error> {
-        let record = sqlx::query!(
-            "SELECT storage_logs_filepaths \
-            FROM snapshots WHERE l1_batch_number = $1",
-            l1_batch_number.0 as i32
-        )
-        .fetch_optional(self.storage.conn())
-        .await?;
-
-        Ok(record.map(|r| r.storage_logs_filepaths))
     }
 }
 
@@ -135,11 +122,11 @@ mod tests {
         .expect("Failed to add snapshot");
 
         let files = dal
-            .get_snapshot_files(l1_batch_number)
+            .get_snapshot_metadata(l1_batch_number)
             .await
-            .expect("Failed to retrieve snapshot");
-        assert!(files.is_some());
-        let files = files.unwrap();
+            .expect("Failed to retrieve snapshot")
+            .unwrap()
+            .storage_logs_filepaths;
         assert!(files.contains(&"gs:///bucket/test_file1.bin".to_string()));
         assert!(files.contains(&"gs:///bucket/test_file2.bin".to_string()));
     }

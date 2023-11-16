@@ -14,14 +14,19 @@ impl SnapshotsCreatorDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
     ) -> Result<u64, sqlx::Error> {
         let count = sqlx::query!(
-            "SELECT count(*) FROM initial_writes WHERE l1_batch_number <= $1",
+            r#"
+            SELECT index
+            FROM initial_writes
+            WHERE l1_batch_number <= $1
+            ORDER BY l1_batch_number DESC , index DESC 
+            LIMIT 1;
+            "#,
             l1_batch_number.0 as i32
         )
         .fetch_one(self.storage.conn())
         .await
         .unwrap()
-        .count
-        .unwrap();
+        .index;
         Ok(count as u64)
     }
 

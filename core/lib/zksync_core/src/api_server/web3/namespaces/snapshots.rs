@@ -32,19 +32,12 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
     ) -> Result<Option<SnapshotHeader>, Web3Error> {
         let mut storage_processor = self.state.connection_pool.access_storage().await.unwrap();
         let mut snapshots_dal = storage_processor.snapshots_dal();
-        let snapshot_files = snapshots_dal
-            .get_snapshot_files(l1_batch_number)
+        let snapshot_metadata = snapshots_dal
+            .get_snapshot_metadata(l1_batch_number)
             .await
             .unwrap();
-        if snapshot_files.is_none() {
-            Ok(None)
-        } else {
-            let snapshot_metadata = snapshots_dal
-                .get_snapshot_metadata(l1_batch_number)
-                .await
-                .unwrap()
-                .unwrap();
-            let snapshot_files = snapshot_files.as_ref().unwrap();
+        if let Some(snapshot_metadata) = snapshot_metadata {
+            let snapshot_files = snapshot_metadata.storage_logs_filepaths.clone();
             let chunks = snapshot_files
                 .iter()
                 .enumerate()
@@ -74,6 +67,8 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
                 storage_logs_chunks: chunks,
                 factory_deps_filepath: snapshot_metadata.factory_deps_filepath,
             }))
+        } else {
+            return Ok(None);
         }
     }
 }

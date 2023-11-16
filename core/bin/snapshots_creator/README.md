@@ -9,7 +9,7 @@ node.
 Usage (local development):\
 First run `zk env dev` \
 then the creator can be run using:  
-`cargo run --bin snapshots_creator --release`
+`zk run snapshots_creator`
 
 Snapshot contents can be stored based on blob_store config either in local filesystem or GS.
 

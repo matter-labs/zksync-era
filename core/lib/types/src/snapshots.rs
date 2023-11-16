@@ -16,6 +16,7 @@ pub struct SnapshotMetadata {
     pub l1_batch_number: L1BatchNumber,
     pub generated_at: DateTime<Utc>,
     pub factory_deps_filepath: String,
+    pub storage_logs_filepaths: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

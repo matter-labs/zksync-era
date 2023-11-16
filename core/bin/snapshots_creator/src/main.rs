@@ -21,13 +21,13 @@ use zksync_utils::time::seconds_since_epoch;
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "snapshots_creator")]
 struct SnapshotsCreatorMetrics {
-    pub storage_logs_chunks_count: Gauge<u64>,
+    storage_logs_chunks_count: Gauge<u64>,
 
-    pub snapshot_generation_duration: Gauge<u64>,
+    snapshot_generation_duration: Gauge<u64>,
 
-    pub snapshot_l1_batch: Gauge<u64>,
+    snapshot_l1_batch: Gauge<u64>,
 
-    pub snapshot_generation_timestamp: Gauge<u64>,
+    snapshot_generation_timestamp: Gauge<u64>,
 }
 #[vise::register]
 pub(crate) static METRICS: vise::Global<SnapshotsCreatorMetrics> = vise::Global::new();
@@ -55,7 +55,7 @@ async fn process_storage_logs_single_chunk(
     chunk_size: u64,
     chunks_count: u64,
 ) -> anyhow::Result<String> {
-    let mut conn = pool.access_storage().await?;
+    let mut conn = pool.access_storage_tagged("snapshots_creator").await?;
     let logs = conn
         .snapshots_creator_dal()
         .get_storage_logs_chunk(l1_batch_number, chunk_id, chunk_size)
@@ -88,7 +88,7 @@ async fn process_factory_deps(
     l1_batch_number: L1BatchNumber,
 ) -> anyhow::Result<String> {
     tracing::info!("Processing factory dependencies");
-    let mut conn = pool.access_storage().await?;
+    let mut conn = pool.access_storage_tagged("snapshots_creator").await?;
     let factory_deps = conn
         .snapshots_creator_dal()
         .get_all_factory_deps(miniblock_number)
@@ -108,7 +108,7 @@ async fn process_factory_deps(
 }
 
 async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::Result<()> {
-    let mut conn = pool.access_storage().await?;
+    let mut conn = pool.access_storage_tagged("snapshots_creator").await?;
     let start_time = seconds_since_epoch();
 
     let l1_batch_number = conn.blocks_dal().get_sealed_l1_batch_number().await? - 1; // we subtract 1 so that after restore, EN node has at least one l1 batch to fetch
@@ -126,7 +126,7 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::
         return Ok(());
     }
 
-    let miniblock_number = conn
+    let last_miniblock_number_in_batch = conn
         .blocks_dal()
         .get_miniblock_range_of_l1_batch(l1_batch_number)
         .await?
@@ -145,7 +145,7 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::
 
     tracing::info!(
         "Creating snapshot for storage logs up to miniblock {}, l1_batch {}",
-        miniblock_number,
+        last_miniblock_number_in_batch,
         l1_batch_number.0
     );
     tracing::info!(
@@ -154,8 +154,13 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::
         chunk_size
     );
 
-    let factory_deps_output_file =
-        process_factory_deps(&*blob_store, &pool, miniblock_number, l1_batch_number).await?;
+    let factory_deps_output_file = process_factory_deps(
+        &*blob_store,
+        &pool,
+        last_miniblock_number_in_batch,
+        l1_batch_number,
+    )
+    .await?;
 
     let mut storage_logs_output_files = vec![];
 
@@ -176,7 +181,7 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::
         storage_logs_output_files.push(output_file.clone());
     }
 
-    let mut conn = pool.access_storage().await?;
+    let mut conn = pool.access_storage_tagged("snapshots_creator").await?;
 
     conn.snapshots_dal()
         .add_snapshot(
@@ -195,16 +200,18 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::
         .snapshot_generation_duration
         .set(seconds_since_epoch() - start_time);
 
+    tracing::info!("Run metrics:");
     tracing::info!(
-        r#"Run metrics:
-snapshot_generation_duration: {}sec
-snapshot_l1_batch: {},
-snapshot_generation_timestamp: {}
-storage_logs_chunks_count: {}
-  "#,
-        METRICS.snapshot_generation_duration.get(),
-        METRICS.snapshot_l1_batch.get(),
-        METRICS.snapshot_generation_timestamp.get(),
+        "snapshot_generation_duration: {}s",
+        METRICS.snapshot_generation_duration.get()
+    );
+    tracing::info!("snapshot_l1_batch: {}", METRICS.snapshot_l1_batch.get());
+    tracing::info!(
+        "snapshot_generation_timestamp: {}",
+        METRICS.snapshot_generation_timestamp.get()
+    );
+    tracing::info!(
+        "storage_logs_chunks_count: {}",
         METRICS.storage_logs_chunks_count.get()
     );
 

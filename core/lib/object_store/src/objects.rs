@@ -70,9 +70,6 @@ macro_rules! serialize_using_bincode {
     };
 }
 
-/// Derives [`StoredObject::serialize()`] and [`StoredObject::deserialize()`] using
-/// the `json` (de)serializer. Should be used in `impl StoredObject` blocks.
-
 impl StoredObject for SnapshotFactoryDependencies {
     const BUCKET: Bucket = Bucket::StorageSnapshot;
     type Key<'a> = L1BatchNumber;
@@ -104,7 +101,7 @@ impl StoredObject for SnapshotStorageLogsChunk {
 
     fn encode_key(key: Self::Key<'_>) -> String {
         format!(
-            "snapshot_l1_batch_{}_storage_logs_part_{:0<3}.json.gzip",
+            "snapshot_l1_batch_{}_storage_logs_part_{:0>4}.json.gzip",
             key.l1_batch_number, key.chunk_id
         )
     }
@@ -308,5 +305,38 @@ impl dyn ObjectStore + '_ {
 
     pub fn get_storage_prefix<V: StoredObject>(&self) -> String {
         self.get_storage_prefix_raw(V::BUCKET)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_storage_logs_filesnames_generate_corretly() {
+        let filename1 = SnapshotStorageLogsChunk::encode_key(SnapshotStorageLogsStorageKey {
+            l1_batch_number: L1BatchNumber(42),
+            chunk_id: 97,
+        });
+        let filename2 = SnapshotStorageLogsChunk::encode_key(SnapshotStorageLogsStorageKey {
+            l1_batch_number: L1BatchNumber(3),
+            chunk_id: 531,
+        });
+        let filename3 = SnapshotStorageLogsChunk::encode_key(SnapshotStorageLogsStorageKey {
+            l1_batch_number: L1BatchNumber(567),
+            chunk_id: 5,
+        });
+        assert_eq!(
+            "snapshot_l1_batch_42_storage_logs_part_0097.json.gzip",
+            filename1
+        );
+        assert_eq!(
+            "snapshot_l1_batch_3_storage_logs_part_0531.json.gzip",
+            filename2
+        );
+        assert_eq!(
+            "snapshot_l1_batch_567_storage_logs_part_0005.json.gzip",
+            filename3
+        );
     }
 }
