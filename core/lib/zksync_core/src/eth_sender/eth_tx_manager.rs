@@ -12,7 +12,11 @@ use zksync_eth_client::{
 };
 use zksync_types::{
     eth_sender::EthTx,
-    web3::{contract::Options, error::Error as Web3Error},
+    web3::{
+        contract::Options,
+        error::Error as Web3Error,
+        types::{BlockId, BlockNumber},
+    },
     L1BlockNumber, Nonce, H256, U256,
 };
 use zksync_utils::time::seconds_since_epoch;
@@ -285,7 +289,7 @@ where
             (latest_block_number.saturating_sub(confirmations) as u32).into()
         } else {
             self.ethereum_gateway
-                .block("finalized".to_string(), "eth_tx_manager")
+                .block(BlockId::Number(BlockNumber::Finalized), "eth_tx_manager")
                 .await?
                 .expect("Finalized block must be present on L1")
                 .number

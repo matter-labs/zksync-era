@@ -342,7 +342,7 @@ impl EthInterface for MockEthereum {
 
     async fn block(
         &self,
-        _block_id: String,
+        _block_id: BlockId,
         _component: &'static str,
     ) -> Result<Option<Block<H256>>, Error> {
         unimplemented!("Not needed right now")
@@ -524,7 +524,7 @@ impl<T: AsRef<MockEthereum> + Send + Sync> EthInterface for T {
 
     async fn block(
         &self,
-        block_id: String,
+        block_id: BlockId,
         component: &'static str,
     ) -> Result<Option<Block<H256>>, Error> {
         self.as_ref().block(block_id, component).await
