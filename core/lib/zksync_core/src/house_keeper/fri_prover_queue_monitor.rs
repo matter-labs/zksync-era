@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use zksync_config::configs::ProverGroupConfig;
+use zksync_config::configs::FriProverGroupConfig;
 use zksync_dal::ConnectionPool;
 use zksync_prover_utils::periodic_job::PeriodicJob;
 
@@ -7,14 +7,14 @@ use zksync_prover_utils::periodic_job::PeriodicJob;
 pub struct FriProverStatsReporter {
     reporting_interval_ms: u64,
     prover_connection_pool: ConnectionPool,
-    config: ProverGroupConfig,
+    config: FriProverGroupConfig,
 }
 
 impl FriProverStatsReporter {
     pub fn new(
         reporting_interval_ms: u64,
         prover_connection_pool: ConnectionPool,
-        config: ProverGroupConfig,
+        config: FriProverGroupConfig,
     ) -> Self {
         Self {
             reporting_interval_ms,

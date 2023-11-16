@@ -30,6 +30,7 @@ pub struct TempConfigStore {
     pub house_keeper_config: Option<HouseKeeperConfig>,
     pub fri_proof_compressor_config: Option<FriProofCompressorConfig>,
     pub fri_prover_config: Option<FriProverConfig>,
+    pub fri_prover_group_config: Option<FriProverGroupConfig>,
     pub fri_witness_generator_config: Option<FriWitnessGeneratorConfig>,
     pub prometheus_config: Option<PrometheusConfig>,
     pub proof_data_handler_config: Option<ProofDataHandlerConfig>,
