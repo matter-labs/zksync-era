@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use zksync_config::configs::ProverGroupConfig;
 use zksync_dal::ConnectionPool;
 use zksync_prover_utils::periodic_job::PeriodicJob;
 
@@ -53,6 +54,7 @@ impl PeriodicJob for FriProverStatsReporter {
               "type" => "in_progress",
               "circuit_id" => circuit_id.to_string(),
               "aggregation_round" => aggregation_round.to_string()
+              "prover_group_id" => group_id.to_string()
             );
         }
 
