@@ -171,9 +171,7 @@ export function prepareProposeTransparentUpgradeCalldata(
     initCalldata,
     upgradeAddress: string,
     facetCuts: FacetCut[],
-    diamondUpgradeProposalId: number,
-    zksyncAddress: string,
-    useNewGovernance: boolean
+    diamondUpgradeProposalId: number
 ) {
     let zkSyncFactory = IZkSyncFactory.connect(upgradeAddress, ethers.providers.getDefaultProvider());
     let transparentUpgrade: TransparentUpgrade = {
@@ -182,61 +180,65 @@ export function prepareProposeTransparentUpgradeCalldata(
         initCalldata
     };
 
-    if (useNewGovernance) {
-        // Prepare calldata for upgrading diamond proxy
-        let adminFacet = new AdminFacetFactory();
-        const diamondProxyUpgradeCalldata = adminFacet.interface.encodeFunctionData('executeUpgrade', [
-            transparentUpgrade
-        ]);
+    let proposeTransparentUpgradeCalldata = zkSyncFactory.interface.encodeFunctionData('proposeTransparentUpgrade', [
+        transparentUpgrade,
+        diamondUpgradeProposalId
+    ]);
 
-        const call = {
-            target: zksyncAddress,
-            value: 0,
-            data: diamondProxyUpgradeCalldata
-        };
-        const governanceOperation = {
-            calls: [call],
-            predecessor: ethers.constants.HashZero,
-            salt: ethers.constants.HashZero
-        };
+    let executeUpgradeCalldata = zkSyncFactory.interface.encodeFunctionData('executeUpgrade', [
+        transparentUpgrade,
+        ethers.constants.HashZero
+    ]);
+    return {
+        transparentUpgrade,
+        proposeTransparentUpgradeCalldata,
+        executeUpgradeCalldata
+    };
+}
 
-        const governance = new GovernanceFactory();
-        // Get transaction data of the `scheduleTransparent`
-        const scheduleTransparentOperation = governance.interface.encodeFunctionData('scheduleTransparent', [
-            governanceOperation,
-            0 // delay
-        ]);
+export function prepareTransparentUpgradeCalldataForNewGovernance(
+    initCalldata,
+    upgradeAddress: string,
+    facetCuts: FacetCut[],
+    zksyncAddress: string
+) {
+    let transparentUpgrade: TransparentUpgrade = {
+        facetCuts,
+        initAddress: upgradeAddress,
+        initCalldata
+    };
 
-        // Get transaction data of the `execute`
-        const executeOperation = governance.interface.encodeFunctionData('execute', [governanceOperation]);
+    // Prepare calldata for upgrading diamond proxy
+    let adminFacet = new AdminFacetFactory();
+    const diamondProxyUpgradeCalldata = adminFacet.interface.encodeFunctionData('executeUpgrade', [transparentUpgrade]);
 
-        return {
-            scheduleTransparentOperation,
-            executeOperation,
-            governanceOperation,
-            transparentUpgrade,
-            proposeTransparentUpgradeCalldata: null,
-            executeUpgradeCalldata: null
-        };
-    } else {
-        let proposeTransparentUpgradeCalldata = zkSyncFactory.interface.encodeFunctionData(
-            'proposeTransparentUpgrade',
-            [transparentUpgrade, diamondUpgradeProposalId]
-        );
+    const call = {
+        target: zksyncAddress,
+        value: 0,
+        data: diamondProxyUpgradeCalldata
+    };
+    const governanceOperation = {
+        calls: [call],
+        predecessor: ethers.constants.HashZero,
+        salt: ethers.constants.HashZero
+    };
 
-        let executeUpgradeCalldata = zkSyncFactory.interface.encodeFunctionData('executeUpgrade', [
-            transparentUpgrade,
-            ethers.constants.HashZero
-        ]);
-        return {
-            scheduleTransparentOperation: null,
-            executeOperation: null,
-            governanceOperation: null,
-            transparentUpgrade,
-            proposeTransparentUpgradeCalldata,
-            executeUpgradeCalldata
-        };
-    }
+    const governance = new GovernanceFactory();
+    // Get transaction data of the `scheduleTransparent`
+    const scheduleTransparentOperation = governance.interface.encodeFunctionData('scheduleTransparent', [
+        governanceOperation,
+        0 // delay
+    ]);
+
+    // Get transaction data of the `execute`
+    const executeOperation = governance.interface.encodeFunctionData('execute', [governanceOperation]);
+
+    return {
+        scheduleTransparentOperation,
+        executeOperation,
+        governanceOperation,
+        transparentUpgrade
+    };
 }
 
 export function buildDefaultUpgradeTx(
@@ -314,21 +316,22 @@ export function buildDefaultUpgradeTx(
 
     let l1upgradeCalldata = prepareDefaultCalldataForL1upgrade(proposeUpgradeTx);
 
-    let {
-        scheduleTransparentOperation,
-        executeOperation,
-        governanceOperation,
-        transparentUpgrade,
-        proposeTransparentUpgradeCalldata,
-        executeUpgradeCalldata
-    } = prepareProposeTransparentUpgradeCalldata(
-        l1upgradeCalldata,
-        upgradeAddress,
-        facetCuts,
-        diamondUpgradeProposalId,
-        zksyncAddress,
-        useNewGovernance
-    );
+    let upgradeData;
+    if (useNewGovernance) {
+        upgradeData = prepareTransparentUpgradeCalldataForNewGovernance(
+            l1upgradeCalldata,
+            upgradeAddress,
+            facetCuts,
+            zksyncAddress
+        );
+    } else {
+        upgradeData = prepareProposeTransparentUpgradeCalldata(
+            l1upgradeCalldata,
+            upgradeAddress,
+            facetCuts,
+            diamondUpgradeProposalId
+        );
+    }
     const transactions = {
         proposeUpgradeTx,
         l1upgradeCalldata,
@@ -336,12 +339,7 @@ export function buildDefaultUpgradeTx(
         protocolVersion,
         diamondUpgradeProposalId,
         upgradeTimestamp,
-        proposeTransparentUpgradeCalldata,
-        transparentUpgrade,
-        executeUpgradeCalldata,
-        scheduleTransparentOperation,
-        executeOperation,
-        governanceOperation
+        ...upgradeData
     };
 
     fs.writeFileSync(getL2TransactionsFileName(environment), JSON.stringify(transactions, null, 2));
