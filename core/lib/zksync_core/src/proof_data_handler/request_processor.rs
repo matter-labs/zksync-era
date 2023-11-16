@@ -166,7 +166,7 @@ impl RequestProcessor {
                     .protocol_version
                     .map(|v| v.is_pre_boojum())
                     .unwrap_or(true);
-                if is_pre_boojum {
+                if !is_pre_boojum {
                     let events_queue_state = l1_batch
                         .metadata
                         .events_queue_commitment
