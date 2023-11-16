@@ -43,6 +43,16 @@ export async function generateMigration(name: String) {
     process.chdir(process.env.ZKSYNC_HOME as string);
 }
 
+export async function setupIsolatedDatabase(databaseName: String) {
+    const localDbUrl = 'postgres://postgres@localhost';
+    const databaseUrl = `${localDbUrl}/${databaseName}`;
+    const migrationsDirectory = `${process.env.ZKSYNC_HOME}/core/lib/dal/migrations`;
+
+    await utils.exec(`cargo sqlx database create --database-url ${databaseUrl}`);
+    await utils.exec(`cargo sqlx migrate run --database-url ${databaseUrl} --source ${migrationsDirectory} `);
+    return databaseUrl;
+}
+
 export async function setup() {
     process.chdir('core/lib/dal');
     const localDbUrl = 'postgres://postgres@localhost';

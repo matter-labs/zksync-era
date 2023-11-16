@@ -6,6 +6,7 @@ import fs from 'fs';
 import { unloadInit } from './env';
 import * as path from 'path';
 import * as db from './database';
+import {ChildProcess} from "child_process";
 
 export async function server(rebuildTree: boolean, uring: boolean, components?: string) {
     let options = '';
@@ -48,6 +49,69 @@ export async function externalNode(reinit: boolean = false) {
     await utils.spawn('cargo run --release --bin zksync_external_node');
 }
 
+export class IsolatedExternalNode {
+    public readonly process: ChildProcess;
+
+    public constructor(process: ChildProcess) {
+        this.process = process;
+    }
+}
+
+export async function isolatedExternalNode() {
+    const randomSuffix = Math.floor(Math.random() * 1000000)
+        .toString()
+        .padStart(6, '0');
+    const instanceName = `zksync_ext_node_${randomSuffix}`;
+    fs.writeFileSync(`${process.env.ZKSYNC_HOME}.instances_to_clean`, instanceName + '\n', { flag: 'a+' });
+
+    const binaryPath = '/usr/bin/zksync_external_node';
+    let dockerEnv = ` --env "INTEGRATION_TEST_NODE_BINARY_PATH=${binaryPath}" `;
+    const extNodeEnv = env.getEnvVariables('ext-node');
+    const dbUrl = await db.setupIsolatedDatabase(instanceName);
+    for (const envVar in extNodeEnv) {
+        let envVarValue = extNodeEnv[envVar];
+        if (envVar === 'DATABASE_URL') {
+            envVarValue = dbUrl;
+        }
+        envVarValue = envVarValue.replace('localhost', 'host.docker.internal');
+        envVarValue = envVarValue.replace('127.0.0.1', 'host.docker.internal');
+        dockerEnv += ` --env "${envVar}=${envVarValue}" `;
+    }
+
+    const dockerVolumes = ` -v ${process.env.ZKSYNC_HOME}artifacts:/usr/src/zksync/artifacts`;
+    const publishedPorts = '-p 3060:3060 -p 3061:3061 -p 3081:3081';
+    const networkingFlags = '--add-host=host.docker.internal:host-gateway';
+    const nameFlag = `--name ${instanceName}`;
+    const allFlags = `${networkingFlags} ${publishedPorts} ${dockerVolumes} ${dockerEnv} ${nameFlag}`;
+    const cmd = `docker container run -d ${allFlags} matterlabs/integration-test-node`;
+    const enProcess = utils.background(cmd);
+
+    let startTime = new Date();
+    while (true) {
+        if (new Date().getTime() - startTime.getTime() > 30 * 1000) {
+            throw new Error('Timeout waiting for EN to start');
+        }
+        try {
+            const healthcheckPort = extNodeEnv['EN_HEALTHCHECK_PORT'];
+            const healthcheckUrl = `http://localhost:${healthcheckPort}/health`;
+            const response = await fetch(healthcheckUrl);
+            const json = await response.json();
+            if (json['status'] == 'ready') {
+                break;
+            }
+        } catch (err) {
+            await utils.sleep(1);
+            const { stdout: status } = await utils.exec(
+                `docker container inspect ${instanceName} --format={{.State.Status}}`
+            );
+            if (status.trim() == 'exited') {
+                await utils.spawn(`docker logs ${instanceName}`);
+                throw new Error('EN instance exited before reporting to be ready');
+            }
+        }
+    }
+    return new IsolatedExternalNode(enProcess);
+}
 async function create_genesis(cmd: string) {
     await utils.confirmAction();
     await utils.spawn(`${cmd} | tee genesis.log`);

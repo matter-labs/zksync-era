@@ -93,6 +93,10 @@ export function reload() {
     loadInit();
 }
 
+export function getEnvVariables(env: string) {
+    return dotenv.parse(fs.readFileSync(`${process.env.ZKSYNC_HOME}/etc/env/${env}.env`));
+}
+
 // loads environment variables
 export function load() {
     const zksyncEnv = get();
