@@ -39,8 +39,10 @@ jobs:
         with:
           submodules: "recursive"
           ref: core-v18.0.1
+    
       - name: setup-env
         run: |
+          ls -la 
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo CI=1 >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
