@@ -179,6 +179,7 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::
         )
         .await?;
         storage_logs_output_files.push(output_file.clone());
+        METRICS.storage_logs_chunks_count.set(chunk_id);
     }
 
     let mut conn = pool.access_storage_tagged("snapshots_creator").await?;
@@ -192,7 +193,6 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::
         .await?;
 
     METRICS.snapshot_l1_batch.set(l1_batch_number.0.as_u64());
-    METRICS.storage_logs_chunks_count.set(chunks_count);
     METRICS
         .snapshot_generation_timestamp
         .set(seconds_since_epoch());
