@@ -176,7 +176,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     let TxSharedArgs {
         operator_account,
         l1_gas_price,
-        fair_l2_gas_price,
+        minimal_l2_gas_price,
         base_system_contracts,
         validation_computational_gas_limit,
         chain_id,
@@ -199,7 +199,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
         number: vm_l1_batch_number,
         timestamp: l1_batch_timestamp,
         l1_gas_price,
-        fair_l2_gas_price,
+        fair_l2_gas_price: minimal_l2_gas_price,
         fee_account: *operator_account.address(),
         enforced_base_fee: execution_args.enforced_base_fee,
         first_l2_block: next_l2_block_info,

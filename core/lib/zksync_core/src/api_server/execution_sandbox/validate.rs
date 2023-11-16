@@ -10,8 +10,9 @@ use multivm::vm_latest::HistoryDisabled;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{l2::L2Tx, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS, U256};
 
+use super::adjust_pubdata_price_for_tx;
 use super::{
-    adjust_l1_gas_price_for_tx, apply,
+    apply,
     vm_metrics::{SandboxStage, EXECUTION_METRICS, SANDBOX_METRICS},
     BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
@@ -27,7 +28,7 @@ impl TxSharedArgs {
         let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
         let block_args = BlockArgs::pending(&mut connection).await;
         drop(connection);
-        self.adjust_l1_gas_price(tx.common_data.fee.gas_per_pubdata_limit);
+        self.adjust_pubdata_price(tx.common_data.fee.gas_per_pubdata_limit);
         self.validate_tx_in_sandbox(
             connection_pool,
             vm_permit,
@@ -40,10 +41,11 @@ impl TxSharedArgs {
 
     // In order for validation to pass smoothlessly, we need to ensure that block's required gasPerPubdata will be
     // <= to the one in the transaction itself.
-    pub fn adjust_l1_gas_price(&mut self, gas_per_pubdata_limit: U256) {
-        self.l1_gas_price = adjust_l1_gas_price_for_tx(
+    pub fn adjust_pubdata_price(&mut self, gas_per_pubdata_limit: U256) {
+        self.pubdata_price = adjust_pubdata_price_for_tx(
             self.l1_gas_price,
-            self.fair_l2_gas_price,
+            self.pubdata_price,
+            self.minimal_l2_gas_price,
             gas_per_pubdata_limit,
         );
     }

@@ -24,7 +24,7 @@ pub(super) use self::{
     vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
 };
 use super::tx_sender::MultiVMBaseSystemContracts;
-use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
+use multivm::vm_latest::utils::fee::{derive_base_fee_and_gas_per_pubdata, get_operator_gas_price};
 
 /// Permit to invoke VM code.
 ///
@@ -142,25 +142,27 @@ impl VmConcurrencyLimiter {
     }
 }
 
-pub(super) fn adjust_l1_gas_price_for_tx(
+pub(super) fn adjust_pubdata_price_for_tx(
     l1_gas_price: u64,
-    fair_l2_gas_price: u64,
+    pubdata_price: u64,
+    minimal_l2_gas_price: u64,
     tx_gas_per_pubdata_limit: U256,
 ) -> u64 {
-    let (_, current_pubdata_price) =
-        derive_base_fee_and_gas_per_pubdata(l1_gas_price, fair_l2_gas_price);
-    if U256::from(current_pubdata_price) <= tx_gas_per_pubdata_limit {
-        // The current pubdata price is small enough
-        l1_gas_price
-    } else {
-        // gasPerPubdata = ceil(17 * l1gasprice / fair_l2_gas_price)
-        // gasPerPubdata <= 17 * l1gasprice / fair_l2_gas_price + 1
-        // fair_l2_gas_price(gasPerPubdata - 1) / 17 <= l1gasprice
-        let l1_gas_price = U256::from(fair_l2_gas_price)
-            * (tx_gas_per_pubdata_limit - U256::from(1u32))
-            / U256::from(17);
+    let operator_gas_price = get_operator_gas_price(l1_gas_price, minimal_l2_gas_price);
 
-        l1_gas_price.as_u64()
+    let (_, current_gas_per_pubdata) =
+        derive_base_fee_and_gas_per_pubdata(pubdata_price, operator_gas_price);
+    if U256::from(current_gas_per_pubdata) <= tx_gas_per_pubdata_limit {
+        // The current pubdata price is small enough
+        pubdata_price
+    } else {
+        // tx_gas_per_pubdata_limit >= ceil(pubdata_price / operator_gas_price)
+        // tx_gas_per_pubdata_limit + 1 > pubdata_price / operator_gas_price
+        // pubdata_price < (tx_gas_per_pubdata_limit + 1) * operator_gas_price
+        // pubdata_price <= (tx_gas_per_pubdata_limit + 1) * operator_gas_price - 1
+        let pubdata_price = (tx_gas_per_pubdata_limit + 1) * operator_gas_price - U256::from(1);
+
+        pubdata_price.as_u64()
     }
 }
 
@@ -226,7 +228,8 @@ pub(super) async fn get_pubdata_for_factory_deps(
 pub(crate) struct TxSharedArgs {
     pub operator_account: AccountTreeId,
     pub l1_gas_price: u64,
-    pub fair_l2_gas_price: u64,
+    pub pubdata_price: u64,
+    pub minimal_l2_gas_price: u64,
     pub base_system_contracts: MultiVMBaseSystemContracts,
     pub caches: PostgresStorageCaches,
     pub validation_computational_gas_limit: u32,

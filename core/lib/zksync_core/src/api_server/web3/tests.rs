@@ -1,4 +1,5 @@
 use tokio::sync::watch;
+use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 
 use std::{sync::Arc, time::Instant};
 
@@ -31,6 +32,10 @@ struct MockL1GasPriceProvider(u64);
 impl L1GasPriceProvider for MockL1GasPriceProvider {
     fn estimate_effective_gas_price(&self) -> u64 {
         self.0
+    }
+
+    fn estimate_effective_pubdata_price(&self) -> u64 {
+        self.estimate_effective_gas_price() * (L1_GAS_PER_PUBDATA_BYTE as u64)
     }
 }
 

@@ -1,5 +1,7 @@
 use std::{fmt, sync::Arc};
 
+use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
+
 use crate::{l1_gas_price::L1GasPriceProvider, state_keeper::metrics::KEEPER_METRICS};
 
 /// Gas adjuster that bounds the gas price to the specified value.
@@ -39,5 +41,9 @@ impl<G: L1GasPriceProvider> L1GasPriceProvider for BoundedGasAdjuster<G> {
             return self.max_gas_price;
         }
         default_gas_price
+    }
+
+    fn estimate_effective_pubdata_price(&self) -> u64 {
+        self.estimate_effective_gas_price() * (L1_GAS_PER_PUBDATA_BYTE as u64)
     }
 }

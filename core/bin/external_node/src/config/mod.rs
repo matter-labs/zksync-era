@@ -520,7 +520,8 @@ impl From<ExternalNodeConfig> for TxSenderConfig {
                 .unwrap(),
             gas_price_scale_factor: config.optional.gas_price_scale_factor,
             max_nonce_ahead: config.optional.max_nonce_ahead,
-            fair_l2_gas_price: config.remote.fair_l2_gas_price,
+            // todo: maybe change it
+            minimal_l2_gas_price: config.remote.fair_l2_gas_price,
             vm_execution_cache_misses_limit: config.optional.vm_execution_cache_misses_limit,
             // We set these values to the maximum since we don't know the actual values
             // and they will be enforced by the main node anyway.

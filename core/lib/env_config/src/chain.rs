@@ -78,7 +78,7 @@ mod tests {
                 reject_tx_at_geometry_percentage: 0.3,
                 fee_account_addr: addr("de03a0B5963f75f1C8485B355fF6D30f3093BDE7"),
                 reject_tx_at_gas_percentage: 0.5,
-                fair_l2_gas_price: 250000000,
+                minimal_l2_gas_price: 100000000,
                 validation_computational_gas_limit: 10_000_000,
                 save_call_traces: false,
                 virtual_blocks_interval: 1,
@@ -126,7 +126,7 @@ mod tests {
             CHAIN_STATE_KEEPER_BLOCK_COMMIT_DEADLINE_MS="2500"
             CHAIN_STATE_KEEPER_MINIBLOCK_COMMIT_DEADLINE_MS="1000"
             CHAIN_STATE_KEEPER_MINIBLOCK_SEAL_QUEUE_CAPACITY="10"
-            CHAIN_STATE_KEEPER_FAIR_L2_GAS_PRICE="250000000"
+            CHAIN_STATE_KEEPER_MINIMAL_L2_GAS_PRICE="100000000"
             CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT="10000000"
             CHAIN_STATE_KEEPER_SAVE_CALL_TRACES="false"
             CHAIN_STATE_KEEPER_UPLOAD_WITNESS_INPUTS_TO_GCS="false"

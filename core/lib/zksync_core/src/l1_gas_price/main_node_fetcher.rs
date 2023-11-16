@@ -8,6 +8,7 @@ use std::{
 
 use tokio::sync::watch::Receiver;
 
+use zksync_system_constants::{GAS_PER_PUBDATA_BYTE, L1_GAS_PER_PUBDATA_BYTE};
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::ZksNamespaceClient,
@@ -70,5 +71,12 @@ impl MainNodeGasPriceFetcher {
 impl L1GasPriceProvider for MainNodeGasPriceFetcher {
     fn estimate_effective_gas_price(&self) -> u64 {
         self.gas_price.load(Ordering::Relaxed)
+    }
+
+    fn estimate_effective_pubdata_price(&self) -> u64 {
+        let gas_price = self.gas_price.load(Ordering::Relaxed);
+
+        // todo: why do we need GAS_PER_PUBDATA constant as well??
+        gas_price * (L1_GAS_PER_PUBDATA_BYTE as u64)
     }
 }

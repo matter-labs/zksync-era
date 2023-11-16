@@ -10,14 +10,13 @@ use zksync_utils::ceil_div_u256;
 /// Derives the overhead for processing transactions in a block.
 pub fn derive_overhead(
     l1_gas_price: u64,
-    fair_l2_gas_price: u64,
     base_fee: u64,
     encoded_len: usize,
     coeficients: OverheadCoeficients,
 ) -> u32 {
     let base_fee = U256::from(base_fee);
 
-    let overhead_for_batch_eth = block_overhead_eth(l1_gas_price, fair_l2_gas_price);
+    let overhead_for_batch_eth = block_overhead_eth(l1_gas_price);
 
     let slot_overhead_gas = ceil_div_u256(overhead_for_batch_eth, (base_fee * MAX_TXS_IN_BLOCK));
     // todo: the 32 constant is for words -> byte conversion
@@ -89,30 +88,22 @@ impl OverheadCoeficients {
 /// TODO: maybe remove this method
 pub(crate) fn get_amortized_overhead(
     l1_gas_price: u64,
-    fair_l2_gas_price: u64,
     base_fee: u64,
     encoded_len: usize,
     coeficients: OverheadCoeficients,
 ) -> u32 {
-    derive_overhead(
-        l1_gas_price,
-        fair_l2_gas_price,
-        base_fee,
-        encoded_len,
-        coeficients,
-    )
+    derive_overhead(l1_gas_price, base_fee, encoded_len, coeficients)
 }
 
 // todo: maybe remove this function
-pub(crate) fn block_overhead_gas(gas_per_pubdata_byte: u32) -> u32 {
-    BLOCK_OVERHEAD_GAS + BLOCK_OVERHEAD_PUBDATA * gas_per_pubdata_byte
-}
+// pub(crate) fn block_overhead_gas(gas_per_pubdata_byte: u32) -> u32 {
+//     BLOCK_OVERHEAD_GAS + BLOCK_OVERHEAD_PUBDATA * gas_per_pubdata_byte
+// }
 
-pub(crate) fn block_overhead_eth(l1_gas_price: u64, l2_gas_price: u64) -> U256 {
+pub(crate) fn block_overhead_eth(l1_gas_price: u64) -> U256 {
     let l1_costs = U256::from(BLOCK_OVERHEAD_L1_GAS) * U256::from(l1_gas_price);
-    let l2_costs = U256::from(BLOCK_OVERHEAD_GAS) * U256::from(l2_gas_price);
 
-    l1_costs + l2_costs
+    l1_costs
 }
 
 #[cfg(test)]

@@ -121,7 +121,7 @@ pub(crate) async fn execute_tx_with_pending_state(
     drop(connection);
     // In order for execution to pass smoothlessly, we need to ensure that block's required gasPerPubdata will be
     // <= to the one in the transaction itself.
-    shared_args.adjust_l1_gas_price(tx.gas_per_pubdata_byte_limit());
+    shared_args.adjust_pubdata_price(tx.gas_per_pubdata_byte_limit());
 
     execute_tx_in_sandbox(
         vm_permit,

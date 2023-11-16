@@ -13,7 +13,6 @@ use std::{cmp, num::NonZeroU32, sync::Arc, time::Instant};
 
 // Workspace uses
 
-use multivm::interface::VmExecutionResultAndLogs;
 use multivm::vm_latest::{
     constants::{BLOCK_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK},
     utils::{
@@ -21,6 +20,7 @@ use multivm::vm_latest::{
         overhead::{derive_overhead, OverheadCoeficients},
     },
 };
+use multivm::{interface::VmExecutionResultAndLogs, vm_latest::utils::fee::get_operator_gas_price};
 
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
@@ -42,7 +42,7 @@ use zksync_utils::h256_to_u256;
 // Local uses
 use crate::api_server::{
     execution_sandbox::{
-        adjust_l1_gas_price_for_tx, execute_tx_eth_call, execute_tx_with_pending_state,
+        adjust_pubdata_price_for_tx, execute_tx_eth_call, execute_tx_with_pending_state,
         get_pubdata_for_factory_deps, BlockArgs, SubmitTxStage, TxExecutionArgs, TxSharedArgs,
         VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
     },
@@ -232,7 +232,7 @@ pub struct TxSenderConfig {
     pub gas_price_scale_factor: f64,
     pub max_nonce_ahead: u32,
     pub max_allowed_l2_tx_gas_limit: u32,
-    pub fair_l2_gas_price: u64,
+    pub minimal_l2_gas_price: u64,
     pub vm_execution_cache_misses_limit: Option<usize>,
     pub validation_computational_gas_limit: u32,
     pub chain_id: L2ChainId,
@@ -249,7 +249,7 @@ impl TxSenderConfig {
             gas_price_scale_factor: web3_json_config.gas_price_scale_factor,
             max_nonce_ahead: web3_json_config.max_nonce_ahead,
             max_allowed_l2_tx_gas_limit: state_keeper_config.max_allowed_l2_tx_gas_limit,
-            fair_l2_gas_price: state_keeper_config.fair_l2_gas_price,
+            minimal_l2_gas_price: state_keeper_config.minimal_l2_gas_price,
             vm_execution_cache_misses_limit: web3_json_config.vm_execution_cache_misses_limit,
             validation_computational_gas_limit: state_keeper_config
                 .validation_computational_gas_limit,
@@ -410,10 +410,18 @@ impl<G: L1GasPriceProvider> TxSender<G> {
     }
 
     fn shared_args(&self) -> TxSharedArgs {
+        let l1_gas_price = self.0.l1_gas_price_source.estimate_effective_gas_price();
+        let pubdata_price = self
+            .0
+            .l1_gas_price_source
+            .estimate_effective_pubdata_price();
+        let minimal_l2_gas_price = self.0.sender_config.minimal_l2_gas_price;
+
         TxSharedArgs {
             operator_account: AccountTreeId::new(self.0.sender_config.fee_account_addr),
             l1_gas_price: self.0.l1_gas_price_source.estimate_effective_gas_price(),
-            fair_l2_gas_price: self.0.sender_config.fair_l2_gas_price,
+            pubdata_price,
+            minimal_l2_gas_price,
             base_system_contracts: self.0.api_contracts.eth_call.clone(),
             caches: self.storage_caches(),
             validation_computational_gas_limit: self
@@ -442,7 +450,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             );
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
-        if tx.common_data.fee.max_fee_per_gas < self.0.sender_config.fair_l2_gas_price.into() {
+        if tx.common_data.fee.max_fee_per_gas < self.0.sender_config.minimal_l2_gas_price.into() {
             tracing::info!(
                 "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
                 tx.hash(),
@@ -465,11 +473,18 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             ));
         }
 
+        let pubdata_price = self
+            .0
+            .l1_gas_price_source
+            .estimate_effective_pubdata_price();
         let l1_gas_price = self.0.l1_gas_price_source.estimate_effective_gas_price();
-        let (_, gas_per_pubdata_byte) = derive_base_fee_and_gas_per_pubdata(
-            l1_gas_price,
-            self.0.sender_config.fair_l2_gas_price,
-        );
+
+        let operator_gas_price =
+            get_operator_gas_price(l1_gas_price, self.0.sender_config.minimal_l2_gas_price);
+
+        let (_, gas_per_pubdata_byte) =
+            derive_base_fee_and_gas_per_pubdata(pubdata_price, operator_gas_price);
+
         let effective_gas_per_pubdata = cmp::min(
             tx.common_data.fee.gas_per_pubdata_limit,
             gas_per_pubdata_byte.into(),
@@ -547,11 +562,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         let balance = self.get_balance(&tx.common_data.initiator_address).await;
 
         // Estimate the minimum fee price user will agree to.
-        let gas_price = cmp::min(
-            tx.common_data.fee.max_fee_per_gas,
-            U256::from(self.0.sender_config.fair_l2_gas_price)
-                + tx.common_data.fee.max_priority_fee_per_gas,
-        );
+        let gas_price = tx.common_data.fee.max_fee_per_gas;
         let max_fee = tx.common_data.fee.gas_limit * gas_price;
         let max_fee_and_value = max_fee + tx.execute.value;
 
@@ -593,12 +604,12 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         gas_per_pubdata_byte: u64,
         tx_gas_limit: u32,
         l1_gas_price: u64,
+        pubdata_price: u64,
         base_fee: u64,
     ) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics) {
         let gas_limit_with_overhead = tx_gas_limit
             + derive_overhead(
                 l1_gas_price,
-                self.0.sender_config.fair_l2_gas_price,
                 base_fee,
                 tx.encoding_len(),
                 OverheadCoeficients::from_tx_type(tx.tx_format() as u8),
@@ -624,7 +635,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             }
         }
 
-        let shared_args = self.shared_args_for_gas_estimate(l1_gas_price);
+        let shared_args = self.shared_args_for_gas_estimate(l1_gas_price, pubdata_price);
         let vm_execution_cache_misses_limit = self.0.sender_config.vm_execution_cache_misses_limit;
         let execution_args =
             TxExecutionArgs::for_gas_estimate(vm_execution_cache_misses_limit, &tx, base_fee);
@@ -640,12 +651,13 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         (exec_result, tx_metrics)
     }
 
-    fn shared_args_for_gas_estimate(&self, l1_gas_price: u64) -> TxSharedArgs {
+    fn shared_args_for_gas_estimate(&self, l1_gas_price: u64, pubdata_price: u64) -> TxSharedArgs {
         let config = &self.0.sender_config;
         TxSharedArgs {
             operator_account: AccountTreeId::new(config.fee_account_addr),
             l1_gas_price,
-            fair_l2_gas_price: config.fair_l2_gas_price,
+            pubdata_price,
+            minimal_l2_gas_price: config.minimal_l2_gas_price,
             // We want to bypass the computation gas limit check for gas estimation
             validation_computational_gas_limit: BLOCK_GAS_LIMIT,
             base_system_contracts: self.0.api_contracts.estimate_gas.clone(),
@@ -662,23 +674,37 @@ impl<G: L1GasPriceProvider> TxSender<G> {
     ) -> Result<Fee, SubmitTxError> {
         let estimation_started_at = Instant::now();
         let l1_gas_price = {
-            let effective_gas_price = self.0.l1_gas_price_source.estimate_effective_gas_price();
-            let current_l1_gas_price =
-                ((effective_gas_price as f64) * self.0.sender_config.gas_price_scale_factor) as u64;
+            let effective_l1_gas_price = self.0.l1_gas_price_source.estimate_effective_gas_price();
+            let effective_l1_gas_price = ((effective_l1_gas_price as f64)
+                * self.0.sender_config.gas_price_scale_factor)
+                as u64;
 
-            // In order for execution to pass smoothly, we need to ensure that block's required gasPerPubdata will be
-            // <= to the one in the transaction itself.
-            adjust_l1_gas_price_for_tx(
-                current_l1_gas_price,
-                self.0.sender_config.fair_l2_gas_price,
+            effective_l1_gas_price
+        };
+
+        let pubdata_price = {
+            let effective_pubdata_price = self
+                .0
+                .l1_gas_price_source
+                .estimate_effective_pubdata_price();
+            // todo: maybe use a different scale factor
+            let current_pubdata_price = ((effective_pubdata_price as f64)
+                * self.0.sender_config.gas_price_scale_factor)
+                as u64;
+
+            adjust_pubdata_price_for_tx(
+                l1_gas_price,
+                current_pubdata_price,
+                self.0.sender_config.minimal_l2_gas_price,
                 tx.gas_per_pubdata_byte_limit(),
             )
         };
 
-        let (base_fee, gas_per_pubdata_byte) = derive_base_fee_and_gas_per_pubdata(
-            l1_gas_price,
-            self.0.sender_config.fair_l2_gas_price,
-        );
+        let operator_gas_price =
+            get_operator_gas_price(l1_gas_price, self.0.sender_config.minimal_l2_gas_price);
+
+        let (base_fee, gas_per_pubdata_byte) =
+            derive_base_fee_and_gas_per_pubdata(l1_gas_price, operator_gas_price);
         match &mut tx.common_data {
             ExecuteTransactionCommon::L2(common_data) => {
                 common_data.fee.max_fee_per_gas = base_fee.into();
@@ -785,6 +811,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
                     gas_per_pubdata_byte,
                     try_gas_limit,
                     l1_gas_price,
+                    pubdata_price,
                     base_fee,
                 )
                 .await;
@@ -822,6 +849,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
                 gas_per_pubdata_byte,
                 suggested_gas_limit,
                 l1_gas_price,
+                pubdata_price,
                 base_fee,
             )
             .await;
@@ -831,7 +859,6 @@ impl<G: L1GasPriceProvider> TxSender<G> {
 
         let overhead = derive_overhead(
             l1_gas_price,
-            self.0.sender_config.fair_l2_gas_price,
             base_fee,
             tx.encoding_len(),
             OverheadCoeficients::from_tx_type(tx.tx_format() as u8),
@@ -881,10 +908,12 @@ impl<G: L1GasPriceProvider> TxSender<G> {
     pub fn gas_price(&self) -> u64 {
         let gas_price = self.0.l1_gas_price_source.estimate_effective_gas_price();
         let l1_gas_price = (gas_price as f64 * self.0.sender_config.gas_price_scale_factor).round();
-        let (base_fee, _) = derive_base_fee_and_gas_per_pubdata(
+        let operator_gas_price = get_operator_gas_price(
             l1_gas_price as u64,
-            self.0.sender_config.fair_l2_gas_price,
+            self.0.sender_config.minimal_l2_gas_price,
         );
+        let (base_fee, _) =
+            derive_base_fee_and_gas_per_pubdata(l1_gas_price as u64, operator_gas_price);
         base_fee
     }
 

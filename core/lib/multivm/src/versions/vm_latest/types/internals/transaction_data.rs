@@ -189,22 +189,7 @@ impl TransactionData {
         bytes_to_be_words(bytes)
     }
 
-    pub(crate) fn effective_gas_price_per_pubdata(&self, block_gas_price_per_pubdata: u32) -> u32 {
-        // It is enforced by the protocol that the L1 transactions always pay the exact amount of gas per pubdata
-        // as was supplied in the transaction.
-        if is_l1_tx_type(self.tx_type) {
-            self.pubdata_price_limit.as_u32()
-        } else {
-            block_gas_price_per_pubdata
-        }
-    }
-
-    pub(crate) fn overhead_gas(
-        &self,
-        batch_l1_gas_price: u64,
-        batch_l2_fair_gas_price: u64,
-        batch_base_fee: u64,
-    ) -> u32 {
+    pub(crate) fn overhead_gas(&self, batch_l1_gas_price: u64, batch_base_fee: u64) -> u32 {
         let encoded_len = encoding_len(
             self.data.len() as u64,
             self.signature.len() as u64,
@@ -213,7 +198,7 @@ impl TransactionData {
             self.reserved_dynamic.len() as u64,
         );
 
-        let (l1_gas_price, l2_fair_gas_price, base_fee) = if is_l1_tx_type(self.tx_type) {
+        let (l1_gas_price, base_fee) = if is_l1_tx_type(self.tx_type) {
             // todo: please move this constant outside
             const LEGACY_PRIORITY_OP_GAS_LIMIT: u64 = 72_000_000;
 
@@ -230,23 +215,13 @@ impl TransactionData {
                     .as_u32();
             }
 
-            (
-                l1_gas_price,
-                self.max_fee_per_gas.as_u64(),
-                self.max_fee_per_gas.as_u64(),
-            )
+            (l1_gas_price, self.max_fee_per_gas.as_u64())
         } else {
-            (batch_l1_gas_price, batch_l2_fair_gas_price, batch_base_fee)
+            (batch_l1_gas_price, batch_base_fee)
         };
 
         let coeficients = OverheadCoeficients::from_tx_type(self.tx_type);
-        get_amortized_overhead(
-            l1_gas_price,
-            l2_fair_gas_price,
-            base_fee,
-            encoded_len,
-            coeficients,
-        )
+        get_amortized_overhead(l1_gas_price, base_fee, encoded_len, coeficients)
     }
 
     pub(crate) fn trusted_ergs_limit(&self, _block_gas_price_per_pubdata: u64) -> U256 {

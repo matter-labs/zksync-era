@@ -103,7 +103,7 @@ async fn test_filter_with_no_pending_batch() {
     // Create a copy of the tx filter that the mempool will use.
     let want_filter = l2_tx_filter(
         &tester.create_gas_adjuster().await,
-        tester.fair_l2_gas_price(),
+        tester.minimal_l2_gas_price(),
     );
 
     // Create a mempool without pending batch and ensure that filter is not initialized just yet.
@@ -147,7 +147,7 @@ async fn test_timestamps_are_distinct(
     // Insert a transaction to trigger L1 batch creation.
     let tx_filter = l2_tx_filter(
         &tester.create_gas_adjuster().await,
-        tester.fair_l2_gas_price(),
+        tester.minimal_l2_gas_price(),
     );
     tester.insert_tx(&mut guard, tx_filter.fee_per_gas, tx_filter.gas_per_pubdata);
 

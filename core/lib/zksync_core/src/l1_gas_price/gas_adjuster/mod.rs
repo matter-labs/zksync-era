@@ -1,6 +1,7 @@
 //! This module determines the fees to pay in txs containing blocks submitted to the L1.
 
 use tokio::sync::watch;
+use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 
 use std::{
     collections::VecDeque,
@@ -109,6 +110,10 @@ impl<E: EthInterface> L1GasPriceProvider for GasAdjuster<E> {
         let effective_gas_price = self.get_base_fee(0) + self.get_priority_fee();
 
         (self.config.internal_l1_pricing_multiplier * effective_gas_price as f64) as u64
+    }
+
+    fn estimate_effective_pubdata_price(&self) -> u64 {
+        self.estimate_effective_gas_price() * (L1_GAS_PER_PUBDATA_BYTE as u64)
     }
 }
 

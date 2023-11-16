@@ -1,29 +1,33 @@
 //! Utility functions for vm
-use zksync_system_constants::MAX_GAS_PER_PUBDATA_BYTE;
+use zksync_system_constants::{MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT};
 use zksync_utils::ceil_div;
 
-use crate::vm_latest::old_vm::utils::eth_price_per_pubdata_byte;
-
-/// Calcluates the amount of gas required to publish one byte of pubdata
-pub fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
-    let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
-
-    ceil_div(eth_price_per_pubdata_byte, base_fee)
-}
+use crate::vm_latest::constants::BLOCK_OVERHEAD_L1_GAS;
+use zksync_types::U256;
 
 /// Calculates the base fee and gas per pubdata for the given L1 gas price.
-pub fn derive_base_fee_and_gas_per_pubdata(l1_gas_price: u64, fair_gas_price: u64) -> (u64, u64) {
-    let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
-
+pub fn derive_base_fee_and_gas_per_pubdata(
+    pubdata_price: u64,
+    operator_gas_price: u64,
+) -> (u64, u64) {
     // The baseFee is set in such a way that it is always possible for a transaction to
     // publish enough public data while compensating us for it.
     let base_fee = std::cmp::max(
-        fair_gas_price,
-        ceil_div(eth_price_per_pubdata_byte, MAX_GAS_PER_PUBDATA_BYTE),
+        operator_gas_price,
+        ceil_div(pubdata_price, MAX_GAS_PER_PUBDATA_BYTE),
     );
 
-    (
-        base_fee,
-        base_fee_to_gas_per_pubdata(l1_gas_price, base_fee),
-    )
+    let gas_per_pubdata = ceil_div(pubdata_price, base_fee);
+
+    (base_fee, gas_per_pubdata)
+}
+
+/// Returns the operator's gas price based on the L1 gas price and the minimal gas price.
+pub fn get_operator_gas_price(l1_gas_price: u64, minimal_gas_price: u64) -> u64 {
+    let block_overhead_eth = U256::from(l1_gas_price) * U256::from(BLOCK_OVERHEAD_L1_GAS);
+
+    // todo: maybe either use a different constant or use coeficients struct
+    let block_overhead_part = block_overhead_eth / U256::from(MAX_L2_TX_GAS_LIMIT * 10);
+
+    minimal_gas_price + block_overhead_part.as_u64()
 }

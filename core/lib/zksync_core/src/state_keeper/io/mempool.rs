@@ -7,8 +7,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
+use multivm::{
+    interface::{FinishedL1Batch, L1BatchEnv, SystemEnv},
+    vm_latest::utils::fee::get_operator_gas_price,
+};
 
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_dal::ConnectionPool;
@@ -53,7 +56,7 @@ pub(crate) struct MempoolIO<G> {
     miniblock_sealer_handle: MiniblockSealerHandle,
     current_l1_batch_number: L1BatchNumber,
     fee_account: Address,
-    fair_l2_gas_price: u64,
+    minimal_l2_gas_price: u64,
     validation_computational_gas_limit: u32,
     delay_interval: Duration,
     // Used to keep track of gas prices to set accepted price per pubdata byte in blocks.
@@ -141,7 +144,10 @@ where
         for _ in 0..poll_iters(self.delay_interval, max_wait) {
             // We create a new filter each time, since parameters may change and a previously
             // ignored transaction in the mempool may be scheduled for the execution.
-            self.filter = l2_tx_filter(self.l1_gas_price_provider.as_ref(), self.fair_l2_gas_price);
+            self.filter = l2_tx_filter(
+                self.l1_gas_price_provider.as_ref(),
+                self.minimal_l2_gas_price,
+            );
             // We only need to get the root hash when we're certain that we have a new transaction.
             if !self.mempool.has_next(&self.filter) {
                 tokio::time::sleep(self.delay_interval).await;
@@ -169,7 +175,7 @@ where
                 "(l1_gas_price, fair_l2_gas_price) for L1 batch #{} is ({}, {})",
                 self.current_l1_batch_number.0,
                 self.filter.l1_gas_price,
-                self.fair_l2_gas_price
+                self.minimal_l2_gas_price
             );
             let mut storage = self.pool.access_storage().await.unwrap();
             let (base_system_contracts, protocol_version) = storage
@@ -177,13 +183,16 @@ where
                 .base_system_contracts_by_timestamp(current_timestamp)
                 .await;
 
+            let fair_l2_gas_price =
+                get_operator_gas_price(self.filter.l1_gas_price, self.minimal_l2_gas_price);
+
             return Some(l1_batch_params(
                 self.current_l1_batch_number,
                 self.fee_account,
                 current_timestamp,
                 prev_l1_batch_hash,
                 self.filter.l1_gas_price,
-                self.fair_l2_gas_price,
+                fair_l2_gas_price,
                 self.current_miniblock_number,
                 prev_miniblock_hash,
                 base_system_contracts,
@@ -446,7 +455,7 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
             miniblock_sealer_handle,
             current_miniblock_number: last_miniblock_number + 1,
             fee_account: config.fee_account_addr,
-            fair_l2_gas_price: config.fair_l2_gas_price,
+            minimal_l2_gas_price: config.minimal_l2_gas_price,
             validation_computational_gas_limit,
             delay_interval,
             l1_gas_price_provider,
