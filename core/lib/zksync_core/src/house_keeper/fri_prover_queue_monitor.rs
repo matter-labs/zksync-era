@@ -6,13 +6,19 @@ use zksync_prover_utils::periodic_job::PeriodicJob;
 pub struct FriProverStatsReporter {
     reporting_interval_ms: u64,
     prover_connection_pool: ConnectionPool,
+    config: ProverGroupConfig,
 }
 
 impl FriProverStatsReporter {
-    pub fn new(reporting_interval_ms: u64, prover_connection_pool: ConnectionPool) -> Self {
+    pub fn new(
+        reporting_interval_ms: u64,
+        prover_connection_pool: ConnectionPool,
+        config: ProverGroupConfig,
+    ) -> Self {
         Self {
             reporting_interval_ms,
             prover_connection_pool,
+            config,
         }
     }
 }
@@ -36,15 +42,9 @@ impl PeriodicJob for FriProverStatsReporter {
               "fri_prover.prover.jobs",
               stats.queued as f64,
               "type" => "queued",
-              "group_id" => group_id.to_string()
-            );
-
-            metrics::gauge!(
-              "fri_prover.prover.jobs",
-              stats.queued as f64,
-              "type" => "queued",
               "circuit_id" => circuit_id.to_string(),
               "aggregation_round" => aggregation_round.to_string()
+              "prover_group_id" => group_id.to_string()
             );
 
             metrics::gauge!(
