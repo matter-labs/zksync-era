@@ -13,9 +13,8 @@ on:
         type: string
         required: true
   push:
-    tags:
-      - core-v**
-      - prover-v**
+    branches:
+      - "ci-core-multiarch"
 
 concurrency: docker-build
 
@@ -29,6 +28,7 @@ jobs:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
           submodules: "recursive"
+          ref: ${{ github.ref }}
 
       - name: Generate output with git tag
         id: set
@@ -54,34 +54,34 @@ jobs:
       image_tag: ${{ needs.setup.outputs.image_tag }}
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
 
-  build-push-prover-images:
-    name: Build and push image
-    needs: [setup]
-    uses: ./.github/workflows/build-prover-template.yml
-    if: contains(github.ref_name, 'prover')
-    with:
-      image_tag: ${{ needs.setup.outputs.image_tag }}
-      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
-      ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
-    secrets:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+  # build-push-prover-images:
+  #   name: Build and push image
+  #   needs: [setup]
+  #   uses: ./.github/workflows/build-prover-template.yml
+  #   if: contains(github.ref_name, 'prover')
+  #   with:
+  #     image_tag: ${{ needs.setup.outputs.image_tag }}
+  #     image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+  #     ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
+  #   secrets:
+  #     DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+  #     DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
-  build-gar-prover:
-    name: Build GAR prover
-    needs: [setup, build-push-prover-images]
-    uses: ./.github/workflows/build-gar-reusable.yml
-    if: contains(github.ref_name, 'prover')
-    with:
-      setup_keys_id: 4989f12
-      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
-      push_asia: true
+  # build-gar-prover:
+  #   name: Build GAR prover
+  #   needs: [setup, build-push-prover-images]
+  #   uses: ./.github/workflows/build-gar-reusable.yml
+  #   if: contains(github.ref_name, 'prover')
+  #   with:
+  #     setup_keys_id: 4989f12
+  #     image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+  #     push_asia: true
 
-  build-gar-prover-fri-gpu:
-    name: Build GAR prover FRI GPU
-    needs: [setup, build-push-prover-images]
-    uses: ./.github/workflows/build-prover-fri-gpu-gar.yml
-    if: contains(github.ref_name, 'prover')
-    with:
-      setup_keys_id: 2d33a27-gpu
-      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+  # build-gar-prover-fri-gpu:
+  #   name: Build GAR prover FRI GPU
+  #   needs: [setup, build-push-prover-images]
+  #   uses: ./.github/workflows/build-prover-fri-gpu-gar.yml
+  #   if: contains(github.ref_name, 'prover')
+  #   with:
+  #     setup_keys_id: 2d33a27-gpu
+  #     image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
