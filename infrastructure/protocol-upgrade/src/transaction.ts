@@ -167,7 +167,7 @@ export function prepareDefaultCalldataForL2upgrade(forcedDeployments: ForceDeplo
     return complexUpgraderCalldata;
 }
 
-export function prepareproposeTransparentUpgradeCalldata(
+export function prepareProposeTransparentUpgradeCalldata(
     initCalldata,
     upgradeAddress: string,
     facetCuts: FacetCut[],
@@ -321,7 +321,7 @@ export function buildDefaultUpgradeTx(
         transparentUpgrade,
         proposeTransparentUpgradeCalldata,
         executeUpgradeCalldata
-    } = prepareproposeTransparentUpgradeCalldata(
+    } = prepareProposeTransparentUpgradeCalldata(
         l1upgradeCalldata,
         upgradeAddress,
         facetCuts,
