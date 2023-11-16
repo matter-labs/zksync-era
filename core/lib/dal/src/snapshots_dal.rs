@@ -13,7 +13,7 @@ impl SnapshotsDal<'_, '_> {
         &mut self,
         l1_batch_number: L1BatchNumber,
         storage_logs_filepaths: &[String],
-        factory_deps_filepaths: String,
+        factory_deps_filepaths: &str,
     ) -> Result<(), sqlx::Error> {
         sqlx::query!(
             "INSERT INTO snapshots (l1_batch_number, created_at, storage_logs_filepaths, factory_deps_filepath) \
@@ -75,13 +75,9 @@ mod tests {
         let mut conn = pool.access_storage().await.unwrap();
         let mut dal = conn.snapshots_dal();
         let l1_batch_number = L1BatchNumber(100);
-        dal.add_snapshot(
-            l1_batch_number,
-            &[],
-            "gs:///bucket/factory_deps.bin".to_string(),
-        )
-        .await
-        .expect("Failed to add snapshot");
+        dal.add_snapshot(l1_batch_number, &[], "gs:///bucket/factory_deps.bin")
+            .await
+            .expect("Failed to add snapshot");
 
         let snapshots = dal
             .get_all_snapshots()
@@ -116,7 +112,7 @@ mod tests {
                 "gs:///bucket/test_file1.bin".to_string(),
                 "gs:///bucket/test_file2.bin".to_string(),
             ],
-            "gs:///bucket/factory_deps.bin".to_string(),
+            "gs:///bucket/factory_deps.bin",
         )
         .await
         .expect("Failed to add snapshot");

@@ -187,7 +187,7 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::
         .add_snapshot(
             l1_batch_number,
             &storage_logs_output_files,
-            factory_deps_output_file,
+            &factory_deps_output_file,
         )
         .await?;
 
