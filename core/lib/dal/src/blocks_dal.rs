@@ -416,7 +416,7 @@ impl BlocksDal<'_, '_> {
         );
         Ok(())
     }
-  
+
     pub async fn get_last_sealed_miniblock_header(
         &mut self,
     ) -> sqlx::Result<Option<MiniblockHeader>> {
