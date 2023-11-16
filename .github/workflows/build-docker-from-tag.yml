@@ -52,5 +52,5 @@ jobs:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     with:
-      image_tag: ${{ needs.setup.outputs.image_tag }}
-      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      image_tag: ${{ needs.setup.outputs.image_tag }}-arm-experimental
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}-arm-experimental
