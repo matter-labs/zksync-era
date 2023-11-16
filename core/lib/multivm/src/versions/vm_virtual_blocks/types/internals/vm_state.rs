@@ -20,16 +20,15 @@ use zksync_types::block::legacy_miniblock_hash;
 use zksync_types::{zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address, MiniblockNumber};
 use zksync_utils::h256_to_u256;
 
-use crate::vm_refunds_enhancement::bootloader_state::BootloaderState;
-use crate::vm_refunds_enhancement::constants::BOOTLOADER_HEAP_PAGE;
-use crate::vm_refunds_enhancement::old_vm::{
+use crate::vm_virtual_blocks::bootloader_state::BootloaderState;
+use crate::vm_virtual_blocks::constants::BOOTLOADER_HEAP_PAGE;
+use crate::vm_virtual_blocks::old_vm::{
     event_sink::InMemoryEventSink, history_recorder::HistoryMode, memory::SimpleMemory,
     oracles::decommitter::DecommitterOracle, oracles::precompile::PrecompilesProcessorWithHistory,
+    oracles::storage::StorageOracle,
 };
-
-use crate::vm_refunds_enhancement::oracles::storage::StorageOracle;
-use crate::vm_refunds_enhancement::types::l1_batch::bootloader_initial_memory;
-use crate::vm_refunds_enhancement::utils::l2_blocks::{assert_next_block, load_last_l2_block};
+use crate::vm_virtual_blocks::types::l1_batch_env::bootloader_initial_memory;
+use crate::vm_virtual_blocks::utils::l2_blocks::{assert_next_block, load_last_l2_block};
 
 pub type ZkSyncVmState<S, H> = VmState<
     StorageOracle<S, H>,

@@ -1,6 +1,7 @@
 use zksync_contracts::{
-    multicall_contract, verifier_contract, zksync_contract, PRE_BOOJUM_COMMIT_FUNCTION,
-    PRE_BOOJUM_EXECUTE_FUNCTION, PRE_BOOJUM_GET_VK_FUNCTION, PRE_BOOJUM_PROVE_FUNCTION,
+    multicall_contract, state_transition_chain_contract, verifier_contract,
+    PRE_BOOJUM_COMMIT_FUNCTION, PRE_BOOJUM_EXECUTE_FUNCTION, PRE_BOOJUM_GET_VK_FUNCTION,
+    PRE_BOOJUM_PROVE_FUNCTION,
 };
 use zksync_types::ethabi::{Contract, Function};
 

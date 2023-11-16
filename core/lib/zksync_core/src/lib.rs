@@ -540,7 +540,7 @@ pub async fn initialize_components(
         tracing::info!("initialized State Keeper in {elapsed:?}");
     }
 
-    let main_zksync_contract_address = contracts_config.diamond_proxy_addr;
+    let state_transition_chain_contract = contracts_config.diamond_proxy_addr;
     if components.contains(&Component::EthWatcher) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-Watcher");

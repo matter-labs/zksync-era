@@ -1,4 +1,4 @@
-use zk_evm_1_4_0::{
+use zk_evm_1_3_3::{
     abstractions::Memory,
     abstractions::PrecompileCyclesWitness,
     abstractions::PrecompilesProcessor,
@@ -6,7 +6,9 @@ use zk_evm_1_4_0::{
     precompiles::DefaultPrecompilesProcessor,
 };
 
-use crate::vm_latest::old_vm::history_recorder::{HistoryEnabled, HistoryMode, HistoryRecorder};
+use crate::vm_virtual_blocks::old_vm::history_recorder::{
+    HistoryEnabled, HistoryMode, HistoryRecorder,
+};
 
 use super::OracleWithHistory;
 
