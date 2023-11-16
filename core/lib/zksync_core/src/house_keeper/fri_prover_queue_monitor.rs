@@ -27,6 +27,18 @@ impl PeriodicJob for FriProverStatsReporter {
         let stats = conn.fri_prover_jobs_dal().get_prover_jobs_stats().await;
 
         for ((circuit_id, aggregation_round), stats) in stats.into_iter() {
+            let group_id = self
+                .config
+                .get_group_id_for_circuit_id_and_aggregation_round(circuit_id, aggregation_round)
+                .unwrap();
+
+            metrics::gauge!(
+              "fri_prover.prover.jobs",
+              stats.queued as f64,
+              "type" => "queued",
+              "group_id" => group_id.to_string()
+            );
+
             metrics::gauge!(
               "fri_prover.prover.jobs",
               stats.queued as f64,
