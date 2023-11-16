@@ -201,9 +201,6 @@ To generate a proposal transaction, combining all the data from the previous ste
 . By default, it's the Complex Upgrader contract. If you want to use a different contract, such as ForcedDeploy
 directly, you can override it.
 
-- `diamondUpgradeProposalId`: ID of the diamond upgrade proposal. If not specified, it will be taken from the contract
-  using l1rpc and zksync-address.
-
 ```bash
 $ zk f yarn start transactions build-default \
 --upgrade-address <upgradeAddress> \
@@ -213,7 +210,8 @@ $ zk f yarn start transactions build-default \
 --l2-upgrader-address <l2UpgraderAddress> \
 --diamond-upgrade-proposal-id <diamondUpgradeProposalId> \
 --l1rpc <l1prc> \
---zksync-address <zksyncAddress>
+--zksync-address <zksyncAddress> \
+--use-new-governance
 ```
 
 To execute the `proposeTransparentUpgrade` transaction on L1, use the following command:
@@ -225,7 +223,8 @@ $ zk f yarn start transactions propose-upgrade \
 --gas-price <gas-price> \
 --nonce <nonce> \
 --zksync-address <zksyncAddress> \
---environment <environment>
+--environment <environment> \
+--new-governance <governanceAddress>
 ```
 
 To execute the latest upgrade, use the following command:
@@ -237,7 +236,8 @@ $ zk f yarn start transactions execute-upgrade \
 --gas-price <gas-price> \
 --nonce <nonce> \
 --zksync-address <zksyncAddress> \
---environment <environment>
+--environment <environment> \
+--new-governance <governanceAddress>
 ```
 
 To cancel the proposed upgrade, use the following command:
@@ -249,5 +249,6 @@ $ zk f yarn start transactions cancel-upgrade \
 --zksync-address <zksyncAddress> \
 --gas-price <gas-price> \
 --nonce <nonce> \
---environment <environment>
+--environment <environment> \
+--new-governance <governanceAddress>
 ```
