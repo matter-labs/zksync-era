@@ -30,10 +30,10 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
             .await
             .map_err(|err| internal_error(method_name, err))?;
         let mut snapshots_dal = storage_processor.snapshots_dal();
-        Ok(snapshots_dal
+        snapshots_dal
             .get_all_snapshots()
             .await
-            .map_err(|err| internal_error(method_name, err))?)
+            .map_err(|err| internal_error(method_name, err))
     }
 
     pub async fn get_snapshot_by_l1_batch_number_impl(
