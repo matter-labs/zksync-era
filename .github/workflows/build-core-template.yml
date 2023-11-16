@@ -29,14 +29,14 @@ jobs:
     env:
       image_tag: ${{ inputs.image_tag }}
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
-    runs-on: [matterlabs-ci-runner-arm]
+    runs-on: [matterlabs-ci-runner]
     strategy:
       matrix:
         component:
-          - server-v2
+          # - server-v2
           - external-node
-          - contract-verifier
-          - cross-external-nodes-checker
+          # - contract-verifier
+          # - cross-external-nodes-checker
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
