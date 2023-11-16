@@ -111,7 +111,7 @@ pub trait ZksNamespace {
     #[method(name = "getLogsWithVirtualBlocks")]
     async fn get_logs_with_virtual_blocks(&self, filter: Filter) -> RpcResult<Vec<Log>>;
 
-    #[method(name = "zks_getProof")]
+    #[method(name = "getProof")]
     async fn get_proof(
         &self,
         address: Address,
