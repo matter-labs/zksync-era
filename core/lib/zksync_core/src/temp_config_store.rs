@@ -5,6 +5,7 @@ use zksync_config::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
             StateKeeperConfig,
         },
+        fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, PrometheusConfig,
         ProofDataHandlerConfig, ProverGroupConfig, WitnessGeneratorConfig,

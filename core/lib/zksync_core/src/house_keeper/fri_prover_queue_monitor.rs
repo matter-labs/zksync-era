@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use zksync_config::configs::FriProverGroupConfig;
+use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_dal::ConnectionPool;
 use zksync_prover_utils::periodic_job::PeriodicJob;
 
@@ -44,8 +44,8 @@ impl PeriodicJob for FriProverStatsReporter {
               stats.queued as f64,
               "type" => "queued",
               "circuit_id" => circuit_id.to_string(),
-              "aggregation_round" => aggregation_round.to_string()
-              "prover_group_id" => group_id.to_string()
+              "aggregation_round" => aggregation_round.to_string(),
+              "prover_group_id" => group_id.to_string(),
             );
 
             metrics::gauge!(
@@ -53,8 +53,8 @@ impl PeriodicJob for FriProverStatsReporter {
               stats.in_progress as f64,
               "type" => "in_progress",
               "circuit_id" => circuit_id.to_string(),
-              "aggregation_round" => aggregation_round.to_string()
-              "prover_group_id" => group_id.to_string()
+              "aggregation_round" => aggregation_round.to_string(),
+              "prover_group_id" => group_id.to_string(),
             );
         }
 
