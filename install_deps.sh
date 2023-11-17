@@ -43,11 +43,6 @@ fi
 
 . $HOME/.cargo/env
 cargo install sqlx-cli --version 0.5.13
-
-if [ "$OS" = "Linux" ]; then
-	sudo service postgresql stop
-fi
-
 git checkout boojum-integration
 cd "$ZKSYNC_HOME"
 
