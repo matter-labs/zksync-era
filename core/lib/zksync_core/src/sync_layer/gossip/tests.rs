@@ -8,19 +8,19 @@ use zksync_consensus_executor::testonly::FullValidatorConfig;
 use zksync_consensus_roles::validator::{self, FinalBlock};
 use zksync_consensus_storage::{InMemoryStorage, WriteBlockStore};
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_types::{
-    block::{CommitQCBytes, ConsensusBlockFields},
-    Address, L1BatchNumber, MiniblockNumber, H256,
-};
+use zksync_types::{block::ConsensusBlockFields, Address, L1BatchNumber, MiniblockNumber};
 
 use super::*;
-use crate::sync_layer::{
-    sync_action::SyncAction,
-    tests::{
-        mock_l1_batch_hash_computation, run_state_keeper_with_multiple_l1_batches,
-        run_state_keeper_with_multiple_miniblocks, StateKeeperHandles,
+use crate::{
+    consensus,
+    sync_layer::{
+        sync_action::SyncAction,
+        tests::{
+            mock_l1_batch_hash_computation, run_state_keeper_with_multiple_l1_batches,
+            run_state_keeper_with_multiple_miniblocks, StateKeeperHandles,
+        },
+        ActionQueue,
     },
-    ActionQueue,
 };
 
 const CLOCK_SPEEDUP: i64 = 20;
@@ -47,7 +47,7 @@ pub async fn block_payload(storage: &mut StorageProcessor<'_>, number: u32) -> v
         .await
         .unwrap()
         .unwrap_or_else(|| panic!("no sync block #{number}"));
-    conversions::sync_block_to_payload(sync_block)
+    consensus::Payload::try_from(sync_block).unwrap().encode()
 }
 
 /// Adds consensus information for the specified `count` of miniblocks, starting from the genesis.
@@ -71,12 +71,12 @@ pub(super) async fn add_consensus_fields(
             proposal: block_header,
         };
         let replica_commit = validator_key.sign_msg(replica_commit);
-        let commit_qc = validator::CommitQC::from(&[replica_commit], &validator_set)
+        let justification = validator::CommitQC::from(&[replica_commit], &validator_set)
             .expect("Failed creating QC");
 
         let consensus = ConsensusBlockFields {
-            prev_block_hash: H256(*prev_block_hash.as_bytes()),
-            commit_qc_bytes: CommitQCBytes::new(zksync_protobuf::canonical(&commit_qc)),
+            parent: prev_block_hash,
+            justification,
         };
         storage
             .blocks_dal()
