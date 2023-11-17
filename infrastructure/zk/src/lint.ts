@@ -36,14 +36,19 @@ async function lintSystemContracts(check: boolean = false) {
     await utils.spawn(`yarn --silent --cwd etc/system-contracts lint:${check ? 'check' : 'fix'}`);
 }
 
+function clippyRustToolchain(): string {
+    //There are no specific reasons to run this particular version other than because clippy is not very stable
+    // and even the same clippy sem-ver version can result in different output based on compiler version
+    return 'nightly-2023-08-21';
+}
 async function clippy() {
     process.chdir(process.env.ZKSYNC_HOME!);
-    await utils.spawn('cargo clippy --tests -- -D warnings');
+    await utils.spawn(`cargo ${clippyRustToolchain()} clippy --tests -- -D warnings`);
 }
 
 async function proverClippy() {
     process.chdir(process.env.ZKSYNC_HOME! + '/prover');
-    await utils.spawn('cargo clippy --tests -- -D warnings -A incomplete_features');
+    await utils.spawn(`cargo +${clippyRustToolchain()} clippy --tests -- -D warnings -A incomplete_features`);
 }
 
 const ARGS = [...EXTENSIONS, 'rust', 'prover', 'l1-contracts', 'l2-contracts', 'system-contracts'];
