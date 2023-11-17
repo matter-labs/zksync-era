@@ -57,7 +57,8 @@ If logging out does not help, restarting the computer should.
 
 ## Installation script
 
-Once docker is installed, if you are on `macOS` or `ubuntu`/`debian`, the rest of the dependencies below can be installed by running:
+Once docker is installed, if you are on `macOS` or `ubuntu`/`debian`, the rest of the dependencies below can be
+installed by running:
 
 ```
 make deps
