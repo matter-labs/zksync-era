@@ -79,6 +79,7 @@ pub struct MiniblockHeader {
 
     pub l1_gas_price: u64, // L1 gas price assumed in the corresponding batch
     pub l2_fair_gas_price: u64, // L2 gas price assumed in the corresponding batch
+    pub pubdata_price: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub protocol_version: Option<ProtocolVersionId>,
     /// The maximal number of virtual blocks to be created in the miniblock.

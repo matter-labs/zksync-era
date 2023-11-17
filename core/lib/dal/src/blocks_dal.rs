@@ -439,8 +439,8 @@ impl BlocksDal<'_, '_> {
                 number, timestamp, hash, l1_tx_count, l2_tx_count, \
                 base_fee_per_gas, l1_gas_price, l2_fair_gas_price, gas_per_pubdata_limit, \
                 bootloader_code_hash, default_aa_code_hash, protocol_version, \
-                virtual_blocks, created_at, updated_at \
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now(), now())",
+                virtual_blocks, pubdata_price, created_at, updated_at \
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, now(), now())",
             miniblock_header.number.0 as i64,
             miniblock_header.timestamp as i64,
             miniblock_header.hash.as_bytes(),
@@ -460,6 +460,7 @@ impl BlocksDal<'_, '_> {
                 .as_bytes(),
             miniblock_header.protocol_version.map(|v| v as i32),
             miniblock_header.virtual_blocks as i64,
+            miniblock_header.pubdata_price as i64,
         )
         .execute(self.storage.conn())
         .await?;
@@ -498,7 +499,7 @@ impl BlocksDal<'_, '_> {
             "SELECT number, timestamp, hash, l1_tx_count, l2_tx_count, \
                 base_fee_per_gas, l1_gas_price, l2_fair_gas_price, \
                 bootloader_code_hash, default_aa_code_hash, protocol_version, \
-                virtual_blocks
+                virtual_blocks, pubdata_price
             FROM miniblocks \
             ORDER BY number DESC \
             LIMIT 1",
@@ -517,7 +518,7 @@ impl BlocksDal<'_, '_> {
             "SELECT number, timestamp, hash, l1_tx_count, l2_tx_count, \
                 base_fee_per_gas, l1_gas_price, l2_fair_gas_price, \
                 bootloader_code_hash, default_aa_code_hash, protocol_version, \
-                virtual_blocks
+                virtual_blocks, pubdata_price
             FROM miniblocks \
             WHERE number = $1",
             miniblock_number.0 as i64,

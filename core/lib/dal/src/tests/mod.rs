@@ -38,6 +38,7 @@ pub(crate) fn create_miniblock_header(number: u32) -> MiniblockHeader {
         l2_tx_count: 0,
         base_fee_per_gas: 100,
         l1_gas_price: 100,
+        pubdata_price: 100,
         l2_fair_gas_price: 100,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::default()),

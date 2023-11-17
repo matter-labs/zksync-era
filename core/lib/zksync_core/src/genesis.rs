@@ -299,6 +299,7 @@ pub(crate) async fn create_genesis_l1_batch(
         l2_tx_count: 0,
         base_fee_per_gas: 0,
         l1_gas_price: 0,
+        pubdata_price: 0,
         l2_fair_gas_price: 0,
         base_system_contracts_hashes: base_system_contracts.hashes(),
         protocol_version: Some(ProtocolVersionId::latest()),

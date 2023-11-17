@@ -510,6 +510,8 @@ pub struct StorageMiniblockHeader {
     pub default_aa_code_hash: Option<Vec<u8>>,
     pub protocol_version: Option<i32>,
 
+    pub pubdata_price: Option<i64>,
+
     // The maximal number of virtual blocks that can be created with this miniblock.
     // If this value is greater than zero, then at least 1 will be created, but no more than
     // min(virtual_blocks, miniblock_number - virtual_block_number), i.e. making sure that virtual blocks
@@ -528,6 +530,8 @@ impl From<StorageMiniblockHeader> for MiniblockHeader {
             base_fee_per_gas: row.base_fee_per_gas.to_u64().unwrap(),
             l1_gas_price: row.l1_gas_price as u64,
             l2_fair_gas_price: row.l2_fair_gas_price as u64,
+            // TODO fix it
+            pubdata_price: row.pubdata_price.map(|x| x as u64).unwrap_or_default(),
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 row.bootloader_code_hash,
                 row.default_aa_code_hash,
