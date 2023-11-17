@@ -26,7 +26,8 @@ async function dockerCommand(
     image: string,
     customTag?: string,
     publishPublic: boolean = false,
-    dockerOrg: string = 'matterlabs'
+    dockerOrg: string = 'matterlabs',
+    platforms: string[] = ['linux/amd64'],
 ) {
     // Generating all tags for containers. We need 2 tags here: SHA and SHA+TS
     const { stdout: COMMIT_SHORT_SHA }: { stdout: string } = await utils.exec('git rev-parse --short HEAD');
@@ -53,7 +54,7 @@ async function dockerCommand(
     // COMMIT_SHORT_SHA returns with newline, so we need to trim it
     switch (command) {
         case 'build':
-            await _build(image, tagList, dockerOrg);
+            await _build(image, tagList, dockerOrg, platforms);
             break;
         case 'push':
             await _push(image, tagList, publishPublic);
@@ -86,7 +87,7 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
     return tagList;
 }
 
-async function _build(image: string, tagList: string[], dockerOrg: string) {
+async function _build(image: string, tagList: string[], dockerOrg: string, platforms: string[] = ['linux/amd64']) {
     if (image === 'server-v2' || image === 'external-node' || image === 'prover') {
         await contract.build();
     }
@@ -107,8 +108,8 @@ async function _build(image: string, tagList: string[], dockerOrg: string) {
     const imagePath = image == 'prover-v2' ? 'prover' : image;
 
     const buildCommand =
-        `DOCKER_BUILDKIT=1 docker build ${tagsToBuild}` +
-        (buildArgs ? ` ${buildArgs}` : '') +
+        `DOCKER_BUILDKIT=1 docker buildx build ${tagsToBuild}` +
+        ` --platform=${platforms.join(',')}` +
         ` -f ./docker/${imagePath}/Dockerfile .`;
 
     await utils.spawn(buildCommand);
@@ -141,11 +142,11 @@ async function _push(image: string, tagList: string[], publishPublic: boolean = 
 }
 
 export async function build(image: string, cmd: Command) {
-    await dockerCommand('build', image, cmd.customTag);
+    await dockerCommand('build', image, cmd.customTag, false, cmd.platforms);
 }
 
 export async function customBuildForHyperchain(image: string, dockerOrg: string) {
-    await dockerCommand('build', image, '', false, dockerOrg);
+    await dockerCommand('build', image, '', false, [], dockerOrg);
 }
 
 export async function push(image: string, cmd: Command) {
@@ -171,6 +172,7 @@ command
 command
     .command('push <image>')
     .option('--custom-tag <value>', 'Custom tag for image')
+    .option('--platforms <platforms>', 'Comma-separated list of platforms', (val) => val.split(','), ['linux/amd64'])
     .option('--public', 'Publish image to the public repo')
     .description('build and push docker image')
     .action(push);
