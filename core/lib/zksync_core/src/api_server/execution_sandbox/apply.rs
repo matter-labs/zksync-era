@@ -206,6 +206,11 @@ pub(super) fn apply_vm_in_sandbox<T>(
         pubdata_price: l1_gas_price * 17,
     };
 
+    println!(
+        "INFO: {:#?} {:#?}",
+        l1_batch_env.timestamp, l1_batch_env.first_l2_block
+    );
+
     let storage_view = storage_view.to_rc_ptr();
     let mut vm = Box::new(VmInstance::new_with_specific_version(
         l1_batch_env,

@@ -18,16 +18,20 @@ pub fn derive_overhead(
 
     let overhead_for_batch_eth = block_overhead_eth(l1_gas_price);
 
-    let slot_overhead_gas = ceil_div_u256(overhead_for_batch_eth, (base_fee * MAX_TXS_IN_BLOCK));
-    // todo: the 32 constant is for words -> byte conversion
-    let memory_overhead_gas = ceil_div_u256(
-        overhead_for_batch_eth,
-        (base_fee * BOOTLOADER_TX_ENCODING_SPACE * 32),
-    );
+    // todo: move into constants
+    let slot_overhead_gas = 150000; //ceil_div_u256(overhead_for_batch_eth, (base_fee * MAX_TXS_IN_BLOCK));
+                                    // todo: the 32 constant is for words -> byte conversion
+
+    // todo: move into constants
+    let memory_overhead_gas = 35;
+    // let memory_overhead_gas = ceil_div_u256(
+    //     overhead_for_batch_eth,
+    //     (base_fee * BOOTLOADER_TX_ENCODING_SPACE * 32),
+    // );
 
     vec![
-        slot_overhead_gas.as_u32(),
-        (memory_overhead_gas * U256::from(encoded_len)).as_u32(),
+        slot_overhead_gas,
+        memory_overhead_gas * (encoded_len as u32),
     ]
     .into_iter()
     .max()
