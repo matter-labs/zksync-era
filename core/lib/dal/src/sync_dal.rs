@@ -34,8 +34,7 @@ impl SyncDal<'_, '_> {
                 miniblocks.default_aa_code_hash, \
                 miniblocks.virtual_blocks, \
                 miniblocks.hash, \
-                miniblocks.commit_qc, \
-                miniblocks.prev_consensus_block_hash, \
+                miniblocks.consensus, \
                 miniblocks.protocol_version as \"protocol_version!\", \
                 l1_batches.fee_account_address as \"fee_account_address?\" \
             FROM miniblocks \

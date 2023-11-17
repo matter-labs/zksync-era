@@ -355,7 +355,7 @@ async fn test_miniblock_and_l1_batch_processing(
     // Save metadata for the genesis L1 batch so that we don't hang in `seal_l1_batch`.
     let metadata = create_l1_batch_metadata(0);
     conn.blocks_dal()
-        .save_l1_batch_metadata(L1BatchNumber(0), &metadata, H256::zero())
+        .save_l1_batch_metadata(L1BatchNumber(0), &metadata, H256::zero(), false)
         .await
         .unwrap();
     drop(conn);

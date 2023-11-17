@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package zksync.core.consensus;
+
+message Transaction {
+  // Default derive(serde::Serialize) encoding of the zksync_types::Transaction.
+  // TODO(gprusak): it is neither efficient, unique, nor suitable for version control.
+  //     replace with a more robust encoding.
+  optional string json = 1; // required
+}
+
+message Payload {
+  optional bytes hash = 1; // required; H256
+  optional uint32 l1_batch_number = 2; // required
+  optional uint64 timestamp = 3; // required; seconds since UNIX epoch
+  optional uint64 l1_gas_price = 4; // required; gwei
+  optional uint64 l2_fair_gas_price = 5; // required; gwei
+  optional uint32 virtual_blocks = 6; // required
+  optional bytes operator_address = 7; // required; H160
+  repeated Transaction transactions = 8;
+}

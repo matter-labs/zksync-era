@@ -186,10 +186,13 @@ fn generate_gpu_setup_data(is_base_layer: bool, numeric_circuit: u8) -> anyhow::
             )
         }
     };
+    let worker = Worker::new();
     let gpu_setup_data = GpuSetup::from_setup_and_hints(
         cpu_setup_data.setup_base,
         cpu_setup_data.setup_tree,
         cpu_setup_data.vars_hint.clone(),
+        cpu_setup_data.wits_hint,
+        &worker,
     )
     .context("failed creating GPU base layer setup data")?;
     let gpu_prover_setup_data = GpuProverSetupData {

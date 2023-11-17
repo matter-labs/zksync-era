@@ -1,10 +1,13 @@
+use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 use zksync_system_constants::SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER;
 
 use std::{fmt, ops};
 
-use zksync_basic_types::{Bytes, H2048, H256, U256};
+use zksync_basic_types::{H2048, H256, U256};
+use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_protobuf::{read_required, ProtoFmt};
 
 use crate::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
@@ -85,33 +88,41 @@ pub struct MiniblockHeader {
     pub virtual_blocks: u32,
 }
 
-/// Protobuf serialization of a quorum certificate for an L2 block (= miniblock).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct CommitQCBytes(pub Bytes);
-
-impl CommitQCBytes {
-    /// It is caller's responsibility to ensure that `bytes` is actually a valid Protobuf message
-    /// for a quorum certificate.
-    pub fn new(bytes: Vec<u8>) -> Self {
-        Self(Bytes(bytes))
-    }
-}
-
-impl AsRef<[u8]> for CommitQCBytes {
-    fn as_ref(&self) -> &[u8] {
-        &(self.0).0
-    }
-}
-
 /// Consensus-related L2 block (= miniblock) fields.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone)]
 pub struct ConsensusBlockFields {
     /// Hash of the previous consensus block.
-    pub prev_block_hash: H256,
-    /// Protobuf serialization of a quorum certificate for the block.
-    pub commit_qc_bytes: CommitQCBytes,
+    pub parent: validator::BlockHeaderHash,
+    /// Quorum certificate for the block.
+    pub justification: validator::CommitQC,
+}
+
+impl ProtoFmt for ConsensusBlockFields {
+    type Proto = crate::proto::ConsensusBlockFields;
+    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
+        Ok(Self {
+            parent: read_required(&r.parent).context("parent")?,
+            justification: read_required(&r.justification).context("justification")?,
+        })
+    }
+    fn build(&self) -> Self::Proto {
+        Self::Proto {
+            parent: Some(self.parent.build()),
+            justification: Some(self.justification.build()),
+        }
+    }
+}
+
+impl Serialize for ConsensusBlockFields {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        zksync_protobuf::serde::serialize(self, s)
+    }
+}
+
+impl<'de> Deserialize<'de> for ConsensusBlockFields {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        zksync_protobuf::serde::deserialize(d)
+    }
 }
 
 /// Data needed to execute a miniblock in the VM.
