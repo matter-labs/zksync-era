@@ -14,6 +14,9 @@ export async function deployVerifier(
     if (l1Rpc) {
         argsString += ` --l1rpc ${l1Rpc}`;
     }
+    if (privateKey) {
+        argsString += ` --private-key ${privateKey}`;
+    }
     if (nonce) {
         argsString += ` --nonce ${nonce}`;
     }

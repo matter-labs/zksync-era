@@ -7,11 +7,14 @@
 //! transactions, thus the calculations are done separately and asynchronously.
 
 use serde::{Deserialize, Serialize};
+use zksync_utils::u256_to_h256;
 
 use std::{collections::HashMap, convert::TryFrom};
 
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
+use zksync_system_constants::{
+    L2_TO_L1_LOGS_TREE_ROOT_KEY, STATE_DIFF_HASH_KEY, ZKPORTER_IS_AVAILABLE,
+};
 
 use crate::{
     block::L1BatchHeader,
@@ -22,7 +25,7 @@ use crate::{
         compress_state_diffs, InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord,
         PADDED_ENCODED_STORAGE_DIFF_LEN_BYTES,
     },
-    ProtocolVersionId, H256, KNOWN_CODES_STORAGE_ADDRESS, U256,
+    H256, KNOWN_CODES_STORAGE_ADDRESS, U256,
 };
 
 /// Type that can be serialized for commitment.
@@ -338,7 +341,7 @@ struct L1BatchAuxiliaryOutput {
     bootloader_heap_hash: H256,
     #[allow(dead_code)]
     events_state_queue_hash: H256,
-    protocol_version: ProtocolVersionId,
+    is_pre_boojum: bool,
 }
 
 impl L1BatchAuxiliaryOutput {
@@ -351,15 +354,31 @@ impl L1BatchAuxiliaryOutput {
         state_diffs: Vec<StateDiffRecord>,
         bootloader_heap_hash: H256,
         events_state_queue_hash: H256,
-        protocol_version: ProtocolVersionId,
+        is_pre_boojum: bool,
     ) -> Self {
+        let state_diff_hash_from_logs = system_logs.iter().find_map(|log| {
+            if log.0.key == u256_to_h256(STATE_DIFF_HASH_KEY.into()) {
+                Some(log.0.value)
+            } else {
+                None
+            }
+        });
+
+        let merke_tree_root_from_logs = system_logs.iter().find_map(|log| {
+            if log.0.key == u256_to_h256(L2_TO_L1_LOGS_TREE_ROOT_KEY.into()) {
+                Some(log.0.value)
+            } else {
+                None
+            }
+        });
+
         let (
             l2_l1_logs_compressed,
             initial_writes_compressed,
             repeated_writes_compressed,
             system_logs_compressed,
             state_diffs_packed,
-        ) = if protocol_version.is_pre_boojum() {
+        ) = if is_pre_boojum {
             (
                 pre_boojum_serialize_commitments(&l2_l1_logs),
                 pre_boojum_serialize_commitments(&initial_writes),
@@ -385,7 +404,7 @@ impl L1BatchAuxiliaryOutput {
         let repeated_writes_hash = H256::from(keccak256(&repeated_writes_compressed));
         let state_diffs_hash = H256::from(keccak256(&(state_diffs_packed)));
 
-        let serialized_logs = if protocol_version.is_pre_boojum() {
+        let serialized_logs = if is_pre_boojum {
             &l2_l1_logs_compressed[4..]
         } else {
             &l2_l1_logs_compressed
@@ -395,13 +414,26 @@ impl L1BatchAuxiliaryOutput {
             .chunks(UserL2ToL1Log::SERIALIZED_SIZE)
             .map(|chunk| <[u8; UserL2ToL1Log::SERIALIZED_SIZE]>::try_from(chunk).unwrap());
         // ^ Skip first 4 bytes of the serialized logs (i.e., the number of logs).
-        let min_tree_size = if protocol_version.is_pre_boojum() {
+        let min_tree_size = if is_pre_boojum {
             L2ToL1Log::PRE_BOOJUM_MIN_L2_L1_LOGS_TREE_SIZE
         } else {
             L2ToL1Log::MIN_L2_L1_LOGS_TREE_SIZE
         };
         let l2_l1_logs_merkle_root =
             MiniMerkleTree::new(merkle_tree_leaves, Some(min_tree_size)).merkle_root();
+
+        if !system_logs.is_empty() {
+            assert_eq!(
+                state_diffs_hash,
+                state_diff_hash_from_logs.unwrap(),
+                "State diff hash mismatch"
+            );
+            assert_eq!(
+                l2_l1_logs_merkle_root,
+                merke_tree_root_from_logs.unwrap(),
+                "L2 L1 logs tree root mismatch"
+            );
+        }
 
         Self {
             l2_l1_logs_compressed,
@@ -421,7 +453,7 @@ impl L1BatchAuxiliaryOutput {
 
             bootloader_heap_hash,
             events_state_queue_hash,
-            protocol_version,
+            is_pre_boojum,
         }
     }
 
@@ -430,7 +462,7 @@ impl L1BatchAuxiliaryOutput {
         const SERIALIZED_SIZE: usize = 128;
         let mut result = Vec::with_capacity(SERIALIZED_SIZE);
 
-        if self.protocol_version.is_pre_boojum() {
+        if self.is_pre_boojum {
             result.extend(self.l2_l1_logs_merkle_root.as_bytes());
             result.extend(self.l2_l1_logs_linear_hash.as_bytes());
             result.extend(self.initial_writes_hash.as_bytes());
@@ -534,7 +566,7 @@ impl L1BatchCommitment {
         state_diffs: Vec<StateDiffRecord>,
         bootloader_heap_hash: H256,
         events_state_queue_hash: H256,
-        protocol_version: ProtocolVersionId,
+        is_pre_boojum: bool,
     ) -> Self {
         let meta_parameters = L1BatchMetaParameters {
             zkporter_is_available: ZKPORTER_IS_AVAILABLE,
@@ -564,7 +596,7 @@ impl L1BatchCommitment {
                 state_diffs,
                 bootloader_heap_hash,
                 events_state_queue_hash,
-                protocol_version,
+                is_pre_boojum,
             ),
             meta_parameters,
         }
@@ -639,7 +671,7 @@ mod tests {
     };
     use crate::l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log};
     use crate::writes::{InitialStorageWrite, RepeatedStorageWrite};
-    use crate::{ProtocolVersionId, H256, U256};
+    use crate::{H256, U256};
 
     #[serde_as]
     #[derive(Debug, Serialize, Deserialize)]
@@ -722,7 +754,7 @@ mod tests {
             vec![],
             H256::zero(),
             H256::zero(),
-            ProtocolVersionId::latest(),
+            false,
         );
 
         let commitment = L1BatchCommitment {

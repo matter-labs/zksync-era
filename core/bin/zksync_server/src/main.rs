@@ -15,7 +15,7 @@ use zksync_config::{
         ProofDataHandlerConfig, ProverGroupConfig, WitnessGeneratorConfig,
     },
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
-    FetcherConfig, GasAdjusterConfig, ObjectStoreConfig, ProverConfigs,
+    FetcherConfig, GasAdjusterConfig, ObjectStoreConfig, PostgresConfig, ProverConfigs,
 };
 
 use zksync_core::temp_config_store::TempConfigStore;
@@ -91,37 +91,12 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("No sentry URL was provided");
     }
 
-    if opt.genesis || is_genesis_needed().await {
-        let network = NetworkConfig::from_env().context("NetworkConfig")?;
-        let eth_sender = ETHSenderConfig::from_env().context("ETHSenderConfig")?;
-        let contracts = ContractsConfig::from_env().context("ContractsConfig")?;
-        let eth_client = ETHClientConfig::from_env().context("EthClientConfig")?;
-        genesis_init(&eth_sender, &network, &contracts, &eth_client.web3_url)
-            .await
-            .context("genesis_init")?;
-        if opt.genesis {
-            return Ok(());
-        }
-    }
-
-    let components = if opt.rebuild_tree {
-        vec![Component::Tree]
-    } else {
-        opt.components.0
-    };
-
-    // OneShotWitnessGenerator is the only component that is not expected to run indefinitely
-    // if this value is `false`, we expect all components to run indefinitely: we panic if any component returns.
-    let is_only_oneshot_witness_generator_task = matches!(
-        components.as_slice(),
-        [Component::WitnessGenerator(Some(_), _)]
-    );
-
     // TODO (QIT-22): Only deserialize configs on demand.
     // Right now, we are trying to deserialize all the configs that may be needed by `zksync_core`.
     // "May" is the key word here, since some configs are only used by certain component configuration,
     // hence we are using `Option`s.
-    let configs = TempConfigStore {
+    let configs: TempConfigStore = TempConfigStore {
+        postgres_config: PostgresConfig::from_env().ok(),
         health_check_config: HealthCheckConfig::from_env().ok(),
         merkle_tree_api_config: MerkleTreeApiConfig::from_env().ok(),
         web3_json_rpc_config: Web3JsonRpcConfig::from_env().ok(),
@@ -149,6 +124,40 @@ async fn main() -> anyhow::Result<()> {
         prover_configs: ProverConfigs::from_env().ok(),
         object_store_config: ObjectStoreConfig::from_env().ok(),
     };
+
+    let postgres_config = configs.postgres_config.clone().context("PostgresConfig")?;
+
+    if opt.genesis || is_genesis_needed(&postgres_config).await {
+        let network = NetworkConfig::from_env().context("NetworkConfig")?;
+        let eth_sender = ETHSenderConfig::from_env().context("ETHSenderConfig")?;
+        let contracts = ContractsConfig::from_env().context("ContractsConfig")?;
+        let eth_client = ETHClientConfig::from_env().context("EthClientConfig")?;
+        genesis_init(
+            &postgres_config,
+            &eth_sender,
+            &network,
+            &contracts,
+            &eth_client.web3_url,
+        )
+        .await
+        .context("genesis_init")?;
+        if opt.genesis {
+            return Ok(());
+        }
+    }
+
+    let components = if opt.rebuild_tree {
+        vec![Component::Tree]
+    } else {
+        opt.components.0
+    };
+
+    // OneShotWitnessGenerator is the only component that is not expected to run indefinitely
+    // if this value is `false`, we expect all components to run indefinitely: we panic if any component returns.
+    let is_only_oneshot_witness_generator_task = matches!(
+        components.as_slice(),
+        [Component::WitnessGenerator(Some(_), _)]
+    );
 
     // Run core actors.
     let (core_task_handles, stop_sender, cb_receiver, health_check_handle) =
