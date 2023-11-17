@@ -16,7 +16,7 @@ use zksync_types::{
     CURRENT_VIRTUAL_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_types::{
-    block::{ConsensusBlockFields, L1BatchHeader, MiniblockHeader},
+    block::{L1BatchHeader, MiniblockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
     storage_writes_deduplicator::{ModifiedSlot, StorageWritesDeduplicator},
     tx::{
@@ -50,7 +50,6 @@ impl UpdatesManager {
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,
         l2_erc20_bridge_addr: Address,
-        fictive_miniblock_consensus_fields: Option<ConsensusBlockFields>,
     ) {
         let started_at = Instant::now();
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::VmFinalization);
@@ -64,7 +63,6 @@ impl UpdatesManager {
             l1_batch_env.number,
             current_miniblock_number,
             l2_erc20_bridge_addr,
-            fictive_miniblock_consensus_fields,
         );
         miniblock_command.seal_inner(&mut transaction, true).await;
         progress.observe(None);
@@ -313,13 +311,6 @@ impl MiniblockSealCommand {
             .insert_miniblock(&miniblock_header)
             .await
             .unwrap();
-        if let Some(consensus) = &self.consensus {
-            transaction
-                .blocks_dal()
-                .set_miniblock_consensus_fields(miniblock_number, consensus)
-                .await
-                .unwrap();
-        }
         progress.observe(None);
 
         let progress =

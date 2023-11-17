@@ -274,7 +274,6 @@ where
             self.current_l1_batch_number,
             self.current_miniblock_number,
             self.l2_erc20_bridge_addr,
-            None,
         );
         self.miniblock_sealer_handle.submit(command).await;
         self.current_miniblock_number += 1;
@@ -324,7 +323,6 @@ where
                 l1_batch_env,
                 finished_batch,
                 self.l2_erc20_bridge_addr,
-                None,
             )
             .await;
         self.current_miniblock_number += 1; // Due to fictive miniblock being sealed.

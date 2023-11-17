@@ -537,9 +537,18 @@ impl StateKeeperIO for ExternalIO {
             self.current_l1_batch_number,
             self.current_miniblock_number,
             self.l2_erc20_bridge_addr,
-            consensus,
         );
         command.seal(&mut transaction).await;
+
+        // We want to add miniblock consensus fields atomically with the miniblock data so that we
+        // don't need to deal with corner cases (e.g., a miniblock w/o consensus fields).
+        if let Some(consensus) = &consensus {
+            transaction
+                .blocks_dal()
+                .set_miniblock_consensus_fields(self.current_miniblock_number, consensus)
+                .await
+                .unwrap();
+        }
         transaction.commit().await.unwrap();
 
         self.sync_state
@@ -564,16 +573,24 @@ impl StateKeeperIO for ExternalIO {
         };
 
         let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
+        let mut transaction = storage.start_transaction().await.unwrap();
         updates_manager
             .seal_l1_batch(
-                &mut storage,
+                &mut transaction,
                 self.current_miniblock_number,
                 l1_batch_env,
                 finished_batch,
                 self.l2_erc20_bridge_addr,
-                consensus,
             )
             .await;
+        if let Some(consensus) = &consensus {
+            transaction
+                .blocks_dal()
+                .set_miniblock_consensus_fields(self.current_miniblock_number, consensus)
+                .await
+                .unwrap();
+        }
+        transaction.commit().await.unwrap();
 
         tracing::info!("Batch {} is sealed", self.current_l1_batch_number);
 
