@@ -13976,7 +13976,7 @@ utf-8-validate@^5.0.2:
   integrity sha512-Z6czzLq4u8fPOyx7TU6X3dvUZVvoJmxSQ+IcrlmagKhilxlhZgxPK6C5Jqbkw1IDUmFTM+cz9QDnnLTwDz/2gQ==
   dependencies:
     node-gyp-build "^4.3.0"
-    node-gyp: "^10.0.1
+    node-gyp "^10.0.1
 
 utf8@3.0.0, utf8@^3.0.0:
   version "3.0.0"
