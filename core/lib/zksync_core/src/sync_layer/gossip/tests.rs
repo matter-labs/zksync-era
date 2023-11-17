@@ -147,7 +147,7 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
     let rng = &mut ctx.rng();
     let mut validator = FullValidatorConfig::for_single_validator(rng, genesis_block_payload);
     let validator_set = validator.node_config.validators.clone();
-    let external_node = validator.connect_external_node(rng);
+    let external_node = validator.connect_full_node(rng);
 
     let (genesis_block, blocks) =
         get_blocks_and_reset_storage(storage, &validator.validator_key).await;
@@ -278,7 +278,7 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
     let rng = &mut ctx.rng();
     let mut validator = FullValidatorConfig::for_single_validator(rng, genesis_block_payload);
     let validator_set = validator.node_config.validators.clone();
-    let external_node = validator.connect_external_node(rng);
+    let external_node = validator.connect_full_node(rng);
 
     let (genesis_block, blocks) =
         get_blocks_and_reset_storage(storage, &validator.validator_key).await;
