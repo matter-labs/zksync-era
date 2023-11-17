@@ -37,7 +37,7 @@ async function prettierContracts(check: boolean, directory: string) {
 }
 
 async function prettierL1Contracts(check: boolean = false) {
-    await prettierContracts(check, ' contracts/ethereum');
+    await prettierContracts(check, 'contracts/ethereum');
 }
 
 async function prettierL2Contracts(check: boolean = false) {
