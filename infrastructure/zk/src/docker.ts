@@ -26,8 +26,8 @@ async function dockerCommand(
     image: string,
     customTag?: string,
     publishPublic: boolean = false,
-    dockerOrg: string = 'matterlabs',
     platforms: string[] = ['linux/amd64'],
+    dockerOrg: string = 'matterlabs'
 ) {
     // Generating all tags for containers. We need 2 tags here: SHA and SHA+TS
     const { stdout: COMMIT_SHORT_SHA }: { stdout: string } = await utils.exec('git rev-parse --short HEAD');
@@ -110,6 +110,7 @@ async function _build(image: string, tagList: string[], dockerOrg: string, platf
     const buildCommand =
         `DOCKER_BUILDKIT=1 docker buildx build ${tagsToBuild}` +
         ` --platform=${platforms.join(',')}` +
+        (buildArgs ? ` ${buildArgs}` : '') +
         ` -f ./docker/${imagePath}/Dockerfile .`;
 
     await utils.spawn(buildCommand);
@@ -129,11 +130,7 @@ async function _push(image: string, tagList: string[], publishPublic: boolean = 
             await utils.spawn(
                 `docker tag us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag} asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`
             );
-            await utils.spawn(
-                `docker tag us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag} europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`
-            );
             await utils.spawn(`docker push asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`);
-            await utils.spawn(`docker push europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`);
         }
         if (image == 'external-node' && publishPublic) {
             await utils.spawn(`docker push matterlabs/${image}-public:${tag}`);
@@ -167,12 +164,12 @@ export const command = new Command('docker').description('docker management');
 command
     .command('build <image>')
     .option('--custom-tag <value>', 'Custom tag for image')
+    .option('--platforms <platforms>', 'Comma-separated list of platforms', (val) => val.split(','), ['linux/amd64'])
     .description('build docker image')
     .action(build);
 command
     .command('push <image>')
     .option('--custom-tag <value>', 'Custom tag for image')
-    .option('--platforms <platforms>', 'Comma-separated list of platforms', (val) => val.split(','), ['linux/amd64'])
     .option('--public', 'Publish image to the public repo')
     .description('build and push docker image')
     .action(push);
