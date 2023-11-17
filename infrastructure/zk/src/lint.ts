@@ -39,7 +39,7 @@ async function lintSystemContracts(check: boolean = false) {
 function clippyRustToolchain(): string {
     //There are no specific reasons to run this particular version other than because clippy is not very stable
     // and even the same clippy sem-ver version can result in different output based on compiler version
-    return 'nightly-2023-08-21';
+    return '1.74.0';
 }
 async function clippy() {
     process.chdir(process.env.ZKSYNC_HOME!);
