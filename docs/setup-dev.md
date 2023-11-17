@@ -55,6 +55,18 @@ at this step.
 
 If logging out does not help, restarting the computer should.
 
+## Installation script
+
+Once docker is installed, if you are on `macOS` or `ubuntu`/`debian`, the rest of the dependencies below can be installed by running:
+
+```
+make deps
+```
+
+Note: on `macOS` you also need [homebrew](https://brew.sh/) installed on your system.
+
+If you are on a different operating system or prefer to install dependencies manually, keep reading below.
+
 ## `Node` & `Yarn`
 
 1. Install `Node` (requires version `v18.18.0`). Since our team attempts to always use the latest LTS version of
