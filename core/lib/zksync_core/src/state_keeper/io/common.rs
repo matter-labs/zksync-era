@@ -21,6 +21,7 @@ pub(crate) fn l1_batch_params(
     l1_batch_timestamp: u64,
     previous_batch_hash: U256,
     l1_gas_price: u64,
+    pubdata_price: u64,
     fair_l2_gas_price: u64,
     first_miniblock_number: MiniblockNumber,
     prev_miniblock_hash: H256,
@@ -54,7 +55,7 @@ pub(crate) fn l1_batch_params(
                 prev_block_hash: prev_miniblock_hash,
                 max_virtual_blocks_to_create: virtual_blocks,
             },
-            pubdata_price: l1_gas_price * 17,
+            pubdata_price,
         },
     )
 }
@@ -124,6 +125,7 @@ pub(crate) async fn load_l1_batch_params(
         pending_miniblock_header.timestamp,
         previous_l1_batch_hash,
         pending_miniblock_header.l1_gas_price,
+        pending_miniblock_header.pubdata_price,
         pending_miniblock_header.l2_fair_gas_price,
         pending_miniblock_number,
         prev_miniblock_hash,

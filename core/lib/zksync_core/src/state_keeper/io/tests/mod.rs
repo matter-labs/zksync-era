@@ -54,7 +54,7 @@ async fn test_filter_with_pending_batch() {
     // These gas values are random and don't matter for filter calculation as there will be a
     // pending batch the filter will be based off of.
     tester
-        .insert_miniblock(&connection_pool, 1, 5, 55, 555)
+        .insert_miniblock(&connection_pool, 1, 5, 55, 555, 555)
         .await;
     tester.insert_sealed_batch(&connection_pool, 1).await;
 
@@ -66,6 +66,7 @@ async fn test_filter_with_pending_batch() {
             &connection_pool,
             2,
             10,
+            give_l1_gas_price,
             give_l1_gas_price,
             give_fair_l2_gas_price,
         )
@@ -82,6 +83,7 @@ async fn test_filter_with_pending_batch() {
         l1_gas_price: give_l1_gas_price,
         fee_per_gas: want_base_fee,
         gas_per_pubdata: want_gas_per_pubdata as u32,
+        pubdata_price: give_l1_gas_price,
     };
     assert_eq!(mempool.filter(), &want_filter);
 }
@@ -96,7 +98,7 @@ async fn test_filter_with_no_pending_batch() {
     // Insert a sealed batch so there will be a prev_l1_batch_state_root.
     // These gas values are random and don't matter for filter calculation.
     tester
-        .insert_miniblock(&connection_pool, 1, 5, 55, 555)
+        .insert_miniblock(&connection_pool, 1, 5, 55, 555, 555)
         .await;
     tester.insert_sealed_batch(&connection_pool, 1).await;
 
@@ -136,7 +138,7 @@ async fn test_timestamps_are_distinct(
 
     tester.set_timestamp(prev_miniblock_timestamp);
     tester
-        .insert_miniblock(&connection_pool, 1, 5, 55, 555)
+        .insert_miniblock(&connection_pool, 1, 5, 55, 555, 555)
         .await;
     if delay_prev_miniblock_compared_to_batch {
         tester.set_timestamp(prev_miniblock_timestamp - 1);
@@ -240,6 +242,7 @@ async fn processing_storage_logs_when_sealing_miniblock() {
         miniblock,
         first_tx_index: 0,
         l1_gas_price: 100,
+        pubdata_price: 100,
         fair_l2_gas_price: 100,
         base_fee_per_gas: 10,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
@@ -316,6 +319,7 @@ async fn processing_events_when_sealing_miniblock() {
         miniblock,
         first_tx_index: 0,
         l1_gas_price: 100,
+        pubdata_price: 100,
         fair_l2_gas_price: 100,
         base_fee_per_gas: 10,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),

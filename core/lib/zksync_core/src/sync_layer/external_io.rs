@@ -381,6 +381,8 @@ impl StateKeeperIO for ExternalIO {
                         timestamp,
                         previous_l1_batch_hash,
                         l1_gas_price,
+                        // TODO: this is incorrect
+                        l1_gas_price * 17,
                         l2_fair_gas_price,
                         miniblock_number,
                         prev_miniblock_hash,

@@ -136,6 +136,8 @@ pub struct L2TxFilter {
     pub fee_per_gas: u64,
     /// Effective pubdata price in gas for transaction. The number of gas per 1 pubdata byte.
     pub gas_per_pubdata: u32,
+
+    pub pubdata_price: u64,
 }
 
 #[cfg(test)]
@@ -150,6 +152,7 @@ mod tests {
                 l1_gas_price,
                 fee_per_gas,
                 gas_per_pubdata,
+                pubdata_price: l1_gas_price * 17,
             }
         }
 

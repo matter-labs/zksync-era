@@ -125,6 +125,7 @@ impl Tester {
         number: u32,
         base_fee_per_gas: u64,
         l1_gas_price: u64,
+        pubdata_price: u64,
         l2_fair_gas_price: u64,
     ) {
         let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
@@ -139,7 +140,7 @@ impl Tester {
                 base_fee_per_gas,
                 l1_gas_price,
                 l2_fair_gas_price,
-                pubdata_price: l1_gas_price * 17,
+                pubdata_price,
                 base_system_contracts_hashes: self.base_system_contracts.hashes(),
                 protocol_version: Some(ProtocolVersionId::latest()),
                 virtual_blocks: 0,

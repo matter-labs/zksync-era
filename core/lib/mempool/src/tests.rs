@@ -241,12 +241,14 @@ fn filtering() {
         l1_gas_price: 0u64,
         fee_per_gas: 0u64,
         gas_per_pubdata: 1u32,
+        pubdata_price: 0,
     };
     // No-op filter that fetches any transaction.
     let filter_zero = L2TxFilter {
         l1_gas_price: 0u64,
         fee_per_gas: 0u64,
         gas_per_pubdata: 0u32,
+        pubdata_price: 0,
     };
 
     let mut mempool = MempoolStore::new(PriorityOpId(0), 100);
@@ -285,12 +287,14 @@ fn stashed_accounts() {
         l1_gas_price: 0u64,
         fee_per_gas: 0u64,
         gas_per_pubdata: 1u32,
+        pubdata_price: 0,
     };
     // No-op filter that fetches any transaction.
     let filter_zero = L2TxFilter {
         l1_gas_price: 0u64,
         fee_per_gas: 0u64,
         gas_per_pubdata: 0u32,
+        pubdata_price: 0,
     };
     let mut mempool = MempoolStore::new(PriorityOpId(0), 100);
     let account0 = Address::random();

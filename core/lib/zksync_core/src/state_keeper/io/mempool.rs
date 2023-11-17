@@ -124,6 +124,7 @@ where
             l1_gas_price: l1_batch_env.l1_gas_price,
             fee_per_gas: base_fee,
             gas_per_pubdata: gas_per_pubdata as u32,
+            pubdata_price: l1_batch_env.pubdata_price,
         };
 
         Some(PendingBatchData {
@@ -192,6 +193,7 @@ where
                 current_timestamp,
                 prev_l1_batch_hash,
                 self.filter.l1_gas_price,
+                self.filter.pubdata_price,
                 fair_l2_gas_price,
                 self.current_miniblock_number,
                 prev_miniblock_hash,

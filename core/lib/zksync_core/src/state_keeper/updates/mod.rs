@@ -26,6 +26,7 @@ use super::io::MiniblockParams;
 pub struct UpdatesManager {
     batch_timestamp: u64,
     l1_gas_price: u64,
+    pubdata_price: u64,
     fair_l2_gas_price: u64,
     base_fee_per_gas: u64,
     base_system_contract_hashes: BaseSystemContractsHashes,
@@ -44,6 +45,7 @@ impl UpdatesManager {
         Self {
             batch_timestamp: l1_batch_env.timestamp,
             l1_gas_price: l1_batch_env.l1_gas_price,
+            pubdata_price: l1_batch_env.pubdata_price,
             fair_l2_gas_price: l1_batch_env.fair_l2_gas_price,
             base_fee_per_gas: l1_batch_env.base_fee(),
             protocol_version,
@@ -88,6 +90,7 @@ impl UpdatesManager {
             miniblock: self.miniblock.clone(),
             first_tx_index: self.l1_batch.executed_transactions.len(),
             l1_gas_price: self.l1_gas_price,
+            pubdata_price: self.pubdata_price,
             fair_l2_gas_price: self.fair_l2_gas_price,
             base_fee_per_gas: self.base_fee_per_gas,
             base_system_contracts_hashes: self.base_system_contract_hashes,
@@ -167,6 +170,7 @@ pub(crate) struct MiniblockSealCommand {
     pub miniblock: MiniblockUpdates,
     pub first_tx_index: usize,
     pub l1_gas_price: u64,
+    pub pubdata_price: u64,
     pub fair_l2_gas_price: u64,
     pub base_fee_per_gas: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
