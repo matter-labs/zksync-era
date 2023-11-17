@@ -180,6 +180,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
         base_system_contracts,
         validation_computational_gas_limit,
         chain_id,
+        operator_pubdata_price,
         ..
     } = shared_args;
 
@@ -203,13 +204,13 @@ pub(super) fn apply_vm_in_sandbox<T>(
         fee_account: *operator_account.address(),
         enforced_base_fee: execution_args.enforced_base_fee,
         first_l2_block: next_l2_block_info,
-        pubdata_price: l1_gas_price * 17,
+        pubdata_price: operator_pubdata_price,
     };
 
-    println!(
-        "INFO: {:#?} {:#?}",
-        l1_batch_env.timestamp, l1_batch_env.first_l2_block
-    );
+    // println!(
+    //     "INFO: {:#?} {:#?}",
+    //     l1_batch_env.timestamp, l1_batch_env.first_l2_block
+    // );
 
     let storage_view = storage_view.to_rc_ptr();
     let mut vm = Box::new(VmInstance::new_with_specific_version(
