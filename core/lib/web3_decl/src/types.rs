@@ -106,6 +106,7 @@ pub enum FilterChanges {
 }
 
 /// Represents all kinds of `Filter`.
+// FIXME: move to core crate?
 #[derive(Debug, Clone)]
 pub enum TypedFilter {
     Events(Filter, zksync_types::MiniblockNumber),

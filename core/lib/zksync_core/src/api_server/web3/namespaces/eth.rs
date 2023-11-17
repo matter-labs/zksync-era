@@ -228,8 +228,8 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let (from_block, to_block) = self.state.resolve_filter_block_range(&filter).await?;
 
         filter.to_block = Some(BlockNumber::Number(to_block.0.into()));
-        let (changes, _) = self
-            .filter_changes(TypedFilter::Events(filter, from_block))
+        let changes = self
+            .filter_changes(&mut TypedFilter::Events(filter, from_block))
             .await?;
         method_latency.observe();
         Ok(match changes {
@@ -242,22 +242,18 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         const METHOD_NAME: &str = "get_filter_logs";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        // Note: We have to keep this as a separate variable, since otherwise the lock guard would exist
-        // for duration of the whole `match` block, and this guard is not `Send`. This would make the whole future
-        // not `Send`, since `match` has an `await` point.
+        // We clone the filter to not hold the filter lock for an extended period of time.
         let maybe_filter = self.state.installed_filters.read().await.get(idx).cloned();
-        let filter = match maybe_filter {
-            Some(TypedFilter::Events(filter, _)) => {
-                let from_block = self
-                    .state
-                    .resolve_filter_block_number(filter.from_block)
-                    .await?;
-                TypedFilter::Events(filter, from_block)
-            }
-            _ => return Err(Web3Error::FilterNotFound),
+        let Some(TypedFilter::Events(filter, _)) = maybe_filter else {
+            return Err(Web3Error::FilterNotFound);
         };
-
-        let logs = self.filter_changes(filter).await?.0;
+        let from_block = self
+            .state
+            .resolve_filter_block_number(filter.from_block)
+            .await?;
+        let logs = self
+            .filter_changes(&mut TypedFilter::Events(filter, from_block))
+            .await?;
         method_latency.observe();
         Ok(logs)
     }
@@ -538,16 +534,18 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         const METHOD_NAME: &str = "new_block_filter";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let last_block_number = self
+        let mut conn = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
+        let last_block_number = conn
             .blocks_web3_dal()
             .get_sealed_miniblock_number()
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
+        drop(conn);
 
         let idx = self
             .state
@@ -555,7 +553,6 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .write()
             .await
             .add(TypedFilter::Blocks(last_block_number));
-
         method_latency.observe();
         Ok(idx)
     }
@@ -570,6 +567,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                 return Err(Web3Error::TooManyTopics);
             }
         }
+
         self.state.resolve_filter_block_hash(&mut filter).await?;
         let from_block = self.state.get_filter_from_block(&filter).await?;
         let idx = self
@@ -578,7 +576,6 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .write()
             .await
             .add(TypedFilter::Events(filter, from_block));
-
         method_latency.observe();
         Ok(idx)
     }
@@ -605,7 +602,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         const METHOD_NAME: &str = "get_filter_changes";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let filter = self
+        let mut filter = self
             .state
             .installed_filters
             .read()
@@ -614,16 +611,16 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .cloned()
             .ok_or(Web3Error::FilterNotFound)?;
 
-        let result = match self.filter_changes(filter).await {
-            Ok((changes, updated_filter)) => {
+        let result = match self.filter_changes(&mut filter).await {
+            Ok(changes) => {
                 self.state
                     .installed_filters
                     .write()
                     .await
-                    .update(idx, updated_filter);
+                    .update(idx, filter);
                 Ok(changes)
             }
-            Err(Web3Error::LogsLimitExceeded(_, _, _)) => {
+            Err(Web3Error::LogsLimitExceeded(..)) => {
                 // The filter was not being polled for a long time, so we remove it.
                 self.state.installed_filters.write().await.remove(idx);
                 Err(Web3Error::FilterNotFound)
@@ -751,68 +748,65 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     #[tracing::instrument(skip(self, typed_filter))]
     async fn filter_changes(
         &self,
-        typed_filter: TypedFilter,
-    ) -> Result<(FilterChanges, TypedFilter), Web3Error> {
+        typed_filter: &mut TypedFilter,
+    ) -> Result<FilterChanges, Web3Error> {
         const METHOD_NAME: &str = "filter_changes";
 
         let res = match typed_filter {
             TypedFilter::Blocks(from_block) => {
-                let (block_hashes, last_block_number) = self
+                let mut conn = self
                     .state
                     .connection_pool
                     .access_storage_tagged("api")
-                    .await
-                    .unwrap()
-                    .blocks_web3_dal()
-                    .get_block_hashes_after(from_block, self.state.api_config.req_entities_limit)
                     .await
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
-                (
-                    FilterChanges::Hashes(block_hashes),
-                    TypedFilter::Blocks(last_block_number.unwrap_or(from_block)),
-                )
+                let (block_hashes, last_block_number) = conn
+                    .blocks_web3_dal()
+                    .get_block_hashes_after(*from_block, self.state.api_config.req_entities_limit)
+                    .await
+                    .map_err(|err| internal_error(METHOD_NAME, err))?;
+                *from_block = last_block_number.unwrap_or(*from_block);
+                FilterChanges::Hashes(block_hashes)
             }
+
             TypedFilter::PendingTransactions(from_timestamp) => {
-                let (tx_hashes, last_timestamp) = self
+                let mut conn = self
                     .state
                     .connection_pool
                     .access_storage_tagged("api")
                     .await
-                    .unwrap()
+                    .map_err(|err| internal_error(METHOD_NAME, err))?;
+                let (tx_hashes, last_timestamp) = conn
                     .transactions_web3_dal()
                     .get_pending_txs_hashes_after(
-                        from_timestamp,
+                        *from_timestamp,
                         Some(self.state.api_config.req_entities_limit),
                     )
                     .await
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
-                (
-                    FilterChanges::Hashes(tx_hashes),
-                    TypedFilter::PendingTransactions(last_timestamp.unwrap_or(from_timestamp)),
-                )
+                *from_timestamp = last_timestamp.unwrap_or(*from_timestamp);
+                FilterChanges::Hashes(tx_hashes)
             }
+
             TypedFilter::Events(filter, from_block) => {
-                let addresses: Vec<_> = filter
-                    .address
-                    .clone()
-                    .into_iter()
-                    .flat_map(|v| v.0)
-                    .collect();
-                if let Some(topics) = filter.topics.as_ref() {
+                let addresses = if let Some(addresses) = &filter.address {
+                    addresses.0.clone()
+                } else {
+                    vec![]
+                };
+                let topics = if let Some(topics) = &filter.topics {
                     if topics.len() > EVENT_TOPIC_NUMBER_LIMIT {
                         return Err(Web3Error::TooManyTopics);
                     }
-                }
-                let topics: Vec<_> = filter
-                    .topics
-                    .clone()
-                    .into_iter()
-                    .flatten()
-                    .enumerate()
-                    .filter_map(|(idx, topics)| topics.map(|topics| (idx as u32 + 1, topics.0)))
-                    .collect();
+                    let topics_by_idx = topics.iter().enumerate().filter_map(|(idx, topics)| {
+                        Some((idx as u32 + 1, topics.as_ref()?.0.clone()))
+                    });
+                    topics_by_idx.collect::<Vec<_>>()
+                } else {
+                    vec![]
+                };
                 let get_logs_filter = GetLogsFilter {
-                    from_block,
+                    from_block: *from_block,
                     to_block: filter.to_block,
                     addresses,
                     topics,
@@ -827,11 +821,11 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     .connection_pool
                     .access_storage_tagged("api")
                     .await
-                    .unwrap();
+                    .map_err(|err| internal_error(METHOD_NAME, err))?;
 
                 // Check if there is more than one block in range and there are more than `req_entities_limit` logs that satisfies filter.
                 // In this case we should return error and suggest requesting logs with smaller block range.
-                if from_block != to_block {
+                if *from_block != to_block {
                     if let Some(miniblock_number) = storage
                         .events_web3_dal()
                         .get_log_block_number(
@@ -854,14 +848,12 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     .get_logs(get_logs_filter, i32::MAX as usize)
                     .await
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
-                let new_from_block = logs
+                *from_block = logs
                     .last()
                     .map(|log| MiniblockNumber(log.block_number.unwrap().as_u32()))
-                    .unwrap_or(from_block);
-                (
-                    FilterChanges::Logs(logs),
-                    TypedFilter::Events(filter, new_from_block),
-                )
+                    .unwrap_or(*from_block);
+                // FIXME: why is `from_block` not updated?
+                FilterChanges::Logs(logs)
             }
         };
 
