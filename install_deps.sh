@@ -42,7 +42,7 @@ if [ ! -n "$(which cargo)" ]; then
 fi
 
 . $HOME/.cargo/env
-cargo install sqlx-cli --version 0.5.13;
+cargo install sqlx-cli --version 0.5.13
 
 if [ "$OS" = "Linux" ]; then
 	sudo service postgresql stop
@@ -56,4 +56,3 @@ rustup install nightly-2023-07-21
 . $HOME/.cargo/env
 
 zk
-zk init
