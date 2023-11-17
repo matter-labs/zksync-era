@@ -43,7 +43,7 @@ function clippyRustToolchain(): string {
 }
 async function clippy() {
     process.chdir(process.env.ZKSYNC_HOME!);
-    await utils.spawn(`cargo ${clippyRustToolchain()} clippy --tests -- -D warnings`);
+    await utils.spawn(`cargo +${clippyRustToolchain()} clippy --tests -- -D warnings`);
 }
 
 async function proverClippy() {
