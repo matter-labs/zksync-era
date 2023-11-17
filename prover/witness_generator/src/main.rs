@@ -6,11 +6,9 @@ use std::time::Instant;
 use structopt::StructOpt;
 use tokio::sync::watch;
 use zksync_config::configs::{FriWitnessGeneratorConfig, PrometheusConfig};
+use zksync_config::ObjectStoreConfig;
 use zksync_dal::{connection::DbVariant, ConnectionPool};
-use zksync_env_config::{
-    object_store::{ProverObjectStoreConfig, PublicObjectStoreConfig},
-    FromEnv,
-};
+use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_utils::get_stop_signal_receiver;
 use zksync_queued_job_processor::JobProcessor;
@@ -157,8 +155,8 @@ async fn main() -> anyhow::Result<()> {
                     false => None,
                     true => Some(
                         ObjectStoreFactory::new(
-                            ObjectStoreConfig::public_from_env()
-                                .context("ObjectStoreConfig::public_from_env()")?,
+                            ObjectStoreConfig::from_env()
+                                .context("ObjectStoreConfig::from_env()")?,
                         )
                         .create_store()
                         .await,
