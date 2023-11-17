@@ -1,5 +1,20 @@
 # Changelog
 
+## [18.0.3](https://github.com/matter-labs/zksync-era/compare/core-v18.0.2...core-v18.0.3) (2023-11-16)
+
+
+### Bug Fixes
+
+* **proof-data-handler:** Check commitments only for post-boojum (again) ([#502](https://github.com/matter-labs/zksync-era/issues/502)) ([ff636ca](https://github.com/matter-labs/zksync-era/commit/ff636ca9250d0276098e4b5b4a5f7a44a0717d06))
+
+## [18.0.2](https://github.com/matter-labs/zksync-era/compare/core-v18.0.1...core-v18.0.2) (2023-11-16)
+
+
+### Bug Fixes
+
+* **api:** `debug_trace*` no longer throws error if the `TracerConfig` object is incomplete ([#468](https://github.com/matter-labs/zksync-era/issues/468)) ([cb873bd](https://github.com/matter-labs/zksync-era/commit/cb873bd0da6b421160ce96b8d578f1351861f376))
+* **proof-data-handler:** Check commitments only for post-boojum ([#500](https://github.com/matter-labs/zksync-era/issues/500)) ([c3a7651](https://github.com/matter-labs/zksync-era/commit/c3a7651987f6efaeca55ccf328e5aaaa5cc66bde))
+
 ## [18.0.1](https://github.com/matter-labs/zksync-era/compare/core-v18.0.0...core-v18.0.1) (2023-11-15)
 
 

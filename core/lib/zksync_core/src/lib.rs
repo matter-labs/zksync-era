@@ -1184,9 +1184,14 @@ async fn add_house_keeper_to_task_futures(
     );
     task_futures.push(tokio::spawn(fri_witness_generator_stats_reporter.run()));
 
+    let fri_prover_group_config = configs
+        .fri_prover_group_config
+        .clone()
+        .context("fri_prover_group_config")?;
     let fri_prover_stats_reporter = FriProverStatsReporter::new(
         house_keeper_config.fri_prover_stats_reporting_interval_ms,
         prover_connection_pool.clone(),
+        fri_prover_group_config,
     );
     task_futures.push(tokio::spawn(fri_prover_stats_reporter.run()));
 
