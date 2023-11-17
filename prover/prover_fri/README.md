@@ -23,9 +23,9 @@ Machine specs:
 
    ```markdown
    for i in {1..13}; do zk f cargo run --release --bin zksync_setup_data_generator_fri -- --numeric-circuit $i
-   --is_base_layer done
+   --is_base_layer; done
 
-   for i in {1..15}; do zk f cargo run --release --bin zksync_setup_data_generator_fri -- --numeric-circuit $i done
+   for i in {1..15}; do zk f cargo run --release --bin zksync_setup_data_generator_fri -- --numeric-circuit $i; done
    ```
 
 3. Initialize DB and run migrations: `zk init`
@@ -130,21 +130,21 @@ finalization hints if the circuit changes. Below steps can be used to perform ci
    `cargo update -p zkevm_test_harness@1.4.0`
 3. prepare an PR with the updated dependencies [sample PR](https://github.com/matter-labs/zksync-2-dev/pull/2481).
 4. Run the verification key
-   [workflow](https://github.com/matter-labs/zksync-2-dev/actions/workflows/fri-vk-generator.yaml) against the PR to
+   [workflow](https://github.com/matter-labs/zksync-era/actions/workflows/fri-vk-generator.yaml) against the PR to
    generate the verification key and finalization hints for the new circuit.
 5. Only once the above verification key workflow is successful, start the setup-data generation(cpu, gpu setup data
    generation can be done in parallel), this step is important, since the setup data requires the new VK, we need to
    wait for it to finish.
 6. Run the cpu setup data generation
-   [workflow](https://github.com/matter-labs/zksync-2-dev/actions/workflows/fri-setup-data-generator.yml) against the PR
+   [workflow](https://github.com/matter-labs/zksync-era/actions/workflows/fri-setup-data-generator.yml) against the PR
    to generate the cpu setup data.
 7. Run the gpu setup data generation
-   [workflow](https://github.com/matter-labs/zksync-2-dev/actions/workflows/fri-gpu-setup-data-generator.yml) against
-   the PR to generate the gpu setup data.
+   [workflow](https://github.com/matter-labs/zksync-era/actions/workflows/fri-gpu-setup-data-generator.yml) against the
+   PR to generate the gpu setup data.
 8. Once the setup data generation workflows are successful, update the PR with `setup_keys_id` id in
    [build-docker-from-tag.yml](../../.github/workflows/build-docker-from-tag.yml) and in
    [fri-gpu-prover-integration-test.yml](../../.github/workflows/fri-gpu-prover-integration-test.yml), make sure to only
    do it from `FRI prover` not old.
 9. Run the GPU integration test
-   [workflow](https://github.com/matter-labs/zksync-2-dev/actions/workflows/fri-gpu-prover-integration-test.yml) against
+   [workflow](https://github.com/matter-labs/zksync-era/actions/workflows/fri-gpu-prover-integration-test.yml) against
    the PR to verify the GPU prover is working fine with new circuits.

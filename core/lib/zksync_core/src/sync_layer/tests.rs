@@ -73,6 +73,7 @@ impl MockMainNodeClient {
                 virtual_blocks: Some(!is_fictive as u32),
                 hash: Some(H256::repeat_byte(1)),
                 protocol_version: ProtocolVersionId::latest(),
+                consensus: None,
             }
         });
 
@@ -411,7 +412,7 @@ async fn mock_l1_batch_hash_computation(pool: ConnectionPool, number: u32) {
         let metadata = create_l1_batch_metadata(number);
         storage
             .blocks_dal()
-            .save_l1_batch_metadata(L1BatchNumber(1), &metadata, H256::zero())
+            .save_l1_batch_metadata(L1BatchNumber(1), &metadata, H256::zero(), false)
             .await
             .unwrap();
         break;
@@ -578,7 +579,7 @@ async fn fetcher_with_real_server() {
     let mut tx_hashes = VecDeque::from(tx_hashes);
 
     // Start the API server.
-    let network_config = NetworkConfig::from_env().unwrap();
+    let network_config = NetworkConfig::for_tests();
     let (stop_sender, stop_receiver) = watch::channel(false);
     let server_handles =
         spawn_http_server(&network_config, pool.clone(), stop_receiver.clone()).await;

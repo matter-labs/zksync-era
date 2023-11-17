@@ -31,6 +31,7 @@ use super::metrics::API_METRICS;
 use crate::{
     api_server::{
         execution_sandbox::BlockArgs,
+        tree::TreeApiHttpClient,
         tx_sender::TxSender,
         web3::{
             backend_jsonrpc::error::internal_error, namespaces::eth::EVENT_TOPIC_NUMBER_LIMIT,
@@ -167,6 +168,7 @@ impl SealedMiniblockNumber {
 pub struct RpcState<E> {
     pub installed_filters: Arc<RwLock<Filters>>,
     pub connection_pool: ConnectionPool,
+    pub tree_api: Option<TreeApiHttpClient>,
     pub tx_sender: TxSender<E>,
     pub sync_state: Option<SyncState>,
     pub(super) api_config: InternalApiConfig,
@@ -185,6 +187,7 @@ impl<E> Clone for RpcState<E> {
             installed_filters: self.installed_filters.clone(),
             connection_pool: self.connection_pool.clone(),
             tx_sender: self.tx_sender.clone(),
+            tree_api: self.tree_api.clone(),
             sync_state: self.sync_state.clone(),
             api_config: self.api_config.clone(),
             last_sealed_miniblock: self.last_sealed_miniblock.clone(),
