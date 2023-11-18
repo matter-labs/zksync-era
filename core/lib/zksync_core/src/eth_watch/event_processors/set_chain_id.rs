@@ -70,7 +70,7 @@ impl<W: EthClient + Sync> EventProcessor<W> for SetChainIDEventProcessor {
             if let Some(tx) = new_version.tx.clone() {
                 storage
                     .transactions_dal()
-                    .insert_system_transaction(tx)
+                    .insert_system_transaction(tx.clone())
                     .await;
                 storage
                     .protocol_versions_dal()
