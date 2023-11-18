@@ -9,7 +9,7 @@ use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::protocol_version::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData};
 use zksync_types::web3::types::{Address, BlockNumber};
 use zksync_types::{
-    ethabi::{encode, Contract, Hash, Token},
+    ethabi::{encode, Hash, Token},
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     web3::types::Log,
     Execute, L1TxCommonData, PriorityOpId, ProtocolUpgrade, ProtocolVersion, ProtocolVersionId,
@@ -608,7 +608,7 @@ fn upgrade_into_diamond_proxy_log(upgrade: ProtocolUpgrade, eth_block: u64) -> L
 
 fn upgrade_into_governor_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
     let diamond_cut = upgrade_into_diamond_cut(upgrade);
-    let execute_upgrade_selector = zksync_contract()
+    let execute_upgrade_selector = state_transition_chain_contract()
         .function("executeUpgrade")
         .unwrap()
         .short_signature();

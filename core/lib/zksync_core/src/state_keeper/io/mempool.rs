@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use async_trait::async_trait;
 
 use std::{
@@ -14,7 +13,7 @@ use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
-use zksync_object_store::ObjectStoreFactory;
+use zksync_object_store::ObjectStore;
 use zksync_types::{
     block::MiniblockHeader, protocol_version::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
@@ -47,6 +46,7 @@ use crate::{
 pub(crate) struct MempoolIO<G> {
     mempool: MempoolGuard,
     pool: ConnectionPool,
+    object_store: Box<dyn ObjectStore>,
     timeout_sealer: TimeoutSealer,
     filter: L2TxFilter,
     current_miniblock_number: MiniblockNumber,
@@ -297,11 +297,8 @@ where
         self.miniblock_sealer_handle.wait_for_all_commands().await;
 
         if let Some(witness_witness_block_state) = witness_block_state {
-            let object_store = ObjectStoreFactory::from_env()
-                .context("ObjectsStoreFactor::from_env()")?
-                .create_store()
-                .await;
-            match object_store
+            match self
+                .object_store
                 .put(self.current_l1_batch_number(), &witness_witness_block_state)
                 .await
             {
@@ -414,6 +411,7 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
     #[allow(clippy::too_many_arguments)]
     pub(in crate::state_keeper) async fn new(
         mempool: MempoolGuard,
+        object_store: Box<dyn ObjectStore>,
         miniblock_sealer_handle: MiniblockSealerHandle,
         l1_gas_price_provider: Arc<G>,
         pool: ConnectionPool,
@@ -448,6 +446,7 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
 
         Self {
             mempool,
+            object_store,
             pool,
             timeout_sealer: TimeoutSealer::new(config),
             filter: L2TxFilter::default(),

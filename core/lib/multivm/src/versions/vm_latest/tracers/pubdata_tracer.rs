@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use zk_evm_1_4_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
@@ -20,16 +21,12 @@ use crate::vm_latest::{
     old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
     types::internals::pubdata::PubdataInput,
 };
-use crate::{
-    vm_latest::StorageOracle,
-    vm_latest::{constants::BOOTLOADER_HEAP_PAGE, TracerExecutionStatus},
-};
+use crate::{vm_latest::constants::BOOTLOADER_HEAP_PAGE, vm_latest::StorageOracle};
 
+use crate::interface::dyn_tracers::vm_1_4_0::DynTracer;
+use crate::interface::tracer::{TracerExecutionStatus, TracerExecutionStopReason};
 use crate::interface::types::inputs::L1BatchEnv;
-use crate::vm_latest::tracers::{
-    traits::{DynTracer, TracerExecutionStopReason, VmTracer},
-    utils::VmHook,
-};
+use crate::vm_latest::tracers::{traits::VmTracer, utils::VmHook};
 use crate::vm_latest::types::internals::ZkSyncVmState;
 use crate::vm_latest::utils::logs::collect_events_and_l1_system_logs_after_timestamp;
 use crate::{
@@ -39,26 +36,28 @@ use crate::{
 
 /// Tracer responsible for collecting information about refunds.
 #[derive(Debug, Clone)]
-pub(crate) struct PubdataTracer {
+pub(crate) struct PubdataTracer<S> {
     l1_batch_env: L1BatchEnv,
     pubdata_info_requested: bool,
     execution_mode: VmExecutionMode,
+    _phantom_data: PhantomData<S>,
 }
 
-impl PubdataTracer {
+impl<S: WriteStorage> PubdataTracer<S> {
     pub(crate) fn new(l1_batch_env: L1BatchEnv, execution_mode: VmExecutionMode) -> Self {
         Self {
             l1_batch_env,
             pubdata_info_requested: false,
             execution_mode,
+            _phantom_data: Default::default(),
         }
     }
 }
 
-impl PubdataTracer {
+impl<S: WriteStorage> PubdataTracer<S> {
     // Packs part of L1 Messenger total pubdata that corresponds to
     // L2toL1Logs sent in the block
-    fn get_total_user_logs<S: WriteStorage, H: HistoryMode>(
+    fn get_total_user_logs<H: HistoryMode>(
         &self,
         state: &ZkSyncVmState<S, H>,
     ) -> Vec<L1MessengerL2ToL1Log> {
@@ -72,7 +71,7 @@ impl PubdataTracer {
 
     // Packs part of L1 Messenger total pubdata that corresponds to
     // Messages sent in the block
-    fn get_total_l1_messenger_messages<S: WriteStorage, H: HistoryMode>(
+    fn get_total_l1_messenger_messages<H: HistoryMode>(
         &self,
         state: &ZkSyncVmState<S, H>,
     ) -> Vec<Vec<u8>> {
@@ -87,7 +86,7 @@ impl PubdataTracer {
 
     // Packs part of L1 Messenger total pubdata that corresponds to
     // Bytecodes needed to be published on L1
-    fn get_total_published_bytecodes<S: WriteStorage, H: HistoryMode>(
+    fn get_total_published_bytecodes<H: HistoryMode>(
         &self,
         state: &ZkSyncVmState<S, H>,
     ) -> Vec<Vec<u8>> {
@@ -118,9 +117,7 @@ impl PubdataTracer {
 
     // Packs part of L1Messenger total pubdata that corresponds to
     // State diffs needed to be published on L1
-    fn get_state_diffs<S: WriteStorage, H: HistoryMode>(
-        storage: &StorageOracle<S, H>,
-    ) -> Vec<StateDiffRecord> {
+    fn get_state_diffs<H: HistoryMode>(storage: &StorageOracle<S, H>) -> Vec<StateDiffRecord> {
         sort_storage_access_queries(
             storage
                 .storage_log_queries_after_timestamp(Timestamp(0))
@@ -151,10 +148,7 @@ impl PubdataTracer {
         .collect()
     }
 
-    fn build_pubdata_input<S: WriteStorage, H: HistoryMode>(
-        &self,
-        state: &ZkSyncVmState<S, H>,
-    ) -> PubdataInput {
+    fn build_pubdata_input<H: HistoryMode>(&self, state: &ZkSyncVmState<S, H>) -> PubdataInput {
         PubdataInput {
             user_logs: self.get_total_user_logs(state),
             l2_to_l1_messages: self.get_total_l1_messenger_messages(state),
@@ -164,7 +158,7 @@ impl PubdataTracer {
     }
 }
 
-impl<S, H: HistoryMode> DynTracer<S, H> for PubdataTracer {
+impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for PubdataTracer<S> {
     fn before_execution(
         &mut self,
         state: VmLocalStateData<'_>,
@@ -179,7 +173,7 @@ impl<S, H: HistoryMode> DynTracer<S, H> for PubdataTracer {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PubdataTracer {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PubdataTracer<S> {
     fn finish_cycle(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,

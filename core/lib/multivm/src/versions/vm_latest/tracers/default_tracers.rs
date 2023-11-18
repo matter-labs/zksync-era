@@ -1,5 +1,7 @@
 use std::fmt::{Debug, Formatter};
+use std::marker::PhantomData;
 
+use crate::interface::tracer::{TracerExecutionStopReason, VmExecutionStopReason};
 use crate::interface::{Halt, VmExecutionMode};
 use zk_evm_1_4_0::{
     tracing::{
@@ -12,26 +14,28 @@ use zk_evm_1_4_0::{
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::Timestamp;
 
+use crate::interface::traits::tracers::dyn_tracers::vm_1_4_0::DynTracer;
+use crate::interface::types::tracer::TracerExecutionStatus;
 use crate::vm_latest::bootloader_state::utils::apply_l2_block;
 use crate::vm_latest::bootloader_state::BootloaderState;
 use crate::vm_latest::constants::BOOTLOADER_HEAP_PAGE;
 use crate::vm_latest::old_vm::history_recorder::HistoryMode;
 use crate::vm_latest::old_vm::memory::SimpleMemory;
-use crate::vm_latest::tracers::traits::{
-    DynTracer, TracerExecutionStatus, TracerExecutionStopReason, VmTracer,
-};
+use crate::vm_latest::tracers::dispatcher::TracerDispatcher;
 use crate::vm_latest::tracers::utils::{
     computational_gas_price, gas_spent_on_bytecodes_and_long_messages_this_opcode,
     print_debug_if_needed, VmHook,
 };
 use crate::vm_latest::tracers::{RefundsTracer, ResultTracer};
 use crate::vm_latest::types::internals::ZkSyncVmState;
-use crate::vm_latest::VmExecutionStopReason;
+use crate::vm_latest::VmTracer;
+
+use super::PubdataTracer;
 
 use super::PubdataTracer;
 
 /// Default tracer for the VM. It manages the other tracers execution and stop the vm when needed.
-pub(crate) struct DefaultExecutionTracer<S, H: HistoryMode> {
+pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     tx_has_been_processed: bool,
     execution_mode: VmExecutionMode,
 
@@ -42,145 +46,29 @@ pub(crate) struct DefaultExecutionTracer<S, H: HistoryMode> {
     tx_validation_gas_limit: u32,
     in_account_validation: bool,
     final_batch_info_requested: bool,
-    pub(crate) result_tracer: ResultTracer,
+    pub(crate) result_tracer: ResultTracer<S>,
     // This tracer is designed specifically for calculating refunds. Its separation from the custom tracer
     // ensures static dispatch, enhancing performance by avoiding dynamic dispatch overhead.
     // Additionally, being an internal tracer, it saves the results directly to VmResultAndLogs.
-    pub(crate) refund_tracer: Option<RefundsTracer>,
+    pub(crate) refund_tracer: Option<RefundsTracer<S>>,
     // The pubdata tracer is responsible for inserting the pubdata packing information into the bootloader
     // memory at the end of the batch. Its separation from the custom tracer
     // ensures static dispatch, enhancing performance by avoiding dynamic dispatch overhead.
-    pub(crate) pubdata_tracer: Option<PubdataTracer>,
-    pub(crate) custom_tracers: Vec<Box<dyn VmTracer<S, H>>>,
+    pub(crate) pubdata_tracer: Option<PubdataTracer<S>>,
+    pub(crate) dispatcher: TracerDispatcher<S, H>,
     ret_from_the_bootloader: Option<RetOpcode>,
     storage: StoragePtr<S>,
-}
-
-impl<S, H: HistoryMode> Debug for DefaultExecutionTracer<S, H> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DefaultExecutionTracer").finish()
-    }
-}
-
-impl<S, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
-    const CALL_BEFORE_DECODING: bool = false;
-    const CALL_AFTER_DECODING: bool = true;
-    const CALL_BEFORE_EXECUTION: bool = true;
-    const CALL_AFTER_EXECUTION: bool = true;
-    type SupportedMemory = SimpleMemory<H>;
-
-    fn before_decoding(
-        &mut self,
-        _state: VmLocalStateData<'_, 8, EncodingModeProduction>,
-        _memory: &Self::SupportedMemory,
-    ) {
-    }
-
-    fn after_decoding(
-        &mut self,
-        state: VmLocalStateData<'_>,
-        data: AfterDecodingData,
-        memory: &Self::SupportedMemory,
-    ) {
-        <ResultTracer as DynTracer<S, H>>::after_decoding(
-            &mut self.result_tracer,
-            state,
-            data,
-            memory,
-        );
-
-        if let Some(refund_tracer) = &mut self.refund_tracer {
-            <RefundsTracer as DynTracer<S, H>>::after_decoding(refund_tracer, state, data, memory);
-        }
-        if let Some(pubdata_tracer) = &mut self.pubdata_tracer {
-            <PubdataTracer as DynTracer<S, H>>::after_decoding(pubdata_tracer, state, data, memory);
-        }
-        for tracer in self.custom_tracers.iter_mut() {
-            tracer.after_decoding(state, data, memory)
-        }
-    }
-
-    fn before_execution(
-        &mut self,
-        state: VmLocalStateData<'_>,
-        data: BeforeExecutionData,
-        memory: &Self::SupportedMemory,
-    ) {
-        if self.in_account_validation {
-            self.computational_gas_used = self
-                .computational_gas_used
-                .saturating_add(computational_gas_price(state, &data));
-        }
-
-        let hook = VmHook::from_opcode_memory(&state, &data);
-        print_debug_if_needed(&hook, &state, memory);
-
-        match hook {
-            VmHook::TxHasEnded => self.tx_has_been_processed = true,
-            VmHook::NoValidationEntered => self.in_account_validation = false,
-            VmHook::AccountValidationEntered => self.in_account_validation = true,
-            VmHook::FinalBatchInfo => self.final_batch_info_requested = true,
-            _ => {}
-        }
-
-        self.gas_spent_on_bytecodes_and_long_messages +=
-            gas_spent_on_bytecodes_and_long_messages_this_opcode(&state, &data);
-        self.result_tracer
-            .before_execution(state, data, memory, self.storage.clone());
-
-        if let Some(refund_tracer) = &mut self.refund_tracer {
-            refund_tracer.before_execution(state, data, memory, self.storage.clone());
-        }
-        if let Some(pubdata_tracer) = &mut self.pubdata_tracer {
-            pubdata_tracer.before_execution(state, data, memory, self.storage.clone());
-        }
-        for tracer in self.custom_tracers.iter_mut() {
-            tracer.before_execution(state, data, memory, self.storage.clone());
-        }
-    }
-
-    fn after_execution(
-        &mut self,
-        state: VmLocalStateData<'_>,
-        data: AfterExecutionData,
-        memory: &Self::SupportedMemory,
-    ) {
-        if let VmExecutionMode::Bootloader = self.execution_mode {
-            let (next_opcode, _, _) = zk_evm_1_4_0::vm_state::read_and_decode(
-                state.vm_local_state,
-                memory,
-                &mut DummyTracer,
-                self,
-            );
-            if current_frame_is_bootloader(state.vm_local_state) {
-                if let Opcode::Ret(ret) = next_opcode.inner.variant.opcode {
-                    self.ret_from_the_bootloader = Some(ret);
-                }
-            }
-        }
-
-        self.result_tracer
-            .after_execution(state, data, memory, self.storage.clone());
-        if let Some(refund_tracer) = &mut self.refund_tracer {
-            refund_tracer.after_execution(state, data, memory, self.storage.clone())
-        }
-        if let Some(pubdata_tracer) = &mut self.pubdata_tracer {
-            pubdata_tracer.after_execution(state, data, memory, self.storage.clone())
-        }
-        for tracer in self.custom_tracers.iter_mut() {
-            tracer.after_execution(state, data, memory, self.storage.clone());
-        }
-    }
+    _phantom: PhantomData<H>,
 }
 
 impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
     pub(crate) fn new(
         computational_gas_limit: u32,
         execution_mode: VmExecutionMode,
-        custom_tracers: Vec<Box<dyn VmTracer<S, H>>>,
+        dispatcher: TracerDispatcher<S, H>,
         storage: StoragePtr<S>,
-        refund_tracer: Option<RefundsTracer>,
-        pubdata_tracer: Option<PubdataTracer>,
+        refund_tracer: Option<RefundsTracer<S>>,
+        pubdata_tracer: Option<PubdataTracer<S>>,
     ) -> Self {
         Self {
             tx_has_been_processed: false,
@@ -192,10 +80,11 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             final_batch_info_requested: false,
             result_tracer: ResultTracer::new(execution_mode),
             refund_tracer,
+            dispatcher,
             pubdata_tracer,
-            custom_tracers,
             ret_from_the_bootloader: None,
             storage,
+            _phantom: PhantomData,
         }
     }
 
@@ -246,23 +135,120 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
     }
 }
 
-impl<S, H: HistoryMode> DynTracer<S, H> for DefaultExecutionTracer<S, H> {}
+impl<S: WriteStorage, H: HistoryMode> Debug for DefaultExecutionTracer<S, H> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DefaultExecutionTracer").finish()
+    }
+}
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for DefaultExecutionTracer<S, H> {
-    fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
-        self.result_tracer.initialize_tracer(state);
-        if let Some(refund_tracer) = &mut self.refund_tracer {
-            refund_tracer.initialize_tracer(state);
+/// The default tracer for the VM manages all other tracers. For the sake of optimization, these tracers are statically dispatched.
+/// At the same time, the boilerplate for calling these tracers for all tracer calls is quite extensive.
+/// This macro is used to reduce the boilerplate.
+///
+/// Usage:
+/// ```
+/// dispatch_tracers!(
+///   self.after_decoding(state, data, memory)
+/// );
+/// ```
+/// Whenever a new tracer is added, it should be added to the macro call.
+///
+/// The macro passes the function call to all tracers.
+macro_rules! dispatch_tracers {
+    ($self:ident.$function:ident($( $params:expr ),*)) => {
+       $self.result_tracer.$function($( $params ),*);
+       $self.dispatcher.$function($( $params ),*);
+        if let Some(tracer) = &mut $self.refund_tracer {
+            tracer.$function($( $params ),*);
         }
-        if let Some(pubdata_tracer) = &mut self.pubdata_tracer {
-            pubdata_tracer.initialize_tracer(state);
+        if let Some(tracer) = &mut $self.pubdata_tracer {
+            tracer.$function($( $params ),*);
         }
-        for processor in self.custom_tracers.iter_mut() {
-            processor.initialize_tracer(state);
-        }
+    };
+}
+
+impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
+    const CALL_BEFORE_DECODING: bool = false;
+    const CALL_AFTER_DECODING: bool = true;
+    const CALL_BEFORE_EXECUTION: bool = true;
+    const CALL_AFTER_EXECUTION: bool = true;
+    type SupportedMemory = SimpleMemory<H>;
+
+    fn before_decoding(
+        &mut self,
+        _state: VmLocalStateData<'_, 8, EncodingModeProduction>,
+        _memory: &Self::SupportedMemory,
+    ) {
     }
 
-    fn finish_cycle(
+    fn after_decoding(
+        &mut self,
+        state: VmLocalStateData<'_>,
+        data: AfterDecodingData,
+        memory: &Self::SupportedMemory,
+    ) {
+        dispatch_tracers!(self.after_decoding(state, data, memory));
+    }
+
+    fn before_execution(
+        &mut self,
+        state: VmLocalStateData<'_>,
+        data: BeforeExecutionData,
+        memory: &Self::SupportedMemory,
+    ) {
+        if self.in_account_validation {
+            self.computational_gas_used = self
+                .computational_gas_used
+                .saturating_add(computational_gas_price(state, &data));
+        }
+
+        let hook = VmHook::from_opcode_memory(&state, &data);
+        print_debug_if_needed(&hook, &state, memory);
+
+        match hook {
+            VmHook::TxHasEnded => self.tx_has_been_processed = true,
+            VmHook::NoValidationEntered => self.in_account_validation = false,
+            VmHook::AccountValidationEntered => self.in_account_validation = true,
+            VmHook::FinalBatchInfo => self.final_batch_info_requested = true,
+            _ => {}
+        }
+
+        self.gas_spent_on_bytecodes_and_long_messages +=
+            gas_spent_on_bytecodes_and_long_messages_this_opcode(&state, &data);
+
+        dispatch_tracers!(self.before_execution(state, data, memory, self.storage.clone()));
+    }
+
+    fn after_execution(
+        &mut self,
+        state: VmLocalStateData<'_>,
+        data: AfterExecutionData,
+        memory: &Self::SupportedMemory,
+    ) {
+        if let VmExecutionMode::Bootloader = self.execution_mode {
+            let (next_opcode, _, _) = zk_evm_1_4_0::vm_state::read_and_decode(
+                state.vm_local_state,
+                memory,
+                &mut DummyTracer,
+                self,
+            );
+            if current_frame_is_bootloader(state.vm_local_state) {
+                if let Opcode::Ret(ret) = next_opcode.inner.variant.opcode {
+                    self.ret_from_the_bootloader = Some(ret);
+                }
+            }
+        }
+
+        dispatch_tracers!(self.after_execution(state, data, memory, self.storage.clone()));
+    }
+}
+
+impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
+    pub(crate) fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
+        dispatch_tracers!(self.initialize_tracer(state));
+    }
+
+    pub(crate) fn finish_cycle(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,
         bootloader_state: &mut BootloaderState,
@@ -277,37 +263,25 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for DefaultExecutionTracer<
                 .finish_cycle(state, bootloader_state)
                 .stricter(&result);
         }
+        result = self
+            .dispatcher
+            .finish_cycle(state, bootloader_state)
+            .stricter(&result);
         if let Some(pubdata_tracer) = &mut self.pubdata_tracer {
             result = pubdata_tracer
-                .finish_cycle(state, bootloader_state)
-                .stricter(&result);
-        }
-        for processor in self.custom_tracers.iter_mut() {
-            result = processor
                 .finish_cycle(state, bootloader_state)
                 .stricter(&result);
         }
         result.stricter(&self.should_stop_execution())
     }
 
-    fn after_vm_execution(
+    pub(crate) fn after_vm_execution(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,
         bootloader_state: &BootloaderState,
         stop_reason: VmExecutionStopReason,
     ) {
-        self.result_tracer
-            .after_vm_execution(state, bootloader_state, stop_reason.clone());
-
-        if let Some(refund_tracer) = &mut self.refund_tracer {
-            refund_tracer.after_vm_execution(state, bootloader_state, stop_reason.clone());
-        }
-        if let Some(pubdata_tracer) = &mut self.pubdata_tracer {
-            pubdata_tracer.after_vm_execution(state, bootloader_state, stop_reason.clone());
-        }
-        for processor in self.custom_tracers.iter_mut() {
-            processor.after_vm_execution(state, bootloader_state, stop_reason.clone());
-        }
+        dispatch_tracers!(self.after_vm_execution(state, bootloader_state, stop_reason.clone()));
     }
 }
 

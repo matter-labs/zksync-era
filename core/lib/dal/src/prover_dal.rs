@@ -246,7 +246,7 @@ impl ProverDal<'_, '_> {
             sqlx::query!(
                 "
                 UPDATE prover_jobs
-                SET status = 'queued', attempts = attempts + 1, updated_at = now(), processing_started_at = now()
+                SET status = 'queued', updated_at = now(), processing_started_at = now()
                 WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)
                 OR (status = 'in_gpu_proof' AND  processing_started_at <= now() - $1::interval AND attempts < $2)
                 OR (status = 'failed' AND attempts < $2)
@@ -564,7 +564,7 @@ impl ProverDal<'_, '_> {
             let job_ids = sqlx::query!(
                 r#"
                     SELECT id, circuit_input_blob_url FROM prover_jobs
-                    WHERE status='successful' AND is_blob_cleaned=FALSE
+                    WHERE status='successful'
                     AND circuit_input_blob_url is NOT NULL
                     AND updated_at < NOW() - INTERVAL '30 days'
                     LIMIT $1;
@@ -578,22 +578,6 @@ impl ProverDal<'_, '_> {
                 .into_iter()
                 .map(|row| (row.id, row.circuit_input_blob_url.unwrap()))
                 .collect()
-        }
-    }
-
-    pub async fn mark_gcs_blobs_as_cleaned(&mut self, ids: Vec<i64>) {
-        {
-            sqlx::query!(
-                r#"
-                UPDATE prover_jobs
-                SET is_blob_cleaned=TRUE
-                WHERE id = ANY($1);
-            "#,
-                &ids[..]
-            )
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
         }
     }
 

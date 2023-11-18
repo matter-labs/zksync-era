@@ -47,16 +47,7 @@ jobs:
       - name: Generate outputs with Prover FRI setup data keys IDs
         id: extract-prover-fri-setup-key-ids
         run: |
-          declare -A json_files=(
-            ["cpu"]="setup-data-cpu-keys.json"
-            ["gpu"]="setup-data-gpu-keys.json"
-          )
-          for type in "${!json_files[@]}"; do
-            file=${json_files[$type]}
-            value=$(jq -r '.us' "./prover/$file")
-            short_sha=$(echo $value | sed 's|gs://matterlabs-setup-data-us/\(.*\)/|\1|')
-            echo "${type}_short_commit_sha=$short_sha" >> $GITHUB_OUTPUT"
-          done
+          ./prover/extract-setup-data-keys.sh >> $GITHUB_OUTPUT
 
   build-push-core-images:
     name: Build and push image

@@ -75,4 +75,7 @@ cache-zk/
 zksolc
 verified_sources
 
+# Hyperchain related
 hyperchain-*.yml
+/etc/hyperchains/prover-keys
+/etc/hyperchains/artifacts

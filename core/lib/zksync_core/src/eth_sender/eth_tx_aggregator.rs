@@ -10,7 +10,7 @@ use zksync_types::{
     aggregated_operations::AggregatedOperation,
     contracts::{Multicall3Call, Multicall3Result},
     eth_sender::EthTx,
-    ethabi::Token,
+    ethabi::{Contract, Token},
     protocol_version::{L1VerifierConfig, VerifierParams},
     vk_transform::l1_vk_commitment,
     web3::contract::{tokens::Tokenizable, Error, Options},
@@ -311,6 +311,15 @@ impl EthTxAggregator {
         // New verifier returns the hash of the verification key
         // tracing::debug!("Calling get_verification_key");
         if contracts_are_pre_boojum {
+            let abi = Contract {
+                functions: vec![(
+                    self.functions.get_verification_key.name.clone(),
+                    vec![self.functions.get_verification_key.clone()],
+                )]
+                .into_iter()
+                .collect(),
+                ..Default::default()
+            };
             let vk = eth_client
                 .call_contract_function(
                     &self.functions.get_verification_key.name,
@@ -319,7 +328,7 @@ impl EthTxAggregator {
                     Default::default(),
                     None,
                     verifier_address,
-                    self.functions.verifier_contract.clone(),
+                    abi,
                 )
                 .await?;
             Ok(l1_vk_commitment(vk))
@@ -500,7 +509,8 @@ impl EthTxAggregator {
                 self.timelock_contract_address,
                 eth_tx_predicted_gas,
             )
-            .await;
+            .await
+            .unwrap();
 
         transaction
             .blocks_dal()
@@ -515,7 +525,12 @@ impl EthTxAggregator {
         &self,
         storage: &mut StorageProcessor<'_>,
     ) -> Result<u64, ETHSenderError> {
-        let db_nonce = storage.eth_sender_dal().get_next_nonce().await.unwrap_or(0);
+        let db_nonce = storage
+            .eth_sender_dal()
+            .get_next_nonce()
+            .await
+            .unwrap()
+            .unwrap_or(0);
         // Between server starts we can execute some txs using operator account or remove some txs from the database
         // At the start we have to consider this fact and get the max nonce.
         Ok(db_nonce.max(self.base_nonce))

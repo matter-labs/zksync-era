@@ -18,7 +18,6 @@ use crate::vm_latest::constants::{
 use crate::vm_latest::old_vm::history_recorder::HistoryMode;
 use crate::vm_latest::old_vm::memory::SimpleMemory;
 use crate::vm_latest::old_vm::utils::{aux_heap_page_from_base, heap_page_from_base};
-use crate::vm_latest::tracers::traits::TracerExecutionStopReason;
 
 #[derive(Clone, Debug, Copy)]
 pub(crate) enum VmHook {
@@ -220,10 +219,4 @@ pub(crate) fn get_vm_hook_params<H: HistoryMode>(memory: &SimpleMemory<H>) -> Ve
         BOOTLOADER_HEAP_PAGE,
         VM_HOOK_PARAMS_START_POSITION..VM_HOOK_PARAMS_START_POSITION + VM_HOOK_PARAMS_COUNT,
     )
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum VmExecutionStopReason {
-    VmFinished,
-    TracerRequestedStop(TracerExecutionStopReason),
 }

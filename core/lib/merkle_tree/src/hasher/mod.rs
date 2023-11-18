@@ -29,13 +29,32 @@ pub trait HashTree: Send + Sync {
     /// Returns the hash of an empty subtree with the given depth. Implementations
     /// are encouraged to cache the returned values.
     fn empty_subtree_hash(&self, depth: usize) -> ValueHash;
+
+    /// Returns the hash of the empty tree. The default implementation uses [`Self::empty_subtree_hash()`].
+    fn empty_tree_hash(&self) -> ValueHash {
+        self.empty_subtree_hash(TREE_DEPTH)
+    }
+}
+
+impl<H: HashTree + ?Sized> HashTree for &H {
+    fn name(&self) -> &'static str {
+        (**self).name()
+    }
+
+    fn hash_leaf(&self, value_hash: &ValueHash, leaf_index: u64) -> ValueHash {
+        (**self).hash_leaf(value_hash, leaf_index)
+    }
+
+    fn hash_branch(&self, lhs: &ValueHash, rhs: &ValueHash) -> ValueHash {
+        (**self).hash_branch(lhs, rhs)
+    }
+
+    fn empty_subtree_hash(&self, depth: usize) -> ValueHash {
+        (**self).empty_subtree_hash(depth)
+    }
 }
 
 impl dyn HashTree + '_ {
-    pub(crate) fn empty_tree_hash(&self) -> ValueHash {
-        self.empty_subtree_hash(TREE_DEPTH)
-    }
-
     /// Extends the provided `path` to length `TREE_DEPTH`.
     fn extend_merkle_path<'a>(
         &'a self,
@@ -68,7 +87,7 @@ impl dyn HashTree + '_ {
     pub(crate) fn with_stats<'a>(&'a self, stats: &'a HashingStats) -> HasherWithStats<'a> {
         HasherWithStats {
             shared_metrics: Some(stats),
-            ..HasherWithStats::from(self)
+            ..HasherWithStats::new(self)
         }
     }
 }
@@ -143,8 +162,8 @@ pub(crate) struct HasherWithStats<'a> {
     local_hashed_bytes: u64,
 }
 
-impl<'a> From<&'a dyn HashTree> for HasherWithStats<'a> {
-    fn from(inner: &'a dyn HashTree) -> Self {
+impl<'a> HasherWithStats<'a> {
+    pub fn new(inner: &'a dyn HashTree) -> Self {
         Self {
             inner,
             shared_metrics: None,
@@ -153,7 +172,7 @@ impl<'a> From<&'a dyn HashTree> for HasherWithStats<'a> {
     }
 }
 
-impl<'a> AsRef<dyn HashTree + 'a> for HasherWithStats<'a> {
+impl<'a> AsRef<(dyn HashTree + 'a)> for HasherWithStats<'a> {
     fn as_ref(&self) -> &(dyn HashTree + 'a) {
         self.inner
     }
@@ -257,7 +276,7 @@ mod tests {
         let key = key.hashed_key_u256();
         let leaf = LeafNode::new(key, H256([1; 32]), 1);
 
-        let mut hasher = (&Blake2Hasher as &dyn HashTree).into();
+        let mut hasher = HasherWithStats::new(&Blake2Hasher);
         let leaf_hash = leaf.hash(&mut hasher, 2);
         assert!(key.bit(254) && !key.bit(255));
         let merkle_path = [H256([2; 32]), H256([3; 32])];

@@ -26,7 +26,6 @@ use crate::vm_refunds_enhancement::old_vm::{
     event_sink::InMemoryEventSink, history_recorder::HistoryMode, memory::SimpleMemory,
     oracles::decommitter::DecommitterOracle, oracles::precompile::PrecompilesProcessorWithHistory,
 };
-
 use crate::vm_refunds_enhancement::oracles::storage::StorageOracle;
 use crate::vm_refunds_enhancement::types::l1_batch::bootloader_initial_memory;
 use crate::vm_refunds_enhancement::utils::l2_blocks::{assert_next_block, load_last_l2_block};

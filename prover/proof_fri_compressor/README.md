@@ -1,4 +1,4 @@
-# Witness vector generator
+# FRI compressor
 
 Used to compress FRI proof to Bellman proof that gets sent to L1.
 

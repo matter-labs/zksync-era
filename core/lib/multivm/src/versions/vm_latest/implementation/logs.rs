@@ -1,12 +1,12 @@
 use zk_evm_1_4_0::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
-
 use zksync_types::event::extract_l2tol1logs_from_l1_messenger;
+
+use crate::HistoryMode;
 use zksync_types::l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log};
 use zksync_types::VmEvent;
 
 use crate::interface::types::outputs::VmExecutionLogs;
-use crate::vm_latest::old_vm::history_recorder::HistoryMode;
 use crate::vm_latest::old_vm::utils::precompile_calls_count_after_timestamp;
 use crate::vm_latest::utils::logs;
 use crate::vm_latest::vm::Vm;

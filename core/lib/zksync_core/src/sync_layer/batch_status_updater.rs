@@ -306,7 +306,8 @@ impl BatchStatusUpdater {
                     change.l1_tx_hash,
                     change.happened_at,
                 )
-                .await;
+                .await
+                .unwrap();
             self.last_committed_l1_batch = change.number;
         }
         for change in changes.prove.into_iter() {
@@ -324,7 +325,8 @@ impl BatchStatusUpdater {
                     change.l1_tx_hash,
                     change.happened_at,
                 )
-                .await;
+                .await
+                .unwrap();
             self.last_proven_l1_batch = change.number;
         }
         for change in changes.execute.into_iter() {
@@ -343,7 +345,8 @@ impl BatchStatusUpdater {
                     change.l1_tx_hash,
                     change.happened_at,
                 )
-                .await;
+                .await
+                .unwrap();
             self.last_executed_l1_batch = change.number;
         }
 
