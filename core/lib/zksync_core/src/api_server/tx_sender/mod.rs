@@ -704,7 +704,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             adjust_pubdata_price_for_tx(
                 l1_gas_price,
                 operator_pubdata_price,
-                self.0.sender_config.minimal_l2_gas_price,
+                get_operator_gas_price(l1_gas_price, self.0.sender_config.minimal_l2_gas_price),
                 tx.gas_per_pubdata_byte_limit(),
             )
         };

@@ -8,6 +8,7 @@
 
 use std::time::{Duration, Instant};
 
+use multivm::vm_latest::utils::fee::{derive_base_fee_and_gas_per_pubdata, get_operator_gas_price};
 use multivm::vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryDisabled};
 
 use multivm::interface::VmInterface;
@@ -200,7 +201,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
         number: vm_l1_batch_number,
         timestamp: l1_batch_timestamp,
         l1_gas_price,
-        fair_l2_gas_price: minimal_l2_gas_price,
+        fair_l2_gas_price: get_operator_gas_price(l1_gas_price, minimal_l2_gas_price),
         fee_account: *operator_account.address(),
         enforced_base_fee: execution_args.enforced_base_fee,
         first_l2_block: next_l2_block_info,
@@ -214,11 +215,19 @@ pub(super) fn apply_vm_in_sandbox<T>(
 
     let storage_view = storage_view.to_rc_ptr();
     let mut vm = Box::new(VmInstance::new_with_specific_version(
-        l1_batch_env,
+        l1_batch_env.clone(),
         system_env,
         storage_view.clone(),
         protocol_version.into_api_vm_version(),
     ));
+
+    println!(
+        "DERIVED FEES: {:#?}",
+        derive_base_fee_and_gas_per_pubdata(
+            l1_batch_env.pubdata_price,
+            l1_batch_env.fair_l2_gas_price
+        )
+    );
 
     SANDBOX_METRICS.sandbox[&SandboxStage::Initialization].observe(stage_started_at.elapsed());
     span.exit();
