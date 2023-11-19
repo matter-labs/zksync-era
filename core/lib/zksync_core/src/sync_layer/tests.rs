@@ -73,6 +73,7 @@ impl MockMainNodeClient {
                 virtual_blocks: Some(!is_fictive as u32),
                 hash: Some(H256::repeat_byte(1)),
                 protocol_version: ProtocolVersionId::latest(),
+                consensus: None,
             }
         });
 
@@ -411,12 +412,7 @@ async fn mock_l1_batch_hash_computation(pool: ConnectionPool, number: u32) {
         let metadata = create_l1_batch_metadata(number);
         storage
             .blocks_dal()
-            .save_l1_batch_metadata(
-                L1BatchNumber(1),
-                &metadata,
-                H256::zero(),
-                ProtocolVersionId::latest(),
-            )
+            .save_l1_batch_metadata(L1BatchNumber(1), &metadata, H256::zero(), false)
             .await
             .unwrap();
         break;
