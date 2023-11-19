@@ -63,6 +63,9 @@ describe('Debug methods', () => {
         let blockCallTrace = await testMaster
             .mainAccount()
             .provider.send('debug_traceBlockByNumber', [receipt.blockNumber.toString(16)]);
+        let blockCallTrace_tracer = await testMaster
+            .mainAccount()
+            .provider.send('debug_traceBlockByNumber', [receipt.blockNumber.toString(16), { tracer: 'callTracer' }]);
         let expected = {
             error: null,
             from: ethers.constants.AddressZero,
@@ -78,6 +81,7 @@ describe('Debug methods', () => {
         };
         for (let i = 0; i < blockCallTrace.length; i++) {
             expect(blockCallTrace[i]).toEqual({ result: expected });
+            expect(blockCallTrace[i]).toEqual(blockCallTrace_tracer[i]);
         }
         expected = {
             error: null,
@@ -97,7 +101,11 @@ describe('Debug methods', () => {
             calls: expect.any(Array)
         };
         let txCallTrace = await testMaster.mainAccount().provider.send('debug_traceTransaction', [tx.hash]);
+        let txCallTrace_tracer = await testMaster
+            .mainAccount()
+            .provider.send('debug_traceTransaction', [tx.hash, { tracer: 'callTracer' }]);
         expect(txCallTrace).toEqual(expected);
+        expect(txCallTrace).toEqual(txCallTrace_tracer);
     });
 
     afterAll(async () => {

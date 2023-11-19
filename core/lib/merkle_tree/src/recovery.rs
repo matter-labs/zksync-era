@@ -38,7 +38,7 @@
 use std::time::Instant;
 
 use crate::{
-    hasher::HashTree,
+    hasher::{HashTree, HasherWithStats},
     storage::{PatchSet, PruneDatabase, PrunePatchSet, Storage},
     types::{Key, Manifest, Root, TreeTags, ValueHash},
     MerkleTree,
@@ -59,22 +59,24 @@ pub struct RecoveryEntry {
 
 /// Handle to a Merkle tree during its recovery.
 #[derive(Debug)]
-pub struct MerkleTreeRecovery<'a, DB> {
+pub struct MerkleTreeRecovery<DB, H = Blake2Hasher> {
     db: DB,
-    hasher: &'a dyn HashTree,
+    hasher: H,
     recovered_version: u64,
 }
 
-impl<'a, DB: PruneDatabase> MerkleTreeRecovery<'a, DB> {
+impl<DB: PruneDatabase> MerkleTreeRecovery<DB> {
     /// Creates tree recovery with the default Blake2 hasher.
     ///
     /// # Panics
     ///
     /// Panics in the same situations as [`Self::with_hasher()`].
     pub fn new(db: DB, recovered_version: u64) -> Self {
-        Self::with_hasher(db, recovered_version, &Blake2Hasher)
+        Self::with_hasher(db, recovered_version, Blake2Hasher)
     }
+}
 
+impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
     /// Loads a tree with the specified hasher.
     ///
     /// # Panics
@@ -83,7 +85,7 @@ impl<'a, DB: PruneDatabase> MerkleTreeRecovery<'a, DB> {
     ///   for a different tree version.
     /// - Panics if the hasher or basic tree parameters (e.g., the tree depth)
     ///   do not match those of the tree loaded from the database.
-    pub fn with_hasher(mut db: DB, recovered_version: u64, hasher: &'a dyn HashTree) -> Self {
+    pub fn with_hasher(mut db: DB, recovered_version: u64, hasher: H) -> Self {
         let manifest = db.manifest();
         let mut manifest = if let Some(manifest) = manifest {
             if manifest.version_count > 0 {
@@ -105,9 +107,9 @@ impl<'a, DB: PruneDatabase> MerkleTreeRecovery<'a, DB> {
 
         manifest.version_count = recovered_version + 1;
         if let Some(tags) = &manifest.tags {
-            tags.assert_consistency(hasher, true);
+            tags.assert_consistency(&hasher, true);
         } else {
-            let mut tags = TreeTags::new(hasher);
+            let mut tags = TreeTags::new(&hasher);
             tags.is_recovering = true;
             manifest.tags = Some(tags);
         }
@@ -126,16 +128,16 @@ impl<'a, DB: PruneDatabase> MerkleTreeRecovery<'a, DB> {
         let Some(Root::Filled { node, .. }) = root else {
             return self.hasher.empty_tree_hash();
         };
-        node.hash(&mut self.hasher.into(), 0)
+        node.hash(&mut HasherWithStats::new(&self.hasher), 0)
     }
 
     /// Returns the last key processed during the recovery process.
     pub fn last_processed_key(&self) -> Option<Key> {
-        let storage = Storage::new(&self.db, self.hasher, self.recovered_version, false);
+        let storage = Storage::new(&self.db, &self.hasher, self.recovered_version, false);
         storage.greatest_key()
     }
 
-    /// Extends a tree with a chunk of entries.
+    /// Extends a tree with a chunk of linearly ordered entries.
     ///
     /// Entries must be ordered by increasing `key`, and the key of the first entry must be greater
     /// than [`Self::last_processed_key()`].
@@ -152,12 +154,35 @@ impl<'a, DB: PruneDatabase> MerkleTreeRecovery<'a, DB> {
             %entries.key_range = entries_key_range(&entries),
         ),
     )]
-    pub fn extend(&mut self, entries: Vec<RecoveryEntry>) {
+    pub fn extend_linear(&mut self, entries: Vec<RecoveryEntry>) {
         tracing::debug!("Started extending tree");
 
         let started_at = Instant::now();
-        let storage = Storage::new(&self.db, self.hasher, self.recovered_version, false);
-        let patch = storage.extend_during_recovery(entries);
+        let storage = Storage::new(&self.db, &self.hasher, self.recovered_version, false);
+        let patch = storage.extend_during_linear_recovery(entries);
+        tracing::debug!("Finished processing keys; took {:?}", started_at.elapsed());
+
+        let started_at = Instant::now();
+        self.db.apply_patch(patch);
+        tracing::debug!("Finished persisting to DB; took {:?}", started_at.elapsed());
+    }
+
+    /// Extends a tree with a chunk of entries. Unlike [`Self::extend_linear()`], entries may be
+    /// ordered in any way you like.
+    #[tracing::instrument(
+        level = "debug",
+        skip_all,
+        fields(
+            recovered_version = self.recovered_version,
+            entries.len = entries.len(),
+        ),
+    )]
+    pub fn extend_random(&mut self, entries: Vec<RecoveryEntry>) {
+        tracing::debug!("Started extending tree");
+
+        let started_at = Instant::now();
+        let storage = Storage::new(&self.db, &self.hasher, self.recovered_version, false);
+        let patch = storage.extend_during_random_recovery(entries);
         tracing::debug!("Finished processing keys; took {:?}", started_at.elapsed());
 
         let started_at = Instant::now();
@@ -172,7 +197,7 @@ impl<'a, DB: PruneDatabase> MerkleTreeRecovery<'a, DB> {
         fields(recovered_version = self.recovered_version),
     )]
     #[allow(clippy::missing_panics_doc, clippy::range_plus_one)]
-    pub fn finalize(mut self) -> MerkleTree<'a, DB> {
+    pub fn finalize(mut self) -> MerkleTree<DB, H> {
         let mut manifest = self.db.manifest().unwrap();
         // ^ `unwrap()` is safe: manifest is inserted into the DB on creation
 
@@ -204,7 +229,7 @@ impl<'a, DB: PruneDatabase> MerkleTreeRecovery<'a, DB> {
 
         manifest
             .tags
-            .get_or_insert_with(|| TreeTags::new(self.hasher))
+            .get_or_insert_with(|| TreeTags::new(&self.hasher))
             .is_recovering = false;
         self.db.apply_patch(PatchSet::from_manifest(manifest));
         tracing::debug!("Updated tree manifest to mark recovery as complete");
@@ -260,11 +285,11 @@ mod tests {
             value: ValueHash::repeat_byte(1),
             leaf_index: 1,
         };
-        recovery.extend(vec![recovery_entry]);
+        recovery.extend_linear(vec![recovery_entry]);
         let tree = recovery.finalize();
 
         assert_eq!(tree.latest_version(), Some(42));
-        let mut hasher = HasherWithStats::from(&Blake2Hasher as &dyn HashTree);
+        let mut hasher = HasherWithStats::new(&Blake2Hasher);
         assert_eq!(
             tree.latest_root_hash(),
             LeafNode::new(

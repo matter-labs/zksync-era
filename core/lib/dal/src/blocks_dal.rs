@@ -10,7 +10,7 @@ use sqlx::Row;
 
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
+    block::{BlockGasCount, ConsensusBlockFields, L1BatchHeader, MiniblockHeader},
     commitment::{L1BatchMetadata, L1BatchWithMetadata},
     Address, L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256,
     MAX_GAS_PER_PUBDATA_BYTE, U256,
@@ -466,6 +466,27 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
+    /// Sets consensus-related fields for the specified miniblock.
+    pub async fn set_miniblock_consensus_fields(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+        consensus: &ConsensusBlockFields,
+    ) -> anyhow::Result<()> {
+        let result = sqlx::query!(
+            "UPDATE miniblocks SET consensus = $2 WHERE number = $1",
+            miniblock_number.0 as i64,
+            serde_json::to_value(consensus).unwrap(),
+        )
+        .execute(self.storage.conn())
+        .await?;
+
+        anyhow::ensure!(
+            result.rows_affected() == 1,
+            "Miniblock #{miniblock_number} is not present in Postgres"
+        );
+        Ok(())
+    }
+
     pub async fn update_hashes(
         &mut self,
         number_and_hashes: &[(MiniblockNumber, H256)],
@@ -582,6 +603,7 @@ impl BlocksDal<'_, '_> {
         number: L1BatchNumber,
         metadata: &L1BatchMetadata,
         previous_root_hash: H256,
+        is_pre_boojum: bool,
     ) -> anyhow::Result<()> {
         let mut transaction = self.storage.start_transaction().await?;
 
@@ -614,7 +636,7 @@ impl BlocksDal<'_, '_> {
         .execute(transaction.conn())
         .await?;
 
-        if metadata.events_queue_commitment.is_some() {
+        if metadata.events_queue_commitment.is_some() || is_pre_boojum {
             // Save `commitment`, `aux_data_hash`, `events_queue_commitment`, `bootloader_initial_content_commitment`.
             sqlx::query!(
                 "INSERT INTO commitments (l1_batch_number, events_queue_commitment, bootloader_initial_content_commitment) \
