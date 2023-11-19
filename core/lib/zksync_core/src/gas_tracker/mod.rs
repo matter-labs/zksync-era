@@ -111,7 +111,11 @@ pub(crate) fn commit_gas_count_for_l1_batch(
         .sum();
 
     // Boojum upgrade changes how storage writes are communicated/compressed.
-    let state_diff_size = if header.protocol_version.unwrap().is_pre_boojum() {
+    let is_pre_boojum = header
+        .protocol_version
+        .map(|v| v.is_pre_boojum())
+        .unwrap_or(true);
+    let state_diff_size = if is_pre_boojum {
         metadata.initial_writes_compressed.len() as u32
             + metadata.repeated_writes_compressed.len() as u32
     } else {
