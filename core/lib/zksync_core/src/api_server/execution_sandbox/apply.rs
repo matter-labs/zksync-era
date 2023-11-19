@@ -208,11 +208,6 @@ pub(super) fn apply_vm_in_sandbox<T>(
         pubdata_price: operator_pubdata_price,
     };
 
-    // println!(
-    //     "INFO: {:#?} {:#?}",
-    //     l1_batch_env.timestamp, l1_batch_env.first_l2_block
-    // );
-
     let storage_view = storage_view.to_rc_ptr();
     let mut vm = Box::new(VmInstance::new_with_specific_version(
         l1_batch_env.clone(),
@@ -220,14 +215,6 @@ pub(super) fn apply_vm_in_sandbox<T>(
         storage_view.clone(),
         protocol_version.into_api_vm_version(),
     ));
-
-    println!(
-        "DERIVED FEES: {:#?}",
-        derive_base_fee_and_gas_per_pubdata(
-            l1_batch_env.pubdata_price,
-            l1_batch_env.fair_l2_gas_price
-        )
-    );
 
     SANDBOX_METRICS.sandbox[&SandboxStage::Initialization].observe(stage_started_at.elapsed());
     span.exit();
