@@ -627,7 +627,7 @@ pub enum SupportedTracers {
     CallTracer,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct CallTracerConfig {
     pub only_top_call: bool,
@@ -637,6 +637,7 @@ pub struct CallTracerConfig {
 #[serde(rename_all = "camelCase")]
 pub struct TracerConfig {
     pub tracer: SupportedTracers,
+    #[serde(default)]
     pub tracer_config: CallTracerConfig,
 }
 
@@ -683,4 +684,20 @@ pub struct L1BatchDetails {
     pub number: L1BatchNumber,
     #[serde(flatten)]
     pub base: BlockDetailsBase,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageProof {
+    pub key: H256,
+    pub proof: Vec<H256>,
+    pub value: H256,
+    pub index: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Proof {
+    pub address: Address,
+    pub storage_proof: Vec<StorageProof>,
 }

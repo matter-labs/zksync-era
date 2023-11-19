@@ -119,14 +119,13 @@ impl TreeApiClient for AsyncTreeReader {
 
 /// [`TreeApiClient`] implementation requesting data from a Merkle tree API server.
 #[derive(Debug, Clone)]
-pub(crate) struct TreeApiHttpClient {
+pub struct TreeApiHttpClient {
     inner: reqwest::Client,
     info_url: String,
     proofs_url: String,
 }
 
 impl TreeApiHttpClient {
-    #[cfg(test)] // temporary measure until `TreeApiClient` is required by other components
     pub fn new(url_base: &str) -> Self {
         Self {
             inner: reqwest::Client::new(),
