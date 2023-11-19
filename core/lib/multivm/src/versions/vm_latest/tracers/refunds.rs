@@ -4,7 +4,6 @@ use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics
 use crate::interface::traits::tracers::dyn_tracers::vm_1_4_0::DynTracer;
 use crate::interface::types::tracer::TracerExecutionStatus;
 use crate::interface::{L1BatchEnv, Refunds};
-use crate::vm_latest::utils::fee::get_operator_pubdata_price;
 use zk_evm_1_4_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
@@ -129,10 +128,12 @@ impl<S> RefundsTracer<S> {
             fair_eth_price_per_pubdata_byte,
         );
 
+        // println!("PARAMS: tx_gas_limit: {tx_gas_limit} compute: {} pubdata: {} pp: {}", gas_spent_on_computation, pubdata_published, eth_price_per_pubdata_byte_for_calculation);
+
         let fair_fee_eth = U256::from(gas_spent_on_computation)
             * U256::from(self.l1_batch.fair_l2_gas_price)
             + U256::from(pubdata_published) * eth_price_per_pubdata_byte_for_calculation;
-        let pre_paid_eth = U256::from(tx_gas_limit) * U256::from(effective_gas_price);
+        let pre_paid_eth: U256 = U256::from(tx_gas_limit) * U256::from(effective_gas_price);
         let refund_eth = pre_paid_eth.checked_sub(fair_fee_eth).unwrap_or_else(|| {
             tracing::error!(
                 "Fair fee is greater than pre paid. Fair fee: {} wei, pre paid: {} wei",

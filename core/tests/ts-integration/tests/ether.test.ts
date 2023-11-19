@@ -7,7 +7,7 @@ import { shouldChangeETHBalances, shouldOnlyTakeFee } from '../src/modifiers/bal
 import { checkReceipt } from '../src/modifiers/receipt-check';
 
 import * as zksync from 'zksync-web3';
-import { BigNumber, Overrides } from 'ethers';
+import { BigNumber, Overrides, Wallet } from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
 
 const ETH_ADDRESS = zksync.utils.ETH_ADDRESS;
@@ -236,6 +236,46 @@ describe('ETH token checks', () => {
         });
 
         await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
+    });
+
+    test.only('Costs do not depend on the gasLimit', async () => {
+        if (!testMaster.isLocalHost()) {
+            // This test relies on stable pubdata price & so it is better to invoke it 
+            // on localhost only.
+            return;
+        }
+
+        const amount = 1;
+
+        // let maxAttempts = 5;
+        // while(maxAttempts > 0) {
+        const tx1 = await alice.sendTransaction({
+            to: Wallet.createRandom().address,
+            value: amount,
+        });
+        const tx2 = await alice.sendTransaction({
+            to: Wallet.createRandom().address,
+            value: amount,
+            gasLimit: tx1.gasLimit.mul(30),
+        });
+        const tx3 = await alice.sendTransaction({
+            to: Wallet.createRandom().address,
+            value: amount,
+            gasLimit: tx1.gasLimit
+        });
+
+        const tx1Receipt = await tx1.wait();
+        const tx2Receipt = await tx2.wait();
+        const tx3Receipt = await tx3.wait();
+
+        console.log(tx1Receipt);
+        console.log(tx2Receipt);
+        console.log(tx3Receipt);
+        //     if (tx1Receipt.gasUsed.eq(tx2Receipt.gasUsed)) {
+        //     }
+
+        //     maxAttempts -= 1;
+        // }
     });
 
     afterAll(async () => {

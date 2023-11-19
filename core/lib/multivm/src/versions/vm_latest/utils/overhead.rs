@@ -19,8 +19,8 @@ pub fn derive_overhead(
     let overhead_for_batch_eth = block_overhead_eth(l1_gas_price);
 
     // todo: move into constants
-    let slot_overhead_gas = 150000; //ceil_div_u256(overhead_for_batch_eth, (base_fee * MAX_TXS_IN_BLOCK));
-                                    // todo: the 32 constant is for words -> byte conversion
+    let slot_overhead_gas = 80000; //ceil_div_u256(overhead_for_batch_eth, (base_fee * MAX_TXS_IN_BLOCK));
+                                   // todo: the 32 constant is for words -> byte conversion
 
     // todo: move into constants
     let memory_overhead_gas = 35;
