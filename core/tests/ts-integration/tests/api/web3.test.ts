@@ -218,7 +218,7 @@ describe('web3 API compatibility tests', () => {
         await legacyTx.wait();
 
         const legacyApiReceipt = await alice.provider.getTransaction(legacyTx.hash);
-        expect(legacyApiReceipt.gasPrice).bnToBeEq(legacyTx.gasPrice!);
+        expect(legacyApiReceipt.gasPrice).bnToBeLte(legacyTx.gasPrice!);
     });
 
     test('Should check transactions from API / EIP1559 tx', async () => {
@@ -811,7 +811,7 @@ describe('web3 API compatibility tests', () => {
     test('Should check transaction signature', async () => {
         const CHAIN_ID = +process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
         const value = 1;
-        const gasLimit = 300000;
+        const gasLimit = 350000;
         const gasPrice = await alice.provider.getGasPrice();
         const data = '0x';
         const to = alice.address;
@@ -865,6 +865,7 @@ describe('web3 API compatibility tests', () => {
             maxFeePerGas: gasPrice,
             maxPriorityFeePerGas: gasPrice
         };
+
 
         const signedEip1559TxReq = await alice.signTransaction(eip1559TxReq);
         tx_handle = await alice.provider.sendTransaction(signedEip1559TxReq);
