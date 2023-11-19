@@ -6,7 +6,7 @@ pragma solidity ^0.8.0;
  * @author Matter Labs
  * @dev The interface that is used for encoding/decoding of
  * different types of paymaster flows.
- * @notice This is NOT an interface to be implementated
+ * @notice This is NOT an interface to be implemented
  * by contracts. It is just used for encoding.
  */
 interface IPaymasterFlow {
