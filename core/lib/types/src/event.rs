@@ -249,14 +249,11 @@ pub fn extract_l2tol1logs_from_l1_messenger(
                 && event.indexed_topics[0] == l1_messenger_l2_to_l1_log_event_signature
         })
         .map(|event| {
-            let tuple = ethabi::decode(
-                params,
-                &event.value,
-            )
-            .expect("Failed to decode L2ToL1LogSent message")
-            .first()
-            .unwrap()
-            .clone();
+            let tuple = ethabi::decode(params, &event.value)
+                .expect("Failed to decode L2ToL1LogSent message")
+                .first()
+                .unwrap()
+                .clone();
             let Token::Tuple(tokens) = tuple else {
                 panic!("Tuple was expected, got: {}", tuple);
             };
