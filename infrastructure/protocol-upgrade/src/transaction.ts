@@ -1,7 +1,11 @@
 import { BigNumberish } from '@ethersproject/bignumber';
 import { BytesLike, ethers } from 'ethers';
 import { ForceDeployUpgraderFactory as ForceDeployUpgraderFactoryL2 } from 'l2-zksync-contracts/typechain';
-import { DefaultUpgradeFactory as DefaultUpgradeFactoryL1 } from 'l1-zksync-contracts/typechain';
+import {
+    DefaultUpgradeFactory as DefaultUpgradeFactoryL1,
+    AdminFacetFactory,
+    GovernanceFactory
+} from 'l1-zksync-contracts/typechain';
 import { FacetCut } from 'l1-zksync-contracts/src.ts/diamondCut';
 import { IZkSyncFactory } from '../pre-boojum/IZkSyncFactory';
 import { ComplexUpgrader__factory } from '../../../etc/system-contracts/typechain-types';
@@ -163,7 +167,7 @@ export function prepareDefaultCalldataForL2upgrade(forcedDeployments: ForceDeplo
     return complexUpgraderCalldata;
 }
 
-export function prepareproposeTransparentUpgradeCalldata(
+export function prepareProposeTransparentUpgradeCalldata(
     initCalldata,
     upgradeAddress: string,
     facetCuts: FacetCut[],
@@ -185,7 +189,56 @@ export function prepareproposeTransparentUpgradeCalldata(
         transparentUpgrade,
         ethers.constants.HashZero
     ]);
-    return [proposeTransparentUpgradeCalldata, executeUpgradeCalldata, transparentUpgrade];
+    return {
+        transparentUpgrade,
+        proposeTransparentUpgradeCalldata,
+        executeUpgradeCalldata
+    };
+}
+
+export function prepareTransparentUpgradeCalldataForNewGovernance(
+    initCalldata,
+    upgradeAddress: string,
+    facetCuts: FacetCut[],
+    zksyncAddress: string
+) {
+    let transparentUpgrade: TransparentUpgrade = {
+        facetCuts,
+        initAddress: upgradeAddress,
+        initCalldata
+    };
+
+    // Prepare calldata for upgrading diamond proxy
+    let adminFacet = new AdminFacetFactory();
+    const diamondProxyUpgradeCalldata = adminFacet.interface.encodeFunctionData('executeUpgrade', [transparentUpgrade]);
+
+    const call = {
+        target: zksyncAddress,
+        value: 0,
+        data: diamondProxyUpgradeCalldata
+    };
+    const governanceOperation = {
+        calls: [call],
+        predecessor: ethers.constants.HashZero,
+        salt: ethers.constants.HashZero
+    };
+
+    const governance = new GovernanceFactory();
+    // Get transaction data of the `scheduleTransparent`
+    const scheduleTransparentOperation = governance.interface.encodeFunctionData('scheduleTransparent', [
+        governanceOperation,
+        0 // delay
+    ]);
+
+    // Get transaction data of the `execute`
+    const executeOperation = governance.interface.encodeFunctionData('execute', [governanceOperation]);
+
+    return {
+        scheduleTransparentOperation,
+        executeOperation,
+        governanceOperation,
+        transparentUpgrade
+    };
 }
 
 export function buildDefaultUpgradeTx(
@@ -194,7 +247,9 @@ export function buildDefaultUpgradeTx(
     upgradeAddress,
     l2UpgraderAddress,
     upgradeTimestamp,
-    newAllowList
+    newAllowList,
+    zksyncAddress,
+    useNewGovernance
 ) {
     const commonData = JSON.parse(fs.readFileSync(getCommonDataFileName(), { encoding: 'utf-8' }));
     const protocolVersion = commonData.protocolVersion;
@@ -261,13 +316,22 @@ export function buildDefaultUpgradeTx(
 
     let l1upgradeCalldata = prepareDefaultCalldataForL1upgrade(proposeUpgradeTx);
 
-    let [proposeTransparentUpgradeCalldata, executeUpgradeCalldata, transparentUpgrade] =
-        prepareproposeTransparentUpgradeCalldata(
+    let upgradeData;
+    if (useNewGovernance) {
+        upgradeData = prepareTransparentUpgradeCalldataForNewGovernance(
+            l1upgradeCalldata,
+            upgradeAddress,
+            facetCuts,
+            zksyncAddress
+        );
+    } else {
+        upgradeData = prepareProposeTransparentUpgradeCalldata(
             l1upgradeCalldata,
             upgradeAddress,
             facetCuts,
             diamondUpgradeProposalId
         );
+    }
     const transactions = {
         proposeUpgradeTx,
         l1upgradeCalldata,
@@ -275,9 +339,7 @@ export function buildDefaultUpgradeTx(
         protocolVersion,
         diamondUpgradeProposalId,
         upgradeTimestamp,
-        proposeTransparentUpgradeCalldata,
-        transparentUpgrade,
-        executeUpgradeCalldata
+        ...upgradeData
     };
 
     fs.writeFileSync(getL2TransactionsFileName(environment), JSON.stringify(transactions, null, 2));
@@ -288,17 +350,16 @@ async function sendTransaction(
     calldata: BytesLike,
     privateKey: string,
     l1rpc: string,
-    zksyncAddress: string,
+    to: string,
     environment: string,
     gasPrice: ethers.BigNumber,
     nonce: number
 ) {
     const wallet = getWallet(l1rpc, privateKey);
-    zksyncAddress = zksyncAddress ?? process.env.CONTRACTS_DIAMOND_PROXY_ADDR;
     gasPrice = gasPrice ?? (await wallet.provider.getGasPrice());
     nonce = nonce ?? (await wallet.getTransactionCount());
     const tx = await wallet.sendTransaction({
-        to: zksyncAddress,
+        to,
         data: calldata,
         value: 0,
         gasLimit: 10_000_000,
@@ -330,20 +391,21 @@ async function proposeUpgrade(
     zksyncAddress: string,
     environment: string,
     gasPrice: ethers.BigNumber,
-    nonce: number
+    nonce: number,
+    newGovernanceAddress: string
 ) {
     const transactions = JSON.parse(fs.readFileSync(getL2TransactionsFileName(environment)).toString());
-    const proposeTransparentUpgradeCalldata = transactions.proposeTransparentUpgradeCalldata;
+    let to;
+    let calldata;
+    if (newGovernanceAddress != null) {
+        to = newGovernanceAddress;
+        calldata = transactions.scheduleTransparentOperation;
+    } else {
+        to = zksyncAddress ?? process.env.CONTRACTS_DIAMOND_PROXY_ADDR;
+        calldata = transactions.proposeTransparentUpgradeCalldata;
+    }
     console.log(`Proposing upgrade for protocolVersion ${transactions.protocolVersion}`);
-    await sendTransaction(
-        proposeTransparentUpgradeCalldata,
-        privateKey,
-        l1rpc,
-        zksyncAddress,
-        environment,
-        gasPrice,
-        nonce
-    );
+    await sendTransaction(calldata, privateKey, l1rpc, to, environment, gasPrice, nonce);
 }
 
 async function executeUpgrade(
@@ -352,12 +414,21 @@ async function executeUpgrade(
     zksyncAddress: string,
     environment: string,
     gasPrice: ethers.BigNumber,
-    nonce: number
+    nonce: number,
+    newGovernanceAddress: string
 ) {
     const transactions = JSON.parse(fs.readFileSync(getL2TransactionsFileName(environment)).toString());
-    const executeUpgradeCalldata = transactions.executeUpgradeCalldata;
+    let to;
+    let calldata;
+    if (newGovernanceAddress != null) {
+        to = newGovernanceAddress;
+        calldata = transactions.executeOperation;
+    } else {
+        to = zksyncAddress ?? process.env.CONTRACTS_DIAMOND_PROXY_ADDR;
+        calldata = transactions.executeUpgradeCalldata;
+    }
     console.log(`Execute upgrade for protocolVersion ${transactions.protocolVersion}`);
-    await sendTransaction(executeUpgradeCalldata, privateKey, l1rpc, zksyncAddress, environment, gasPrice, nonce);
+    await sendTransaction(calldata, privateKey, l1rpc, to, environment, gasPrice, nonce);
 }
 
 async function cancelUpgrade(
@@ -367,28 +438,57 @@ async function cancelUpgrade(
     environment: string,
     gasPrice: ethers.BigNumber,
     nonce: number,
-    execute: boolean
+    execute: boolean,
+    newGovernanceAddress: string
 ) {
-    zksyncAddress = zksyncAddress ?? process.env.CONTRACTS_DIAMOND_PROXY_ADDR;
-    let wallet = getWallet(l1rpc, privateKey);
-    let zkSync = IZkSyncFactory.connect(zksyncAddress, wallet);
-    const transactions = JSON.parse(fs.readFileSync(getL2TransactionsFileName(environment)).toString());
+    if (newGovernanceAddress != null) {
+        let wallet = getWallet(l1rpc, privateKey);
+        const transactions = JSON.parse(fs.readFileSync(getL2TransactionsFileName(environment)).toString());
 
-    const transparentUpgrade = transactions.transparentUpgrade;
-    const diamondUpgradeProposalId = transactions.diamondUpgradeProposalId;
+        let governance = GovernanceFactory.connect(newGovernanceAddress, wallet);
+        const operation = transactions.governanceOperation;
 
-    const proposalHash = await zkSync.upgradeProposalHash(
-        transparentUpgrade,
-        diamondUpgradeProposalId,
-        ethers.constants.HashZero
-    );
+        const operationId = await governance.hashOperation(operation);
 
-    console.log(`Cancel upgrade with hash: ${proposalHash}`);
-    let cancelUpgradeCalldata = zkSync.interface.encodeFunctionData('cancelUpgradeProposal', [proposalHash]);
-    if (execute) {
-        await sendTransaction(cancelUpgradeCalldata, privateKey, l1rpc, zksyncAddress, environment, gasPrice, nonce);
+        console.log(`Cancel upgrade operation with id: ${operationId}`);
+        if (execute) {
+            const tx = await governance.cancel(operationId);
+            await tx.wait();
+            console.log('Operation canceled');
+        } else {
+            const calldata = governance.interface.encodeFunctionData('cancel', [operationId]);
+            console.log(`Cancel upgrade calldata: ${calldata}`);
+        }
     } else {
-        console.log(`Cancel upgrade calldata: ${cancelUpgradeCalldata}`);
+        zksyncAddress = zksyncAddress ?? process.env.CONTRACTS_DIAMOND_PROXY_ADDR;
+        let wallet = getWallet(l1rpc, privateKey);
+        let zkSync = IZkSyncFactory.connect(zksyncAddress, wallet);
+        const transactions = JSON.parse(fs.readFileSync(getL2TransactionsFileName(environment)).toString());
+
+        const transparentUpgrade = transactions.transparentUpgrade;
+        const diamondUpgradeProposalId = transactions.diamondUpgradeProposalId;
+
+        const proposalHash = await zkSync.upgradeProposalHash(
+            transparentUpgrade,
+            diamondUpgradeProposalId,
+            ethers.constants.HashZero
+        );
+
+        console.log(`Cancel upgrade with hash: ${proposalHash}`);
+        let cancelUpgradeCalldata = zkSync.interface.encodeFunctionData('cancelUpgradeProposal', [proposalHash]);
+        if (execute) {
+            await sendTransaction(
+                cancelUpgradeCalldata,
+                privateKey,
+                l1rpc,
+                zksyncAddress,
+                environment,
+                gasPrice,
+                nonce
+            );
+        } else {
+            console.log(`Cancel upgrade calldata: ${cancelUpgradeCalldata}`);
+        }
     }
 }
 
@@ -421,9 +521,10 @@ command
     .option('--diamond-upgrade-proposal-id <diamondUpgradeProposalId>')
     .option('--l1rpc <l1prc>')
     .option('--zksync-address <zksyncAddress>')
+    .option('--use-new-governance')
     .action(async (options) => {
         let diamondUpgradeProposalId = options.diamondUpgradeProposalId;
-        if (!diamondUpgradeProposalId) {
+        if (!diamondUpgradeProposalId && !options.useNewGovernance) {
             diamondUpgradeProposalId = await getNewDiamondUpgradeProposalId(options.l1rpc, options.zksyncAddress);
         }
 
@@ -433,7 +534,9 @@ command
             options.upgradeAddress,
             options.l2UpgraderAddress,
             options.upgradeTimestamp,
-            options.newAllowList
+            options.newAllowList,
+            options.zksyncAddress,
+            options.useNewGovernance
         );
     });
 
@@ -445,6 +548,7 @@ command
     .option('--gas-price <gasPrice>')
     .option('--nonce <nonce>')
     .option('--l1rpc <l1prc>')
+    .option('--new-governance <newGovernance>')
     .action(async (options) => {
         await proposeUpgrade(
             options.privateKey,
@@ -452,7 +556,8 @@ command
             options.zksyncAddress,
             options.environment,
             options.gasPrice,
-            options.nonce
+            options.nonce,
+            options.newGovernance
         );
     });
 
@@ -464,6 +569,7 @@ command
     .option('--gas-price <gasPrice>')
     .option('--nonce <nonce>')
     .option('--l1rpc <l1prc>')
+    .option('--new-governance <newGovernance>')
     .action(async (options) => {
         await executeUpgrade(
             options.privateKey,
@@ -471,7 +577,8 @@ command
             options.zksyncAddress,
             options.environment,
             options.gasPrice,
-            options.nonce
+            options.nonce,
+            options.newGovernance
         );
     });
 
@@ -484,6 +591,7 @@ command
     .option('--nonce <nonce>')
     .option('--l1rpc <l1prc>')
     .option('--execute')
+    .option('--new-governance <newGovernance>')
     .action(async (options) => {
         await cancelUpgrade(
             options.privateKey,
@@ -492,6 +600,7 @@ command
             options.environment,
             options.gasPrice,
             options.nonce,
-            options.execute
+            options.execute,
+            options.newGovernance
         );
     });

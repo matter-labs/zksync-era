@@ -137,7 +137,7 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
         storage.greatest_key()
     }
 
-    /// Extends a tree with a chunk of entries.
+    /// Extends a tree with a chunk of linearly ordered entries.
     ///
     /// Entries must be ordered by increasing `key`, and the key of the first entry must be greater
     /// than [`Self::last_processed_key()`].
@@ -154,12 +154,35 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
             %entries.key_range = entries_key_range(&entries),
         ),
     )]
-    pub fn extend(&mut self, entries: Vec<RecoveryEntry>) {
+    pub fn extend_linear(&mut self, entries: Vec<RecoveryEntry>) {
         tracing::debug!("Started extending tree");
 
         let started_at = Instant::now();
         let storage = Storage::new(&self.db, &self.hasher, self.recovered_version, false);
-        let patch = storage.extend_during_recovery(entries);
+        let patch = storage.extend_during_linear_recovery(entries);
+        tracing::debug!("Finished processing keys; took {:?}", started_at.elapsed());
+
+        let started_at = Instant::now();
+        self.db.apply_patch(patch);
+        tracing::debug!("Finished persisting to DB; took {:?}", started_at.elapsed());
+    }
+
+    /// Extends a tree with a chunk of entries. Unlike [`Self::extend_linear()`], entries may be
+    /// ordered in any way you like.
+    #[tracing::instrument(
+        level = "debug",
+        skip_all,
+        fields(
+            recovered_version = self.recovered_version,
+            entries.len = entries.len(),
+        ),
+    )]
+    pub fn extend_random(&mut self, entries: Vec<RecoveryEntry>) {
+        tracing::debug!("Started extending tree");
+
+        let started_at = Instant::now();
+        let storage = Storage::new(&self.db, &self.hasher, self.recovered_version, false);
+        let patch = storage.extend_during_random_recovery(entries);
         tracing::debug!("Finished processing keys; took {:?}", started_at.elapsed());
 
         let started_at = Instant::now();
@@ -262,7 +285,7 @@ mod tests {
             value: ValueHash::repeat_byte(1),
             leaf_index: 1,
         };
-        recovery.extend(vec![recovery_entry]);
+        recovery.extend_linear(vec![recovery_entry]);
         let tree = recovery.finalize();
 
         assert_eq!(tree.latest_version(), Some(42));

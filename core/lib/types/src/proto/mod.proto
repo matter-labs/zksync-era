@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package zksync.types;
+
+import "zksync/roles/validator.proto";
+
+message ConsensusBlockFields {
+  optional roles.validator.BlockHeaderHash parent = 1;
+  optional roles.validator.CommitQC justification = 2;
+}
