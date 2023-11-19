@@ -6,11 +6,10 @@ const OPERATOR_ADDRESS_SLOT: usize = 0;
 const PREV_BLOCK_HASH_SLOT: usize = 1;
 const NEW_BLOCK_TIMESTAMP_SLOT: usize = 2;
 const NEW_BLOCK_NUMBER_SLOT: usize = 3;
-const L1_GAS_PRICE_SLOT: usize = 4;
+const FAIR_PUBDATA_PRICE_SLOT: usize = 4;
 const FAIR_L2_GAS_PRICE_SLOT: usize = 5;
 const EXPECTED_BASE_FEE_SLOT: usize = 6;
-const PUBDATA_PRICE: usize = 7;
-const SHOULD_SET_NEW_BLOCK_SLOT: usize = 8;
+const SHOULD_SET_NEW_BLOCK_SLOT: usize = 7;
 
 /// Returns the initial memory for the bootloader based on the current batch environment.
 pub(crate) fn bootloader_initial_memory(l1_batch: &L1BatchEnv) -> Vec<(usize, U256)> {
@@ -27,13 +26,15 @@ pub(crate) fn bootloader_initial_memory(l1_batch: &L1BatchEnv) -> Vec<(usize, U2
         (PREV_BLOCK_HASH_SLOT, prev_block_hash),
         (NEW_BLOCK_TIMESTAMP_SLOT, U256::from(l1_batch.timestamp)),
         (NEW_BLOCK_NUMBER_SLOT, U256::from(l1_batch.number.0)),
-        (L1_GAS_PRICE_SLOT, U256::from(l1_batch.l1_gas_price)),
+        (
+            FAIR_PUBDATA_PRICE_SLOT,
+            U256::from(l1_batch.fair_pubdata_price),
+        ),
         (
             FAIR_L2_GAS_PRICE_SLOT,
             U256::from(l1_batch.fair_l2_gas_price),
         ),
         (EXPECTED_BASE_FEE_SLOT, U256::from(l1_batch.base_fee())),
-        (PUBDATA_PRICE, U256::from(l1_batch.pubdata_price)),
         (SHOULD_SET_NEW_BLOCK_SLOT, should_set_new_block),
     ]
 }

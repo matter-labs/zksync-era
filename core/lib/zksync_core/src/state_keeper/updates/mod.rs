@@ -45,7 +45,7 @@ impl UpdatesManager {
         Self {
             batch_timestamp: l1_batch_env.timestamp,
             l1_gas_price: l1_batch_env.l1_gas_price,
-            pubdata_price: l1_batch_env.pubdata_price,
+            pubdata_price: l1_batch_env.fair_pubdata_price,
             fair_l2_gas_price: l1_batch_env.fair_l2_gas_price,
             base_fee_per_gas: l1_batch_env.base_fee(),
             protocol_version,

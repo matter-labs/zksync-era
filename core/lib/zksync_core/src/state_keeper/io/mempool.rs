@@ -117,14 +117,14 @@ where
         // Initialize the filter for the transactions that come after the pending batch.
         // We use values from the pending block to match the filter with one used before the restart.
         let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(
-            l1_batch_env.pubdata_price,
+            l1_batch_env.fair_pubdata_price,
             l1_batch_env.fair_l2_gas_price,
         );
         self.filter = L2TxFilter {
             l1_gas_price: l1_batch_env.l1_gas_price,
             fee_per_gas: base_fee,
             gas_per_pubdata: gas_per_pubdata as u32,
-            pubdata_price: l1_batch_env.pubdata_price,
+            pubdata_price: l1_batch_env.fair_pubdata_price,
         };
 
         Some(PendingBatchData {

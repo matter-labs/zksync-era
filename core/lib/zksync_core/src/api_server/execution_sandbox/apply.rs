@@ -205,7 +205,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
         fee_account: *operator_account.address(),
         enforced_base_fee: execution_args.enforced_base_fee,
         first_l2_block: next_l2_block_info,
-        pubdata_price: operator_pubdata_price,
+        fair_pubdata_price: operator_pubdata_price,
     };
 
     let storage_view = storage_view.to_rc_ptr();

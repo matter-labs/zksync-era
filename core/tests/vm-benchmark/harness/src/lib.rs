@@ -76,7 +76,7 @@ impl BenchmarkingVm {
                     prev_block_hash: legacy_miniblock_hash(MiniblockNumber(0)),
                     max_virtual_blocks_to_create: 100,
                 },
-                pubdata_price: 850_000_000_000,
+                fair_pubdata_price: 850_000_000_000,
             },
             multivm::interface::SystemEnv {
                 zk_porter_available: false,
