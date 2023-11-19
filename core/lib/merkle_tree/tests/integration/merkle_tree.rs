@@ -691,7 +691,7 @@ mod rocksdb {
         let mut tree = MerkleTree::new(&mut db);
         tree.extend(vec![(U256::zero(), H256::zero())]);
 
-        MerkleTree::with_hasher(&mut db, &());
+        MerkleTree::with_hasher(&mut db, ());
     }
 
     #[test]
@@ -703,6 +703,6 @@ mod rocksdb {
         drop(tree);
 
         let db = RocksDBWrapper::new(dir.path());
-        MerkleTree::with_hasher(db, &());
+        MerkleTree::with_hasher(db, ());
     }
 }

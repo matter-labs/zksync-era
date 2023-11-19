@@ -161,14 +161,34 @@ impl RequestProcessor {
                     .unwrap()
                     .expect("Proved block without metadata");
 
-                let events_queue_state = l1_batch
-                    .metadata
-                    .events_queue_commitment
-                    .expect("No events_queue_commitment");
-                let bootloader_heap_initial_content = l1_batch
-                    .metadata
-                    .bootloader_initial_content_commitment
-                    .expect("No bootloader_initial_content_commitment");
+                let is_pre_boojum = l1_batch
+                    .header
+                    .protocol_version
+                    .map(|v| v.is_pre_boojum())
+                    .unwrap_or(true);
+                if !is_pre_boojum {
+                    let events_queue_state = l1_batch
+                        .metadata
+                        .events_queue_commitment
+                        .expect("No events_queue_commitment");
+                    let bootloader_heap_initial_content = l1_batch
+                        .metadata
+                        .bootloader_initial_content_commitment
+                        .expect("No bootloader_initial_content_commitment");
+
+                    if events_queue_state != events_queue_state_from_prover
+                        || bootloader_heap_initial_content
+                            != bootloader_heap_initial_content_from_prover
+                    {
+                        let server_values = format!("events_queue_state = {events_queue_state}, bootloader_heap_initial_content = {bootloader_heap_initial_content}");
+                        let prover_values = format!("events_queue_state = {events_queue_state_from_prover}, bootloader_heap_initial_content = {bootloader_heap_initial_content_from_prover}");
+                        panic!(
+                            "Auxilary output doesn't match, server values: {} prover values: {}",
+                            server_values, prover_values
+                        );
+                    }
+                }
+
                 let system_logs = serialize_commitments(&l1_batch.header.system_logs);
                 let system_logs_hash = H256(keccak256(&system_logs));
 
@@ -181,14 +201,11 @@ impl RequestProcessor {
                     .0
                     .value;
 
-                if events_queue_state != events_queue_state_from_prover
-                    || bootloader_heap_initial_content
-                        != bootloader_heap_initial_content_from_prover
-                    || state_diff_hash != state_diff_hash_from_prover
+                if state_diff_hash != state_diff_hash_from_prover
                     || system_logs_hash != system_logs_hash_from_prover
                 {
-                    let server_values = format!("{system_logs_hash} {state_diff_hash} {events_queue_state} {bootloader_heap_initial_content}");
-                    let prover_values = format!("{system_logs_hash_from_prover} {state_diff_hash_from_prover} {events_queue_state_from_prover} {bootloader_heap_initial_content_from_prover}");
+                    let server_values = format!("system_logs_hash = {system_logs_hash}, state_diff_hash = {state_diff_hash}");
+                    let prover_values = format!("system_logs_hash = {system_logs_hash_from_prover}, state_diff_hash = {state_diff_hash_from_prover}");
                     panic!(
                         "Auxilary output doesn't match, server values: {} prover values: {}",
                         server_values, prover_values
