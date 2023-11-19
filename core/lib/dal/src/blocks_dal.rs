@@ -10,7 +10,7 @@ use sqlx::Row;
 
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
+    block::{BlockGasCount, ConsensusBlockFields, L1BatchHeader, MiniblockHeader},
     commitment::{L1BatchMetadata, L1BatchWithMetadata},
     Address, L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256,
     MAX_GAS_PER_PUBDATA_BYTE, U256,
@@ -466,6 +466,27 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
+    /// Sets consensus-related fields for the specified miniblock.
+    pub async fn set_miniblock_consensus_fields(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+        consensus: &ConsensusBlockFields,
+    ) -> anyhow::Result<()> {
+        let result = sqlx::query!(
+            "UPDATE miniblocks SET consensus = $2 WHERE number = $1",
+            miniblock_number.0 as i64,
+            serde_json::to_value(consensus).unwrap(),
+        )
+        .execute(self.storage.conn())
+        .await?;
+
+        anyhow::ensure!(
+            result.rows_affected() == 1,
+            "Miniblock #{miniblock_number} is not present in Postgres"
+        );
+        Ok(())
+    }
+
     pub async fn update_hashes(
         &mut self,
         number_and_hashes: &[(MiniblockNumber, H256)],
@@ -582,21 +603,21 @@ impl BlocksDal<'_, '_> {
         number: L1BatchNumber,
         metadata: &L1BatchMetadata,
         previous_root_hash: H256,
+        is_pre_boojum: bool,
     ) -> anyhow::Result<()> {
         let mut transaction = self.storage.start_transaction().await?;
 
         let update_result = sqlx::query!(
             "UPDATE l1_batches \
-            SET hash = $1, merkle_root_hash = $2, commitment = $3, \
-                compressed_repeated_writes = $4, compressed_initial_writes = $5, \
-                l2_l1_compressed_messages = $6, l2_l1_merkle_root = $7, \
-                zkporter_is_available = $8, parent_hash = $9, rollup_last_leaf_index = $10, \
-                aux_data_hash = $11, pass_through_data_hash = $12, meta_parameters_hash = $13, \
-                compressed_state_diffs = $14, updated_at = now() \
-            WHERE number = $15 AND hash IS NULL",
+            SET hash = $1, merkle_root_hash = $2, \
+                compressed_repeated_writes = $3, compressed_initial_writes = $4, \
+                l2_l1_compressed_messages = $5, l2_l1_merkle_root = $6, \
+                zkporter_is_available = $7, parent_hash = $8, rollup_last_leaf_index = $9, \
+                pass_through_data_hash = $10, meta_parameters_hash = $11, \
+                compressed_state_diffs = $12, updated_at = now() \
+            WHERE number = $13 AND hash IS NULL",
             metadata.root_hash.as_bytes(),
             metadata.merkle_root_hash.as_bytes(),
-            metadata.commitment.as_bytes(),
             metadata.repeated_writes_compressed,
             metadata.initial_writes_compressed,
             metadata.l2_l1_messages_compressed,
@@ -604,7 +625,6 @@ impl BlocksDal<'_, '_> {
             metadata.block_meta_params.zkporter_is_available,
             previous_root_hash.as_bytes(),
             metadata.rollup_last_leaf_index as i64,
-            metadata.aux_data_hash.as_bytes(),
             metadata.pass_through_data_hash.as_bytes(),
             metadata.meta_parameters_hash.as_bytes(),
             metadata.state_diffs_compressed,
@@ -616,21 +636,38 @@ impl BlocksDal<'_, '_> {
         .execute(transaction.conn())
         .await?;
 
-        sqlx::query!(
-            "INSERT INTO commitments (l1_batch_number, events_queue_commitment, bootloader_initial_content_commitment) \
-            VALUES ($1, $2, $3) \
-            ON CONFLICT (l1_batch_number) DO UPDATE SET events_queue_commitment = $2, bootloader_initial_content_commitment = $3",
-            number.0 as i64,
-            metadata.events_queue_commitment.map(|h| h.0.to_vec()),
-            metadata
-                .bootloader_initial_content_commitment
-                .map(|h| h.0.to_vec()),
-        )
-        .instrument("save_batch_commitments")
-        .with_arg("number", &number)
-        .report_latency()
-        .execute(transaction.conn())
-        .await?;
+        if metadata.events_queue_commitment.is_some() || is_pre_boojum {
+            // Save `commitment`, `aux_data_hash`, `events_queue_commitment`, `bootloader_initial_content_commitment`.
+            sqlx::query!(
+                "INSERT INTO commitments (l1_batch_number, events_queue_commitment, bootloader_initial_content_commitment) \
+                VALUES ($1, $2, $3) \
+                ON CONFLICT (l1_batch_number) DO NOTHING",
+                number.0 as i64,
+                metadata.events_queue_commitment.map(|h| h.0.to_vec()),
+                metadata
+                    .bootloader_initial_content_commitment
+                    .map(|h| h.0.to_vec()),
+            )
+            .instrument("save_batch_commitments")
+            .with_arg("number", &number)
+            .report_latency()
+            .execute(transaction.conn())
+            .await?;
+
+            sqlx::query!(
+                "UPDATE l1_batches \
+                SET commitment = $2, aux_data_hash = $3, updated_at = now() \
+                WHERE number = $1",
+                number.0 as i64,
+                metadata.commitment.as_bytes(),
+                metadata.aux_data_hash.as_bytes(),
+            )
+            .instrument("save_batch_aux_commitment")
+            .with_arg("number", &number)
+            .report_latency()
+            .execute(transaction.conn())
+            .await?;
+        }
 
         if update_result.rows_affected() == 0 {
             tracing::debug!(
@@ -737,6 +774,21 @@ impl BlocksDal<'_, '_> {
         .await?;
 
         Ok(L1BatchNumber(row.number as u32))
+    }
+
+    pub async fn get_eth_commit_tx_id(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> sqlx::Result<Option<u64>> {
+        let row = sqlx::query!(
+            "SELECT eth_commit_tx_id FROM l1_batches \
+            WHERE number = $1",
+            l1_batch_number.0 as i64
+        )
+        .fetch_optional(self.storage.conn())
+        .await?;
+
+        Ok(row.and_then(|row| row.eth_commit_tx_id.map(|n| n as u64)))
     }
 
     /// Returns the number of the last L1 batch for which an Ethereum prove tx was sent and confirmed.

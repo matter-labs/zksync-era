@@ -5,12 +5,13 @@ use zksync_config::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
             StateKeeperConfig,
         },
+        fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, PrometheusConfig,
         ProofDataHandlerConfig, ProverGroupConfig, WitnessGeneratorConfig,
     },
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
-    FetcherConfig, GasAdjusterConfig, ObjectStoreConfig, ProverConfigs,
+    FetcherConfig, GasAdjusterConfig, ObjectStoreConfig, PostgresConfig, ProverConfigs,
 };
 
 // TODO (QIT-22): This structure is going to be removed when components will be respnsible for their own configs.
@@ -18,6 +19,7 @@ use zksync_config::{
 /// All the configs are optional, since for some component combination it is not needed to pass all the configs.
 #[derive(Debug)]
 pub struct TempConfigStore {
+    pub postgres_config: Option<PostgresConfig>,
     pub health_check_config: Option<HealthCheckConfig>,
     pub merkle_tree_api_config: Option<MerkleTreeApiConfig>,
     pub web3_json_rpc_config: Option<Web3JsonRpcConfig>,
@@ -29,6 +31,7 @@ pub struct TempConfigStore {
     pub house_keeper_config: Option<HouseKeeperConfig>,
     pub fri_proof_compressor_config: Option<FriProofCompressorConfig>,
     pub fri_prover_config: Option<FriProverConfig>,
+    pub fri_prover_group_config: Option<FriProverGroupConfig>,
     pub fri_witness_generator_config: Option<FriWitnessGeneratorConfig>,
     pub prometheus_config: Option<PrometheusConfig>,
     pub proof_data_handler_config: Option<ProofDataHandlerConfig>,
