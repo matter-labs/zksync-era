@@ -261,7 +261,7 @@ fn proving_keys_existence_and_absence() {
     updater.patch_set.ensure_internal_root_node(); // Necessary for proofs to work.
     updater.insert(FIRST_KEY, H256([1; 32]), &Nibbles::EMPTY, || 1);
 
-    let mut hasher = (&() as &dyn HashTree).into();
+    let mut hasher = HasherWithStats::new(&());
     let (op, merkle_path) = updater.prove(&mut hasher, FIRST_KEY, &Nibbles::EMPTY);
     assert_matches!(op, TreeLogEntry::Read { .. });
     let merkle_path = finalize_merkle_path(merkle_path, &hasher);
@@ -510,7 +510,7 @@ fn recovery_flattens_node_versions() {
         leaf_index: i + 1,
     });
     let patch = Storage::new(&PatchSet::default(), &(), recovery_version, false)
-        .extend_during_recovery(recovery_entries.collect());
+        .extend_during_linear_recovery(recovery_entries.collect());
     assert_eq!(patch.patches_by_version.len(), 1);
     let (updated_version, patch) = patch.patches_by_version.into_iter().next().unwrap();
     assert_eq!(updated_version, recovery_version);
@@ -546,7 +546,7 @@ fn test_recovery_with_node_hierarchy(chunk_size: usize) {
     let mut db = PatchSet::default();
     for recovery_chunk in recovery_entries.chunks(chunk_size) {
         let patch = Storage::new(&db, &(), recovery_version, false)
-            .extend_during_recovery(recovery_chunk.to_vec());
+            .extend_during_linear_recovery(recovery_chunk.to_vec());
         db.apply_patch(patch);
     }
     assert_eq!(db.updated_version, Some(recovery_version));
@@ -605,7 +605,7 @@ fn test_recovery_with_deep_node_hierarchy(chunk_size: usize) {
     let mut db = PatchSet::default();
     for recovery_chunk in recovery_entries.chunks(chunk_size) {
         let patch = Storage::new(&db, &(), recovery_version, false)
-            .extend_during_recovery(recovery_chunk.to_vec());
+            .extend_during_linear_recovery(recovery_chunk.to_vec());
         db.apply_patch(patch);
     }
     let mut patch = db.patches_by_version.remove(&recovery_version).unwrap();
@@ -673,7 +673,7 @@ fn recovery_workflow_with_multiple_stages() {
         leaf_index: i,
     });
     let patch = Storage::new(&db, &(), recovery_version, false)
-        .extend_during_recovery(recovery_entries.collect());
+        .extend_during_linear_recovery(recovery_entries.collect());
     assert_eq!(patch.root(recovery_version).unwrap().leaf_count(), 100);
     db.apply_patch(patch);
 
@@ -684,7 +684,7 @@ fn recovery_workflow_with_multiple_stages() {
     });
 
     let patch = Storage::new(&db, &(), recovery_version, false)
-        .extend_during_recovery(more_recovery_entries.collect());
+        .extend_during_linear_recovery(more_recovery_entries.collect());
     assert_eq!(patch.root(recovery_version).unwrap().leaf_count(), 200);
     db.apply_patch(patch);
 
@@ -701,6 +701,7 @@ fn recovery_workflow_with_multiple_stages() {
 }
 
 fn test_recovery_pruning_equivalence(
+    is_linear: bool,
     chunk_size: usize,
     recovery_chunk_size: usize,
     hasher: &dyn HashTree,
@@ -752,13 +753,21 @@ fn test_recovery_pruning_equivalence(
     });
     let mut recovery_entries: Vec<_> = recovery_entries.collect();
     assert_eq!(recovery_entries.len(), 100);
-    recovery_entries.sort_unstable_by_key(|entry| entry.key);
+    if is_linear {
+        recovery_entries.sort_unstable_by_key(|entry| entry.key);
+    } else {
+        recovery_entries.shuffle(&mut rng);
+    }
 
     // Recover the tree.
     let mut recovered_db = PatchSet::default();
     for recovery_chunk in recovery_entries.chunks(recovery_chunk_size) {
-        let patch = Storage::new(&recovered_db, hasher, recovered_version, false)
-            .extend_during_recovery(recovery_chunk.to_vec());
+        let storage = Storage::new(&recovered_db, hasher, recovered_version, false);
+        let patch = if is_linear {
+            storage.extend_during_linear_recovery(recovery_chunk.to_vec())
+        } else {
+            storage.extend_during_random_recovery(recovery_chunk.to_vec())
+        };
         recovered_db.apply_patch(patch);
     }
     let sub_patch = recovered_db
@@ -798,25 +807,54 @@ fn test_recovery_pruning_equivalence(
 }
 
 #[test]
-fn recovery_pruning_equivalence() {
+fn linear_recovery_pruning_equivalence() {
     for chunk_size in [3, 5, 7, 11, 21, 42, 99, 100] {
         // No chunking during recovery (simple case).
-        test_recovery_pruning_equivalence(chunk_size, 100, &());
+        test_recovery_pruning_equivalence(true, chunk_size, 100, &());
         // Recovery is chunked (more complex case).
         for recovery_chunk_size in [chunk_size, 1, 6, 19, 50, 73] {
-            test_recovery_pruning_equivalence(chunk_size, recovery_chunk_size, &());
+            test_recovery_pruning_equivalence(true, chunk_size, recovery_chunk_size, &());
         }
     }
 }
 
 #[test]
-fn recovery_pruning_equivalence_with_hashing() {
+fn random_recovery_pruning_equivalence() {
+    for chunk_size in [3, 5, 7, 11, 21, 42, 99, 100] {
+        // No chunking during recovery (simple case).
+        test_recovery_pruning_equivalence(false, chunk_size, 100, &());
+        // Recovery is chunked (more complex case).
+        for recovery_chunk_size in [chunk_size, 1, 6, 19, 50, 73] {
+            test_recovery_pruning_equivalence(false, chunk_size, recovery_chunk_size, &());
+        }
+    }
+}
+
+#[test]
+fn linear_recovery_pruning_equivalence_with_hashing() {
     for chunk_size in [3, 7, 21, 42, 100] {
         // No chunking during recovery (simple case).
-        test_recovery_pruning_equivalence(chunk_size, 100, &Blake2Hasher);
+        test_recovery_pruning_equivalence(true, chunk_size, 100, &Blake2Hasher);
         // Recovery is chunked (more complex case).
         for recovery_chunk_size in [chunk_size, 1, 19, 73] {
-            test_recovery_pruning_equivalence(chunk_size, recovery_chunk_size, &Blake2Hasher);
+            test_recovery_pruning_equivalence(true, chunk_size, recovery_chunk_size, &Blake2Hasher);
+        }
+    }
+}
+
+#[test]
+fn random_recovery_pruning_equivalence_with_hashing() {
+    for chunk_size in [3, 7, 21, 42, 100] {
+        // No chunking during recovery (simple case).
+        test_recovery_pruning_equivalence(false, chunk_size, 100, &Blake2Hasher);
+        // Recovery is chunked (more complex case).
+        for recovery_chunk_size in [chunk_size, 1, 19, 73] {
+            test_recovery_pruning_equivalence(
+                false,
+                chunk_size,
+                recovery_chunk_size,
+                &Blake2Hasher,
+            );
         }
     }
 }

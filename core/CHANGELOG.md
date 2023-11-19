@@ -1,5 +1,55 @@
 # Changelog
 
+## [18.0.3](https://github.com/matter-labs/zksync-era/compare/core-v18.0.2...core-v18.0.3) (2023-11-16)
+
+
+### Bug Fixes
+
+* **proof-data-handler:** Check commitments only for post-boojum (again) ([#502](https://github.com/matter-labs/zksync-era/issues/502)) ([ff636ca](https://github.com/matter-labs/zksync-era/commit/ff636ca9250d0276098e4b5b4a5f7a44a0717d06))
+
+## [18.0.2](https://github.com/matter-labs/zksync-era/compare/core-v18.0.1...core-v18.0.2) (2023-11-16)
+
+
+### Bug Fixes
+
+* **api:** `debug_trace*` no longer throws error if the `TracerConfig` object is incomplete ([#468](https://github.com/matter-labs/zksync-era/issues/468)) ([cb873bd](https://github.com/matter-labs/zksync-era/commit/cb873bd0da6b421160ce96b8d578f1351861f376))
+* **proof-data-handler:** Check commitments only for post-boojum ([#500](https://github.com/matter-labs/zksync-era/issues/500)) ([c3a7651](https://github.com/matter-labs/zksync-era/commit/c3a7651987f6efaeca55ccf328e5aaaa5cc66bde))
+
+## [18.0.1](https://github.com/matter-labs/zksync-era/compare/core-v18.0.0...core-v18.0.1) (2023-11-15)
+
+
+### Bug Fixes
+
+* **metadata-calculator:** Do not require events_queue for old batches ([#492](https://github.com/matter-labs/zksync-era/issues/492)) ([0c454fc](https://github.com/matter-labs/zksync-era/commit/0c454fc6cdd1fb32074389643bd40c899983283f))
+
+## [18.0.0](https://github.com/matter-labs/zksync-era/compare/core-v17.1.0...core-v18.0.0) (2023-11-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* boojum integration ([#112](https://github.com/matter-labs/zksync-era/issues/112))
+
+### Features
+
+* **basic_witness_input_producer:** Witness inputs queued after BWIP run ([#345](https://github.com/matter-labs/zksync-era/issues/345)) ([9c2be91](https://github.com/matter-labs/zksync-era/commit/9c2be91ec1b9bd30c44e210d943539630a857825))
+* boojum integration ([#112](https://github.com/matter-labs/zksync-era/issues/112)) ([e76d346](https://github.com/matter-labs/zksync-era/commit/e76d346d02ded771dea380aa8240da32119d7198))
+* **core:** adds a get proof endpoint in zks namespace ([#455](https://github.com/matter-labs/zksync-era/issues/455)) ([f4313a4](https://github.com/matter-labs/zksync-era/commit/f4313a4e5a67f616d2dfa8f364c47cb73cef1ec7))
+* **core:** Split config definitions and deserialization ([#414](https://github.com/matter-labs/zksync-era/issues/414)) ([c7c6b32](https://github.com/matter-labs/zksync-era/commit/c7c6b321a63dbcc7f1af045aa7416e697beab08f))
+* **dal:** Do not load config from env in DAL crate ([#444](https://github.com/matter-labs/zksync-era/issues/444)) ([3fe1bb2](https://github.com/matter-labs/zksync-era/commit/3fe1bb21f8d33557353f447811ca86c60f1fe51a))
+* **house_keeper:** Remove GCS Blob Cleaner ([#321](https://github.com/matter-labs/zksync-era/issues/321)) ([9548914](https://github.com/matter-labs/zksync-era/commit/9548914bd1be7b6ada52061d961353a763412150))
+* **job-processor:** report attempts metrics ([#448](https://github.com/matter-labs/zksync-era/issues/448)) ([ab31f03](https://github.com/matter-labs/zksync-era/commit/ab31f031dfcaa7ddf296786ddccb78e8edd2d3c5))
+* **vm:** Use the one interface for all vms ([#277](https://github.com/matter-labs/zksync-era/issues/277)) ([91bb99b](https://github.com/matter-labs/zksync-era/commit/91bb99b232120e29f9ee55208e3325ab37550f0c))
+
+
+### Bug Fixes
+
+* **boojnet:** various boojnet fixes ([#462](https://github.com/matter-labs/zksync-era/issues/462)) ([f13648c](https://github.com/matter-labs/zksync-era/commit/f13648cf10c0a225dc7b4f64cb3b8195c1a52814))
+* change vks upgrade logic ([#491](https://github.com/matter-labs/zksync-era/issues/491)) ([cb394f3](https://github.com/matter-labs/zksync-era/commit/cb394f3c3ce93d345f24e5b9ee34e22ebca3abb0))
+* **eth-sender:** Correct ABI for get_verification_key ([#445](https://github.com/matter-labs/zksync-era/issues/445)) ([8af0d85](https://github.com/matter-labs/zksync-era/commit/8af0d85b94cc74f691eb21b59556c0cd6084db01))
+* **metadata-calculator:** Save commitment for pre-boojum ([#481](https://github.com/matter-labs/zksync-era/issues/481)) ([664ce33](https://github.com/matter-labs/zksync-era/commit/664ce33622af220a24360f7f11a52a14141c3fdc))
+* Versioned L1 batch metadata ([#450](https://github.com/matter-labs/zksync-era/issues/450)) ([8a40dc3](https://github.com/matter-labs/zksync-era/commit/8a40dc38669867c89dfe54bf71c1f461a9db1fc7))
+* **vm:** storage_refunds for `vm_refunds_enhancement` ([#449](https://github.com/matter-labs/zksync-era/issues/449)) ([1e1e59f](https://github.com/matter-labs/zksync-era/commit/1e1e59fbbb4e7b0667f080fcd922a5302d819f22))
+
 ## [17.1.0](https://github.com/matter-labs/zksync-era/compare/core-v16.2.0...core-v17.1.0) (2023-11-03)
 
 
