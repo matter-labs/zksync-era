@@ -17,8 +17,6 @@ pub const MAX_CYCLES_FOR_TX: u32 = u32::MAX;
 /// The first 32 slots are reserved for debugging purposes
 pub(crate) const DEBUG_SLOTS_OFFSET: usize = 8;
 pub(crate) const DEBUG_FIRST_SLOTS: usize = 32;
-/// The next 2 slots are reserved for cached fee params
-pub(crate) const CACHED_FEE_PARAMS_SLOTS: usize = 2;
 
 /// The next 33 slots are reserved for dealing with the paymaster context (1 slot for storing length + 32 slots for storing the actual context).
 pub(crate) const PAYMASTER_CONTEXT_SLOTS: usize = 32 + 1;
@@ -41,7 +39,6 @@ pub(crate) const OPERATOR_REFUNDS_SLOTS: usize = MAX_TXS_IN_BLOCK;
 
 pub(crate) const OPERATOR_REFUNDS_OFFSET: usize = DEBUG_SLOTS_OFFSET
     + DEBUG_FIRST_SLOTS
-    + CACHED_FEE_PARAMS_SLOTS
     + PAYMASTER_CONTEXT_SLOTS
     + CURRENT_L2_TX_HASHES_SLOTS
     + NEW_FACTORY_DEPS_RESERVED_SLOTS;
