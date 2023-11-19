@@ -4,6 +4,7 @@ use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics
 use crate::interface::traits::tracers::dyn_tracers::vm_1_4_0::DynTracer;
 use crate::interface::types::tracer::TracerExecutionStatus;
 use crate::interface::{L1BatchEnv, Refunds};
+use crate::vm_latest::utils::fee::get_operator_pubdata_price;
 use zk_evm_1_4_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
@@ -119,8 +120,7 @@ impl<S> RefundsTracer<S> {
         let bootloader_eth_price_per_pubdata_byte =
             U256::from(effective_gas_price) * U256::from(current_ergs_per_pubdata_byte);
 
-        let fair_eth_price_per_pubdata_byte =
-            U256::from(eth_price_per_pubdata_byte(self.l1_batch.l1_gas_price));
+        let fair_eth_price_per_pubdata_byte = U256::from(self.l1_batch.pubdata_price);
 
         // For now, L1 originated transactions are allowed to pay less than fair fee per pubdata,
         // so we should take it into account.
