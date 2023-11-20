@@ -10,7 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use super::ApiTransport;
+use super::{ApiTransport, TypedFilter};
 use zksync_types::api;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
@@ -203,16 +203,26 @@ pub(super) enum FilterType {
     PendingTransactions,
 }
 
+impl From<TypedFilter> for FilterType {
+    fn from(value: TypedFilter) -> Self {
+        match value {
+            TypedFilter::Events(_, _) => FilterType::Events,
+            TypedFilter::Blocks(_) => FilterType::Blocks,
+            TypedFilter::PendingTransactions(_) => FilterType::PendingTransactions,
+        }
+    }
+}
+
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "api_filter")]
 pub(super) struct FilterMetrics {
-    metrics_count: Family<FilterType, Gauge>,
+    pub metrics_count: Family<FilterType, Gauge>,
     #[metrics(buckets = Buckets::)]
-    request_frequency: Family<FilterType, Histogram<usize>>,
+    pub request_frequency: Family<FilterType, Histogram<usize>>,
     #[metrics(buckets = Buckets::)]
-    request_count: Family<FilterType, Histogram<usize>>,
+    pub request_count: Family<FilterType, Histogram<usize>>,
     #[metrics(buckets = Buckets::)]
-    filter_lifetime: Family<FilterType, Histogram<Duration>>,
+    pub filter_lifetime: Family<FilterType, Histogram<Duration>>,
 }
 
 #[vise::register]

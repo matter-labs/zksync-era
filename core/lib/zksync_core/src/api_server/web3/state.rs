@@ -27,7 +27,8 @@ use zksync_web3_decl::{
     types::{Filter, Log},
 };
 
-use super::metrics::API_METRICS;
+use super::metrics::{FilterType, API_METRICS, FILTER_METRICS};
+use crate::api_server::web3::namespaces::eth::InstalledFilter;
 use crate::api_server::web3::TypedFilter;
 use crate::{
     api_server::{
@@ -544,7 +545,7 @@ impl<E> RpcState<E> {
 /// Contains mapping from index to `Filter` with optional location.
 #[derive(Default, Debug, Clone)]
 pub struct Filters {
-    state: HashMap<U256, TypedFilter>,
+    state: HashMap<U256, InstalledFilter>,
     max_cap: usize,
 }
 
@@ -565,7 +566,10 @@ impl Filters {
                 break val;
             }
         };
-        self.state.insert(idx, filter);
+
+        let guard = FILTER_METRICS.metrics_count[FilterType::from(filter.clone())].inc_guard();
+
+        self.state.insert(idx, InstalledFilter::new(filter, guard));
 
         // Check if we reached max capacity
         if self.state.len() > self.max_cap {
@@ -579,13 +583,19 @@ impl Filters {
 
     /// Retrieves filter from the state.
     pub fn get(&self, index: U256) -> Option<&TypedFilter> {
-        self.state.get(&index)
+        self.state
+            .get(&index)
+            .map(|installed_filter| &installed_filter.filter)
     }
 
     /// Updates filter in the state.
     pub fn update(&mut self, index: U256, new_filter: TypedFilter) -> bool {
         if let Some(typed_filter) = self.state.get_mut(&index) {
-            *typed_filter = new_filter;
+            let guard =
+                FILTER_METRICS.metrics_count[FilterType::from(new_filter.clone())].inc_guard();
+
+            // FIXME: is previous value dropped?
+            *typed_filter = InstalledFilter::new(new_filter, guard);
             true
         } else {
             false

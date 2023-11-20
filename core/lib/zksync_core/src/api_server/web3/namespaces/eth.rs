@@ -1,4 +1,3 @@
-use chrono::NaiveDateTime;
 use vise::GaugeGuard;
 use zksync_types::{
     api::{
@@ -49,19 +48,14 @@ impl<G> Clone for EthNamespace<G> {
     }
 }
 
-pub struct InstalledFilter<'a> {
-    filter: TypedFilter,
-    guard: &'a mut GaugeGuard,
-    last_request_timestamp: NaiveDateTime,
+pub struct InstalledFilter {
+    pub filter: TypedFilter,
+    guard: GaugeGuard,
 }
 
 impl InstalledFilter {
-    pub fn new(filter: TypedFilter, guard: &mut GaugeGuard, timestamp: NaiveDateTime) -> Self {
-        Self {
-            filter,
-            guard,
-            last_request_timestamp: timestamp,
-        }
+    pub fn new(filter: TypedFilter, guard: GaugeGuard) -> Self {
+        Self { filter, guard }
     }
 }
 
