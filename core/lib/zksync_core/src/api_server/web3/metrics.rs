@@ -10,9 +10,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-use zksync_types::api;
-
 use super::ApiTransport;
+use zksync_types::api;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "scheme", rename_all = "UPPERCASE")]
@@ -195,3 +194,26 @@ pub(super) struct PubSubMetrics {
 
 #[vise::register]
 pub(super) static PUB_SUB_METRICS: vise::Global<PubSubMetrics> = vise::Global::new();
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+#[metrics(label = "filter_type", rename_all = "snake_case")]
+pub(super) enum FilterType {
+    Events,
+    Blocks,
+    PendingTransactions,
+}
+
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "api_filter")]
+pub(super) struct FilterMetrics {
+    metrics_count: Family<FilterType, Gauge>,
+    #[metrics(buckets = Buckets::)]
+    request_frequency: Family<FilterType, Histogram<usize>>,
+    #[metrics(buckets = Buckets::)]
+    request_count: Family<FilterType, Histogram<usize>>,
+    #[metrics(buckets = Buckets::)]
+    filter_lifetime: Family<FilterType, Histogram<Duration>>,
+}
+
+#[vise::register]
+pub(super) static FILTER_METRICS: vise::Global<FilterMetrics> = vise::Global::new();

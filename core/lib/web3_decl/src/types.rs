@@ -105,15 +105,6 @@ pub enum FilterChanges {
     Empty([u8; 0]),
 }
 
-/// Represents all kinds of `Filter`.
-// FIXME: move to core crate?
-#[derive(Debug, Clone)]
-pub enum TypedFilter {
-    Events(Filter, zksync_types::MiniblockNumber),
-    Blocks(zksync_types::MiniblockNumber),
-    PendingTransactions(NaiveDateTime),
-}
-
 /// Either value or array of values.
 #[derive(Default, Debug, PartialEq, Clone)]
 pub struct ValueOrArray<T>(pub Vec<T>);

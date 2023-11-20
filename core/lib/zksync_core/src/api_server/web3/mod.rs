@@ -7,12 +7,14 @@ use serde::Deserialize;
 use tokio::sync::{oneshot, watch, RwLock};
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
 
+use chrono::NaiveDateTime;
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::task::JoinHandle;
 
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{api, MiniblockNumber};
+use zksync_web3_decl::types::Filter;
 use zksync_web3_decl::{
     error::Web3Error,
     jsonrpsee::{
@@ -62,6 +64,17 @@ use self::state::{Filters, InternalApiConfig, RpcState, SealedMiniblockNumber};
 
 /// Timeout for graceful shutdown logic within API servers.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Represents all kinds of `Filter`.
+#[derive(Debug, Clone)]
+pub enum TypedFilter {
+    // Events from some block
+    Events(Filter, MiniblockNumber),
+    // Blocks from some block
+    Blocks(MiniblockNumber),
+    // Pending transactions from some timestamp
+    PendingTransactions(NaiveDateTime),
+}
 
 #[derive(Debug, Clone, Copy)]
 enum ApiBackend {

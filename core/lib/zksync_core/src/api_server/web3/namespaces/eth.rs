@@ -1,3 +1,5 @@
+use chrono::NaiveDateTime;
+use vise::GaugeGuard;
 use zksync_types::{
     api::{
         BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
@@ -14,9 +16,10 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
     error::Web3Error,
-    types::{Address, Block, Filter, FilterChanges, Log, TypedFilter, U64},
+    types::{Address, Block, Filter, FilterChanges, Log, U64},
 };
 
+use crate::api_server::web3::TypedFilter;
 use crate::{
     api_server::{
         execution_sandbox::BlockArgs,
@@ -42,6 +45,22 @@ impl<G> Clone for EthNamespace<G> {
     fn clone(&self) -> Self {
         Self {
             state: self.state.clone(),
+        }
+    }
+}
+
+pub struct InstalledFilter<'a> {
+    filter: TypedFilter,
+    guard: &'a mut GaugeGuard,
+    last_request_timestamp: NaiveDateTime,
+}
+
+impl InstalledFilter {
+    pub fn new(filter: TypedFilter, guard: &mut GaugeGuard, timestamp: NaiveDateTime) -> Self {
+        Self {
+            filter,
+            guard,
+            last_request_timestamp: timestamp,
         }
     }
 }
@@ -864,7 +883,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 // Bogus methods.
 // They are moved into a separate `impl` block so they don't make the actual implementation noisy.
 // This `impl` block contains methods that we *have* to implement for compliance, but don't really
-// make sense in terms in L2.
+// make sense in terms of L2.
 impl<E> EthNamespace<E> {
     pub fn coinbase_impl(&self) -> Address {
         // There is no coinbase account.

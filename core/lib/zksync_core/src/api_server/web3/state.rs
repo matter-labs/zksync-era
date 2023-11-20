@@ -24,10 +24,11 @@ use zksync_types::{
 };
 use zksync_web3_decl::{
     error::Web3Error,
-    types::{Filter, Log, TypedFilter},
+    types::{Filter, Log},
 };
 
 use super::metrics::API_METRICS;
+use crate::api_server::web3::TypedFilter;
 use crate::{
     api_server::{
         execution_sandbox::BlockArgs,
