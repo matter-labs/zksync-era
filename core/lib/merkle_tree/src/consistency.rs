@@ -256,6 +256,7 @@ impl AtomicBitSet {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
+    use rayon::ThreadPoolBuilder;
 
     use std::num::NonZeroU64;
 
@@ -290,7 +291,16 @@ mod tests {
     #[test]
     fn basic_consistency_checks() {
         let db = prepare_database();
-        MerkleTree::new(db).verify_consistency(0).unwrap();
+        deterministic_verify_consistency(db).unwrap();
+    }
+
+    /// Limits the number of `rayon` threads to 1 in order to get deterministic test execution.
+    fn deterministic_verify_consistency(db: PatchSet) -> Result<(), ConsistencyError> {
+        let thread_pool = ThreadPoolBuilder::new()
+            .num_threads(1)
+            .build()
+            .expect("failed initializing `rayon` thread pool");
+        thread_pool.install(|| MerkleTree::new(db).verify_consistency(0))
     }
 
     #[test]
@@ -298,7 +308,7 @@ mod tests {
         let mut db = prepare_database();
         db.manifest_mut().version_count = 0;
 
-        let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
+        let err = deterministic_verify_consistency(db).unwrap_err();
         assert_matches!(err, ConsistencyError::MissingVersion(0));
     }
 
@@ -307,7 +317,7 @@ mod tests {
         let mut db = prepare_database();
         db.remove_root(0);
 
-        let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
+        let err = deterministic_verify_consistency(db).unwrap_err();
         assert_matches!(err, ConsistencyError::MissingRoot(0));
     }
 
@@ -321,7 +331,7 @@ mod tests {
         let leaf_key = leaf_key.unwrap();
         db.remove_node(&leaf_key);
 
-        let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
+        let err = deterministic_verify_consistency(db).unwrap_err();
         assert_matches!(
             err,
             ConsistencyError::MissingNode { key, is_leaf: true } if key == leaf_key
@@ -338,7 +348,7 @@ mod tests {
         };
         *leaf_count = NonZeroU64::new(42).unwrap();
 
-        let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
+        let err = deterministic_verify_consistency(db).unwrap_err();
         assert_matches!(
             err,
             ConsistencyError::LeafCountMismatch {
@@ -363,7 +373,7 @@ mod tests {
         let child_ref = node.child_ref_mut(0xd).unwrap();
         child_ref.hash = ValueHash::zero();
 
-        let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
+        let err = deterministic_verify_consistency(db).unwrap_err();
         assert_matches!(
             err,
             ConsistencyError::HashMismatch {
@@ -388,7 +398,7 @@ mod tests {
         });
         let leaf_key = leaf_key.unwrap();
 
-        let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
+        let err = deterministic_verify_consistency(db).unwrap_err();
         assert_matches!(
             err,
             ConsistencyError::FullKeyMismatch { key, full_key }
@@ -409,7 +419,7 @@ mod tests {
         });
         leaf_key.unwrap();
 
-        let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
+        let err = deterministic_verify_consistency(db).unwrap_err();
         assert_matches!(
             err,
             ConsistencyError::LeafIndexOverflow {
@@ -430,7 +440,7 @@ mod tests {
             }
         }
 
-        let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
+        let err = deterministic_verify_consistency(db).unwrap_err();
         assert_matches!(err, ConsistencyError::DuplicateLeafIndex { index: 1, .. });
     }
 
@@ -446,7 +456,7 @@ mod tests {
         });
         let node_key = node_key.unwrap();
 
-        let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
+        let err = deterministic_verify_consistency(db).unwrap_err();
         assert_matches!(err, ConsistencyError::EmptyInternalNode { key } if key == node_key);
     }
 
@@ -463,7 +473,7 @@ mod tests {
         });
         let node_key = node_key.unwrap();
 
-        let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
+        let err = deterministic_verify_consistency(db).unwrap_err();
         assert_matches!(
             err,
             ConsistencyError::KeyVersionMismatch { key, expected_version: 1 } if key == node_key
@@ -483,7 +493,7 @@ mod tests {
         let (nibble, _) = node.children().next().unwrap();
         node.child_ref_mut(nibble).unwrap().version = 42;
 
-        let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
+        let err = deterministic_verify_consistency(db).unwrap_err();
         assert_matches!(
             err,
             ConsistencyError::RootVersionMismatch {
