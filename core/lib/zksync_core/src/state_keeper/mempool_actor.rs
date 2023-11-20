@@ -25,11 +25,6 @@ pub fn l2_tx_filter<G: L1GasPriceProvider>(
     let fair_l2_gas_price = get_operator_gas_price(l1_gas_price, minimal_l2_gas_price);
     let operator_pubdata_price = get_operator_pubdata_price(l1_gas_price, l1_pubdata_price);
 
-    println!(
-        "NEW TX FILTER {} {} {} {}",
-        l1_gas_price, l1_pubdata_price, fair_l2_gas_price, operator_pubdata_price
-    );
-
     let (base_fee, gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(operator_pubdata_price, fair_l2_gas_price);
     L2TxFilter {
