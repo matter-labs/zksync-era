@@ -348,8 +348,8 @@ function maxL2GasLimitForPriorityTxs(): number {
 function getOverheadForTransaction(
     encodingLength: ethers.BigNumber
 ): number {
-    const TX_SLOT_OVERHEAD_GAS = 150_000;
-    const TX_LENGTH_BYTE_OVERHEAD_GAS = 35;
+    const TX_SLOT_OVERHEAD_GAS = 80_000;
+    const TX_LENGTH_BYTE_OVERHEAD_GAS = 10;
 
     return Math.max(TX_SLOT_OVERHEAD_GAS, TX_LENGTH_BYTE_OVERHEAD_GAS * encodingLength.toNumber());
 }

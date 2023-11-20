@@ -23,7 +23,7 @@ pub fn derive_overhead(
                                    // todo: the 32 constant is for words -> byte conversion
 
     // todo: move into constants
-    let memory_overhead_gas = 35;
+    let memory_overhead_gas = 10;
     // let memory_overhead_gas = ceil_div_u256(
     //     overhead_for_batch_eth,
     //     (base_fee * BOOTLOADER_TX_ENCODING_SPACE * 32),

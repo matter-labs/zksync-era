@@ -416,13 +416,14 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             .l1_gas_price_source
             .estimate_effective_pubdata_price();
         let operator_pubdata_price = get_operator_pubdata_price(l1_gas_price, l1_pubdata_price);
-        let minimal_l2_gas_price = self.0.sender_config.minimal_l2_gas_price;
+        let fair_l2_gas_price =
+            get_operator_gas_price(l1_gas_price, self.0.sender_config.minimal_l2_gas_price);
 
         TxSharedArgs {
             operator_account: AccountTreeId::new(self.0.sender_config.fee_account_addr),
             l1_gas_price: self.0.l1_gas_price_source.estimate_effective_gas_price(),
             operator_pubdata_price,
-            minimal_l2_gas_price,
+            fair_l2_gas_price,
             base_system_contracts: self.0.api_contracts.eth_call.clone(),
             caches: self.storage_caches(),
             validation_computational_gas_limit: self
@@ -659,11 +660,13 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         operator_pubdata_price: u64,
     ) -> TxSharedArgs {
         let config = &self.0.sender_config;
+        let fair_l2_gas_price = get_operator_gas_price(l1_gas_price, config.minimal_l2_gas_price);
+
         TxSharedArgs {
             operator_account: AccountTreeId::new(config.fee_account_addr),
             l1_gas_price,
             operator_pubdata_price,
-            minimal_l2_gas_price: config.minimal_l2_gas_price,
+            fair_l2_gas_price,
             // We want to bypass the computation gas limit check for gas estimation
             validation_computational_gas_limit: BLOCK_GAS_LIMIT,
             base_system_contracts: self.0.api_contracts.estimate_gas.clone(),
@@ -681,12 +684,14 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         let estimation_started_at = Instant::now();
         let l1_gas_price = {
             let effective_l1_gas_price = self.0.l1_gas_price_source.estimate_effective_gas_price();
+            println!("CURRENT L1 GAS PRICE: {}", effective_l1_gas_price);
             let effective_l1_gas_price = ((effective_l1_gas_price as f64)
                 * self.0.sender_config.gas_price_scale_factor)
                 as u64;
 
             effective_l1_gas_price
         };
+        println!("l1 gas price {l1_gas_price}");
 
         let operator_pubdata_price = {
             let effective_pubdata_price = self
@@ -701,6 +706,8 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             let operator_pubdata_price =
                 get_operator_pubdata_price(l1_gas_price, current_pubdata_price);
 
+            println!("ESTIMATE ORIGINAL PUBDATA PRICE {operator_pubdata_price}");
+
             adjust_pubdata_price_for_tx(
                 l1_gas_price,
                 operator_pubdata_price,
@@ -708,6 +715,8 @@ impl<G: L1GasPriceProvider> TxSender<G> {
                 tx.gas_per_pubdata_byte_limit(),
             )
         };
+
+        println!("ESTIMATE  PUBDATA PRICE: {operator_pubdata_price}");
 
         let operator_gas_price =
             get_operator_gas_price(l1_gas_price, self.0.sender_config.minimal_l2_gas_price);
@@ -787,7 +796,20 @@ impl<G: L1GasPriceProvider> TxSender<G> {
                     "exceeds limit for published pubdata".to_string(),
                 ));
             }
-            pubdata_for_factory_deps * (gas_per_pubdata_byte as u32)
+            let result = pubdata_for_factory_deps * (gas_per_pubdata_byte as u32);
+
+            if pubdata_for_factory_deps > 0 {
+                println!(
+                    "\n\nGAS FOR BYTECODES PUBDATA: {} {} {} {} {}\n\n",
+                    result,
+                    operator_gas_price,
+                    (result as u64) * operator_gas_price,
+                    gas_per_pubdata_byte,
+                    pubdata_for_factory_deps
+                );
+            }
+
+            result
         };
 
         // We are using binary search to find the minimal values of gas_limit under which
@@ -845,9 +867,19 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             .estimate_gas_binary_search_iterations
             .observe(number_of_iterations);
 
+        println!(
+            "FINAL UPPER BOUND: {upper_bound} {}",
+            (upper_bound as f64) * estimated_fee_scale_factor
+        );
+
         let tx_body_gas_limit = cmp::min(
             MAX_L2_TX_GAS_LIMIT as u32,
             ((upper_bound as f64) * estimated_fee_scale_factor) as u32,
+        );
+
+        println!(
+            "SUGGESTED GAS LIMIT: {}",
+            tx_body_gas_limit + gas_for_bytecodes_pubdata
         );
 
         let suggested_gas_limit = tx_body_gas_limit + gas_for_bytecodes_pubdata;

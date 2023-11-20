@@ -241,7 +241,7 @@ pub(crate) struct TxSharedArgs {
     pub operator_account: AccountTreeId,
     pub l1_gas_price: u64,
     pub operator_pubdata_price: u64,
-    pub minimal_l2_gas_price: u64,
+    pub fair_l2_gas_price: u64,
     pub base_system_contracts: MultiVMBaseSystemContracts,
     pub caches: PostgresStorageCaches,
     pub validation_computational_gas_limit: u32,
