@@ -117,6 +117,12 @@ pub enum TypedFilter {
 #[derive(Default, Debug, PartialEq, Clone)]
 pub struct ValueOrArray<T>(pub Vec<T>);
 
+impl<T> From<T> for ValueOrArray<T> {
+    fn from(value: T) -> Self {
+        Self(vec![value])
+    }
+}
+
 impl<T> Serialize for ValueOrArray<T>
 where
     T: Serialize,
