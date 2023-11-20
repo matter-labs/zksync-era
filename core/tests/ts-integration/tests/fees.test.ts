@@ -15,8 +15,6 @@ import { TestMaster } from '../src/index';
 import * as zksync from 'zksync-web3';
 import { BigNumber, ethers } from 'ethers';
 import { Token } from '../src/types';
-import { EIP712_TX_TYPE } from 'zksync-web3/build/src/utils';
-import { keccak256 } from 'ethers/lib/utils';
 
 // Unless `RUN_FEE_TEST` is provided, skip the test suit
 const testFees = process.env.RUN_FEE_TEST ? describe : describe.skip;
@@ -58,124 +56,46 @@ testFees('Test fees', () => {
     });
 
     test('Test fees', async () => {
-        console.log('hi');
-        // await setInternalL1GasPrice(
-        //     alice._providerL2(), '25000000000'
-        // );
-        console.log('h2');
+        const receiver = ethers.Wallet.createRandom().address;
 
-        // The rough length of the packed bytecode should be 350_000 / 4 = 87500,
-        // which should fit into a batch
-        const BYTECODE_LEN = 350_016 + 32; // +32 to ensure validity of the bytecode
-
-        // Our current packing algorithm uses 8-byte chunks for dictionary and
-        // so in order to make an effectively-packable bytecode, we need to have bytecode
-        // consist of the same 2 types of 8-byte chunks.
-        // Note, that instead of having 1 type of 8-byte chunks, we need 2 in order to have
-        // a unique bytecode for each test run.
-        const CHUNK_TYPE_1 = '00000000';
-        const CHUNK_TYPE_2 = 'ffffffff';
-
-        let bytecode = '0x';
-        while (bytecode.length < BYTECODE_LEN * 2 + 2) {
-            if (Math.random() < 0.5) {
-                bytecode += CHUNK_TYPE_1;
-            } else {
-                bytecode += CHUNK_TYPE_2;
-            }
-        }
-        console.log(keccak256(bytecode));
-
-        console.log('h3');
-
-        const balanceBefore = await alice.getBalance();
-
-        console.log('h4');
-
-        const gasPrice = await alice.getGasPrice();
-        const gasLimit = await alice.estimateGas({
-            to: alice.address,
-            customData: {
-                factoryDeps: [bytecode]
-            }
-        });
-
-        console.log(ethers.utils.formatUnits(gasPrice, 'gwei'));
-        console.log(gasLimit);
-        console.log(ethers.utils.formatEther(gasPrice.mul(gasLimit)));
-        // return;
-
-        // const populatedTx = await alice.populateTransaction({
-        //     to: alice.address,
-        //     customData: {
-        //         factoryDeps: [bytecode]
-        //     }
-        // });
-        // console.log(populatedTx);
-        // return;
-
-        await expect(
-            alice.sendTransaction({
-                type: EIP712_TX_TYPE,
-                to: alice.address,
-                customData: {
-                    factoryDeps: [bytecode]
-                },
-                // gasPrice: gasPrice,
-                maxFeePerGas: gasPrice,
-                maxPriorityFeePerGas: gasPrice,
-                gasLimit: gasLimit
+        // Getting ETH price in gas.
+        const feeTestL1Receipt = await (
+            await alice.ethWallet().sendTransaction({
+                to: receiver,
+                value: BigNumber.from(1)
             })
-        ).toBeAccepted([]);
+        ).wait();
 
-        console.log('h5');
-
-        const balanceAfter = await alice.getBalance();
-        const diff = balanceBefore.sub(balanceAfter);
-        console.log(ethers.utils.formatEther(diff));
-        return;
-
-
-        // const receiver = ethers.Wallet.createRandom().address;
-
-        // // Getting ETH price in gas.
-        // const feeTestL1Receipt = await (
-        //     await alice.ethWallet().sendTransaction({
-        //         to: receiver,
-        //         value: BigNumber.from(1)
-        //     })
-        // ).wait();
-
-        // const feeTestL1ReceiptERC20 = await (
-        //     await alice.ethWallet().sendTransaction({
-        //         to: aliceErc20.address,
-        //         data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, BigNumber.from(1)])
-        //     })
-        // ).wait();
+        const feeTestL1ReceiptERC20 = await (
+            await alice.ethWallet().sendTransaction({
+                to: aliceErc20.address,
+                data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, BigNumber.from(1)])
+            })
+        ).wait();
 
         let reports = ['ETH transfer:\n\n', 'ERC20 transfer:\n\n'];
-        // for (const gasPrice of L1_GAS_PRICES_TO_TEST) {
-        //     reports = await appendResults(
-        //         alice,
-        //         [feeTestL1Receipt, feeTestL1ReceiptERC20],
-        //         // We always regenerate new addresses for transaction requests in order to estimate the cost for a new account
-        //         [
-        //             {
-        //                 to: ethers.Wallet.createRandom().address,
-        //                 value: BigNumber.from(1)
-        //             },
-        //             {
-        //                 data: aliceErc20.interface.encodeFunctionData('transfer', [
-        //                     ethers.Wallet.createRandom().address,
-        //                     BigNumber.from(1)
-        //                 ]),
-        //                 to: tokenDetails.l2Address
-        //             }
-        //         ],
-        //         gasPrice,
-        //         reports
-        //     );
-        // }
+        for (const gasPrice of L1_GAS_PRICES_TO_TEST) {
+            reports = await appendResults(
+                alice,
+                [feeTestL1Receipt, feeTestL1ReceiptERC20],
+                // We always regenerate new addresses for transaction requests in order to estimate the cost for a new account
+                [
+                    {
+                        to: ethers.Wallet.createRandom().address,
+                        value: BigNumber.from(1)
+                    },
+                    {
+                        data: aliceErc20.interface.encodeFunctionData('transfer', [
+                            ethers.Wallet.createRandom().address,
+                            BigNumber.from(1)
+                        ]),
+                        to: tokenDetails.l2Address
+                    }
+                ],
+                gasPrice,
+                reports
+            );
+        }
 
         await setInternalL1GasPrice(alice._providerL2(), undefined, true);
 
@@ -262,9 +182,6 @@ async function killServerAndWaitForShutdown(provider: zksync.Provider) {
     // It's going to panic anyway, since the server is a singleton entity, so better to exit early.
     throw new Error("Server didn't stop after a kill request");
 }
-
-
-// ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_L1_GAS_PRICE=25000000000 DATABASE_MERKLE_TREE_MODE=full zk server --components api,tree,eth,data_fetcher,state_keeper
 
 async function setInternalL1GasPrice(provider: zksync.Provider, newPrice?: string, disconnect?: boolean) {
     // Make sure server isn't running.
