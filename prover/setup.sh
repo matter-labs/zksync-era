@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# This script sets up the necessary data needed by the CPU FRI prover to be used locally.
+# This script sets up the necessary data needed by the CPU/GPU FRI prover to be used locally.
 
 GPU_FLAG=""
 if [ "$1" = "gpu" ]; then

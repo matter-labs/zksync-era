@@ -128,7 +128,12 @@ async fn main() -> anyhow::Result<()> {
             AggregationRound::NodeAggregation,
             AggregationRound::Scheduler,
         ],
-        _ => {
+        (Some(_), true) => {
+            return Err(anyhow!(
+                "Cannot set both the --all_rounds and --round flags. Choose one or the other."
+            ));
+        }
+        (None, false) => {
             return Err(anyhow!(
                 "Expected --all_rounds flag with no --round flag present"
             ));
