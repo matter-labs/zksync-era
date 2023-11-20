@@ -76,7 +76,8 @@ Machine specs:
    ./setup.sh
    ```
 
-   For the following steps, we recommend using `tmux` to run every command on a separate session, so you can attach to and monitor logs for each one.
+   For the following steps, we recommend using `tmux` to run every command on a separate session, so you can attach to
+   and monitor logs for each one.
 
 4. Run the sequencer/operator. In the root of the repository:
 
