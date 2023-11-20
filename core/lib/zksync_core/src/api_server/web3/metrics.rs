@@ -217,11 +217,9 @@ impl From<TypedFilter> for FilterType {
 #[metrics(prefix = "api_filter")]
 pub(super) struct FilterMetrics {
     pub metrics_count: Family<FilterType, Gauge>,
-    #[metrics(buckets = Buckets::)]
-    pub request_frequency: Family<FilterType, Histogram<usize>>,
-    #[metrics(buckets = Buckets::)]
-    pub request_count: Family<FilterType, Histogram<usize>>,
-    #[metrics(buckets = Buckets::)]
+    #[metrics(buckets = Buckets::LATENCIES)]
+    pub request_frequency: Family<FilterType, Histogram<Duration>>,
+    #[metrics(buckets = Buckets::LATENCIES)]
     pub filter_lifetime: Family<FilterType, Histogram<Duration>>,
 }
 

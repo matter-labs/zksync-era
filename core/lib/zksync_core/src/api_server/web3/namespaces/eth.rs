@@ -1,3 +1,5 @@
+use chrono::NaiveDateTime;
+use std::time::Instant;
 use vise::GaugeGuard;
 use zksync_types::{
     api::{
@@ -18,6 +20,7 @@ use zksync_web3_decl::{
     types::{Address, Block, Filter, FilterChanges, Log, U64},
 };
 
+use crate::api_server::web3::metrics::{FilterType, FILTER_METRICS};
 use crate::api_server::web3::TypedFilter;
 use crate::{
     api_server::{
@@ -51,11 +54,25 @@ impl<G> Clone for EthNamespace<G> {
 pub struct InstalledFilter {
     pub filter: TypedFilter,
     guard: GaugeGuard,
+    start: Instant,
+    pub last_request: NaiveDateTime,
 }
 
 impl InstalledFilter {
     pub fn new(filter: TypedFilter, guard: GaugeGuard) -> Self {
-        Self { filter, guard }
+        Self {
+            filter,
+            guard,
+            start: Instant::now(),
+            last_request: chrono::Utc::now().naive_utc(),
+        }
+    }
+}
+
+impl Drop for InstalledFilter {
+    fn drop(&mut self) {
+        FILTER_METRICS.filter_lifetime[&FilterType::from(self.filter.clone())]
+            .observe(self.start.elapsed());
     }
 }
 

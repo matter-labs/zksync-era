@@ -1,6 +1,7 @@
 use tokio::sync::RwLock;
 use zksync_utils::h256_to_u256;
 
+use std::ops::Sub;
 use std::{
     collections::HashMap,
     convert::TryFrom,
@@ -583,9 +584,21 @@ impl Filters {
 
     /// Retrieves filter from the state.
     pub fn get(&self, index: U256) -> Option<&TypedFilter> {
-        self.state
-            .get(&index)
-            .map(|installed_filter| &installed_filter.filter)
+        self.state.get(&index).map(|installed_filter| {
+            let previous_request_timestamp = installed_filter.last_request;
+            let now = chrono::Utc::now().naive_utc();
+
+            *installed_filter.last_request = now;
+
+            let filter_type = FilterType::from(installed_filter.filter.clone());
+
+            FILTER_METRICS.request_frequency[&filter_type].observe(Duration::from_secs(
+                now.timestamp()
+                    .abs_diff(previous_request_timestamp.timestamp()),
+            ));
+
+            &installed_filter.filter
+        })
     }
 
     /// Updates filter in the state.
