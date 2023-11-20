@@ -76,8 +76,7 @@ Machine specs:
    ./setup.sh
    ```
 
-For the following steps, we recommend using `tmux` to run every command on a separate session, so you can attach to and
-monitor logs for each one.
+   For the following steps, we recommend using `tmux` to run every command on a separate session, so you can attach to and monitor logs for each one.
 
 4. Run the sequencer/operator. In the root of the repository:
 
@@ -112,10 +111,13 @@ monitor logs for each one.
    3117, 3118 and 3119.
 
 7. Run prover to perform actual proving:
+
    ```
    zk f cargo run --release --bin zksync_prover_fri
    ```
+
 8. Finally, run proof compressor to compress the proof to be sent on L1:
+
    ```
    zk f cargo run --release --bin zksync_proof_fri_compressor
    ```

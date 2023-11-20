@@ -163,7 +163,7 @@ async fn main() -> anyhow::Result<()> {
 
         let witness_generator_task = match round {
             AggregationRound::BasicCircuits => {
-                let public_blob_store = match config.shall_save_to_public_bucket.clone() {
+                let public_blob_store = match config.shall_save_to_public_bucket {
                     false => None,
                     true => Some(
                         ObjectStoreFactory::new(
