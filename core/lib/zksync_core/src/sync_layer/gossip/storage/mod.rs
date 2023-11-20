@@ -207,12 +207,11 @@ impl ContiguousBlockStore for PostgresBlockStorage {
         let fetched_block =
             FetchedBlock::from_gossip_block(block, false).map_err(StorageError::Database)?;
         let actions = sync::lock(ctx, &self.cursor).await?.advance(fetched_block);
-        ctx.wait(async {
-            for actions_chunk in actions {
-                self.actions.push_actions(actions_chunk).await;
-            }
-        })
-        .await?;
+        for actions_chunk in actions {
+            // We don't wrap this in `ctx.wait()` because `PostgresBlockStorage` will get broken
+            // if it gets reused after context cancellation.
+            self.actions.push_actions(actions_chunk).await;
+        }
         Ok(())
     }
 }
