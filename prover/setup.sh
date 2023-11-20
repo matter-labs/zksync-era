@@ -3,7 +3,7 @@
 
 GPU_FLAG=""
 if [ "$1" = "gpu" ]; then
-    GPU_FLAG='--features "gpu"'
+    GPU_FLAG='--features gpu'
 fi
 
 if [[ -z "${ZKSYNC_HOME}" ]]; then
