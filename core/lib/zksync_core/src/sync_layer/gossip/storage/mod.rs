@@ -88,10 +88,11 @@ impl PostgresBlockStorage {
     pub async fn run_background_tasks(&self, ctx: &ctx::Ctx) -> StorageResult<()> {
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
         loop {
-            let sealed_miniblock_number = self
-                .sealed_miniblock_number()
-                .await
-                .map_err(StorageError::Database)?;
+            let sealed_miniblock_number = match self.sealed_miniblock_number(ctx).await {
+                Ok(number) => number,
+                Err(err @ StorageError::Database(_)) => return Err(err),
+                Err(StorageError::Canceled(_)) => return Ok(()), // Do not propagate cancellation errors
+            };
             self.block_sender.send_if_modified(|number| {
                 if *number != sealed_miniblock_number {
                     *number = sealed_miniblock_number;
@@ -106,56 +107,42 @@ impl PostgresBlockStorage {
         }
     }
 
-    async fn head_block(&self) -> anyhow::Result<FinalBlock> {
-        let mut storage = self.storage().await?;
-        let miniblock_number = storage
-            .blocks_dal()
-            .get_sealed_miniblock_number()
-            .await
-            .context("Failed getting sealed miniblock number")?;
-        // ^ The number can get stale, but it's OK for our purposes
-        Self::block(&mut storage, miniblock_number)
+    async fn storage(&self, ctx: &ctx::Ctx) -> StorageResult<StorageProcessor<'_>> {
+        ctx.wait(self.pool.access_storage_tagged("sync_layer"))
             .await?
-            .with_context(|| format!("Miniblock #{miniblock_number} disappeared from Postgres"))
-    }
-
-    async fn storage(&self) -> anyhow::Result<StorageProcessor<'_>> {
-        self.pool
-            .access_storage_tagged("sync_layer")
-            .await
             .context("Failed to connect to Postgres")
+            .map_err(StorageError::Database)
     }
 
     async fn block(
+        ctx: &ctx::Ctx,
         storage: &mut StorageProcessor<'_>,
         number: MiniblockNumber,
-    ) -> anyhow::Result<Option<FinalBlock>> {
-        let Some(block) = storage
-            .sync_dal()
-            .sync_block(number, Address::default(), true)
-            .await
-            .with_context(|| format!("Failed getting miniblock #{number} from Postgres"))?
+    ) -> StorageResult<Option<FinalBlock>> {
+        let operator_address = Address::default(); // FIXME: where to get this address from?
+        let Some(block) = ctx
+            .wait(
+                storage
+                    .sync_dal()
+                    .sync_block(number, operator_address, true),
+            )
+            .await?
+            .with_context(|| format!("Failed getting miniblock #{number} from Postgres"))
+            .map_err(StorageError::Database)?
         else {
             return Ok(None);
         };
-        let block = sync_block_to_consensus_block(block)?;
+        let block = sync_block_to_consensus_block(block).map_err(StorageError::Database)?;
         Ok(Some(block))
     }
 
-    async fn first_block(&self) -> anyhow::Result<FinalBlock> {
-        let mut storage = self.storage().await?;
-        Self::block(&mut storage, MiniblockNumber(0))
+    async fn sealed_miniblock_number(&self, ctx: &ctx::Ctx) -> StorageResult<BlockNumber> {
+        let mut storage = self.storage(ctx).await?;
+        let number = ctx
+            .wait(storage.blocks_dal().get_sealed_miniblock_number())
             .await?
-            .context("Genesis miniblock not present in Postgres")
-    }
-
-    async fn sealed_miniblock_number(&self) -> anyhow::Result<BlockNumber> {
-        let mut storage = self.storage().await?;
-        let number = storage
-            .blocks_dal()
-            .get_sealed_miniblock_number()
-            .await
-            .context("Failed getting sealed miniblock number")?;
+            .context("Failed getting sealed miniblock number")
+            .map_err(StorageError::Database)?;
         Ok(BlockNumber(number.0.into()))
     }
 }
@@ -163,21 +150,29 @@ impl PostgresBlockStorage {
 #[async_trait]
 impl BlockStore for PostgresBlockStorage {
     async fn head_block(&self, ctx: &ctx::Ctx) -> StorageResult<FinalBlock> {
-        ctx.wait(self.head_block())
+        let mut storage = self.storage(ctx).await?;
+        let miniblock_number = ctx
+            .wait(storage.blocks_dal().get_sealed_miniblock_number())
             .await?
-            .map_err(StorageError::Database)
+            .context("Failed getting sealed miniblock number")
+            .map_err(StorageError::Database)?;
+        // ^ The number can get stale, but it's OK for our purposes
+        Ok(Self::block(ctx, &mut storage, miniblock_number)
+            .await?
+            .with_context(|| format!("Miniblock #{miniblock_number} disappeared from Postgres"))
+            .map_err(StorageError::Database)?)
     }
 
     async fn first_block(&self, ctx: &ctx::Ctx) -> StorageResult<FinalBlock> {
-        ctx.wait(self.first_block())
+        let mut storage = self.storage(ctx).await?;
+        Self::block(ctx, &mut storage, MiniblockNumber(0))
             .await?
+            .context("Genesis miniblock not present in Postgres")
             .map_err(StorageError::Database)
     }
 
     async fn last_contiguous_block_number(&self, ctx: &ctx::Ctx) -> StorageResult<BlockNumber> {
-        ctx.wait(self.sealed_miniblock_number())
-            .await?
-            .map_err(StorageError::Database)
+        self.sealed_miniblock_number(ctx).await
     }
 
     async fn block(
@@ -185,13 +180,11 @@ impl BlockStore for PostgresBlockStorage {
         ctx: &ctx::Ctx,
         number: BlockNumber,
     ) -> StorageResult<Option<FinalBlock>> {
-        ctx.wait(async {
-            let number = u32::try_from(number.0).context("block number is too large")?;
-            let mut storage = self.storage().await?;
-            Self::block(&mut storage, MiniblockNumber(number)).await
-        })
-        .await?
-        .map_err(StorageError::Database)
+        let number = u32::try_from(number.0)
+            .context("block number is too large")
+            .map_err(StorageError::Database)?;
+        let mut storage = self.storage(ctx).await?;
+        Self::block(ctx, &mut storage, MiniblockNumber(number)).await
     }
 
     async fn missing_block_numbers(
