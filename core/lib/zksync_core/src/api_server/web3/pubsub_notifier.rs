@@ -21,7 +21,7 @@ pub async fn notify_blocks(
     let mut last_block_number = connection_pool
         .access_storage_tagged("api")
         .await
-        .unwrap()
+        .context("access_storage_tagged")?
         .blocks_web3_dal()
         .get_sealed_miniblock_number()
         .await
@@ -39,16 +39,15 @@ pub async fn notify_blocks(
         let new_blocks = connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
+            .context("access_storage_tagged")?
             .blocks_web3_dal()
             .get_block_headers_after(last_block_number)
             .await
             .with_context(|| format!("get_block_headers_after({last_block_number})"))?;
         db_latency.observe();
 
-        if !new_blocks.is_empty() {
-            last_block_number =
-                MiniblockNumber(new_blocks.last().unwrap().number.unwrap().as_u32());
+        if let Some(last_block) = new_blocks.last() {
+            last_block_number = MiniblockNumber(last_block.number.unwrap().as_u32());
 
             let notify_latency =
                 PUB_SUB_METRICS.notify_subscribers_latency[&SubscriptionType::Blocks].start();
@@ -93,7 +92,7 @@ pub async fn notify_txs(
         let (new_txs, new_last_time) = connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
+            .context("access_storage_tagged")?
             .transactions_web3_dal()
             .get_pending_txs_hashes_after(last_time, None)
             .await
@@ -135,7 +134,7 @@ pub async fn notify_logs(
     let mut last_block_number = connection_pool
         .access_storage_tagged("api")
         .await
-        .unwrap()
+        .context("access_storage_tagged")?
         .blocks_web3_dal()
         .get_sealed_miniblock_number()
         .await
@@ -153,16 +152,15 @@ pub async fn notify_logs(
         let new_logs = connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
+            .context("access_storage_tagged")?
             .events_web3_dal()
             .get_all_logs(last_block_number)
             .await
             .context("events_web3_dal().get_all_logs()")?;
         db_latency.observe();
 
-        if !new_logs.is_empty() {
-            last_block_number =
-                MiniblockNumber(new_logs.last().unwrap().block_number.unwrap().as_u32());
+        if let Some(last_log) = new_logs.last() {
+            last_block_number = MiniblockNumber(last_log.block_number.unwrap().as_u32());
             let notify_latency =
                 PUB_SUB_METRICS.notify_subscribers_latency[&SubscriptionType::Logs].start();
 
@@ -174,9 +172,9 @@ pub async fn notify_logs(
                 .collect::<Vec<_>>();
 
             for (sink, filter) in subscribers {
-                for log in new_logs.iter().cloned() {
-                    if filter.matches(&log) {
-                        if sink.notify(Ok(PubSubResult::Log(log))).is_err() {
+                for log in &new_logs {
+                    if filter.matches(log) {
+                        if sink.notify(Ok(PubSubResult::Log(log.clone()))).is_err() {
                             // Subscriber disconnected.
                             break;
                         }
