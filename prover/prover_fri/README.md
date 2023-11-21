@@ -2,11 +2,11 @@
 
 ## running cpu prover
 
-`zk f cargo +nightly-2023-07-21 run --release --bin zksync_prover_fri`
+`zk f cargo +nightly-2023-08-21 run --release --bin zksync_prover_fri`
 
 ## running gpu prover(requires CUDA 12.0+)
 
-`zk f cargo +nightly-2023-07-21 run --release --features "gpu" --bin zksync_prover_fri`
+`zk f cargo +nightly-2023-08-21 run --release --features "gpu" --bin zksync_prover_fri`
 
 ## Proving a block using CPU prover locally
 
@@ -17,7 +17,7 @@ Machine specs:
 - RAM: 60GB of RAM(if you have lower RAM machine enable swap)
 - Disk: 400GB of free disk
 
-1. Install the correct nightly version using command: `rustup install nightly-2023-07-21`
+1. Install the correct nightly version using command: `rustup install nightly-2023-08-21`
 2. Generate the cpu setup data (no need to regenerate if it's already there). This will consume around 300Gb of disk.
    Use these commands:
 
@@ -67,7 +67,7 @@ pre-requisite. This is useful for debugging and testing Machine specs:
 - Disk: 30GB of free disk
 - GPU: 1x Nvidia L4/T4 with 16GB of GPU RAM
 
-1. Install the correct nightly version using command: `rustup install nightly-2023-07-21`
+1. Install the correct nightly version using command: `rustup install nightly-2023-08-21`
 2. Generate the gpu setup data (no need to regenerate if it's already there). This will consume around 300Gb of disk.
    Use these commands:
 
