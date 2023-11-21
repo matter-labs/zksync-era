@@ -109,7 +109,7 @@ impl FriProverDal<'_, '_> {
             "
                 UPDATE prover_jobs_fri
                 SET status = 'in_progress', attempts = attempts + 1,
-                    updated_at = now(), processing_started_at = now(),
+                    processing_started_at = now(), updated_at = now(), 
                     picked_by = $4
                 WHERE id = (
                     SELECT pj.id

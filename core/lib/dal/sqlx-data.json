@@ -8935,7 +8935,58 @@
     },
     "query": "SELECT prover_jobs.result as proof, scheduler_witness_jobs.aggregation_result_coords\n                FROM prover_jobs\n                INNER JOIN scheduler_witness_jobs\n                ON prover_jobs.l1_batch_number = scheduler_witness_jobs.l1_batch_number\n                WHERE prover_jobs.l1_batch_number >= $1 AND prover_jobs.l1_batch_number <= $2\n                AND prover_jobs.aggregation_round = 3\n                AND prover_jobs.status = 'successful'\n                "
   },
-  "a9fc7d587aff79ecb78c1a56b8299d5cb39e7fb0b10cb82b9abb1691f87422e6": {
+  "aa279ce3351b30788711be6c65cb99cb14304ac38f8fed6d332237ffafc7c86b": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Time",
+          "Text",
+          "Int8"
+        ]
+      }
+    },
+    "query": "UPDATE proof_compression_jobs_fri SET status = $1, updated_at = now(), time_taken = $2, l1_proof_blob_url = $3WHERE l1_batch_number = $4"
+  },
+  "aa7ae476aed5979227887891e9be995924588aa10ccba7424d6ce58f811eaa02": {
+    "describe": {
+      "columns": [
+        {
+          "name": "number!",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        null
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT COALESCE(MAX(number), 0) AS \"number!\" FROM l1_batches WHERE eth_prove_tx_id IS NOT NULL"
+  },
+  "aacaeff95b9a2988167dde78200d7139ba99edfa30dbcd8a7a57f72efc676477": {
+    "describe": {
+      "columns": [
+        {
+          "name": "number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT number FROM l1_batches LEFT JOIN eth_txs_history AS commit_tx ON (l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id) WHERE commit_tx.confirmed_at IS NOT NULL ORDER BY number DESC LIMIT 1"
+  },
+  "ac179b3a4eca421f3151f4f1eb844f2cee16fa1d2a47c910feb8e07d8f8ace6c": {
     "describe": {
       "columns": [
         {
@@ -8992,58 +9043,7 @@
         ]
       }
     },
-    "query": "\n                UPDATE prover_jobs_fri\n                SET status = 'in_progress', attempts = attempts + 1,\n                    updated_at = now(), processing_started_at = now(),\n                    picked_by = $4\n                WHERE id = (\n                    SELECT pj.id\n                    FROM ( SELECT * FROM unnest($1::smallint[], $2::smallint[]) ) AS tuple (circuit_id, round)\n                    JOIN LATERAL\n                    (\n                        SELECT * FROM prover_jobs_fri AS pj\n                        WHERE pj.status = 'queued'\n                        AND pj.protocol_version = ANY($3)\n                        AND pj.circuit_id = tuple.circuit_id AND pj.aggregation_round = tuple.round\n                        ORDER BY pj.l1_batch_number ASC, pj.id ASC\n                        LIMIT 1\n                    ) AS pj ON true\n                    ORDER BY pj.l1_batch_number ASC, pj.aggregation_round DESC, pj.id ASC\n                    LIMIT 1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n                RETURNING prover_jobs_fri.id, prover_jobs_fri.l1_batch_number, prover_jobs_fri.circuit_id,\n                prover_jobs_fri.aggregation_round, prover_jobs_fri.sequence_number, prover_jobs_fri.depth,\n                prover_jobs_fri.is_node_final_proof\n                "
-  },
-  "aa279ce3351b30788711be6c65cb99cb14304ac38f8fed6d332237ffafc7c86b": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Time",
-          "Text",
-          "Int8"
-        ]
-      }
-    },
-    "query": "UPDATE proof_compression_jobs_fri SET status = $1, updated_at = now(), time_taken = $2, l1_proof_blob_url = $3WHERE l1_batch_number = $4"
-  },
-  "aa7ae476aed5979227887891e9be995924588aa10ccba7424d6ce58f811eaa02": {
-    "describe": {
-      "columns": [
-        {
-          "name": "number!",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        null
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "SELECT COALESCE(MAX(number), 0) AS \"number!\" FROM l1_batches WHERE eth_prove_tx_id IS NOT NULL"
-  },
-  "aacaeff95b9a2988167dde78200d7139ba99edfa30dbcd8a7a57f72efc676477": {
-    "describe": {
-      "columns": [
-        {
-          "name": "number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        false
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "SELECT number FROM l1_batches LEFT JOIN eth_txs_history AS commit_tx ON (l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id) WHERE commit_tx.confirmed_at IS NOT NULL ORDER BY number DESC LIMIT 1"
+    "query": "\n                UPDATE prover_jobs_fri\n                SET status = 'in_progress', attempts = attempts + 1,\n                    processing_started_at = now(), updated_at = now(), \n                    picked_by = $4\n                WHERE id = (\n                    SELECT pj.id\n                    FROM ( SELECT * FROM unnest($1::smallint[], $2::smallint[]) ) AS tuple (circuit_id, round)\n                    JOIN LATERAL\n                    (\n                        SELECT * FROM prover_jobs_fri AS pj\n                        WHERE pj.status = 'queued'\n                        AND pj.protocol_version = ANY($3)\n                        AND pj.circuit_id = tuple.circuit_id AND pj.aggregation_round = tuple.round\n                        ORDER BY pj.l1_batch_number ASC, pj.id ASC\n                        LIMIT 1\n                    ) AS pj ON true\n                    ORDER BY pj.l1_batch_number ASC, pj.aggregation_round DESC, pj.id ASC\n                    LIMIT 1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n                RETURNING prover_jobs_fri.id, prover_jobs_fri.l1_batch_number, prover_jobs_fri.circuit_id,\n                prover_jobs_fri.aggregation_round, prover_jobs_fri.sequence_number, prover_jobs_fri.depth,\n                prover_jobs_fri.is_node_final_proof\n                "
   },
   "ac35fb205c83d82d78983f4c9b47f56d3c91fbb2c95046555c7d60a9a2ebb446": {
     "describe": {
