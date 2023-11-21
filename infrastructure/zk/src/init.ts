@@ -24,7 +24,8 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
         skipPlonkStep,
         testTokens,
         governorPrivateKeyArgs,
-        deployerL2ContractInput
+        deployerL2ContractInput,
+        validium,
     } = initArgs;
 
     if (!process.env.CI && !skipEnvSetup) {
@@ -51,7 +52,7 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     await announced('Deploying L1 verifier', contract.deployVerifier([]));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
-    await announced('Deploying L1 contracts', contract.redeployL1(governorPrivateKeyArgs));
+    await announced('Deploying L1 contracts', contract.redeployL1(governorPrivateKeyArgs, validium));
     await announced('Initializing validator', contract.initializeValidator(governorPrivateKeyArgs));
     await announced('Initialize L1 allow list', contract.initializeL1AllowList(governorPrivateKeyArgs));
     await announced(
@@ -89,7 +90,7 @@ export async function reinit(validium: boolean) {
     await announced('Deploying L1 verifier', contract.deployVerifier([]));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
-    await announced('Deploying L1 contracts', contract.redeployL1([]));
+    await announced('Deploying L1 contracts', contract.redeployL1([], validium));
     await announced('Initializing L1 Allow list', contract.initializeL1AllowList());
     await announced('Deploying L2 contracts', contract.deployL2([], true, true));
     await announced('Initializing L2 WETH token', contract.initializeWethToken());
@@ -160,6 +161,7 @@ export interface InitArgs {
         deploy: boolean;
         args: any[];
     };
+    validium: boolean;
 }
 
 const DEFAULT_ARGS: InitArgs = {
@@ -168,7 +170,8 @@ const DEFAULT_ARGS: InitArgs = {
     skipPlonkStep: false,
     governorPrivateKeyArgs: [],
     deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
-    testTokens: { deploy: true, args: [] }
+    testTokens: { deploy: true, args: [] },
+    validium: false
 };
 
 export const initCommand = new Command('init')
@@ -183,7 +186,8 @@ export const initCommand = new Command('init')
             skipPlonkStep: false,
             governorPrivateKeyArgs: [],
             deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
-            testTokens: { deploy: true, args: [] }
+            testTokens: { deploy: true, args: [] },
+            validium: cmd.validium,
         };
         await init(initArgs);
     });
