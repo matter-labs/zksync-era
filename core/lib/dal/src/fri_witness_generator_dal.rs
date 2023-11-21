@@ -44,15 +44,15 @@ impl FriWitnessGeneratorDal<'_, '_> {
     ) {
         sqlx::query!(
             "INSERT INTO witness_inputs_fri ( \
-                        l1_batch_number, \
-                        merkle_tree_paths_blob_url, \
-                        protocol_version, \
-                        status, \
-                        created_at, \
-                        updated_at \
-                        ) \
-                 VALUES ($1, $2, $3, 'queued', NOW(), NOW()) \
-                     ON CONFLICT (l1_batch_number) DO NOTHING",
+                    l1_batch_number, \
+                    merkle_tree_paths_blob_url, \
+                    protocol_version, \
+                    status, \
+                    created_at, \
+                    updated_at \
+                    ) \
+             VALUES ($1, $2, $3, 'queued', NOW(), NOW()) \
+                 ON CONFLICT (l1_batch_number) DO NOTHING",
             block_number.0 as i64,
             object_key,
             protocol_version_id as i32,
@@ -204,26 +204,26 @@ impl FriWitnessGeneratorDal<'_, '_> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         sqlx::query!(
             "   UPDATE witness_inputs_fri \
-                       SET status = 'queued', \
-                           updated_at = NOW(), \
-                           processing_started_at = NOW() \
-                     WHERE ( \
-                           status = 'in_progress' \
-                       AND processing_started_at <= NOW() - $1::INTERVAL \
-                       AND attempts < $2 \
-                           ) \
-                        OR ( \
-                           status = 'in_gpu_proof' \
-                       AND processing_started_at <= NOW() - $1::INTERVAL \
-                       AND attempts < $2 \
-                           ) \
-                        OR ( \
-                           status = 'failed' \
-                       AND attempts < $2 \
-                           ) \
-                 RETURNING l1_batch_number, \
-                           status, \
-                           attempts",
+                   SET status = 'queued', \
+                       updated_at = NOW(), \
+                       processing_started_at = NOW() \
+                 WHERE ( \
+                       status = 'in_progress' \
+                   AND processing_started_at <= NOW() - $1::INTERVAL \
+                   AND attempts < $2 \
+                       ) \
+                    OR ( \
+                       status = 'in_gpu_proof' \
+                   AND processing_started_at <= NOW() - $1::INTERVAL \
+                   AND attempts < $2 \
+                       ) \
+                    OR ( \
+                       status = 'failed' \
+                   AND attempts < $2 \
+                       ) \
+             RETURNING l1_batch_number, \
+                       status, \
+                       attempts",
             &processing_timeout,
             max_attempts as i32,
         )
@@ -290,17 +290,17 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
             sqlx::query!(
                 "INSERT INTO scheduler_witness_jobs_fri ( \
-                            l1_batch_number, \
-                            scheduler_partial_input_blob_url, \
-                            protocol_version, \
-                            status, \
-                            created_at, \
-                            updated_at \
-                            ) \
-                     VALUES ($1, $2, $3, 'waiting_for_proofs', NOW(), NOW()) \
-                         ON CONFLICT (l1_batch_number) DO \
-                     UPDATE \
-                        SET updated_at = NOW()",
+                        l1_batch_number, \
+                        scheduler_partial_input_blob_url, \
+                        protocol_version, \
+                        status, \
+                        created_at, \
+                        updated_at \
+                        ) \
+                 VALUES ($1, $2, $3, 'waiting_for_proofs', NOW(), NOW()) \
+                     ON CONFLICT (l1_batch_number) DO \
+                 UPDATE \
+                    SET updated_at = NOW()",
                 block_number.0 as i64,
                 scheduler_partial_input_blob_url,
                 protocol_version_id as i32,
@@ -588,20 +588,20 @@ impl FriWitnessGeneratorDal<'_, '_> {
     ) {
         sqlx::query!(
             "INSERT INTO node_aggregation_witness_jobs_fri ( \
-                        l1_batch_number, \
-                        circuit_id, \
-                        DEPTH, \
-                        aggregations_url, \
-                        number_of_dependent_jobs, \
-                        protocol_version, \
-                        status, \
-                        created_at, \
-                        updated_at \
-                        ) \
-                 VALUES ($1, $2, $3, $4, $5, $6, 'waiting_for_proofs', NOW(), NOW()) \
-                     ON CONFLICT (l1_batch_number, circuit_id, DEPTH) DO \
-                 UPDATE \
-                    SET updated_at = NOW()",
+                    l1_batch_number, \
+                    circuit_id, \
+                    DEPTH, \
+                    aggregations_url, \
+                    number_of_dependent_jobs, \
+                    protocol_version, \
+                    status, \
+                    created_at, \
+                    updated_at \
+                    ) \
+             VALUES ($1, $2, $3, $4, $5, $6, 'waiting_for_proofs', NOW(), NOW()) \
+                 ON CONFLICT (l1_batch_number, circuit_id, DEPTH) DO \
+             UPDATE \
+                SET updated_at = NOW()",
             block_number.0 as i64,
             circuit_id as i16,
             depth as i32,
@@ -689,21 +689,21 @@ impl FriWitnessGeneratorDal<'_, '_> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         sqlx::query!(
             "   UPDATE leaf_aggregation_witness_jobs_fri \
-                       SET status = 'queued', \
-                           updated_at = NOW(), \
-                           processing_started_at = NOW() \
-                     WHERE ( \
-                           status = 'in_progress' \
-                       AND processing_started_at <= NOW() - $1::INTERVAL \
-                       AND attempts < $2 \
-                           ) \
-                        OR ( \
-                           status = 'failed' \
-                       AND attempts < $2 \
-                           ) \
-                 RETURNING id, \
-                           status, \
-                           attempts",
+                   SET status = 'queued', \
+                       updated_at = NOW(), \
+                       processing_started_at = NOW() \
+                 WHERE ( \
+                       status = 'in_progress' \
+                   AND processing_started_at <= NOW() - $1::INTERVAL \
+                   AND attempts < $2 \
+                       ) \
+                    OR ( \
+                       status = 'failed' \
+                   AND attempts < $2 \
+                       ) \
+             RETURNING id, \
+                       status, \
+                       attempts",
             &processing_timeout,
             max_attempts as i32,
         )
@@ -727,21 +727,21 @@ impl FriWitnessGeneratorDal<'_, '_> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         sqlx::query!(
             "   UPDATE node_aggregation_witness_jobs_fri \
-                       SET status = 'queued', \
-                           updated_at = NOW(), \
-                           processing_started_at = NOW() \
-                     WHERE ( \
-                           status = 'in_progress' \
-                       AND processing_started_at <= NOW() - $1::INTERVAL \
-                       AND attempts < $2 \
-                           ) \
-                        OR ( \
-                           status = 'failed' \
-                       AND attempts < $2 \
-                           ) \
-                 RETURNING id, \
-                           status, \
-                           attempts",
+                   SET status = 'queued', \
+                       updated_at = NOW(), \
+                       processing_started_at = NOW() \
+                 WHERE ( \
+                       status = 'in_progress' \
+                   AND processing_started_at <= NOW() - $1::INTERVAL \
+                   AND attempts < $2 \
+                       ) \
+                    OR ( \
+                       status = 'failed' \
+                   AND attempts < $2 \
+                       ) \
+             RETURNING id, \
+                       status, \
+                       attempts",
             &processing_timeout,
             max_attempts as i32,
         )
@@ -779,21 +779,21 @@ impl FriWitnessGeneratorDal<'_, '_> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         sqlx::query!(
             "   UPDATE scheduler_witness_jobs_fri \
-                       SET status = 'queued', \
-                           updated_at = NOW(), \
-                           processing_started_at = NOW() \
-                     WHERE ( \
-                           status = 'in_progress' \
-                       AND processing_started_at <= NOW() - $1::INTERVAL \
-                       AND attempts < $2 \
-                           ) \
-                        OR ( \
-                           status = 'failed' \
-                       AND attempts < $2 \
-                           ) \
-                 RETURNING l1_batch_number, \
-                           status, \
-                           attempts",
+                   SET status = 'queued', \
+                       updated_at = NOW(), \
+                       processing_started_at = NOW() \
+                 WHERE ( \
+                       status = 'in_progress' \
+                   AND processing_started_at <= NOW() - $1::INTERVAL \
+                   AND attempts < $2 \
+                       ) \
+                    OR ( \
+                       status = 'failed' \
+                   AND attempts < $2 \
+                       ) \
+             RETURNING l1_batch_number, \
+                       status, \
+                       attempts",
             &processing_timeout,
             max_attempts as i32,
         )

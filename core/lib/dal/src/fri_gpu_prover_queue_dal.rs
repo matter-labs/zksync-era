@@ -19,26 +19,26 @@ impl FriGpuProverQueueDal<'_, '_> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let result: Option<SocketAddress> = sqlx::query!(
             "   UPDATE gpu_prover_queue_fri \
-                       SET instance_status = 'reserved', \
-                           updated_at = NOW(), \
-                           processing_started_at = NOW() \
-                     WHERE id IN ( \
-                              SELECT id \
-                                FROM gpu_prover_queue_fri \
-                               WHERE specialized_prover_group_id = $2 \
-                                 AND ZONE = $3 \
-                                 AND ( \
-                                     instance_status = 'available' \
-                                  OR ( \
-                                     instance_status = 'reserved' \
-                                 AND processing_started_at < NOW() - $1::INTERVAL \
-                                     ) \
-                                     ) \
-                            ORDER BY updated_at ASC \
-                               LIMIT 1 \
-                                 FOR UPDATE SKIP LOCKED \
-                           ) \
-                 RETURNING gpu_prover_queue_fri.*",
+                   SET instance_status = 'reserved', \
+                       updated_at = NOW(), \
+                       processing_started_at = NOW() \
+                 WHERE id IN ( \
+                          SELECT id \
+                            FROM gpu_prover_queue_fri \
+                           WHERE specialized_prover_group_id = $2 \
+                             AND ZONE = $3 \
+                             AND ( \
+                                 instance_status = 'available' \
+                              OR ( \
+                                 instance_status = 'reserved' \
+                             AND processing_started_at < NOW() - $1::INTERVAL \
+                                 ) \
+                                 ) \
+                        ORDER BY updated_at ASC \
+                           LIMIT 1 \
+                             FOR UPDATE SKIP LOCKED \
+                       ) \
+             RETURNING gpu_prover_queue_fri.*",
             &processing_timeout,
             specialized_prover_group_id as i16,
             zone

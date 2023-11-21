@@ -153,10 +153,10 @@ impl TokensDal<'_, '_> {
         {
             sqlx::query!(
                 "UPDATE tokens \
-                SET usd_price = $2, \
-                    usd_price_updated_at = $3, \
-                    updated_at = NOW() \
-              WHERE l1_address = $1",
+                    SET usd_price = $2, \
+                        usd_price_updated_at = $3, \
+                        updated_at = NOW() \
+                  WHERE l1_address = $1",
                 l1_address.as_bytes(),
                 ratio_to_big_decimal(&price.usd_price, STORED_USD_PRICE_PRECISION),
                 price.last_updated.naive_utc(),

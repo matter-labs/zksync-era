@@ -205,18 +205,18 @@ impl FriProverDal<'_, '_> {
     ) -> FriProverJobMetadata {
         sqlx::query!(
             "   UPDATE prover_jobs_fri \
-                       SET status = 'successful', \
-                           updated_at = NOW(), \
-                           time_taken = $1, \
-                           proof_blob_url = $2 \
-                     WHERE id = $3 \
-                 RETURNING prover_jobs_fri.id, \
-                           prover_jobs_fri.l1_batch_number, \
-                           prover_jobs_fri.circuit_id, \
-                           prover_jobs_fri.aggregation_round, \
-                           prover_jobs_fri.sequence_number, \
-                           prover_jobs_fri.depth, \
-                           prover_jobs_fri.is_node_final_proof",
+                   SET status = 'successful', \
+                       updated_at = NOW(), \
+                       time_taken = $1, \
+                       proof_blob_url = $2 \
+                 WHERE id = $3 \
+             RETURNING prover_jobs_fri.id, \
+                       prover_jobs_fri.l1_batch_number, \
+                       prover_jobs_fri.circuit_id, \
+                       prover_jobs_fri.aggregation_round, \
+                       prover_jobs_fri.sequence_number, \
+                       prover_jobs_fri.depth, \
+                       prover_jobs_fri.is_node_final_proof",
             duration_to_naive_time(time_taken),
             blob_url,
             id as i64,

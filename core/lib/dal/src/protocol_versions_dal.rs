@@ -28,19 +28,19 @@ impl ProtocolVersionsDal<'_, '_> {
     ) {
         sqlx::query!(
             "INSERT INTO protocol_versions ( \
-                        id, \
-                        TIMESTAMP, \
-                        recursion_scheduler_level_vk_hash, \
-                        recursion_node_level_vk_hash, \
-                        recursion_leaf_level_vk_hash, \
-                        recursion_circuits_set_vks_hash, \
-                        bootloader_code_hash, \
-                        default_account_code_hash, \
-                        verifier_address, \
-                        upgrade_tx_hash, \
-                        created_at \
-                        ) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())",
+                    id, \
+                    TIMESTAMP, \
+                    recursion_scheduler_level_vk_hash, \
+                    recursion_node_level_vk_hash, \
+                    recursion_leaf_level_vk_hash, \
+                    recursion_circuits_set_vks_hash, \
+                    bootloader_code_hash, \
+                    default_account_code_hash, \
+                    verifier_address, \
+                    upgrade_tx_hash, \
+                    created_at \
+                    ) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())",
             id as i32,
             timestamp as i64,
             l1_verifier_config
@@ -97,16 +97,16 @@ impl ProtocolVersionsDal<'_, '_> {
     pub async fn save_prover_protocol_version(&mut self, version: ProtocolVersion) {
         sqlx::query!(
             "INSERT INTO prover_protocol_versions ( \
-                        id, \
-                        TIMESTAMP, \
-                        recursion_scheduler_level_vk_hash, \
-                        recursion_node_level_vk_hash, \
-                        recursion_leaf_level_vk_hash, \
-                        recursion_circuits_set_vks_hash, \
-                        verifier_address, \
-                        created_at \
-                        ) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())",
+                    id, \
+                    TIMESTAMP, \
+                    recursion_scheduler_level_vk_hash, \
+                    recursion_node_level_vk_hash, \
+                    recursion_leaf_level_vk_hash, \
+                    recursion_circuits_set_vks_hash, \
+                    verifier_address, \
+                    created_at \
+                    ) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())",
             version.id as i32,
             version.timestamp as i64,
             version
