@@ -1,4 +1,3 @@
-use tokio::sync::RwLock;
 use zksync_utils::h256_to_u256;
 
 use std::{
@@ -11,6 +10,7 @@ use std::{
     },
     time::{Duration, Instant},
 };
+use tokio::sync::Mutex;
 use vise::GaugeGuard;
 
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
@@ -168,7 +168,7 @@ impl SealedMiniblockNumber {
 /// Holder for the data required for the API to be functional.
 #[derive(Debug)]
 pub struct RpcState<E> {
-    pub(crate) installed_filters: Arc<RwLock<Filters>>,
+    pub(crate) installed_filters: Arc<Mutex<Filters>>,
     pub connection_pool: ConnectionPool,
     pub tree_api: Option<TreeApiHttpClient>,
     pub tx_sender: TxSender<E>,

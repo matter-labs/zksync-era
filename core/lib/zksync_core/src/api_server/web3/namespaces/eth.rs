@@ -247,7 +247,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let maybe_filter = self
             .state
             .installed_filters
-            .write()
+            .lock()
             .await
             .get_and_update_stats(idx)
             .cloned();
@@ -267,7 +267,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 
         self.state
             .installed_filters
-            .write()
+            .lock()
             .await
             .update(idx, typed_filter);
 
@@ -567,7 +567,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let idx = self
             .state
             .installed_filters
-            .write()
+            .lock()
             .await
             .add(TypedFilter::Blocks(last_block_number));
         method_latency.observe();
@@ -590,7 +590,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let idx = self
             .state
             .installed_filters
-            .write()
+            .lock()
             .await
             .add(TypedFilter::Events(filter, from_block));
         method_latency.observe();
@@ -605,7 +605,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let idx = self
             .state
             .installed_filters
-            .write()
+            .lock()
             .await
             .add(TypedFilter::PendingTransactions(
                 chrono::Utc::now().naive_utc(),
@@ -622,7 +622,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let mut filter = self
             .state
             .installed_filters
-            .write()
+            .lock()
             .await
             .get_and_update_stats(idx)
             .cloned()
@@ -632,14 +632,14 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             Ok(changes) => {
                 self.state
                     .installed_filters
-                    .write()
+                    .lock()
                     .await
                     .update(idx, filter);
                 Ok(changes)
             }
             Err(Web3Error::LogsLimitExceeded(..)) => {
                 // The filter was not being polled for a long time, so we remove it.
-                self.state.installed_filters.write().await.remove(idx);
+                self.state.installed_filters.lock().await.remove(idx);
                 Err(Web3Error::FilterNotFound)
             }
             Err(err) => Err(err),
@@ -653,7 +653,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         const METHOD_NAME: &str = "uninstall_filter";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let removed = self.state.installed_filters.write().await.remove(idx);
+        let removed = self.state.installed_filters.lock().await.remove(idx);
         method_latency.observe();
         removed
     }
