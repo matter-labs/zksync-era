@@ -67,7 +67,7 @@ const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Represents all kinds of `Filter`.
 #[derive(Debug, Clone)]
-pub enum TypedFilter {
+pub(crate) enum TypedFilter {
     // Events from some block with additional filters
     Events(Filter, MiniblockNumber),
     // Blocks from some block

@@ -5,7 +5,6 @@ use std::{
     collections::HashMap,
     convert::TryFrom,
     future::Future,
-    ops::AddAssign,
     sync::{
         atomic::{AtomicU32, Ordering},
         Arc,
@@ -169,7 +168,7 @@ impl SealedMiniblockNumber {
 /// Holder for the data required for the API to be functional.
 #[derive(Debug)]
 pub struct RpcState<E> {
-    pub installed_filters: Arc<RwLock<Filters>>,
+    pub(crate) installed_filters: Arc<RwLock<Filters>>,
     pub connection_pool: ConnectionPool,
     pub tree_api: Option<TreeApiHttpClient>,
     pub tx_sender: TxSender<E>,
@@ -544,19 +543,18 @@ impl<E> RpcState<E> {
 }
 
 /// Contains mapping from index to `Filter` with optional location.
-#[derive(Default, Debug, Clone)]
-pub struct Filters {
+#[derive(Default, Debug)]
+pub(crate) struct Filters {
     state: HashMap<U256, InstalledFilter>,
     max_cap: usize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct InstalledFilter {
     pub filter: TypedFilter,
-    #[allow(dead_code)]
-    guard: Arc<GaugeGuard>,
+    _guard: GaugeGuard,
     created_at: Instant,
-    last_request: u64,
+    last_request: Instant,
     request_count: usize,
 }
 
@@ -565,31 +563,31 @@ impl InstalledFilter {
         let guard = FILTER_METRICS.metrics_count[&FilterType::from(&filter)].inc_guard(1);
         Self {
             filter,
-            guard: Arc::new(guard),
+            _guard: guard,
             created_at: Instant::now(),
-            last_request: chrono::Utc::now().naive_utc().timestamp() as u64,
+            last_request: Instant::now(),
             request_count: 0,
         }
     }
 
     pub fn update_stats(&mut self) {
         let previous_request_timestamp = self.last_request;
-        let now = chrono::Utc::now().naive_utc().timestamp() as u64;
+        let now = Instant::now();
 
         self.last_request = now;
-        self.request_count.add_assign(1);
+        self.request_count += 1;
 
         let filter_type = FilterType::from(&self.filter);
-        FILTER_METRICS.request_frequency[&filter_type]
-            .observe(Duration::from_secs(now - previous_request_timestamp));
+        FILTER_METRICS.request_frequency[&filter_type].observe(now - previous_request_timestamp);
     }
 }
 
 impl Drop for InstalledFilter {
     fn drop(&mut self) {
-        FILTER_METRICS.filter_count[&FilterType::from(&self.filter)].observe(self.request_count);
-        FILTER_METRICS.filter_lifetime[&FilterType::from(&self.filter)]
-            .observe(self.created_at.elapsed());
+        let filter_type = FilterType::from(&self.filter);
+
+        FILTER_METRICS.filter_count[&filter_type].observe(self.request_count);
+        FILTER_METRICS.filter_lifetime[&filter_type].observe(self.created_at.elapsed());
     }
 }
 
@@ -624,28 +622,18 @@ impl Filters {
     }
 
     /// Retrieves filter from the state.
-    pub fn get(&self, index: U256) -> Option<&TypedFilter> {
-        let installed_filter = self.state.get(&index)?;
+    pub fn get_and_update_stats(&mut self, index: U256) -> Option<&TypedFilter> {
+        let installed_filter = self.state.get_mut(&index)?;
+
+        installed_filter.update_stats();
 
         Some(&installed_filter.filter)
     }
 
-    pub fn update_stats(&mut self, index: U256) -> bool {
-        if let Some(installed_filter) = self.state.get_mut(&index) {
-            installed_filter.update_stats();
-            true
-        } else {
-            false
-        }
-    }
-
     /// Updates filter in the state.
-    pub fn update(&mut self, index: U256, new_filter: TypedFilter) -> bool {
+    pub fn update(&mut self, index: U256, new_filter: TypedFilter) {
         if let Some(installed_filter) = self.state.get_mut(&index) {
             installed_filter.filter = new_filter;
-            true
-        } else {
-            false
         }
     }
 

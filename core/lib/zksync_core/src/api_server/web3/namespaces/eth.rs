@@ -244,21 +244,33 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
         // We clone the filter to not hold the filter lock for an extended period of time.
-        let maybe_filter = self.state.installed_filters.read().await.get(idx).cloned();
+        let maybe_filter = self
+            .state
+            .installed_filters
+            .write()
+            .await
+            .get_and_update_stats(idx)
+            .cloned();
 
         let Some(TypedFilter::Events(filter, _)) = maybe_filter else {
             return Err(Web3Error::FilterNotFound);
         };
 
-        self.state.installed_filters.write().await.update_stats(idx);
-
         let from_block = self
             .state
             .resolve_filter_block_number(filter.from_block)
             .await?;
-        let logs = self
-            .filter_changes(&mut TypedFilter::Events(filter, from_block))
-            .await?;
+
+        let mut typed_filter = TypedFilter::Events(filter, from_block);
+
+        let logs = self.filter_changes(&mut typed_filter).await?;
+
+        self.state
+            .installed_filters
+            .write()
+            .await
+            .update(idx, typed_filter);
+
         method_latency.observe();
         Ok(logs)
     }
@@ -610,13 +622,11 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let mut filter = self
             .state
             .installed_filters
-            .read()
+            .write()
             .await
-            .get(idx)
+            .get_and_update_stats(idx)
             .cloned()
             .ok_or(Web3Error::FilterNotFound)?;
-
-        self.state.installed_filters.write().await.update_stats(idx);
 
         let result = match self.filter_changes(&mut filter).await {
             Ok(changes) => {

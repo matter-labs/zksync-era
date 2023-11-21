@@ -196,7 +196,7 @@ pub(super) struct PubSubMetrics {
 pub(super) static PUB_SUB_METRICS: vise::Global<PubSubMetrics> = vise::Global::new();
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
-#[metrics(label = "filter_type", rename_all = "snake_case")]
+#[metrics(label = "type", rename_all = "snake_case")]
 pub(super) enum FilterType {
     Events,
     Blocks,
@@ -214,7 +214,7 @@ impl From<&TypedFilter> for FilterType {
 }
 
 #[derive(Debug, Metrics)]
-#[metrics(prefix = "api_filter")]
+#[metrics(prefix = "api_web3_filter")]
 pub(super) struct FilterMetrics {
     /// Number of currently active filters grouped by the filter type
     pub metrics_count: Family<FilterType, Gauge>,
