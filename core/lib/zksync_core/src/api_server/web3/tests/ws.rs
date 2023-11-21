@@ -434,6 +434,61 @@ async fn log_subscriptions_with_many_new_blocks_at_once() {
 }
 
 #[derive(Debug)]
+struct LogSubscriptionsWithDelay;
+
+#[async_trait]
+impl WsTest for LogSubscriptionsWithDelay {
+    async fn test(&self, client: &WsClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+        // Store a miniblock w/o subscriptions being present.
+        let mut storage = pool.access_storage().await?;
+        LogSubscriptions::update_storage(&mut storage, 1, 0).await?;
+        drop(storage);
+        // Wait until the pub-sub notifier runs at least one more time.
+        tokio::time::sleep(POLL_INTERVAL * 2).await;
+
+        let params = rpc_params!["logs"];
+        let mut all_logs_subscription = client
+            .subscribe::<api::Log, _>("eth_subscribe", params, "eth_unsubscribe")
+            .await?;
+        let address_and_topic_filter = PubSubFilter {
+            address: Some(Address::repeat_byte(23).into()),
+            topics: Some(vec![Some(H256::repeat_byte(42).into())]),
+        };
+        let params = rpc_params!["logs", address_and_topic_filter];
+        let mut address_and_topic_subscription = client
+            .subscribe::<api::Log, _>("eth_subscribe", params, "eth_unsubscribe")
+            .await?;
+        // Wait a little until subscriptions are fully registered.
+        tokio::time::sleep(POLL_INTERVAL).await;
+
+        let mut storage = pool.access_storage().await?;
+        let (_, new_events) = LogSubscriptions::update_storage(&mut storage, 2, 4).await?;
+        drop(storage);
+        let new_events: Vec<_> = new_events.iter().collect();
+
+        let all_logs = collect_logs(&mut all_logs_subscription, 4).await?;
+        assert_logs_match(&all_logs, &new_events);
+        let address_and_topic_logs = collect_logs(&mut address_and_topic_subscription, 1).await?;
+        assert_logs_match(&address_and_topic_logs, &[new_events[3]]);
+
+        // Check the behavior of remaining subscriptions if a subscription is dropped.
+        all_logs_subscription.unsubscribe().await?;
+        let mut storage = pool.access_storage().await?;
+        let (_, new_events) = LogSubscriptions::update_storage(&mut storage, 3, 8).await?;
+        drop(storage);
+
+        let address_and_topic_logs = collect_logs(&mut address_and_topic_subscription, 1).await?;
+        assert_logs_match(&address_and_topic_logs, &[&new_events[3]]);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn log_subscriptions_with_delay() {
+    test_ws_server(LogSubscriptionsWithDelay).await;
+}
+
+#[derive(Debug)]
 struct BasicFilterChanges;
 
 #[async_trait]
