@@ -1,9 +1,6 @@
 import * as fs from 'fs';
-import path from 'path';
 import * as utils from './utils';
 import {format} from "sql-formatter";
-import {max} from "hardhat/internal/util/bigint";
-
 
 function formatQuery(query: string) {
     let formattedQuery = query;
@@ -16,7 +13,7 @@ function formatQuery(query: string) {
             indentStyle: 'tabularRight',
         })
     } catch {
-        console.log(`Unable to format:\n${query}\n`)
+        console.error(`Unable to format:\n${query}\n`)
     }
 
     // sql-formatter is not smart enough to identify whether something is used as a keyword or a column name
@@ -29,52 +26,63 @@ function formatQuery(query: string) {
     const formattedLines = formattedQuery.split('\n')
 
     const minIndent = Math.min(...formattedLines.map(line => line.search(/\S/)));
-    formattedQuery = formattedQuery.split("\n").map(line => line.slice(minIndent)).join("\n");
+    formattedQuery = formattedQuery
+        .split("\n")
+        .map(line => line.slice(minIndent))
+        .join("\n");
 
     return formattedQuery;
 }
-function formatRustStringQuery(baseIdent: number, isRawString: boolean, query: string) {
+
+function extractQueryFromRustString(query: string): string {
     query = query.trim();
-    let endedWithAComma = query.endsWith(',')
     if (query.endsWith(',')) {
         query = query.slice(0, query.length - 1);
     }
-    if (!isRawString) {
+    //removing quotes
+    if (!query.startsWith("r#")) {
         query = query.slice(1, query.length - 1);
     } else {
         query = query.slice(3, query.length - 2);
     }
 
-    query = query
-        .trim()
-        .split('\n')
-        .map(line => line.endsWith('\\') ? line.slice(0, line.length - 1) : line)
-        .join('\n');
+    //getting rid of all "/" characters, both from escapes and line breaks
+    query = query.replace(/\\/g, '');
 
-    while (!isRawString && query.includes('\\"')) {
-        query = query.replace('\\"', '"');
-    }
+    return query;
+}
 
-    let formattedQuery = formatQuery(query);
-
-    const indent = ' '.repeat(baseIdent);
-    formattedQuery = formattedQuery.replace(/"/g, '\\"');
-    const formattedLines = formattedQuery.split('\n')
-    // sql-formatter is not smart enough to identify whether something is used as a keyword or a column name
-
-    const minIndent = Math.min(...formattedLines.map(line => line.search(/\S/)));
-
+function embedTextInsideRustString(query: string) {
+    query = query.replace(/"/g, '\\"');
+    const formattedLines = query.split('\n')
     for (let i =0;i<formattedLines.length;i++) {
-        let currentLine  = indent;
+        let currentLine  = '';
         currentLine += i == 0 ? '"' : ' ';
-        currentLine += formattedLines[i].slice(minIndent);
+        currentLine += formattedLines[i];
         currentLine += i != formattedLines.length - 1 ? ' \\' : '';
         currentLine += i == formattedLines.length - 1 ? '"' : '';
-        currentLine += i == formattedLines.length - 1 && endedWithAComma ? ',' : '';
 
         formattedLines[i] = currentLine;
     }
-    return formattedLines.join('\n') + '\n';
+    return formattedLines.join("\n");
+}
+
+function addIndent(query: string, indent: number) {
+    return query
+        .split('\n')
+        .map(line => ' '.repeat(indent) + line)
+        .join("\n");
+}
+
+function formatRustStringQuery(query: string) {
+    const baseIndent = query.search(/\S/);
+    let endedWithAComma = query.trim().endsWith(',')
+
+    const rawQuery = extractQueryFromRustString(query);
+    const formattedQuery = formatQuery(rawQuery);
+    const reconstructedRustString = embedTextInsideRustString(formattedQuery);
+
+    return addIndent(reconstructedRustString, baseIndent) + (endedWithAComma ? ',' : '') + "\n";
 }
 
 async function formatFile(filePath: string) {
@@ -83,9 +91,6 @@ async function formatFile(filePath: string) {
     let isInsideQuery = false;
     let isRawString = false;
     let builtQuery = '';
-    let baseIdent = 0;
-    let queriesCount = 0;
-
 
     let modifiedFile = ''
     for (const line of content) {
@@ -107,42 +112,36 @@ async function formatFile(filePath: string) {
                 if (line.includes('r#"')) {
                     isRawString = true;
                 }
-                baseIdent = line.search(/\S/);
             } else {
                 linesToQuery -= 1;
             }
         }
 
         if (isInsideQuery) {
-            builtQuery += line.trim() + '\n';
-
-            const rawStringQueryEnded = (line.endsWith('"#,') || line.endsWith('"#')) && builtQuery.length != 3;
-            const regularStringQueryEnded = (line.endsWith('",') || line.endsWith('"')) && builtQuery.length != 2;
+            const rawStringQueryEnded = (line.endsWith('"#,') || line.endsWith('"#')) && builtQuery;
+            const regularStringQueryEnded = (line.endsWith('",') || line.endsWith('"')) && builtQuery;
+            builtQuery += line + '\n';
             const lineEndIsNotEscape = !line.endsWith('\\"') && !line.endsWith('\\",');
             if (
                 (isRawString && rawStringQueryEnded) ||
                 (!isRawString && regularStringQueryEnded && lineEndIsNotEscape)
             ) {
                 isInsideQuery = false;
-                let formattedQuery = formatRustStringQuery(baseIdent, isRawString, builtQuery);
+                let formattedQuery = formatRustStringQuery(builtQuery);
                 modifiedFile += formattedQuery;
-                queriesCount += 1;
             }
         } else {
             modifiedFile += line + '\n';
         }
     }
     fs.writeFileSync(filePath, modifiedFile.slice(0, modifiedFile.length - 1));
-    return queriesCount;
 }
 
 export async function formatSqlxQueries() {
     process.chdir(`${process.env.ZKSYNC_HOME}`);
     let {stdout: filesRaw} = await utils.exec('find core/lib/dal -type f -name "*.rs"');
     let files = filesRaw.trim().split('\n')
-    let processedQueries = 0
     for (let file of files) {
-        processedQueries += await formatFile(file);
+        formatFile(file);
     }
-    console.log(`Successfully formatted ${processedQueries} queries in ${files.length} files!`)
 }
