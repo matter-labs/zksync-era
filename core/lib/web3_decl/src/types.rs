@@ -9,7 +9,6 @@ use core::convert::{TryFrom, TryInto};
 use core::fmt;
 use core::marker::PhantomData;
 
-use chrono::NaiveDateTime;
 use itertools::unfold;
 use rlp::Rlp;
 use serde::{de, Deserialize, Serialize, Serializer};

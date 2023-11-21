@@ -607,7 +607,7 @@ impl Filters {
     /// Updates filter in the state.
     pub fn update(&mut self, index: U256, new_filter: TypedFilter) -> bool {
         if let Some(installed_filter) = self.state.get_mut(&index) {
-            *installed_filter.filter = InstalledFilter::new(new_filter);
+            installed_filter.filter = new_filter;
             true
         } else {
             false

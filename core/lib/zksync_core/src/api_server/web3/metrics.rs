@@ -7,6 +7,7 @@ use vise::{
 
 use std::{
     fmt,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -216,17 +217,17 @@ impl From<&TypedFilter> for FilterType {
 #[derive(Debug, Clone)]
 pub struct InstalledFilter {
     pub filter: TypedFilter,
-    guard: GaugeGuard,
+    guard: Arc<GaugeGuard>,
     created_at: Instant,
-    // FIXME: Change the type
     pub last_request: u64,
 }
 
 impl InstalledFilter {
     pub fn new(filter: TypedFilter) -> Self {
+        let guard = FILTER_METRICS.metrics_count[&FilterType::from(&filter)].inc_guard(1);
         Self {
             filter,
-            guard: FILTER_METRICS.metrics_count[&FilterType::from(&filter)].inc_guard(1),
+            guard: Arc::new(guard),
             created_at: Instant::now(),
             last_request: chrono::Utc::now().naive_utc().timestamp() as u64,
         }
