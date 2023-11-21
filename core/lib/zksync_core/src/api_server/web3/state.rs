@@ -1,7 +1,6 @@
 use tokio::sync::RwLock;
 use zksync_utils::h256_to_u256;
 
-use std::ops::Sub;
 use std::{
     collections::HashMap,
     convert::TryFrom,
@@ -28,8 +27,7 @@ use zksync_web3_decl::{
     types::{Filter, Log},
 };
 
-use super::metrics::{FilterType, API_METRICS, FILTER_METRICS};
-use crate::api_server::web3::namespaces::eth::InstalledFilter;
+use super::metrics::{FilterType, InstalledFilter, API_METRICS, FILTER_METRICS};
 use crate::api_server::web3::TypedFilter;
 use crate::{
     api_server::{
@@ -568,7 +566,7 @@ impl Filters {
             }
         };
 
-        let guard = FILTER_METRICS.metrics_count[FilterType::from(filter.clone())].inc_guard();
+        let guard = FILTER_METRICS.metrics_count[&FilterType::from(filter.clone())].inc_guard(1);
 
         self.state.insert(idx, InstalledFilter::new(filter, guard));
 
@@ -586,16 +584,14 @@ impl Filters {
     pub fn get(&self, index: U256) -> Option<&TypedFilter> {
         self.state.get(&index).map(|installed_filter| {
             let previous_request_timestamp = installed_filter.last_request;
-            let now = chrono::Utc::now().naive_utc();
+            let now = chrono::Utc::now().naive_utc().timestamp() as u64;
 
             *installed_filter.last_request = now;
 
             let filter_type = FilterType::from(installed_filter.filter.clone());
 
-            FILTER_METRICS.request_frequency[&filter_type].observe(Duration::from_secs(
-                now.timestamp()
-                    .abs_diff(previous_request_timestamp.timestamp()),
-            ));
+            FILTER_METRICS.request_frequency[&filter_type]
+                .observe(Duration::from_secs(now - previous_request_timestamp));
 
             &installed_filter.filter
         })
@@ -604,8 +600,8 @@ impl Filters {
     /// Updates filter in the state.
     pub fn update(&mut self, index: U256, new_filter: TypedFilter) -> bool {
         if let Some(typed_filter) = self.state.get_mut(&index) {
-            let guard =
-                FILTER_METRICS.metrics_count[FilterType::from(new_filter.clone())].inc_guard();
+            let filter_type = FilterType::from(new_filter.clone());
+            let guard = FILTER_METRICS.metrics_count[&filter_type].inc_guard(1);
 
             // FIXME: is previous value dropped?
             *typed_filter = InstalledFilter::new(new_filter, guard);

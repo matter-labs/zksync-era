@@ -1,10 +1,11 @@
 //! Metrics for the JSON-RPC server.
 
 use vise::{
-    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LabeledFamily,
-    LatencyObserver, Metrics,
+    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, GaugeGuard, Histogram,
+    LabeledFamily, LatencyObserver, Metrics,
 };
 
+use chrono::NaiveDateTime;
 use std::{
     fmt,
     time::{Duration, Instant},
@@ -210,6 +211,33 @@ impl From<TypedFilter> for FilterType {
             TypedFilter::Blocks(_) => FilterType::Blocks,
             TypedFilter::PendingTransactions(_) => FilterType::PendingTransactions,
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct InstalledFilter {
+    pub filter: TypedFilter,
+    guard: Box<GaugeGuard>,
+    start: Instant,
+    // FIXME: Change the type
+    pub last_request: u64,
+}
+
+impl InstalledFilter {
+    pub fn new(filter: TypedFilter, guard: GaugeGuard) -> Self {
+        Self {
+            filter,
+            guard: Box::new(guard),
+            start: Instant::now(),
+            last_request: chrono::Utc::now().naive_utc().timestamp() as u64,
+        }
+    }
+}
+
+impl Drop for InstalledFilter {
+    fn drop(&mut self) {
+        FILTER_METRICS.filter_lifetime[&FilterType::from(self.filter.clone())]
+            .observe(self.start.elapsed());
     }
 }
 
