@@ -16,11 +16,16 @@ impl FriProtocolVersionsDal<'_, '_> {
         l1_verifier_config: L1VerifierConfig,
     ) {
         sqlx::query!(
-            "INSERT INTO prover_fri_protocol_versions \
-                    (id, recursion_scheduler_level_vk_hash, recursion_node_level_vk_hash, \
-                        recursion_leaf_level_vk_hash, recursion_circuits_set_vks_hash, created_at) \
-                VALUES ($1, $2, $3, $4, $5, now()) \
-                ON CONFLICT(id) DO NOTHING",
+            "INSERT INTO prover_fri_protocol_versions ( \
+                    id, \
+                    recursion_scheduler_level_vk_hash, \
+                    recursion_node_level_vk_hash, \
+                    recursion_leaf_level_vk_hash, \
+                    recursion_circuits_set_vks_hash, \
+                    created_at \
+                    ) \
+             VALUES ($1, $2, $3, $4, $5, NOW()) \
+                 ON CONFLICT (id) DO NOTHING",
             id as i32,
             l1_verifier_config
                 .recursion_scheduler_level_vk_hash
@@ -49,12 +54,11 @@ impl FriProtocolVersionsDal<'_, '_> {
     ) -> Vec<FriProtocolVersionId> {
         sqlx::query!(
             "SELECT id \
-             FROM prover_fri_protocol_versions \
-             WHERE recursion_circuits_set_vks_hash = $1 \
-             AND recursion_leaf_level_vk_hash = $2 \
-             AND recursion_node_level_vk_hash = $3 \
-             AND recursion_scheduler_level_vk_hash = $4 \
-               ",
+               FROM prover_fri_protocol_versions \
+              WHERE recursion_circuits_set_vks_hash = $1 \
+                AND recursion_leaf_level_vk_hash = $2 \
+                AND recursion_node_level_vk_hash = $3 \
+                AND recursion_scheduler_level_vk_hash = $4",
             vk_commitments
                 .params
                 .recursion_circuits_set_vks_hash

@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import * as utils from './utils';
+import { formatSqlxQueries } from './format_sql';
 
 const EXTENSIONS = ['ts', 'md', 'sol', 'js'];
 const CONFIG_PATH = 'etc/prettier-config';
@@ -81,6 +82,13 @@ export const command = new Command('fmt')
                     break;
                 case 'system-contracts':
                     await prettierSystemContracts(cmd.check);
+                    break;
+                case 'format-sqlx-queries':
+                    if (cmd.check) {
+                        console.warn('format-sqlx-queries does not support --check, skipping!');
+                    } else {
+                        await formatSqlxQueries();
+                    }
                     break;
                 default:
                     await prettier(extension, cmd.check);

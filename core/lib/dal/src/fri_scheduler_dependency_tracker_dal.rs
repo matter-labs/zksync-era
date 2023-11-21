@@ -10,28 +10,27 @@ pub struct FriSchedulerDependencyTrackerDal<'a, 'c> {
 impl FriSchedulerDependencyTrackerDal<'_, '_> {
     pub async fn get_l1_batches_ready_for_queuing(&mut self) -> Vec<i64> {
         sqlx::query!(
-            r#"
-                UPDATE scheduler_dependency_tracker_fri
-                SET status='queuing'
-                WHERE l1_batch_number IN
-                      (SELECT l1_batch_number FROM scheduler_dependency_tracker_fri
-                       WHERE status != 'queued'
-                         AND circuit_1_final_prover_job_id IS NOT NULL
-                         AND circuit_2_final_prover_job_id IS NOT NULL
-                         AND circuit_3_final_prover_job_id IS NOT NULL
-                         AND circuit_4_final_prover_job_id IS NOT NULL
-                         AND circuit_5_final_prover_job_id IS NOT NULL
-                         AND circuit_6_final_prover_job_id IS NOT NULL
-                         AND circuit_7_final_prover_job_id IS NOT NULL
-                         AND circuit_8_final_prover_job_id IS NOT NULL
-                         AND circuit_9_final_prover_job_id IS NOT NULL
-                         AND circuit_10_final_prover_job_id IS NOT NULL
-                         AND circuit_11_final_prover_job_id IS NOT NULL
-                         AND circuit_12_final_prover_job_id IS NOT NULL
-                         AND circuit_13_final_prover_job_id IS NOT NULL
-                       )
-                RETURNING l1_batch_number;
-            "#,
+            "   UPDATE scheduler_dependency_tracker_fri \
+                   SET status = 'queuing' \
+                 WHERE l1_batch_number IN ( \
+                          SELECT l1_batch_number \
+                            FROM scheduler_dependency_tracker_fri \
+                           WHERE status != 'queued' \
+                             AND circuit_1_final_prover_job_id IS NOT NULL \
+                             AND circuit_2_final_prover_job_id IS NOT NULL \
+                             AND circuit_3_final_prover_job_id IS NOT NULL \
+                             AND circuit_4_final_prover_job_id IS NOT NULL \
+                             AND circuit_5_final_prover_job_id IS NOT NULL \
+                             AND circuit_6_final_prover_job_id IS NOT NULL \
+                             AND circuit_7_final_prover_job_id IS NOT NULL \
+                             AND circuit_8_final_prover_job_id IS NOT NULL \
+                             AND circuit_9_final_prover_job_id IS NOT NULL \
+                             AND circuit_10_final_prover_job_id IS NOT NULL \
+                             AND circuit_11_final_prover_job_id IS NOT NULL \
+                             AND circuit_12_final_prover_job_id IS NOT NULL \
+                             AND circuit_13_final_prover_job_id IS NOT NULL \
+                       ) \
+             RETURNING l1_batch_number;",
         )
         .fetch_all(self.storage.conn())
         .await
@@ -43,11 +42,9 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
 
     pub async fn mark_l1_batches_queued(&mut self, l1_batches: Vec<i64>) {
         sqlx::query!(
-            r#"
-                UPDATE scheduler_dependency_tracker_fri
-                SET status='queued'
-                WHERE l1_batch_number = ANY($1)
-                "#,
+            "UPDATE scheduler_dependency_tracker_fri \
+                SET status = 'queued' \
+              WHERE l1_batch_number = ANY ($1)",
             &l1_batches[..]
         )
         .execute(self.storage.conn())
@@ -82,10 +79,9 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
     ) -> [u32; 13] {
         sqlx::query!(
-            r#"
-                SELECT * FROM scheduler_dependency_tracker_fri
-                WHERE l1_batch_number = $1
-               "#,
+            "SELECT * \
+               FROM scheduler_dependency_tracker_fri \
+              WHERE l1_batch_number = $1",
             l1_batch_number.0 as i64,
         )
         .fetch_all(self.storage.conn())

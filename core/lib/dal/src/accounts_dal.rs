@@ -42,15 +42,21 @@ impl AccountsDal<'_, '_> {
             })
             .collect();
         let rows = sqlx::query!(
-            r#"
-                SELECT storage.value as "value!",
-                    tokens.l1_address as "l1_address!", tokens.l2_address as "l2_address!",
-                    tokens.symbol as "symbol!", tokens.name as "name!", tokens.decimals as "decimals!", tokens.usd_price as "usd_price?"
-                    FROM storage
-                INNER JOIN tokens ON
-                    storage.address = tokens.l2_address OR (storage.address = $2 AND tokens.l2_address = $3)
-                WHERE storage.hashed_key = ANY($1) AND storage.value != $4
-            "#,
+            "SELECT STORAGE.value AS \"value!\", \
+                    tokens.l1_address AS \"l1_address!\", \
+                    tokens.l2_address AS \"l2_address!\", \
+                    tokens.symbol AS \"symbol!\", \
+                    tokens.name AS \"name!\", \
+                    tokens.decimals AS \"decimals!\", \
+                    tokens.usd_price AS \"usd_price?\" \
+               FROM STORAGE \
+              INNER JOIN tokens ON STORAGE.address = tokens.l2_address \
+                 OR ( \
+                    STORAGE.address = $2 \
+                AND tokens.l2_address = $3 \
+                    ) \
+              WHERE STORAGE.hashed_key = ANY ($1) \
+                AND STORAGE.value != $4",
             &hashed_keys,
             L2_ETH_TOKEN_ADDRESS.as_bytes(),
             ETHEREUM_ADDRESS.as_bytes(),

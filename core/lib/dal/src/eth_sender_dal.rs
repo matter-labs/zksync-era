@@ -27,8 +27,14 @@ impl EthSenderDal<'_, '_> {
     pub async fn get_inflight_txs(&mut self) -> sqlx::Result<Vec<EthTx>> {
         let txs = sqlx::query_as!(
             StorageEthTx,
-            "SELECT * FROM eth_txs WHERE confirmed_eth_tx_history_id IS NULL \
-             AND id <= (SELECT COALESCE(MAX(eth_tx_id), 0) FROM eth_txs_history WHERE sent_at_block IS NOT NULL) \
+            "  SELECT * \
+                 FROM eth_txs \
+                WHERE confirmed_eth_tx_history_id IS NULL \
+                  AND id <= ( \
+                         SELECT COALESCE(MAX(eth_tx_id), 0) \
+                           FROM eth_txs_history \
+                          WHERE sent_at_block IS NOT NULL \
+                      ) \
              ORDER BY id"
         )
         .fetch_all(self.storage.conn())
@@ -83,7 +89,9 @@ impl EthSenderDal<'_, '_> {
     pub async fn get_eth_tx(&mut self, eth_tx_id: u32) -> sqlx::Result<Option<EthTx>> {
         Ok(sqlx::query_as!(
             StorageEthTx,
-            "SELECT * FROM eth_txs WHERE id = $1",
+            "SELECT * \
+               FROM eth_txs \
+              WHERE id = $1",
             eth_tx_id as i32
         )
         .fetch_optional(self.storage.conn())
@@ -94,10 +102,14 @@ impl EthSenderDal<'_, '_> {
     pub async fn get_new_eth_txs(&mut self, limit: u64) -> sqlx::Result<Vec<EthTx>> {
         let txs = sqlx::query_as!(
             StorageEthTx,
-            "SELECT * FROM eth_txs \
-            WHERE id > (SELECT COALESCE(MAX(eth_tx_id), 0) FROM eth_txs_history) \
-            ORDER BY id \
-            LIMIT $1",
+            "  SELECT * \
+                 FROM eth_txs \
+                WHERE id > ( \
+                         SELECT COALESCE(MAX(eth_tx_id), 0) \
+                           FROM eth_txs_history \
+                      ) \
+             ORDER BY id \
+                LIMIT $1",
             limit as i64
         )
         .fetch_all(self.storage.conn())
@@ -108,18 +120,18 @@ impl EthSenderDal<'_, '_> {
     pub async fn get_unsent_txs(&mut self) -> sqlx::Result<Vec<TxHistoryToSend>> {
         let txs = sqlx::query_as!(
             StorageTxHistoryToSend,
-            "SELECT \
-                eth_txs_history.id, \
-                eth_txs_history.eth_tx_id, \
-                eth_txs_history.tx_hash, \
-                eth_txs_history.base_fee_per_gas, \
-                eth_txs_history.priority_fee_per_gas, \
-                eth_txs_history.signed_raw_tx, \
-                eth_txs.nonce \
-            FROM eth_txs_history \
-            JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id \
-            WHERE eth_txs_history.sent_at_block IS NULL AND eth_txs.confirmed_eth_tx_history_id IS NULL \
-            ORDER BY eth_txs_history.id DESC",
+            "  SELECT eth_txs_history.id, \
+                      eth_txs_history.eth_tx_id, \
+                      eth_txs_history.tx_hash, \
+                      eth_txs_history.base_fee_per_gas, \
+                      eth_txs_history.priority_fee_per_gas, \
+                      eth_txs_history.signed_raw_tx, \
+                      eth_txs.nonce \
+                 FROM eth_txs_history \
+                 JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id \
+                WHERE eth_txs_history.sent_at_block IS NULL \
+                  AND eth_txs.confirmed_eth_tx_history_id IS NULL \
+             ORDER BY eth_txs_history.id DESC",
         )
         .fetch_all(self.storage.conn())
         .await?;
@@ -137,9 +149,17 @@ impl EthSenderDal<'_, '_> {
         let address = format!("{:#x}", contract_address);
         let eth_tx = sqlx::query_as!(
             StorageEthTx,
-            "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, created_at, updated_at) \
-               VALUES ($1, $2, $3, $4, $5, now(), now()) \
-               RETURNING *",
+            "   INSERT INTO eth_txs ( \
+                       raw_tx, \
+                       nonce, \
+                       tx_type, \
+                       contract_address, \
+                       predicted_gas_cost, \
+                       created_at, \
+                       updated_at \
+                       ) \
+                VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) \
+             RETURNING *",
             raw_tx,
             nonce as i64,
             tx_type.to_string(),
@@ -166,11 +186,18 @@ impl EthSenderDal<'_, '_> {
         let tx_hash = format!("{:#x}", tx_hash);
 
         Ok(sqlx::query!(
-            "INSERT INTO eth_txs_history \
-            (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at) \
-            VALUES ($1, $2, $3, $4, $5, now(), now()) \
-            ON CONFLICT (tx_hash) DO NOTHING \
-            RETURNING id",
+            "   INSERT INTO eth_txs_history ( \
+                       eth_tx_id, \
+                       base_fee_per_gas, \
+                       priority_fee_per_gas, \
+                       tx_hash, \
+                       signed_raw_tx, \
+                       created_at, \
+                       updated_at \
+                       ) \
+                VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) \
+                    ON CONFLICT (tx_hash) DO NOTHING \
+             RETURNING id",
             eth_tx_id as u32,
             base_fee_per_gas,
             priority_fee_per_gas,
@@ -188,8 +215,11 @@ impl EthSenderDal<'_, '_> {
         sent_at_block: u32,
     ) -> sqlx::Result<()> {
         sqlx::query!(
-            "UPDATE eth_txs_history SET sent_at_block = $2, sent_at = now() \
-            WHERE id = $1 AND sent_at_block IS NULL",
+            "UPDATE eth_txs_history \
+                SET sent_at_block = $2, \
+                    sent_at = NOW() \
+              WHERE id = $1 \
+                AND sent_at_block IS NULL",
             eth_txs_history_id as i32,
             sent_at_block as i32
         )
@@ -201,7 +231,7 @@ impl EthSenderDal<'_, '_> {
     pub async fn remove_tx_history(&mut self, eth_txs_history_id: u32) -> sqlx::Result<()> {
         sqlx::query!(
             "DELETE FROM eth_txs_history \
-            WHERE id = $1",
+              WHERE id = $1",
             eth_txs_history_id as i64
         )
         .execute(self.storage.conn())
@@ -219,10 +249,12 @@ impl EthSenderDal<'_, '_> {
             .map_err(|err| anyhow::anyhow!("Can't convert U256 to i64: {err}"))?;
         let tx_hash = format!("{:#x}", tx_hash);
         let ids = sqlx::query!(
-            "UPDATE eth_txs_history \
-            SET updated_at = now(), confirmed_at = now() \
-            WHERE tx_hash = $1 \
-            RETURNING id, eth_tx_id",
+            "   UPDATE eth_txs_history \
+                   SET updated_at = NOW(), \
+                       confirmed_at = NOW() \
+                 WHERE tx_hash = $1 \
+             RETURNING id, \
+                       eth_tx_id",
             tx_hash,
         )
         .fetch_one(transaction.conn())
@@ -230,8 +262,9 @@ impl EthSenderDal<'_, '_> {
 
         sqlx::query!(
             "UPDATE eth_txs \
-            SET gas_used = $1, confirmed_eth_tx_history_id = $2 \
-            WHERE id = $3",
+                SET gas_used = $1, \
+                    confirmed_eth_tx_history_id = $2 \
+              WHERE id = $3",
             gas_used,
             ids.id,
             ids.eth_tx_id
@@ -248,8 +281,10 @@ impl EthSenderDal<'_, '_> {
         eth_tx_id: u32,
     ) -> anyhow::Result<Option<H256>> {
         let tx_hash = sqlx::query!(
-            "SELECT tx_hash FROM eth_txs_history \
-            WHERE eth_tx_id = $1 AND confirmed_at IS NOT NULL",
+            "SELECT tx_hash \
+               FROM eth_txs_history \
+              WHERE eth_tx_id = $1 \
+                AND confirmed_at IS NOT NULL",
             eth_tx_id as i64
         )
         .fetch_optional(self.storage.conn())
@@ -328,8 +363,8 @@ impl EthSenderDal<'_, '_> {
             // Mark general entry as confirmed.
             sqlx::query!(
                 "UPDATE eth_txs \
-                SET confirmed_eth_tx_history_id = $1 \
-                WHERE id = $2",
+                    SET confirmed_eth_tx_history_id = $1 \
+                  WHERE id = $2",
                 eth_history_id,
                 eth_tx_id
             )
@@ -356,7 +391,10 @@ impl EthSenderDal<'_, '_> {
     ) -> sqlx::Result<Vec<TxHistory>> {
         let tx_history = sqlx::query_as!(
             StorageTxHistory,
-            "SELECT * FROM eth_txs_history WHERE eth_tx_id = $1 ORDER BY created_at DESC",
+            "  SELECT * \
+                 FROM eth_txs_history \
+                WHERE eth_tx_id = $1 \
+             ORDER BY created_at DESC",
             eth_tx_id as i32
         )
         .fetch_all(self.storage.conn())
@@ -383,7 +421,11 @@ impl EthSenderDal<'_, '_> {
     ) -> sqlx::Result<Option<TxHistory>> {
         let history_item = sqlx::query_as!(
             StorageTxHistory,
-            "SELECT * FROM eth_txs_history WHERE eth_tx_id = $1 ORDER BY created_at DESC LIMIT 1",
+            "  SELECT * \
+                 FROM eth_txs_history \
+                WHERE eth_tx_id = $1 \
+             ORDER BY created_at DESC \
+                LIMIT 1",
             eth_tx_id as i32
         )
         .fetch_optional(self.storage.conn())
@@ -400,7 +442,9 @@ impl EthSenderDal<'_, '_> {
 
     pub async fn mark_failed_transaction(&mut self, eth_tx_id: u32) -> sqlx::Result<()> {
         sqlx::query!(
-            "UPDATE eth_txs SET has_failed = TRUE WHERE id = $1",
+            "UPDATE eth_txs \
+                SET has_failed = TRUE \
+              WHERE id = $1",
             eth_tx_id as i32
         )
         .execute(self.storage.conn())
@@ -418,8 +462,12 @@ impl EthSenderDal<'_, '_> {
 
     pub async fn clear_failed_transactions(&mut self) -> sqlx::Result<()> {
         sqlx::query!(
-            "DELETE FROM eth_txs WHERE id >= \
-            (SELECT MIN(id) FROM eth_txs WHERE has_failed = TRUE)"
+            "DELETE FROM eth_txs \
+              WHERE id >= ( \
+                       SELECT MIN(id) \
+                         FROM eth_txs \
+                        WHERE has_failed = TRUE \
+                    )"
         )
         .execute(self.storage.conn())
         .await?;
