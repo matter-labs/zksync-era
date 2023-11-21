@@ -15,6 +15,7 @@ zksync_server_dal = { path = "../server_dal" }
 zksync_types = { path = "../types" }
 zksync_utils = { path = "../utils" }
 zksync_storage = { path = "../storage" }
+zksync_db_connection = { path = "../db_connection"}
 
 anyhow = "1.0"
 mini-moka = "0.10.0"

@@ -14,8 +14,9 @@ use zksync_config::{
 };
 use zksync_env_config::FromEnv;
 
+use zksync_db_connection::ConnectionPool;
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prover_dal::{connection::DbVariant, ProverConnectionPool};
+use zksync_prover_dal::ProverStorageProcessor;
 use zksync_prover_utils::region_fetcher::{get_region, get_zone};
 use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
 use zksync_utils::wait_for_tasks::wait_for_tasks;
@@ -28,10 +29,10 @@ use crate::synthesized_circuit_provider::SynthesizedCircuitProvider;
 
 async fn graceful_shutdown() -> anyhow::Result<impl Future<Output = ()>> {
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let pool = ProverConnectionPool::singleton(postgres_config.prover_url()?)
+    let pool = ConnectionPool::singleton(postgres_config.prover_url()?)
         .build()
         .await
-        .context("failed to build a connection pool")?;
+        .context("failed to build prover connection pool")?;
     let host = local_ip().context("Failed obtaining local IP address")?;
     let port = ProverConfigs::from_env()
         .context("ProverConfigs")?
@@ -45,7 +46,7 @@ async fn graceful_shutdown() -> anyhow::Result<impl Future<Output = ()>> {
     let zone = get_zone(&prover_group_config).await.context("get_zone()")?;
     let address = SocketAddress { host, port };
     Ok(async move {
-        pool.access_storage()
+        pool.access_storage::<ProverStorageProcessor>()
             .await
             .unwrap()
             .gpu_prover_queue_dal()
@@ -185,10 +186,10 @@ pub async fn run() -> anyhow::Result<()> {
         local_ip,
         prover_config.assembly_receiver_port,
         producer,
-        ProverConnectionPool::singleton(postgres_config.prover_url()?)
+        ConnectionPool::singleton(postgres_config.prover_url()?)
             .build()
             .await
-            .context("failed to build a connection pool")?,
+            .context("failed to build prover connection pool")?,
         prover_config.specialized_prover_group_id,
         region.clone(),
         zone.clone(),
@@ -200,7 +201,7 @@ pub async fn run() -> anyhow::Result<()> {
         ObjectStoreConfig::from_env().context("ObjectStoreConfig::from_env()")?;
     let store_factory = ObjectStoreFactory::new(object_store_config);
 
-    let circuit_provider_pool = ProverConnectionPool::singleton(postgres_config.prover_url()?)
+    let circuit_provider_pool = ConnectionPool::singleton(postgres_config.prover_url()?)
         .build()
         .await
         .context("failed to build circuit_provider_pool")?;

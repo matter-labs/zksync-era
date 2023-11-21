@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use assert_matches::assert_matches;
+
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_utils::instrument::InstrumentExt;
 use zksync_types::{
@@ -13,12 +15,12 @@ use zksync_types::{
     ProtocolVersionId, H160, H256, MAX_GAS_PER_PUBDATA_BYTE, U256,
 };
 
-use crate::blocks_dal::BlocksDal;
-use crate::connection::ServerConnectionPool;
 use crate::protocol_versions_dal::ProtocolVersionsDal;
 use crate::transactions_dal::L2TxSubmissionResult;
 use crate::transactions_dal::TransactionsDal;
 use crate::transactions_web3_dal::TransactionsWeb3Dal;
+use crate::{blocks_dal::BlocksDal, ServerStorageProcessor};
+use zksync_db_connection::{create_test_db, ConnectionPool};
 
 const DEFAULT_GAS_PER_PUBDATA: u32 = 100;
 
@@ -116,8 +118,11 @@ pub(crate) fn mock_execution_result(transaction: L2Tx) -> TransactionExecutionRe
 
 #[tokio::test]
 async fn workflow_with_submit_tx_equal_hashes() {
-    let connection_pool = ServerConnectionPool::test_pool().await;
-    let storage = &mut connection_pool.access_storage().await.unwrap();
+    let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+    let storage = &mut connection_pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     let mut transactions_dal = TransactionsDal { storage };
 
     let tx = mock_l2_transaction();
@@ -136,8 +141,11 @@ async fn workflow_with_submit_tx_equal_hashes() {
 
 #[tokio::test]
 async fn workflow_with_submit_tx_diff_hashes() {
-    let connection_pool = ServerConnectionPool::test_pool().await;
-    let storage = &mut connection_pool.access_storage().await.unwrap();
+    let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+    let storage = &mut connection_pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     let mut transactions_dal = TransactionsDal { storage };
 
     let tx = mock_l2_transaction();
@@ -163,8 +171,11 @@ async fn workflow_with_submit_tx_diff_hashes() {
 
 #[tokio::test]
 async fn remove_stuck_txs() {
-    let connection_pool = ServerConnectionPool::test_pool().await;
-    let storage = &mut connection_pool.access_storage().await.unwrap();
+    let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+    let storage = &mut connection_pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     let mut protocol_versions_dal = ProtocolVersionsDal { storage };
     protocol_versions_dal
         .save_protocol_version_with_tx(Default::default())
@@ -256,10 +267,13 @@ async fn remove_stuck_txs() {
 // DB utils tests
 #[tokio::test]
 async fn instrumenting_erroneous_query() {
-    let pool = ServerConnectionPool::test_pool().await;
+    let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     // Add `vlog::init()` here to debug this test
 
-    let mut conn = pool.access_storage().await.unwrap();
+    let mut conn = connection_pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     sqlx::query("WHAT")
         .map(drop)
         .instrument("erroneous")
@@ -272,10 +286,13 @@ async fn instrumenting_erroneous_query() {
 
 #[tokio::test]
 async fn instrumenting_slow_query() {
-    let pool = ServerConnectionPool::test_pool().await;
+    let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     // Add `vlog::init()` here to debug this test
 
-    let mut conn = pool.access_storage().await.unwrap();
+    let mut conn = connection_pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     sqlx::query("SELECT pg_sleep(1.5)")
         .map(drop)
         .instrument("slow")
@@ -284,4 +301,32 @@ async fn instrumenting_slow_query() {
         .fetch_optional(conn.conn())
         .await
         .unwrap();
+}
+
+#[tokio::test]
+async fn setting_statement_timeout() {
+    let db_url = create_test_db()
+        .await
+        .expect("Unable to prepare test database")
+        .to_string();
+
+    let pool = ConnectionPool::singleton(&db_url)
+        .set_statement_timeout(Some(Duration::from_secs(1)))
+        .build()
+        .await
+        .unwrap();
+
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
+    let err = sqlx::query("SELECT pg_sleep(2)")
+        .map(drop)
+        .fetch_optional(storage.conn())
+        .await
+        .unwrap_err();
+    assert_matches!(
+        err,
+        sqlx::Error::Database(db_err) if db_err.message().contains("statement timeout")
+    );
 }

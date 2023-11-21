@@ -7,8 +7,8 @@ use zksync_config::configs::{
     chain::{NetworkConfig, StateKeeperConfig},
     ContractsConfig,
 };
+use zksync_db_connection::ConnectionPool;
 use zksync_health_check::CheckHealth;
-use zksync_server_dal::ServerConnectionPool;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{L1BatchNumber, U64};
 use zksync_web3_decl::{
@@ -67,7 +67,7 @@ impl ApiServerHandles {
 
 pub(crate) async fn spawn_http_server(
     network_config: &NetworkConfig,
-    pool: ServerConnectionPool,
+    pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
 ) -> ApiServerHandles {
     let contracts_config = ContractsConfig::for_tests();
@@ -102,10 +102,13 @@ pub(crate) async fn spawn_http_server(
 
 #[tokio::test]
 async fn http_server_can_start() {
-    let pool = ServerConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let network_config = NetworkConfig::for_tests();
 
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
         ensure_genesis_state(
             &mut storage,

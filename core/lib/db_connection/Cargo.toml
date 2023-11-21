@@ -1,5 +1,5 @@
 [package]
-name = "verified_sources_fetcher"
+name = "zksync_db_connection"
 version = "0.1.0"
 edition = "2021"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
@@ -8,15 +8,23 @@ repository = "https://github.com/matter-labs/zksync-era"
 license = "MIT OR Apache-2.0"
 keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
-publish = false # We don't want to publish our binaries.
 
 [dependencies]
-zksync_db_connection = {path = "../../lib/db_connection"}
-zksync_types = { path = "../../lib/types" }
-zksync_config = { path = "../../lib/config" }
-zksync_env_config = { path = "../../lib/env_config" }
-zksync_server_dal = { path = "../../lib/server_dal"}
+zksync_db_utils = { path = "../db_utils"}
 
 anyhow = "1.0"
+sqlx = { version = "0.5.13", default-features = false, features = [
+    "runtime-tokio-native-tls",
+    "macros",
+    "postgres",
+    "bigdecimal",
+    "chrono",
+    "json",
+    "offline",
+    "migrate",
+    "ipnetwork",
+] }
 tokio = { version = "1", features = ["full"] }
-serde_json = "1.0"
+tracing = "0.1"
+rand = "0.8"
+url = "2"

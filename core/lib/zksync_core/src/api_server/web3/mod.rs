@@ -10,8 +10,9 @@ use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::task::JoinHandle;
 
+use zksync_db_connection::ConnectionPool;
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_server_dal::{ServerConnectionPool, ServerStorageProcessor};
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::{api, MiniblockNumber};
 use zksync_web3_decl::{
     error::Web3Error,
@@ -119,8 +120,8 @@ pub struct ApiServerHandles {
 #[derive(Debug)]
 pub struct ApiBuilder<G> {
     backend: ApiBackend,
-    pool: ServerConnectionPool,
-    last_miniblock_pool: ServerConnectionPool,
+    pool: ConnectionPool,
+    last_miniblock_pool: ConnectionPool,
     config: InternalApiConfig,
     transport: Option<ApiTransport>,
     tx_sender: Option<TxSender<G>>,
@@ -139,7 +140,7 @@ pub struct ApiBuilder<G> {
 }
 
 impl<G> ApiBuilder<G> {
-    pub fn jsonrpsee_backend(config: InternalApiConfig, pool: ServerConnectionPool) -> Self {
+    pub fn jsonrpsee_backend(config: InternalApiConfig, pool: ConnectionPool) -> Self {
         Self {
             backend: ApiBackend::Jsonrpsee,
             transport: None,
@@ -162,7 +163,7 @@ impl<G> ApiBuilder<G> {
         }
     }
 
-    pub fn jsonrpc_backend(config: InternalApiConfig, pool: ServerConnectionPool) -> Self {
+    pub fn jsonrpc_backend(config: InternalApiConfig, pool: ConnectionPool) -> Self {
         Self {
             backend: ApiBackend::Jsonrpc,
             ..Self::jsonrpsee_backend(config, pool)
@@ -182,7 +183,7 @@ impl<G> ApiBuilder<G> {
     /// Configures a dedicated DB pool to be used for updating the latest miniblock information
     /// in a background task. If not called, the main pool will be used. If the API server is under high load,
     /// it may make sense to supply a single-connection pool to reduce pool contention with the API methods.
-    pub fn with_last_miniblock_pool(mut self, pool: ServerConnectionPool) -> Self {
+    pub fn with_last_miniblock_pool(mut self, pool: ConnectionPool) -> Self {
         self.last_miniblock_pool = pool;
         self
     }

@@ -1505,12 +1505,15 @@ mod tests {
     };
 
     use super::*;
-    use crate::ServerConnectionPool;
+    use zksync_db_connection::ConnectionPool;
 
     #[tokio::test]
     async fn loading_l1_batch_header() {
-        let pool = ServerConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+        let mut conn = pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         conn.blocks_dal()
             .delete_l1_batches(L1BatchNumber(0))
             .await
@@ -1570,8 +1573,11 @@ mod tests {
 
     #[tokio::test]
     async fn getting_predicted_gas() {
-        let pool = ServerConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+        let mut conn = pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         conn.blocks_dal()
             .delete_l1_batches(L1BatchNumber(0))
             .await

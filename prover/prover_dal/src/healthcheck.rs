@@ -1,16 +1,17 @@
 use serde::Serialize;
 use sqlx::PgPool;
 
+use zksync_db_connection::ConnectionPool;
 use zksync_health_check::{async_trait, CheckHealth, Health, HealthStatus};
 
-use crate::ProverConnectionPool;
+use crate::ProverStorageProcessor;
 
 #[derive(Debug, Serialize)]
-struct ProverConnectionPoolHealthDetails {
+struct ConnectionPoolHealthDetails {
     pool_size: u32,
 }
 
-impl ProverConnectionPoolHealthDetails {
+impl ConnectionPoolHealthDetails {
     async fn new(pool: &PgPool) -> Self {
         Self {
             pool_size: pool.size(),
@@ -21,19 +22,19 @@ impl ProverConnectionPoolHealthDetails {
 // HealthCheck used to verify if we can connect to the main database.
 // This guarantees that the app can use it's main "communication" channel.
 // Used in the /health endpoint
-#[derive(Clone, Debug)]
-pub struct ProverConnectionPoolHealthCheck {
-    connection_pool: ProverConnectionPool,
+#[derive(Debug, Clone)]
+pub struct ConnectionPoolHealthCheck {
+    connection_pool: ConnectionPool,
 }
 
-impl ProverConnectionPoolHealthCheck {
-    pub fn new(connection_pool: ProverConnectionPool) -> ProverConnectionPoolHealthCheck {
+impl ConnectionPoolHealthCheck {
+    pub fn new(connection_pool: ConnectionPool) -> ConnectionPoolHealthCheck {
         Self { connection_pool }
     }
 }
 
 #[async_trait]
-impl CheckHealth for ProverConnectionPoolHealthCheck {
+impl CheckHealth for ConnectionPoolHealthCheck {
     fn name(&self) -> &'static str {
         "prover_connection_pool"
     }
@@ -41,8 +42,11 @@ impl CheckHealth for ProverConnectionPoolHealthCheck {
     async fn check_health(&self) -> Health {
         // This check is rather feeble, plan to make reliable here:
         // https://linear.app/matterlabs/issue/PLA-255/revamp-db-connection-health-check
-        self.connection_pool.access_storage().await.unwrap();
-        let details = ProverConnectionPoolHealthDetails::new(&self.connection_pool.0).await;
+        self.connection_pool
+            .access_storage::<ProverStorageProcessor>()
+            .await
+            .unwrap();
+        let details = ConnectionPoolHealthDetails::new(&self.connection_pool.0).await;
         Health::from(HealthStatus::Ready).with_details(details)
     }
 }

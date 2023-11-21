@@ -24,8 +24,8 @@ use zksync_config::configs::FriProverConfig;
 
 use zksync_env_config::FromEnv;
 
+use zksync_db_connection::ConnectionPool;
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::ProverConnectionPool;
 use zksync_prover_fri_types::{CircuitWrapper, FriProofWrapper, ProverJob, ProverServiceDataKey};
 use zksync_prover_fri_utils::fetch_next_circuit;
 use zksync_queued_job_processor::{async_trait, JobProcessor};
@@ -47,7 +47,7 @@ pub struct Prover {
     blob_store: Box<dyn ObjectStore>,
     public_blob_store: Option<Box<dyn ObjectStore>>,
     config: Arc<FriProverConfig>,
-    prover_connection_pool: ProverConnectionPool,
+    prover_connection_pool: ConnectionPool,
     setup_load_mode: SetupLoadMode,
     // Only pick jobs for the configured circuit id and aggregation rounds.
     // Empty means all jobs are picked.
@@ -61,7 +61,7 @@ impl Prover {
         blob_store: Box<dyn ObjectStore>,
         public_blob_store: Option<Box<dyn ObjectStore>>,
         config: FriProverConfig,
-        prover_connection_pool: ProverConnectionPool,
+        prover_connection_pool: ConnectionPool,
         setup_load_mode: SetupLoadMode,
         circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
         vk_commitments: L1VerifierConfig,
@@ -198,7 +198,11 @@ impl JobProcessor for Prover {
     const SERVICE_NAME: &'static str = "FriCpuProver";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut storage = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut storage = self
+            .prover_connection_pool
+            .access_storage::<ProverStorageProcessor>()
+            .await
+            .unwrap();
         let Some(prover_job) = fetch_next_circuit(
             &mut storage,
             &*self.blob_store,
@@ -214,7 +218,7 @@ impl JobProcessor for Prover {
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
         self.prover_connection_pool
-            .access_storage()
+            .access_storage::<ProverStorageProcessor>()
             .await
             .unwrap()
             .fri_prover_jobs_dal()
@@ -248,7 +252,11 @@ impl JobProcessor for Prover {
             "prover_fri.prover.cpu_total_proving_time",
             started_at.elapsed(),
         );
-        let mut storage_processor = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut storage_processor = self
+            .prover_connection_pool
+            .access_storage::<ProverStorageProcessor>()
+            .await
+            .unwrap();
         save_proof(
             job_id,
             started_at,
@@ -269,7 +277,7 @@ impl JobProcessor for Prover {
     async fn get_job_attempts(&self, job_id: &u32) -> anyhow::Result<u32> {
         let mut prover_storage = self
             .prover_connection_pool
-            .access_storage()
+            .access_storage::<ProverStorageProcessor>()
             .await
             .context("failed to acquire DB connection for Prover")?;
         prover_storage

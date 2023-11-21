@@ -28,11 +28,12 @@ use multivm::vm_latest::{
     constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
+use zksync_db_connection::ConnectionPool;
 use zksync_object_store::{
     Bucket, ClosedFormInputKey, ObjectStore, ObjectStoreFactory, StoredObject,
 };
 use zksync_prover_dal::fri_witness_generator_dal::FriWitnessJobStatus;
-use zksync_prover_dal::ProverConnectionPool;
+use zksync_prover_dal::ProverStorageProcessor;
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::{PostgresStorage, StorageView};
@@ -81,8 +82,8 @@ pub struct BasicWitnessGenerator {
     config: Arc<FriWitnessGeneratorConfig>,
     object_store: Arc<dyn ObjectStore>,
     public_blob_store: Option<Box<dyn ObjectStore>>,
-    connection_pool: ProverConnectionPool,
-    prover_connection_pool: ProverConnectionPool,
+    server_connection_pool: ConnectionPool,
+    prover_connection_pool: ConnectionPool,
     protocol_versions: Vec<FriProtocolVersionId>,
 }
 
@@ -91,15 +92,15 @@ impl BasicWitnessGenerator {
         config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
         public_blob_store: Option<Box<dyn ObjectStore>>,
-        connection_pool: ProverConnectionPool,
-        prover_connection_pool: ProverConnectionPool,
+        server_connection_pool: ConnectionPool,
+        prover_connection_pool: ConnectionPool,
         protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {
             config: Arc::new(config),
             object_store: store_factory.create_store().await.into(),
             public_blob_store,
-            connection_pool,
+            server_connection_pool,
             prover_connection_pool,
             protocol_versions,
         }
@@ -107,8 +108,8 @@ impl BasicWitnessGenerator {
 
     async fn process_job_impl(
         object_store: Arc<dyn ObjectStore>,
-        connection_pool: ProverConnectionPool,
-        prover_connection_pool: ProverConnectionPool,
+        server_connection_pool: ConnectionPool,
+        prover_connection_pool: ConnectionPool,
         basic_job: BasicWitnessGeneratorJob,
         started_at: Instant,
         config: Arc<FriWitnessGeneratorConfig>,
@@ -131,7 +132,10 @@ impl BasicWitnessGenerator {
                     blocks_proving_percentage
                 );
 
-                let mut prover_storage = prover_connection_pool.access_storage().await.unwrap();
+                let mut prover_storage = prover_connection_pool
+                    .access_storage::<ProverStorageProcessor>()
+                    .await
+                    .unwrap();
                 let mut transaction = prover_storage.start_transaction().await.unwrap();
                 transaction
                     .fri_proof_compressor_dal()
@@ -157,7 +161,7 @@ impl BasicWitnessGenerator {
             process_basic_circuits_job(
                 &*object_store,
                 config,
-                connection_pool,
+                server_connection_pool,
                 started_at,
                 block_number,
                 job,
@@ -177,7 +181,11 @@ impl JobProcessor for BasicWitnessGenerator {
     const SERVICE_NAME: &'static str = "fri_basic_circuit_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut prover_connection = self
+            .prover_connection_pool
+            .access_storage::<ProverStorageProcessor>()
+            .await
+            .unwrap();
         let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
         let pod_name = get_current_pod_name();
         match prover_connection
@@ -209,7 +217,7 @@ impl JobProcessor for BasicWitnessGenerator {
 
     async fn save_failure(&self, job_id: L1BatchNumber, _started_at: Instant, error: String) -> () {
         self.prover_connection_pool
-            .access_storage()
+            .access_storage::<ProverStorageProcessor>()
             .await
             .unwrap()
             .fri_witness_generator_dal()
@@ -225,12 +233,12 @@ impl JobProcessor for BasicWitnessGenerator {
     ) -> tokio::task::JoinHandle<anyhow::Result<Option<BasicCircuitArtifacts>>> {
         let config = Arc::clone(&self.config);
         let object_store = Arc::clone(&self.object_store);
-        let connection_pool = self.connection_pool.clone();
+        let server_connection_pool = self.server_connection_pool.clone();
         let prover_connection_pool = self.prover_connection_pool.clone();
         tokio::spawn(async move {
             Ok(Self::process_job_impl(
                 object_store,
-                connection_pool,
+                server_connection_pool,
                 prover_connection_pool,
                 job,
                 started_at,
@@ -276,7 +284,7 @@ impl JobProcessor for BasicWitnessGenerator {
     async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<u32> {
         let mut prover_storage = self
             .prover_connection_pool
-            .access_storage()
+            .access_storage::<ProverStorageProcessor>()
             .await
             .context("failed to acquire DB connection for BasicWitnessGenerator")?;
         prover_storage
@@ -291,20 +299,27 @@ impl JobProcessor for BasicWitnessGenerator {
 async fn process_basic_circuits_job(
     object_store: &dyn ObjectStore,
     config: Arc<FriWitnessGeneratorConfig>,
-    connection_pool: ProverConnectionPool,
+    server_connection_pool: ConnectionPool,
     started_at: Instant,
     block_number: L1BatchNumber,
     job: PrepareBasicCircuitsJob,
 ) -> BasicCircuitArtifacts {
     let witness_gen_input =
-        build_basic_circuits_witness_generator_input(&connection_pool, job, block_number).await;
+        build_basic_circuits_witness_generator_input(&server_connection_pool, job, block_number)
+            .await;
     let (
         basic_circuits,
         basic_circuits_inputs,
         per_circuit_closed_form_inputs,
         scheduler_witness,
         aux_output_witness,
-    ) = generate_witness(object_store, config, connection_pool, witness_gen_input).await;
+    ) = generate_witness(
+        object_store,
+        config,
+        server_connection_pool,
+        witness_gen_input,
+    )
+    .await;
     metrics::histogram!(
         "prover_fri.witness_generation.witness_generation_time",
         started_at.elapsed(),
@@ -326,12 +341,15 @@ async fn process_basic_circuits_job(
 }
 
 async fn update_database(
-    prover_connection_pool: &ProverConnectionPool,
+    prover_connection_pool: &ConnectionPool,
     started_at: Instant,
     block_number: L1BatchNumber,
     blob_urls: BlobUrls,
 ) {
-    let mut prover_connection = prover_connection_pool.access_storage().await.unwrap();
+    let mut prover_connection = prover_connection_pool
+        .access_storage::<ProverStorageProcessor>()
+        .await
+        .unwrap();
     let protocol_version_id = prover_connection
         .fri_witness_generator_dal()
         .protocol_version_for_l1_batch(block_number)
@@ -463,11 +481,14 @@ async fn save_leaf_aggregation_artifacts(
 // If making changes to this method, consider moving this logic to the DAL layer and make
 // `PrepareBasicCircuitsJob` have all fields of `BasicCircuitWitnessGeneratorInput`.
 async fn build_basic_circuits_witness_generator_input(
-    connection_pool: &ProverConnectionPool,
+    server_connection_pool: &ConnectionPool,
     witness_merkle_input: PrepareBasicCircuitsJob,
     l1_batch_number: L1BatchNumber,
 ) -> BasicCircuitWitnessGeneratorInput {
-    let mut connection = connection_pool.access_storage().await.unwrap();
+    let mut connection = server_connection_pool
+        .access_storage::<ProverStorageProcessor>()
+        .await
+        .unwrap();
     let block_header = connection
         .blocks_dal()
         .get_l1_batch_header(l1_batch_number)
@@ -506,7 +527,7 @@ async fn build_basic_circuits_witness_generator_input(
 async fn generate_witness(
     object_store: &dyn ObjectStore,
     config: Arc<FriWitnessGeneratorConfig>,
-    connection_pool: ProverConnectionPool,
+    server_connection_pool: ConnectionPool,
     input: BasicCircuitWitnessGeneratorInput,
 ) -> (
     BlockBasicCircuits<GoldilocksField, ZkSyncDefaultRoundFunction>,
@@ -519,7 +540,10 @@ async fn generate_witness(
     >,
     BlockAuxilaryOutputWitness<GoldilocksField>,
 ) {
-    let mut connection = connection_pool.access_storage().await.unwrap();
+    let mut connection = server_connection_pool
+        .access_storage::<ProverStorageProcessor>()
+        .await
+        .unwrap();
     let header = connection
         .blocks_dal()
         .get_l1_batch_header(input.block_number)
@@ -635,7 +659,7 @@ async fn generate_witness(
         block_aux_witness,
     ) = tokio::task::spawn_blocking(move || {
         let connection = rt_handle
-            .block_on(connection_pool.access_storage())
+            .block_on(server_connection_pool.access_storage::<ProverStorageProcessor>())
             .unwrap();
 
         let storage = PostgresStorage::new(rt_handle, connection, last_miniblock_number, true);

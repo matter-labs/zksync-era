@@ -1,3 +1,4 @@
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::{
     api::{
         BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
@@ -59,7 +60,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let block_number = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .blocks_web3_dal()
@@ -85,7 +86,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let mut connection = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap();
         let block_args = BlockArgs::new(&mut connection, block_id)
@@ -188,7 +189,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let mut connection = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap();
         let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
@@ -278,7 +279,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let block = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .blocks_web3_dal()
@@ -310,7 +311,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let tx_count = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .blocks_web3_dal()
@@ -339,7 +340,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let mut connection = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap();
         let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
@@ -373,7 +374,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let mut connection = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap();
         let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
@@ -404,7 +405,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let mut connection = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap();
 
@@ -450,7 +451,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let mut transaction = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .transactions_web3_dal()
@@ -496,7 +497,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let mut receipt = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .transactions_web3_dal()
@@ -541,7 +542,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let last_block_number = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .blocks_web3_dal()
@@ -713,7 +714,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let mut connection = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap();
         let newest_miniblock =
@@ -760,7 +761,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                 let (block_hashes, last_block_number) = self
                     .state
                     .connection_pool
-                    .access_storage_tagged("api")
+                    .access_storage_tagged::<ServerStorageProcessor>("api")
                     .await
                     .unwrap()
                     .blocks_web3_dal()
@@ -776,7 +777,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                 let (tx_hashes, last_timestamp) = self
                     .state
                     .connection_pool
-                    .access_storage_tagged("api")
+                    .access_storage_tagged::<ServerStorageProcessor>("api")
                     .await
                     .unwrap()
                     .transactions_web3_dal()
@@ -825,7 +826,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                 let mut storage = self
                     .state
                     .connection_pool
-                    .access_storage_tagged("api")
+                    .access_storage_tagged::<ServerStorageProcessor>("api")
                     .await
                     .unwrap();
 

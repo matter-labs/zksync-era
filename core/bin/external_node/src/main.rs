@@ -29,8 +29,9 @@ use zksync_core::{
         MainNodeClient, SyncState,
     },
 };
+use zksync_db_connection::ConnectionPool;
 use zksync_health_check::CheckHealth;
-use zksync_server_dal::{healthcheck::ServerConnectionPoolHealthCheck, ServerConnectionPool};
+use zksync_server_dal::{healthcheck::ConnectionPoolHealthCheck, ServerStorageProcessor};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
@@ -45,7 +46,7 @@ async fn build_state_keeper(
     action_queue: ActionQueue,
     state_keeper_db_path: String,
     config: &ExternalNodeConfig,
-    connection_pool: ServerConnectionPool,
+    connection_pool: ConnectionPool,
     sync_state: SyncState,
     l2_erc20_bridge_addr: Address,
     stop_receiver: watch::Receiver<bool>,
@@ -90,7 +91,7 @@ async fn build_state_keeper(
 
 async fn init_tasks(
     config: ExternalNodeConfig,
-    connection_pool: ServerConnectionPool,
+    connection_pool: ConnectionPool,
 ) -> anyhow::Result<(
     Vec<task::JoinHandle<anyhow::Result<()>>>,
     watch::Sender<bool>,
@@ -122,13 +123,15 @@ async fn init_tasks(
 
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
-    let singleton_pool_builder = ServerConnectionPool::singleton(&config.postgres.database_url);
+    let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
     let fetcher_cursor = {
         let pool = singleton_pool_builder
             .build()
             .await
             .context("failed to build a connection pool for `MainNodeFetcher`")?;
-        let mut storage = pool.access_storage_tagged("sync_layer").await?;
+        let mut storage = pool
+            .access_storage_tagged::<ServerStorageProcessor>("sync_layer")
+            .await?;
         MainNodeFetcherCursor::new(&mut storage)
             .await
             .context("failed to load `MainNodeFetcher` cursor from Postgres")?
@@ -262,9 +265,7 @@ async fn init_tasks(
 
     healthchecks.push(Box::new(ws_server_handles.health_check));
     healthchecks.push(Box::new(http_server_handles.health_check));
-    healthchecks.push(Box::new(ServerConnectionPoolHealthCheck::new(
-        connection_pool,
-    )));
+    healthchecks.push(Box::new(ConnectionPoolHealthCheck::new(connection_pool)));
     let healthcheck_handle = HealthCheckHandle::spawn_server(
         ([0, 0, 0, 0], config.required.healthcheck_port).into(),
         healthchecks,
@@ -346,7 +347,7 @@ async fn main() -> anyhow::Result<()> {
         .main_node_url()
         .context("Main node URL is incorrect")?;
 
-    let connection_pool = ServerConnectionPool::builder(
+    let connection_pool = ConnectionPool::builder(
         &config.postgres.database_url,
         config.postgres.max_connections,
     )
@@ -364,7 +365,10 @@ async fn main() -> anyhow::Result<()> {
             L1ExecutedBatchesRevert::Allowed,
         );
 
-        let mut connection = connection_pool.access_storage().await.unwrap();
+        let mut connection = connection_pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         let sealed_l1_batch_number = connection
             .blocks_dal()
             .get_sealed_l1_batch_number()
@@ -393,7 +397,10 @@ async fn main() -> anyhow::Result<()> {
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
     perform_genesis_if_needed(
-        &mut connection_pool.access_storage().await.unwrap(),
+        &mut connection_pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap(),
         config.remote.l2_chain_id,
         &main_node_client,
     )

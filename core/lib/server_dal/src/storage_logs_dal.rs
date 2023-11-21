@@ -532,8 +532,9 @@ impl StorageLogsDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{tests::create_miniblock_header, ServerConnectionPool};
+    use crate::tests::create_miniblock_header;
     use zksync_contracts::BaseSystemContractsHashes;
+    use zksync_db_connection::ConnectionPool;
     use zksync_types::{
         block::{BlockGasCount, L1BatchHeader},
         ProtocolVersion, ProtocolVersionId,
@@ -574,8 +575,11 @@ mod tests {
 
     #[tokio::test]
     async fn inserting_storage_logs() {
-        let pool = ServerConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+        let mut conn = pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
 
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
@@ -667,8 +671,11 @@ mod tests {
 
     #[tokio::test]
     async fn getting_storage_logs_for_revert() {
-        let pool = ServerConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+        let mut conn = pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
 
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
@@ -723,8 +730,11 @@ mod tests {
 
     #[tokio::test]
     async fn reverting_keys_without_initial_write() {
-        let pool = ServerConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+        let mut conn = pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
 
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))

@@ -1,15 +1,16 @@
 use async_trait::async_trait;
-use zksync_prover_dal::ProverConnectionPool;
+use zksync_db_connection::ConnectionPool;
+use zksync_prover_dal::ProverStorageProcessor;
 use zksync_prover_utils::periodic_job::PeriodicJob;
 
 #[derive(Debug)]
 pub struct FriProverStatsReporter {
     reporting_interval_ms: u64,
-    prover_connection_pool: ProverConnectionPool,
+    prover_connection_pool: ConnectionPool,
 }
 
 impl FriProverStatsReporter {
-    pub fn new(reporting_interval_ms: u64, prover_connection_pool: ProverConnectionPool) -> Self {
+    pub fn new(reporting_interval_ms: u64, prover_connection_pool: ConnectionPool) -> Self {
         Self {
             reporting_interval_ms,
             prover_connection_pool,
@@ -23,7 +24,11 @@ impl PeriodicJob for FriProverStatsReporter {
     const SERVICE_NAME: &'static str = "FriProverStatsReporter";
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
-        let mut conn = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut conn = self
+            .prover_connection_pool
+            .access_storage::<ProverStorageProcessor>()
+            .await
+            .unwrap();
         let stats = conn.fri_prover_jobs_dal().get_prover_jobs_stats().await;
 
         for ((circuit_id, aggregation_round), stats) in stats.into_iter() {

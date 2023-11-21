@@ -1,7 +1,8 @@
 use std::{future::Future, time::Duration};
 
 use tokio::sync::watch;
-use zksync_server_dal::ServerConnectionPool;
+use zksync_db_connection::ConnectionPool;
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::{L1BatchNumber, MiniblockNumber};
 use zksync_web3_decl::{
     jsonrpsee::core::Error as RpcError,
@@ -31,12 +32,12 @@ const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 #[derive(Debug)]
 pub struct ReorgDetector {
     client: HttpClient,
-    pool: ServerConnectionPool,
+    pool: ConnectionPool,
     should_stop: watch::Receiver<bool>,
 }
 
 impl ReorgDetector {
-    pub fn new(url: &str, pool: ServerConnectionPool, should_stop: watch::Receiver<bool>) -> Self {
+    pub fn new(url: &str, pool: ConnectionPool, should_stop: watch::Receiver<bool>) -> Self {
         let client = HttpClientBuilder::default()
             .build(url)
             .expect("Failed to create HTTP client");
@@ -51,7 +52,7 @@ impl ReorgDetector {
     async fn miniblock_hashes_match(&self, miniblock_number: MiniblockNumber) -> RpcResult<bool> {
         let local_hash = self
             .pool
-            .access_storage()
+            .access_storage::<ServerStorageProcessor>()
             .await
             .unwrap()
             .blocks_dal()
@@ -86,7 +87,7 @@ impl ReorgDetector {
         // Unwrapping is fine since the caller always checks that these root hashes exist.
         let local_hash = self
             .pool
-            .access_storage()
+            .access_storage::<ServerStorageProcessor>()
             .await
             .unwrap()
             .blocks_dal()
@@ -146,7 +147,7 @@ impl ReorgDetector {
 
             let sealed_l1_batch_number = self
                 .pool
-                .access_storage()
+                .access_storage::<ServerStorageProcessor>()
                 .await
                 .unwrap()
                 .blocks_dal()
@@ -156,7 +157,7 @@ impl ReorgDetector {
 
             let sealed_miniblock_number = self
                 .pool
-                .access_storage()
+                .access_storage::<ServerStorageProcessor>()
                 .await
                 .unwrap()
                 .blocks_dal()

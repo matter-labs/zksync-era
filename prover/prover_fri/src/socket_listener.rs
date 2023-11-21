@@ -5,7 +5,7 @@ pub mod gpu_socket_listener {
     };
     use std::net::SocketAddr;
     use std::time::Instant;
-    use zksync_prover_dal::ProverConnectionPool;
+    use zksync_db_connection::ConnectionPool;
     use zksync_types::proofs::AggregationRound;
     use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
     use zksync_vk_setup_data_server_fri::{
@@ -25,7 +25,7 @@ pub mod gpu_socket_listener {
     pub(crate) struct SocketListener {
         address: SocketAddress,
         queue: SharedWitnessVectorQueue,
-        pool: ProverConnectionPool,
+        pool: ConnectionPool,
         specialized_prover_group_id: u8,
         zone: String,
     }
@@ -34,7 +34,7 @@ pub mod gpu_socket_listener {
         pub fn new(
             address: SocketAddress,
             queue: SharedWitnessVectorQueue,
-            pool: ProverConnectionPool,
+            pool: ConnectionPool,
             specialized_prover_group_id: u8,
             zone: String,
         ) -> Self {
@@ -59,7 +59,7 @@ pub mod gpu_socket_listener {
 
             let _lock = self.queue.lock().await;
             self.pool
-                .access_storage()
+                .access_storage::<ProverStorageProcessor>()
                 .await
                 .unwrap()
                 .fri_gpu_prover_queue_dal()
@@ -144,7 +144,7 @@ pub mod gpu_socket_listener {
             };
 
             self.pool
-                .access_storage()
+                .access_storage::<ProverStorageProcessor>()
                 .await
                 .unwrap()
                 .fri_gpu_prover_queue_dal()

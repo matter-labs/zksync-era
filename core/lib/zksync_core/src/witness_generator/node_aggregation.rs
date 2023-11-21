@@ -1,12 +1,14 @@
 use async_trait::async_trait;
+use zksync_server_dal::ServerStorageProcessor;
 
 use std::{collections::HashMap, env, time::Instant};
 
+use super::{utils::save_prover_input_artifacts, METRICS};
 use zksync_config::configs::WitnessGeneratorConfig;
+use zksync_db_connection::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_prover_dal::ProverConnectionPool;
+use zksync_prover_dal::ProverStorageProcessor;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_server_dal::ServerConnectionPool;
 use zksync_types::{
     circuit::{
         LEAF_CIRCUIT_INDEX, LEAF_SPLITTING_FACTOR, NODE_CIRCUIT_INDEX, NODE_SPLITTING_FACTOR,
@@ -30,8 +32,6 @@ use zksync_verification_key_server::{
     get_vk_for_circuit_type, get_vks_for_basic_circuits, get_vks_for_commitment,
 };
 
-use super::{utils::save_prover_input_artifacts, METRICS};
-
 pub struct NodeAggregationArtifacts {
     final_node_aggregation: NodeAggregationOutputDataWitness<Bn256>,
     node_circuits: Vec<ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>,
@@ -54,8 +54,8 @@ pub struct NodeAggregationWitnessGenerator {
     config: WitnessGeneratorConfig,
     object_store: Box<dyn ObjectStore>,
     protocol_versions: Vec<ProtocolVersionId>,
-    connection_pool: ServerConnectionPool,
-    prover_connection_pool: ProverConnectionPool,
+    connection_pool: ConnectionPool,
+    prover_connection_pool: ConnectionPool,
 }
 
 impl NodeAggregationWitnessGenerator {
@@ -63,8 +63,8 @@ impl NodeAggregationWitnessGenerator {
         config: WitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
         protocol_versions: Vec<ProtocolVersionId>,
-        connection_pool: ServerConnectionPool,
-        prover_connection_pool: ProverConnectionPool,
+        connection_pool: ConnectionPool,
+        prover_connection_pool: ConnectionPool,
     ) -> Self {
         Self {
             config,
@@ -105,7 +105,11 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
     const SERVICE_NAME: &'static str = "node_aggregation_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut prover_connection = self
+            .prover_connection_pool
+            .access_storage::<ProverStorageProcessor>()
+            .await
+            .unwrap();
         let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
 
         Ok(
@@ -131,7 +135,7 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
     async fn save_failure(&self, job_id: L1BatchNumber, started_at: Instant, error: String) -> () {
         let attempts = self
             .prover_connection_pool
-            .access_storage()
+            .access_storage::<ProverStorageProcessor>()
             .await
             .unwrap()
             .witness_generator_dal()
@@ -145,7 +149,7 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
 
         if attempts >= self.config.max_attempts {
             self.connection_pool
-                .access_storage()
+                .access_storage::<ServerStorageProcessor>()
                 .await
                 .unwrap()
                 .blocks_dal()
@@ -286,12 +290,15 @@ pub fn process_node_aggregation_job(
 }
 
 async fn update_database(
-    prover_connection_pool: &ProverConnectionPool,
+    prover_connection_pool: &ConnectionPool,
     started_at: Instant,
     block_number: L1BatchNumber,
     blob_urls: BlobUrls,
 ) {
-    let mut prover_connection = prover_connection_pool.access_storage().await.unwrap();
+    let mut prover_connection = prover_connection_pool
+        .access_storage::<ProverStorageProcessor>()
+        .await
+        .unwrap();
     let mut transaction = prover_connection.start_transaction().await.unwrap();
 
     // inserts artifacts into the scheduler_witness_jobs table

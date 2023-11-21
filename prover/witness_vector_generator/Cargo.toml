@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 zksync_types = { path = "../../core/lib/types" }
-zksync_server_dal = { path = "../../core/lib/server_dal" }
 zksync_config = { path = "../../core/lib/config" }
 zksync_env_config = { path = "../../core/lib/env_config" }
 zksync_object_store = { path = "../../core/lib/object_store" }
@@ -19,6 +18,8 @@ zksync_prover_utils = { path = "../../core/lib/prover_utils" }
 zksync_queued_job_processor = { path = "../../core/lib/queued_job_processor" }
 vk_setup_data_generator_server_fri = { path = "../vk_setup_data_generator_server_fri" }
 vlog = { path = "../../core/lib/vlog" }
+zksync_db_connection = { path = "../../core/lib/db_connection"}
+zksync_prover_dal = { path = "../prover_dal"}
 
 anyhow = "1.0"
 tracing = "0.1"

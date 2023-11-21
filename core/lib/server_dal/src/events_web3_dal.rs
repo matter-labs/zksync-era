@@ -177,12 +177,15 @@ mod tests {
     use zksync_types::{Address, H256};
 
     use super::*;
-    use crate::connection::ServerConnectionPool;
+    use zksync_db_connection::ConnectionPool;
 
     #[tokio::test]
     async fn test_build_get_logs_where_clause() {
-        let connection_pool = ServerConnectionPool::test_pool().await;
-        let storage = &mut connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+        let storage = &mut connection_pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         let events_web3_dal = EventsWeb3Dal { storage };
         let filter = GetLogsFilter {
             from_block: MiniblockNumber(100),

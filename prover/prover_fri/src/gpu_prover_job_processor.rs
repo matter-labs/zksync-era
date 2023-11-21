@@ -19,9 +19,9 @@ pub mod gpu_prover {
     use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
     use zksync_config::configs::FriProverConfig;
 
+    use zksync_db_connection::ConnectionPool;
     use zksync_env_config::FromEnv;
     use zksync_object_store::ObjectStore;
-    use zksync_prover_dal::ProverConnectionPool;
     use zksync_prover_fri_types::{CircuitWrapper, FriProofWrapper, ProverServiceDataKey};
     use zksync_queued_job_processor::{async_trait, JobProcessor};
     use zksync_types::{basic_fri_types::CircuitIdRoundTuple, proofs::SocketAddress};
@@ -49,7 +49,7 @@ pub mod gpu_prover {
         blob_store: Box<dyn ObjectStore>,
         public_blob_store: Option<Box<dyn ObjectStore>>,
         config: Arc<FriProverConfig>,
-        prover_connection_pool: ProverConnectionPool,
+        prover_connection_pool: ConnectionPool,
         setup_load_mode: SetupLoadMode,
         // Only pick jobs for the configured circuit id and aggregation rounds.
         // Empty means all jobs are picked.
@@ -66,7 +66,7 @@ pub mod gpu_prover {
             blob_store: Box<dyn ObjectStore>,
             public_blob_store: Option<Box<dyn ObjectStore>>,
             config: FriProverConfig,
-            prover_connection_pool: ProverConnectionPool,
+            prover_connection_pool: ConnectionPool,
             setup_load_mode: SetupLoadMode,
             circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
             witness_vector_queue: SharedWitnessVectorQueue,
@@ -204,7 +204,7 @@ pub mod gpu_prover {
                 Ok(item) => {
                     if is_full {
                         self.prover_connection_pool
-                            .access_storage()
+                            .access_storage::<ProverStorageProcessor>()
                             .await
                             .unwrap()
                             .fri_gpu_prover_queue_dal()
@@ -228,7 +228,7 @@ pub mod gpu_prover {
 
         async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
             self.prover_connection_pool
-                .access_storage()
+                .access_storage::<ProverStorageProcessor>()
                 .await
                 .unwrap()
                 .fri_prover_jobs_dal()
@@ -262,7 +262,11 @@ pub mod gpu_prover {
                 "prover_fri.prover.gpu_total_proving_time",
                 started_at.elapsed(),
             );
-            let mut storage_processor = self.prover_connection_pool.access_storage().await.unwrap();
+            let mut storage_processor = self
+                .prover_connection_pool
+                .access_storage::<ProverStorageProcessor>()
+                .await
+                .unwrap();
             save_proof(
                 job_id,
                 started_at,
@@ -283,7 +287,7 @@ pub mod gpu_prover {
         async fn get_job_attempts(&self, job_id: &u32) -> anyhow::Result<u32> {
             let mut prover_storage = self
                 .prover_connection_pool
-                .access_storage()
+                .access_storage::<ProverStorageProcessor>()
                 .await
                 .context("failed to acquire DB connection for Prover")?;
             prover_storage

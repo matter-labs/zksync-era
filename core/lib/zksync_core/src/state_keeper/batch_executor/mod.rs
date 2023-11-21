@@ -7,6 +7,7 @@ use tokio::{
 
 use multivm::MultivmTracer;
 use std::{fmt, sync::Arc};
+use zksync_server_dal::ServerStorageProcessor;
 
 use multivm::{
     interface::{
@@ -17,7 +18,7 @@ use multivm::{
     vm_latest::HistoryEnabled,
     VmInstance,
 };
-use zksync_server_dal::ServerConnectionPool;
+use zksync_db_connection::ConnectionPool;
 use zksync_state::{RocksdbStorage, StorageView, WriteStorage};
 use zksync_types::{vm_trace::Call, witness_block_state::WitnessBlockState, Transaction, U256};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
@@ -86,7 +87,7 @@ pub trait L1BatchExecutorBuilder: 'static + Send + Sync + fmt::Debug {
 #[derive(Debug, Clone)]
 pub struct MainBatchExecutorBuilder {
     state_keeper_db_path: String,
-    pool: ServerConnectionPool,
+    pool: ConnectionPool,
     save_call_traces: bool,
     max_allowed_tx_gas_limit: U256,
     upload_witness_inputs_to_gcs: bool,
@@ -96,7 +97,7 @@ pub struct MainBatchExecutorBuilder {
 impl MainBatchExecutorBuilder {
     pub fn new(
         state_keeper_db_path: String,
-        pool: ServerConnectionPool,
+        pool: ConnectionPool,
         max_allowed_tx_gas_limit: U256,
         save_call_traces: bool,
         upload_witness_inputs_to_gcs: bool,
@@ -124,7 +125,7 @@ impl L1BatchExecutorBuilder for MainBatchExecutorBuilder {
         secondary_storage.enable_enum_index_migration(self.enum_index_migration_chunk_size);
         let mut conn = self
             .pool
-            .access_storage_tagged("state_keeper")
+            .access_storage_tagged::<ServerStorageProcessor>("state_keeper")
             .await
             .unwrap();
         secondary_storage.update_from_postgres(&mut conn).await;

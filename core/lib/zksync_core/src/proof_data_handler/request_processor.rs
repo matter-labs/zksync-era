@@ -10,8 +10,9 @@ use zksync_types::commitment::serialize_commitments;
 use zksync_types::web3::signing::keccak256;
 use zksync_utils::u256_to_h256;
 
+use zksync_db_connection::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
-use zksync_server_dal::{ServerConnectionPool, SqlxError};
+use zksync_server_dal::{ServerStorageProcessor, SqlxError};
 use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::{
     protocol_version::L1VerifierConfig,
@@ -25,7 +26,7 @@ use zksync_types::{
 #[derive(Clone)]
 pub(crate) struct RequestProcessor {
     blob_store: Arc<dyn ObjectStore>,
-    pool: ServerConnectionPool,
+    pool: ConnectionPool,
     config: ProofDataHandlerConfig,
     l1_verifier_config: Option<L1VerifierConfig>,
 }
@@ -70,7 +71,7 @@ impl IntoResponse for RequestProcessorError {
 impl RequestProcessor {
     pub(crate) fn new(
         blob_store: Box<dyn ObjectStore>,
-        pool: ServerConnectionPool,
+        pool: ConnectionPool,
         config: ProofDataHandlerConfig,
         l1_verifier_config: Option<L1VerifierConfig>,
     ) -> Self {
@@ -90,7 +91,7 @@ impl RequestProcessor {
 
         let l1_batch_number = self
             .pool
-            .access_storage()
+            .access_storage::<ServerStorageProcessor>()
             .await
             .unwrap()
             .proof_generation_dal()
@@ -152,7 +153,11 @@ impl RequestProcessor {
                 let events_queue_state_from_prover =
                     H256::from_slice(&proof.aggregation_result_coords[3]);
 
-                let mut storage = self.pool.access_storage().await.unwrap();
+                let mut storage = self
+                    .pool
+                    .access_storage::<ServerStorageProcessor>()
+                    .await
+                    .unwrap();
 
                 let l1_batch = storage
                     .blocks_dal()
@@ -202,7 +207,7 @@ impl RequestProcessor {
             }
             SubmitProofRequest::SkippedProofGeneration => {
                 self.pool
-                    .access_storage()
+                    .access_storage::<ServerStorageProcessor>()
                     .await
                     .unwrap()
                     .proof_generation_dal()

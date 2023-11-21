@@ -5,7 +5,8 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use zksync_server_dal::{ServerConnectionPool, ServerStorageProcessor};
+use zksync_db_connection::ConnectionPool;
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::{L1BatchNumber, MiniblockNumber, StorageKey, StorageValue, H256};
 
 mod metrics;
@@ -271,7 +272,7 @@ impl PostgresStorageCaches {
     pub fn configure_storage_values_cache(
         &mut self,
         capacity: u64,
-        connection_pool: ServerConnectionPool,
+        connection_pool: ConnectionPool,
         rt_handle: Handle,
     ) -> impl FnOnce() -> anyhow::Result<()> + Send {
         assert!(
@@ -298,7 +299,11 @@ impl PostgresStorageCaches {
                     continue;
                 }
                 let mut connection = rt_handle
-                    .block_on(connection_pool.access_storage_tagged("values_cache_updater"))
+                    .block_on(
+                        connection_pool.access_storage_tagged::<ServerStorageProcessor>(
+                            "values_cache_updater",
+                        ),
+                    )
                     .unwrap();
                 values_cache.update(current_miniblock, to_miniblock, &rt_handle, &mut connection);
                 current_miniblock = to_miniblock;

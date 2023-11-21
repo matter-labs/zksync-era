@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};
+use zksync_server_dal::ServerStorageProcessor;
 
 use std::{
     fmt,
@@ -8,7 +9,7 @@ use std::{
 
 use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 
-use zksync_server_dal::ServerConnectionPool;
+use zksync_db_connection::ConnectionPool;
 use zksync_types::{
     block::MiniblockExecutionData, protocol_version::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, L1BatchNumber, MiniblockNumber, ProtocolVersionId,
@@ -210,7 +211,7 @@ impl MiniblockSealerHandle {
 /// Component responsible for sealing miniblocks (i.e., storing their data to Postgres).
 #[derive(Debug)]
 pub(crate) struct MiniblockSealer {
-    pool: ServerConnectionPool,
+    pool: ConnectionPool,
     is_sync: bool,
     // Weak sender handle to get queue capacity stats.
     commands_sender: mpsc::WeakSender<Completable<MiniblockSealCommand>>,
@@ -221,7 +222,7 @@ impl MiniblockSealer {
     /// Creates a sealer that will use the provided Postgres connection and will have the specified
     /// `command_capacity` for unprocessed sealing commands.
     pub(crate) fn new(
-        pool: ServerConnectionPool,
+        pool: ConnectionPool,
         mut command_capacity: usize,
     ) -> (Self, MiniblockSealerHandle) {
         let is_sync = command_capacity == 0;
@@ -262,7 +263,7 @@ impl MiniblockSealer {
         while let Some(completable) = self.next_command().await {
             let mut conn = self
                 .pool
-                .access_storage_tagged("state_keeper")
+                .access_storage_tagged::<ServerStorageProcessor>("state_keeper")
                 .await
                 .unwrap();
             completable.command.seal(&mut conn).await;

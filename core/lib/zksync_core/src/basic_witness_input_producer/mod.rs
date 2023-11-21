@@ -1,10 +1,13 @@
 use anyhow::Context;
 use std::sync::Arc;
 use std::time::Instant;
+use zksync_db_connection::ConnectionPool;
+use zksync_prover_dal::ProverStorageProcessor;
+use zksync_server_dal::ServerStorageProcessor;
 
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_server_dal::{basic_witness_input_producer_dal::JOB_MAX_ATTEMPT, ServerConnectionPool};
+use zksync_server_dal::basic_witness_input_producer_dal::JOB_MAX_ATTEMPT;
 use zksync_types::witness_block_state::WitnessBlockState;
 use zksync_types::{L1BatchNumber, L2ChainId};
 
@@ -26,19 +29,22 @@ use self::vm_interactions::{create_vm, execute_tx};
 /// to be run only using the object store information, having no other external dependency.
 #[derive(Debug)]
 pub struct BasicWitnessInputProducer {
-    connection_pool: ServerConnectionPool,
+    server_connection_pool: ConnectionPool,
+    prover_connection_pool: ConnectionPool,
     l2_chain_id: L2ChainId,
     object_store: Arc<dyn ObjectStore>,
 }
 
 impl BasicWitnessInputProducer {
     pub async fn new(
-        connection_pool: ServerConnectionPool,
+        server_connection_pool: ConnectionPool,
+        prover_connection_pool: ConnectionPool,
         store_factory: &ObjectStoreFactory,
         l2_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         Ok(BasicWitnessInputProducer {
-            connection_pool,
+            server_connection_pool,
+            prover_connection_pool,
             object_store: store_factory.create_store().await.into(),
             l2_chain_id,
         })
@@ -48,11 +54,11 @@ impl BasicWitnessInputProducer {
         rt_handle: Handle,
         l1_batch_number: L1BatchNumber,
         started_at: Instant,
-        connection_pool: ServerConnectionPool,
+        connection_pool: ConnectionPool,
         l2_chain_id: L2ChainId,
     ) -> anyhow::Result<WitnessBlockState> {
         let mut connection = rt_handle
-            .block_on(connection_pool.access_storage())
+            .block_on(connection_pool.access_storage::<ServerStorageProcessor>())
             .context("failed to get connection for BasicWitnessInputProducer")?;
 
         let miniblocks_execution_data = rt_handle.block_on(
@@ -118,7 +124,10 @@ impl JobProcessor for BasicWitnessInputProducer {
     const SERVICE_NAME: &'static str = "basic_witness_input_producer";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut connection = self.connection_pool.access_storage().await?;
+        let mut connection = self
+            .server_connection_pool
+            .access_storage::<ServerStorageProcessor>()
+            .await?;
         let l1_batch_to_process = connection
             .basic_witness_input_producer_dal()
             .get_next_basic_witness_input_producer_job()
@@ -129,8 +138,8 @@ impl JobProcessor for BasicWitnessInputProducer {
 
     async fn save_failure(&self, job_id: Self::JobId, started_at: Instant, error: String) {
         let attempts = self
-            .connection_pool
-            .access_storage()
+            .server_connection_pool
+            .access_storage::<ServerStorageProcessor>()
             .await
             .unwrap()
             .basic_witness_input_producer_dal()
@@ -150,7 +159,7 @@ impl JobProcessor for BasicWitnessInputProducer {
         started_at: Instant,
     ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
         let l2_chain_id = self.l2_chain_id;
-        let connection_pool = self.connection_pool.clone();
+        let connection_pool = self.server_connection_pool.clone();
         tokio::task::spawn_blocking(move || {
             let rt_handle = Handle::current();
             Self::process_job_impl(
@@ -179,8 +188,8 @@ impl JobProcessor for BasicWitnessInputProducer {
             .upload_input_time
             .observe(upload_started_at.elapsed());
         let mut connection = self
-            .connection_pool
-            .access_storage()
+            .server_connection_pool
+            .access_storage::<ServerStorageProcessor>()
             .await
             .context("failed to acquire DB connection for BasicWitnessInputProducer")?;
         let mut transaction = connection
@@ -192,14 +201,19 @@ impl JobProcessor for BasicWitnessInputProducer {
             .mark_job_as_successful(job_id, started_at, &object_path)
             .await
             .context("failed to mark job as successful for BasicWitnessInputProducer")?;
-        transaction
-            .witness_generator_dal()
-            .mark_witness_inputs_job_as_queued(job_id)
-            .await;
+
         transaction
             .commit()
             .await
             .context("failed to commit DB transaction for BasicWitnessInputProducer")?;
+
+        self.prover_connection_pool
+            .access_storage::<ProverStorageProcessor>()
+            .await?
+            .witness_generator_dal()
+            .mark_witness_inputs_job_as_queued(job_id)
+            .await;
+
         METRICS.block_number_processed.set(job_id.0 as i64);
         Ok(())
     }
@@ -210,8 +224,8 @@ impl JobProcessor for BasicWitnessInputProducer {
 
     async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<u32> {
         let mut connection = self
-            .connection_pool
-            .access_storage()
+            .server_connection_pool
+            .access_storage::<ServerStorageProcessor>()
             .await
             .context("failed to acquire DB connection for BasicWitnessInputProducer")?;
         connection

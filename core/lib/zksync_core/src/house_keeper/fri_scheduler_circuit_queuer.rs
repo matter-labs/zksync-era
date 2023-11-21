@@ -1,16 +1,17 @@
 use async_trait::async_trait;
-use zksync_prover_dal::ProverConnectionPool;
+use zksync_db_connection::ConnectionPool;
 
+use zksync_prover_dal::ProverStorageProcessor;
 use zksync_prover_utils::periodic_job::PeriodicJob;
 
 #[derive(Debug)]
 pub struct SchedulerCircuitQueuer {
     queuing_interval_ms: u64,
-    pool: ProverConnectionPool,
+    pool: ConnectionPool,
 }
 
 impl SchedulerCircuitQueuer {
-    pub fn new(queuing_interval_ms: u64, pool: ProverConnectionPool) -> Self {
+    pub fn new(queuing_interval_ms: u64, pool: ConnectionPool) -> Self {
         Self {
             queuing_interval_ms,
             pool,
@@ -18,7 +19,11 @@ impl SchedulerCircuitQueuer {
     }
 
     pub async fn queue_scheduler_circuit_jobs(&mut self) {
-        let mut conn = self.pool.access_storage().await.unwrap();
+        let mut conn = self
+            .pool
+            .access_storage::<ProverStorageProcessor>()
+            .await
+            .unwrap();
         let l1_batch_numbers = conn
             .fri_scheduler_dependency_tracker_dal()
             .get_l1_batches_ready_for_queuing()

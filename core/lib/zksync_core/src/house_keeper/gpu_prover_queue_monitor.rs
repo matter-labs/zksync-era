@@ -1,20 +1,21 @@
 use async_trait::async_trait;
-use zksync_prover_dal::ProverConnectionPool;
+use zksync_db_connection::ConnectionPool;
 
+use zksync_prover_dal::ProverStorageProcessor;
 use zksync_prover_utils::periodic_job::PeriodicJob;
 
 #[derive(Debug)]
 pub struct GpuProverQueueMonitor {
     synthesizer_per_gpu: u16,
     reporting_interval_ms: u64,
-    prover_connection_pool: ProverConnectionPool,
+    prover_connection_pool: ConnectionPool,
 }
 
 impl GpuProverQueueMonitor {
     pub fn new(
         synthesizer_per_gpu: u16,
         reporting_interval_ms: u64,
-        prover_connection_pool: ProverConnectionPool,
+        prover_connection_pool: ConnectionPool,
     ) -> Self {
         Self {
             synthesizer_per_gpu,
@@ -33,7 +34,7 @@ impl PeriodicJob for GpuProverQueueMonitor {
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
         let prover_gpu_count_per_region_zone = self
             .prover_connection_pool
-            .access_storage()
+            .access_storage::<ProverStorageProcessor>()
             .await
             .unwrap()
             .gpu_prover_queue_dal()

@@ -1,7 +1,6 @@
-use crate::models::storage_eth_tx::{
-    L1BatchEthSenderStats, StorageEthTx, StorageTxHistory, StorageTxHistoryToSend,
-};
-use crate::StorageProcessor;
+use std::convert::TryFrom;
+use std::str::FromStr;
+
 use anyhow::Context as _;
 
 use sqlx::{

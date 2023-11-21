@@ -2,7 +2,8 @@ use assert_matches::assert_matches;
 use itertools::Itertools;
 use tempfile::TempDir;
 use tokio::sync::{mpsc, watch};
-use zksync_prover_dal::ProverConnectionPool;
+use zksync_db_connection::ConnectionPool;
+use zksync_prover_dal::ProverStorageProcessor;
 
 use std::{future::Future, ops, panic, path::Path, time::Duration};
 
@@ -11,7 +12,7 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_health_check::{CheckHealth, HealthStatus};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_server_dal::{ServerConnectionPool, ServerStorageProcessor};
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::{
     block::{miniblock_hash, BlockGasCount, L1BatchHeader, MiniblockHeader},
     proofs::PrepareBasicCircuitsJob,
@@ -40,8 +41,8 @@ where
 
 #[tokio::test]
 async fn genesis_creation() {
-    let pool = ServerConnectionPool::test_pool().await;
-    let prover_pool = ProverConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+    let prover_pool = ConnectionPool::test_pool::<ProverStorageProcessor>().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
 
     let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
@@ -57,8 +58,8 @@ async fn genesis_creation() {
 
 #[tokio::test]
 async fn basic_workflow() {
-    let pool = ServerConnectionPool::test_pool().await;
-    let prover_pool = ProverConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+    let prover_pool = ConnectionPool::test_pool::<ProverStorageProcessor>().await;
 
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
 
@@ -84,8 +85,11 @@ async fn basic_workflow() {
     );
 }
 
-async fn expected_tree_hash(pool: &ServerConnectionPool) -> H256 {
-    let mut storage = pool.access_storage().await.unwrap();
+async fn expected_tree_hash(pool: &ConnectionPool) -> H256 {
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     let sealed_l1_batch_number = storage
         .blocks_dal()
         .get_sealed_l1_batch_number()
@@ -103,8 +107,8 @@ async fn expected_tree_hash(pool: &ServerConnectionPool) -> H256 {
 
 #[tokio::test]
 async fn status_receiver_has_correct_states() {
-    let pool = ServerConnectionPool::test_pool().await;
-    let prover_pool = ProverConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+    let prover_pool = ConnectionPool::test_pool::<ProverStorageProcessor>().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
 
     let (mut calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
@@ -152,8 +156,8 @@ async fn status_receiver_has_correct_states() {
 
 #[tokio::test]
 async fn multi_l1_batch_workflow() {
-    let pool = ServerConnectionPool::test_pool().await;
-    let prover_pool = ProverConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+    let prover_pool = ConnectionPool::test_pool::<ProverStorageProcessor>().await;
 
     // Collect all storage logs in a single L1 batch
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
@@ -189,8 +193,8 @@ async fn multi_l1_batch_workflow() {
 
 #[tokio::test]
 async fn running_metadata_calculator_with_additional_blocks() {
-    let pool = ServerConnectionPool::test_pool().await;
-    let prover_pool = ProverConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+    let prover_pool = ConnectionPool::test_pool::<ProverStorageProcessor>().await;
 
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let calculator = setup_lightweight_calculator(temp_dir.path(), &pool).await;
@@ -213,7 +217,14 @@ async fn running_metadata_calculator_with_additional_blocks() {
 
     // Add some new blocks to the storage.
     let new_logs = gen_storage_logs(100..200, 10);
-    extend_db_state(&mut pool.access_storage().await.unwrap(), new_logs).await;
+    extend_db_state(
+        &mut pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap(),
+        new_logs,
+    )
+    .await;
 
     // Wait until these blocks are processed. The calculator may have spurious delays,
     // thus we wait in a loop.
@@ -241,8 +252,8 @@ async fn running_metadata_calculator_with_additional_blocks() {
 
 #[tokio::test]
 async fn shutting_down_calculator() {
-    let pool = ServerConnectionPool::test_pool().await;
-    let prover_pool = ProverConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+    let prover_pool = ConnectionPool::test_pool::<ProverStorageProcessor>().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let (merkle_tree_config, mut operation_config) = create_config(temp_dir.path());
     operation_config.delay_interval = 30_000; // ms; chosen to be larger than `RUN_TIMEOUT`
@@ -271,8 +282,8 @@ async fn test_postgres_backup_recovery(
     sleep_between_batches: bool,
     insert_batch_without_metadata: bool,
 ) {
-    let pool = ServerConnectionPool::test_pool().await;
-    let prover_pool = ProverConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+    let prover_pool = ConnectionPool::test_pool::<ProverStorageProcessor>().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let calculator = setup_lightweight_calculator(temp_dir.path(), &pool).await;
     reset_db_state(&pool, 5).await;
@@ -280,7 +291,10 @@ async fn test_postgres_backup_recovery(
 
     // Simulate recovery from a DB snapshot in which some newer L1 batches are erased.
     let last_batch_after_recovery = L1BatchNumber(3);
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     let removed_batches = remove_l1_batches(&mut storage, last_batch_after_recovery).await;
 
     if insert_batch_without_metadata {
@@ -319,7 +333,10 @@ async fn test_postgres_backup_recovery(
     assert_eq!(next_l1_batch, last_batch_after_recovery + 1);
 
     // Re-insert L1 batches to the storage after recovery.
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     for batch_header in &removed_batches {
         let mut txn = storage.start_transaction().await.unwrap();
         txn.blocks_dal()
@@ -369,7 +386,7 @@ async fn postgres_backup_recovery_with_excluded_metadata() {
 
 pub(crate) async fn setup_calculator(
     db_path: &Path,
-    pool: &ServerConnectionPool,
+    pool: &ConnectionPool,
 ) -> (MetadataCalculator, Box<dyn ObjectStore>) {
     let store_factory = &ObjectStoreFactory::mock();
     let (merkle_tree_config, operation_manager) = create_config(db_path);
@@ -381,10 +398,7 @@ pub(crate) async fn setup_calculator(
     (calculator, store_factory.create_store().await)
 }
 
-async fn setup_lightweight_calculator(
-    db_path: &Path,
-    pool: &ServerConnectionPool,
-) -> MetadataCalculator {
+async fn setup_lightweight_calculator(db_path: &Path, pool: &ConnectionPool) -> MetadataCalculator {
     let mode = MetadataCalculatorModeConfig::Lightweight;
     let (db_config, operation_config) = create_config(db_path);
     setup_calculator_with_options(&db_config, &operation_config, pool, mode).await
@@ -405,14 +419,17 @@ fn create_config(db_path: &Path) -> (MerkleTreeConfig, OperationsManagerConfig) 
 async fn setup_calculator_with_options(
     merkle_tree_config: &MerkleTreeConfig,
     operation_config: &OperationsManagerConfig,
-    pool: &ServerConnectionPool,
+    pool: &ConnectionPool,
     mode: MetadataCalculatorModeConfig<'_>,
 ) -> MetadataCalculator {
     let calculator_config =
         MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_config, mode);
     let metadata_calculator = MetadataCalculator::new(&calculator_config).await;
 
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
         ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
             .await
@@ -427,8 +444,8 @@ fn path_to_string(path: &Path) -> String {
 
 pub(crate) async fn run_calculator(
     mut calculator: MetadataCalculator,
-    pool: ServerConnectionPool,
-    prover_pool: ProverConnectionPool,
+    pool: ConnectionPool,
+    prover_pool: ConnectionPool,
 ) -> H256 {
     let (stop_sx, stop_rx) = watch::channel(false);
     let (delay_sx, mut delay_rx) = mpsc::unbounded_channel();
@@ -453,8 +470,11 @@ pub(crate) async fn run_calculator(
     delayer_handle.await.unwrap()
 }
 
-pub(crate) async fn reset_db_state(pool: &ServerConnectionPool, num_batches: usize) {
-    let mut storage = pool.access_storage().await.unwrap();
+pub(crate) async fn reset_db_state(pool: &ConnectionPool, num_batches: usize) {
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     // Drops all L1 batches (except the L1 batch with number 0) and their storage logs.
     storage
         .storage_logs_dal()
@@ -649,8 +669,11 @@ async fn remove_l1_batches(
 
 #[tokio::test]
 async fn deduplication_works_as_expected() {
-    let pool = ServerConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
         .await
         .unwrap();

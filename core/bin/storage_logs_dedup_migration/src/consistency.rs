@@ -1,9 +1,9 @@
 use clap::Parser;
 
 use zksync_config::PostgresConfig;
-use zksync_dal::ServerConnectionPool;
+use zksync_db_connection::ConnectionPool;
 use zksync_env_config::FromEnv;
-
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::MiniblockNumber;
 
 const MIGRATED_TABLE: &str = "storage_logs";
@@ -27,11 +27,14 @@ struct Cli {
 async fn main() {
     let config = PostgresConfig::from_env().unwrap();
     let opt = Cli::parse();
-    let pool = ServerConnectionPool::singleton(config.replica_url().unwrap())
+    let pool = ConnectionPool::singleton(config.replica_url().unwrap())
         .build()
         .await
         .unwrap();
-    let mut connection = pool.access_storage().await.unwrap();
+    let mut connection = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
 
     println!(
         "Consistency check started for miniblock range {}..={}",

@@ -3,15 +3,11 @@ use clap::{Parser, Subcommand};
 use tokio::io::{self, AsyncReadExt};
 
 use zksync_config::{ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, PostgresConfig};
-use zksync_dal::ConnectionPool;
-use zksync_env_config::FromEnv;
-use zksync_types::{L1BatchNumber, U256};
-
 use zksync_core::block_reverter::{
     BlockReverter, BlockReverterEthConfig, BlockReverterFlags, L1ExecutedBatchesRevert,
 };
+use zksync_db_connection::ConnectionPool;
 use zksync_env_config::FromEnv;
-use zksync_server_dal::{connection::DbVariant, ServerConnectionPool};
 use zksync_types::{L1BatchNumber, U256};
 
 #[derive(Debug, Parser)]
@@ -98,13 +94,13 @@ async fn main() -> anyhow::Result<()> {
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
     let config = BlockReverterEthConfig::new(eth_sender, contracts, eth_client.web3_url.clone());
 
-    let connection_pool = ServerConnectionPool::builder(
+    let connection_pool = ConnectionPool::builder(
         postgres_config.master_url()?,
         postgres_config.max_connections()?,
     )
     .build()
     .await
-    .context("failed to build a connection pool")?;
+    .context("failed to build server connection pool")?;
 
     let mut block_reverter = BlockReverter::new(
         db_config.state_keeper_db_path,

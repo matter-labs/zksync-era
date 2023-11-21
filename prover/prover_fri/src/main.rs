@@ -13,7 +13,9 @@ use zksync_env_config::{
     FromEnv,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_prover_dal::{connection::DbVariant, ProverConnectionPool};
+
+use zksync_db_connection::ConnectionPool;
+use zksync_prover_dal::ProverStorageProcessor;
 use zksync_prover_fri_utils::get_all_circuit_id_round_tuples_for;
 
 use local_ip_address::local_ip;
@@ -31,17 +33,17 @@ mod utils;
 
 async fn graceful_shutdown(port: u16) -> anyhow::Result<impl Future<Output = ()>> {
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let pool = ProverConnectionPool::singleton(postgres_config.prover_url()?)
+    let pool = ConnectionPool::singleton(postgres_config.prover_url()?)
         .build()
         .await
-        .context("failed to build a connection pool")?;
+        .context("failed to build prover connection pool")?;
     let host = local_ip().context("Failed obtaining local IP address")?;
     let prover_group_config =
         ProverGroupConfig::from_env().context("ProverGroupConfig::from_env()")?;
     let zone = get_zone(&prover_group_config).await.context("get_zone()")?;
     let address = SocketAddress { host, port };
     Ok(async move {
-        pool.access_storage()
+        pool.access_storage::<ProverStorageProcessor>()
             .await
             .unwrap()
             .fri_gpu_prover_queue_dal()
@@ -117,13 +119,13 @@ async fn main() -> anyhow::Result<()> {
     );
 
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let pool = ProverConnectionPool::builder(
+    let pool = ConnectionPool::builder(
         postgres_config.prover_url()?,
         postgres_config.max_connections()?,
     )
     .build()
     .await
-    .context("failed to build a connection pool")?;
+    .context("failed to build prover connection pool")?;
 
     let port = prover_config.witness_vector_receiver_port;
     let prover_tasks = get_prover_tasks(
@@ -167,7 +169,7 @@ async fn get_prover_tasks(
     stop_receiver: Receiver<bool>,
     store_factory: ObjectStoreFactory,
     public_blob_store: Option<Box<dyn ObjectStore>>,
-    pool: ProverConnectionPool,
+    pool: ConnectionPool,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     use crate::prover_job_processor::{load_setup_data_cache, Prover};
@@ -200,7 +202,7 @@ async fn get_prover_tasks(
     stop_receiver: Receiver<bool>,
     store_factory: ObjectStoreFactory,
     public_blob_store: Option<Box<dyn ObjectStore>>,
-    pool: ProverConnectionPool,
+    pool: ConnectionPool,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     use gpu_prover_job_processor::gpu_prover;

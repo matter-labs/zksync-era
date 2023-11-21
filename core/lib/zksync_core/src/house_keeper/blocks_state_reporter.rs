@@ -1,8 +1,9 @@
 use async_trait::async_trait;
 
-use zksync_prover_dal::ProverConnectionPool;
+use zksync_db_connection::ConnectionPool;
+use zksync_prover_dal::ProverStorageProcessor;
 use zksync_prover_utils::periodic_job::PeriodicJob;
-use zksync_server_dal::ServerConnectionPool;
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_utils::time::seconds_since_epoch;
 
 use crate::metrics::{BlockL1Stage, BlockStage, L1StageLatencyLabel, APP_METRICS};
@@ -10,15 +11,15 @@ use crate::metrics::{BlockL1Stage, BlockStage, L1StageLatencyLabel, APP_METRICS}
 #[derive(Debug)]
 pub struct L1BatchMetricsReporter {
     reporting_interval_ms: u64,
-    server_connection_pool: ServerConnectionPool,
-    prover_connection_pool: ProverConnectionPool,
+    server_connection_pool: ConnectionPool,
+    prover_connection_pool: ConnectionPool,
 }
 
 impl L1BatchMetricsReporter {
     pub fn new(
         reporting_interval_ms: u64,
-        server_connection_pool: ServerConnectionPool,
-        prover_connection_pool: ProverConnectionPool,
+        server_connection_pool: ConnectionPool,
+        prover_connection_pool: ConnectionPool,
     ) -> Self {
         Self {
             reporting_interval_ms,
@@ -28,8 +29,16 @@ impl L1BatchMetricsReporter {
     }
 
     async fn report_metrics(&self) {
-        let mut server_conn = self.server_connection_pool.access_storage().await.unwrap();
-        let mut prover_conn = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut server_conn = self
+            .server_connection_pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
+        let mut prover_conn = self
+            .prover_connection_pool
+            .access_storage::<ProverStorageProcessor>()
+            .await
+            .unwrap();
         let mut block_metrics = vec![
             (
                 server_conn

@@ -346,7 +346,7 @@ impl L1BatchWithLogs {
 mod tests {
     use tempfile::TempDir;
 
-    use zksync_server_dal::ServerConnectionPool;
+    use zksync_db_connection::ConnectionPool;
     use zksync_types::{proofs::PrepareBasicCircuitsJob, L2ChainId, StorageKey, StorageLogKind};
 
     use super::*;
@@ -419,9 +419,12 @@ mod tests {
 
     #[tokio::test]
     async fn loaded_logs_equivalence_basics() {
-        let pool = ServerConnectionPool::test_pool().await;
+        let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
         ensure_genesis_state(
-            &mut pool.access_storage().await.unwrap(),
+            &mut pool
+                .access_storage::<ServerStorageProcessor>()
+                .await
+                .unwrap(),
             L2ChainId::from(270),
             &GenesisParams::mock(),
         )
@@ -429,7 +432,10 @@ mod tests {
         .unwrap();
         reset_db_state(&pool, 5).await;
 
-        let mut storage = pool.access_storage().await.unwrap();
+        let mut storage = pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         for l1_batch_number in 0..=5 {
             let l1_batch_number = L1BatchNumber(l1_batch_number);
             let batch_with_logs = L1BatchWithLogs::new(&mut storage, l1_batch_number)
@@ -444,8 +450,11 @@ mod tests {
 
     #[tokio::test]
     async fn loaded_logs_equivalence_with_zero_no_op_logs() {
-        let pool = ServerConnectionPool::test_pool().await;
-        let mut storage = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+        let mut storage = pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
             .await
             .unwrap();
@@ -534,8 +543,11 @@ mod tests {
 
     #[tokio::test]
     async fn loaded_logs_equivalence_with_non_zero_no_op_logs() {
-        let pool = ServerConnectionPool::test_pool().await;
-        let mut storage = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+        let mut storage = pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
             .await
             .unwrap();
@@ -581,8 +593,11 @@ mod tests {
 
     #[tokio::test]
     async fn loaded_logs_equivalence_with_protective_reads() {
-        let pool = ServerConnectionPool::test_pool().await;
-        let mut storage = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+        let mut storage = pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
             .await
             .unwrap();

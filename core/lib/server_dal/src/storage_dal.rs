@@ -212,13 +212,16 @@ impl StorageDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ServerConnectionPool;
+    use zksync_db_connection::ConnectionPool;
     use zksync_types::{AccountTreeId, Address};
 
     #[tokio::test]
     async fn applying_storage_logs() {
-        let pool = ServerConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+        let mut conn = pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
 
         let account = AccountTreeId::new(Address::repeat_byte(1));
         let first_key = StorageKey::new(account, H256::zero());

@@ -3,7 +3,9 @@ use jsonrpc_pubsub::typed;
 use tokio::sync::watch;
 use tokio::time::{interval, Duration};
 
-use zksync_server_dal::ServerConnectionPool;
+use zksync_db_connection::ConnectionPool;
+use zksync_server_dal::ServerStorageProcessor;
+
 use zksync_types::MiniblockNumber;
 use zksync_web3_decl::types::{PubSubFilter, PubSubResult};
 
@@ -14,12 +16,12 @@ use super::{
 
 pub async fn notify_blocks(
     subscribers: SubscriptionMap<typed::Sink<PubSubResult>>,
-    connection_pool: ServerConnectionPool,
+    connection_pool: ConnectionPool,
     polling_interval: Duration,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let mut last_block_number = connection_pool
-        .access_storage_tagged("api")
+        .access_storage_tagged::<ServerStorageProcessor>("api")
         .await
         .unwrap()
         .blocks_web3_dal()
@@ -37,7 +39,7 @@ pub async fn notify_blocks(
 
         let db_latency = PUB_SUB_METRICS.db_poll_latency[&SubscriptionType::Blocks].start();
         let new_blocks = connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .blocks_web3_dal()
@@ -75,7 +77,7 @@ pub async fn notify_blocks(
 
 pub async fn notify_txs(
     subscribers: SubscriptionMap<typed::Sink<PubSubResult>>,
-    connection_pool: ServerConnectionPool,
+    connection_pool: ConnectionPool,
     polling_interval: Duration,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
@@ -91,7 +93,7 @@ pub async fn notify_txs(
 
         let db_latency = PUB_SUB_METRICS.db_poll_latency[&SubscriptionType::Txs].start();
         let (new_txs, new_last_time) = connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .transactions_web3_dal()
@@ -128,12 +130,12 @@ pub async fn notify_txs(
 
 pub async fn notify_logs(
     subscribers: SubscriptionMap<(typed::Sink<PubSubResult>, PubSubFilter)>,
-    connection_pool: ServerConnectionPool,
+    connection_pool: ConnectionPool,
     polling_interval: Duration,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let mut last_block_number = connection_pool
-        .access_storage_tagged("api")
+        .access_storage_tagged::<ServerStorageProcessor>("api")
         .await
         .unwrap()
         .blocks_web3_dal()
@@ -151,7 +153,7 @@ pub async fn notify_logs(
 
         let db_latency = PUB_SUB_METRICS.db_poll_latency[&SubscriptionType::Logs].start();
         let new_logs = connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .events_web3_dal()

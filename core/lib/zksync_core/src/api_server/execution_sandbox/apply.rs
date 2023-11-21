@@ -13,7 +13,8 @@ use multivm::vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryDisabled};
 use multivm::interface::VmInterface;
 use multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv};
 use multivm::VmInstance;
-use zksync_server_dal::{ServerConnectionPool, ServerStorageProcessor, SqlxError};
+use zksync_db_connection::ConnectionPool;
+use zksync_server_dal::{ServerStorageProcessor, SqlxError};
 use zksync_state::{PostgresStorage, ReadStorage, StorageView, WriteStorage};
 use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
@@ -39,7 +40,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     vm_permit: VmPermit,
     shared_args: TxSharedArgs,
     execution_args: &TxExecutionArgs,
-    connection_pool: &ServerConnectionPool,
+    connection_pool: &ConnectionPool,
     tx: Transaction,
     block_args: BlockArgs,
     apply: impl FnOnce(
@@ -52,7 +53,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
 
     let rt_handle = vm_permit.rt_handle();
     let mut connection = rt_handle
-        .block_on(connection_pool.access_storage_tagged("api"))
+        .block_on(connection_pool.access_storage_tagged::<ServerStorageProcessor>("api"))
         .unwrap();
     let connection_acquire_time = stage_started_at.elapsed();
     // We don't want to emit too many logs.

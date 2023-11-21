@@ -1,9 +1,11 @@
 use crate::{CircuitBreaker, CircuitBreakerError};
-use zksync_server_dal::ServerConnectionPool;
+
+use zksync_db_connection::ConnectionPool;
+use zksync_server_dal::ServerStorageProcessor;
 
 #[derive(Debug)]
 pub struct FailedL1TransactionChecker {
-    pub pool: ServerConnectionPool,
+    pub pool: ConnectionPool,
 }
 
 #[async_trait::async_trait]
@@ -11,7 +13,7 @@ impl CircuitBreaker for FailedL1TransactionChecker {
     async fn check(&self) -> Result<(), CircuitBreakerError> {
         if self
             .pool
-            .access_storage()
+            .access_storage::<ServerStorageProcessor>()
             .await
             .unwrap()
             .eth_sender_dal()

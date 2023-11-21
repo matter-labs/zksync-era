@@ -8,7 +8,8 @@ use multivm::vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES;
 
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
-use zksync_server_dal::ServerConnectionPool;
+use zksync_db_connection::ConnectionPool;
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_state::RocksdbStorage;
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
@@ -54,21 +55,21 @@ impl TestConfig {
 }
 
 /// Tester represents an entity that can initialize the state and create batch executors over this storage.
-/// Important: `Tester` must be a *sole* owner of the `ServerConnectionPool`, since the test pool cannot be shared.
+/// Important: `Tester` must be a *sole* owner of the `ConnectionPool`, since the test pool cannot be shared.
 #[derive(Debug)]
 pub(super) struct Tester {
     fee_account: Address,
     db_dir: TempDir,
-    pool: ServerConnectionPool,
+    pool: ConnectionPool,
     config: TestConfig,
 }
 
 impl Tester {
-    pub(super) fn new(pool: ServerConnectionPool) -> Self {
+    pub(super) fn new(pool: ConnectionPool) -> Self {
         Self::with_config(pool, TestConfig::new())
     }
 
-    pub(super) fn with_config(pool: ServerConnectionPool, config: TestConfig) -> Self {
+    pub(super) fn with_config(pool: ConnectionPool, config: TestConfig) -> Self {
         Self {
             fee_account: Address::repeat_byte(0x01),
             db_dir: TempDir::new().unwrap(),
@@ -94,14 +95,14 @@ impl Tester {
         let mut secondary_storage = RocksdbStorage::new(self.db_dir.path());
         let mut conn = self
             .pool
-            .access_storage_tagged("state_keeper")
+            .access_storage_tagged::<ServerStorageProcessor>("state_keeper")
             .await
             .unwrap();
 
         secondary_storage.update_from_postgres(&mut conn).await;
         drop(conn);
 
-        // We don't use the builder because it would require us to clone the `ServerConnectionPool`, which is forbidden
+        // We don't use the builder because it would require us to clone the `ConnectionPool`, which is forbidden
         // for the test pool (see the doc-comment on `TestPool` for details).
         BatchExecutorHandle::new(
             self.config.save_call_traces,
@@ -135,7 +136,7 @@ impl Tester {
     pub(super) async fn genesis(&self) {
         let mut storage = self
             .pool
-            .access_storage_tagged("state_keeper")
+            .access_storage_tagged::<ServerStorageProcessor>("state_keeper")
             .await
             .unwrap();
         if storage.blocks_dal().is_genesis_needed().await.unwrap() {
@@ -158,7 +159,7 @@ impl Tester {
     pub(super) async fn fund(&self, addresses: &[Address]) {
         let mut storage = self
             .pool
-            .access_storage_tagged("state_keeper")
+            .access_storage_tagged::<ServerStorageProcessor>("state_keeper")
             .await
             .unwrap();
 

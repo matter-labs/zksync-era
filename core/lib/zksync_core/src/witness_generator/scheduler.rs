@@ -1,12 +1,13 @@
 use async_trait::async_trait;
+use zksync_server_dal::ServerStorageProcessor;
 
 use std::{collections::HashMap, slice, time::Instant};
 
 use zksync_config::configs::WitnessGeneratorConfig;
+use zksync_db_connection::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_prover_dal::ProverConnectionPool;
+use zksync_prover_dal::ProverStorageProcessor;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_server_dal::ServerConnectionPool;
 use zksync_types::{
     circuit::{
         LEAF_CIRCUIT_INDEX, LEAF_SPLITTING_FACTOR, NODE_CIRCUIT_INDEX, NODE_SPLITTING_FACTOR,
@@ -42,8 +43,8 @@ pub struct SchedulerWitnessGenerator {
     config: WitnessGeneratorConfig,
     object_store: Box<dyn ObjectStore>,
     protocol_versions: Vec<ProtocolVersionId>,
-    server_connection_pool: ServerConnectionPool,
-    prover_connection_pool: ProverConnectionPool,
+    server_connection_pool: ConnectionPool,
+    prover_connection_pool: ConnectionPool,
 }
 
 impl SchedulerWitnessGenerator {
@@ -51,8 +52,8 @@ impl SchedulerWitnessGenerator {
         config: WitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
         protocol_versions: Vec<ProtocolVersionId>,
-        connection_pool: ServerConnectionPool,
-        prover_connection_pool: ProverConnectionPool,
+        connection_pool: ConnectionPool,
+        prover_connection_pool: ConnectionPool,
     ) -> Self {
         Self {
             config,
@@ -87,8 +88,16 @@ impl JobProcessor for SchedulerWitnessGenerator {
     const SERVICE_NAME: &'static str = "scheduler_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut connection = self.server_connection_pool.access_storage().await.unwrap();
-        let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut connection = self
+            .server_connection_pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
+        let mut prover_connection = self
+            .prover_connection_pool
+            .access_storage::<ProverStorageProcessor>()
+            .await
+            .unwrap();
         let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
 
         match prover_connection
@@ -128,7 +137,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
     async fn save_failure(&self, job_id: L1BatchNumber, started_at: Instant, error: String) -> () {
         let attempts = self
             .prover_connection_pool
-            .access_storage()
+            .access_storage::<ProverStorageProcessor>()
             .await
             .unwrap()
             .witness_generator_dal()
@@ -142,7 +151,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
 
         if attempts >= self.config.max_attempts {
             self.server_connection_pool
-                .access_storage()
+                .access_storage::<ServerStorageProcessor>()
                 .await
                 .unwrap()
                 .blocks_dal()
@@ -263,14 +272,17 @@ pub fn process_scheduler_job(
 }
 
 pub async fn update_database(
-    connection_pool: &ServerConnectionPool,
-    prover_connection_pool: &ProverConnectionPool,
+    connection_pool: &ConnectionPool,
+    prover_connection_pool: &ConnectionPool,
     started_at: Instant,
     block_number: L1BatchNumber,
     final_aggregation_result: BlockApplicationWitness<Bn256>,
     circuit_types_and_urls: Vec<(&'static str, String)>,
 ) {
-    let mut connection = connection_pool.access_storage().await.unwrap();
+    let mut connection = connection_pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     let block = connection
         .blocks_dal()
         .get_l1_batch_metadata(block_number)
@@ -298,7 +310,10 @@ pub async fn update_database(
         "Commitment is wrong"
     );
 
-    let mut prover_connection = prover_connection_pool.access_storage().await.unwrap();
+    let mut prover_connection = prover_connection_pool
+        .access_storage::<ProverStorageProcessor>()
+        .await
+        .unwrap();
     let mut transaction = prover_connection.start_transaction().await.unwrap();
     let protocol_version = transaction
         .witness_generator_dal()

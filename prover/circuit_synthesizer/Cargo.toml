@@ -9,6 +9,8 @@ path = "src/main.rs"
 
 [dependencies]
 zksync_prover_dal = { path = "../prover_dal" }
+zksync_db_connection = { path = "../../core/lib/db_connection" }
+zksync_server_dal = { path = "../../core/lib/server_dal" }
 zksync_types = { path = "../../core/lib/types" }
 zksync_queued_job_processor = { path = "../../core/lib/queued_job_processor" }
 zksync_config = { path = "../../core/lib/config" }

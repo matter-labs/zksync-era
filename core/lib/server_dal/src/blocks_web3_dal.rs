@@ -587,18 +587,22 @@ impl BlocksWeb3Dal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_contracts::BaseSystemContractsHashes;
+    use zksync_db_connection::ConnectionPool;
     use zksync_types::{
         block::{miniblock_hash, MiniblockHeader},
         MiniblockNumber, ProtocolVersion, ProtocolVersionId,
     };
 
     use super::*;
-    use crate::{tests::create_miniblock_header, ServerConnectionPool};
+    use crate::tests::create_miniblock_header;
 
     #[tokio::test]
     async fn getting_web3_block_and_tx_count() {
-        let connection_pool = ServerConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+        let mut conn = connection_pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await
@@ -665,8 +669,11 @@ mod tests {
 
     #[tokio::test]
     async fn resolving_earliest_block_id() {
-        let connection_pool = ServerConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+        let mut conn = connection_pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await
@@ -681,8 +688,11 @@ mod tests {
 
     #[tokio::test]
     async fn resolving_latest_block_id() {
-        let connection_pool = ServerConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+        let mut conn = connection_pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await
@@ -737,8 +747,11 @@ mod tests {
 
     #[tokio::test]
     async fn resolving_block_by_hash() {
-        let connection_pool = ServerConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+        let mut conn = connection_pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await
@@ -768,8 +781,11 @@ mod tests {
 
     #[tokio::test]
     async fn getting_miniblocks_for_virtual_block() {
-        let connection_pool = ServerConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+        let mut conn = connection_pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
 
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())

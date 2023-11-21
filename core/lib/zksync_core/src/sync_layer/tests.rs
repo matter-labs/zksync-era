@@ -11,7 +11,10 @@ use std::{
 
 use zksync_config::configs::chain::NetworkConfig;
 use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
-use zksync_server_dal::{ServerConnectionPool, ServerStorageProcessor};
+
+use zksync_db_connection::ConnectionPool;
+use zksync_server_dal::ServerStorageProcessor;
+
 use zksync_types::{
     api, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256,
 };
@@ -187,11 +190,17 @@ async fn ensure_genesis(storage: &mut ServerStorageProcessor<'_>) {
 }
 
 /// `tx_hashes` are grouped by the L1 batch.
-async fn run_state_keeper(pool: ServerConnectionPool, tx_hashes: &[&[H256]]) -> StateKeeperHandles {
+async fn run_state_keeper(pool: ConnectionPool, tx_hashes: &[&[H256]]) -> StateKeeperHandles {
     assert!(!tx_hashes.is_empty());
     assert!(tx_hashes.iter().all(|tx_hashes| !tx_hashes.is_empty()));
 
-    ensure_genesis(&mut pool.access_storage().await.unwrap()).await;
+    ensure_genesis(
+        &mut pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap(),
+    )
+    .await;
 
     let (actions_sender, actions) = ActionQueue::new();
     let sync_state = SyncState::new();
@@ -240,7 +249,7 @@ fn extract_tx_hashes<'a>(actions: impl IntoIterator<Item = &'a SyncAction>) -> V
 
 #[tokio::test]
 async fn external_io_basics() {
-    let pool = ServerConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let open_l1_batch = open_l1_batch(1, 1, 1);
     let tx = create_l2_transaction(10, 100);
     let tx_hash = tx.hash();
@@ -255,7 +264,10 @@ async fn external_io_basics() {
         .await;
 
     // Check that the miniblock is persisted.
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     let miniblock = storage
         .blocks_dal()
         .get_miniblock_header(MiniblockNumber(1))
@@ -278,7 +290,7 @@ async fn external_io_basics() {
     assert_eq!(tx_receipt.transaction_index, 0.into());
 }
 
-async fn run_state_keeper_with_multiple_miniblocks(pool: ServerConnectionPool) -> Vec<H256> {
+async fn run_state_keeper_with_multiple_miniblocks(pool: ConnectionPool) -> Vec<H256> {
     let open_l1_batch = open_l1_batch(1, 1, 1);
     let txs = (0..5).map(|_| {
         let tx = create_l2_transaction(10, 100);
@@ -326,13 +338,16 @@ async fn run_state_keeper_with_multiple_miniblocks(pool: ServerConnectionPool) -
 
 #[tokio::test]
 async fn external_io_with_multiple_miniblocks() {
-    let pool = ServerConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let tx_hashes = run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
     assert_eq!(tx_hashes.len(), 8);
 
     // Check that both miniblocks are persisted.
     let tx_hashes_by_miniblock = [(1, &tx_hashes[..5]), (2, &tx_hashes[5..])];
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     for (number, expected_tx_hashes) in tx_hashes_by_miniblock {
         let miniblock = storage
             .blocks_dal()
@@ -360,7 +375,7 @@ async fn external_io_with_multiple_miniblocks() {
     test_external_io_recovery(pool, tx_hashes).await;
 }
 
-async fn test_external_io_recovery(pool: ServerConnectionPool, mut tx_hashes: Vec<H256>) {
+async fn test_external_io_recovery(pool: ConnectionPool, mut tx_hashes: Vec<H256>) {
     let new_tx = create_l2_transaction(10, 100);
     tx_hashes.push(new_tx.hash());
     let new_tx = SyncAction::Tx(Box::new(new_tx.into()));
@@ -384,7 +399,10 @@ async fn test_external_io_recovery(pool: ServerConnectionPool, mut tx_hashes: Ve
         .wait(|state| state.get_local_block() == MiniblockNumber(3))
         .await;
 
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     let miniblock = storage
         .blocks_dal()
         .get_miniblock_header(MiniblockNumber(3))
@@ -395,9 +413,12 @@ async fn test_external_io_recovery(pool: ServerConnectionPool, mut tx_hashes: Ve
     assert_eq!(miniblock.timestamp, 3);
 }
 
-async fn mock_l1_batch_hash_computation(pool: ServerConnectionPool, number: u32) {
+async fn mock_l1_batch_hash_computation(pool: ConnectionPool, number: u32) {
     loop {
-        let mut storage = pool.access_storage().await.unwrap();
+        let mut storage = pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         let last_l1_batch_number = storage
             .blocks_dal()
             .get_sealed_l1_batch_number()
@@ -425,7 +446,7 @@ async fn mock_l1_batch_hash_computation(pool: ServerConnectionPool, number: u32)
 
 #[tokio::test]
 async fn external_io_with_multiple_l1_batches() {
-    let pool = ServerConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let l1_batch = open_l1_batch(1, 1, 1);
     let first_tx = create_l2_transaction(10, 100);
     let first_tx_hash = first_tx.hash();
@@ -467,7 +488,10 @@ async fn external_io_with_multiple_l1_batches() {
         .await;
     hash_task.await.unwrap();
 
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     let l1_batch_header = storage
         .blocks_dal()
         .get_l1_batch_header(L1BatchNumber(1))
@@ -498,8 +522,11 @@ async fn external_io_with_multiple_l1_batches() {
 
 #[tokio::test]
 async fn fetcher_basics() {
-    let pool = ServerConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     ensure_genesis(&mut storage).await;
     let fetcher_cursor = MainNodeFetcherCursor::new(&mut storage).await.unwrap();
     assert_eq!(fetcher_cursor.l1_batch, L1BatchNumber(0));
@@ -577,7 +604,7 @@ async fn fetcher_basics() {
 
 #[tokio::test]
 async fn fetcher_with_real_server() {
-    let pool = ServerConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     // Fill in transactions grouped in multiple miniblocks in the storage.
     let tx_hashes = run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
     let mut tx_hashes = VecDeque::from(tx_hashes);

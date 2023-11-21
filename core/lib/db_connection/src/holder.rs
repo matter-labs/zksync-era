@@ -5,7 +5,7 @@ use std::fmt;
 
 /// Connection holder unifies the type of underlying connection, which
 /// can be either pooled or direct.
-pub(crate) enum ConnectionHolder<'a> {
+pub enum ConnectionHolder<'a> {
     Pooled(PoolConnection<Postgres>),
     Transaction(Transaction<'a, Postgres>),
 }

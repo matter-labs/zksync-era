@@ -1,4 +1,5 @@
 use tokio::sync::RwLock;
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_utils::h256_to_u256;
 
 use std::{
@@ -13,7 +14,7 @@ use std::{
 };
 
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
-use zksync_server_dal::ServerConnectionPool;
+use zksync_db_connection::ConnectionPool;
 use zksync_types::{
     api::{self, BlockId, BlockNumber, GetLogsFilter},
     block::unpack_block_upgrade_info,
@@ -97,7 +98,7 @@ impl SealedMiniblockNumber {
     /// Creates a handle to the last sealed miniblock number together with a task that will update
     /// it on a schedule.
     pub fn new(
-        connection_pool: ServerConnectionPool,
+        connection_pool: ConnectionPool,
         update_interval: Duration,
     ) -> (Self, impl Future<Output = ()> + Send) {
         let this = Self(Arc::default());
@@ -110,7 +111,10 @@ impl SealedMiniblockNumber {
                     break;
                 }
 
-                let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
+                let mut connection = connection_pool
+                    .access_storage_tagged::<ServerStorageProcessor>("api")
+                    .await
+                    .unwrap();
                 let last_sealed_miniblock = connection
                     .blocks_web3_dal()
                     .get_sealed_miniblock_number()
@@ -166,7 +170,7 @@ impl SealedMiniblockNumber {
 #[derive(Debug)]
 pub struct RpcState<E> {
     pub installed_filters: Arc<RwLock<Filters>>,
-    pub connection_pool: ServerConnectionPool,
+    pub connection_pool: ConnectionPool,
     pub tx_sender: TxSender<E>,
     pub sync_state: Option<SyncState>,
     pub(super) api_config: InternalApiConfig,
@@ -226,7 +230,7 @@ impl<E> RpcState<E> {
         let block_id = api::BlockId::Number(block_number);
         let mut conn = self
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap();
         Ok(conn
@@ -254,7 +258,7 @@ impl<E> RpcState<E> {
             (Some(block_hash), None, None) => {
                 let block_number = self
                     .connection_pool
-                    .access_storage_tagged("api")
+                    .access_storage_tagged::<ServerStorageProcessor>("api")
                     .await
                     .unwrap()
                     .blocks_web3_dal()
@@ -282,7 +286,7 @@ impl<E> RpcState<E> {
 
         let pending_block = self
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .blocks_web3_dal()
@@ -311,7 +315,7 @@ impl<E> RpcState<E> {
             let block_id = api::BlockId::Number(api::BlockNumber::Latest);
             let mut connection = self
                 .connection_pool
-                .access_storage_tagged("api")
+                .access_storage_tagged::<ServerStorageProcessor>("api")
                 .await
                 .unwrap();
             let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
@@ -343,7 +347,7 @@ impl<E> RpcState<E> {
 
         let mut conn = self
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap();
 
@@ -440,7 +444,7 @@ impl<E> RpcState<E> {
 
         let mut conn = self
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap();
 
@@ -510,7 +514,7 @@ impl<E> RpcState<E> {
 
         let mut storage = self
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap();
 

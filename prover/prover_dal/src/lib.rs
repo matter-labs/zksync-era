@@ -10,7 +10,7 @@ use anyhow::Context as _;
 use sqlx::pool::PoolConnection;
 pub use sqlx::types::BigDecimal;
 
-use zksync_db_utils::connection_holder::ConnectionHolder;
+use zksync_db_connection::{holder::ConnectionHolder, StorageProcessor};
 
 // Local imports
 use crate::fri_gpu_prover_queue_dal::FriGpuProverQueueDal;
@@ -24,9 +24,6 @@ use crate::prover_dal::ProverDal;
 use crate::prover_protocol_versions_dal::ProverProtocolVersionsDal;
 use crate::witness_generator_dal::WitnessGeneratorDal;
 
-pub use crate::connection::ProverConnectionPool;
-
-pub mod connection;
 pub mod fri_gpu_prover_queue_dal;
 pub mod fri_proof_compressor_dal;
 pub mod fri_protocol_versions_dal;
@@ -62,18 +59,19 @@ pub struct ProverStorageProcessor<'a> {
     in_transaction: bool,
 }
 
-impl<'a> ProverStorageProcessor<'a> {
-    pub async fn establish_connection() -> anyhow::Result<ProverStorageProcessor<'static>> {
-        let database_url = get_prover_database_url()?;
-        let connection = PgConnection::connect(&database_url)
-            .await
-            .context("PgConnectio::connect()")?;
-        Ok(ProverStorageProcessor {
-            conn: ConnectionHolder::Direct(connection),
+impl<'a> StorageProcessor for ProverStorageProcessor<'a> {
+    /// Creates a `ServerStorageProcessor` using a pool of connections.
+    /// This method borrows one of the connections from the pool, and releases it
+    /// after `drop`.
+    fn from_pool(conn: PoolConnection<Postgres>) -> Self {
+        Self {
+            conn: ConnectionHolder::Pooled(conn),
             in_transaction: false,
-        })
+        }
     }
+}
 
+impl<'a> ProverStorageProcessor<'a> {
     pub async fn start_transaction<'c: 'b, 'b>(
         &'c mut self,
     ) -> sqlx::Result<ProverStorageProcessor<'b>> {
@@ -83,12 +81,12 @@ impl<'a> ProverStorageProcessor<'a> {
         Ok(processor)
     }
 
-    /// Checks if the `ProverStorageProcessor` is currently within database transaction.
+    /// Checks if the `ServerStorageProcessor` is currently within database transaction.
     pub fn in_transaction(&self) -> bool {
         self.in_transaction
     }
 
-    pub fn from_transaction(conn: Transaction<'a, Postgres>) -> Self {
+    fn from_transaction(conn: Transaction<'a, Postgres>) -> Self {
         Self {
             conn: ConnectionHolder::Transaction(conn),
             in_transaction: true,
@@ -99,24 +97,13 @@ impl<'a> ProverStorageProcessor<'a> {
         if let ConnectionHolder::Transaction(transaction) = self.conn {
             transaction.commit().await
         } else {
-            panic!("ProverStorageProcessor::commit can only be invoked after calling ProverStorageProcessor::begin_transaction");
-        }
-    }
-
-    /// Creates a `ProverStorageProcessor` using a pool of connections.
-    /// This method borrows one of the connections from the pool, and releases it
-    /// after `drop`.
-    pub fn from_pool(conn: PoolConnection<Postgres>) -> Self {
-        Self {
-            conn: ConnectionHolder::Pooled(conn),
-            in_transaction: false,
+            panic!("ServerStorageProcessor::commit can only be invoked after calling ServerStorageProcessor::begin_transaction");
         }
     }
 
     fn conn(&mut self) -> &mut PgConnection {
         match &mut self.conn {
             ConnectionHolder::Pooled(conn) => conn,
-            ConnectionHolder::Direct(conn) => conn,
             ConnectionHolder::Transaction(conn) => conn,
         }
     }

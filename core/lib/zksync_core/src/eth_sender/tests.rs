@@ -8,9 +8,10 @@ use zksync_config::{
     ContractsConfig, ETHSenderConfig, GasAdjusterConfig,
 };
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_db_connection::ConnectionPool;
 use zksync_eth_client::{clients::mock::MockEthereum, EthInterface};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_server_dal::{ServerConnectionPool, ServerStorageProcessor};
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::{
     aggregated_operations::{
         AggregatedOperation, L1BatchCommitOperation, L1BatchExecuteOperation, L1BatchProofOperation,
@@ -49,7 +50,7 @@ static DUMMY_OPERATION: Lazy<AggregatedOperation> = Lazy::new(|| {
 
 #[derive(Debug)]
 struct EthSenderTester {
-    conn: ServerConnectionPool,
+    conn: ConnectionPool,
     gateway: Arc<MockEthereum>,
     manager: MockEthTxManager,
     aggregator: EthTxAggregator,
@@ -61,7 +62,7 @@ impl EthSenderTester {
     const MAX_BASE_FEE_SAMPLES: usize = 3;
 
     async fn new(
-        connection_pool: ServerConnectionPool,
+        connection_pool: ConnectionPool,
         history: Vec<u64>,
         non_ordering_confirmations: bool,
     ) -> Self {
@@ -134,7 +135,10 @@ impl EthSenderTester {
     }
 
     async fn storage(&self) -> ServerStorageProcessor<'_> {
-        self.conn.access_storage().await.unwrap()
+        self.conn
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap()
     }
 
     async fn get_block_numbers(&self) -> L1BlockNumbers {
@@ -147,7 +151,7 @@ impl EthSenderTester {
 // Tests that we send multiple transactions and confirm them all in one iteration.
 #[tokio::test]
 async fn confirm_many() -> anyhow::Result<()> {
-    let connection_pool = ServerConnectionPool::test_pool().await;
+    let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let mut tester = EthSenderTester::new(connection_pool, vec![10; 100], false).await;
 
     let mut hashes = vec![];
@@ -156,7 +160,11 @@ async fn confirm_many() -> anyhow::Result<()> {
         let tx = tester
             .aggregator
             .save_eth_tx(
-                &mut tester.conn.access_storage().await.unwrap(),
+                &mut tester
+                    .conn
+                    .access_storage::<ServerStorageProcessor>()
+                    .await
+                    .unwrap(),
                 &DUMMY_OPERATION,
                 true,
             )
@@ -164,7 +172,11 @@ async fn confirm_many() -> anyhow::Result<()> {
         let hash = tester
             .manager
             .send_eth_tx(
-                &mut tester.conn.access_storage().await.unwrap(),
+                &mut tester
+                    .conn
+                    .access_storage::<ServerStorageProcessor>()
+                    .await
+                    .unwrap(),
                 &tx,
                 0,
                 L1BlockNumber(tester.gateway.block_number("").await?.as_u32()),
@@ -196,7 +208,11 @@ async fn confirm_many() -> anyhow::Result<()> {
     let to_resend = tester
         .manager
         .monitor_inflight_transactions(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester
+                .conn
+                .access_storage::<ServerStorageProcessor>()
+                .await
+                .unwrap(),
             tester.get_block_numbers().await,
         )
         .await?;
@@ -223,7 +239,7 @@ async fn confirm_many() -> anyhow::Result<()> {
 // Tests that we resend first unmined transaction every block with an increased gas price.
 #[tokio::test]
 async fn resend_each_block() -> anyhow::Result<()> {
-    let connection_pool = ServerConnectionPool::test_pool().await;
+    let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let mut tester = EthSenderTester::new(connection_pool, vec![7, 6, 5, 5, 5, 2, 1], false).await;
 
     // after this, median should be 6
@@ -234,7 +250,11 @@ async fn resend_each_block() -> anyhow::Result<()> {
     let tx = tester
         .aggregator
         .save_eth_tx(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester
+                .conn
+                .access_storage::<ServerStorageProcessor>()
+                .await
+                .unwrap(),
             &DUMMY_OPERATION,
             true,
         )
@@ -243,7 +263,11 @@ async fn resend_each_block() -> anyhow::Result<()> {
     let hash = tester
         .manager
         .send_eth_tx(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester
+                .conn
+                .access_storage::<ServerStorageProcessor>()
+                .await
+                .unwrap(),
             &tx,
             0,
             block,
@@ -277,7 +301,11 @@ async fn resend_each_block() -> anyhow::Result<()> {
     let (to_resend, _) = tester
         .manager
         .monitor_inflight_transactions(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester
+                .conn
+                .access_storage::<ServerStorageProcessor>()
+                .await
+                .unwrap(),
             block_numbers,
         )
         .await?
@@ -286,7 +314,11 @@ async fn resend_each_block() -> anyhow::Result<()> {
     let resent_hash = tester
         .manager
         .send_eth_tx(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester
+                .conn
+                .access_storage::<ServerStorageProcessor>()
+                .await
+                .unwrap(),
             &to_resend,
             1,
             block_numbers.latest,
@@ -318,12 +350,16 @@ async fn resend_each_block() -> anyhow::Result<()> {
 // we won't mark it as confirmed but also won't resend it.
 #[tokio::test]
 async fn dont_resend_already_mined() -> anyhow::Result<()> {
-    let connection_pool = ServerConnectionPool::test_pool().await;
+    let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], false).await;
     let tx = tester
         .aggregator
         .save_eth_tx(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester
+                .conn
+                .access_storage::<ServerStorageProcessor>()
+                .await
+                .unwrap(),
             &DUMMY_OPERATION,
             true,
         )
@@ -333,7 +369,11 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
     let hash = tester
         .manager
         .send_eth_tx(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester
+                .conn
+                .access_storage::<ServerStorageProcessor>()
+                .await
+                .unwrap(),
             &tx,
             0,
             L1BlockNumber(tester.gateway.block_number("").await.unwrap().as_u32()),
@@ -363,7 +403,11 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
     let to_resend = tester
         .manager
         .monitor_inflight_transactions(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester
+                .conn
+                .access_storage::<ServerStorageProcessor>()
+                .await
+                .unwrap(),
             tester.get_block_numbers().await,
         )
         .await?;
@@ -389,7 +433,7 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn three_scenarios() -> anyhow::Result<()> {
-    let connection_pool = ServerConnectionPool::test_pool().await;
+    let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let mut tester = EthSenderTester::new(connection_pool.clone(), vec![100; 100], false).await;
     let mut hashes = vec![];
 
@@ -397,7 +441,11 @@ async fn three_scenarios() -> anyhow::Result<()> {
         let tx = tester
             .aggregator
             .save_eth_tx(
-                &mut tester.conn.access_storage().await.unwrap(),
+                &mut tester
+                    .conn
+                    .access_storage::<ServerStorageProcessor>()
+                    .await
+                    .unwrap(),
                 &DUMMY_OPERATION,
                 true,
             )
@@ -407,7 +455,11 @@ async fn three_scenarios() -> anyhow::Result<()> {
         let hash = tester
             .manager
             .send_eth_tx(
-                &mut tester.conn.access_storage().await.unwrap(),
+                &mut tester
+                    .conn
+                    .access_storage::<ServerStorageProcessor>()
+                    .await
+                    .unwrap(),
                 &tx,
                 0,
                 L1BlockNumber(tester.gateway.block_number("").await.unwrap().as_u32()),
@@ -434,7 +486,11 @@ async fn three_scenarios() -> anyhow::Result<()> {
     let (to_resend, _) = tester
         .manager
         .monitor_inflight_transactions(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester
+                .conn
+                .access_storage::<ServerStorageProcessor>()
+                .await
+                .unwrap(),
             tester.get_block_numbers().await,
         )
         .await?
@@ -462,13 +518,17 @@ async fn three_scenarios() -> anyhow::Result<()> {
 #[should_panic(expected = "We can't operate after tx fail")]
 #[tokio::test]
 async fn failed_eth_tx() {
-    let connection_pool = ServerConnectionPool::test_pool().await;
+    let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let mut tester = EthSenderTester::new(connection_pool.clone(), vec![100; 100], false).await;
 
     let tx = tester
         .aggregator
         .save_eth_tx(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester
+                .conn
+                .access_storage::<ServerStorageProcessor>()
+                .await
+                .unwrap(),
             &DUMMY_OPERATION,
             true,
         )
@@ -478,7 +538,11 @@ async fn failed_eth_tx() {
     let hash = tester
         .manager
         .send_eth_tx(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester
+                .conn
+                .access_storage::<ServerStorageProcessor>()
+                .await
+                .unwrap(),
             &tx,
             0,
             L1BlockNumber(tester.gateway.block_number("").await.unwrap().as_u32()),
@@ -494,7 +558,11 @@ async fn failed_eth_tx() {
     tester
         .manager
         .monitor_inflight_transactions(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester
+                .conn
+                .access_storage::<ServerStorageProcessor>()
+                .await
+                .unwrap(),
             tester.get_block_numbers().await,
         )
         .await
@@ -535,7 +603,7 @@ fn l1_batch_with_metadata(header: L1BatchHeader) -> L1BatchWithMetadata {
 
 #[tokio::test]
 async fn correct_order_for_confirmations() -> anyhow::Result<()> {
-    let connection_pool = ServerConnectionPool::test_pool().await;
+    let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true).await;
     insert_genesis_protocol_version(&tester).await;
     let genesis_l1_batch = insert_l1_batch(&tester, L1BatchNumber(0)).await;
@@ -596,7 +664,7 @@ async fn correct_order_for_confirmations() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
-    let connection_pool = ServerConnectionPool::test_pool().await;
+    let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true).await;
     insert_genesis_protocol_version(&tester).await;
     let genesis_l1_batch = insert_l1_batch(&tester, L1BatchNumber(0)).await;
@@ -689,7 +757,7 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
-    let connection_pool = ServerConnectionPool::test_pool().await;
+    let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true).await;
     insert_genesis_protocol_version(&tester).await;
     let genesis_l1_batch = insert_l1_batch(&tester, L1BatchNumber(0)).await;
@@ -776,7 +844,7 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn test_parse_multicall_data() {
-    let connection_pool = ServerConnectionPool::test_pool().await;
+    let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let tester = EthSenderTester::new(connection_pool, vec![100; 100], false).await;
 
     let original_correct_form_data = Token::Array(vec![
@@ -856,7 +924,7 @@ async fn test_parse_multicall_data() {
 
 #[tokio::test]
 async fn get_multicall_data() {
-    let connection_pool = ServerConnectionPool::test_pool().await;
+    let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], false).await;
     let multicall_data = tester.aggregator.get_multicall_data(&tester.gateway).await;
     assert!(multicall_data.is_ok());
@@ -951,7 +1019,11 @@ async fn send_operation(
     let tx = tester
         .aggregator
         .save_eth_tx(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester
+                .conn
+                .access_storage::<ServerStorageProcessor>()
+                .await
+                .unwrap(),
             &aggregated_operation,
             false,
         )
@@ -961,7 +1033,11 @@ async fn send_operation(
     let hash = tester
         .manager
         .send_eth_tx(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester
+                .conn
+                .access_storage::<ServerStorageProcessor>()
+                .await
+                .unwrap(),
             &tx,
             0,
             L1BlockNumber(tester.gateway.block_number("").await.unwrap().as_u32()),
@@ -984,7 +1060,11 @@ async fn confirm_tx(tester: &mut EthSenderTester, hash: H256) {
     tester
         .manager
         .monitor_inflight_transactions(
-            &mut tester.conn.access_storage().await.unwrap(),
+            &mut tester
+                .conn
+                .access_storage::<ServerStorageProcessor>()
+                .await
+                .unwrap(),
             tester.get_block_numbers().await,
         )
         .await

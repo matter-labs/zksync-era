@@ -18,8 +18,9 @@ use zksync_vk_setup_data_server_fri::utils::get_leaf_vk_params;
 
 use crate::utils::{load_proofs_for_job_ids, SchedulerPartialInputWrapper};
 use zksync_config::configs::FriWitnessGeneratorConfig;
+use zksync_db_connection::ConnectionPool;
 use zksync_object_store::{FriCircuitKey, ObjectStore, ObjectStoreFactory};
-use zksync_prover_dal::ProverConnectionPool;
+use zksync_prover_dal::ProverStorageProcessor;
 use zksync_prover_fri_types::{get_current_pod_name, CircuitWrapper, FriProofWrapper};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::proofs::AggregationRound;
@@ -45,7 +46,7 @@ pub struct SchedulerWitnessGeneratorJob {
 pub struct SchedulerWitnessGenerator {
     config: FriWitnessGeneratorConfig,
     object_store: Box<dyn ObjectStore>,
-    connection_pool: ProverConnectionPool,
+    connection_pool: ConnectionPool,
     protocol_versions: Vec<FriProtocolVersionId>,
 }
 
@@ -53,7 +54,7 @@ impl SchedulerWitnessGenerator {
     pub async fn new(
         config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
-        connection_pool: ProverConnectionPool,
+        connection_pool: ConnectionPool,
         protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {
@@ -113,7 +114,11 @@ impl JobProcessor for SchedulerWitnessGenerator {
     const SERVICE_NAME: &'static str = "fri_scheduler_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut connection = self.connection_pool.access_storage().await.unwrap();
+        let mut connection = self
+            .connection_pool
+            .access_storage::<ProverStorageProcessor>()
+            .await
+            .unwrap();
         let pod_name = get_current_pod_name();
         let Some(l1_batch_number) = connection
             .fri_witness_generator_dal()
@@ -137,7 +142,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
 
     async fn save_failure(&self, job_id: L1BatchNumber, _started_at: Instant, error: String) -> () {
         self.connection_pool
-            .access_storage()
+            .access_storage::<ProverStorageProcessor>()
             .await
             .unwrap()
             .fri_witness_generator_dal()
@@ -179,7 +184,11 @@ impl JobProcessor for SchedulerWitnessGenerator {
                     "aggregation_round" => format!("{:?}", AggregationRound::Scheduler),
         );
 
-        let mut connection = self.connection_pool.access_storage().await.unwrap();
+        let mut connection = self
+            .connection_pool
+            .access_storage::<ProverStorageProcessor>()
+            .await
+            .unwrap();
         let mut transaction = connection.start_transaction().await.unwrap();
         let protocol_version_id = transaction
             .fri_witness_generator_dal()
@@ -213,12 +222,12 @@ impl JobProcessor for SchedulerWitnessGenerator {
     }
 
     async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<u32> {
-        let mut prover_storage = self
+        let mut storage = self
             .prover_connection_pool
-            .access_storage()
+            .access_storage::<ProverStorageProcessor>()
             .await
             .context("failed to acquire DB connection for SchedulerWitnessGenerator")?;
-        prover_storage
+        storage
             .fri_witness_generator_dal()
             .get_scheduler_witness_job_attempts(*job_id)
             .await

@@ -201,7 +201,8 @@ impl EventsDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{tests::create_miniblock_header, ServerConnectionPool};
+    use crate::tests::create_miniblock_header;
+    use zksync_db_connection::ConnectionPool;
     use zksync_types::{Address, L1BatchNumber, ProtocolVersion};
 
     fn create_vm_event(index: u8, topic_count: u8) -> VmEvent {
@@ -216,8 +217,11 @@ mod tests {
 
     #[tokio::test]
     async fn storing_events() {
-        let pool = ServerConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+        let mut conn = pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         conn.events_dal().rollback_events(MiniblockNumber(0)).await;
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
@@ -292,8 +296,11 @@ mod tests {
 
     #[tokio::test]
     async fn storing_l2_to_l1_logs() {
-        let pool = ServerConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+        let mut conn = pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         conn.events_dal()
             .rollback_l2_to_l1_logs(MiniblockNumber(0))
             .await;

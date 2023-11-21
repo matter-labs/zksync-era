@@ -7,7 +7,7 @@ use zksync_config::{
     configs::chain::{MempoolConfig, NetworkConfig, StateKeeperConfig},
     ContractsConfig, DBConfig,
 };
-use zksync_server_dal::ServerConnectionPool;
+use zksync_db_connection::ConnectionPool;
 use zksync_system_constants::MAX_TXS_IN_BLOCK;
 
 mod batch_executor;
@@ -41,7 +41,7 @@ pub(crate) async fn create_state_keeper<G>(
     db_config: &DBConfig,
     network_config: &NetworkConfig,
     mempool_config: &MempoolConfig,
-    pool: ServerConnectionPool,
+    pool: ConnectionPool,
     mempool: MempoolGuard,
     l1_gas_price_provider: Arc<G>,
     miniblock_sealer_handle: MiniblockSealerHandle,

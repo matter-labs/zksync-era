@@ -6,8 +6,9 @@ use multivm::interface::{TxExecutionMode, VmExecutionMode, VmExecutionResultAndL
 use multivm::tracers::StorageInvocations;
 use multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use multivm::MultivmTracer;
-use zksync_server_dal::ServerConnectionPool;
+use zksync_db_connection::ConnectionPool;
 
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::{
     fee::TransactionExecutionMetrics, l2::L2Tx, ExecuteTransactionCommon, Nonce,
     PackedEthSignature, Transaction, U256,
@@ -76,7 +77,7 @@ impl TxExecutionArgs {
 pub(crate) async fn execute_tx_eth_call(
     vm_permit: VmPermit,
     shared_args: TxSharedArgs,
-    connection_pool: ServerConnectionPool,
+    connection_pool: ConnectionPool,
     mut tx: L2Tx,
     block_args: BlockArgs,
     vm_execution_cache_misses_limit: Option<usize>,
@@ -113,10 +114,13 @@ pub(crate) async fn execute_tx_with_pending_state(
     vm_permit: VmPermit,
     mut shared_args: TxSharedArgs,
     execution_args: TxExecutionArgs,
-    connection_pool: ServerConnectionPool,
+    connection_pool: ConnectionPool,
     tx: Transaction,
 ) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics) {
-    let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
+    let mut connection = connection_pool
+        .access_storage_tagged::<ServerStorageProcessor>("api")
+        .await
+        .unwrap();
     let block_args = BlockArgs::pending(&mut connection).await;
     drop(connection);
     // In order for execution to pass smoothlessly, we need to ensure that block's required gasPerPubdata will be
@@ -143,7 +147,7 @@ async fn execute_tx_in_sandbox(
     vm_permit: VmPermit,
     shared_args: TxSharedArgs,
     execution_args: TxExecutionArgs,
-    connection_pool: ServerConnectionPool,
+    connection_pool: ConnectionPool,
     tx: Transaction,
     block_args: BlockArgs,
     custom_tracers: Vec<ApiTracer>,

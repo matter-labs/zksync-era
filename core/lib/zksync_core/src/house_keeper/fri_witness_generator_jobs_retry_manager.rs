@@ -1,12 +1,13 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use zksync_prover_dal::ProverConnectionPool;
+use zksync_db_connection::ConnectionPool;
+use zksync_prover_dal::ProverStorageProcessor;
 use zksync_prover_utils::periodic_job::PeriodicJob;
 
 #[derive(Debug)]
 pub struct FriWitnessGeneratorJobRetryManager {
-    pool: ProverConnectionPool,
+    pool: ConnectionPool,
     max_attempts: u32,
     processing_timeout: Duration,
     retry_interval_ms: u64,
@@ -17,7 +18,7 @@ impl FriWitnessGeneratorJobRetryManager {
         max_attempts: u32,
         processing_timeout: Duration,
         retry_interval_ms: u64,
-        pool: ProverConnectionPool,
+        pool: ConnectionPool,
     ) -> Self {
         Self {
             max_attempts,
@@ -30,7 +31,7 @@ impl FriWitnessGeneratorJobRetryManager {
     pub async fn requeue_stuck_witness_inputs_jobs(&mut self) {
         let stuck_jobs = self
             .pool
-            .access_storage()
+            .access_storage::<ProverStorageProcessor>()
             .await
             .unwrap()
             .fri_witness_generator_dal()
@@ -46,7 +47,7 @@ impl FriWitnessGeneratorJobRetryManager {
     pub async fn requeue_stuck_leaf_aggregations_jobs(&mut self) {
         let stuck_jobs = self
             .pool
-            .access_storage()
+            .access_storage::<ProverStorageProcessor>()
             .await
             .unwrap()
             .fri_witness_generator_dal()
@@ -65,7 +66,7 @@ impl FriWitnessGeneratorJobRetryManager {
     pub async fn requeue_stuck_node_aggregations_jobs(&mut self) {
         let stuck_jobs = self
             .pool
-            .access_storage()
+            .access_storage::<ProverStorageProcessor>()
             .await
             .unwrap()
             .fri_witness_generator_dal()
@@ -84,7 +85,7 @@ impl FriWitnessGeneratorJobRetryManager {
     pub async fn requeue_stuck_scheduler_jobs(&mut self) {
         let stuck_jobs = self
             .pool
-            .access_storage()
+            .access_storage::<ProverStorageProcessor>()
             .await
             .unwrap()
             .fri_witness_generator_dal()

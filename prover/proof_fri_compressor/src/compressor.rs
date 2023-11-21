@@ -4,8 +4,8 @@ use std::time::Instant;
 use tokio::task::JoinHandle;
 
 use zkevm_test_harness::proof_wrapper_utils::{wrap_proof, WrapperConfig};
+use zksync_db_connection::ConnectionPool;
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::ProverConnectionPool;
 use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::GoldilocksField;
 use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::{
     ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
@@ -26,7 +26,7 @@ use zksync_vk_setup_data_server_fri::{get_recursive_layer_vk_for_circuit_type, g
 
 pub struct ProofCompressor {
     blob_store: Box<dyn ObjectStore>,
-    pool: ProverConnectionPool,
+    pool: ConnectionPool,
     compression_mode: u8,
     verify_wrapper_proof: bool,
     max_attempts: u32,
@@ -35,7 +35,7 @@ pub struct ProofCompressor {
 impl ProofCompressor {
     pub fn new(
         blob_store: Box<dyn ObjectStore>,
-        pool: ProverConnectionPool,
+        pool: ConnectionPool,
         compression_mode: u8,
         verify_wrapper_proof: bool,
         max_attempts: u32,
@@ -104,7 +104,11 @@ impl JobProcessor for ProofCompressor {
     const SERVICE_NAME: &'static str = "ProofCompressor";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut conn = self.pool.access_storage().await.unwrap();
+        let mut conn = self
+            .pool
+            .access_storage::<ProverStorageProcessor>()
+            .await
+            .unwrap();
         let pod_name = get_current_pod_name();
         let Some(l1_batch_number) = conn
             .fri_proof_compressor_dal()
@@ -140,7 +144,7 @@ impl JobProcessor for ProofCompressor {
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
         self.pool
-            .access_storage()
+            .access_storage::<ProverStorageProcessor>()
             .await
             .unwrap()
             .fri_proof_compressor_dal()
@@ -197,7 +201,7 @@ impl JobProcessor for ProofCompressor {
             blob_save_started_at.elapsed(),
         );
         self.pool
-            .access_storage()
+            .access_storage::<ProverStorageProcessor>()
             .await
             .unwrap()
             .fri_proof_compressor_dal()
@@ -213,7 +217,7 @@ impl JobProcessor for ProofCompressor {
     async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<u32> {
         let mut prover_storage = self
             .pool
-            .access_storage()
+            .access_storage::<ProverStorageProcessor>()
             .await
             .context("failed to acquire DB connection for ProofCompressor")?;
         prover_storage

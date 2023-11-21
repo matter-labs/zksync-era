@@ -511,7 +511,7 @@ mod tests {
     use crate::test_utils::{
         create_l1_batch, create_miniblock, gen_storage_logs, prepare_postgres,
     };
-    use zksync_server_dal::ServerConnectionPool;
+    use zksync_db_connection::ConnectionPool;
     use zksync_types::{MiniblockNumber, StorageLog};
 
     #[tokio::test]
@@ -552,8 +552,11 @@ mod tests {
 
     #[tokio::test]
     async fn rocksdb_storage_syncing_with_postgres() {
-        let pool = ServerConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+        let mut conn = pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);
         create_miniblock(&mut conn, MiniblockNumber(1), storage_logs.clone()).await;
@@ -584,8 +587,11 @@ mod tests {
 
     #[tokio::test]
     async fn rocksdb_storage_revert() {
-        let pool = ServerConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+        let mut conn = pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);
         create_miniblock(&mut conn, MiniblockNumber(1), storage_logs[..10].to_vec()).await;
@@ -656,8 +662,11 @@ mod tests {
 
     #[tokio::test]
     async fn rocksdb_enum_index_migration() {
-        let pool = ServerConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+        let mut conn = pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);
         create_miniblock(&mut conn, MiniblockNumber(1), storage_logs.clone()).await;

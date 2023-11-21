@@ -8,18 +8,20 @@ use rand::{
 use rand::rngs::StdRng;
 use std::{collections::HashMap, mem};
 
-use zksync_server_dal::ServerConnectionPool;
+use zksync_db_connection::ConnectionPool;
 use zksync_types::StorageLog;
 
 use super::*;
 use crate::test_utils::{create_l1_batch, create_miniblock, gen_storage_logs, prepare_postgres};
 
 fn test_postgres_storage_basics(
-    pool: &ServerConnectionPool,
+    pool: &ConnectionPool,
     rt_handle: Handle,
     cache_initial_writes: bool,
 ) {
-    let mut connection = rt_handle.block_on(pool.access_storage()).unwrap();
+    let mut connection = rt_handle
+        .block_on(pool.access_storage::<ServerStorageProcessor>())
+        .unwrap();
     rt_handle.block_on(prepare_postgres(&mut connection));
     let mut storage = PostgresStorage::new(rt_handle, connection, MiniblockNumber(0), true);
     if cache_initial_writes {
@@ -127,7 +129,7 @@ fn test_postgres_storage_basics(
 
 #[tokio::test]
 async fn postgres_storage_basics() {
-    let pool = ServerConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     tokio::task::spawn_blocking(move || {
         test_postgres_storage_basics(&pool, Handle::current(), false);
     })
@@ -137,7 +139,7 @@ async fn postgres_storage_basics() {
 
 #[tokio::test]
 async fn postgres_storage_with_initial_writes_cache() {
-    let pool = ServerConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     tokio::task::spawn_blocking(move || {
         test_postgres_storage_basics(&pool, Handle::current(), true);
     })
@@ -146,11 +148,13 @@ async fn postgres_storage_with_initial_writes_cache() {
 }
 
 fn test_postgres_storage_after_sealing_miniblock(
-    pool: &ServerConnectionPool,
+    pool: &ConnectionPool,
     rt_handle: Handle,
     consider_new_l1_batch: bool,
 ) {
-    let mut connection = rt_handle.block_on(pool.access_storage()).unwrap();
+    let mut connection = rt_handle
+        .block_on(pool.access_storage::<ServerStorageProcessor>())
+        .unwrap();
     rt_handle.block_on(prepare_postgres(&mut connection));
     let new_logs = gen_storage_logs(20..30);
 
@@ -193,7 +197,7 @@ fn test_postgres_storage_after_sealing_miniblock(
 
 #[tokio::test]
 async fn postgres_storage_after_sealing_miniblock() {
-    let pool = ServerConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     tokio::task::spawn_blocking(move || {
         println!("Considering new L1 batch");
         test_postgres_storage_after_sealing_miniblock(&pool, Handle::current(), true);
@@ -204,8 +208,10 @@ async fn postgres_storage_after_sealing_miniblock() {
     .unwrap();
 }
 
-fn test_factory_deps_cache(pool: &ServerConnectionPool, rt_handle: Handle) {
-    let mut connection = rt_handle.block_on(pool.access_storage()).unwrap();
+fn test_factory_deps_cache(pool: &ConnectionPool, rt_handle: Handle) {
+    let mut connection = rt_handle
+        .block_on(pool.access_storage::<ServerStorageProcessor>())
+        .unwrap();
     rt_handle.block_on(prepare_postgres(&mut connection));
 
     let caches = PostgresStorageCaches::new(128 * 1_024 * 1_024, 1_024);
@@ -246,15 +252,17 @@ fn test_factory_deps_cache(pool: &ServerConnectionPool, rt_handle: Handle) {
 
 #[tokio::test]
 async fn using_factory_deps_cache() {
-    let pool = ServerConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let handle = Handle::current();
     tokio::task::spawn_blocking(move || test_factory_deps_cache(&pool, handle))
         .await
         .unwrap();
 }
 
-fn test_initial_writes_cache(pool: &ServerConnectionPool, rt_handle: Handle) {
-    let connection = rt_handle.block_on(pool.access_storage()).unwrap();
+fn test_initial_writes_cache(pool: &ConnectionPool, rt_handle: Handle) {
+    let connection = rt_handle
+        .block_on(pool.access_storage::<ServerStorageProcessor>())
+        .unwrap();
     let caches = PostgresStorageCaches::new(1_024, 4 * 1_024 * 1_024);
     let mut storage = PostgresStorage::new(rt_handle, connection, MiniblockNumber(0), false)
         .with_caches(caches.clone());
@@ -352,7 +360,7 @@ fn test_initial_writes_cache(pool: &ServerConnectionPool, rt_handle: Handle) {
 
 #[tokio::test]
 async fn using_initial_writes_cache() {
-    let pool = ServerConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let handle = Handle::current();
     tokio::task::spawn_blocking(move || test_initial_writes_cache(&pool, handle))
         .await
@@ -382,7 +390,7 @@ impl ValuesCache {
     }
 }
 
-fn test_values_cache(pool: &ServerConnectionPool, rt_handle: Handle) {
+fn test_values_cache(pool: &ConnectionPool, rt_handle: Handle) {
     let mut caches = PostgresStorageCaches::new(1_024, 1_024);
     let _ = caches.configure_storage_values_cache(1_024 * 1_024, pool.clone(), rt_handle.clone());
     // We cannot use an update task since it requires having concurrent DB connections
@@ -391,7 +399,9 @@ fn test_values_cache(pool: &ServerConnectionPool, rt_handle: Handle) {
     let old_miniblock_assertions = values_cache.assertions(MiniblockNumber(0));
     let new_miniblock_assertions = values_cache.assertions(MiniblockNumber(1));
 
-    let mut connection = rt_handle.block_on(pool.access_storage()).unwrap();
+    let mut connection = rt_handle
+        .block_on(pool.access_storage::<ServerStorageProcessor>())
+        .unwrap();
     rt_handle.block_on(prepare_postgres(&mut connection));
 
     let mut storage = PostgresStorage::new(rt_handle, connection, MiniblockNumber(0), false)
@@ -495,7 +505,7 @@ fn test_values_cache(pool: &ServerConnectionPool, rt_handle: Handle) {
 
 #[tokio::test]
 async fn using_values_cache() {
-    let pool = ServerConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let handle = Handle::current();
     tokio::task::spawn_blocking(move || test_values_cache(&pool, handle))
         .await
@@ -504,16 +514,14 @@ async fn using_values_cache() {
 
 /// (Sort of) fuzzes [`ValuesCache`] by comparing outputs of [`PostgresStorage`] with and without caching
 /// on randomly generated `read_value()` queries.
-fn mini_fuzz_values_cache_inner(
-    rng: &mut impl Rng,
-    pool: &ServerConnectionPool,
-    mut rt_handle: Handle,
-) {
+fn mini_fuzz_values_cache_inner(rng: &mut impl Rng, pool: &ConnectionPool, mut rt_handle: Handle) {
     let mut caches = PostgresStorageCaches::new(1_024, 1_024);
     let _ = caches.configure_storage_values_cache(1_024 * 1_024, pool.clone(), rt_handle.clone());
     let values_cache = caches.values.as_ref().unwrap().cache.clone();
 
-    let mut connection = rt_handle.block_on(pool.access_storage()).unwrap();
+    let mut connection = rt_handle
+        .block_on(pool.access_storage::<ServerStorageProcessor>())
+        .unwrap();
     rt_handle.block_on(prepare_postgres(&mut connection));
 
     let queried_keys: Vec<_> = gen_storage_logs(0..100)
@@ -591,7 +599,7 @@ fn mini_fuzz_values_cache_inner(
 #[tokio::test]
 async fn mini_fuzz_values_cache() {
     const RNG_SEED: u64 = 123;
-    let pool = ServerConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
 
     let handle = Handle::current();
     let mut rng = StdRng::seed_from_u64(RNG_SEED);

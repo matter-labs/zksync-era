@@ -7,6 +7,7 @@ use governor::{
     state::{InMemoryState, NotKeyed},
     Quota, RateLimiter,
 };
+use zksync_db_connection::ConnectionPool;
 
 // Built-in uses
 use std::{cmp, num::NonZeroU32, sync::Arc, time::Instant};
@@ -24,7 +25,7 @@ use multivm::vm_latest::{
 
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
-use zksync_server_dal::{transactions_dal::L2TxSubmissionResult, ServerConnectionPool};
+use zksync_server_dal::{transactions_dal::L2TxSubmissionResult, ServerStorageProcessor};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     fee::{Fee, TransactionExecutionMetrics},
@@ -145,9 +146,9 @@ pub struct TxSenderBuilder {
     /// Shared TxSender configuration.
     config: TxSenderConfig,
     /// Connection pool for read requests.
-    replica_connection_pool: ServerConnectionPool,
+    replica_connection_pool: ConnectionPool,
     /// Connection pool for write requests. If not set, `proxy` must be set.
-    master_connection_pool: Option<ServerConnectionPool>,
+    master_connection_pool: Option<ConnectionPool>,
     /// Rate limiter for tx submissions.
     rate_limiter: Option<TxSenderRateLimiter>,
     /// Proxy to submit transactions to the network. If not set, `master_connection_pool` must be set.
@@ -158,7 +159,7 @@ pub struct TxSenderBuilder {
 }
 
 impl TxSenderBuilder {
-    pub fn new(config: TxSenderConfig, replica_connection_pool: ServerConnectionPool) -> Self {
+    pub fn new(config: TxSenderConfig, replica_connection_pool: ConnectionPool) -> Self {
         Self {
             config,
             replica_connection_pool,
@@ -185,10 +186,7 @@ impl TxSenderBuilder {
         self
     }
 
-    pub fn with_main_connection_pool(
-        mut self,
-        master_connection_pool: ServerConnectionPool,
-    ) -> Self {
+    pub fn with_main_connection_pool(mut self, master_connection_pool: ConnectionPool) -> Self {
         self.master_connection_pool = Some(master_connection_pool);
         self
     }
@@ -263,8 +261,8 @@ impl TxSenderConfig {
 
 pub struct TxSenderInner<G> {
     pub(super) sender_config: TxSenderConfig,
-    pub master_connection_pool: Option<ServerConnectionPool>,
-    pub replica_connection_pool: ServerConnectionPool,
+    pub master_connection_pool: Option<ConnectionPool>,
+    pub replica_connection_pool: ConnectionPool,
     // Used to keep track of gas prices for the fee ticker.
     pub l1_gas_price_source: Arc<G>,
     pub(super) api_contracts: ApiContracts,
@@ -388,7 +386,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             .master_connection_pool
             .as_ref()
             .unwrap() // Checked above
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .transactions_dal()
@@ -521,7 +519,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         let mut connection = self
             .0
             .replica_connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap();
 
@@ -575,7 +573,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         let balance = self
             .0
             .replica_connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .storage_dal()
@@ -701,7 +699,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         let account_code_hash = self
             .0
             .replica_connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .storage_dal()

@@ -34,7 +34,7 @@ contract CustomPaymaster is IPaymaster {
         if (paymasterInputSelector == IPaymasterFlow.approvalBased.selector) {
             // While the actual data consists of address, uint256 and bytes data, 
             // the data is needed only for the paymaster, so we ignore it here for the sake of optimization
-            (address token,, bytes memory input) = abi.decode(_transaction.paymasterInput[4:], (address, uint256, bytes));
+            (address token, bytes memory input) = abi.decode(_transaction.paymasterInput[4:], (address, uint256, bytes));
 
             (bytes memory pseudoSignature, uint256 rateNumerator, uint256 rateDenominator, uint256 amount) = abi.decode(input, (bytes, uint256, uint256, uint256));
             validateSignature(pseudoSignature);

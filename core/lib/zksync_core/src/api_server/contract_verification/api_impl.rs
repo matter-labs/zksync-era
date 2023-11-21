@@ -4,6 +4,7 @@ use actix_web::{
 };
 use serde::Serialize;
 
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::{contract_verification_api::VerificationIncomingRequest, Address};
 
 use super::{api_decl::RestApi, metrics::METRICS};
@@ -36,7 +37,7 @@ impl RestApi {
         }
         let mut storage = self_
             .master_connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap();
 
@@ -76,7 +77,7 @@ impl RestApi {
         let method_latency = METRICS.call[&"contract_verification_request_status"].start();
         let status = self_
             .replica_connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .contract_verification_dal()
@@ -96,7 +97,7 @@ impl RestApi {
         let method_latency = METRICS.call[&"contract_verification_zksolc_versions"].start();
         let versions = self_
             .replica_connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .contract_verification_dal()
@@ -113,7 +114,7 @@ impl RestApi {
         let method_latency = METRICS.call[&"contract_verification_solc_versions"].start();
         let versions = self_
             .replica_connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .contract_verification_dal()
@@ -130,7 +131,7 @@ impl RestApi {
         let method_latency = METRICS.call[&"contract_verification_zkvyper_versions"].start();
         let versions = self_
             .replica_connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .contract_verification_dal()
@@ -147,7 +148,7 @@ impl RestApi {
         let method_latency = METRICS.call[&"contract_verification_vyper_versions"].start();
         let versions = self_
             .replica_connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .contract_verification_dal()
@@ -168,7 +169,7 @@ impl RestApi {
 
         let info = self_
             .replica_connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .contract_verification_dal()

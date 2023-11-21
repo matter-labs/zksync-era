@@ -1,11 +1,11 @@
 //! Tests for the Merkle tree API.
 
 use tempfile::TempDir;
-use zksync_prover_dal::ProverConnectionPool;
+use zksync_db_connection::ConnectionPool;
+use zksync_prover_dal::ProverStorageProcessor;
+use zksync_server_dal::ServerStorageProcessor;
 
 use std::net::Ipv4Addr;
-
-use zksync_server_dal::ServerConnectionPool;
 
 use super::*;
 use crate::metadata_calculator::tests::{
@@ -14,8 +14,8 @@ use crate::metadata_calculator::tests::{
 
 #[tokio::test]
 async fn merkle_tree_api() {
-    let pool = ServerConnectionPool::test_pool().await;
-    let prover_pool = ProverConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+    let prover_pool = ConnectionPool::test_pool::<ProverStorageProcessor>().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
     let api_addr = (Ipv4Addr::LOCALHOST, 0).into();

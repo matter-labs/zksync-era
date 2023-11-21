@@ -8,9 +8,10 @@ use tokio::sync::watch;
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::{configs::PrometheusConfig, ApiConfig, ContractVerifierConfig, PostgresConfig};
 
+use zksync_db_connection::ConnectionPool;
 use zksync_env_config::FromEnv;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_server_dal::ServerConnectionPool;
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 use crate::verifier::ContractVerifier;
@@ -20,8 +21,11 @@ pub mod verifier;
 pub mod zksolc_utils;
 pub mod zkvyper_utils;
 
-async fn update_compiler_versions(connection_pool: &ServerConnectionPool) {
-    let mut storage = connection_pool.access_storage().await.unwrap();
+async fn update_compiler_versions(connection_pool: &ConnectionPool) {
+    let mut storage = connection_pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     let mut transaction = storage.start_transaction().await.unwrap();
 
     let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
@@ -114,8 +118,6 @@ async fn update_compiler_versions(connection_pool: &ServerConnectionPool) {
     transaction.commit().await.unwrap();
 }
 
-use structopt::StructOpt;
-
 #[derive(StructOpt)]
 #[structopt(name = "zkSync contract code verifier", author = "Matter Labs")]
 struct Opt {
@@ -134,7 +136,7 @@ async fn main() -> anyhow::Result<()> {
         ..ApiConfig::from_env().context("ApiConfig")?.prometheus
     };
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig")?;
-    let pool = ServerConnectionPool::singleton(
+    let pool = ConnectionPool::singleton(
         postgres_config
             .master_url()
             .context("Master DB URL is absent")?,

@@ -1,10 +1,11 @@
-use zksync_server_dal::ServerConnectionPool;
+use zksync_db_connection::ConnectionPool;
+use zksync_server_dal::ServerStorageProcessor;
 
 use crate::{CircuitBreaker, CircuitBreakerError};
 
 #[derive(Debug)]
 pub struct ReplicationLagChecker {
-    pub pool: ServerConnectionPool,
+    pub pool: ConnectionPool,
     pub replication_lag_limit_sec: Option<u32>,
 }
 
@@ -13,7 +14,7 @@ impl CircuitBreaker for ReplicationLagChecker {
     async fn check(&self) -> Result<(), CircuitBreakerError> {
         let lag = self
             .pool
-            .access_storage()
+            .access_storage::<ServerStorageProcessor>()
             .await
             .unwrap()
             .system_dal()

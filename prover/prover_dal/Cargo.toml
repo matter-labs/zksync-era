@@ -14,6 +14,7 @@ zksync_types = { path = "../../core/lib/types" }
 zksync_utils = { path = "../../core/lib/utils" }
 zksync_health_check = { path = "../../core/lib/health_check" }
 zksync_db_utils = { path = "../../core/lib/db_utils"}
+zksync_db_connection = { path = "../../core/lib/db_connection"}
 
 sqlx = { version = "0.5.13", default-features = false, features = [
     "runtime-tokio-native-tls",

@@ -7,14 +7,14 @@ use sqlx::{postgres::Postgres, Connection, PgConnection, Transaction};
 use sqlx::pool::PoolConnection;
 pub use sqlx::types::BigDecimal;
 
-use zksync_db_utils::connection_holder::ConnectionHolder;
+use zksync_db_connection::holder::ConnectionHolder;
+use zksync_db_connection::StorageProcessor;
 
 // Local imports
 use crate::accounts_dal::AccountsDal;
 use crate::basic_witness_input_producer_dal::BasicWitnessInputProducerDal;
 use crate::blocks_dal::BlocksDal;
 use crate::blocks_web3_dal::BlocksWeb3Dal;
-pub use crate::connection::ServerConnectionPool;
 use crate::contract_verification_dal::ContractVerificationDal;
 use crate::eth_sender_dal::EthSenderDal;
 use crate::events_dal::EventsDal;
@@ -37,7 +37,6 @@ pub mod accounts_dal;
 pub mod basic_witness_input_producer_dal;
 pub mod blocks_dal;
 pub mod blocks_web3_dal;
-pub mod connection;
 pub mod contract_verification_dal;
 pub mod eth_sender_dal;
 pub mod events_dal;
@@ -60,6 +59,7 @@ pub mod transactions_web3_dal;
 
 #[cfg(test)]
 mod tests;
+
 /// Storage processor is the main storage interaction point.
 /// It holds down the connection (either direct or pooled) to the database
 /// and provide methods to obtain different storage schemas.
@@ -69,8 +69,22 @@ pub struct ServerStorageProcessor<'a> {
     in_transaction: bool,
 }
 
+impl<'a> StorageProcessor for ServerStorageProcessor<'a> {
+    /// Creates a `ServerStorageProcessor` using a pool of connections.
+    /// This method borrows one of the connections from the pool, and releases it
+    /// after `drop`.
+    fn from_pool(conn: PoolConnection<Postgres>) -> Self {
+        Self {
+            conn: ConnectionHolder::Pooled(conn),
+            in_transaction: false,
+        }
+    }
+}
+
 impl<'a> ServerStorageProcessor<'a> {
-    pub async fn start_transaction<'c: 'b, 'b>(&'c mut self) -> sqlx::Result<StorageProcessor<'b>> {
+    pub async fn start_transaction<'c: 'b, 'b>(
+        &'c mut self,
+    ) -> sqlx::Result<ServerStorageProcessor<'b>> {
         let transaction = self.conn().begin().await?;
         let mut processor = ServerStorageProcessor::from_transaction(transaction);
         processor.in_transaction = true;
@@ -94,16 +108,6 @@ impl<'a> ServerStorageProcessor<'a> {
             transaction.commit().await
         } else {
             panic!("ServerStorageProcessor::commit can only be invoked after calling ServerStorageProcessor::begin_transaction");
-        }
-    }
-
-    /// Creates a `ServerStorageProcessor` using a pool of connections.
-    /// This method borrows one of the connections from the pool, and releases it
-    /// after `drop`.
-    pub(crate) fn from_pool(conn: PoolConnection<Postgres>) -> Self {
-        Self {
-            conn: ConnectionHolder::Pooled(conn),
-            in_transaction: false,
         }
     }
 

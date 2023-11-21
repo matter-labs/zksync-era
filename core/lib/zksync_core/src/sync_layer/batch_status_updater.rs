@@ -1,9 +1,10 @@
 use chrono::{DateTime, Utc};
 use tokio::sync::watch::Receiver;
+use zksync_server_dal::ServerStorageProcessor;
 
 use std::time::Duration;
 
-use zksync_server_dal::ServerConnectionPool;
+use zksync_db_connection::ConnectionPool;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, api::BlockDetails, L1BatchNumber, MiniblockNumber,
     H256,
@@ -53,7 +54,7 @@ impl StatusChanges {
 #[derive(Debug)]
 pub struct BatchStatusUpdater {
     client: HttpClient,
-    pool: ServerConnectionPool,
+    pool: ConnectionPool,
 
     last_executed_l1_batch: L1BatchNumber,
     last_proven_l1_batch: L1BatchNumber,
@@ -61,12 +62,15 @@ pub struct BatchStatusUpdater {
 }
 
 impl BatchStatusUpdater {
-    pub async fn new(main_node_url: &str, pool: ServerConnectionPool) -> Self {
+    pub async fn new(main_node_url: &str, pool: ConnectionPool) -> Self {
         let client = HttpClientBuilder::default()
             .build(main_node_url)
             .expect("Unable to create a main node client");
 
-        let mut storage = pool.access_storage_tagged("sync_layer").await.unwrap();
+        let mut storage = pool
+            .access_storage_tagged::<ServerStorageProcessor>("sync_layer")
+            .await
+            .unwrap();
         let last_executed_l1_batch = storage
             .blocks_dal()
             .get_number_of_last_l1_batch_executed_on_eth()
@@ -130,7 +134,7 @@ impl BatchStatusUpdater {
         let total_latency = EN_METRICS.update_batch_statuses.start();
         let last_sealed_batch = self
             .pool
-            .access_storage_tagged("sync_layer")
+            .access_storage_tagged::<ServerStorageProcessor>("sync_layer")
             .await
             .unwrap()
             .blocks_dal()
@@ -289,7 +293,11 @@ impl BatchStatusUpdater {
     /// tables to be ever accessed by the `eth_sender` module.
     async fn apply_status_changes(&mut self, changes: StatusChanges) {
         let total_latency = EN_METRICS.batch_status_updater_loop_iteration.start();
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
+        let mut storage = self
+            .pool
+            .access_storage_tagged::<ServerStorageProcessor>("sync_layer")
+            .await
+            .unwrap();
 
         for change in changes.commit.into_iter() {
             tracing::info!(

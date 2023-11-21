@@ -18,4 +18,6 @@ zksync_server_dal = { path = "../../lib/server_dal" }
 zksync_types = { path = "../../lib/types" }
 zksync_config = { path = "../../lib/config" }
 zksync_env_config = { path = "../../lib/env_config" }
+zksync_db_connection = {path = "../../lib/db_connection"}
+
 clap = { version = "4.2.4", features = ["derive"] }

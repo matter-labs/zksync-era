@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use zksync_server_dal::ServerStorageProcessor;
 
 use std::{
     cmp,
@@ -13,7 +14,7 @@ use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_mempool::L2TxFilter;
 
-use zksync_server_dal::ServerConnectionPool;
+use zksync_db_connection::ConnectionPool;
 
 use zksync_object_store::ObjectStore;
 
@@ -48,7 +49,7 @@ use crate::{
 #[derive(Debug)]
 pub(crate) struct MempoolIO<G> {
     mempool: MempoolGuard,
-    pool: ServerConnectionPool,
+    pool: ConnectionPool,
     object_store: Box<dyn ObjectStore>,
     timeout_sealer: TimeoutSealer,
     filter: L2TxFilter,
@@ -98,7 +99,7 @@ where
     async fn load_pending_batch(&mut self) -> Option<PendingBatchData> {
         let mut storage = self
             .pool
-            .access_storage_tagged("state_keeper")
+            .access_storage_tagged::<ServerStorageProcessor>("state_keeper")
             .await
             .unwrap();
 
@@ -174,7 +175,11 @@ where
                 self.filter.l1_gas_price,
                 self.fair_l2_gas_price
             );
-            let mut storage = self.pool.access_storage().await.unwrap();
+            let mut storage = self
+                .pool
+                .access_storage::<ServerStorageProcessor>()
+                .await
+                .unwrap();
             let (base_system_contracts, protocol_version) = storage
                 .protocol_versions_dal()
                 .base_system_contracts_by_timestamp(current_timestamp)
@@ -257,7 +262,7 @@ where
         // Mark tx as rejected in the storage.
         let mut storage = self
             .pool
-            .access_storage_tagged("state_keeper")
+            .access_storage_tagged::<ServerStorageProcessor>("state_keeper")
             .await
             .unwrap();
         KEEPER_METRICS.rejected_transactions.inc();
@@ -317,7 +322,10 @@ where
         }
 
         let pool = self.pool.clone();
-        let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
+        let mut storage = pool
+            .access_storage_tagged::<ServerStorageProcessor>("state_keeper")
+            .await
+            .unwrap();
 
         updates_manager
             .seal_l1_batch(
@@ -334,7 +342,11 @@ where
     }
 
     async fn load_previous_batch_version_id(&mut self) -> Option<ProtocolVersionId> {
-        let mut storage = self.pool.access_storage().await.unwrap();
+        let mut storage = self
+            .pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         storage
             .blocks_dal()
             .get_batch_protocol_version_id(self.current_l1_batch_number - 1)
@@ -346,7 +358,11 @@ where
         &mut self,
         version_id: ProtocolVersionId,
     ) -> Option<ProtocolUpgradeTx> {
-        let mut storage = self.pool.access_storage().await.unwrap();
+        let mut storage = self
+            .pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         storage
             .protocol_versions_dal()
             .get_protocol_upgrade_tx(version_id)
@@ -408,7 +424,7 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
         object_store: Box<dyn ObjectStore>,
         miniblock_sealer_handle: MiniblockSealerHandle,
         l1_gas_price_provider: Arc<G>,
-        pool: ServerConnectionPool,
+        pool: ConnectionPool,
         config: &StateKeeperConfig,
         delay_interval: Duration,
         l2_erc20_bridge_addr: Address,
@@ -424,7 +440,10 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
             "Virtual blocks per miniblock must be positive"
         );
 
-        let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
+        let mut storage = pool
+            .access_storage_tagged::<ServerStorageProcessor>("state_keeper")
+            .await
+            .unwrap();
         let last_sealed_l1_batch_header = storage
             .blocks_dal()
             .get_newest_l1_batch_header()
@@ -469,7 +488,7 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
 
         let mut storage = self
             .pool
-            .access_storage_tagged("state_keeper")
+            .access_storage_tagged::<ServerStorageProcessor>("state_keeper")
             .await
             .unwrap();
         let (batch_hash, _) =
@@ -488,7 +507,7 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
         let load_latency = KEEPER_METRICS.load_previous_miniblock_header.start();
         let mut storage = self
             .pool
-            .access_storage_tagged("state_keeper")
+            .access_storage_tagged::<ServerStorageProcessor>("state_keeper")
             .await
             .unwrap();
         let miniblock_header = storage

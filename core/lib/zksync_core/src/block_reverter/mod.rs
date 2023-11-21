@@ -1,14 +1,15 @@
 use bitflags::bitflags;
 use serde::Serialize;
 use tokio::time::sleep;
+use zksync_server_dal::ServerStorageProcessor;
 
 use std::path::Path;
 use std::time::Duration;
 
 use zksync_config::{ContractsConfig, ETHSenderConfig};
 use zksync_contracts::zksync_contract;
+use zksync_db_connection::ConnectionPool;
 use zksync_merkle_tree::domain::ZkSyncTree;
-use zksync_server_dal::ServerConnectionPool;
 use zksync_state::RocksdbStorage;
 use zksync_storage::RocksDB;
 use zksync_types::aggregated_operations::AggregatedActionType;
@@ -91,7 +92,7 @@ pub struct BlockReverter {
     state_keeper_cache_path: String,
     merkle_tree_path: String,
     eth_config: Option<BlockReverterEthConfig>,
-    connection_pool: ServerConnectionPool,
+    connection_pool: ConnectionPool,
     executed_batches_revert_mode: L1ExecutedBatchesRevert,
 }
 
@@ -100,7 +101,7 @@ impl BlockReverter {
         state_keeper_cache_path: String,
         merkle_tree_path: String,
         eth_config: Option<BlockReverterEthConfig>,
-        connection_pool: ServerConnectionPool,
+        connection_pool: ConnectionPool,
         executed_batches_revert_mode: L1ExecutedBatchesRevert,
     ) -> Self {
         Self {
@@ -126,7 +127,11 @@ impl BlockReverter {
             self.executed_batches_revert_mode,
             L1ExecutedBatchesRevert::Disallowed
         ) {
-            let mut storage = self.connection_pool.access_storage().await.unwrap();
+            let mut storage = self
+                .connection_pool
+                .access_storage::<ServerStorageProcessor>()
+                .await
+                .unwrap();
             let last_executed_l1_batch = storage
                 .blocks_dal()
                 .get_number_of_last_l1_batch_executed_on_eth()
@@ -156,7 +161,7 @@ impl BlockReverter {
         if rollback_tree {
             let storage_root_hash = self
                 .connection_pool
-                .access_storage()
+                .access_storage::<ServerStorageProcessor>()
                 .await
                 .unwrap()
                 .blocks_dal()
@@ -211,7 +216,11 @@ impl BlockReverter {
         let mut sk_cache = RocksdbStorage::new(self.state_keeper_cache_path.as_ref());
 
         if sk_cache.l1_batch_number() > last_l1_batch_to_keep + 1 {
-            let mut storage = self.connection_pool.access_storage().await.unwrap();
+            let mut storage = self
+                .connection_pool
+                .access_storage::<ServerStorageProcessor>()
+                .await
+                .unwrap();
             tracing::info!("rolling back state keeper cache...");
             sk_cache.rollback(&mut storage, last_l1_batch_to_keep).await;
         } else {
@@ -222,7 +231,11 @@ impl BlockReverter {
     /// Reverts data in the Postgres database.
     async fn rollback_postgres(&self, last_l1_batch_to_keep: L1BatchNumber) {
         tracing::info!("rolling back postgres data...");
-        let mut storage = self.connection_pool.access_storage().await.unwrap();
+        let mut storage = self
+            .connection_pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         let mut transaction = storage.start_transaction().await.unwrap();
 
         let (_, last_miniblock_to_keep) = transaction
@@ -417,7 +430,7 @@ impl BlockReverter {
     pub async fn clear_failed_l1_transactions(&self) {
         tracing::info!("clearing failed L1 transactions...");
         self.connection_pool
-            .access_storage()
+            .access_storage::<ServerStorageProcessor>()
             .await
             .unwrap()
             .eth_sender_dal()

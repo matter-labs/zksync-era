@@ -2,7 +2,7 @@
 //! stores them in the DB.
 
 use tokio::sync::watch;
-use zksync_prover_dal::ProverConnectionPool;
+use zksync_db_connection::ConnectionPool;
 
 use std::time::Duration;
 
@@ -13,7 +13,7 @@ use zksync_config::configs::{
 use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStoreFactory;
-use zksync_server_dal::{ServerConnectionPool, ServerStorageProcessor};
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::{
     block::L1BatchHeader,
     commitment::{L1BatchCommitment, L1BatchMetadata},
@@ -141,10 +141,10 @@ impl MetadataCalculator {
 
     pub async fn run(
         self,
-        pool: ServerConnectionPool,
+        pool: ConnectionPool,
         // short-term change for the prover pool
         // to be an Option to allow EN to run the tree
-        prover_pool: Option<ProverConnectionPool>,
+        prover_pool: Option<ConnectionPool>,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         self.updater

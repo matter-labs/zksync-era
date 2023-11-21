@@ -15,6 +15,7 @@ zksync_state = { path = "../state" }
 zksync_types = { path = "../types" }
 zksync_server_dal = { path = "../server_dal" }
 zksync_prover_dal = { path = "../../../prover/prover_dal"}
+zksync_db_connection = { path = "../db_connection"}
 zksync_config = { path = "../config" }
 zksync_utils = { path = "../utils" }
 zksync_contracts = { path = "../contracts" }

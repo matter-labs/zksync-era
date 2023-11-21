@@ -1,16 +1,17 @@
 use async_trait::async_trait;
-use zksync_prover_dal::ProverConnectionPool;
+use zksync_db_connection::ConnectionPool;
 
+use zksync_prover_dal::ProverStorageProcessor;
 use zksync_prover_utils::periodic_job::PeriodicJob;
 
 #[derive(Debug)]
 pub struct WaitingToQueuedWitnessJobMover {
     job_moving_interval_ms: u64,
-    prover_connection_pool: ProverConnectionPool,
+    prover_connection_pool: ConnectionPool,
 }
 
 impl WaitingToQueuedWitnessJobMover {
-    pub fn new(job_mover_interval_ms: u64, prover_connection_pool: ProverConnectionPool) -> Self {
+    pub fn new(job_mover_interval_ms: u64, prover_connection_pool: ConnectionPool) -> Self {
         Self {
             job_moving_interval_ms: job_mover_interval_ms,
             prover_connection_pool,
@@ -24,7 +25,11 @@ impl WaitingToQueuedWitnessJobMover {
     }
 
     async fn move_leaf_aggregation_jobs(&mut self) {
-        let mut conn = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut conn = self
+            .prover_connection_pool
+            .access_storage::<ProverStorageProcessor>()
+            .await
+            .unwrap();
         let l1_batch_numbers = conn
             .witness_generator_dal()
             .move_leaf_aggregation_jobs_from_waiting_to_queued()
@@ -43,7 +48,11 @@ impl WaitingToQueuedWitnessJobMover {
     }
 
     async fn move_node_aggregation_jobs(&mut self) {
-        let mut conn = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut conn = self
+            .prover_connection_pool
+            .access_storage::<ProverStorageProcessor>()
+            .await
+            .unwrap();
         let l1_batch_numbers = conn
             .witness_generator_dal()
             .move_node_aggregation_jobs_from_waiting_to_queued()
@@ -62,7 +71,11 @@ impl WaitingToQueuedWitnessJobMover {
     }
 
     async fn move_scheduler_jobs(&mut self) {
-        let mut conn = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut conn = self
+            .prover_connection_pool
+            .access_storage::<ProverStorageProcessor>()
+            .await
+            .unwrap();
         let l1_batch_numbers = conn
             .witness_generator_dal()
             .move_scheduler_jobs_from_waiting_to_queued()

@@ -4,9 +4,10 @@ use tokio::sync::watch;
 
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_db_connection::ConnectionPool;
 use zksync_eth_client::BoundEthInterface;
-use zksync_prover_dal::{ProverConnectionPool, ProverStorageProcessor};
-use zksync_server_dal::{ServerConnectionPool, ServerStorageProcessor};
+use zksync_prover_dal::ProverStorageProcessor;
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::{
     aggregated_operations::AggregatedOperation,
     contracts::{Multicall3Call, Multicall3Result},
@@ -72,18 +73,18 @@ impl EthTxAggregator {
 
     pub async fn run<E: BoundEthInterface>(
         mut self,
-        server_pool: ServerConnectionPool,
-        prover_pool: ProverConnectionPool,
+        server_pool: ConnectionPool,
+        prover_pool: ConnectionPool,
         eth_client: E,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         loop {
             let mut storage = server_pool
-                .access_storage_tagged("eth_sender")
+                .access_storage_tagged::<ServerStorageProcessor>("eth_sender")
                 .await
                 .unwrap();
             let mut prover_storage = prover_pool
-                .access_storage_tagged("eth_sender")
+                .access_storage_tagged::<ProverStorageProcessor>("eth_sender")
                 .await
                 .unwrap();
 

@@ -17,7 +17,8 @@ use async_trait::async_trait;
 use tokio::sync::watch;
 
 use zksync_config::{configs::fetcher::TokenListSource, FetcherConfig};
-use zksync_server_dal::{ServerConnectionPool, ServerStorageProcessor};
+use zksync_db_connection::ConnectionPool;
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::network::Network;
 use zksync_types::{tokens::TokenMetadata, Address};
 
@@ -64,7 +65,7 @@ impl TokenListFetcher {
 
     pub async fn run(
         mut self,
-        pool: ServerConnectionPool,
+        pool: ConnectionPool,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         let mut fetching_interval =
@@ -91,7 +92,10 @@ impl TokenListFetcher {
             };
 
             // We assume that token metadata does not change, thus we only looking for the new tokens.
-            let mut storage = pool.access_storage().await.unwrap();
+            let mut storage = pool
+                .access_storage::<ServerStorageProcessor>()
+                .await
+                .unwrap();
             let unknown_tokens = self.load_unknown_tokens(&mut storage).await;
             token_list.retain(|token, _data| unknown_tokens.contains(token));
 

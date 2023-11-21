@@ -5,11 +5,12 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use zksync_config::configs::eth_sender::SenderConfig;
+use zksync_db_connection::ConnectionPool;
 use zksync_eth_client::{
     types::{Error, ExecutedTxStatus, SignedCallResult},
     BoundEthInterface,
 };
-use zksync_server_dal::{ServerConnectionPool, ServerStorageProcessor};
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::{
     eth_sender::EthTx,
     web3::{contract::Options, error::Error as Web3Error},
@@ -549,7 +550,7 @@ where
 
     pub async fn run(
         mut self,
-        pool: ServerConnectionPool,
+        pool: ConnectionPool,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         {
@@ -557,7 +558,10 @@ where
                 .get_l1_block_numbers()
                 .await
                 .context("get_l1_block_numbers()")?;
-            let mut storage = pool.access_storage_tagged("eth_sender").await.unwrap();
+            let mut storage = pool
+                .access_storage_tagged::<ServerStorageProcessor>("eth_sender")
+                .await
+                .unwrap();
             self.send_unsent_txs(&mut storage, l1_block_numbers).await;
         }
 
@@ -565,7 +569,10 @@ where
         // will never check inflight txs status
         let mut last_known_l1_block = L1BlockNumber(0);
         loop {
-            let mut storage = pool.access_storage_tagged("eth_sender").await.unwrap();
+            let mut storage = pool
+                .access_storage_tagged::<ServerStorageProcessor>("eth_sender")
+                .await
+                .unwrap();
 
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, eth_tx_manager is shutting down");

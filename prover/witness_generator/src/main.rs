@@ -12,7 +12,10 @@ use zksync_env_config::{
 };
 
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prover_dal::ProverConnectionPool;
+
+use zksync_db_connection::ConnectionPool;
+use zksync_prover_dal::ProverStorageProcessor;
+
 use zksync_prover_utils::get_stop_signal_receiver;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::proofs::AggregationRound;
@@ -84,26 +87,26 @@ async fn main() -> anyhow::Result<()> {
     let prometheus_config = PrometheusConfig::from_env().context("PrometheusConfig::from_env()")?;
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
 
-    let connection_pool = ServerConnectionPool::builder(
+    let server_connection_pool = ConnectionPool::builder(
         postgres_config.master_url()?,
         postgres_config.max_connections()?,
     )
     .build()
     .await
-    .context("failed to build a connection_pool")?;
+    .context("failed to build  server connection pool")?;
 
-    let prover_connection_pool = ProverConnectionPool::builder(
+    let connection_pool = ConnectionPool::builder(
         postgres_config.prover_url()?,
         postgres_config.max_connections()?,
     )
     .build()
     .await
-    .context("failed to build a prover_connection_pool")?;
+    .context("failed to build prover connection pool")?;
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let vk_commitments = get_cached_commitments();
-    let protocol_versions = prover_connection_pool
-        .access_storage()
+    let protocol_versions = connection_pool
+        .access_storage::<ProverStorageProcessor>()
         .await
         .unwrap()
         .fri_protocol_versions_dal()
@@ -155,7 +158,7 @@ async fn main() -> anyhow::Result<()> {
                 &store_factory,
                 public_blob_store,
                 server_connection_pool,
-                prover_connection_pool,
+                connection_pool,
                 protocol_versions.clone(),
             )
             .await;
@@ -165,7 +168,7 @@ async fn main() -> anyhow::Result<()> {
             let generator = LeafAggregationWitnessGenerator::new(
                 config,
                 &store_factory,
-                prover_connection_pool,
+                connection_pool,
                 protocol_versions.clone(),
             )
             .await;
@@ -175,7 +178,7 @@ async fn main() -> anyhow::Result<()> {
             let generator = NodeAggregationWitnessGenerator::new(
                 config,
                 &store_factory,
-                prover_connection_pool,
+                connection_pool,
                 protocol_versions.clone(),
             )
             .await;
@@ -185,7 +188,7 @@ async fn main() -> anyhow::Result<()> {
             let generator = SchedulerWitnessGenerator::new(
                 config,
                 &store_factory,
-                prover_connection_pool,
+                connection_pool,
                 protocol_versions,
             )
             .await;

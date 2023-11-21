@@ -10,8 +10,10 @@ use zksync_config::configs::{FriProofCompressorConfig, PostgresConfig};
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prover_dal::connection::DbVariant;
-use zksync_prover_dal::ProverConnectionPool;
+
+use zksync_db_connection::ConnectionPool;
+use zksync_prover_dal::ProverStorageProcessor;
+
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
@@ -51,13 +53,13 @@ async fn main() -> anyhow::Result<()> {
     let opt = Opt::from_args();
     let config = FriProofCompressorConfig::from_env().context("FriProofCompressorConfig")?;
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let pool = ProverConnectionPool::builder(
+    let pool = ConnectionPool::builder(
         postgres_config.prover_url()?,
         postgres_config.max_connections()?,
     )
     .build()
     .await
-    .context("failed to build a connection pool")?;
+    .context("failed to build prover connection pool")?;
 
     let object_store_config =
         ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;

@@ -2,7 +2,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime::Handle;
 
-use zksync_server_dal::{ServerConnectionPool, ServerStorageProcessor, SqlxError};
+use zksync_db_connection::ConnectionPool;
+use zksync_server_dal::{ServerStorageProcessor, SqlxError};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
 use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
 use zksync_types::{api, AccountTreeId, L2ChainId, MiniblockNumber, U256};
@@ -180,7 +181,7 @@ async fn get_pending_state(
 /// Returns the number of the pubdata that the transaction will spend on factory deps.
 pub(super) async fn get_pubdata_for_factory_deps(
     _vm_permit: &VmPermit,
-    connection_pool: &ServerConnectionPool,
+    connection_pool: &ConnectionPool,
     factory_deps: &[Vec<u8>],
     storage_caches: PostgresStorageCaches,
 ) -> u32 {
@@ -188,7 +189,10 @@ pub(super) async fn get_pubdata_for_factory_deps(
         return 0; // Shortcut for the common case allowing to not acquire DB connections etc.
     }
 
-    let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
+    let mut connection = connection_pool
+        .access_storage_tagged::<ServerStorageProcessor>("api")
+        .await
+        .unwrap();
     let (_, block_number) = get_pending_state(&mut connection).await;
     drop(connection);
 
@@ -197,7 +201,7 @@ pub(super) async fn get_pubdata_for_factory_deps(
     let factory_deps = factory_deps.to_vec();
     tokio::task::spawn_blocking(move || {
         let connection = rt_handle
-            .block_on(connection_pool.access_storage_tagged("api"))
+            .block_on(connection_pool.access_storage_tagged::<ServerStorageProcessor>("api"))
             .unwrap();
         let storage = PostgresStorage::new(rt_handle, connection, block_number, false)
             .with_caches(storage_caches);

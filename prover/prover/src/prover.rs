@@ -11,16 +11,17 @@ use zkevm_test_harness::pairing::bn256::Bn256;
 
 use zksync_config::{PostgresConfig, ProverConfig};
 
+use zksync_db_connection::ConnectionPool;
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory};
-use zksync_prover_dal::{ProverConnectionPool, ProverStorageProcessor};
-use zksync_server_dal::ServerConnectionPool;
+use zksync_prover_dal::ProverStorageProcessor;
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::proofs::ProverJobMetadata;
 
 #[derive(Debug)]
 pub struct ProverReporter {
     rt_handle: Handle,
-    prover_pool: ProverConnectionPool,
-    main_pool: ServerConnectionPool,
+    prover_pool: ConnectionPool,
+    server_pool: ConnectionPool,
     config: ProverConfig,
     processed_by: String,
     object_store: Box<dyn ObjectStore>,
@@ -38,16 +39,16 @@ impl ProverReporter {
         rt_handle: Handle,
     ) -> anyhow::Result<Self> {
         let prover_pool = rt_handle
-            .block_on(ProverConnectionPool::singleton(postgres_config.prover_url()?).build())
-            .context("failed to build a prover connection pool")?;
+            .block_on(ConnectionPool::singleton(postgres_config.prover_url()?).build())
+            .context("failed to build prover connection pool")?;
 
-        let main_pool = rt_handle
-            .block_on(ProverConnectionPool::singleton(postgres_config.master_url()?).build())
-            .context("failed to build a server connection pool")?;
+        let server_pool = rt_handle
+            .block_on(ConnectionPool::singleton(postgres_config.master_url()?).build())
+            .context("failed to build server connection pool")?;
 
         Ok(Self {
             prover_pool,
-            main_pool,
+            server_pool,
             config,
             processed_by: env::var("POD_NAME").unwrap_or("Unknown".to_string()),
             object_store: rt_handle.block_on(store_factory.create_store()),
@@ -79,7 +80,11 @@ impl ProverReporter {
         );
         let job_id = job_id as u32;
         self.rt_handle.block_on(async {
-            let mut connection = self.prover_pool.access_storage().await.unwrap();
+            let mut connection = self
+                .prover_pool
+                .access_storage::<ProverStorageProcessor>()
+                .await
+                .unwrap();
             let mut transaction = connection.start_transaction().await.unwrap();
 
             // BEWARE, HERE BE DRAGONS.
@@ -108,7 +113,11 @@ impl ProverReporter {
 
     fn get_circuit_type(&self, job_id: usize) -> String {
         let prover_job_metadata = self.rt_handle.block_on(async {
-            let mut connection = self.prover_pool.access_storage().await.unwrap();
+            let mut connection = self
+                .prover_pool
+                .access_storage::<ProverStorageProcessor>()
+                .await
+                .unwrap();
             self.get_prover_job_metadata_by_id_and_exit_if_error(&mut connection, job_id as u32)
                 .await
         });
@@ -160,7 +169,7 @@ impl JobReporter for ProverReporter {
                 self.rt_handle.block_on(async {
                     let result = self
                         .prover_pool
-                        .access_storage()
+                        .access_storage::<ProverStorageProcessor>()
                         .await
                         .unwrap()
                         .prover_dal()
@@ -183,8 +192,8 @@ impl JobReporter for ProverReporter {
                         let attempts = result.0;
                         let l1_batch_number = result.1;
                         if attempts >= self.config.max_attempts {
-                            self.main_pool
-                                .access_storage()
+                            self.server_pool
+                                .access_storage::<ProverStorageProcessor>()
                                 .await
                                 .unwrap()
                                 .blocks_dal()

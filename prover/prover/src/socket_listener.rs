@@ -2,7 +2,7 @@ use crate::synthesized_circuit_provider::SharedAssemblyQueue;
 use queues::IsQueue;
 use std::net::{IpAddr, SocketAddr};
 use std::time::Instant;
-use zksync_prover_dal::ProverConnectionPool;
+use zksync_db_connection::ConnectionPool;
 use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
 
 use anyhow::Context as _;
@@ -16,7 +16,7 @@ pub async fn incoming_socket_listener(
     host: IpAddr,
     port: u16,
     queue: SharedAssemblyQueue,
-    pool: ProverConnectionPool,
+    pool: ConnectionPool,
     specialized_prover_group_id: u8,
     region: String,
     zone: String,
@@ -34,7 +34,7 @@ pub async fn incoming_socket_listener(
     let address = SocketAddress { host, port };
 
     let queue_capacity = queue.lock().await.capacity();
-    pool.access_storage()
+    pool.access_storage::<ProverStorageProcessor>()
         .await
         .unwrap()
         .gpu_prover_queue_dal()
@@ -78,7 +78,7 @@ pub async fn incoming_socket_listener(
 async fn handle_incoming_file(
     mut stream: TcpStream,
     queue: SharedAssemblyQueue,
-    pool: ProverConnectionPool,
+    pool: ConnectionPool,
     address: SocketAddress,
     region: String,
     zone: String,
@@ -110,7 +110,7 @@ async fn handle_incoming_file(
         (queue_free_slots, status)
     };
 
-    pool.access_storage()
+    pool.access_storage::<ProverStorageProcessor>()
         .await
         .unwrap()
         .gpu_prover_queue_dal()

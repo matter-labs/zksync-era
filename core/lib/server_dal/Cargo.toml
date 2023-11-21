@@ -17,6 +17,7 @@ zksync_contracts = { path = "../contracts" }
 zksync_types = { path = "../types" }
 zksync_health_check = { path = "../health_check" }
 zksync_db_utils = { path = "../db_utils"}
+zksync_db_connection = { path = "../db_connection"}
 
 itertools = "0.10.1"
 thiserror = "1.0"

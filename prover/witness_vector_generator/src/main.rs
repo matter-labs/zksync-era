@@ -14,7 +14,10 @@ use zksync_config::configs::{
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prover_dal::ProverConnectionPool;
+
+use zksync_db_connection::ConnectionPool;
+use zksync_prover_dal::ProverStorageProcessor;
+
 use zksync_prover_fri_utils::get_all_circuit_id_round_tuples_for;
 use zksync_prover_utils::region_fetcher::get_zone;
 use zksync_queued_job_processor::JobProcessor;
@@ -59,13 +62,13 @@ async fn main() -> anyhow::Result<()> {
     let exporter_config = PrometheusExporterConfig::pull(config.prometheus_listener_port);
 
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let pool = ProverConnectionPool::builder(
+    let pool = ConnectionPool::builder(
         postgres_config.prover_url()?,
         postgres_config.max_connections()?,
     )
     .build()
     .await
-    .context("failed to build a connection pool")?;
+    .context("failed to build prover connection pool")?;
 
     let object_store_config =
         ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;

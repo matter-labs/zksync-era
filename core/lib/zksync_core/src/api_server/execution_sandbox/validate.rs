@@ -7,7 +7,8 @@ use multivm::tracers::{
     StorageInvocations,
 };
 use multivm::vm_latest::HistoryDisabled;
-use zksync_server_dal::{ServerConnectionPool, ServerStorageProcessor};
+use zksync_db_connection::ConnectionPool;
+use zksync_server_dal::ServerStorageProcessor;
 
 use zksync_types::{l2::L2Tx, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS, U256};
 
@@ -21,11 +22,14 @@ impl TxSharedArgs {
     pub async fn validate_tx_with_pending_state(
         mut self,
         vm_permit: VmPermit,
-        connection_pool: ServerConnectionPool,
+        connection_pool: ConnectionPool,
         tx: L2Tx,
         computational_gas_limit: u32,
     ) -> Result<(), ValidationError> {
-        let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
+        let mut connection = connection_pool
+            .access_storage_tagged::<ServerStorageProcessor>("api")
+            .await
+            .unwrap();
         let block_args = BlockArgs::pending(&mut connection).await;
         drop(connection);
         self.adjust_l1_gas_price(tx.common_data.fee.gas_per_pubdata_limit);
@@ -51,14 +55,17 @@ impl TxSharedArgs {
 
     async fn validate_tx_in_sandbox(
         self,
-        connection_pool: ServerConnectionPool,
+        connection_pool: ConnectionPool,
         vm_permit: VmPermit,
         tx: L2Tx,
         block_args: BlockArgs,
         computational_gas_limit: u32,
     ) -> Result<(), ValidationError> {
         let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::ValidateInSandbox].start();
-        let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
+        let mut connection = connection_pool
+            .access_storage_tagged::<ServerStorageProcessor>("api")
+            .await
+            .unwrap();
         let validation_params =
             get_validation_params(&mut connection, &tx, computational_gas_limit).await;
         drop(connection);

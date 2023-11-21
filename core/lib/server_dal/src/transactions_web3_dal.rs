@@ -360,10 +360,9 @@ mod tests {
     };
 
     use super::*;
-    use crate::{
-        tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction},
-        ServerConnectionPool,
-    };
+    use crate::tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction};
+
+    use zksync_db_connection::ConnectionPool;
 
     async fn prepare_transaction(conn: &mut ServerStorageProcessor<'_>, tx: L2Tx) {
         conn.blocks_dal()
@@ -392,8 +391,11 @@ mod tests {
 
     #[tokio::test]
     async fn getting_transaction() {
-        let connection_pool = ServerConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+        let mut conn = connection_pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -458,8 +460,11 @@ mod tests {
 
     #[tokio::test]
     async fn getting_miniblock_transactions() {
-        let connection_pool = ServerConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+        let mut conn = connection_pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;

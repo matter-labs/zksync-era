@@ -6,8 +6,9 @@ use tokio::task::JoinHandle;
 
 use tokio::time::sleep;
 use zksync_config::configs::FriWitnessVectorGeneratorConfig;
+use zksync_db_connection::ConnectionPool;
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::ProverConnectionPool;
+use zksync_prover_dal::ProverStorageProcessor;
 use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::GoldilocksField;
 use zksync_prover_fri_types::{CircuitWrapper, ProverJob, WitnessVectorArtifacts};
 use zksync_prover_fri_utils::fetch_next_circuit;
@@ -21,7 +22,7 @@ use zksync_vk_setup_data_server_fri::get_finalization_hints;
 
 pub struct WitnessVectorGenerator {
     blob_store: Box<dyn ObjectStore>,
-    pool: ProverConnectionPool,
+    pool: ConnectionPool,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
     zone: String,
     config: FriWitnessVectorGeneratorConfig,
@@ -32,7 +33,7 @@ pub struct WitnessVectorGenerator {
 impl WitnessVectorGenerator {
     pub fn new(
         blob_store: Box<dyn ObjectStore>,
-        prover_connection_pool: ProverConnectionPool,
+        pool: ConnectionPool,
         circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
         zone: String,
         config: FriWitnessVectorGeneratorConfig,
@@ -41,7 +42,7 @@ impl WitnessVectorGenerator {
     ) -> Self {
         Self {
             blob_store,
-            pool: prover_connection_pool,
+            pool,
             circuit_ids_for_round_to_be_proven,
             zone,
             config,
@@ -76,7 +77,11 @@ impl JobProcessor for WitnessVectorGenerator {
     const SERVICE_NAME: &'static str = "WitnessVectorGenerator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut storage = self.pool.access_storage().await.unwrap();
+        let mut storage = self
+            .pool
+            .access_storage::<ProverStorageProcessor>()
+            .await
+            .unwrap();
         let Some(job) = fetch_next_circuit(
             &mut storage,
             &*self.blob_store,
@@ -92,7 +97,7 @@ impl JobProcessor for WitnessVectorGenerator {
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
         self.pool
-            .access_storage()
+            .access_storage::<ProverStorageProcessor>()
             .await
             .unwrap()
             .fri_prover_jobs_dal()
@@ -134,7 +139,7 @@ impl JobProcessor for WitnessVectorGenerator {
         while now.elapsed() < self.config.prover_instance_wait_timeout() {
             let prover = self
                 .pool
-                .access_storage()
+                .access_storage::<ProverStorageProcessor>()
                 .await
                 .unwrap()
                 .fri_gpu_prover_queue_dal()
@@ -177,7 +182,7 @@ impl JobProcessor for WitnessVectorGenerator {
     async fn get_job_attempts(&self, job_id: &u32) -> anyhow::Result<u32> {
         let mut prover_storage = self
             .pool
-            .access_storage()
+            .access_storage::<ProverStorageProcessor>()
             .await
             .context("failed to acquire DB connection for WitnessVectorGenerator")?;
         prover_storage
@@ -193,7 +198,7 @@ async fn handle_send_result(
     result: &Result<(Duration, u64), String>,
     job_id: u32,
     address: &SocketAddress,
-    pool: &ProverConnectionPool,
+    pool: &ConnectionPool,
     zone: String,
 ) {
     match result {
@@ -210,7 +215,7 @@ async fn handle_send_result(
                 "blob_size_in_mb" => blob_size_in_mb.to_string(),
             );
 
-            pool.access_storage()
+            pool.access_storage::<ProverStorageProcessor>()
                 .await
                 .unwrap()
                 .fri_prover_jobs_dal()
@@ -225,7 +230,7 @@ async fn handle_send_result(
             );
 
             // mark prover instance in gpu_prover_queue dead
-            pool.access_storage()
+            pool.access_storage::<ProverStorageProcessor>()
                 .await
                 .unwrap()
                 .fri_gpu_prover_queue_dal()
@@ -233,7 +238,7 @@ async fn handle_send_result(
                 .await;
 
             // mark the job as failed
-            pool.access_storage()
+            pool.access_storage::<ProverStorageProcessor>()
                 .await
                 .unwrap()
                 .fri_prover_jobs_dal()

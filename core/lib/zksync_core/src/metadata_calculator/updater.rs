@@ -3,16 +3,17 @@
 use anyhow::Context as _;
 use futures::{future, FutureExt};
 use tokio::sync::watch;
-use zksync_prover_dal::{ProverConnectionPool, ProverStorageProcessor};
+use zksync_prover_dal::ProverStorageProcessor;
 
 use std::{ops, time::Instant};
 
 use zksync_commitment_utils::{bootloader_initial_content_commitment, events_queue_commitment};
 use zksync_config::configs::database::MerkleTreeMode;
+use zksync_db_connection::ConnectionPool;
 use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
-use zksync_server_dal::{ServerConnectionPool, ServerStorageProcessor};
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::{block::L1BatchHeader, writes::InitialStorageWrite, L1BatchNumber, H256, U256};
 
 use super::{
@@ -305,13 +306,13 @@ impl TreeUpdater {
     pub async fn loop_updating_tree(
         mut self,
         delayer: Delayer,
-        pool: &ServerConnectionPool,
-        prover_pool: Option<&ProverConnectionPool>,
+        pool: &ConnectionPool,
+        prover_pool: Option<&ConnectionPool>,
         mut stop_receiver: watch::Receiver<bool>,
         health_updater: HealthUpdater,
     ) -> anyhow::Result<()> {
         let mut storage = pool
-            .access_storage_tagged("metadata_calculator")
+            .access_storage_tagged::<ServerStorageProcessor>("metadata_calculator")
             .await
             .unwrap();
 
@@ -378,14 +379,14 @@ impl TreeUpdater {
                 break;
             }
             let storage = pool
-                .access_storage_tagged("metadata_calculator")
+                .access_storage_tagged::<ServerStorageProcessor>("metadata_calculator")
                 .await
                 .unwrap();
 
             let prover_storage: Option<ProverStorageProcessor>;
             if let Some(pool) = prover_pool {
                 prover_storage = Some(
-                    pool.access_storage_tagged("metadata_calculator")
+                    pool.access_storage_tagged::<ProverStorageProcessor>("metadata_calculator")
                         .await
                         .unwrap(),
                 );

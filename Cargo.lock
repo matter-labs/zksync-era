@@ -940,6 +940,7 @@ dependencies = [
  "vlog",
  "zksync_config",
  "zksync_core",
+ "zksync_db_connection",
  "zksync_env_config",
  "zksync_server_dal",
  "zksync_types",
@@ -6324,6 +6325,7 @@ dependencies = [
  "clap 4.3.4",
  "tokio",
  "zksync_config",
+ "zksync_db_connection",
  "zksync_env_config",
  "zksync_server_dal",
  "zksync_types",
@@ -7135,6 +7137,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "zksync_config",
+ "zksync_db_connection",
  "zksync_env_config",
  "zksync_server_dal",
  "zksync_types",
@@ -7902,6 +7905,7 @@ dependencies = [
  "tracing",
  "zksync_config",
  "zksync_contracts",
+ "zksync_db_connection",
  "zksync_eth_client",
  "zksync_server_dal",
  "zksync_types",
@@ -7949,6 +7953,7 @@ dependencies = [
  "vlog",
  "zksync_config",
  "zksync_contracts",
+ "zksync_db_connection",
  "zksync_env_config",
  "zksync_queued_job_processor",
  "zksync_server_dal",
@@ -8015,6 +8020,7 @@ dependencies = [
  "zksync_commitment_utils",
  "zksync_config",
  "zksync_contracts",
+ "zksync_db_connection",
  "zksync_eth_client",
  "zksync_eth_signer",
  "zksync_health_check",
@@ -8049,6 +8055,19 @@ dependencies = [
  "sha2 0.9.9",
  "thiserror",
  "zksync_basic_types",
+]
+
+[[package]]
+name = "zksync_db_connection"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "rand 0.8.5",
+ "sqlx",
+ "tokio",
+ "tracing",
+ "url",
+ "zksync_db_utils",
 ]
 
 [[package]]
@@ -8131,6 +8150,7 @@ dependencies = [
  "zksync_config",
  "zksync_contracts",
  "zksync_core",
+ "zksync_db_connection",
  "zksync_health_check",
  "zksync_server_dal",
  "zksync_state",
@@ -8231,6 +8251,7 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
+ "zksync_db_connection",
  "zksync_db_utils",
  "zksync_health_check",
  "zksync_types",
@@ -8310,6 +8331,7 @@ dependencies = [
  "url",
  "vise",
  "zksync_contracts",
+ "zksync_db_connection",
  "zksync_db_utils",
  "zksync_health_check",
  "zksync_system_constants",
@@ -8329,6 +8351,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
+ "zksync_db_connection",
  "zksync_server_dal",
  "zksync_storage",
  "zksync_types",

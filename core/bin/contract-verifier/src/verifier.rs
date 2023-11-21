@@ -11,9 +11,10 @@ use regex::Regex;
 use tokio::time;
 
 use zksync_config::ContractVerifierConfig;
+use zksync_db_connection::ConnectionPool;
 use zksync_env_config::FromEnv;
 use zksync_queued_job_processor::{async_trait, JobProcessor};
-use zksync_server_dal::{ServerConnectionPool, ServerStorageProcessor};
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::{
     contract_verification_api::{
         CompilationArtifacts, CompilerType, DeployContractCalldata, SourceCodeData,
@@ -41,11 +42,11 @@ enum ConstructorArgs {
 #[derive(Debug)]
 pub struct ContractVerifier {
     config: ContractVerifierConfig,
-    connection_pool: ServerConnectionPool,
+    connection_pool: ConnectionPool,
 }
 
 impl ContractVerifier {
-    pub fn new(config: ContractVerifierConfig, connection_pool: ServerConnectionPool) -> Self {
+    pub fn new(config: ContractVerifierConfig, connection_pool: ConnectionPool) -> Self {
         Self {
             config,
             connection_pool,
@@ -457,7 +458,11 @@ impl JobProcessor for ContractVerifier {
     const BACKOFF_MULTIPLIER: u64 = 1;
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut connection = self.connection_pool.access_storage().await.unwrap();
+        let mut connection = self
+            .connection_pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
 
         // Time overhead for all operations except for compilation.
         const TIME_OVERHEAD: Duration = Duration::from_secs(10);
@@ -475,7 +480,11 @@ impl JobProcessor for ContractVerifier {
     }
 
     async fn save_failure(&self, job_id: usize, _started_at: Instant, error: String) {
-        let mut connection = self.connection_pool.access_storage().await.unwrap();
+        let mut connection = self
+            .connection_pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
 
         connection
             .contract_verification_dal()
@@ -501,7 +510,10 @@ impl JobProcessor for ContractVerifier {
 
             let config: ContractVerifierConfig =
                 ContractVerifierConfig::from_env().context("ContractVerifierConfig")?;
-            let mut connection = connection_pool.access_storage().await.unwrap();
+            let mut connection = connection_pool
+                .access_storage::<ServerStorageProcessor>()
+                .await
+                .unwrap();
 
             let job_id = job.id;
             let verification_result = Self::verify(&mut connection, job, config).await;

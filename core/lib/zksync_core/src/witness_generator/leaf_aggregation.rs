@@ -1,12 +1,13 @@
 use async_trait::async_trait;
-use zksync_prover_dal::ProverConnectionPool;
+use zksync_db_connection::ConnectionPool;
+use zksync_prover_dal::ProverStorageProcessor;
+use zksync_server_dal::ServerStorageProcessor;
 
 use std::{collections::HashMap, time::Instant};
 
 use zksync_config::configs::WitnessGeneratorConfig;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_server_dal::ServerConnectionPool;
 use zksync_types::{
     circuit::LEAF_SPLITTING_FACTOR,
     proofs::{AggregationRound, PrepareLeafAggregationCircuitsJob, WitnessGeneratorJobMetadata},
@@ -48,8 +49,8 @@ pub struct LeafAggregationWitnessGenerator {
     config: WitnessGeneratorConfig,
     object_store: Box<dyn ObjectStore>,
     protocol_versions: Vec<ProtocolVersionId>,
-    connection_pool: ServerConnectionPool,
-    prover_connection_pool: ProverConnectionPool,
+    connection_pool: ConnectionPool,
+    prover_connection_pool: ConnectionPool,
 }
 
 impl LeafAggregationWitnessGenerator {
@@ -57,8 +58,8 @@ impl LeafAggregationWitnessGenerator {
         config: WitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
         protocol_versions: Vec<ProtocolVersionId>,
-        connection_pool: ServerConnectionPool,
-        prover_connection_pool: ProverConnectionPool,
+        connection_pool: ConnectionPool,
+        prover_connection_pool: ConnectionPool,
     ) -> Self {
         Self {
             config,
@@ -93,7 +94,11 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
     const SERVICE_NAME: &'static str = "leaf_aggregation_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut prover_connection = self
+            .prover_connection_pool
+            .access_storage::<ProverStorageProcessor>()
+            .await
+            .unwrap();
         let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
 
         Ok(
@@ -119,7 +124,7 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
     async fn save_failure(&self, job_id: L1BatchNumber, started_at: Instant, error: String) -> () {
         let attempts = self
             .prover_connection_pool
-            .access_storage()
+            .access_storage::<ProverStorageProcessor>()
             .await
             .unwrap()
             .witness_generator_dal()
@@ -133,7 +138,7 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
 
         if attempts >= self.config.max_attempts {
             self.connection_pool
-                .access_storage()
+                .access_storage::<ServerStorageProcessor>()
                 .await
                 .unwrap()
                 .blocks_dal()
@@ -243,13 +248,16 @@ pub fn process_leaf_aggregation_job(
 }
 
 async fn update_database(
-    prover_connection_pool: &ProverConnectionPool,
+    prover_connection_pool: &ConnectionPool,
     started_at: Instant,
     block_number: L1BatchNumber,
     leaf_circuits_len: usize,
     blob_urls: BlobUrls,
 ) {
-    let mut prover_connection = prover_connection_pool.access_storage().await.unwrap();
+    let mut prover_connection = prover_connection_pool
+        .access_storage::<ProverStorageProcessor>()
+        .await
+        .unwrap();
     let mut transaction = prover_connection.start_transaction().await.unwrap();
 
     // inserts artifacts into the node_aggregation_witness_jobs table

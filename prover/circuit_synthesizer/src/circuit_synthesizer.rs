@@ -20,11 +20,14 @@ use zksync_config::ProverConfigs;
 use zksync_env_config::FromEnv;
 
 use zksync_object_store::{CircuitKey, ObjectStore, ObjectStoreError, ObjectStoreFactory};
-use zksync_prover_dal::ProverConnectionPool;
+
+use zksync_db_connection::ConnectionPool;
+use zksync_prover_dal::ProverStorageProcessor;
 use zksync_prover_fri_utils::socket_utils::send_assembly;
 use zksync_prover_utils::numeric_index_to_circuit_name;
 use zksync_prover_utils::region_fetcher::{get_region, get_zone};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::{
     proofs::{GpuProverInstanceStatus, SocketAddress},
     protocol_version::L1VerifierConfig,
@@ -51,8 +54,8 @@ pub struct CircuitSynthesizer {
     region: String,
     zone: String,
     vk_commitments: L1VerifierConfig,
-    prover_connection_pool: ProverConnectionPool,
-    main_connection_pool: ServerConnectionPool,
+    prover_connection_pool: ConnectionPool,
+    server_connection_pool: ConnectionPool,
 }
 
 impl CircuitSynthesizer {
@@ -61,8 +64,8 @@ impl CircuitSynthesizer {
         prover_groups: ProverGroupConfig,
         store_factory: &ObjectStoreFactory,
         vk_commitments: L1VerifierConfig,
-        prover_connection_pool: ProverConnectionPool,
-        main_connection_pool: ServerConnectionPool,
+        prover_connection_pool: ConnectionPool,
+        server_connection_pool: ConnectionPool,
     ) -> Result<Self, CircuitSynthesizerError> {
         let is_specialized = prover_groups.is_specialized_group_id(config.prover_group_id);
         let allowed_circuit_types = if is_specialized {
@@ -101,7 +104,7 @@ impl CircuitSynthesizer {
                 .map_err(CircuitSynthesizerError::GetZoneFailed)?,
             vk_commitments,
             prover_connection_pool,
-            main_connection_pool,
+            server_connection_pool,
         })
     }
 
@@ -144,7 +147,11 @@ impl JobProcessor for CircuitSynthesizer {
             "Attempting to fetch job types: {:?}",
             self.allowed_circuit_types
         );
-        let mut storage = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut storage = self
+            .prover_connection_pool
+            .access_storage::<ProverStorageProcessor>()
+            .await
+            .unwrap();
         let protocol_versions = storage
             .prover_protocol_versions_dal()
             .protocol_version_for(&self.vk_commitments)
@@ -186,7 +193,7 @@ impl JobProcessor for CircuitSynthesizer {
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
         let res = self
             .prover_connection_pool
-            .access_storage()
+            .access_storage::<ProverStorageProcessor>()
             .await
             .unwrap()
             .prover_dal()
@@ -198,8 +205,8 @@ impl JobProcessor for CircuitSynthesizer {
             let attempts = res.0;
             let l1_batch_number = res.1;
             if attempts >= self.config.max_attempts {
-                self.main_connection_pool
-                    .access_storage()
+                self.server_connection_pool
+                    .access_storage::<ProverStorageProcessor>()
                     .await
                     .unwrap()
                     .blocks_dal()
@@ -244,7 +251,7 @@ impl JobProcessor for CircuitSynthesizer {
         while now.elapsed() < self.config.prover_instance_wait_timeout() {
             let prover = self
                 .prover_connection_pool
-                .access_storage()
+                .access_storage::<ProverStorageProcessor>()
                 .await
                 .unwrap()
                 .gpu_prover_queue_dal()
@@ -305,7 +312,7 @@ async fn handle_send_result(
     result: &Result<(Duration, u64), String>,
     job_id: u32,
     address: &SocketAddress,
-    pool: &ProverConnectionPool,
+    pool: &ConnectionPool,
     region: String,
     zone: String,
 ) -> anyhow::Result<()> {
@@ -328,7 +335,7 @@ async fn handle_send_result(
 
             // endregion
 
-            pool.access_storage()
+            pool.access_storage::<ProverStorageProcessor>()
                 .await
                 .unwrap()
                 .prover_dal()
@@ -343,7 +350,7 @@ async fn handle_send_result(
             );
 
             // mark prover instance in gpu_prover_queue dead
-            pool.access_storage()
+            pool.access_storage::<ProverStorageProcessor>()
                 .await
                 .unwrap()
                 .gpu_prover_queue_dal()
@@ -361,7 +368,7 @@ async fn handle_send_result(
                 .non_gpu;
             // mark the job as failed
             let res = pool
-                .access_storage()
+                .access_storage::<ProverStorageProcessor>()
                 .await
                 .unwrap()
                 .prover_dal()
@@ -373,8 +380,8 @@ async fn handle_send_result(
                 let attempts = res.0;
                 let l1_batch_number = res.1;
                 if attempts >= self.config.max_attempts {
-                    self.main_connection_pool
-                        .access_storage()
+                    self.server_connection_pool
+                        .access_storage::<ProverStorageProcessor>()
                         .await
                         .unwrap()
                         .blocks_dal()

@@ -3,9 +3,9 @@ use std::collections::hash_map::{Entry, HashMap};
 use clap::Parser;
 
 use zksync_config::PostgresConfig;
-use zksync_dal::ServerConnectionPool;
+use zksync_db_connection::ConnectionPool;
 use zksync_env_config::FromEnv;
-
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::{MiniblockNumber, H256};
 
 /// When the threshold is reached then the migration is blocked on vacuuming.
@@ -49,11 +49,14 @@ impl StateCache {
 async fn main() {
     let config = PostgresConfig::from_env().unwrap();
     let opt = Cli::parse();
-    let pool = ServerConnectionPool::singleton(config.master_url().unwrap())
+    let pool = ConnectionPool::singleton(config.master_url().unwrap())
         .build()
         .await
         .unwrap();
-    let mut connection = pool.access_storage().await.unwrap();
+    let mut connection = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
 
     let sealed_miniblock = connection
         .blocks_dal()

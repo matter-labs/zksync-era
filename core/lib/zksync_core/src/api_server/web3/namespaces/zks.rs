@@ -150,7 +150,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         let tokens = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .tokens_web3_dal()
@@ -189,7 +189,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             let mut storage = self
                 .state
                 .connection_pool
-                .access_storage_tagged("api")
+                .access_storage_tagged::<ServerStorageProcessor>("api")
                 .await
                 .unwrap();
             storage.tokens_web3_dal().get_token_price(&l2_token).await
@@ -220,7 +220,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         let balances = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .accounts_dal()
@@ -255,7 +255,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         let mut storage = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap();
         let l1_batch_number = match storage
@@ -365,7 +365,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         let mut storage = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap();
         let Some((l1_batch_number, l1_batch_tx_index)) = storage
@@ -399,7 +399,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         let l1_batch_number = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .blocks_web3_dal()
@@ -423,7 +423,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         let minmax = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .blocks_web3_dal()
@@ -447,7 +447,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         let block_details = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .blocks_web3_dal()
@@ -473,7 +473,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         let transactions = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .transactions_web3_dal()
@@ -496,7 +496,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         let mut tx_details = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .transactions_web3_dal()
@@ -531,7 +531,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         let l1_batch = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .blocks_web3_dal()
@@ -551,7 +551,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         let bytecode = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .storage_dal()
@@ -590,7 +590,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             Some(id) => {
                 self.state
                     .connection_pool
-                    .access_storage()
+                    .access_storage::<ServerStorageProcessor>()
                     .await
                     .unwrap()
                     .protocol_versions_web3_dal()
@@ -600,7 +600,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             None => Some(
                 self.state
                     .connection_pool
-                    .access_storage()
+                    .access_storage::<ServerStorageProcessor>()
                     .await
                     .unwrap()
                     .protocol_versions_web3_dal()

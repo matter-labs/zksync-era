@@ -6,11 +6,12 @@ use tokio::{sync::oneshot, sync::watch};
 use zksync_config::configs::{
     AlertsConfig, CircuitSynthesizerConfig, ObjectStoreConfig, PostgresConfig, ProverGroupConfig,
 };
+use zksync_db_connection::ConnectionPool;
 use zksync_env_config::FromEnv;
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prover_dal::connection::DbVariant;
-use zksync_prover_dal::ProverConnectionPool;
+use zksync_prover_dal::ProverStorageProcessor;
 use zksync_queued_job_processor::JobProcessor;
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 use zksync_verification_key_server::get_cached_commitments;
 
@@ -48,13 +49,23 @@ async fn main() -> anyhow::Result<()> {
     let config: CircuitSynthesizerConfig =
         CircuitSynthesizerConfig::from_env().context("CircuitSynthesizerConfig::from_env()")?;
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let pool = ProverConnectionPool::builder(
+
+    let prover_connection_pool = ConnectionPool::builder(
         postgres_config.prover_url()?,
         postgres_config.max_connections()?,
     )
     .build()
     .await
-    .context("failed to build a connection pool")?;
+    .context("failed to build prover connection pool")?;
+
+    let server_connection_pool = ConnectionPool::builder(
+        postgres_config.master_url()?,
+        postgres_config.max_connections()?,
+    )
+    .build()
+    .await
+    .context("failed to build a server connection pool")?;
+
     let vk_commitments = get_cached_commitments();
 
     let object_store_config =
@@ -64,7 +75,8 @@ async fn main() -> anyhow::Result<()> {
         ProverGroupConfig::from_env().context("ProverGroupConfig::from_env()")?,
         &ObjectStoreFactory::new(object_store_config),
         vk_commitments,
-        pool,
+        prover_connection_pool,
+        server_connection_pool,
     )
     .await
     .map_err(|err| anyhow::anyhow!("Could not initialize synthesizer {err:?}"))?;

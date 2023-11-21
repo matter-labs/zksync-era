@@ -1,11 +1,12 @@
 use tokio::sync::watch;
+use zksync_server_dal::ServerStorageProcessor;
 
 use std::{sync::Arc, time::Duration};
 
 use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
 use zksync_config::configs::chain::MempoolConfig;
+use zksync_db_connection::ConnectionPool;
 use zksync_mempool::L2TxFilter;
-use zksync_server_dal::ServerConnectionPool;
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
 use crate::l1_gas_price::L1GasPriceProvider;
@@ -52,14 +53,17 @@ impl<G: L1GasPriceProvider> MempoolFetcher<G> {
 
     pub async fn run(
         mut self,
-        pool: ServerConnectionPool,
+        pool: ConnectionPool,
         remove_stuck_txs: bool,
         stuck_tx_timeout: Duration,
         fair_l2_gas_price: u64,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         {
-            let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
+            let mut storage = pool
+                .access_storage_tagged::<ServerStorageProcessor>("state_keeper")
+                .await
+                .unwrap();
             if remove_stuck_txs {
                 let removed_txs = storage
                     .transactions_dal()
@@ -76,7 +80,10 @@ impl<G: L1GasPriceProvider> MempoolFetcher<G> {
                 break;
             }
             let latency = KEEPER_METRICS.mempool_sync.start();
-            let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
+            let mut storage = pool
+                .access_storage_tagged::<ServerStorageProcessor>("state_keeper")
+                .await
+                .unwrap();
             let mempool_info = self.mempool.get_mempool_info();
             let l2_tx_filter = l2_tx_filter(self.l1_gas_price_provider.as_ref(), fair_l2_gas_price);
 

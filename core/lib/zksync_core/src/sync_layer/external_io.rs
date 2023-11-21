@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use zksync_server_dal::ServerStorageProcessor;
 
 use std::{
     collections::HashMap,
@@ -9,7 +10,7 @@ use std::{
 
 use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
-use zksync_server_dal::ServerConnectionPool;
+use zksync_db_connection::ConnectionPool;
 use zksync_types::{
     block::legacy_miniblock_hash, ethabi::Address, l1::L1Tx, l2::L2Tx,
     protocol_version::ProtocolUpgradeTx, witness_block_state::WitnessBlockState, L1BatchNumber,
@@ -47,7 +48,7 @@ const POLL_INTERVAL: Duration = Duration::from_millis(100);
 /// to the one in the mempool IO (which is used in the main node).
 #[derive(Debug)]
 pub struct ExternalIO {
-    pool: ServerConnectionPool,
+    pool: ConnectionPool,
 
     current_l1_batch_number: L1BatchNumber,
     current_miniblock_number: MiniblockNumber,
@@ -64,7 +65,7 @@ pub struct ExternalIO {
 
 impl ExternalIO {
     pub async fn new(
-        pool: ServerConnectionPool,
+        pool: ConnectionPool,
         actions: ActionQueue,
         sync_state: SyncState,
         main_node_client: Box<dyn MainNodeClient>,
@@ -72,7 +73,10 @@ impl ExternalIO {
         validation_computational_gas_limit: u32,
         chain_id: L2ChainId,
     ) -> Self {
-        let mut storage = pool.access_storage_tagged("sync_layer").await.unwrap();
+        let mut storage = pool
+            .access_storage_tagged::<ServerStorageProcessor>("sync_layer")
+            .await
+            .unwrap();
         let last_sealed_l1_batch_header = storage
             .blocks_dal()
             .get_newest_l1_batch_header()
@@ -107,7 +111,11 @@ impl ExternalIO {
     }
 
     pub async fn recalculate_miniblock_hashes(&self) {
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
+        let mut storage = self
+            .pool
+            .access_storage_tagged::<ServerStorageProcessor>("sync_layer")
+            .await
+            .unwrap();
         let last_blocks: Vec<_> = storage
             .blocks_dal()
             .get_last_miniblocks_for_version(5, ProtocolVersionId::Version12)
@@ -165,7 +173,11 @@ impl ExternalIO {
     }
 
     async fn load_previous_l1_batch_hash(&self) -> U256 {
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
+        let mut storage = self
+            .pool
+            .access_storage_tagged::<ServerStorageProcessor>("sync_layer")
+            .await
+            .unwrap();
 
         let wait_latency = KEEPER_METRICS.wait_for_prev_hash_time.start();
         let (hash, _) =
@@ -181,7 +193,7 @@ impl ExternalIO {
     ) -> BaseSystemContracts {
         let base_system_contracts = self
             .pool
-            .access_storage_tagged("sync_layer")
+            .access_storage_tagged::<ServerStorageProcessor>("sync_layer")
             .await
             .unwrap()
             .protocol_versions_dal()
@@ -197,7 +209,7 @@ impl ExternalIO {
                     .await
                     .expect("Failed to fetch protocol version from the main node");
                 self.pool
-                    .access_storage_tagged("sync_layer")
+                    .access_storage_tagged::<ServerStorageProcessor>("sync_layer")
                     .await
                     .unwrap()
                     .protocol_versions_dal()
@@ -229,7 +241,7 @@ impl ExternalIO {
     async fn get_base_system_contract(&self, hash: H256) -> SystemContractCode {
         let bytecode = self
             .pool
-            .access_storage_tagged("sync_layer")
+            .access_storage_tagged::<ServerStorageProcessor>("sync_layer")
             .await
             .unwrap()
             .storage_dal()
@@ -249,7 +261,7 @@ impl ExternalIO {
                     .await
                     .expect("Failed to fetch base system contract bytecode from the main node");
                 self.pool
-                    .access_storage_tagged("sync_layer")
+                    .access_storage_tagged::<ServerStorageProcessor>("sync_layer")
                     .await
                     .unwrap()
                     .storage_dal()
@@ -288,7 +300,11 @@ impl StateKeeperIO for ExternalIO {
     }
 
     async fn load_pending_batch(&mut self) -> Option<PendingBatchData> {
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
+        let mut storage = self
+            .pool
+            .access_storage_tagged::<ServerStorageProcessor>("sync_layer")
+            .await
+            .unwrap();
 
         // TODO (BFT-99): Do not assume that fee account is the same as in previous batch.
         let fee_account = storage
@@ -500,7 +516,11 @@ impl StateKeeperIO for ExternalIO {
             ),
         };
 
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
+        let mut storage = self
+            .pool
+            .access_storage_tagged::<ServerStorageProcessor>("sync_layer")
+            .await
+            .unwrap();
         let mut transaction = storage.start_transaction().await.unwrap();
 
         let store_latency = L1_BATCH_METRICS.start_storing_on_en();
@@ -562,7 +582,11 @@ impl StateKeeperIO for ExternalIO {
             ),
         };
 
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
+        let mut storage = self
+            .pool
+            .access_storage_tagged::<ServerStorageProcessor>("sync_layer")
+            .await
+            .unwrap();
         updates_manager
             .seal_l1_batch(
                 &mut storage,
@@ -584,7 +608,11 @@ impl StateKeeperIO for ExternalIO {
     }
 
     async fn load_previous_batch_version_id(&mut self) -> Option<ProtocolVersionId> {
-        let mut storage = self.pool.access_storage().await.unwrap();
+        let mut storage = self
+            .pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
         storage
             .blocks_dal()
             .get_batch_protocol_version_id(self.current_l1_batch_number - 1)

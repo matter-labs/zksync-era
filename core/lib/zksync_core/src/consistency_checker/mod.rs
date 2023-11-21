@@ -1,7 +1,8 @@
 use std::time::Duration;
 
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
-use zksync_server_dal::ServerConnectionPool;
+use zksync_db_connection::ConnectionPool;
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::{
     web3::{error, ethabi, transports::Http, types::TransactionId, Web3},
     L1BatchNumber,
@@ -16,13 +17,13 @@ pub struct ConsistencyChecker {
     // How many past batches to check when starting
     max_batches_to_recheck: u32,
     web3: Web3<Http>,
-    db: ServerConnectionPool,
+    db: ConnectionPool,
 }
 
 const SLEEP_DELAY: Duration = Duration::from_secs(5);
 
 impl ConsistencyChecker {
-    pub fn new(web3_url: &str, max_batches_to_recheck: u32, db: ServerConnectionPool) -> Self {
+    pub fn new(web3_url: &str, max_batches_to_recheck: u32, db: ConnectionPool) -> Self {
         let web3 = Web3::new(Http::new(web3_url).unwrap());
         let contract = zksync_contracts::zksync_contract();
         Self {
@@ -34,7 +35,11 @@ impl ConsistencyChecker {
     }
 
     async fn check_commitments(&self, batch_number: L1BatchNumber) -> Result<bool, error::Error> {
-        let mut storage = self.db.access_storage().await.unwrap();
+        let mut storage = self
+            .db
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
 
         let storage_l1_batch = storage
             .blocks_dal()
@@ -132,7 +137,7 @@ impl ConsistencyChecker {
 
     async fn last_committed_batch(&self) -> L1BatchNumber {
         self.db
-            .access_storage()
+            .access_storage::<ServerStorageProcessor>()
             .await
             .unwrap()
             .blocks_dal()
@@ -164,7 +169,7 @@ impl ConsistencyChecker {
 
             let metadata = self
                 .db
-                .access_storage()
+                .access_storage::<ServerStorageProcessor>()
                 .await
                 .unwrap()
                 .blocks_dal()

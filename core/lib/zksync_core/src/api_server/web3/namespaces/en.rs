@@ -1,3 +1,4 @@
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::{api::en::SyncBlock, MiniblockNumber};
 use zksync_web3_decl::error::Web3Error;
 
@@ -35,7 +36,7 @@ impl<G: L1GasPriceProvider> EnNamespace<G> {
         let mut storage = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap();
         storage

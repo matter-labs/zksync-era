@@ -1,16 +1,17 @@
 use async_trait::async_trait;
-use zksync_prover_dal::ProverConnectionPool;
+use zksync_db_connection::ConnectionPool;
 
+use zksync_prover_dal::ProverStorageProcessor;
 use zksync_prover_utils::periodic_job::PeriodicJob;
 
 #[derive(Debug)]
 pub struct WaitingToQueuedFriWitnessJobMover {
     job_moving_interval_ms: u64,
-    pool: ProverConnectionPool,
+    pool: ConnectionPool,
 }
 
 impl WaitingToQueuedFriWitnessJobMover {
-    pub fn new(job_mover_interval_ms: u64, pool: ProverConnectionPool) -> Self {
+    pub fn new(job_mover_interval_ms: u64, pool: ConnectionPool) -> Self {
         Self {
             job_moving_interval_ms: job_mover_interval_ms,
             pool,
@@ -18,7 +19,11 @@ impl WaitingToQueuedFriWitnessJobMover {
     }
 
     async fn move_leaf_aggregation_jobs(&mut self) {
-        let mut conn = self.pool.access_storage().await.unwrap();
+        let mut conn = self
+            .pool
+            .access_storage::<ProverStorageProcessor>()
+            .await
+            .unwrap();
         let l1_batch_numbers = conn
             .fri_witness_generator_dal()
             .move_leaf_aggregation_jobs_from_waiting_to_queued()
@@ -40,7 +45,11 @@ impl WaitingToQueuedFriWitnessJobMover {
     pub async fn move_node_aggregation_jobs_from_waiting_to_queued(
         &mut self,
     ) -> Vec<(i64, u8, u16)> {
-        let mut conn = self.pool.access_storage().await.unwrap();
+        let mut conn = self
+            .pool
+            .access_storage::<ProverStorageProcessor>()
+            .await
+            .unwrap();
         let mut jobs = conn
             .fri_witness_generator_dal()
             .move_depth_zero_node_aggregation_jobs()

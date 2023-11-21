@@ -7,7 +7,8 @@ use prover_service::RemoteSynthesizer;
 use queues::{Buffer, IsQueue};
 
 use tokio::runtime::Handle;
-use zksync_prover_dal::ProverConnectionPool;
+use zksync_db_connection::ConnectionPool;
+use zksync_prover_dal::ProverStorageProcessor;
 use zksync_types::proofs::SocketAddress;
 
 pub type SharedAssemblyQueue = Arc<Mutex<Buffer<Vec<u8>>>>;
@@ -15,7 +16,7 @@ pub type SharedAssemblyQueue = Arc<Mutex<Buffer<Vec<u8>>>>;
 pub struct SynthesizedCircuitProvider {
     rt_handle: Handle,
     queue: SharedAssemblyQueue,
-    pool: ProverConnectionPool,
+    pool: ConnectionPool,
     address: SocketAddress,
     region: String,
     zone: String,
@@ -24,7 +25,7 @@ pub struct SynthesizedCircuitProvider {
 impl SynthesizedCircuitProvider {
     pub fn new(
         queue: SharedAssemblyQueue,
-        pool: ProverConnectionPool,
+        pool: ConnectionPool,
         address: SocketAddress,
         region: String,
         zone: String,
@@ -51,7 +52,7 @@ impl RemoteSynthesizer for SynthesizedCircuitProvider {
                 if is_full {
                     self.rt_handle.block_on(async {
                         self.pool
-                            .access_storage()
+                            .access_storage::<ProverStorageProcessor>()
                             .await
                             .unwrap()
                             .gpu_prover_queue_dal()

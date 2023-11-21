@@ -1,8 +1,9 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use zksync_prover_dal::ProverConnectionPool;
+use zksync_db_connection::ConnectionPool;
 
+use zksync_prover_dal::ProverStorageProcessor;
 use zksync_prover_utils::periodic_job::PeriodicJob;
 
 #[derive(Debug)]
@@ -10,7 +11,7 @@ pub struct ProverJobRetryManager {
     max_attempts: u32,
     processing_timeout: Duration,
     retry_interval_ms: u64,
-    prover_connection_pool: ProverConnectionPool,
+    prover_connection_pool: ConnectionPool,
 }
 
 impl ProverJobRetryManager {
@@ -18,7 +19,7 @@ impl ProverJobRetryManager {
         max_attempts: u32,
         processing_timeout: Duration,
         retry_interval_ms: u64,
-        prover_connection_pool: ProverConnectionPool,
+        prover_connection_pool: ConnectionPool,
     ) -> Self {
         Self {
             max_attempts,
@@ -37,7 +38,7 @@ impl PeriodicJob for ProverJobRetryManager {
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
         let stuck_jobs = self
             .prover_connection_pool
-            .access_storage()
+            .access_storage::<ProverStorageProcessor>()
             .await
             .unwrap()
             .prover_dal()

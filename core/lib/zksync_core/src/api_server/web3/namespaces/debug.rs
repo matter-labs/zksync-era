@@ -1,10 +1,11 @@
 use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
 use once_cell::sync::OnceCell;
 use std::sync::Arc;
+use zksync_server_dal::ServerStorageProcessor;
 
 use multivm::interface::ExecutionResult;
 
-use zksync_server_dal::ServerConnectionPool;
+use zksync_db_connection::ConnectionPool;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
@@ -31,7 +32,7 @@ use crate::l1_gas_price::L1GasPriceProvider;
 
 #[derive(Debug, Clone)]
 pub struct DebugNamespace {
-    connection_pool: ServerConnectionPool,
+    connection_pool: ConnectionPool,
     fair_l2_gas_price: u64,
     api_contracts: ApiContracts,
     vm_execution_cache_misses_limit: Option<usize>,
@@ -72,7 +73,7 @@ impl DebugNamespace {
             .unwrap_or(false);
         let mut connection = self
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap();
         let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
@@ -108,7 +109,7 @@ impl DebugNamespace {
             .unwrap_or(false);
         let call_trace = self
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap()
             .transactions_dal()
@@ -140,7 +141,7 @@ impl DebugNamespace {
 
         let mut connection = self
             .connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .unwrap();
         let block_args = BlockArgs::new(&mut connection, block_id)
