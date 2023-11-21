@@ -1,13 +1,12 @@
 //! Metrics for the JSON-RPC server.
 
 use vise::{
-    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, GaugeGuard, Histogram,
-    LabeledFamily, LatencyObserver, Metrics, Unit,
+    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LabeledFamily,
+    LatencyObserver, Metrics, Unit,
 };
 
 use std::{
     fmt,
-    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -214,33 +213,6 @@ impl From<&TypedFilter> for FilterType {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct InstalledFilter {
-    pub filter: TypedFilter,
-    guard: Arc<GaugeGuard>,
-    created_at: Instant,
-    pub last_request: u64,
-}
-
-impl InstalledFilter {
-    pub fn new(filter: TypedFilter) -> Self {
-        let guard = FILTER_METRICS.metrics_count[&FilterType::from(&filter)].inc_guard(1);
-        Self {
-            filter,
-            guard: Arc::new(guard),
-            created_at: Instant::now(),
-            last_request: chrono::Utc::now().naive_utc().timestamp() as u64,
-        }
-    }
-}
-
-impl Drop for InstalledFilter {
-    fn drop(&mut self) {
-        FILTER_METRICS.filter_lifetime[&FilterType::from(&self.filter)]
-            .observe(self.created_at.elapsed());
-    }
-}
-
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "api_filter")]
 pub(super) struct FilterMetrics {
@@ -252,6 +224,9 @@ pub(super) struct FilterMetrics {
     /// Lifetime of a filter in seconds grouped by the filter type
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
     pub filter_lifetime: Family<FilterType, Histogram<Duration>>,
+    /// Number of requests to the filter grouped by the filter type
+    #[metrics(buckets = Buckets::linear(0.0..=10.0, 1.0))]
+    pub filter_count: Family<FilterType, Histogram<usize>>,
 }
 
 #[vise::register]

@@ -5,12 +5,14 @@ use std::{
     collections::HashMap,
     convert::TryFrom,
     future::Future,
+    ops::AddAssign,
     sync::{
         atomic::{AtomicU32, Ordering},
         Arc,
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
+use vise::GaugeGuard;
 
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
 use zksync_dal::ConnectionPool;
@@ -27,7 +29,7 @@ use zksync_web3_decl::{
     types::{Filter, Log},
 };
 
-use super::metrics::{FilterType, InstalledFilter, API_METRICS, FILTER_METRICS};
+use super::metrics::{FilterType, API_METRICS, FILTER_METRICS};
 use crate::api_server::web3::TypedFilter;
 use crate::{
     api_server::{
@@ -548,6 +550,49 @@ pub struct Filters {
     max_cap: usize,
 }
 
+#[derive(Debug, Clone)]
+struct InstalledFilter {
+    pub filter: TypedFilter,
+    #[allow(dead_code)]
+    guard: Arc<GaugeGuard>,
+    created_at: Instant,
+    last_request: u64,
+    request_count: usize,
+}
+
+impl InstalledFilter {
+    pub fn new(filter: TypedFilter) -> Self {
+        let guard = FILTER_METRICS.metrics_count[&FilterType::from(&filter)].inc_guard(1);
+        Self {
+            filter,
+            guard: Arc::new(guard),
+            created_at: Instant::now(),
+            last_request: chrono::Utc::now().naive_utc().timestamp() as u64,
+            request_count: 0,
+        }
+    }
+
+    pub fn update_stats(&mut self) {
+        let previous_request_timestamp = self.last_request;
+        let now = chrono::Utc::now().naive_utc().timestamp() as u64;
+
+        self.last_request = now;
+        self.request_count.add_assign(1);
+
+        let filter_type = FilterType::from(&self.filter);
+        FILTER_METRICS.request_frequency[&filter_type]
+            .observe(Duration::from_secs(now - previous_request_timestamp));
+    }
+}
+
+impl Drop for InstalledFilter {
+    fn drop(&mut self) {
+        FILTER_METRICS.filter_count[&FilterType::from(&self.filter)].observe(self.request_count);
+        FILTER_METRICS.filter_lifetime[&FilterType::from(&self.filter)]
+            .observe(self.created_at.elapsed());
+    }
+}
+
 impl Filters {
     /// Instantiates `Filters` with given max capacity.
     pub fn new(max_cap: usize) -> Self {
@@ -565,8 +610,6 @@ impl Filters {
                 break val;
             }
         };
-
-        let guard = FILTER_METRICS.metrics_count[&FilterType::from(&filter)].inc_guard(1);
 
         self.state.insert(idx, InstalledFilter::new(filter));
 
@@ -587,17 +630,9 @@ impl Filters {
         Some(&installed_filter.filter)
     }
 
-    pub fn update_last_request_timestamp(&mut self, index: U256) -> bool {
+    pub fn update_stats(&mut self, index: U256) -> bool {
         if let Some(installed_filter) = self.state.get_mut(&index) {
-            let previous_request_timestamp = installed_filter.last_request;
-            let now = chrono::Utc::now().naive_utc().timestamp() as u64;
-
-            installed_filter.last_request = now;
-
-            let filter_type = FilterType::from(&installed_filter.filter);
-            FILTER_METRICS.request_frequency[&filter_type]
-                .observe(Duration::from_secs(now - previous_request_timestamp));
-
+            installed_filter.update_stats();
             true
         } else {
             false

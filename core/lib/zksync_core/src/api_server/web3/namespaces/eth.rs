@@ -17,7 +17,6 @@ use zksync_web3_decl::{
     types::{Address, Block, Filter, FilterChanges, Log, U64},
 };
 
-use crate::api_server::web3::TypedFilter;
 use crate::{
     api_server::{
         execution_sandbox::BlockArgs,
@@ -26,6 +25,7 @@ use crate::{
             metrics::{BlockCallObserver, API_METRICS},
             resolve_block,
             state::RpcState,
+            TypedFilter,
         },
     },
     l1_gas_price::L1GasPriceProvider,
@@ -250,11 +250,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             return Err(Web3Error::FilterNotFound);
         };
 
-        self.state
-            .installed_filters
-            .write()
-            .await
-            .update_last_request_timestamp(idx);
+        self.state.installed_filters.write().await.update_stats(idx);
 
         let from_block = self
             .state
@@ -619,6 +615,8 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .get(idx)
             .cloned()
             .ok_or(Web3Error::FilterNotFound)?;
+
+        self.state.installed_filters.write().await.update_stats(idx);
 
         let result = match self.filter_changes(&mut filter).await {
             Ok(changes) => {
