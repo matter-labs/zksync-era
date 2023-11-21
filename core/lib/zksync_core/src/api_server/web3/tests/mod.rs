@@ -106,7 +106,7 @@ async fn spawn_server(
         ApiTransportLabel::Http => ApiBuilder::jsonrpsee_backend(api_config, pool).http(0),
         ApiTransportLabel::Ws => ApiBuilder::jsonrpc_backend(api_config, pool)
             .ws(0)
-            .with_polling_interval(Duration::from_millis(50))
+            .with_polling_interval(POLL_INTERVAL)
             .with_subscriptions_limit(100),
     };
     server_builder

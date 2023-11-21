@@ -46,6 +46,7 @@ fn create_miniblock(number: u32) -> MiniblockHeader {
 
 #[async_trait]
 trait WsTest {
+    // FIXME: return `anyhow::Result`
     async fn test(&self, client: &WsClient, pool: &ConnectionPool);
 }
 
@@ -149,7 +150,7 @@ impl WsTest for BasicSubscriptions {
             .unwrap();
 
         // Wait a little until subscriptions are fully registered.
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        tokio::time::sleep(POLL_INTERVAL).await;
         let (new_miniblock, new_tx_hash) = Self::update_storage(pool).await;
 
         let received_tx_hash = tokio::time::timeout(TEST_TIMEOUT, txs_subscription.next())
@@ -180,11 +181,10 @@ struct LogSubscriptions;
 
 impl LogSubscriptions {
     async fn update_storage(
-        pool: &ConnectionPool,
+        storage: &mut StorageProcessor<'_>,
         miniblock_number: u32,
         start_idx: u32,
     ) -> (IncludedTxLocation, Vec<VmEvent>) {
-        let mut storage = pool.access_storage().await.unwrap();
         let new_miniblock = create_miniblock(miniblock_number);
         storage
             .blocks_dal()
@@ -237,11 +237,17 @@ impl LogSubscriptions {
     }
 }
 
-#[async_trait]
-impl WsTest for LogSubscriptions {
-    async fn test(&self, client: &WsClient, pool: &ConnectionPool) {
+#[derive(Debug)]
+struct Subscriptions {
+    all_logs_subscription: Subscription<api::Log>,
+    address_subscription: Subscription<api::Log>,
+    topic_subscription: Subscription<api::Log>,
+}
+
+impl Subscriptions {
+    async fn new(client: &WsClient) -> Self {
         let params = rpc_params!["logs"];
-        let mut all_logs_subscription = client
+        let all_logs_subscription = client
             .subscribe::<api::Log, _>("eth_subscribe", params, "eth_unsubscribe")
             .await
             .unwrap();
@@ -250,7 +256,7 @@ impl WsTest for LogSubscriptions {
             topics: None,
         };
         let params = rpc_params!["logs", address_filter];
-        let mut address_subscription = client
+        let address_subscription = client
             .subscribe::<api::Log, _>("eth_subscribe", params, "eth_unsubscribe")
             .await
             .unwrap();
@@ -259,15 +265,32 @@ impl WsTest for LogSubscriptions {
             topics: Some(vec![Some(H256::repeat_byte(42).into())]),
         };
         let params = rpc_params!["logs", topic_filter];
-        let mut topic_subscription = client
+        let topic_subscription = client
             .subscribe::<api::Log, _>("eth_subscribe", params, "eth_unsubscribe")
             .await
             .unwrap();
+        Self {
+            all_logs_subscription,
+            address_subscription,
+            topic_subscription,
+        }
+    }
+}
 
+#[async_trait]
+impl WsTest for LogSubscriptions {
+    async fn test(&self, client: &WsClient, pool: &ConnectionPool) {
+        let Subscriptions {
+            mut all_logs_subscription,
+            mut address_subscription,
+            mut topic_subscription,
+        } = Subscriptions::new(client).await;
         // Wait a little until subscriptions are fully registered.
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        tokio::time::sleep(POLL_INTERVAL).await;
 
-        let (tx_location, events) = Self::update_storage(pool, 1, 0).await;
+        let mut storage = pool.access_storage().await.unwrap();
+        let (tx_location, events) = Self::update_storage(&mut storage, 1, 0).await;
+        drop(storage);
         let events: Vec<_> = events.iter().collect();
 
         let all_logs = collect_logs(&mut all_logs_subscription, 4).await;
@@ -284,6 +307,20 @@ impl WsTest for LogSubscriptions {
 
         let topic_logs = collect_logs(&mut topic_subscription, 2).await;
         assert_logs_match(&topic_logs, &[events[1], events[3]]);
+
+        // Wait until the pub-sub notifier runs at least one more time.
+        tokio::time::sleep(POLL_INTERVAL * 2).await;
+
+        // Check that no new notifications were sent to subscribers.
+        tokio::time::timeout(POLL_INTERVAL, all_logs_subscription.next())
+            .await
+            .unwrap_err();
+        tokio::time::timeout(POLL_INTERVAL, address_subscription.next())
+            .await
+            .unwrap_err();
+        tokio::time::timeout(POLL_INTERVAL, topic_subscription.next())
+            .await
+            .unwrap_err();
     }
 }
 
@@ -312,6 +349,92 @@ fn assert_logs_match(actual_logs: &[api::Log], expected_logs: &[&VmEvent]) {
 #[tokio::test]
 async fn log_subscriptions() {
     test_ws_server(LogSubscriptions).await;
+}
+
+#[derive(Debug)]
+struct LogSubscriptionsWithNewBlock;
+
+#[async_trait]
+impl WsTest for LogSubscriptionsWithNewBlock {
+    async fn test(&self, client: &WsClient, pool: &ConnectionPool) {
+        let Subscriptions {
+            mut all_logs_subscription,
+            mut address_subscription,
+            ..
+        } = Subscriptions::new(client).await;
+        // Wait a little until subscriptions are fully registered.
+        tokio::time::sleep(POLL_INTERVAL).await;
+
+        let mut storage = pool.access_storage().await.unwrap();
+        let (_, events) = LogSubscriptions::update_storage(&mut storage, 1, 0).await;
+        drop(storage);
+        let events: Vec<_> = events.iter().collect();
+
+        let all_logs = collect_logs(&mut all_logs_subscription, 4).await;
+        assert_logs_match(&all_logs, &events);
+
+        // Create a new block and wait for the pub-sub notifier to run.
+        let mut storage = pool.access_storage().await.unwrap();
+        let (_, new_events) = LogSubscriptions::update_storage(&mut storage, 2, 4).await;
+        drop(storage);
+        let new_events: Vec<_> = new_events.iter().collect();
+
+        let all_new_logs = collect_logs(&mut all_logs_subscription, 4).await;
+        assert_logs_match(&all_new_logs, &new_events);
+
+        let address_logs = collect_logs(&mut address_subscription, 4).await;
+        assert_logs_match(
+            &address_logs,
+            &[events[0], events[3], new_events[0], new_events[3]],
+        );
+    }
+}
+
+#[tokio::test]
+async fn log_subscriptions_with_new_block() {
+    test_ws_server(LogSubscriptionsWithNewBlock).await;
+}
+
+#[derive(Debug)]
+struct LogSubscriptionsWithManyBlocks;
+
+#[async_trait]
+impl WsTest for LogSubscriptionsWithManyBlocks {
+    async fn test(&self, client: &WsClient, pool: &ConnectionPool) {
+        let Subscriptions {
+            mut all_logs_subscription,
+            mut address_subscription,
+            ..
+        } = Subscriptions::new(client).await;
+        // Wait a little until subscriptions are fully registered.
+        tokio::time::sleep(POLL_INTERVAL).await;
+
+        // Add two blocks in the storage atomically.
+        let mut storage = pool.access_storage().await.unwrap();
+        let mut transaction = storage.start_transaction().await.unwrap();
+        let (_, events) = LogSubscriptions::update_storage(&mut transaction, 1, 0).await;
+        let events: Vec<_> = events.iter().collect();
+        let (_, new_events) = LogSubscriptions::update_storage(&mut transaction, 2, 4).await;
+        let new_events: Vec<_> = new_events.iter().collect();
+        transaction.commit().await.unwrap();
+        drop(storage);
+
+        let all_logs = collect_logs(&mut all_logs_subscription, 4).await;
+        assert_logs_match(&all_logs, &events);
+        let all_new_logs = collect_logs(&mut all_logs_subscription, 4).await;
+        assert_logs_match(&all_new_logs, &new_events);
+
+        let address_logs = collect_logs(&mut address_subscription, 4).await;
+        assert_logs_match(
+            &address_logs,
+            &[events[0], events[3], new_events[0], new_events[3]],
+        );
+    }
+}
+
+#[tokio::test]
+async fn log_subscriptions_with_many_new_blocks_at_once() {
+    test_ws_server(LogSubscriptionsWithManyBlocks).await;
 }
 
 #[derive(Debug)]
@@ -378,7 +501,9 @@ impl WsTest for LogFilterChanges {
         };
         let topics_filter_id = client.new_filter(topics_filter).await.unwrap();
 
-        let (_, events) = LogSubscriptions::update_storage(pool, 1, 0).await;
+        let mut storage = pool.access_storage().await.unwrap();
+        let (_, events) = LogSubscriptions::update_storage(&mut storage, 1, 0).await;
+        drop(storage);
         let events: Vec<_> = events.iter().collect();
 
         let all_logs = client.get_filter_changes(all_logs_filter_id).await.unwrap();
@@ -435,7 +560,9 @@ impl WsTest for LogFilterChangesWithBlockBoundaries {
         };
         let bounded_filter_id = client.new_filter(bounded_filter).await.unwrap();
 
-        let (_, events) = LogSubscriptions::update_storage(pool, 1, 0).await;
+        let mut storage = pool.access_storage().await.unwrap();
+        let (_, events) = LogSubscriptions::update_storage(&mut storage, 1, 0).await;
+        drop(storage);
         let events: Vec<_> = events.iter().collect();
 
         let lower_bound_logs = client
@@ -464,7 +591,9 @@ impl WsTest for LogFilterChangesWithBlockBoundaries {
         assert_eq!(bounded_logs, upper_bound_logs);
 
         // Add another miniblock with events to the storage.
-        let (_, new_events) = LogSubscriptions::update_storage(pool, 2, 4).await;
+        let mut storage = pool.access_storage().await.unwrap();
+        let (_, new_events) = LogSubscriptions::update_storage(&mut storage, 2, 4).await;
+        drop(storage);
         let new_events: Vec<_> = new_events.iter().collect();
 
         let lower_bound_logs = client
@@ -487,7 +616,9 @@ impl WsTest for LogFilterChangesWithBlockBoundaries {
 
         // Add miniblock #3. It should not be picked up by the bounded and upper bound filters,
         // and should be picked up by the lower bound filter.
-        let (_, new_events) = LogSubscriptions::update_storage(pool, 3, 8).await;
+        let mut storage = pool.access_storage().await.unwrap();
+        let (_, new_events) = LogSubscriptions::update_storage(&mut storage, 3, 8).await;
+        drop(storage);
         let new_events: Vec<_> = new_events.iter().collect();
 
         let bounded_logs = client.get_filter_changes(bounded_filter_id).await.unwrap();
