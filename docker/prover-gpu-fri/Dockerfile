@@ -14,8 +14,8 @@ ENV RUSTUP_HOME=/usr/local/rustup \
 ENV CUDAARCHS=89
 
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
-    rustup install nightly-2023-07-21 && \
-    rustup default nightly-2023-07-21
+    rustup install nightly-2023-08-21 && \
+    rustup default nightly-2023-08-21
 
 RUN curl -Lo cmake-3.24.2-linux-x86_64.sh https://github.com/Kitware/CMake/releases/download/v3.24.2/cmake-3.24.2-linux-x86_64.sh && \
     chmod +x cmake-3.24.2-linux-x86_64.sh && \
