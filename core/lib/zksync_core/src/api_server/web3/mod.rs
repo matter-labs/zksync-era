@@ -14,7 +14,6 @@ use tokio::task::JoinHandle;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{api, MiniblockNumber};
-use zksync_web3_decl::types::Filter;
 use zksync_web3_decl::{
     error::Web3Error,
     jsonrpsee::{
@@ -25,6 +24,7 @@ use zksync_web3_decl::{
         DebugNamespaceServer, EnNamespaceServer, EthNamespaceServer, NetNamespaceServer,
         Web3NamespaceServer, ZksNamespaceServer,
     },
+    types::Filter,
 };
 
 use crate::{

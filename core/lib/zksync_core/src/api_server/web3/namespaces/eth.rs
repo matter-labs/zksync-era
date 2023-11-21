@@ -245,9 +245,17 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let method_latency = API_METRICS.start_call(METHOD_NAME);
         // We clone the filter to not hold the filter lock for an extended period of time.
         let maybe_filter = self.state.installed_filters.read().await.get(idx).cloned();
+
         let Some(TypedFilter::Events(filter, _)) = maybe_filter else {
             return Err(Web3Error::FilterNotFound);
         };
+
+        self.state
+            .installed_filters
+            .write()
+            .await
+            .update_last_request_timestamp(idx);
+
         let from_block = self
             .state
             .resolve_filter_block_number(filter.from_block)

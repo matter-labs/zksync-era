@@ -2,10 +2,9 @@
 
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, GaugeGuard, Histogram,
-    LabeledFamily, LatencyObserver, Metrics,
+    LabeledFamily, LatencyObserver, Metrics, Unit,
 };
 
-use chrono::NaiveDateTime;
 use std::{
     fmt,
     time::{Duration, Instant},
@@ -204,8 +203,8 @@ pub(super) enum FilterType {
     PendingTransactions,
 }
 
-impl From<TypedFilter> for FilterType {
-    fn from(value: TypedFilter) -> Self {
+impl From<&TypedFilter> for FilterType {
+    fn from(value: &TypedFilter) -> Self {
         match value {
             TypedFilter::Events(_, _) => FilterType::Events,
             TypedFilter::Blocks(_) => FilterType::Blocks,
@@ -217,18 +216,18 @@ impl From<TypedFilter> for FilterType {
 #[derive(Debug, Clone)]
 pub struct InstalledFilter {
     pub filter: TypedFilter,
-    guard: Box<GaugeGuard>,
-    start: Instant,
+    guard: GaugeGuard,
+    created_at: Instant,
     // FIXME: Change the type
     pub last_request: u64,
 }
 
 impl InstalledFilter {
-    pub fn new(filter: TypedFilter, guard: GaugeGuard) -> Self {
+    pub fn new(filter: TypedFilter) -> Self {
         Self {
             filter,
-            guard: Box::new(guard),
-            start: Instant::now(),
+            guard: FILTER_METRICS.metrics_count[&FilterType::from(&filter)].inc_guard(1),
+            created_at: Instant::now(),
             last_request: chrono::Utc::now().naive_utc().timestamp() as u64,
         }
     }
@@ -236,18 +235,21 @@ impl InstalledFilter {
 
 impl Drop for InstalledFilter {
     fn drop(&mut self) {
-        FILTER_METRICS.filter_lifetime[&FilterType::from(self.filter.clone())]
-            .observe(self.start.elapsed());
+        FILTER_METRICS.filter_lifetime[&FilterType::from(&self.filter)]
+            .observe(self.created_at.elapsed());
     }
 }
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "api_filter")]
 pub(super) struct FilterMetrics {
+    /// Number of currently active filters grouped by the filter type
     pub metrics_count: Family<FilterType, Gauge>,
-    #[metrics(buckets = Buckets::LATENCIES)]
+    /// Time in seconds between consecutive requests to the filter grouped by the filter type
+    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
     pub request_frequency: Family<FilterType, Histogram<Duration>>,
-    #[metrics(buckets = Buckets::LATENCIES)]
+    /// Lifetime of a filter in seconds grouped by the filter type
+    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
     pub filter_lifetime: Family<FilterType, Histogram<Duration>>,
 }
 

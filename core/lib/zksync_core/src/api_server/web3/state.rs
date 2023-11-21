@@ -566,9 +566,9 @@ impl Filters {
             }
         };
 
-        let guard = FILTER_METRICS.metrics_count[&FilterType::from(filter.clone())].inc_guard(1);
+        let guard = FILTER_METRICS.metrics_count[&FilterType::from(&filter)].inc_guard(1);
 
-        self.state.insert(idx, InstalledFilter::new(filter, guard));
+        self.state.insert(idx, InstalledFilter::new(filter));
 
         // Check if we reached max capacity
         if self.state.len() > self.max_cap {
@@ -582,29 +582,32 @@ impl Filters {
 
     /// Retrieves filter from the state.
     pub fn get(&self, index: U256) -> Option<&TypedFilter> {
-        self.state.get(&index).map(|installed_filter| {
+        let installed_filter = self.state.get(&index)?;
+
+        Some(&installed_filter.filter)
+    }
+
+    pub fn update_last_request_timestamp(&mut self, index: U256) -> bool {
+        if let Some(installed_filter) = self.state.get_mut(&index) {
             let previous_request_timestamp = installed_filter.last_request;
             let now = chrono::Utc::now().naive_utc().timestamp() as u64;
 
-            *installed_filter.last_request = now;
+            installed_filter.last_request = now;
 
-            let filter_type = FilterType::from(installed_filter.filter.clone());
-
+            let filter_type = FilterType::from(&installed_filter.filter);
             FILTER_METRICS.request_frequency[&filter_type]
                 .observe(Duration::from_secs(now - previous_request_timestamp));
 
-            &installed_filter.filter
-        })
+            true
+        } else {
+            false
+        }
     }
 
     /// Updates filter in the state.
     pub fn update(&mut self, index: U256, new_filter: TypedFilter) -> bool {
-        if let Some(typed_filter) = self.state.get_mut(&index) {
-            let filter_type = FilterType::from(new_filter.clone());
-            let guard = FILTER_METRICS.metrics_count[&filter_type].inc_guard(1);
-
-            // FIXME: is previous value dropped?
-            *typed_filter = InstalledFilter::new(new_filter, guard);
+        if let Some(installed_filter) = self.state.get_mut(&index) {
+            *installed_filter.filter = InstalledFilter::new(new_filter);
             true
         } else {
             false
