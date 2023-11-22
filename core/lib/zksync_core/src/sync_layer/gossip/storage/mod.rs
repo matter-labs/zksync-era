@@ -13,15 +13,18 @@ use zksync_concurrency::{
 use zksync_consensus_roles::validator::{BlockNumber, FinalBlock};
 use zksync_consensus_storage::{BlockStore, StorageError, StorageResult};
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_types::{Address, MiniblockNumber};
+use zksync_types::{api::en::SyncBlock, block::ConsensusBlockFields, Address, MiniblockNumber};
 
 #[cfg(test)]
 mod tests;
 
 use super::{buffered::ContiguousBlockStore, conversions::sync_block_to_consensus_block};
-use crate::sync_layer::{
-    fetcher::{FetchedBlock, FetcherCursor},
-    sync_action::{ActionQueueSender, SyncAction},
+use crate::{
+    consensus,
+    sync_layer::{
+        fetcher::{FetchedBlock, FetcherCursor},
+        sync_action::{ActionQueueSender, SyncAction},
+    },
 };
 
 #[derive(Debug)]
@@ -74,7 +77,28 @@ pub(super) struct PostgresBlockStorage {
 
 impl PostgresBlockStorage {
     /// Creates a new storage handle. `pool` should have multiple connections to work efficiently.
-    pub fn new(pool: ConnectionPool, actions: ActionQueueSender, cursor: FetcherCursor) -> Self {
+    pub async fn new(
+        ctx: &ctx::Ctx,
+        pool: ConnectionPool,
+        actions: ActionQueueSender,
+        cursor: FetcherCursor,
+        genesis_block: &FinalBlock,
+    ) -> StorageResult<Self> {
+        let mut storage = ctx
+            .wait(pool.access_storage_tagged("sync_layer"))
+            .await?
+            .map_err(StorageError::Database)?;
+        Self::ensure_genesis_block(ctx, &mut storage, genesis_block).await?;
+        drop(storage);
+
+        Ok(Self::new_unchecked(pool, actions, cursor))
+    }
+
+    fn new_unchecked(
+        pool: ConnectionPool,
+        actions: ActionQueueSender,
+        cursor: FetcherCursor,
+    ) -> Self {
         let current_block_number = cursor.next_miniblock.0.saturating_sub(1).into();
         Self {
             pool,
@@ -82,6 +106,63 @@ impl PostgresBlockStorage {
             block_sender: watch::channel(BlockNumber(current_block_number)).0,
             cursor: Mutex::new(cursor.into()),
         }
+    }
+
+    async fn ensure_genesis_block(
+        ctx: &ctx::Ctx,
+        storage: &mut StorageProcessor<'_>,
+        genesis_block: &FinalBlock,
+    ) -> StorageResult<()> {
+        // FIXME: check `genesis_block` self-consistency
+
+        let block_number = u32::try_from(genesis_block.header.number.0)
+            .context("Block number overflow for genesis block")
+            .map_err(StorageError::Database)?;
+        let block = Self::sync_block(ctx, storage, MiniblockNumber(block_number)).await?;
+        let block = block
+            .with_context(|| {
+                format!("Genesis block #{block_number} (first block with consensus data) is not present in Postgres")
+            })
+            .map_err(StorageError::Database)?;
+        let actual_consensus_fields = block.consensus.clone();
+
+        let expected_payload = consensus::Payload::decode(&genesis_block.payload)
+            .context("Cannot decode genesis block payload")
+            .map_err(StorageError::Database)?;
+        let actual_payload: consensus::Payload =
+            block.try_into().map_err(StorageError::Database)?;
+        if actual_payload != expected_payload {
+            let err = anyhow::anyhow!(
+                "Genesis block payload from Postgres {actual_payload:?} does not match the configured one \
+                 {expected_payload:?}"
+            );
+            return Err(StorageError::Database(err));
+        }
+
+        let expected_consensus_fields = ConsensusBlockFields {
+            parent: genesis_block.header.parent,
+            justification: genesis_block.justification.clone(),
+        };
+        if let Some(actual_consensus_fields) = &actual_consensus_fields {
+            // While justifications may differ among nodes for an arbitrary block, we assume that
+            // the genesis block has a hardcoded justification.
+            if *actual_consensus_fields != expected_consensus_fields {
+                let err = anyhow::anyhow!(
+                    "Genesis block consensus fields in Postgres {actual_consensus_fields:?} do not match \
+                     the configured ones {expected_consensus_fields:?}"
+                );
+                return Err(StorageError::Database(err));
+            }
+        } else {
+            ctx.wait(storage.blocks_dal().set_miniblock_consensus_fields(
+                MiniblockNumber(block_number),
+                &expected_consensus_fields,
+            ))
+            .await?
+            .context("Failed saving consensus fields for genesis block")
+            .map_err(StorageError::Database)?;
+        }
+        Ok(())
     }
 
     /// Runs background tasks for this store. This method **must** be spawned as a background task
@@ -116,22 +197,28 @@ impl PostgresBlockStorage {
             .map_err(StorageError::Database)
     }
 
+    async fn sync_block(
+        ctx: &ctx::Ctx,
+        storage: &mut StorageProcessor<'_>,
+        number: MiniblockNumber,
+    ) -> StorageResult<Option<SyncBlock>> {
+        let operator_address = Address::default(); // FIXME: where to get this address from?
+        ctx.wait(
+            storage
+                .sync_dal()
+                .sync_block(number, operator_address, true),
+        )
+        .await?
+        .with_context(|| format!("Failed getting miniblock #{number} from Postgres"))
+        .map_err(StorageError::Database)
+    }
+
     async fn block(
         ctx: &ctx::Ctx,
         storage: &mut StorageProcessor<'_>,
         number: MiniblockNumber,
     ) -> StorageResult<Option<FinalBlock>> {
-        let operator_address = Address::default(); // FIXME: where to get this address from?
-        let Some(block) = ctx
-            .wait(
-                storage
-                    .sync_dal()
-                    .sync_block(number, operator_address, true),
-            )
-            .await?
-            .with_context(|| format!("Failed getting miniblock #{number} from Postgres"))
-            .map_err(StorageError::Database)?
-        else {
+        let Some(block) = Self::sync_block(ctx, storage, number).await? else {
             return Ok(None);
         };
         let block = sync_block_to_consensus_block(block).map_err(StorageError::Database)?;

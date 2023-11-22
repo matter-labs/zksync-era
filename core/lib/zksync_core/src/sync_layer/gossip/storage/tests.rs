@@ -30,7 +30,7 @@ async fn block_store_basics_for_postgres() {
     let cursor = FetcherCursor::new(&mut storage).await.unwrap();
     drop(storage);
     let (actions_sender, _) = ActionQueue::new();
-    let storage = PostgresBlockStorage::new(pool.clone(), actions_sender, cursor);
+    let storage = PostgresBlockStorage::new_unchecked(pool.clone(), actions_sender, cursor);
 
     let ctx = &ctx::test_root(&ctx::RealClock);
     let genesis_block = BlockStore::first_block(&storage, ctx).await.unwrap();
@@ -64,7 +64,7 @@ async fn subscribing_to_block_updates_for_postgres() {
     // `ContiguousBlockStore`), but for testing subscriptions this is fine.
     drop(storage);
     let (actions_sender, _) = ActionQueue::new();
-    let storage = PostgresBlockStorage::new(pool.clone(), actions_sender, cursor);
+    let storage = PostgresBlockStorage::new_unchecked(pool.clone(), actions_sender, cursor);
     let mut subscriber = storage.subscribe_to_block_writes();
 
     let ctx = &ctx::test_root(&ctx::RealClock);
@@ -110,7 +110,7 @@ async fn processing_new_blocks() {
     drop(storage);
 
     let (actions_sender, mut actions) = ActionQueue::new();
-    let storage = PostgresBlockStorage::new(pool.clone(), actions_sender, cursor);
+    let storage = PostgresBlockStorage::new_unchecked(pool.clone(), actions_sender, cursor);
     let ctx = &ctx::test_root(&ctx::RealClock);
     let ctx = &ctx.with_timeout(TEST_TIMEOUT);
     storage
