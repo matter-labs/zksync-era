@@ -83,7 +83,6 @@ async fn build_state_keeper(
         chain_id,
     )
     .await;
-    io.recalculate_miniblock_hashes().await;
 
     ZkSyncStateKeeper::without_sealer(stop_receiver, Box::new(io), batch_executor_base)
 }
