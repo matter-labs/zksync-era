@@ -83,7 +83,7 @@ export const command = new Command('fmt')
                 case 'system-contracts':
                     await prettierSystemContracts(cmd.check);
                     break;
-                case 'format-sqlx-queries':
+                case 'sqlx-queries':
                     if (cmd.check) {
                         console.warn('format-sqlx-queries does not support --check, skipping!');
                     } else {
