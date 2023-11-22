@@ -55,6 +55,7 @@ impl CallTracer {
 
     fn push_call_and_update_stats(&mut self, call: FarcallAndNearCallCount) {
         self.stack.push(call.clone());
+
         self.max_stack_depth = self
             .max_stack_depth
             .max(self.stack.len() + call.near_calls_after);
@@ -64,10 +65,11 @@ impl CallTracer {
     fn increase_last_and_update_stats(&mut self, value: usize) {
         if let Some(last) = self.stack.last_mut() {
             last.near_calls_after += value;
-            self.max_near_calls = self.max_near_calls.max(last.near_calls_after);
-            self.max_stack_depth = self
-                .max_stack_depth
-                .max(self.stack.len() + last.near_calls_after);
+
+            let new_value = last.near_calls_after;
+
+            self.max_near_calls = self.max_near_calls.max(new_value);
+            self.max_stack_depth = self.max_stack_depth.max(self.stack.len() + new_value);
         }
     }
 }
