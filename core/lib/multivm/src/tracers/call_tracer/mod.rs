@@ -65,6 +65,9 @@ impl CallTracer {
         if let Some(last) = self.stack.last_mut() {
             last.near_calls_after += value;
             self.max_near_calls = self.max_near_calls.max(last.near_calls_after);
+            self.max_stack_depth = self
+                .max_stack_depth
+                .max(self.stack.len() + last.near_calls_after);
         }
     }
 }
