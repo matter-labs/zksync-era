@@ -249,8 +249,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .installed_filters
             .lock()
             .await
-            .get_and_update_stats(idx)
-            .cloned();
+            .get_and_update_stats(idx);
 
         let Some(TypedFilter::Events(filter, _)) = maybe_filter else {
             return Err(Web3Error::FilterNotFound);
@@ -621,7 +620,6 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .lock()
             .await
             .get_and_update_stats(idx)
-            .cloned()
             .ok_or(Web3Error::FilterNotFound)?;
 
         let result = match self.filter_changes(&mut filter).await {
