@@ -42,6 +42,11 @@ pub(super) trait ContiguousBlockStore: BlockStore {
     async fn schedule_next_block(&self, ctx: &ctx::Ctx, block: &FinalBlock) -> StorageResult<()>;
 }
 
+/// In-memory buffer or [`FinalBlock`]s received from peers, but not executed and persisted locally yet.
+///
+/// Unlike with executed / persisted blocks, there may be gaps between blocks in the buffer.
+/// These blocks are shared with peers using the gossip network, but are not persisted and lost
+/// on the node restart.
 #[derive(Debug)]
 struct BlockBuffer {
     store_block_number: BlockNumber,
@@ -117,6 +122,21 @@ pub(super) enum BufferedStorageEvent {
 }
 
 /// [`BlockStore`] with an in-memory buffer for pending blocks.
+///
+/// # Data flow
+///
+/// The store is plugged into the `SyncBlocks` actor, so that it can receive new blocks
+/// from peers over the gossip network and to share blocks with peers. Received blocks are stored
+/// in a [`BlockBuffer`]. The `SyncBlocks` actor doesn't guarantee that blocks are received in order,
+/// so we have a background task that waits for successive blocks and feeds them to
+/// the underlying storage ([`ContiguousBlockStore`]). The underlying storage executes and persists
+/// blocks using the state keeper; see [`PostgresBlockStorage`](super::PostgresBlockStorage) for more details.
+/// This logic is largely shared with the old syncing logic using JSON-RPC; the only differing part
+/// is producing block data.
+///
+/// Once a block is processed and persisted by the state keeper, it can be removed from the [`BlockBuffer`];
+/// we do this in another background task. Removing blocks from the buffer ensures that it doesn't
+/// grow infinitely; it also allows to track syncing progress via metrics.
 #[derive(Debug)]
 pub(super) struct Buffered<T> {
     inner: T,

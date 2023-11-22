@@ -61,7 +61,9 @@ impl CursorWithCachedBlock {
 }
 
 /// Postgres-based [`BlockStore`] implementation. New blocks are scheduled to be written via
-/// [`ContiguousBlockStore`] trait, which internally uses an [`ActionQueueSender`].
+/// [`ContiguousBlockStore`] trait, which internally uses an [`ActionQueueSender`] to queue
+/// block data (miniblock and L1 batch parameters, transactions) for the state keeper. Block data processing
+/// is shared with JSON-RPC-based syncing.
 #[derive(Debug)]
 pub(super) struct PostgresBlockStorage {
     pool: ConnectionPool,
