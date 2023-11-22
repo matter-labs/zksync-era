@@ -84,11 +84,7 @@ export const command = new Command('fmt')
                     await prettierSystemContracts(cmd.check);
                     break;
                 case 'sqlx-queries':
-                    if (cmd.check) {
-                        console.warn('format-sqlx-queries does not support --check, skipping!');
-                    } else {
-                        await formatSqlxQueries();
-                    }
+                    await formatSqlxQueries(cmd.check);
                     break;
                 default:
                     await prettier(extension, cmd.check);
@@ -101,6 +97,7 @@ export const command = new Command('fmt')
             promises.push(prettierL1Contracts(cmd.check));
             promises.push(prettierL2Contracts(cmd.check));
             promises.push(prettierSystemContracts(cmd.check));
+            promises.push(formatSqlxQueries(cmd.check));
             await Promise.all(promises);
         }
     });

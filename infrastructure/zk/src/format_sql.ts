@@ -85,15 +85,15 @@ function formatRustStringQuery(query: string) {
     return addIndent(reconstructedRustString, baseIndent) + (endedWithAComma ? ',' : '') + '\n';
 }
 
-async function formatFile(filePath: string) {
-    let content = fs.readFileSync(filePath, { encoding: 'utf-8' }).split('\n');
+async function formatFile(filePath: string, check: boolean) {
+    let content = await fs.promises.readFile(filePath, { encoding: 'utf-8' });
     let linesToQuery = null;
     let isInsideQuery = false;
     let isRawString = false;
     let builtQuery = '';
 
     let modifiedFile = '';
-    for (const line of content) {
+    for (const line of content.split('\n')) {
         if (line.endsWith('sqlx::query!(')) {
             linesToQuery = 1;
             isRawString = false;
@@ -134,14 +134,28 @@ async function formatFile(filePath: string) {
             modifiedFile += line + '\n';
         }
     }
-    fs.writeFileSync(filePath, modifiedFile.slice(0, modifiedFile.length - 1));
+    modifiedFile = modifiedFile.slice(0, modifiedFile.length - 1);
+
+    if (!check) {
+        await fs.promises.writeFile(filePath, modifiedFile);
+    } else {
+        if (content !== modifiedFile) {
+            console.warn(`Sqlx query format issues found in ${filePath}.`);
+        }
+    }
+    return content === modifiedFile;
 }
 
-export async function formatSqlxQueries() {
+export async function formatSqlxQueries(check: boolean) {
     process.chdir(`${process.env.ZKSYNC_HOME}`);
     let { stdout: filesRaw } = await utils.exec('find core/lib/dal -type f -name "*.rs"');
     let files = filesRaw.trim().split('\n');
-    for (let file of files) {
-        formatFile(file);
+    let formatResults = await Promise.all(files.map((file) => formatFile(file, check)));
+    if (check) {
+        if (!formatResults.includes(false)) {
+            console.log('All files contain correctly formatted sqlx queries!');
+        } else {
+            throw new Error('Some files contain incorrectly formatted sql queries');
+        }
     }
 }
