@@ -4,8 +4,6 @@ services:
     image: "matterlabs/geth:latest"
     environment:
       - PLUGIN_CONFIG
-    networks:
-      - test_network
   zk:
     image: "matterlabs/zk-environment:latest2.0-lightweight"
     depends_on:
@@ -31,20 +29,9 @@ services:
       - ./.env
     extra_hosts:
       - "host:host-gateway"
-    networks:
-      - test_network
   postgres:
     image: "postgres:14"
     ports:
       - "5432:5432"
     environment:
       - POSTGRES_HOST_AUTH_METHOD=trust
-    networks:
-      - test_network
-
-
-networks:
-  test_network:
-    driver: bridge
-    driver_opts:
-      com.docker.network.driver.mtu: 1460
