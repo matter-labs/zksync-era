@@ -225,7 +225,7 @@ pub(super) struct FilterMetrics {
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
     pub filter_lifetime: Family<FilterType, Histogram<Duration>>,
     /// Number of requests to the filter grouped by the filter type
-    #[metrics(buckets = Buckets::linear(0.0..=10.0, 1.0))]
+    #[metrics(buckets = Buckets::exponential(1.0..=1048576.0, 2.0))]
     pub filter_count: Family<FilterType, Histogram<usize>>,
 }
 

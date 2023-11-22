@@ -260,16 +260,12 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .state
             .resolve_filter_block_number(filter.from_block)
             .await?;
+        let logs = self
+            .filter_changes(&mut TypedFilter::Events(filter, from_block))
+            .await?;
 
-        let mut typed_filter = TypedFilter::Events(filter, from_block);
-
-        let logs = self.filter_changes(&mut typed_filter).await?;
-
-        self.state
-            .installed_filters
-            .lock()
-            .await
-            .update(idx, typed_filter);
+        // We are not updating the filter, since that is the purpose of `get_filter_changes` method,
+        // which is getting changes happened from the last poll and moving the cursor forward.
 
         method_latency.observe();
         Ok(logs)

@@ -29,7 +29,6 @@ use zksync_web3_decl::{
 };
 
 use super::metrics::{FilterType, API_METRICS, FILTER_METRICS};
-use crate::api_server::web3::TypedFilter;
 use crate::{
     api_server::{
         execution_sandbox::BlockArgs,
@@ -37,7 +36,7 @@ use crate::{
         tx_sender::TxSender,
         web3::{
             backend_jsonrpc::error::internal_error, namespaces::eth::EVENT_TOPIC_NUMBER_LIMIT,
-            resolve_block,
+            resolve_block, TypedFilter,
         },
     },
     sync_layer::SyncState,
@@ -622,12 +621,12 @@ impl Filters {
     }
 
     /// Retrieves filter from the state.
-    pub fn get_and_update_stats(&mut self, index: U256) -> Option<&TypedFilter> {
+    pub fn get_and_update_stats(&mut self, index: U256) -> Option<TypedFilter> {
         let installed_filter = self.state.get_mut(&index)?;
 
         installed_filter.update_stats();
 
-        Some(&installed_filter.filter)
+        Some(installed_filter.filter.clone())
     }
 
     /// Updates filter in the state.
