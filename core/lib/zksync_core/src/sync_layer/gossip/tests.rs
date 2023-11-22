@@ -40,14 +40,17 @@ pub(super) async fn load_final_block(
     conversions::sync_block_to_consensus_block(sync_block).unwrap()
 }
 
-pub async fn block_payload(storage: &mut StorageProcessor<'_>, number: u32) -> validator::Payload {
+pub(super) async fn block_payload(
+    storage: &mut StorageProcessor<'_>,
+    number: u32,
+) -> consensus::Payload {
     let sync_block = storage
         .sync_dal()
         .sync_block(MiniblockNumber(number), Address::repeat_byte(1), true)
         .await
         .unwrap()
         .unwrap_or_else(|| panic!("no sync block #{number}"));
-    consensus::Payload::try_from(sync_block).unwrap().encode()
+    consensus::Payload::try_from(sync_block).unwrap()
 }
 
 /// Adds consensus information for the specified `count` of miniblocks, starting from the genesis.
@@ -59,7 +62,7 @@ pub(super) async fn add_consensus_fields(
     let mut prev_block_hash = validator::BlockHeaderHash::from_bytes([0; 32]);
     let validator_set = validator::ValidatorSet::new([validator_key.public()]).unwrap();
     for number in 0..count {
-        let payload = block_payload(storage, number).await;
+        let payload = block_payload(storage, number).await.encode();
         let block_header = validator::BlockHeader {
             parent: prev_block_hash,
             number: validator::BlockNumber(number.into()),
@@ -142,7 +145,7 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
     let tx_hashes = run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
 
     let mut storage = pool.access_storage().await.unwrap();
-    let genesis_block_payload = block_payload(&mut storage, 0).await;
+    let genesis_block_payload = block_payload(&mut storage, 0).await.encode();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
     let rng = &mut ctx.rng();
     let mut validator = FullValidatorConfig::for_single_validator(rng, genesis_block_payload);
@@ -273,7 +276,7 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
     let tx_hashes: Vec<_> = tx_hashes.iter().map(Vec::as_slice).collect();
 
     let mut storage = pool.access_storage().await.unwrap();
-    let genesis_block_payload = block_payload(&mut storage, 0).await;
+    let genesis_block_payload = block_payload(&mut storage, 0).await.encode();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
     let rng = &mut ctx.rng();
     let mut validator = FullValidatorConfig::for_single_validator(rng, genesis_block_payload);

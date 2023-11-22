@@ -154,6 +154,9 @@ impl PostgresBlockStorage {
                 return Err(StorageError::Database(err));
             }
         } else {
+            tracing::info!(
+                "Postgres doesn't have consensus fields for genesis block; saving {expected_consensus_fields:?}"
+            );
             ctx.wait(storage.blocks_dal().set_miniblock_consensus_fields(
                 MiniblockNumber(block_number),
                 &expected_consensus_fields,

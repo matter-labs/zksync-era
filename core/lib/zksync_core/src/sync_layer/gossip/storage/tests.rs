@@ -3,6 +3,7 @@
 use rand::{thread_rng, Rng};
 
 use zksync_concurrency::scope;
+use zksync_consensus_roles::validator;
 use zksync_types::L2ChainId;
 
 use super::*;
@@ -11,7 +12,7 @@ use crate::{
     sync_layer::{
         gossip::tests::{
             add_consensus_fields, assert_first_block_actions, assert_second_block_actions,
-            load_final_block,
+            block_payload, load_final_block,
         },
         tests::run_state_keeper_with_multiple_miniblocks,
         ActionQueue,
@@ -124,4 +125,118 @@ async fn processing_new_blocks() {
         .await
         .unwrap();
     assert_second_block_actions(&mut actions).await;
+}
+
+fn create_genesis(validator_key: &validator::SecretKey, payload: validator::Payload) -> FinalBlock {
+    let block_header = validator::BlockHeader::genesis(payload.hash());
+    let validator_set = validator::ValidatorSet::new([validator_key.public()]).unwrap();
+    let replica_commit = validator::ReplicaCommit {
+        protocol_version: validator::CURRENT_VERSION,
+        view: validator::ViewNumber(0),
+        proposal: block_header,
+    };
+    let replica_commit = validator_key.sign_msg(replica_commit);
+    let justification =
+        validator::CommitQC::from(&[replica_commit], &validator_set).expect("Failed creating QC");
+    FinalBlock {
+        header: block_header,
+        payload,
+        justification,
+    }
+}
+
+#[tokio::test]
+async fn ensuring_consensus_fields_for_genesis_block() {
+    let ctx = &ctx::test_root(&ctx::RealClock);
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.access_storage().await.unwrap();
+    if storage.blocks_dal().is_genesis_needed().await.unwrap() {
+        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+            .await
+            .unwrap();
+    }
+    let cursor = FetcherCursor::new(&mut storage).await.unwrap();
+    let block_payload = block_payload(&mut storage, 0).await.encode();
+    drop(storage);
+
+    let validator_key = validator::SecretKey::generate(&mut ctx.rng());
+    let genesis_block = create_genesis(&validator_key, block_payload.clone());
+
+    let (actions_sender, _) = ActionQueue::new();
+    PostgresBlockStorage::new(ctx, pool.clone(), actions_sender, cursor, &genesis_block)
+        .await
+        .unwrap();
+
+    // Check that the consensus fields are persisted for the genesis block.
+    let mut storage = pool.access_storage().await.unwrap();
+    let sync_block = storage
+        .sync_dal()
+        .sync_block(MiniblockNumber(0), Address::default(), false)
+        .await
+        .unwrap()
+        .expect("No genesis block");
+    assert!(sync_block.consensus.is_some());
+    let cursor = FetcherCursor::new(&mut storage).await.unwrap();
+    let other_cursor = FetcherCursor::new(&mut storage).await.unwrap();
+    drop(storage);
+
+    // Check that the storage can be initialized again.
+    let (actions_sender, _) = ActionQueue::new();
+    PostgresBlockStorage::new(ctx, pool.clone(), actions_sender, cursor, &genesis_block)
+        .await
+        .unwrap();
+
+    // Create a genesis block with another validator.
+    let validator_key = validator::SecretKey::generate(&mut ctx.rng());
+    let other_genesis_block = create_genesis(&validator_key, block_payload);
+
+    // Storage should not be able to initialize with other genesis block.
+    let (actions_sender, _) = ActionQueue::new();
+    PostgresBlockStorage::new(
+        ctx,
+        pool,
+        actions_sender,
+        other_cursor,
+        &other_genesis_block,
+    )
+    .await
+    .unwrap_err();
+}
+
+#[tokio::test]
+async fn genesis_block_payload_mismatch() {
+    let ctx = &ctx::test_root(&ctx::RealClock);
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.access_storage().await.unwrap();
+    if storage.blocks_dal().is_genesis_needed().await.unwrap() {
+        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+            .await
+            .unwrap();
+    }
+    let cursor = FetcherCursor::new(&mut storage).await.unwrap();
+    let other_cursor = FetcherCursor::new(&mut storage).await.unwrap();
+
+    let bogus_block_payload = validator::Payload(vec![]);
+    let validator_key = validator::SecretKey::generate(&mut ctx.rng());
+    let genesis_block = create_genesis(&validator_key, bogus_block_payload);
+
+    let (actions_sender, _) = ActionQueue::new();
+    PostgresBlockStorage::new(ctx, pool.clone(), actions_sender, cursor, &genesis_block)
+        .await
+        .unwrap_err();
+
+    let mut bogus_block_payload = block_payload(&mut storage, 0).await;
+    bogus_block_payload.timestamp += 1;
+    let genesis_block = create_genesis(&validator_key, bogus_block_payload.encode());
+
+    let (actions_sender, _) = ActionQueue::new();
+    PostgresBlockStorage::new(
+        ctx,
+        pool.clone(),
+        actions_sender,
+        other_cursor,
+        &genesis_block,
+    )
+    .await
+    .unwrap_err();
 }
