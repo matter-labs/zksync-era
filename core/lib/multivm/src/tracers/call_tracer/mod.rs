@@ -25,7 +25,7 @@ struct FarcallAndNearCallCount {
 
 impl Drop for CallTracer {
     fn drop(&mut self) {
-        CALL_METRICS.call_depth.observe(self.max_stack_depth);
+        CALL_METRICS.call_stack_depth.observe(self.max_stack_depth);
         CALL_METRICS.max_near_calls.observe(self.max_near_calls);
     }
 }
