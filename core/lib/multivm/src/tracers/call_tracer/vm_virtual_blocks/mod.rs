@@ -27,9 +27,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
     ) {
         match data.opcode.variant.opcode {
             Opcode::NearCall(_) => {
-                if let Some(last) = self.stack.last_mut() {
-                    last.near_calls_after += 1;
-                }
+                self.increase_last_and_update_stats(1);
             }
             Opcode::FarCall(far_call) => {
                 // We use parent gas for properly calculating gas used in the trace.
@@ -50,7 +48,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
                 };
 
                 self.handle_far_call_op_code_virtual_blocks(state, data, memory, &mut current_call);
-                self.stack.push(FarcallAndNearCallCount {
+                self.push_call_and_update_stats(FarcallAndNearCallCount {
                     farcall: current_call,
                     near_calls_after: 0,
                 });
@@ -187,7 +185,7 @@ impl CallTracer {
 
         if current_call.near_calls_after > 0 {
             current_call.near_calls_after -= 1;
-            self.stack.push(current_call);
+            self.push_call_and_update_stats(current_call);
             return;
         }
 
@@ -203,7 +201,7 @@ impl CallTracer {
         if let Some(parent_call) = self.stack.last_mut() {
             parent_call.farcall.calls.push(current_call.farcall);
         } else {
-            self.stack.push(current_call);
+            self.push_call_and_update_stats(current_call);
         }
     }
 }

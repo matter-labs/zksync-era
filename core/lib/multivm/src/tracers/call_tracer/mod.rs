@@ -1,7 +1,9 @@
+use crate::tracers::call_tracer::metrics::CALL_METRICS;
 use once_cell::sync::OnceCell;
 use std::sync::Arc;
 use zksync_types::vm_trace::Call;
 
+mod metrics;
 pub mod vm_latest;
 pub mod vm_refunds_enhancement;
 pub mod vm_virtual_blocks;
@@ -10,6 +12,9 @@ pub mod vm_virtual_blocks;
 pub struct CallTracer {
     stack: Vec<FarcallAndNearCallCount>,
     result: Arc<OnceCell<Vec<Call>>>,
+
+    max_stack_depth: usize,
+    max_near_calls: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -18,11 +23,20 @@ struct FarcallAndNearCallCount {
     near_calls_after: usize,
 }
 
+impl Drop for CallTracer {
+    fn drop(&mut self) {
+        CALL_METRICS.call_depth.observe(self.max_stack_depth);
+        CALL_METRICS.max_near_calls.observe(self.max_near_calls);
+    }
+}
+
 impl CallTracer {
     pub fn new(result: Arc<OnceCell<Vec<Call>>>) -> Self {
         Self {
             stack: vec![],
             result,
+            max_stack_depth: 0,
+            max_near_calls: 0,
         }
     }
 
@@ -37,5 +51,17 @@ impl CallTracer {
         let result = self.extract_result();
         let cell = self.result.as_ref();
         cell.set(result).unwrap();
+    }
+
+    fn push_call_and_update_stats(&mut self, call: FarcallAndNearCallCount) {
+        self.stack.push(call);
+        self.max_stack_depth = self.max_stack_depth.max(self.stack.len());
+    }
+
+    fn increase_last_and_update_stats(&mut self, value: usize) {
+        if let Some(last) = self.stack.last_mut() {
+            last.near_calls_after += value;
+            self.max_near_calls = self.max_near_calls.max(last.near_calls_after);
+        }
     }
 }
