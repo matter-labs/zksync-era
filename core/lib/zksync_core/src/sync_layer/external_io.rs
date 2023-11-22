@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use futures::future;
 
 use std::{
     collections::HashMap,
@@ -108,13 +109,24 @@ impl ExternalIO {
 
     async fn load_previous_l1_batch_hash(&self) -> U256 {
         let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
-
         let wait_latency = KEEPER_METRICS.wait_for_prev_hash_time.start();
         let (hash, _) =
             extractors::wait_for_prev_l1_batch_params(&mut storage, self.current_l1_batch_number)
                 .await;
         wait_latency.observe();
         hash
+    }
+
+    async fn load_previous_miniblock_hash(&self) -> H256 {
+        let prev_miniblock_number = self.current_miniblock_number - 1;
+        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
+        let header = storage
+            .blocks_dal()
+            .get_miniblock_header(prev_miniblock_number)
+            .await
+            .unwrap()
+            .unwrap_or_else(|| panic!("Miniblock #{prev_miniblock_number} is missing"));
+        header.hash
     }
 
     async fn load_base_system_contracts_by_version_id(
@@ -307,15 +319,20 @@ impl StateKeeperIO for ExternalIO {
                     operator_address,
                     protocol_version,
                     first_miniblock_info: (miniblock_number, virtual_blocks),
-                    prev_miniblock_hash,
                 }) => {
                     assert_eq!(
                         number, self.current_l1_batch_number,
                         "Batch number mismatch"
                     );
-                    tracing::info!("Getting previous L1 batch hash");
-                    let previous_l1_batch_hash = self.load_previous_l1_batch_hash().await;
-                    tracing::info!("Previous L1 batch hash: {previous_l1_batch_hash}");
+                    tracing::info!("Getting previous L1 batch hash and miniblock hash");
+                    let (previous_l1_batch_hash, previous_miniblock_hash) = future::join(
+                        self.load_previous_l1_batch_hash(),
+                        self.load_previous_miniblock_hash(),
+                    )
+                    .await;
+                    tracing::info!(
+                        "Previous L1 batch hash: {previous_l1_batch_hash}, previous miniblock hash: {previous_miniblock_hash}"
+                    );
 
                     let base_system_contracts = self
                         .load_base_system_contracts_by_version_id(protocol_version)
@@ -328,7 +345,7 @@ impl StateKeeperIO for ExternalIO {
                         l1_gas_price,
                         l2_fair_gas_price,
                         miniblock_number,
-                        prev_miniblock_hash,
+                        previous_miniblock_hash,
                         base_system_contracts,
                         self.validation_computational_gas_limit,
                         protocol_version,
