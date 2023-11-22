@@ -130,3 +130,6 @@ pub(crate) const TX_OPERATOR_L2_BLOCK_INFO_SLOTS: usize =
 
 pub(crate) const COMPRESSED_BYTECODES_OFFSET: usize =
     TX_OPERATOR_L2_BLOCK_INFO_OFFSET + TX_OPERATOR_L2_BLOCK_INFO_SLOTS;
+
+// The maximal gas limit that gets passed into an L1->L2 transaction
+pub(crate) const PRIORITY_TX_MAX_GAS_LIMIT: usize = 72_000_000;
