@@ -33,7 +33,7 @@ pub(super) async fn load_final_block(
 ) -> FinalBlock {
     let sync_block = storage
         .sync_dal()
-        .sync_block(MiniblockNumber(number), Address::repeat_byte(1), true)
+        .sync_block(MiniblockNumber(number), Address::default(), true)
         .await
         .unwrap()
         .unwrap_or_else(|| panic!("no sync block #{number}"));
@@ -46,7 +46,7 @@ pub(super) async fn block_payload(
 ) -> consensus::Payload {
     let sync_block = storage
         .sync_dal()
-        .sync_block(MiniblockNumber(number), Address::repeat_byte(1), true)
+        .sync_block(MiniblockNumber(number), Address::default(), true)
         .await
         .unwrap()
         .unwrap_or_else(|| panic!("no sync block #{number}"));

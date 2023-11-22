@@ -70,6 +70,7 @@ impl CursorWithCachedBlock {
 #[derive(Debug)]
 pub(super) struct PostgresBlockStorage {
     pool: ConnectionPool,
+    first_block_number: MiniblockNumber,
     actions: ActionQueueSender,
     block_sender: watch::Sender<BlockNumber>,
     cursor: Mutex<CursorWithCachedBlock>,
@@ -91,17 +92,29 @@ impl PostgresBlockStorage {
         Self::ensure_genesis_block(ctx, &mut storage, genesis_block).await?;
         drop(storage);
 
-        Ok(Self::new_unchecked(pool, actions, cursor))
+        let first_block_number = u32::try_from(genesis_block.header.number.0)
+            .context("Block number overflow for genesis block")
+            .map_err(StorageError::Database)?;
+        let first_block_number = MiniblockNumber(first_block_number);
+
+        Ok(Self::new_unchecked(
+            pool,
+            first_block_number,
+            actions,
+            cursor,
+        ))
     }
 
     fn new_unchecked(
         pool: ConnectionPool,
+        first_block_number: MiniblockNumber,
         actions: ActionQueueSender,
         cursor: FetcherCursor,
     ) -> Self {
         let current_block_number = cursor.next_miniblock.0.saturating_sub(1).into();
         Self {
             pool,
+            first_block_number,
             actions,
             block_sender: watch::channel(BlockNumber(current_block_number)).0,
             cursor: Mutex::new(cursor.into()),
@@ -257,7 +270,7 @@ impl BlockStore for PostgresBlockStorage {
 
     async fn first_block(&self, ctx: &ctx::Ctx) -> StorageResult<FinalBlock> {
         let mut storage = self.storage(ctx).await?;
-        Self::block(ctx, &mut storage, MiniblockNumber(0))
+        Self::block(ctx, &mut storage, self.first_block_number)
             .await?
             .context("Genesis miniblock not present in Postgres")
             .map_err(StorageError::Database)
@@ -272,11 +285,15 @@ impl BlockStore for PostgresBlockStorage {
         ctx: &ctx::Ctx,
         number: BlockNumber,
     ) -> StorageResult<Option<FinalBlock>> {
-        let number = u32::try_from(number.0)
-            .context("block number is too large")
-            .map_err(StorageError::Database)?;
+        let Ok(number) = u32::try_from(number.0) else {
+            return Ok(None);
+        };
+        let number = MiniblockNumber(number);
+        if number < self.first_block_number {
+            return Ok(None);
+        }
         let mut storage = self.storage(ctx).await?;
-        Self::block(ctx, &mut storage, MiniblockNumber(number)).await
+        Self::block(ctx, &mut storage, number).await
     }
 
     async fn missing_block_numbers(
@@ -284,6 +301,7 @@ impl BlockStore for PostgresBlockStorage {
         _ctx: &ctx::Ctx,
         _range: ops::Range<BlockNumber>,
     ) -> StorageResult<Vec<BlockNumber>> {
+        // FIXME: check range
         Ok(vec![]) // The storage never has missing blocks by construction
     }
 

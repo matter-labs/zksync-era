@@ -31,7 +31,12 @@ async fn block_store_basics_for_postgres() {
     let cursor = FetcherCursor::new(&mut storage).await.unwrap();
     drop(storage);
     let (actions_sender, _) = ActionQueue::new();
-    let storage = PostgresBlockStorage::new_unchecked(pool.clone(), actions_sender, cursor);
+    let storage = PostgresBlockStorage::new_unchecked(
+        pool.clone(),
+        MiniblockNumber(0),
+        actions_sender,
+        cursor,
+    );
 
     let ctx = &ctx::test_root(&ctx::RealClock);
     let genesis_block = BlockStore::first_block(&storage, ctx).await.unwrap();
@@ -65,7 +70,12 @@ async fn subscribing_to_block_updates_for_postgres() {
     // `ContiguousBlockStore`), but for testing subscriptions this is fine.
     drop(storage);
     let (actions_sender, _) = ActionQueue::new();
-    let storage = PostgresBlockStorage::new_unchecked(pool.clone(), actions_sender, cursor);
+    let storage = PostgresBlockStorage::new_unchecked(
+        pool.clone(),
+        MiniblockNumber(0),
+        actions_sender,
+        cursor,
+    );
     let mut subscriber = storage.subscribe_to_block_writes();
 
     let ctx = &ctx::test_root(&ctx::RealClock);
@@ -111,7 +121,12 @@ async fn processing_new_blocks() {
     drop(storage);
 
     let (actions_sender, mut actions) = ActionQueue::new();
-    let storage = PostgresBlockStorage::new_unchecked(pool.clone(), actions_sender, cursor);
+    let storage = PostgresBlockStorage::new_unchecked(
+        pool.clone(),
+        MiniblockNumber(0),
+        actions_sender,
+        cursor,
+    );
     let ctx = &ctx::test_root(&ctx::RealClock);
     let ctx = &ctx.with_timeout(TEST_TIMEOUT);
     storage
@@ -127,12 +142,20 @@ async fn processing_new_blocks() {
     assert_second_block_actions(&mut actions).await;
 }
 
-fn create_genesis(validator_key: &validator::SecretKey, payload: validator::Payload) -> FinalBlock {
-    let block_header = validator::BlockHeader::genesis(payload.hash());
+fn create_genesis(
+    validator_key: &validator::SecretKey,
+    number: u64,
+    payload: validator::Payload,
+) -> FinalBlock {
+    let block_header = validator::BlockHeader {
+        parent: validator::BlockHeaderHash::from_bytes([0; 32]),
+        number: BlockNumber(number),
+        payload: payload.hash(),
+    };
     let validator_set = validator::ValidatorSet::new([validator_key.public()]).unwrap();
     let replica_commit = validator::ReplicaCommit {
         protocol_version: validator::CURRENT_VERSION,
-        view: validator::ViewNumber(0),
+        view: validator::ViewNumber(number),
         proposal: block_header,
     };
     let replica_commit = validator_key.sign_msg(replica_commit);
@@ -160,7 +183,7 @@ async fn ensuring_consensus_fields_for_genesis_block() {
     drop(storage);
 
     let validator_key = validator::SecretKey::generate(&mut ctx.rng());
-    let genesis_block = create_genesis(&validator_key, block_payload.clone());
+    let genesis_block = create_genesis(&validator_key, 0, block_payload.clone());
 
     let (actions_sender, _) = ActionQueue::new();
     PostgresBlockStorage::new(ctx, pool.clone(), actions_sender, cursor, &genesis_block)
@@ -188,7 +211,7 @@ async fn ensuring_consensus_fields_for_genesis_block() {
 
     // Create a genesis block with another validator.
     let validator_key = validator::SecretKey::generate(&mut ctx.rng());
-    let other_genesis_block = create_genesis(&validator_key, block_payload);
+    let other_genesis_block = create_genesis(&validator_key, 0, block_payload);
 
     // Storage should not be able to initialize with other genesis block.
     let (actions_sender, _) = ActionQueue::new();
@@ -218,7 +241,7 @@ async fn genesis_block_payload_mismatch() {
 
     let bogus_block_payload = validator::Payload(vec![]);
     let validator_key = validator::SecretKey::generate(&mut ctx.rng());
-    let genesis_block = create_genesis(&validator_key, bogus_block_payload);
+    let genesis_block = create_genesis(&validator_key, 0, bogus_block_payload);
 
     let (actions_sender, _) = ActionQueue::new();
     PostgresBlockStorage::new(ctx, pool.clone(), actions_sender, cursor, &genesis_block)
@@ -227,7 +250,7 @@ async fn genesis_block_payload_mismatch() {
 
     let mut bogus_block_payload = block_payload(&mut storage, 0).await;
     bogus_block_payload.timestamp += 1;
-    let genesis_block = create_genesis(&validator_key, bogus_block_payload.encode());
+    let genesis_block = create_genesis(&validator_key, 0, bogus_block_payload.encode());
 
     let (actions_sender, _) = ActionQueue::new();
     PostgresBlockStorage::new(
@@ -239,4 +262,44 @@ async fn genesis_block_payload_mismatch() {
     )
     .await
     .unwrap_err();
+}
+
+// FIXME: test missing genesis block
+
+#[tokio::test]
+async fn using_non_zero_genesis_block() {
+    let ctx = &ctx::test_root(&ctx::RealClock);
+    let pool = ConnectionPool::test_pool().await;
+    run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
+
+    let mut storage = pool.access_storage().await.unwrap();
+    let cursor = FetcherCursor::new(&mut storage).await.unwrap();
+    let block_payload = block_payload(&mut storage, 2).await.encode();
+    drop(storage);
+
+    let validator_key = validator::SecretKey::generate(&mut ctx.rng());
+    let genesis_block = create_genesis(&validator_key, 2, block_payload.clone());
+
+    let (actions_sender, _) = ActionQueue::new();
+    let store = PostgresBlockStorage::new(ctx, pool, actions_sender, cursor, &genesis_block)
+        .await
+        .unwrap();
+
+    let head_block = store.head_block(ctx).await.unwrap();
+    assert_eq!(head_block.header.number, BlockNumber(2));
+    assert_eq!(
+        head_block.header.parent,
+        validator::BlockHeaderHash::from_bytes([0; 32])
+    );
+    let first_block = store.first_block(ctx).await.unwrap();
+    assert_eq!(first_block.header.number, BlockNumber(2));
+    let last_contiguous_block_number = store.last_contiguous_block_number(ctx).await.unwrap();
+    assert_eq!(last_contiguous_block_number, BlockNumber(2));
+
+    let block = store.block(ctx, BlockNumber(2)).await.unwrap();
+    assert_eq!(block, Some(head_block));
+    for number in [0, 1, 3] {
+        let missing_block = store.block(ctx, BlockNumber(number)).await.unwrap();
+        assert!(missing_block.is_none());
+    }
 }
