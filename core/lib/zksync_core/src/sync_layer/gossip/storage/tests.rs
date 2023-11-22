@@ -264,7 +264,29 @@ async fn genesis_block_payload_mismatch() {
     .unwrap_err();
 }
 
-// FIXME: test missing genesis block
+#[tokio::test]
+async fn missing_genesis_block() {
+    let ctx = &ctx::test_root(&ctx::RealClock);
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.access_storage().await.unwrap();
+    if storage.blocks_dal().is_genesis_needed().await.unwrap() {
+        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+            .await
+            .unwrap();
+    }
+    let cursor = FetcherCursor::new(&mut storage).await.unwrap();
+    let block_payload = block_payload(&mut storage, 0).await.encode();
+    drop(storage);
+
+    // Create a genesis block for the (non-existing) block #2.
+    let validator_key = validator::SecretKey::generate(&mut ctx.rng());
+    let genesis_block = create_genesis(&validator_key, 2, block_payload.clone());
+
+    let (actions_sender, _) = ActionQueue::new();
+    PostgresBlockStorage::new(ctx, pool, actions_sender, cursor, &genesis_block)
+        .await
+        .unwrap_err();
+}
 
 #[tokio::test]
 async fn using_non_zero_genesis_block() {
