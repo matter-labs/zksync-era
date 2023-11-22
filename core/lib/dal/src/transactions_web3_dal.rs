@@ -130,7 +130,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                                   topic2, \
                                   topic3, \
                                   topic4, \
-                                  VALUE, \
+                                  value, \
                                   NULL::bytea AS \"block_hash\", \
                                   NULL::BIGINT AS \"l1_batch_number?\", \
                                   miniblock_number, \

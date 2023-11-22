@@ -59,7 +59,7 @@ impl StorageWeb3Dal<'_, '_> {
             let hashed_key = key.hashed_key();
 
             sqlx::query!(
-                "  SELECT VALUE \
+                "  SELECT value \
                      FROM storage_logs \
                     WHERE storage_logs.hashed_key = $1 \
                       AND storage_logs.miniblock_number <= $2 \
@@ -171,8 +171,8 @@ impl StorageWeb3Dal<'_, '_> {
                                   storage_logs.operation_number DESC \
                             LIMIT 1 \
                         ) t \
-                   JOIN factory_deps ON VALUE = factory_deps.bytecode_hash \
-                  WHERE VALUE != $3",
+                   JOIN factory_deps ON value = factory_deps.bytecode_hash \
+                  WHERE value != $3",
                 hashed_key.as_bytes(),
                 block_number.0 as i64,
                 FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),

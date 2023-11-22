@@ -26,7 +26,7 @@ impl FriGpuProverQueueDal<'_, '_> {
                           SELECT id \
                             FROM gpu_prover_queue_fri \
                            WHERE specialized_prover_group_id = $2 \
-                             AND ZONE = $3 \
+                             AND zone = $3 \
                              AND ( \
                                  instance_status = 'available' \
                               OR ( \
@@ -66,16 +66,16 @@ impl FriGpuProverQueueDal<'_, '_> {
                     instance_port, \
                     instance_status, \
                     specialized_prover_group_id, \
-                    ZONE, \
+                    zone, \
                     created_at, \
                     updated_at \
                     ) \
              VALUES (CAST($1::TEXT AS inet), $2, 'available', $3, $4, NOW(), NOW()) \
-                 ON CONFLICT (instance_host, instance_port, ZONE) DO \
+                 ON CONFLICT (instance_host, instance_port, zone) DO \
              UPDATE \
                 SET instance_status = 'available', \
                     specialized_prover_group_id = $3, \
-                    ZONE = $4, \
+                    zone = $4, \
                     updated_at = NOW()",
             format!("{}", address.host),
             address.port as i32,
@@ -99,7 +99,7 @@ impl FriGpuProverQueueDal<'_, '_> {
                     updated_at = NOW() \
               WHERE instance_host = $2::TEXT::inet \
                 AND instance_port = $3 \
-                AND ZONE = $4",
+                AND zone = $4",
             format!("{:?}", status).to_lowercase(),
             format!("{}", address.host),
             address.port as i32,
@@ -122,7 +122,7 @@ impl FriGpuProverQueueDal<'_, '_> {
               WHERE instance_host = $1::TEXT::inet \
                 AND instance_port = $2 \
                 AND instance_status = 'full' \
-                AND ZONE = $3",
+                AND zone = $3",
             format!("{}", address.host),
             address.port as i32,
             zone

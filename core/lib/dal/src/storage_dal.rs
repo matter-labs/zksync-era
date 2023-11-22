@@ -168,7 +168,7 @@ impl StorageDal<'_, '_> {
 
         // Copy from stdin can't be used here because of 'ON CONFLICT'.
         sqlx::query!(
-            "INSERT INTO STORAGE (hashed_key, address, KEY, VALUE, tx_hash, created_at, updated_at) \
+            "INSERT INTO storage (hashed_key, address, key, value, tx_hash, created_at, updated_at) \
              SELECT u.hashed_key, \
                     u.address, \
                     u.key, \
@@ -176,11 +176,11 @@ impl StorageDal<'_, '_> {
                     u.tx_hash, \
                     NOW(), \
                     NOW() \
-               FROM UNNEST($1::bytea[], $2::bytea[], $3::bytea[], $4::bytea[], $5::bytea[]) AS u (hashed_key, address, KEY, VALUE, tx_hash) \
+               FROM UNNEST($1::bytea[], $2::bytea[], $3::bytea[], $4::bytea[], $5::bytea[]) AS u (hashed_key, address, key, value, tx_hash) \
                  ON CONFLICT (hashed_key) DO \
              UPDATE \
                 SET tx_hash = excluded.tx_hash, \
-                    VALUE = excluded.value, \
+                    value = excluded.value, \
                     updated_at = NOW()",
             &hashed_keys,
             &addresses as &[&[u8]],
@@ -200,8 +200,8 @@ impl StorageDal<'_, '_> {
         let hashed_key = key.hashed_key();
 
         sqlx::query!(
-            "SELECT VALUE \
-               FROM STORAGE \
+            "SELECT value \
+               FROM storage \
               WHERE hashed_key = $1",
             hashed_key.as_bytes()
         )

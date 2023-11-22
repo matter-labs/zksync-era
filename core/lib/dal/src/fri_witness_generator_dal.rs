@@ -404,7 +404,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 WHERE l1_batch_number = $1 \
                   AND circuit_id = $2 \
                   AND aggregation_round = $3 \
-                  AND DEPTH = $4 \
+                  AND depth = $4 \
                   AND status = 'successful' \
              ORDER BY sequence_number ASC;",
             block_number.0 as i64,
@@ -464,7 +464,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     updated_at = NOW() \
               WHERE l1_batch_number = $2 \
                 AND circuit_id = $3 \
-                AND DEPTH = $4",
+                AND depth = $4",
             url,
             block_number.0 as i64,
             circuit_id as i16,
@@ -495,7 +495,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                            WHERE status = 'queued' \
                              AND protocol_version = ANY ($1) \
                         ORDER BY l1_batch_number ASC, \
-                                 DEPTH ASC, \
+                                 depth ASC, \
                                  id ASC \
                            LIMIT 1 \
                              FOR UPDATE SKIP LOCKED \
@@ -590,7 +590,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             "INSERT INTO node_aggregation_witness_jobs_fri ( \
                     l1_batch_number, \
                     circuit_id, \
-                    DEPTH, \
+                    depth, \
                     aggregations_url, \
                     number_of_dependent_jobs, \
                     protocol_version, \
@@ -599,7 +599,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     updated_at \
                     ) \
              VALUES ($1, $2, $3, $4, $5, $6, 'waiting_for_proofs', NOW(), NOW()) \
-                 ON CONFLICT (l1_batch_number, circuit_id, DEPTH) DO \
+                 ON CONFLICT (l1_batch_number, circuit_id, depth) DO \
              UPDATE \
                 SET updated_at = NOW()",
             block_number.0 as i64,
@@ -618,7 +618,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         sqlx::query!(
                 "   UPDATE node_aggregation_witness_jobs_fri \
                        SET status = 'queued' \
-                     WHERE (l1_batch_number, circuit_id, DEPTH) IN ( \
+                     WHERE (l1_batch_number, circuit_id, depth) IN ( \
                               SELECT prover_jobs_fri.l1_batch_number, \
                                      prover_jobs_fri.circuit_id, \
                                      prover_jobs_fri.depth \
@@ -638,7 +638,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                            ) \
                  RETURNING l1_batch_number, \
                            circuit_id, \
-                           DEPTH;",
+                           depth;",
         )
         .fetch_all(self.storage.conn())
         .await
@@ -652,7 +652,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         sqlx::query!(
                 "   UPDATE node_aggregation_witness_jobs_fri \
                        SET status = 'queued' \
-                     WHERE (l1_batch_number, circuit_id, DEPTH) IN ( \
+                     WHERE (l1_batch_number, circuit_id, depth) IN ( \
                               SELECT prover_jobs_fri.l1_batch_number, \
                                      prover_jobs_fri.circuit_id, \
                                      prover_jobs_fri.depth \
@@ -671,7 +671,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                            ) \
                  RETURNING l1_batch_number, \
                            circuit_id, \
-                           DEPTH;",
+                           depth;",
         )
         .fetch_all(self.storage.conn())
         .await

@@ -29,7 +29,7 @@ impl GpuProverQueueDal<'_, '_> {
                                 FROM gpu_prover_queue \
                                WHERE specialized_prover_group_id = $2 \
                                  AND region = $3 \
-                                 AND ZONE = $4 \
+                                 AND zone = $4 \
                                  AND ( \
                                      instance_status = 'available' \
                                   OR ( \
@@ -78,20 +78,20 @@ impl GpuProverQueueDal<'_, '_> {
                             instance_status, \
                             specialized_prover_group_id, \
                             region, \
-                            ZONE, \
+                            zone, \
                             num_gpu, \
                             created_at, \
                             updated_at \
                             ) \
                      VALUES (CAST($1::TEXT AS inet), $2, $3, $3, 'available', $4, $5, $6, $7, NOW(), NOW()) \
-                         ON CONFLICT (instance_host, instance_port, region, ZONE) DO \
+                         ON CONFLICT (instance_host, instance_port, region, zone) DO \
                      UPDATE \
                         SET instance_status = 'available', \
                             queue_capacity = $3, \
                             queue_free_slots = $3, \
                             specialized_prover_group_id = $4, \
                             region = $5, \
-                            ZONE = $6, \
+                            zone = $6, \
                             num_gpu = $7, \
                             updated_at = NOW()",
                     format!("{}",address.host),
@@ -124,7 +124,7 @@ impl GpuProverQueueDal<'_, '_> {
                   WHERE instance_host = $2::TEXT::inet \
                     AND instance_port = $3 \
                     AND region = $5 \
-                    AND ZONE = $6",
+                    AND zone = $6",
                 format!("{:?}", status).to_lowercase(),
                 format!("{}", address.host),
                 address.port as i32,
@@ -155,7 +155,7 @@ impl GpuProverQueueDal<'_, '_> {
                     AND instance_port = $2 \
                     AND instance_status = 'full' \
                     AND region = $4 \
-                    AND ZONE = $5",
+                    AND zone = $5",
                 format!("{}", address.host),
                 address.port as i32,
                 queue_free_slots as i32,
@@ -172,11 +172,11 @@ impl GpuProverQueueDal<'_, '_> {
         {
             sqlx::query!(
                 "  SELECT region, \
-                          ZONE, \
+                          zone, \
                           SUM(num_gpu) AS total_gpus \
                      FROM gpu_prover_queue \
                  GROUP BY region, \
-                          ZONE",
+                          zone",
             )
             .fetch_all(self.storage.conn())
             .await

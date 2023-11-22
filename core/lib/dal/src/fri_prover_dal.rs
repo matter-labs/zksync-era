@@ -308,7 +308,7 @@ impl FriProverDal<'_, '_> {
                             circuit_blob_url, \
                             aggregation_round, \
                             sequence_number, \
-                            DEPTH, \
+                            depth, \
                             is_node_final_proof, \
                             protocol_version, \
                             status, \
@@ -316,7 +316,7 @@ impl FriProverDal<'_, '_> {
                             updated_at \
                             ) \
                      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW()) \
-                         ON CONFLICT (l1_batch_number, aggregation_round, circuit_id, DEPTH, sequence_number) DO \
+                         ON CONFLICT (l1_batch_number, aggregation_round, circuit_id, depth, sequence_number) DO \
                      UPDATE \
                         SET updated_at = NOW()",
             l1_batch_number.0 as i64,

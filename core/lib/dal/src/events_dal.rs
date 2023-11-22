@@ -193,8 +193,8 @@ impl EventsDal<'_, '_> {
                       tx_index_in_miniblock, \
                       tx_index_in_l1_batch, \
                       sender, \
-                      KEY, \
-                      VALUE \
+                      key, \
+                      value \
                  FROM l2_to_l1_logs \
                 WHERE tx_hash = $1 \
              ORDER BY log_index_in_tx ASC",

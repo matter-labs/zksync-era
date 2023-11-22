@@ -143,7 +143,7 @@ impl EventsWeb3Dal<'_, '_> {
                                     topic2, \
                                     topic3, \
                                     topic4, \
-                                    VALUE, \
+                                    value, \
                                     miniblock_number, \
                                     tx_hash, \
                                     tx_index_in_block, \
@@ -160,7 +160,7 @@ impl EventsWeb3Dal<'_, '_> {
                           topic2 AS \"topic2!\", \
                           topic3 AS \"topic3!\", \
                           topic4 AS \"topic4!\", \
-                          VALUE AS \"value!\", \
+                          value AS \"value!\", \
                           miniblock_number AS \"miniblock_number!\", \
                           miniblocks.l1_batch_number AS \"l1_batch_number?\", \
                           tx_hash AS \"tx_hash!\", \

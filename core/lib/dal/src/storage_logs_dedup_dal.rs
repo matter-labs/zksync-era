@@ -82,7 +82,7 @@ impl StorageLogsDedupDal<'_, '_> {
     ) -> HashSet<StorageKey> {
         sqlx::query!(
             "SELECT address, \
-                    KEY \
+                    key \
                FROM protective_reads \
               WHERE l1_batch_number = $1",
             l1_batch_number.0 as i64

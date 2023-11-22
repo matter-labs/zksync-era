@@ -172,7 +172,7 @@ impl TokensDal<'_, '_> {
             sqlx::query!(
                 "DELETE FROM tokens \
                   WHERE l2_address IN ( \
-                           SELECT SUBSTRING(KEY, 12, 20) \
+                           SELECT SUBSTRING(key, 12, 20) \
                              FROM storage_logs \
                             WHERE storage_logs.address = $1 \
                               AND miniblock_number > $2 \

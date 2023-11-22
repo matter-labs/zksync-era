@@ -87,13 +87,13 @@ impl TransactionsDal<'_, '_> {
                         gas_limit, \
                         max_fee_per_gas, \
                         gas_per_pubdata_limit, \
-                        DATA, \
+                        data, \
                         priority_op_id, \
                         full_fee, \
                         layer_2_tip_fee, \
                         contract_address, \
                         l1_block_number, \
-                        VALUE, \
+                        value, \
                         paymaster, \
                         paymaster_input, \
                         tx_format, \
@@ -183,11 +183,11 @@ impl TransactionsDal<'_, '_> {
                         gas_limit, \
                         max_fee_per_gas, \
                         gas_per_pubdata_limit, \
-                        DATA, \
+                        data, \
                         upgrade_id, \
                         contract_address, \
                         l1_block_number, \
-                        VALUE, \
+                        value, \
                         paymaster, \
                         paymaster_input, \
                         tx_format, \
@@ -290,11 +290,11 @@ impl TransactionsDal<'_, '_> {
                            max_fee_per_gas, \
                            max_priority_fee_per_gas, \
                            gas_per_pubdata_limit, \
-                           INPUT, \
-                           DATA, \
+                           input, \
+                           data, \
                            tx_format, \
                            contract_address, \
-                           VALUE, \
+                           value, \
                            paymaster, \
                            paymaster_input, \
                            execution_info, \
@@ -332,11 +332,11 @@ impl TransactionsDal<'_, '_> {
                            max_fee_per_gas = $6, \
                            max_priority_fee_per_gas = $7, \
                            gas_per_pubdata_limit = $8, \
-                           INPUT = $9, \
-                           DATA = $10, \
+                           input = $9, \
+                           data = $10, \
                            tx_format = $11, \
                            contract_address = $12, \
-                           VALUE = $13, \
+                           value = $13, \
                            paymaster = $14, \
                            paymaster_input = $15, \
                            execution_info = JSONB_BUILD_OBJECT('gas_used', $16::BIGINT, 'storage_writes', $17::INT, 'contracts_used', $18::INT), \
@@ -587,8 +587,8 @@ impl TransactionsDal<'_, '_> {
                             max_fee_per_gas = data_table.max_fee_per_gas, \
                             max_priority_fee_per_gas = data_table.max_priority_fee_per_gas, \
                             gas_per_pubdata_limit = data_table.gas_per_pubdata_limit, \
-                            INPUT = data_table.input, \
-                            DATA = data_table.data, \
+                            input = data_table.input, \
+                            data = data_table.data, \
                             tx_format = data_table.tx_format, \
                             miniblock_number = $21, \
                             index_in_block = data_table.index_in_block, \
@@ -596,7 +596,7 @@ impl TransactionsDal<'_, '_> {
                             effective_gas_price = data_table.effective_gas_price, \
                             execution_info = data_table.new_execution_info, \
                             refunded_gas = data_table.refunded_gas, \
-                            VALUE = data_table.value, \
+                            value = data_table.value, \
                             contract_address = data_table.contract_address, \
                             paymaster = data_table.paymaster, \
                             paymaster_input = data_table.paymaster_input, \
@@ -618,10 +618,10 @@ impl TransactionsDal<'_, '_> {
                                                 UNNEST($11::VARCHAR[]) AS error, \
                                                 UNNEST($12::NUMERIC[]) AS effective_gas_price, \
                                                 UNNEST($13::jsonb[]) AS new_execution_info, \
-                                                UNNEST($14::bytea[]) AS INPUT, \
-                                                UNNEST($15::jsonb[]) AS DATA, \
+                                                UNNEST($14::bytea[]) AS input, \
+                                                UNNEST($15::jsonb[]) AS data, \
                                                 UNNEST($16::BIGINT[]) AS refunded_gas, \
-                                                UNNEST($17::NUMERIC[]) AS VALUE, \
+                                                UNNEST($17::NUMERIC[]) AS value, \
                                                 UNNEST($18::bytea[]) AS contract_address, \
                                                 UNNEST($19::bytea[]) AS paymaster, \
                                                 UNNEST($20::bytea[]) AS paymaster_input \
@@ -902,8 +902,8 @@ impl TransactionsDal<'_, '_> {
             let storage_keys: Vec<_> = nonce_keys.keys().map(|key| key.0.to_vec()).collect();
             let nonces: HashMap<_, _> = sqlx::query!(
                 "SELECT hashed_key, \
-                        VALUE AS \"value!\" \
-                   FROM STORAGE \
+                        value AS \"value!\" \
+                   FROM storage \
                   WHERE hashed_key = ANY ($1)",
                 &storage_keys,
             )
@@ -1087,7 +1087,7 @@ impl TransactionsDal<'_, '_> {
             .context("No last transaction found for miniblock")?
             .0;
         let miniblock_data = sqlx::query!(
-            "  SELECT TIMESTAMP, \
+            "  SELECT timestamp, \
                       virtual_blocks \
                  FROM miniblocks \
                 WHERE number BETWEEN $1 AND $2 \
