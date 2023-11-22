@@ -12,7 +12,7 @@ use crate::{
     sync_layer::{
         gossip::tests::{
             add_consensus_fields, assert_first_block_actions, assert_second_block_actions,
-            block_payload, load_final_block,
+            block_payload, create_genesis_block, load_final_block,
         },
         tests::run_state_keeper_with_multiple_miniblocks,
         ActionQueue,
@@ -27,7 +27,7 @@ async fn block_store_basics_for_postgres() {
     run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
 
     let mut storage = pool.access_storage().await.unwrap();
-    add_consensus_fields(&mut storage, &thread_rng().gen(), 3).await;
+    add_consensus_fields(&mut storage, &thread_rng().gen(), 0..3).await;
     let cursor = FetcherCursor::new(&mut storage).await.unwrap();
     drop(storage);
     let (actions_sender, _) = ActionQueue::new();
@@ -105,7 +105,7 @@ async fn processing_new_blocks() {
     run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
 
     let mut storage = pool.access_storage().await.unwrap();
-    add_consensus_fields(&mut storage, &thread_rng().gen(), 3).await;
+    add_consensus_fields(&mut storage, &thread_rng().gen(), 0..3).await;
     let first_block = load_final_block(&mut storage, 1).await;
     let second_block = load_final_block(&mut storage, 2).await;
     storage
@@ -142,32 +142,6 @@ async fn processing_new_blocks() {
     assert_second_block_actions(&mut actions).await;
 }
 
-fn create_genesis(
-    validator_key: &validator::SecretKey,
-    number: u64,
-    payload: validator::Payload,
-) -> FinalBlock {
-    let block_header = validator::BlockHeader {
-        parent: validator::BlockHeaderHash::from_bytes([0; 32]),
-        number: BlockNumber(number),
-        payload: payload.hash(),
-    };
-    let validator_set = validator::ValidatorSet::new([validator_key.public()]).unwrap();
-    let replica_commit = validator::ReplicaCommit {
-        protocol_version: validator::CURRENT_VERSION,
-        view: validator::ViewNumber(number),
-        proposal: block_header,
-    };
-    let replica_commit = validator_key.sign_msg(replica_commit);
-    let justification =
-        validator::CommitQC::from(&[replica_commit], &validator_set).expect("Failed creating QC");
-    FinalBlock {
-        header: block_header,
-        payload,
-        justification,
-    }
-}
-
 #[tokio::test]
 async fn ensuring_consensus_fields_for_genesis_block() {
     let ctx = &ctx::test_root(&ctx::RealClock);
@@ -183,7 +157,7 @@ async fn ensuring_consensus_fields_for_genesis_block() {
     drop(storage);
 
     let validator_key = validator::SecretKey::generate(&mut ctx.rng());
-    let genesis_block = create_genesis(&validator_key, 0, block_payload.clone());
+    let genesis_block = create_genesis_block(&validator_key, 0, block_payload.clone());
 
     let (actions_sender, _) = ActionQueue::new();
     PostgresBlockStorage::new(ctx, pool.clone(), actions_sender, cursor, &genesis_block)
@@ -211,7 +185,7 @@ async fn ensuring_consensus_fields_for_genesis_block() {
 
     // Create a genesis block with another validator.
     let validator_key = validator::SecretKey::generate(&mut ctx.rng());
-    let other_genesis_block = create_genesis(&validator_key, 0, block_payload);
+    let other_genesis_block = create_genesis_block(&validator_key, 0, block_payload);
 
     // Storage should not be able to initialize with other genesis block.
     let (actions_sender, _) = ActionQueue::new();
@@ -241,7 +215,7 @@ async fn genesis_block_payload_mismatch() {
 
     let bogus_block_payload = validator::Payload(vec![]);
     let validator_key = validator::SecretKey::generate(&mut ctx.rng());
-    let genesis_block = create_genesis(&validator_key, 0, bogus_block_payload);
+    let genesis_block = create_genesis_block(&validator_key, 0, bogus_block_payload);
 
     let (actions_sender, _) = ActionQueue::new();
     PostgresBlockStorage::new(ctx, pool.clone(), actions_sender, cursor, &genesis_block)
@@ -250,7 +224,7 @@ async fn genesis_block_payload_mismatch() {
 
     let mut bogus_block_payload = block_payload(&mut storage, 0).await;
     bogus_block_payload.timestamp += 1;
-    let genesis_block = create_genesis(&validator_key, 0, bogus_block_payload.encode());
+    let genesis_block = create_genesis_block(&validator_key, 0, bogus_block_payload.encode());
 
     let (actions_sender, _) = ActionQueue::new();
     PostgresBlockStorage::new(
@@ -280,7 +254,7 @@ async fn missing_genesis_block() {
 
     // Create a genesis block for the (non-existing) block #2.
     let validator_key = validator::SecretKey::generate(&mut ctx.rng());
-    let genesis_block = create_genesis(&validator_key, 2, block_payload.clone());
+    let genesis_block = create_genesis_block(&validator_key, 2, block_payload.clone());
 
     let (actions_sender, _) = ActionQueue::new();
     PostgresBlockStorage::new(ctx, pool, actions_sender, cursor, &genesis_block)
@@ -300,7 +274,7 @@ async fn using_non_zero_genesis_block() {
     drop(storage);
 
     let validator_key = validator::SecretKey::generate(&mut ctx.rng());
-    let genesis_block = create_genesis(&validator_key, 2, block_payload.clone());
+    let genesis_block = create_genesis_block(&validator_key, 2, block_payload.clone());
 
     let (actions_sender, _) = ActionQueue::new();
     let store = PostgresBlockStorage::new(ctx, pool, actions_sender, cursor, &genesis_block)

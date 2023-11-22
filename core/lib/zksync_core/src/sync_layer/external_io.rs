@@ -556,6 +556,8 @@ impl StateKeeperIO for ExternalIO {
         // Mimic the metric emitted by the main node to reuse existing Grafana charts.
         APP_METRICS.block_number[&BlockStage::Sealed].set(self.current_l1_batch_number.0.into());
 
+        self.sync_state
+            .set_local_block(self.current_miniblock_number);
         self.current_miniblock_number += 1; // Due to fictive miniblock being sealed.
         self.current_l1_batch_number += 1;
         Ok(())
