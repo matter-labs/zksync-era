@@ -73,7 +73,7 @@ export const command = new Command('fmt')
             switch (extension) {
                 case 'rust':
                     // we need to run those two steps one by one as they operate on the same set of files
-                    await formatSqlxQueries(cmd.check)
+                    await formatSqlxQueries(cmd.check);
                     await rustfmt(cmd.check);
                     break;
                 case 'l1-contracts':
