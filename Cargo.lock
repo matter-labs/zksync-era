@@ -3320,9 +3320,9 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-version = "2.0.2"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8adf3ddd720272c6ea8bf59463c04e0f93d0bbf7c5439b691bca2987e0270897"
+checksum = "d530e1a18b1cb4c484e6e34556a0d948706958449fca0cab753d649f2bce3d1f"
 dependencies = [
  "equivalent",
  "hashbrown 0.14.2",
@@ -4971,7 +4971,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e1d3afd2628e69da2be385eb6f2fd57c8ac7977ceeff6dc166ff1657b0e386a9"
 dependencies = [
  "fixedbitset",
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
 ]
 
 [[package]]
@@ -7363,7 +7363,7 @@ version = "0.19.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
 dependencies = [
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "toml_datetime",
  "winnow",
 ]
@@ -8514,7 +8514,7 @@ dependencies = [
 [[package]]
 name = "zksync_concurrency"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=bdf9ed0af965cc7fa32d6c46a35ea065779ede8b#bdf9ed0af965cc7fa32d6c46a35ea065779ede8b"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=ed71b2e817c980a2daffef6a01885219e1dc6fa0#ed71b2e817c980a2daffef6a01885219e1dc6fa0"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -8541,7 +8541,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_bft"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=bdf9ed0af965cc7fa32d6c46a35ea065779ede8b#bdf9ed0af965cc7fa32d6c46a35ea065779ede8b"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=ed71b2e817c980a2daffef6a01885219e1dc6fa0#ed71b2e817c980a2daffef6a01885219e1dc6fa0"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -8561,7 +8561,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_crypto"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=bdf9ed0af965cc7fa32d6c46a35ea065779ede8b#bdf9ed0af965cc7fa32d6c46a35ea065779ede8b"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=ed71b2e817c980a2daffef6a01885219e1dc6fa0#ed71b2e817c980a2daffef6a01885219e1dc6fa0"
 dependencies = [
  "anyhow",
  "blst",
@@ -8579,7 +8579,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_executor"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=bdf9ed0af965cc7fa32d6c46a35ea065779ede8b#bdf9ed0af965cc7fa32d6c46a35ea065779ede8b"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=ed71b2e817c980a2daffef6a01885219e1dc6fa0#ed71b2e817c980a2daffef6a01885219e1dc6fa0"
 dependencies = [
  "anyhow",
  "prost",
@@ -8601,7 +8601,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_network"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=bdf9ed0af965cc7fa32d6c46a35ea065779ede8b#bdf9ed0af965cc7fa32d6c46a35ea065779ede8b"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=ed71b2e817c980a2daffef6a01885219e1dc6fa0#ed71b2e817c980a2daffef6a01885219e1dc6fa0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8625,7 +8625,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_roles"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=bdf9ed0af965cc7fa32d6c46a35ea065779ede8b#bdf9ed0af965cc7fa32d6c46a35ea065779ede8b"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=ed71b2e817c980a2daffef6a01885219e1dc6fa0#ed71b2e817c980a2daffef6a01885219e1dc6fa0"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -8644,7 +8644,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_storage"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=bdf9ed0af965cc7fa32d6c46a35ea065779ede8b#bdf9ed0af965cc7fa32d6c46a35ea065779ede8b"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=ed71b2e817c980a2daffef6a01885219e1dc6fa0#ed71b2e817c980a2daffef6a01885219e1dc6fa0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8661,7 +8661,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_sync_blocks"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=bdf9ed0af965cc7fa32d6c46a35ea065779ede8b#bdf9ed0af965cc7fa32d6c46a35ea065779ede8b"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=ed71b2e817c980a2daffef6a01885219e1dc6fa0#ed71b2e817c980a2daffef6a01885219e1dc6fa0"
 dependencies = [
  "anyhow",
  "thiserror",
@@ -8676,7 +8676,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_utils"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=bdf9ed0af965cc7fa32d6c46a35ea065779ede8b#bdf9ed0af965cc7fa32d6c46a35ea065779ede8b"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=ed71b2e817c980a2daffef6a01885219e1dc6fa0#ed71b2e817c980a2daffef6a01885219e1dc6fa0"
 dependencies = [
  "thiserror",
  "zksync_concurrency",
@@ -9001,7 +9001,7 @@ dependencies = [
 [[package]]
 name = "zksync_protobuf"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=bdf9ed0af965cc7fa32d6c46a35ea065779ede8b#bdf9ed0af965cc7fa32d6c46a35ea065779ede8b"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=ed71b2e817c980a2daffef6a01885219e1dc6fa0#ed71b2e817c980a2daffef6a01885219e1dc6fa0"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -9012,9 +9012,6 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "serde_json",
- "tokio",
- "tracing",
- "tracing-subscriber",
  "zksync_concurrency",
  "zksync_protobuf_build",
 ]
@@ -9022,7 +9019,7 @@ dependencies = [
 [[package]]
 name = "zksync_protobuf_build"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=bdf9ed0af965cc7fa32d6c46a35ea065779ede8b#bdf9ed0af965cc7fa32d6c46a35ea065779ede8b"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=ed71b2e817c980a2daffef6a01885219e1dc6fa0#ed71b2e817c980a2daffef6a01885219e1dc6fa0"
 dependencies = [
  "anyhow",
  "heck 0.4.1",
