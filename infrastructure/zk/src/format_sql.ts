@@ -57,10 +57,10 @@ function embedTextInsideRustString(query: string) {
     const formattedLines = query.split('\n');
     for (let i = 0; i < formattedLines.length; i++) {
         let currentLine = '';
-        currentLine += i == 0 ? '"' : ' ';
+        currentLine += i === 0 ? '"' : ' ';
         currentLine += formattedLines[i];
-        currentLine += i != formattedLines.length - 1 ? ' \\' : '';
-        currentLine += i == formattedLines.length - 1 ? '"' : '';
+        currentLine += i !== formattedLines.length - 1 ? ' \\' : '';
+        currentLine += i === formattedLines.length - 1 ? '"' : '';
 
         formattedLines[i] = currentLine;
     }
@@ -94,7 +94,7 @@ function formatOneLineQuery(line: string): string {
     const query = line.slice(0, queryEnd);
 
     let formattedQuery = formatRustStringQuery(query);
-    const stillOneLine = formattedQuery.split('\n').length == 1;
+    const stillOneLine = formattedQuery.split('\n').length === 1;
     if (!stillOneLine) {
         formattedQuery = addIndent(formattedQuery, baseIndent);
     }
@@ -107,7 +107,7 @@ function formatOneLineQuery(line: string): string {
     );
 }
 async function formatFile(filePath: string, check: boolean) {
-    let content = await fs.promises.readFile(filePath, { encoding: 'utf-8' });
+    const content = await fs.promises.readFile(filePath, { encoding: 'utf-8' });
     let linesToQuery = null;
     let isInsideQuery = false;
     let isRawString = false;
@@ -132,7 +132,7 @@ async function formatFile(filePath: string, check: boolean) {
         }
 
         if (linesToQuery !== null) {
-            if (linesToQuery == 0) {
+            if (linesToQuery === 0) {
                 isInsideQuery = true;
                 linesToQuery = null;
                 if (line.includes('r#"')) {
