@@ -298,4 +298,33 @@ async fn using_non_zero_genesis_block() {
         let missing_block = store.block(ctx, BlockNumber(number)).await.unwrap();
         assert!(missing_block.is_none());
     }
+
+    let missing_blocks = store
+        .missing_block_numbers(ctx, BlockNumber(0)..BlockNumber(5))
+        .await
+        .unwrap();
+    assert_eq!(
+        missing_blocks,
+        [
+            BlockNumber(0),
+            BlockNumber(1),
+            BlockNumber(3),
+            BlockNumber(4)
+        ]
+    );
+    let missing_blocks = store
+        .missing_block_numbers(ctx, BlockNumber(0)..BlockNumber(2))
+        .await
+        .unwrap();
+    assert_eq!(missing_blocks, [BlockNumber(0), BlockNumber(1)]);
+    let missing_blocks = store
+        .missing_block_numbers(ctx, BlockNumber(2)..BlockNumber(5))
+        .await
+        .unwrap();
+    assert_eq!(missing_blocks, [BlockNumber(3), BlockNumber(4)]);
+    let missing_blocks = store
+        .missing_block_numbers(ctx, BlockNumber(2)..BlockNumber(3))
+        .await
+        .unwrap();
+    assert_eq!(missing_blocks, []);
 }

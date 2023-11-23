@@ -126,8 +126,6 @@ impl PostgresBlockStorage {
         storage: &mut StorageProcessor<'_>,
         genesis_block: &FinalBlock,
     ) -> StorageResult<()> {
-        // FIXME: check `genesis_block` self-consistency
-
         let block_number = u32::try_from(genesis_block.header.number.0)
             .context("Block number overflow for genesis block")
             .map_err(StorageError::Database)?;
@@ -139,6 +137,8 @@ impl PostgresBlockStorage {
             .map_err(StorageError::Database)?;
         let actual_consensus_fields = block.consensus.clone();
 
+        // Some of the following checks are duplicated in `Executor` initialization, but it's necessary
+        // to run them if the genesis consensus block is not present locally.
         let expected_payload = consensus::Payload::decode(&genesis_block.payload)
             .context("Cannot decode genesis block payload")
             .map_err(StorageError::Database)?;
@@ -298,11 +298,20 @@ impl BlockStore for PostgresBlockStorage {
 
     async fn missing_block_numbers(
         &self,
-        _ctx: &ctx::Ctx,
-        _range: ops::Range<BlockNumber>,
+        ctx: &ctx::Ctx,
+        range: ops::Range<BlockNumber>,
     ) -> StorageResult<Vec<BlockNumber>> {
-        // FIXME: check range
-        Ok(vec![]) // The storage never has missing blocks by construction
+        let mut output = vec![];
+        let first_block_number = u64::from(self.first_block_number.0);
+        let numbers_before_first_block = (range.start.0..first_block_number).map(BlockNumber);
+        output.extend(numbers_before_first_block);
+
+        let last_block_number = self.sealed_miniblock_number(ctx).await?;
+        let numbers_after_last_block = (last_block_number.next().0..range.end.0).map(BlockNumber);
+        output.extend(numbers_after_last_block);
+
+        // By design, no blocks are missing in the `first_block_number..=last_block_number` range.
+        Ok(output)
     }
 
     fn subscribe_to_block_writes(&self) -> watch::Receiver<BlockNumber> {
