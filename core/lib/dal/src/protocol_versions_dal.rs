@@ -265,11 +265,14 @@ impl ProtocolVersionsDal<'_, '_> {
     }
 
     pub async fn last_version_id(&mut self) -> Option<ProtocolVersionId> {
-        let id = sqlx::query!(r#"SELECT MAX(id) as "max?" FROM protocol_versions"#)
-            .fetch_optional(self.storage.conn())
-            .await
-            .unwrap()?
-            .max?;
+        let id = sqlx::query!(
+            "SELECT MAX(id) AS \"max?\" \
+               FROM protocol_versions"
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()?
+        .max?;
         Some((id as u16).try_into().unwrap())
     }
 
@@ -285,10 +288,13 @@ impl ProtocolVersionsDal<'_, '_> {
     }
 
     pub async fn all_version_ids(&mut self) -> Vec<ProtocolVersionId> {
-        let rows = sqlx::query!("SELECT id FROM protocol_versions")
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap();
+        let rows = sqlx::query!(
+            "SELECT id \
+               FROM protocol_versions"
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap();
         rows.into_iter()
             .map(|row| (row.id as u16).try_into().unwrap())
             .collect()

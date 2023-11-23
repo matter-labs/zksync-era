@@ -76,15 +76,39 @@ function addIndent(query: string, indent: number) {
 
 function formatRustStringQuery(query: string) {
     const baseIndent = query.search(/\S/);
-    let endedWithAComma = query.trim().endsWith(',');
-
     const rawQuery = extractQueryFromRustString(query);
     const formattedQuery = formatQuery(rawQuery);
     const reconstructedRustString = embedTextInsideRustString(formattedQuery);
 
-    return addIndent(reconstructedRustString, baseIndent) + (endedWithAComma ? ',' : '') + '\n';
+    return addIndent(reconstructedRustString, baseIndent);
 }
 
+function formatOneLineQuery(line: string): string {
+    const isRawString = line.includes('sqlx::query!(r');
+    const baseIndent = line.search(/\S/) + 4;
+    const queryStart = isRawString ? line.indexOf('r#"') : line.indexOf('"');
+    const prefix = line.slice(0, queryStart);
+    line = line.slice(queryStart);
+    const queryEnd = isRawString ? line.indexOf('"#') + 2 : line.slice(1).search(/(^|[^\\])"/) + 3;
+    const suffix = line.slice(queryEnd);
+    const query = line.slice(0, queryEnd);
+
+    let formattedQuery = formatRustStringQuery(query);
+    const stillOneLine = formattedQuery.split('\n').length == 1;
+    if (!stillOneLine) {
+        formattedQuery = addIndent(formattedQuery, baseIndent);
+    }
+    console.log(prefix);
+    console.log(formattedQuery);
+    console.log(suffix);
+    return (
+        prefix +
+        (stillOneLine ? '' : '\n') +
+        formattedQuery +
+        (stillOneLine ? '' : '\n' + ' '.repeat(baseIndent)) +
+        suffix
+    );
+}
 async function formatFile(filePath: string, check: boolean) {
     let content = await fs.promises.readFile(filePath, { encoding: 'utf-8' });
     let linesToQuery = null;
@@ -94,6 +118,11 @@ async function formatFile(filePath: string, check: boolean) {
 
     let modifiedFile = '';
     for (const line of content.split('\n')) {
+        if (line.includes('sqlx::query!("') || line.includes('sqlx::query!(r')) {
+            modifiedFile += formatOneLineQuery(line) + '\n';
+            continue;
+        }
+
         if (line.endsWith('sqlx::query!(')) {
             linesToQuery = 1;
             isRawString = false;
@@ -127,7 +156,8 @@ async function formatFile(filePath: string, check: boolean) {
                 (!isRawString && regularStringQueryEnded && lineEndIsNotEscape)
             ) {
                 isInsideQuery = false;
-                let formattedQuery = formatRustStringQuery(builtQuery);
+                let endedWithComma = builtQuery.trimEnd().endsWith(',');
+                let formattedQuery = formatRustStringQuery(builtQuery).trimEnd() + (endedWithComma ? ',' : '') + '\n';
                 modifiedFile += formattedQuery;
             }
         } else {

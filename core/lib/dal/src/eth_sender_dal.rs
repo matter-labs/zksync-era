@@ -434,9 +434,14 @@ impl EthSenderDal<'_, '_> {
     }
 
     pub async fn get_next_nonce(&mut self) -> sqlx::Result<Option<u64>> {
-        let row = sqlx::query!("SELECT nonce FROM eth_txs ORDER BY id DESC LIMIT 1")
-            .fetch_optional(self.storage.conn())
-            .await?;
+        let row = sqlx::query!(
+            "  SELECT nonce \
+                 FROM eth_txs \
+             ORDER BY id DESC \
+                LIMIT 1"
+        )
+        .fetch_optional(self.storage.conn())
+        .await?;
         Ok(row.map(|row| row.nonce as u64 + 1))
     }
 
@@ -453,11 +458,15 @@ impl EthSenderDal<'_, '_> {
     }
 
     pub async fn get_number_of_failed_transactions(&mut self) -> anyhow::Result<i64> {
-        sqlx::query!("SELECT COUNT(*) FROM eth_txs WHERE has_failed = TRUE")
-            .fetch_one(self.storage.conn())
-            .await?
-            .count
-            .context("count field is missing")
+        sqlx::query!(
+            "SELECT COUNT(*) \
+               FROM eth_txs \
+              WHERE has_failed = TRUE"
+        )
+        .fetch_one(self.storage.conn())
+        .await?
+        .count
+        .context("count field is missing")
     }
 
     pub async fn clear_failed_transactions(&mut self) -> sqlx::Result<()> {

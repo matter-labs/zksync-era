@@ -495,9 +495,14 @@ impl ProverDal<'_, '_> {
         job_id: u32,
     ) -> Result<Option<ProverJobMetadata>, Error> {
         {
-            let row = sqlx::query!("SELECT * from prover_jobs where id=$1", job_id as i64)
-                .fetch_optional(self.storage.conn())
-                .await?;
+            let row = sqlx::query!(
+                "SELECT * \
+                   FROM prover_jobs \
+                  WHERE id = $1",
+                job_id as i64
+            )
+            .fetch_optional(self.storage.conn())
+            .await?;
 
             Ok(row.map(|row| ProverJobMetadata {
                 id: row.id as u32,

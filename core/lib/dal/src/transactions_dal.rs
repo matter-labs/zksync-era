@@ -928,10 +928,14 @@ impl TransactionsDal<'_, '_> {
 
     pub async fn reset_mempool(&mut self) {
         {
-            sqlx::query!("UPDATE transactions SET in_mempool = FALSE WHERE in_mempool = TRUE")
-                .execute(self.storage.conn())
-                .await
-                .unwrap();
+            sqlx::query!(
+                "UPDATE transactions \
+                    SET in_mempool = FALSE \
+                  WHERE in_mempool = TRUE"
+            )
+            .execute(self.storage.conn())
+            .await
+            .unwrap();
         }
     }
 

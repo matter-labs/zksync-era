@@ -29,10 +29,13 @@ pub struct BlocksDal<'a, 'c> {
 
 impl BlocksDal<'_, '_> {
     pub async fn is_genesis_needed(&mut self) -> sqlx::Result<bool> {
-        let count = sqlx::query!("SELECT COUNT(*) as \"count!\" FROM l1_batches")
-            .fetch_one(self.storage.conn())
-            .await?
-            .count;
+        let count = sqlx::query!(
+            "SELECT COUNT(*) AS \"count!\" \
+               FROM l1_batches"
+        )
+        .fetch_one(self.storage.conn())
+        .await?
+        .count;
         Ok(count == 0)
     }
 
@@ -51,27 +54,33 @@ impl BlocksDal<'_, '_> {
     }
 
     pub async fn get_sealed_miniblock_number(&mut self) -> sqlx::Result<MiniblockNumber> {
-        let number: i64 = sqlx::query!("SELECT MAX(number) as \"number\" FROM miniblocks")
-            .instrument("get_sealed_miniblock_number")
-            .report_latency()
-            .fetch_one(self.storage.conn())
-            .await?
-            .number
-            .unwrap_or(0);
+        let number: i64 = sqlx::query!(
+            "SELECT MAX(number) AS \"number\" \
+               FROM miniblocks"
+        )
+        .instrument("get_sealed_miniblock_number")
+        .report_latency()
+        .fetch_one(self.storage.conn())
+        .await?
+        .number
+        .unwrap_or(0);
         Ok(MiniblockNumber(number as u32))
     }
 
     pub async fn get_last_l1_batch_number_with_metadata(
         &mut self,
     ) -> anyhow::Result<L1BatchNumber> {
-        let number: i64 =
-            sqlx::query!("SELECT MAX(number) as \"number\" FROM l1_batches WHERE hash IS NOT NULL")
-                .instrument("get_last_block_number_with_metadata")
-                .report_latency()
-                .fetch_one(self.storage.conn())
-                .await?
-                .number
-                .context("DAL invocation before genesis")?;
+        let number: i64 = sqlx::query!(
+            "SELECT MAX(number) AS \"number\" \
+               FROM l1_batches \
+              WHERE hash IS NOT NULL"
+        )
+        .instrument("get_last_block_number_with_metadata")
+        .report_latency()
+        .fetch_one(self.storage.conn())
+        .await?
+        .number
+        .context("DAL invocation before genesis")?;
         Ok(L1BatchNumber(number as u32))
     }
 
@@ -1188,9 +1197,13 @@ impl BlocksDal<'_, '_> {
         last_batch_to_keep: Option<L1BatchNumber>,
     ) -> sqlx::Result<()> {
         let block_number = last_batch_to_keep.map_or(-1, |number| number.0 as i64);
-        sqlx::query!("DELETE FROM l1_batches WHERE number > $1", block_number)
-            .execute(self.storage.conn())
-            .await?;
+        sqlx::query!(
+            "DELETE FROM l1_batches \
+              WHERE number > $1",
+            block_number
+        )
+        .execute(self.storage.conn())
+        .await?;
         Ok(())
     }
 
@@ -1208,9 +1221,13 @@ impl BlocksDal<'_, '_> {
         last_miniblock_to_keep: Option<MiniblockNumber>,
     ) -> sqlx::Result<()> {
         let block_number = last_miniblock_to_keep.map_or(-1, |number| number.0 as i64);
-        sqlx::query!("DELETE FROM miniblocks WHERE number > $1", block_number)
-            .execute(self.storage.conn())
-            .await?;
+        sqlx::query!(
+            "DELETE FROM miniblocks \
+              WHERE number > $1",
+            block_number
+        )
+        .execute(self.storage.conn())
+        .await?;
         Ok(())
     }
 

@@ -101,12 +101,15 @@ impl StorageLogsDedupDal<'_, '_> {
     }
 
     pub async fn max_enumeration_index(&mut self) -> Option<u64> {
-        sqlx::query!("SELECT MAX(index) as \"max?\" FROM initial_writes",)
-            .fetch_one(self.storage.conn())
-            .await
-            .unwrap()
-            .max
-            .map(|max| max as u64)
+        sqlx::query!(
+            "SELECT MAX(INDEX) AS \"max?\" \
+               FROM initial_writes",
+        )
+        .fetch_one(self.storage.conn())
+        .await
+        .unwrap()
+        .max
+        .map(|max| max as u64)
     }
 
     pub async fn initial_writes_for_batch(
