@@ -355,10 +355,14 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
 
         let merkle_tree_leaves = all_l1_logs_in_batch.iter().map(L2ToL1Log::to_bytes);
 
-        let min_tree_size = match batch.protocol_version.map(|v| v.is_pre_boojum()) {
-            Some(true) => Some(L2ToL1Log::PRE_BOOJUM_MIN_L2_L1_LOGS_TREE_SIZE),
-            Some(false) => Some(L2ToL1Log::MIN_L2_L1_LOGS_TREE_SIZE),
-            None => return Ok(None),
+        let min_tree_size = if batch
+            .protocol_version
+            .map(|v| v.is_pre_boojum())
+            .unwrap_or(true)
+        {
+            Some(L2ToL1Log::PRE_BOOJUM_MIN_L2_L1_LOGS_TREE_SIZE)
+        } else {
+            Some(L2ToL1Log::MIN_L2_L1_LOGS_TREE_SIZE)
         };
 
         let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, min_tree_size)
