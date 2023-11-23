@@ -119,15 +119,20 @@ impl MetricExtractor for MaxCyclesCriterion {
 impl MetricExtractor for ComputationalGasCriterion {
     const PROM_METRIC_CRITERION_NAME: &'static str = "computational_gas";
 
-    fn limit_per_block(_protocol_version_id: ProtocolVersionId) -> usize {
-        // We subtract constant to take into account that circuits may be not fully filled.
-        // This constant should be greater than number of circuits types
-        // but we keep it larger to be on the safe side.
-        const MARGIN_NUMBER_OF_CIRCUITS: usize = 100;
-        const MAX_NUMBER_OF_MUTLIINSTANCE_CIRCUITS: usize =
-            SCHEDULER_UPPER_BOUND as usize - MARGIN_NUMBER_OF_CIRCUITS;
+    fn limit_per_block(protocol_version_id: ProtocolVersionId) -> usize {
+        if protocol_version_id.is_pre_boojum() {
+            // We subtract constant to take into account that circuits may be not fully filled.
+            // This constant should be greater than number of circuits types
+            // but we keep it larger to be on the safe side.
+            const MARGIN_NUMBER_OF_CIRCUITS: usize = 100;
+            const MAX_NUMBER_OF_MUTLIINSTANCE_CIRCUITS: usize =
+                SCHEDULER_UPPER_BOUND as usize - MARGIN_NUMBER_OF_CIRCUITS;
 
-        MAX_NUMBER_OF_MUTLIINSTANCE_CIRCUITS * ERGS_PER_CIRCUIT as usize
+            MAX_NUMBER_OF_MUTLIINSTANCE_CIRCUITS * ERGS_PER_CIRCUIT as usize
+        } else {
+            // In boojum there is no limit for computational gas.
+            usize::MAX
+        }
     }
 
     fn extract(metrics: &ExecutionMetrics, _writes: &DeduplicatedWritesMetrics) -> usize {

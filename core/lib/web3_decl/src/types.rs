@@ -5,7 +5,6 @@
 //!
 //! These "extensions" are required to provide more zkSync-specific information while remaining Web3-compilant.
 
-use chrono::NaiveDateTime;
 use itertools::unfold;
 use rlp::Rlp;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
@@ -105,14 +104,6 @@ pub enum FilterChanges {
     Hashes(Vec<H256>),
     Logs(Vec<Log>),
     Empty([u8; 0]),
-}
-
-/// Represents all kinds of `Filter`.
-#[derive(Debug, Clone)]
-pub enum TypedFilter {
-    Events(Filter, zksync_types::MiniblockNumber),
-    Blocks(zksync_types::MiniblockNumber),
-    PendingTransactions(NaiveDateTime),
 }
 
 /// Either value or array of values.
