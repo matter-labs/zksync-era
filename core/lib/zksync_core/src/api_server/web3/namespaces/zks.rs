@@ -344,8 +344,23 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             return Ok(None);
         };
 
+        let Some(batch) = storage
+            .blocks_dal()
+            .get_l1_batch_header(l1_batch_number)
+            .await
+            .map_err(|err| internal_error(method_name, err))?
+        else {
+            return Ok(None);
+        };
+
         let merkle_tree_leaves = all_l1_logs_in_batch.iter().map(L2ToL1Log::to_bytes);
-        let min_tree_size = Some(L2ToL1Log::MIN_L2_L1_LOGS_TREE_SIZE);
+
+        let min_tree_size = match batch.protocol_version.map(|v| v.is_pre_boojum()) {
+            Some(true) => Some(L2ToL1Log::PRE_BOOJUM_MIN_L2_L1_LOGS_TREE_SIZE),
+            Some(false) => Some(L2ToL1Log::MIN_L2_L1_LOGS_TREE_SIZE),
+            None => return Ok(None),
+        };
+
         let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, min_tree_size)
             .merkle_root_and_path(l1_log_index);
         Ok(Some(L2ToL1LogProof {
