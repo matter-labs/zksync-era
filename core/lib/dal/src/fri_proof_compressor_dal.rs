@@ -57,10 +57,10 @@ impl FriProofCompressorDal<'_, '_> {
     pub async fn skip_proof_compression_job(&mut self, block_number: L1BatchNumber) {
         sqlx::query!(
             "INSERT INTO \
-                     proof_compression_jobs_fri (l1_batch_number, status, created_at, updated_at) \
-                 VALUES \
-                     ($1, $2, NOW(), NOW()) \
-                 ON CONFLICT (l1_batch_number) DO NOTHING",
+                 proof_compression_jobs_fri (l1_batch_number, status, created_at, updated_at) \
+             VALUES \
+                 ($1, $2, NOW(), NOW()) \
+             ON CONFLICT (l1_batch_number) DO NOTHING",
             block_number.0 as i64,
             ProofCompressionJobStatus::Skipped.to_string(),
         )
