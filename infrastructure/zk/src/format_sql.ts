@@ -10,7 +10,7 @@ function formatQuery(query: string) {
             tabWidth: 4,
             keywordCase: 'upper',
             expressionWidth: 80,
-            indentStyle: 'tabularRight'
+            indentStyle: 'standard'
         });
     } catch {
         console.error(`Unable to format:\n${query}\n`);
@@ -98,9 +98,6 @@ function formatOneLineQuery(line: string): string {
     if (!stillOneLine) {
         formattedQuery = addIndent(formattedQuery, baseIndent);
     }
-    console.log(prefix);
-    console.log(formattedQuery);
-    console.log(suffix);
     return (
         prefix +
         (stillOneLine ? '' : '\n') +

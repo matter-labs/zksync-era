@@ -14,14 +14,18 @@ impl TokensWeb3Dal<'_, '_> {
     pub async fn get_well_known_tokens(&mut self) -> Result<Vec<TokenInfo>, SqlxError> {
         {
             let records = sqlx::query!(
-                "  SELECT l1_address, \
-                          l2_address, \
-                          NAME, \
-                          symbol, \
-                          decimals \
-                     FROM tokens \
-                    WHERE well_known = TRUE \
-                 ORDER BY symbol"
+                "SELECT \
+                     l1_address, \
+                     l2_address, \
+                     NAME, \
+                     symbol, \
+                     decimals \
+                 FROM \
+                     tokens \
+                 WHERE \
+                     well_known = TRUE \
+                 ORDER BY \
+                     symbol"
             )
             .fetch_all(self.storage.conn())
             .await?;
@@ -48,10 +52,13 @@ impl TokensWeb3Dal<'_, '_> {
         {
             let storage_price = sqlx::query_as!(
                 StorageTokenPrice,
-                "SELECT usd_price, \
-                        usd_price_updated_at \
-                   FROM tokens \
-                  WHERE l2_address = $1",
+                "SELECT \
+                     usd_price, \
+                     usd_price_updated_at \
+                 FROM \
+                     tokens \
+                 WHERE \
+                     l2_address = $1",
                 l2_address.as_bytes(),
             )
             .fetch_optional(self.storage.conn())

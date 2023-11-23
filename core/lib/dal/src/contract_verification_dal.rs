@@ -42,9 +42,12 @@ impl Display for Compiler {
 impl ContractVerificationDal<'_, '_> {
     pub async fn get_count_of_queued_verification_requests(&mut self) -> sqlx::Result<usize> {
         sqlx::query!(
-            "SELECT COUNT(*) AS \"count!\" \
-               FROM contract_verification_requests \
-              WHERE status = 'queued'"
+            "SELECT \
+                 COUNT(*) AS \"count!\" \
+             FROM \
+                 contract_verification_requests \
+             WHERE \
+                 status = 'queued'"
         )
         .fetch_one(self.storage.conn())
         .await
@@ -56,22 +59,25 @@ impl ContractVerificationDal<'_, '_> {
         query: VerificationIncomingRequest,
     ) -> sqlx::Result<usize> {
         sqlx::query!(
-            "   INSERT INTO contract_verification_requests ( \
-                       contract_address, \
-                       source_code, \
-                       contract_name, \
-                       zk_compiler_version, \
-                       compiler_version, \
-                       optimization_used, \
-                       optimizer_mode, \
-                       constructor_arguments, \
-                       is_system, \
-                       status, \
-                       created_at, \
-                       updated_at \
-                       ) \
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'queued', NOW(), NOW()) \
-             RETURNING id",
+            "INSERT INTO \
+                 contract_verification_requests ( \
+                     contract_address, \
+                     source_code, \
+                     contract_name, \
+                     zk_compiler_version, \
+                     compiler_version, \
+                     optimization_used, \
+                     optimizer_mode, \
+                     constructor_arguments, \
+                     is_system, \
+                     status, \
+                     created_at, \
+                     updated_at \
+                 ) \
+             VALUES \
+                 ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'queued', NOW(), NOW()) \
+             RETURNING \
+                 id",
             query.contract_address.as_bytes(),
             // Serialization should always succeed.
             serde_json::to_string(&query.source_code_data).unwrap(),
@@ -103,33 +109,42 @@ impl ContractVerificationDal<'_, '_> {
         };
         let result = sqlx::query_as!(
             StorageVerificationRequest,
-            "   UPDATE contract_verification_requests \
-                   SET status = 'in_progress', \
-                       attempts = attempts + 1, \
-                       updated_at = NOW(), \
-                       processing_started_at = NOW() \
-                 WHERE id = ( \
-                          SELECT id \
-                            FROM contract_verification_requests \
-                           WHERE status = 'queued' \
-                              OR ( \
-                                 status = 'in_progress' \
+            "UPDATE contract_verification_requests \
+             SET \
+                 status = 'in_progress', \
+                 attempts = attempts + 1, \
+                 updated_at = NOW(), \
+                 processing_started_at = NOW() \
+             WHERE \
+                 id = ( \
+                     SELECT \
+                         id \
+                     FROM \
+                         contract_verification_requests \
+                     WHERE \
+                         status = 'queued' \
+                         OR ( \
+                             status = 'in_progress' \
                              AND processing_started_at < NOW() - $1::INTERVAL \
-                                 ) \
-                        ORDER BY created_at \
-                           LIMIT 1 \
-                             FOR UPDATE SKIP LOCKED \
-                       ) \
-             RETURNING id, \
-                       contract_address, \
-                       source_code, \
-                       contract_name, \
-                       zk_compiler_version, \
-                       compiler_version, \
-                       optimization_used, \
-                       optimizer_mode, \
-                       constructor_arguments, \
-                       is_system",
+                         ) \
+                     ORDER BY \
+                         created_at \
+                     LIMIT \
+                         1 \
+                     FOR UPDATE \
+                         SKIP LOCKED \
+                 ) \
+             RETURNING \
+                 id, \
+                 contract_address, \
+                 source_code, \
+                 contract_name, \
+                 zk_compiler_version, \
+                 compiler_version, \
+                 optimization_used, \
+                 optimizer_mode, \
+                 constructor_arguments, \
+                 is_system",
             &processing_timeout
         )
         .fetch_optional(self.storage.conn())
@@ -151,9 +166,11 @@ impl ContractVerificationDal<'_, '_> {
 
         sqlx::query!(
             "UPDATE contract_verification_requests \
-                SET status = 'successful', \
-                    updated_at = NOW() \
-              WHERE id = $1",
+             SET \
+                 status = 'successful', \
+                 updated_at = NOW() \
+             WHERE \
+                 id = $1",
             verification_info.request.id as i64,
         )
         .execute(transaction.conn())
@@ -164,11 +181,14 @@ impl ContractVerificationDal<'_, '_> {
         let verification_info_json = serde_json::to_value(verification_info)
             .expect("Failed to serialize verification info into serde_json");
         sqlx::query!(
-            "INSERT INTO contracts_verification_info (address, verification_info) \
-             VALUES ($1, $2) \
-                 ON CONFLICT (address) DO \
+            "INSERT INTO \
+                 contracts_verification_info (address, verification_info) \
+             VALUES \
+                 ($1, $2) \
+             ON CONFLICT (address) DO \
              UPDATE \
-                SET verification_info = $2",
+             SET \
+                 verification_info = $2",
             address.as_bytes(),
             &verification_info_json
         )
@@ -188,12 +208,14 @@ impl ContractVerificationDal<'_, '_> {
     ) -> sqlx::Result<()> {
         sqlx::query!(
             "UPDATE contract_verification_requests \
-                SET status = 'failed', \
-                    updated_at = NOW(), \
-                    error = $2, \
-                    compilation_errors = $3, \
-                    panic_message = $4 \
-              WHERE id = $1",
+             SET \
+                 status = 'failed', \
+                 updated_at = NOW(), \
+                 error = $2, \
+                 compilation_errors = $3, \
+                 panic_message = $4 \
+             WHERE \
+                 id = $1",
             id as i64,
             error.as_str(),
             &compilation_errors,
@@ -209,11 +231,14 @@ impl ContractVerificationDal<'_, '_> {
         id: usize,
     ) -> anyhow::Result<Option<VerificationRequestStatus>> {
         let Some(row) = sqlx::query!(
-            "SELECT status, \
-                    error, \
-                    compilation_errors \
-               FROM contract_verification_requests \
-              WHERE id = $1",
+            "SELECT \
+                 status, \
+                 error, \
+                 compilation_errors \
+             FROM \
+                 contract_verification_requests \
+             WHERE \
+                 id = $1",
             id as i64,
         )
         .fetch_optional(self.storage.conn())
@@ -246,20 +271,28 @@ impl ContractVerificationDal<'_, '_> {
     ) -> anyhow::Result<Option<(Vec<u8>, DeployContractCalldata)>> {
         let hashed_key = get_code_key(&address).hashed_key();
         let Some(row) = sqlx::query!(
-            "   SELECT factory_deps.bytecode, \
-                       transactions.data AS \"data?\", \
-                       transactions.contract_address AS \"contract_address?\" \
-                  FROM ( \
-                          SELECT * \
-                            FROM storage_logs \
-                           WHERE storage_logs.hashed_key = $1 \
-                        ORDER BY miniblock_number DESC, \
-                                 operation_number DESC \
-                           LIMIT 1 \
-                       ) storage_logs \
-                  JOIN factory_deps ON factory_deps.bytecode_hash = storage_logs.value \
-             LEFT JOIN transactions ON transactions.hash = storage_logs.tx_hash \
-                 WHERE storage_logs.value != $2",
+            "SELECT \
+                 factory_deps.bytecode, \
+                 transactions.data AS \"data?\", \
+                 transactions.contract_address AS \"contract_address?\" \
+             FROM \
+                 ( \
+                     SELECT \
+                         * \
+                     FROM \
+                         storage_logs \
+                     WHERE \
+                         storage_logs.hashed_key = $1 \
+                     ORDER BY \
+                         miniblock_number DESC, \
+                         operation_number DESC \
+                     LIMIT \
+                         1 \
+                 ) storage_logs \
+                 JOIN factory_deps ON factory_deps.bytecode_hash = storage_logs.value \
+                 LEFT JOIN transactions ON transactions.hash = storage_logs.tx_hash \
+             WHERE \
+                 storage_logs.value != $2",
             hashed_key.as_bytes(),
             FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes()
         )
@@ -288,9 +321,12 @@ impl ContractVerificationDal<'_, '_> {
     /// Returns true if the contract has a stored contracts_verification_info.
     pub async fn is_contract_verified(&mut self, address: Address) -> sqlx::Result<bool> {
         let count = sqlx::query!(
-            "SELECT COUNT(*) AS \"count!\" \
-               FROM contracts_verification_info \
-              WHERE address = $1",
+            "SELECT \
+                 COUNT(*) AS \"count!\" \
+             FROM \
+                 contracts_verification_info \
+             WHERE \
+                 address = $1",
             address.as_bytes()
         )
         .fetch_one(self.storage.conn())
@@ -302,10 +338,14 @@ impl ContractVerificationDal<'_, '_> {
     async fn get_compiler_versions(&mut self, compiler: Compiler) -> sqlx::Result<Vec<String>> {
         let compiler = format!("{compiler}");
         let versions: Vec<_> = sqlx::query!(
-            "  SELECT VERSION \
-                 FROM compiler_versions \
-                WHERE compiler = $1 \
-             ORDER BY VERSION",
+            "SELECT \
+                 VERSION \
+             FROM \
+                 compiler_versions \
+             WHERE \
+                 compiler = $1 \
+             ORDER BY \
+                 VERSION",
             &compiler
         )
         .fetch_all(self.storage.conn())
@@ -346,20 +386,24 @@ impl ContractVerificationDal<'_, '_> {
 
         sqlx::query!(
             "DELETE FROM compiler_versions \
-              WHERE compiler = $1",
+             WHERE \
+                 compiler = $1",
             &compiler
         )
         .execute(transaction.conn())
         .await?;
 
         sqlx::query!(
-            "INSERT INTO compiler_versions (VERSION, compiler, created_at, updated_at) \
-             SELECT u.version, \
-                    $2, \
-                    NOW(), \
-                    NOW() \
-               FROM UNNEST($1::TEXT[]) AS u (VERSION) \
-                 ON CONFLICT (VERSION, compiler) DO NOTHING",
+            "INSERT INTO \
+                 compiler_versions (VERSION, compiler, created_at, updated_at) \
+             SELECT \
+                 u.version, \
+                 $2, \
+                 NOW(), \
+                 NOW() \
+             FROM \
+                 UNNEST($1::TEXT[]) AS u (VERSION) \
+             ON CONFLICT (VERSION, compiler) DO NOTHING",
             &versions,
             &compiler,
         )
@@ -390,19 +434,23 @@ impl ContractVerificationDal<'_, '_> {
     pub async fn get_all_successful_requests(&mut self) -> sqlx::Result<Vec<VerificationRequest>> {
         let result = sqlx::query_as!(
             StorageVerificationRequest,
-            "  SELECT id, \
-                      contract_address, \
-                      source_code, \
-                      contract_name, \
-                      zk_compiler_version, \
-                      compiler_version, \
-                      optimization_used, \
-                      optimizer_mode, \
-                      constructor_arguments, \
-                      is_system \
-                 FROM contract_verification_requests \
-                WHERE status = 'successful' \
-             ORDER BY id",
+            "SELECT \
+                 id, \
+                 contract_address, \
+                 source_code, \
+                 contract_name, \
+                 zk_compiler_version, \
+                 compiler_version, \
+                 optimization_used, \
+                 optimizer_mode, \
+                 constructor_arguments, \
+                 is_system \
+             FROM \
+                 contract_verification_requests \
+             WHERE \
+                 status = 'successful' \
+             ORDER BY \
+                 id",
         )
         .fetch_all(self.storage.conn())
         .await?
@@ -417,9 +465,12 @@ impl ContractVerificationDal<'_, '_> {
         address: Address,
     ) -> anyhow::Result<Option<VerificationInfo>> {
         let Some(row) = sqlx::query!(
-            "SELECT verification_info \
-               FROM contracts_verification_info \
-              WHERE address = $1",
+            "SELECT \
+                 verification_info \
+             FROM \
+                 contracts_verification_info \
+             WHERE \
+                 address = $1",
             address.as_bytes(),
         )
         .fetch_optional(self.storage.conn())

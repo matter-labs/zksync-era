@@ -18,27 +18,36 @@ impl FriGpuProverQueueDal<'_, '_> {
     ) -> Option<SocketAddress> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let result: Option<SocketAddress> = sqlx::query!(
-            "   UPDATE gpu_prover_queue_fri \
-                   SET instance_status = 'reserved', \
-                       updated_at = NOW(), \
-                       processing_started_at = NOW() \
-                 WHERE id IN ( \
-                          SELECT id \
-                            FROM gpu_prover_queue_fri \
-                           WHERE specialized_prover_group_id = $2 \
-                             AND zone = $3 \
-                             AND ( \
-                                 instance_status = 'available' \
-                              OR ( \
+            "UPDATE gpu_prover_queue_fri \
+             SET \
+                 instance_status = 'reserved', \
+                 updated_at = NOW(), \
+                 processing_started_at = NOW() \
+             WHERE \
+                 id IN ( \
+                     SELECT \
+                         id \
+                     FROM \
+                         gpu_prover_queue_fri \
+                     WHERE \
+                         specialized_prover_group_id = $2 \
+                         AND zone = $3 \
+                         AND ( \
+                             instance_status = 'available' \
+                             OR ( \
                                  instance_status = 'reserved' \
-                             AND processing_started_at < NOW() - $1::INTERVAL \
-                                 ) \
-                                 ) \
-                        ORDER BY updated_at ASC \
-                           LIMIT 1 \
-                             FOR UPDATE SKIP LOCKED \
-                       ) \
-             RETURNING gpu_prover_queue_fri.*",
+                                 AND processing_started_at < NOW() - $1::INTERVAL \
+                             ) \
+                         ) \
+                     ORDER BY \
+                         updated_at ASC \
+                     LIMIT \
+                         1 \
+                     FOR UPDATE \
+                         SKIP LOCKED \
+                 ) \
+             RETURNING \
+                 gpu_prover_queue_fri.*",
             &processing_timeout,
             specialized_prover_group_id as i16,
             zone
@@ -61,22 +70,25 @@ impl FriGpuProverQueueDal<'_, '_> {
         zone: String,
     ) {
         sqlx::query!(
-            "INSERT INTO gpu_prover_queue_fri ( \
-                    instance_host, \
-                    instance_port, \
-                    instance_status, \
-                    specialized_prover_group_id, \
-                    zone, \
-                    created_at, \
-                    updated_at \
-                    ) \
-             VALUES (CAST($1::TEXT AS inet), $2, 'available', $3, $4, NOW(), NOW()) \
-                 ON CONFLICT (instance_host, instance_port, zone) DO \
+            "INSERT INTO \
+                 gpu_prover_queue_fri ( \
+                     instance_host, \
+                     instance_port, \
+                     instance_status, \
+                     specialized_prover_group_id, \
+                     zone, \
+                     created_at, \
+                     updated_at \
+                 ) \
+             VALUES \
+                 (CAST($1::TEXT AS inet), $2, 'available', $3, $4, NOW(), NOW()) \
+             ON CONFLICT (instance_host, instance_port, zone) DO \
              UPDATE \
-                SET instance_status = 'available', \
-                    specialized_prover_group_id = $3, \
-                    zone = $4, \
-                    updated_at = NOW()",
+             SET \
+                 instance_status = 'available', \
+                 specialized_prover_group_id = $3, \
+                 zone = $4, \
+                 updated_at = NOW()",
             format!("{}", address.host),
             address.port as i32,
             specialized_prover_group_id as i16,
@@ -95,11 +107,13 @@ impl FriGpuProverQueueDal<'_, '_> {
     ) {
         sqlx::query!(
             "UPDATE gpu_prover_queue_fri \
-                SET instance_status = $1, \
-                    updated_at = NOW() \
-              WHERE instance_host = $2::TEXT::inet \
-                AND instance_port = $3 \
-                AND zone = $4",
+             SET \
+                 instance_status = $1, \
+                 updated_at = NOW() \
+             WHERE \
+                 instance_host = $2::TEXT::inet \
+                 AND instance_port = $3 \
+                 AND zone = $4",
             format!("{:?}", status).to_lowercase(),
             format!("{}", address.host),
             address.port as i32,
@@ -117,12 +131,14 @@ impl FriGpuProverQueueDal<'_, '_> {
     ) {
         sqlx::query!(
             "UPDATE gpu_prover_queue_fri \
-                SET instance_status = 'available', \
-                    updated_at = NOW() \
-              WHERE instance_host = $1::TEXT::inet \
-                AND instance_port = $2 \
-                AND instance_status = 'full' \
-                AND zone = $3",
+             SET \
+                 instance_status = 'available', \
+                 updated_at = NOW() \
+             WHERE \
+                 instance_host = $1::TEXT::inet \
+                 AND instance_port = $2 \
+                 AND instance_status = 'full' \
+                 AND zone = $3",
             format!("{}", address.host),
             address.port as i32,
             zone

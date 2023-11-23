@@ -54,30 +54,39 @@ impl FriProverDal<'_, '_> {
     ) -> Option<FriProverJobMetadata> {
         let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         sqlx::query!(
-            "   UPDATE prover_jobs_fri \
-                   SET status = 'in_progress', \
-                       attempts = attempts + 1, \
-                       updated_at = NOW(), \
-                       processing_started_at = NOW(), \
-                       picked_by = $2 \
-                 WHERE id = ( \
-                          SELECT id \
-                            FROM prover_jobs_fri \
-                           WHERE status = 'queued' \
-                             AND protocol_version = ANY ($1) \
-                        ORDER BY aggregation_round DESC, \
-                                 l1_batch_number ASC, \
-                                 id ASC \
-                           LIMIT 1 \
-                             FOR UPDATE SKIP LOCKED \
-                       ) \
-             RETURNING prover_jobs_fri.id, \
-                       prover_jobs_fri.l1_batch_number, \
-                       prover_jobs_fri.circuit_id, \
-                       prover_jobs_fri.aggregation_round, \
-                       prover_jobs_fri.sequence_number, \
-                       prover_jobs_fri.depth, \
-                       prover_jobs_fri.is_node_final_proof",
+            "UPDATE prover_jobs_fri \
+             SET \
+                 status = 'in_progress', \
+                 attempts = attempts + 1, \
+                 updated_at = NOW(), \
+                 processing_started_at = NOW(), \
+                 picked_by = $2 \
+             WHERE \
+                 id = ( \
+                     SELECT \
+                         id \
+                     FROM \
+                         prover_jobs_fri \
+                     WHERE \
+                         status = 'queued' \
+                         AND protocol_version = ANY ($1) \
+                     ORDER BY \
+                         aggregation_round DESC, \
+                         l1_batch_number ASC, \
+                         id ASC \
+                     LIMIT \
+                         1 \
+                     FOR UPDATE \
+                         SKIP LOCKED \
+                 ) \
+             RETURNING \
+                 prover_jobs_fri.id, \
+                 prover_jobs_fri.l1_batch_number, \
+                 prover_jobs_fri.circuit_id, \
+                 prover_jobs_fri.aggregation_round, \
+                 prover_jobs_fri.sequence_number, \
+                 prover_jobs_fri.depth, \
+                 prover_jobs_fri.is_node_final_proof",
             &protocol_versions[..],
             picked_by,
         )
@@ -111,42 +120,57 @@ impl FriProverDal<'_, '_> {
             .map(|tuple| tuple.aggregation_round as i16)
             .collect();
         sqlx::query!(
-            "   UPDATE prover_jobs_fri \
-                   SET status = 'in_progress', \
-                       attempts = attempts + 1, \
-                       processing_started_at = NOW(), \
-                       updated_at = NOW(), \
-                       picked_by = $4 \
-                 WHERE id = ( \
-                          SELECT pj.id \
-                            FROM ( \
-                                    SELECT * \
-                                      FROM UNNEST($1::SMALLINT[], $2::SMALLINT[]) \
-                                 ) AS tuple (circuit_id, ROUND) \
-                            JOIN LATERAL ( \
-                                    SELECT * \
-                                      FROM prover_jobs_fri AS pj \
-                                     WHERE pj.status = 'queued' \
-                                       AND pj.protocol_version = ANY ($3) \
-                                       AND pj.circuit_id = tuple.circuit_id \
-                                       AND pj.aggregation_round = tuple.round \
-                                  ORDER BY pj.l1_batch_number ASC, \
-                                           pj.id ASC \
-                                     LIMIT 1 \
-                                 ) AS pj ON TRUE \
-                        ORDER BY pj.l1_batch_number ASC, \
-                                 pj.aggregation_round DESC, \
+            "UPDATE prover_jobs_fri \
+             SET \
+                 status = 'in_progress', \
+                 attempts = attempts + 1, \
+                 processing_started_at = NOW(), \
+                 updated_at = NOW(), \
+                 picked_by = $4 \
+             WHERE \
+                 id = ( \
+                     SELECT \
+                         pj.id \
+                     FROM \
+                         ( \
+                             SELECT \
+                                 * \
+                             FROM \
+                                 UNNEST($1::SMALLINT[], $2::SMALLINT[]) \
+                         ) AS tuple (circuit_id, ROUND) \
+                         JOIN LATERAL ( \
+                             SELECT \
+                                 * \
+                             FROM \
+                                 prover_jobs_fri AS pj \
+                             WHERE \
+                                 pj.status = 'queued' \
+                                 AND pj.protocol_version = ANY ($3) \
+                                 AND pj.circuit_id = tuple.circuit_id \
+                                 AND pj.aggregation_round = tuple.round \
+                             ORDER BY \
+                                 pj.l1_batch_number ASC, \
                                  pj.id ASC \
-                           LIMIT 1 \
-                             FOR UPDATE SKIP LOCKED \
-                       ) \
-             RETURNING prover_jobs_fri.id, \
-                       prover_jobs_fri.l1_batch_number, \
-                       prover_jobs_fri.circuit_id, \
-                       prover_jobs_fri.aggregation_round, \
-                       prover_jobs_fri.sequence_number, \
-                       prover_jobs_fri.depth, \
-                       prover_jobs_fri.is_node_final_proof",
+                             LIMIT \
+                                 1 \
+                         ) AS pj ON TRUE \
+                     ORDER BY \
+                         pj.l1_batch_number ASC, \
+                         pj.aggregation_round DESC, \
+                         pj.id ASC \
+                     LIMIT \
+                         1 \
+                     FOR UPDATE \
+                         SKIP LOCKED \
+                 ) \
+             RETURNING \
+                 prover_jobs_fri.id, \
+                 prover_jobs_fri.l1_batch_number, \
+                 prover_jobs_fri.circuit_id, \
+                 prover_jobs_fri.aggregation_round, \
+                 prover_jobs_fri.sequence_number, \
+                 prover_jobs_fri.depth, \
+                 prover_jobs_fri.is_node_final_proof",
             &circuit_ids[..],
             &aggregation_rounds[..],
             &protocol_versions[..],
@@ -170,10 +194,12 @@ impl FriProverDal<'_, '_> {
         {
             sqlx::query!(
                 "UPDATE prover_jobs_fri \
-                    SET status = 'failed', \
-                        error = $1, \
-                        updated_at = NOW() \
-                  WHERE id = $2",
+                 SET \
+                     status = 'failed', \
+                     error = $1, \
+                     updated_at = NOW() \
+                 WHERE \
+                     id = $2",
                 error,
                 id as i64,
             )
@@ -185,9 +211,12 @@ impl FriProverDal<'_, '_> {
 
     pub async fn get_prover_job_attempts(&mut self, id: u32) -> sqlx::Result<Option<u32>> {
         let attempts = sqlx::query!(
-            "SELECT attempts \
-               FROM prover_jobs_fri \
-              WHERE id = $1",
+            "SELECT \
+                 attempts \
+             FROM \
+                 prover_jobs_fri \
+             WHERE \
+                 id = $1",
             id as i64,
         )
         .fetch_optional(self.storage.conn())
@@ -204,19 +233,22 @@ impl FriProverDal<'_, '_> {
         blob_url: &str,
     ) -> FriProverJobMetadata {
         sqlx::query!(
-            "   UPDATE prover_jobs_fri \
-                   SET status = 'successful', \
-                       updated_at = NOW(), \
-                       time_taken = $1, \
-                       proof_blob_url = $2 \
-                 WHERE id = $3 \
-             RETURNING prover_jobs_fri.id, \
-                       prover_jobs_fri.l1_batch_number, \
-                       prover_jobs_fri.circuit_id, \
-                       prover_jobs_fri.aggregation_round, \
-                       prover_jobs_fri.sequence_number, \
-                       prover_jobs_fri.depth, \
-                       prover_jobs_fri.is_node_final_proof",
+            "UPDATE prover_jobs_fri \
+             SET \
+                 status = 'successful', \
+                 updated_at = NOW(), \
+                 time_taken = $1, \
+                 proof_blob_url = $2 \
+             WHERE \
+                 id = $3 \
+             RETURNING \
+                 prover_jobs_fri.id, \
+                 prover_jobs_fri.l1_batch_number, \
+                 prover_jobs_fri.circuit_id, \
+                 prover_jobs_fri.aggregation_round, \
+                 prover_jobs_fri.sequence_number, \
+                 prover_jobs_fri.depth, \
+                 prover_jobs_fri.is_node_final_proof",
             duration_to_naive_time(time_taken),
             blob_url,
             id as i64,
@@ -247,32 +279,39 @@ impl FriProverDal<'_, '_> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         {
             sqlx::query!(
-                "   UPDATE prover_jobs_fri \
-                       SET status = 'queued', \
-                           updated_at = NOW(), \
-                           processing_started_at = NOW() \
-                     WHERE id IN ( \
-                              SELECT id \
-                                FROM prover_jobs_fri \
-                               WHERE ( \
-                                     status = 'in_progress' \
+                "UPDATE prover_jobs_fri \
+                 SET \
+                     status = 'queued', \
+                     updated_at = NOW(), \
+                     processing_started_at = NOW() \
+                 WHERE \
+                     id IN ( \
+                         SELECT \
+                             id \
+                         FROM \
+                             prover_jobs_fri \
+                         WHERE \
+                             ( \
+                                 status = 'in_progress' \
                                  AND processing_started_at <= NOW() - $1::INTERVAL \
                                  AND attempts < $2 \
-                                     ) \
-                                  OR ( \
-                                     status = 'in_gpu_proof' \
+                             ) \
+                             OR ( \
+                                 status = 'in_gpu_proof' \
                                  AND processing_started_at <= NOW() - $1::INTERVAL \
                                  AND attempts < $2 \
-                                     ) \
-                                  OR ( \
-                                     status = 'failed' \
+                             ) \
+                             OR ( \
+                                 status = 'failed' \
                                  AND attempts < $2 \
-                                     ) \
-                                 FOR UPDATE SKIP LOCKED \
-                           ) \
-                 RETURNING id, \
-                           status, \
-                           attempts",
+                             ) \
+                         FOR UPDATE \
+                             SKIP LOCKED \
+                     ) \
+                 RETURNING \
+                     id, \
+                     status, \
+                     attempts",
                 &processing_timeout,
                 max_attempts as i32,
             )
@@ -302,23 +341,26 @@ impl FriProverDal<'_, '_> {
         protocol_version_id: FriProtocolVersionId,
     ) {
         sqlx::query!(
-                    "INSERT INTO prover_jobs_fri ( \
-                            l1_batch_number, \
-                            circuit_id, \
-                            circuit_blob_url, \
-                            aggregation_round, \
-                            sequence_number, \
-                            depth, \
-                            is_node_final_proof, \
-                            protocol_version, \
-                            status, \
-                            created_at, \
-                            updated_at \
-                            ) \
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW()) \
-                         ON CONFLICT (l1_batch_number, aggregation_round, circuit_id, depth, sequence_number) DO \
+                    "INSERT INTO \
+                         prover_jobs_fri ( \
+                             l1_batch_number, \
+                             circuit_id, \
+                             circuit_blob_url, \
+                             aggregation_round, \
+                             sequence_number, \
+                             depth, \
+                             is_node_final_proof, \
+                             protocol_version, \
+                             status, \
+                             created_at, \
+                             updated_at \
+                         ) \
+                     VALUES \
+                         ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW()) \
+                     ON CONFLICT (l1_batch_number, aggregation_round, circuit_id, depth, sequence_number) DO \
                      UPDATE \
-                        SET updated_at = NOW()",
+                     SET \
+                         updated_at = NOW()",
             l1_batch_number.0 as i64,
             circuit_id as i16,
             circuit_blob_url,
@@ -336,16 +378,20 @@ impl FriProverDal<'_, '_> {
     pub async fn get_prover_jobs_stats(&mut self) -> HashMap<(u8, u8), JobCountStatistics> {
         {
             sqlx::query!(
-                "  SELECT COUNT(*) AS \"count!\", \
-                          circuit_id AS \"circuit_id!\", \
-                          aggregation_round AS \"aggregation_round!\", \
-                          status AS \"status!\" \
-                     FROM prover_jobs_fri \
-                    WHERE status <> 'skipped' \
-                      AND status <> 'successful' \
-                 GROUP BY circuit_id, \
-                          aggregation_round, \
-                          status"
+                "SELECT \
+                     COUNT(*) AS \"count!\", \
+                     circuit_id AS \"circuit_id!\", \
+                     aggregation_round AS \"aggregation_round!\", \
+                     status AS \"status!\" \
+                 FROM \
+                     prover_jobs_fri \
+                 WHERE \
+                     status <> 'skipped' \
+                     AND status <> 'successful' \
+                 GROUP BY \
+                     circuit_id, \
+                     aggregation_round, \
+                     status"
             )
             .fetch_all(self.storage.conn())
             .await
@@ -386,13 +432,17 @@ impl FriProverDal<'_, '_> {
     pub async fn min_unproved_l1_batch_number(&mut self) -> HashMap<(u8, u8), L1BatchNumber> {
         {
             sqlx::query!(
-                "  SELECT MIN(l1_batch_number) AS \"l1_batch_number!\", \
-                          circuit_id, \
-                          aggregation_round \
-                     FROM prover_jobs_fri \
-                    WHERE status IN ('queued', 'in_gpu_proof', 'in_progress', 'failed') \
-                 GROUP BY circuit_id, \
-                          aggregation_round"
+                "SELECT \
+                     MIN(l1_batch_number) AS \"l1_batch_number!\", \
+                     circuit_id, \
+                     aggregation_round \
+                 FROM \
+                     prover_jobs_fri \
+                 WHERE \
+                     status IN ('queued', 'in_gpu_proof', 'in_progress', 'failed') \
+                 GROUP BY \
+                     circuit_id, \
+                     aggregation_round"
             )
             .fetch_all(self.storage.conn())
             .await
@@ -433,9 +483,11 @@ impl FriProverDal<'_, '_> {
     pub async fn update_status(&mut self, id: u32, status: &str) {
         sqlx::query!(
             "UPDATE prover_jobs_fri \
-                SET status = $1, \
-                    updated_at = NOW() \
-              WHERE id = $2",
+             SET \
+                 status = $1, \
+                 updated_at = NOW() \
+             WHERE \
+                 id = $2",
             status,
             id as i64,
         )
@@ -447,9 +499,11 @@ impl FriProverDal<'_, '_> {
     pub async fn save_successful_sent_proof(&mut self, l1_batch_number: L1BatchNumber) {
         sqlx::query!(
             "UPDATE prover_jobs_fri \
-                SET status = 'sent_to_server', \
-                    updated_at = NOW() \
-              WHERE l1_batch_number = $1",
+             SET \
+                 status = 'sent_to_server', \
+                 updated_at = NOW() \
+             WHERE \
+                 l1_batch_number = $1",
             l1_batch_number.0 as i64,
         )
         .execute(self.storage.conn())
@@ -462,11 +516,14 @@ impl FriProverDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
     ) -> Option<u32> {
         sqlx::query!(
-            "SELECT id \
-               FROM prover_jobs_fri \
-              WHERE l1_batch_number = $1 \
-                AND status = 'successful' \
-                AND aggregation_round = $2",
+            "SELECT \
+                 id \
+             FROM \
+                 prover_jobs_fri \
+             WHERE \
+                 l1_batch_number = $1 \
+                 AND status = 'successful' \
+                 AND aggregation_round = $2",
             l1_batch_number.0 as i64,
             AggregationRound::Scheduler as i16,
         )

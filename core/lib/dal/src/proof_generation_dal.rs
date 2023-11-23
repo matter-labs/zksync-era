@@ -29,23 +29,32 @@ impl ProofGenerationDal<'_, '_> {
     ) -> Option<L1BatchNumber> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let result: Option<L1BatchNumber> = sqlx::query!(
-            "   UPDATE proof_generation_details \
-                   SET status = 'picked_by_prover', \
-                       updated_at = NOW(), \
-                       prover_taken_at = NOW() \
-                 WHERE l1_batch_number = ( \
-                          SELECT l1_batch_number \
-                            FROM proof_generation_details \
-                           WHERE status = 'ready_to_be_proven' \
-                              OR ( \
-                                 status = 'picked_by_prover' \
+            "UPDATE proof_generation_details \
+             SET \
+                 status = 'picked_by_prover', \
+                 updated_at = NOW(), \
+                 prover_taken_at = NOW() \
+             WHERE \
+                 l1_batch_number = ( \
+                     SELECT \
+                         l1_batch_number \
+                     FROM \
+                         proof_generation_details \
+                     WHERE \
+                         status = 'ready_to_be_proven' \
+                         OR ( \
+                             status = 'picked_by_prover' \
                              AND prover_taken_at < NOW() - $1::INTERVAL \
-                                 ) \
-                        ORDER BY l1_batch_number ASC \
-                           LIMIT 1 \
-                             FOR UPDATE SKIP LOCKED \
-                       ) \
-             RETURNING proof_generation_details.l1_batch_number",
+                         ) \
+                     ORDER BY \
+                         l1_batch_number ASC \
+                     LIMIT \
+                         1 \
+                     FOR UPDATE \
+                         SKIP LOCKED \
+                 ) \
+             RETURNING \
+                 proof_generation_details.l1_batch_number",
             &processing_timeout,
         )
         .fetch_optional(self.storage.conn())
@@ -63,10 +72,12 @@ impl ProofGenerationDal<'_, '_> {
     ) -> Result<(), SqlxError> {
         sqlx::query!(
             "UPDATE proof_generation_details \
-                SET status = 'generated', \
-                    proof_blob_url = $1, \
-                    updated_at = NOW() \
-              WHERE l1_batch_number = $2",
+             SET \
+                 status = 'generated', \
+                 proof_blob_url = $1, \
+                 updated_at = NOW() \
+             WHERE \
+                 l1_batch_number = $2",
             proof_blob_url,
             block_number.0 as i64,
         )
@@ -84,9 +95,11 @@ impl ProofGenerationDal<'_, '_> {
         proof_gen_data_blob_url: &str,
     ) {
         sqlx::query!(
-            "INSERT INTO proof_generation_details (l1_batch_number, status, proof_gen_data_blob_url, created_at, updated_at) \
-             VALUES ($1, 'ready_to_be_proven', $2, NOW(), NOW()) \
-                 ON CONFLICT (l1_batch_number) DO NOTHING",
+            "INSERT INTO \
+                 proof_generation_details (l1_batch_number, status, proof_gen_data_blob_url, created_at, updated_at) \
+             VALUES \
+                 ($1, 'ready_to_be_proven', $2, NOW(), NOW()) \
+             ON CONFLICT (l1_batch_number) DO NOTHING",
             block_number.0 as i64,
             proof_gen_data_blob_url,
         )
@@ -101,9 +114,11 @@ impl ProofGenerationDal<'_, '_> {
     ) -> Result<(), SqlxError> {
         sqlx::query!(
             "UPDATE proof_generation_details \
-                SET status = $1, \
-                    updated_at = NOW() \
-              WHERE l1_batch_number = $2",
+             SET \
+                 status = $1, \
+                 updated_at = NOW() \
+             WHERE \
+                 l1_batch_number = $2",
             ProofGenerationJobStatus::Skipped.to_string(),
             block_number.0 as i64,
         )

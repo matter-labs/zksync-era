@@ -80,53 +80,55 @@ impl TransactionsDal<'_, '_> {
             let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
 
             sqlx::query!(
-                "INSERT INTO transactions ( \
-                        hash, \
-                        is_priority, \
-                        initiator_address, \
-                        gas_limit, \
-                        max_fee_per_gas, \
-                        gas_per_pubdata_limit, \
-                        data, \
-                        priority_op_id, \
-                        full_fee, \
-                        layer_2_tip_fee, \
-                        contract_address, \
-                        l1_block_number, \
-                        value, \
-                        paymaster, \
-                        paymaster_input, \
-                        tx_format, \
-                        l1_tx_mint, \
-                        l1_tx_refund_recipient, \
-                        received_at, \
-                        created_at, \
-                        updated_at \
-                        ) \
-                 VALUES ( \
-                        $1, \
-                        TRUE, \
-                        $2, \
-                        $3, \
-                        $4, \
-                        $5, \
-                        $6, \
-                        $7, \
-                        $8, \
-                        $9, \
-                        $10, \
-                        $11, \
-                        $12, \
-                        $13, \
-                        $14, \
-                        $15, \
-                        $16, \
-                        $17, \
-                        $18, \
-                        NOW(), \
-                        NOW() \
-                        ) \
-                     ON CONFLICT (hash) DO NOTHING",
+                "INSERT INTO \
+                     transactions ( \
+                         hash, \
+                         is_priority, \
+                         initiator_address, \
+                         gas_limit, \
+                         max_fee_per_gas, \
+                         gas_per_pubdata_limit, \
+                         data, \
+                         priority_op_id, \
+                         full_fee, \
+                         layer_2_tip_fee, \
+                         contract_address, \
+                         l1_block_number, \
+                         value, \
+                         paymaster, \
+                         paymaster_input, \
+                         tx_format, \
+                         l1_tx_mint, \
+                         l1_tx_refund_recipient, \
+                         received_at, \
+                         created_at, \
+                         updated_at \
+                     ) \
+                 VALUES \
+                     ( \
+                         $1, \
+                         TRUE, \
+                         $2, \
+                         $3, \
+                         $4, \
+                         $5, \
+                         $6, \
+                         $7, \
+                         $8, \
+                         $9, \
+                         $10, \
+                         $11, \
+                         $12, \
+                         $13, \
+                         $14, \
+                         $15, \
+                         $16, \
+                         $17, \
+                         $18, \
+                         NOW(), \
+                         NOW() \
+                     ) \
+                 ON CONFLICT (hash) DO NOTHING",
                 tx_hash_bytes,
                 sender,
                 gas_limit,
@@ -176,49 +178,51 @@ impl TransactionsDal<'_, '_> {
             let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
 
             sqlx::query!(
-                "INSERT INTO transactions ( \
-                        hash, \
-                        is_priority, \
-                        initiator_address, \
-                        gas_limit, \
-                        max_fee_per_gas, \
-                        gas_per_pubdata_limit, \
-                        data, \
-                        upgrade_id, \
-                        contract_address, \
-                        l1_block_number, \
-                        value, \
-                        paymaster, \
-                        paymaster_input, \
-                        tx_format, \
-                        l1_tx_mint, \
-                        l1_tx_refund_recipient, \
-                        received_at, \
-                        created_at, \
-                        updated_at \
-                        ) \
-                 VALUES ( \
-                        $1, \
-                        TRUE, \
-                        $2, \
-                        $3, \
-                        $4, \
-                        $5, \
-                        $6, \
-                        $7, \
-                        $8, \
-                        $9, \
-                        $10, \
-                        $11, \
-                        $12, \
-                        $13, \
-                        $14, \
-                        $15, \
-                        $16, \
-                        NOW(), \
-                        NOW() \
-                        ) \
-                     ON CONFLICT (hash) DO NOTHING",
+                "INSERT INTO \
+                     transactions ( \
+                         hash, \
+                         is_priority, \
+                         initiator_address, \
+                         gas_limit, \
+                         max_fee_per_gas, \
+                         gas_per_pubdata_limit, \
+                         data, \
+                         upgrade_id, \
+                         contract_address, \
+                         l1_block_number, \
+                         value, \
+                         paymaster, \
+                         paymaster_input, \
+                         tx_format, \
+                         l1_tx_mint, \
+                         l1_tx_refund_recipient, \
+                         received_at, \
+                         created_at, \
+                         updated_at \
+                     ) \
+                 VALUES \
+                     ( \
+                         $1, \
+                         TRUE, \
+                         $2, \
+                         $3, \
+                         $4, \
+                         $5, \
+                         $6, \
+                         $7, \
+                         $8, \
+                         $9, \
+                         $10, \
+                         $11, \
+                         $12, \
+                         $13, \
+                         $14, \
+                         $15, \
+                         $16, \
+                         NOW(), \
+                         NOW() \
+                     ) \
+                 ON CONFLICT (hash) DO NOTHING",
                 tx_hash,
                 sender,
                 gas_limit,
@@ -280,79 +284,87 @@ impl TransactionsDal<'_, '_> {
             // and we can replace it WHERE clause conditions are met.
             // It is worth mentioning that if WHERE clause conditions are not met, None will be returned.
             let query_result = sqlx::query!(
-                "   INSERT INTO transactions ( \
-                           hash, \
-                           is_priority, \
-                           initiator_address, \
-                           nonce, \
-                           signature, \
-                           gas_limit, \
-                           max_fee_per_gas, \
-                           max_priority_fee_per_gas, \
-                           gas_per_pubdata_limit, \
-                           input, \
-                           data, \
-                           tx_format, \
-                           contract_address, \
-                           value, \
-                           paymaster, \
-                           paymaster_input, \
-                           execution_info, \
-                           received_at, \
-                           created_at, \
-                           updated_at \
-                           ) \
-                    VALUES ( \
-                           $1, \
-                           FALSE, \
-                           $2, \
-                           $3, \
-                           $4, \
-                           $5, \
-                           $6, \
-                           $7, \
-                           $8, \
-                           $9, \
-                           $10, \
-                           $11, \
-                           $12, \
-                           $13, \
-                           $14, \
-                           $15, \
-                           JSONB_BUILD_OBJECT('gas_used', $16::BIGINT, 'storage_writes', $17::INT, 'contracts_used', $18::INT), \
-                           $19, \
-                           NOW(), \
-                           NOW() \
-                           ) \
-                        ON CONFLICT (initiator_address, nonce) DO \
-                    UPDATE \
-                       SET hash = $1, \
-                           signature = $4, \
-                           gas_limit = $5, \
-                           max_fee_per_gas = $6, \
-                           max_priority_fee_per_gas = $7, \
-                           gas_per_pubdata_limit = $8, \
-                           input = $9, \
-                           data = $10, \
-                           tx_format = $11, \
-                           contract_address = $12, \
-                           value = $13, \
-                           paymaster = $14, \
-                           paymaster_input = $15, \
-                           execution_info = JSONB_BUILD_OBJECT('gas_used', $16::BIGINT, 'storage_writes', $17::INT, 'contracts_used', $18::INT), \
-                           in_mempool = FALSE, \
-                           received_at = $19, \
-                           created_at = NOW(), \
-                           updated_at = NOW(), \
-                           error = NULL \
-                     WHERE transactions.is_priority = FALSE \
-                       AND transactions.miniblock_number IS NULL \
-                 RETURNING ( \
-                              SELECT hash \
-                                FROM transactions \
-                               WHERE transactions.initiator_address = $2 \
-                                 AND transactions.nonce = $3 \
-                           ) IS NOT NULL AS \"is_replaced!\"",
+                "INSERT INTO \
+                     transactions ( \
+                         hash, \
+                         is_priority, \
+                         initiator_address, \
+                         nonce, \
+                         signature, \
+                         gas_limit, \
+                         max_fee_per_gas, \
+                         max_priority_fee_per_gas, \
+                         gas_per_pubdata_limit, \
+                         input, \
+                         data, \
+                         tx_format, \
+                         contract_address, \
+                         value, \
+                         paymaster, \
+                         paymaster_input, \
+                         execution_info, \
+                         received_at, \
+                         created_at, \
+                         updated_at \
+                     ) \
+                 VALUES \
+                     ( \
+                         $1, \
+                         FALSE, \
+                         $2, \
+                         $3, \
+                         $4, \
+                         $5, \
+                         $6, \
+                         $7, \
+                         $8, \
+                         $9, \
+                         $10, \
+                         $11, \
+                         $12, \
+                         $13, \
+                         $14, \
+                         $15, \
+                         JSONB_BUILD_OBJECT('gas_used', $16::BIGINT, 'storage_writes', $17::INT, 'contracts_used', $18::INT), \
+                         $19, \
+                         NOW(), \
+                         NOW() \
+                     ) \
+                 ON CONFLICT (initiator_address, nonce) DO \
+                 UPDATE \
+                 SET \
+                     hash = $1, \
+                     signature = $4, \
+                     gas_limit = $5, \
+                     max_fee_per_gas = $6, \
+                     max_priority_fee_per_gas = $7, \
+                     gas_per_pubdata_limit = $8, \
+                     input = $9, \
+                     data = $10, \
+                     tx_format = $11, \
+                     contract_address = $12, \
+                     value = $13, \
+                     paymaster = $14, \
+                     paymaster_input = $15, \
+                     execution_info = JSONB_BUILD_OBJECT('gas_used', $16::BIGINT, 'storage_writes', $17::INT, 'contracts_used', $18::INT), \
+                     in_mempool = FALSE, \
+                     received_at = $19, \
+                     created_at = NOW(), \
+                     updated_at = NOW(), \
+                     error = NULL \
+                 WHERE \
+                     transactions.is_priority = FALSE \
+                     AND transactions.miniblock_number IS NULL \
+                 RETURNING \
+                     ( \
+                         SELECT \
+                             hash \
+                         FROM \
+                             transactions \
+                         WHERE \
+                             transactions.initiator_address = $2 \
+                             AND transactions.nonce = $3 \
+                     ) IS NOT NULL AS \"is_replaced!\"",
                 tx_hash.as_bytes(),
                 initiator_address.as_bytes(),
                 nonce,
@@ -424,14 +436,18 @@ impl TransactionsDal<'_, '_> {
             let l1_batch_tx_indexes: Vec<_> = (0..transactions.len() as i32).collect();
             sqlx::query!(
                 "UPDATE transactions \
-                    SET l1_batch_number = $3, \
-                        l1_batch_tx_index = data_table.l1_batch_tx_index, \
-                        updated_at = NOW() \
-                   FROM ( \
-                           SELECT UNNEST($1::INT[]) AS l1_batch_tx_index, \
-                                  UNNEST($2::bytea[]) AS hash \
-                        ) AS data_table \
-                  WHERE transactions.hash = data_table.hash",
+                 SET \
+                     l1_batch_number = $3, \
+                     l1_batch_tx_index = data_table.l1_batch_tx_index, \
+                     updated_at = NOW() \
+                 FROM \
+                     ( \
+                         SELECT \
+                             UNNEST($1::INT[]) AS l1_batch_tx_index, \
+                             UNNEST($2::bytea[]) AS hash \
+                     ) AS data_table \
+                 WHERE \
+                     transactions.hash = data_table.hash",
                 &l1_batch_tx_indexes,
                 &hashes as &[&[u8]],
                 block_number.0 as i64
@@ -581,57 +597,64 @@ impl TransactionsDal<'_, '_> {
                 // Note, that transactions are updated in order of their hashes to avoid deadlocks with other UPDATE queries.
                 sqlx::query!(
                     "UPDATE transactions \
-                        SET hash = data_table.hash, \
-                            signature = data_table.signature, \
-                            gas_limit = data_table.gas_limit, \
-                            max_fee_per_gas = data_table.max_fee_per_gas, \
-                            max_priority_fee_per_gas = data_table.max_priority_fee_per_gas, \
-                            gas_per_pubdata_limit = data_table.gas_per_pubdata_limit, \
-                            input = data_table.input, \
-                            data = data_table.data, \
-                            tx_format = data_table.tx_format, \
-                            miniblock_number = $21, \
-                            index_in_block = data_table.index_in_block, \
-                            error = NULLIF(data_table.error, ''), \
-                            effective_gas_price = data_table.effective_gas_price, \
-                            execution_info = data_table.new_execution_info, \
-                            refunded_gas = data_table.refunded_gas, \
-                            value = data_table.value, \
-                            contract_address = data_table.contract_address, \
-                            paymaster = data_table.paymaster, \
-                            paymaster_input = data_table.paymaster_input, \
-                            in_mempool = FALSE, \
-                            updated_at = NOW() \
-                       FROM ( \
-                               SELECT data_table_temp.* \
-                                 FROM ( \
-                                         SELECT UNNEST($1::bytea[]) AS initiator_address, \
-                                                UNNEST($2::INT[]) AS nonce, \
-                                                UNNEST($3::bytea[]) AS hash, \
-                                                UNNEST($4::bytea[]) AS signature, \
-                                                UNNEST($5::NUMERIC[]) AS gas_limit, \
-                                                UNNEST($6::NUMERIC[]) AS max_fee_per_gas, \
-                                                UNNEST($7::NUMERIC[]) AS max_priority_fee_per_gas, \
-                                                UNNEST($8::NUMERIC[]) AS gas_per_pubdata_limit, \
-                                                UNNEST($9::INT[]) AS tx_format, \
-                                                UNNEST($10::INTEGER[]) AS index_in_block, \
-                                                UNNEST($11::VARCHAR[]) AS error, \
-                                                UNNEST($12::NUMERIC[]) AS effective_gas_price, \
-                                                UNNEST($13::jsonb[]) AS new_execution_info, \
-                                                UNNEST($14::bytea[]) AS input, \
-                                                UNNEST($15::jsonb[]) AS data, \
-                                                UNNEST($16::BIGINT[]) AS refunded_gas, \
-                                                UNNEST($17::NUMERIC[]) AS value, \
-                                                UNNEST($18::bytea[]) AS contract_address, \
-                                                UNNEST($19::bytea[]) AS paymaster, \
-                                                UNNEST($20::bytea[]) AS paymaster_input \
-                                      ) AS data_table_temp \
+                     SET \
+                         hash = data_table.hash, \
+                         signature = data_table.signature, \
+                         gas_limit = data_table.gas_limit, \
+                         max_fee_per_gas = data_table.max_fee_per_gas, \
+                         max_priority_fee_per_gas = data_table.max_priority_fee_per_gas, \
+                         gas_per_pubdata_limit = data_table.gas_per_pubdata_limit, \
+                         input = data_table.input, \
+                         data = data_table.data, \
+                         tx_format = data_table.tx_format, \
+                         miniblock_number = $21, \
+                         index_in_block = data_table.index_in_block, \
+                         error = NULLIF(data_table.error, ''), \
+                         effective_gas_price = data_table.effective_gas_price, \
+                         execution_info = data_table.new_execution_info, \
+                         refunded_gas = data_table.refunded_gas, \
+                         value = data_table.value, \
+                         contract_address = data_table.contract_address, \
+                         paymaster = data_table.paymaster, \
+                         paymaster_input = data_table.paymaster_input, \
+                         in_mempool = FALSE, \
+                         updated_at = NOW() \
+                     FROM \
+                         ( \
+                             SELECT \
+                                 data_table_temp.* \
+                             FROM \
+                                 ( \
+                                     SELECT \
+                                         UNNEST($1::bytea[]) AS initiator_address, \
+                                         UNNEST($2::INT[]) AS nonce, \
+                                         UNNEST($3::bytea[]) AS hash, \
+                                         UNNEST($4::bytea[]) AS signature, \
+                                         UNNEST($5::NUMERIC[]) AS gas_limit, \
+                                         UNNEST($6::NUMERIC[]) AS max_fee_per_gas, \
+                                         UNNEST($7::NUMERIC[]) AS max_priority_fee_per_gas, \
+                                         UNNEST($8::NUMERIC[]) AS gas_per_pubdata_limit, \
+                                         UNNEST($9::INT[]) AS tx_format, \
+                                         UNNEST($10::INTEGER[]) AS index_in_block, \
+                                         UNNEST($11::VARCHAR[]) AS error, \
+                                         UNNEST($12::NUMERIC[]) AS effective_gas_price, \
+                                         UNNEST($13::jsonb[]) AS new_execution_info, \
+                                         UNNEST($14::bytea[]) AS input, \
+                                         UNNEST($15::jsonb[]) AS data, \
+                                         UNNEST($16::BIGINT[]) AS refunded_gas, \
+                                         UNNEST($17::NUMERIC[]) AS value, \
+                                         UNNEST($18::bytea[]) AS contract_address, \
+                                         UNNEST($19::bytea[]) AS paymaster, \
+                                         UNNEST($20::bytea[]) AS paymaster_input \
+                                 ) AS data_table_temp \
                                  JOIN transactions ON transactions.initiator_address = data_table_temp.initiator_address \
-                                  AND transactions.nonce = data_table_temp.nonce \
-                             ORDER BY transactions.hash \
-                            ) AS data_table \
-                      WHERE transactions.initiator_address = data_table.initiator_address \
-                        AND transactions.nonce = data_table.nonce",
+                                 AND transactions.nonce = data_table_temp.nonce \
+                             ORDER BY \
+                                 transactions.hash \
+                         ) AS data_table \
+                     WHERE \
+                         transactions.initiator_address = data_table.initiator_address \
+                         AND transactions.nonce = data_table.nonce",
                     &l2_initiators,
                     &l2_nonces,
                     &l2_hashes,
@@ -663,23 +686,27 @@ impl TransactionsDal<'_, '_> {
             if !l1_hashes.is_empty() {
                 sqlx::query!(
                     "UPDATE transactions \
-                        SET miniblock_number = $1, \
-                            index_in_block = data_table.index_in_block, \
-                            error = NULLIF(data_table.error, ''), \
-                            in_mempool = FALSE, \
-                            execution_info = execution_info || data_table.new_execution_info, \
-                            refunded_gas = data_table.refunded_gas, \
-                            effective_gas_price = data_table.effective_gas_price, \
-                            updated_at = NOW() \
-                       FROM ( \
-                               SELECT UNNEST($2::bytea[]) AS hash, \
-                                      UNNEST($3::INTEGER[]) AS index_in_block, \
-                                      UNNEST($4::VARCHAR[]) AS error, \
-                                      UNNEST($5::jsonb[]) AS new_execution_info, \
-                                      UNNEST($6::BIGINT[]) AS refunded_gas, \
-                                      UNNEST($7::NUMERIC[]) AS effective_gas_price \
-                            ) AS data_table \
-                      WHERE transactions.hash = data_table.hash",
+                     SET \
+                         miniblock_number = $1, \
+                         index_in_block = data_table.index_in_block, \
+                         error = NULLIF(data_table.error, ''), \
+                         in_mempool = FALSE, \
+                         execution_info = execution_info || data_table.new_execution_info, \
+                         refunded_gas = data_table.refunded_gas, \
+                         effective_gas_price = data_table.effective_gas_price, \
+                         updated_at = NOW() \
+                     FROM \
+                         ( \
+                             SELECT \
+                                 UNNEST($2::bytea[]) AS hash, \
+                                 UNNEST($3::INTEGER[]) AS index_in_block, \
+                                 UNNEST($4::VARCHAR[]) AS error, \
+                                 UNNEST($5::jsonb[]) AS new_execution_info, \
+                                 UNNEST($6::BIGINT[]) AS refunded_gas, \
+                                 UNNEST($7::NUMERIC[]) AS effective_gas_price \
+                         ) AS data_table \
+                     WHERE \
+                         transactions.hash = data_table.hash",
                     miniblock_number.0 as i32,
                     &l1_hashes,
                     &l1_indices_in_block,
@@ -696,23 +723,27 @@ impl TransactionsDal<'_, '_> {
             if !upgrade_hashes.is_empty() {
                 sqlx::query!(
                     "UPDATE transactions \
-                        SET miniblock_number = $1, \
-                            index_in_block = data_table.index_in_block, \
-                            error = NULLIF(data_table.error, ''), \
-                            in_mempool = FALSE, \
-                            execution_info = execution_info || data_table.new_execution_info, \
-                            refunded_gas = data_table.refunded_gas, \
-                            effective_gas_price = data_table.effective_gas_price, \
-                            updated_at = NOW() \
-                       FROM ( \
-                               SELECT UNNEST($2::bytea[]) AS hash, \
-                                      UNNEST($3::INTEGER[]) AS index_in_block, \
-                                      UNNEST($4::VARCHAR[]) AS error, \
-                                      UNNEST($5::jsonb[]) AS new_execution_info, \
-                                      UNNEST($6::BIGINT[]) AS refunded_gas, \
-                                      UNNEST($7::NUMERIC[]) AS effective_gas_price \
-                            ) AS data_table \
-                      WHERE transactions.hash = data_table.hash",
+                     SET \
+                         miniblock_number = $1, \
+                         index_in_block = data_table.index_in_block, \
+                         error = NULLIF(data_table.error, ''), \
+                         in_mempool = FALSE, \
+                         execution_info = execution_info || data_table.new_execution_info, \
+                         refunded_gas = data_table.refunded_gas, \
+                         effective_gas_price = data_table.effective_gas_price, \
+                         updated_at = NOW() \
+                     FROM \
+                         ( \
+                             SELECT \
+                                 UNNEST($2::bytea[]) AS hash, \
+                                 UNNEST($3::INTEGER[]) AS index_in_block, \
+                                 UNNEST($4::VARCHAR[]) AS error, \
+                                 UNNEST($5::jsonb[]) AS new_execution_info, \
+                                 UNNEST($6::BIGINT[]) AS refunded_gas, \
+                                 UNNEST($7::NUMERIC[]) AS effective_gas_price \
+                         ) AS data_table \
+                     WHERE \
+                         transactions.hash = data_table.hash",
                     miniblock_number.0 as i32,
                     &upgrade_hashes,
                     &upgrade_indices_in_block,
@@ -728,10 +759,13 @@ impl TransactionsDal<'_, '_> {
 
             if !bytea_call_traces.is_empty() {
                 sqlx::query!(
-                    "INSERT INTO call_traces (tx_hash, call_trace) \
-                     SELECT u.tx_hash, \
-                            u.call_trace \
-                       FROM UNNEST($1::bytea[], $2::bytea[]) AS u (tx_hash, call_trace)",
+                    "INSERT INTO \
+                         call_traces (tx_hash, call_trace) \
+                     SELECT \
+                         u.tx_hash, \
+                         u.call_trace \
+                     FROM \
+                         UNNEST($1::bytea[], $2::bytea[]) AS u (tx_hash, call_trace)",
                     &call_traces_tx_hashes,
                     &bytea_call_traces
                 )
@@ -752,9 +786,11 @@ impl TransactionsDal<'_, '_> {
             // These txs don't affect the state, so we can just easily skip this update.
             sqlx::query!(
                 "UPDATE transactions \
-                    SET error = $1, \
-                        updated_at = NOW() \
-                  WHERE hash = $2",
+                 SET \
+                     error = $1, \
+                     updated_at = NOW() \
+                 WHERE \
+                     hash = $2",
                 error,
                 transaction_hash.0.to_vec()
             )
@@ -767,14 +803,17 @@ impl TransactionsDal<'_, '_> {
     pub async fn reset_transactions_state(&mut self, miniblock_number: MiniblockNumber) {
         {
             let tx_hashes = sqlx::query!(
-                "   UPDATE transactions \
-                       SET l1_batch_number = NULL, \
-                           miniblock_number = NULL, \
-                           error = NULL, \
-                           index_in_block = NULL, \
-                           execution_info = '{}' \
-                     WHERE miniblock_number > $1 \
-                 RETURNING hash",
+                "UPDATE transactions \
+                 SET \
+                     l1_batch_number = NULL, \
+                     miniblock_number = NULL, \
+                     error = NULL, \
+                     index_in_block = NULL, \
+                     execution_info = '{}' \
+                 WHERE \
+                     miniblock_number > $1 \
+                 RETURNING \
+                     hash",
                 miniblock_number.0 as i64
             )
             .fetch_all(self.storage.conn())
@@ -782,7 +821,8 @@ impl TransactionsDal<'_, '_> {
             .unwrap();
             sqlx::query!(
                 "DELETE FROM call_traces \
-                  WHERE tx_hash = ANY ($1)",
+                 WHERE \
+                     tx_hash = ANY ($1)",
                 &tx_hashes
                     .iter()
                     .map(|tx| tx.hash.clone())
@@ -798,12 +838,14 @@ impl TransactionsDal<'_, '_> {
         {
             let stuck_tx_timeout = pg_interval_from_duration(stuck_tx_timeout);
             sqlx::query!(
-                "   DELETE FROM transactions \
-                     WHERE miniblock_number IS NULL \
-                       AND received_at < NOW() - $1::INTERVAL \
-                       AND is_priority = FALSE \
-                       AND error IS NULL \
-                 RETURNING hash",
+                "DELETE FROM transactions \
+                 WHERE \
+                     miniblock_number IS NULL \
+                     AND received_at < NOW() - $1::INTERVAL \
+                     AND is_priority = FALSE \
+                     AND error IS NULL \
+                 RETURNING \
+                     hash",
                 stuck_tx_timeout
             )
             .fetch_all(self.storage.conn())
@@ -829,10 +871,13 @@ impl TransactionsDal<'_, '_> {
                 stashed_accounts.into_iter().map(|a| a.0.to_vec()).collect();
             sqlx::query!(
                 "UPDATE transactions \
-                    SET in_mempool = FALSE \
-                   FROM UNNEST($1::bytea[]) AS s (address) \
-                  WHERE transactions.in_mempool = TRUE \
-                    AND transactions.initiator_address = s.address",
+                 SET \
+                     in_mempool = FALSE \
+                 FROM \
+                     UNNEST($1::bytea[]) AS s (address) \
+                 WHERE \
+                     transactions.in_mempool = TRUE \
+                     AND transactions.initiator_address = s.address",
                 &stashed_addresses,
             )
             .execute(self.storage.conn())
@@ -843,8 +888,9 @@ impl TransactionsDal<'_, '_> {
                 purged_accounts.into_iter().map(|a| a.0.to_vec()).collect();
             sqlx::query!(
                 "DELETE FROM transactions \
-                  WHERE in_mempool = TRUE \
-                    AND initiator_address = ANY ($1)",
+                 WHERE \
+                     in_mempool = TRUE \
+                     AND initiator_address = ANY ($1)",
                 &purged_addresses[..]
             )
             .execute(self.storage.conn())
@@ -854,33 +900,45 @@ impl TransactionsDal<'_, '_> {
             // Note, that transactions are updated in order of their hashes to avoid deadlocks with other UPDATE queries.
             let transactions = sqlx::query_as!(
                 StorageTransaction,
-                "   UPDATE transactions \
-                       SET in_mempool = TRUE \
-                      FROM ( \
-                              SELECT hash \
-                                FROM ( \
-                                        SELECT hash \
-                                          FROM transactions \
-                                         WHERE miniblock_number IS NULL \
-                                           AND in_mempool = FALSE \
-                                           AND error IS NULL \
-                                           AND ( \
-                                               is_priority = TRUE \
-                                            OR ( \
-                                               max_fee_per_gas >= $2 \
-                                           AND gas_per_pubdata_limit >= $3 \
-                                               ) \
-                                               ) \
-                                           AND tx_format != $4 \
-                                      ORDER BY is_priority DESC, \
-                                               priority_op_id, \
-                                               received_at \
-                                         LIMIT $1 \
-                                     ) AS subquery1 \
-                            ORDER BY hash \
-                           ) AS subquery2 \
-                     WHERE transactions.hash = subquery2.hash \
-                 RETURNING transactions.*",
+                "UPDATE transactions \
+                 SET \
+                     in_mempool = TRUE \
+                 FROM \
+                     ( \
+                         SELECT \
+                             hash \
+                         FROM \
+                             ( \
+                                 SELECT \
+                                     hash \
+                                 FROM \
+                                     transactions \
+                                 WHERE \
+                                     miniblock_number IS NULL \
+                                     AND in_mempool = FALSE \
+                                     AND error IS NULL \
+                                     AND ( \
+                                         is_priority = TRUE \
+                                         OR ( \
+                                             max_fee_per_gas >= $2 \
+                                             AND gas_per_pubdata_limit >= $3 \
+                                         ) \
+                                     ) \
+                                     AND tx_format != $4 \
+                                 ORDER BY \
+                                     is_priority DESC, \
+                                     priority_op_id, \
+                                     received_at \
+                                 LIMIT \
+                                     $1 \
+                             ) AS subquery1 \
+                         ORDER BY \
+                             hash \
+                     ) AS subquery2 \
+                 WHERE \
+                     transactions.hash = subquery2.hash \
+                 RETURNING \
+                     transactions.*",
                 limit as i32,
                 BigDecimal::from(fee_per_gas),
                 BigDecimal::from(gas_per_pubdata),
@@ -901,10 +959,13 @@ impl TransactionsDal<'_, '_> {
 
             let storage_keys: Vec<_> = nonce_keys.keys().map(|key| key.0.to_vec()).collect();
             let nonces: HashMap<_, _> = sqlx::query!(
-                "SELECT hashed_key, \
-                        value AS \"value!\" \
-                   FROM storage \
-                  WHERE hashed_key = ANY ($1)",
+                "SELECT \
+                     hashed_key, \
+                     value AS \"value!\" \
+                 FROM \
+                     storage \
+                 WHERE \
+                     hashed_key = ANY ($1)",
                 &storage_keys,
             )
             .fetch_all(self.storage.conn())
@@ -930,8 +991,10 @@ impl TransactionsDal<'_, '_> {
         {
             sqlx::query!(
                 "UPDATE transactions \
-                    SET in_mempool = FALSE \
-                  WHERE in_mempool = TRUE"
+                 SET \
+                     in_mempool = FALSE \
+                 WHERE \
+                     in_mempool = TRUE"
             )
             .execute(self.storage.conn())
             .await
@@ -942,11 +1005,16 @@ impl TransactionsDal<'_, '_> {
     pub async fn get_last_processed_l1_block(&mut self) -> Option<L1BlockNumber> {
         {
             sqlx::query!(
-                "  SELECT l1_block_number \
-                     FROM transactions \
-                    WHERE priority_op_id IS NOT NULL \
-                 ORDER BY priority_op_id DESC \
-                    LIMIT 1"
+                "SELECT \
+                     l1_block_number \
+                 FROM \
+                     transactions \
+                 WHERE \
+                     priority_op_id IS NOT NULL \
+                 ORDER BY \
+                     priority_op_id DESC \
+                 LIMIT \
+                     1"
             )
             .fetch_optional(self.storage.conn())
             .await
@@ -958,9 +1026,12 @@ impl TransactionsDal<'_, '_> {
     pub async fn last_priority_id(&mut self) -> Option<PriorityOpId> {
         {
             let op_id = sqlx::query!(
-                "SELECT MAX(priority_op_id) AS \"op_id\" \
-                   FROM transactions \
-                  WHERE is_priority = TRUE"
+                "SELECT \
+                     MAX(priority_op_id) AS \"op_id\" \
+                 FROM \
+                     transactions \
+                 WHERE \
+                     is_priority = TRUE"
             )
             .fetch_optional(self.storage.conn())
             .await
@@ -973,10 +1044,13 @@ impl TransactionsDal<'_, '_> {
     pub async fn next_priority_id(&mut self) -> PriorityOpId {
         {
             sqlx::query!(
-                "SELECT MAX(priority_op_id) AS \"op_id\" \
-                   FROM transactions \
-                  WHERE is_priority = TRUE \
-                    AND miniblock_number IS NOT NULL"
+                "SELECT \
+                     MAX(priority_op_id) AS \"op_id\" \
+                 FROM \
+                     transactions \
+                 WHERE \
+                     is_priority = TRUE \
+                     AND miniblock_number IS NOT NULL"
             )
             .fetch_optional(self.storage.conn())
             .await
@@ -990,8 +1064,10 @@ impl TransactionsDal<'_, '_> {
     pub async fn insert_trace(&mut self, hash: H256, trace: VmExecutionTrace) {
         {
             sqlx::query!(
-                "INSERT INTO transaction_traces (tx_hash, trace, created_at, updated_at) \
-                 VALUES ($1, $2, NOW(), NOW())",
+                "INSERT INTO \
+                     transaction_traces (tx_hash, trace, created_at, updated_at) \
+                 VALUES \
+                     ($1, $2, NOW(), NOW())",
                 hash.as_bytes(),
                 serde_json::to_value(trace).unwrap()
             )
@@ -1004,9 +1080,12 @@ impl TransactionsDal<'_, '_> {
     pub async fn get_trace(&mut self, hash: H256) -> Option<VmExecutionTrace> {
         {
             let trace = sqlx::query!(
-                "SELECT trace \
-                   FROM transaction_traces \
-                  WHERE tx_hash = $1",
+                "SELECT \
+                     trace \
+                 FROM \
+                     transaction_traces \
+                 WHERE \
+                     tx_hash = $1",
                 hash.as_bytes()
             )
             .fetch_optional(self.storage.conn())
@@ -1029,12 +1108,16 @@ impl TransactionsDal<'_, '_> {
     ) -> anyhow::Result<Vec<MiniblockExecutionData>> {
         let transactions = sqlx::query_as!(
             StorageTransaction,
-            "  SELECT * \
-                 FROM transactions \
-                WHERE miniblock_number IS NOT NULL \
-                  AND l1_batch_number IS NULL \
-             ORDER BY miniblock_number, \
-                      index_in_block",
+            "SELECT \
+                 * \
+             FROM \
+                 transactions \
+             WHERE \
+                 miniblock_number IS NOT NULL \
+                 AND l1_batch_number IS NULL \
+             ORDER BY \
+                 miniblock_number, \
+                 index_in_block",
         )
         .fetch_all(self.storage.conn())
         .await?;
@@ -1051,11 +1134,15 @@ impl TransactionsDal<'_, '_> {
     ) -> anyhow::Result<Vec<MiniblockExecutionData>> {
         let transactions = sqlx::query_as!(
             StorageTransaction,
-            "  SELECT * \
-                 FROM transactions \
-                WHERE l1_batch_number = $1 \
-             ORDER BY miniblock_number, \
-                      index_in_block",
+            "SELECT \
+                 * \
+             FROM \
+                 transactions \
+             WHERE \
+                 l1_batch_number = $1 \
+             ORDER BY \
+                 miniblock_number, \
+                 index_in_block",
             l1_batch_number.0 as i64,
         )
         .fetch_all(self.storage.conn())
@@ -1091,11 +1178,15 @@ impl TransactionsDal<'_, '_> {
             .context("No last transaction found for miniblock")?
             .0;
         let miniblock_data = sqlx::query!(
-            "  SELECT timestamp, \
-                      virtual_blocks \
-                 FROM miniblocks \
-                WHERE number BETWEEN $1 AND $2 \
-             ORDER BY number",
+            "SELECT \
+                 timestamp, \
+                 virtual_blocks \
+             FROM \
+                 miniblocks \
+             WHERE \
+                 number BETWEEN $1 AND $2 \
+             ORDER BY \
+                 number",
             from_miniblock.0 as i64,
             to_miniblock.0 as i64,
         )
@@ -1103,10 +1194,14 @@ impl TransactionsDal<'_, '_> {
         .await?;
 
         let prev_hashes = sqlx::query!(
-            "  SELECT hash \
-                 FROM miniblocks \
-                WHERE number BETWEEN $1 AND $2 \
-             ORDER BY number",
+            "SELECT \
+                 hash \
+             FROM \
+                 miniblocks \
+             WHERE \
+                 number BETWEEN $1 AND $2 \
+             ORDER BY \
+                 number",
             from_miniblock.0 as i64 - 1,
             to_miniblock.0 as i64 - 1,
         )
@@ -1143,14 +1238,18 @@ impl TransactionsDal<'_, '_> {
     pub async fn get_tx_locations(&mut self, l1_batch_number: L1BatchNumber) -> TxLocations {
         {
             sqlx::query!(
-                "  SELECT miniblock_number AS \"miniblock_number!\", \
-                          hash, \
-                          index_in_block AS \"index_in_block!\", \
-                          l1_batch_tx_index AS \"l1_batch_tx_index!\" \
-                     FROM transactions \
-                    WHERE l1_batch_number = $1 \
-                 ORDER BY miniblock_number, \
-                          index_in_block",
+                "SELECT \
+                     miniblock_number AS \"miniblock_number!\", \
+                     hash, \
+                     index_in_block AS \"index_in_block!\", \
+                     l1_batch_tx_index AS \"l1_batch_tx_index!\" \
+                 FROM \
+                     transactions \
+                 WHERE \
+                     l1_batch_number = $1 \
+                 ORDER BY \
+                     miniblock_number, \
+                     index_in_block",
                 l1_batch_number.0 as i64
             )
             .fetch_all(self.storage.conn())
@@ -1180,9 +1279,12 @@ impl TransactionsDal<'_, '_> {
         {
             sqlx::query_as!(
                 CallTrace,
-                "SELECT * \
-                   FROM call_traces \
-                  WHERE tx_hash = $1",
+                "SELECT \
+                     * \
+                 FROM \
+                     call_traces \
+                 WHERE \
+                     tx_hash = $1",
                 tx_hash.as_bytes()
             )
             .fetch_optional(self.storage.conn())
@@ -1195,9 +1297,12 @@ impl TransactionsDal<'_, '_> {
     pub(crate) async fn get_tx_by_hash(&mut self, hash: H256) -> Option<Transaction> {
         sqlx::query_as!(
             StorageTransaction,
-            "SELECT * \
-               FROM transactions \
-              WHERE hash = $1",
+            "SELECT \
+                 * \
+             FROM \
+                 transactions \
+             WHERE \
+                 hash = $1",
             hash.as_bytes()
         )
         .fetch_optional(self.storage.conn())
