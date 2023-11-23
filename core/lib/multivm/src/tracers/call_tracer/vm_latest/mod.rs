@@ -28,7 +28,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
     ) {
         match data.opcode.variant.opcode {
             Opcode::NearCall(_) => {
-                self.increase_last_and_update_stats(1);
+                self.increase_near_call_count();
             }
             Opcode::FarCall(far_call) => {
                 // We use parent gas for properly calculating gas used in the trace.
