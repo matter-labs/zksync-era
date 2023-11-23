@@ -719,8 +719,6 @@ mod tests {
         expected_outputs: ExpectedOutput,
     }
 
-    // TODO(PLA-568): restore this test
-    #[ignore]
     #[test]
     fn commitment_test() {
         let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
