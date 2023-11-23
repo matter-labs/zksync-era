@@ -175,9 +175,9 @@ async function formatFile(filePath: string, check: boolean) {
 
 export async function formatSqlxQueries(check: boolean) {
     process.chdir(`${process.env.ZKSYNC_HOME}`);
-    let { stdout: filesRaw } = await utils.exec('find core/lib/dal -type f -name "*.rs"');
-    let files = filesRaw.trim().split('\n');
-    let formatResults = await Promise.all(files.map((file) => formatFile(file, check)));
+    const { stdout: filesRaw } = await utils.exec('find core/lib/dal -type f -name "*.rs"');
+    const files = filesRaw.trim().split('\n');
+    const formatResults = await Promise.all(files.map((file) => formatFile(file, check)));
     if (check) {
         if (!formatResults.includes(false)) {
             console.log('All files contain correctly formatted sqlx queries!');
