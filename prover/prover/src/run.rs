@@ -20,6 +20,7 @@ use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 use crate::artifact_provider::ProverArtifactProvider;
+use crate::metrics::PROVER_METRICS;
 use crate::prover::ProverReporter;
 use crate::prover_params::ProverParams;
 use crate::socket_listener::incoming_socket_listener;
@@ -148,8 +149,7 @@ pub async fn run() -> anyhow::Result<()> {
         &prover_config.initial_setup_key_path,
         &prover_config.key_download_url,
     );
-    metrics::histogram!("server.prover.download_time", started_at.elapsed());
-
+    PROVER_METRICS.download_time.observe(started_at.elapsed());
     env::set_var("CRS_FILE", prover_config.initial_setup_key_path.clone());
     // We don't have a graceful shutdown process for the prover, so `_stop_sender` is unused.
     // Though we still need to create a channel because circuit breaker expects `stop_receiver`.

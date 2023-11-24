@@ -16,6 +16,7 @@ pub mod gpu_prover {
     use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerProof;
     use zksync_prover_fri_types::WitnessVectorArtifacts;
 
+    use crate::metrics::PROVER_FRI_METRICS;
     use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
     use zksync_config::configs::FriProverConfig;
     use zksync_dal::ConnectionPool;
@@ -102,11 +103,11 @@ pub mod gpu_prover {
                     let artifact: GoldilocksGpuProverSetupData =
                         get_setup_data_for_circuit_type(key.clone())
                             .context("get_setup_data_for_circuit_type()")?;
-                    metrics::histogram!(
-                        "prover_fri.prover.gpu_setup_data_load_time",
-                        started_at.elapsed(),
-                        "circuit_type" => key.circuit_id.to_string(),
-                    );
+
+                    let label: &'static str = &key.circuit_id.to_string();
+                    PROVER_FRI_METRICS.gpu_setup_data_load_time[&label]
+                        .observe(started_at.elapsed());
+
                     Arc::new(artifact)
                 }
             })
@@ -161,11 +162,9 @@ pub mod gpu_prover {
                 prover_job.job_id,
                 started_at.elapsed()
             );
-            metrics::histogram!(
-                "prover_fri.prover.gpu_proof_generation_time",
-                started_at.elapsed(),
-                "circuit_type" => circuit_id.to_string()
-            );
+            let label: &'static str = &circuit_id.to_string();
+            PROVER_FRI_METRICS.gpu_proof_generation_time[&label].observe(started_at.elapsed());
+
             let proof = proof.into();
             verify_proof(
                 &prover_job.circuit_wrapper,
@@ -258,10 +257,10 @@ pub mod gpu_prover {
             started_at: Instant,
             artifacts: Self::JobArtifacts,
         ) -> anyhow::Result<()> {
-            metrics::histogram!(
-                "prover_fri.prover.gpu_total_proving_time",
-                started_at.elapsed(),
-            );
+            PROVER_FRI_METRICS
+                .gpu_total_proving_time
+                .observe(started_at.elapsed());
+
             let mut storage_processor = self.prover_connection_pool.access_storage().await.unwrap();
             save_proof(
                 job_id,

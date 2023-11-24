@@ -21,6 +21,7 @@ use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
 use crate::basic_circuits::BasicWitnessGenerator;
 use crate::leaf_aggregation::LeafAggregationWitnessGenerator;
+use crate::metrics::SERVER_METRICS;
 use crate::node_aggregation::NodeAggregationWitnessGenerator;
 use crate::scheduler::SchedulerWitnessGenerator;
 
@@ -30,6 +31,9 @@ mod node_aggregation;
 mod precalculated_merkle_paths_provider;
 mod scheduler;
 mod storage_oracle;
+
+mod metrics;
+
 mod utils;
 
 #[derive(Debug, StructOpt)]
@@ -198,11 +202,8 @@ async fn main() -> anyhow::Result<()> {
         opt.round,
         started_at.elapsed()
     );
-    metrics::gauge!(
-        "server.init.latency",
-        started_at.elapsed(),
-        "stage" => format!("fri_witness_generator_{:?}", opt.round)
-    );
+    let stage: &'static str = &format!("fri_witness_generator_{:?}", opt.round);
+    SERVER_METRICS.latency[&stage].set(started_at.elapsed());
 
     let mut stop_signal_receiver = get_stop_signal_receiver();
     let graceful_shutdown = None::<futures::future::Ready<()>>;
