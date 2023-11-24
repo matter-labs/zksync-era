@@ -13,6 +13,7 @@ use zkevm_test_harness::bellman::plonk::better_better_cs::cs::Circuit;
 use zkevm_test_harness::pairing::bn256::Bn256;
 use zkevm_test_harness::witness::oracle::VmWitnessOracle;
 
+use crate::metrics::CIRCUIT_SYNTHESIZER_METRICS;
 use zksync_config::configs::prover_group::ProverGroupConfig;
 use zksync_config::configs::CircuitSynthesizerConfig;
 use zksync_config::ProverConfigs;
@@ -116,11 +117,7 @@ impl CircuitSynthesizer {
             "Finished circuit synthesis for circuit: {circuit_type} took {:?}",
             start_instant.elapsed()
         );
-        metrics::histogram!(
-            "server.circuit_synthesizer.synthesize",
-            start_instant.elapsed(),
-            "circuit_type" => circuit_type,
-        );
+        CIRCUIT_SYNTHESIZER_METRICS.synthesize[&circuit_type].observe(start_instant.elapsed());
 
         // we don't perform assembly finalization here since it increases the assembly size significantly due to padding.
         Ok((assembly, circuit.numeric_circuit_type()))
@@ -302,11 +299,8 @@ async fn handle_send_result(
                 "Sent assembly of size: {blob_size_in_gb}GB successfully, took: {elapsed:?} \
                  for job: {job_id} by: {local_ip:?} to: {address:?}"
             );
-            metrics::histogram!(
-                "server.circuit_synthesizer.blob_sending_time",
-                *elapsed,
-                "blob_size_in_gb" => blob_size_in_gb.to_string(),
-            );
+            CIRCUIT_SYNTHESIZER_METRICS.blob_sending_time[&blob_size_in_gb.to_string().as_str()]
+                .observe(*elapsed);
 
             // endregion
 

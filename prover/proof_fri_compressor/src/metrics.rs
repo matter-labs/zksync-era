@@ -2,7 +2,7 @@ use std::time::Duration;
 use vise::{Histogram, Metrics};
 
 #[derive(Debug, Metrics)]
-#[metrics(prefix = "prover_fri.proof_fri_compressor")]
+#[metrics(prefix = "prover_fri_proof_fri_compressor")]
 pub(crate) struct ProofFriCompressorMetrics {
     #[metrics(buckets = Buckets::LATENCIES)]
     pub blob_fetch_time: Histogram<Duration>,

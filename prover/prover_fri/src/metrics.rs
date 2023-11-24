@@ -15,7 +15,7 @@ pub(crate) enum Layer {
 }
 
 #[derive(Debug, Metrics)]
-#[metrics(prefix = "prover_fri.prover")]
+#[metrics(prefix = "prover_fri_prover")]
 pub(crate) struct ProverFriMetrics {
     #[metrics(buckets = Buckets::LATENCIES, labels = ["circuit_type"])]
     pub gpu_setup_data_load_time: LabeledFamily<&'static str, Histogram<Duration>>,

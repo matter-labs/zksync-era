@@ -15,7 +15,7 @@ pub(crate) enum AggregationRound {
 }
 
 #[derive(Debug, Metrics)]
-#[metrics(prefix = "prover_fri.witness_generator")]
+#[metrics(prefix = "prover_fri_witness_generator")]
 pub(crate) struct WitnessGeneratorMetrics {
     #[metrics(buckets = Buckets::LATENCIES)]
     pub blob_fetch_time: Family<AggregationRound, Histogram<Duration>>,
@@ -32,7 +32,7 @@ pub(crate) static WITNESS_GENERATOR_METRICS: vise::Global<WitnessGeneratorMetric
     vise::Global::new();
 
 #[derive(Debug, Metrics)]
-#[metrics(prefix = "server.witness_generator_fri")]
+#[metrics(prefix = "server_witness_generator_fri")]
 pub(crate) struct ServerWitnessGeneratorMetrics {
     pub sampled_blocks: Counter,
     pub skipped_blocks: Counter,

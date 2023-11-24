@@ -2,7 +2,7 @@ use std::time::Duration;
 use vise::{Buckets, Counter, Histogram, LabeledFamily, Metrics};
 
 #[derive(Debug, Metrics)]
-#[metrics(prefix = "server.prover")]
+#[metrics(prefix = "server_prover")]
 pub(crate) struct ProverMetrics {
     #[metrics(buckets = Buckets::LATENCIES, labels = ["circuit_type"])]
     pub proof_generation_time: LabeledFamily<&'static str, Histogram<Duration>>,
