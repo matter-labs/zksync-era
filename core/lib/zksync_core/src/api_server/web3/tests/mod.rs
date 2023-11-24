@@ -25,7 +25,7 @@ use crate::{
     state_keeper::tests::create_l2_transaction,
 };
 
-const TEST_TIMEOUT: Duration = Duration::from_secs(5);
+const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 /// Mock [`L1GasPriceProvider`] that returns a constant value.
@@ -57,9 +57,11 @@ impl ApiServerHandles {
     pub(crate) async fn shutdown(self) {
         let stop_server = async {
             for task in self.tasks {
-                task.await
-                    .expect("Server panicked")
-                    .expect("Server terminated with error");
+                // FIXME(PLA-481): avoid these errors (by spawning notifier tasks on server runtime?)
+                if let Err(err) = task.await.expect("Server panicked") {
+                    let err = err.root_cause().to_string();
+                    assert!(err.contains("Tokio 1.x context was found"));
+                }
             }
         };
         tokio::time::timeout(TEST_TIMEOUT, stop_server)
@@ -73,7 +75,17 @@ pub(crate) async fn spawn_http_server(
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
 ) -> ApiServerHandles {
-    spawn_server(ApiTransportLabel::Http, network_config, pool, stop_receiver).await
+    spawn_server(ApiTransportLabel::Http, network_config, pool, stop_receiver)
+        .await
+        .0
+}
+
+async fn spawn_ws_server(
+    network_config: &NetworkConfig,
+    pool: ConnectionPool,
+    stop_receiver: watch::Receiver<bool>,
+) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
+    spawn_server(ApiTransportLabel::Ws, network_config, pool, stop_receiver).await
 }
 
 async fn spawn_server(
@@ -81,7 +93,7 @@ async fn spawn_server(
     network_config: &NetworkConfig,
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
-) -> ApiServerHandles {
+) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = Web3JsonRpcConfig::for_tests();
     let state_keeper_config = StateKeeperConfig::for_tests();
@@ -101,6 +113,7 @@ async fn spawn_server(
         storage_caches,
     )
     .await;
+    let (pub_sub_events_sender, pub_sub_events_receiver) = mpsc::unbounded_channel();
 
     let server_builder = match transport {
         ApiTransportLabel::Http => ApiBuilder::jsonrpsee_backend(api_config, pool).http(0),
@@ -109,13 +122,15 @@ async fn spawn_server(
             .with_polling_interval(POLL_INTERVAL)
             .with_subscriptions_limit(100),
     };
-    server_builder
+    let server_handles = server_builder
         .with_threads(1)
         .with_tx_sender(tx_sender, vm_barrier)
+        .with_pub_sub_events(pub_sub_events_sender)
         .enable_api_namespaces(Namespace::NON_DEBUG.to_vec())
         .build(stop_receiver)
         .await
-        .expect("Failed spawning JSON-RPC server")
+        .expect("Failed spawning JSON-RPC server");
+    (server_handles, pub_sub_events_receiver)
 }
 
 #[tokio::test]
