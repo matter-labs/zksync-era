@@ -59,7 +59,7 @@ use self::namespaces::{
     DebugNamespace, EnNamespace, EthNamespace, EthSubscribe, NetNamespace, Web3Namespace,
     ZksNamespace,
 };
-use self::pubsub_notifier::{notify_blocks, notify_logs, notify_txs};
+use self::pubsub_notifier::PubSubNotifier;
 use self::state::{Filters, InternalApiConfig, RpcState, SealedMiniblockNumber};
 
 /// Timeout for graceful shutdown logic within API servers.
@@ -545,25 +545,26 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
             let polling_interval = self
                 .polling_interval
                 .context("Polling interval is not set")?;
+            let blocks_notifier = PubSubNotifier::new(
+                pub_sub.active_block_subs.clone(),
+                self.pool.clone(),
+                polling_interval,
+            );
+            let txs_notifier = PubSubNotifier::new(
+                pub_sub.active_tx_subs.clone(),
+                self.pool.clone(),
+                polling_interval,
+            );
+            let logs_notifier = PubSubNotifier::new(
+                pub_sub.active_log_subs.clone(),
+                self.pool.clone(),
+                polling_interval,
+            );
+
             tasks.extend([
-                tokio::spawn(notify_blocks(
-                    pub_sub.active_block_subs.clone(),
-                    self.pool.clone(),
-                    polling_interval,
-                    stop_receiver.clone(),
-                )),
-                tokio::spawn(notify_txs(
-                    pub_sub.active_tx_subs.clone(),
-                    self.pool.clone(),
-                    polling_interval,
-                    stop_receiver.clone(),
-                )),
-                tokio::spawn(notify_logs(
-                    pub_sub.active_log_subs.clone(),
-                    self.pool.clone(),
-                    polling_interval,
-                    stop_receiver.clone(),
-                )),
+                tokio::spawn(blocks_notifier.notify_blocks(stop_receiver.clone())),
+                tokio::spawn(txs_notifier.notify_txs(stop_receiver.clone())),
+                tokio::spawn(logs_notifier.notify_logs(stop_receiver.clone())),
             ]);
             io_handler.extend_with(pub_sub.to_delegate());
         }
