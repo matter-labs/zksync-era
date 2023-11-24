@@ -4,6 +4,7 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::task::JoinHandle;
 
+use crate::metrics::WITNESS_VECTOR_GENERATOR_METRICS;
 use tokio::time::sleep;
 use zksync_config::configs::FriWitnessVectorGeneratorConfig;
 use zksync_dal::ConnectionPool;
@@ -114,11 +115,11 @@ impl JobProcessor for WitnessVectorGenerator {
         started_at: Instant,
         artifacts: WitnessVectorArtifacts,
     ) -> anyhow::Result<()> {
-        metrics::histogram!(
-            "prover_fri.witness_vector_generator.gpu_witness_vector_generation_time",
-            started_at.elapsed(),
-            "circuit_type" => get_numeric_circuit_id(&artifacts.prover_job.circuit_wrapper).to_string(),
-        );
+        let circuit_type: &'static str =
+            &get_numeric_circuit_id(&artifacts.prover_job.circuit_wrapper).to_string();
+        WITNESS_VECTOR_GENERATOR_METRICS.gpu_witness_vector_generation_time[&circuit_type]
+            .observe(started_at.elapsed());
+
         tracing::info!(
             "Finished witness vector generation for job: {job_id} in zone: {:?} took: {:?}",
             self.zone,
@@ -204,11 +205,9 @@ async fn handle_send_result(
                 "Sent assembly of size: {blob_size_in_mb}MB successfully, took: {elapsed:?} \
                  for job: {job_id} to: {address:?}"
             );
-            metrics::histogram!(
-                "prover_fri.witness_vector_generator.blob_sending_time",
-                *elapsed,
-                "blob_size_in_mb" => blob_size_in_mb.to_string(),
-            );
+
+            let blob_size_in_mb: &'static str = &blob_size_in_mb.to_string();
+            WITNESS_VECTOR_GENERATOR_METRICS.blob_sending_time[&blob_size_in_mb].observe(*elapsed);
 
             pool.access_storage()
                 .await
