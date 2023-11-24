@@ -4,7 +4,7 @@ use jsonrpc_core::MetaIoHandler;
 use jsonrpc_http_server::hyper;
 use jsonrpc_pubsub::PubSubHandler;
 use serde::Deserialize;
-use tokio::sync::{oneshot, watch, Mutex};
+use tokio::sync::{mpsc, oneshot, watch, Mutex};
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
 
 use chrono::NaiveDateTime;
@@ -40,7 +40,7 @@ pub mod backend_jsonrpc;
 pub mod backend_jsonrpsee;
 mod metrics;
 pub mod namespaces;
-mod pubsub_notifier;
+mod pubsub;
 pub mod state;
 #[cfg(test)]
 pub(crate) mod tests;
@@ -56,10 +56,9 @@ use self::backend_jsonrpc::{
 };
 use self::metrics::API_METRICS;
 use self::namespaces::{
-    DebugNamespace, EnNamespace, EthNamespace, EthSubscribe, NetNamespace, Web3Namespace,
-    ZksNamespace,
+    DebugNamespace, EnNamespace, EthNamespace, NetNamespace, Web3Namespace, ZksNamespace,
 };
-use self::pubsub_notifier::PubSubNotifier;
+use self::pubsub::{EthSubscribe, PubSubEvent};
 use self::state::{Filters, InternalApiConfig, RpcState, SealedMiniblockNumber};
 
 /// Timeout for graceful shutdown logic within API servers.
@@ -150,6 +149,7 @@ pub struct ApiBuilder<G> {
     namespaces: Option<Vec<Namespace>>,
     logs_translator_enabled: bool,
     tree_api_url: Option<String>,
+    pub_sub_events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
 }
 
 impl<G> ApiBuilder<G> {
@@ -174,6 +174,7 @@ impl<G> ApiBuilder<G> {
             config,
             logs_translator_enabled: false,
             tree_api_url: None,
+            pub_sub_events_sender: None,
         }
     }
 
@@ -273,6 +274,12 @@ impl<G> ApiBuilder<G> {
 
     pub fn with_tree_api(mut self, tree_api_url: Option<String>) -> Self {
         self.tree_api_url = tree_api_url;
+        self
+    }
+
+    #[cfg(test)]
+    fn with_pub_sub_events(mut self, sender: mpsc::UnboundedSender<PubSubEvent>) -> Self {
+        self.pub_sub_events_sender = Some(sender);
         self
     }
 }
@@ -541,31 +548,19 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
             .unwrap()
             .contains(&Namespace::Pubsub)
         {
-            let pub_sub = EthSubscribe::new(runtime.handle().clone());
+            let mut pub_sub = EthSubscribe::new(runtime.handle().clone());
+            if let Some(sender) = self.pub_sub_events_sender.take() {
+                pub_sub.set_events_sender(sender);
+            }
             let polling_interval = self
                 .polling_interval
                 .context("Polling interval is not set")?;
-            let blocks_notifier = PubSubNotifier::new(
-                pub_sub.active_block_subs.clone(),
-                self.pool.clone(),
-                polling_interval,
-            );
-            let txs_notifier = PubSubNotifier::new(
-                pub_sub.active_tx_subs.clone(),
-                self.pool.clone(),
-                polling_interval,
-            );
-            let logs_notifier = PubSubNotifier::new(
-                pub_sub.active_log_subs.clone(),
-                self.pool.clone(),
-                polling_interval,
-            );
 
-            tasks.extend([
-                tokio::spawn(blocks_notifier.notify_blocks(stop_receiver.clone())),
-                tokio::spawn(txs_notifier.notify_txs(stop_receiver.clone())),
-                tokio::spawn(logs_notifier.notify_logs(stop_receiver.clone())),
-            ]);
+            tasks.extend(pub_sub.spawn_notifiers(
+                self.pool.clone(),
+                polling_interval,
+                stop_receiver.clone(),
+            ));
             io_handler.extend_with(pub_sub.to_delegate());
         }
         self.extend_jsonrpc_methods(&mut io_handler).await;
