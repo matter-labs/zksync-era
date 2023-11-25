@@ -149,11 +149,17 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
     ) -> anyhow::Result<()> {
         let block_number = artifacts.block_number;
         let circuit_id = artifacts.circuit_id;
-        let blob_urls = save_artifacts(artifacts, &*self.object_store).await;
         tracing::info!(
-            "Saved leaf aggregation artifacts for block {} with circuit {}",
+            "Saving leaf aggregation artifacts for block {} with circuit {}",
             block_number.0,
             circuit_id,
+        );
+        let blob_urls = save_artifacts(artifacts, &*self.object_store).await;
+        tracing::info!(
+            "Saved leaf aggregation artifacts for block {} with circuit {} (count: {})",
+            block_number.0,
+            circuit_id,
+            blob_urls.circuit_ids_and_urls.len(),
         );
         update_database(
             &self.prover_connection_pool,
