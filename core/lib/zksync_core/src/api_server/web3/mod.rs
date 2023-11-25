@@ -4,9 +4,10 @@ use jsonrpc_core::MetaIoHandler;
 use jsonrpc_http_server::hyper;
 use jsonrpc_pubsub::PubSubHandler;
 use serde::Deserialize;
-use tokio::sync::{oneshot, watch, RwLock};
+use tokio::sync::{oneshot, watch, Mutex};
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
 
+use chrono::NaiveDateTime;
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::task::JoinHandle;
 
@@ -23,6 +24,7 @@ use zksync_web3_decl::{
         DebugNamespaceServer, EnNamespaceServer, EthNamespaceServer, NetNamespaceServer,
         Web3NamespaceServer, ZksNamespaceServer,
     },
+    types::Filter,
 };
 
 use crate::{
@@ -62,6 +64,17 @@ use self::state::{Filters, InternalApiConfig, RpcState, SealedMiniblockNumber};
 
 /// Timeout for graceful shutdown logic within API servers.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Represents all kinds of `Filter`.
+#[derive(Debug, Clone)]
+pub(crate) enum TypedFilter {
+    // Events from some block with additional filters
+    Events(Filter, MiniblockNumber),
+    // Blocks from some block
+    Blocks(MiniblockNumber),
+    // Pending transactions from some timestamp
+    PendingTransactions(NaiveDateTime),
+}
 
 #[derive(Debug, Clone, Copy)]
 enum ApiBackend {
@@ -278,7 +291,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         tokio::spawn(update_task);
 
         RpcState {
-            installed_filters: Arc::new(RwLock::new(Filters::new(
+            installed_filters: Arc::new(Mutex::new(Filters::new(
                 self.filters_limit.unwrap_or(usize::MAX),
             ))),
             connection_pool: self.pool,
