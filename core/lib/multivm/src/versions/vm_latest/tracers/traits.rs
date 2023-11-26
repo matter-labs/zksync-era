@@ -1,4 +1,4 @@
-use crate::interface::dyn_tracers::vm_1_4_0::DynTracer;
+use crate::interface::dyn_tracers::vm_1_4_1::DynTracer;
 use crate::interface::tracer::{TracerExecutionStatus, VmExecutionStopReason};
 use zksync_state::WriteStorage;
 

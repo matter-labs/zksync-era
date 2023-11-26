@@ -1,6 +1,6 @@
 use crate::interface::{
     tracer::{TracerExecutionStatus, TracerExecutionStopReason},
-    traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
+    traits::tracers::dyn_tracers::vm_1_4_1::DynTracer,
     Halt,
 };
 use crate::tracers::storage_invocation::StorageInvocations;

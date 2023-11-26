@@ -3,11 +3,11 @@ use crate::vm_latest::old_vm::memory::SimpleMemory;
 use crate::vm_latest::types::internals::ZkSyncVmState;
 use crate::vm_latest::HistoryMode;
 
-use zk_evm_1_4_0::zkevm_opcode_defs::decoding::{
+use zk_evm_1_4_1::zkevm_opcode_defs::decoding::{
     AllowedPcOrImm, EncodingModeProduction, VmEncodingMode,
 };
-use zk_evm_1_4_0::zkevm_opcode_defs::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER;
-use zk_evm_1_4_0::{
+use zk_evm_1_4_1::zkevm_opcode_defs::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER;
+use zk_evm_1_4_1::{
     aux_structures::{MemoryPage, Timestamp},
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::FatPointer,

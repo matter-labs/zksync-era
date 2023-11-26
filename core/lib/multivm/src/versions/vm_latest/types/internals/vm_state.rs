@@ -1,4 +1,4 @@
-use zk_evm_1_4_0::{
+use zk_evm_1_4_1::{
     aux_structures::MemoryPage,
     aux_structures::Timestamp,
     block_properties::BlockProperties,
@@ -11,7 +11,7 @@ use zk_evm_1_4_0::{
 };
 
 use crate::interface::{L1BatchEnv, L2Block, SystemEnv};
-use zk_evm_1_4_0::zkevm_opcode_defs::{
+use zk_evm_1_4_1::zkevm_opcode_defs::{
     BOOTLOADER_BASE_PAGE, BOOTLOADER_CODE_PAGE, STARTING_BASE_PAGE, STARTING_TIMESTAMP,
 };
 use zksync_state::{StoragePtr, WriteStorage};

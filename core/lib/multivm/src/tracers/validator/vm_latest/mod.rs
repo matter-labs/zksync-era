@@ -1,4 +1,4 @@
-use zk_evm_1_4_0::{
+use zk_evm_1_4_1::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{ContextOpcode, FarCallABI, LogOpcode, Opcode},
 };
@@ -17,7 +17,7 @@ use crate::vm_latest::tracers::utils::{
 };
 
 use crate::interface::{
-    traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
+    traits::tracers::dyn_tracers::vm_1_4_1::DynTracer,
     types::tracer::{TracerExecutionStatus, TracerExecutionStopReason},
     Halt,
 };

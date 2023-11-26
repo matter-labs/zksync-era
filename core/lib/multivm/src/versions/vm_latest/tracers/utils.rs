@@ -1,6 +1,6 @@
-use zk_evm_1_4_0::aux_structures::MemoryPage;
-use zk_evm_1_4_0::zkevm_opcode_defs::{FarCallABI, FarCallForwardPageType};
-use zk_evm_1_4_0::{
+use zk_evm_1_4_1::aux_structures::MemoryPage;
+use zk_evm_1_4_1::zkevm_opcode_defs::{FarCallABI, FarCallForwardPageType};
+use zk_evm_1_4_1::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{FatPointer, LogOpcode, Opcode, UMAOpcode},
 };
