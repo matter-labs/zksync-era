@@ -9,10 +9,7 @@ import { spawn as _spawn } from 'child_process';
 import * as zksync from 'zksync-web3';
 import * as ethers from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
-import {
-    L1ERC20BridgeFactory,
-    TransparentUpgradeableProxyFactory,
-} from 'l1-zksync-contracts/typechain';
+import { L1ERC20BridgeFactory, TransparentUpgradeableProxyFactory } from 'l1-zksync-contracts/typechain';
 import { sleep } from 'zk/build/utils';
 
 describe('Tests for the custom bridge behavior', () => {
@@ -43,9 +40,7 @@ describe('Tests for the custom bridge behavior', () => {
         let l1bridgeFactory = new L1ERC20BridgeFactory(alice._signerL1());
         const gasPrice = await scaledGasPrice(alice);
 
-        let l1Bridge = await l1bridgeFactory.deploy(
-            process.env.CONTRACTS_DIAMOND_PROXY_ADDR!
-        );
+        let l1Bridge = await l1bridgeFactory.deploy(process.env.CONTRACTS_DIAMOND_PROXY_ADDR!);
         await l1Bridge.deployTransaction.wait(2);
         let l1BridgeProxyFactory = new TransparentUpgradeableProxyFactory(alice._signerL1());
         let l1BridgeProxy = await l1BridgeProxyFactory.deploy(l1Bridge.address, bob.address, '0x');
