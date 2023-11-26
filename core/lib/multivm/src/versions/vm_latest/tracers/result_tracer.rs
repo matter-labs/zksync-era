@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use zk_evm_1_4_0::{
+use zk_evm_1_4_1::{
     tracing::{AfterDecodingData, BeforeExecutionData, VmLocalStateData},
     vm_state::{ErrorFlags, VmLocalState},
     zkevm_opcode_defs::FatPointer,
@@ -7,7 +7,7 @@ use zk_evm_1_4_0::{
 use zksync_state::{StoragePtr, WriteStorage};
 
 use crate::interface::{
-    tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
+    tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_4_1::DynTracer,
     types::tracer::TracerExecutionStopReason, ExecutionResult, Halt, TxRevertReason,
     VmExecutionMode, VmRevertReason,
 };

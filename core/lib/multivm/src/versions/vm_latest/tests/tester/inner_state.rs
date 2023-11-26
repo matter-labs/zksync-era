@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use zk_evm_1_4_0::aux_structures::Timestamp;
-use zk_evm_1_4_0::vm_state::VmLocalState;
+use zk_evm_1_4_1::aux_structures::Timestamp;
+use zk_evm_1_4_1::vm_state::VmLocalState;
 use zksync_state::WriteStorage;
 
 use zksync_types::{StorageKey, StorageLogQuery, StorageValue, U256};

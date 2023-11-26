@@ -6,7 +6,7 @@ use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 use zksync_state::WriteStorage;
 use zksync_types::{get_nonce_key, Execute, U256};
 
-use crate::interface::dyn_tracers::vm_1_4_0::DynTracer;
+use crate::interface::dyn_tracers::vm_1_4_1::DynTracer;
 use crate::interface::tracer::{TracerExecutionStatus, TracerExecutionStopReason};
 use crate::interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceHistoryEnabled};
 use crate::vm_latest::tests::tester::{

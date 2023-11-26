@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use zk_evm_1_4_0::{
+use zk_evm_1_4_1::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
@@ -23,7 +23,7 @@ use crate::vm_latest::{
 };
 use crate::{vm_latest::constants::BOOTLOADER_HEAP_PAGE, vm_latest::StorageOracle};
 
-use crate::interface::dyn_tracers::vm_1_4_0::DynTracer;
+use crate::interface::dyn_tracers::vm_1_4_1::DynTracer;
 use crate::interface::tracer::{TracerExecutionStatus, TracerExecutionStopReason};
 use crate::interface::types::inputs::L1BatchEnv;
 use crate::vm_latest::tracers::{traits::VmTracer, utils::VmHook};

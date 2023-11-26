@@ -1,4 +1,4 @@
-use zk_evm_1_4_0::{
+use zk_evm_1_4_1::{
     abstractions::Memory,
     abstractions::PrecompileCyclesWitness,
     abstractions::PrecompilesProcessor,

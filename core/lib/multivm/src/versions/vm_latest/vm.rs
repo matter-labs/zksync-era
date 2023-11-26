@@ -1,3 +1,4 @@
+use crate::glue::GlueInto;
 use crate::HistoryMode;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log};
@@ -110,7 +111,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             system_logs,
             total_log_queries,
             cycles_used: self.state.local_state.monotonic_cycle_counter,
-            deduplicated_events_logs,
+            deduplicated_events_logs: deduplicated_events_logs
+                .into_iter()
+                .map(GlueInto::glue_into)
+                .collect(),
             storage_refunds: self.state.storage.returned_refunds.inner().clone(),
         }
     }

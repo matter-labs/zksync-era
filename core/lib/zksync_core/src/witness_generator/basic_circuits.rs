@@ -9,7 +9,11 @@ use std::{
     time::Instant,
 };
 
-use multivm::vm_latest::{
+// use multivm::vm_latest::{
+//     ,
+// };
+// FIXME: using older version of multivm to make it compile
+use multivm::vm_refunds_enhancement::{
     constants::MAX_CYCLES_FOR_TX, HistoryDisabled, SimpleMemory, StorageOracle as VmStorageOracle,
 };
 use zksync_config::configs::{

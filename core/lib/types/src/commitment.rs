@@ -472,6 +472,12 @@ impl L1BatchAuxiliaryOutput {
             result.extend(self.state_diffs_hash.as_bytes());
             result.extend(self.bootloader_heap_hash.as_bytes());
             result.extend(self.events_state_queue_hash.as_bytes());
+
+            // TODO: IMPORTANT!!! This is not backwards compatible with boojum
+            result.extend(H256::zero().as_bytes());
+            result.extend(H256::zero().as_bytes());
+            result.extend(H256::zero().as_bytes());
+            result.extend(H256::zero().as_bytes());
         }
         result
     }

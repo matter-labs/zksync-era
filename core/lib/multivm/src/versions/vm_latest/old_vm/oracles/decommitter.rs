@@ -5,9 +5,9 @@ use crate::vm_latest::old_vm::history_recorder::{
     HistoryEnabled, HistoryMode, HistoryRecorder, WithHistory,
 };
 
-use zk_evm_1_4_0::abstractions::MemoryType;
-use zk_evm_1_4_0::aux_structures::Timestamp;
-use zk_evm_1_4_0::{
+use zk_evm_1_4_1::abstractions::MemoryType;
+use zk_evm_1_4_1::aux_structures::Timestamp;
+use zk_evm_1_4_1::{
     abstractions::{DecommittmentProcessor, Memory},
     aux_structures::{DecommittmentQuery, MemoryIndex, MemoryLocation, MemoryPage, MemoryQuery},
 };
@@ -173,7 +173,7 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
         memory: &mut M,
     ) -> Result<
         (
-            zk_evm_1_4_0::aux_structures::DecommittmentQuery,
+            zk_evm_1_4_1::aux_structures::DecommittmentQuery,
             Option<Vec<U256>>,
         ),
         anyhow::Error,

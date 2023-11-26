@@ -1,11 +1,11 @@
-use zk_evm_1_4_0::aux_structures::MemoryPage;
+use zk_evm_1_4_1::aux_structures::MemoryPage;
 
 use zksync_system_constants::{
     L1_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS, MAX_TXS_IN_BLOCK,
     USED_BOOTLOADER_MEMORY_WORDS,
 };
 
-pub use zk_evm_1_4_0::zkevm_opcode_defs::system_params::{
+pub use zk_evm_1_4_1::zkevm_opcode_defs::system_params::{
     ERGS_PER_CIRCUIT, INITIAL_STORAGE_WRITE_PUBDATA_BYTES, MAX_PUBDATA_PER_BLOCK,
 };
 
@@ -110,7 +110,7 @@ pub const RESULT_SUCCESS_FIRST_SLOT: u32 =
 /// Note that this value doesn't correspond to the gas limit of any particular transaction
 /// (except for the fact that, of course, gas limit for each transaction should be <= `BLOCK_GAS_LIMIT`).
 pub const BLOCK_GAS_LIMIT: u32 =
-    zk_evm_1_4_0::zkevm_opcode_defs::system_params::VM_INITIAL_FRAME_ERGS;
+    zk_evm_1_4_1::zkevm_opcode_defs::system_params::VM_INITIAL_FRAME_ERGS;
 
 /// How many gas is allowed to spend on a single transaction in eth_call method
 pub const ETH_CALL_GAS_LIMIT: u32 = MAX_L2_TX_GAS_LIMIT as u32;
