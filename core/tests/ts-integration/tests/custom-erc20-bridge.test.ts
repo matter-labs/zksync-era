@@ -40,13 +40,7 @@ describe('Tests for the custom bridge behavior', () => {
         let l1bridgeFactory = new L1ERC20BridgeFactory(alice._signerL1());
         const gasPrice = await scaledGasPrice(alice);
 
-<<<<<<< HEAD
-        let l1Bridge = await l1bridgeFactory.deploy(
-            process.env.CONTRACTS_DIAMOND_PROXY_ADDR!
-        );
-=======
         let l1Bridge = await l1bridgeFactory.deploy(process.env.CONTRACTS_DIAMOND_PROXY_ADDR!);
->>>>>>> sb-1-4-1-base-integration
         await l1Bridge.deployTransaction.wait(2);
         let l1BridgeProxyFactory = new TransparentUpgradeableProxyFactory(alice._signerL1());
         let l1BridgeProxy = await l1BridgeProxyFactory.deploy(l1Bridge.address, bob.address, '0x');
