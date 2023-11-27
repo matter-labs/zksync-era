@@ -105,12 +105,12 @@ impl SnapshotsCreatorDal<'_, '_> {
         .report_latency()
         .fetch_all(self.storage.conn())
         .await?;
-        return Ok(rows
+        Ok(rows
             .into_iter()
             .map(|row| SnapshotFactoryDependency {
                 bytecode_hash: H256::from_slice(&row.bytecode_hash),
                 bytecode: row.bytecode,
             })
-            .collect());
+            .collect())
     }
 }
