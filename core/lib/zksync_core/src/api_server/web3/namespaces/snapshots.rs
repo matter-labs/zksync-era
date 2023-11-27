@@ -77,7 +77,6 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
                 .1;
             Ok(Some(SnapshotHeader {
                 l1_batch_number: snapshot_metadata.l1_batch_number,
-                generated_at: snapshot_metadata.generated_at,
                 miniblock_number,
                 last_l1_batch_with_metadata: l1_batch_with_metadata,
                 storage_logs_chunks: chunks,

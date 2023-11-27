@@ -26,8 +26,6 @@ struct SnapshotsCreatorMetrics {
     snapshot_generation_duration: Gauge<u64>,
 
     snapshot_l1_batch: Gauge<u64>,
-
-    snapshot_generation_timestamp: Gauge<u64>,
 }
 #[vise::register]
 pub(crate) static METRICS: vise::Global<SnapshotsCreatorMetrics> = vise::Global::new();

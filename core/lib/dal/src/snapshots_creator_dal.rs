@@ -23,6 +23,8 @@ impl SnapshotsCreatorDal<'_, '_> {
             "#,
             l1_batch_number.0 as i32
         )
+        .instrument("get_storage_logs_count")
+        .report_latency()
         .fetch_one(self.storage.conn())
         .await
         .unwrap()
@@ -40,6 +42,8 @@ impl SnapshotsCreatorDal<'_, '_> {
             "select MAX(number) from miniblocks where l1_batch_number = $1",
             l1_batch_number.0 as i64
         )
+        .instrument("get_storage_logs_chunk")
+        .report_latency()
         .fetch_one(self.storage.conn())
         .await?
         .max

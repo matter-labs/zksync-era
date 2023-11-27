@@ -1,5 +1,5 @@
+use crate::instrument::InstrumentExt;
 use crate::StorageProcessor;
-use sqlx::types::chrono::{DateTime, Utc};
 use zksync_types::snapshots::{AllSnapshots, SnapshotMetadata};
 use zksync_types::L1BatchNumber;
 
@@ -16,30 +16,29 @@ impl SnapshotsDal<'_, '_> {
         factory_deps_filepaths: &str,
     ) -> Result<(), sqlx::Error> {
         sqlx::query!(
-            "INSERT INTO snapshots (l1_batch_number, created_at, storage_logs_filepaths, factory_deps_filepath) \
-             VALUES ($1, now(), $2, $3)",
+            "INSERT INTO snapshots (l1_batch_number, storage_logs_filepaths, factory_deps_filepath, created_at, updated_at) \
+             VALUES ($1, $2, $3, NOW(), NOW())",
             l1_batch_number.0 as i32,
             storage_logs_filepaths,
             factory_deps_filepaths,
         )
+        .instrument("add_snapshot")
+        .report_latency()
         .execute(self.storage.conn())
         .await?;
         Ok(())
     }
 
     pub async fn get_all_snapshots(&mut self) -> Result<AllSnapshots, sqlx::Error> {
-        let records: Vec<SnapshotMetadata> = sqlx::query!(
-            "SELECT l1_batch_number, created_at, factory_deps_filepath, storage_logs_filepaths FROM snapshots"
+        let records: Vec<L1BatchNumber> = sqlx::query!(
+            "SELECT l1_batch_number, factory_deps_filepath, storage_logs_filepaths FROM snapshots"
         )
+        .instrument("get_all_snapshots")
+        .report_latency()
         .fetch_all(self.storage.conn())
         .await?
         .into_iter()
-        .map(|r| SnapshotMetadata {
-            l1_batch_number: L1BatchNumber(r.l1_batch_number as u32),
-            generated_at: DateTime::<Utc>::from_naive_utc_and_offset(r.created_at, Utc),
-            factory_deps_filepath: r.factory_deps_filepath,
-            storage_logs_filepaths: r.storage_logs_filepaths,
-        })
+        .map(|r| L1BatchNumber(r.l1_batch_number as u32))
         .collect();
         Ok(AllSnapshots { snapshots: records })
     }
@@ -49,14 +48,15 @@ impl SnapshotsDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
     ) -> Result<Option<SnapshotMetadata>, sqlx::Error> {
         let record: Option<SnapshotMetadata> = sqlx::query!(
-            "SELECT l1_batch_number, created_at, factory_deps_filepath, storage_logs_filepaths FROM snapshots WHERE l1_batch_number = $1",
+            "SELECT l1_batch_number, factory_deps_filepath, storage_logs_filepaths FROM snapshots WHERE l1_batch_number = $1",
             l1_batch_number.0 as i32
         )
+        .instrument("get_snapshot_metadata")
+        .report_latency()
         .fetch_optional(self.storage.conn())
         .await?
         .map(|r| SnapshotMetadata {
             l1_batch_number: L1BatchNumber(r.l1_batch_number as u32),
-            generated_at: DateTime::<Utc>::from_naive_utc_and_offset(r.created_at, Utc),
             factory_deps_filepath: r.factory_deps_filepath,
             storage_logs_filepaths: r.storage_logs_filepaths,
         });
@@ -84,10 +84,7 @@ mod tests {
             .await
             .expect("Failed to retrieve snapshots");
         assert_eq!(1, snapshots.snapshots.len());
-        assert_eq!(
-            snapshots.snapshots[0].l1_batch_number,
-            l1_batch_number as L1BatchNumber
-        );
+        assert_eq!(snapshots.snapshots[0], l1_batch_number as L1BatchNumber);
 
         let snapshot_metadata = dal
             .get_snapshot_metadata(l1_batch_number)
