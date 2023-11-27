@@ -115,8 +115,11 @@ impl JobProcessor for WitnessVectorGenerator {
         started_at: Instant,
         artifacts: WitnessVectorArtifacts,
     ) -> anyhow::Result<()> {
-        let circuit_type: &'static str =
-            &get_numeric_circuit_id(&artifacts.prover_job.circuit_wrapper).to_string();
+        let circuit_type: &'static str = Box::leak(
+            get_numeric_circuit_id(&artifacts.prover_job.circuit_wrapper)
+                .to_string()
+                .into_boxed_str(),
+        );
         WITNESS_VECTOR_GENERATOR_METRICS.gpu_witness_vector_generation_time[&circuit_type]
             .observe(started_at.elapsed());
 
@@ -206,7 +209,8 @@ async fn handle_send_result(
                  for job: {job_id} to: {address:?}"
             );
 
-            let blob_size_in_mb: &'static str = &blob_size_in_mb.to_string();
+            let blob_size_in_mb: &'static str =
+                Box::leak(blob_size_in_mb.to_string().into_boxed_str());
             WITNESS_VECTOR_GENERATOR_METRICS.blob_sending_time[&blob_size_in_mb].observe(*elapsed);
 
             pool.access_storage()

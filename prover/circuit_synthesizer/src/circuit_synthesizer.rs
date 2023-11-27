@@ -299,8 +299,10 @@ async fn handle_send_result(
                 "Sent assembly of size: {blob_size_in_gb}GB successfully, took: {elapsed:?} \
                  for job: {job_id} by: {local_ip:?} to: {address:?}"
             );
-            CIRCUIT_SYNTHESIZER_METRICS.blob_sending_time[&blob_size_in_gb.to_string().as_str()]
-                .observe(*elapsed);
+
+            let label: &'static str = Box::leak(blob_size_in_gb.to_string().into_boxed_str());
+
+            CIRCUIT_SYNTHESIZER_METRICS.blob_sending_time[&label].observe(*elapsed);
 
             // endregion
 

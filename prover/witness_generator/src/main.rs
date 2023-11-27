@@ -202,7 +202,8 @@ async fn main() -> anyhow::Result<()> {
         opt.round,
         started_at.elapsed()
     );
-    let stage: &'static str = &format!("fri_witness_generator_{:?}", opt.round);
+    let stage: &'static str =
+        Box::leak(format!("fri_witness_generator_{:?}", opt.round).into_boxed_str());
     SERVER_METRICS.latency[&stage].set(started_at.elapsed());
 
     let mut stop_signal_receiver = get_stop_signal_receiver();

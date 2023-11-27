@@ -1,5 +1,5 @@
 use std::time::Duration;
-use vise::{Histogram, Metrics};
+use vise::{Buckets, Histogram, Metrics};
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "prover_fri_proof_fri_compressor")]

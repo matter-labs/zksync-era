@@ -63,9 +63,12 @@ pub async fn fetch_next_circuit(
         .get(circuit_key)
         .await
         .unwrap_or_else(|err| panic!("{err:?}"));
+
+    let circuit_id = prover_job.circuit_id;
+
     let label = CircuitLabels {
-        circuit_type: prover_job.circuit_id.to_string().as_str(),
-        aggregation_round: AggregationRound::from_u8(prover_job.aggregation_round).unwrap(),
+        circuit_type: Box::leak(circuit_id.to_string().into_boxed_str()),
+        aggregation_round: crate::metrics::AggregationRound::from(prover_job.aggregation_round),
     };
     PROVER_FRI_UTILS_METRICS.blob_fetch_time[&label].observe(started_at.elapsed());
 

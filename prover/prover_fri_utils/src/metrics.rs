@@ -1,5 +1,5 @@
 use std::time::Duration;
-use vise::{EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
+use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
 pub(crate) struct CircuitLabels {
@@ -14,6 +14,18 @@ pub(crate) enum AggregationRound {
     LeafAggregation,
     NodeAggregation,
     Scheduler,
+}
+
+//FIXME: use other enum
+impl From<zksync_types::proofs::AggregationRound> for AggregationRound {
+    fn from(value: zksync_types::proofs::AggregationRound) -> Self {
+        match value {
+            zksync_types::proofs::AggregationRound::BasicCircuits => Self::BasicCircuits,
+            zksync_types::proofs::AggregationRound::LeafAggregation => Self::LeafAggregation,
+            zksync_types::proofs::AggregationRound::NodeAggregation => Self::NodeAggregation,
+            zksync_types::proofs::AggregationRound::Scheduler => Self::Scheduler,
+        }
+    }
 }
 
 #[derive(Debug, Metrics)]

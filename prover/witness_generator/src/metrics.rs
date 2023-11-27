@@ -45,7 +45,7 @@ pub(crate) static SERVER_WITNESS_GENERATOR_METRICS: vise::Global<ServerWitnessGe
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "server")]
 pub(crate) struct ServerMetrics {
-    #[metrics(labels = "stage")]
+    #[metrics(labels = ["stage"])]
     pub latency: LabeledFamily<&'static str, Gauge<Duration>>,
 }
 

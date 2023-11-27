@@ -91,7 +91,7 @@ impl Prover {
                 let artifact: GoldilocksProverSetupData =
                     get_cpu_setup_data_for_circuit_type(key.clone())
                         .context("get_cpu_setup_data_for_circuit_type()")?;
-                let label: &'static str = key.circuit_id.into();
+                let label: &'static str = Box::leak(key.circuit_id.to_string().into_boxed_str());
                 PROVER_FRI_METRICS.gpu_setup_data_load_time[&label].observe(started_at.elapsed());
 
                 Arc::new(artifact)
@@ -137,8 +137,9 @@ impl Prover {
             &artifact.finalization_hint,
         );
 
+        let circuit_type: &'static str = Box::leak(circuit_id.to_string().into_boxed_str());
         let label = CircuitLabels {
-            circuit_type: circuit_id.to_string().as_str(),
+            circuit_type,
             layer: Layer::Recursive,
         };
         PROVER_FRI_METRICS.proof_generation_time[&label].observe(started_at.elapsed());
@@ -178,8 +179,9 @@ impl Prover {
             &artifact.finalization_hint,
         );
 
+        let circuit_type: &'static str = Box::leak(circuit_id.to_string().into_boxed_str());
         let label = CircuitLabels {
-            circuit_type: circuit_id.to_string().as_str(),
+            circuit_type,
             layer: Layer::Base,
         };
         PROVER_FRI_METRICS.proof_generation_time[&label].observe(started_at.elapsed());

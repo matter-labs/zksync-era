@@ -70,7 +70,7 @@ impl PeriodicApiStruct {
                         self.handle_response(job_id, response).await;
                     }
                     Err(err) => {
-                        PROVER_FRI_GATEWAY_METRICS.http_error[Self::SERVICE_NAME].inc();
+                        PROVER_FRI_GATEWAY_METRICS.http_error[&Self::SERVICE_NAME].inc();
                         tracing::error!("HTTP request failed due to error: {}", err);
                     }
                 }

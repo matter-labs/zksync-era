@@ -1,5 +1,5 @@
 use std::time::Duration;
-use vise::{Histogram, LabeledFamily, Metrics};
+use vise::{Buckets, Histogram, LabeledFamily, Metrics};
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "server_circuit_synthesizer")]

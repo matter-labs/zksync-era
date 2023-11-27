@@ -18,7 +18,7 @@ pub(crate) struct ProverMetrics {
     pub assembly_transferring_time: LabeledFamily<&'static str, Histogram<Duration>>,
     #[metrics(buckets = Buckets::LATENCIES, labels = ["circuit_type"])]
     pub setup_load_time: LabeledFamily<&'static str, Histogram<Duration>>,
-    #[metrics(buckets = Buckets::LATENCIES, labels = ["circuit_type"])]
+    #[metrics(labels = ["circuit_type"])]
     pub setup_loading_cache_miss: LabeledFamily<&'static str, Counter>,
     #[metrics(buckets = Buckets::LATENCIES)]
     pub prover_wait_idle_time: Histogram<Duration>,
