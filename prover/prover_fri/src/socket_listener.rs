@@ -114,8 +114,9 @@ pub mod gpu_socket_listener {
                 file_size_in_gb,
                 started_at.elapsed().as_secs()
             );
-            PROVER_FRI_METRICS.witness_vector_blob_time[&file_size_in_gb.to_string().as_str()]
-                .observe(started_at.elapsed());
+
+            let label: &'static str = Box::leak(file_size_in_gb.to_string().into_boxed_str());
+            PROVER_FRI_METRICS.witness_vector_blob_time[&label].observe(started_at.elapsed());
 
             let witness_vector = bincode::deserialize::<WitnessVectorArtifacts>(&assembly)
                 .context("Failed deserializing witness vector")?;
@@ -185,8 +186,8 @@ pub mod gpu_socket_listener {
             started_at.elapsed()
         );
 
-        PROVER_FRI_METRICS.gpu_assembly_generation_time[&circuit_id.to_string().as_str()]
-            .observe(started_at.elapsed());
+        let label: &'static str = Box::leak(circuit_id.to_string().into_boxed_str());
+        PROVER_FRI_METRICS.gpu_assembly_generation_time[&label].observe(started_at.elapsed());
 
         Ok(cs)
     }
