@@ -5,7 +5,7 @@ use test_casing::{test_casing, Product};
 
 use std::ops;
 
-use zksync_concurrency::{ctx, scope, time};
+use zksync_concurrency::{ctx, scope, testonly::abort_on_panic, time};
 use zksync_consensus_executor::testonly::FullValidatorConfig;
 use zksync_consensus_roles::validator::{self, FinalBlock};
 use zksync_consensus_storage::{InMemoryStorage, WriteBlockStore};
@@ -177,7 +177,7 @@ pub(super) async fn assert_second_block_actions(actions: &mut ActionQueue) -> Ve
 #[test_casing(4, Product(([false, true], [false, true])))]
 #[tokio::test]
 async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block: bool) {
-    zksync_concurrency::testonly::abort_on_panic();
+    abort_on_panic();
     let pool = ConnectionPool::test_pool().await;
     let tx_hashes = run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
 
@@ -302,7 +302,7 @@ async fn reset_storage(mut storage: StorageProcessor<'_>) -> Vec<SyncBlock> {
 #[tokio::test]
 async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count: usize) {
     assert!(initial_block_count <= 3);
-    zksync_concurrency::testonly::abort_on_panic();
+    abort_on_panic();
 
     let pool = ConnectionPool::test_pool().await;
     let tx_hashes = run_state_keeper_with_multiple_l1_batches(pool.clone()).await;
@@ -377,7 +377,7 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
 #[test_casing(2, [1, 2])]
 #[tokio::test]
 async fn syncing_from_non_zero_block(first_block_number: u32) {
-    zksync_concurrency::testonly::abort_on_panic();
+    abort_on_panic();
     let pool = ConnectionPool::test_pool().await;
     let tx_hashes = run_state_keeper_with_multiple_l1_batches(pool.clone()).await;
     let tx_hashes: Vec<_> = tx_hashes.iter().map(Vec::as_slice).collect();

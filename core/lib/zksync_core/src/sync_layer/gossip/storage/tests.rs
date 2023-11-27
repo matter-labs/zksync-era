@@ -2,7 +2,7 @@
 
 use rand::{thread_rng, Rng};
 
-use zksync_concurrency::scope;
+use zksync_concurrency::{scope, testonly::abort_on_panic};
 use zksync_consensus_roles::validator;
 use zksync_types::L2ChainId;
 
@@ -23,6 +23,7 @@ const TEST_TIMEOUT: time::Duration = time::Duration::seconds(10);
 
 #[tokio::test]
 async fn block_store_basics_for_postgres() {
+    abort_on_panic();
     let pool = ConnectionPool::test_pool().await;
     run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
 
@@ -58,6 +59,7 @@ async fn block_store_basics_for_postgres() {
 
 #[tokio::test]
 async fn subscribing_to_block_updates_for_postgres() {
+    abort_on_panic();
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
@@ -101,6 +103,7 @@ async fn subscribing_to_block_updates_for_postgres() {
 
 #[tokio::test]
 async fn processing_new_blocks() {
+    abort_on_panic();
     let pool = ConnectionPool::test_pool().await;
     run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
 
@@ -144,6 +147,7 @@ async fn processing_new_blocks() {
 
 #[tokio::test]
 async fn ensuring_consensus_fields_for_genesis_block() {
+    abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
@@ -202,6 +206,7 @@ async fn ensuring_consensus_fields_for_genesis_block() {
 
 #[tokio::test]
 async fn genesis_block_payload_mismatch() {
+    abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
@@ -240,6 +245,7 @@ async fn genesis_block_payload_mismatch() {
 
 #[tokio::test]
 async fn missing_genesis_block() {
+    abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
@@ -264,6 +270,7 @@ async fn missing_genesis_block() {
 
 #[tokio::test]
 async fn using_non_zero_genesis_block() {
+    abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let pool = ConnectionPool::test_pool().await;
     run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
