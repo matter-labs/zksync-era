@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # Pre-push hook verifying that inappropriate code will not be pushed.
 
@@ -10,5 +10,11 @@ NC='\033[0m' # No Color
 if ! zk fmt --check; then
     echo -e "${RED}Commit error!${NC}"
     echo "Please format the code via 'zk fmt', cannot push unformatted code"
+    exit 1
+fi
+
+if ! zk db check-sqlx-data; then
+    echo -e "${RED}Commit error!${NC}"
+    echo "Please run update sqlx-data.json using 'zk db setup', cannot push invalid sqlx-data.json file"
     exit 1
 fi
