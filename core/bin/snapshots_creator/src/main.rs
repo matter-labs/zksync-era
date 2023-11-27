@@ -57,6 +57,7 @@ async fn maybe_enable_prometheus_metrics(stop_receiver: Receiver<bool>) -> anyho
 async fn process_storage_logs_single_chunk(
     blob_store: &dyn ObjectStore,
     pool: &ConnectionPool,
+    miniblock_number: MiniblockNumber,
     l1_batch_number: L1BatchNumber,
     chunk_id: u64,
     chunk_size: u64,
@@ -66,7 +67,7 @@ async fn process_storage_logs_single_chunk(
     let mut conn = pool.access_storage_tagged("snapshots_creator").await?;
     let logs = conn
         .snapshots_creator_dal()
-        .get_storage_logs_chunk(l1_batch_number, chunk_id, chunk_size * chunk_id)
+        .get_storage_logs_chunk(miniblock_number, chunk_id, chunk_size * chunk_id)
         .await
         .context("Error fetching storage logs count")?;
     let storage_logs_chunk = SnapshotStorageLogsChunk { storage_logs: logs };
@@ -190,6 +191,7 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::
         let output_file = process_storage_logs_single_chunk(
             &*blob_store,
             &pool,
+            last_miniblock_number_in_batch,
             l1_batch_number,
             chunk_id,
             chunk_size,

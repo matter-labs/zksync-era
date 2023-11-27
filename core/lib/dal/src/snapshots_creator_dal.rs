@@ -34,21 +34,10 @@ impl SnapshotsCreatorDal<'_, '_> {
 
     pub async fn get_storage_logs_chunk(
         &mut self,
-        l1_batch_number: L1BatchNumber,
+        miniblock_number: MiniblockNumber,
         page_limit: u64,
         page_offset: u64,
     ) -> sqlx::Result<Vec<SnapshotStorageLog>> {
-        let miniblock_number: i64 = sqlx::query!(
-            "select MAX(number) from miniblocks where l1_batch_number = $1",
-            l1_batch_number.0 as i64
-        )
-        .instrument("get_storage_logs_chunk")
-        .report_latency()
-        .fetch_one(self.storage.conn())
-        .await?
-        .max
-        .unwrap_or_default();
-
         let storage_logs = sqlx::query!(
             r#"
             SELECT storage_logs.key,
@@ -71,7 +60,7 @@ impl SnapshotsCreatorDal<'_, '_> {
             ORDER BY storage_logs.hashed_key
             LIMIT $2 OFFSET $3;
              "#,
-            miniblock_number,
+            miniblock_number.0 as i64,
             page_limit as i64,
             page_offset as i64,
         )
