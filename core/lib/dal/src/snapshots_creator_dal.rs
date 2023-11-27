@@ -12,7 +12,7 @@ impl SnapshotsCreatorDal<'_, '_> {
     pub async fn get_storage_logs_count(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> Result<u64, sqlx::Error> {
+    ) -> sqlx::Result<u64> {
         let count = sqlx::query!(
             r#"
             SELECT index
@@ -35,9 +35,9 @@ impl SnapshotsCreatorDal<'_, '_> {
     pub async fn get_storage_logs_chunk(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        chunk_id: u64,
-        chunk_size: u64,
-    ) -> Result<Vec<SnapshotStorageLog>, sqlx::Error> {
+        page_limit: u64,
+        page_offset: u64,
+    ) -> sqlx::Result<Vec<SnapshotStorageLog>> {
         let miniblock_number: i64 = sqlx::query!(
             "select MAX(number) from miniblocks where l1_batch_number = $1",
             l1_batch_number.0 as i64
@@ -72,8 +72,8 @@ impl SnapshotsCreatorDal<'_, '_> {
             LIMIT $2 OFFSET $3;
              "#,
             miniblock_number,
-            chunk_size as i64,
-            (chunk_size * chunk_id) as i64
+            page_limit as i64,
+            page_offset as i64,
         )
         .instrument("get_storage_logs_chunk")
         .report_latency()
@@ -96,21 +96,21 @@ impl SnapshotsCreatorDal<'_, '_> {
     pub async fn get_all_factory_deps(
         &mut self,
         miniblock_number: MiniblockNumber,
-    ) -> Vec<SnapshotFactoryDependency> {
-        sqlx::query!(
+    ) -> sqlx::Result<Vec<SnapshotFactoryDependency>> {
+        let rows = sqlx::query!(
             "SELECT bytecode, bytecode_hash FROM factory_deps WHERE miniblock_number <= $1",
             miniblock_number.0 as i64,
         )
         .instrument("get_all_factory_deps")
         .report_latency()
         .fetch_all(self.storage.conn())
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|row| SnapshotFactoryDependency {
-            bytecode_hash: H256::from_slice(&row.bytecode_hash),
-            bytecode: row.bytecode,
-        })
-        .collect()
+        .await?;
+        return Ok(rows
+            .into_iter()
+            .map(|row| SnapshotFactoryDependency {
+                bytecode_hash: H256::from_slice(&row.bytecode_hash),
+                bytecode: row.bytecode,
+            })
+            .collect());
     }
 }

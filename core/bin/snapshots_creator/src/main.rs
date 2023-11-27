@@ -66,7 +66,7 @@ async fn process_storage_logs_single_chunk(
     let mut conn = pool.access_storage_tagged("snapshots_creator").await?;
     let logs = conn
         .snapshots_creator_dal()
-        .get_storage_logs_chunk(l1_batch_number, chunk_id, chunk_size)
+        .get_storage_logs_chunk(l1_batch_number, chunk_id, chunk_size * chunk_id)
         .await
         .context("Error fetching storage logs count")?;
     let storage_logs_chunk = SnapshotStorageLogsChunk { storage_logs: logs };
@@ -102,7 +102,7 @@ async fn process_factory_deps(
     let factory_deps = conn
         .snapshots_creator_dal()
         .get_all_factory_deps(miniblock_number)
-        .await;
+        .await?;
     let factory_deps = SnapshotFactoryDependencies { factory_deps };
     let filename = blob_store
         .put(l1_batch_number, &factory_deps)

@@ -60,6 +60,7 @@ describe('Snapshots API tests', () => {
         let path = `${process.env.ZKSYNC_HOME}/${fullSnapshot.storageLogsChunks[0].filepath}`;
 
         let output = JSON.parse(await decompressGzip(path));
+        expect( output['storageLogs'].length > 0);
 
         for (const storageLog of output['storageLogs'] as any[]) {
             let snapshotAccountAddress = storageLog['key']['account']['address'];
