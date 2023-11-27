@@ -37,7 +37,7 @@ impl PeriodicJob for FriProverStatsReporter {
             let group_id = self
                 .config
                 .get_group_id_for_circuit_id_and_aggregation_round(circuit_id, aggregation_round)
-                .unwrap();
+                .unwrap_or(u8::MAX);
 
             metrics::gauge!(
               "fri_prover.prover.jobs",

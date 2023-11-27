@@ -192,24 +192,26 @@ impl RequestProcessor {
                 let system_logs = serialize_commitments(&l1_batch.header.system_logs);
                 let system_logs_hash = H256(keccak256(&system_logs));
 
-                let state_diff_hash = l1_batch
-                    .header
-                    .system_logs
-                    .into_iter()
-                    .find(|elem| elem.0.key == u256_to_h256(2.into()))
-                    .expect("No state diff hash key")
-                    .0
-                    .value;
+                if !is_pre_boojum {
+                    let state_diff_hash = l1_batch
+                        .header
+                        .system_logs
+                        .into_iter()
+                        .find(|elem| elem.0.key == u256_to_h256(2.into()))
+                        .expect("No state diff hash key")
+                        .0
+                        .value;
 
-                if state_diff_hash != state_diff_hash_from_prover
-                    || system_logs_hash != system_logs_hash_from_prover
-                {
-                    let server_values = format!("system_logs_hash = {system_logs_hash}, state_diff_hash = {state_diff_hash}");
-                    let prover_values = format!("system_logs_hash = {system_logs_hash_from_prover}, state_diff_hash = {state_diff_hash_from_prover}");
-                    panic!(
-                        "Auxilary output doesn't match, server values: {} prover values: {}",
-                        server_values, prover_values
-                    );
+                    if state_diff_hash != state_diff_hash_from_prover
+                        || system_logs_hash != system_logs_hash_from_prover
+                    {
+                        let server_values = format!("system_logs_hash = {system_logs_hash}, state_diff_hash = {state_diff_hash}");
+                        let prover_values = format!("system_logs_hash = {system_logs_hash_from_prover}, state_diff_hash = {state_diff_hash_from_prover}");
+                        panic!(
+                            "Auxilary output doesn't match, server values: {} prover values: {}",
+                            server_values, prover_values
+                        );
+                    }
                 }
                 storage
                     .proof_generation_dal()

@@ -11,9 +11,9 @@ use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    block::legacy_miniblock_hash, ethabi::Address, l1::L1Tx, l2::L2Tx,
-    protocol_version::ProtocolUpgradeTx, witness_block_state::WitnessBlockState, L1BatchNumber,
-    L1BlockNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256, U256,
+    ethabi::Address, l1::L1Tx, l2::L2Tx, protocol_version::ProtocolUpgradeTx,
+    witness_block_state::WitnessBlockState, L1BatchNumber, L1BlockNumber, L2ChainId,
+    MiniblockNumber, ProtocolVersionId, Transaction, H256, U256,
 };
 use zksync_utils::{be_words_to_bytes, bytes_to_be_words};
 
@@ -104,64 +104,6 @@ impl ExternalIO {
             validation_computational_gas_limit,
             chain_id,
         }
-    }
-
-    pub async fn recalculate_miniblock_hashes(&self) {
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
-        let last_blocks: Vec<_> = storage
-            .blocks_dal()
-            .get_last_miniblocks_for_version(5, ProtocolVersionId::Version12)
-            .await
-            .unwrap();
-
-        // All last miniblocks are good that means we have already applied this migrations
-        if last_blocks
-            .into_iter()
-            .all(|(number, hash)| legacy_miniblock_hash(number) == hash)
-        {
-            return;
-        }
-
-        // August 29 2023
-        let timestamp = 1693267200;
-        let mut miniblock_and_hashes = storage
-            .blocks_dal()
-            .get_miniblock_hashes_from_date(timestamp, 1000, ProtocolVersionId::Version12)
-            .await
-            .unwrap();
-
-        let mut updated_hashes = vec![];
-
-        let mut last_miniblock_number = 0;
-        while !miniblock_and_hashes.is_empty() {
-            for (number, hash) in miniblock_and_hashes {
-                if hash != legacy_miniblock_hash(number) {
-                    updated_hashes.push((number, legacy_miniblock_hash(number)))
-                }
-                last_miniblock_number = number.0;
-            }
-            if !updated_hashes.is_empty() {
-                storage
-                    .blocks_dal()
-                    .update_hashes(&updated_hashes)
-                    .await
-                    .unwrap();
-                updated_hashes = vec![];
-            }
-
-            miniblock_and_hashes = storage
-                .blocks_dal()
-                .get_miniblocks_since_block(
-                    last_miniblock_number as i64 + 1,
-                    1000,
-                    ProtocolVersionId::Version12,
-                )
-                .await
-                .unwrap();
-            tracing::info!("Last updated miniblock {}", last_miniblock_number);
-        }
-
-        tracing::info!("Finish the hash recalculation")
     }
 
     async fn load_previous_l1_batch_hash(&self) -> U256 {
@@ -273,7 +215,10 @@ impl IoSealCriteria for ExternalIO {
     }
 
     fn should_seal_miniblock(&mut self, _manager: &UpdatesManager) -> bool {
-        matches!(self.actions.peek_action(), Some(SyncAction::SealMiniblock))
+        matches!(
+            self.actions.peek_action(),
+            Some(SyncAction::SealMiniblock(_))
+        )
     }
 }
 
@@ -426,7 +371,7 @@ impl StateKeeperIO for ExternalIO {
                         virtual_blocks,
                     });
                 }
-                Some(SyncAction::SealBatch { virtual_blocks }) => {
+                Some(SyncAction::SealBatch { virtual_blocks, .. }) => {
                     // We've reached the next batch, so this situation would be handled by the batch sealer.
                     // No need to pop the action from the queue.
                     // It also doesn't matter which timestamp we return, since there will be no more miniblocks in this
@@ -492,12 +437,9 @@ impl StateKeeperIO for ExternalIO {
     }
 
     async fn seal_miniblock(&mut self, updates_manager: &UpdatesManager) {
-        match self.actions.pop_action() {
-            Some(SyncAction::SealMiniblock) => {}
-            other => panic!(
-                "State keeper requested to seal miniblock, but the next action is {:?}",
-                other
-            ),
+        let action = self.actions.pop_action();
+        let Some(SyncAction::SealMiniblock(consensus)) = action else {
+            panic!("State keeper requested to seal miniblock, but the next action is {action:?}");
         };
 
         let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
@@ -539,6 +481,16 @@ impl StateKeeperIO for ExternalIO {
             self.l2_erc20_bridge_addr,
         );
         command.seal(&mut transaction).await;
+
+        // We want to add miniblock consensus fields atomically with the miniblock data so that we
+        // don't need to deal with corner cases (e.g., a miniblock w/o consensus fields).
+        if let Some(consensus) = &consensus {
+            transaction
+                .blocks_dal()
+                .set_miniblock_consensus_fields(self.current_miniblock_number, consensus)
+                .await
+                .unwrap();
+        }
         transaction.commit().await.unwrap();
 
         self.sync_state
@@ -555,23 +507,32 @@ impl StateKeeperIO for ExternalIO {
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,
     ) -> anyhow::Result<()> {
-        match self.actions.pop_action() {
-            Some(SyncAction::SealBatch { .. }) => {}
-            other => anyhow::bail!(
-                "State keeper requested to seal the batch, but the next action is {other:?}"
-            ),
+        let action = self.actions.pop_action();
+        let Some(SyncAction::SealBatch { consensus, .. }) = action else {
+            anyhow::bail!(
+                "State keeper requested to seal the batch, but the next action is {action:?}"
+            );
         };
 
         let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
+        let mut transaction = storage.start_transaction().await.unwrap();
         updates_manager
             .seal_l1_batch(
-                &mut storage,
+                &mut transaction,
                 self.current_miniblock_number,
                 l1_batch_env,
                 finished_batch,
                 self.l2_erc20_bridge_addr,
             )
             .await;
+        if let Some(consensus) = &consensus {
+            transaction
+                .blocks_dal()
+                .set_miniblock_consensus_fields(self.current_miniblock_number, consensus)
+                .await
+                .unwrap();
+        }
+        transaction.commit().await.unwrap();
 
         tracing::info!("Batch {} is sealed", self.current_l1_batch_number);
 
