@@ -154,6 +154,10 @@ impl JobProcessor for WitnessVectorGenerator {
                 handle_send_result(&result, job_id, &address, &self.pool, self.zone.clone()).await;
 
                 if result.is_ok() {
+                    WITNESS_VECTOR_GENERATOR_METRICS.prover_waiting_time[&circuit_type]
+                        .observe(now.elapsed());
+                    WITNESS_VECTOR_GENERATOR_METRICS.prover_attempts_count[&circuit_type]
+                        .observe(attempts as usize);
                     return Ok(());
                 }
 
