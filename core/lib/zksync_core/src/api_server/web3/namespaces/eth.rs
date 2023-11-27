@@ -862,7 +862,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                 *from_block = logs
                     .last()
                     .map(|log| MiniblockNumber(log.block_number.unwrap().as_u32() + 1))
-                    .unwrap_or(*from_block + 1);
+                    .unwrap_or(*from_block);
                 FilterChanges::Logs(logs)
             }
         };
