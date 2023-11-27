@@ -40,7 +40,9 @@ impl SnapshotsDal<'_, '_> {
         .into_iter()
         .map(|r| L1BatchNumber(r.l1_batch_number as u32))
         .collect();
-        Ok(AllSnapshots { snapshots: records })
+        Ok(AllSnapshots {
+            snapshots_l1_batch_numbers: records,
+        })
     }
 
     pub async fn get_snapshot_metadata(
@@ -83,8 +85,11 @@ mod tests {
             .get_all_snapshots()
             .await
             .expect("Failed to retrieve snapshots");
-        assert_eq!(1, snapshots.snapshots.len());
-        assert_eq!(snapshots.snapshots[0], l1_batch_number as L1BatchNumber);
+        assert_eq!(1, snapshots.snapshots_l1_batch_numbers.len());
+        assert_eq!(
+            snapshots.snapshots_l1_batch_numbers[0],
+            l1_batch_number as L1BatchNumber
+        );
 
         let snapshot_metadata = dal
             .get_snapshot_metadata(l1_batch_number)

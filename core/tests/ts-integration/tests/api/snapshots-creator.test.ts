@@ -46,19 +46,17 @@ describe('Snapshots API tests', () => {
         });
     }
     async function createAndValidateSnapshot() {
-        let existingL1Batches = (await getAllSnapshots()).snapshots as any[];
+        let existingBatchNumbers = (await getAllSnapshots()).snapshotsL1BatchNumbers as number[];
         await runCreator();
-        let newSnapshotsBatches = await getAllSnapshots();
-        let addedSnapshots = (newSnapshotsBatches.snapshots as any[]).filter(
-            (snapshot) => !existingL1Batches.find((other) => snapshot.l1BatchNumber === other.l1BatchNumber)
-        );
+        let newBatchNumbers = (await getAllSnapshots()).snapshotsL1BatchNumbers as number[];
+        let addedSnapshots = newBatchNumbers.filter((x) => existingBatchNumbers.indexOf(x) === -1);
         expect(addedSnapshots.length).toEqual(1);
 
-        let l1BatchNumber = addedSnapshots[0].l1BatchNumber;
+        let l1BatchNumber = addedSnapshots[0];
         let fullSnapshot = await getSnapshot(l1BatchNumber);
         let miniblockNumber = fullSnapshot.miniblockNumber;
 
-        expect(fullSnapshot.l1BatchNumber).toEqual(addedSnapshots[0].l1BatchNumber);
+        expect(fullSnapshot.l1BatchNumber).toEqual(l1BatchNumber);
         let path = `${process.env.ZKSYNC_HOME}/${fullSnapshot.storageLogsChunks[0].filepath}`;
 
         let output = JSON.parse(await decompressGzip(path));

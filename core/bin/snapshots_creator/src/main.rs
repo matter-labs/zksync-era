@@ -1,10 +1,11 @@
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
+use std::time::Duration;
 use tokio::sync::watch;
 use tokio::sync::watch::Receiver;
-use vise::{Gauge, Metrics};
+use vise::{Buckets, Gauge, Histogram, Metrics};
 use zksync_config::configs::PrometheusConfig;
-use zksync_config::PostgresConfig;
+use zksync_config::{PostgresConfig, SnapshotsCreatorConfig};
 
 use zksync_dal::ConnectionPool;
 use zksync_env_config::object_store::SnapshotsObjectStoreConfig;
@@ -23,9 +24,17 @@ use zksync_utils::time::seconds_since_epoch;
 struct SnapshotsCreatorMetrics {
     storage_logs_chunks_count: Gauge<u64>,
 
+    storage_logs_chunks_left_to_process: Gauge<u64>,
+
     snapshot_generation_duration: Gauge<u64>,
 
     snapshot_l1_batch: Gauge<u64>,
+
+    #[metrics(buckets = Buckets::LATENCIES)]
+    storage_logs_processing_durations: Histogram<Duration>,
+
+    #[metrics(buckets = Buckets::LATENCIES)]
+    factory_deps_processing_durations: Histogram<Duration>,
 }
 #[vise::register]
 pub(crate) static METRICS: vise::Global<SnapshotsCreatorMetrics> = vise::Global::new();
@@ -53,6 +62,7 @@ async fn process_storage_logs_single_chunk(
     chunk_size: u64,
     chunks_count: u64,
 ) -> anyhow::Result<String> {
+    let latency = METRICS.storage_logs_processing_durations.start();
     let mut conn = pool.access_storage_tagged("snapshots_creator").await?;
     let logs = conn
         .snapshots_creator_dal()
@@ -76,6 +86,7 @@ async fn process_storage_logs_single_chunk(
         "Finished storing storage logs chunk {}/{chunks_count}, output stored in {output_filepath}",
         chunk_id + 1,
     );
+    latency.observe();
     Ok(output_filepath)
 }
 
@@ -85,6 +96,7 @@ async fn process_factory_deps(
     miniblock_number: MiniblockNumber,
     l1_batch_number: L1BatchNumber,
 ) -> anyhow::Result<String> {
+    let latency = METRICS.factory_deps_processing_durations.start();
     tracing::info!("Processing factory dependencies");
     let mut conn = pool.access_storage_tagged("snapshots_creator").await?;
     let factory_deps = conn
@@ -102,10 +114,13 @@ async fn process_factory_deps(
         "Finished processing factory dependencies, output stored in {}",
         output_filepath
     );
+    latency.observe();
     Ok(output_filepath)
 }
 
 async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::Result<()> {
+    let config = SnapshotsCreatorConfig::from_env().context("SnapshotsCreatorConfig::from_env")?;
+
     let mut conn = pool.access_storage_tagged("snapshots_creator").await?;
     let start_time = seconds_since_epoch();
 
@@ -130,16 +145,18 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::
         .await?
         .unwrap()
         .1;
-    let storage_logs_count = conn
+    let storage_logs_chunks_count = conn
         .snapshots_creator_dal()
         .get_storage_logs_count(l1_batch_number)
         .await?;
 
     drop(conn);
+    METRICS
+        .storage_logs_chunks_count
+        .set(storage_logs_chunks_count);
 
-    //TODO load this from config
-    let chunk_size = 1_000_000;
-    let chunks_count = ceil_div(storage_logs_count, chunk_size);
+    let chunk_size = config.storage_logs_chunk_size;
+    let chunks_count = ceil_div(storage_logs_chunks_count, chunk_size);
 
     tracing::info!(
         "Creating snapshot for storage logs up to miniblock {}, l1_batch {}",
@@ -162,6 +179,9 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::
 
     let mut storage_logs_output_files = vec![];
 
+    METRICS
+        .storage_logs_chunks_left_to_process
+        .set(chunks_count);
     for chunk_id in 0..chunks_count {
         tracing::info!(
             "Processing storage logs chunk {}/{chunks_count}",
@@ -177,7 +197,9 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::
         )
         .await?;
         storage_logs_output_files.push(output_file.clone());
-        METRICS.storage_logs_chunks_count.set(chunk_id);
+        METRICS
+            .storage_logs_chunks_left_to_process
+            .set(chunks_count - chunk_id - 1);
     }
 
     let mut conn = pool.access_storage_tagged("snapshots_creator").await?;
@@ -192,9 +214,6 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::
 
     METRICS.snapshot_l1_batch.set(l1_batch_number.0.as_u64());
     METRICS
-        .snapshot_generation_timestamp
-        .set(seconds_since_epoch());
-    METRICS
         .snapshot_generation_duration
         .set(seconds_since_epoch() - start_time);
 
@@ -204,10 +223,6 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::
         METRICS.snapshot_generation_duration.get()
     );
     tracing::info!("snapshot_l1_batch: {}", METRICS.snapshot_l1_batch.get());
-    tracing::info!(
-        "snapshot_generation_timestamp: {}",
-        METRICS.snapshot_generation_timestamp.get()
-    );
     tracing::info!(
         "storage_logs_chunks_count: {}",
         METRICS.storage_logs_chunks_count.get()

@@ -6,7 +6,7 @@ use zksync_basic_types::{L1BatchNumber, MiniblockNumber};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AllSnapshots {
-    pub snapshots: Vec<L1BatchNumber>,
+    pub snapshots_l1_batch_numbers: Vec<L1BatchNumber>,
 }
 
 // used in dal to fetch certain snapshot data

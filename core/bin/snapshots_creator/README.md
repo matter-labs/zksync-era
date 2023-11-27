@@ -15,7 +15,9 @@ Snapshot contents can be stored based on blob_store config either in local files
 
 ## Snapshots format
 
-Each snapshot consists of three types of objects (see [snapshots.rs](https://github.com/matter-labs/zksync-era/core/lib/types/src/snapshots.rs)) : header, storage logs chunks and factory deps:
+Each snapshot consists of three types of objects (see
+[snapshots.rs](https://github.com/matter-labs/zksync-era/core/lib/types/src/snapshots.rs)) : header, storage logs chunks
+and factory deps:
 
 - Snapshot Header (currently returned by snapshots namespace of JSON-RPC API)
 - Snapshot Storage logs chunks (most likely to be stored in gzipped protobuf files, but this part is still WIP) :

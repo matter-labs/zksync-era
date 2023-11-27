@@ -22,6 +22,7 @@ pub use self::{
     prover_group::ProverGroupConfig,
     utils::PrometheusConfig,
     witness_generator::WitnessGeneratorConfig,
+    snapshots_creator::SnapshotsCreatorConfig,
 };
 
 pub mod alerts;
@@ -46,6 +47,7 @@ pub mod object_store;
 pub mod proof_data_handler;
 pub mod prover;
 pub mod prover_group;
+pub mod snapshots_creator;
 pub mod utils;
 pub mod witness_generator;
 
