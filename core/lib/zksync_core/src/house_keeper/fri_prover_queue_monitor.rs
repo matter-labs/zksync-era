@@ -33,7 +33,7 @@ impl PeriodicJob for FriProverStatsReporter {
         let mut conn = self.prover_connection_pool.access_storage().await.unwrap();
         let stats = conn.fri_prover_jobs_dal().get_prover_jobs_stats().await;
 
-        for ((mut circuit_id, aggregation_round), stats) in stats.into_iter() {
+        for ((circuit_id, aggregation_round), stats) in stats.into_iter() {
             // BEWARE, HERE BE DRAGONS.
             // In database, the circuit_id stored is the circuit for which the aggregation is done,
             // not the circuit which is running.
