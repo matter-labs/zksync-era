@@ -8,19 +8,19 @@ use zksync_crypto::hasher::{blake2::Blake2Hasher, Hasher};
 use zksync_merkle_tree::{HashTree, TreeEntry, TreeInstruction};
 use zksync_types::{AccountTreeId, Address, StorageKey, H256, U256};
 
-pub fn generate_key_value_pairs(indexes: impl Iterator<Item = u64>) -> Vec<(U256, TreeEntry)> {
+pub fn generate_key_value_pairs(indexes: impl Iterator<Item = u64>) -> Vec<TreeEntry> {
     let address: Address = "4b3af74f66ab1f0da3f2e4ec7a3cb99baf1af7b2".parse().unwrap();
     let kvs = indexes.map(|idx| {
         let key = H256::from_low_u64_be(idx);
         let key = StorageKey::new(AccountTreeId::new(address), key);
         let value = H256::from_low_u64_be(idx + 1);
-        (key.hashed_key_u256(), TreeEntry::new(idx + 1, value))
+        TreeEntry::new(key.hashed_key_u256(), idx + 1, value)
     });
     kvs.collect()
 }
 
-pub fn compute_tree_hash(kvs: impl Iterator<Item = (U256, TreeEntry)>) -> H256 {
-    let kvs_with_indices = kvs.map(|(key, entry)| (key, entry.value_hash, entry.leaf_index));
+pub fn compute_tree_hash(kvs: impl Iterator<Item = TreeEntry>) -> H256 {
+    let kvs_with_indices = kvs.map(|entry| (entry.key, entry.value, entry.leaf_index));
     compute_tree_hash_with_indices(kvs_with_indices)
 }
 
@@ -69,39 +69,41 @@ fn compute_tree_hash_with_indices(kvs: impl Iterator<Item = (U256, H256, u64)>) 
 }
 
 // Computing the expected hash takes some time in the debug mode, so we memoize it.
-pub static KVS_AND_HASH: Lazy<(Vec<(U256, TreeEntry)>, H256)> = Lazy::new(|| {
-    let kvs = generate_key_value_pairs(0..100);
-    let expected_hash = compute_tree_hash(kvs.iter().copied());
-    (kvs, expected_hash)
+pub static ENTRIES_AND_HASH: Lazy<(Vec<TreeEntry>, H256)> = Lazy::new(|| {
+    let entries = generate_key_value_pairs(0..100);
+    let expected_hash = compute_tree_hash(entries.iter().copied());
+    (entries, expected_hash)
 });
 
-pub fn convert_to_writes(kvs: &[(U256, TreeEntry)]) -> Vec<(U256, TreeInstruction)> {
-    let kvs = kvs
+pub fn convert_to_writes(entries: &[TreeEntry]) -> Vec<TreeInstruction> {
+    entries
         .iter()
-        .map(|&(key, entry)| (key, TreeInstruction::Write(entry)));
-    kvs.collect()
+        .copied()
+        .map(TreeInstruction::Write)
+        .collect()
 }
 
 /// Emulates leaf index assignment in a real Merkle tree.
 #[derive(Debug)]
-pub struct TreeMap(HashMap<U256, TreeEntry>);
+pub struct TreeMap(HashMap<U256, (H256, u64)>);
 
 impl TreeMap {
-    pub fn new(initial_entries: &[(U256, TreeEntry)]) -> Self {
+    pub fn new(initial_entries: &[TreeEntry]) -> Self {
         let map = initial_entries
             .iter()
-            .map(|(key, entry)| (*key, *entry))
+            .map(|entry| (entry.key, (entry.value, entry.leaf_index)))
             .collect();
         Self(map)
     }
 
-    pub fn extend(&mut self, kvs: &[(U256, TreeEntry)]) {
-        for &(key, new_entry) in kvs {
-            if let Some(entry) = self.0.get_mut(&key) {
-                assert_eq!(entry.leaf_index, new_entry.leaf_index); // sanity check
-                *entry = new_entry;
+    pub fn extend(&mut self, kvs: &[TreeEntry]) {
+        for &new_entry in kvs {
+            if let Some((value, leaf_index)) = self.0.get_mut(&new_entry.key) {
+                assert_eq!(*leaf_index, new_entry.leaf_index); // sanity check
+                *value = new_entry.value;
             } else {
-                self.0.insert(key, new_entry);
+                self.0
+                    .insert(new_entry.key, (new_entry.value, new_entry.leaf_index));
             }
         }
     }
@@ -110,7 +112,7 @@ impl TreeMap {
         let entries = self
             .0
             .iter()
-            .map(|(key, entry)| (*key, entry.value_hash, entry.leaf_index));
+            .map(|(key, (value, leaf_index))| (*key, *value, *leaf_index));
         compute_tree_hash_with_indices(entries)
     }
 }

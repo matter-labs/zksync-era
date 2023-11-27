@@ -7,17 +7,14 @@ use tempfile::TempDir;
 use std::slice;
 
 use zksync_crypto::hasher::blake2::Blake2Hasher;
-use zksync_merkle_tree::{
-    domain::{StorageLogWithIndex, ZkSyncTree},
-    HashTree,
-};
+use zksync_merkle_tree::{domain::ZkSyncTree, HashTree, TreeEntry, TreeInstruction};
 use zksync_storage::RocksDB;
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
-    proofs::StorageLogMetadata, AccountTreeId, Address, L1BatchNumber, StorageKey, StorageLog, H256,
+    proofs::StorageLogMetadata, AccountTreeId, Address, L1BatchNumber, StorageKey, H256,
 };
 
-fn gen_storage_logs() -> Vec<StorageLogWithIndex> {
+fn gen_storage_logs() -> Vec<TreeInstruction<StorageKey>> {
     let addrs = vec![
         "4b3af74f66ab1f0da3f2e4ec7a3cb99baf1af7b2",
         "ef4bb7b21c5fe7432a7d63876cc59ecc23b46636",
@@ -36,9 +33,9 @@ fn gen_storage_logs() -> Vec<StorageLogWithIndex> {
     proof_keys
         .zip(proof_values)
         .enumerate()
-        .map(|(i, (proof_key, proof_value))| StorageLogWithIndex {
-            inner: StorageLog::new_write_log(proof_key, proof_value),
-            leaf_index: i as u64 + 1,
+        .map(|(i, (proof_key, proof_value))| {
+            let entry = TreeEntry::new(proof_key, i as u64 + 1, proof_value);
+            TreeInstruction::Write(entry)
         })
         .collect()
 }
@@ -61,7 +58,11 @@ fn basic_workflow() {
     assert_eq!(metadata.rollup_last_leaf_index, 101);
     assert_eq!(metadata.initial_writes.len(), logs.len());
     for (write, log) in metadata.initial_writes.iter().zip(&logs) {
-        assert_eq!(write.value, log.inner.value);
+        let expected_value = match log {
+            TreeInstruction::Write(entry) => entry.value,
+            TreeInstruction::Read(_) => unreachable!(),
+        };
+        assert_eq!(write.value, expected_value);
     }
     assert!(metadata.repeated_writes.is_empty());
 
@@ -131,7 +132,10 @@ fn filtering_out_no_op_writes() {
     // Add some actual repeated writes.
     let mut expected_writes_count = 0;
     for log in logs.iter_mut().step_by(3) {
-        log.inner.value = H256::repeat_byte(0xff);
+        let TreeInstruction::Write(entry) = log else {
+            unreachable!("Unexpected instruction: {log:?}");
+        };
+        entry.value = H256::repeat_byte(0xff);
         expected_writes_count += 1;
     }
     let new_metadata = tree.process_l1_batch(&logs);
@@ -162,21 +166,16 @@ fn revert_blocks() {
     // Add couple of blocks of distinct keys/values
     let mut logs: Vec<_> = proof_keys
         .zip(proof_values)
-        .map(|(proof_key, proof_value)| StorageLogWithIndex {
-            inner: StorageLog::new_write_log(proof_key, proof_value),
-            leaf_index: proof_value.to_low_u64_be() + 1,
+        .map(|(proof_key, proof_value)| {
+            let entry = TreeEntry::new(proof_key, proof_value.to_low_u64_be() + 1, proof_value);
+            TreeInstruction::Write(entry)
         })
         .collect();
     // Add a block with repeated keys
     let extra_logs = (0..block_size).map(move |i| {
-        let log = StorageLog::new_write_log(
-            StorageKey::new(AccountTreeId::new(address), H256::from_low_u64_be(i as u64)),
-            H256::from_low_u64_be((i + 1) as u64),
-        );
-        StorageLogWithIndex {
-            inner: log,
-            leaf_index: i as u64 + 1,
-        }
+        let key = StorageKey::new(AccountTreeId::new(address), H256::from_low_u64_be(i as u64));
+        let entry = TreeEntry::new(key, i as u64 + 1, H256::from_low_u64_be(i as u64 + 1));
+        TreeInstruction::Write(entry)
     });
     logs.extend(extra_logs);
 
@@ -291,10 +290,7 @@ fn read_logs() {
     let mut tree = ZkSyncTree::new_lightweight(db);
     let read_logs: Vec<_> = logs
         .into_iter()
-        .map(|log| StorageLogWithIndex {
-            inner: StorageLog::new_read_log(log.inner.key, log.inner.value),
-            leaf_index: log.leaf_index,
-        })
+        .map(|instr| TreeInstruction::Read(instr.key()))
         .collect();
     let read_metadata = tree.process_l1_batch(&read_logs);
 
@@ -306,15 +302,9 @@ fn create_write_log(
     address: Address,
     address_storage_key: [u8; 32],
     value: [u8; 32],
-) -> StorageLogWithIndex {
-    let log = StorageLog::new_write_log(
-        StorageKey::new(AccountTreeId::new(address), H256(address_storage_key)),
-        H256(value),
-    );
-    StorageLogWithIndex {
-        leaf_index,
-        inner: log,
-    }
+) -> TreeInstruction<StorageKey> {
+    let key = StorageKey::new(AccountTreeId::new(address), H256(address_storage_key));
+    TreeInstruction::Write(TreeEntry::new(key, leaf_index, H256(value)))
 }
 
 fn subtract_from_max_value(diff: u8) -> [u8; 32] {

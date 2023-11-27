@@ -374,7 +374,7 @@ mod tests {
 
     #[test]
     fn serializing_leaf_node() {
-        let leaf = LeafNode::new(513.into(), TreeEntry::new(42, H256([4; 32])));
+        let leaf = LeafNode::new(TreeEntry::new(513.into(), 42, H256([4; 32])));
         let mut buffer = vec![];
         leaf.serialize(&mut buffer);
         assert_eq!(buffer[..30], [0; 30]); // padding for the key
@@ -431,7 +431,7 @@ mod tests {
 
     #[test]
     fn serializing_root_with_leaf() {
-        let leaf = LeafNode::new(513.into(), TreeEntry::new(42, H256([4; 32])));
+        let leaf = LeafNode::new(TreeEntry::new(513.into(), 42, H256([4; 32])));
         let root = Root::new(1, leaf.into());
         let mut buffer = vec![];
         root.serialize(&mut buffer);

@@ -136,22 +136,22 @@ impl Cli {
             next_key_idx += new_keys.len() as u64;
 
             next_value_idx += (new_keys.len() + updated_indices.len()) as u64;
-            let entries = (next_value_idx..).map(|idx| {
-                // The assigned leaf indices here are not always correct, but it's OK for load test purposes.
-                TreeEntry::new(idx, H256::from_low_u64_be(idx))
-            });
             let updated_keys = Self::generate_keys(updated_indices.into_iter());
-            let kvs = new_keys.into_iter().chain(updated_keys).zip(entries);
+            let kvs = new_keys
+                .into_iter()
+                .chain(updated_keys)
+                .zip(next_value_idx..);
+            let kvs = kvs.map(|(key, idx)| {
+                // The assigned leaf indices here are not always correct, but it's OK for load test purposes.
+                TreeEntry::new(key, idx, H256::from_low_u64_be(idx))
+            });
 
             tracing::info!("Processing block #{version}");
             let start = Instant::now();
             let root_hash = if self.proofs {
-                let reads = Self::generate_keys(read_indices.into_iter())
-                    .map(|key| (key, TreeInstruction::Read));
-                let instructions = kvs
-                    .map(|(key, entry)| (key, TreeInstruction::Write(entry)))
-                    .chain(reads)
-                    .collect();
+                let reads =
+                    Self::generate_keys(read_indices.into_iter()).map(TreeInstruction::Read);
+                let instructions = kvs.map(TreeInstruction::Write).chain(reads).collect();
                 let output = tree.extend_with_proofs(instructions);
                 output.root_hash().unwrap()
             } else {

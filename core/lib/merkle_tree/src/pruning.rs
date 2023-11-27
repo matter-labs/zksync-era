@@ -195,7 +195,7 @@ mod tests {
         for i in 0..5 {
             let key = Key::from(i);
             let value = ValueHash::from_low_u64_be(i);
-            MerkleTree::new(&mut db).extend(vec![(key, TreeEntry::new(i + 1, value))]);
+            MerkleTree::new(&mut db).extend(vec![TreeEntry::new(key, i + 1, value)]);
         }
         db
     }
@@ -245,12 +245,9 @@ mod tests {
         assert!(start.elapsed() < Duration::from_secs(10));
     }
 
-    fn generate_key_value_pairs(indexes: impl Iterator<Item = u64>) -> Vec<(Key, TreeEntry)> {
+    fn generate_key_value_pairs(indexes: impl Iterator<Item = u64>) -> Vec<TreeEntry> {
         indexes
-            .map(|i| {
-                let entry = TreeEntry::new(i + 1, ValueHash::from_low_u64_be(i));
-                (Key::from(i), entry)
-            })
+            .map(|i| TreeEntry::new(Key::from(i), i + 1, ValueHash::from_low_u64_be(i)))
             .collect()
     }
 
@@ -322,7 +319,7 @@ mod tests {
 
         let mut db = PatchSet::default();
         let kvs: Vec<_> = (0_u64..100)
-            .map(|i| (Key::from(i), TreeEntry::new(i + 1, ValueHash::zero())))
+            .map(|i| TreeEntry::new(Key::from(i), i + 1, ValueHash::zero()))
             .collect();
 
         let batch_count = if initialize_iteratively {
@@ -339,7 +336,7 @@ mod tests {
         // Completely overwrite all keys.
         let new_value_hash = ValueHash::from_low_u64_be(1_000);
         let new_kvs = (0_u64..100)
-            .map(|i| (Key::from(i), TreeEntry::new(i + 1, new_value_hash)))
+            .map(|i| TreeEntry::new(Key::from(i), i + 1, new_value_hash))
             .collect();
         MerkleTree::new(&mut db).extend(new_kvs);
 
@@ -368,7 +365,7 @@ mod tests {
     ) {
         let mut db = PatchSet::default();
         let kvs: Vec<_> = (0_u64..100)
-            .map(|i| (Key::from(i), TreeEntry::new(i + 1, ValueHash::zero())))
+            .map(|i| TreeEntry::new(Key::from(i), i + 1, ValueHash::zero()))
             .collect();
         MerkleTree::new(&mut db).extend(kvs);
         let leaf_keys_in_db = leaf_keys(&mut db);
@@ -376,7 +373,7 @@ mod tests {
         // Completely overwrite all keys in several batches.
         let new_value_hash = ValueHash::from_low_u64_be(1_000);
         let new_kvs: Vec<_> = (0_u64..100)
-            .map(|i| (Key::from(i), TreeEntry::new(i + 1, new_value_hash)))
+            .map(|i| TreeEntry::new(Key::from(i), i + 1, new_value_hash))
             .collect();
         for chunk in new_kvs.chunks(20) {
             MerkleTree::new(&mut db).extend(chunk.to_vec());

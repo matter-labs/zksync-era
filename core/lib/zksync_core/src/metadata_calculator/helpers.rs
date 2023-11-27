@@ -15,11 +15,11 @@ use zksync_config::configs::database::MerkleTreeMode;
 use zksync_dal::StorageProcessor;
 use zksync_health_check::{Health, HealthStatus};
 use zksync_merkle_tree::{
-    domain::{StorageLogWithIndex, TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
-    Key, MerkleTreeColumnFamily, NoVersionError, TreeEntryWithProof,
+    domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
+    Key, MerkleTreeColumnFamily, NoVersionError, TreeEntryWithProof, TreeInstruction,
 };
 use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries};
-use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageKey, StorageLog, H256};
+use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageKey, H256};
 
 use super::metrics::{LoadChangesStage, TreeUpdateStage, METRICS};
 
@@ -149,7 +149,7 @@ impl AsyncTree {
 
     pub async fn process_l1_batch(
         &mut self,
-        storage_logs: Vec<StorageLogWithIndex>,
+        storage_logs: Vec<TreeInstruction<StorageKey>>,
     ) -> TreeMetadata {
         let mut tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
         let (tree, metadata) = tokio::task::spawn_blocking(move || {
@@ -245,7 +245,7 @@ impl Delayer {
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct L1BatchWithLogs {
     pub header: L1BatchHeader,
-    pub storage_logs: Vec<StorageLogWithIndex>,
+    pub storage_logs: Vec<TreeInstruction<StorageKey>>,
 }
 
 impl L1BatchWithLogs {
@@ -280,16 +280,13 @@ impl L1BatchWithLogs {
         touched_slots_latency.observe_with_count(touched_slots.len());
 
         let leaf_indices_latency = METRICS.start_load_stage(LoadChangesStage::LoadLeafIndices);
-        let all_hashed_keys: Vec<_> = protective_reads
-            .iter()
-            .chain(touched_slots.keys())
-            .map(StorageKey::hashed_key)
-            .collect();
+        let hashed_keys_for_writes: Vec<_> =
+            touched_slots.keys().map(StorageKey::hashed_key).collect();
         let l1_batches_for_initial_writes = storage
             .storage_logs_dal()
-            .get_l1_batches_and_indices_for_initial_writes(&all_hashed_keys)
+            .get_l1_batches_and_indices_for_initial_writes(&hashed_keys_for_writes)
             .await;
-        leaf_indices_latency.observe_with_count(all_hashed_keys.len());
+        leaf_indices_latency.observe_with_count(hashed_keys_for_writes.len());
 
         let mut storage_logs = BTreeMap::new();
         for storage_key in protective_reads {
@@ -297,17 +294,7 @@ impl L1BatchWithLogs {
             // ^ As per deduplication rules, all keys in `protective_reads` haven't *really* changed
             // in the considered L1 batch. Thus, we can remove them from `touched_slots` in order to simplify
             // their further processing.
-
-            let &(_, leaf_index) = l1_batches_for_initial_writes
-                .get(&storage_key.hashed_key())
-                .unwrap_or_else(|| {
-                    panic!("Protective read for key {storage_key:?} doesn't have an initial write record")
-                });
-            let log = StorageLogWithIndex {
-                inner: StorageLog::new_read_log(storage_key, H256::zero()),
-                // ^ The tree doesn't use the read value, so we set it to zero.
-                leaf_index,
-            };
+            let log = TreeInstruction::Read(storage_key);
             storage_logs.insert(storage_key, log);
         }
         tracing::debug!(
@@ -323,10 +310,7 @@ impl L1BatchWithLogs {
                 if initial_write_batch_for_key <= l1_batch_number {
                     storage_logs.insert(
                         storage_key,
-                        StorageLogWithIndex {
-                            inner: StorageLog::new_write_log(storage_key, value),
-                            leaf_index,
-                        },
+                        TreeInstruction::write(storage_key, leaf_index, value),
                     );
                 }
             }
@@ -345,7 +329,7 @@ mod tests {
     use tempfile::TempDir;
 
     use zksync_dal::ConnectionPool;
-    use zksync_types::{proofs::PrepareBasicCircuitsJob, L2ChainId, StorageKey, StorageLogKind};
+    use zksync_types::{proofs::PrepareBasicCircuitsJob, L2ChainId, StorageKey, StorageLog};
 
     use super::*;
     use crate::{
@@ -399,29 +383,23 @@ mod tests {
                     );
                 }
 
-                storage_logs.insert(
-                    storage_key,
-                    StorageLog::new_read_log(storage_key, previous_value),
-                );
+                storage_logs.insert(storage_key, TreeInstruction::Read(storage_key));
             }
 
             for (storage_key, value) in touched_slots {
                 let previous_value = previous_values[&storage_key.hashed_key()].unwrap_or_default();
                 if previous_value != value {
-                    storage_logs.insert(storage_key, StorageLog::new_write_log(storage_key, value));
+                    let (_, leaf_index) = l1_batches_for_initial_writes[&storage_key.hashed_key()];
+                    storage_logs.insert(
+                        storage_key,
+                        TreeInstruction::write(storage_key, leaf_index, value),
+                    );
                 }
             }
 
-            let storage_logs = storage_logs
-                .into_values()
-                .map(|log| StorageLogWithIndex {
-                    inner: log,
-                    leaf_index: l1_batches_for_initial_writes[&log.key.hashed_key()].1,
-                })
-                .collect();
             Some(Self {
                 header,
-                storage_logs,
+                storage_logs: storage_logs.into_values().collect(),
             })
         }
     }
@@ -617,7 +595,7 @@ mod tests {
         let read_logs_count = l1_batch_with_logs
             .storage_logs
             .iter()
-            .filter(|log| log.inner.kind == StorageLogKind::Read)
+            .filter(|log| matches!(log, TreeInstruction::Read(_)))
             .count();
         assert_eq!(read_logs_count, 7);
 

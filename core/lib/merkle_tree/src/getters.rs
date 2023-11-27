@@ -26,7 +26,7 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
                 let node = patch_set.get(longest_prefix);
                 match node {
                     Some(Node::Leaf(leaf)) if &leaf.full_key == leaf_key => (*leaf).into(),
-                    _ => TreeEntry::empty(),
+                    _ => TreeEntry::empty(*leaf_key),
                 }
             },
         )
@@ -76,11 +76,12 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
             |patch_set, &leaf_key, longest_prefix| {
                 let (leaf, merkle_path) =
                     patch_set.create_proof(&mut hasher, leaf_key, longest_prefix, 0);
-                let value_hash = leaf
+                let value = leaf
                     .as_ref()
                     .map_or_else(ValueHash::zero, |leaf| leaf.value_hash);
                 TreeEntry {
-                    value_hash,
+                    key: leaf_key,
+                    value,
                     leaf_index: leaf.map_or(0, |leaf| leaf.leaf_index),
                 }
                 .with_merkle_path(merkle_path.into_inner())
@@ -107,26 +108,26 @@ mod tests {
         let entries = tree.entries_with_proofs(0, &[missing_key]).unwrap();
         assert_eq!(entries.len(), 1);
         assert!(entries[0].base.is_empty());
-        entries[0].verify(&tree.hasher, missing_key, tree.hasher.empty_tree_hash());
+        entries[0].verify(&tree.hasher, tree.hasher.empty_tree_hash());
     }
 
     #[test]
     fn entries_in_single_node_tree() {
         let mut tree = MerkleTree::new(PatchSet::default());
         let key = Key::from(987_654);
-        let output = tree.extend(vec![(key, TreeEntry::new(1, ValueHash::repeat_byte(1)))]);
+        let output = tree.extend(vec![TreeEntry::new(key, 1, ValueHash::repeat_byte(1))]);
         let missing_key = Key::from(123);
 
         let entries = tree.entries(0, &[key, missing_key]).unwrap();
         assert_eq!(entries.len(), 2);
-        assert_eq!(entries[0].value_hash, ValueHash::repeat_byte(1));
+        assert_eq!(entries[0].value, ValueHash::repeat_byte(1));
         assert_eq!(entries[0].leaf_index, 1);
 
         let entries = tree.entries_with_proofs(0, &[key, missing_key]).unwrap();
         assert_eq!(entries.len(), 2);
         assert!(!entries[0].base.is_empty());
-        entries[0].verify(&tree.hasher, key, output.root_hash);
+        entries[0].verify(&tree.hasher, output.root_hash);
         assert!(entries[1].base.is_empty());
-        entries[1].verify(&tree.hasher, missing_key, output.root_hash);
+        entries[1].verify(&tree.hasher, output.root_hash);
     }
 }

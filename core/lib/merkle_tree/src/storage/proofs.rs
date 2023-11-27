@@ -93,14 +93,13 @@ impl TreeUpdater {
         for instruction in instructions {
             let InstructionWithPrecomputes {
                 index,
-                key,
                 instruction,
                 parent_nibbles,
             } = instruction;
 
             let log = match instruction {
                 TreeInstruction::Write(entry) => {
-                    let (log, leaf_data) = self.insert(key, entry, &parent_nibbles);
+                    let (log, leaf_data) = self.insert(entry, &parent_nibbles);
                     let (new_root_hash, merkle_path) = self.update_node_hashes(hasher, &leaf_data);
                     root_hash = new_root_hash;
                     TreeLogEntryWithProof {
@@ -109,7 +108,7 @@ impl TreeUpdater {
                         root_hash,
                     }
                 }
-                TreeInstruction::Read => {
+                TreeInstruction::Read(key) => {
                     let (log, merkle_path) = self.prove(hasher, key, &parent_nibbles);
                     TreeLogEntryWithProof {
                         base: log,
@@ -181,7 +180,7 @@ impl TreeUpdater {
             self.patch_set
                 .create_proof(hasher, key, parent_nibbles, SUBTREE_ROOT_LEVEL / 4);
         let operation = leaf.map_or(TreeLogEntry::ReadMissingKey, |leaf| {
-            TreeLogEntry::Read(leaf.into())
+            TreeLogEntry::read(leaf.leaf_index, leaf.value_hash)
         });
 
         if matches!(operation, TreeLogEntry::ReadMissingKey) {
@@ -257,10 +256,10 @@ impl TreeUpdater {
 impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
     pub fn extend_with_proofs(
         mut self,
-        instructions: Vec<(Key, TreeInstruction)>,
+        instructions: Vec<TreeInstruction>,
     ) -> (BlockOutputWithProofs, PatchSet) {
         let load_nodes_latency = BLOCK_TIMINGS.load_nodes.start();
-        let sorted_keys = SortedKeys::new(instructions.iter().map(|(key, _)| *key));
+        let sorted_keys = SortedKeys::new(instructions.iter().map(TreeInstruction::key));
         let parent_nibbles = self.updater.load_ancestors(&sorted_keys, self.db);
         load_nodes_latency.observe();
 
@@ -341,8 +340,6 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
 struct InstructionWithPrecomputes {
     /// 0-based index of the instruction.
     index: usize,
-    /// Key read / written by the instruction.
-    key: Key,
     instruction: TreeInstruction,
     /// Nibbles for the parent node computed by [`Storage::load_ancestors()`].
     parent_nibbles: Nibbles,
@@ -351,7 +348,7 @@ struct InstructionWithPrecomputes {
 impl InstructionWithPrecomputes {
     /// Creates groups of instructions to be used during parallelized tree traversal.
     fn split(
-        instructions: Vec<(Key, TreeInstruction)>,
+        instructions: Vec<TreeInstruction>,
         parent_nibbles: Vec<Nibbles>,
     ) -> [Vec<Self>; SUBTREE_COUNT] {
         const EMPTY_VEC: Vec<InstructionWithPrecomputes> = Vec::new();
@@ -359,12 +356,11 @@ impl InstructionWithPrecomputes {
 
         let mut parts = [EMPTY_VEC; SUBTREE_COUNT];
         let it = instructions.into_iter().zip(parent_nibbles);
-        for (index, ((key, instruction), parent_nibbles)) in it.enumerate() {
-            let first_nibble = Nibbles::nibble(&key, 0);
+        for (index, (instruction, parent_nibbles)) in it.enumerate() {
+            let first_nibble = Nibbles::nibble(&instruction.key(), 0);
             let part = &mut parts[first_nibble as usize];
             part.push(Self {
                 index,
-                key,
                 instruction,
                 parent_nibbles,
             });
@@ -396,9 +392,9 @@ mod tests {
         let db = PatchSet::default();
         let storage = Storage::new(&db, &(), 0, true);
         let instructions = vec![
-            (byte_key(1), TreeInstruction::Read),
-            (byte_key(2), TreeInstruction::Read),
-            (byte_key(0xff), TreeInstruction::Read),
+            TreeInstruction::Read(byte_key(1)),
+            TreeInstruction::Read(byte_key(2)),
+            TreeInstruction::Read(byte_key(0xff)),
         ];
         let (block_output, patch) = storage.extend_with_proofs(instructions);
         assert_eq!(block_output.leaf_count, 0);

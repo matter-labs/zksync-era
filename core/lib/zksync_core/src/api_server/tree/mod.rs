@@ -34,6 +34,7 @@ struct TreeProofsResponse {
     entries: Vec<TreeEntryWithProof>,
 }
 
+// FIXME: remove in favor of `StorageProof`?
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct TreeEntryWithProof {
     #[serde(default, skip_serializing_if = "H256::is_zero")]
@@ -54,7 +55,7 @@ impl TreeEntryWithProof {
         let mut merkle_path = src.merkle_path;
         merkle_path.reverse(); // Use root-to-leaf enumeration direction as in Ethereum
         Self {
-            value: src.base.value_hash,
+            value: src.base.value,
             index: src.base.leaf_index,
             merkle_path,
         }

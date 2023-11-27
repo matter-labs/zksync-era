@@ -16,18 +16,42 @@ pub type ValueHash = H256;
 
 /// Instruction to read or write a tree value at a certain key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TreeInstruction {
-    /// Read the current tree value.
-    Read,
-    /// Write the specified value.
-    Write(TreeEntry),
+pub enum TreeInstruction<K = Key> {
+    /// Read the current tree value at the specified key.
+    Read(K),
+    /// Write the specified entry.
+    Write(TreeEntry<K>),
+}
+
+impl<K: Copy> TreeInstruction<K> {
+    /// Creates a write instruction.
+    pub fn write(key: K, leaf_index: u64, value: ValueHash) -> Self {
+        Self::Write(TreeEntry::new(key, leaf_index, value))
+    }
+
+    /// Returns the tree key this instruction is related to.
+    pub fn key(&self) -> K {
+        match self {
+            Self::Read(key) => *key,
+            Self::Write(entry) => entry.key,
+        }
+    }
+
+    pub(crate) fn map_key<U>(&self, map_fn: impl FnOnce(&K) -> U) -> TreeInstruction<U> {
+        match self {
+            Self::Read(key) => TreeInstruction::Read(map_fn(key)),
+            Self::Write(entry) => TreeInstruction::Write(entry.map_key(map_fn)),
+        }
+    }
 }
 
 /// Entry in a Merkle tree associated with a key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TreeEntry {
+pub struct TreeEntry<K = Key> {
+    /// Tree key.
+    pub key: K,
     /// Value associated with the key.
-    pub value_hash: ValueHash,
+    pub value: ValueHash,
     /// Enumeration index of the key.
     pub leaf_index: u64,
 }
@@ -35,31 +59,40 @@ pub struct TreeEntry {
 impl From<LeafNode> for TreeEntry {
     fn from(leaf: LeafNode) -> Self {
         Self {
-            value_hash: leaf.value_hash,
+            key: leaf.full_key,
+            value: leaf.value_hash,
             leaf_index: leaf.leaf_index,
         }
     }
 }
 
-impl TreeEntry {
+impl<K> TreeEntry<K> {
     /// Creates a new entry with the specified fields.
-    pub fn new(leaf_index: u64, value_hash: ValueHash) -> Self {
+    pub fn new(key: K, leaf_index: u64, value: ValueHash) -> Self {
         Self {
-            value_hash,
+            key,
+            value,
             leaf_index,
         }
     }
 
-    pub(crate) fn empty() -> Self {
+    pub(crate) fn map_key<U>(&self, map_fn: impl FnOnce(&K) -> U) -> TreeEntry<U> {
+        TreeEntry::new(map_fn(&self.key), self.leaf_index, self.value)
+    }
+}
+
+impl TreeEntry {
+    pub(crate) fn empty(key: Key) -> Self {
         Self {
-            value_hash: ValueHash::zero(),
+            key,
+            value: ValueHash::zero(),
             leaf_index: 0,
         }
     }
 
     /// Returns `true` iff this entry encodes lack of a value.
     pub fn is_empty(&self) -> bool {
-        self.leaf_index == 0 && self.value_hash.is_zero()
+        self.leaf_index == 0 && self.value.is_zero()
     }
 
     pub(crate) fn with_merkle_path(self, merkle_path: Vec<ValueHash>) -> TreeEntryWithProof {
@@ -71,8 +104,8 @@ impl TreeEntry {
 
     /// Replaces the value in this entry and returns the modified entry.
     #[must_use]
-    pub fn with_value(self, value_hash: H256) -> Self {
-        Self { value_hash, ..self }
+    pub fn with_value(self, value: H256) -> Self {
+        Self { value, ..self }
     }
 }
 
@@ -109,14 +142,35 @@ pub enum TreeLogEntry {
     /// A node was inserted into the tree.
     Inserted,
     /// A node with the specified index was updated.
-    Updated(TreeEntry),
+    Updated {
+        /// Index of the updated node.
+        leaf_index: u64,
+        /// Hash of the previous value.
+        previous_value: ValueHash,
+    },
     /// A node was read from the tree.
-    Read(TreeEntry),
+    Read {
+        /// Index of the read node.
+        leaf_index: u64,
+        /// Hash of the read value.
+        value: ValueHash,
+    },
     /// A missing key was read.
     ReadMissingKey,
 }
 
 impl TreeLogEntry {
+    pub(crate) fn update(leaf_index: u64, previous_value: ValueHash) -> Self {
+        Self::Updated {
+            leaf_index,
+            previous_value,
+        }
+    }
+
+    pub(crate) fn read(leaf_index: u64, value: ValueHash) -> Self {
+        Self::Read { leaf_index, value }
+    }
+
     pub(crate) fn is_read(&self) -> bool {
         matches!(self, Self::Read { .. } | Self::ReadMissingKey)
     }

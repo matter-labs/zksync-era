@@ -18,7 +18,6 @@ pub use self::{
 use crate::{
     hasher::HashTree,
     metrics::{TreeUpdaterStats, BLOCK_TIMINGS, GENERAL_METRICS},
-    recovery::RecoveryEntry,
     types::{
         BlockOutput, ChildRef, InternalNode, Key, LeafNode, Manifest, Nibbles, Node, Root,
         TreeEntry, TreeLogEntry, TreeTags, ValueHash,
@@ -131,15 +130,16 @@ impl TreeUpdater {
     /// hashes for all updated nodes in [`Self::finalize()`].
     fn insert(
         &mut self,
-        key: Key,
         entry: TreeEntry,
         parent_nibbles: &Nibbles,
     ) -> (TreeLogEntry, NewLeafData) {
         let version = self.patch_set.root_version();
+        let key = entry.key;
+
         let traverse_outcome = self.patch_set.traverse(key, parent_nibbles);
         let (log, leaf_data) = match traverse_outcome {
             TraverseOutcome::LeafMatch(nibbles, mut leaf) => {
-                let log = TreeLogEntry::Updated(leaf.into());
+                let log = TreeLogEntry::update(leaf.leaf_index, leaf.value_hash);
                 leaf.update_from(entry);
                 self.patch_set.insert(nibbles, leaf.into());
                 self.metrics.updated_leaves += 1;
@@ -171,7 +171,7 @@ impl TreeUpdater {
                     nibble_idx += 1;
                 }
 
-                let new_leaf = LeafNode::new(key, entry);
+                let new_leaf = LeafNode::new(entry);
                 let new_leaf_nibbles = Nibbles::new(&key, nibble_idx + 1);
                 let leaf_data = NewLeafData::new(new_leaf_nibbles, new_leaf);
                 let moved_leaf_nibbles = Nibbles::new(&leaf.full_key, nibble_idx + 1);
@@ -181,7 +181,7 @@ impl TreeUpdater {
 
             TraverseOutcome::MissingChild(nibbles) if nibbles.nibble_count() == 0 => {
                 // The root is currently empty; we replace it with a leaf.
-                let root_leaf = LeafNode::new(key, entry);
+                let root_leaf = LeafNode::new(entry);
                 self.set_root_node(root_leaf.into());
                 let leaf_data = NewLeafData::new(Nibbles::EMPTY, root_leaf);
                 (TreeLogEntry::Inserted, leaf_data)
@@ -193,7 +193,7 @@ impl TreeUpdater {
                     unreachable!("Node parent must be an internal node");
                 };
                 parent.insert_child_ref(last_nibble, ChildRef::leaf(version));
-                let new_leaf = LeafNode::new(key, entry);
+                let new_leaf = LeafNode::new(entry);
                 let leaf_data = NewLeafData::new(nibbles, new_leaf);
                 (TreeLogEntry::Inserted, leaf_data)
             }
@@ -283,17 +283,17 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
 
     /// Extends the Merkle tree in the lightweight operation mode, without intermediate hash
     /// computations.
-    pub fn extend(mut self, key_value_pairs: Vec<(Key, TreeEntry)>) -> (BlockOutput, PatchSet) {
+    pub fn extend(mut self, entries: Vec<TreeEntry>) -> (BlockOutput, PatchSet) {
         let load_nodes_latency = BLOCK_TIMINGS.load_nodes.start();
-        let sorted_keys = SortedKeys::new(key_value_pairs.iter().map(|(key, _)| *key));
+        let sorted_keys = SortedKeys::new(entries.iter().map(|entry| entry.key));
         let parent_nibbles = self.updater.load_ancestors(&sorted_keys, self.db);
         let load_nodes_latency = load_nodes_latency.observe();
         tracing::debug!("Load stage took {load_nodes_latency:?}");
 
         let extend_patch_latency = BLOCK_TIMINGS.extend_patch.start();
-        let mut logs = Vec::with_capacity(key_value_pairs.len());
-        for ((key, entry), parent_nibbles) in key_value_pairs.into_iter().zip(parent_nibbles) {
-            let (log, _) = self.updater.insert(key, entry, &parent_nibbles);
+        let mut logs = Vec::with_capacity(entries.len());
+        for (entry, parent_nibbles) in entries.into_iter().zip(parent_nibbles) {
+            let (log, _) = self.updater.insert(entry, &parent_nibbles);
             if matches!(log, TreeLogEntry::Inserted) {
                 self.leaf_count += 1;
             }
@@ -316,10 +316,7 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
         Some(self.updater.load_greatest_key(self.db)?.0.full_key)
     }
 
-    pub fn extend_during_linear_recovery(
-        mut self,
-        recovery_entries: Vec<RecoveryEntry>,
-    ) -> PatchSet {
+    pub fn extend_during_linear_recovery(mut self, recovery_entries: Vec<TreeEntry>) -> PatchSet {
         let (mut prev_key, mut prev_nibbles) = match self.updater.load_greatest_key(self.db) {
             Some((leaf, nibbles)) => (Some(leaf.full_key), nibbles),
             None => (None, Nibbles::EMPTY),
@@ -338,9 +335,7 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
 
             let key_nibbles = Nibbles::new(&entry.key, prev_nibbles.nibble_count());
             let parent_nibbles = prev_nibbles.common_prefix(&key_nibbles);
-            let (_, new_leaf) = self
-                .updater
-                .insert(entry.key, entry.into(), &parent_nibbles);
+            let (_, new_leaf) = self.updater.insert(entry, &parent_nibbles);
             prev_nibbles = new_leaf.nibbles;
             self.leaf_count += 1;
         }
@@ -351,10 +346,7 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
         patch
     }
 
-    pub fn extend_during_random_recovery(
-        mut self,
-        recovery_entries: Vec<RecoveryEntry>,
-    ) -> PatchSet {
+    pub fn extend_during_random_recovery(mut self, recovery_entries: Vec<TreeEntry>) -> PatchSet {
         let load_nodes_latency = BLOCK_TIMINGS.load_nodes.start();
         let sorted_keys = SortedKeys::new(recovery_entries.iter().map(|entry| entry.key));
         let parent_nibbles = self.updater.load_ancestors(&sorted_keys, self.db);
@@ -363,8 +355,7 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
 
         let extend_patch_latency = BLOCK_TIMINGS.extend_patch.start();
         for (entry, parent_nibbles) in recovery_entries.into_iter().zip(parent_nibbles) {
-            self.updater
-                .insert(entry.key, entry.into(), &parent_nibbles);
+            self.updater.insert(entry, &parent_nibbles);
             self.leaf_count += 1;
         }
         let extend_patch_latency = extend_patch_latency.observe();

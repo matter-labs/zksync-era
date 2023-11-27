@@ -209,10 +209,10 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     /// # Return value
     ///
     /// Returns information about the update such as the final tree hash.
-    pub fn extend(&mut self, key_value_pairs: Vec<(Key, TreeEntry)>) -> BlockOutput {
+    pub fn extend(&mut self, entries: Vec<TreeEntry>) -> BlockOutput {
         let next_version = self.db.manifest().unwrap_or_default().version_count;
         let storage = Storage::new(&self.db, &self.hasher, next_version, true);
-        let (output, patch) = storage.extend(key_value_pairs);
+        let (output, patch) = storage.extend(entries);
         self.db.apply_patch(patch);
         output
     }
@@ -226,7 +226,7 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     /// instruction.
     pub fn extend_with_proofs(
         &mut self,
-        instructions: Vec<(Key, TreeInstruction)>,
+        instructions: Vec<TreeInstruction>,
     ) -> BlockOutputWithProofs {
         let next_version = self.db.manifest().unwrap_or_default().version_count;
         let storage = Storage::new(&self.db, &self.hasher, next_version, true);

@@ -5,11 +5,10 @@ use test_casing::test_casing;
 
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
-    recovery::{MerkleTreeRecovery, RecoveryEntry},
-    Database, MerkleTree, PatchSet, PruneDatabase, ValueHash,
+    recovery::MerkleTreeRecovery, Database, MerkleTree, PatchSet, PruneDatabase, ValueHash,
 };
 
-use crate::common::{convert_to_writes, generate_key_value_pairs, TreeMap, KVS_AND_HASH};
+use crate::common::{convert_to_writes, generate_key_value_pairs, TreeMap, ENTRIES_AND_HASH};
 
 #[derive(Debug, Clone, Copy)]
 enum RecoveryKind {
@@ -23,13 +22,8 @@ impl RecoveryKind {
 
 #[test]
 fn recovery_basics() {
-    let (kvs, expected_hash) = &*KVS_AND_HASH;
-    let recovery_entries = kvs.iter().map(|&(key, entry)| RecoveryEntry {
-        key,
-        value: entry.value_hash,
-        leaf_index: entry.leaf_index,
-    });
-    let mut recovery_entries: Vec<_> = recovery_entries.collect();
+    let (kvs, expected_hash) = &*ENTRIES_AND_HASH;
+    let mut recovery_entries: Vec<_> = kvs.clone();
     recovery_entries.sort_unstable_by_key(|entry| entry.key);
     let greatest_key = recovery_entries[99].key;
 
@@ -45,13 +39,8 @@ fn recovery_basics() {
 }
 
 fn test_recovery_in_chunks(mut db: impl PruneDatabase, kind: RecoveryKind, chunk_size: usize) {
-    let (kvs, expected_hash) = &*KVS_AND_HASH;
-    let recovery_entries = kvs.iter().map(|&(key, entry)| RecoveryEntry {
-        key,
-        value: entry.value_hash,
-        leaf_index: entry.leaf_index,
-    });
-    let mut recovery_entries: Vec<_> = recovery_entries.collect();
+    let (kvs, expected_hash) = &*ENTRIES_AND_HASH;
+    let mut recovery_entries = kvs.clone();
     if matches!(kind, RecoveryKind::Linear) {
         recovery_entries.sort_unstable_by_key(|entry| entry.key);
     }
@@ -101,13 +90,13 @@ fn test_tree_after_recovery<DB: Database>(
     let mut rng = StdRng::seed_from_u64(RNG_SEED);
     let mut kvs = generate_key_value_pairs(100..=150);
     let mut modified_kvs = generate_key_value_pairs(50..=100);
-    for (_, entry) in &mut modified_kvs {
-        entry.value_hash = ValueHash::repeat_byte(1);
+    for entry in &mut modified_kvs {
+        entry.value = ValueHash::repeat_byte(1);
     }
     modified_kvs.shuffle(&mut rng);
     kvs.extend(modified_kvs);
 
-    let mut tree_map = TreeMap::new(&KVS_AND_HASH.0);
+    let mut tree_map = TreeMap::new(&ENTRIES_AND_HASH.0);
     let mut prev_root_hash = root_hash;
     for (i, chunk) in kvs.chunks(CHUNK_SIZE).enumerate() {
         tree_map.extend(chunk);

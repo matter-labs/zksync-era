@@ -275,8 +275,8 @@ mod tests {
     fn prepare_database() -> PatchSet {
         let mut tree = MerkleTree::new(PatchSet::default());
         tree.extend(vec![
-            (FIRST_KEY, TreeEntry::new(1, H256([1; 32]))),
-            (SECOND_KEY, TreeEntry::new(2, H256([2; 32]))),
+            TreeEntry::new(FIRST_KEY, 1, H256([1; 32])),
+            TreeEntry::new(SECOND_KEY, 2, H256([2; 32])),
         ]);
         tree.db
     }

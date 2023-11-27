@@ -332,16 +332,16 @@ pub struct LeafNode {
 }
 
 impl LeafNode {
-    pub(crate) fn new(full_key: Key, entry: TreeEntry) -> Self {
+    pub(crate) fn new(entry: TreeEntry) -> Self {
         Self {
-            full_key,
-            value_hash: entry.value_hash,
+            full_key: entry.key,
+            value_hash: entry.value,
             leaf_index: entry.leaf_index,
         }
     }
 
     pub(crate) fn update_from(&mut self, entry: TreeEntry) {
-        self.value_hash = entry.value_hash;
+        self.value_hash = entry.value;
         self.leaf_index = entry.leaf_index;
     }
 }
