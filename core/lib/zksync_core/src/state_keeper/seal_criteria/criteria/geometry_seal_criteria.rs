@@ -119,7 +119,7 @@ impl MetricExtractor for MaxCyclesCriterion {
 impl MetricExtractor for ComputationalGasCriterion {
     const PROM_METRIC_CRITERION_NAME: &'static str = "computational_gas";
 
-    fn limit_per_block(protocol_version_id: ProtocolVersionId) -> usize {
+    fn limit_per_block(_protocol_version_id: ProtocolVersionId) -> usize {
         // We subtract constant to take into account that circuits may be not fully filled.
         // This constant should be greater than number of circuits types
         // but we keep it larger to be on the safe side.
