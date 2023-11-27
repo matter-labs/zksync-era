@@ -70,7 +70,8 @@ impl RemoteSynthesizer for SynthesizedCircuitProvider {
                     queue_free_slots,
                     assembly_queue.capacity()
                 );
-                let label: &'static str = &assembly_queue.capacity().to_string();
+                let label: &'static str =
+                    Box::leak(assembly_queue.capacity().to_string().into_boxed_str());
                 PROVER_METRICS.queue_free_slots[&label].observe(queue_free_slots as f64);
 
                 Some(Box::new(Cursor::new(blob)))
