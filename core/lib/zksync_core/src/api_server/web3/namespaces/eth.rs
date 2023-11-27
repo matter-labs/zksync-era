@@ -861,9 +861,8 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
                 *from_block = logs
                     .last()
-                    .map(|log| MiniblockNumber(log.block_number.unwrap().as_u32()))
-                    .unwrap_or(*from_block);
-                // FIXME: why is `from_block` not updated?
+                    .map(|log| MiniblockNumber(log.block_number.unwrap().as_u32() + 1))
+                    .unwrap_or(*from_block + 1);
                 FilterChanges::Logs(logs)
             }
         };
