@@ -46,7 +46,7 @@ function extractQueryFromRustString(query: string): string {
         query = query.slice(3, query.length - 2);
     }
 
-    //getting rid of all "/" characters, both from escapes and line breaks
+    //getting rid of all "\" characters, both from escapes and line breaks
     query = query.replace(/\\/g, '');
 
     return query;
@@ -154,8 +154,9 @@ async function formatFile(filePath: string, check: boolean) {
             ) {
                 isInsideQuery = false;
                 let endedWithComma = builtQuery.trimEnd().endsWith(',');
-                let formattedQuery = formatRustStringQuery(builtQuery).trimEnd() + (endedWithComma ? ',' : '') + '\n';
-                modifiedFile += formattedQuery;
+                modifiedFile += formatRustStringQuery(builtQuery).trimEnd();
+                modifiedFile += endedWithComma ? ',' : '';
+                modifiedFile += '\n';
             }
         } else {
             modifiedFile += line + '\n';
