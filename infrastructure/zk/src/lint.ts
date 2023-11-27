@@ -38,10 +38,6 @@ async function lintSystemContracts(check: boolean = false) {
 
 async function clippy() {
     process.chdir(process.env.ZKSYNC_HOME!);
-    const { stdout: rustVersion } = await utils.exec('rustc --version');
-    console.log(`linting using rustc: ${rustVersion.trim()}`);
-    const { stdout: version } = await utils.exec('cargo clippy --version');
-    console.log(`linting using clippy: ${version.trim()}`);
     await utils.spawn('cargo clippy --tests -- -D warnings');
 }
 
