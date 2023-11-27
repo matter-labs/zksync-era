@@ -36,22 +36,15 @@ impl BlockOutputWithProofs {
                 assert!(!op.base.is_read());
             }
 
-            let (prev_leaf_index, leaf_index, prev_value) = match op.base {
-                TreeLogEntry::Inserted { leaf_index } => (0, leaf_index, ValueHash::zero()),
-                TreeLogEntry::Updated {
-                    leaf_index,
-                    previous_value,
-                } => (leaf_index, leaf_index, previous_value),
-
-                TreeLogEntry::Read { leaf_index, value } => (leaf_index, leaf_index, value),
-                TreeLogEntry::ReadMissingKey => (0, 0, ValueHash::zero()),
+            let prev_entry = match op.base {
+                TreeLogEntry::Inserted | TreeLogEntry::ReadMissingKey => TreeEntry::empty(),
+                TreeLogEntry::Updated(entry) | TreeLogEntry::Read(entry) => entry,
             };
 
-            let prev_hash =
-                hasher.fold_merkle_path(&op.merkle_path, key, prev_value, prev_leaf_index);
+            let prev_hash = hasher.fold_merkle_path(&op.merkle_path, key, prev_entry);
             assert_eq!(prev_hash, root_hash);
-            if let TreeInstruction::Write(value) = instruction {
-                let next_hash = hasher.fold_merkle_path(&op.merkle_path, key, value, leaf_index);
+            if let TreeInstruction::Write(new_entry) = instruction {
+                let next_hash = hasher.fold_merkle_path(&op.merkle_path, key, new_entry);
                 assert_eq!(next_hash, op.root_hash);
             }
             root_hash = op.root_hash;
@@ -72,12 +65,7 @@ impl TreeEntryWithProof {
                 "Invalid missing value specification: leaf index is zero, but value is non-default"
             );
         }
-        let root_hash = hasher.fold_merkle_path(
-            &self.merkle_path,
-            key,
-            self.base.value_hash,
-            self.base.leaf_index,
-        );
+        let root_hash = hasher.fold_merkle_path(&self.merkle_path, key, self.base);
         assert_eq!(root_hash, trusted_root_hash, "Root hash mismatch");
     }
 }
@@ -146,11 +134,7 @@ impl<'a> TreeRangeDigest<'a> {
         let left_contour: Vec<_> = left_contour.collect();
         Self {
             hasher: HasherWithStats::new(hasher),
-            current_leaf: LeafNode::new(
-                start_key,
-                start_entry.base.value_hash,
-                start_entry.base.leaf_index,
-            ),
+            current_leaf: LeafNode::new(start_key, start_entry.base),
             left_contour: left_contour.try_into().unwrap(),
             // ^ `unwrap()` is safe by construction; `left_contour` will always have necessary length
         }
@@ -188,7 +172,7 @@ impl<'a> TreeRangeDigest<'a> {
         }
         // Record the computed hash.
         self.left_contour[TREE_DEPTH - diverging_level] = hash;
-        self.current_leaf = LeafNode::new(key, entry.value_hash, entry.leaf_index);
+        self.current_leaf = LeafNode::new(key, entry);
     }
 
     /// Finalizes this digest and returns the root hash of the tree.

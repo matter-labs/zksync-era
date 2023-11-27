@@ -114,7 +114,7 @@ mod tests {
     fn entries_in_single_node_tree() {
         let mut tree = MerkleTree::new(PatchSet::default());
         let key = Key::from(987_654);
-        let output = tree.extend(vec![(key, ValueHash::repeat_byte(1))]);
+        let output = tree.extend(vec![(key, TreeEntry::new(1, ValueHash::repeat_byte(1)))]);
         let missing_key = Key::from(123);
 
         let entries = tree.entries(0, &[key, missing_key]).unwrap();

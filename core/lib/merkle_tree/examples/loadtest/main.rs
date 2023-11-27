@@ -15,7 +15,8 @@ use std::{
 
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
-    Database, HashTree, MerkleTree, MerkleTreePruner, PatchSet, RocksDBWrapper, TreeInstruction,
+    Database, HashTree, MerkleTree, MerkleTreePruner, PatchSet, RocksDBWrapper, TreeEntry,
+    TreeInstruction,
 };
 use zksync_storage::{RocksDB, RocksDBOptions};
 use zksync_types::{AccountTreeId, Address, StorageKey, H256, U256};
@@ -135,9 +136,12 @@ impl Cli {
             next_key_idx += new_keys.len() as u64;
 
             next_value_idx += (new_keys.len() + updated_indices.len()) as u64;
-            let values = (next_value_idx..).map(H256::from_low_u64_be);
+            let entries = (next_value_idx..).map(|idx| {
+                // The assigned leaf indices here are not always correct, but it's OK for load test purposes.
+                TreeEntry::new(idx, H256::from_low_u64_be(idx))
+            });
             let updated_keys = Self::generate_keys(updated_indices.into_iter());
-            let kvs = new_keys.into_iter().chain(updated_keys).zip(values);
+            let kvs = new_keys.into_iter().chain(updated_keys).zip(entries);
 
             tracing::info!("Processing block #{version}");
             let start = Instant::now();
@@ -145,7 +149,7 @@ impl Cli {
                 let reads = Self::generate_keys(read_indices.into_iter())
                     .map(|key| (key, TreeInstruction::Read));
                 let instructions = kvs
-                    .map(|(key, hash)| (key, TreeInstruction::Write(hash)))
+                    .map(|(key, entry)| (key, TreeInstruction::Write(entry)))
                     .chain(reads)
                     .collect();
                 let output = tree.extend_with_proofs(instructions);

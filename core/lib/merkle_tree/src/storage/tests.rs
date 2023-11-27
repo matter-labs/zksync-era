@@ -25,7 +25,7 @@ pub(super) fn generate_nodes(version: u64, nibble_counts: &[usize]) -> HashMap<N
     let nodes = nibble_counts.iter().map(|&count| {
         assert_ne!(count, 0);
         let key = Nibbles::new(&FIRST_KEY, count).with_version(version);
-        let node = LeafNode::new(FIRST_KEY, H256::zero(), count as u64);
+        let node = LeafNode::new(FIRST_KEY, TreeEntry::new(count as u64, H256::zero()));
         (key, node.into())
     });
     nodes.collect()
@@ -58,7 +58,7 @@ fn inserting_entries_in_empty_database() {
     let parent_nibbles = updater.load_ancestors(&sorted_keys, &db);
     assert_eq!(parent_nibbles, [Nibbles::EMPTY; 3]);
 
-    updater.insert(FIRST_KEY, H256([1; 32]), &Nibbles::EMPTY, || 1);
+    updater.insert(FIRST_KEY, TreeEntry::new(1, H256([1; 32])), &Nibbles::EMPTY);
 
     let root_node = updater.patch_set.get(&Nibbles::EMPTY).unwrap();
     let Node::Leaf(root_leaf) = root_node else {
@@ -67,10 +67,14 @@ fn inserting_entries_in_empty_database() {
     assert_eq!(root_leaf.full_key, FIRST_KEY);
     assert_eq!(root_leaf.value_hash, H256([1; 32]));
 
-    updater.insert(SECOND_KEY, H256([2; 32]), &Nibbles::EMPTY, || 2);
+    updater.insert(
+        SECOND_KEY,
+        TreeEntry::new(2, H256([2; 32])),
+        &Nibbles::EMPTY,
+    );
     assert_storage_with_2_keys(&updater);
 
-    updater.insert(THIRD_KEY, H256([3; 32]), &Nibbles::EMPTY, || 3);
+    updater.insert(THIRD_KEY, TreeEntry::new(3, H256([3; 32])), &Nibbles::EMPTY);
     assert_storage_with_3_keys(&updater);
 }
 
@@ -151,9 +155,9 @@ fn assert_storage_with_3_keys(updater: &TreeUpdater) {
 #[test]
 fn changing_child_ref_type() {
     let mut updater = TreeUpdater::new(0, Root::Empty);
-    updater.insert(FIRST_KEY, H256([1; 32]), &Nibbles::EMPTY, || 1);
+    updater.insert(FIRST_KEY, TreeEntry::new(1, H256([1; 32])), &Nibbles::EMPTY);
     let e_key = U256([0, 0, 0, 0x_e000_0000_0000_0000]);
-    updater.insert(e_key, H256([2; 32]), &Nibbles::EMPTY, || 2);
+    updater.insert(e_key, TreeEntry::new(2, H256([2; 32])), &Nibbles::EMPTY);
 
     let node = updater.patch_set.get(&Nibbles::EMPTY).unwrap();
     let Node::Internal(node) = node else {
@@ -162,7 +166,11 @@ fn changing_child_ref_type() {
     assert!(node.child_ref(0xd).unwrap().is_leaf);
     assert!(node.child_ref(0xe).unwrap().is_leaf);
 
-    updater.insert(SECOND_KEY, H256([3; 32]), &Nibbles::EMPTY, || 3);
+    updater.insert(
+        SECOND_KEY,
+        TreeEntry::new(3, H256([3; 32])),
+        &Nibbles::EMPTY,
+    );
 
     let node = updater.patch_set.get(&Nibbles::EMPTY).unwrap();
     let Node::Internal(node) = node else {
@@ -176,12 +184,13 @@ fn changing_child_ref_type() {
 fn inserting_node_in_non_empty_database() {
     let mut db = PatchSet::default();
     let storage = Storage::new(&db, &(), 0, true);
-    let kvs = vec![(FIRST_KEY, H256([1; 32])), (SECOND_KEY, H256([2; 32]))];
+    let kvs = vec![
+        (FIRST_KEY, TreeEntry::new(1, H256([1; 32]))),
+        (SECOND_KEY, TreeEntry::new(2, H256([2; 32]))),
+    ];
     let (_, patch) = storage.extend(kvs);
     db.apply_patch(patch);
 
-    let mut count = 2;
-    let mut leaf_index_fn = || increment_counter(&mut count);
     let mut updater = TreeUpdater::new(1, db.root(0).unwrap());
     let sorted_keys = SortedKeys::new([THIRD_KEY, E_KEY, SECOND_KEY].into_iter());
     let parent_nibbles = updater.load_ancestors(&sorted_keys, &db);
@@ -197,20 +206,18 @@ fn inserting_node_in_non_empty_database() {
 
     let (op, _) = updater.insert(
         THIRD_KEY,
-        H256([3; 32]),
+        TreeEntry::new(3, H256([3; 32])),
         &parent_nibbles[0],
-        &mut leaf_index_fn,
     );
-    assert_eq!(op, TreeLogEntry::insert(3));
-    let (op, _) = updater.insert(E_KEY, H256::zero(), &parent_nibbles[1], &mut leaf_index_fn);
-    assert_eq!(op, TreeLogEntry::insert(4));
+    assert_eq!(op, TreeLogEntry::Inserted);
+    let (op, _) = updater.insert(E_KEY, TreeEntry::new(4, H256::zero()), &parent_nibbles[1]);
+    assert_eq!(op, TreeLogEntry::Inserted);
     let (op, _) = updater.insert(
         SECOND_KEY,
-        H256([2; 32]),
+        TreeEntry::new(2, H256([2; 32])),
         &parent_nibbles[2],
-        &mut leaf_index_fn,
     );
-    assert_matches!(op, TreeLogEntry::Updated { leaf_index: 2, .. });
+    assert_matches!(op, TreeLogEntry::Updated(prev) if prev.leaf_index == 2);
     assert_eq!(updater.metrics.new_internal_nodes, 0);
     assert_eq!(updater.metrics.new_leaves, 2);
 
@@ -230,7 +237,10 @@ fn inserting_node_in_non_empty_database() {
 fn inserting_node_in_non_empty_database_with_moved_key() {
     let mut db = PatchSet::default();
     let storage = Storage::new(&db, &(), 0, true);
-    let kvs = vec![(FIRST_KEY, H256([1; 32])), (THIRD_KEY, H256([3; 32]))];
+    let kvs = vec![
+        (FIRST_KEY, TreeEntry::new(1, H256([1; 32]))),
+        (THIRD_KEY, TreeEntry::new(2, H256([3; 32]))),
+    ];
     let (_, patch) = storage.extend(kvs);
     db.apply_patch(patch);
 
@@ -246,8 +256,12 @@ fn inserting_node_in_non_empty_database_with_moved_key() {
         Some(Node::Leaf(_))
     );
 
-    let (op, _) = updater.insert(SECOND_KEY, H256([2; 32]), &parent_nibbles[0], || 3);
-    assert_eq!(op, TreeLogEntry::insert(3));
+    let (op, _) = updater.insert(
+        SECOND_KEY,
+        TreeEntry::new(3, H256([2; 32])),
+        &parent_nibbles[0],
+    );
+    assert_eq!(op, TreeLogEntry::Inserted);
     assert_matches!(
         updater.patch_set.get(&parent_nibbles[0]),
         Some(Node::Internal(_))
@@ -260,7 +274,7 @@ fn inserting_node_in_non_empty_database_with_moved_key() {
 fn proving_keys_existence_and_absence() {
     let mut updater = TreeUpdater::new(0, Root::Empty);
     updater.patch_set.ensure_internal_root_node(); // Necessary for proofs to work.
-    updater.insert(FIRST_KEY, H256([1; 32]), &Nibbles::EMPTY, || 1);
+    updater.insert(FIRST_KEY, TreeEntry::new(1, H256([1; 32])), &Nibbles::EMPTY);
 
     let mut hasher = HasherWithStats::new(&());
     let (op, merkle_path) = updater.prove(&mut hasher, FIRST_KEY, &Nibbles::EMPTY);
@@ -273,7 +287,7 @@ fn proving_keys_existence_and_absence() {
     let merkle_path = finalize_merkle_path(merkle_path, &hasher);
     assert_eq!(merkle_path.len(), 40);
 
-    updater.insert(THIRD_KEY, H256([3; 32]), &Nibbles::EMPTY, || 2);
+    updater.insert(THIRD_KEY, TreeEntry::new(2, H256([3; 32])), &Nibbles::EMPTY);
     let (op, merkle_path) = updater.prove(&mut hasher, FIRST_KEY, &Nibbles::EMPTY);
     assert_matches!(op, TreeLogEntry::Read { .. });
     let merkle_path = finalize_merkle_path(merkle_path, &hasher);
@@ -300,14 +314,20 @@ fn finalize_merkle_path(mut path: MerklePath, hasher: &HasherWithStats<'_>) -> V
 fn reading_keys_does_not_change_child_version() {
     let mut db = PatchSet::default();
     let storage = Storage::new(&db, &(), 0, true);
-    let kvs = vec![(FIRST_KEY, H256([0; 32])), (SECOND_KEY, H256([1; 32]))];
+    let kvs = vec![
+        (FIRST_KEY, TreeEntry::new(1, H256([0; 32]))),
+        (SECOND_KEY, TreeEntry::new(2, H256([1; 32]))),
+    ];
     let (_, patch) = storage.extend(kvs);
     db.apply_patch(patch);
 
     let storage = Storage::new(&db, &(), 1, true);
     let instructions = vec![
         (FIRST_KEY, TreeInstruction::Read),
-        (E_KEY, TreeInstruction::Write(H256([2; 32]))),
+        (
+            E_KEY,
+            TreeInstruction::Write(TreeEntry::new(3, H256([2; 32]))),
+        ),
     ];
 
     let (_, patch) = storage.extend_with_proofs(instructions);
@@ -327,7 +347,10 @@ fn reading_keys_does_not_change_child_version() {
 fn read_ops_are_not_reflected_in_patch() {
     let mut db = PatchSet::default();
     let storage = Storage::new(&db, &(), 0, true);
-    let kvs = vec![(FIRST_KEY, H256([0; 32])), (SECOND_KEY, H256([1; 32]))];
+    let kvs = vec![
+        (FIRST_KEY, TreeEntry::new(1, H256([0; 32]))),
+        (SECOND_KEY, TreeEntry::new(2, H256([1; 32]))),
+    ];
     let (_, patch) = storage.extend(kvs);
     db.apply_patch(patch);
 
@@ -351,7 +374,7 @@ fn read_instructions_do_not_lead_to_copied_nodes(writes_per_block: u64) {
     let mut database = PatchSet::default();
     let storage = Storage::new(&database, &(), 0, true);
     let kvs = (0..key_count)
-        .map(|i| (big_endian_key(i), H256::zero()))
+        .map(|i| (big_endian_key(i), TreeEntry::new(i + 1, H256::zero())))
         .collect();
     let (_, patch) = storage.extend(kvs);
     database.apply_patch(patch);
@@ -363,8 +386,12 @@ fn read_instructions_do_not_lead_to_copied_nodes(writes_per_block: u64) {
             let key = big_endian_key(rng.gen_range(0..key_count));
             (key, TreeInstruction::Read)
         });
-        let writes = (key_count..key_count + writes_per_block)
-            .map(|i| (big_endian_key(i), TreeInstruction::Write(H256::zero())));
+        let writes = (key_count..key_count + writes_per_block).map(|i| {
+            (
+                big_endian_key(i),
+                TreeInstruction::Write(TreeEntry::new(i + 1, H256::zero())),
+            )
+        });
 
         let mut instructions: Vec<_> = reads.chain(writes).collect();
         instructions.shuffle(&mut rng);
@@ -400,7 +427,7 @@ fn replaced_keys_are_correctly_tracked(writes_per_block: usize, with_proofs: boo
     let mut database = PatchSet::default();
     let storage = Storage::new(&database, &(), 0, true);
     let kvs = (0..100)
-        .map(|i| (big_endian_key(i), H256::zero()))
+        .map(|i| (big_endian_key(i), TreeEntry::new(i + 1, H256::zero())))
         .collect();
     let (_, patch) = storage.extend(kvs);
 
@@ -412,7 +439,7 @@ fn replaced_keys_are_correctly_tracked(writes_per_block: usize, with_proofs: boo
         let updates = (0..100)
             .choose_multiple(&mut rng, writes_per_block)
             .into_iter()
-            .map(|i| (big_endian_key(i), H256::zero()));
+            .map(|i| (big_endian_key(i), TreeEntry::new(i + 1, H256::zero())));
 
         let storage = Storage::new(&database, &(), new_version, true);
         let patch = if with_proofs {
@@ -454,14 +481,17 @@ fn assert_replaced_keys(db: &PatchSet, patch: &PatchSet) {
 #[test]
 fn tree_handles_keys_at_terminal_level() {
     let mut db = PatchSet::default();
-    let kvs = (0_u32..100)
-        .map(|i| (Key::from(i), ValueHash::zero()))
+    let kvs = (0_u64..100)
+        .map(|i| (Key::from(i), TreeEntry::new(i + 1, ValueHash::zero())))
         .collect();
     let (_, patch) = Storage::new(&db, &(), 0, true).extend(kvs);
     db.apply_patch(patch);
 
     // Overwrite a key and check that we don't panic.
-    let new_kvs = vec![(Key::from(0), ValueHash::from_low_u64_be(1))];
+    let new_kvs = vec![(
+        Key::from(0),
+        TreeEntry::new(1, ValueHash::from_low_u64_be(1)),
+    )];
     let (_, patch) = Storage::new(&db, &(), 1, true).extend(new_kvs);
 
     assert_eq!(
@@ -690,7 +720,7 @@ fn test_recovery_pruning_equivalence(
     let kvs = (0..100).map(|i| {
         (
             U256([rng.gen(), rng.gen(), rng.gen(), rng.gen()]),
-            ValueHash::repeat_byte(i),
+            TreeEntry::new(u64::from(i) + 1, ValueHash::repeat_byte(i)),
         )
     });
     let kvs: Vec<_> = kvs.collect();

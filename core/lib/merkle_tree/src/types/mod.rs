@@ -5,7 +5,14 @@ mod internal;
 pub(crate) use self::internal::{
     ChildRef, Nibbles, NibblesBytes, StaleNodeKey, TreeTags, HASH_SIZE, KEY_SIZE, TREE_DEPTH,
 };
-pub use self::internal::{InternalNode, Key, LeafNode, Manifest, Node, NodeKey, Root, ValueHash};
+pub use self::internal::{InternalNode, LeafNode, Manifest, Node, NodeKey, Root};
+
+use zksync_types::{H256, U256};
+
+/// Key stored in the tree.
+pub type Key = U256;
+/// Hash type of values and intermediate nodes in the tree.
+pub type ValueHash = H256;
 
 /// Instruction to read or write a tree value at a certain key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -13,11 +20,11 @@ pub enum TreeInstruction {
     /// Read the current tree value.
     Read,
     /// Write the specified value.
-    Write(ValueHash),
+    Write(TreeEntry),
 }
 
 /// Entry in a Merkle tree associated with a key.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TreeEntry {
     /// Value associated with the key.
     pub value_hash: ValueHash,
@@ -35,6 +42,14 @@ impl From<LeafNode> for TreeEntry {
 }
 
 impl TreeEntry {
+    /// Creates a new entry with the specified fields.
+    pub fn new(leaf_index: u64, value_hash: ValueHash) -> Self {
+        Self {
+            value_hash,
+            leaf_index,
+        }
+    }
+
     pub(crate) fn empty() -> Self {
         Self {
             value_hash: ValueHash::zero(),
@@ -52,6 +67,12 @@ impl TreeEntry {
             base: self,
             merkle_path,
         }
+    }
+
+    /// Replaces the value in this entry and returns the modified entry.
+    #[must_use]
+    pub fn with_value(self, value_hash: H256) -> Self {
+        Self { value_hash, ..self }
     }
 }
 
@@ -86,44 +107,16 @@ pub struct BlockOutput {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TreeLogEntry {
     /// A node was inserted into the tree.
-    Inserted {
-        /// Index of the inserted node.
-        leaf_index: u64,
-    },
+    Inserted,
     /// A node with the specified index was updated.
-    Updated {
-        /// Index of the updated node.
-        leaf_index: u64,
-        /// Hash of the previous value.
-        previous_value: ValueHash,
-    },
+    Updated(TreeEntry),
     /// A node was read from the tree.
-    Read {
-        /// Index of the read node.
-        leaf_index: u64,
-        /// Hash of the read value.
-        value: ValueHash,
-    },
+    Read(TreeEntry),
     /// A missing key was read.
     ReadMissingKey,
 }
 
 impl TreeLogEntry {
-    pub(crate) fn insert(leaf_index: u64) -> Self {
-        Self::Inserted { leaf_index }
-    }
-
-    pub(crate) fn update(previous_value: ValueHash, leaf_index: u64) -> Self {
-        Self::Updated {
-            leaf_index,
-            previous_value,
-        }
-    }
-
-    pub(crate) fn read(value: ValueHash, leaf_index: u64) -> Self {
-        Self::Read { leaf_index, value }
-    }
-
     pub(crate) fn is_read(&self) -> bool {
         matches!(self, Self::Read { .. } | Self::ReadMissingKey)
     }

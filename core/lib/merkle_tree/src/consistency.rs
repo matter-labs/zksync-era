@@ -1,5 +1,7 @@
 //! Consistency verification for the Merkle tree.
 
+// FIXME: checking well-formed leaf indices contradicts with supplying them from an external source
+
 use rayon::prelude::*;
 
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -261,7 +263,10 @@ mod tests {
     use std::num::NonZeroU64;
 
     use super::*;
-    use crate::{types::InternalNode, PatchSet};
+    use crate::{
+        types::{InternalNode, TreeEntry},
+        PatchSet,
+    };
     use zksync_types::{H256, U256};
 
     const FIRST_KEY: Key = U256([0, 0, 0, 0x_dead_beef_0000_0000]);
@@ -270,8 +275,8 @@ mod tests {
     fn prepare_database() -> PatchSet {
         let mut tree = MerkleTree::new(PatchSet::default());
         tree.extend(vec![
-            (FIRST_KEY, H256([1; 32])),
-            (SECOND_KEY, H256([2; 32])),
+            (FIRST_KEY, TreeEntry::new(1, H256([1; 32]))),
+            (SECOND_KEY, TreeEntry::new(2, H256([2; 32]))),
         ]);
         tree.db
     }

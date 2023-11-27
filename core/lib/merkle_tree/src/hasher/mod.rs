@@ -11,7 +11,7 @@ pub(crate) use self::nodes::{InternalNodeCache, MerklePath};
 pub use self::proofs::TreeRangeDigest;
 use crate::{
     metrics::HashingStats,
-    types::{Key, ValueHash, TREE_DEPTH},
+    types::{Key, TreeEntry, ValueHash, TREE_DEPTH},
 };
 use zksync_crypto::hasher::{blake2::Blake2Hasher, Hasher};
 
@@ -65,14 +65,8 @@ impl dyn HashTree + '_ {
         empty_hashes.chain(path.iter().copied())
     }
 
-    fn fold_merkle_path(
-        &self,
-        path: &[ValueHash],
-        key: Key,
-        value_hash: ValueHash,
-        leaf_index: u64,
-    ) -> ValueHash {
-        let mut hash = self.hash_leaf(&value_hash, leaf_index);
+    fn fold_merkle_path(&self, path: &[ValueHash], key: Key, entry: TreeEntry) -> ValueHash {
+        let mut hash = self.hash_leaf(&entry.value_hash, entry.leaf_index);
         let full_path = self.extend_merkle_path(path);
         for (depth, adjacent_hash) in full_path.enumerate() {
             hash = if key.bit(depth) {
@@ -254,7 +248,7 @@ mod tests {
         let address: Address = "4b3af74f66ab1f0da3f2e4ec7a3cb99baf1af7b2".parse().unwrap();
         let key = StorageKey::new(AccountTreeId::new(address), H256::zero());
         let key = key.hashed_key_u256();
-        let leaf = LeafNode::new(key, H256([1; 32]), 1);
+        let leaf = LeafNode::new(key, TreeEntry::new(1, H256([1; 32])));
 
         let stats = HashingStats::default();
         let mut hasher = (&Blake2Hasher as &dyn HashTree).with_stats(&stats);
@@ -265,7 +259,7 @@ mod tests {
         assert!(stats.hashed_bytes.into_inner() > 100);
 
         let hasher: &dyn HashTree = &Blake2Hasher;
-        let folded_hash = hasher.fold_merkle_path(&[], key, H256([1; 32]), 1);
+        let folded_hash = hasher.fold_merkle_path(&[], key, leaf.into());
         assert_eq!(folded_hash, EXPECTED_HASH);
     }
 
@@ -274,7 +268,7 @@ mod tests {
         let address: Address = "4b3af74f66ab1f0da3f2e4ec7a3cb99baf1af7b2".parse().unwrap();
         let key = StorageKey::new(AccountTreeId::new(address), H256::zero());
         let key = key.hashed_key_u256();
-        let leaf = LeafNode::new(key, H256([1; 32]), 1);
+        let leaf = LeafNode::new(key, TreeEntry::new(1, H256([1; 32])));
 
         let mut hasher = HasherWithStats::new(&Blake2Hasher);
         let leaf_hash = leaf.hash(&mut hasher, 2);
@@ -285,7 +279,7 @@ mod tests {
 
         let folded_hash = hasher
             .inner
-            .fold_merkle_path(&merkle_path, key, H256([1; 32]), 1);
+            .fold_merkle_path(&merkle_path, key, leaf.into());
         assert_eq!(folded_hash, expected_hash);
     }
 }

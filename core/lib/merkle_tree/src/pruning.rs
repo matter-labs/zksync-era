@@ -187,7 +187,7 @@ mod tests {
     use super::*;
     use crate::{
         types::{Node, NodeKey},
-        Database, Key, MerkleTree, PatchSet, ValueHash,
+        Database, Key, MerkleTree, PatchSet, TreeEntry, ValueHash,
     };
 
     fn create_db() -> PatchSet {
@@ -195,7 +195,7 @@ mod tests {
         for i in 0..5 {
             let key = Key::from(i);
             let value = ValueHash::from_low_u64_be(i);
-            MerkleTree::new(&mut db).extend(vec![(key, value)]);
+            MerkleTree::new(&mut db).extend(vec![(key, TreeEntry::new(i + 1, value))]);
         }
         db
     }
@@ -245,9 +245,12 @@ mod tests {
         assert!(start.elapsed() < Duration::from_secs(10));
     }
 
-    fn generate_key_value_pairs(indexes: impl Iterator<Item = u64>) -> Vec<(Key, ValueHash)> {
+    fn generate_key_value_pairs(indexes: impl Iterator<Item = u64>) -> Vec<(Key, TreeEntry)> {
         indexes
-            .map(|i| (Key::from(i), ValueHash::from_low_u64_be(i)))
+            .map(|i| {
+                let entry = TreeEntry::new(i + 1, ValueHash::from_low_u64_be(i));
+                (Key::from(i), entry)
+            })
             .collect()
     }
 
@@ -318,8 +321,8 @@ mod tests {
         const ITERATIVE_BATCH_COUNT: usize = 10;
 
         let mut db = PatchSet::default();
-        let kvs: Vec<_> = (0_u32..100)
-            .map(|i| (Key::from(i), ValueHash::zero()))
+        let kvs: Vec<_> = (0_u64..100)
+            .map(|i| (Key::from(i), TreeEntry::new(i + 1, ValueHash::zero())))
             .collect();
 
         let batch_count = if initialize_iteratively {
@@ -335,8 +338,8 @@ mod tests {
 
         // Completely overwrite all keys.
         let new_value_hash = ValueHash::from_low_u64_be(1_000);
-        let new_kvs = (0_u32..100)
-            .map(|i| (Key::from(i), new_value_hash))
+        let new_kvs = (0_u64..100)
+            .map(|i| (Key::from(i), TreeEntry::new(i + 1, new_value_hash)))
             .collect();
         MerkleTree::new(&mut db).extend(new_kvs);
 
@@ -364,16 +367,16 @@ mod tests {
         prune_iteratively: bool,
     ) {
         let mut db = PatchSet::default();
-        let kvs: Vec<_> = (0_u32..100)
-            .map(|i| (Key::from(i), ValueHash::zero()))
+        let kvs: Vec<_> = (0_u64..100)
+            .map(|i| (Key::from(i), TreeEntry::new(i + 1, ValueHash::zero())))
             .collect();
         MerkleTree::new(&mut db).extend(kvs);
         let leaf_keys_in_db = leaf_keys(&mut db);
 
         // Completely overwrite all keys in several batches.
         let new_value_hash = ValueHash::from_low_u64_be(1_000);
-        let new_kvs: Vec<_> = (0_u32..100)
-            .map(|i| (Key::from(i), new_value_hash))
+        let new_kvs: Vec<_> = (0_u64..100)
+            .map(|i| (Key::from(i), TreeEntry::new(i + 1, new_value_hash)))
             .collect();
         for chunk in new_kvs.chunks(20) {
             MerkleTree::new(&mut db).extend(chunk.to_vec());

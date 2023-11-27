@@ -40,7 +40,7 @@ use std::time::Instant;
 use crate::{
     hasher::{HashTree, HasherWithStats},
     storage::{PatchSet, PruneDatabase, PrunePatchSet, Storage},
-    types::{Key, Manifest, Root, TreeTags, ValueHash},
+    types::{Key, Manifest, Root, TreeEntry, TreeTags, ValueHash},
     MerkleTree,
 };
 use zksync_crypto::hasher::blake2::Blake2Hasher;
@@ -55,6 +55,15 @@ pub struct RecoveryEntry {
     /// Leaf index associated with the entry. It is **not** checked whether leaf indices are well-formed
     /// during recovery (e.g., that they are unique).
     pub leaf_index: u64,
+}
+
+impl From<RecoveryEntry> for TreeEntry {
+    fn from(entry: RecoveryEntry) -> Self {
+        Self {
+            value_hash: entry.value,
+            leaf_index: entry.leaf_index,
+        }
+    }
 }
 
 /// Handle to a Merkle tree during its recovery.
@@ -292,12 +301,7 @@ mod tests {
         let mut hasher = HasherWithStats::new(&Blake2Hasher);
         assert_eq!(
             tree.latest_root_hash(),
-            LeafNode::new(
-                recovery_entry.key,
-                recovery_entry.value,
-                recovery_entry.leaf_index
-            )
-            .hash(&mut hasher, 0)
+            LeafNode::new(recovery_entry.key, recovery_entry.into(),).hash(&mut hasher, 0)
         );
         tree.verify_consistency(42).unwrap();
     }

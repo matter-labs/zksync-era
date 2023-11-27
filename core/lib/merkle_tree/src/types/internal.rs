@@ -4,10 +4,9 @@
 
 use std::{fmt, num::NonZeroU64};
 
-use zksync_types::{H256, U256};
-
 use crate::{
     hasher::{HashTree, InternalNodeCache},
+    types::{Key, TreeEntry, ValueHash},
     utils::SmallMap,
 };
 
@@ -323,11 +322,6 @@ impl fmt::Display for NodeKey {
     }
 }
 
-/// Key stored in the tree.
-pub type Key = U256;
-/// Hashed value stored in the tree.
-pub type ValueHash = H256;
-
 /// Leaf node of the tree.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
@@ -338,12 +332,17 @@ pub struct LeafNode {
 }
 
 impl LeafNode {
-    pub(crate) fn new(full_key: Key, value_hash: ValueHash, leaf_index: u64) -> Self {
+    pub(crate) fn new(full_key: Key, entry: TreeEntry) -> Self {
         Self {
             full_key,
-            value_hash,
-            leaf_index,
+            value_hash: entry.value_hash,
+            leaf_index: entry.leaf_index,
         }
+    }
+
+    pub(crate) fn update_from(&mut self, entry: TreeEntry) {
+        self.value_hash = entry.value_hash;
+        self.leaf_index = entry.leaf_index;
     }
 }
 
@@ -556,6 +555,7 @@ impl StaleNodeKey {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use zksync_types::U256;
 
     // `U256` uses little-endian `u64` ordering; i.e., this is
     // 0x_dead_beef_0000_0000_.._0000.
