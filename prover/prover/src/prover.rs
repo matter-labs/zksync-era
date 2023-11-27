@@ -66,7 +66,7 @@ impl ProverReporter {
             duration,
         );
 
-        let label: &'static str = &circuit_type;
+        let label: &'static str = Box::leak(circuit_type.into_boxed_str());
         PROVER_METRICS.proof_generation_time[&label].observe(duration);
 
         let job_id = job_id as u32;
@@ -187,7 +187,7 @@ impl JobReporter for ProverReporter {
                     circuit_type,
                     duration,
                 );
-                let label: &'static str = &circuit_type;
+                let label: &'static str = Box::leak(circuit_type.into_boxed_str());
                 PROVER_METRICS.circuit_synthesis_time[&label].observe(duration);
             }
 
@@ -199,7 +199,7 @@ impl JobReporter for ProverReporter {
                     circuit_type,
                     duration,
                 );
-                let label: &'static str = &circuit_type;
+                let label: &'static str = Box::leak(circuit_type.into_boxed_str());
                 PROVER_METRICS.assembly_finalize_time[&label].observe(duration);
             }
 
@@ -213,7 +213,7 @@ impl JobReporter for ProverReporter {
                     duration,
                     cache_miss
                 );
-                let label: &'static str = &circuit_type;
+                let label: &'static str = Box::leak(circuit_type.into_boxed_str());
                 PROVER_METRICS.setup_load_time[&label].observe(duration);
                 PROVER_METRICS.setup_loading_cache_miss[&label].inc();
             }
@@ -226,7 +226,7 @@ impl JobReporter for ProverReporter {
                     circuit_type,
                     duration,
                 );
-                let label: &'static str = &circuit_type;
+                let label: &'static str = Box::leak(circuit_type.into_boxed_str());
                 PROVER_METRICS.assembly_encoding_time[&label].observe(duration);
             }
 
@@ -238,7 +238,7 @@ impl JobReporter for ProverReporter {
                     circuit_type,
                     duration,
                 );
-                let label: &'static str = &circuit_type;
+                let label: &'static str = Box::leak(circuit_type.into_boxed_str());
                 PROVER_METRICS.assembly_decoding_time[&label].observe(duration);
             }
 
@@ -266,7 +266,7 @@ impl JobReporter for ProverReporter {
                     circuit_type,
                     duration,
                 );
-                let label: &'static str = &circuit_type;
+                let label: &'static str = Box::leak(circuit_type.into_boxed_str());
                 PROVER_METRICS.assembly_transferring_time[&label].observe(duration);
             }
 
