@@ -144,8 +144,9 @@ async function formatFile(filePath: string, check: boolean) {
         }
 
         if (isInsideQuery) {
-            const rawStringQueryEnded = (line.endsWith('"#,') || line.endsWith('"#')) && builtQuery;
-            const regularStringQueryEnded = (line.endsWith('",') || line.endsWith('"')) && builtQuery;
+            const queryNotEmpty = builtQuery || line.trim().length > 1;
+            const rawStringQueryEnded = line.endsWith('"#,') || line.endsWith('"#');
+            const regularStringQueryEnded = (line.endsWith('",') || line.endsWith('"')) && queryNotEmpty;
             builtQuery += line + '\n';
             const lineEndIsNotEscape = !line.endsWith('\\"') && !line.endsWith('\\",');
             if (
