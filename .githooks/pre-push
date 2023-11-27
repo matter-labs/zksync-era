@@ -15,6 +15,6 @@ fi
 
 if ! zk db check-sqlx-data; then
     echo -e "${RED}Commit error!${NC}"
-    echo "Please run update sqlx-data.json using 'zk db setup', cannot push invalid sqlx-data.json file"
+    echo "Please update sqlx-data.json via 'zk db setup', cannot push invalid sqlx-data.json file"
     exit 1
 fi
