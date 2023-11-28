@@ -4,7 +4,6 @@ services:
     image: "matterlabs/geth:latest"
     environment:
       - PLUGIN_CONFIG
-
   zk:
     image: "matterlabs/zk-environment:latest2.0-lightweight"
     depends_on:

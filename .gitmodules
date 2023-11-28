@@ -1,6 +1,8 @@
 [submodule "etc/system-contracts"]
 path = etc/system-contracts
 url = https://github.com/matter-labs/era-system-contracts.git
+branch = 1.3.17-solc-update
 [submodule "contracts"]
 path = contracts
 url = https://github.com/matter-labs/era-contracts.git
+branch = 1.3.17-solc-update
