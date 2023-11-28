@@ -826,6 +826,10 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     .state
                     .resolve_filter_block_number(filter.to_block)
                     .await?;
+                let latest_block = self
+                    .state
+                    .resolve_filter_block_number(Some(BlockNumber::Latest))
+                    .await?;
 
                 let mut storage = self
                     .state
@@ -859,10 +863,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     .get_logs(get_logs_filter, i32::MAX as usize)
                     .await
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
-                *from_block = logs
-                    .last()
-                    .map(|log| MiniblockNumber(log.block_number.unwrap().as_u32() + 1))
-                    .unwrap_or(*from_block);
+                *from_block = to_block.min(latest_block) + 1;
                 FilterChanges::Logs(logs)
             }
         };
