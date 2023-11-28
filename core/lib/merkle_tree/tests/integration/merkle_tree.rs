@@ -179,7 +179,7 @@ fn test_intermediate_commits(db: &mut impl Database, chunk_size: usize) {
 
     let latest_version = tree.latest_version().unwrap();
     for version in 0..=latest_version {
-        tree.verify_consistency(version).unwrap();
+        tree.verify_consistency(version, true).unwrap();
     }
 }
 
@@ -251,7 +251,7 @@ fn test_accumulated_commits<DB: Database>(db: DB, chunk_size: usize) -> DB {
     let tree = MerkleTree::new(&mut db);
     let latest_version = tree.latest_version().unwrap();
     for version in 0..=latest_version {
-        tree.verify_consistency(version).unwrap();
+        tree.verify_consistency(version, true).unwrap();
     }
     db
 }

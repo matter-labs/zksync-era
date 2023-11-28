@@ -164,7 +164,7 @@ impl Cli {
 
         tracing::info!("Verifying tree consistency...");
         let start = Instant::now();
-        tree.verify_consistency(self.commit_count - 1)
+        tree.verify_consistency(self.commit_count - 1, false)
             .expect("tree consistency check failed");
         let elapsed = start.elapsed();
         tracing::info!("Verified tree consistency in {elapsed:?}");

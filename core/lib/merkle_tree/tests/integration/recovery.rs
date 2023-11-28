@@ -35,7 +35,7 @@ fn recovery_basics() {
     assert_eq!(recovery.root_hash(), *expected_hash);
 
     let tree = recovery.finalize();
-    tree.verify_consistency(recovered_version).unwrap();
+    tree.verify_consistency(recovered_version, true).unwrap();
 }
 
 fn test_recovery_in_chunks(mut db: impl PruneDatabase, kind: RecoveryKind, chunk_size: usize) {
@@ -67,7 +67,7 @@ fn test_recovery_in_chunks(mut db: impl PruneDatabase, kind: RecoveryKind, chunk
     assert_eq!(recovery.root_hash(), *expected_hash);
 
     let mut tree = recovery.finalize();
-    tree.verify_consistency(recovered_version).unwrap();
+    tree.verify_consistency(recovered_version, true).unwrap();
     // Check that new tree versions can be built and function as expected.
     test_tree_after_recovery(&mut tree, recovered_version, *expected_hash);
 }
@@ -112,7 +112,7 @@ fn test_tree_after_recovery<DB: Database>(
         };
 
         assert_eq!(new_root_hash, tree_map.root_hash());
-        tree.verify_consistency(recovered_version + i as u64)
+        tree.verify_consistency(recovered_version + i as u64, true)
             .unwrap();
         prev_root_hash = new_root_hash;
     }

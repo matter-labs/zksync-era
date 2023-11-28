@@ -127,7 +127,7 @@ impl Cli {
             recovery_started_at.elapsed()
         );
         let started_at = Instant::now();
-        tree.verify_consistency(recovered_version).unwrap();
+        tree.verify_consistency(recovered_version, true).unwrap();
         tracing::info!("Verified consistency in {:?}", started_at.elapsed());
     }
 }

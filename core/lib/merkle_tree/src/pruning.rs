@@ -273,7 +273,7 @@ mod tests {
 
         let mut tree = MerkleTree::new(&mut db);
         for version in first_retained_version..=latest_version {
-            tree.verify_consistency(version).unwrap();
+            tree.verify_consistency(version, true).unwrap();
         }
 
         let kvs = generate_key_value_pairs(100..200);
@@ -290,7 +290,7 @@ mod tests {
 
         let tree = MerkleTree::new(&mut db);
         for version in first_retained_version..=latest_version {
-            tree.verify_consistency(version).unwrap();
+            tree.verify_consistency(version, true).unwrap();
         }
         assert_no_stale_keys(&db, first_retained_version);
     }

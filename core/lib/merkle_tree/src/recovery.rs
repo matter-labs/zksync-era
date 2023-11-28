@@ -278,6 +278,6 @@ mod tests {
             tree.latest_root_hash(),
             LeafNode::new(recovery_entry).hash(&mut hasher, 0)
         );
-        tree.verify_consistency(42).unwrap();
+        tree.verify_consistency(42, true).unwrap();
     }
 }
