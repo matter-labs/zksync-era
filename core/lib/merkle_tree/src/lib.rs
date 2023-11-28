@@ -26,9 +26,14 @@
 //! - Hash of a vacant leaf is `hash([0_u8; 40])`, where `hash` is the hash function used
 //!   (Blake2s-256).
 //! - Hash of an occupied leaf is `hash(u64::to_be_bytes(leaf_index) ++ value_hash)`,
-//!   where `leaf_index` is the 1-based index of the leaf key in the order of insertion,
+//!   where `leaf_index` is a 1-based index of the leaf key provided when the leaf is inserted / updated,
 //!   `++` is byte concatenation.
 //! - Hash of an internal node is `hash(left_child_hash ++ right_child_hash)`.
+//!
+//! Currently in zksync, leaf indices enumerate leaves in the order of their insertion into the tree.
+//! Indices are computed externally and are provided to the tree as inputs; the tree doesn't verify
+//! index assignment and doesn't rely on particular index assignment assumptions (other than when
+//! [verifying tree consistency](MerkleTree::verify_consistency())).
 //!
 //! [Jellyfish Merkle tree]: https://developers.diem.com/papers/jellyfish-merkle-tree/2021-01-14.pdf
 

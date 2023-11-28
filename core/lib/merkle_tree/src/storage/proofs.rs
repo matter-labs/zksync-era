@@ -15,26 +15,6 @@
 //! with root at level 4 (= 1 nibble). Thus, the patch sets and Merkle proofs
 //! produced by each group are mostly disjoint; they intersect only at the root node level.
 //!
-//! ## Computing leaf indices
-//!
-//! We need to determine leaf indices for all write instructions. Indices potentially depend
-//! on the entire list of `instructions`, so we should determine leaf indices before
-//! parallelization. Otherwise, we'd need to sync between parallelized tasks, which defeats
-//! the purpose of parallelization.
-//!
-//! We precompute indices as a separate step using the following observations:
-//!
-//! - If a leaf is present in the tree *before* `instructions` are applied, its index
-//!   can be obtained from the node ancestors loaded on the first step of the process.
-//! - Otherwise, a leaf may have been added by a previous instruction for the same key.
-//!   Since we already need [`SortedKeys`] to efficiently load ancestors, it's easy
-//!   to determine such pairs of instructions.
-//! - Otherwise, we have a first write, and the leaf index is defined as the current leaf
-//!   count.
-//!
-//! In summary, we can determine leaf indices for all write `instructions` in linear time
-//! and without synchronization required during the parallel steps of the process.
-//!
 //! ## Merging Merkle proofs
 //!
 //! The proofs produced by different groups only intersect at levels 0..4. This can be dealt with
