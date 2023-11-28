@@ -18,6 +18,14 @@ mod tests {
 
     fn expected_config() -> ContractsConfig {
         ContractsConfig {
+            bridgehub_diamond_proxy_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
+            bridgehub_admin_facet_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
+            bridgehub_mailbox_facet_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
+            bridgehub_getters_facet_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
+            bridgehub_diamond_init_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
+            state_transition_proxy_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
+            state_transition_impl_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
+            state_transition_proxy_admin_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
             governance_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
             mailbox_facet_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
             executor_facet_addr: addr("18B631537801963A964211C0E86645c1aBfbB2d3"),

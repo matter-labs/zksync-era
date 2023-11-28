@@ -190,7 +190,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInstance<S, H> {
                 let vm = crate::vm_latest::Vm::new(l1_batch_env, system_env, storage_view);
                 VmInstance::VmBoojumIntegration(vm)
             }
-            VmInstanceVersion::VmBoojumIntegration(vm) => vm.pop_snapshot_no_rollback(),
+            VmVersion::Local => {
+                let vm = crate::vm_latest::Vm::new(l1_batch_env, system_env, storage_view);
+                VmInstance::VmBoojumIntegration(vm)
+            }
         }
     }
 }

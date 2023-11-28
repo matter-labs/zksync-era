@@ -201,7 +201,7 @@ pub async fn start_eth_watch<E: EthInterface + Send + Sync + 'static>(
         eth_gateway,
         state_transition_chain_contract_addr,
         Some(governance.1),
-        eth_watch.confirmations_for_eth_event,
+        config.confirmations_for_eth_event,
     );
 
     let mut eth_watch = EthWatch::new(

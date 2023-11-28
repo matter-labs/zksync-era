@@ -32,8 +32,6 @@ use crate::vm_latest::VmTracer;
 
 use super::PubdataTracer;
 
-use super::PubdataTracer;
-
 /// Default tracer for the VM. It manages the other tracers execution and stop the vm when needed.
 pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     tx_has_been_processed: bool,

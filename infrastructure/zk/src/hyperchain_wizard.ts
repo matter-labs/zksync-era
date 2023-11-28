@@ -382,7 +382,7 @@ async function setupHyperchainProver() {
 
     switch (proverType) {
         case ProverTypeOption.NONE:
-            wrapEnvModify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'SkipEveryProof');
+            env.modify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'SkipEveryProof', process.env.ENV_FILE!);
             env.mergeInitToEnv();
             break;
         default:
@@ -719,10 +719,10 @@ async function configDemoHyperchain(cmd: Command) {
     await compileConfig('demo');
     env.set('demo');
 
-    wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK', 'Zeek hyperchain');
-    wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK_ID', '1337');
-    wrapEnvModify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'SkipEveryProof');
-    wrapEnvModify('ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS', '20');
+    env.modify('CHAIN_ETH_ZKSYNC_NETWORK', 'Zeek hyperchain', process.env.ENV_FILE!);
+    env.modify('CHAIN_ETH_ZKSYNC_NETWORK_ID', '1337', process.env.ENV_FILE!);
+    env.modify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'SkipEveryProof', process.env.ENV_FILE!);
+    env.modify('ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS', '20', process.env.ENV_FILE!);
 
     const richWalletsRaw = await fetch(
         'https://raw.githubusercontent.com/matter-labs/local-setup/main/rich-wallets.json'
@@ -733,9 +733,9 @@ async function configDemoHyperchain(cmd: Command) {
     const deployer = new ethers.Wallet(richWallets[0].privateKey);
     const governor = new ethers.Wallet(richWallets[1].privateKey);
 
-    wrapEnvModify('DEPLOYER_PRIVATE_KEY', deployer.privateKey);
-    wrapEnvModify('GOVERNOR_PRIVATE_KEY', governor.privateKey);
-    wrapEnvModify('GOVERNOR_ADDRESS', governor.address);
+    env.modify('DEPLOYER_PRIVATE_KEY', deployer.privateKey, process.env.ENV_FILE!);
+    env.modify('GOVERNOR_PRIVATE_KEY', governor.privateKey, process.env.ENV_FILE!);
+    env.modify('GOVERNOR_ADDRESS', governor.address, process.env.ENV_FILE!);
 
     env.load();
 

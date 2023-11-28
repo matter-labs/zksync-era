@@ -9,13 +9,6 @@ pub enum ProverAtGenesis {
     Old,
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum ProverAtGenesis {
-    Fri,
-    Old,
-}
-
 /// Data about deployed contracts.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ContractsConfig {
@@ -75,7 +68,7 @@ impl ContractsConfig {
             bridgehub_diamond_init_addr: Address::repeat_byte(0x01),
             state_transition_proxy_addr: Address::repeat_byte(0x01),
             state_transition_impl_addr: Address::repeat_byte(0x01),
-            state_transition_proxy_admin_addr: Address,
+            state_transition_proxy_admin_addr: Address::repeat_byte(0x01),
             mailbox_facet_addr: Address::repeat_byte(0x01),
             executor_facet_addr: Address::repeat_byte(0x02),
             admin_facet_addr: Address::repeat_byte(0x03),

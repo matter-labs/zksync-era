@@ -24,7 +24,7 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
 }
 
 async function initSetup(initArgs: InitArgs = DEFAULT_ARGS) {
-    const { skipSubmodulesCheckout, skipEnvSetup, testTokens,skipPlonkStep } = initArgs;
+    const { skipSubmodulesCheckout, skipEnvSetup, testTokens, skipPlonkStep } = initArgs;
 
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
@@ -47,7 +47,7 @@ async function initSetup(initArgs: InitArgs = DEFAULT_ARGS) {
 }
 
 export async function initBridgehubStateTransition(initArgs: InitArgs = DEFAULT_ARGS) {
-    const { governorPrivateKeyArgs,deployerL2ContractInput } = initArgs;
+    const { governorPrivateKeyArgs, deployerL2ContractInput } = initArgs;
 
     await announced('Building L1 L2 contracts', contract.build());
 
@@ -62,10 +62,14 @@ export async function initBridgehubStateTransition(initArgs: InitArgs = DEFAULT_
     await announced('Running server genesis setup', server.genesisFromSources());
     await announced('Deploying L1 contracts', contract.redeployL1(governorPrivateKeyArgs));
     await announced('Initializing bridges', contract.initializeBridges(governorPrivateKeyArgs));
-    await announced('Initializing governance', contract.initializeGovernance([
-        ...governorPrivateKeyArgs,
-        !deployerL2ContractInput.includeL2WETH ? ['--skip-weth-bridge'] : []
-    ]));
+    await announced(
+        'Initializing governance',
+        contract.initializeGovernance([
+            ...governorPrivateKeyArgs,
+            !deployerL2ContractInput.includeL2WETH ? ['--skip-weth-bridge'] : []
+        ])
+    );
+    await announced('Reloading env', env.reload());
 }
 
 export async function initHyperchain(initArgs: InitArgs = DEFAULT_ARGS) {
@@ -96,10 +100,13 @@ export async function initHyperchain(initArgs: InitArgs = DEFAULT_ARGS) {
     if (deployerL2ContractInput.includeL2WETH) {
         await announced('Initializing L2 WETH token', contract.initializeWethToken(governorPrivateKeyArgs));
     }
-    await announced('Initializing governance of chain', contract.initializeGovernanceChain([
-        ...governorPrivateKeyArgs,
-        !deployerL2ContractInput.includeL2WETH ? ['--skip-weth-bridge'] : []
-    ]));
+    await announced(
+        'Initializing governance of chain',
+        contract.initializeGovernanceChain([
+            ...governorPrivateKeyArgs,
+            !deployerL2ContractInput.includeL2WETH ? ['--skip-weth-bridge'] : []
+        ])
+    );
 }
 
 // A smaller version of `init` that "resets" the localhost environment, for which `init` was already called before.
