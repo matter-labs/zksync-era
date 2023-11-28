@@ -1,5 +1,13 @@
 # Changelog
 
+## [18.3.1](https://github.com/matter-labs/zksync-era/compare/core-v18.3.0...core-v18.3.1) (2023-11-28)
+
+
+### Bug Fixes
+
+* **external-node:** Check txs at insert time instead of read time ([#555](https://github.com/matter-labs/zksync-era/issues/555)) ([9ea02a1](https://github.com/matter-labs/zksync-era/commit/9ea02a1b2e7c861882f10c8cbe1997f6bb96d9cf))
+* Update comments post-hotfix ([#556](https://github.com/matter-labs/zksync-era/issues/556)) ([339e450](https://github.com/matter-labs/zksync-era/commit/339e45035e85eba7d60b533221be92ce78643705))
+
 ## [18.3.0](https://github.com/matter-labs/zksync-era/compare/core-v18.2.0...core-v18.3.0) (2023-11-28)
 
 
