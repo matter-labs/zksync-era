@@ -1,5 +1,37 @@
 # Changelog
 
+## [18.2.0](https://github.com/matter-labs/zksync-era/compare/core-v18.1.0...core-v18.2.0) (2023-11-27)
+
+
+### Features
+
+* **en:** Implement gossip fetcher ([#371](https://github.com/matter-labs/zksync-era/issues/371)) ([a49b61d](https://github.com/matter-labs/zksync-era/commit/a49b61d7769f9dd7b4cbc4905f8f8a23abfb541c))
+* **state-keeper:** reapply computational gas limit ([#544](https://github.com/matter-labs/zksync-era/issues/544)) ([698dbc3](https://github.com/matter-labs/zksync-era/commit/698dbc355af3220bbcb608ced2559362e96204de))
+* **state-keeper:** Remove computational gas limit from boojum protocol version ([#536](https://github.com/matter-labs/zksync-era/issues/536)) ([e59a7c6](https://github.com/matter-labs/zksync-era/commit/e59a7c6552a9c99e56f0d37103386acac6a9c1b5))
+
+
+### Bug Fixes
+
+* **core:** differentiate l2 to l1 logs tree size for pre and post boojum batches ([#538](https://github.com/matter-labs/zksync-era/issues/538)) ([1e9e556](https://github.com/matter-labs/zksync-era/commit/1e9e55651a95b509b5dfd644b8f9f3c718e41804))
+* **proof_data_handler:** Feature flag state_diff_hash check ([#545](https://github.com/matter-labs/zksync-era/issues/545)) ([0cab378](https://github.com/matter-labs/zksync-era/commit/0cab378886d4408a28bb1b71afb3e46c0b82a7c6))
+* **prover:** use a more performant query to get next job for FRI prover ([#527](https://github.com/matter-labs/zksync-era/issues/527)) ([2cddf3c](https://github.com/matter-labs/zksync-era/commit/2cddf3c0fa786394161060445aa8a085173e3f71))
+
+## [18.1.0](https://github.com/matter-labs/zksync-era/compare/core-v18.0.3...core-v18.1.0) (2023-11-20)
+
+
+### Features
+
+* added consensus types and consensus column to miniblocks table ([#490](https://github.com/matter-labs/zksync-era/issues/490)) ([f9ae0ad](https://github.com/matter-labs/zksync-era/commit/f9ae0ad56b17fffa4b400ec2376517a2b630b862))
+* Adds `prover_group_id` label into `fri_prover_prover_job` metric ([#503](https://github.com/matter-labs/zksync-era/issues/503)) ([851e800](https://github.com/matter-labs/zksync-era/commit/851e800721a627742d6781d6162009d61f83c1af))
+* **core:** adds a get proof endpoint in zks namespace to http endpoint on main node ([#504](https://github.com/matter-labs/zksync-era/issues/504)) ([0ac4a4d](https://github.com/matter-labs/zksync-era/commit/0ac4a4ddb87d7728a99a29df9adeded5822e1def))
+* **merkle tree:** Allow random-order tree recovery ([#485](https://github.com/matter-labs/zksync-era/issues/485)) ([146e4cf](https://github.com/matter-labs/zksync-era/commit/146e4cf2f8d890ff0a8d33229e224442e14be437))
+
+
+### Bug Fixes
+
+* **core:** add tree url to jsonrpsee server on main node ([#512](https://github.com/matter-labs/zksync-era/issues/512)) ([7c137b7](https://github.com/matter-labs/zksync-era/commit/7c137b72b16a8671a27c24b378d33320877d6557))
+* Fixes panic on unknown FRI prover group id ([#522](https://github.com/matter-labs/zksync-era/issues/522)) ([1c315f3](https://github.com/matter-labs/zksync-era/commit/1c315f3245be770ad729c19977861b79d9e438a5))
+
 ## [18.0.3](https://github.com/matter-labs/zksync-era/compare/core-v18.0.2...core-v18.0.3) (2023-11-16)
 
 
