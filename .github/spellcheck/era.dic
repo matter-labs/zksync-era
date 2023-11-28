@@ -498,6 +498,9 @@ Getters
 WebSocket
 gasLimit
 MiBs
+MiB
+GiB
+GiBs
 pubsub
 \x19Ethereum
 nibbles–node
