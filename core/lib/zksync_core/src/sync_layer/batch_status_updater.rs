@@ -267,9 +267,6 @@ impl BatchStatusUpdater {
     }
 
     /// Inserts the provided status changes into the database.
-    /// This method is not transactional, so it can save only a part of the changes, which is fine:
-    /// after the restart the updater will continue from the last saved state.
-    ///
     /// The status changes are applied to the database by inserting bogus confirmed transactions (with
     /// some fields missing/substituted) only to satisfy API needs; this component doesn't expect the updated
     /// tables to be ever accessed by the `eth_sender` module.
