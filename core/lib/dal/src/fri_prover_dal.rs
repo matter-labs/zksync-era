@@ -341,6 +341,28 @@ impl FriProverDal<'_, '_> {
         }
     }
 
+    pub async fn min_unproved_l1_batch_number_for_aggregation_round(
+        &mut self,
+        aggregation_round: i16,
+    ) -> Option<L1BatchNumber> {
+        {
+            sqlx::query!(
+                r#"
+                    SELECT MIN(l1_batch_number) as "l1_batch_number!"
+                    FROM prover_jobs_fri
+                    WHERE status IN('queued', 'failed')
+                    AND aggregation_round = $1
+                "#,
+                aggregation_round
+            )
+            .fetch_optional(self.storage.conn())
+            .await
+            .unwrap()
+            .map(|row| L1BatchNumber(row.l1_batch_number as u32))
+            .collect()
+        }
+    }
+
     pub async fn update_status(&mut self, id: u32, status: &str) {
         sqlx::query!(
             "UPDATE prover_jobs_fri \
