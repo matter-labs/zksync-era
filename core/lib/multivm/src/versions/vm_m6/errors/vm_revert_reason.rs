@@ -15,7 +15,7 @@ pub enum VmRevertReasonParsingError {
     IncorrectStringLength(Vec<u8>),
 }
 
-/// Rich Revert Reasons https://github.com/0xProject/ZEIPs/issues/32
+/// Rich Revert Reasons `https://github.com/0xProject/ZEIPs/issues/32`
 #[derive(Debug, Clone, PartialEq)]
 pub enum VmRevertReason {
     General {

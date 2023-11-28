@@ -18,7 +18,7 @@ use multivm::vm_latest::{
     constants::{BLOCK_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK},
     utils::{
         fee::derive_base_fee_and_gas_per_pubdata,
-        overhead::{coefficients, derive_overhead},
+        overhead::{derive_overhead, OverheadCoefficients},
     },
 };
 
@@ -111,7 +111,7 @@ pub struct ApiContracts {
     pub(crate) estimate_gas: MultiVMBaseSystemContracts,
     /// Contracts to be used when performing `eth_call` requests.
     /// These contracts (mainly, bootloader) normally should be tuned to provide better UX
-    /// exeprience (e.g. revert messages).
+    /// experience (e.g. revert messages).
     pub(crate) eth_call: MultiVMBaseSystemContracts,
 }
 

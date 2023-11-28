@@ -14,7 +14,7 @@ use thiserror::Error;
 use zksync_basic_types::{Address, H256};
 use zksync_utils::ZeroPrefixHexSerde;
 
-/// Struct used for working with ethereum signatures created using eth_sign (using geth, ethers.js, etc)
+/// Struct used for working with Ethereum signatures created using eth_sign (using geth, ethers.js, etc)
 /// message is serialized as 65 bytes long `0x` prefixed string.
 ///
 /// Some notes on implementation of methods of this structure:
@@ -115,7 +115,7 @@ impl PackedEthSignature {
         msg.keccak256().into()
     }
 
-    /// Checks signature and returns ethereum address of the signer.
+    /// Checks signature and returns Ethereum address of the signer.
     /// message should be the same message that was passed to `eth.sign`(or similar) method
     /// as argument. No hashing and prefixes required.
     pub fn signature_recover_signer(

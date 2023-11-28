@@ -28,7 +28,7 @@
 //! - Create a new trait performing conversion to the specified VM tracer, e.g., `Into<VmVersion>Tracer`.
 //! - Add this trait as a trait bound to the `MultiVMTracer`.
 //! - Add this trait as a trait bound for `T` in `MultiVMTracer` implementation.
-//! — Implement the trait for `T` with a bound to `VmTracer` for a specific version.
+//! - Implement the trait for `T` with a bound to `VmTracer` for a specific version.
 //!
 use crate::HistoryMode;
 use zksync_state::WriteStorage;

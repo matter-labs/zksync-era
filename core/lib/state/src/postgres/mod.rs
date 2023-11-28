@@ -42,7 +42,7 @@ impl CacheValue<StorageKey> for L1BatchNumber {
 
 /// [`StorageValue`] together with a miniblock "timestamp" starting from which it is known to be valid.
 ///
-/// Using timestamped values in [`ValuesCache`] enables using it for past miniblock states. As long as
+/// Using time stamped values in [`ValuesCache`] enables using it for past miniblock states. As long as
 /// a cached value has a "timestamp" older or equal than the requested miniblock, the value can be used.
 ///
 /// Timestamp is assigned to equal the latest miniblock when a value is fetched from the storage.

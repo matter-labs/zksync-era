@@ -165,7 +165,7 @@ fn test_force_deploy_upgrade() {
     verify_required_storage(&vm.vm.state, expected_slots);
 }
 
-/// Here we show how the work with the complex upgrader could be done
+/// Here we show how the work with the complex upgrade could be done
 #[test]
 fn test_complex_upgrader() {
     let mut vm = VmTesterBuilder::new(HistoryEnabled)

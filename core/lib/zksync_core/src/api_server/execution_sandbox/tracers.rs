@@ -7,7 +7,7 @@ use std::sync::Arc;
 use zksync_state::WriteStorage;
 use zksync_types::vm_trace::Call;
 
-/// Custom tracers supported by our api
+/// Custom tracers supported by our API
 #[derive(Debug)]
 pub(crate) enum ApiTracer {
     CallTracer(Arc<OnceCell<Vec<Call>>>),

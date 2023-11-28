@@ -75,9 +75,9 @@ impl<'a> ConnectionPoolBuilder<'a> {
 /// Constructs a new temporary database (with a randomized name)
 /// by cloning the database template pointed by TEST_DATABASE_URL env var.
 /// The template is expected to have all migrations from dal/migrations applied.
-/// For efficiency, the postgres container of TEST_DATABASE_URL should be
+/// For efficiency, the Postgres container of TEST_DATABASE_URL should be
 /// configured with option "fsync=off" - it disables waiting for disk synchronization
-/// whenever you write to the DBs, therefore making it as fast as an in-memory postgres instance.
+/// whenever you write to the DBs, therefore making it as fast as an in-memory Postgres instance.
 /// The database is not cleaned up automatically, but rather the whole Postgres
 /// container is recreated whenever you call "zk test rust".
 pub(super) async fn create_test_db() -> anyhow::Result<url::Url> {
