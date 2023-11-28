@@ -97,7 +97,6 @@ impl SnapshotsCreatorDal<'_, '_> {
         Ok(rows
             .into_iter()
             .map(|row| SnapshotFactoryDependency {
-                bytecode_hash: H256::from_slice(&row.bytecode_hash),
                 bytecode: row.bytecode,
             })
             .collect())

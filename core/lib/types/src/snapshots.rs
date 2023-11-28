@@ -1,5 +1,5 @@
 use crate::commitment::L1BatchWithMetadata;
-use crate::{StorageKey, StorageValue, H256};
+use crate::{StorageKey, StorageValue};
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{L1BatchNumber, MiniblockNumber};
 
@@ -69,6 +69,5 @@ pub struct SnapshotFactoryDependencies {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotFactoryDependency {
-    pub bytecode_hash: H256,
     pub bytecode: Vec<u8>,
 }
