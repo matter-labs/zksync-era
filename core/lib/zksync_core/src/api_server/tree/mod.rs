@@ -34,7 +34,6 @@ struct TreeProofsResponse {
     entries: Vec<TreeEntryWithProof>,
 }
 
-// FIXME: remove in favor of `StorageProof`?
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct TreeEntryWithProof {
     #[serde(default, skip_serializing_if = "H256::is_zero")]
