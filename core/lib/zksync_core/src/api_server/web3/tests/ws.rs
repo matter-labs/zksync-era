@@ -1,48 +1,23 @@
 //! WS-related tests.
 
-use assert_matches::assert_matches;
 use async_trait::async_trait;
 use tokio::sync::watch;
 
 use zksync_config::configs::chain::NetworkConfig;
-use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
-use zksync_types::{
-    api, block::MiniblockHeader, fee::TransactionExecutionMetrics, tx::IncludedTxLocation, Address,
-    L1BatchNumber, ProtocolVersionId, VmEvent, H256, U64,
-};
+use zksync_dal::ConnectionPool;
+use zksync_types::{api, Address, L1BatchNumber, H256, U64};
 use zksync_web3_decl::{
     jsonrpsee::{
-        core::{
-            client::{Subscription, SubscriptionClientT},
-            Error as RpcError,
-        },
+        core::client::{Subscription, SubscriptionClientT},
         rpc_params,
-        types::error::ErrorCode,
         ws_client::{WsClient, WsClientBuilder},
     },
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
-    types::{BlockHeader, Filter, FilterChanges, PubSubFilter},
+    types::{BlockHeader, PubSubFilter},
 };
 
 use super::*;
 use crate::api_server::web3::metrics::SubscriptionType;
-
-fn create_miniblock(number: u32) -> MiniblockHeader {
-    MiniblockHeader {
-        number: MiniblockNumber(number),
-        timestamp: number.into(),
-        hash: H256::from_low_u64_be(number.into()),
-        l1_tx_count: 0,
-        l2_tx_count: 0,
-        base_fee_per_gas: 100,
-        l1_gas_price: 100,
-        l2_fair_gas_price: 100,
-        base_system_contracts_hashes: BaseSystemContractsHashes::default(),
-        protocol_version: Some(ProtocolVersionId::latest()),
-        virtual_blocks: 1,
-    }
-}
 
 #[allow(clippy::needless_pass_by_ref_mut)] // false positive
 async fn wait_for_subscription(
@@ -162,26 +137,6 @@ async fn ws_server_can_start() {
 #[derive(Debug)]
 struct BasicSubscriptions;
 
-impl BasicSubscriptions {
-    async fn update_storage(pool: &ConnectionPool) -> anyhow::Result<(MiniblockHeader, H256)> {
-        let mut storage = pool.access_storage().await?;
-        let new_tx = create_l2_transaction(1, 2);
-        let new_tx_hash = new_tx.hash();
-        let tx_submission_result = storage
-            .transactions_dal()
-            .insert_transaction_l2(new_tx, TransactionExecutionMetrics::default())
-            .await;
-        assert_matches!(tx_submission_result, L2TxSubmissionResult::Added);
-
-        let new_miniblock = create_miniblock(1);
-        storage
-            .blocks_dal()
-            .insert_miniblock(&new_miniblock)
-            .await?;
-        Ok((new_miniblock, new_tx_hash))
-    }
-}
-
 #[async_trait]
 impl WsTest for BasicSubscriptions {
     async fn test(
@@ -207,7 +162,7 @@ impl WsTest for BasicSubscriptions {
             .await?;
         wait_for_subscription(&mut pub_sub_events, SubscriptionType::Txs).await;
 
-        let (new_miniblock, new_tx_hash) = Self::update_storage(pool).await?;
+        let (new_miniblock, new_tx_hash) = store_block(pool).await?;
 
         let received_tx_hash = tokio::time::timeout(TEST_TIMEOUT, txs_subscription.next())
             .await
@@ -233,63 +188,6 @@ async fn basic_subscriptions() {
 
 #[derive(Debug)]
 struct LogSubscriptions;
-
-impl LogSubscriptions {
-    async fn update_storage(
-        storage: &mut StorageProcessor<'_>,
-        miniblock_number: u32,
-        start_idx: u32,
-    ) -> anyhow::Result<(IncludedTxLocation, Vec<VmEvent>)> {
-        let new_miniblock = create_miniblock(miniblock_number);
-        storage
-            .blocks_dal()
-            .insert_miniblock(&new_miniblock)
-            .await?;
-        let tx_location = IncludedTxLocation {
-            tx_hash: H256::repeat_byte(1),
-            tx_index_in_miniblock: 0,
-            tx_initiator_address: Address::repeat_byte(2),
-        };
-        let events = vec![
-            // Matches address, doesn't match topics
-            VmEvent {
-                location: (L1BatchNumber(1), start_idx),
-                address: Address::repeat_byte(23),
-                indexed_topics: vec![],
-                value: start_idx.to_le_bytes().to_vec(),
-            },
-            // Doesn't match address, matches topics
-            VmEvent {
-                location: (L1BatchNumber(1), start_idx + 1),
-                address: Address::zero(),
-                indexed_topics: vec![H256::repeat_byte(42)],
-                value: (start_idx + 1).to_le_bytes().to_vec(),
-            },
-            // Doesn't match address or topics
-            VmEvent {
-                location: (L1BatchNumber(1), start_idx + 2),
-                address: Address::zero(),
-                indexed_topics: vec![H256::repeat_byte(1), H256::repeat_byte(42)],
-                value: (start_idx + 2).to_le_bytes().to_vec(),
-            },
-            // Matches both address and topics
-            VmEvent {
-                location: (L1BatchNumber(1), start_idx + 3),
-                address: Address::repeat_byte(23),
-                indexed_topics: vec![H256::repeat_byte(42), H256::repeat_byte(111)],
-                value: (start_idx + 3).to_le_bytes().to_vec(),
-            },
-        ];
-        storage
-            .events_dal()
-            .save_events(
-                MiniblockNumber(miniblock_number),
-                &[(tx_location, events.iter().collect())],
-            )
-            .await;
-        Ok((tx_location, events))
-    }
-}
 
 #[derive(Debug)]
 struct Subscriptions {
@@ -354,7 +252,7 @@ impl WsTest for LogSubscriptions {
         } = Subscriptions::new(client, &mut pub_sub_events).await?;
 
         let mut storage = pool.access_storage().await?;
-        let (tx_location, events) = Self::update_storage(&mut storage, 1, 0).await?;
+        let (tx_location, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
         let events: Vec<_> = events.iter().collect();
 
@@ -404,15 +302,6 @@ async fn collect_logs(
     Ok(logs)
 }
 
-fn assert_logs_match(actual_logs: &[api::Log], expected_logs: &[&VmEvent]) {
-    assert_eq!(actual_logs.len(), expected_logs.len());
-    for (actual_log, &expected_log) in actual_logs.iter().zip(expected_logs) {
-        assert_eq!(actual_log.address, expected_log.address);
-        assert_eq!(actual_log.topics, expected_log.indexed_topics);
-        assert_eq!(actual_log.data.0, expected_log.value);
-    }
-}
-
 #[tokio::test]
 async fn log_subscriptions() {
     test_ws_server(LogSubscriptions).await;
@@ -436,7 +325,7 @@ impl WsTest for LogSubscriptionsWithNewBlock {
         } = Subscriptions::new(client, &mut pub_sub_events).await?;
 
         let mut storage = pool.access_storage().await?;
-        let (_, events) = LogSubscriptions::update_storage(&mut storage, 1, 0).await?;
+        let (_, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
         let events: Vec<_> = events.iter().collect();
 
@@ -445,7 +334,7 @@ impl WsTest for LogSubscriptionsWithNewBlock {
 
         // Create a new block and wait for the pub-sub notifier to run.
         let mut storage = pool.access_storage().await?;
-        let (_, new_events) = LogSubscriptions::update_storage(&mut storage, 2, 4).await?;
+        let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
         let new_events: Vec<_> = new_events.iter().collect();
 
@@ -486,9 +375,9 @@ impl WsTest for LogSubscriptionsWithManyBlocks {
         // Add two blocks in the storage atomically.
         let mut storage = pool.access_storage().await?;
         let mut transaction = storage.start_transaction().await?;
-        let (_, events) = LogSubscriptions::update_storage(&mut transaction, 1, 0).await?;
+        let (_, events) = store_events(&mut transaction, 1, 0).await?;
         let events: Vec<_> = events.iter().collect();
-        let (_, new_events) = LogSubscriptions::update_storage(&mut transaction, 2, 4).await?;
+        let (_, new_events) = store_events(&mut transaction, 2, 4).await?;
         let new_events: Vec<_> = new_events.iter().collect();
         transaction.commit().await?;
         drop(storage);
@@ -525,7 +414,7 @@ impl WsTest for LogSubscriptionsWithDelay {
     ) -> anyhow::Result<()> {
         // Store a miniblock w/o subscriptions being present.
         let mut storage = pool.access_storage().await?;
-        LogSubscriptions::update_storage(&mut storage, 1, 0).await?;
+        store_events(&mut storage, 1, 0).await?;
         drop(storage);
 
         while pub_sub_events.try_recv().is_ok() {
@@ -550,7 +439,7 @@ impl WsTest for LogSubscriptionsWithDelay {
         }
 
         let mut storage = pool.access_storage().await?;
-        let (_, new_events) = LogSubscriptions::update_storage(&mut storage, 2, 4).await?;
+        let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
         let new_events: Vec<_> = new_events.iter().collect();
 
@@ -562,7 +451,7 @@ impl WsTest for LogSubscriptionsWithDelay {
         // Check the behavior of remaining subscriptions if a subscription is dropped.
         all_logs_subscription.unsubscribe().await?;
         let mut storage = pool.access_storage().await?;
-        let (_, new_events) = LogSubscriptions::update_storage(&mut storage, 3, 8).await?;
+        let (_, new_events) = store_events(&mut storage, 3, 8).await?;
         drop(storage);
 
         let address_and_topic_logs = collect_logs(&mut address_and_topic_subscription, 1).await?;
@@ -574,224 +463,4 @@ impl WsTest for LogSubscriptionsWithDelay {
 #[tokio::test]
 async fn log_subscriptions_with_delay() {
     test_ws_server(LogSubscriptionsWithDelay).await;
-}
-
-#[derive(Debug)]
-struct BasicFilterChanges;
-
-#[async_trait]
-impl WsTest for BasicFilterChanges {
-    async fn test(
-        &self,
-        client: &WsClient,
-        pool: &ConnectionPool,
-        _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
-    ) -> anyhow::Result<()> {
-        let block_filter_id = client.new_block_filter().await?;
-        let tx_filter_id = client.new_pending_transaction_filter().await?;
-
-        let (new_miniblock, new_tx_hash) = BasicSubscriptions::update_storage(pool).await?;
-
-        let block_filter_changes = client.get_filter_changes(block_filter_id).await?;
-        assert_matches!(
-            block_filter_changes,
-            FilterChanges::Hashes(hashes) if hashes == [new_miniblock.hash]
-        );
-        let block_filter_changes = client.get_filter_changes(block_filter_id).await?;
-        assert_matches!(block_filter_changes, FilterChanges::Hashes(hashes) if hashes.is_empty());
-
-        let tx_filter_changes = client.get_filter_changes(tx_filter_id).await?;
-        assert_matches!(
-            tx_filter_changes,
-            FilterChanges::Hashes(hashes) if hashes == [new_tx_hash]
-        );
-        let tx_filter_changes = client.get_filter_changes(tx_filter_id).await?;
-        assert_matches!(tx_filter_changes, FilterChanges::Hashes(hashes) if hashes.is_empty());
-
-        // Check uninstalling the filter.
-        let removed = client.uninstall_filter(block_filter_id).await?;
-        assert!(removed);
-        let removed = client.uninstall_filter(block_filter_id).await?;
-        assert!(!removed);
-
-        let err = client
-            .get_filter_changes(block_filter_id)
-            .await
-            .unwrap_err();
-        assert_matches!(err, RpcError::Call(err) if err.code() == ErrorCode::InvalidParams.code());
-        Ok(())
-    }
-}
-
-#[tokio::test]
-async fn basic_filter_changes() {
-    test_ws_server(BasicFilterChanges).await;
-}
-
-#[derive(Debug)]
-struct LogFilterChanges;
-
-#[async_trait]
-impl WsTest for LogFilterChanges {
-    async fn test(
-        &self,
-        client: &WsClient,
-        pool: &ConnectionPool,
-        _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
-    ) -> anyhow::Result<()> {
-        let all_logs_filter_id = client.new_filter(Filter::default()).await?;
-        let address_filter = Filter {
-            address: Some(Address::repeat_byte(23).into()),
-            ..Filter::default()
-        };
-        let address_filter_id = client.new_filter(address_filter).await?;
-        let topics_filter = Filter {
-            topics: Some(vec![Some(H256::repeat_byte(42).into())]),
-            ..Filter::default()
-        };
-        let topics_filter_id = client.new_filter(topics_filter).await?;
-
-        let mut storage = pool.access_storage().await?;
-        let (_, events) = LogSubscriptions::update_storage(&mut storage, 1, 0).await?;
-        drop(storage);
-        let events: Vec<_> = events.iter().collect();
-
-        let all_logs = client.get_filter_changes(all_logs_filter_id).await?;
-        let FilterChanges::Logs(all_logs) = all_logs else {
-            panic!("Unexpected getFilterChanges output: {:?}", all_logs);
-        };
-        assert_logs_match(&all_logs, &events);
-
-        let address_logs = client.get_filter_changes(address_filter_id).await?;
-        let FilterChanges::Logs(address_logs) = address_logs else {
-            panic!("Unexpected getFilterChanges output: {:?}", address_logs);
-        };
-        assert_logs_match(&address_logs, &[events[0], events[3]]);
-
-        let topics_logs = client.get_filter_changes(topics_filter_id).await?;
-        let FilterChanges::Logs(topics_logs) = topics_logs else {
-            panic!("Unexpected getFilterChanges output: {:?}", topics_logs);
-        };
-        assert_logs_match(&topics_logs, &[events[1], events[3]]);
-
-        let new_all_logs = client.get_filter_changes(all_logs_filter_id).await?;
-        let FilterChanges::Logs(new_all_logs) = new_all_logs else {
-            panic!("Unexpected getFilterChanges output: {:?}", new_all_logs);
-        };
-        assert_eq!(new_all_logs, all_logs); // FIXME: is this expected?
-        Ok(())
-    }
-}
-
-#[tokio::test]
-async fn log_filter_changes() {
-    test_ws_server(LogFilterChanges).await;
-}
-
-#[derive(Debug)]
-struct LogFilterChangesWithBlockBoundaries;
-
-#[async_trait]
-impl WsTest for LogFilterChangesWithBlockBoundaries {
-    async fn test(
-        &self,
-        client: &WsClient,
-        pool: &ConnectionPool,
-        _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
-    ) -> anyhow::Result<()> {
-        let lower_bound_filter = Filter {
-            from_block: Some(api::BlockNumber::Number(2.into())),
-            ..Filter::default()
-        };
-        let lower_bound_filter_id = client.new_filter(lower_bound_filter).await?;
-        let upper_bound_filter = Filter {
-            to_block: Some(api::BlockNumber::Number(1.into())),
-            ..Filter::default()
-        };
-        let upper_bound_filter_id = client.new_filter(upper_bound_filter).await?;
-        let bounded_filter = Filter {
-            from_block: Some(api::BlockNumber::Number(1.into())),
-            to_block: Some(api::BlockNumber::Number(1.into())),
-            ..Filter::default()
-        };
-        let bounded_filter_id = client.new_filter(bounded_filter).await?;
-
-        let mut storage = pool.access_storage().await?;
-        let (_, events) = LogSubscriptions::update_storage(&mut storage, 1, 0).await?;
-        drop(storage);
-        let events: Vec<_> = events.iter().collect();
-
-        let lower_bound_logs = client.get_filter_changes(lower_bound_filter_id).await?;
-        assert_matches!(
-            lower_bound_logs,
-            FilterChanges::Hashes(hashes) if hashes.is_empty()
-        );
-        // ^ Since `FilterChanges` is serialized w/o a tag, an empty array will be deserialized
-        // as `Hashes(_)` (the first declared variant).
-
-        let upper_bound_logs = client.get_filter_changes(upper_bound_filter_id).await?;
-        let FilterChanges::Logs(upper_bound_logs) = upper_bound_logs else {
-            panic!("Unexpected getFilterChanges output: {:?}", upper_bound_logs);
-        };
-        assert_logs_match(&upper_bound_logs, &events);
-        let bounded_logs = client.get_filter_changes(bounded_filter_id).await?;
-        let FilterChanges::Logs(bounded_logs) = bounded_logs else {
-            panic!("Unexpected getFilterChanges output: {:?}", bounded_logs);
-        };
-        assert_eq!(bounded_logs, upper_bound_logs);
-
-        // Add another miniblock with events to the storage.
-        let mut storage = pool.access_storage().await?;
-        let (_, new_events) = LogSubscriptions::update_storage(&mut storage, 2, 4).await?;
-        drop(storage);
-        let new_events: Vec<_> = new_events.iter().collect();
-
-        let lower_bound_logs = client.get_filter_changes(lower_bound_filter_id).await?;
-        let FilterChanges::Logs(lower_bound_logs) = lower_bound_logs else {
-            panic!("Unexpected getFilterChanges output: {:?}", lower_bound_logs);
-        };
-        assert_logs_match(&lower_bound_logs, &new_events);
-
-        // FIXME: is this expected?
-        let new_upper_bound_logs = client.get_filter_changes(upper_bound_filter_id).await?;
-        assert_eq!(new_upper_bound_logs, FilterChanges::Logs(upper_bound_logs));
-        let new_bounded_logs = client.get_filter_changes(bounded_filter_id).await?;
-        assert_eq!(new_bounded_logs, FilterChanges::Logs(bounded_logs));
-
-        // Add miniblock #3. It should not be picked up by the bounded and upper bound filters,
-        // and should be picked up by the lower bound filter.
-        let mut storage = pool.access_storage().await?;
-        let (_, new_events) = LogSubscriptions::update_storage(&mut storage, 3, 8).await?;
-        drop(storage);
-        let new_events: Vec<_> = new_events.iter().collect();
-
-        let bounded_logs = client.get_filter_changes(bounded_filter_id).await?;
-        let FilterChanges::Logs(bounded_logs) = bounded_logs else {
-            panic!("Unexpected getFilterChanges output: {:?}", bounded_logs);
-        };
-        assert!(bounded_logs
-            .iter()
-            .all(|log| log.block_number.unwrap() < 3.into()));
-
-        let upper_bound_logs = client.get_filter_changes(upper_bound_filter_id).await?;
-        let FilterChanges::Logs(upper_bound_logs) = upper_bound_logs else {
-            panic!("Unexpected getFilterChanges output: {:?}", upper_bound_logs);
-        };
-        assert!(upper_bound_logs
-            .iter()
-            .all(|log| log.block_number.unwrap() < 3.into()));
-
-        let lower_bound_logs = client.get_filter_changes(lower_bound_filter_id).await?;
-        let FilterChanges::Logs(lower_bound_logs) = lower_bound_logs else {
-            panic!("Unexpected getFilterChanges output: {:?}", lower_bound_logs);
-        };
-        let start_idx = lower_bound_logs.len() - 4;
-        assert_logs_match(&lower_bound_logs[start_idx..], &new_events);
-        Ok(())
-    }
-}
-
-#[tokio::test]
-async fn log_filter_changes_with_block_boundaries() {
-    test_ws_server(LogFilterChangesWithBlockBoundaries).await;
 }
