@@ -10395,6 +10395,26 @@
     },
     "query": "SELECT hashed_key, l1_batch_number, index FROM initial_writes WHERE hashed_key = ANY($1::bytea[])"
   },
+  "d2d70e9c411cef9e376e95905566ff0c6d01bd9980c377db6abab41954758cbc": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int2"
+        ]
+      }
+    },
+    "query": "\n                    SELECT l1_batch_number \n                    FROM prover_jobs_fri \n                    WHERE status IN('queued', 'failed') \n                    AND aggregation_round = $1 \n                    ORDER BY l1_batch_number ASC \n                    LIMIT 1\n                "
+  },
   "d6709f3ce8f08f988e10a0e0fb5c06db9488834a85066babaf3d56cf212b4ea0": {
     "describe": {
       "columns": [],
@@ -11199,26 +11219,6 @@
       }
     },
     "query": "UPDATE l1_batches SET predicted_commit_gas_cost = $2, updated_at = now() WHERE number = $1"
-  },
-  "ec763aab571459f5d964ba2c7a791986bc20a18889014e1c0c7555949d9f8626": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number!",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        null
-      ],
-      "parameters": {
-        "Left": [
-          "Int2"
-        ]
-      }
-    },
-    "query": "\n                    SELECT MIN(l1_batch_number) as \"l1_batch_number!\"\n                    FROM prover_jobs_fri\n                    WHERE status IN('queued', 'failed')\n                    AND aggregation_round = $1\n                "
   },
   "ed50c609371b4588964e29f8757c41973706710090a80eb025ec263ce3d019b4": {
     "describe": {

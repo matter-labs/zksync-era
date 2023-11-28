@@ -348,10 +348,12 @@ impl FriProverDal<'_, '_> {
         {
             sqlx::query!(
                 r#"
-                    SELECT MIN(l1_batch_number) as "l1_batch_number!"
-                    FROM prover_jobs_fri
-                    WHERE status IN('queued', 'failed')
-                    AND aggregation_round = $1
+                    SELECT l1_batch_number 
+                    FROM prover_jobs_fri 
+                    WHERE status IN('queued', 'failed') 
+                    AND aggregation_round = $1 
+                    ORDER BY l1_batch_number ASC 
+                    LIMIT 1
                 "#,
                 aggregation_round
             )
