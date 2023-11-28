@@ -705,6 +705,24 @@
     },
     "query": "\n                UPDATE leaf_aggregation_witness_jobs\n                SET status = 'in_progress', attempts = attempts + 1,\n                    updated_at = now(), processing_started_at = now()\n                WHERE l1_batch_number = (\n                    SELECT l1_batch_number\n                    FROM leaf_aggregation_witness_jobs\n                    WHERE l1_batch_number <= $3\n                    AND\n                    (   status = 'queued'\n                        OR (status = 'in_progress' AND processing_started_at < now() - $1::interval)\n                        OR (status = 'failed' AND attempts < $2)\n                    )\n                    AND protocol_version = ANY($4)\n                    ORDER BY l1_batch_number ASC\n                    LIMIT 1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n                RETURNING leaf_aggregation_witness_jobs.*\n                "
   },
+  "11d5f36cc1fd2cab4258d389ca339514d240c2ffb2e76a2e5453e7cafb65e0b7": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT l1_batch_number FROM proof_generation_details WHERE status IN ('ready_to_be_proven', 'skipped') ORDER BY l1_batch_number ASC LIMIT 1"
+  },
   "13e5f6a2a73eaa979229611ffdbed86d6e5e1bad0c645d39b56fdc47f5c17971": {
     "describe": {
       "columns": [
@@ -11181,6 +11199,26 @@
       }
     },
     "query": "UPDATE l1_batches SET predicted_commit_gas_cost = $2, updated_at = now() WHERE number = $1"
+  },
+  "ec763aab571459f5d964ba2c7a791986bc20a18889014e1c0c7555949d9f8626": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number!",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        null
+      ],
+      "parameters": {
+        "Left": [
+          "Int2"
+        ]
+      }
+    },
+    "query": "\n                    SELECT MIN(l1_batch_number) as \"l1_batch_number!\"\n                    FROM prover_jobs_fri\n                    WHERE status IN('queued', 'failed')\n                    AND aggregation_round = $1\n                "
   },
   "ed50c609371b4588964e29f8757c41973706710090a80eb025ec263ce3d019b4": {
     "describe": {

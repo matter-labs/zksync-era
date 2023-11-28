@@ -359,7 +359,6 @@ impl FriProverDal<'_, '_> {
             .await
             .unwrap()
             .map(|row| L1BatchNumber(row.l1_batch_number as u32))
-            .collect()
         }
     }
 

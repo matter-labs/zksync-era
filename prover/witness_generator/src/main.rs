@@ -143,7 +143,7 @@ async fn main() -> anyhow::Result<()> {
             ));
         }
     };
-  
+
     let mut tasks = Vec::new();
 
     for (i, round) in rounds.iter().enumerate() {
