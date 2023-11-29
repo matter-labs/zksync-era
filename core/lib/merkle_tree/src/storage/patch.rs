@@ -597,7 +597,7 @@ impl WorkingPatchSet {
                 Some(Node::Internal(node)) => {
                     let (next_nibble, child_ref) = node.last_child_ref();
                     nibbles = nibbles.push(next_nibble).unwrap();
-                    // ^ `unwrap()` is safe; there can be no internal nodes on the bottom most tree level
+                    // ^ `unwrap()` is safe; there can be no internal nodes on the bottom-most tree level
                     let child_key = nibbles.with_version(child_ref.version);
                     let child_node = db.tree_node(&child_key, child_ref.is_leaf).unwrap();
                     // ^ `unwrap()` is safe by construction

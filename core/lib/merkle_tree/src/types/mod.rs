@@ -42,7 +42,7 @@ impl TreeEntry {
         }
     }
 
-    /// Returns `true` if this entry encodes lack of a value.
+    /// Returns `true` if and only if this entry encodes lack of a value.
     pub fn is_empty(&self) -> bool {
         self.leaf_index == 0 && self.value_hash.is_zero()
     }
@@ -63,7 +63,7 @@ pub struct TreeEntryWithProof {
     /// Proof of the value authenticity.
     ///
     /// If specified, a proof is the Merkle path consisting of up to 256 hashes
-    /// ordered starting the bottom most level of the tree (one with leaves) and ending before
+    /// ordered starting the bottom-most level of the tree (one with leaves) and ending before
     /// the root level.
     ///
     /// If the path is not full (contains <256 hashes), it means that the hashes at the beginning
@@ -152,7 +152,7 @@ pub struct TreeLogEntryWithProof<P = Vec<ValueHash>> {
     /// Log entry about an atomic operation on the tree.
     pub base: TreeLogEntry,
     /// Merkle path to prove log authenticity. The path consists of up to 256 hashes
-    /// ordered starting the bottom most level of the tree (one with leaves) and ending before
+    /// ordered starting the bottom-most level of the tree (one with leaves) and ending before
     /// the root level.
     ///
     /// If the path is not full (contains <256 hashes), it means that the hashes at the beginning

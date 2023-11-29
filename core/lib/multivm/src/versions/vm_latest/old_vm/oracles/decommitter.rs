@@ -180,7 +180,7 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
     > {
         self.decommitment_requests.push((), partial_query.timestamp);
         // First - check if we didn't fetch this bytecode in the past.
-        // If we did - we can just return the page that we used before (as the memory is read only).
+        // If we did - we can just return the page that we used before (as the memory is readonly).
         if let Some(memory_page) = self
             .decommitted_code_hashes
             .inner()

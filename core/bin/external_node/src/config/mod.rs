@@ -344,7 +344,7 @@ pub struct RequiredENConfig {
     pub http_port: u16,
     /// Port on which the WebSocket RPC server is listening.
     pub ws_port: u16,
-    /// Port on which the health check REST server is listening.
+    /// Port on which the healthcheck REST server is listening.
     pub healthcheck_port: u16,
     /// Number of threads per API server
     pub threads_per_server: usize,

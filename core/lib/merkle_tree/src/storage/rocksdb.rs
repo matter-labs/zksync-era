@@ -45,7 +45,7 @@ impl NamedColumnFamily for MerkleTreeColumnFamily {
 ///
 /// # Cloning
 ///
-/// The wrapper is clone able, which works by wrapping the underlying RocksDB in an [`Arc`].
+/// The wrapper is cloneable, which works by wrapping the underlying RocksDB in an [`Arc`].
 /// Thus, it is technically possible to run several [`MerkleTree`]s or [`MerkleTreePruner`]s
 /// for the same RocksDB instance in parallel, but this will most probably lead to unexpected results.
 /// The intended usage of cloning is to have no more than one component of each kind modifying RocksDB

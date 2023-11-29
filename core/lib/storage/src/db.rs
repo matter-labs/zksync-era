@@ -271,7 +271,7 @@ pub struct RocksDBOptions {
     /// Setting this to a reasonably large value (order of 512 MiB) is helpful for large DBs that experience
     /// write stalls. If not set, large CFs will not be configured specially.
     pub large_memtable_capacity: Option<usize>,
-    /// Timeout to wait for the database to run compaction on stalled writes during start-up or
+    /// Timeout to wait for the database to run compaction on stalled writes during startup or
     /// when the corresponding RocksDB error is encountered.
     pub stalled_writes_retries: StalledWritesRetries,
 }
@@ -288,7 +288,7 @@ impl Default for RocksDBOptions {
 
 /// Thin wrapper around a RocksDB instance.
 ///
-/// The wrapper is cheaply clone-able (internally, it wraps a DB instance in an [`Arc`]).
+/// The wrapper is cheaply cloneable (internally, it wraps a DB instance in an [`Arc`]).
 #[derive(Debug, Clone)]
 pub struct RocksDB<CF> {
     inner: Arc<RocksDBInner>,

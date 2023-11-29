@@ -218,7 +218,7 @@ impl<DB: Database> Patched<DB> {
         (None, false)
     }
 
-    /// Provides read only access to the wrapped DB.
+    /// Provides readonly access to the wrapped DB.
     pub(crate) fn inner(&self) -> &DB {
         &self.inner
     }
