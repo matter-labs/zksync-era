@@ -6,7 +6,7 @@ use vise::{
 use zksync_types::proofs::AggregationRound;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
-#[metrics(label = "stage", rename_all = "snake_case")]
+#[metrics(label = "stage", format = "wit_gen_{}")]
 pub(crate) struct StageLabel(AggregationRound);
 
 impl From<AggregationRound> for StageLabel {
