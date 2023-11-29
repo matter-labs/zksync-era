@@ -183,6 +183,8 @@ impl CallTracer {
             return;
         };
 
+        self.call_depth_on_prefix.pop();
+
         if current_call.near_calls_after > 0 {
             current_call.near_calls_after -= 1;
             self.push_call_and_update_stats(current_call);

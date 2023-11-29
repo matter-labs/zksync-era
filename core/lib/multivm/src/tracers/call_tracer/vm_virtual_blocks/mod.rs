@@ -182,6 +182,7 @@ impl CallTracer {
         let Some(mut current_call) = self.stack.pop() else {
             return;
         };
+        self.call_depth_on_prefix.pop();
 
         if current_call.near_calls_after > 0 {
             current_call.near_calls_after -= 1;

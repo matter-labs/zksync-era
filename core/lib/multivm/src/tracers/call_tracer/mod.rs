@@ -12,6 +12,7 @@ pub mod vm_virtual_blocks;
 pub struct CallTracer {
     stack: Vec<FarcallAndNearCallCount>,
     result: Arc<OnceCell<Vec<Call>>>,
+    call_depth_on_prefix: Vec<usize>,
 
     max_stack_depth: usize,
     max_near_calls: usize,
@@ -35,6 +36,7 @@ impl CallTracer {
         Self {
             stack: vec![],
             result,
+            call_depth_on_prefix: vec![],
             max_stack_depth: 0,
             max_near_calls: 0,
         }
@@ -57,9 +59,13 @@ impl CallTracer {
         let near_calls_after = call.near_calls_after;
         self.stack.push(call);
 
+        let depth_on_prefix =
+            self.call_depth_on_prefix.last().unwrap_or(&0usize) + 1 + near_calls_after;
+        self.call_depth_on_prefix.push(depth_on_prefix);
+
         self.max_stack_depth = self
             .max_stack_depth
-            .max(self.stack.len() + near_calls_after);
+            .max(*self.call_depth_on_prefix.last().unwrap());
         self.max_near_calls = self.max_near_calls.max(near_calls_after);
     }
 
@@ -67,10 +73,13 @@ impl CallTracer {
         if let Some(last) = self.stack.last_mut() {
             last.near_calls_after += 1;
 
-            let new_value = last.near_calls_after;
+            let depth_on_prefix = self.call_depth_on_prefix.last_mut().unwrap();
+            *depth_on_prefix += 1;
 
-            self.max_near_calls = self.max_near_calls.max(new_value);
-            self.max_stack_depth = self.max_stack_depth.max(self.stack.len() + new_value);
+            self.max_near_calls = self.max_near_calls.max(last.near_calls_after);
+            self.max_stack_depth = self
+                .max_stack_depth
+                .max(*self.call_depth_on_prefix.last().unwrap());
         }
     }
 }
