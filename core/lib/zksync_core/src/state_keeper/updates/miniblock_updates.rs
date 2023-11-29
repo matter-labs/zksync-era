@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use zksync_types::l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log};
 
 use zksync_types::{
-    block::{legacy_miniblock_hash, miniblock_hash, BlockGasCount},
+    block::{BlockGasCount, MiniblockHasher},
     event::extract_bytecodes_marked_as_known,
     tx::tx_execution_info::TxExecutionStatus,
     tx::{ExecutionMetrics, TransactionExecutionResult},
@@ -31,7 +31,7 @@ pub struct MiniblockUpdates {
     pub prev_block_hash: H256,
     pub txs_rolling_hash: H256,
     pub virtual_blocks: u32,
-    pub protocol_version: Option<ProtocolVersionId>,
+    pub protocol_version: Option<ProtocolVersionId>, // FIXME: always Some?
 }
 
 impl MiniblockUpdates {
@@ -145,15 +145,15 @@ impl MiniblockUpdates {
 
     /// Calculates miniblock hash based on the protocol version.
     pub(crate) fn get_miniblock_hash(&self) -> H256 {
-        match self.protocol_version {
-            Some(id) if id >= ProtocolVersionId::Version13 => miniblock_hash(
-                MiniblockNumber(self.number),
-                self.timestamp,
-                self.prev_block_hash,
-                self.txs_rolling_hash,
-            ),
-            _ => legacy_miniblock_hash(MiniblockNumber(self.number)),
+        let mut digest = MiniblockHasher::new(
+            MiniblockNumber(self.number),
+            self.timestamp,
+            self.prev_block_hash,
+        );
+        for tx in &self.executed_transactions {
+            digest.push_tx_hash(tx.hash);
         }
+        digest.finalize(self.protocol_version.unwrap_or(ProtocolVersionId::Version0))
     }
 
     pub(crate) fn get_miniblock_env(&self) -> L2BlockEnv {

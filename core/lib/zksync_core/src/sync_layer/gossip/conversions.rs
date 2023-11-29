@@ -42,6 +42,7 @@ impl FetchedBlock {
             last_in_batch,
             protocol_version: ProtocolVersionId::latest(), // FIXME
             timestamp: payload.timestamp,
+            reference_hash: Some(payload.hash),
             l1_gas_price: payload.l1_gas_price,
             l2_fair_gas_price: payload.l2_fair_gas_price,
             virtual_blocks: payload.virtual_blocks,
