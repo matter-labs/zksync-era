@@ -87,7 +87,8 @@ impl SchedulerWitnessGenerator {
             transcript_params: (),
             _marker: std::marker::PhantomData,
         };
-        WITNESS_GENERATOR_METRICS.witness_generation_time[&StageLabel(AggregationRound::Scheduler)]
+        WITNESS_GENERATOR_METRICS.witness_generation_time
+            [&StageLabel::from(AggregationRound::Scheduler)]
             .observe(started_at.elapsed());
 
         tracing::info!(
