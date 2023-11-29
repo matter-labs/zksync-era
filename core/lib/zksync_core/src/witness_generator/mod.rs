@@ -75,10 +75,14 @@ impl fmt::Display for StageLabel {
     }
 }
 
+const SLOW_LATENCY_BUCKETS: Buckets = Buckets::values(&[
+    0.33, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 180.0, 600.0, 1800.0, 3600.0,
+]);
+
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "server_witness_generator")]
 struct WitnessGeneratorMetrics {
-    #[metrics(buckets = Buckets::LATENCIES)]
+    #[metrics(buckets = PROVER_BUCKETS)]
     processing_time: Family<StageLabel, Histogram<Duration>>,
     skipped_blocks: Counter,
     sampled_blocks: Counter,

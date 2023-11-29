@@ -137,9 +137,8 @@ impl Prover {
             &artifact.finalization_hint,
         );
 
-        let circuit_type: &'static str = Box::leak(circuit_id.to_string().into_boxed_str());
         let label = CircuitLabels {
-            circuit_type,
+            circuit_type: circuit_id,
             layer: Layer::Recursive,
         };
         PROVER_FRI_METRICS.proof_generation_time[&label].observe(started_at.elapsed());
@@ -179,9 +178,8 @@ impl Prover {
             &artifact.finalization_hint,
         );
 
-        let circuit_type: &'static str = Box::leak(circuit_id.to_string().into_boxed_str());
         let label = CircuitLabels {
-            circuit_type,
+            circuit_type: circuit_id,
             layer: Layer::Base,
         };
         PROVER_FRI_METRICS.proof_generation_time[&label].observe(started_at.elapsed());

@@ -3,7 +3,7 @@ use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Labeled
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
 pub(crate) struct CircuitLabels {
-    pub circuit_type: &'static str,
+    pub circuit_type: u8,
     pub layer: Layer,
 }
 
