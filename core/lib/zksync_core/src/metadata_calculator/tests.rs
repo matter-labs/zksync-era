@@ -12,10 +12,10 @@ use zksync_health_check::{CheckHealth, HealthStatus};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_types::{
-    block::{miniblock_hash, BlockGasCount, L1BatchHeader, MiniblockHeader},
+    block::{BlockGasCount, L1BatchHeader, MiniblockHasher, MiniblockHeader},
     proofs::PrepareBasicCircuitsJob,
-    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, StorageKey, StorageLog,
-    H256,
+    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId,
+    StorageKey, StorageLog, H256,
 };
 use zksync_utils::u32_to_h256;
 
@@ -503,19 +503,15 @@ pub(super) async fn extend_db_state(
         let miniblock_header = MiniblockHeader {
             number: miniblock_number,
             timestamp: header.timestamp,
-            hash: miniblock_hash(
-                miniblock_number,
-                header.timestamp,
-                H256::zero(),
-                H256::zero(),
-            ),
+            hash: MiniblockHasher::new(miniblock_number, header.timestamp, H256::zero())
+                .finalize(ProtocolVersionId::latest()),
             l1_tx_count: header.l1_tx_count,
             l2_tx_count: header.l2_tx_count,
             base_fee_per_gas: header.base_fee_per_gas,
             l1_gas_price: 0,
             l2_fair_gas_price: 0,
             base_system_contracts_hashes: base_system_contracts.hashes(),
-            protocol_version: Some(Default::default()),
+            protocol_version: Some(ProtocolVersionId::latest()),
             virtual_blocks: 0,
         };
 

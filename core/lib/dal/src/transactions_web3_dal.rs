@@ -354,7 +354,8 @@ impl TransactionsWeb3Dal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        block::miniblock_hash, fee::TransactionExecutionMetrics, l2::L2Tx, ProtocolVersion,
+        block::MiniblockHasher, fee::TransactionExecutionMetrics, l2::L2Tx, ProtocolVersion,
+        ProtocolVersionId,
     };
 
     use super::*;
@@ -399,15 +400,12 @@ mod tests {
         let tx_hash = tx.hash();
         prepare_transaction(&mut conn, tx).await;
 
+        let block_hash = MiniblockHasher::new(MiniblockNumber(1), 0, H256::zero())
+            .finalize(ProtocolVersionId::latest());
         let block_ids = [
             api::BlockId::Number(api::BlockNumber::Latest),
             api::BlockId::Number(api::BlockNumber::Number(1.into())),
-            api::BlockId::Hash(miniblock_hash(
-                MiniblockNumber(1),
-                0,
-                H256::zero(),
-                H256::zero(),
-            )),
+            api::BlockId::Hash(block_hash),
         ];
         let transaction_ids = block_ids
             .iter()

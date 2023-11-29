@@ -8,7 +8,7 @@ use zksync_contracts::{deployer_contract, BaseSystemContracts};
 use zksync_state::{InMemoryStorage, StorageView};
 use zksync_system_constants::ethereum::MAX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
-    block::legacy_miniblock_hash,
+    block::MiniblockHasher,
     ethabi::{encode, Token},
     fee::Fee,
     helpers::unix_timestamp_ms,
@@ -73,7 +73,7 @@ impl BenchmarkingVm {
                 first_l2_block: L2BlockEnv {
                     number: 1,
                     timestamp,
-                    prev_block_hash: legacy_miniblock_hash(MiniblockNumber(0)),
+                    prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
                     max_virtual_blocks_to_create: 100,
                 },
             },

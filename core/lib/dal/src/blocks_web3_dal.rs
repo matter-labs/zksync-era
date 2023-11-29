@@ -586,7 +586,7 @@ impl BlocksWeb3Dal<'_, '_> {
 mod tests {
     use zksync_contracts::BaseSystemContractsHashes;
     use zksync_types::{
-        block::{miniblock_hash, MiniblockHeader},
+        block::{MiniblockHasher, MiniblockHeader},
         MiniblockNumber, ProtocolVersion, ProtocolVersionId,
     };
 
@@ -611,16 +611,13 @@ mod tests {
         };
         conn.blocks_dal().insert_miniblock(&header).await.unwrap();
 
+        let block_hash = MiniblockHasher::new(MiniblockNumber(0), 0, H256::zero())
+            .finalize(ProtocolVersionId::latest());
         let block_ids = [
             api::BlockId::Number(api::BlockNumber::Earliest),
             api::BlockId::Number(api::BlockNumber::Latest),
             api::BlockId::Number(api::BlockNumber::Number(0.into())),
-            api::BlockId::Hash(miniblock_hash(
-                MiniblockNumber(0),
-                0,
-                H256::zero(),
-                H256::zero(),
-            )),
+            api::BlockId::Hash(block_hash),
         ];
         for block_id in block_ids {
             let block = conn
@@ -630,24 +627,18 @@ mod tests {
             let block = block.unwrap().unwrap();
             assert!(block.transactions.is_empty());
             assert_eq!(block.number, U64::zero());
-            assert_eq!(
-                block.hash,
-                miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero())
-            );
+            assert_eq!(block.hash, block_hash);
 
             let tx_count = conn.blocks_web3_dal().get_block_tx_count(block_id).await;
             assert_eq!(tx_count.unwrap(), Some((MiniblockNumber(0), 8.into())));
         }
 
+        let non_existing_block_hash = MiniblockHasher::new(MiniblockNumber(1), 1, H256::zero())
+            .finalize(ProtocolVersionId::latest());
         let non_existing_block_ids = [
             api::BlockId::Number(api::BlockNumber::Pending),
             api::BlockId::Number(api::BlockNumber::Number(1.into())),
-            api::BlockId::Hash(miniblock_hash(
-                MiniblockNumber(1),
-                1,
-                H256::zero(),
-                H256::zero(),
-            )),
+            api::BlockId::Hash(non_existing_block_hash),
         ];
         for block_id in non_existing_block_ids {
             let block = conn
@@ -749,14 +740,16 @@ mod tests {
             .await
             .unwrap();
 
-        let hash = miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero());
+        let hash = MiniblockHasher::new(MiniblockNumber(0), 0, H256::zero())
+            .finalize(ProtocolVersionId::latest());
         let miniblock_number = conn
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Hash(hash))
             .await;
         assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(0)));
 
-        let hash = miniblock_hash(MiniblockNumber(1), 1, H256::zero(), H256::zero());
+        let hash = MiniblockHasher::new(MiniblockNumber(1), 1, H256::zero())
+            .finalize(ProtocolVersionId::latest());
         let miniblock_number = conn
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Hash(hash))
@@ -776,7 +769,8 @@ mod tests {
         let mut header = MiniblockHeader {
             number: MiniblockNumber(0),
             timestamp: 0,
-            hash: miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero()),
+            hash: MiniblockHasher::new(MiniblockNumber(0), 0, H256::zero())
+                .finalize(ProtocolVersionId::latest()),
             l1_tx_count: 0,
             l2_tx_count: 0,
             base_fee_per_gas: 100,

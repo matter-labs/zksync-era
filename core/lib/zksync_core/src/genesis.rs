@@ -10,7 +10,7 @@ use zksync_merkle_tree::domain::ZkSyncTree;
 
 use zksync_types::{
     block::DeployedContract,
-    block::{legacy_miniblock_hash, BlockGasCount, L1BatchHeader, MiniblockHeader},
+    block::{BlockGasCount, L1BatchHeader, MiniblockHasher, MiniblockHeader},
     commitment::{L1BatchCommitment, L1BatchMetadata},
     get_code_key, get_system_context_init_logs,
     protocol_version::{L1VerifierConfig, ProtocolVersion},
@@ -294,7 +294,7 @@ pub(crate) async fn create_genesis_l1_batch(
     let genesis_miniblock_header = MiniblockHeader {
         number: MiniblockNumber(0),
         timestamp: 0,
-        hash: legacy_miniblock_hash(MiniblockNumber(0)),
+        hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
         l1_tx_count: 0,
         l2_tx_count: 0,
         base_fee_per_gas: 0,

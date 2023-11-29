@@ -16,7 +16,7 @@ use zk_evm_1_4_0::zkevm_opcode_defs::{
 };
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::BOOTLOADER_ADDRESS;
-use zksync_types::block::legacy_miniblock_hash;
+use zksync_types::block::MiniblockHasher;
 use zksync_types::{zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address, MiniblockNumber};
 use zksync_utils::h256_to_u256;
 
@@ -67,7 +67,9 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         L2Block {
             number: l1_batch_env.first_l2_block.number.saturating_sub(1),
             timestamp: 0,
-            hash: legacy_miniblock_hash(MiniblockNumber(l1_batch_env.first_l2_block.number) - 1),
+            hash: MiniblockHasher::legacy_hash(
+                MiniblockNumber(l1_batch_env.first_l2_block.number) - 1,
+            ),
         }
     };
 
