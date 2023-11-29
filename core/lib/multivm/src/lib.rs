@@ -6,7 +6,7 @@
 pub use crate::{
     glue::{
         history_mode::HistoryMode,
-        tracers::{MultiVmTracerPointer, MultivmTracer},
+        tracers::{MultiVMTracer, MultiVmTracerPointer},
     },
     vm_instance::VmInstance,
 };
