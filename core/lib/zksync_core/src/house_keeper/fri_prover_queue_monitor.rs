@@ -34,6 +34,19 @@ impl PeriodicJob for FriProverStatsReporter {
         let stats = conn.fri_prover_jobs_dal().get_prover_jobs_stats().await;
 
         for ((circuit_id, aggregation_round), stats) in stats.into_iter() {
+            // BEWARE, HERE BE DRAGONS.
+            // In database, the circuit_id stored is the circuit for which the aggregation is done,
+            // not the circuit which is running.
+            // There is a single node level aggregation circuit, which is circuit 2.
+            // This can aggregate multiple leaf nodes (which may belong to different circuits).
+            // This reporting is a hacky forced way to use circuit_id 2 which will solve autoscalers.
+            // A proper fix will be later provided to solve this at database level.
+            let circuit_id = if aggregation_round == 2 {
+                2
+            } else {
+                circuit_id
+            };
+
             let group_id = self
                 .config
                 .get_group_id_for_circuit_id_and_aggregation_round(circuit_id, aggregation_round)
