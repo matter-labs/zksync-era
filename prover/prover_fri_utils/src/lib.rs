@@ -11,7 +11,7 @@ use zksync_prover_fri_types::{
     get_current_pod_name, CircuitWrapper, ProverJob, ProverServiceDataKey,
 };
 
-use crate::metrics::{CircuitLabels, PROVER_FRI_UTILS_METRICS};
+use crate::metrics::{CircuitLabels, StageLabel, PROVER_FRI_UTILS_METRICS};
 use zksync_types::proofs::AggregationRound;
 use zksync_types::protocol_version::L1VerifierConfig;
 
@@ -66,7 +66,7 @@ pub async fn fetch_next_circuit(
 
     let label = CircuitLabels {
         circuit_type: prover_job.circuit_id,
-        aggregation_round: crate::metrics::AggregationRound::from(prover_job.aggregation_round),
+        aggregation_round: StageLabel::from(prover_job.aggregation_round),
     };
     PROVER_FRI_UTILS_METRICS.blob_fetch_time[&label].observe(started_at.elapsed());
 

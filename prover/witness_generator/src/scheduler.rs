@@ -16,7 +16,7 @@ use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::Sch
 use zksync_vk_setup_data_server_fri::get_recursive_layer_vk_for_circuit_type;
 use zksync_vk_setup_data_server_fri::utils::get_leaf_vk_params;
 
-use crate::metrics::WITNESS_GENERATOR_METRICS;
+use crate::metrics::{StageLabel, WITNESS_GENERATOR_METRICS};
 use crate::utils::{load_proofs_for_job_ids, SchedulerPartialInputWrapper};
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
@@ -87,8 +87,7 @@ impl SchedulerWitnessGenerator {
             transcript_params: (),
             _marker: std::marker::PhantomData,
         };
-        WITNESS_GENERATOR_METRICS.witness_generation_time
-            [&crate::metrics::AggregationRound::Scheduler]
+        WITNESS_GENERATOR_METRICS.witness_generation_time[&StageLabel(AggregationRound::Scheduler)]
             .observe(started_at.elapsed());
 
         tracing::info!(
@@ -172,7 +171,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
             .put(key, &CircuitWrapper::Recursive(artifacts.scheduler_circuit))
             .await
             .unwrap();
-        WITNESS_GENERATOR_METRICS.blob_save_time[&crate::metrics::AggregationRound::Scheduler]
+        WITNESS_GENERATOR_METRICS.blob_save_time[&StageLabel::from(AggregationRound::Scheduler)]
             .observe(blob_save_started_at.elapsed());
 
         let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
@@ -230,7 +229,7 @@ pub async fn prepare_job(
 ) -> anyhow::Result<SchedulerWitnessGeneratorJob> {
     let started_at = Instant::now();
     let proofs = load_proofs_for_job_ids(&proof_job_ids, object_store).await;
-    WITNESS_GENERATOR_METRICS.blob_fetch_time[&crate::metrics::AggregationRound::Scheduler]
+    WITNESS_GENERATOR_METRICS.blob_fetch_time[&StageLabel::from(AggregationRound::Scheduler)]
         .observe(started_at.elapsed());
 
     let mut recursive_proofs = vec![];
@@ -265,7 +264,7 @@ pub async fn prepare_job(
         .unwrap();
     scheduler_witness.leaf_layer_parameters = leaf_layer_params;
 
-    WITNESS_GENERATOR_METRICS.prepare_job_time[&crate::metrics::AggregationRound::Scheduler]
+    WITNESS_GENERATOR_METRICS.prepare_job_time[&StageLabel::from(AggregationRound::Scheduler)]
         .observe(started_at.elapsed());
 
     Ok(SchedulerWitnessGeneratorJob {

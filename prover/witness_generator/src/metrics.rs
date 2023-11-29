@@ -3,28 +3,40 @@ use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LabeledFamily,
     Metrics,
 };
+use zksync_types::proofs::AggregationRound;
 
-// FIXME: maybe we can use basic enum from zksync_types instead of this one?
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
-#[metrics(label = "aggregation_round", rename_all = "snake_case")]
-pub(crate) enum AggregationRound {
-    BasicCircuits,
-    LeafAggregation,
-    NodeAggregation,
-    Scheduler,
+#[metrics(label = "stage", rename_all = "snake_case")]
+pub(crate) struct StageLabel(AggregationRound);
+
+impl From<AggregationRound> for StageLabel {
+    fn from(round: AggregationRound) -> Self {
+        Self(round)
+    }
+}
+
+impl std::fmt::Display for StageLabel {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self.0 {
+            AggregationRound::BasicCircuits => "basic_circuits",
+            AggregationRound::LeafAggregation => "leaf_aggregation",
+            AggregationRound::NodeAggregation => "node_aggregation",
+            AggregationRound::Scheduler => "scheduler",
+        })
+    }
 }
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "prover_fri_witness_generator")]
 pub(crate) struct WitnessGeneratorMetrics {
     #[metrics(buckets = Buckets::LATENCIES)]
-    pub blob_fetch_time: Family<AggregationRound, Histogram<Duration>>,
+    pub blob_fetch_time: Family<StageLabel, Histogram<Duration>>,
     #[metrics(buckets = Buckets::LATENCIES)]
-    pub prepare_job_time: Family<AggregationRound, Histogram<Duration>>,
+    pub prepare_job_time: Family<StageLabel, Histogram<Duration>>,
     #[metrics(buckets = Buckets::LATENCIES)]
-    pub witness_generation_time: Family<AggregationRound, Histogram<Duration>>,
+    pub witness_generation_time: Family<StageLabel, Histogram<Duration>>,
     #[metrics(buckets = Buckets::LATENCIES)]
-    pub blob_save_time: Family<AggregationRound, Histogram<Duration>>,
+    pub blob_save_time: Family<StageLabel, Histogram<Duration>>,
 }
 
 #[vise::register]
