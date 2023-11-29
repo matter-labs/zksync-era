@@ -6,7 +6,7 @@ import fs from 'fs';
 import { unloadInit } from './env';
 import * as path from 'path';
 import * as db from './database';
-import {ChildProcess} from "child_process";
+import { ChildProcess } from 'child_process';
 
 export async function server(rebuildTree: boolean, uring: boolean, components?: string) {
     let options = '';
@@ -83,7 +83,7 @@ export async function isolatedExternalNode() {
     const networkingFlags = '--add-host=host.docker.internal:host-gateway';
     const nameFlag = `--name ${instanceName}`;
     const allFlags = `${networkingFlags} ${publishedPorts} ${dockerVolumes} ${dockerEnv} ${nameFlag}`;
-    const cmd = `docker container run -d ${allFlags} matterlabs/integration-test-node`;
+    const cmd = `docker container run -d ${allFlags} matterlabs/integration-test-rust-binaries-runner`;
     const enProcess = utils.background(cmd);
 
     let startTime = new Date();

@@ -14,7 +14,7 @@ COPY etc/tokens/ etc/tokens/
 COPY etc/ERC20/ etc/ERC20/
 COPY etc/multivm_bootloaders/ etc/multivm_bootloaders/
 
-COPY docker/integration-test-node/generic_entrypoint.sh /usr/bin
+COPY docker/integration-test-rust-binaries-runner/generic_entrypoint.sh /usr/bin
 
 COPY target/release/ /usr/bin/
 

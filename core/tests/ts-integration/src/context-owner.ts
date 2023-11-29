@@ -100,6 +100,7 @@ export class TestContextOwner {
             this.reporter.startAction('Setting up the context');
             await this.cancelPendingTxs();
             this.wallets = await this.prepareWallets();
+            await this.buildBinariesRunner();
             await this.cleanUpDockerAndPostgres();
             this.reporter.finishAction();
         } catch (error: any) {
@@ -116,6 +117,12 @@ export class TestContextOwner {
         };
     }
 
+    private async buildBinariesRunner() {
+        this.reporter.startAction(`Building image for running isolated rust binaries`);
+        await utils.spawn(' cargo build --release');
+        await utils.spawn(' zk docker build integration-test-rust-binaries-runner');
+        this.reporter.finishAction();
+    }
     /**
      * Checks if there are any pending transactions initiated from the main wallet.
      * If such transactions are found, cancels them by sending blank ones with exaggregated fee allowance.
