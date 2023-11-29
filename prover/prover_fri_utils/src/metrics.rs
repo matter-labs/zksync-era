@@ -33,7 +33,7 @@ impl std::fmt::Display for StageLabel {
 #[metrics(prefix = "prover_fri_prover")]
 pub(crate) struct ProverFriUtilsMetrics {
     #[metrics(buckets = Buckets::LATENCIES)]
-    pub blob_fetch_time: Family<StageLabel, Histogram<Duration>>,
+    pub blob_fetch_time: Family<CircuitLabels, Histogram<Duration>>,
 }
 
 #[vise::register]
