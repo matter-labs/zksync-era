@@ -389,7 +389,7 @@ impl HttpTest for LogFilterChanges {
         let FilterChanges::Logs(new_all_logs) = new_all_logs else {
             panic!("Unexpected getFilterChanges output: {:?}", new_all_logs);
         };
-        assert_eq!(new_all_logs, all_logs); // FIXME: is this expected?
+        assert_eq!(new_all_logs, all_logs); // FIXME(#546): update test after behavior is fixed
         Ok(())
     }
 }
@@ -458,7 +458,7 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         };
         assert_logs_match(&lower_bound_logs, &new_events);
 
-        // FIXME: is this expected?
+        // FIXME(#546): update test after behavior is fixed
         let new_upper_bound_logs = client.get_filter_changes(upper_bound_filter_id).await?;
         assert_eq!(new_upper_bound_logs, FilterChanges::Logs(upper_bound_logs));
         let new_bounded_logs = client.get_filter_changes(bounded_filter_id).await?;
