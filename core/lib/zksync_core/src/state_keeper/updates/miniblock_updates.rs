@@ -12,7 +12,6 @@ use zksync_types::{
     MiniblockNumber, ProtocolVersionId, StorageLogQuery, Transaction, VmEvent, H256,
 };
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
-use zksync_utils::concat_and_hash;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MiniblockUpdates {
@@ -29,7 +28,6 @@ pub struct MiniblockUpdates {
     pub timestamp: u64,
     pub number: u32,
     pub prev_block_hash: H256,
-    pub txs_rolling_hash: H256,
     pub virtual_blocks: u32,
     pub protocol_version: ProtocolVersionId,
 }
@@ -55,7 +53,6 @@ impl MiniblockUpdates {
             timestamp,
             number,
             prev_block_hash,
-            txs_rolling_hash: H256::zero(),
             virtual_blocks,
             protocol_version,
         }
@@ -124,11 +121,8 @@ impl MiniblockUpdates {
         self.l1_gas_count += tx_l1_gas_this_tx;
         self.block_execution_metrics += execution_metrics;
         self.txs_encoding_size += tx.bootloader_encoding_size();
-
         self.storage_logs
             .extend(tx_execution_result.logs.storage_logs);
-
-        self.txs_rolling_hash = concat_and_hash(self.txs_rolling_hash, tx.hash());
 
         self.executed_transactions.push(TransactionExecutionResult {
             hash: tx.hash(),
