@@ -56,7 +56,7 @@ mod tests {
     #[test]
     fn apply_miniblock_with_empty_tx() {
         let mut miniblock_accumulator =
-            MiniblockUpdates::new(0, 0, H256::zero(), 1, Some(ProtocolVersionId::latest()));
+            MiniblockUpdates::new(0, 0, H256::zero(), 1, ProtocolVersionId::latest());
         let tx = create_transaction(10, 100);
         let expected_tx_size = tx.bootloader_encoding_size();
 

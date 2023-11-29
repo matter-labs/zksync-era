@@ -54,7 +54,7 @@ impl UpdatesManager {
                 l1_batch_env.first_l2_block.number,
                 l1_batch_env.first_l2_block.prev_block_hash,
                 l1_batch_env.first_l2_block.max_virtual_blocks_to_create,
-                Some(protocol_version),
+                protocol_version,
             ),
             storage_writes_deduplicator: StorageWritesDeduplicator::new(),
         }
@@ -135,7 +135,7 @@ impl UpdatesManager {
             self.miniblock.number + 1,
             self.miniblock.get_miniblock_hash(),
             miniblock_params.virtual_blocks,
-            Some(self.protocol_version),
+            self.protocol_version,
         );
         let old_miniblock_updates = std::mem::replace(&mut self.miniblock, new_miniblock_updates);
         self.l1_batch

@@ -31,7 +31,7 @@ pub struct MiniblockUpdates {
     pub prev_block_hash: H256,
     pub txs_rolling_hash: H256,
     pub virtual_blocks: u32,
-    pub protocol_version: Option<ProtocolVersionId>, // FIXME: always Some?
+    pub protocol_version: ProtocolVersionId,
 }
 
 impl MiniblockUpdates {
@@ -40,7 +40,7 @@ impl MiniblockUpdates {
         number: u32,
         prev_block_hash: H256,
         virtual_blocks: u32,
-        protocol_version: Option<ProtocolVersionId>,
+        protocol_version: ProtocolVersionId,
     ) -> Self {
         Self {
             executed_transactions: vec![],
@@ -153,7 +153,7 @@ impl MiniblockUpdates {
         for tx in &self.executed_transactions {
             digest.push_tx_hash(tx.hash);
         }
-        digest.finalize(self.protocol_version.unwrap_or(ProtocolVersionId::Version0))
+        digest.finalize(self.protocol_version)
     }
 
     pub(crate) fn get_miniblock_env(&self) -> L2BlockEnv {
@@ -175,7 +175,7 @@ mod tests {
     #[test]
     fn apply_empty_l2_tx() {
         let mut accumulator =
-            MiniblockUpdates::new(0, 0, H256::random(), 0, Some(ProtocolVersionId::latest()));
+            MiniblockUpdates::new(0, 0, H256::random(), 0, ProtocolVersionId::latest());
         let tx = create_transaction(10, 100);
         let bootloader_encoding_size = tx.bootloader_encoding_size();
         accumulator.extend_from_executed_transaction(
