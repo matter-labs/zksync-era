@@ -6,8 +6,12 @@ import * as path from 'path';
 import * as dataRestore from './data-restore';
 import { getTokens } from '../hyperchain_wizard';
 import * as env from '../env';
+import { IERC20Factory } from 'zksync-web3/build/typechain';
+import { Provider } from 'zksync-web3';
 
 export { dataRestore };
+
+const L2Provider = new Provider('http://127.0.0.1:3050');
 
 export async function deployERC20(
     command: 'dev' | 'new',
@@ -135,6 +139,12 @@ export async function cross_en_checker() {
     await utils.spawn(`${logLevel} ${suffix}`);
 }
 
+export async function erc20_balance(tokenAddress: string, walletAddress: string) {
+    let token = IERC20Factory.connect(tokenAddress, L2Provider);
+    let balance = await token.balanceOf(walletAddress);
+    console.log(`Balance is ${balance.toString()}`);
+}
+
 export const command = new Command('run').description('run miscellaneous applications').addCommand(dataRestore.command);
 
 command.command('test-accounts').description('print ethereum test accounts').action(testAccounts);
@@ -156,6 +166,13 @@ command
     .description('get symbol, name and decimals parameters from token')
     .action(async (address: string) => {
         await tokenInfo(address);
+    });
+
+command
+    .command('erc20-balance <token-address> <wallet-address>')
+    .description('get symbol, name and decimals parameters from token')
+    .action(async (tokenAddress: string, walletAddress: string) => {
+        await erc20_balance(tokenAddress, walletAddress);
     });
 
 command
