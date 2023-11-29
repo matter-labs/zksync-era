@@ -13,7 +13,8 @@ use zksync_config::configs::chain::NetworkConfig;
 use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
-    api, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256,
+    api, block::MiniblockHasher, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
+    ProtocolVersionId, Transaction, H256,
 };
 
 use super::{fetcher::FetcherCursor, sync_action::SyncAction, *};
@@ -31,6 +32,7 @@ const POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 #[derive(Debug, Default)]
 struct MockMainNodeClient {
+    prev_miniblock_hash: H256,
     l2_blocks: Vec<api::en::SyncBlock>,
 }
 
@@ -46,14 +48,27 @@ impl MockMainNodeClient {
         let mut tx_hashes = vec![];
         let l2_blocks = (0..=miniblock_count).map(|number| {
             let is_fictive = number == miniblock_count;
+            let number = number + number_offset;
+            let mut hasher = MiniblockHasher::new(
+                MiniblockNumber(number),
+                number.into(),
+                self.prev_miniblock_hash,
+            );
+
             let transactions = if is_fictive {
                 vec![]
             } else {
                 let transaction = create_l2_transaction(10, 100);
                 tx_hashes.push(transaction.hash());
+                hasher.push_tx_hash(transaction.hash());
                 vec![transaction.into()]
             };
-            let number = number + number_offset;
+            let miniblock_hash = hasher.finalize(if number == 0 {
+                ProtocolVersionId::Version0 // The genesis block always uses the legacy hashing mode
+            } else {
+                ProtocolVersionId::latest()
+            });
+            self.prev_miniblock_hash = miniblock_hash;
 
             api::en::SyncBlock {
                 number: MiniblockNumber(number),
@@ -67,7 +82,7 @@ impl MockMainNodeClient {
                 operator_address: Address::repeat_byte(2),
                 transactions: Some(transactions),
                 virtual_blocks: Some(!is_fictive as u32),
-                hash: Some(H256::repeat_byte(1)),
+                hash: Some(miniblock_hash),
                 protocol_version: ProtocolVersionId::latest(),
                 consensus: None,
             }
