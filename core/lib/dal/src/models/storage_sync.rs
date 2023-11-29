@@ -1,7 +1,10 @@
+use anyhow::Context as _;
 use std::convert::TryInto;
 
+use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_types::api::en::SyncBlock;
+use zksync_protobuf::{read_required, ProtoFmt};
+use zksync_types::api::en;
 use zksync_types::{Address, L1BatchNumber, MiniblockNumber, Transaction, H256};
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -29,10 +32,10 @@ impl StorageSyncBlock {
         self,
         current_operator_address: Address,
         transactions: Option<Vec<Transaction>>,
-    ) -> SyncBlock {
+    ) -> en::SyncBlock {
         let number = self.number;
 
-        SyncBlock {
+        en::SyncBlock {
             number: MiniblockNumber(self.number as u32),
             l1_batch_number: L1BatchNumber(self.l1_batch_number as u32),
             last_in_batch: self
@@ -62,7 +65,44 @@ impl StorageSyncBlock {
             virtual_blocks: Some(self.virtual_blocks as u32),
             hash: Some(H256::from_slice(&self.hash)),
             protocol_version: (self.protocol_version as u16).try_into().unwrap(),
-            consensus: self.consensus.map(|v| serde_json::from_value(v).unwrap()),
+            consensus: self.consensus.map(|v| {
+                let v: ConsensusBlockFields = zksync_protobuf::serde::deserialize(v).unwrap();
+                v.encode()
+            }),
+        }
+    }
+}
+
+/// Consensus-related L2 block (= miniblock) fields.
+#[derive(Debug, Clone)]
+pub struct ConsensusBlockFields {
+    /// Hash of the previous consensus block.
+    pub parent: validator::BlockHeaderHash,
+    /// Quorum certificate for the block.
+    pub justification: validator::CommitQC,
+}
+
+impl ConsensusBlockFields {
+    pub fn encode(&self) -> en::ConsensusBlockFields {
+        en::ConsensusBlockFields(zksync_protobuf::encode(self))
+    }
+    pub fn decode(x: &en::ConsensusBlockFields) -> anyhow::Result<Self> {
+        zksync_protobuf::decode(&x.0)
+    }
+}
+
+impl ProtoFmt for ConsensusBlockFields {
+    type Proto = crate::models::proto::ConsensusBlockFields;
+    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
+        Ok(Self {
+            parent: read_required(&r.parent).context("parent")?,
+            justification: read_required(&r.justification).context("justification")?,
+        })
+    }
+    fn build(&self) -> Self::Proto {
+        Self::Proto {
+            parent: Some(self.parent.build()),
+            justification: Some(self.justification.build()),
         }
     }
 }

@@ -7,8 +7,9 @@ use zksync_concurrency::{ctx, scope, time};
 use zksync_consensus_executor::testonly::FullValidatorConfig;
 use zksync_consensus_roles::validator::{self, FinalBlock};
 use zksync_consensus_storage::{InMemoryStorage, WriteBlockStore};
+use zksync_dal::blocks_dal::ConsensusBlockFields;
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_types::{block::ConsensusBlockFields, Address, L1BatchNumber, MiniblockNumber};
+use zksync_types::{Address, L1BatchNumber, MiniblockNumber};
 
 use super::*;
 use crate::{

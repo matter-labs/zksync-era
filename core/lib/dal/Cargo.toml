@@ -9,6 +9,8 @@ license = "MIT OR Apache-2.0"
 keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
+links = "zksync_dal_proto"
+
 [dependencies]
 vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "dd05139b76ab0843443ab3ff730174942c825dae" }
 zksync_utils = { path = "../utils" }
@@ -16,11 +18,14 @@ zksync_system_constants = { path = "../constants" }
 zksync_contracts = { path = "../contracts" }
 zksync_types = { path = "../types" }
 zksync_health_check = { path = "../health_check" }
+zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "ed71b2e817c980a2daffef6a01885219e1dc6fa0" }
+zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "ed71b2e817c980a2daffef6a01885219e1dc6fa0" }
 
 itertools = "0.10.1"
 thiserror = "1.0"
 anyhow = "1.0"
 url = "2"
+prost = "0.12.1"
 rand = "0.8"
 tokio = { version = "1", features = ["full"] }
 sqlx = { version = "0.5.13", default-features = false, features = [
@@ -46,3 +51,6 @@ tracing = "0.1"
 
 [dev-dependencies]
 assert_matches = "1.5.0"
+
+[build-dependencies]
+zksync_protobuf_build = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "ed71b2e817c980a2daffef6a01885219e1dc6fa0" }
