@@ -74,7 +74,7 @@ impl StorageSyncBlock {
 }
 
 /// Consensus-related L2 block (= miniblock) fields.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ConsensusBlockFields {
     /// Hash of the previous consensus block.
     pub parent: validator::BlockHeaderHash,
@@ -104,5 +104,23 @@ impl ProtoFmt for ConsensusBlockFields {
             parent: Some(self.parent.build()),
             justification: Some(self.justification.build()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ConsensusBlockFields;
+    use rand::Rng;
+    use zksync_consensus_roles::validator;
+
+    #[tokio::test]
+    async fn encode_decode() {
+        let rng = &mut rand::thread_rng();
+        let block = rng.gen::<validator::FinalBlock>();
+        let want = ConsensusBlockFields {
+            parent: block.header.parent,
+            justification: block.justification,
+        };
+        assert_eq!(want, ConsensusBlockFields::decode(&want.encode()).unwrap());
     }
 }
