@@ -22,6 +22,7 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
         skipSubmodulesCheckout,
         skipEnvSetup,
         skipPlonkStep,
+        nativeERC20,
         testTokens,
         governorPrivateKeyArgs,
         deployerL2ContractInput
@@ -47,6 +48,10 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     await announced('Building contracts', contract.build());
     if (testTokens.deploy) {
         await announced('Deploying localhost ERC20 tokens', run.deployERC20('dev', '', '', '', testTokens.args));
+    }
+    if (nativeERC20) {
+        // TODO: Deploy and set native ERC20 token.
+        await announced('Setting up native ERC20 token');
     }
     await announced('Deploying L1 verifier', contract.deployVerifier([]));
     await announced('Reloading env', env.reload());
@@ -150,6 +155,7 @@ export interface InitArgs {
     skipSubmodulesCheckout: boolean;
     skipEnvSetup: boolean;
     skipPlonkStep: boolean;
+    nativeERC20: boolean;
     governorPrivateKeyArgs: any[];
     deployerL2ContractInput: {
         args: any[];
@@ -165,6 +171,7 @@ export interface InitArgs {
 const DEFAULT_ARGS: InitArgs = {
     skipSubmodulesCheckout: false,
     skipEnvSetup: false,
+    nativeERC20: false,
     skipPlonkStep: false,
     governorPrivateKeyArgs: [],
     deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
@@ -174,6 +181,7 @@ const DEFAULT_ARGS: InitArgs = {
 export const initCommand = new Command('init')
     .option('--skip-submodules-checkout')
     .option('--skip-env-setup')
+    .option('--native-erc20')
     .description('perform zksync network initialization for development')
     .action(async (cmd: Command) => {
         const initArgs: InitArgs = {
@@ -182,7 +190,8 @@ export const initCommand = new Command('init')
             skipPlonkStep: false,
             governorPrivateKeyArgs: [],
             deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
-            testTokens: { deploy: true, args: [] }
+            testTokens: { deploy: true, args: [] },
+            nativeERC20: cmd.nativeERC20
         };
         await init(initArgs);
     });

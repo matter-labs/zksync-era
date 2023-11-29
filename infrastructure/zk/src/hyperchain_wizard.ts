@@ -56,6 +56,7 @@ async function initHyperchain() {
         skipSubmodulesCheckout: false,
         skipEnvSetup: true,
         skipPlonkStep: true,
+        nativeERC20: false,
         governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
         deployerL2ContractInput: {
             args: ['--private-key', deployerPrivateKey],
@@ -746,6 +747,7 @@ async function configDemoHyperchain(cmd: Command) {
         skipSubmodulesCheckout: false,
         skipEnvSetup: cmd.skipEnvSetup,
         skipPlonkStep: true,
+        nativeERC20: false,
         governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
         deployerL2ContractInput: {
             args: ['--private-key', deployerPrivateKey],
