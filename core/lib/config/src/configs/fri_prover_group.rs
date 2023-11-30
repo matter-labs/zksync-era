@@ -40,6 +40,35 @@ impl FriProverGroupConfig {
         }
     }
 
+    pub fn get_group_id_for_circuit_id_and_aggregation_round(
+        &self,
+        circuit_id: u8,
+        aggregation_round: u8,
+    ) -> Option<u8> {
+        let configs = [
+            &self.group_0,
+            &self.group_1,
+            &self.group_2,
+            &self.group_3,
+            &self.group_4,
+            &self.group_5,
+            &self.group_6,
+            &self.group_7,
+            &self.group_8,
+            &self.group_9,
+            &self.group_10,
+            &self.group_11,
+            &self.group_12,
+        ];
+        configs
+            .iter()
+            .enumerate()
+            .find(|(_, group)| {
+                group.contains(&CircuitIdRoundTuple::new(circuit_id, aggregation_round))
+            })
+            .map(|(group_id, _)| group_id as u8)
+    }
+
     pub fn get_all_circuit_ids(&self) -> Vec<CircuitIdRoundTuple> {
         (0..13)
             .filter_map(|group_id| self.get_circuit_ids_for_group_id(group_id))

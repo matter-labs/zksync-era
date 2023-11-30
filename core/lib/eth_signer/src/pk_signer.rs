@@ -41,7 +41,7 @@ impl EthereumSigner for PrivateKeySigner {
         Ok(signature)
     }
 
-    /// Signs typed struct using ethereum private key by EIP-712 signature standard.
+    /// Signs typed struct using Ethereum private key by EIP-712 signature standard.
     /// Result of this function is the equivalent of RPC calling `eth_signTypedData`.
     async fn sign_typed_data<S: EIP712TypedStructure + Sync>(
         &self,

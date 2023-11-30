@@ -321,7 +321,10 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
         Some(self.updater.load_greatest_key(self.db)?.0.full_key)
     }
 
-    pub fn extend_during_recovery(mut self, recovery_entries: Vec<RecoveryEntry>) -> PatchSet {
+    pub fn extend_during_linear_recovery(
+        mut self,
+        recovery_entries: Vec<RecoveryEntry>,
+    ) -> PatchSet {
         let (mut prev_key, mut prev_nibbles) = match self.updater.load_greatest_key(self.db) {
             Some((leaf, nibbles)) => (Some(leaf.full_key), nibbles),
             None => (None, Nibbles::EMPTY),
@@ -344,6 +347,29 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
                 self.updater
                     .insert(entry.key, entry.value, &parent_nibbles, || entry.leaf_index);
             prev_nibbles = new_leaf.nibbles;
+            self.leaf_count += 1;
+        }
+        let extend_patch_latency = extend_patch_latency.observe();
+        tracing::debug!("Tree traversal stage took {extend_patch_latency:?}");
+
+        let (_, patch) = self.finalize();
+        patch
+    }
+
+    pub fn extend_during_random_recovery(
+        mut self,
+        recovery_entries: Vec<RecoveryEntry>,
+    ) -> PatchSet {
+        let load_nodes_latency = BLOCK_TIMINGS.load_nodes.start();
+        let sorted_keys = SortedKeys::new(recovery_entries.iter().map(|entry| entry.key));
+        let parent_nibbles = self.updater.load_ancestors(&sorted_keys, self.db);
+        let load_nodes_latency = load_nodes_latency.observe();
+        tracing::debug!("Load stage took {load_nodes_latency:?}");
+
+        let extend_patch_latency = BLOCK_TIMINGS.extend_patch.start();
+        for (entry, parent_nibbles) in recovery_entries.into_iter().zip(parent_nibbles) {
+            self.updater
+                .insert(entry.key, entry.value, &parent_nibbles, || entry.leaf_index);
             self.leaf_count += 1;
         }
         let extend_patch_latency = extend_patch_latency.observe();
