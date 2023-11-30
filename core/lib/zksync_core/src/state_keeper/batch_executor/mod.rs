@@ -5,7 +5,7 @@ use tokio::{
     task::JoinHandle,
 };
 
-use multivm::MultivmTracer;
+use multivm::MultiVMTracer;
 use std::{fmt, sync::Arc};
 
 use multivm::{

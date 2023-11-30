@@ -45,6 +45,7 @@ use zksync_verification_key_server::get_cached_commitments;
 pub mod api_server;
 pub mod basic_witness_input_producer;
 pub mod block_reverter;
+mod consensus;
 pub mod consistency_checker;
 pub mod data_fetchers;
 pub mod eth_sender;
@@ -250,7 +251,7 @@ pub enum Component {
     WitnessGenerator(Option<usize>, AggregationRound),
     /// Component for housekeeping task such as cleaning blobs from GCS, reporting metrics etc.
     Housekeeper,
-    /// Component for exposing API's to prover for providing proof generation data and accepting proofs.
+    /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
 }
 
@@ -1184,9 +1185,14 @@ async fn add_house_keeper_to_task_futures(
     );
     task_futures.push(tokio::spawn(fri_witness_generator_stats_reporter.run()));
 
+    let fri_prover_group_config = configs
+        .fri_prover_group_config
+        .clone()
+        .context("fri_prover_group_config")?;
     let fri_prover_stats_reporter = FriProverStatsReporter::new(
         house_keeper_config.fri_prover_stats_reporting_interval_ms,
         prover_connection_pool.clone(),
+        fri_prover_group_config,
     );
     task_futures.push(tokio::spawn(fri_prover_stats_reporter.run()));
 
@@ -1310,6 +1316,7 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
             .with_last_miniblock_pool(last_miniblock_pool)
             .with_filter_limit(api_config.web3_json_rpc.filters_limit())
             .with_threads(api_config.web3_json_rpc.http_server_threads())
+            .with_tree_api(api_config.web3_json_rpc.tree_api_url())
             .with_batch_request_size_limit(api_config.web3_json_rpc.max_batch_request_size())
             .with_response_body_size_limit(api_config.web3_json_rpc.max_response_body_size())
             .with_tx_sender(tx_sender, vm_barrier)

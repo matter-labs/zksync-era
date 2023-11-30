@@ -42,7 +42,7 @@ impl From<MerkleTreeInfo> for Health {
 ///
 /// Async methods provided by this wrapper are not cancel-safe! This is probably not an issue;
 /// `ZkSyncTree` is only indirectly available via `MetadataCalculator::run()` entrypoint
-/// which consumes `self`. That is, if `MetadataCalculator::run()` is cancelled (which we don't currently do,
+/// which consumes `self`. That is, if `MetadataCalculator::run()` is canceled (which we don't currently do,
 /// at least not explicitly), all `MetadataCalculator` data including `ZkSyncTree` is discarded.
 /// In the unlikely case you get a "`ZkSyncTree` is in inconsistent state" panic,
 /// cancellation is most probably the reason.
