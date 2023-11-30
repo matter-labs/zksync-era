@@ -113,7 +113,7 @@ async fn test_require_eip712() {
         vm.get_eth_balance(private_account.address)
     );
 
-    // // Now send the 'classic' EIP712 transferred
+    // // Now send the 'classic' EIP712 transaction
     let tx_712 = L2Tx::new(
         beneficiary.address,
         vec![],
