@@ -300,9 +300,7 @@ async fn handle_send_result(
                  for job: {job_id} by: {local_ip:?} to: {address:?}"
             );
 
-            let label: &'static str = Box::leak(blob_size_in_gb.to_string().into_boxed_str());
-
-            CIRCUIT_SYNTHESIZER_METRICS.blob_sending_time[&label].observe(*elapsed);
+            CIRCUIT_SYNTHESIZER_METRICS.blob_sending_time[&blob_size_in_gb].observe(*elapsed);
 
             // endregion
 

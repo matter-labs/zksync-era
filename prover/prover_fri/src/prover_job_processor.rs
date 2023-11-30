@@ -91,8 +91,8 @@ impl Prover {
                 let artifact: GoldilocksProverSetupData =
                     get_cpu_setup_data_for_circuit_type(key.clone())
                         .context("get_cpu_setup_data_for_circuit_type()")?;
-                let label: &'static str = Box::leak(key.circuit_id.to_string().into_boxed_str());
-                PROVER_FRI_METRICS.gpu_setup_data_load_time[&label].observe(started_at.elapsed());
+                PROVER_FRI_METRICS.gpu_setup_data_load_time[&key.circuit_id.to_string()]
+                    .observe(started_at.elapsed());
 
                 Arc::new(artifact)
             }

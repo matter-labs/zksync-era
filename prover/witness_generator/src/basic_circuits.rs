@@ -23,7 +23,7 @@ use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::blo
 use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness;
 use zksync_prover_fri_types::{AuxOutputWitnessWrapper, get_current_pod_name};
 
-use crate::metrics::{StageLabel, SERVER_WITNESS_GENERATOR_METRICS, WITNESS_GENERATOR_METRICS};
+use crate::metrics::{SERVER_WITNESS_GENERATOR_METRICS, WITNESS_GENERATOR_METRICS};
 use crate::storage_oracle::StorageOracle;
 use multivm::vm_latest::{
     constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
@@ -198,8 +198,7 @@ impl JobProcessor for BasicWitnessGenerator {
                 let started_at = Instant::now();
                 let job = get_artifacts(block_number, &*self.object_store).await;
 
-                WITNESS_GENERATOR_METRICS.blob_fetch_time
-                    [&StageLabel::from(AggregationRound::BasicCircuits)]
+                WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::BasicCircuits.into()]
                     .observe(started_at.elapsed());
 
                 Ok(Some((block_number, job)))
@@ -260,8 +259,7 @@ impl JobProcessor for BasicWitnessGenerator {
                 )
                 .await;
 
-                WITNESS_GENERATOR_METRICS.blob_save_time
-                    [&StageLabel::from(AggregationRound::BasicCircuits)]
+                WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::BasicCircuits.into()]
                     .observe(blob_started_at.elapsed());
 
                 update_database(&self.prover_connection_pool, started_at, job_id, blob_urls).await;
@@ -306,8 +304,7 @@ async fn process_basic_circuits_job(
         scheduler_witness,
         aux_output_witness,
     ) = generate_witness(object_store, config, connection_pool, witness_gen_input).await;
-    WITNESS_GENERATOR_METRICS.witness_generation_time
-        [&StageLabel::from(AggregationRound::BasicCircuits)]
+    WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
         .observe(started_at.elapsed());
 
     tracing::info!(

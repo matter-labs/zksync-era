@@ -87,7 +87,7 @@ impl PeriodicJob for FriProverStatsReporter {
 
         if let Some(l1_batch_number) = conn
             .proof_generation_dal()
-            .get_oldest_unprocessed_block()
+            .get_oldest_unprocessed_batch()
             .await
         {
             metrics::histogram!(
@@ -99,7 +99,7 @@ impl PeriodicJob for FriProverStatsReporter {
         for aggregation_round in 0..2 {
             if let Some(l1_batch_number) = conn
                 .fri_prover_jobs_dal()
-                .min_unproved_l1_batch_number_for_aggregation_round(aggregation_round)
+                .min_unproved_l1_batch_number_for_aggregation_round(aggregation_round.into())
                 .await
             {
                 metrics::histogram!(

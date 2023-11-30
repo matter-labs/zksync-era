@@ -3,14 +3,14 @@ use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics
 use zksync_types::proofs::AggregationRound;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
-pub(crate) struct CircuitLabels {
+pub struct CircuitLabels {
     pub circuit_type: u8,
     pub aggregation_round: StageLabel,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", format = "wit_gen_{}")]
-pub(crate) struct StageLabel(AggregationRound);
+pub struct StageLabel(AggregationRound);
 
 impl From<AggregationRound> for StageLabel {
     fn from(round: AggregationRound) -> Self {
@@ -20,12 +20,7 @@ impl From<AggregationRound> for StageLabel {
 
 impl std::fmt::Display for StageLabel {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(match self.0 {
-            AggregationRound::BasicCircuits => "basic_circuits",
-            AggregationRound::LeafAggregation => "leaf_aggregation",
-            AggregationRound::NodeAggregation => "node_aggregation",
-            AggregationRound::Scheduler => "scheduler",
-        })
+        self.0.fmt(formatter)
     }
 }
 

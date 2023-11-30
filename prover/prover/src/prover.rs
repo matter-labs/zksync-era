@@ -66,8 +66,7 @@ impl ProverReporter {
             duration,
         );
 
-        let label: &'static str = Box::leak(circuit_type.into_boxed_str());
-        PROVER_METRICS.proof_generation_time[&label].observe(duration);
+        PROVER_METRICS.proof_generation_time[&circuit_type].observe(duration);
 
         let job_id = job_id as u32;
         self.rt_handle.block_on(async {
@@ -187,8 +186,7 @@ impl JobReporter for ProverReporter {
                     circuit_type,
                     duration,
                 );
-                let label: &'static str = Box::leak(circuit_type.into_boxed_str());
-                PROVER_METRICS.circuit_synthesis_time[&label].observe(duration);
+                PROVER_METRICS.circuit_synthesis_time[&circuit_type].observe(duration);
             }
 
             JobResult::AssemblyFinalized(job_id, duration) => {
@@ -199,8 +197,7 @@ impl JobReporter for ProverReporter {
                     circuit_type,
                     duration,
                 );
-                let label: &'static str = Box::leak(circuit_type.into_boxed_str());
-                PROVER_METRICS.assembly_finalize_time[&label].observe(duration);
+                PROVER_METRICS.assembly_finalize_time[&circuit_type].observe(duration);
             }
 
             JobResult::SetupLoaded(job_id, duration, cache_miss) => {
@@ -213,9 +210,8 @@ impl JobReporter for ProverReporter {
                     duration,
                     cache_miss
                 );
-                let label: &'static str = Box::leak(circuit_type.into_boxed_str());
-                PROVER_METRICS.setup_load_time[&label].observe(duration);
-                PROVER_METRICS.setup_loading_cache_miss[&label].inc();
+                PROVER_METRICS.setup_load_time[&circuit_type].observe(duration);
+                PROVER_METRICS.setup_loading_cache_miss[&circuit_type].inc();
             }
 
             JobResult::AssemblyEncoded(job_id, duration) => {
@@ -226,8 +222,7 @@ impl JobReporter for ProverReporter {
                     circuit_type,
                     duration,
                 );
-                let label: &'static str = Box::leak(circuit_type.into_boxed_str());
-                PROVER_METRICS.assembly_encoding_time[&label].observe(duration);
+                PROVER_METRICS.assembly_encoding_time[&circuit_type].observe(duration);
             }
 
             JobResult::AssemblyDecoded(job_id, duration) => {
@@ -238,8 +233,7 @@ impl JobReporter for ProverReporter {
                     circuit_type,
                     duration,
                 );
-                let label: &'static str = Box::leak(circuit_type.into_boxed_str());
-                PROVER_METRICS.assembly_decoding_time[&label].observe(duration);
+                PROVER_METRICS.assembly_decoding_time[&circuit_type].observe(duration);
             }
 
             JobResult::FailureWithDebugging(job_id, circuit_id, assembly, error) => {
@@ -266,8 +260,7 @@ impl JobReporter for ProverReporter {
                     circuit_type,
                     duration,
                 );
-                let label: &'static str = Box::leak(circuit_type.into_boxed_str());
-                PROVER_METRICS.assembly_transferring_time[&label].observe(duration);
+                PROVER_METRICS.assembly_transferring_time[&circuit_type].observe(duration);
             }
 
             JobResult::ProverWaitedIdle(prover_id, duration) => {

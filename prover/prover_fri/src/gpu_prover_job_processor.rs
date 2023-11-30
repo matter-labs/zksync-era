@@ -104,9 +104,7 @@ pub mod gpu_prover {
                         get_setup_data_for_circuit_type(key.clone())
                             .context("get_setup_data_for_circuit_type()")?;
 
-                    let label: &'static str =
-                        Box::leak(key.circuit_id.to_string().into_boxed_str());
-                    PROVER_FRI_METRICS.gpu_setup_data_load_time[&label]
+                    PROVER_FRI_METRICS.gpu_setup_data_load_time[&key.circuit_id.to_string()]
                         .observe(started_at.elapsed());
 
                     Arc::new(artifact)
@@ -163,8 +161,8 @@ pub mod gpu_prover {
                 prover_job.job_id,
                 started_at.elapsed()
             );
-            let label: &'static str = Box::leak(circuit_id.to_string().into_boxed_str());
-            PROVER_FRI_METRICS.gpu_proof_generation_time[&label].observe(started_at.elapsed());
+            PROVER_FRI_METRICS.gpu_proof_generation_time[&circuit_id.to_string()]
+                .observe(started_at.elapsed());
 
             let proof = proof.into();
             verify_proof(

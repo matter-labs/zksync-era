@@ -16,7 +16,7 @@ use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::recursion::lea
 use zksync_vk_setup_data_server_fri::get_recursive_layer_vk_for_circuit_type;
 use zksync_vk_setup_data_server_fri::utils::get_leaf_vk_params;
 
-use crate::metrics::{StageLabel, WITNESS_GENERATOR_METRICS};
+use crate::metrics::WITNESS_GENERATOR_METRICS;
 use crate::utils::{
     load_proofs_for_job_ids, save_node_aggregations_artifacts,
     save_recursive_layer_prover_input_artifacts, AggregationWrapper,
@@ -110,7 +110,7 @@ impl NodeAggregationWitnessGenerator {
             &job.all_leafs_layer_params,
         );
         WITNESS_GENERATOR_METRICS.witness_generation_time
-            [&StageLabel::from(AggregationRound::NodeAggregation)]
+            [&AggregationRound::NodeAggregation.into()]
             .observe(started_at.elapsed());
 
         tracing::info!(
@@ -229,7 +229,7 @@ pub async fn prepare_job(
     let artifacts = get_artifacts(&metadata, object_store).await;
     let proofs = load_proofs_for_job_ids(&metadata.prover_job_ids_for_proofs, object_store).await;
 
-    WITNESS_GENERATOR_METRICS.blob_fetch_time[&StageLabel::from(AggregationRound::NodeAggregation)]
+    WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::NodeAggregation.into()]
         .observe(started_at.elapsed());
 
     let started_at = Instant::now();
@@ -253,8 +253,7 @@ pub async fn prepare_job(
         }
     }
 
-    WITNESS_GENERATOR_METRICS.prepare_job_time
-        [&StageLabel::from(AggregationRound::NodeAggregation)]
+    WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::NodeAggregation.into()]
         .observe(started_at.elapsed());
 
     Ok(NodeAggregationWitnessGeneratorJob {
@@ -375,7 +374,7 @@ async fn save_artifacts(
     )
     .await;
 
-    WITNESS_GENERATOR_METRICS.blob_save_time[&StageLabel::from(AggregationRound::NodeAggregation)]
+    WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::NodeAggregation.into()]
         .observe(started_at.elapsed());
 
     BlobUrls {

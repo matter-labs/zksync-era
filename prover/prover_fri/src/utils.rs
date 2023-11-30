@@ -96,8 +96,8 @@ pub async fn save_proof(
     let blob_save_started_at = Instant::now();
     let blob_url = blob_store.put(job_id, &proof).await.unwrap();
 
-    let label: &'static str = Box::leak(circuit_type.to_string().into_boxed_str());
-    PROVER_FRI_METRICS.blob_save_time[&label].observe(blob_save_started_at.elapsed());
+    PROVER_FRI_METRICS.blob_save_time[&circuit_type.to_string()]
+        .observe(blob_save_started_at.elapsed());
 
     let mut transaction = storage_processor.start_transaction().await.unwrap();
     let job_metadata = transaction
@@ -141,8 +141,8 @@ pub fn verify_proof(
         ),
     };
 
-    let label: &'static str = Box::leak(circuit_id.to_string().into_boxed_str());
-    PROVER_FRI_METRICS.proof_verification_time[&label].observe(started_at.elapsed());
+    PROVER_FRI_METRICS.proof_verification_time[&circuit_id.to_string()]
+        .observe(started_at.elapsed());
 
     if !is_valid {
         let msg = format!(

@@ -18,7 +18,7 @@ use zksync_vk_setup_data_server_fri::{
     get_base_layer_vk_for_circuit_type, get_recursive_layer_vk_for_circuit_type,
 };
 
-use crate::metrics::{StageLabel, WITNESS_GENERATOR_METRICS};
+use crate::metrics::WITNESS_GENERATOR_METRICS;
 use crate::utils::{
     load_proofs_for_job_ids, save_node_aggregations_artifacts,
     save_recursive_layer_prover_input_artifacts, ClosedFormInputWrapper,
@@ -201,7 +201,7 @@ pub async fn prepare_leaf_aggregation_job(
     let closed_form_input = get_artifacts(&metadata, object_store).await;
     let proofs = load_proofs_for_job_ids(&metadata.prover_job_ids_for_proofs, object_store).await;
 
-    WITNESS_GENERATOR_METRICS.blob_fetch_time[&StageLabel::from(AggregationRound::LeafAggregation)]
+    WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::LeafAggregation.into()]
         .observe(started_at.elapsed());
 
     let started_at = Instant::now();
@@ -222,8 +222,7 @@ pub async fn prepare_leaf_aggregation_job(
     }
     let leaf_params = compute_leaf_params(metadata.circuit_id, base_vk.clone(), leaf_vk);
 
-    WITNESS_GENERATOR_METRICS.prepare_job_time
-        [&StageLabel::from(AggregationRound::LeafAggregation)]
+    WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::LeafAggregation.into()]
         .observe(started_at.elapsed());
 
     Ok(LeafAggregationWitnessGeneratorJob {
@@ -249,8 +248,7 @@ pub fn process_leaf_aggregation_job(
     let leaf_params = (circuit_id, job.leaf_params);
     let (aggregations, closed_form_inputs) =
         create_leaf_witnesses(subsets, job.proofs, job.base_vk, leaf_params);
-    WITNESS_GENERATOR_METRICS.witness_generation_time
-        [&StageLabel::from(AggregationRound::LeafAggregation)]
+    WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::LeafAggregation.into()]
         .observe(started_at.elapsed());
 
     tracing::info!(
@@ -378,7 +376,7 @@ async fn save_artifacts(
         None,
     )
     .await;
-    WITNESS_GENERATOR_METRICS.blob_save_time[&StageLabel::from(AggregationRound::LeafAggregation)]
+    WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::LeafAggregation.into()]
         .observe(started_at.elapsed());
 
     BlobUrls {

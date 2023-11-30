@@ -343,19 +343,20 @@ impl FriProverDal<'_, '_> {
 
     pub async fn min_unproved_l1_batch_number_for_aggregation_round(
         &mut self,
-        aggregation_round: i16,
+        aggregation_round: AggregationRound,
     ) -> Option<L1BatchNumber> {
         {
             sqlx::query!(
                 r#"
                     SELECT l1_batch_number 
                     FROM prover_jobs_fri 
-                    WHERE status IN('queued', 'failed') 
+                    WHERE status <> 'skipped'
+                    AND status <> 'successful'
                     AND aggregation_round = $1 
                     ORDER BY l1_batch_number ASC 
                     LIMIT 1
                 "#,
-                aggregation_round
+                aggregation_round as i16
             )
             .fetch_optional(self.storage.conn())
             .await

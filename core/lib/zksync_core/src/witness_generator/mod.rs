@@ -66,12 +66,7 @@ impl From<AggregationRound> for StageLabel {
 
 impl fmt::Display for StageLabel {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(match self.0 {
-            AggregationRound::BasicCircuits => "basic_circuits",
-            AggregationRound::LeafAggregation => "leaf_aggregation",
-            AggregationRound::NodeAggregation => "node_aggregation",
-            AggregationRound::Scheduler => "scheduler",
-        })
+        self.0.fmt(formatter)
     }
 }
 

@@ -1,30 +1,6 @@
 use std::time::Duration;
-use vise::{
-    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LabeledFamily,
-    Metrics,
-};
-use zksync_types::proofs::AggregationRound;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
-#[metrics(label = "stage", format = "wit_gen_{}")]
-pub(crate) struct StageLabel(AggregationRound);
-
-impl From<AggregationRound> for StageLabel {
-    fn from(round: AggregationRound) -> Self {
-        Self(round)
-    }
-}
-
-impl std::fmt::Display for StageLabel {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(match self.0 {
-            AggregationRound::BasicCircuits => "basic_circuits",
-            AggregationRound::LeafAggregation => "leaf_aggregation",
-            AggregationRound::NodeAggregation => "node_aggregation",
-            AggregationRound::Scheduler => "scheduler",
-        })
-    }
-}
+use vise::{Buckets, Counter, Family, Gauge, Histogram, LabeledFamily, Metrics};
+use zksync_prover_fri_utils::metrics::StageLabel;
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "prover_fri_witness_generator")]
@@ -58,7 +34,7 @@ pub(crate) static SERVER_WITNESS_GENERATOR_METRICS: vise::Global<ServerWitnessGe
 #[metrics(prefix = "server")]
 pub(crate) struct ServerMetrics {
     #[metrics(labels = ["stage"])]
-    pub latency: LabeledFamily<&'static str, Gauge<Duration>>,
+    pub init_latency: LabeledFamily<String, Gauge<Duration>>,
 }
 
 #[vise::register]
