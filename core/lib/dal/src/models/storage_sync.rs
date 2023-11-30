@@ -84,10 +84,10 @@ pub struct ConsensusBlockFields {
 
 impl ConsensusBlockFields {
     pub fn encode(&self) -> en::ConsensusBlockFields {
-        en::ConsensusBlockFields(zksync_protobuf::encode(self))
+        en::ConsensusBlockFields(zksync_protobuf::encode(self).into())
     }
     pub fn decode(x: &en::ConsensusBlockFields) -> anyhow::Result<Self> {
-        zksync_protobuf::decode(&x.0)
+        zksync_protobuf::decode(&x.0 .0)
     }
 }
 
