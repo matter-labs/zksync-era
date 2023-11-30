@@ -71,7 +71,7 @@ export async function plonkSetup(powers?: number[]) {
     fs.mkdirSync('keys/setup', { recursive: true });
     process.chdir('keys/setup');
     for (let i = 0; i < powers.length; i++) {
-        let power = powers[i];
+        const power = powers[i];
         if (!fs.existsSync(`setup_2^${power}.key`)) {
             await utils.spawn(`curl -LO ${URL}/setup_2^${power}.key`);
             await utils.sleep(1);
