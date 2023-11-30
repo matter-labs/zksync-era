@@ -12,7 +12,7 @@ pub fn derive_overhead(
     gas_limit: u32,
     gas_price_per_pubdata: u32,
     encoded_len: usize,
-    coeficients: OverheadCoeficients,
+    coefficients: OverheadCoefficients,
 ) -> u32 {
     // Even if the gas limit is greater than the MAX_TX_ERGS_LIMIT, we assume that everything beyond MAX_TX_ERGS_LIMIT
     // will be spent entirely on publishing bytecodes and so we derive the overhead solely based on the capped value
@@ -49,31 +49,31 @@ pub fn derive_overhead(
     // );
 
     vec![
-        (coeficients.ergs_limit_overhead_coeficient
+        (coefficients.ergs_limit_overhead_coeficient
             * overhead_for_single_instance_circuits.as_u32() as f64)
             .floor() as u32,
-        (coeficients.bootloader_memory_overhead_coeficient * overhead_for_length.as_u32() as f64)
+        (coefficients.bootloader_memory_overhead_coeficient * overhead_for_length.as_u32() as f64)
             .floor() as u32,
-        (coeficients.slot_overhead_coeficient * tx_slot_overhead.as_u32() as f64) as u32,
+        (coefficients.slot_overhead_coeficient * tx_slot_overhead.as_u32() as f64) as u32,
     ]
     .into_iter()
     .max()
     .unwrap()
 }
 
-/// Contains the coeficients with which the overhead for transactions will be calculated.
-/// All of the coeficients should be <= 1. There are here to provide a certain "discount" for normal transactions
+/// Contains the coefficients with which the overhead for transactions will be calculated.
+/// All of the coefficients should be <= 1. There are here to provide a certain "discount" for normal transactions
 /// at the risk of malicious transactions that may close the block prematurely.
-/// IMPORTANT: to perform correct computations, `MAX_TX_ERGS_LIMIT / coeficients.ergs_limit_overhead_coeficient` MUST
+/// IMPORTANT: to perform correct computations, `MAX_TX_ERGS_LIMIT / coefficients.ergs_limit_overhead_coeficient` MUST
 /// result in an integer number
 #[derive(Debug, Clone, Copy)]
-pub struct OverheadCoeficients {
+pub struct OverheadCoefficients {
     slot_overhead_coeficient: f64,
     bootloader_memory_overhead_coeficient: f64,
     ergs_limit_overhead_coeficient: f64,
 }
 
-impl OverheadCoeficients {
+impl OverheadCoefficients {
     // This method ensures that the parameters keep the required invariants
     fn new_checked(
         slot_overhead_coeficient: f64,
@@ -95,11 +95,11 @@ impl OverheadCoeficients {
 
     // L1->L2 do not receive any discounts
     fn new_l1() -> Self {
-        OverheadCoeficients::new_checked(1.0, 1.0, 1.0)
+        OverheadCoefficients::new_checked(1.0, 1.0, 1.0)
     }
 
     fn new_l2() -> Self {
-        OverheadCoeficients::new_checked(
+        OverheadCoefficients::new_checked(
             1.0, 1.0,
             // For L2 transactions we allow a certain default discount with regard to the number of ergs.
             // Multiinstance circuits can in theory be spawned infinite times, while projected future limitations
@@ -109,7 +109,7 @@ impl OverheadCoeficients {
         )
     }
 
-    /// Return the coeficients for the given transaction type
+    /// Return the coefficients for the given transaction type
     pub fn from_tx_type(tx_type: u8) -> Self {
         if is_l1_tx_type(tx_type) {
             Self::new_l1()
@@ -124,7 +124,7 @@ pub(crate) fn get_amortized_overhead(
     total_gas_limit: u32,
     gas_per_pubdata_byte_limit: u32,
     encoded_len: usize,
-    coeficients: OverheadCoeficients,
+    coefficients: OverheadCoefficients,
 ) -> u32 {
     // Using large U256 type to prevent overflows.
     let overhead_for_block_gas = U256::from(block_overhead_gas(gas_per_pubdata_byte_limit));
@@ -161,7 +161,7 @@ pub(crate) fn get_amortized_overhead(
     let tx_slot_overhead = {
         let tx_slot_overhead =
             ceil_div_u256(overhead_for_block_gas, MAX_TXS_IN_BLOCK.into()).as_u32();
-        (coeficients.slot_overhead_coeficient * tx_slot_overhead as f64).floor() as u32
+        (coefficients.slot_overhead_coeficient * tx_slot_overhead as f64).floor() as u32
     };
 
     // 2. The overhead for occupying the bootloader memory can be derived from encoded_len
@@ -172,7 +172,7 @@ pub(crate) fn get_amortized_overhead(
         )
         .as_u32();
 
-        (coeficients.bootloader_memory_overhead_coeficient * overhead_for_length as f64).floor()
+        (coefficients.bootloader_memory_overhead_coeficient * overhead_for_length as f64).floor()
             as u32
     };
 
@@ -217,7 +217,7 @@ pub(crate) fn get_amortized_overhead(
     let overhead_for_gas = {
         let numerator = overhead_for_block_gas * total_gas_limit + U256::from(MAX_TX_ERGS_LIMIT);
         let denominator: U256 = U256::from(
-            (MAX_TX_ERGS_LIMIT as f64 / coeficients.ergs_limit_overhead_coeficient) as u64,
+            (MAX_TX_ERGS_LIMIT as f64 / coefficients.ergs_limit_overhead_coeficient) as u64,
         ) + overhead_for_block_gas;
 
         let overhead_for_gas = (numerator - 1) / denominator;
@@ -242,7 +242,7 @@ pub(crate) fn get_amortized_overhead(
             MAX_L2_TX_GAS_LIMIT as u32,
             gas_per_pubdata_byte_limit,
             encoded_len.as_usize(),
-            coeficients,
+            coefficients,
         )
     } else {
         overhead
@@ -263,7 +263,7 @@ mod tests {
         total_gas_limit: u32,
         gas_per_pubdata_byte_limit: u32,
         encoded_len: usize,
-        coeficients: OverheadCoeficients,
+        coefficients: OverheadCoefficients,
     ) -> u32 {
         let mut left_bound = if MAX_TX_ERGS_LIMIT < total_gas_limit {
             total_gas_limit - MAX_TX_ERGS_LIMIT
@@ -281,7 +281,7 @@ mod tests {
                 total_gas_limit - suggested_overhead,
                 gas_per_pubdata_byte_limit,
                 encoded_len,
-                coeficients,
+                coefficients,
             );
 
             derived_overhead >= suggested_overhead
@@ -310,40 +310,40 @@ mod tests {
         let test_params = |total_gas_limit: u32,
                            gas_per_pubdata: u32,
                            encoded_len: usize,
-                           coeficients: OverheadCoeficients| {
+                           coefficients: OverheadCoefficients| {
             let result_by_efficient_search =
-                get_amortized_overhead(total_gas_limit, gas_per_pubdata, encoded_len, coeficients);
+                get_amortized_overhead(total_gas_limit, gas_per_pubdata, encoded_len, coefficients);
 
             let result_by_binary_search = get_maximal_allowed_overhead_bin_search(
                 total_gas_limit,
                 gas_per_pubdata,
                 encoded_len,
-                coeficients,
+                coefficients,
             );
 
             assert_eq!(result_by_efficient_search, result_by_binary_search);
         };
 
         // Some arbitrary test
-        test_params(60_000_000, 800, 2900, OverheadCoeficients::new_l2());
+        test_params(60_000_000, 800, 2900, OverheadCoefficients::new_l2());
 
         // Very small parameters
-        test_params(0, 1, 12, OverheadCoeficients::new_l2());
+        test_params(0, 1, 12, OverheadCoefficients::new_l2());
 
         // Relatively big parameters
         let max_tx_overhead = derive_overhead(
             MAX_TX_ERGS_LIMIT,
             5000,
             10000,
-            OverheadCoeficients::new_l2(),
+            OverheadCoefficients::new_l2(),
         );
         test_params(
             MAX_TX_ERGS_LIMIT + max_tx_overhead,
             5000,
             10000,
-            OverheadCoeficients::new_l2(),
+            OverheadCoefficients::new_l2(),
         );
 
-        test_params(115432560, 800, 2900, OverheadCoeficients::new_l1());
+        test_params(115432560, 800, 2900, OverheadCoefficients::new_l1());
     }
 }

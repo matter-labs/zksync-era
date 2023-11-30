@@ -16,7 +16,7 @@ use zk_evm_1_3_1::{
     zkevm_opcode_defs::{Opcode, RetOpcode},
 };
 
-/// Tells the VM to end the execution before `ret` from the booloader if there is no panic or revert.
+/// Tells the VM to end the execution before `ret` from the bootloader if there is no panic or revert.
 /// Also, saves the information if this `ret` was caused by "out of gas" panic.
 #[derive(Debug, Clone, Default)]
 pub struct BootloaderTracer<H: HistoryMode> {

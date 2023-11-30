@@ -31,6 +31,8 @@ jobs:
             # We don't want to be rebuilding and redeploying all the Docker images when eg. only document have changed
             prover:
               - prover/**
+              - core/lib/**
+              - '!core/lib/zksync_core/**'
             core:
               - core/**
             all:
