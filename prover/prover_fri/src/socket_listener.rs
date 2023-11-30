@@ -115,7 +115,7 @@ pub mod gpu_socket_listener {
                 started_at.elapsed().as_secs()
             );
 
-            PROVER_FRI_METRICS.witness_vector_blob_time[&file_size_in_gb]
+            PROVER_FRI_METRICS.witness_vector_blob_time[&file_size_in_gb.into()]
                 .observe(started_at.elapsed());
 
             let witness_vector = bincode::deserialize::<WitnessVectorArtifacts>(&assembly)

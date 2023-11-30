@@ -125,12 +125,13 @@ impl JobProcessor for ProofCompressor {
             "Started proof compression for L1 batch: {:?}",
             l1_batch_number
         );
-        let started_at = Instant::now();
+        let observer = PROOF_FRI_COMPRESSOR_METRICS.blob_fetch_time.start();
+
         let fri_proof: FriProofWrapper = self.blob_store.get(fri_proof_id)
             .await.with_context(|| format!("Failed to get fri proof from blob store for {l1_batch_number} with id {fri_proof_id}"))?;
-        PROOF_FRI_COMPRESSOR_METRICS
-            .blob_fetch_time
-            .observe(started_at.elapsed());
+
+        observer.observe();
+
         let scheduler_proof = match fri_proof {
             FriProofWrapper::Base(_) => anyhow::bail!("Must be a scheduler proof not base layer"),
             FriProofWrapper::Recursive(proof) => proof,

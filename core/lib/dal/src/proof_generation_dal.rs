@@ -114,7 +114,23 @@ impl ProofGenerationDal<'_, '_> {
         let result: Option<L1BatchNumber> = sqlx::query!(
             "SELECT l1_batch_number \
              FROM proof_generation_details \
-             WHERE status IN ('ready_to_be_proven') \
+             WHERE status = 'ready_to_be_proven' \
+             ORDER BY l1_batch_number ASC \
+             LIMIT 1",
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| L1BatchNumber(row.l1_batch_number as u32));
+
+        result
+    }
+
+    pub async fn get_oldest_not_generated_batch(&mut self) -> Option<L1BatchNumber> {
+        let result: Option<L1BatchNumber> = sqlx::query!(
+            "SELECT l1_batch_number \
+             FROM proof_generation_details \
+             WHERE status <> 'generated' \
              ORDER BY l1_batch_number ASC \
              LIMIT 1",
         )

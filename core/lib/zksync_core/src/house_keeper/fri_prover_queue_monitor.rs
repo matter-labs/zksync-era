@@ -90,8 +90,19 @@ impl PeriodicJob for FriProverStatsReporter {
             .get_oldest_unprocessed_batch()
             .await
         {
-            metrics::histogram!(
-                "fri_prover.oldest_unprocessed_block",
+            metrics::gauge!(
+                "fri_prover.oldest_unprocessed_batch",
+                l1_batch_number.0 as f64
+            )
+        }
+
+        if let Some(l1_batch_number) = conn
+            .proof_generation_dal()
+            .get_oldest_not_generated_batch()
+            .await
+        {
+            metrics::gauge!(
+                "fri_prover.oldest_not_generated_batch",
                 l1_batch_number.0 as f64
             )
         }
@@ -102,7 +113,7 @@ impl PeriodicJob for FriProverStatsReporter {
                 .min_unproved_l1_batch_number_for_aggregation_round(aggregation_round.into())
                 .await
             {
-                metrics::histogram!(
+                metrics::gauge!(
                     "fri_prover.oldest_unprocessed_block_by_round",
                     l1_batch_number.0 as f64,
                     "aggregation_round" => aggregation_round.to_string()
