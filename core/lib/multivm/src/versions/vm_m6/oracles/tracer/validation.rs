@@ -238,7 +238,7 @@ impl<S: Storage, H: HistoryMode> ValidationTracer<S, H> {
             return true;
         }
 
-        // The pair of MSG_VALUE_SIMULATOR_ADDRESS & L2_ETH_TOKEN_ADDRESS simulates the behavior of transfering ETH
+        // The pair of MSG_VALUE_SIMULATOR_ADDRESS & L2_ETH_TOKEN_ADDRESS simulates the behavior of transferring ETH
         // that is safe for the DDoS protection rules.
         if valid_eth_token_call(address, msg_sender) {
             return true;
