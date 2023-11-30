@@ -86,7 +86,7 @@ transaction.
 ```rust
 let gas_remaining_before = vm.gas_remaining();
 execute_tx();
-let gas_used = gas_remaining_before = vm.gas_remaining();
+let gas_used = gas_remaining_before - vm.gas_remaining();
 ```
 
 ## Gas estimation
