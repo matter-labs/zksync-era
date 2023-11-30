@@ -162,7 +162,7 @@ The zk server (that you started with `zk server` command) is listening on events
 ) and adds them to the postgres database (into `transactions` table).
 
 You can actually check it - by running the psql and looking at the contents of the table - then you'll notice that
-transaction was succesfully inserted, and it was also marked as 'priority' (as it came from L1) - as regular
+transaction was successfully inserted, and it was also marked as 'priority' (as it came from L1) - as regular
 transactions that are received by the server directly are not marked as priority.
 
 You can verify that this is your transaction, by looking at the `l1_block_number` column (it should match the

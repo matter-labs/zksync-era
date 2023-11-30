@@ -9088,6 +9088,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "tempfile",
+ "test-casing",
  "thiserror",
  "tracing",
  "tracing-subscriber",

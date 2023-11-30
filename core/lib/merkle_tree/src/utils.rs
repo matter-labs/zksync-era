@@ -114,11 +114,6 @@ impl<V> SmallMap<V> {
     }
 }
 
-pub(crate) fn increment_counter(counter: &mut u64) -> u64 {
-    *counter += 1;
-    *counter
-}
-
 pub(crate) fn find_diverging_bit(lhs: Key, rhs: Key) -> usize {
     let diff = lhs ^ rhs;
     diff.leading_zeros() as usize

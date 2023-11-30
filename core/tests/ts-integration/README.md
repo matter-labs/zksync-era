@@ -134,7 +134,7 @@ finalization: it make take several hours to generate a proof and send it onchain
 Because of that, framework supports "fast" and "long" modes. `TestMaster` objects have `isFastMode` method to determine
 which mode is currently being used.
 
-If you're going to write a test that can make test run duration longer, it is adviced to guard the "long" part with the
+If you're going to write a test that can make test run duration longer, it is advised to guard the "long" part with the
 corresponding check.
 
 By default, "long" mode is assumed, and to enable the "fast" mode one must set the `ZK_INTEGRATION_TESTS_FAST_MODE`

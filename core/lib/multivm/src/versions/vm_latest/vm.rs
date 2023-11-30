@@ -142,7 +142,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     }
 }
 
-/// Methods of vm, which required some history manipullations
+/// Methods of vm, which required some history manipulations
 impl<S: WriteStorage> VmInterfaceHistoryEnabled<S> for Vm<S, HistoryEnabled> {
     /// Create snapshot of current vm state and push it into the memory
     fn make_snapshot(&mut self) {
