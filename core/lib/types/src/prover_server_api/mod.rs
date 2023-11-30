@@ -19,7 +19,7 @@ pub struct ProofGenerationDataRequest {}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ProofGenerationDataResponse {
-    Success(ProofGenerationData),
+    Success(Option<ProofGenerationData>),
     Error(String),
 }
 

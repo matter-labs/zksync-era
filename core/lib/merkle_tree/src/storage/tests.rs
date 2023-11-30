@@ -4,6 +4,7 @@ use rand::{
     seq::{IteratorRandom, SliceRandom},
     Rng, SeedableRng,
 };
+use test_casing::test_casing;
 
 use std::collections::{HashMap, HashSet};
 
@@ -341,7 +342,8 @@ fn big_endian_key(index: u64) -> U256 {
     U256([0, 0, 0, index.swap_bytes()])
 }
 
-fn test_read_instructions_do_not_lead_to_copied_nodes(writes_per_block: u64) {
+#[test_casing(3, [10, 20, 50])]
+fn read_instructions_do_not_lead_to_copied_nodes(writes_per_block: u64) {
     const RNG_SEED: u64 = 12;
 
     // Write some keys into the database.
@@ -390,15 +392,8 @@ fn assert_no_copied_nodes(database: &PatchSet, patch: &PatchSet) {
     }
 }
 
-#[test]
-fn read_instructions_do_not_lead_to_copied_nodes() {
-    for writes_per_block in [10, 20, 50] {
-        println!("Testing {writes_per_block} writes / block");
-        test_read_instructions_do_not_lead_to_copied_nodes(writes_per_block);
-    }
-}
-
-fn test_replaced_keys_are_correctly_tracked(writes_per_block: usize, with_proofs: bool) {
+#[test_casing(12, test_casing::Product(([1, 3, 5, 10, 20, 50], [false, true])))]
+fn replaced_keys_are_correctly_tracked(writes_per_block: usize, with_proofs: bool) {
     const RNG_SEED: u64 = 12;
 
     // Write some keys into the database.
@@ -428,22 +423,6 @@ fn test_replaced_keys_are_correctly_tracked(writes_per_block: usize, with_proofs
         };
         assert_replaced_keys(&database, &patch);
         database.apply_patch(patch);
-    }
-}
-
-#[test]
-fn replaced_keys_are_correctly_tracked() {
-    for writes_per_block in [1, 3, 5, 10, 20, 50] {
-        println!("Testing {writes_per_block} writes / block");
-        test_replaced_keys_are_correctly_tracked(writes_per_block, false);
-    }
-}
-
-#[test]
-fn replaced_keys_are_correctly_tracked_with_proofs() {
-    for writes_per_block in [1, 3, 5, 10, 20, 50] {
-        println!("Testing {writes_per_block} writes / block");
-        test_replaced_keys_are_correctly_tracked(writes_per_block, true);
     }
 }
 
@@ -534,7 +513,8 @@ fn recovery_flattens_node_versions() {
     }
 }
 
-fn test_recovery_with_node_hierarchy(chunk_size: usize) {
+#[test_casing(7, [256, 4, 5, 20, 69, 127, 128])]
+fn recovery_with_node_hierarchy(chunk_size: usize) {
     let recovery_version = 100;
     let recovery_entries = (0_u64..256).map(|i| RecoveryEntry {
         key: Key::from(i) << 248, // the first two key nibbles are distinct
@@ -584,16 +564,8 @@ fn test_recovery_with_node_hierarchy(chunk_size: usize) {
     }
 }
 
-#[test]
-fn recovery_with_node_hierarchy() {
-    test_recovery_with_node_hierarchy(256); // single chunk
-    for chunk_size in [4, 5, 20, 69, 127, 128] {
-        println!("Testing recovery with chunk size {chunk_size}");
-        test_recovery_with_node_hierarchy(chunk_size);
-    }
-}
-
-fn test_recovery_with_deep_node_hierarchy(chunk_size: usize) {
+#[test_casing(7, [256, 5, 7, 20, 59, 127, 128])]
+fn recovery_with_deep_node_hierarchy(chunk_size: usize) {
     let recovery_version = 1_000;
     let recovery_entries = (0_u64..256).map(|i| RecoveryEntry {
         key: Key::from(i), // the last two key nibbles are distinct
@@ -655,15 +627,6 @@ fn test_recovery_with_deep_node_hierarchy(chunk_size: usize) {
 }
 
 #[test]
-fn recovery_with_deep_node_hierarchy() {
-    test_recovery_with_deep_node_hierarchy(256);
-    for chunk_size in [5, 7, 20, 59, 127, 128] {
-        println!("Testing recovery with chunk size {chunk_size}");
-        test_recovery_with_deep_node_hierarchy(chunk_size);
-    }
-}
-
-#[test]
 fn recovery_workflow_with_multiple_stages() {
     let mut db = PatchSet::default();
     let recovery_version = 100;
@@ -700,8 +663,18 @@ fn recovery_workflow_with_multiple_stages() {
         .all(|log| matches!(log.base, TreeLogEntry::Read { .. })));
 }
 
+#[derive(Debug, Clone, Copy)]
+enum RecoveryKind {
+    Linear,
+    Random,
+}
+
+impl RecoveryKind {
+    const ALL: [Self; 2] = [Self::Linear, Self::Random];
+}
+
 fn test_recovery_pruning_equivalence(
-    is_linear: bool,
+    kind: RecoveryKind,
     chunk_size: usize,
     recovery_chunk_size: usize,
     hasher: &dyn HashTree,
@@ -753,20 +726,18 @@ fn test_recovery_pruning_equivalence(
     });
     let mut recovery_entries: Vec<_> = recovery_entries.collect();
     assert_eq!(recovery_entries.len(), 100);
-    if is_linear {
-        recovery_entries.sort_unstable_by_key(|entry| entry.key);
-    } else {
-        recovery_entries.shuffle(&mut rng);
+    match kind {
+        RecoveryKind::Linear => recovery_entries.sort_unstable_by_key(|entry| entry.key),
+        RecoveryKind::Random => recovery_entries.shuffle(&mut rng),
     }
 
     // Recover the tree.
     let mut recovered_db = PatchSet::default();
     for recovery_chunk in recovery_entries.chunks(recovery_chunk_size) {
         let storage = Storage::new(&recovered_db, hasher, recovered_version, false);
-        let patch = if is_linear {
-            storage.extend_during_linear_recovery(recovery_chunk.to_vec())
-        } else {
-            storage.extend_during_random_recovery(recovery_chunk.to_vec())
+        let patch = match kind {
+            RecoveryKind::Linear => storage.extend_during_linear_recovery(recovery_chunk.to_vec()),
+            RecoveryKind::Random => storage.extend_during_random_recovery(recovery_chunk.to_vec()),
         };
         recovered_db.apply_patch(patch);
     }
@@ -806,55 +777,20 @@ fn test_recovery_pruning_equivalence(
     assert_eq!(all_recovered_nodes, flattened_version_nodes);
 }
 
-#[test]
-fn linear_recovery_pruning_equivalence() {
-    for chunk_size in [3, 5, 7, 11, 21, 42, 99, 100] {
-        // No chunking during recovery (simple case).
-        test_recovery_pruning_equivalence(true, chunk_size, 100, &());
-        // Recovery is chunked (more complex case).
-        for recovery_chunk_size in [chunk_size, 1, 6, 19, 50, 73] {
-            test_recovery_pruning_equivalence(true, chunk_size, recovery_chunk_size, &());
-        }
-    }
-}
+const HASHERS: [&'static dyn HashTree; 2] = [&(), &Blake2Hasher];
+const CHUNK_SIZES: [usize; 8] = [3, 5, 7, 11, 21, 42, 99, 100];
 
+#[test_casing(32, test_casing::Product((RecoveryKind::ALL, HASHERS, CHUNK_SIZES)))]
 #[test]
-fn random_recovery_pruning_equivalence() {
-    for chunk_size in [3, 5, 7, 11, 21, 42, 99, 100] {
-        // No chunking during recovery (simple case).
-        test_recovery_pruning_equivalence(false, chunk_size, 100, &());
-        // Recovery is chunked (more complex case).
-        for recovery_chunk_size in [chunk_size, 1, 6, 19, 50, 73] {
-            test_recovery_pruning_equivalence(false, chunk_size, recovery_chunk_size, &());
-        }
-    }
-}
-
-#[test]
-fn linear_recovery_pruning_equivalence_with_hashing() {
-    for chunk_size in [3, 7, 21, 42, 100] {
-        // No chunking during recovery (simple case).
-        test_recovery_pruning_equivalence(true, chunk_size, 100, &Blake2Hasher);
-        // Recovery is chunked (more complex case).
-        for recovery_chunk_size in [chunk_size, 1, 19, 73] {
-            test_recovery_pruning_equivalence(true, chunk_size, recovery_chunk_size, &Blake2Hasher);
-        }
-    }
-}
-
-#[test]
-fn random_recovery_pruning_equivalence_with_hashing() {
-    for chunk_size in [3, 7, 21, 42, 100] {
-        // No chunking during recovery (simple case).
-        test_recovery_pruning_equivalence(false, chunk_size, 100, &Blake2Hasher);
-        // Recovery is chunked (more complex case).
-        for recovery_chunk_size in [chunk_size, 1, 19, 73] {
-            test_recovery_pruning_equivalence(
-                false,
-                chunk_size,
-                recovery_chunk_size,
-                &Blake2Hasher,
-            );
-        }
+fn recovery_pruning_equivalence(
+    kind: RecoveryKind,
+    hasher: &'static dyn HashTree,
+    chunk_size: usize,
+) {
+    // No chunking during recovery (simple case).
+    test_recovery_pruning_equivalence(kind, chunk_size, 100, hasher);
+    // Recovery is chunked (more complex case).
+    for recovery_chunk_size in [chunk_size, 1, 19, 73] {
+        test_recovery_pruning_equivalence(kind, chunk_size, recovery_chunk_size, hasher);
     }
 }
