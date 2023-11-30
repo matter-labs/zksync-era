@@ -14,7 +14,7 @@ pub(super) fn sync_block_to_consensus_block(block: en::SyncBlock) -> anyhow::Res
         .as_ref()
         .context("Missing consensus fields")?;
     let consensus =
-        ConsensusBlockFields::decode(&consensus).context("ConsensusBlockFields::decode()")?;
+        ConsensusBlockFields::decode(consensus).context("ConsensusBlockFields::decode()")?;
     let payload: consensus::Payload = block.try_into().context("Missing `SyncBlock` data")?;
     let payload = payload.encode();
     let header = BlockHeader {
