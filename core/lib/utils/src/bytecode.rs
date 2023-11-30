@@ -27,7 +27,7 @@ pub enum FailedToCompressBytecodeError {
     InvalidBytecode(#[from] InvalidBytecodeError),
 }
 
-/// Implelements a simple compression algorithm for the bytecode.
+/// Implements, a simple compression algorithm for the bytecode.
 pub fn compress_bytecode(code: &[u8]) -> Result<Vec<u8>, FailedToCompressBytecodeError> {
     validate_bytecode(code)?;
 

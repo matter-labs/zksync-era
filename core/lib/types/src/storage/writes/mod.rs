@@ -41,7 +41,7 @@ pub struct RepeatedStorageWrite {
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default, Eq, PartialEq)]
 pub struct StateDiffRecord {
-    /// address state diff occured at
+    /// address state diff occurred at
     pub address: Address,
     /// storage slot key updated
     pub key: U256,
@@ -115,7 +115,7 @@ impl StateDiffRecord {
         }
     }
 
-    /// compression follows the following algo:
+    /// compression follows the following algorithm:
     /// 1. if repeated write:
     ///      entry <- enumeration_index || compressed value
     /// 2. if initial write:

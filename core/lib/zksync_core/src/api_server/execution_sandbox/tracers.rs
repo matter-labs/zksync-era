@@ -1,13 +1,13 @@
 use multivm::tracers::CallTracer;
 use multivm::vm_latest::HistoryMode;
-use multivm::{MultiVmTracerPointer, MultivmTracer};
+use multivm::{MultiVMTracer, MultiVmTracerPointer};
 use once_cell::sync::OnceCell;
 
 use std::sync::Arc;
 use zksync_state::WriteStorage;
 use zksync_types::vm_trace::Call;
 
-/// Custom tracers supported by our api
+/// Custom tracers supported by our API
 #[derive(Debug)]
 pub(crate) enum ApiTracer {
     CallTracer(Arc<OnceCell<Vec<Call>>>),

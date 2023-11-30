@@ -128,10 +128,10 @@ jobs:
           mv vyper0.3.3 $(pwd)/etc/vyper-bin/0.3.3/vyper
           chmod +x $(pwd)/etc/vyper-bin/0.3.3/vyper
 
-          mkdir -p $(pwd)/etc/zkvyper-bin/v1.3.11
-          wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-v1.3.11
-          mv zkvyper-linux-amd64-musl-v1.3.11 $(pwd)/etc/zkvyper-bin/v1.3.11/zkvyper
-          chmod +x $(pwd)/etc/zkvyper-bin/v1.3.11/zkvyper
+          mkdir -p $(pwd)/etc/zkvyper-bin/v1.3.13
+          wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-v1.3.13
+          mv zkvyper-linux-amd64-musl-v1.3.13 $(pwd)/etc/zkvyper-bin/v1.3.13/zkvyper
+          chmod +x $(pwd)/etc/zkvyper-bin/v1.3.13/zkvyper
 
       - name: Start services
         run: |
