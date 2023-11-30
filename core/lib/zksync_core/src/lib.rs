@@ -45,6 +45,7 @@ use zksync_verification_key_server::get_cached_commitments;
 pub mod api_server;
 pub mod basic_witness_input_producer;
 pub mod block_reverter;
+mod consensus;
 pub mod consistency_checker;
 pub mod data_fetchers;
 pub mod eth_sender;
@@ -250,7 +251,7 @@ pub enum Component {
     WitnessGenerator(Option<usize>, AggregationRound),
     /// Component for housekeeping task such as cleaning blobs from GCS, reporting metrics etc.
     Housekeeper,
-    /// Component for exposing API's to prover for providing proof generation data and accepting proofs.
+    /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
 }
 

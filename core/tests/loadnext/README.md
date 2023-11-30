@@ -8,7 +8,7 @@ The general flow is as follows:
 - The master account performs an initial deposit to L2
 - Paymaster on L2 is funded if necessary
 - The L2 master account distributes funds to the participating accounts (`accounts_amount` configuration option)
-- Each account continiously sends L2 transactions as configured in `contract_execution_params` configuration option. At
+- Each account continuously sends L2 transactions as configured in `contract_execution_params` configuration option. At
   any given time there are no more than `max_inflight_txs` transactions in flight for each account.
 - Once each account is done with the initial deposit, the test is run for `duration_sec` seconds.
 - After the test is finished, the master account withdraws all the remaining funds from L2.
