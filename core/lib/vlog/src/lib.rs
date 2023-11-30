@@ -153,7 +153,7 @@ pub fn log_format_from_env() -> LogFormat {
 }
 
 /// Loads the Sentry URL from the environment variable according to the existing zkSync configuration scheme.
-/// If the environemnt value is present but the value is `unset`, `None` will be returned for compatibility with the
+/// If the environment value is present but the value is `unset`, `None` will be returned for compatibility with the
 /// existing configuration setup.
 ///
 /// This is a deprecated function existing for compatibility with the old configuration scheme.

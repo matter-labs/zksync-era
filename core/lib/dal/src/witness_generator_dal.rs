@@ -527,7 +527,7 @@ impl WitnessGeneratorDal<'_, '_> {
     /// Saves artifacts in node_aggregation_job
     /// and advances it to `waiting_for_proofs` status
     /// it will be advanced to `queued` by the prover when all the dependency proofs are computed.
-    /// If the node aggregation job was already `queued` in case of connrecunt run of same leaf aggregation job
+    /// If the node aggregation job was already `queued` in case of connector run of same leaf aggregation job
     /// we keep the status as is to prevent data race.
     pub async fn save_leaf_aggregation_artifacts(
         &mut self,

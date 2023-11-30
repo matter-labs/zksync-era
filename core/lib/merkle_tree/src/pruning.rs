@@ -89,7 +89,7 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
     /// Sets the sleep duration when the pruner cannot progress. This time should be enough
     /// for the tree to produce enough stale keys.
     ///
-    /// The default value is 60s.
+    /// The default value is 60 seconds.
     pub fn set_poll_interval(&mut self, poll_interval: Duration) {
         self.poll_interval = poll_interval;
     }
