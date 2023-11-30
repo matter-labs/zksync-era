@@ -43,7 +43,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         }
     }
 
-    /// Returns the hashes the bytecodes that have been decommitted by the decomittment processor.
+    /// Returns the hashes the bytecodes that have been decommitted by the decommitment processor.
     pub(crate) fn get_used_contracts(&self) -> Vec<U256> {
         self.state
             .decommittment_processor

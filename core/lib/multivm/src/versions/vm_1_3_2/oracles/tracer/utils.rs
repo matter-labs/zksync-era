@@ -99,7 +99,7 @@ pub(crate) fn get_debug_log<H: HistoryMode>(
 }
 
 /// Reads the memory slice represented by the fat pointer.
-/// Note, that the fat pointer must point to the accesible memory (i.e. not cleared up yet).
+/// Note, that the fat pointer must point to the accessible memory (i.e. not cleared up yet).
 pub(crate) fn read_pointer<H: HistoryMode>(
     memory: &SimpleMemory<H>,
     pointer: FatPointer,

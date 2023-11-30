@@ -24,7 +24,7 @@ impl FriProverStatsReporter {
     }
 }
 
-///  Invoked periodically to push prover queued/inprogress job statistics
+///  Invoked periodically to push prover queued/in-progress job statistics
 #[async_trait]
 impl PeriodicJob for FriProverStatsReporter {
     const SERVICE_NAME: &'static str = "FriProverStatsReporter";
