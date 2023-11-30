@@ -8,7 +8,7 @@
 //! afterwards will have the same outcome as if they were applied to the original tree.
 //!
 //! Importantly, a recovered tree is only *observably* identical to the original tree; it differs
-//! in (currently unobservable) node versions. In a recovered tree, all nodes will initially have
+//! in (currently un-observable) node versions. In a recovered tree, all nodes will initially have
 //! the same version (the snapshot version), while in the original tree, node versions are distributed
 //! from 0 to the snapshot version (both inclusive).
 //!
