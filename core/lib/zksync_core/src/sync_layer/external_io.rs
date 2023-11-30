@@ -215,7 +215,10 @@ impl IoSealCriteria for ExternalIO {
     }
 
     fn should_seal_miniblock(&mut self, _manager: &UpdatesManager) -> bool {
-        matches!(self.actions.peek_action(), Some(SyncAction::SealMiniblock))
+        matches!(
+            self.actions.peek_action(),
+            Some(SyncAction::SealMiniblock(_))
+        )
     }
 }
 
@@ -368,7 +371,7 @@ impl StateKeeperIO for ExternalIO {
                         virtual_blocks,
                     });
                 }
-                Some(SyncAction::SealBatch { virtual_blocks }) => {
+                Some(SyncAction::SealBatch { virtual_blocks, .. }) => {
                     // We've reached the next batch, so this situation would be handled by the batch sealer.
                     // No need to pop the action from the queue.
                     // It also doesn't matter which timestamp we return, since there will be no more miniblocks in this
@@ -434,12 +437,9 @@ impl StateKeeperIO for ExternalIO {
     }
 
     async fn seal_miniblock(&mut self, updates_manager: &UpdatesManager) {
-        match self.actions.pop_action() {
-            Some(SyncAction::SealMiniblock) => {}
-            other => panic!(
-                "State keeper requested to seal miniblock, but the next action is {:?}",
-                other
-            ),
+        let action = self.actions.pop_action();
+        let Some(SyncAction::SealMiniblock(consensus)) = action else {
+            panic!("State keeper requested to seal miniblock, but the next action is {action:?}");
         };
 
         let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
@@ -481,6 +481,16 @@ impl StateKeeperIO for ExternalIO {
             self.l2_erc20_bridge_addr,
         );
         command.seal(&mut transaction).await;
+
+        // We want to add miniblock consensus fields atomically with the miniblock data so that we
+        // don't need to deal with corner cases (e.g., a miniblock w/o consensus fields).
+        if let Some(consensus) = &consensus {
+            transaction
+                .blocks_dal()
+                .set_miniblock_consensus_fields(self.current_miniblock_number, consensus)
+                .await
+                .unwrap();
+        }
         transaction.commit().await.unwrap();
 
         self.sync_state
@@ -497,23 +507,32 @@ impl StateKeeperIO for ExternalIO {
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,
     ) -> anyhow::Result<()> {
-        match self.actions.pop_action() {
-            Some(SyncAction::SealBatch { .. }) => {}
-            other => anyhow::bail!(
-                "State keeper requested to seal the batch, but the next action is {other:?}"
-            ),
+        let action = self.actions.pop_action();
+        let Some(SyncAction::SealBatch { consensus, .. }) = action else {
+            anyhow::bail!(
+                "State keeper requested to seal the batch, but the next action is {action:?}"
+            );
         };
 
         let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
+        let mut transaction = storage.start_transaction().await.unwrap();
         updates_manager
             .seal_l1_batch(
-                &mut storage,
+                &mut transaction,
                 self.current_miniblock_number,
                 l1_batch_env,
                 finished_batch,
                 self.l2_erc20_bridge_addr,
             )
             .await;
+        if let Some(consensus) = &consensus {
+            transaction
+                .blocks_dal()
+                .set_miniblock_consensus_fields(self.current_miniblock_number, consensus)
+                .await
+                .unwrap();
+        }
+        transaction.commit().await.unwrap();
 
         tracing::info!("Batch {} is sealed", self.current_l1_batch_number);
 

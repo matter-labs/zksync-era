@@ -11,7 +11,7 @@ export default {
         }
     },
     zkvyper: {
-        version: '1.3.11',
+        version: '1.3.13',
         compilerSource: 'binary'
     },
     networks: {

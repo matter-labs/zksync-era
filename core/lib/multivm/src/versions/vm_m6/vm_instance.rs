@@ -383,7 +383,7 @@ impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
         }
     }
 
-    /// Removes the latest snapshot without rollbacking to it.
+    /// Removes the latest snapshot without rolling back to it.
     /// This function expects that there is at least one snapshot present.
     pub fn pop_snapshot_no_rollback(&mut self) {
         self.snapshots.pop().unwrap();

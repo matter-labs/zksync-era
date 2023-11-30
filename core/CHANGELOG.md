@@ -1,5 +1,41 @@
 # Changelog
 
+## [18.3.1](https://github.com/matter-labs/zksync-era/compare/core-v18.3.0...core-v18.3.1) (2023-11-28)
+
+
+### Bug Fixes
+
+* **external-node:** Check txs at insert time instead of read time ([#555](https://github.com/matter-labs/zksync-era/issues/555)) ([9ea02a1](https://github.com/matter-labs/zksync-era/commit/9ea02a1b2e7c861882f10c8cbe1997f6bb96d9cf))
+* Update comments post-hotfix ([#556](https://github.com/matter-labs/zksync-era/issues/556)) ([339e450](https://github.com/matter-labs/zksync-era/commit/339e45035e85eba7d60b533221be92ce78643705))
+
+## [18.3.0](https://github.com/matter-labs/zksync-era/compare/core-v18.2.0...core-v18.3.0) (2023-11-28)
+
+
+### Features
+
+* **contract-verifier:** Add zkvyper 1.3.13 ([#552](https://github.com/matter-labs/zksync-era/issues/552)) ([198deda](https://github.com/matter-labs/zksync-era/commit/198deda685a5bf44dc41911fe7b7797a219aa29c))
+
+
+### Bug Fixes
+
+* **house_keeper:** Emit the correct circuit_id for aggregation round 2 ([#547](https://github.com/matter-labs/zksync-era/issues/547)) ([9cada1a](https://github.com/matter-labs/zksync-era/commit/9cada1a17469e876cbf82d923e3d59f21576ec94))
+
+## [18.2.0](https://github.com/matter-labs/zksync-era/compare/core-v18.1.0...core-v18.2.0) (2023-11-27)
+
+
+### Features
+
+* **en:** Implement gossip fetcher ([#371](https://github.com/matter-labs/zksync-era/issues/371)) ([a49b61d](https://github.com/matter-labs/zksync-era/commit/a49b61d7769f9dd7b4cbc4905f8f8a23abfb541c))
+* **state-keeper:** reapply computational gas limit ([#544](https://github.com/matter-labs/zksync-era/issues/544)) ([698dbc3](https://github.com/matter-labs/zksync-era/commit/698dbc355af3220bbcb608ced2559362e96204de))
+* **state-keeper:** Remove computational gas limit from boojum protocol version ([#536](https://github.com/matter-labs/zksync-era/issues/536)) ([e59a7c6](https://github.com/matter-labs/zksync-era/commit/e59a7c6552a9c99e56f0d37103386acac6a9c1b5))
+
+
+### Bug Fixes
+
+* **core:** differentiate l2 to l1 logs tree size for pre and post boojum batches ([#538](https://github.com/matter-labs/zksync-era/issues/538)) ([1e9e556](https://github.com/matter-labs/zksync-era/commit/1e9e55651a95b509b5dfd644b8f9f3c718e41804))
+* **proof_data_handler:** Feature flag state_diff_hash check ([#545](https://github.com/matter-labs/zksync-era/issues/545)) ([0cab378](https://github.com/matter-labs/zksync-era/commit/0cab378886d4408a28bb1b71afb3e46c0b82a7c6))
+* **prover:** use a more performant query to get next job for FRI prover ([#527](https://github.com/matter-labs/zksync-era/issues/527)) ([2cddf3c](https://github.com/matter-labs/zksync-era/commit/2cddf3c0fa786394161060445aa8a085173e3f71))
+
 ## [18.1.0](https://github.com/matter-labs/zksync-era/compare/core-v18.0.3...core-v18.1.0) (2023-11-20)
 
 
@@ -208,7 +244,7 @@
 * **prover-fri:** added picked-by column in prover fri related tables ([#2600](https://github.com/matter-labs/zksync-2-dev/issues/2600)) ([9e604ab](https://github.com/matter-labs/zksync-2-dev/commit/9e604abf3bae11b6f583f2abd39c07a85dc20f0a))
 * update verification keys, protocol version 15 ([#2602](https://github.com/matter-labs/zksync-2-dev/issues/2602)) ([2fff59b](https://github.com/matter-labs/zksync-2-dev/commit/2fff59bab00849996864b68e932739135337ebd7))
 * **vlog:** Rework the observability configuration subsystem ([#2608](https://github.com/matter-labs/zksync-2-dev/issues/2608)) ([377f0c5](https://github.com/matter-labs/zksync-2-dev/commit/377f0c5f734c979bc990b429dff0971466872e71))
-* **vm:** Multivm tracer support ([#2601](https://github.com/matter-labs/zksync-2-dev/issues/2601)) ([4a7467b](https://github.com/matter-labs/zksync-2-dev/commit/4a7467b1b1556bfd795792dbe280bcf28c93a58f))
+* **vm:** MultiVM tracer support ([#2601](https://github.com/matter-labs/zksync-2-dev/issues/2601)) ([4a7467b](https://github.com/matter-labs/zksync-2-dev/commit/4a7467b1b1556bfd795792dbe280bcf28c93a58f))
 
 ## [8.7.0](https://github.com/matter-labs/zksync-2-dev/compare/core-v8.6.0...core-v8.7.0) (2023-09-19)
 

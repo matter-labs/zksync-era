@@ -85,7 +85,7 @@ impl EthereumSigner for JsonRpcSigner {
         }
     }
 
-    /// Signs typed struct using ethereum private key by EIP-712 signature standard.
+    /// Signs typed struct using Ethereum private key by EIP-712 signature standard.
     /// Result of this function is the equivalent of RPC calling `eth_signTypedData`.
     async fn sign_typed_data<S: EIP712TypedStructure + Sync>(
         &self,
@@ -192,7 +192,7 @@ impl JsonRpcSigner {
         self.address.ok_or(SignerError::DefineAddress)
     }
 
-    /// Specifies the Ethreum address which sets the address for which all other requests will be processed.
+    /// Specifies the Ethereum address which sets the address for which all other requests will be processed.
     /// If the address has already been set, then it will all the same change to a new one.
     pub async fn detect_address(
         &mut self,
@@ -376,7 +376,7 @@ mod messages {
             Self::create("eth_sign", params)
         }
 
-        /// Signs typed struct using ethereum private key by EIP-712 signature standard.
+        /// Signs typed struct using Ethereum private key by EIP-712 signature standard.
         /// The address to sign with must be unlocked.
         pub fn sign_typed_data<S: EIP712TypedStructure + Sync>(
             address: Address,

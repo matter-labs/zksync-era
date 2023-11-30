@@ -180,9 +180,9 @@ pub(crate) struct ExternalNodeMetrics {
     pub synced: Gauge<u64>,
     /// Current sync lag of the external node.
     pub sync_lag: Gauge<u64>,
-    /// Number of the last L1 batch checked by the reorg detector or consistency checker.
+    /// Number of the last L1 batch checked by the re-org detector or consistency checker.
     pub last_correct_batch: Family<CheckerComponent, Gauge<u64>>,
-    /// Number of the last miniblock checked by the reorg detector or consistency checker.
+    /// Number of the last miniblock checked by the re-org detector or consistency checker.
     pub last_correct_miniblock: Family<CheckerComponent, Gauge<u64>>,
 }
 
