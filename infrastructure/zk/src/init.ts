@@ -22,8 +22,8 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
         skipSubmodulesCheckout,
         skipEnvSetup,
         skipPlonkStep,
-        nativeERC20,
         testTokens,
+        nativeERC20,
         governorPrivateKeyArgs,
         deployerL2ContractInput
     } = initArgs;
@@ -46,12 +46,9 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
     await announced('Building contracts', contract.build());
-    if (testTokens.deploy) {
-        await announced('Deploying localhost ERC20 tokens', run.deployERC20('dev', '', '', '', testTokens.args));
-    }
     if (nativeERC20) {
         // TODO: Deploy and set native ERC20 token.
-        await announced('Setting up native ERC20 token');
+        await announced('Setting up native L2 ERC20 token', run.deployERC20('new', 'lambdacoin', 'LBC', '18'));
     }
     await announced('Deploying L1 verifier', contract.deployVerifier([]));
     await announced('Reloading env', env.reload());
@@ -172,7 +169,7 @@ const DEFAULT_ARGS: InitArgs = {
     skipSubmodulesCheckout: false,
     skipEnvSetup: false,
     nativeERC20: false,
-    skipPlonkStep: false,
+    skipPlonkStep: true,
     governorPrivateKeyArgs: [],
     deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
     testTokens: { deploy: true, args: [] }
@@ -187,11 +184,11 @@ export const initCommand = new Command('init')
         const initArgs: InitArgs = {
             skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
             skipEnvSetup: cmd.skipEnvSetup,
-            skipPlonkStep: false,
+            skipPlonkStep: true,
             governorPrivateKeyArgs: [],
             deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
             testTokens: { deploy: true, args: [] },
-            nativeERC20: cmd.nativeERC20
+            nativeERC20: cmd.nativeErc20
         };
         await init(initArgs);
     });
