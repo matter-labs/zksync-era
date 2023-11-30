@@ -23,7 +23,7 @@ use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::blo
 use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness;
 use zksync_prover_fri_types::{AuxOutputWitnessWrapper, get_current_pod_name};
 
-use crate::metrics::{SERVER_WITNESS_GENERATOR_METRICS, WITNESS_GENERATOR_METRICS};
+use crate::metrics::WITNESS_GENERATOR_METRICS;
 use crate::storage_oracle::StorageOracle;
 use multivm::vm_latest::{
     constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
@@ -125,7 +125,7 @@ impl BasicWitnessGenerator {
             // We get value higher than `blocks_proving_percentage` with prob = `1 - blocks_proving_percentage`.
             // In this case job should be skipped.
             if threshold > blocks_proving_percentage && !shall_force_process_block {
-                SERVER_WITNESS_GENERATOR_METRICS.skipped_blocks.inc();
+                WITNESS_GENERATOR_METRICS.skipped_blocks.inc();
                 tracing::info!(
                     "Skipping witness generation for block {}, blocks_proving_percentage: {}",
                     block_number.0,
@@ -147,7 +147,7 @@ impl BasicWitnessGenerator {
             }
         }
 
-        SERVER_WITNESS_GENERATOR_METRICS.sampled_blocks.inc();
+        WITNESS_GENERATOR_METRICS.sampled_blocks.inc();
         tracing::info!(
             "Starting witness generation of type {:?} for block {}",
             AggregationRound::BasicCircuits,

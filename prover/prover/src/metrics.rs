@@ -6,7 +6,7 @@ const PROVER_LATENCY_BUCKETS: Buckets = Buckets::values(&[
 ]);
 
 #[derive(Debug, Metrics)]
-#[metrics(prefix = "server_prover")]
+#[metrics(prefix = "prover")]
 pub(crate) struct ProverMetrics {
     #[metrics(buckets = PROVER_LATENCY_BUCKETS, labels = ["circuit_type"])]
     pub proof_generation_time: LabeledFamily<String, Histogram<Duration>>,

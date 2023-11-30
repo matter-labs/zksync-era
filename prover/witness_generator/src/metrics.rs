@@ -13,6 +13,9 @@ pub(crate) struct WitnessGeneratorMetrics {
     pub witness_generation_time: Family<StageLabel, Histogram<Duration>>,
     #[metrics(buckets = Buckets::LATENCIES)]
     pub blob_save_time: Family<StageLabel, Histogram<Duration>>,
+
+    pub sampled_blocks: Counter,
+    pub skipped_blocks: Counter,
 }
 
 #[vise::register]
@@ -20,18 +23,7 @@ pub(crate) static WITNESS_GENERATOR_METRICS: vise::Global<WitnessGeneratorMetric
     vise::Global::new();
 
 #[derive(Debug, Metrics)]
-#[metrics(prefix = "server_witness_generator_fri")]
-pub(crate) struct ServerWitnessGeneratorMetrics {
-    pub sampled_blocks: Counter,
-    pub skipped_blocks: Counter,
-}
-
-#[vise::register]
-pub(crate) static SERVER_WITNESS_GENERATOR_METRICS: vise::Global<ServerWitnessGeneratorMetrics> =
-    vise::Global::new();
-
-#[derive(Debug, Metrics)]
-#[metrics(prefix = "server")]
+#[metrics(prefix = "prover")]
 pub(crate) struct ServerMetrics {
     #[metrics(labels = ["stage"])]
     pub init_latency: LabeledFamily<String, Gauge<Duration>>,
