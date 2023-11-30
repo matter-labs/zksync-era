@@ -1,3 +1,4 @@
+use zksync_types::api::BlockIdVariant::BlockNumber;
 use zksync_types::{
     api::{
         BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
@@ -773,10 +774,15 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
                 let (block_hashes, last_block_number) = conn
                     .blocks_web3_dal()
-                    .get_block_hashes_after(*from_block, self.state.api_config.req_entities_limit)
+                    .get_block_hashes_since(*from_block, self.state.api_config.req_entities_limit)
                     .await
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
-                *from_block = last_block_number.unwrap_or(*from_block);
+
+                *from_block = match last_block_number {
+                    Some(last_block_number) => last_block_number + 1,
+                    None => *from_block,
+                };
+
                 FilterChanges::Hashes(block_hashes)
             }
 
@@ -789,13 +795,18 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
                 let (tx_hashes, last_timestamp) = conn
                     .transactions_web3_dal()
-                    .get_pending_txs_hashes_after(
+                    .get_pending_txs_hashes_since(
                         *from_timestamp,
                         Some(self.state.api_config.req_entities_limit),
                     )
                     .await
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
-                *from_timestamp = last_timestamp.unwrap_or(*from_timestamp);
+
+                *from_timestamp = match last_timestamp {
+                    Some(last_timestamp) => last_timestamp + 1,
+                    None => *from_timestamp,
+                };
+
                 FilterChanges::Hashes(tx_hashes)
             }
 
@@ -826,10 +837,15 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     .state
                     .resolve_filter_block_number(filter.to_block)
                     .await?;
-                let latest_block = self
-                    .state
-                    .resolve_filter_block_number(Some(BlockNumber::Latest))
-                    .await?;
+
+                let latest_block =
+                    if filter.to_block.is_none() || filter.to_block == Some(BlockNumber::Latest) {
+                        self.state
+                            .resolve_filter_block_number(Some(BlockNumber::Latest))
+                            .await?
+                    } else {
+                        to_block
+                    };
 
                 let mut storage = self
                     .state

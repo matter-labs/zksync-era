@@ -255,7 +255,7 @@ impl TransactionsWeb3Dal<'_, '_> {
     }
 
     /// Returns hashes of txs which were received after `from_timestamp` and the time of receiving the last tx.
-    pub async fn get_pending_txs_hashes_after(
+    pub async fn get_pending_txs_hashes_since(
         &mut self,
         from_timestamp: NaiveDateTime,
         limit: Option<usize>,
@@ -264,7 +264,7 @@ impl TransactionsWeb3Dal<'_, '_> {
             "SELECT transactions.hash, transactions.received_at \
             FROM transactions \
             LEFT JOIN miniblocks ON miniblocks.number = miniblock_number \
-            WHERE received_at > $1 \
+            WHERE received_at >= $1 \
             ORDER BY received_at ASC \
             LIMIT $2",
             from_timestamp,

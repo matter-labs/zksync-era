@@ -157,7 +157,7 @@ impl PubSubNotifier<typed::Sink<PubSubResult>> {
             .await
             .context("access_storage_tagged")?
             .transactions_web3_dal()
-            .get_pending_txs_hashes_after(last_time, None)
+            .get_pending_txs_hashes_since(last_time, None)
             .await
             .context("get_pending_txs_hashes_after()")
     }
