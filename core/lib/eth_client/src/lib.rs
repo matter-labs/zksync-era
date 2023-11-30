@@ -131,7 +131,7 @@ pub trait EthInterface: Sync + Send {
     /// Returns the block header for the specified block number or hash.
     async fn block(
         &self,
-        block_id: String,
+        block_id: BlockId,
         component: &'static str,
     ) -> Result<Option<Block<H256>>, Error>;
 }
