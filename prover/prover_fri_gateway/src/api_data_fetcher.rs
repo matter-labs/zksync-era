@@ -33,6 +33,7 @@ impl PeriodicApiStruct {
         Resp: DeserializeOwned,
     {
         tracing::info!("Sending request to {}", endpoint);
+
         self.client
             .post(endpoint)
             .json(&request)
