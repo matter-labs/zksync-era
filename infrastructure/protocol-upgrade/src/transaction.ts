@@ -60,7 +60,7 @@ export interface L2CanonicalTransaction {
     // is to be passed to account and any changes to its structure
     // would mean a breaking change to these accounts. In order to prevent this,
     // we should keep some fields as "reserved".
-    // It is also recommneded that their length is fixed, since
+    // It is also recommended that their length is fixed, since
     // it would allow easier proof integration (in case we will need
     // some special circuit for preprocessing transactions).
     reserved: [BigNumberish, BigNumberish, BigNumberish, BigNumberish];
