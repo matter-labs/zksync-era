@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use zksync_types::{
     api::{
-        BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, ProtocolVersion,
+        BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
         TransactionDetails,
     },
     fee::Fee,
@@ -155,6 +155,17 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceServer for ZksNa
 
     async fn get_logs_with_virtual_blocks(&self, filter: Filter) -> RpcResult<Vec<Log>> {
         self.get_logs_with_virtual_blocks_impl(filter)
+            .await
+            .map_err(into_jsrpc_error)
+    }
+
+    async fn get_proof(
+        &self,
+        address: Address,
+        keys: Vec<H256>,
+        l1_batch_number: L1BatchNumber,
+    ) -> RpcResult<Proof> {
+        self.get_proofs_impl(address, keys, l1_batch_number)
             .await
             .map_err(into_jsrpc_error)
     }

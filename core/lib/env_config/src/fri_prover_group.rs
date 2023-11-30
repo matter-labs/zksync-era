@@ -244,4 +244,90 @@ mod tests {
         let actual = FriProverGroupConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
     }
+
+    #[test]
+    fn get_group_id_for_circuit_id_and_aggregation_round() {
+        let fri_prover_group_config = expected_config();
+
+        assert_eq!(
+            Some(0),
+            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(1, 3)
+        );
+        assert_eq!(
+            Some(0),
+            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(2, 2)
+        );
+
+        assert_eq!(
+            Some(1),
+            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(1, 0)
+        );
+
+        assert_eq!(
+            Some(2),
+            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(2, 0)
+        );
+        assert_eq!(
+            Some(2),
+            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(4, 0)
+        );
+
+        assert_eq!(
+            Some(3),
+            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(3, 0)
+        );
+
+        assert_eq!(
+            Some(4),
+            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(11, 0)
+        );
+        assert_eq!(
+            Some(4),
+            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(12, 0)
+        );
+
+        assert_eq!(
+            Some(5),
+            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(5, 0)
+        );
+
+        assert_eq!(
+            Some(6),
+            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(3, 1)
+        );
+
+        assert_eq!(
+            Some(7),
+            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(7, 0)
+        );
+
+        assert_eq!(
+            Some(8),
+            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(8, 0)
+        );
+
+        assert_eq!(
+            Some(9),
+            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(12, 1)
+        );
+
+        assert_eq!(
+            Some(10),
+            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(10, 0)
+        );
+
+        assert_eq!(
+            Some(11),
+            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(7, 1)
+        );
+
+        assert_eq!(
+            Some(12),
+            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(4, 1)
+        );
+
+        assert!(fri_prover_group_config
+            .get_group_id_for_circuit_id_and_aggregation_round(19, 0)
+            .is_none());
+    }
 }

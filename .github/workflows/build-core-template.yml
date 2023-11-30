@@ -82,7 +82,7 @@ jobs:
           DOCKER_ACTION: ${{ inputs.action }}
           COMPONENT: ${{ matrix.component }}
         run: |
-          ci_run rustup default nightly-2023-07-21
+          ci_run rustup default nightly-2023-08-21
           ci_run zk docker $DOCKER_ACTION $COMPONENT -- --public
       - name: Show sccache stats
         if: always()

@@ -89,7 +89,7 @@ impl<'de> Deserialize<'de> for BlockNumber {
     }
 }
 
-/// Block unified identifier in terms of ZKSync
+/// Block unified identifier in terms of zkSync
 ///
 /// This is an utility structure that cannot be (de)serialized, it has to be created manually.
 /// The reason is because Web3 API provides multiple methods for referring block either by hash or number,
@@ -271,7 +271,7 @@ pub struct Block<TX> {
     /// Hash of the uncles
     #[serde(rename = "sha3Uncles")]
     pub uncles_hash: H256,
-    /// Miner/author's address
+    /// Miner / author's address
     #[serde(rename = "miner", default, deserialize_with = "null_to_default")]
     pub author: H160,
     /// State root hash
@@ -463,7 +463,7 @@ pub struct Transaction {
     pub from: Option<Address>,
     /// Recipient (None when contract creation)
     pub to: Option<Address>,
-    /// Transfered value
+    /// Transferred value
     pub value: U256,
     /// Gas Price
     #[serde(rename = "gasPrice")]
@@ -627,7 +627,7 @@ pub enum SupportedTracers {
     CallTracer,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct CallTracerConfig {
     pub only_top_call: bool,
@@ -637,6 +637,7 @@ pub struct CallTracerConfig {
 #[serde(rename_all = "camelCase")]
 pub struct TracerConfig {
     pub tracer: SupportedTracers,
+    #[serde(default)]
     pub tracer_config: CallTracerConfig,
 }
 
@@ -683,4 +684,20 @@ pub struct L1BatchDetails {
     pub number: L1BatchNumber,
     #[serde(flatten)]
     pub base: BlockDetailsBase,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageProof {
+    pub key: H256,
+    pub proof: Vec<H256>,
+    pub value: H256,
+    pub index: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Proof {
+    pub address: Address,
+    pub storage_proof: Vec<StorageProof>,
 }

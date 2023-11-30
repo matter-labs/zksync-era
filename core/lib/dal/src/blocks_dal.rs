@@ -10,7 +10,7 @@ use sqlx::Row;
 
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
+    block::{BlockGasCount, ConsensusBlockFields, L1BatchHeader, MiniblockHeader},
     commitment::{L1BatchMetadata, L1BatchWithMetadata},
     Address, L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256,
     MAX_GAS_PER_PUBDATA_BYTE, U256,
@@ -34,75 +34,6 @@ impl BlocksDal<'_, '_> {
             .await?
             .count;
         Ok(count == 0)
-    }
-
-    pub async fn get_miniblock_hashes_from_date(
-        &mut self,
-        timestamp: u64,
-        limit: u32,
-        version: ProtocolVersionId,
-    ) -> sqlx::Result<Vec<(MiniblockNumber, H256)>> {
-        let number = sqlx::query!(
-            "SELECT number from miniblocks where timestamp > $1 ORDER BY number ASC LIMIT 1",
-            timestamp as i64
-        )
-        .fetch_one(self.storage.conn())
-        .await?
-        .number;
-        self.storage
-            .blocks_dal()
-            .get_miniblocks_since_block(number, limit, version)
-            .await
-    }
-
-    pub async fn get_last_miniblocks_for_version(
-        &mut self,
-        limit: u32,
-        version: ProtocolVersionId,
-    ) -> sqlx::Result<Vec<(MiniblockNumber, H256)>> {
-        let minibloks = sqlx::query!(
-            "SELECT number, hash FROM miniblocks WHERE protocol_version = $1 ORDER BY number DESC LIMIT $2",
-            version as i32,
-            limit as i32
-        )
-            .fetch_all(self.storage.conn())
-            .await?
-            .iter()
-            .map(|block| {
-                (
-                    MiniblockNumber(block.number as u32),
-                    H256::from_slice(&block.hash),
-                )
-            })
-            .collect();
-
-        Ok(minibloks)
-    }
-
-    pub async fn get_miniblocks_since_block(
-        &mut self,
-        number: i64,
-        limit: u32,
-        version: ProtocolVersionId,
-    ) -> sqlx::Result<Vec<(MiniblockNumber, H256)>> {
-        let minibloks = sqlx::query!(
-            "SELECT number, hash FROM miniblocks WHERE number >= $1 and protocol_version = $2 ORDER BY number LIMIT $3",
-            number,
-            version as i32,
-            limit as i32
-        )
-        .fetch_all(self.storage.conn())
-        .await?
-        .iter()
-        .map(|block| {
-            (
-                MiniblockNumber(block.number as u32),
-                H256::from_slice(&block.hash),
-            )
-        })
-        .collect();
-
-        Ok(minibloks)
     }
 
     pub async fn get_sealed_l1_batch_number(&mut self) -> anyhow::Result<L1BatchNumber> {
@@ -465,28 +396,24 @@ impl BlocksDal<'_, '_> {
         .await?;
         Ok(())
     }
-
-    pub async fn update_hashes(
+    /// Sets consensus-related fields for the specified miniblock.
+    pub async fn set_miniblock_consensus_fields(
         &mut self,
-        number_and_hashes: &[(MiniblockNumber, H256)],
-    ) -> sqlx::Result<()> {
-        let mut numbers = vec![];
-        let mut hashes = vec![];
-        for (number, hash) in number_and_hashes {
-            numbers.push(number.0 as i64);
-            hashes.push(hash.as_bytes().to_vec());
-        }
-
-        sqlx::query!(
-            "UPDATE miniblocks SET hash = u.hash   \
-            FROM UNNEST($1::bigint[], $2::bytea[]) AS u(number, hash) \
-            WHERE miniblocks.number = u.number
-        ",
-            &numbers,
-            &hashes
+        miniblock_number: MiniblockNumber,
+        consensus: &ConsensusBlockFields,
+    ) -> anyhow::Result<()> {
+        let result = sqlx::query!(
+            "UPDATE miniblocks SET consensus = $2 WHERE number = $1",
+            miniblock_number.0 as i64,
+            serde_json::to_value(consensus).unwrap(),
         )
         .execute(self.storage.conn())
         .await?;
+
+        anyhow::ensure!(
+            result.rows_affected() == 1,
+            "Miniblock #{miniblock_number} is not present in Postgres"
+        );
         Ok(())
     }
 
@@ -582,7 +509,7 @@ impl BlocksDal<'_, '_> {
         number: L1BatchNumber,
         metadata: &L1BatchMetadata,
         previous_root_hash: H256,
-        protocol_version: ProtocolVersionId,
+        is_pre_boojum: bool,
     ) -> anyhow::Result<()> {
         let mut transaction = self.storage.start_transaction().await?;
 
@@ -615,7 +542,7 @@ impl BlocksDal<'_, '_> {
         .execute(transaction.conn())
         .await?;
 
-        if metadata.events_queue_commitment.is_some() || protocol_version.is_pre_boojum() {
+        if metadata.events_queue_commitment.is_some() || is_pre_boojum {
             // Save `commitment`, `aux_data_hash`, `events_queue_commitment`, `bootloader_initial_content_commitment`.
             sqlx::query!(
                 "INSERT INTO commitments (l1_batch_number, events_queue_commitment, bootloader_initial_content_commitment) \
