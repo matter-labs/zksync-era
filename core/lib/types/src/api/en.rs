@@ -10,7 +10,8 @@ use crate::ProtocolVersionId;
 /// Protobuf-encoded consensus-related L2 block (= miniblock) fields.
 /// See `zksync_dal::models::storage_sync::ConsensusBlockFields`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConsensusBlockFields(pub Vec<u8>);
+#[serde(transparent)]
+pub struct ConsensusBlockFields(pub zksync_basic_types::Bytes);
 
 /// Representation of the L2 block, as needed for the EN synchronization.
 /// This structure has several fields that describe *L1 batch* rather than
