@@ -52,10 +52,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
 
                 self.handle_far_call_op_code_refunds_enhancement(state, memory, &mut current_call);
 
-                self.push_call_and_update_stats(FarcallAndNearCallCount {
-                    farcall: current_call,
-                    near_calls_after: 0,
-                });
+                self.push_call_and_update_stats(current_call, 0);
             }
             Opcode::Ret(ret_code) => {
                 self.handle_ret_op_code_refunds_enhancement(state, memory, ret_code);
@@ -186,11 +183,9 @@ impl CallTracer {
             return;
         };
 
-        self.call_depth_on_prefix.pop();
-
         if current_call.near_calls_after > 0 {
             current_call.near_calls_after -= 1;
-            self.push_call_and_update_stats(current_call);
+            self.push_call_and_update_stats(current_call.farcall, current_call.near_calls_after);
             return;
         }
 
@@ -206,7 +201,7 @@ impl CallTracer {
         if let Some(parent_call) = self.stack.last_mut() {
             parent_call.farcall.calls.push(current_call.farcall);
         } else {
-            self.push_call_and_update_stats(current_call);
+            self.push_call_and_update_stats(current_call.farcall, current_call.near_calls_after);
         }
     }
 }
