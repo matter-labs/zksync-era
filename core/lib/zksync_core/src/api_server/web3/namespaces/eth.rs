@@ -1,4 +1,3 @@
-use zksync_types::api::BlockIdVariant::BlockNumber;
 use zksync_types::{
     api::{
         BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
