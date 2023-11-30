@@ -22,36 +22,37 @@ impl BlockOutputWithProofs {
         &self,
         hasher: &dyn HashTree,
         old_root_hash: ValueHash,
-        instructions: &[(Key, TreeInstruction)],
+        instructions: &[TreeInstruction],
     ) {
         assert_eq!(instructions.len(), self.logs.len());
 
         let mut root_hash = old_root_hash;
-        for (op, &(key, instruction)) in self.logs.iter().zip(instructions) {
+        for (op, &instruction) in self.logs.iter().zip(instructions) {
             assert!(op.merkle_path.len() <= TREE_DEPTH);
-            if matches!(instruction, TreeInstruction::Read) {
+            if matches!(instruction, TreeInstruction::Read(_)) {
                 assert_eq!(op.root_hash, root_hash);
                 assert!(op.base.is_read());
             } else {
                 assert!(!op.base.is_read());
             }
 
-            let (prev_leaf_index, leaf_index, prev_value) = match op.base {
-                TreeLogEntry::Inserted { leaf_index } => (0, leaf_index, ValueHash::zero()),
+            let prev_entry = match op.base {
+                TreeLogEntry::Inserted | TreeLogEntry::ReadMissingKey => {
+                    TreeEntry::empty(instruction.key())
+                }
                 TreeLogEntry::Updated {
                     leaf_index,
-                    previous_value,
-                } => (leaf_index, leaf_index, previous_value),
-
-                TreeLogEntry::Read { leaf_index, value } => (leaf_index, leaf_index, value),
-                TreeLogEntry::ReadMissingKey => (0, 0, ValueHash::zero()),
+                    previous_value: value,
+                }
+                | TreeLogEntry::Read { leaf_index, value } => {
+                    TreeEntry::new(instruction.key(), leaf_index, value)
+                }
             };
 
-            let prev_hash =
-                hasher.fold_merkle_path(&op.merkle_path, key, prev_value, prev_leaf_index);
+            let prev_hash = hasher.fold_merkle_path(&op.merkle_path, prev_entry);
             assert_eq!(prev_hash, root_hash);
-            if let TreeInstruction::Write(value) = instruction {
-                let next_hash = hasher.fold_merkle_path(&op.merkle_path, key, value, leaf_index);
+            if let TreeInstruction::Write(new_entry) = instruction {
+                let next_hash = hasher.fold_merkle_path(&op.merkle_path, new_entry);
                 assert_eq!(next_hash, op.root_hash);
             }
             root_hash = op.root_hash;
@@ -65,19 +66,14 @@ impl TreeEntryWithProof {
     /// # Panics
     ///
     /// Panics if the proof doesn't verify.
-    pub fn verify(&self, hasher: &dyn HashTree, key: Key, trusted_root_hash: ValueHash) {
+    pub fn verify(&self, hasher: &dyn HashTree, trusted_root_hash: ValueHash) {
         if self.base.leaf_index == 0 {
             assert!(
-                self.base.value_hash.is_zero(),
+                self.base.value.is_zero(),
                 "Invalid missing value specification: leaf index is zero, but value is non-default"
             );
         }
-        let root_hash = hasher.fold_merkle_path(
-            &self.merkle_path,
-            key,
-            self.base.value_hash,
-            self.base.leaf_index,
-        );
+        let root_hash = hasher.fold_merkle_path(&self.merkle_path, self.base);
         assert_eq!(root_hash, trusted_root_hash, "Root hash mismatch");
     }
 }
@@ -146,11 +142,7 @@ impl<'a> TreeRangeDigest<'a> {
         let left_contour: Vec<_> = left_contour.collect();
         Self {
             hasher: HasherWithStats::new(hasher),
-            current_leaf: LeafNode::new(
-                start_key,
-                start_entry.base.value_hash,
-                start_entry.base.leaf_index,
-            ),
+            current_leaf: LeafNode::new(start_entry.base),
             left_contour: left_contour.try_into().unwrap(),
             // ^ `unwrap()` is safe by construction; `left_contour` will always have necessary length
         }
@@ -161,13 +153,13 @@ impl<'a> TreeRangeDigest<'a> {
     /// # Panics
     ///
     /// Panics if the provided `key` is not greater than the previous key provided to this digest.
-    pub fn update(&mut self, key: Key, entry: TreeEntry) {
+    pub fn update(&mut self, entry: TreeEntry) {
         assert!(
-            key > self.current_leaf.full_key,
+            entry.key > self.current_leaf.full_key,
             "Keys provided to a digest must be monotonically increasing"
         );
 
-        let diverging_level = utils::find_diverging_bit(self.current_leaf.full_key, key) + 1;
+        let diverging_level = utils::find_diverging_bit(self.current_leaf.full_key, entry.key) + 1;
 
         // Hash the current leaf up to the `diverging_level`, taking current `left_contour` into account.
         let mut hash = self
@@ -188,7 +180,7 @@ impl<'a> TreeRangeDigest<'a> {
         }
         // Record the computed hash.
         self.left_contour[TREE_DEPTH - diverging_level] = hash;
-        self.current_leaf = LeafNode::new(key, entry.value_hash, entry.leaf_index);
+        self.current_leaf = LeafNode::new(entry);
     }
 
     /// Finalizes this digest and returns the root hash of the tree.
@@ -196,8 +188,8 @@ impl<'a> TreeRangeDigest<'a> {
     /// # Panics
     ///
     /// Panics if the provided `final_key` is not greater than the previous key provided to this digest.
-    pub fn finalize(mut self, final_key: Key, final_entry: &TreeEntryWithProof) -> ValueHash {
-        self.update(final_key, final_entry.base);
+    pub fn finalize(mut self, final_entry: &TreeEntryWithProof) -> ValueHash {
+        self.update(final_entry.base);
 
         let full_path = self
             .hasher
@@ -206,9 +198,9 @@ impl<'a> TreeRangeDigest<'a> {
         let zipped_paths = self.left_contour.into_iter().zip(full_path);
         let mut hash = self
             .hasher
-            .hash_leaf(&final_entry.base.value_hash, final_entry.base.leaf_index);
+            .hash_leaf(&final_entry.base.value, final_entry.base.leaf_index);
         for (depth, (left, right)) in zipped_paths.enumerate() {
-            hash = if final_key.bit(depth) {
+            hash = if final_entry.base.key.bit(depth) {
                 self.hasher.hash_branch(&left, &hash)
             } else {
                 self.hasher.hash_branch(&hash, &right)

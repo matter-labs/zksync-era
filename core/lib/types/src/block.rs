@@ -89,7 +89,7 @@ pub struct MiniblockHeader {
 }
 
 /// Consensus-related L2 block (= miniblock) fields.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ConsensusBlockFields {
     /// Hash of the previous consensus block.
     pub parent: validator::BlockHeaderHash,
@@ -99,12 +99,14 @@ pub struct ConsensusBlockFields {
 
 impl ProtoFmt for ConsensusBlockFields {
     type Proto = crate::proto::ConsensusBlockFields;
-    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
+
+    fn read(proto: &Self::Proto) -> anyhow::Result<Self> {
         Ok(Self {
-            parent: read_required(&r.parent).context("parent")?,
-            justification: read_required(&r.justification).context("justification")?,
+            parent: read_required(&proto.parent).context("parent")?,
+            justification: read_required(&proto.justification).context("justification")?,
         })
     }
+
     fn build(&self) -> Self::Proto {
         Self::Proto {
             parent: Some(self.parent.build()),
