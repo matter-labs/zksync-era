@@ -91,7 +91,7 @@ impl ContractVerificationDal<'_, '_> {
     /// Returns the next verification request for processing.
     /// Considering the situation where processing of some request
     /// can be interrupted (panic, pod restart, etc..),
-    /// `processing_timeout` parameter is added to avoid stucking of requests.
+    /// `processing_timeout` parameter is added to avoid stuck requests.
     pub async fn get_next_queued_verification_request(
         &mut self,
         processing_timeout: Duration,

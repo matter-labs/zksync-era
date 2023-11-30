@@ -149,7 +149,18 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
     ) -> anyhow::Result<()> {
         let block_number = artifacts.block_number;
         let circuit_id = artifacts.circuit_id;
+        tracing::info!(
+            "Saving leaf aggregation artifacts for block {} with circuit {}",
+            block_number.0,
+            circuit_id,
+        );
         let blob_urls = save_artifacts(artifacts, &*self.object_store).await;
+        tracing::info!(
+            "Saved leaf aggregation artifacts for block {} with circuit {} (count: {})",
+            block_number.0,
+            circuit_id,
+            blob_urls.circuit_ids_and_urls.len(),
+        );
         update_database(
             &self.prover_connection_pool,
             started_at,
@@ -266,6 +277,12 @@ async fn update_database(
     blob_urls: BlobUrls,
     circuit_id: u8,
 ) {
+    tracing::info!(
+        "Updating database for job_id {}, block {} with circuit id {}",
+        job_id,
+        block_number.0,
+        circuit_id,
+    );
     let mut prover_connection = prover_connection_pool.access_storage().await.unwrap();
     let mut transaction = prover_connection.start_transaction().await.unwrap();
     let number_of_dependent_jobs = blob_urls.circuit_ids_and_urls.len();
@@ -273,6 +290,13 @@ async fn update_database(
         .fri_witness_generator_dal()
         .protocol_version_for_l1_batch(block_number)
         .await;
+    tracing::info!(
+        "Inserting {} prover jobs for job_id {}, block {} with circuit id {}",
+        blob_urls.circuit_ids_and_urls.len(),
+        job_id,
+        block_number.0,
+        circuit_id,
+    );
     transaction
         .fri_prover_jobs_dal()
         .insert_prover_jobs(
@@ -283,6 +307,12 @@ async fn update_database(
             protocol_version_id,
         )
         .await;
+    tracing::info!(
+        "Updating node aggregation jobs url for job_id {}, block {} with circuit id {}",
+        job_id,
+        block_number.0,
+        circuit_id,
+    );
     transaction
         .fri_witness_generator_dal()
         .update_node_aggregation_jobs_url(
@@ -293,11 +323,23 @@ async fn update_database(
             blob_urls.aggregations_urls,
         )
         .await;
+    tracing::info!(
+        "Marking leaf aggregation job as successful for job id {}, block {} with circuit id {}",
+        job_id,
+        block_number.0,
+        circuit_id,
+    );
     transaction
         .fri_witness_generator_dal()
         .mark_leaf_aggregation_as_successful(job_id, started_at.elapsed())
         .await;
 
+    tracing::info!(
+        "Committing transaction for job_id {}, block {} with circuit id {}",
+        job_id,
+        block_number.0,
+        circuit_id,
+    );
     transaction.commit().await.unwrap();
 }
 
