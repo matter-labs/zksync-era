@@ -1,5 +1,5 @@
 use multivm::interface::{ExecutionResult, VmExecutionMode, VmInterface};
-use multivm::MultivmTracer;
+use multivm::MultiVMTracer;
 use std::collections::HashSet;
 
 use multivm::tracers::{
