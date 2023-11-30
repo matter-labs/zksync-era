@@ -49,7 +49,7 @@ impl TransactionExecutionResult {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct IncludedTxLocation {
     pub tx_hash: H256,
     pub tx_index_in_miniblock: u32,

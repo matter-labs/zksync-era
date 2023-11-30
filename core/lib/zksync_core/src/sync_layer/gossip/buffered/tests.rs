@@ -11,6 +11,7 @@ use zksync_concurrency::{
     ctx::{self, channel},
     scope,
     sync::{self, watch},
+    testonly::abort_on_panic,
     time,
 };
 use zksync_consensus_roles::validator::{BlockHeader, BlockNumber, FinalBlock, Payload};
@@ -131,6 +132,7 @@ async fn test_buffered_storage(
     block_interval: time::Duration,
     shuffle_blocks: impl FnOnce(&mut StdRng, &mut [FinalBlock]),
 ) {
+    abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
 

@@ -6,7 +6,7 @@
 pub use crate::{
     glue::{
         history_mode::HistoryMode,
-        tracers::{MultiVmTracerPointer, MultivmTracer},
+        tracers::{MultiVMTracer, MultiVmTracerPointer},
     },
     vm_instance::VmInstance,
 };
@@ -26,3 +26,6 @@ pub use versions::vm_m5;
 pub use versions::vm_m6;
 pub use versions::vm_refunds_enhancement;
 pub use versions::vm_virtual_blocks;
+pub use zk_evm_1_3_1;
+pub use zk_evm_1_3_3;
+pub use zk_evm_1_4_0;

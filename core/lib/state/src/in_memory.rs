@@ -8,7 +8,7 @@ use zksync_types::{
 };
 use zksync_utils::u256_to_h256;
 
-/// Network ID we use by defailt for in memory storage.
+/// Network ID we use by default for in memory storage.
 pub const IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID: u32 = 270;
 
 /// In-memory storage.
