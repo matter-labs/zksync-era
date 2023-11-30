@@ -96,7 +96,7 @@ pub(crate) struct RocksdbSizeMetrics {
     pub live_data_size: Family<RocksdbLabels, Gauge<u64>>,
     /// Total size of all SST files in the column family of a RocksDB instance.
     pub total_sst_size: Family<RocksdbLabels, Gauge<u64>>,
-    /// Total size of all mem tables in the column family of a RocksDB instance.
+    /// Total size of all memory tables in the column family of a RocksDB instance.
     pub total_mem_table_size: Family<RocksdbLabels, Gauge<u64>>,
     /// Total size of block cache in the column family of a RocksDB instance.
     pub block_cache_size: Family<RocksdbLabels, Gauge<u64>>,
