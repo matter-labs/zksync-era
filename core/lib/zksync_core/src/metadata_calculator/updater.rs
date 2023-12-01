@@ -165,9 +165,18 @@ impl TreeUpdater {
             reestimate_gas_cost_latency.observe();
 
             let save_postgres_latency = METRICS.start_stage(TreeUpdateStage::SavePostgres);
+            let is_pre_boojum = header
+                .protocol_version
+                .map(|v| v.is_pre_boojum())
+                .unwrap_or(true);
             storage
                 .blocks_dal()
-                .save_l1_batch_metadata(l1_batch_number, &metadata, previous_root_hash)
+                .save_l1_batch_metadata(
+                    l1_batch_number,
+                    &metadata,
+                    previous_root_hash,
+                    is_pre_boojum,
+                )
                 .await
                 .unwrap();
             // ^ Note that `save_l1_batch_metadata()` will not blindly overwrite changes if L1 batch
@@ -239,10 +248,18 @@ impl TreeUpdater {
             .blocks_dal()
             .get_events_queue(header.number)
             .await
-            .unwrap()
             .unwrap();
-        let events_queue_commitment =
-            events_queue_commitment(&events_queue, header.protocol_version.unwrap());
+
+        let is_pre_boojum = header
+            .protocol_version
+            .map(|v| v.is_pre_boojum())
+            .unwrap_or(true);
+        let events_queue_commitment = (!is_pre_boojum).then(|| {
+            let events_queue =
+                events_queue.expect("Events queue is required for post-boojum batch");
+            events_queue_commitment(&events_queue, is_pre_boojum)
+                .expect("Events queue commitment is required for post-boojum batch")
+        });
         events_queue_commitment_latency.observe();
 
         let bootloader_commitment_latency =
@@ -253,10 +270,8 @@ impl TreeUpdater {
             .await
             .unwrap()
             .unwrap();
-        let bootloader_initial_content_commitment = bootloader_initial_content_commitment(
-            &initial_bootloader_contents,
-            header.protocol_version.unwrap(),
-        );
+        let bootloader_initial_content_commitment =
+            bootloader_initial_content_commitment(&initial_bootloader_contents, is_pre_boojum);
         bootloader_commitment_latency.observe();
 
         (

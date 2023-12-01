@@ -185,6 +185,11 @@ impl MetadataCalculator {
         events_queue_commitment: Option<H256>,
         bootloader_initial_content_commitment: Option<H256>,
     ) -> L1BatchMetadata {
+        let is_pre_boojum = header
+            .protocol_version
+            .map(|v| v.is_pre_boojum())
+            .unwrap_or(true);
+
         let merkle_root_hash = tree_metadata.root_hash;
 
         let commitment = L1BatchCommitment::new(
@@ -199,10 +204,16 @@ impl MetadataCalculator {
             tree_metadata.state_diffs,
             bootloader_initial_content_commitment.unwrap_or_default(),
             events_queue_commitment.unwrap_or_default(),
+            is_pre_boojum,
         );
         let commitment_hash = commitment.hash();
         tracing::trace!("L1 batch commitment: {commitment:?}");
 
+        let l2_l1_messages_compressed = if is_pre_boojum {
+            commitment.l2_l1_logs_compressed().to_vec()
+        } else {
+            commitment.system_logs_compressed().to_vec()
+        };
         let metadata = L1BatchMetadata {
             root_hash: merkle_root_hash,
             rollup_last_leaf_index: tree_metadata.rollup_last_leaf_index,
@@ -210,7 +221,7 @@ impl MetadataCalculator {
             initial_writes_compressed: commitment.initial_writes_compressed().to_vec(),
             repeated_writes_compressed: commitment.repeated_writes_compressed().to_vec(),
             commitment: commitment_hash.commitment,
-            l2_l1_messages_compressed: commitment.system_logs_compressed().to_vec(),
+            l2_l1_messages_compressed,
             l2_l1_merkle_root: commitment.l2_l1_logs_merkle_root(),
             block_meta_params: commitment.meta_parameters(),
             aux_data_hash: commitment_hash.aux_output,

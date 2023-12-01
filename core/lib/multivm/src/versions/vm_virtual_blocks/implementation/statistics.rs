@@ -43,7 +43,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         }
     }
 
-    /// Returns the hashes the bytecodes that have been decommitted by the decomittment processor.
+    /// Returns the hashes the bytecodes that have been decommitted by the decommitment processor.
     pub(crate) fn get_used_contracts(&self) -> Vec<U256> {
         self.state
             .decommittment_processor
@@ -55,7 +55,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     }
 
     /// Returns the info about all oracles' sizes.
-    pub fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
+    pub(crate) fn record_vm_memory_metrics_inner(&self) -> VmMemoryMetrics {
         VmMemoryMetrics {
             event_sink_inner: self.state.event_sink.get_size(),
             event_sink_history: self.state.event_sink.get_history_size(),

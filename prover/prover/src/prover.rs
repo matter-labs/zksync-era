@@ -9,9 +9,9 @@ use tokio::runtime::Handle;
 use zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncProof;
 use zkevm_test_harness::pairing::bn256::Bn256;
 
-use zksync_config::ProverConfig;
+use zksync_config::{PostgresConfig, ProverConfig};
+use zksync_dal::ConnectionPool;
 use zksync_dal::StorageProcessor;
-use zksync_dal::{connection::DbVariant, ConnectionPool};
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory};
 use zksync_types::proofs::ProverJobMetadata;
 
@@ -30,12 +30,13 @@ fn assembly_debug_blob_url(job_id: usize, circuit_id: u8) -> String {
 
 impl ProverReporter {
     pub(crate) fn new(
+        postgres_config: PostgresConfig,
         config: ProverConfig,
         store_factory: &ObjectStoreFactory,
         rt_handle: Handle,
     ) -> anyhow::Result<Self> {
         let pool = rt_handle
-            .block_on(ConnectionPool::singleton(DbVariant::Prover).build())
+            .block_on(ConnectionPool::singleton(postgres_config.prover_url()?).build())
             .context("failed to build a connection pool")?;
         Ok(Self {
             pool,

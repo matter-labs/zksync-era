@@ -182,6 +182,7 @@ async fn confirm_many() -> anyhow::Result<()> {
             .eth_sender_dal()
             .get_inflight_txs()
             .await
+            .unwrap()
             .len(),
         5
     );
@@ -208,6 +209,7 @@ async fn confirm_many() -> anyhow::Result<()> {
             .eth_sender_dal()
             .get_inflight_txs()
             .await
+            .unwrap()
             .len(),
         0
     );
@@ -257,6 +259,7 @@ async fn resend_each_block() -> anyhow::Result<()> {
             .eth_sender_dal()
             .get_inflight_txs()
             .await
+            .unwrap()
             .len(),
         1
     );
@@ -299,6 +302,7 @@ async fn resend_each_block() -> anyhow::Result<()> {
             .eth_sender_dal()
             .get_inflight_txs()
             .await
+            .unwrap()
             .len(),
         1
     );
@@ -346,6 +350,7 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
             .eth_sender_dal()
             .get_inflight_txs()
             .await
+            .unwrap()
             .len(),
         1
     );
@@ -371,6 +376,7 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
             .eth_sender_dal()
             .get_inflight_txs()
             .await
+            .unwrap()
             .len(),
         1
     );
@@ -442,6 +448,7 @@ async fn three_scenarios() -> anyhow::Result<()> {
             .eth_sender_dal()
             .get_inflight_txs()
             .await
+            .unwrap()
             .len(),
         2
     );
@@ -890,6 +897,7 @@ async fn insert_l1_batch(tester: &EthSenderTester, number: L1BatchNumber) -> L1B
             header.number,
             &default_l1_batch_metadata(),
             Default::default(),
+            false,
         )
         .await
         .unwrap();

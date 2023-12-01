@@ -527,7 +527,7 @@ impl WitnessGeneratorDal<'_, '_> {
     /// Saves artifacts in node_aggregation_job
     /// and advances it to `waiting_for_proofs` status
     /// it will be advanced to `queued` by the prover when all the dependency proofs are computed.
-    /// If the node aggregation job was already `queued` in case of connrecunt run of same leaf aggregation job
+    /// If the node aggregation job was already `queued` in case of connector run of same leaf aggregation job
     /// we keep the status as is to prevent data race.
     pub async fn save_leaf_aggregation_artifacts(
         &mut self,
@@ -728,7 +728,7 @@ impl WitnessGeneratorDal<'_, '_> {
         {
             sqlx::query!(
                 "INSERT INTO witness_inputs(l1_batch_number, merkle_tree_paths, merkel_tree_paths_blob_url, status, protocol_version, created_at, updated_at) \
-                 VALUES ($1, $2, $3, 'waiting_for_artifacts', $4, now(), now()) \
+                 VALUES ($1, $2, $3, 'queued', $4, now(), now()) \
                  ON CONFLICT (l1_batch_number) DO NOTHING",
                 block_number.0 as i64,
                 // TODO(SMA-1476): remove the below column once blob is migrated to GCS.

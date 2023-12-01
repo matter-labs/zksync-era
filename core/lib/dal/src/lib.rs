@@ -1,12 +1,9 @@
 #![allow(clippy::derive_partial_eq_without_eq, clippy::format_push_string)]
 
-use std::env;
-
 // Built-in deps
 pub use sqlx::Error as SqlxError;
 use sqlx::{postgres::Postgres, Connection, PgConnection, Transaction};
 // External imports
-use anyhow::Context as _;
 use sqlx::pool::PoolConnection;
 pub use sqlx::types::BigDecimal;
 
@@ -86,35 +83,9 @@ pub mod witness_generator_dal;
 #[cfg(test)]
 mod tests;
 
-/// Obtains the master database URL from the environment variable.
-pub fn get_master_database_url() -> anyhow::Result<String> {
-    env::var("DATABASE_URL").context("DATABASE_URL must be set")
-}
-
-/// Obtains the master prover database URL from the environment variable.
-pub fn get_prover_database_url() -> anyhow::Result<String> {
-    match env::var("DATABASE_PROVER_URL") {
-        Ok(url) => Ok(url),
-        Err(_) => get_master_database_url(),
-    }
-}
-
-/// Obtains the replica database URL from the environment variable.
-pub fn get_replica_database_url() -> anyhow::Result<String> {
-    match env::var("DATABASE_REPLICA_URL") {
-        Ok(url) => Ok(url),
-        Err(_) => get_master_database_url(),
-    }
-}
-
-/// Obtains the test database URL from the environment variable.
-pub fn get_test_database_url() -> anyhow::Result<String> {
-    env::var("TEST_DATABASE_URL").context("TEST_DATABASE_URL must be set")
-}
-
 /// Storage processor is the main storage interaction point.
 /// It holds down the connection (either direct or pooled) to the database
-/// and provide methods to obtain different storage schemas.
+/// and provide methods to obtain different storage schema.
 #[derive(Debug)]
 pub struct StorageProcessor<'a> {
     conn: ConnectionHolder<'a>,
@@ -122,23 +93,6 @@ pub struct StorageProcessor<'a> {
 }
 
 impl<'a> StorageProcessor<'a> {
-    pub async fn establish_connection(
-        connect_to_master: bool,
-    ) -> anyhow::Result<StorageProcessor<'static>> {
-        let database_url = if connect_to_master {
-            get_master_database_url()?
-        } else {
-            get_replica_database_url()?
-        };
-        let connection = PgConnection::connect(&database_url)
-            .await
-            .context("PgConnectio::connect()")?;
-        Ok(StorageProcessor {
-            conn: ConnectionHolder::Direct(connection),
-            in_transaction: false,
-        })
-    }
-
     pub async fn start_transaction<'c: 'b, 'b>(&'c mut self) -> sqlx::Result<StorageProcessor<'b>> {
         let transaction = self.conn().begin().await?;
         let mut processor = StorageProcessor::from_transaction(transaction);
@@ -151,7 +105,7 @@ impl<'a> StorageProcessor<'a> {
         self.in_transaction
     }
 
-    pub fn from_transaction(conn: Transaction<'a, Postgres>) -> Self {
+    fn from_transaction(conn: Transaction<'a, Postgres>) -> Self {
         Self {
             conn: ConnectionHolder::Transaction(conn),
             in_transaction: true,
@@ -169,7 +123,7 @@ impl<'a> StorageProcessor<'a> {
     /// Creates a `StorageProcessor` using a pool of connections.
     /// This method borrows one of the connections from the pool, and releases it
     /// after `drop`.
-    pub fn from_pool(conn: PoolConnection<Postgres>) -> Self {
+    pub(crate) fn from_pool(conn: PoolConnection<Postgres>) -> Self {
         Self {
             conn: ConnectionHolder::Pooled(conn),
             in_transaction: false,
@@ -179,7 +133,6 @@ impl<'a> StorageProcessor<'a> {
     fn conn(&mut self) -> &mut PgConnection {
         match &mut self.conn {
             ConnectionHolder::Pooled(conn) => conn,
-            ConnectionHolder::Direct(conn) => conn,
             ConnectionHolder::Transaction(conn) => conn,
         }
     }

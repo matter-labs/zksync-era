@@ -13,7 +13,7 @@ use zksync_system_constants::MAX_TXS_IN_BLOCK;
 use zksync_types::l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log};
 use zksync_types::tx::tx_execution_info::TxExecutionStatus;
 use zksync_types::vm_trace::{Call, VmExecutionTrace, VmTrace};
-use zksync_types::{L1BatchNumber, StorageLogQuery, VmEvent, U256};
+use zksync_types::{L1BatchNumber, StorageLogQuery, VmEvent, H256, U256};
 
 use crate::interface::types::outputs::VmExecutionLogs;
 use crate::vm_1_3_2::bootloader_state::BootloaderState;
@@ -312,6 +312,14 @@ pub struct VmSnapshot {
 }
 
 impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
+    pub(crate) fn is_bytecode_known(&self, bytecode_hash: &H256) -> bool {
+        self.state
+            .storage
+            .storage
+            .get_ptr()
+            .borrow_mut()
+            .is_bytecode_known(bytecode_hash)
+    }
     fn has_ended(&self) -> bool {
         match vm_may_have_ended_inner(&self.state) {
             None | Some(NewVmExecutionResult::MostLikelyDidNotFinish(_, _)) => false,
@@ -356,7 +364,7 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
         }
     }
 
-    /// Removes the latest snapshot without rollbacking to it.
+    /// Removes the latest snapshot without rolling it back.
     /// This function expects that there is at least one snapshot present.
     pub fn pop_snapshot_no_rollback(&mut self) {
         self.snapshots.pop().unwrap();

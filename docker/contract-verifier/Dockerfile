@@ -10,8 +10,8 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     PATH=/usr/local/cargo/bin:$PATH
 
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
-    rustup install nightly-2023-07-21 && \
-    rustup default nightly-2023-07-21
+    rustup install nightly-2023-08-21 && \
+    rustup default nightly-2023-08-21
 
 WORKDIR /usr/src/zksync
 COPY . .
@@ -34,7 +34,7 @@ RUN skip_versions="v1.3.12 v1.3.15" && \
     done
 
 # install zkvyper 1.3.x
-RUN for VERSION in $(seq -f "v1.3.%g" 9 11); do \
+RUN for VERSION in $(seq -f "v1.3.%g" 9 13); do \
     mkdir -p /etc/zkvyper-bin/$VERSION && \
     wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-$VERSION -O /etc/zkvyper-bin/$VERSION/zkvyper && \
     chmod +x /etc/zkvyper-bin/$VERSION/zkvyper; \

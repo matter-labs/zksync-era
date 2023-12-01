@@ -80,8 +80,7 @@ $ zk f yarn start facets deploy \
 --zksync-address <zksync-address> \
 --environment <environment> \
 --executor \
---governance \
---diamond-cut \
+--admin \
 --getters \
 --mailbox
 ```
@@ -174,7 +173,6 @@ $ zk f yarn start crypto deploy-verifier
 --gas-price <gas-price> \
 --nonce <nonce> \
 --create2-address <create2-address> \
---zksync-address <zksync-address> \
 --environment <environment>
 ```
 
@@ -215,7 +213,8 @@ $ zk f yarn start transactions build-default \
 --l2-upgrader-address <l2UpgraderAddress> \
 --diamond-upgrade-proposal-id <diamondUpgradeProposalId> \
 --l1rpc <l1prc> \
---zksync-address <zksyncAddress>
+--zksync-address <zksyncAddress> \
+--use-new-governance
 ```
 
 To execute the `proposeTransparentUpgrade` transaction on L1, use the following command:
@@ -227,6 +226,7 @@ $ zk f yarn start transactions propose-upgrade \
 --gas-price <gas-price> \
 --nonce <nonce> \
 --zksync-address <zksyncAddress> \
+--new-governance <governanceAddress> \
 --environment <environment>
 ```
 
@@ -239,6 +239,7 @@ $ zk f yarn start transactions execute-upgrade \
 --gas-price <gas-price> \
 --nonce <nonce> \
 --zksync-address <zksyncAddress> \
+--new-governance <governanceAddress> \
 --environment <environment>
 ```
 
@@ -251,5 +252,6 @@ $ zk f yarn start transactions cancel-upgrade \
 --zksync-address <zksyncAddress> \
 --gas-price <gas-price> \
 --nonce <nonce> \
+--new-governance <governanceAddress> \
 --environment <environment>
 ```

@@ -11,7 +11,7 @@ use zksync_types::{
 use zksync_utils::address_to_h256;
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
 
-use crate::vm_latest::utils::overhead::{get_amortized_overhead, OverheadCoeficients};
+use crate::vm_latest::utils::overhead::{get_amortized_overhead, OverheadCoefficients};
 
 /// This structure represents the data that is used by
 /// the Bootloader to describe the transaction.
@@ -212,12 +212,12 @@ impl TransactionData {
             self.reserved_dynamic.len() as u64,
         );
 
-        let coeficients = OverheadCoeficients::from_tx_type(self.tx_type);
+        let coefficients = OverheadCoefficients::from_tx_type(self.tx_type);
         get_amortized_overhead(
             total_gas_limit,
             gas_price_per_pubdata,
             encoded_len,
-            coeficients,
+            coefficients,
         )
     }
 

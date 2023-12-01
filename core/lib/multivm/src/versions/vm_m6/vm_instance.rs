@@ -1,6 +1,7 @@
 use std::convert::TryFrom;
 use std::fmt::Debug;
 
+use crate::glue::GlueInto;
 use zk_evm_1_3_1::aux_structures::Timestamp;
 use zk_evm_1_3_1::vm_state::{PrimitiveValue, VmLocalState, VmState};
 use zk_evm_1_3_1::witness_trace::DummyTracer;
@@ -12,14 +13,13 @@ use zksync_system_constants::MAX_TXS_IN_BLOCK;
 use zksync_types::l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log};
 use zksync_types::tx::tx_execution_info::TxExecutionStatus;
 use zksync_types::vm_trace::{Call, VmExecutionTrace, VmTrace};
-use zksync_types::{L1BatchNumber, StorageLogQuery, VmEvent, U256};
+use zksync_types::{L1BatchNumber, StorageLogQuery, VmEvent, H256, U256};
 
 use crate::interface::types::outputs::VmExecutionLogs;
 use crate::vm_m6::bootloader_state::BootloaderState;
 use crate::vm_m6::errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult};
 use crate::vm_m6::event_sink::InMemoryEventSink;
 use crate::vm_m6::events::merge_events;
-use crate::vm_m6::glue::GlueInto;
 use crate::vm_m6::history_recorder::{HistoryEnabled, HistoryMode};
 use crate::vm_m6::memory::SimpleMemory;
 use crate::vm_m6::oracles::decommitter::DecommitterOracle;
@@ -341,6 +341,15 @@ impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
         }
     }
 
+    pub(crate) fn is_bytecode_exists(&self, bytecode_hash: &H256) -> bool {
+        self.state
+            .storage
+            .storage
+            .get_ptr()
+            .borrow_mut()
+            .is_bytecode_exists(bytecode_hash)
+    }
+
     fn revert_reason(&self) -> Option<VmRevertReasonParsingResult> {
         match vm_may_have_ended_inner(&self.state) {
             None
@@ -374,7 +383,7 @@ impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
         }
     }
 
-    /// Removes the latest snapshot without rollbacking to it.
+    /// Removes the latest snapshot without rolling back to it.
     /// This function expects that there is at least one snapshot present.
     pub fn pop_snapshot_no_rollback(&mut self) {
         self.snapshots.pop().unwrap();
@@ -890,7 +899,7 @@ impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
     }
 
     // returns Some only when there is just one frame in execution trace.
-    fn get_final_log_queries(&self) -> Vec<StorageLogQuery> {
+    pub(crate) fn get_final_log_queries(&self) -> Vec<StorageLogQuery> {
         assert_eq!(
             self.state.storage.frames_stack.len(),
             1,

@@ -7,8 +7,9 @@ use tokio::{sync::oneshot, sync::watch};
 
 use crate::generator::WitnessVectorGenerator;
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
-use zksync_config::configs::{FriWitnessVectorGeneratorConfig, ProverGroupConfig};
-use zksync_dal::connection::DbVariant;
+use zksync_config::configs::{
+    FriProverConfig, FriWitnessVectorGeneratorConfig, PostgresConfig, ProverGroupConfig,
+};
 use zksync_dal::ConnectionPool;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
@@ -55,10 +56,14 @@ async fn main() -> anyhow::Result<()> {
     let specialized_group_id = config.specialized_group_id;
     let exporter_config = PrometheusExporterConfig::pull(config.prometheus_listener_port);
 
-    let pool = ConnectionPool::builder(DbVariant::Prover)
-        .build()
-        .await
-        .context("failed to build a connection pool")?;
+    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
+    let pool = ConnectionPool::builder(
+        postgres_config.prover_url()?,
+        postgres_config.max_connections()?,
+    )
+    .build()
+    .await
+    .context("failed to build a connection pool")?;
     let object_store_config =
         ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;
     let blob_store = ObjectStoreFactory::new(object_store_config.0)
@@ -74,6 +79,7 @@ async fn main() -> anyhow::Result<()> {
         ProverGroupConfig::from_env().context("ProverGroupConfig::from_env()")?;
     let zone = get_zone(&prover_group_config).await.context("get_zone()")?;
     let vk_commitments = get_cached_commitments();
+    let fri_prover_config = FriProverConfig::from_env().context("FriProverConfig::from_env()")?;
     let witness_vector_generator = WitnessVectorGenerator::new(
         blob_store,
         pool,
@@ -81,6 +87,7 @@ async fn main() -> anyhow::Result<()> {
         zone.clone(),
         config,
         vk_commitments,
+        fri_prover_config.max_attempts,
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
