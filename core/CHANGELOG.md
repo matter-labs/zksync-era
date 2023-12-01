@@ -1,5 +1,22 @@
 # Changelog
 
+## [18.4.0](https://github.com/matter-labs/zksync-era/compare/core-v18.3.1...core-v18.4.0) (2023-12-01)
+
+
+### Features
+
+* adds spellchecker workflow, and corrects misspelled words ([#559](https://github.com/matter-labs/zksync-era/issues/559)) ([beac0a8](https://github.com/matter-labs/zksync-era/commit/beac0a85bb1535b05c395057171f197cd976bf82))
+* **en:** Support arbitrary genesis block for external nodes ([#537](https://github.com/matter-labs/zksync-era/issues/537)) ([15d7eaf](https://github.com/matter-labs/zksync-era/commit/15d7eaf872e222338810243865cec9dff7f6e799))
+* **merkle tree:** Remove enumeration index assignment from Merkle tree ([#551](https://github.com/matter-labs/zksync-era/issues/551)) ([e2c1b20](https://github.com/matter-labs/zksync-era/commit/e2c1b20e361e6ee2f5ac69cefe75d9c5575eb2f7))
+* Restore commitment test in Boojum integration ([#539](https://github.com/matter-labs/zksync-era/issues/539)) ([06f510d](https://github.com/matter-labs/zksync-era/commit/06f510d00f855ddafaebb504f7ea799700221072))
+
+
+### Bug Fixes
+
+* Change no pending batches 404 error into a success response ([#279](https://github.com/matter-labs/zksync-era/issues/279)) ([e8fd805](https://github.com/matter-labs/zksync-era/commit/e8fd805c8be7980de7676bca87cfc2d445aab9e1))
+* **vm:** Expose additional types and traits ([#563](https://github.com/matter-labs/zksync-era/issues/563)) ([bd268ac](https://github.com/matter-labs/zksync-era/commit/bd268ac02bc3530c1d3247cb9496c3e13c2e52d9))
+* **witness_generator:** Disable BWIP dependency ([#573](https://github.com/matter-labs/zksync-era/issues/573)) ([e05d955](https://github.com/matter-labs/zksync-era/commit/e05d955036c76a29f9b6e900872c69e20278e045))
+
 ## [18.3.1](https://github.com/matter-labs/zksync-era/compare/core-v18.3.0...core-v18.3.1) (2023-11-28)
 
 
