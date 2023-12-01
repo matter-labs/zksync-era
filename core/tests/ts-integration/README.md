@@ -97,7 +97,7 @@ implemented, register them at [setup file](./src/jest-setup/add-matchers.ts) and
 ### Matcher modifiers
 
 `toBeAccepted` and `toBeRejected` matchers accept modifiers. You can see one (`shouldChangeETHBalances`) above. There
-are others (like `shouldChangeTokenBalances` or `shouldOnlyTakeFee`), and if needed you can create your onw ones.
+are others (like `shouldChangeTokenBalances` or `shouldOnlyTakeFee`), and if needed you can create your own ones.
 
 These modifiers would be applied to the transaction receipt, and you can implement any kind of custom logic there. To do
 so, you just need to declare a class that inherits `MatcherModifier` class and implements the `check` method.
