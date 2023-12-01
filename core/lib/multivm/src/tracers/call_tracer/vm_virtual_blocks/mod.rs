@@ -12,7 +12,7 @@ use zksync_types::U256;
 use crate::interface::{
     dyn_tracers::vm_1_3_3::DynTracer, VmExecutionResultAndLogs, VmRevertReason,
 };
-use crate::tracers::call_tracer::{CallTracer, FarcallAndNearCallCount};
+use crate::tracers::call_tracer::CallTracer;
 use crate::vm_virtual_blocks::{
     ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory, VmTracer,
 };

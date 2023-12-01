@@ -15,7 +15,7 @@ use crate::interface::{
     tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_3_3::DynTracer,
     VmRevertReason,
 };
-use crate::tracers::call_tracer::{CallTracer, FarcallAndNearCallCount};
+use crate::tracers::call_tracer::CallTracer;
 use crate::vm_refunds_enhancement::{
     BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState,
 };

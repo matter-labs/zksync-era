@@ -15,7 +15,7 @@ use crate::interface::{
     tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
     VmRevertReason,
 };
-use crate::tracers::call_tracer::{CallTracer, FarcallAndNearCallCount};
+use crate::tracers::call_tracer::CallTracer;
 use crate::vm_latest::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState};
 
 impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
