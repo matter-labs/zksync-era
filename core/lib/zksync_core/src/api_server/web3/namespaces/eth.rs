@@ -1,3 +1,5 @@
+use std::ops::Add;
+use std::time::Duration;
 use zksync_types::{
     api::{
         BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
@@ -802,7 +804,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
 
                 *from_timestamp = match last_timestamp {
-                    Some(last_timestamp) => last_timestamp + 1,
+                    Some(last_timestamp) => last_timestamp.add(Duration::from_secs(1)),
                     None => *from_timestamp,
                 };
 
@@ -826,25 +828,26 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                 } else {
                     vec![]
                 };
-                let get_logs_filter = GetLogsFilter {
-                    from_block: *from_block,
-                    to_block: filter.to_block,
-                    addresses,
-                    topics,
-                };
-                let to_block = self
+
+                let mut to_block = self
                     .state
                     .resolve_filter_block_number(filter.to_block)
                     .await?;
 
-                let latest_block =
-                    if filter.to_block.is_none() || filter.to_block == Some(BlockNumber::Latest) {
+                if let Some(BlockNumber::Number(_)) = filter.to_block {
+                    to_block = to_block.min(
                         self.state
                             .resolve_filter_block_number(Some(BlockNumber::Latest))
-                            .await?
-                    } else {
-                        to_block
-                    };
+                            .await?,
+                    );
+                }
+
+                let get_logs_filter = GetLogsFilter {
+                    from_block: *from_block,
+                    to_block,
+                    addresses,
+                    topics,
+                };
 
                 let mut storage = self
                     .state
@@ -878,7 +881,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     .get_logs(get_logs_filter, i32::MAX as usize)
                     .await
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
-                *from_block = to_block.min(latest_block) + 1;
+                *from_block = to_block + 1;
                 FilterChanges::Logs(logs)
             }
         };
