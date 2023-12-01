@@ -289,7 +289,7 @@ impl TryFrom<Log> for ProtocolUpgrade {
             unreachable!();
         };
 
-        let Token::Tuple(mut transaction) = decoded.remove(0) else {
+        let Token::Tuple(transaction) = decoded.remove(0) else {
             unreachable!()
         };
 

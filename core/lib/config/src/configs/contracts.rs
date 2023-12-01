@@ -14,17 +14,13 @@ pub enum ProverAtGenesis {
 pub struct ContractsConfig {
     pub governance_addr: Address,
 
-    pub bridgehub_diamond_proxy_addr: Address,
-    pub bridgehub_admin_facet_addr: Address,
-    pub bridgehub_mailbox_facet_addr: Address,
-    pub bridgehub_getters_facet_addr: Address,
-    pub bridgehub_diamond_init_addr: Address,
+    pub bridgehub_proxy_addr: Address,
+    pub bridgehub_impl_addr: Address,
 
     pub verifier_addr: Address,
 
     pub state_transition_proxy_addr: Address,
     pub state_transition_impl_addr: Address,
-    pub state_transition_proxy_admin_addr: Address,
 
     pub executor_facet_addr: Address,
     pub admin_facet_addr: Address,
@@ -33,6 +29,7 @@ pub struct ContractsConfig {
     pub diamond_init_addr: Address,
     pub diamond_upgrade_init_addr: Address,
     pub diamond_proxy_addr: Address,
+    pub transparent_proxy_admin_addr: Address,
     pub validator_timelock_addr: Address,
     pub genesis_tx_hash: H256,
     pub l1_erc20_bridge_proxy_addr: Address,
@@ -61,14 +58,10 @@ impl ContractsConfig {
     /// Same goes for hashes.
     pub fn for_tests() -> Self {
         Self {
-            bridgehub_diamond_proxy_addr: Address::repeat_byte(0x01),
-            bridgehub_admin_facet_addr: Address::repeat_byte(0x01),
-            bridgehub_mailbox_facet_addr: Address::repeat_byte(0x01),
-            bridgehub_getters_facet_addr: Address::repeat_byte(0x01),
-            bridgehub_diamond_init_addr: Address::repeat_byte(0x01),
+            bridgehub_proxy_addr: Address::repeat_byte(0x01),
+            bridgehub_impl_addr: Address::repeat_byte(0x01),
             state_transition_proxy_addr: Address::repeat_byte(0x01),
             state_transition_impl_addr: Address::repeat_byte(0x01),
-            state_transition_proxy_admin_addr: Address::repeat_byte(0x01),
             mailbox_facet_addr: Address::repeat_byte(0x01),
             executor_facet_addr: Address::repeat_byte(0x02),
             admin_facet_addr: Address::repeat_byte(0x03),
@@ -77,6 +70,7 @@ impl ContractsConfig {
             diamond_init_addr: Address::repeat_byte(0x07),
             diamond_upgrade_init_addr: Address::repeat_byte(0x08),
             diamond_proxy_addr: Address::repeat_byte(0x09),
+            transparent_proxy_admin_addr: Address::repeat_byte(0x09),
             validator_timelock_addr: Address::repeat_byte(0x0a),
             genesis_tx_hash: H256::repeat_byte(0x01),
             l1_erc20_bridge_proxy_addr: Address::repeat_byte(0x0b),

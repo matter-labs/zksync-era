@@ -18,14 +18,10 @@ mod tests {
 
     fn expected_config() -> ContractsConfig {
         ContractsConfig {
-            bridgehub_diamond_proxy_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
-            bridgehub_admin_facet_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
-            bridgehub_mailbox_facet_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
-            bridgehub_getters_facet_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
-            bridgehub_diamond_init_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
+            bridgehub_proxy_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
+            bridgehub_impl_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
             state_transition_proxy_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
             state_transition_impl_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
-            state_transition_proxy_admin_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
             governance_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
             mailbox_facet_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
             executor_facet_addr: addr("18B631537801963A964211C0E86645c1aBfbB2d3"),
@@ -35,6 +31,7 @@ mod tests {
             diamond_init_addr: addr("FFC35A5e767BE36057c34586303498e3de7C62Ba"),
             diamond_upgrade_init_addr: addr("FFC35A5e767BE36057c34586303498e3de7C62Ba"),
             diamond_proxy_addr: addr("F00B988a98Ca742e7958DeF9F7823b5908715f4a"),
+            transparent_proxy_admin_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
             validator_timelock_addr: addr("F00B988a98Ca742e7958DeF9F7823b5908715f4a"),
             genesis_tx_hash: hash(
                 "b99ebfea46cbe05a21cd80fe5597d97b204befc52a16303f579c607dc1ac2e2e",

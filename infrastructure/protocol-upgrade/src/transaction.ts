@@ -493,7 +493,7 @@ async function cancelUpgrade(
 }
 
 async function getNewDiamondUpgradeProposalId(l1rpc: string, zksyncAddress: string) {
-    zksyncAddress = zksyncAddress ?? process.env.CONTRACTS_BRIDGEHUB_DIAMOND_PROXY_ADDR;
+    zksyncAddress = zksyncAddress ?? process.env.CONTRACTS_DIAMOND_PROXY_ADDR;
     // We don't care about the wallet here, we just need to make a get call.
     let wallet = getWallet(l1rpc, undefined);
     let zkSync = IZkSyncFactory.connect(zksyncAddress, wallet);
