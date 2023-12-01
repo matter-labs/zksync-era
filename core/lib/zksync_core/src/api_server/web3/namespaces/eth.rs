@@ -566,7 +566,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .installed_filters
             .lock()
             .await
-            .add(TypedFilter::Blocks(last_block_number));
+            .add(TypedFilter::Blocks(last_block_number + 1));
         method_latency.observe();
         Ok(idx)
     }
