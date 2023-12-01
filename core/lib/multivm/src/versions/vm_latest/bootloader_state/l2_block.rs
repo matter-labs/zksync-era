@@ -22,6 +22,10 @@ pub(crate) struct BootloaderL2Block {
 }
 
 impl BootloaderL2Block {
+    pub(crate) fn last_tx_hash(&self) -> Option<H256> {
+        self.txs.last().map(|tx| tx.hash)
+    }
+
     pub(crate) fn new(l2_block: L2BlockEnv, first_tx_place: usize) -> Self {
         Self {
             number: l2_block.number,

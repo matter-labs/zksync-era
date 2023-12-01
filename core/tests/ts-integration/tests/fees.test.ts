@@ -10,11 +10,14 @@
  *
  */
 import * as utils from 'zk/build/utils';
+import * as fs from 'fs';
 import { TestMaster } from '../src/index';
 
 import * as zksync from 'zksync-web3';
 import { BigNumber, ethers } from 'ethers';
 import { Token } from '../src/types';
+
+const logs = fs.createWriteStream('upgrade.log', { flags: 'a' });
 
 // Unless `RUN_FEE_TEST` is provided, skip the test suit
 const testFees = process.env.RUN_FEE_TEST ? describe : describe.skip;
@@ -147,7 +150,9 @@ async function updateReport(
     const estimatedPrice = estimatedL2GasPrice.mul(estimatedL2GasLimit);
 
     const balanceBefore = await sender.getBalance();
-    await (await sender.sendTransaction(transactionRequest)).wait();
+    const transaction = await sender.sendTransaction(transactionRequest);
+    console.log(`Sending transaction: ${transaction.hash}`);
+    await transaction.wait();
     const balanceAfter = await sender.getBalance();
     const balanceDiff = balanceBefore.sub(balanceAfter);
 
@@ -190,12 +195,12 @@ async function setInternalL1GasPrice(provider: zksync.Provider, newPrice?: strin
     } catch (_) {}
 
     // Run server in background.
-    let command = 'zk server --components api,tree,eth,data_fetcher,state_keeper';
+    let command = 'zk server --components api,tree,eth,data_fetcher,state_keeper &> upgrade.log';
     command = `DATABASE_MERKLE_TREE_MODE=full ${command}`;
     if (newPrice) {
         command = `ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_L1_GAS_PRICE=${newPrice} ${command}`;
     }
-    const zkSyncServer = utils.background(command, 'ignore');
+    const zkSyncServer = utils.background(command, [null, logs, logs]);
 
     if (disconnect) {
         zkSyncServer.unref();
