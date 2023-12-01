@@ -46,7 +46,7 @@ impl FetchedBlock {
 
         let protocol_version = block.justification.message.protocol_version;
         let protocol_version =
-            u16::try_from(protocol_version.as_u32()).context("Protocol version overflow")?;
+            u16::try_from(protocol_version.as_u32()).context("Invalid protocol version")?;
         let protocol_version = ProtocolVersionId::try_from(protocol_version)
             .with_context(|| format!("Unsupported protocol version: {protocol_version}"))?;
 
