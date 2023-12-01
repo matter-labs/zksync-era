@@ -13,8 +13,7 @@ This section describes how to run the external node locally
 Right now, external node requires all the configuration parameters that are required for the main node. It also has one
 unique parameter: `API_WEB3_JSON_RPC_MAIN_NODE_URL` -- the address of the main node to fetch the state from.
 
-The easiest way to see everything that is used is to compile the `ext-node` config and see the contents of the resulting
-`.env` file.
+To view all the configuration parameters, compile the ext-node config and examine the contents of the generated .env file.
 
 Note: not all the config values from the main node are actually used, so this is temporary, and in the future external
 node would require a much smaller set of config variables.
