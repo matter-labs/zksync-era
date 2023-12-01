@@ -1,0 +1,29 @@
+version: '3.2'
+services:
+  create-beacon-chain-genesis:
+    image: "gcr.io/prysmaticlabs/prysm/cmd/prysmctl:latest"
+    command:
+      - testnet
+      - generate-genesis
+      - --fork=deneb
+      - --num-validators=64
+      - --genesis-time-delay=5
+      - --output-ssz=/consensus/genesis.ssz
+      - --chain-config-file=/prysm/config.yml
+      - --geth-genesis-json-in=/geth/standard-dev.json
+      - --geth-genesis-json-out=/execution/genesis.json
+    volumes:
+      - ./docker/geth:/geth/:ro
+      - ./docker/prysm:/prysm/:ro
+      - ./volumes/geth:/execution
+      - ./volumes/prysm:/consensus
+  geth-genesis:
+    image: "ethereum/client-go:v1.13.5"
+    command: --datadir=/execution init /execution/genesis.json
+    volumes:
+      - ./volumes/geth:/execution
+      - ./volumes/geth/genesis.json:/execution/genesis.json
+    depends_on:
+      create-beacon-chain-genesis:
+        condition: service_completed_successfully
+
