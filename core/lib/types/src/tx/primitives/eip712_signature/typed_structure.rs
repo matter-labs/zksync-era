@@ -29,7 +29,7 @@ impl EncodedStructureMember {
         }
     }
 
-    /// Encodes the structure as `name ‖ "(" ‖ member₁ ‖ "," ‖ member₂ ‖ "," ‖ … ‖ memberₙ ")".
+    /// Encodes the structure as `name ‖ "(" ‖ member₁ ‖ "," ‖ member₂ ‖ "," ‖ … ‖ memberₙ ")"`.
     pub fn get_encoded_type(&self) -> String {
         let mut encoded_type = String::new();
         encoded_type.push_str(&self.member_type);

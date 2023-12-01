@@ -1,6 +1,6 @@
-use zk_evm_1_3_3::aux_structures::MemoryPage;
-use zk_evm_1_3_3::zkevm_opcode_defs::{FarCallABI, FarCallForwardPageType};
-use zk_evm_1_3_3::{
+use zk_evm_1_4_0::aux_structures::MemoryPage;
+use zk_evm_1_4_0::zkevm_opcode_defs::{FarCallABI, FarCallForwardPageType};
+use zk_evm_1_4_0::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{FatPointer, LogOpcode, Opcode, UMAOpcode},
 };
@@ -18,7 +18,6 @@ use crate::vm_latest::constants::{
 use crate::vm_latest::old_vm::history_recorder::HistoryMode;
 use crate::vm_latest::old_vm::memory::SimpleMemory;
 use crate::vm_latest::old_vm::utils::{aux_heap_page_from_base, heap_page_from_base};
-use crate::vm_latest::tracers::traits::TracerExecutionStopReason;
 
 #[derive(Clone, Debug, Copy)]
 pub(crate) enum VmHook {
@@ -35,6 +34,8 @@ pub(crate) enum VmHook {
     NotifyAboutRefund,
     ExecutionResult,
     FinalBatchInfo,
+    // Hook used to signal that the final pubdata for a batch is requested.
+    PubdataRequested,
 }
 
 impl VmHook {
@@ -73,6 +74,7 @@ impl VmHook {
             9 => Self::NotifyAboutRefund,
             10 => Self::ExecutionResult,
             11 => Self::FinalBatchInfo,
+            12 => Self::PubdataRequested,
             _ => panic!("Unknown hook: {}", value.as_u32()),
         }
     }
@@ -107,7 +109,7 @@ pub(crate) fn get_debug_log<H: HistoryMode>(
 }
 
 /// Reads the memory slice represented by the fat pointer.
-/// Note, that the fat pointer must point to the accesible memory (i.e. not cleared up yet).
+/// Note, that the fat pointer must point to the accessible memory (i.e. not cleared up yet).
 pub(crate) fn read_pointer<H: HistoryMode>(
     memory: &SimpleMemory<H>,
     pointer: FatPointer,
@@ -216,10 +218,4 @@ pub(crate) fn get_vm_hook_params<H: HistoryMode>(memory: &SimpleMemory<H>) -> Ve
         BOOTLOADER_HEAP_PAGE,
         VM_HOOK_PARAMS_START_POSITION..VM_HOOK_PARAMS_START_POSITION + VM_HOOK_PARAMS_COUNT,
     )
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum VmExecutionStopReason {
-    VmFinished,
-    TracerRequestedStop(TracerExecutionStopReason),
 }

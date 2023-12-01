@@ -109,18 +109,20 @@ impl FriProverDal<'_, '_> {
             "
                 UPDATE prover_jobs_fri
                 SET status = 'in_progress', attempts = attempts + 1,
-                    updated_at = now(), processing_started_at = now(),
+                    processing_started_at = now(), updated_at = now(), 
                     picked_by = $4
                 WHERE id = (
                     SELECT pj.id
-                    FROM prover_jobs_fri AS pj
-                    JOIN (
-                        SELECT * FROM unnest($1::smallint[], $2::smallint[])
-                    )
-                    AS tuple (circuit_id, round)
-                    ON tuple.circuit_id = pj.circuit_id AND tuple.round = pj.aggregation_round
-                    WHERE pj.status = 'queued'
-                    AND pj.protocol_version = ANY($3)
+                    FROM ( SELECT * FROM unnest($1::smallint[], $2::smallint[]) ) AS tuple (circuit_id, round)
+                    JOIN LATERAL
+                    (
+                        SELECT * FROM prover_jobs_fri AS pj
+                        WHERE pj.status = 'queued'
+                        AND pj.protocol_version = ANY($3)
+                        AND pj.circuit_id = tuple.circuit_id AND pj.aggregation_round = tuple.round
+                        ORDER BY pj.l1_batch_number ASC, pj.id ASC
+                        LIMIT 1
+                    ) AS pj ON true
                     ORDER BY pj.l1_batch_number ASC, pj.aggregation_round DESC, pj.id ASC
                     LIMIT 1
                     FOR UPDATE
@@ -164,6 +166,18 @@ impl FriProverDal<'_, '_> {
             .await
             .unwrap();
         }
+    }
+
+    pub async fn get_prover_job_attempts(&mut self, id: u32) -> sqlx::Result<Option<u32>> {
+        let attempts = sqlx::query!(
+            "SELECT attempts FROM prover_jobs_fri WHERE id = $1",
+            id as i64,
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
+        .map(|row| row.attempts as u32);
+
+        Ok(attempts)
     }
 
     pub async fn save_proof(
@@ -213,10 +227,15 @@ impl FriProverDal<'_, '_> {
             sqlx::query!(
                 "
                 UPDATE prover_jobs_fri
-                SET status = 'queued', attempts = attempts + 1, updated_at = now(), processing_started_at = now()
-                WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)
-                OR (status = 'in_gpu_proof' AND  processing_started_at <= now() - $1::interval AND attempts < $2)
-                OR (status = 'failed' AND attempts < $2)
+                SET status = 'queued', updated_at = now(), processing_started_at = now()
+                WHERE id in (
+                    SELECT id
+                    FROM prover_jobs_fri
+                    WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)
+                    OR (status = 'in_gpu_proof' AND  processing_started_at <= now() - $1::interval AND attempts < $2)
+                    OR (status = 'failed' AND attempts < $2)
+                    FOR UPDATE SKIP LOCKED
+                )
                 RETURNING id, status, attempts
                 ",
                 &processing_timeout,

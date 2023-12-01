@@ -5,7 +5,7 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 use zksync_types::{
     api::{
-        BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, ProtocolVersion,
+        BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
         TransactionDetails,
     },
     fee::Fee,
@@ -110,4 +110,12 @@ pub trait ZksNamespace {
 
     #[method(name = "getLogsWithVirtualBlocks")]
     async fn get_logs_with_virtual_blocks(&self, filter: Filter) -> RpcResult<Vec<Log>>;
+
+    #[method(name = "getProof")]
+    async fn get_proof(
+        &self,
+        address: Address,
+        keys: Vec<H256>,
+        l1_batch_number: L1BatchNumber,
+    ) -> RpcResult<Proof>;
 }

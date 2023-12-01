@@ -65,8 +65,8 @@ impl EthSenderTester {
         history: Vec<u64>,
         non_ordering_confirmations: bool,
     ) -> Self {
-        let eth_sender_config = ETHSenderConfig::from_env().unwrap();
-        let contracts_config = ContractsConfig::from_env().unwrap();
+        let eth_sender_config = ETHSenderConfig::for_tests();
+        let contracts_config = ContractsConfig::for_tests();
         let aggregator_config = SenderConfig {
             aggregated_proof_sizes: vec![1],
             ..eth_sender_config.sender.clone()
@@ -100,7 +100,7 @@ impl EthSenderTester {
             .await
             .unwrap(),
         );
-        let store_factory = ObjectStoreFactory::from_env().unwrap();
+        let store_factory = ObjectStoreFactory::mock();
 
         let aggregator = EthTxAggregator::new(
             SenderConfig {
@@ -182,6 +182,7 @@ async fn confirm_many() -> anyhow::Result<()> {
             .eth_sender_dal()
             .get_inflight_txs()
             .await
+            .unwrap()
             .len(),
         5
     );
@@ -208,6 +209,7 @@ async fn confirm_many() -> anyhow::Result<()> {
             .eth_sender_dal()
             .get_inflight_txs()
             .await
+            .unwrap()
             .len(),
         0
     );
@@ -257,6 +259,7 @@ async fn resend_each_block() -> anyhow::Result<()> {
             .eth_sender_dal()
             .get_inflight_txs()
             .await
+            .unwrap()
             .len(),
         1
     );
@@ -299,6 +302,7 @@ async fn resend_each_block() -> anyhow::Result<()> {
             .eth_sender_dal()
             .get_inflight_txs()
             .await
+            .unwrap()
             .len(),
         1
     );
@@ -346,6 +350,7 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
             .eth_sender_dal()
             .get_inflight_txs()
             .await
+            .unwrap()
             .len(),
         1
     );
@@ -371,6 +376,7 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
             .eth_sender_dal()
             .get_inflight_txs()
             .await
+            .unwrap()
             .len(),
         1
     );
@@ -442,6 +448,7 @@ async fn three_scenarios() -> anyhow::Result<()> {
             .eth_sender_dal()
             .get_inflight_txs()
             .await
+            .unwrap()
             .len(),
         2
     );
@@ -890,6 +897,7 @@ async fn insert_l1_batch(tester: &EthSenderTester, number: L1BatchNumber) -> L1B
             header.number,
             &default_l1_batch_metadata(),
             Default::default(),
+            false,
         )
         .await
         .unwrap();
@@ -945,7 +953,7 @@ async fn send_operation(
         .save_eth_tx(
             &mut tester.conn.access_storage().await.unwrap(),
             &aggregated_operation,
-            true,
+            false,
         )
         .await
         .unwrap();

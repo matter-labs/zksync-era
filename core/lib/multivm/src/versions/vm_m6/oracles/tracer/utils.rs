@@ -1,7 +1,7 @@
 use crate::vm_m6::history_recorder::HistoryMode;
 use crate::vm_m6::memory::SimpleMemory;
 use crate::vm_m6::utils::{aux_heap_page_from_base, heap_page_from_base};
-use crate::vm_m6::vm::{get_vm_hook_params, VM_HOOK_POSITION};
+use crate::vm_m6::vm_instance::{get_vm_hook_params, VM_HOOK_POSITION};
 use crate::vm_m6::vm_with_bootloader::BOOTLOADER_HEAP_PAGE;
 
 use zk_evm_1_3_1::aux_structures::MemoryPage;
@@ -99,7 +99,7 @@ pub(crate) fn get_debug_log<H: HistoryMode>(
 }
 
 /// Reads the memory slice represented by the fat pointer.
-/// Note, that the fat pointer must point to the accesible memory (i.e. not cleared up yet).
+/// Note, that the fat pointer must point to the accessible memory (i.e. not cleared up yet).
 pub(crate) fn read_pointer<H: HistoryMode>(
     memory: &SimpleMemory<H>,
     pointer: FatPointer,

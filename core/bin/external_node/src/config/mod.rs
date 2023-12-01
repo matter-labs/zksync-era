@@ -3,8 +3,7 @@ use serde::Deserialize;
 use std::{env, time::Duration};
 use url::Url;
 
-use zksync_basic_types::{Address, L1ChainId, L2ChainId, MiniblockNumber, H256};
-use zksync_contracts::BaseSystemContractsHashes;
+use zksync_basic_types::{Address, L1ChainId, L2ChainId, MiniblockNumber};
 use zksync_core::api_server::{
     tx_sender::TxSenderConfig, web3::state::InternalApiConfig, web3::Namespace,
 };
@@ -31,9 +30,6 @@ pub struct RemoteENConfig {
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l2_chain_id: L2ChainId,
     pub l1_chain_id: L1ChainId,
-
-    pub default_aa_hash: H256,
-    pub bootloader_hash: H256,
 
     pub fair_l2_gas_price: u64,
 }
@@ -76,7 +72,6 @@ impl RemoteENConfig {
             .await
             .context("Failed to fetch last miniblock header")?
             .expect("Block is known to exist");
-        let base_system_contract_hashes = block_header.base_system_contracts_hashes;
 
         Ok(Self {
             diamond_proxy_addr,
@@ -87,17 +82,8 @@ impl RemoteENConfig {
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
             l2_chain_id,
             l1_chain_id,
-            default_aa_hash: base_system_contract_hashes.default_aa,
-            bootloader_hash: base_system_contract_hashes.bootloader,
             fair_l2_gas_price: block_header.l2_fair_gas_price,
         })
-    }
-
-    pub fn base_system_contracts_hashes(&self) -> BaseSystemContractsHashes {
-        BaseSystemContractsHashes {
-            default_aa: self.default_aa_hash,
-            bootloader: self.bootloader_hash,
-        }
     }
 }
 
@@ -119,7 +105,7 @@ pub struct OptionalENConfig {
     /// Max possible size of an ABI encoded tx (in bytes).
     #[serde(default = "OptionalENConfig::default_max_tx_size")]
     pub max_tx_size: usize,
-    /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the api server panics.
+    /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the API server panics.
     /// This is a temporary solution to mitigate API request resulting in thousands of DB queries.
     pub vm_execution_cache_misses_limit: Option<usize>,
     /// Inbound transaction limit used for throttling.
@@ -389,11 +375,35 @@ impl RequiredENConfig {
     }
 }
 
+/// Configuration for Postgres database.
+/// While also mandatory, it historically used different naming scheme for corresponding
+/// environment variables.
+/// Thus it is kept separately for backward compatibility and ease of deserialization.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct PostgresConfig {
+    pub database_url: String,
+    pub max_connections: u32,
+}
+
+impl PostgresConfig {
+    pub fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            database_url: env::var("DATABASE_URL")
+                .context("DATABASE_URL env variable is not set")?,
+            max_connections: env::var("DATABASE_POOL_SIZE")
+                .context("DATABASE_POOL_SIZE env variable is not set")?
+                .parse()
+                .context("Unable to parse DATABASE_POOL_SIZE env variable")?,
+        })
+    }
+}
+
 /// External Node Config contains all the configuration required for the EN operation.
 /// It is split into three parts: required, optional and remote for easier navigation.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ExternalNodeConfig {
     pub required: RequiredENConfig,
+    pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
     pub remote: RemoteENConfig,
 }
@@ -454,8 +464,11 @@ impl ExternalNodeConfig {
             );
         }
 
+        let postgres = PostgresConfig::from_env()?;
+
         Ok(Self {
             remote,
+            postgres,
             required,
             optional,
         })
@@ -509,8 +522,6 @@ impl From<ExternalNodeConfig> for TxSenderConfig {
             max_nonce_ahead: config.optional.max_nonce_ahead,
             fair_l2_gas_price: config.remote.fair_l2_gas_price,
             vm_execution_cache_misses_limit: config.optional.vm_execution_cache_misses_limit,
-            default_aa: config.remote.default_aa_hash,
-            bootloader: config.remote.bootloader_hash,
             // We set these values to the maximum since we don't know the actual values
             // and they will be enforced by the main node anyway.
             max_allowed_l2_tx_gas_limit: u32::MAX,

@@ -1,10 +1,10 @@
 use zksync_types::{ExecuteTransactionCommon, Transaction};
 
-use crate::interface::VmRevertReason;
 use crate::interface::{
     CurrentExecutionState, ExecutionResult, Halt, TxRevertReason, VmExecutionMode,
     VmExecutionResultAndLogs,
 };
+use crate::interface::{VmInterface, VmInterfaceHistoryEnabled, VmRevertReason};
 use crate::vm_latest::tests::tester::vm_tester::VmTester;
 use crate::vm_latest::HistoryEnabled;
 

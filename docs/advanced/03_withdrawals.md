@@ -81,7 +81,7 @@ This is a good opportunity to talk about system contracts that are automatically
 list here
 [in github](https://github.com/matter-labs/era-system-contracts/blob/436d57da2fb35c40e38bcb6637c3a090ddf60701/scripts/constants.ts#L29)
 
-This is the place were we specify that `bootloader` is at address 0x8001, `NonceHolder` at 0x8003 etc.
+This is the place where we specify that `bootloader` is at address 0x8001, `NonceHolder` at 0x8003 etc.
 
 This brings us to
 [L2EthToken.sol](https://github.com/matter-labs/era-system-contracts/blob/main/contracts/L2EthToken.sol) that has the
@@ -95,7 +95,7 @@ bytes memory message = _getL1WithdrawMessage(_l1Receiver, amount);
 L1_MESSENGER_CONTRACT.sendToL1(message);
 ```
 
-And `L1MessagerContract` (that is deployed at 0x8008).
+And `L1MessengerContract` (that is deployed at 0x8008).
 
 ### Committing to L1
 

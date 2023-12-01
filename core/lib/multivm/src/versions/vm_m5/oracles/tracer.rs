@@ -9,7 +9,7 @@ use crate::vm_m5::{
     memory::SimpleMemory,
     storage::StoragePtr,
     utils::{aux_heap_page_from_base, heap_page_from_base},
-    vm::{get_vm_hook_params, VM_HOOK_POSITION},
+    vm_instance::{get_vm_hook_params, VM_HOOK_POSITION},
     vm_with_bootloader::BOOTLOADER_HEAP_PAGE,
 };
 // use zk_evm_1_3_1::testing::memory::SimpleMemory;
@@ -651,7 +651,7 @@ impl OneTxTracer {
     }
 }
 
-/// Tells the VM to end the execution before `ret` from the booloader if there is no panic or revert.
+/// Tells the VM to end the execution before `ret` from the bootloader if there is no panic or revert.
 /// Also, saves the information if this `ret` was caused by "out of gas" panic.
 #[derive(Debug, Clone, Default)]
 pub struct BootloaderTracer {
@@ -816,7 +816,7 @@ fn get_debug_log(state: &VmLocalStateData<'_>, memory: &SimpleMemory) -> String 
 }
 
 /// Reads the memory slice represented by the fat pointer.
-/// Note, that the fat pointer must point to the accesible memory (i.e. not cleared up yet).
+/// Note, that the fat pointer must point to the accessible memory (i.e. not cleared up yet).
 pub(crate) fn read_pointer(memory: &SimpleMemory, pointer: FatPointer) -> Vec<u8> {
     let FatPointer {
         offset,

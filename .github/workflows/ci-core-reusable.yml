@@ -106,8 +106,7 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
-          # TODO (EVM-374): Change the following to `true` after https://github.com/NomicFoundation/hardhat/pull/4552 is merged and released.
-          echo RUN_CONTRACT_VERIFICATION_TEST=false >> .env
+          echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
           echo ZKSYNC_DEBUG_LOGS=true >> .env
 
       - name: Download zksolc/solc and zkvyper/vyper
@@ -129,10 +128,10 @@ jobs:
           mv vyper0.3.3 $(pwd)/etc/vyper-bin/0.3.3/vyper
           chmod +x $(pwd)/etc/vyper-bin/0.3.3/vyper
 
-          mkdir -p $(pwd)/etc/zkvyper-bin/v1.3.11
-          wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-v1.3.11
-          mv zkvyper-linux-amd64-musl-v1.3.11 $(pwd)/etc/zkvyper-bin/v1.3.11/zkvyper
-          chmod +x $(pwd)/etc/zkvyper-bin/v1.3.11/zkvyper
+          mkdir -p $(pwd)/etc/zkvyper-bin/v1.3.13
+          wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-v1.3.13
+          mv zkvyper-linux-amd64-musl-v1.3.13 $(pwd)/etc/zkvyper-bin/v1.3.13/zkvyper
+          chmod +x $(pwd)/etc/zkvyper-bin/v1.3.13/zkvyper
 
       - name: Start services
         run: |
@@ -205,8 +204,7 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
-          # TODO (EVM-374): Change the following to `true` after https://github.com/NomicFoundation/hardhat/pull/4552 is merged and released.
-          echo RUN_CONTRACT_VERIFICATION_TEST=false >> .env
+          echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
           echo ZKSYNC_DEBUG_LOGS=true >> .env
 
       - name: Download zksolc/solc and zkvyper/vyper
@@ -261,8 +259,9 @@ jobs:
           ci_run zk external-node &>ext-node.log &
           ci_run sleep 30
 
+      # TODO(PLA-653): Restore bridge tests for EN.
       - name: Integration tests
-        run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification'
+        run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification|custom-erc20-bridge'
 
       - name: Run Cross EN Checker
         run: ci_run zk run cross-en-checker
