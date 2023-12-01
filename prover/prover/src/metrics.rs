@@ -33,7 +33,7 @@ pub(crate) struct ProverMetrics {
     #[metrics(buckets = PROVER_LATENCY_BUCKETS)]
     pub download_time: Histogram<Duration>,
     #[metrics(buckets = PROVER_LATENCY_BUCKETS, labels = ["queue_capacity"])]
-    pub queue_free_slots: LabeledFamily<String, Histogram>,
+    pub queue_free_slots: LabeledFamily<String, Histogram<usize>>,
 }
 
 #[vise::register]

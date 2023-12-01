@@ -71,7 +71,7 @@ impl RemoteSynthesizer for SynthesizedCircuitProvider {
                     assembly_queue.capacity()
                 );
                 METRICS.queue_free_slots[&assembly_queue.capacity().to_string()]
-                    .observe(queue_free_slots as f64);
+                    .observe(queue_free_slots);
 
                 Some(Box::new(Cursor::new(blob)))
             }
