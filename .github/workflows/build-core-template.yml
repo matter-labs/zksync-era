@@ -83,7 +83,7 @@ jobs:
           COMPONENT: ${{ matrix.component }}
         run: |
           ci_run rustup default nightly-2023-08-21
-          ci_run zk docker $DOCKER_ACTION $COMPONENT -- --public
+          ci_run zk docker $DOCKER_ACTION $COMPONENT
       - name: Show sccache stats
         if: always()
         run: |
