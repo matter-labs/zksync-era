@@ -6,7 +6,7 @@ use tokio::sync::Mutex;
 use prover_service::RemoteSynthesizer;
 use queues::{Buffer, IsQueue};
 
-use crate::metrics::PROVER_METRICS;
+use crate::metrics::METRICS;
 use tokio::runtime::Handle;
 use zksync_dal::ConnectionPool;
 use zksync_types::proofs::SocketAddress;
@@ -70,9 +70,8 @@ impl RemoteSynthesizer for SynthesizedCircuitProvider {
                     queue_free_slots,
                     assembly_queue.capacity()
                 );
-                let label: &'static str =
-                    Box::leak(assembly_queue.capacity().to_string().into_boxed_str());
-                PROVER_METRICS.queue_free_slots[&label].observe(queue_free_slots as f64);
+                METRICS.queue_free_slots[&assembly_queue.capacity().to_string()]
+                    .observe(queue_free_slots as f64);
 
                 Some(Box::new(Cursor::new(blob)))
             }

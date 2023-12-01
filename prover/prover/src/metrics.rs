@@ -33,8 +33,8 @@ pub(crate) struct ProverMetrics {
     #[metrics(buckets = PROVER_LATENCY_BUCKETS)]
     pub download_time: Histogram<Duration>,
     #[metrics(buckets = PROVER_LATENCY_BUCKETS, labels = ["queue_capacity"])]
-    pub queue_free_slots: LabeledFamily<&'static str, Histogram>,
+    pub queue_free_slots: LabeledFamily<String, Histogram>,
 }
 
 #[vise::register]
-pub(crate) static PROVER_METRICS: vise::Global<ProverMetrics> = vise::Global::new();
+pub(crate) static METRICS: vise::Global<ProverMetrics> = vise::Global::new();

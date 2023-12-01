@@ -13,7 +13,7 @@ use zkevm_test_harness::bellman::plonk::better_better_cs::cs::Circuit;
 use zkevm_test_harness::pairing::bn256::Bn256;
 use zkevm_test_harness::witness::oracle::VmWitnessOracle;
 
-use crate::metrics::CIRCUIT_SYNTHESIZER_METRICS;
+use crate::metrics::METRICS;
 use zksync_config::configs::prover_group::ProverGroupConfig;
 use zksync_config::configs::CircuitSynthesizerConfig;
 use zksync_config::ProverConfigs;
@@ -117,7 +117,7 @@ impl CircuitSynthesizer {
             "Finished circuit synthesis for circuit: {circuit_type} took {:?}",
             start_instant.elapsed()
         );
-        CIRCUIT_SYNTHESIZER_METRICS.synthesize[&circuit_type].observe(start_instant.elapsed());
+        METRICS.synthesize[&circuit_type].observe(start_instant.elapsed());
 
         // we don't perform assembly finalization here since it increases the assembly size significantly due to padding.
         Ok((assembly, circuit.numeric_circuit_type()))
@@ -300,7 +300,7 @@ async fn handle_send_result(
                  for job: {job_id} by: {local_ip:?} to: {address:?}"
             );
 
-            CIRCUIT_SYNTHESIZER_METRICS.blob_sending_time[&blob_size_in_gb].observe(*elapsed);
+            METRICS.blob_sending_time[&blob_size_in_gb].observe(*elapsed);
 
             // endregion
 

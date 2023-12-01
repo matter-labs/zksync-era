@@ -11,5 +11,4 @@ pub(crate) struct CircuitSynthesizerMetrics {
 }
 
 #[vise::register]
-pub(crate) static CIRCUIT_SYNTHESIZER_METRICS: vise::Global<CircuitSynthesizerMetrics> =
-    vise::Global::new();
+pub(crate) static METRICS: vise::Global<CircuitSynthesizerMetrics> = vise::Global::new();

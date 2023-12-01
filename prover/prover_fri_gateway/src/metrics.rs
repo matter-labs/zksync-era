@@ -8,5 +8,4 @@ pub(crate) struct ProverFriGatewayMetrics {
 }
 
 #[vise::register]
-pub(crate) static PROVER_FRI_GATEWAY_METRICS: vise::Global<ProverFriGatewayMetrics> =
-    vise::Global::new();
+pub(crate) static METRICS: vise::Global<ProverFriGatewayMetrics> = vise::Global::new();

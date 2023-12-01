@@ -40,4 +40,4 @@ pub(crate) struct ProverFriMetrics {
 }
 
 #[vise::register]
-pub(crate) static PROVER_FRI_METRICS: vise::Global<ProverFriMetrics> = vise::Global::new();
+pub(crate) static METRICS: vise::Global<ProverFriMetrics> = vise::Global::new();

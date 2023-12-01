@@ -26,7 +26,7 @@ pub(crate) static WITNESS_GENERATOR_METRICS: vise::Global<WitnessGeneratorMetric
 #[metrics(prefix = "prover")]
 pub(crate) struct ServerMetrics {
     #[metrics(labels = ["stage"])]
-    pub init_latency: LabeledFamily<String, Gauge<Duration>>,
+    pub init_latency: LabeledFamily<StageLabel, Gauge<Duration>>,
 }
 
 #[vise::register]

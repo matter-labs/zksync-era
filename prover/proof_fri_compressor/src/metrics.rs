@@ -13,5 +13,4 @@ pub(crate) struct ProofFriCompressorMetrics {
 }
 
 #[vise::register]
-pub(crate) static PROOF_FRI_COMPRESSOR_METRICS: vise::Global<ProofFriCompressorMetrics> =
-    vise::Global::new();
+pub(crate) static METRICS: vise::Global<ProofFriCompressorMetrics> = vise::Global::new();

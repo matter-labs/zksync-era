@@ -345,9 +345,8 @@ impl FriProverDal<'_, '_> {
         &mut self,
         aggregation_round: AggregationRound,
     ) -> Option<L1BatchNumber> {
-        {
-            sqlx::query!(
-                r#"
+        sqlx::query!(
+            r#"
                     SELECT l1_batch_number 
                     FROM prover_jobs_fri 
                     WHERE status <> 'skipped'
@@ -356,13 +355,12 @@ impl FriProverDal<'_, '_> {
                     ORDER BY l1_batch_number ASC 
                     LIMIT 1
                 "#,
-                aggregation_round as i16
-            )
-            .fetch_optional(self.storage.conn())
-            .await
-            .unwrap()
-            .map(|row| L1BatchNumber(row.l1_batch_number as u32))
-        }
+            aggregation_round as i16
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| L1BatchNumber(row.l1_batch_number as u32))
     }
 
     pub async fn update_status(&mut self, id: u32, status: &str) {

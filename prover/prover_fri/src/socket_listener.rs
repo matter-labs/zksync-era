@@ -12,7 +12,7 @@ pub mod gpu_socket_listener {
         get_finalization_hints, get_round_for_recursive_circuit_type,
     };
 
-    use crate::metrics::PROVER_FRI_METRICS;
+    use crate::metrics::METRICS;
     use crate::utils::{GpuProverJob, ProvingAssembly, SharedWitnessVectorQueue};
     use anyhow::Context as _;
     use tokio::sync::watch;
@@ -115,7 +115,7 @@ pub mod gpu_socket_listener {
                 started_at.elapsed().as_secs()
             );
 
-            PROVER_FRI_METRICS.witness_vector_blob_time[&(file_size_in_gb as u64)]
+            METRICS.witness_vector_blob_time[&(file_size_in_gb as u64)]
                 .observe(started_at.elapsed());
 
             let witness_vector = bincode::deserialize::<WitnessVectorArtifacts>(&assembly)
@@ -186,8 +186,7 @@ pub mod gpu_socket_listener {
             started_at.elapsed()
         );
 
-        PROVER_FRI_METRICS.gpu_assembly_generation_time[&circuit_id.to_string()]
-            .observe(started_at.elapsed());
+        METRICS.gpu_assembly_generation_time[&circuit_id.to_string()].observe(started_at.elapsed());
 
         Ok(cs)
     }

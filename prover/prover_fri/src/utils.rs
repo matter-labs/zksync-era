@@ -26,7 +26,7 @@ use zksync_prover_fri_types::{
 };
 use zksync_prover_fri_utils::get_base_layer_circuit_id_for_recursive_layer;
 
-use crate::metrics::PROVER_FRI_METRICS;
+use crate::metrics::METRICS;
 use zksync_types::{basic_fri_types::CircuitIdRoundTuple, proofs::AggregationRound, L1BatchNumber};
 
 pub type F = GoldilocksField;
@@ -96,8 +96,7 @@ pub async fn save_proof(
     let blob_save_started_at = Instant::now();
     let blob_url = blob_store.put(job_id, &proof).await.unwrap();
 
-    PROVER_FRI_METRICS.blob_save_time[&circuit_type.to_string()]
-        .observe(blob_save_started_at.elapsed());
+    METRICS.blob_save_time[&circuit_type.to_string()].observe(blob_save_started_at.elapsed());
 
     let mut transaction = storage_processor.start_transaction().await.unwrap();
     let job_metadata = transaction
@@ -141,8 +140,7 @@ pub fn verify_proof(
         ),
     };
 
-    PROVER_FRI_METRICS.proof_verification_time[&circuit_id.to_string()]
-        .observe(started_at.elapsed());
+    METRICS.proof_verification_time[&circuit_id.to_string()].observe(started_at.elapsed());
 
     if !is_valid {
         let msg = format!(
