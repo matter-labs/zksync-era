@@ -1,7 +1,4 @@
 use anyhow::Context as _;
-use std::convert::TryFrom;
-use std::convert::TryInto;
-
 use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_protobuf::{read_required, ProtoFmt};
