@@ -26,7 +26,7 @@ fn five_thousand_angry_monkeys_vs_merkle_tree() {
 
     let kvs = generate_key_value_pairs(0..100);
     tree.extend(kvs);
-    tree.verify_consistency(0).unwrap();
+    tree.verify_consistency(0, true).unwrap();
 
     let mut raw_db = db.into_inner();
     let cf = MerkleTreeColumnFamily::Tree;
@@ -53,7 +53,9 @@ fn five_thousand_angry_monkeys_vs_merkle_tree() {
         raw_db.write(batch).unwrap();
 
         let mut db = RocksDBWrapper::from(raw_db);
-        let err = MerkleTree::new(&mut db).verify_consistency(0).unwrap_err();
+        let err = MerkleTree::new(&mut db)
+            .verify_consistency(0, true)
+            .unwrap_err();
         println!("{err}");
 
         // Restore the value back so that it doesn't influence the following cases.

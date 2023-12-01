@@ -57,7 +57,7 @@ pub struct Web3JsonRpcConfig {
     pub estimate_gas_acceptable_overestimation: u32,
     ///  Max possible size of an ABI encoded tx (in bytes).
     pub max_tx_size: usize,
-    /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the api server panics.
+    /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the API server panics.
     /// This is a temporary solution to mitigate API request resulting in thousands of DB queries.
     pub vm_execution_cache_misses_limit: Option<usize>,
     /// Max number of VM instances to be concurrently spawned by the API server.

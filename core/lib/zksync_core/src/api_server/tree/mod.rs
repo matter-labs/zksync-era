@@ -54,7 +54,7 @@ impl TreeEntryWithProof {
         let mut merkle_path = src.merkle_path;
         merkle_path.reverse(); // Use root-to-leaf enumeration direction as in Ethereum
         Self {
-            value: src.base.value_hash,
+            value: src.base.value,
             index: src.base.leaf_index,
             merkle_path,
         }

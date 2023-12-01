@@ -108,7 +108,7 @@ pub struct VmExecutionResult {
     /// available to VM before and after execution.
     ///
     /// It means, that depending on the context, `gas_used` may represent different things.
-    /// If VM is continously invoked and interrupted after each tx, this field may represent the
+    /// If VM is continuously invoked and interrupted after each tx, this field may represent the
     /// amount of gas spent by a single transaction.
     ///
     /// To understand, which value does `gas_used` represent, see the documentation for the method
