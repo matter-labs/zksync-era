@@ -67,7 +67,9 @@ async fn run_gossip_fetcher_inner(
     let cursor = FetcherCursor::new(&mut storage).await?;
     drop(storage);
 
-    let store = PostgresBlockStorage::new(pool, actions, cursor);
+    let store =
+        PostgresBlockStorage::new(ctx, pool, actions, cursor, &executor_config.genesis_block)
+            .await?;
     let buffered = Arc::new(Buffered::new(store));
     let store = buffered.inner();
 

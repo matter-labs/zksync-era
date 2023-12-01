@@ -9,8 +9,8 @@ use std::time::Instant;
 
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
-    recovery::{MerkleTreeRecovery, RecoveryEntry},
-    HashTree, Key, PatchSet, PruneDatabase, RocksDBWrapper, ValueHash,
+    recovery::MerkleTreeRecovery, HashTree, Key, PatchSet, PruneDatabase, RocksDBWrapper,
+    TreeEntry, ValueHash,
 };
 use zksync_storage::{RocksDB, RocksDBOptions};
 
@@ -94,7 +94,7 @@ impl Cli {
                 .map(|_| {
                     last_leaf_index += 1;
                     if self.random {
-                        RecoveryEntry {
+                        TreeEntry {
                             key: Key::from(rng.gen::<[u8; 32]>()),
                             value: ValueHash::zero(),
                             leaf_index: last_leaf_index,
@@ -102,7 +102,7 @@ impl Cli {
                     } else {
                         last_key += key_step - Key::from(rng.gen::<u64>());
                         // ^ Increases the key by a random increment close to `key` step with some randomness.
-                        RecoveryEntry {
+                        TreeEntry {
                             key: last_key,
                             value: ValueHash::zero(),
                             leaf_index: last_leaf_index,
@@ -127,7 +127,7 @@ impl Cli {
             recovery_started_at.elapsed()
         );
         let started_at = Instant::now();
-        tree.verify_consistency(recovered_version).unwrap();
+        tree.verify_consistency(recovered_version, true).unwrap();
         tracing::info!("Verified consistency in {:?}", started_at.elapsed());
     }
 }
