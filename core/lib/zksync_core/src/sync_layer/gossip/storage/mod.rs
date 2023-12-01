@@ -158,7 +158,7 @@ impl PostgresBlockStorage {
             justification: genesis_block.justification.clone(),
         };
         if let Some(actual_consensus_fields) = &actual_consensus_fields {
-            let actual_consensus_fields = ConsensusBlockFields::decode(&actual_consensus_fields)
+            let actual_consensus_fields = ConsensusBlockFields::decode(actual_consensus_fields)
                 .context("ConsensusBlockFields::decode()")
                 .map_err(StorageError::Database)?;
             // While justifications may differ among nodes for an arbitrary block, we assume that
