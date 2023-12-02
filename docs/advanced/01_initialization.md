@@ -18,7 +18,7 @@ there, make sure to run `zk` (that compiles this code), before re-running `zk in
 
 #### zk init
 
-As first step, it gets the docker images for postgres and geth.
+As the first step, it gets the docker images for postgres and geth.
 
 Geth (one of the ethereum clients) will be used to setup our own copy of L1 chain (that our local zkSync would use).
 
