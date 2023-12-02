@@ -14,7 +14,7 @@ Provide a clear and concise description of the bug.
 
 #### 🔄 Reproduction Steps
 
-Steps to reproduce the behaviour
+Steps to reproduce the behavior
 
 #### 🤔 Expected Behavior
 
