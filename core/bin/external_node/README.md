@@ -10,7 +10,7 @@ This section describes how to run the external node locally
 
 ### Configuration
 
-Right now, external node requires all the configuration parameters that are required for the main node. It also has one
+Right now, the external node requires all the configuration parameters that are required for the main node. It also has one
 unique parameter: `API_WEB3_JSON_RPC_MAIN_NODE_URL` -- the address of the main node to fetch the state from.
 
 The easiest way to see everything that is used is to compile the `ext-node` config and see the contents of the resulting
@@ -20,7 +20,7 @@ Note: not all the config values from the main node are actually used, so this is
 node would require a much smaller set of config variables.
 
 To change the configuration, edit the `etc/env/ext-node.toml`, add the overrides from the `base` config if you need any.
-Remove `etc/env/ext-node.env`, if it exists. On the next launch of the external node, new config would be compiled and
+Remove `etc/env/ext-node.env`, if it exists. On the next launch of the external node, a new config will be compiled and
 will be written to the `etc/env/ext-node.env` file.
 
 ### Running
