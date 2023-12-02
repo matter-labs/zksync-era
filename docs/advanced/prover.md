@@ -67,7 +67,7 @@ pub struct SelectionGate {
 }
 ```
 
-Internaly the `Variable` object is `pub struct Variable(pub(crate) u64);` - so it is an index to the position within the
+Internally the `Variable` object is `pub struct Variable(pub(crate) u64);` - so it is an index to the position within the
 constraint system object.
 
 And now let's see how we can add this gate into the system.
@@ -184,7 +184,7 @@ pub struct UInt32<F: SmallField> {
     pub(crate) variable: Variable,
 }
 impl<F: SmallField> CSAllocatable<F> for UInt32<F> {
-    // So the 'witness' type (concrete value) for U32 is u32 - no surprsise ;-)
+    // So the 'witness' type (concrete value) for U32 is u32 - no surprise ;-)
     type Witness = u32;
     ...
 }
@@ -209,7 +209,7 @@ how we were operating on regular 'Variables' above).
 
 ### CSSelectable
 
-Implements the `Selectable` trait - that allows this struct to participage in operations like conditionally select (so
+Implements the `Selectable` trait - that allows this struct to participate in operations like conditionally select (so
 it can be used as 'a' or 'b' in the Select gate example above).
 
 ### CSVarLengthEncodable
@@ -361,7 +361,7 @@ entry_point_code: Vec<[u8; 32]>, // for read lobkc must be a bootloader code
 initial_heap_content: Vec<u8>, // bootloader starts with non-deterministic heap
     zk_porter_is_available: bool,
     default_aa_code_hash: U256,
-used_bytecodes: std::collections::HashMap<U256, Vec<[u8; 32]>>, // auxilary information to avoid passing a full set of all used codes
+used_bytecodes: std::collections::HashMap<U256, Vec<[u8; 32]>>, // auxiliary information to avoid passing a full set of all used codes
 ram_verification_queries: Vec<(u32, U256)>, // we may need to check that after the bootloader's memory is filled
     cycle_limit: usize,
 round_function: R, // used for all queues implementation
