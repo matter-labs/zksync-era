@@ -1,6 +1,6 @@
 # Security Policy
 
-We truly appreciate efforts to discover and disclose security issues responsibly!
+We truly appreciate your efforts to discover and disclose security issues responsibly!
 
 ## Vulnerabilities
 
