@@ -2,7 +2,7 @@
 
 ## Overview
 
-As we are a rollup - all the bytecodes that contracts use in our chain must be copied into L1 (so that the chain can be
+As we are a rollup - all the bytecodes that contracts used in our chain must be copied into L1 (so that the chain can be
 reconstructed from L1 if needed).
 
 Given the want/need to cutdown on space used, bytecode is compressed prior to being posted to L1. At a high level
@@ -98,9 +98,8 @@ with no change to the underlying algorithm.
 
 ### Verification & Publication
 
-The function `publishCompressBytecode` takes in both the original `_bytecode` and the `_rawCompressedData` , the latter
-of which comes from the output of the server’s compression algorithm. Looping over the encoded data, derived from
-`_rawCompressedData` , the corresponding chunks are pulled from the dictionary and compared to the original byte code,
+The function `publishCompressBytecode` takes in both the original `_bytecode` and the `_rawCompressedData` , the latter of which comes from the server’s compression algorithm output. Looping over the encoded data, derived from
+`_rawCompressedData` , the corresponding chunks are retrieved from the dictionary and compared to the original byte code,
 reverting if there is a mismatch. After the encoded data has been verified, it is published to L1 and marked accordingly
 within the `KnownCodesStorage` contract.
 
