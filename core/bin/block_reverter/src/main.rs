@@ -32,7 +32,7 @@ enum Command {
         /// L1 batch number used to rollback to.
         #[arg(long)]
         l1_batch_number: u32,
-        /// Priority fee used for rollback ethereum transaction.
+        /// Priority fee used for rollback Ethereum transaction.
         // We operate only by priority fee because we want to use base fee from ethereum
         // and send transaction as soon as possible without any resend logic
         #[arg(long)]

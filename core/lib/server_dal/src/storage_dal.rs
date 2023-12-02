@@ -44,7 +44,7 @@ impl StorageDal<'_, '_> {
         .unwrap();
     }
 
-    /// Returns bytecode for a factory dep with the specified bytecode `hash`.
+    /// Returns bytecode for a factory dependency with the specified bytecode `hash`.
     pub async fn get_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
         sqlx::query!(
             "SELECT bytecode FROM factory_deps WHERE bytecode_hash = $1",

@@ -144,7 +144,7 @@ impl MiniblockSealerHandle {
     /// Submits a new sealing `command` to the sealer that this handle is attached to.
     ///
     /// If there are currently too many unprocessed commands, this method will wait until
-    /// enough of them are processed (i.e., there is backpressure).
+    /// enough of them are processed (i.e., there is back pressure).
     pub async fn submit(&mut self, command: MiniblockSealCommand) {
         let miniblock_number = command.miniblock_number;
         tracing::debug!(

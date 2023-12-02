@@ -1,16 +1,13 @@
 #![feature(generic_const_exprs)]
 
-use anyhow::Context as _;
+use anyhow::{anyhow, Context as _};
 use prometheus_exporter::PrometheusExporterConfig;
 use std::time::Instant;
 use structopt::StructOpt;
 use tokio::sync::watch;
 use zksync_config::configs::{FriWitnessGeneratorConfig, PostgresConfig, PrometheusConfig};
-use zksync_env_config::{
-    object_store::{ProverObjectStoreConfig, PublicObjectStoreConfig},
-    FromEnv,
-};
-
+use zksync_config::ObjectStoreConfig;
+use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 
 use zksync_db_connection::ConnectionPool;
@@ -45,9 +42,14 @@ struct Opt {
     /// Number of times witness generator should be run.
     #[structopt(short = "b", long = "batch_size")]
     batch_size: Option<usize>,
-    /// aggregation round for the witness generator.
+    /// Aggregation rounds options, they can be run individually or together.
+    ///
+    /// Single aggregation round for the witness generator.
     #[structopt(short = "r", long = "round")]
-    round: AggregationRound,
+    round: Option<AggregationRound>,
+    /// Start all aggregation rounds for the witness generator.
+    #[structopt(short = "a", long = "all_rounds")]
+    all_rounds: bool,
 }
 
 #[tokio::main]
@@ -113,13 +115,6 @@ async fn main() -> anyhow::Result<()> {
         .protocol_version_for(&vk_commitments)
         .await;
 
-    tracing::info!(
-        "initializing the {:?} witness generator, batch size: {:?} with protocol_versions: {:?}",
-        opt.round,
-        opt.batch_size,
-        protocol_versions
-    );
-
     // If batch_size is none, it means that the job is 'looping forever' (this is the usual setup in local network).
     // At the same time, we're reading the protocol_version only once at startup - so if there is no protocol version
     // read (this is often due to the fact, that the gateway was started too late, and it didn't put the updated protocol
@@ -131,85 +126,117 @@ async fn main() -> anyhow::Result<()> {
         );
     }
 
-    let prometheus_config = if use_push_gateway {
-        PrometheusExporterConfig::push(
-            prometheus_config.gateway_endpoint(),
-            prometheus_config.push_interval(),
-        )
-    } else {
-        PrometheusExporterConfig::pull(prometheus_config.listener_port)
+    let rounds = match (opt.round, opt.all_rounds) {
+        (Some(round), false) => vec![round],
+        (None, true) => vec![
+            AggregationRound::BasicCircuits,
+            AggregationRound::LeafAggregation,
+            AggregationRound::NodeAggregation,
+            AggregationRound::Scheduler,
+        ],
+        (Some(_), true) => {
+            return Err(anyhow!(
+                "Cannot set both the --all_rounds and --round flags. Choose one or the other."
+            ));
+        }
+        (None, false) => {
+            return Err(anyhow!(
+                "Expected --all_rounds flag with no --round flag present"
+            ));
+        }
     };
-    let prometheus_task = prometheus_config.run(stop_receiver.clone());
 
-    let public_object_store_config =
-        PublicObjectStoreConfig::from_env().context("PublicObjectStoreConfig::from_env()")?;
-    let witness_generator_task = match opt.round {
-        AggregationRound::BasicCircuits => {
-            let public_blob_store = match config.shall_save_to_public_bucket {
-                false => None,
-                true => Some(
-                    ObjectStoreFactory::new(public_object_store_config.0)
+    let mut tasks = Vec::new();
+
+    for (i, round) in rounds.iter().enumerate() {
+        tracing::info!(
+            "initializing the {:?} witness generator, batch size: {:?} with protocol_versions: {:?}",
+            round,
+            opt.batch_size,
+            &protocol_versions
+        );
+
+        let prometheus_config = if use_push_gateway {
+            PrometheusExporterConfig::push(
+                prometheus_config.gateway_endpoint(),
+                prometheus_config.push_interval(),
+            )
+        } else {
+            // u16 cast is safe since i is in range [0, 4)
+            PrometheusExporterConfig::pull(prometheus_config.listener_port + i as u16)
+        };
+        let prometheus_task = prometheus_config.run(stop_receiver.clone());
+
+        let witness_generator_task = match round {
+            AggregationRound::BasicCircuits => {
+                let public_blob_store = match config.shall_save_to_public_bucket {
+                    false => None,
+                    true => Some(
+                        ObjectStoreFactory::new(
+                            ObjectStoreConfig::from_env()
+                                .context("ObjectStoreConfig::from_env()")?,
+                        )
                         .create_store()
                         .await,
-                ),
-            };
-            let generator = BasicWitnessGenerator::new(
-                config,
-                &store_factory,
-                public_blob_store,
-                server_connection_pool,
-                connection_pool,
-                protocol_versions.clone(),
-            )
-            .await;
-            generator.run(stop_receiver, opt.batch_size)
-        }
-        AggregationRound::LeafAggregation => {
-            let generator = LeafAggregationWitnessGenerator::new(
-                config,
-                &store_factory,
-                connection_pool,
-                protocol_versions.clone(),
-            )
-            .await;
-            generator.run(stop_receiver, opt.batch_size)
-        }
-        AggregationRound::NodeAggregation => {
-            let generator = NodeAggregationWitnessGenerator::new(
-                config,
-                &store_factory,
-                connection_pool,
-                protocol_versions.clone(),
-            )
-            .await;
-            generator.run(stop_receiver, opt.batch_size)
-        }
-        AggregationRound::Scheduler => {
-            let generator = SchedulerWitnessGenerator::new(
-                config,
-                &store_factory,
-                connection_pool,
-                protocol_versions,
-            )
-            .await;
-            generator.run(stop_receiver, opt.batch_size)
-        }
-    };
+                    ),
+                };
+                let generator = BasicWitnessGenerator::new(
+                    config.clone(),
+                    &store_factory,
+                    public_blob_store,
+                    connection_pool.clone(),
+                    prover_connection_pool.clone(),
+                    protocol_versions.clone(),
+                )
+                .await;
+                generator.run(stop_receiver.clone(), opt.batch_size)
+            }
+            AggregationRound::LeafAggregation => {
+                let generator = LeafAggregationWitnessGenerator::new(
+                    config.clone(),
+                    &store_factory,
+                    prover_connection_pool.clone(),
+                    protocol_versions.clone(),
+                )
+                .await;
+                generator.run(stop_receiver.clone(), opt.batch_size)
+            }
+            AggregationRound::NodeAggregation => {
+                let generator = NodeAggregationWitnessGenerator::new(
+                    config.clone(),
+                    &store_factory,
+                    prover_connection_pool.clone(),
+                    protocol_versions.clone(),
+                )
+                .await;
+                generator.run(stop_receiver.clone(), opt.batch_size)
+            }
+            AggregationRound::Scheduler => {
+                let generator = SchedulerWitnessGenerator::new(
+                    config.clone(),
+                    &store_factory,
+                    prover_connection_pool.clone(),
+                    protocol_versions.clone(),
+                )
+                .await;
+                generator.run(stop_receiver.clone(), opt.batch_size)
+            }
+        };
 
-    let tasks = vec![
-        tokio::spawn(prometheus_task),
-        tokio::spawn(witness_generator_task),
-    ];
-    tracing::info!(
-        "initialized {:?} witness generator in {:?}",
-        opt.round,
-        started_at.elapsed()
-    );
-    metrics::gauge!(
-        "server.init.latency",
-        started_at.elapsed(),
-        "stage" => format!("fri_witness_generator_{:?}", opt.round)
-    );
+        tasks.push(tokio::spawn(prometheus_task));
+        tasks.push(tokio::spawn(witness_generator_task));
+
+        tracing::info!(
+            "initialized {:?} witness generator in {:?}",
+            round,
+            started_at.elapsed()
+        );
+        metrics::gauge!(
+            "server.init.latency",
+            started_at.elapsed(),
+            "stage" => format!("fri_witness_generator_{:?}", round)
+        );
+    }
 
     let mut stop_signal_receiver = get_stop_signal_receiver();
     let graceful_shutdown = None::<futures::future::Ready<()>>;

@@ -6,8 +6,8 @@ use zksync_server_dal::ServerStorageProcessor;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
     api::{
-        BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof,
-        ProtocolVersion, TransactionDetails,
+        BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof, Proof,
+        ProtocolVersion, StorageProof, TransactionDetails,
     },
     fee::Fee,
     l1::L1Tx,
@@ -15,8 +15,9 @@ use zksync_types::{
     l2_to_l1_log::L2ToL1Log,
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
-    L1BatchNumber, MiniblockNumber, Transaction, L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS,
-    MAX_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
+    AccountTreeId, L1BatchNumber, MiniblockNumber, StorageKey, Transaction, L1_MESSENGER_ADDRESS,
+    L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
+    U64,
 };
 use zksync_utils::{address_to_h256, ratio_to_big_decimal_normalized};
 use zksync_web3_decl::{
@@ -24,8 +25,9 @@ use zksync_web3_decl::{
     types::{Address, Filter, Log, Token, H256},
 };
 
-use crate::api_server::web3::{
-    backend_jsonrpc::error::internal_error, metrics::API_METRICS, RpcState,
+use crate::api_server::{
+    tree::TreeApiClient,
+    web3::{backend_jsonrpc::error::internal_error, metrics::API_METRICS, RpcState},
 };
 use crate::l1_gas_price::L1GasPriceProvider;
 
@@ -342,8 +344,27 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             return Ok(None);
         };
 
+        let Some(batch) = storage
+            .blocks_dal()
+            .get_l1_batch_header(l1_batch_number)
+            .await
+            .map_err(|err| internal_error(method_name, err))?
+        else {
+            return Ok(None);
+        };
+
         let merkle_tree_leaves = all_l1_logs_in_batch.iter().map(L2ToL1Log::to_bytes);
-        let min_tree_size = Some(L2ToL1Log::MIN_L2_L1_LOGS_TREE_SIZE);
+
+        let min_tree_size = if batch
+            .protocol_version
+            .map(|v| v.is_pre_boojum())
+            .unwrap_or(true)
+        {
+            Some(L2ToL1Log::PRE_BOOJUM_MIN_L2_L1_LOGS_TREE_SIZE)
+        } else {
+            Some(L2ToL1Log::MIN_L2_L1_LOGS_TREE_SIZE)
+        };
+
         let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, min_tree_size)
             .merkle_root_and_path(l1_log_index);
         Ok(Some(L2ToL1LogProof {
@@ -619,5 +640,43 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         filter: Filter,
     ) -> Result<Vec<Log>, Web3Error> {
         self.state.translate_get_logs(filter).await
+    }
+
+    #[tracing::instrument(skip_all)]
+    pub async fn get_proofs_impl(
+        &self,
+        address: Address,
+        keys: Vec<H256>,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<Proof, Web3Error> {
+        const METHOD_NAME: &str = "get_proofs";
+
+        let hashed_keys = keys
+            .iter()
+            .map(|key| StorageKey::new(AccountTreeId::new(address), *key).hashed_key_u256())
+            .collect();
+
+        let storage_proof = self
+            .state
+            .tree_api
+            .as_ref()
+            .ok_or(Web3Error::TreeApiUnavailable)?
+            .get_proofs(l1_batch_number, hashed_keys)
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?
+            .into_iter()
+            .zip(keys)
+            .map(|(proof, key)| StorageProof {
+                key,
+                proof: proof.merkle_path,
+                value: proof.value,
+                index: proof.index,
+            })
+            .collect();
+
+        Ok(Proof {
+            address,
+            storage_proof,
+        })
     }
 }

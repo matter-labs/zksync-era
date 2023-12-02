@@ -62,7 +62,7 @@ mod tests;
 
 /// Storage processor is the main storage interaction point.
 /// It holds down the connection (either direct or pooled) to the database
-/// and provide methods to obtain different storage schemas.
+/// and provide methods to obtain different storage schema.
 #[derive(Debug)]
 pub struct ServerStorageProcessor<'a> {
     conn: ConnectionHolder<'a>,

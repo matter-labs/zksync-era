@@ -15,19 +15,19 @@ use crate::metrics::{CheckerComponent, EN_METRICS};
 
 const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-/// This is a component that is responsible for detecting the batch reorgs.
-/// Batch reorg is a rare event of manual intervention, when the node operator
+/// This is a component that is responsible for detecting the batch re-orgs.
+/// Batch re-org is a rare event of manual intervention, when the node operator
 /// decides to revert some of the not yet finalized batches for some reason
 /// (e.g. inability to generate a proof), and then potentially
 /// re-organize transactions in them to fix the problem.
 ///
 /// To detect them, we constantly check the latest sealed batch root hash,
-/// and in the event of mismatch, we know that there has been a reorg.
+/// and in the event of mismatch, we know that there has been a re-org.
 /// We then perform a binary search to find the latest correct block
 /// and revert all batches after it, to keep being consistent with the main node.
 ///
 /// This is the only component that is expected to finish its execution
-/// in the even of reorg, since we have to restart the node after a rollback is performed,
+/// in the even of re-org, since we have to restart the node after a rollback is performed,
 /// and is special-cased in the `zksync_external_node` crate.
 #[derive(Debug)]
 pub struct ReorgDetector {
@@ -114,7 +114,7 @@ impl ReorgDetector {
         Ok(hash == local_hash)
     }
 
-    /// Localizes a reorg: performs binary search to determine the last non-diverged block.
+    /// Localizes a re-org: performs binary search to determine the last non-diverged block.
     async fn detect_reorg(&self, diverged_l1_batch: L1BatchNumber) -> RpcResult<L1BatchNumber> {
         // TODO (BFT-176, BFT-181): We have to look through the whole history, since batch status updater may mark
         // a block as executed even if the state diverges for it.

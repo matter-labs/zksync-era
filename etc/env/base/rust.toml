@@ -2,7 +2,7 @@
 # We don't provide the group name like `[rust]` here, because we don't want
 # these variables to be prefixed during the compiling. 
 
-# `RUST_LOG` environmnet variable for `env_logger`
+# `RUST_LOG` environment variable for `env_logger`
 # Here we use TOML multiline strings: newlines will be trimmed.
 RUST_LOG="""\
 zksync_core=debug,\

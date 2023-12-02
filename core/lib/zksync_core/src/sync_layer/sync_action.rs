@@ -1,6 +1,9 @@
 use tokio::sync::mpsc;
 
-use zksync_types::{Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction, H256};
+use zksync_types::{
+    block::ConsensusBlockFields, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId,
+    Transaction,
+};
 
 use super::metrics::QUEUE_METRICS;
 
@@ -52,7 +55,7 @@ impl ActionQueueSender {
                         return Err(format!("Unexpected Tx: {:?}", actions));
                     }
                 }
-                SyncAction::SealMiniblock | SyncAction::SealBatch { .. } => {
+                SyncAction::SealMiniblock(_) | SyncAction::SealBatch { .. } => {
                     if !opened || miniblock_sealed {
                         return Err(format!("Unexpected SealMiniblock/SealBatch: {:?}", actions));
                     }
@@ -89,7 +92,7 @@ impl ActionQueue {
     }
 
     /// Removes the first action from the queue.
-    pub(crate) fn pop_action(&mut self) -> Option<SyncAction> {
+    pub(super) fn pop_action(&mut self) -> Option<SyncAction> {
         if let Some(peeked) = self.peeked.take() {
             QUEUE_METRICS.action_queue_size.dec_by(1);
             return Some(peeked);
@@ -101,8 +104,19 @@ impl ActionQueue {
         action
     }
 
+    #[cfg(test)]
+    pub(super) async fn recv_action(&mut self) -> SyncAction {
+        if let Some(peeked) = self.peeked.take() {
+            return peeked;
+        }
+        self.receiver
+            .recv()
+            .await
+            .expect("actions sender was dropped prematurely")
+    }
+
     /// Returns the first action from the queue without removing it.
-    pub(crate) fn peek_action(&mut self) -> Option<SyncAction> {
+    pub(super) fn peek_action(&mut self) -> Option<SyncAction> {
         if let Some(action) = &self.peeked {
             return Some(action.clone());
         }
@@ -123,7 +137,6 @@ pub(crate) enum SyncAction {
         protocol_version: ProtocolVersionId,
         // Miniblock number and virtual blocks count.
         first_miniblock_info: (MiniblockNumber, u32),
-        prev_miniblock_hash: H256,
     },
     Miniblock {
         number: MiniblockNumber,
@@ -135,11 +148,13 @@ pub(crate) enum SyncAction {
     /// that they are sealed, but at the same time the next miniblock may not exist yet.
     /// By having a dedicated action for that we prevent a situation where the miniblock is kept open on the EN until
     /// the next one is sealed on the main node.
-    SealMiniblock,
+    SealMiniblock(Option<ConsensusBlockFields>),
     /// Similarly to `SealMiniblock` we must be able to seal the batch even if there is no next miniblock yet.
     SealBatch {
-        // Virtual blocks count for the fictive miniblock.
+        /// Virtual blocks count for the fictive miniblock.
         virtual_blocks: u32,
+        /// Consensus-related fields for the fictive miniblock.
+        consensus: Option<ConsensusBlockFields>,
     },
 }
 
@@ -164,7 +179,6 @@ mod tests {
             operator_address: Default::default(),
             protocol_version: ProtocolVersionId::latest(),
             first_miniblock_info: (1.into(), 1),
-            prev_miniblock_hash: H256::default(),
         }
     }
 
@@ -193,11 +207,14 @@ mod tests {
     }
 
     fn seal_miniblock() -> SyncAction {
-        SyncAction::SealMiniblock
+        SyncAction::SealMiniblock(None)
     }
 
     fn seal_batch() -> SyncAction {
-        SyncAction::SealBatch { virtual_blocks: 1 }
+        SyncAction::SealBatch {
+            virtual_blocks: 1,
+            consensus: None,
+        }
     }
 
     #[test]

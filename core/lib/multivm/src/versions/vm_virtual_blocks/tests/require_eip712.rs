@@ -107,7 +107,7 @@ async fn test_require_eip712() {
         vm.get_eth_balance(beneficiary.address),
         U256::from(888000088)
     );
-    // Make sure that the tokens were transfered from the AA account.
+    // Make sure that the tokens were transferred from the AA account.
     assert_eq!(
         private_account_balance,
         vm.get_eth_balance(private_account.address)

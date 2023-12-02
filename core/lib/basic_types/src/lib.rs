@@ -77,7 +77,7 @@ impl TryFrom<U256> for AccountTreeId {
     }
 }
 
-/// ChainId in the ZkSync network.
+/// ChainId in the zkSync network.
 #[derive(Copy, Clone, Debug, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct L2ChainId(u64);
 

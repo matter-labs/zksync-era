@@ -213,7 +213,7 @@ impl<S: EthereumSigner> EthInterface for SigningClient<S> {
 
     async fn block(
         &self,
-        block_id: String,
+        block_id: BlockId,
         component: &'static str,
     ) -> Result<Option<Block<H256>>, Error> {
         self.query_client.block(block_id, component).await

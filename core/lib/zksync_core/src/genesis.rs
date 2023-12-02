@@ -111,7 +111,7 @@ pub async fn ensure_genesis_state(
         vec![],
         H256::zero(),
         H256::zero(),
-        *protocol_version,
+        protocol_version.is_pre_boojum(),
     );
 
     save_genesis_l1_batch_metadata(

@@ -26,7 +26,7 @@ use super::{
 };
 use crate::genesis::{ensure_genesis_state, GenesisParams};
 
-const RUN_TIMEOUT: Duration = Duration::from_secs(15);
+const RUN_TIMEOUT: Duration = Duration::from_secs(30);
 
 async fn run_with_timeout<T, F>(timeout: Duration, action: F) -> T
 where

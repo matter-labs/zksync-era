@@ -146,7 +146,7 @@ pub mod gpu_prover {
                 NoPow,
                 _,
             >(
-                assembly,
+                &assembly,
                 &witness_vector,
                 proof_config,
                 &setup_data.setup,
@@ -167,6 +167,7 @@ pub mod gpu_prover {
                 started_at.elapsed(),
                 "circuit_type" => circuit_id.to_string()
             );
+            let proof = proof.into();
             verify_proof(
                 &prover_job.circuit_wrapper,
                 &proof,
