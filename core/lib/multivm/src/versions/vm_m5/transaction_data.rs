@@ -225,7 +225,7 @@ pub fn derive_overhead(gas_limit: u32, gas_price_per_pubdata: u32, encoded_len: 
     let gas_price_per_pubdata = U256::from(gas_price_per_pubdata);
     let encoded_len = U256::from(encoded_len);
 
-    // The MAX_TX_ERGS_LIMIT is formed in a way that may fullfills a single-instance circuits
+    // The MAX_TX_ERGS_LIMIT is formed in a way that may fulfills a single-instance circuits
     // if used in full. That is, within MAX_TX_ERGS_LIMIT it is possible to fully saturate all the single-instance
     // circuits.
     let overhead_for_single_instance_circuits =
