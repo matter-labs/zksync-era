@@ -243,7 +243,7 @@ pub fn derive_overhead(
     let gas_limit = U256::from(gas_limit);
     let encoded_len = U256::from(encoded_len);
 
-    // The MAX_TX_ERGS_LIMIT is formed in a way that may fullfills a single-instance circuits
+    // The MAX_TX_ERGS_LIMIT is formed in a way that may fulfills a single-instance circuits
     // if used in full. That is, within MAX_TX_ERGS_LIMIT it is possible to fully saturate all the single-instance
     // circuits.
     let overhead_for_single_instance_circuits =
