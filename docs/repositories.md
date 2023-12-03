@@ -51,7 +51,7 @@
 | [local-setup](https://github.com/matter-labs/local-setup)       | Docker-based zk server (together with L1), that can be used for local testing |
 | [zksolc-bin](https://github.com/matter-labs/zksolc-bin)         | repository with solc compiler binaries                                        |
 | [zkvyper-bin](https://github.com/matter-labs/zkvyper-bin)       | repository with vyper compiler binaries                                       |
-| [zksync-cli](<(https://github.com/matter-labs/zksync-cli)>)     | Command line tool to interact with zksync                                     |
+| [zksync-cli](https://github.com/matter-labs/zksync-cli)         | Command line tool to interact with zksync                                     |
 | [hardhat-zksync](https://github.com/matter-labs/hardhat-zksync) | Plugins for hardhat                                                           |
 
 ### Examples & documentation

@@ -14,13 +14,12 @@ use zksync_types::web3::{
         Contract, Options,
     },
     ethabi,
-    helpers::CallFuture,
     transports::Http,
     types::{
         Address, Block, BlockId, BlockNumber, Bytes, Filter, Log, Transaction, TransactionId,
         TransactionReceipt, H256, U256, U64,
     },
-    Transport, Web3,
+    Web3,
 };
 
 /// An "anonymous" Ethereum client that can invoke read-only methods that aren't
@@ -286,23 +285,14 @@ impl EthInterface for QueryClient {
         Ok(logs)
     }
 
-    // TODO (PLA-333): at the moment the latest version of `web3` crate doesn't have `Finalized` variant in `BlockNumber`.
-    // However, it's already added in github repo and probably will be included in the next released version.
-    // Scope of PLA-333 includes forking/using crate directly from github, after that we will be able to change
-    // type of `block_id` from `String` to `BlockId` and use `self.web3.eth().block(block_id)`.
     async fn block(
         &self,
-        block_id: String,
+        block_id: BlockId,
         component: &'static str,
     ) -> Result<Option<Block<H256>>, Error> {
         COUNTERS.call[&(Method::Block, component)].inc();
         let latency = LATENCIES.direct[&Method::Block].start();
-        let block = CallFuture::new(
-            self.web3
-                .transport()
-                .execute("eth_getBlockByNumber", vec![block_id.into(), false.into()]),
-        )
-        .await?;
+        let block = self.web3.eth().block(block_id).await?;
         latency.observe();
         Ok(block)
     }
