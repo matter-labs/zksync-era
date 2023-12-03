@@ -23,20 +23,22 @@ RUN apt-get update && apt-get install -y \
     vim \
     ca-certificates \
     gnupg2 \
-    postgresql-client
+    postgresql-client \
+    hub \
+    unzip
 
 # Install dependencies for RocksDB. `liburing` is not available for Ubuntu 20.04,
 # so we use a PPA with the backport
 RUN add-apt-repository ppa:savoury1/virtualisation && \
     apt-get update && \
     apt-get install -y \
-    curl \
-    gnutls-bin git \
+    gnutls-bin \
     build-essential \
-    clang-7 \
-    lldb-7 \
-    lld-7 \
-    liburing-dev
+    clang \
+    lldb\
+    lld \
+    liburing-dev \
+    libclang-dev
 
 # Install docker engine
 RUN wget -c -O - https://download.docker.com/linux/ubuntu/gpg | apt-key add -
@@ -66,10 +68,9 @@ RUN echo "deb http://packages.cloud.google.com/apt cloud-sdk main" > /etc/apt/so
     gcloud config set metrics/environment github_docker_image
 
 RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y
-RUN rustup install nightly-2023-07-21
+RUN rustup install nightly-2023-08-21
 RUN rustup default stable
 RUN cargo install --version=0.5.13 sqlx-cli
-RUN cargo install cargo-tarpaulin
 RUN cargo install cargo-nextest
 
 # Copy compiler (both solc and zksolc) binaries

@@ -1,7 +1,7 @@
-use crate::vm_m5::glue::GlueInto;
 use crate::vm_m5::{memory::SimpleMemory, vm_with_bootloader::BlockContext};
 use once_cell::sync::Lazy;
 
+use crate::glue::GlueInto;
 use zk_evm_1_3_1::block_properties::BlockProperties;
 use zk_evm_1_3_1::{
     aux_structures::{LogQuery, MemoryPage, Timestamp},

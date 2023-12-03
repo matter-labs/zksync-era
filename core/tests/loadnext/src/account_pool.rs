@@ -76,7 +76,7 @@ pub struct TestWallet {
 }
 
 /// Pool of accounts to be used in the test.
-/// Each account is represented as `zksync::Wallet` in order to provide convenient interface of interation with zkSync.
+/// Each account is represented as `zksync::Wallet` in order to provide convenient interface of interaction with zkSync.
 #[derive(Debug)]
 pub struct AccountPool {
     /// Main wallet that will be used to initialize all the test wallets.

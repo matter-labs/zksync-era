@@ -60,7 +60,7 @@ pub struct CallRequest {
     /// Access list
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub access_list: Option<AccessList>,
-    /// Eip712 meta
+    /// EIP712 meta
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub eip712_meta: Option<Eip712Meta>,
 }
@@ -97,7 +97,7 @@ impl CallRequestBuilder {
         self
     }
 
-    /// Set transfered value (None for no transfer)
+    /// Set transferred, value (None for no transfer)
     pub fn gas_price(mut self, gas_price: U256) -> Self {
         self.call_request.gas_price = Some(gas_price);
         self
@@ -113,7 +113,7 @@ impl CallRequestBuilder {
         self
     }
 
-    /// Set transfered value (None for no transfer)
+    /// Set transferred, value (None for no transfer)
     pub fn value(mut self, value: U256) -> Self {
         self.call_request.value = Some(value);
         self
@@ -177,7 +177,7 @@ pub enum SerializationTransactionError {
     AccessListsNotSupported,
     #[error("nonce has max value")]
     TooBigNonce,
-    /// TooHighGas is a sanity error to avoid extremely big numbers specified
+    /// Sanity check error to avoid extremely big numbers specified
     /// to gas and pubdata price.
     #[error("{0}")]
     TooHighGas(String),

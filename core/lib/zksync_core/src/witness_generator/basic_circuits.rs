@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use async_trait::async_trait;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -13,8 +12,9 @@ use std::{
 use multivm::vm_latest::{
     constants::MAX_CYCLES_FOR_TX, HistoryDisabled, SimpleMemory, StorageOracle as VmStorageOracle,
 };
-use zksync_config::configs::witness_generator::BasicWitnessGeneratorDataSource;
-use zksync_config::configs::WitnessGeneratorConfig;
+use zksync_config::configs::{
+    witness_generator::BasicWitnessGeneratorDataSource, WitnessGeneratorConfig,
+};
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory, StoredObject};
 use zksync_queued_job_processor::JobProcessor;
@@ -88,14 +88,13 @@ impl BasicWitnessGenerator {
     }
 
     async fn process_job_impl(
+        config: WitnessGeneratorConfig,
         object_store: Arc<dyn ObjectStore>,
         connection_pool: ConnectionPool,
         prover_connection_pool: ConnectionPool,
         basic_job: BasicWitnessGeneratorJob,
         started_at: Instant,
     ) -> anyhow::Result<Option<BasicCircuitArtifacts>> {
-        let config =
-            WitnessGeneratorConfig::from_env().context("WitnessGeneratorConfig::from_env()")?;
         let BasicWitnessGeneratorJob { block_number, job } = basic_job;
 
         if let Some(blocks_proving_percentage) = config.blocks_proving_percentage {
@@ -213,7 +212,9 @@ impl JobProcessor for BasicWitnessGenerator {
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<Option<BasicCircuitArtifacts>>> {
         let object_store = Arc::clone(&self.object_store);
+        let config = self.config.clone();
         tokio::spawn(Self::process_job_impl(
+            config,
             object_store,
             self.connection_pool.clone(),
             self.prover_connection_pool.clone(),
@@ -236,6 +237,15 @@ impl JobProcessor for BasicWitnessGenerator {
             }
         }
         Ok(())
+    }
+
+    fn max_attempts(&self) -> u32 {
+        self.config.max_attempts
+    }
+
+    async fn get_job_attempts(&self, _job_id: &Self::JobId) -> anyhow::Result<u32> {
+        // Witness generator will be removed soon in favor of FRI one, so returning blank value.
+        Ok(1)
     }
 }
 

@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use async_trait::async_trait;
 
 use std::{collections::HashMap, env, time::Instant};
@@ -76,11 +75,10 @@ impl NodeAggregationWitnessGenerator {
     }
 
     fn process_job_sync(
+        config: WitnessGeneratorConfig,
         node_job: NodeAggregationWitnessGeneratorJob,
         started_at: Instant,
     ) -> anyhow::Result<NodeAggregationArtifacts> {
-        let config =
-            WitnessGeneratorConfig::from_env().context("WitnessGeneratorConfig::from_env()")?;
         let NodeAggregationWitnessGeneratorJob { block_number, job } = node_job;
 
         tracing::info!(
@@ -162,7 +160,8 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         job: NodeAggregationWitnessGeneratorJob,
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<NodeAggregationArtifacts>> {
-        tokio::task::spawn_blocking(move || Self::process_job_sync(job, started_at))
+        let config = self.config.clone();
+        tokio::task::spawn_blocking(move || Self::process_job_sync(config, job, started_at))
     }
 
     async fn save_result(
@@ -174,6 +173,15 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         let blob_urls = save_artifacts(job_id, artifacts, &*self.object_store).await;
         update_database(&self.prover_connection_pool, started_at, job_id, blob_urls).await;
         Ok(())
+    }
+
+    fn max_attempts(&self) -> u32 {
+        self.config.max_attempts
+    }
+
+    async fn get_job_attempts(&self, _job_id: &Self::JobId) -> anyhow::Result<u32> {
+        // Witness generator will be removed soon in favor of FRI one, so returning blank value.
+        Ok(1)
     }
 }
 

@@ -24,12 +24,11 @@ use zksync_core::{
     setup_sigint_handler,
     state_keeper::{L1BatchExecutorBuilder, MainBatchExecutorBuilder, ZkSyncStateKeeper},
     sync_layer::{
-        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
-        fetcher::MainNodeFetcherCursor, genesis::perform_genesis_if_needed, ActionQueue,
-        MainNodeClient, SyncState,
+        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, fetcher::FetcherCursor,
+        genesis::perform_genesis_if_needed, ActionQueue, MainNodeClient, SyncState,
     },
 };
-use zksync_dal::{connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
+use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
@@ -83,7 +82,6 @@ async fn build_state_keeper(
         chain_id,
     )
     .await;
-    io.recalculate_miniblock_hashes().await;
 
     ZkSyncStateKeeper::without_sealer(stop_receiver, Box::new(io), batch_executor_base)
 }
@@ -122,14 +120,14 @@ async fn init_tasks(
 
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
-    let singleton_pool_builder = ConnectionPool::singleton(DbVariant::Master);
+    let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
     let fetcher_cursor = {
         let pool = singleton_pool_builder
             .build()
             .await
             .context("failed to build a connection pool for `MainNodeFetcher`")?;
         let mut storage = pool.access_storage_tagged("sync_layer").await?;
-        MainNodeFetcherCursor::new(&mut storage)
+        FetcherCursor::new(&mut storage)
             .await
             .context("failed to load `MainNodeFetcher` cursor from Postgres")?
     };
@@ -142,7 +140,9 @@ async fn init_tasks(
 
     let metadata_calculator = MetadataCalculator::new(&MetadataCalculatorConfig {
         db_path: &config.required.merkle_tree_path,
-        mode: MetadataCalculatorModeConfig::Lightweight,
+        mode: MetadataCalculatorModeConfig::Full {
+            store_factory: None,
+        },
         delay_interval: config.optional.metadata_calculator_delay(),
         max_l1_batches_per_iter: config.optional.max_l1_batches_per_tree_iter,
         multi_get_chunk_size: config.optional.merkle_tree_multi_get_chunk_size,
@@ -181,7 +181,8 @@ async fn init_tasks(
         .await
         .context("failed to build a tree_pool")?;
     // todo: PLA-335
-    let prover_tree_pool = ConnectionPool::singleton(DbVariant::Prover)
+    // Note: This pool isn't actually used by the metadata calculator, but it has to be provided anyway.
+    let prover_tree_pool = ConnectionPool::singleton(&config.postgres.database_url)
         .build()
         .await
         .context("failed to build a prover_tree_pool")?;
@@ -346,10 +347,13 @@ async fn main() -> anyhow::Result<()> {
         .main_node_url()
         .context("Main node URL is incorrect")?;
 
-    let connection_pool = ConnectionPool::builder(DbVariant::Master)
-        .build()
-        .await
-        .context("failed to build a connection_pool")?;
+    let connection_pool = ConnectionPool::builder(
+        &config.postgres.database_url,
+        config.postgres.max_connections,
+    )
+    .build()
+    .await
+    .context("failed to build a connection_pool")?;
 
     if opt.revert_pending_l1_batch {
         tracing::info!("Rolling pending L1 batch back..");

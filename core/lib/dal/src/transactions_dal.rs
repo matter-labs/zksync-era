@@ -969,7 +969,7 @@ impl TransactionsDal<'_, '_> {
         }
     }
 
-    /// Returns miniblocks with their transactions that state_keeper needs to reexecute on restart.
+    /// Returns miniblocks with their transactions that state_keeper needs to re-execute on restart.
     /// These are the transactions that are included to some miniblock,
     /// but not included to L1 batch. The order of the transactions is the same as it was
     /// during the previous execution.

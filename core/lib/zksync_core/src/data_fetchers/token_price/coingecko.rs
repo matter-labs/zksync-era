@@ -165,32 +165,3 @@ pub struct CoinGeckoTokenPrice {
     #[serde(with = "UnsignedRatioSerializeAsDecimal")]
     pub usd: Ratio<BigUint>,
 }
-
-#[tokio::test]
-#[ignore]
-async fn test_fetch_coingecko_prices() {
-    let mut config = FetcherConfig::from_env().unwrap();
-    config.token_price.url = "https://api.coingecko.com".to_string();
-
-    let fetcher = CoinGeckoFetcher::new(&config);
-
-    let tokens = vec![
-        ETHEREUM_ADDRESS,
-        Address::from_str("6b175474e89094c44da98b954eedeac495271d0f").expect("DAI"),
-        Address::from_str("1f9840a85d5af5bf1d1762f925bdaddc4201f984").expect("UNI"),
-        Address::from_str("514910771af9ca656af840dff83e8264ecf986ca").expect("LINK"),
-    ];
-
-    let token_prices = fetcher
-        .fetch_token_price(&tokens)
-        .await
-        .expect("failed get tokens price");
-    assert_eq!(
-        token_prices.len(),
-        tokens.len(),
-        "not all data was received"
-    );
-    for token_address in tokens {
-        assert!(token_prices.get(&token_address).is_some());
-    }
-}

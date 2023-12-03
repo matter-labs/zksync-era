@@ -1,7 +1,7 @@
-use zk_evm_1_3_3::abstractions::{Memory, MemoryType};
-use zk_evm_1_3_3::aux_structures::{MemoryPage, MemoryQuery, Timestamp};
-use zk_evm_1_3_3::vm_state::PrimitiveValue;
-use zk_evm_1_3_3::zkevm_opcode_defs::FatPointer;
+use zk_evm_1_4_0::abstractions::{Memory, MemoryType};
+use zk_evm_1_4_0::aux_structures::{MemoryPage, MemoryQuery, Timestamp};
+use zk_evm_1_4_0::vm_state::PrimitiveValue;
+use zk_evm_1_4_0::zkevm_opcode_defs::FatPointer;
 use zksync_types::U256;
 
 use crate::vm_latest::old_vm::history_recorder::{

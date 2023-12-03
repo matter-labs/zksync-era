@@ -173,15 +173,28 @@ impl Aggregator {
             .get_last_committed_to_eth_l1_batch()
             .await
             .unwrap()?;
-        let ready_for_commit_l1_batches = blocks_dal
-            .get_ready_for_commit_l1_batches(
-                limit,
-                base_system_contracts_hashes.bootloader,
-                base_system_contracts_hashes.default_aa,
-                protocol_version_id,
-            )
-            .await
-            .unwrap();
+
+        let ready_for_commit_l1_batches = if protocol_version_id.is_pre_boojum() {
+            blocks_dal
+                .pre_boojum_get_ready_for_commit_l1_batches(
+                    limit,
+                    base_system_contracts_hashes.bootloader,
+                    base_system_contracts_hashes.default_aa,
+                    protocol_version_id,
+                )
+                .await
+                .unwrap()
+        } else {
+            blocks_dal
+                .get_ready_for_commit_l1_batches(
+                    limit,
+                    base_system_contracts_hashes.bootloader,
+                    base_system_contracts_hashes.default_aa,
+                    protocol_version_id,
+                )
+                .await
+                .unwrap()
+        };
 
         // Check that the L1 batches that are selected are sequential
         ready_for_commit_l1_batches
@@ -221,6 +234,14 @@ impl Aggregator {
             .await
             .unwrap();
         let batch_to_prove = previous_proven_batch_number + 1;
+
+        // Return `None` if batch is not committed yet.
+        storage
+            .blocks_dal()
+            .get_eth_commit_tx_id(batch_to_prove)
+            .await
+            .unwrap()?;
+
         if let Some(version_id) = storage
             .blocks_dal()
             .get_batch_protocol_version_id(batch_to_prove)

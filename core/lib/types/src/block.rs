@@ -1,15 +1,19 @@
+use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 use zksync_system_constants::SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER;
 
 use std::{fmt, ops};
 
 use zksync_basic_types::{H2048, H256, U256};
+use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_protobuf::{read_required, ProtoFmt};
 
 use crate::{
-    l2_to_l1_log::L2ToL1Log, priority_op_onchain_data::PriorityOpOnchainData,
-    web3::signing::keccak256, AccountTreeId, Address, L1BatchNumber, MiniblockNumber,
-    ProtocolVersionId, Transaction,
+    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    priority_op_onchain_data::PriorityOpOnchainData,
+    web3::signing::keccak256,
+    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction,
 };
 
 /// Represents a successfully deployed smart contract.
@@ -46,7 +50,7 @@ pub struct L1BatchHeader {
     /// The data of the processed priority operations hash which must be sent to the smart contract.
     pub priority_ops_onchain_data: Vec<PriorityOpOnchainData>,
     /// All user generated L2 -> L1 logs in the block.
-    pub l2_to_l1_logs: Vec<L2ToL1Log>,
+    pub l2_to_l1_logs: Vec<UserL2ToL1Log>,
     /// Preimages of the hashes that were sent as value of L2 logs by special system L2 contract.
     pub l2_to_l1_messages: Vec<Vec<u8>>,
     /// Bloom filter for the event logs in the block.
@@ -60,8 +64,8 @@ pub struct L1BatchHeader {
     /// The L2 gas price that the operator agrees on.
     pub l2_fair_gas_price: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
-    /// System logs are those emitted as part of the Vm excecution.
-    pub system_logs: Vec<L2ToL1Log>,
+    /// System logs are those emitted as part of the Vm execution.
+    pub system_logs: Vec<SystemL2ToL1Log>,
     /// Version of protocol used for the L1 batch.
     pub protocol_version: Option<ProtocolVersionId>,
 }
@@ -82,6 +86,45 @@ pub struct MiniblockHeader {
     pub protocol_version: Option<ProtocolVersionId>,
     /// The maximal number of virtual blocks to be created in the miniblock.
     pub virtual_blocks: u32,
+}
+
+/// Consensus-related L2 block (= miniblock) fields.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConsensusBlockFields {
+    /// Hash of the previous consensus block.
+    pub parent: validator::BlockHeaderHash,
+    /// Quorum certificate for the block.
+    pub justification: validator::CommitQC,
+}
+
+impl ProtoFmt for ConsensusBlockFields {
+    type Proto = crate::proto::ConsensusBlockFields;
+
+    fn read(proto: &Self::Proto) -> anyhow::Result<Self> {
+        Ok(Self {
+            parent: read_required(&proto.parent).context("parent")?,
+            justification: read_required(&proto.justification).context("justification")?,
+        })
+    }
+
+    fn build(&self) -> Self::Proto {
+        Self::Proto {
+            parent: Some(self.parent.build()),
+            justification: Some(self.justification.build()),
+        }
+    }
+}
+
+impl Serialize for ConsensusBlockFields {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        zksync_protobuf::serde::serialize(self, s)
+    }
+}
+
+impl<'de> Deserialize<'de> for ConsensusBlockFields {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        zksync_protobuf::serde::deserialize(d)
+    }
 }
 
 /// Data needed to execute a miniblock in the VM.

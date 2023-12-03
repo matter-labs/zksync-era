@@ -32,7 +32,7 @@ use crate::vm_m6::{
     utils::{
         code_page_candidate_from_base, heap_page_from_base, BLOCK_GAS_LIMIT, INITIAL_BASE_PAGE,
     },
-    vm::{MultiVMSubversion, ZkSyncVmState},
+    vm_instance::{MultiVMSubversion, ZkSyncVmState},
     OracleTools, VmInstance,
 };
 
@@ -219,7 +219,7 @@ pub fn init_vm<S: Storage, H: HistoryMode>(
     block_properties: BlockProperties,
     execution_mode: TxExecutionMode,
     base_system_contract: &BaseSystemContracts,
-) -> Box<VmInstance<S, H>> {
+) -> VmInstance<S, H> {
     init_vm_with_gas_limit(
         vm_subversion,
         oracle_tools,
@@ -239,7 +239,7 @@ pub fn init_vm_with_gas_limit<S: Storage, H: HistoryMode>(
     execution_mode: TxExecutionMode,
     base_system_contract: &BaseSystemContracts,
     gas_limit: u32,
-) -> Box<VmInstance<S, H>> {
+) -> VmInstance<S, H> {
     init_vm_inner(
         vm_subversion,
         oracle_tools,
@@ -336,7 +336,7 @@ pub fn init_vm_inner<S: Storage, H: HistoryMode>(
     gas_limit: u32,
     base_system_contract: &BaseSystemContracts,
     execution_mode: TxExecutionMode,
-) -> Box<VmInstance<S, H>> {
+) -> VmInstance<S, H> {
     oracle_tools.decommittment_processor.populate(
         vec![(
             h256_to_u256(base_system_contract.default_aa.hash),
@@ -361,7 +361,7 @@ pub fn init_vm_inner<S: Storage, H: HistoryMode>(
 
     let state = get_default_local_state(oracle_tools, block_properties, gas_limit);
 
-    Box::new(VmInstance {
+    VmInstance {
         gas_limit,
         state,
         execution_mode,
@@ -369,7 +369,7 @@ pub fn init_vm_inner<S: Storage, H: HistoryMode>(
         bootloader_state: BootloaderState::new(),
         snapshots: Vec::new(),
         vm_subversion,
-    })
+    }
 }
 
 fn bootloader_initial_memory(block_properties: &BlockContextMode) -> Vec<(usize, U256)> {
@@ -563,14 +563,7 @@ fn push_raw_transaction_to_bootloader_memory_v1<S: Storage, H: HistoryMode>(
         tx.factory_deps
             .iter()
             .filter_map(|bytecode| {
-                if vm
-                    .state
-                    .storage
-                    .storage
-                    .get_ptr()
-                    .borrow_mut()
-                    .is_bytecode_exists(&hash_bytecode(bytecode))
-                {
+                if vm.is_bytecode_exists(&hash_bytecode(bytecode)) {
                     return None;
                 }
 
@@ -647,14 +640,7 @@ fn push_raw_transaction_to_bootloader_memory_v2<S: Storage, H: HistoryMode>(
         tx.factory_deps
             .iter()
             .filter_map(|bytecode| {
-                if vm
-                    .state
-                    .storage
-                    .storage
-                    .get_ptr()
-                    .borrow_mut()
-                    .is_bytecode_exists(&hash_bytecode(bytecode))
-                {
+                if vm.is_bytecode_exists(&hash_bytecode(bytecode)) {
                     return None;
                 }
 
@@ -780,7 +766,7 @@ pub(crate) fn get_bootloader_memory_for_encoded_tx(
     let encoding_length = encoded_tx.len();
     memory.extend((tx_description_offset..tx_description_offset + encoding_length).zip(encoded_tx));
 
-    // Note, +1 is moving for poitner
+    // Note, +1 is moving for pointer
     let compressed_bytecodes_offset =
         COMPRESSED_BYTECODES_OFFSET + 1 + previous_compressed_bytecode_size;
 

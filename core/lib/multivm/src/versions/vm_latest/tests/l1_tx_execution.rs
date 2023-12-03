@@ -1,10 +1,10 @@
 use zksync_system_constants::BOOTLOADER_ADDRESS;
-use zksync_types::l2_to_l1_log::L2ToL1Log;
+use zksync_types::l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log};
 use zksync_types::storage_writes_deduplicator::StorageWritesDeduplicator;
 use zksync_types::{get_code_key, get_known_code_key, U256};
 use zksync_utils::u256_to_h256;
 
-use crate::interface::{TxExecutionMode, VmExecutionMode};
+use crate::interface::{TxExecutionMode, VmExecutionMode, VmInterface};
 use crate::vm_latest::tests::tester::{TxType, VmTesterBuilder};
 use crate::vm_latest::tests::utils::{
     read_test_contract, verify_required_storage, BASE_SYSTEM_CONTRACTS,
@@ -18,13 +18,17 @@ fn test_l1_tx_execution() {
     // Here instead of marking code hash via the bootloader means, we will be
     // using L1->L2 communication, the same it would likely be done during the priority mode.
 
-    // There are always at least 3 initial writes here, because we pay fees from l1:
+    // There are always at least 7 initial writes here, because we pay fees from l1:
     // - totalSupply of ETH token
     // - balance of the refund recipient
     // - balance of the bootloader
-    // - tx_rollout hash
+    // - tx_rolling hash
+    // - rolling hash of L2->L1 logs
+    // - transaction number in block counter
+    // - L2->L1 log counter in L1Messenger
 
-    let basic_initial_writes = 1;
+    // TODO(PLA-537): right now we are using 4 slots instead of 7 due to 0 fee for transaction.
+    let basic_initial_writes = 4;
 
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
@@ -38,14 +42,17 @@ fn test_l1_tx_execution() {
     let deploy_tx = account.get_deploy_tx(&contract_code, None, TxType::L1 { serial_id: 1 });
     let tx_data: TransactionData = deploy_tx.tx.clone().into();
 
-    let required_l2_to_l1_logs = vec![L2ToL1Log {
+    let required_l2_to_l1_logs: Vec<_> = vec![L2ToL1Log {
         shard_id: 0,
         is_service: true,
         tx_number_in_block: 0,
         sender: BOOTLOADER_ADDRESS,
         key: tx_data.tx_hash(0.into()),
         value: u256_to_h256(U256::from(1u32)),
-    }];
+    }]
+    .into_iter()
+    .map(UserL2ToL1Log)
+    .collect();
 
     vm.vm.push_transaction(deploy_tx.tx.clone());
 
@@ -65,7 +72,7 @@ fn test_l1_tx_execution() {
 
     verify_required_storage(&vm.vm.state, expected_slots);
 
-    assert_eq!(res.logs.l2_to_l1_logs, required_l2_to_l1_logs);
+    assert_eq!(res.logs.user_l2_to_l1_logs, required_l2_to_l1_logs);
 
     let tx = account.get_test_contract_transaction(
         deploy_tx.address,

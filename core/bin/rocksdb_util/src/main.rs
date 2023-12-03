@@ -2,6 +2,7 @@ use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 
 use zksync_config::DBConfig;
+use zksync_env_config::FromEnv;
 use zksync_storage::rocksdb::{
     backup::{BackupEngine, BackupEngineOptions, RestoreOptions},
     Env, Error, Options, DB,

@@ -1,6 +1,8 @@
 use assert_matches::assert_matches;
 use std::sync::{atomic::Ordering, Arc};
 
+use once_cell::sync::Lazy;
+
 use zksync_config::{
     configs::eth_sender::{ProofSendingMode, SenderConfig},
     ContractsConfig, ETHSenderConfig, GasAdjusterConfig,
@@ -29,8 +31,21 @@ use crate::l1_gas_price::GasAdjuster;
 // Alias to conveniently call static methods of ETHSender.
 type MockEthTxManager = EthTxManager<Arc<MockEthereum>, GasAdjuster<Arc<MockEthereum>>>;
 
-const DUMMY_OPERATION: AggregatedOperation =
-    AggregatedOperation::Execute(L1BatchExecuteOperation { l1_batches: vec![] });
+static DUMMY_OPERATION: Lazy<AggregatedOperation> = Lazy::new(|| {
+    AggregatedOperation::Execute(L1BatchExecuteOperation {
+        l1_batches: vec![L1BatchWithMetadata {
+            header: L1BatchHeader::new(
+                L1BatchNumber(1),
+                1,
+                Address::default(),
+                BaseSystemContractsHashes::default(),
+                ProtocolVersionId::latest(),
+            ),
+            metadata: default_l1_batch_metadata(),
+            factory_deps: Vec::new(),
+        }],
+    })
+});
 
 #[derive(Debug)]
 struct EthSenderTester {
@@ -50,8 +65,8 @@ impl EthSenderTester {
         history: Vec<u64>,
         non_ordering_confirmations: bool,
     ) -> Self {
-        let eth_sender_config = ETHSenderConfig::from_env().unwrap();
-        let contracts_config = ContractsConfig::from_env().unwrap();
+        let eth_sender_config = ETHSenderConfig::for_tests();
+        let contracts_config = ContractsConfig::for_tests();
         let aggregator_config = SenderConfig {
             aggregated_proof_sizes: vec![1],
             ..eth_sender_config.sender.clone()
@@ -85,7 +100,7 @@ impl EthSenderTester {
             .await
             .unwrap(),
         );
-        let store_factory = ObjectStoreFactory::from_env().unwrap();
+        let store_factory = ObjectStoreFactory::mock();
 
         let aggregator = EthTxAggregator::new(
             SenderConfig {
@@ -143,6 +158,7 @@ async fn confirm_many() -> anyhow::Result<()> {
             .save_eth_tx(
                 &mut tester.conn.access_storage().await.unwrap(),
                 &DUMMY_OPERATION,
+                true,
             )
             .await?;
         let hash = tester
@@ -166,6 +182,7 @@ async fn confirm_many() -> anyhow::Result<()> {
             .eth_sender_dal()
             .get_inflight_txs()
             .await
+            .unwrap()
             .len(),
         5
     );
@@ -192,6 +209,7 @@ async fn confirm_many() -> anyhow::Result<()> {
             .eth_sender_dal()
             .get_inflight_txs()
             .await
+            .unwrap()
             .len(),
         0
     );
@@ -218,6 +236,7 @@ async fn resend_each_block() -> anyhow::Result<()> {
         .save_eth_tx(
             &mut tester.conn.access_storage().await.unwrap(),
             &DUMMY_OPERATION,
+            true,
         )
         .await?;
 
@@ -240,6 +259,7 @@ async fn resend_each_block() -> anyhow::Result<()> {
             .eth_sender_dal()
             .get_inflight_txs()
             .await
+            .unwrap()
             .len(),
         1
     );
@@ -282,6 +302,7 @@ async fn resend_each_block() -> anyhow::Result<()> {
             .eth_sender_dal()
             .get_inflight_txs()
             .await
+            .unwrap()
             .len(),
         1
     );
@@ -304,6 +325,7 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
         .save_eth_tx(
             &mut tester.conn.access_storage().await.unwrap(),
             &DUMMY_OPERATION,
+            true,
         )
         .await
         .unwrap();
@@ -328,6 +350,7 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
             .eth_sender_dal()
             .get_inflight_txs()
             .await
+            .unwrap()
             .len(),
         1
     );
@@ -353,6 +376,7 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
             .eth_sender_dal()
             .get_inflight_txs()
             .await
+            .unwrap()
             .len(),
         1
     );
@@ -375,6 +399,7 @@ async fn three_scenarios() -> anyhow::Result<()> {
             .save_eth_tx(
                 &mut tester.conn.access_storage().await.unwrap(),
                 &DUMMY_OPERATION,
+                true,
             )
             .await
             .unwrap();
@@ -423,6 +448,7 @@ async fn three_scenarios() -> anyhow::Result<()> {
             .eth_sender_dal()
             .get_inflight_txs()
             .await
+            .unwrap()
             .len(),
         2
     );
@@ -444,6 +470,7 @@ async fn failed_eth_tx() {
         .save_eth_tx(
             &mut tester.conn.access_storage().await.unwrap(),
             &DUMMY_OPERATION,
+            true,
         )
         .await
         .unwrap();
@@ -870,6 +897,7 @@ async fn insert_l1_batch(tester: &EthSenderTester, number: L1BatchNumber) -> L1B
             header.number,
             &default_l1_batch_metadata(),
             Default::default(),
+            false,
         )
         .await
         .unwrap();
@@ -925,6 +953,7 @@ async fn send_operation(
         .save_eth_tx(
             &mut tester.conn.access_storage().await.unwrap(),
             &aggregated_operation,
+            false,
         )
         .await
         .unwrap();
