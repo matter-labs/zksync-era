@@ -4,9 +4,10 @@ use jsonrpc_core::MetaIoHandler;
 use jsonrpc_http_server::hyper;
 use jsonrpc_pubsub::PubSubHandler;
 use serde::Deserialize;
-use tokio::sync::{oneshot, watch, RwLock};
+use tokio::sync::{mpsc, oneshot, watch, Mutex};
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
 
+use chrono::NaiveDateTime;
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::task::JoinHandle;
 
@@ -23,11 +24,12 @@ use zksync_web3_decl::{
         DebugNamespaceServer, EnNamespaceServer, EthNamespaceServer, NetNamespaceServer,
         Web3NamespaceServer, ZksNamespaceServer,
     },
+    types::Filter,
 };
 
 use crate::{
     api_server::{
-        execution_sandbox::VmConcurrencyBarrier, tx_sender::TxSender,
+        execution_sandbox::VmConcurrencyBarrier, tree::TreeApiHttpClient, tx_sender::TxSender,
         web3::backend_jsonrpc::batch_limiter_middleware::RateLimitMetadata,
     },
     l1_gas_price::L1GasPriceProvider,
@@ -38,7 +40,7 @@ pub mod backend_jsonrpc;
 pub mod backend_jsonrpsee;
 mod metrics;
 pub mod namespaces;
-mod pubsub_notifier;
+mod pubsub;
 pub mod state;
 #[cfg(test)]
 pub(crate) mod tests;
@@ -54,14 +56,24 @@ use self::backend_jsonrpc::{
 };
 use self::metrics::API_METRICS;
 use self::namespaces::{
-    DebugNamespace, EnNamespace, EthNamespace, EthSubscribe, NetNamespace, Web3Namespace,
-    ZksNamespace,
+    DebugNamespace, EnNamespace, EthNamespace, NetNamespace, Web3Namespace, ZksNamespace,
 };
-use self::pubsub_notifier::{notify_blocks, notify_logs, notify_txs};
+use self::pubsub::{EthSubscribe, PubSubEvent};
 use self::state::{Filters, InternalApiConfig, RpcState, SealedMiniblockNumber};
 
 /// Timeout for graceful shutdown logic within API servers.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Represents all kinds of `Filter`.
+#[derive(Debug, Clone)]
+pub(crate) enum TypedFilter {
+    // Events from some block with additional filters
+    Events(Filter, MiniblockNumber),
+    // Blocks from some block
+    Blocks(MiniblockNumber),
+    // Pending transactions from some timestamp
+    PendingTransactions(NaiveDateTime),
+}
 
 #[derive(Debug, Clone, Copy)]
 enum ApiBackend {
@@ -136,6 +148,8 @@ pub struct ApiBuilder<G> {
     polling_interval: Option<Duration>,
     namespaces: Option<Vec<Namespace>>,
     logs_translator_enabled: bool,
+    tree_api_url: Option<String>,
+    pub_sub_events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
 }
 
 impl<G> ApiBuilder<G> {
@@ -159,6 +173,8 @@ impl<G> ApiBuilder<G> {
             namespaces: None,
             config,
             logs_translator_enabled: false,
+            tree_api_url: None,
+            pub_sub_events_sender: None,
         }
     }
 
@@ -255,6 +271,17 @@ impl<G> ApiBuilder<G> {
         self.logs_translator_enabled = true;
         self
     }
+
+    pub fn with_tree_api(mut self, tree_api_url: Option<String>) -> Self {
+        self.tree_api_url = tree_api_url;
+        self
+    }
+
+    #[cfg(test)]
+    fn with_pub_sub_events(mut self, sender: mpsc::UnboundedSender<PubSubEvent>) -> Self {
+        self.pub_sub_events_sender = Some(sender);
+        self
+    }
 }
 
 impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
@@ -271,7 +298,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         tokio::spawn(update_task);
 
         RpcState {
-            installed_filters: Arc::new(RwLock::new(Filters::new(
+            installed_filters: Arc::new(Mutex::new(Filters::new(
                 self.filters_limit.unwrap_or(usize::MAX),
             ))),
             connection_pool: self.pool,
@@ -280,6 +307,9 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
             api_config: self.config,
             last_sealed_miniblock,
             logs_translator_enabled: self.logs_translator_enabled,
+            tree_api: self
+                .tree_api_url
+                .map(|url| TreeApiHttpClient::new(url.as_str())),
         }
     }
 
@@ -518,30 +548,19 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
             .unwrap()
             .contains(&Namespace::Pubsub)
         {
-            let pub_sub = EthSubscribe::new(runtime.handle().clone());
+            let mut pub_sub = EthSubscribe::new(runtime.handle().clone());
+            if let Some(sender) = self.pub_sub_events_sender.take() {
+                pub_sub.set_events_sender(sender);
+            }
             let polling_interval = self
                 .polling_interval
                 .context("Polling interval is not set")?;
-            tasks.extend([
-                tokio::spawn(notify_blocks(
-                    pub_sub.active_block_subs.clone(),
-                    self.pool.clone(),
-                    polling_interval,
-                    stop_receiver.clone(),
-                )),
-                tokio::spawn(notify_txs(
-                    pub_sub.active_tx_subs.clone(),
-                    self.pool.clone(),
-                    polling_interval,
-                    stop_receiver.clone(),
-                )),
-                tokio::spawn(notify_logs(
-                    pub_sub.active_log_subs.clone(),
-                    self.pool.clone(),
-                    polling_interval,
-                    stop_receiver.clone(),
-                )),
-            ]);
+
+            tasks.extend(pub_sub.spawn_notifiers(
+                self.pool.clone(),
+                polling_interval,
+                stop_receiver.clone(),
+            ));
             io_handler.extend_with(pub_sub.to_delegate());
         }
         self.extend_jsonrpc_methods(&mut io_handler).await;

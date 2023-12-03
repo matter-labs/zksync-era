@@ -1,5 +1,5 @@
 use crate::vm_m5::memory::SimpleMemory;
-use crate::vm_m5::vm::MultiVMSubversion;
+use crate::vm_m5::vm_instance::MultiVMSubversion;
 
 use std::fmt::Debug;
 

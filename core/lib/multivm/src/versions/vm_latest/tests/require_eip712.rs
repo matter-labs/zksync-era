@@ -13,7 +13,7 @@ use zksync_types::{
     AccountTreeId, Address, Eip712Domain, Execute, L2ChainId, Nonce, Transaction, U256,
 };
 
-use crate::interface::{TxExecutionMode, VmExecutionMode};
+use crate::interface::{TxExecutionMode, VmExecutionMode, VmInterface};
 use crate::vm_latest::tests::tester::{Account, VmTester, VmTesterBuilder};
 use crate::vm_latest::tests::utils::read_many_owners_custom_account_contract;
 use crate::vm_latest::HistoryDisabled;
@@ -109,7 +109,7 @@ async fn test_require_eip712() {
         vm.get_eth_balance(beneficiary.address),
         U256::from(888000088)
     );
-    // Make sure that the tokens were transfered from the AA account.
+    // Make sure that the tokens were transferred from the AA account.
     assert_eq!(
         private_account_balance,
         vm.get_eth_balance(private_account.address)

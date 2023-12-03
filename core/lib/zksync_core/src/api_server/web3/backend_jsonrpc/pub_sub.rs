@@ -7,8 +7,7 @@ use jsonrpc_pubsub::{Session, SubscriptionId};
 
 use zksync_web3_decl::types::PubSubResult;
 
-use super::super::namespaces::EthSubscribe;
-use super::batch_limiter_middleware::RateLimitMetadata;
+use super::{super::EthSubscribe, batch_limiter_middleware::RateLimitMetadata};
 
 #[rpc]
 pub trait Web3PubSub {

@@ -32,7 +32,7 @@ use crate::vm_1_3_2::{
         AppDataFrameManagerWithHistory, HistoryEnabled, HistoryMode, HistoryRecorder,
     },
     memory::SimpleMemory,
-    vm::ZkSyncVmState,
+    vm_instance::ZkSyncVmState,
     VmInstance,
 };
 
@@ -59,7 +59,7 @@ impl PartialEq for ModifiedKeysMap {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct DecommitterTestInnerState<H: HistoryMode> {
-    /// There is no way to "trully" compare the storage pointer,
+    /// There is no way to "truly" compare the storage pointer,
     /// so we just compare the modified keys. This is reasonable enough.
     pub modified_storage_keys: ModifiedKeysMap,
     pub known_bytecodes: HistoryRecorder<HashMap<U256, Vec<U256>>, H>,
@@ -68,7 +68,7 @@ pub struct DecommitterTestInnerState<H: HistoryMode> {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct StorageOracleInnerState<H: HistoryMode> {
-    /// There is no way to "trully" compare the storage pointer,
+    /// There is no way to "truly" compare the storage pointer,
     /// so we just compare the modified keys. This is reasonable enough.
     pub modified_storage_keys: ModifiedKeysMap,
 

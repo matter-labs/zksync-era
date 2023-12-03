@@ -10,7 +10,7 @@ use sqlx::Row;
 
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
+    block::{BlockGasCount, ConsensusBlockFields, L1BatchHeader, MiniblockHeader},
     commitment::{L1BatchMetadata, L1BatchWithMetadata},
     Address, L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256,
     MAX_GAS_PER_PUBDATA_BYTE, U256,
@@ -34,75 +34,6 @@ impl BlocksDal<'_, '_> {
             .await?
             .count;
         Ok(count == 0)
-    }
-
-    pub async fn get_miniblock_hashes_from_date(
-        &mut self,
-        timestamp: u64,
-        limit: u32,
-        version: ProtocolVersionId,
-    ) -> sqlx::Result<Vec<(MiniblockNumber, H256)>> {
-        let number = sqlx::query!(
-            "SELECT number from miniblocks where timestamp > $1 ORDER BY number ASC LIMIT 1",
-            timestamp as i64
-        )
-        .fetch_one(self.storage.conn())
-        .await?
-        .number;
-        self.storage
-            .blocks_dal()
-            .get_miniblocks_since_block(number, limit, version)
-            .await
-    }
-
-    pub async fn get_last_miniblocks_for_version(
-        &mut self,
-        limit: u32,
-        version: ProtocolVersionId,
-    ) -> sqlx::Result<Vec<(MiniblockNumber, H256)>> {
-        let minibloks = sqlx::query!(
-            "SELECT number, hash FROM miniblocks WHERE protocol_version = $1 ORDER BY number DESC LIMIT $2",
-            version as i32,
-            limit as i32
-        )
-            .fetch_all(self.storage.conn())
-            .await?
-            .iter()
-            .map(|block| {
-                (
-                    MiniblockNumber(block.number as u32),
-                    H256::from_slice(&block.hash),
-                )
-            })
-            .collect();
-
-        Ok(minibloks)
-    }
-
-    pub async fn get_miniblocks_since_block(
-        &mut self,
-        number: i64,
-        limit: u32,
-        version: ProtocolVersionId,
-    ) -> sqlx::Result<Vec<(MiniblockNumber, H256)>> {
-        let minibloks = sqlx::query!(
-            "SELECT number, hash FROM miniblocks WHERE number >= $1 and protocol_version = $2 ORDER BY number LIMIT $3",
-            number,
-            version as i32,
-            limit as i32
-        )
-        .fetch_all(self.storage.conn())
-        .await?
-        .iter()
-        .map(|block| {
-            (
-                MiniblockNumber(block.number as u32),
-                H256::from_slice(&block.hash),
-            )
-        })
-        .collect();
-
-        Ok(minibloks)
     }
 
     pub async fn get_sealed_l1_batch_number(&mut self) -> anyhow::Result<L1BatchNumber> {
@@ -352,12 +283,12 @@ impl BlocksDal<'_, '_> {
         let l2_to_l1_logs: Vec<_> = header
             .l2_to_l1_logs
             .iter()
-            .map(|log| log.to_bytes().to_vec())
+            .map(|log| log.0.to_bytes().to_vec())
             .collect();
         let system_logs = header
             .system_logs
             .iter()
-            .map(|log| log.to_bytes().to_vec())
+            .map(|log| log.0.to_bytes().to_vec())
             .collect::<Vec<Vec<u8>>>();
 
         // Serialization should always succeed.
@@ -465,28 +396,24 @@ impl BlocksDal<'_, '_> {
         .await?;
         Ok(())
     }
-
-    pub async fn update_hashes(
+    /// Sets consensus-related fields for the specified miniblock.
+    pub async fn set_miniblock_consensus_fields(
         &mut self,
-        number_and_hashes: &[(MiniblockNumber, H256)],
-    ) -> sqlx::Result<()> {
-        let mut numbers = vec![];
-        let mut hashes = vec![];
-        for (number, hash) in number_and_hashes {
-            numbers.push(number.0 as i64);
-            hashes.push(hash.as_bytes().to_vec());
-        }
-
-        sqlx::query!(
-            "UPDATE miniblocks SET hash = u.hash   \
-            FROM UNNEST($1::bigint[], $2::bytea[]) AS u(number, hash) \
-            WHERE miniblocks.number = u.number
-        ",
-            &numbers,
-            &hashes
+        miniblock_number: MiniblockNumber,
+        consensus: &ConsensusBlockFields,
+    ) -> anyhow::Result<()> {
+        let result = sqlx::query!(
+            "UPDATE miniblocks SET consensus = $2 WHERE number = $1",
+            miniblock_number.0 as i64,
+            serde_json::to_value(consensus).unwrap(),
         )
         .execute(self.storage.conn())
         .await?;
+
+        anyhow::ensure!(
+            result.rows_affected() == 1,
+            "Miniblock #{miniblock_number} is not present in Postgres"
+        );
         Ok(())
     }
 
@@ -582,21 +509,21 @@ impl BlocksDal<'_, '_> {
         number: L1BatchNumber,
         metadata: &L1BatchMetadata,
         previous_root_hash: H256,
+        is_pre_boojum: bool,
     ) -> anyhow::Result<()> {
         let mut transaction = self.storage.start_transaction().await?;
 
         let update_result = sqlx::query!(
             "UPDATE l1_batches \
-            SET hash = $1, merkle_root_hash = $2, commitment = $3, \
-                compressed_repeated_writes = $4, compressed_initial_writes = $5, \
-                l2_l1_compressed_messages = $6, l2_l1_merkle_root = $7, \
-                zkporter_is_available = $8, parent_hash = $9, rollup_last_leaf_index = $10, \
-                aux_data_hash = $11, pass_through_data_hash = $12, meta_parameters_hash = $13, \
-                compressed_state_diffs = $14, updated_at = now() \
-            WHERE number = $15 AND hash IS NULL",
+            SET hash = $1, merkle_root_hash = $2, \
+                compressed_repeated_writes = $3, compressed_initial_writes = $4, \
+                l2_l1_compressed_messages = $5, l2_l1_merkle_root = $6, \
+                zkporter_is_available = $7, parent_hash = $8, rollup_last_leaf_index = $9, \
+                pass_through_data_hash = $10, meta_parameters_hash = $11, \
+                compressed_state_diffs = $12, updated_at = now() \
+            WHERE number = $13 AND hash IS NULL",
             metadata.root_hash.as_bytes(),
             metadata.merkle_root_hash.as_bytes(),
-            metadata.commitment.as_bytes(),
             metadata.repeated_writes_compressed,
             metadata.initial_writes_compressed,
             metadata.l2_l1_messages_compressed,
@@ -604,7 +531,6 @@ impl BlocksDal<'_, '_> {
             metadata.block_meta_params.zkporter_is_available,
             previous_root_hash.as_bytes(),
             metadata.rollup_last_leaf_index as i64,
-            metadata.aux_data_hash.as_bytes(),
             metadata.pass_through_data_hash.as_bytes(),
             metadata.meta_parameters_hash.as_bytes(),
             metadata.state_diffs_compressed,
@@ -616,21 +542,38 @@ impl BlocksDal<'_, '_> {
         .execute(transaction.conn())
         .await?;
 
-        sqlx::query!(
-            "INSERT INTO commitments (l1_batch_number, events_queue_commitment, bootloader_initial_content_commitment) \
-            VALUES ($1, $2, $3) \
-            ON CONFLICT (l1_batch_number) DO UPDATE SET events_queue_commitment = $2, bootloader_initial_content_commitment = $3",
-            number.0 as i64,
-            metadata.events_queue_commitment.map(|h| h.0.to_vec()),
-            metadata
-                .bootloader_initial_content_commitment
-                .map(|h| h.0.to_vec()),
-        )
-        .instrument("save_batch_commitments")
-        .with_arg("number", &number)
-        .report_latency()
-        .execute(transaction.conn())
-        .await?;
+        if metadata.events_queue_commitment.is_some() || is_pre_boojum {
+            // Save `commitment`, `aux_data_hash`, `events_queue_commitment`, `bootloader_initial_content_commitment`.
+            sqlx::query!(
+                "INSERT INTO commitments (l1_batch_number, events_queue_commitment, bootloader_initial_content_commitment) \
+                VALUES ($1, $2, $3) \
+                ON CONFLICT (l1_batch_number) DO NOTHING",
+                number.0 as i64,
+                metadata.events_queue_commitment.map(|h| h.0.to_vec()),
+                metadata
+                    .bootloader_initial_content_commitment
+                    .map(|h| h.0.to_vec()),
+            )
+            .instrument("save_batch_commitments")
+            .with_arg("number", &number)
+            .report_latency()
+            .execute(transaction.conn())
+            .await?;
+
+            sqlx::query!(
+                "UPDATE l1_batches \
+                SET commitment = $2, aux_data_hash = $3, updated_at = now() \
+                WHERE number = $1",
+                number.0 as i64,
+                metadata.commitment.as_bytes(),
+                metadata.aux_data_hash.as_bytes(),
+            )
+            .instrument("save_batch_aux_commitment")
+            .with_arg("number", &number)
+            .report_latency()
+            .execute(transaction.conn())
+            .await?;
+        }
 
         if update_result.rows_affected() == 0 {
             tracing::debug!(
@@ -737,6 +680,21 @@ impl BlocksDal<'_, '_> {
         .await?;
 
         Ok(L1BatchNumber(row.number as u32))
+    }
+
+    pub async fn get_eth_commit_tx_id(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> sqlx::Result<Option<u64>> {
+        let row = sqlx::query!(
+            "SELECT eth_commit_tx_id FROM l1_batches \
+            WHERE number = $1",
+            l1_batch_number.0 as i64
+        )
+        .fetch_optional(self.storage.conn())
+        .await?;
+
+        Ok(row.and_then(|row| row.eth_commit_tx_id.map(|n| n as u64)))
     }
 
     /// Returns the number of the last L1 batch for which an Ethereum prove tx was sent and confirmed.
@@ -994,6 +952,52 @@ impl BlocksDal<'_, '_> {
         })
     }
 
+    pub async fn pre_boojum_get_ready_for_commit_l1_batches(
+        &mut self,
+        limit: usize,
+        bootloader_hash: H256,
+        default_aa_hash: H256,
+        protocol_version_id: ProtocolVersionId,
+    ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
+        let raw_batches = sqlx::query_as!(
+            StorageL1Batch,
+            "SELECT number, l1_batches.timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, \
+                bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, \
+                compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, \
+                merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, \
+                used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, \
+                l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, \
+                rollup_last_leaf_index, zkporter_is_available, l1_batches.bootloader_code_hash, \
+                l1_batches.default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
+                meta_parameters_hash, protocol_version, compressed_state_diffs, \
+                system_logs, events_queue_commitment, bootloader_initial_content_commitment \
+            FROM l1_batches \
+            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
+            JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version \
+            WHERE eth_commit_tx_id IS NULL \
+                AND number != 0 \
+                AND protocol_versions.bootloader_code_hash = $1 AND protocol_versions.default_account_code_hash = $2 \
+                AND commitment IS NOT NULL \
+                AND (protocol_versions.id = $3 OR protocol_versions.upgrade_tx_hash IS NULL) \
+            ORDER BY number LIMIT $4",
+            bootloader_hash.as_bytes(),
+            default_aa_hash.as_bytes(),
+            protocol_version_id as i32,
+            limit as i64,
+        )
+            .instrument("get_ready_for_commit_l1_batches")
+            .with_arg("limit", &limit)
+            .with_arg("bootloader_hash", &bootloader_hash)
+            .with_arg("default_aa_hash", &default_aa_hash)
+            .with_arg("protocol_version_id", &protocol_version_id)
+            .fetch_all(self.storage.conn())
+            .await?;
+
+        self.map_l1_batches(raw_batches)
+            .await
+            .context("map_l1_batches()")
+    }
+
     pub async fn get_ready_for_commit_l1_batches(
         &mut self,
         limit: usize,
@@ -1021,6 +1025,7 @@ impl BlocksDal<'_, '_> {
                 AND protocol_versions.bootloader_code_hash = $1 AND protocol_versions.default_account_code_hash = $2 \
                 AND commitment IS NOT NULL \
                 AND (protocol_versions.id = $3 OR protocol_versions.upgrade_tx_hash IS NULL) \
+                AND events_queue_commitment IS NOT NULL AND bootloader_initial_content_commitment IS NOT NULL \
             ORDER BY number LIMIT $4",
             bootloader_hash.as_bytes(),
             default_aa_hash.as_bytes(),
@@ -1304,7 +1309,7 @@ impl BlocksDal<'_, '_> {
         let rows = sqlx::query!(
             "SELECT l1_batch_number, merkel_tree_paths_blob_url \
             FROM witness_inputs \
-            WHERE status = 'successful' AND is_blob_cleaned = FALSE \
+            WHERE status = 'successful' \
                 AND merkel_tree_paths_blob_url is NOT NULL \
                 AND updated_at < NOW() - INTERVAL '30 days' \
             LIMIT $1",
@@ -1317,21 +1322,6 @@ impl BlocksDal<'_, '_> {
             .into_iter()
             .map(|row| (row.l1_batch_number, row.merkel_tree_paths_blob_url.unwrap()))
             .collect())
-    }
-
-    pub async fn mark_gcs_blobs_as_cleaned(
-        &mut self,
-        l1_batch_numbers: &[i64],
-    ) -> Result<(), sqlx::Error> {
-        sqlx::query!(
-            "UPDATE witness_inputs \
-            SET is_blob_cleaned = TRUE \
-            WHERE l1_batch_number = ANY($1)",
-            l1_batch_numbers
-        )
-        .execute(self.storage.conn())
-        .await?;
-        Ok(())
     }
 
     // methods used for measuring Eth tx stage transition latencies
@@ -1494,7 +1484,10 @@ impl BlocksDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_contracts::BaseSystemContractsHashes;
-    use zksync_types::{l2_to_l1_log::L2ToL1Log, Address, ProtocolVersion, ProtocolVersionId};
+    use zksync_types::{
+        l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
+        Address, ProtocolVersion, ProtocolVersionId,
+    };
 
     use super::*;
     use crate::ConnectionPool;
@@ -1523,14 +1516,14 @@ mod tests {
         );
         header.l1_tx_count = 3;
         header.l2_tx_count = 5;
-        header.l2_to_l1_logs.push(L2ToL1Log {
+        header.l2_to_l1_logs.push(UserL2ToL1Log(L2ToL1Log {
             shard_id: 0,
             is_service: false,
             tx_number_in_block: 2,
             sender: Address::repeat_byte(2),
             key: H256::repeat_byte(3),
             value: H256::zero(),
-        });
+        }));
         header.l2_to_l1_messages.push(vec![22; 22]);
         header.l2_to_l1_messages.push(vec![33; 33]);
 

@@ -9,7 +9,7 @@ use crate::vm_m5::{
     memory::SimpleMemory,
     storage::StoragePtr,
     utils::{aux_heap_page_from_base, heap_page_from_base},
-    vm::{get_vm_hook_params, VM_HOOK_POSITION},
+    vm_instance::{get_vm_hook_params, VM_HOOK_POSITION},
     vm_with_bootloader::BOOTLOADER_HEAP_PAGE,
 };
 // use zk_evm_1_3_1::testing::memory::SimpleMemory;
@@ -306,7 +306,7 @@ impl<S: Storage> ValidationTracer<S> {
             return true;
         }
 
-        // The pair of MSG_VALUE_SIMULATOR_ADDRESS & L2_ETH_TOKEN_ADDRESS simulates the behavior of transfering ETH
+        // The pair of MSG_VALUE_SIMULATOR_ADDRESS & L2_ETH_TOKEN_ADDRESS simulates the behavior of transferring ETH
         // that is safe for the DDoS protection rules.
         if valid_eth_token_call(address, msg_sender) {
             return true;
@@ -651,7 +651,7 @@ impl OneTxTracer {
     }
 }
 
-/// Tells the VM to end the execution before `ret` from the booloader if there is no panic or revert.
+/// Tells the VM to end the execution before `ret` from the bootloader if there is no panic or revert.
 /// Also, saves the information if this `ret` was caused by "out of gas" panic.
 #[derive(Debug, Clone, Default)]
 pub struct BootloaderTracer {
@@ -801,7 +801,7 @@ fn get_debug_log(state: &VmLocalStateData<'_>, memory: &SimpleMemory) -> String 
     let msg = String::from_utf8(msg).expect("Invalid debug message");
     let data = U256::from_big_endian(&data);
 
-    // For long data, it is better to use hex-encoding for greater readibility
+    // For long data, it is better to use hex-encoding for greater readability
     let data_str = if data > U256::from(u64::max_value()) {
         let mut bytes = [0u8; 32];
         data.to_big_endian(&mut bytes);
@@ -816,7 +816,7 @@ fn get_debug_log(state: &VmLocalStateData<'_>, memory: &SimpleMemory) -> String 
 }
 
 /// Reads the memory slice represented by the fat pointer.
-/// Note, that the fat pointer must point to the accesible memory (i.e. not cleared up yet).
+/// Note, that the fat pointer must point to the accessible memory (i.e. not cleared up yet).
 pub(crate) fn read_pointer(memory: &SimpleMemory, pointer: FatPointer) -> Vec<u8> {
     let FatPointer {
         offset,

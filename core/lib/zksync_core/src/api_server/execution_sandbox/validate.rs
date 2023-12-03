@@ -1,10 +1,12 @@
-use multivm::interface::ExecutionResult;
+use multivm::interface::{ExecutionResult, VmExecutionMode, VmInterface};
+use multivm::MultiVMTracer;
 use std::collections::HashSet;
 
-use multivm::vm_latest::{
-    HistoryDisabled, StorageInvocations, ValidationError, ValidationTracer, ValidationTracerParams,
+use multivm::tracers::{
+    validator::{ValidationError, ValidationTracer, ValidationTracerParams},
+    StorageInvocations,
 };
-use multivm::MultivmTracer;
+use multivm::vm_latest::HistoryDisabled;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{l2::L2Tx, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS, U256};
 
@@ -75,16 +77,20 @@ impl TxSharedArgs {
                 |vm, tx| {
                     let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Validation].start();
                     let span = tracing::debug_span!("validation").entered();
-                    vm.push_transaction(&tx);
+                    vm.push_transaction(tx);
 
                     let (tracer, validation_result) =
                         ValidationTracer::<HistoryDisabled>::new(validation_params);
 
-                    let result = vm.inspect_next_transaction(vec![
-                        tracer.into_boxed(),
-                        StorageInvocations::new(execution_args.missed_storage_invocation_limit)
-                            .into_boxed(),
-                    ]);
+                    let result = vm.inspect(
+                        vec![
+                            tracer.into_tracer_pointer(),
+                            StorageInvocations::new(execution_args.missed_storage_invocation_limit)
+                                .into_tracer_pointer(),
+                        ]
+                        .into(),
+                        VmExecutionMode::OneTx,
+                    );
 
                     let result = match (result.result, validation_result.get()) {
                         (_, Some(err)) => Err(ValidationError::ViolatedRule(err.clone())),

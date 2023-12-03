@@ -11,7 +11,7 @@ pub(crate) use self::nodes::{InternalNodeCache, MerklePath};
 pub use self::proofs::TreeRangeDigest;
 use crate::{
     metrics::HashingStats,
-    types::{Key, ValueHash, TREE_DEPTH},
+    types::{TreeEntry, ValueHash, TREE_DEPTH},
 };
 use zksync_crypto::hasher::{blake2::Blake2Hasher, Hasher};
 
@@ -29,13 +29,32 @@ pub trait HashTree: Send + Sync {
     /// Returns the hash of an empty subtree with the given depth. Implementations
     /// are encouraged to cache the returned values.
     fn empty_subtree_hash(&self, depth: usize) -> ValueHash;
+
+    /// Returns the hash of the empty tree. The default implementation uses [`Self::empty_subtree_hash()`].
+    fn empty_tree_hash(&self) -> ValueHash {
+        self.empty_subtree_hash(TREE_DEPTH)
+    }
+}
+
+impl<H: HashTree + ?Sized> HashTree for &H {
+    fn name(&self) -> &'static str {
+        (**self).name()
+    }
+
+    fn hash_leaf(&self, value_hash: &ValueHash, leaf_index: u64) -> ValueHash {
+        (**self).hash_leaf(value_hash, leaf_index)
+    }
+
+    fn hash_branch(&self, lhs: &ValueHash, rhs: &ValueHash) -> ValueHash {
+        (**self).hash_branch(lhs, rhs)
+    }
+
+    fn empty_subtree_hash(&self, depth: usize) -> ValueHash {
+        (**self).empty_subtree_hash(depth)
+    }
 }
 
 impl dyn HashTree + '_ {
-    pub(crate) fn empty_tree_hash(&self) -> ValueHash {
-        self.empty_subtree_hash(TREE_DEPTH)
-    }
-
     /// Extends the provided `path` to length `TREE_DEPTH`.
     fn extend_merkle_path<'a>(
         &'a self,
@@ -46,17 +65,11 @@ impl dyn HashTree + '_ {
         empty_hashes.chain(path.iter().copied())
     }
 
-    fn fold_merkle_path(
-        &self,
-        path: &[ValueHash],
-        key: Key,
-        value_hash: ValueHash,
-        leaf_index: u64,
-    ) -> ValueHash {
-        let mut hash = self.hash_leaf(&value_hash, leaf_index);
+    fn fold_merkle_path(&self, path: &[ValueHash], entry: TreeEntry) -> ValueHash {
+        let mut hash = self.hash_leaf(&entry.value, entry.leaf_index);
         let full_path = self.extend_merkle_path(path);
         for (depth, adjacent_hash) in full_path.enumerate() {
-            hash = if key.bit(depth) {
+            hash = if entry.key.bit(depth) {
                 self.hash_branch(&adjacent_hash, &hash)
             } else {
                 self.hash_branch(&hash, &adjacent_hash)
@@ -68,7 +81,7 @@ impl dyn HashTree + '_ {
     pub(crate) fn with_stats<'a>(&'a self, stats: &'a HashingStats) -> HasherWithStats<'a> {
         HasherWithStats {
             shared_metrics: Some(stats),
-            ..HasherWithStats::from(self)
+            ..HasherWithStats::new(self)
         }
     }
 }
@@ -143,8 +156,8 @@ pub(crate) struct HasherWithStats<'a> {
     local_hashed_bytes: u64,
 }
 
-impl<'a> From<&'a dyn HashTree> for HasherWithStats<'a> {
-    fn from(inner: &'a dyn HashTree) -> Self {
+impl<'a> HasherWithStats<'a> {
+    pub fn new(inner: &'a dyn HashTree) -> Self {
         Self {
             inner,
             shared_metrics: None,
@@ -153,7 +166,7 @@ impl<'a> From<&'a dyn HashTree> for HasherWithStats<'a> {
     }
 }
 
-impl<'a> AsRef<dyn HashTree + 'a> for HasherWithStats<'a> {
+impl<'a> AsRef<(dyn HashTree + 'a)> for HasherWithStats<'a> {
     fn as_ref(&self) -> &(dyn HashTree + 'a) {
         self.inner
     }
@@ -235,7 +248,7 @@ mod tests {
         let address: Address = "4b3af74f66ab1f0da3f2e4ec7a3cb99baf1af7b2".parse().unwrap();
         let key = StorageKey::new(AccountTreeId::new(address), H256::zero());
         let key = key.hashed_key_u256();
-        let leaf = LeafNode::new(key, H256([1; 32]), 1);
+        let leaf = LeafNode::new(TreeEntry::new(key, 1, H256([1; 32])));
 
         let stats = HashingStats::default();
         let mut hasher = (&Blake2Hasher as &dyn HashTree).with_stats(&stats);
@@ -246,7 +259,7 @@ mod tests {
         assert!(stats.hashed_bytes.into_inner() > 100);
 
         let hasher: &dyn HashTree = &Blake2Hasher;
-        let folded_hash = hasher.fold_merkle_path(&[], key, H256([1; 32]), 1);
+        let folded_hash = hasher.fold_merkle_path(&[], leaf.into());
         assert_eq!(folded_hash, EXPECTED_HASH);
     }
 
@@ -255,18 +268,16 @@ mod tests {
         let address: Address = "4b3af74f66ab1f0da3f2e4ec7a3cb99baf1af7b2".parse().unwrap();
         let key = StorageKey::new(AccountTreeId::new(address), H256::zero());
         let key = key.hashed_key_u256();
-        let leaf = LeafNode::new(key, H256([1; 32]), 1);
+        let leaf = LeafNode::new(TreeEntry::new(key, 1, H256([1; 32])));
 
-        let mut hasher = (&Blake2Hasher as &dyn HashTree).into();
+        let mut hasher = HasherWithStats::new(&Blake2Hasher);
         let leaf_hash = leaf.hash(&mut hasher, 2);
         assert!(key.bit(254) && !key.bit(255));
         let merkle_path = [H256([2; 32]), H256([3; 32])];
         let expected_hash = hasher.hash_branch(&merkle_path[0], &leaf_hash);
         let expected_hash = hasher.hash_branch(&expected_hash, &merkle_path[1]);
 
-        let folded_hash = hasher
-            .inner
-            .fold_merkle_path(&merkle_path, key, H256([1; 32]), 1);
+        let folded_hash = hasher.inner.fold_merkle_path(&merkle_path, leaf.into());
         assert_eq!(folded_hash, expected_hash);
     }
 }

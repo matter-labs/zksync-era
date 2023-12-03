@@ -5,9 +5,9 @@ use crate::vm_latest::old_vm::history_recorder::{
     HistoryEnabled, HistoryMode, HistoryRecorder, WithHistory,
 };
 
-use zk_evm_1_3_3::abstractions::MemoryType;
-use zk_evm_1_3_3::aux_structures::Timestamp;
-use zk_evm_1_3_3::{
+use zk_evm_1_4_0::abstractions::MemoryType;
+use zk_evm_1_4_0::aux_structures::Timestamp;
+use zk_evm_1_4_0::{
     abstractions::{DecommittmentProcessor, Memory},
     aux_structures::{DecommittmentQuery, MemoryIndex, MemoryLocation, MemoryPage, MemoryQuery},
 };
@@ -70,7 +70,7 @@ impl<S: ReadStorage, const B: bool, H: HistoryMode> DecommitterOracle<B, S, H> {
         }
     }
 
-    /// Adds additional bytecodes. They will take precendent over the bytecodes from storage.
+    /// Adds additional bytecodes. They will take precedent over the bytecodes from storage.
     pub fn populate(&mut self, bytecodes: Vec<(U256, Vec<U256>)>, timestamp: Timestamp) {
         for (hash, bytecode) in bytecodes {
             self.known_bytecodes.insert(hash, bytecode, timestamp);
@@ -173,14 +173,14 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
         memory: &mut M,
     ) -> Result<
         (
-            zk_evm_1_3_3::aux_structures::DecommittmentQuery,
+            zk_evm_1_4_0::aux_structures::DecommittmentQuery,
             Option<Vec<U256>>,
         ),
         anyhow::Error,
     > {
         self.decommitment_requests.push((), partial_query.timestamp);
         // First - check if we didn't fetch this bytecode in the past.
-        // If we did - we can just return the page that we used before (as the memory is read only).
+        // If we did - we can just return the page that we used before (as the memory is readonly).
         if let Some(memory_page) = self
             .decommitted_code_hashes
             .inner()

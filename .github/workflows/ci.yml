@@ -38,10 +38,13 @@ jobs:
               - '!prover/CHANGELOG.md'
               - '!prover/setup-data-cpu-keys.json'
               - '!prover/setup-data-gpu-keys.json'
+              - '!prover/extract-setup-data-keys.sh'
               - 'docker/prover*/**'
               - '.github/workflows/build-prover-template.yml'
               - '.github/workflows/ci-prover-reusable.yml'
               - 'docker-compose-runner-nightly.yml'
+              - '!**/*.md'
+              - '!**/*.MD'
             core:
               - 'core/**'
               - '!core/CHANGELOG.md'
@@ -55,6 +58,8 @@ jobs:
               - 'docker-compose-runner.yml'
               - 'Cargo.toml'
               - 'Cargo.lock'
+              - '!**/*.md'
+              - '!**/*.MD'
             docs:
               - '**/*.md'
               - '**/*.MD'
@@ -65,6 +70,8 @@ jobs:
               - 'etc/**'
               - 'contracts/**'
               - 'infrastructure/zk/**'
+              - '!**/*.md'
+              - '!**/*.MD'
 
   ci-for-core-lint:
     name: CI for Core lint Components

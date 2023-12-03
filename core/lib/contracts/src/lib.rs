@@ -81,8 +81,8 @@ pub fn read_contract_abi(path: impl AsRef<Path>) -> String {
         .to_string()
 }
 
-pub fn governance_contract() -> Option<Contract> {
-    load_contract_if_present(GOVERNANCE_CONTRACT_FILE)
+pub fn governance_contract() -> Contract {
+    load_contract_if_present(GOVERNANCE_CONTRACT_FILE).expect("Governance contract not found")
 }
 
 pub fn zksync_contract() -> Contract {
@@ -194,7 +194,7 @@ pub struct SystemContractsRepo {
 }
 
 impl SystemContractsRepo {
-    /// Returns the default system contracts repo with directory based on the ZKSYNC_HOME environment variable.
+    /// Returns the default system contracts repository with directory based on the ZKSYNC_HOME environment variable.
     pub fn from_env() -> Self {
         let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
         let zksync_home = PathBuf::from(zksync_home);
@@ -336,7 +336,7 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
-    /// BaseSystemContracts with playground bootloader - used for handling 'eth_calls'.
+    /// BaseSystemContracts with playground bootloader - used for handling eth_calls.
     pub fn playground() -> Self {
         let bootloader_bytecode = read_playground_batch_bootloader_bytecode();
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
@@ -359,7 +359,12 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
-    /// BaseSystemContracts with playground bootloader - used for handling 'eth_calls'.
+    pub fn playground_post_boojum() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode("etc/multivm_bootloaders/vm_boojum_integration/playground_batch.yul/playground_batch.yul.zbin");
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    /// BaseSystemContracts with playground bootloader - used for handling eth_calls.
     pub fn estimate_gas() -> Self {
         let bootloader_bytecode = read_bootloader_code("fee_estimate");
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
@@ -382,6 +387,13 @@ impl BaseSystemContracts {
     pub fn estimate_gas_post_virtual_blocks_finish_upgrade_fix() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_virtual_blocks_finish_upgrade_fix/fee_estimate.yul/fee_estimate.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn estimate_gas_post_boojum() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_boojum_integration/fee_estimate.yul/fee_estimate.yul.zbin",
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
@@ -700,6 +712,178 @@ pub static PRE_BOOJUM_EXECUTE_FUNCTION: Lazy<Function> = Lazy::new(|| {
       "name": "executeBlocks",
       "outputs": [],
       "stateMutability": "nonpayable",
+      "type": "function"
+    }"#;
+    serde_json::from_str(abi).unwrap()
+});
+
+pub static PRE_BOOJUM_GET_VK_FUNCTION: Lazy<Function> = Lazy::new(|| {
+    let abi = r#"{
+      "inputs": [],
+      "name": "get_verification_key",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "domain_size",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "num_inputs",
+              "type": "uint256"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "value",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct PairingsBn254.Fr",
+              "name": "omega",
+              "type": "tuple"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "X",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "Y",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct PairingsBn254.G1Point[2]",
+              "name": "gate_selectors_commitments",
+              "type": "tuple[2]"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "X",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "Y",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct PairingsBn254.G1Point[8]",
+              "name": "gate_setup_commitments",
+              "type": "tuple[8]"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "X",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "Y",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct PairingsBn254.G1Point[4]",
+              "name": "permutation_commitments",
+              "type": "tuple[4]"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "X",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "Y",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct PairingsBn254.G1Point",
+              "name": "lookup_selector_commitment",
+              "type": "tuple"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "X",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "Y",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct PairingsBn254.G1Point[4]",
+              "name": "lookup_tables_commitments",
+              "type": "tuple[4]"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "X",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "Y",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct PairingsBn254.G1Point",
+              "name": "lookup_table_type_commitment",
+              "type": "tuple"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "value",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct PairingsBn254.Fr[3]",
+              "name": "non_residues",
+              "type": "tuple[3]"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256[2]",
+                  "name": "X",
+                  "type": "uint256[2]"
+                },
+                {
+                  "internalType": "uint256[2]",
+                  "name": "Y",
+                  "type": "uint256[2]"
+                }
+              ],
+              "internalType": "struct PairingsBn254.G2Point[2]",
+              "name": "g2_elements",
+              "type": "tuple[2]"
+            }
+          ],
+          "internalType": "struct VerificationKey",
+          "name": "vk",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "pure",
       "type": "function"
     }"#;
     serde_json::from_str(abi).unwrap()
