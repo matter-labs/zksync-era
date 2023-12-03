@@ -71,7 +71,7 @@ pub(super) fn apply_tx_to_memory(
     };
     apply_l2_block(memory, &bootloader_l2_block, tx_index);
 
-    // Note, +1 is moving for poitner
+    // Note, +1 is moving for pointer
     let compressed_bytecodes_offset = COMPRESSED_BYTECODES_OFFSET + 1 + compressed_bytecodes_size;
 
     let encoded_compressed_bytecodes =

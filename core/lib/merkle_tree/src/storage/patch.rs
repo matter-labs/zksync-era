@@ -680,7 +680,7 @@ mod tests {
     use super::*;
     use crate::{
         storage::Storage,
-        types::{Key, LeafNode},
+        types::{Key, LeafNode, TreeEntry},
     };
 
     fn patch_len(patch: &WorkingPatchSet) -> usize {
@@ -697,7 +697,7 @@ mod tests {
             let key = Key::from_little_endian(&[i; 32]);
             let nibbles = Nibbles::new(&key, 2 + usize::from(i) % 4);
             // ^ We need nibble count at least 2 for all `nibbles` to be distinct.
-            let leaf = LeafNode::new(key, ValueHash::zero(), i.into());
+            let leaf = LeafNode::new(TreeEntry::new(key, i.into(), ValueHash::zero()));
             patch.insert(nibbles, leaf.into());
             nibbles
         });
@@ -742,7 +742,8 @@ mod tests {
         // Test DB with a single entry.
         let mut db = PatchSet::default();
         let key = Key::from(1234_u64);
-        let (_, patch) = Storage::new(&db, &(), 0, true).extend(vec![(key, ValueHash::zero())]);
+        let (_, patch) =
+            Storage::new(&db, &(), 0, true).extend(vec![TreeEntry::new(key, 1, ValueHash::zero())]);
         db.apply_patch(patch);
 
         let mut patch = WorkingPatchSet::new(1, db.root(0).unwrap());
@@ -754,8 +755,11 @@ mod tests {
 
         // Test DB with multiple entries.
         let other_key = Key::from_little_endian(&[0xa0; 32]);
-        let (_, patch) =
-            Storage::new(&db, &(), 1, true).extend(vec![(other_key, ValueHash::zero())]);
+        let (_, patch) = Storage::new(&db, &(), 1, true).extend(vec![TreeEntry::new(
+            other_key,
+            2,
+            ValueHash::zero(),
+        )]);
         db.apply_patch(patch);
 
         let mut patch = WorkingPatchSet::new(2, db.root(1).unwrap());
@@ -766,8 +770,11 @@ mod tests {
         assert_eq!(load_result.db_reads, 1);
 
         let greater_key = Key::from_little_endian(&[0xaf; 32]);
-        let (_, patch) =
-            Storage::new(&db, &(), 2, true).extend(vec![(greater_key, ValueHash::zero())]);
+        let (_, patch) = Storage::new(&db, &(), 2, true).extend(vec![TreeEntry::new(
+            greater_key,
+            3,
+            ValueHash::zero(),
+        )]);
         db.apply_patch(patch);
 
         let mut patch = WorkingPatchSet::new(3, db.root(2).unwrap());
