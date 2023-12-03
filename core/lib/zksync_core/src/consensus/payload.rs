@@ -6,7 +6,7 @@ use zksync_types::api::en::SyncBlock;
 use zksync_types::{Address, L1BatchNumber, Transaction, H256};
 
 /// L2 block (= miniblock) payload.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub(crate) struct Payload {
     pub hash: H256,
     pub l1_batch_number: L1BatchNumber,

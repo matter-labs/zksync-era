@@ -2,7 +2,7 @@ use tokio::sync::mpsc;
 
 use zksync_types::{
     block::ConsensusBlockFields, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId,
-    Transaction, H256,
+    Transaction,
 };
 
 use super::metrics::QUEUE_METRICS;
@@ -137,7 +137,6 @@ pub(crate) enum SyncAction {
         protocol_version: ProtocolVersionId,
         // Miniblock number and virtual blocks count.
         first_miniblock_info: (MiniblockNumber, u32),
-        prev_miniblock_hash: H256,
     },
     Miniblock {
         number: MiniblockNumber,
@@ -180,7 +179,6 @@ mod tests {
             operator_address: Default::default(),
             protocol_version: ProtocolVersionId::latest(),
             first_miniblock_info: (1.into(), 1),
-            prev_miniblock_hash: H256::default(),
         }
     }
 

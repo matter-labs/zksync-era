@@ -306,7 +306,7 @@ impl<S: Storage> ValidationTracer<S> {
             return true;
         }
 
-        // The pair of MSG_VALUE_SIMULATOR_ADDRESS & L2_ETH_TOKEN_ADDRESS simulates the behavior of transfering ETH
+        // The pair of MSG_VALUE_SIMULATOR_ADDRESS & L2_ETH_TOKEN_ADDRESS simulates the behavior of transferring ETH
         // that is safe for the DDoS protection rules.
         if valid_eth_token_call(address, msg_sender) {
             return true;
@@ -801,7 +801,7 @@ fn get_debug_log(state: &VmLocalStateData<'_>, memory: &SimpleMemory) -> String 
     let msg = String::from_utf8(msg).expect("Invalid debug message");
     let data = U256::from_big_endian(&data);
 
-    // For long data, it is better to use hex-encoding for greater readibility
+    // For long data, it is better to use hex-encoding for greater readability
     let data_str = if data > U256::from(u64::max_value()) {
         let mut bytes = [0u8; 32];
         data.to_big_endian(&mut bytes);
