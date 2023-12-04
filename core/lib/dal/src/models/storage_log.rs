@@ -1,7 +1,7 @@
 use sqlx::types::chrono::NaiveDateTime;
 use zksync_types::{AccountTreeId, Address, StorageKey, StorageLog, StorageLogKind, H256};
 
-#[derive(sqlx::FromRow, Debug, Clone)]
+#[derive(Debug, Clone, sqlx::FromRow)]
 pub struct DBStorageLog {
     pub id: i64,
     pub hashed_key: Vec<u8>,
@@ -26,4 +26,11 @@ impl From<DBStorageLog> for StorageLog {
             value: H256::from_slice(&log.value),
         }
     }
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct StorageTreeEntry {
+    pub hashed_key: Vec<u8>,
+    pub value: Vec<u8>,
+    pub index: i64,
 }

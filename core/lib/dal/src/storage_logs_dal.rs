@@ -1,8 +1,9 @@
 use sqlx::types::chrono::Utc;
 use sqlx::Row;
 
-use std::{collections::HashMap, time::Instant};
+use std::{collections::HashMap, ops, time::Instant};
 
+pub use crate::models::storage_log::StorageTreeEntry;
 use crate::{instrument::InstrumentExt, StorageProcessor};
 use zksync_types::{
     get_code_key, AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, StorageLog,
@@ -448,6 +449,30 @@ impl StorageLogsDal<'_, '_> {
     ) -> Vec<(H256, H256, u32)> {
         self.get_miniblock_storage_logs_from_table(miniblock_number, "storage_logs")
             .await
+    }
+
+    pub async fn get_tree_entries_for_miniblock(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+        key_range: ops::RangeInclusive<H256>,
+        limit: Option<usize>,
+    ) -> sqlx::Result<Vec<StorageTreeEntry>> {
+        sqlx::query_as!(
+            StorageTreeEntry,
+            "SELECT storage_logs.hashed_key, storage_logs.value, initial_writes.index \
+            FROM storage_logs \
+            INNER JOIN initial_writes ON storage_logs.hashed_key = initial_writes.hashed_key \
+            WHERE storage_logs.miniblock_number = $1 \
+                AND storage_logs.hashed_key >= $2::bytea \
+                AND storage_logs.hashed_key <= $3::bytea \
+            ORDER BY storage_logs.hashed_key LIMIT $4",
+            miniblock_number.0 as i64,
+            key_range.start().as_bytes(),
+            key_range.end().as_bytes(),
+            limit.map(|limit| limit as i64)
+        )
+        .fetch_all(self.storage.conn())
+        .await
     }
 
     pub async fn retain_storage_logs(
