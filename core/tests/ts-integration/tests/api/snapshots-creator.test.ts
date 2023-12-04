@@ -1,7 +1,7 @@
 import { TestMaster } from '../../src/index';
-import * as utils from 'zk/build/utils';
 import fs from 'fs';
 import * as zlib from 'zlib';
+import {snapshots_creator} from "zk/build/run/run";
 describe('Snapshots API tests', () => {
     let testMaster: TestMaster;
 
@@ -15,7 +15,7 @@ describe('Snapshots API tests', () => {
 
     async function runCreator() {
         console.log('Starting creator');
-        await utils.spawn(`cd $ZKSYNC_HOME && cargo run --bin snapshots_creator --release`);
+        await snapshots_creator();
     }
 
     async function rpcRequest(name: string, params: any) {
@@ -57,21 +57,24 @@ describe('Snapshots API tests', () => {
         let miniblockNumber = fullSnapshot.miniblockNumber;
 
         expect(fullSnapshot.l1BatchNumber).toEqual(l1BatchNumber);
-        let path = `${process.env.ZKSYNC_HOME}/${fullSnapshot.storageLogsChunks[0].filepath}`;
+        for (let chunkMetadata of fullSnapshot.storageLogsChunks) {
+            console.log(`Verifying ${chunkMetadata.filepath}`)
+            let path = `${process.env.ZKSYNC_HOME}/${chunkMetadata.filepath}`;
 
-        let output = JSON.parse(await decompressGzip(path));
-        expect(output['storageLogs'].length > 0);
+            let output = JSON.parse(await decompressGzip(path));
+            expect(output['storageLogs'].length > 0);
 
-        for (const storageLog of output['storageLogs'] as any[]) {
-            let snapshotAccountAddress = storageLog['key']['account']['address'];
-            let snapshotKey = storageLog['key']['key'];
-            let snapshotValue = storageLog['value'];
-            let snapshotL1BatchNumber = storageLog['l1BatchNumberOfInitialWrite'];
-            const valueOnBlockchain = await testMaster
-                .mainAccount()
-                .provider.getStorageAt(snapshotAccountAddress, snapshotKey, miniblockNumber);
-            expect(snapshotValue).toEqual(valueOnBlockchain);
-            expect(snapshotL1BatchNumber).toBeLessThanOrEqual(l1BatchNumber);
+            for (const storageLog of output['storageLogs'] as any[]) {
+                let snapshotAccountAddress = storageLog['key']['account']['address'];
+                let snapshotKey = storageLog['key']['key'];
+                let snapshotValue = storageLog['value'];
+                let snapshotL1BatchNumber = storageLog['l1BatchNumberOfInitialWrite'];
+                const valueOnBlockchain = await testMaster
+                    .mainAccount()
+                    .provider.getStorageAt(snapshotAccountAddress, snapshotKey, miniblockNumber);
+                expect(snapshotValue).toEqual(valueOnBlockchain);
+                expect(snapshotL1BatchNumber).toBeLessThanOrEqual(l1BatchNumber);
+            }
         }
     }
 

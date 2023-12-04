@@ -1,5 +1,12 @@
+mod chunking;
+
 use anyhow::Context as _;
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
 use prometheus_exporter::PrometheusExporterConfig;
+use std::cmp::max;
+use std::future::Future;
+use std::pin::Pin;
 use std::time::Duration;
 use tokio::sync::watch;
 use tokio::sync::watch::Receiver;
@@ -7,6 +14,7 @@ use vise::{Buckets, Gauge, Histogram, Metrics};
 use zksync_config::configs::PrometheusConfig;
 use zksync_config::{PostgresConfig, SnapshotsCreatorConfig};
 
+use crate::chunking::get_chunk_hashed_keys_range;
 use zksync_dal::ConnectionPool;
 use zksync_env_config::object_store::SnapshotsObjectStoreConfig;
 use zksync_env_config::FromEnv;
@@ -54,20 +62,21 @@ async fn maybe_enable_prometheus_metrics(stop_receiver: Receiver<bool>) -> anyho
     }
     Ok(())
 }
+
 async fn process_storage_logs_single_chunk(
     blob_store: &dyn ObjectStore,
     pool: &ConnectionPool,
     miniblock_number: MiniblockNumber,
     l1_batch_number: L1BatchNumber,
     chunk_id: u64,
-    chunk_size: u64,
     chunks_count: u64,
 ) -> anyhow::Result<String> {
+    let (min_hashed_key, max_hashed_key) = get_chunk_hashed_keys_range(chunk_id, chunks_count);
     let latency = METRICS.storage_logs_processing_durations.start();
     let mut conn = pool.access_storage_tagged("snapshots_creator").await?;
     let logs = conn
         .snapshots_creator_dal()
-        .get_storage_logs_chunk(miniblock_number, chunk_id, chunk_size * chunk_id)
+        .get_storage_logs_chunk(miniblock_number, &min_hashed_key, &max_hashed_key)
         .await
         .context("Error fetching storage logs count")?;
     let storage_logs_chunk = SnapshotStorageLogsChunk { storage_logs: logs };
@@ -83,11 +92,12 @@ async fn process_storage_logs_single_chunk(
     let output_filepath_prefix = blob_store.get_storage_prefix::<SnapshotStorageLogsChunk>();
     let output_filepath = format!("{output_filepath_prefix}/{filename}");
 
+    let elapsed_ms = latency.observe().as_millis();
     tracing::info!(
-        "Finished storing storage logs chunk {}/{chunks_count}, output stored in {output_filepath}",
-        chunk_id + 1,
+        "Finished storage logs chunk {}/{chunks_count}, step took {elapsed_ms}ms, output stored in {output_filepath}",
+        chunk_id + 1
     );
-    latency.observe();
+    drop(conn);
     Ok(output_filepath)
 }
 
@@ -98,7 +108,6 @@ async fn process_factory_deps(
     l1_batch_number: L1BatchNumber,
 ) -> anyhow::Result<String> {
     let latency = METRICS.factory_deps_processing_durations.start();
-    tracing::info!("Processing factory dependencies");
     let mut conn = pool.access_storage_tagged("snapshots_creator").await?;
     let factory_deps = conn
         .snapshots_creator_dal()
@@ -111,23 +120,32 @@ async fn process_factory_deps(
         .context("Error storing factory deps in blob store")?;
     let output_filepath_prefix = blob_store.get_storage_prefix::<SnapshotFactoryDependencies>();
     let output_filepath = format!("{output_filepath_prefix}/{filename}");
+    let elapsed_ms = latency.observe().as_millis();
     tracing::info!(
-        "Finished processing factory dependencies, output stored in {}",
+        "Finished factory dependencies, step took {elapsed_ms}ms , output stored in {}",
         output_filepath
     );
-    latency.observe();
     Ok(output_filepath)
 }
 
-async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::Result<()> {
+async fn run(
+    blob_store: Box<dyn ObjectStore>,
+    replica_pool: ConnectionPool,
+    master_pool: ConnectionPool,
+) -> anyhow::Result<()> {
     let config = SnapshotsCreatorConfig::from_env().context("SnapshotsCreatorConfig::from_env")?;
 
-    let mut conn = pool.access_storage_tagged("snapshots_creator").await?;
+    let mut conn = replica_pool
+        .access_storage_tagged("snapshots_creator")
+        .await?;
     let start_time = seconds_since_epoch();
 
     let l1_batch_number = conn.blocks_dal().get_sealed_l1_batch_number().await? - 1; // we subtract 1 so that after restore, EN node has at least one l1 batch to fetch
 
-    if conn
+    let mut master_conn = master_pool
+        .access_storage_tagged("snapshots_creator")
+        .await?;
+    if master_conn
         .snapshots_dal()
         .get_snapshot_metadata(l1_batch_number)
         .await?
@@ -139,6 +157,7 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::
         );
         return Ok(());
     }
+    drop(master_conn);
 
     let last_miniblock_number_in_batch = conn
         .blocks_dal()
@@ -157,7 +176,8 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::
         .set(storage_logs_chunks_count);
 
     let chunk_size = config.storage_logs_chunk_size;
-    let chunks_count = ceil_div(storage_logs_chunks_count, chunk_size);
+    // we force at least 10 chunks to avoid situations where only one chunk is created in tests
+    let chunks_count = max(10, ceil_div(storage_logs_chunks_count, chunk_size));
 
     tracing::info!(
         "Creating snapshot for storage logs up to miniblock {}, l1_batch {}",
@@ -172,7 +192,7 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::
 
     let factory_deps_output_file = process_factory_deps(
         &*blob_store,
-        &pool,
+        &replica_pool,
         last_miniblock_number_in_batch,
         l1_batch_number,
     )
@@ -183,30 +203,43 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> anyhow::
     METRICS
         .storage_logs_chunks_left_to_process
         .set(chunks_count);
-    for chunk_id in 0..chunks_count {
-        tracing::info!(
-            "Processing storage logs chunk {}/{chunks_count}",
-            chunk_id + 1
-        );
-        let output_file = process_storage_logs_single_chunk(
-            &*blob_store,
-            &pool,
-            last_miniblock_number_in_batch,
-            l1_batch_number,
-            chunk_id,
-            chunk_size,
-            chunks_count,
-        )
-        .await?;
-        storage_logs_output_files.push(output_file.clone());
-        METRICS
-            .storage_logs_chunks_left_to_process
-            .set(chunks_count - chunk_id - 1);
+    let mut tasks =
+        FuturesUnordered::<Pin<Box<dyn Future<Output = anyhow::Result<String>>>>>::new();
+    let mut last_chunk_id = 0;
+    while last_chunk_id < chunks_count || tasks.len() != 0 {
+        while (tasks.len() as u32) < config.concurrent_queries_count && last_chunk_id < chunks_count
+        {
+            tasks.push(Box::pin(process_storage_logs_single_chunk(
+                &*blob_store,
+                &replica_pool,
+                last_miniblock_number_in_batch,
+                l1_batch_number,
+                last_chunk_id,
+                chunks_count,
+            )));
+            last_chunk_id += 1;
+        }
+        if let Some(result) = tasks.next().await {
+            tracing::info!(
+                "Completed chunk {}/{}, {} chunks are still in progress",
+                last_chunk_id - tasks.len() as u64,
+                chunks_count,
+                tasks.len()
+            );
+            storage_logs_output_files.push(result.unwrap());
+            METRICS
+                .storage_logs_chunks_left_to_process
+                .set(chunks_count - last_chunk_id - tasks.len() as u64);
+        }
     }
+    tracing::info!("Finished generating snapshot, storing progress in db");
 
-    let mut conn = pool.access_storage_tagged("snapshots_creator").await?;
+    let mut master_conn = master_pool
+        .access_storage_tagged("snapshots_creator")
+        .await?;
 
-    conn.snapshots_dal()
+    master_conn
+        .snapshots_dal()
         .add_snapshot(
             l1_batch_number,
             &storage_logs_output_files,
@@ -262,11 +295,21 @@ async fn main() -> anyhow::Result<()> {
         .await;
 
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig")?;
-    let pool = ConnectionPool::singleton(postgres_config.replica_url()?)
+    let creator_config =
+        SnapshotsCreatorConfig::from_env().context("SnapshotsCreatorConfig::from_env")?;
+
+    let replica_pool = ConnectionPool::builder(
+        postgres_config.replica_url()?,
+        creator_config.concurrent_queries_count,
+    )
+    .build()
+    .await?;
+
+    let master_pool = ConnectionPool::singleton(postgres_config.master_url()?)
         .build()
         .await?;
 
-    run(blob_store, pool).await?;
+    run(blob_store, replica_pool, master_pool).await?;
     tracing::info!("Finished running snapshot creator!");
     stop_sender.send(true).ok();
     Ok(())

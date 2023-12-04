@@ -120,6 +120,7 @@ export async function cross_en_checker() {
 }
 
 export async function snapshots_creator() {
+    process.chdir(`${process.env.ZKSYNC_HOME}`);
     let logLevel = 'RUST_LOG=snapshots_creator=debug';
     await utils.spawn(`${logLevel} cargo run --bin snapshots_creator --release`);
 }
