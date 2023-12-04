@@ -11,9 +11,11 @@ use zksync_prover_fri_types::{
     get_current_pod_name, CircuitWrapper, ProverJob, ProverServiceDataKey,
 };
 
+use crate::metrics::{CircuitLabels, PROVER_FRI_UTILS_METRICS};
 use zksync_types::proofs::AggregationRound;
 use zksync_types::protocol_version::L1VerifierConfig;
 
+pub mod metrics;
 pub mod socket_utils;
 
 pub async fn fetch_next_circuit(
@@ -61,12 +63,13 @@ pub async fn fetch_next_circuit(
         .get(circuit_key)
         .await
         .unwrap_or_else(|err| panic!("{err:?}"));
-    metrics::histogram!(
-                "prover_fri.prover.blob_fetch_time",
-                started_at.elapsed(),
-                "circuit_type" => prover_job.circuit_id.to_string(),
-                "aggregation_round" => format!("{:?}", prover_job.aggregation_round),
-    );
+
+    let label = CircuitLabels {
+        circuit_type: prover_job.circuit_id,
+        aggregation_round: prover_job.aggregation_round.into(),
+    };
+    PROVER_FRI_UTILS_METRICS.blob_fetch_time[&label].observe(started_at.elapsed());
+
     let setup_data_key = ProverServiceDataKey {
         circuit_id: prover_job.circuit_id,
         round: prover_job.aggregation_round,
