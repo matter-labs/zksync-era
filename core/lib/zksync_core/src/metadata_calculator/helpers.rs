@@ -16,7 +16,8 @@ use zksync_dal::StorageProcessor;
 use zksync_health_check::{Health, HealthStatus};
 use zksync_merkle_tree::{
     domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
-    Key, MerkleTreeColumnFamily, NoVersionError, TreeEntryWithProof, TreeInstruction,
+    recovery::MerkleTreeRecovery,
+    Database, Key, NoVersionError, RocksDBWrapper, TreeEntry, TreeEntryWithProof, TreeInstruction,
 };
 use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries};
 use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageKey, H256};
@@ -38,6 +39,59 @@ impl From<MerkleTreeInfo> for Health {
     }
 }
 
+/// Creates a RocksDB wrapper with the specified params.
+pub(super) async fn create_db(
+    path: PathBuf,
+    block_cache_capacity: usize,
+    memtable_capacity: usize,
+    stalled_writes_timeout: Duration,
+    multi_get_chunk_size: usize,
+) -> RocksDBWrapper {
+    tokio::task::spawn_blocking(move || {
+        create_db_sync(
+            &path,
+            block_cache_capacity,
+            memtable_capacity,
+            stalled_writes_timeout,
+            multi_get_chunk_size,
+        )
+    })
+    .await
+    .unwrap()
+}
+
+fn create_db_sync(
+    path: &Path,
+    block_cache_capacity: usize,
+    memtable_capacity: usize,
+    stalled_writes_timeout: Duration,
+    multi_get_chunk_size: usize,
+) -> RocksDBWrapper {
+    tracing::info!(
+        "Initializing Merkle tree database at `{path}` with {multi_get_chunk_size} multi-get chunk size, \
+         {block_cache_capacity}B block cache, {memtable_capacity}B memtable capacity, \
+         {stalled_writes_timeout:?} stalled writes timeout",
+        path = path.display()
+    );
+
+    let mut db = RocksDB::with_options(
+        path,
+        RocksDBOptions {
+            block_cache_capacity: Some(block_cache_capacity),
+            large_memtable_capacity: Some(memtable_capacity),
+            stalled_writes_retries: StalledWritesRetries::new(stalled_writes_timeout),
+        },
+    );
+    if cfg!(test) {
+        // We need sync writes for the unit tests to execute reliably. With the default config,
+        // some writes to RocksDB may occur, but not be visible to the test code.
+        db = db.with_sync_writes();
+    }
+    let mut db = RocksDBWrapper::from(db);
+    db.set_multi_get_chunk_size(multi_get_chunk_size);
+    db
+}
+
 /// Wrapper around the "main" tree implementation used by [`MetadataCalculator`].
 ///
 /// Async methods provided by this wrapper are not cancel-safe! This is probably not an issue;
@@ -54,65 +108,16 @@ pub(super) struct AsyncTree {
 
 impl AsyncTree {
     const INCONSISTENT_MSG: &'static str =
-        "`ZkSyncTree` is in inconsistent state, which could occur after one of its async methods was cancelled";
+        "`AsyncTree` is in inconsistent state, which could occur after one of its async methods was cancelled";
 
-    pub async fn new(
-        db_path: PathBuf,
-        mode: MerkleTreeMode,
-        multi_get_chunk_size: usize,
-        block_cache_capacity: usize,
-        memtable_capacity: usize,
-        stalled_writes_timeout: Duration,
-    ) -> Self {
-        tracing::info!(
-            "Initializing Merkle tree at `{db_path}` with {multi_get_chunk_size} multi-get chunk size, \
-             {block_cache_capacity}B block cache, {memtable_capacity}B memtable capacity, \
-             {stalled_writes_timeout:?} stalled writes timeout",
-            db_path = db_path.display()
-        );
-
-        let mut tree = tokio::task::spawn_blocking(move || {
-            let db = Self::create_db(
-                &db_path,
-                block_cache_capacity,
-                memtable_capacity,
-                stalled_writes_timeout,
-            );
-            match mode {
-                MerkleTreeMode::Full => ZkSyncTree::new(db),
-                MerkleTreeMode::Lightweight => ZkSyncTree::new_lightweight(db),
-            }
-        })
-        .await
-        .unwrap();
-
-        tree.set_multi_get_chunk_size(multi_get_chunk_size);
+    pub fn new(db: RocksDBWrapper, mode: MerkleTreeMode) -> Self {
+        let tree = match mode {
+            MerkleTreeMode::Full => ZkSyncTree::new(db),
+            MerkleTreeMode::Lightweight => ZkSyncTree::new_lightweight(db),
+        };
         Self {
             inner: Some(tree),
             mode,
-        }
-    }
-
-    fn create_db(
-        path: &Path,
-        block_cache_capacity: usize,
-        memtable_capacity: usize,
-        stalled_writes_timeout: Duration,
-    ) -> RocksDB<MerkleTreeColumnFamily> {
-        let db = RocksDB::with_options(
-            path,
-            RocksDBOptions {
-                block_cache_capacity: Some(block_cache_capacity),
-                large_memtable_capacity: Some(memtable_capacity),
-                stalled_writes_retries: StalledWritesRetries::new(stalled_writes_timeout),
-            },
-        );
-        if cfg!(test) {
-            // We need sync writes for the unit tests to execute reliably. With the default config,
-            // some writes to RocksDB may occur, but not be visible to the test code.
-            db.with_sync_writes()
-        } else {
-            db
         }
     }
 
@@ -207,6 +212,101 @@ impl AsyncTreeReader {
         tokio::task::spawn_blocking(move || self.inner.entries_with_proofs(l1_batch_number, &keys))
             .await
             .unwrap()
+    }
+}
+
+/// Async wrapper for [`MerkleTreeRecovery`].
+#[derive(Debug, Default)]
+pub(super) struct AsyncTreeRecovery(Option<MerkleTreeRecovery<RocksDBWrapper>>);
+
+impl AsyncTreeRecovery {
+    const INCONSISTENT_MSG: &'static str =
+        "`AsyncTreeRecovery` is in inconsistent state, which could occur after one of its async methods was cancelled";
+
+    pub fn new(db: RocksDBWrapper, recovered_version: u64) -> Self {
+        let tree = MerkleTreeRecovery::new(db, recovered_version);
+        Self(Some(tree))
+    }
+
+    pub fn recovered_version(&self) -> u64 {
+        self.0
+            .as_ref()
+            .expect(Self::INCONSISTENT_MSG)
+            .recovered_version()
+    }
+
+    /// Returns an entry for the specified key.
+    pub async fn entry(&mut self, key: Key) -> Option<TreeEntry> {
+        let tree = self.0.take().expect(Self::INCONSISTENT_MSG);
+        let (entry, tree) = tokio::task::spawn_blocking(move || (tree.entry(key), tree))
+            .await
+            .unwrap();
+
+        self.0 = Some(tree);
+        entry
+    }
+
+    /// Returns the current hash of the tree.
+    pub async fn root_hash(&mut self) -> H256 {
+        let tree = self.0.take().expect(Self::INCONSISTENT_MSG);
+        let (root_hash, tree) = tokio::task::spawn_blocking(move || (tree.root_hash(), tree))
+            .await
+            .unwrap();
+
+        self.0 = Some(tree);
+        root_hash
+    }
+
+    /// Extends the tree with a chunk of recovery entries.
+    pub async fn extend(&mut self, entries: Vec<TreeEntry>) {
+        let mut tree = self.0.take().expect(Self::INCONSISTENT_MSG);
+        let tree = tokio::task::spawn_blocking(move || {
+            tree.extend_random(entries);
+            tree
+        })
+        .await
+        .unwrap();
+
+        self.0 = Some(tree);
+    }
+
+    pub async fn finalize(self, mode: MerkleTreeMode) -> AsyncTree {
+        let tree = self.0.expect(Self::INCONSISTENT_MSG);
+        let db = tokio::task::spawn_blocking(|| tree.finalize())
+            .await
+            .unwrap();
+        AsyncTree::new(db, mode)
+    }
+}
+
+/// Tree at any stage of its lifecycle.
+#[derive(Debug)]
+pub(super) enum GenericAsyncTree {
+    /// Uninitialized tree.
+    Empty {
+        db: RocksDBWrapper,
+        mode: MerkleTreeMode,
+    },
+    /// The tree during recovery.
+    Recovering(AsyncTreeRecovery),
+    /// Tree that is fully recovered and can operate normally.
+    Ready(AsyncTree),
+}
+
+impl GenericAsyncTree {
+    pub async fn new(db: RocksDBWrapper, mode: MerkleTreeMode) -> Self {
+        tokio::task::spawn_blocking(move || {
+            let Some(manifest) = db.manifest() else {
+                return Self::Empty { db, mode };
+            };
+            if let Some(version) = manifest.recovered_version() {
+                Self::Recovering(AsyncTreeRecovery::new(db, version))
+            } else {
+                Self::Ready(AsyncTree::new(db, mode))
+            }
+        })
+        .await
+        .unwrap()
     }
 }
 
@@ -454,15 +554,15 @@ mod tests {
     }
 
     async fn create_tree(temp_dir: &TempDir) -> AsyncTree {
-        AsyncTree::new(
+        let db = create_db(
             temp_dir.path().to_owned(),
-            MerkleTreeMode::Full,
-            500,
             0,
             16 << 20,       // 16 MiB,
             Duration::ZERO, // writes should never be stalled in tests
+            500,
         )
-        .await
+        .await;
+        AsyncTree::new(db, MerkleTreeMode::Full)
     }
 
     async fn assert_log_equivalence(
