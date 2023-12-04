@@ -169,7 +169,7 @@ fn default_accounts_amount() -> usize {
 }
 
 fn default_duration_sec() -> u64 {
-    let result = 700;
+    let result = 400;
     tracing::info!("Using default DURATION_SEC: {result}");
     result
 }
