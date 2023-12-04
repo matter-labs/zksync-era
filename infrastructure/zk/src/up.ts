@@ -32,6 +32,7 @@ function createVolumes() {
 export async function up() {
     createVolumes();
     await utils.spawn('docker-compose -f docker-compose-local-genesis.yml up');
+    await utils.spawn('docker-compose -f docker-compose-local-genesis.yml rm -f');
     await utils.spawn('docker-compose up -d');
 }
 
