@@ -177,7 +177,7 @@ return actualRootHash == calculatedRootHash;
 
 ## Summary
 
-In this article, we've travelled through a vast array of topics: from a user contract dispatching a message to L1 by
+In this article, we've traveled through a vast array of topics: from a user contract dispatching a message to L1 by
 invoking a system contract, to this message's hash making its way all the way to the VM via special opcodes. We've also
 explored how it's ultimately included in the execution results (as part of QueryLogs), gathered by the State Keeper, and
 transmitted to L1 for final verification.
