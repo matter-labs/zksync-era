@@ -1,7 +1,7 @@
 import { TestMaster } from '../../src/index';
 import fs from 'fs';
 import * as zlib from 'zlib';
-import {snapshots_creator} from "zk/build/run/run";
+import { snapshots_creator } from 'zk/build/run/run';
 describe('Snapshots API tests', () => {
     let testMaster: TestMaster;
 
@@ -58,7 +58,7 @@ describe('Snapshots API tests', () => {
 
         expect(fullSnapshot.l1BatchNumber).toEqual(l1BatchNumber);
         for (let chunkMetadata of fullSnapshot.storageLogsChunks) {
-            console.log(`Verifying ${chunkMetadata.filepath}`)
+            console.log(`Verifying ${chunkMetadata.filepath}`);
             let path = `${process.env.ZKSYNC_HOME}/${chunkMetadata.filepath}`;
 
             let output = JSON.parse(await decompressGzip(path));
