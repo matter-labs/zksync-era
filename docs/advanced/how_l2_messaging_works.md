@@ -177,7 +177,7 @@ return actualRootHash == calculatedRootHash;
 
 ## Summary
 
-In this article, we've travelled through a vast array of topics: from a user contract dispatching a message to L1 by
+In this article, we've traveled through a vast array of topics: from a user contract dispatching a message to L1 by
 invoking a system contract, to this message's hash making its way all the way to the VM via special opcodes. We've also
 explored how it's ultimately included in the execution results (as part of QueryLogs), gathered by the State Keeper, and
 transmitted to L1 for final verification.
@@ -194,7 +194,7 @@ transmitted to L1 for final verification.
 [vm_execution_result]:
   https://github.com/matter-labs/zksync-era/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/vm/src/vm.rs#L81
 [log_queries]:
-  https://github.com/matter-labs/zk_evm_abstractions/blob/839721a4ae2093c5c0aa8ffd49758f32ecd172ed/src/queries.rs#L30C2-L30C2
+  https://github.com/matter-labs/era-zk_evm_abstractions/blob/15a2af404902d5f10352e3d1fac693cc395fcff9/src/queries.rs#L30C2-L30C2
 [aux_bytes]:
   https://github.com/matter-labs/zkevm_opcode_defs/blob/780ce4129a95ab9a68abf0d60c156ee8df6008c2/src/system_params.rs#L37C39-L37C39
 [event_sink]:
