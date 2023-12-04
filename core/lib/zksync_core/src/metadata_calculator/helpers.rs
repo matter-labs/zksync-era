@@ -217,19 +217,24 @@ impl AsyncTreeReader {
 
 /// Async wrapper for [`MerkleTreeRecovery`].
 #[derive(Debug, Default)]
-pub(super) struct AsyncTreeRecovery(Option<MerkleTreeRecovery<RocksDBWrapper>>);
+pub(super) struct AsyncTreeRecovery {
+    inner: Option<MerkleTreeRecovery<RocksDBWrapper>>,
+    mode: MerkleTreeMode,
+}
 
 impl AsyncTreeRecovery {
     const INCONSISTENT_MSG: &'static str =
         "`AsyncTreeRecovery` is in inconsistent state, which could occur after one of its async methods was cancelled";
 
-    pub fn new(db: RocksDBWrapper, recovered_version: u64) -> Self {
-        let tree = MerkleTreeRecovery::new(db, recovered_version);
-        Self(Some(tree))
+    pub fn new(db: RocksDBWrapper, recovered_version: u64, mode: MerkleTreeMode) -> Self {
+        Self {
+            inner: Some(MerkleTreeRecovery::new(db, recovered_version)),
+            mode,
+        }
     }
 
     pub fn recovered_version(&self) -> u64 {
-        self.0
+        self.inner
             .as_ref()
             .expect(Self::INCONSISTENT_MSG)
             .recovered_version()
@@ -237,29 +242,29 @@ impl AsyncTreeRecovery {
 
     /// Returns an entry for the specified key.
     pub async fn entry(&mut self, key: Key) -> Option<TreeEntry> {
-        let tree = self.0.take().expect(Self::INCONSISTENT_MSG);
+        let tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
         let (entry, tree) = tokio::task::spawn_blocking(move || (tree.entry(key), tree))
             .await
             .unwrap();
 
-        self.0 = Some(tree);
+        self.inner = Some(tree);
         entry
     }
 
     /// Returns the current hash of the tree.
     pub async fn root_hash(&mut self) -> H256 {
-        let tree = self.0.take().expect(Self::INCONSISTENT_MSG);
+        let tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
         let (root_hash, tree) = tokio::task::spawn_blocking(move || (tree.root_hash(), tree))
             .await
             .unwrap();
 
-        self.0 = Some(tree);
+        self.inner = Some(tree);
         root_hash
     }
 
     /// Extends the tree with a chunk of recovery entries.
     pub async fn extend(&mut self, entries: Vec<TreeEntry>) {
-        let mut tree = self.0.take().expect(Self::INCONSISTENT_MSG);
+        let mut tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
         let tree = tokio::task::spawn_blocking(move || {
             tree.extend_random(entries);
             tree
@@ -267,15 +272,15 @@ impl AsyncTreeRecovery {
         .await
         .unwrap();
 
-        self.0 = Some(tree);
+        self.inner = Some(tree);
     }
 
-    pub async fn finalize(self, mode: MerkleTreeMode) -> AsyncTree {
-        let tree = self.0.expect(Self::INCONSISTENT_MSG);
+    pub async fn finalize(self) -> AsyncTree {
+        let tree = self.inner.expect(Self::INCONSISTENT_MSG);
         let db = tokio::task::spawn_blocking(|| tree.finalize())
             .await
             .unwrap();
-        AsyncTree::new(db, mode)
+        AsyncTree::new(db, self.mode)
     }
 }
 
@@ -300,7 +305,7 @@ impl GenericAsyncTree {
                 return Self::Empty { db, mode };
             };
             if let Some(version) = manifest.recovered_version() {
-                Self::Recovering(AsyncTreeRecovery::new(db, version))
+                Self::Recovering(AsyncTreeRecovery::new(db, version, mode))
             } else {
                 Self::Ready(AsyncTree::new(db, mode))
             }
