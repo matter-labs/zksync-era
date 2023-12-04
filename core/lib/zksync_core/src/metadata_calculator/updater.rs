@@ -192,6 +192,7 @@ impl TreeUpdater {
                     .get_batch_protocol_version_id(l1_batch_number)
                     .await
                     .unwrap();
+                // Short-term solution. Details: PLA-677
                 if let Some(prover_storage) = prover_storage {
                     if let Some(id) = protocol_version_id {
                         if !prover_storage

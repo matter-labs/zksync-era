@@ -144,6 +144,7 @@ impl MetadataCalculator {
         pool: ConnectionPool,
         // short-term change for the prover pool
         // to be an Option to allow EN to run the tree
+        // Details: PLA-677
         prover_pool: Option<ConnectionPool>,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {

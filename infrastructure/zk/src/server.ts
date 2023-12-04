@@ -40,8 +40,8 @@ export async function externalNode(reinit: boolean = false) {
 
     // On --reinit we want to reset RocksDB and Postgres before we start.
     if (reinit) {
-        await utils.confirmAction();
         await db.resetMain();
+        await db.resetProver();
         clean(path.dirname(process.env.EN_MERKLE_TREE_PATH!));
     }
 

@@ -6,18 +6,15 @@ use structopt::StructOpt;
 use tokio::{sync::oneshot, sync::watch};
 
 use crate::generator::WitnessVectorGenerator;
-use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 
+use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_config::configs::{
     FriProverConfig, FriWitnessVectorGeneratorConfig, PostgresConfig, ProverGroupConfig,
 };
-use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
-
-use zksync_object_store::ObjectStoreFactory;
-
 use zksync_db_connection::ConnectionPool;
+use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
+use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::ProverStorageProcessor;
-
 use zksync_prover_fri_utils::get_all_circuit_id_round_tuples_for;
 use zksync_prover_utils::region_fetcher::get_zone;
 use zksync_queued_job_processor::JobProcessor;

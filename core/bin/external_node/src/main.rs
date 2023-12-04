@@ -30,7 +30,7 @@ use zksync_core::{
 };
 use zksync_db_connection::ConnectionPool;
 use zksync_health_check::CheckHealth;
-use zksync_server_dal::{healthcheck::ConnectionPoolHealthCheck, ServerStorageProcessor};
+use zksync_server_dal::{healthcheck::ServerConnectionPoolHealthCheck, ServerStorageProcessor};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
@@ -263,7 +263,9 @@ async fn init_tasks(
 
     healthchecks.push(Box::new(ws_server_handles.health_check));
     healthchecks.push(Box::new(http_server_handles.health_check));
-    healthchecks.push(Box::new(ConnectionPoolHealthCheck::new(connection_pool)));
+    healthchecks.push(Box::new(ServerConnectionPoolHealthCheck::new(
+        connection_pool,
+    )));
     let healthcheck_handle = HealthCheckHandle::spawn_server(
         ([0, 0, 0, 0], config.required.healthcheck_port).into(),
         healthchecks,

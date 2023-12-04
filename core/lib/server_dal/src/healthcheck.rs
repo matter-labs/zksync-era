@@ -23,20 +23,20 @@ impl ConnectionPoolHealthDetails {
 // This guarantees that the app can use it's main "communication" channel.
 // Used in the /health endpoint
 #[derive(Debug, Clone)]
-pub struct ConnectionPoolHealthCheck {
+pub struct ServerConnectionPoolHealthCheck {
     connection_pool: ConnectionPool,
 }
 
-impl<'a> ConnectionPoolHealthCheck {
-    pub fn new(connection_pool: ConnectionPool) -> ConnectionPoolHealthCheck {
+impl<'a> ServerConnectionPoolHealthCheck {
+    pub fn new(connection_pool: ConnectionPool) -> ServerConnectionPoolHealthCheck {
         Self { connection_pool }
     }
 }
 
 #[async_trait]
-impl CheckHealth for ConnectionPoolHealthCheck {
+impl CheckHealth for ServerConnectionPoolHealthCheck {
     fn name(&self) -> &'static str {
-        "master_connection_pool"
+        "server_connection_pool"
     }
 
     async fn check_health(&self) -> Health {

@@ -10,6 +10,7 @@ zksync_server=debug,\
 zksync_prover=debug,\
 zksync_contract_verifier=debug,\
 zksync_server_dal=info,\
+zksync_prover_dal=info,\
 zksync_eth_client=info,\
 zksync_storage=info,\
 zksync_db_manager=info,\

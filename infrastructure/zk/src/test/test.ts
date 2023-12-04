@@ -24,7 +24,7 @@ export async function rust(options: string[]) {
     await utils.spawn('docker compose -f docker-compose-unit-tests.yml down');
     await utils.spawn('docker compose -f docker-compose-unit-tests.yml up -d');
 
-    await db.resetTest();
+    await db.resetTestMain();
     await db.resetTestProver();
 
     let result = await utils.exec('cargo install --list');

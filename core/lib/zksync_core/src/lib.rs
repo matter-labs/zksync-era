@@ -31,10 +31,10 @@ use zksync_eth_client::EthInterface;
 use zksync_eth_client::{clients::http::PKSigningClient, BoundEthInterface};
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_prover_dal::ProverStorageProcessor;
+use zksync_prover_dal::{healthcheck::ProverConnectionPoolHealthCheck, ProverStorageProcessor};
 use zksync_prover_utils::periodic_job::PeriodicJob;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_server_dal::{healthcheck::ConnectionPoolHealthCheck, ServerStorageProcessor};
+use zksync_server_dal::{healthcheck::ServerConnectionPoolHealthCheck, ServerStorageProcessor};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     proofs::AggregationRound,
@@ -770,8 +770,11 @@ pub async fn initialize_components(
     }
 
     // Run healthcheck server for all components.
-    healthchecks.push(Box::new(ConnectionPoolHealthCheck::new(
+    healthchecks.push(Box::new(ServerConnectionPoolHealthCheck::new(
         replica_connection_pool,
+    )));
+    healthchecks.push(Box::new(ProverConnectionPoolHealthCheck::new(
+        prover_connection_pool,
     )));
 
     let healtcheck_api_config = configs

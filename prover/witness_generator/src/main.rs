@@ -95,9 +95,9 @@ async fn main() -> anyhow::Result<()> {
     )
     .build()
     .await
-    .context("failed to build  server connection pool")?;
+    .context("failed to build server connection pool")?;
 
-    let connection_pool = ConnectionPool::builder(
+    let prover_connection_pool = ConnectionPool::builder(
         postgres_config.prover_url()?,
         postgres_config.max_connections()?,
     )
@@ -107,7 +107,7 @@ async fn main() -> anyhow::Result<()> {
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let vk_commitments = get_cached_commitments();
-    let protocol_versions = connection_pool
+    let protocol_versions = prover_connection_pool
         .access_storage::<ProverStorageProcessor>()
         .await
         .unwrap()
@@ -184,7 +184,7 @@ async fn main() -> anyhow::Result<()> {
                     config.clone(),
                     &store_factory,
                     public_blob_store,
-                    connection_pool.clone(),
+                    server_connection_pool.clone(),
                     prover_connection_pool.clone(),
                     protocol_versions.clone(),
                 )

@@ -19,7 +19,6 @@ pub struct BasicWitnessInputProducerDal<'a, 'c> {
 pub const JOB_MAX_ATTEMPT: i16 = 10;
 
 /// Time to wait for job to be processed
-///
 const JOB_PROCESSING_TIMEOUT: PgInterval = pg_interval_from_duration(Duration::from_secs(10 * 60));
 
 /// Status of a job that the producer will work on.

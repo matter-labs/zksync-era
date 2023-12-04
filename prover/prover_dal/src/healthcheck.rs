@@ -19,22 +19,22 @@ impl ConnectionPoolHealthDetails {
     }
 }
 
-// HealthCheck used to verify if we can connect to the main database.
+// HealthCheck used to verify if we can connect to the prover database.
 // This guarantees that the app can use it's main "communication" channel.
 // Used in the /health endpoint
 #[derive(Debug, Clone)]
-pub struct ConnectionPoolHealthCheck {
+pub struct ProverConnectionPoolHealthCheck {
     connection_pool: ConnectionPool,
 }
 
-impl ConnectionPoolHealthCheck {
-    pub fn new(connection_pool: ConnectionPool) -> ConnectionPoolHealthCheck {
+impl ProverConnectionPoolHealthCheck {
+    pub fn new(connection_pool: ConnectionPool) -> ProverConnectionPoolHealthCheck {
         Self { connection_pool }
     }
 }
 
 #[async_trait]
-impl CheckHealth for ConnectionPoolHealthCheck {
+impl CheckHealth for ProverConnectionPoolHealthCheck {
     fn name(&self) -> &'static str {
         "prover_connection_pool"
     }
