@@ -35,13 +35,12 @@
 //! before extending the tree; these nodes are guaranteed to be the *only* DB reads necessary
 //! to insert new entries.
 
-use std::time::Instant;
+use std::{iter, time::Instant};
 
 use crate::{
     hasher::{HashTree, HasherWithStats},
-    storage::{PatchSet, PruneDatabase, PrunePatchSet, Storage},
-    types::{Key, Manifest, Root, TreeEntry, TreeTags, ValueHash},
-    MerkleTree,
+    storage::{PatchSet, PruneDatabase, PrunePatchSet, SortedKeys, Storage, WorkingPatchSet},
+    types::{Key, Manifest, Node, Root, TreeEntry, TreeTags, ValueHash},
 };
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 
@@ -110,6 +109,11 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
         }
     }
 
+    /// Returns the version of the tree being recovered.
+    pub fn recovered_version(&self) -> u64 {
+        self.recovered_version
+    }
+
     /// Returns the root hash of the recovered tree at this point.
     pub fn root_hash(&self) -> ValueHash {
         let root = self.db.root(self.recovered_version);
@@ -117,6 +121,23 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
             return self.hasher.empty_tree_hash();
         };
         node.hash(&mut HasherWithStats::new(&self.hasher), 0)
+    }
+
+    /// Returns tree entry at the given `key`.
+    pub fn entry(&self, key: Key) -> Option<TreeEntry> {
+        let root = self.db.root(self.recovered_version)?;
+        let sorted_keys = SortedKeys::new(iter::once(key));
+        let mut patch_set = WorkingPatchSet::new(self.recovered_version, root);
+        let longest_prefixes = patch_set
+            .load_ancestors(&sorted_keys, &self.db)
+            .longest_prefixes;
+
+        let longest_prefix = longest_prefixes.last()?;
+        let node = patch_set.get(longest_prefix);
+        match node {
+            Some(Node::Leaf(leaf)) if leaf.full_key == key => Some((*leaf).into()),
+            _ => None,
+        }
     }
 
     /// Returns the last key processed during the recovery process.
@@ -185,7 +206,7 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
         fields(recovered_version = self.recovered_version),
     )]
     #[allow(clippy::missing_panics_doc, clippy::range_plus_one)]
-    pub fn finalize(mut self) -> MerkleTree<DB, H> {
+    pub fn finalize(mut self) -> DB {
         let mut manifest = self.db.manifest().unwrap();
         // ^ `unwrap()` is safe: manifest is inserted into the DB on creation
 
@@ -222,11 +243,7 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
         self.db.apply_patch(PatchSet::from_manifest(manifest));
         tracing::debug!("Updated tree manifest to mark recovery as complete");
 
-        // We don't need additional integrity checks since they were performed in the constructor
-        MerkleTree {
-            db: self.db,
-            hasher: self.hasher,
-        }
+        self.db
     }
 }
 
@@ -240,7 +257,7 @@ fn entries_key_range(entries: &[TreeEntry]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{hasher::HasherWithStats, types::LeafNode};
+    use crate::{hasher::HasherWithStats, types::LeafNode, MerkleTree};
 
     #[test]
     #[should_panic(expected = "Tree is expected to be in the process of recovery")]
@@ -260,7 +277,8 @@ mod tests {
 
     #[test]
     fn recovering_empty_tree() {
-        let tree = MerkleTreeRecovery::new(PatchSet::default(), 42).finalize();
+        let db = MerkleTreeRecovery::new(PatchSet::default(), 42).finalize();
+        let tree = MerkleTree::new(db);
         assert_eq!(tree.latest_version(), Some(42));
         assert_eq!(tree.root(42), Some(Root::Empty));
     }
@@ -270,7 +288,7 @@ mod tests {
         let mut recovery = MerkleTreeRecovery::new(PatchSet::default(), 42);
         let recovery_entry = TreeEntry::new(Key::from(123), 1, ValueHash::repeat_byte(1));
         recovery.extend_linear(vec![recovery_entry]);
-        let tree = recovery.finalize();
+        let tree = MerkleTree::new(recovery.finalize());
 
         assert_eq!(tree.latest_version(), Some(42));
         let mut hasher = HasherWithStats::new(&Blake2Hasher);
