@@ -1,5 +1,3 @@
-use std::ops::Add;
-use std::time::Duration;
 use zksync_types::{
     api::{
         BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
@@ -796,7 +794,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
                 let (tx_hashes, last_timestamp) = conn
                     .transactions_web3_dal()
-                    .get_pending_txs_hashes_since(
+                    .get_pending_txs_hashes_after(
                         *from_timestamp,
                         Some(self.state.api_config.req_entities_limit),
                     )
@@ -804,7 +802,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
 
                 *from_timestamp = match last_timestamp {
-                    Some(last_timestamp) => last_timestamp.add(Duration::from_secs(1)),
+                    Some(last_timestamp) => last_timestamp,
                     None => *from_timestamp,
                 };
 
@@ -834,7 +832,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     .resolve_filter_block_number(filter.to_block)
                     .await?;
 
-                if let Some(BlockNumber::Number(_)) = filter.to_block {
+                if matches!(filter.to_block, BlockNumber::Number(_)) {
                     to_block = to_block.min(
                         self.state
                             .resolve_filter_block_number(Some(BlockNumber::Latest))

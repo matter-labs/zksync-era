@@ -459,9 +459,9 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         assert_logs_match(&lower_bound_logs, &new_events);
 
         let new_upper_bound_logs = client.get_filter_changes(upper_bound_filter_id).await?;
-        assert_eq!(new_upper_bound_logs, FilterChanges::Hashes(vec![]));
+        assert_matches!(new_upper_bound_logs, FilterChanges::Hashes(hashes) if hashes.is_empty());
         let new_bounded_logs = client.get_filter_changes(bounded_filter_id).await?;
-        assert_eq!(new_bounded_logs, FilterChanges::Hashes(vec![]));
+        assert_matches!(new_bounded_logs, FilterChanges::Hashes(hashes) if hashes.is_empty());
 
         // Add miniblock #3. It should not be picked up by the bounded and upper bound filters,
         // and should be picked up by the lower bound filter.
@@ -486,8 +486,7 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         let FilterChanges::Logs(lower_bound_logs) = lower_bound_logs else {
             panic!("Unexpected getFilterChanges output: {:?}", lower_bound_logs);
         };
-        let start_idx = lower_bound_logs.len() - 4;
-        assert_logs_match(&lower_bound_logs[start_idx..], &new_events);
+        assert_logs_match(&lower_bound_logs, &new_events);
         Ok(())
     }
 }

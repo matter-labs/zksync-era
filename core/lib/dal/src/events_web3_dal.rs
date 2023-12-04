@@ -1,16 +1,13 @@
 use sqlx::Row;
 
-use zksync_types::api::BlockNumber;
 use zksync_types::zkevm_test_harness::zk_evm::zkevm_opcode_defs::decoding::AllowedPcOrImm;
 use zksync_types::{
     api::{GetLogsFilter, Log},
-    Address, MiniblockNumber, H256, U64,
+    Address, MiniblockNumber, H256,
 };
 
 use crate::{
-    instrument::InstrumentExt,
-    models::{storage_block::web3_block_number_to_sql, storage_event::StorageWeb3Log},
-    SqlxError, StorageProcessor,
+    instrument::InstrumentExt, models::storage_event::StorageWeb3Log, SqlxError, StorageProcessor,
 };
 
 #[derive(Debug)]
@@ -121,9 +118,7 @@ impl EventsWeb3Dal<'_, '_> {
 
         let mut where_sql = format!("(miniblock_number >= {})", filter.from_block.0 as i64);
 
-        let block_sql =
-            web3_block_number_to_sql(BlockNumber::Number(U64::from(filter.to_block.as_u64())));
-        where_sql += &format!(" AND (miniblock_number <= {})", block_sql);
+        where_sql += &format!(" AND (miniblock_number <= {})", filter.to_block.0 as i64);
 
         if !filter.addresses.is_empty() {
             where_sql += &format!(" AND (address = ANY(${}))", arg_index);
