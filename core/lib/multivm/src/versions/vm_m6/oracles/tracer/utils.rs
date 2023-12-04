@@ -84,7 +84,7 @@ pub(crate) fn get_debug_log<H: HistoryMode>(
     let msg = String::from_utf8(msg).expect("Invalid debug message");
     let data = U256::from_big_endian(&data);
 
-    // For long data, it is better to use hex-encoding for greater readibility
+    // For long data, it is better to use hex-encoding for greater readability
     let data_str = if data > U256::from(u64::max_value()) {
         let mut bytes = [0u8; 32];
         data.to_big_endian(&mut bytes);
@@ -99,7 +99,7 @@ pub(crate) fn get_debug_log<H: HistoryMode>(
 }
 
 /// Reads the memory slice represented by the fat pointer.
-/// Note, that the fat pointer must point to the accesible memory (i.e. not cleared up yet).
+/// Note, that the fat pointer must point to the accessible memory (i.e. not cleared up yet).
 pub(crate) fn read_pointer<H: HistoryMode>(
     memory: &SimpleMemory<H>,
     pointer: FatPointer,

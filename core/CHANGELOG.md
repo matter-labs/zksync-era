@@ -1,5 +1,42 @@
 # Changelog
 
+## [18.4.0](https://github.com/matter-labs/zksync-era/compare/core-v18.3.1...core-v18.4.0) (2023-12-01)
+
+
+### Features
+
+* adds spellchecker workflow, and corrects misspelled words ([#559](https://github.com/matter-labs/zksync-era/issues/559)) ([beac0a8](https://github.com/matter-labs/zksync-era/commit/beac0a85bb1535b05c395057171f197cd976bf82))
+* **en:** Support arbitrary genesis block for external nodes ([#537](https://github.com/matter-labs/zksync-era/issues/537)) ([15d7eaf](https://github.com/matter-labs/zksync-era/commit/15d7eaf872e222338810243865cec9dff7f6e799))
+* **merkle tree:** Remove enumeration index assignment from Merkle tree ([#551](https://github.com/matter-labs/zksync-era/issues/551)) ([e2c1b20](https://github.com/matter-labs/zksync-era/commit/e2c1b20e361e6ee2f5ac69cefe75d9c5575eb2f7))
+* Restore commitment test in Boojum integration ([#539](https://github.com/matter-labs/zksync-era/issues/539)) ([06f510d](https://github.com/matter-labs/zksync-era/commit/06f510d00f855ddafaebb504f7ea799700221072))
+
+
+### Bug Fixes
+
+* Change no pending batches 404 error into a success response ([#279](https://github.com/matter-labs/zksync-era/issues/279)) ([e8fd805](https://github.com/matter-labs/zksync-era/commit/e8fd805c8be7980de7676bca87cfc2d445aab9e1))
+* **vm:** Expose additional types and traits ([#563](https://github.com/matter-labs/zksync-era/issues/563)) ([bd268ac](https://github.com/matter-labs/zksync-era/commit/bd268ac02bc3530c1d3247cb9496c3e13c2e52d9))
+* **witness_generator:** Disable BWIP dependency ([#573](https://github.com/matter-labs/zksync-era/issues/573)) ([e05d955](https://github.com/matter-labs/zksync-era/commit/e05d955036c76a29f9b6e900872c69e20278e045))
+
+## [18.3.1](https://github.com/matter-labs/zksync-era/compare/core-v18.3.0...core-v18.3.1) (2023-11-28)
+
+
+### Bug Fixes
+
+* **external-node:** Check txs at insert time instead of read time ([#555](https://github.com/matter-labs/zksync-era/issues/555)) ([9ea02a1](https://github.com/matter-labs/zksync-era/commit/9ea02a1b2e7c861882f10c8cbe1997f6bb96d9cf))
+* Update comments post-hotfix ([#556](https://github.com/matter-labs/zksync-era/issues/556)) ([339e450](https://github.com/matter-labs/zksync-era/commit/339e45035e85eba7d60b533221be92ce78643705))
+
+## [18.3.0](https://github.com/matter-labs/zksync-era/compare/core-v18.2.0...core-v18.3.0) (2023-11-28)
+
+
+### Features
+
+* **contract-verifier:** Add zkvyper 1.3.13 ([#552](https://github.com/matter-labs/zksync-era/issues/552)) ([198deda](https://github.com/matter-labs/zksync-era/commit/198deda685a5bf44dc41911fe7b7797a219aa29c))
+
+
+### Bug Fixes
+
+* **house_keeper:** Emit the correct circuit_id for aggregation round 2 ([#547](https://github.com/matter-labs/zksync-era/issues/547)) ([9cada1a](https://github.com/matter-labs/zksync-era/commit/9cada1a17469e876cbf82d923e3d59f21576ec94))
+
 ## [18.2.0](https://github.com/matter-labs/zksync-era/compare/core-v18.1.0...core-v18.2.0) (2023-11-27)
 
 
@@ -224,7 +261,7 @@
 * **prover-fri:** added picked-by column in prover fri related tables ([#2600](https://github.com/matter-labs/zksync-2-dev/issues/2600)) ([9e604ab](https://github.com/matter-labs/zksync-2-dev/commit/9e604abf3bae11b6f583f2abd39c07a85dc20f0a))
 * update verification keys, protocol version 15 ([#2602](https://github.com/matter-labs/zksync-2-dev/issues/2602)) ([2fff59b](https://github.com/matter-labs/zksync-2-dev/commit/2fff59bab00849996864b68e932739135337ebd7))
 * **vlog:** Rework the observability configuration subsystem ([#2608](https://github.com/matter-labs/zksync-2-dev/issues/2608)) ([377f0c5](https://github.com/matter-labs/zksync-2-dev/commit/377f0c5f734c979bc990b429dff0971466872e71))
-* **vm:** Multivm tracer support ([#2601](https://github.com/matter-labs/zksync-2-dev/issues/2601)) ([4a7467b](https://github.com/matter-labs/zksync-2-dev/commit/4a7467b1b1556bfd795792dbe280bcf28c93a58f))
+* **vm:** MultiVM tracer support ([#2601](https://github.com/matter-labs/zksync-2-dev/issues/2601)) ([4a7467b](https://github.com/matter-labs/zksync-2-dev/commit/4a7467b1b1556bfd795792dbe280bcf28c93a58f))
 
 ## [8.7.0](https://github.com/matter-labs/zksync-2-dev/compare/core-v8.6.0...core-v8.7.0) (2023-09-19)
 

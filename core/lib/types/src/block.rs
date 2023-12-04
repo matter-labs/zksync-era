@@ -64,7 +64,7 @@ pub struct L1BatchHeader {
     /// The L2 gas price that the operator agrees on.
     pub l2_fair_gas_price: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
-    /// System logs are those emitted as part of the Vm excecution.
+    /// System logs are those emitted as part of the Vm execution.
     pub system_logs: Vec<SystemL2ToL1Log>,
     /// Version of protocol used for the L1 batch.
     pub protocol_version: Option<ProtocolVersionId>,
@@ -89,7 +89,7 @@ pub struct MiniblockHeader {
 }
 
 /// Consensus-related L2 block (= miniblock) fields.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ConsensusBlockFields {
     /// Hash of the previous consensus block.
     pub parent: validator::BlockHeaderHash,
@@ -99,12 +99,14 @@ pub struct ConsensusBlockFields {
 
 impl ProtoFmt for ConsensusBlockFields {
     type Proto = crate::proto::ConsensusBlockFields;
-    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
+
+    fn read(proto: &Self::Proto) -> anyhow::Result<Self> {
         Ok(Self {
-            parent: read_required(&r.parent).context("parent")?,
-            justification: read_required(&r.justification).context("justification")?,
+            parent: read_required(&proto.parent).context("parent")?,
+            justification: read_required(&proto.justification).context("justification")?,
         })
     }
+
     fn build(&self) -> Self::Proto {
         Self::Proto {
             parent: Some(self.parent.build()),

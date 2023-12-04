@@ -53,7 +53,7 @@ In pre-boojum era the superset of pubdata fields and input to the `commitBlocks`
 /// @param repeatedStorageChanges Storage write access as a concatenation index-value
 /// @param l2Logs concatenation of all L2 -> L1 logs in the block
 /// @param l2ArbitraryLengthMessages array of hash preimages that were sent as value of L2 logs by special system L2 contract
-/// @param factoryDeps (contract bytecodes) array of l2 bytecodes that were deployed
+/// @param factoryDeps (contract bytecodes) array of L2 bytecodes that were deployed
 struct CommitBlockInfo {
   uint64 blockNumber;
   uint64 timestamp;

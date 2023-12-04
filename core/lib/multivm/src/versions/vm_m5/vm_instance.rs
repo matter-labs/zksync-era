@@ -103,12 +103,12 @@ pub struct VmExecutionResult {
     pub l2_to_l1_logs: Vec<L2ToL1Log>,
     pub return_data: Vec<u8>,
 
-    /// Value denoting the amount of gas spent withing VM invocation.
+    /// Value denoting the amount of gas spent within VM invocation.
     /// Note that return value represents the difference between the amount of gas
     /// available to VM before and after execution.
     ///
     /// It means, that depending on the context, `gas_used` may represent different things.
-    /// If VM is continously invoked and interrupted after each tx, this field may represent the
+    /// If VM is continuously invoked and interrupted after each tx, this field may represent the
     /// amount of gas spent by a single transaction.
     ///
     /// To understand, which value does `gas_used` represent, see the documentation for the method

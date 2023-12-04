@@ -103,7 +103,7 @@ pub struct VmExecutionResult {
     pub l2_to_l1_logs: Vec<L2ToL1Log>,
     pub return_data: Vec<u8>,
 
-    /// Value denoting the amount of gas spent withing VM invocation.
+    /// Value denoting the amount of gas spent within VM invocation.
     /// Note that return value represents the difference between the amount of gas
     /// available to VM before and after execution.
     ///
@@ -383,7 +383,7 @@ impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
         }
     }
 
-    /// Removes the latest snapshot without rollbacking to it.
+    /// Removes the latest snapshot without rolling back to it.
     /// This function expects that there is at least one snapshot present.
     pub fn pop_snapshot_no_rollback(&mut self) {
         self.snapshots.pop().unwrap();

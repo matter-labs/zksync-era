@@ -154,7 +154,7 @@ pub fn h256_to_u32(value: H256) -> u32 {
     u32::from_be_bytes(be_u32_bytes)
 }
 
-/// Converts u32 into the h256 as BE bytes
+/// Converts u32 into the H256 as BE bytes
 pub fn u32_to_h256(value: u32) -> H256 {
     let mut result = [0u8; 32];
     result[28..].copy_from_slice(&value.to_be_bytes());
