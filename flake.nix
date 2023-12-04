@@ -22,6 +22,9 @@
                     postgresql
                     python3
                     solc
+
+                    libiconv
+                    darwin.apple_sdk.frameworks.SystemConfiguration
                 ];
 
                 # for RocksDB and other Rust bindgen libraries
