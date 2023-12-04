@@ -268,7 +268,8 @@ async function setHyperchainMetadata() {
         feeReceiverAddress = richWallets[3].address;
 
         await up();
-        await announced('Ensuring databases are up', db.waitMain());
+        await announced('Ensuring main db is up', db.waitMain());
+        await announced('Ensuring prover db is up', db.waitProver());
     }
 
     await initializeTestERC20s();

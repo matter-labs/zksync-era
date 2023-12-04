@@ -12,7 +12,8 @@ use zksync_concurrency::{
 };
 use zksync_consensus_roles::validator::{BlockNumber, FinalBlock};
 use zksync_consensus_storage::{BlockStore, StorageError, StorageResult};
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_db_connection::ConnectionPool;
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::{api::en::SyncBlock, block::ConsensusBlockFields, Address, MiniblockNumber};
 
 #[cfg(test)]
@@ -86,7 +87,7 @@ impl PostgresBlockStorage {
         genesis_block: &FinalBlock,
     ) -> StorageResult<Self> {
         let mut storage = ctx
-            .wait(pool.access_storage_tagged("sync_layer"))
+            .wait(pool.access_storage_tagged::<ServerStorageProcessor>("sync_layer"))
             .await?
             .map_err(StorageError::Database)?;
         Self::ensure_genesis_block(ctx, &mut storage, genesis_block).await?;
@@ -123,7 +124,7 @@ impl PostgresBlockStorage {
 
     async fn ensure_genesis_block(
         ctx: &ctx::Ctx,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut ServerStorageProcessor<'_>,
         genesis_block: &FinalBlock,
     ) -> StorageResult<()> {
         let block_number = u32::try_from(genesis_block.header.number.0)
@@ -206,16 +207,19 @@ impl PostgresBlockStorage {
         }
     }
 
-    async fn storage(&self, ctx: &ctx::Ctx) -> StorageResult<StorageProcessor<'_>> {
-        ctx.wait(self.pool.access_storage_tagged("sync_layer"))
-            .await?
-            .context("Failed to connect to Postgres")
-            .map_err(StorageError::Database)
+    async fn storage(&self, ctx: &ctx::Ctx) -> StorageResult<ServerStorageProcessor<'_>> {
+        ctx.wait(
+            self.pool
+                .access_storage_tagged::<ServerStorageProcessor>("sync_layer"),
+        )
+        .await?
+        .context("Failed to connect to Postgres")
+        .map_err(StorageError::Database)
     }
 
     async fn sync_block(
         ctx: &ctx::Ctx,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut ServerStorageProcessor<'_>,
         number: MiniblockNumber,
     ) -> StorageResult<Option<SyncBlock>> {
         let operator_address = Address::default(); // FIXME: where to get this address from?
@@ -231,7 +235,7 @@ impl PostgresBlockStorage {
 
     async fn block(
         ctx: &ctx::Ctx,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut ServerStorageProcessor<'_>,
         number: MiniblockNumber,
     ) -> StorageResult<Option<FinalBlock>> {
         let Some(block) = Self::sync_block(ctx, storage, number).await? else {

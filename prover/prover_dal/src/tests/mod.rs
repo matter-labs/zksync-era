@@ -5,12 +5,14 @@ use zksync_types::{proofs::AggregationRound, L1BatchNumber, ProtocolVersionId};
 use crate::{
     prover_dal::{GetProverJobsParams, ProverDal},
     witness_generator_dal::WitnessGeneratorDal,
-    ConnectionPool,
+    ProverStorageProcessor,
 };
+
+use zksync_db_connection::ConnectionPool;
 
 #[tokio::test]
 async fn test_duplicate_insert_prover_jobs() {
-    let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+    let connection_pool = ConnectionPool::test_pool::<ProverStorageProcessor>().await;
     let storage = &mut connection_pool
         .access_storage::<ProverStorageProcessor>()
         .await
@@ -61,7 +63,7 @@ async fn test_duplicate_insert_prover_jobs() {
 
 #[tokio::test]
 async fn test_requeue_prover_jobs() {
-    let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+    let connection_pool = ConnectionPool::test_pool::<ProverStorageProcessor>().await;
     let storage = &mut connection_pool
         .access_storage::<ProverStorageProcessor>()
         .await
@@ -112,7 +114,7 @@ async fn test_requeue_prover_jobs() {
 
 #[tokio::test]
 async fn test_move_leaf_aggregation_jobs_from_waiting_to_queued() {
-    let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+    let connection_pool = ConnectionPool::test_pool::<ProverStorageProcessor>().await;
     let storage = &mut connection_pool
         .access_storage::<ProverStorageProcessor>()
         .await
@@ -179,7 +181,7 @@ async fn test_move_leaf_aggregation_jobs_from_waiting_to_queued() {
 
 #[tokio::test]
 async fn test_move_node_aggregation_jobs_from_waiting_to_queued() {
-    let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+    let connection_pool = ConnectionPool::test_pool::<ProverStorageProcessor>().await;
     let storage = &mut connection_pool
         .access_storage::<ProverStorageProcessor>()
         .await
@@ -254,7 +256,7 @@ async fn test_move_node_aggregation_jobs_from_waiting_to_queued() {
 
 #[tokio::test]
 async fn test_move_scheduler_jobs_from_waiting_to_queued() {
-    let connection_pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
+    let connection_pool = ConnectionPool::test_pool::<ProverStorageProcessor>().await;
     let storage = &mut connection_pool
         .access_storage::<ProverStorageProcessor>()
         .await

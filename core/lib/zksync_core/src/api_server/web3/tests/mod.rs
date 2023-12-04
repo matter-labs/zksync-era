@@ -148,7 +148,10 @@ trait HttpTest {
 async fn test_http_server(test: impl HttpTest) {
     let pool = ConnectionPool::test_pool().await;
     let network_config = NetworkConfig::for_tests();
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
         ensure_genesis_state(
             &mut storage,
@@ -199,7 +202,7 @@ fn create_miniblock(number: u32) -> MiniblockHeader {
 }
 
 async fn store_block(pool: &ConnectionPool) -> anyhow::Result<(MiniblockHeader, H256)> {
-    let mut storage = pool.access_storage().await?;
+    let mut storage = pool.access_storage::<ServerStorageProcessor>().await?;
     let new_tx = create_l2_transaction(1, 2);
     let new_tx_hash = new_tx.hash();
     let tx_submission_result = storage
@@ -362,7 +365,7 @@ impl HttpTest for LogFilterChanges {
         };
         let topics_filter_id = client.new_filter(topics_filter).await?;
 
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.access_storage::<ServerStorageProcessor>().await?;
         let (_, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
         let events: Vec<_> = events.iter().collect();
@@ -422,7 +425,7 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         };
         let bounded_filter_id = client.new_filter(bounded_filter).await?;
 
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.access_storage::<ServerStorageProcessor>().await?;
         let (_, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
         let events: Vec<_> = events.iter().collect();
@@ -447,7 +450,7 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         assert_eq!(bounded_logs, upper_bound_logs);
 
         // Add another miniblock with events to the storage.
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.access_storage::<ServerStorageProcessor>().await?;
         let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
         let new_events: Vec<_> = new_events.iter().collect();
@@ -466,7 +469,7 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
 
         // Add miniblock #3. It should not be picked up by the bounded and upper bound filters,
         // and should be picked up by the lower bound filter.
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.access_storage::<ServerStorageProcessor>().await?;
         let (_, new_events) = store_events(&mut storage, 3, 8).await?;
         drop(storage);
         let new_events: Vec<_> = new_events.iter().collect();

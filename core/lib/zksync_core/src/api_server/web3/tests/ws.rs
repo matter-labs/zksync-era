@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use tokio::sync::watch;
 
 use zksync_config::configs::chain::NetworkConfig;
-use zksync_dal::ConnectionPool;
+use zksync_db_connection::ConnectionPool;
 use zksync_types::{api, Address, L1BatchNumber, H256, U64};
 use zksync_web3_decl::{
     jsonrpsee::{
@@ -76,7 +76,10 @@ trait WsTest {
 async fn test_ws_server(test: impl WsTest) {
     let pool = ConnectionPool::test_pool().await;
     let network_config = NetworkConfig::for_tests();
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
         ensure_genesis_state(
             &mut storage,
@@ -251,7 +254,7 @@ impl WsTest for LogSubscriptions {
             mut topic_subscription,
         } = Subscriptions::new(client, &mut pub_sub_events).await?;
 
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.access_storage::<ServerStorageProcessor>().await?;
         let (tx_location, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
         let events: Vec<_> = events.iter().collect();
@@ -324,7 +327,7 @@ impl WsTest for LogSubscriptionsWithNewBlock {
             ..
         } = Subscriptions::new(client, &mut pub_sub_events).await?;
 
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.access_storage::<ServerStorageProcessor>().await?;
         let (_, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
         let events: Vec<_> = events.iter().collect();
@@ -333,7 +336,7 @@ impl WsTest for LogSubscriptionsWithNewBlock {
         assert_logs_match(&all_logs, &events);
 
         // Create a new block and wait for the pub-sub notifier to run.
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.access_storage::<ServerStorageProcessor>().await?;
         let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
         let new_events: Vec<_> = new_events.iter().collect();
@@ -373,7 +376,7 @@ impl WsTest for LogSubscriptionsWithManyBlocks {
         } = Subscriptions::new(client, &mut pub_sub_events).await?;
 
         // Add two blocks in the storage atomically.
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.access_storage::<ServerStorageProcessor>().await?;
         let mut transaction = storage.start_transaction().await?;
         let (_, events) = store_events(&mut transaction, 1, 0).await?;
         let events: Vec<_> = events.iter().collect();
@@ -413,7 +416,7 @@ impl WsTest for LogSubscriptionsWithDelay {
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         // Store a miniblock w/o subscriptions being present.
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.access_storage::<ServerStorageProcessor>().await?;
         store_events(&mut storage, 1, 0).await?;
         drop(storage);
 
@@ -438,7 +441,7 @@ impl WsTest for LogSubscriptionsWithDelay {
             wait_for_subscription(&mut pub_sub_events, SubscriptionType::Logs).await;
         }
 
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.access_storage::<ServerStorageProcessor>().await?;
         let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
         let new_events: Vec<_> = new_events.iter().collect();
@@ -450,7 +453,7 @@ impl WsTest for LogSubscriptionsWithDelay {
 
         // Check the behavior of remaining subscriptions if a subscription is dropped.
         all_logs_subscription.unsubscribe().await?;
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.access_storage::<ServerStorageProcessor>().await?;
         let (_, new_events) = store_events(&mut storage, 3, 8).await?;
         drop(storage);
 

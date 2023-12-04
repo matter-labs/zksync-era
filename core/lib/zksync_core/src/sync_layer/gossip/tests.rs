@@ -9,7 +9,8 @@ use zksync_concurrency::{ctx, scope, testonly::abort_on_panic, time};
 use zksync_consensus_executor::testonly::FullValidatorConfig;
 use zksync_consensus_roles::validator::{self, FinalBlock};
 use zksync_consensus_storage::{InMemoryStorage, WriteBlockStore};
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_db_connection::ConnectionPool;
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::{
     api::en::SyncBlock, block::ConsensusBlockFields, Address, L1BatchNumber, MiniblockNumber, H256,
 };
@@ -30,7 +31,7 @@ use crate::{
 const CLOCK_SPEEDUP: i64 = 20;
 const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50 * CLOCK_SPEEDUP);
 
-async fn load_sync_block(storage: &mut StorageProcessor<'_>, number: u32) -> SyncBlock {
+async fn load_sync_block(storage: &mut ServerStorageProcessor<'_>, number: u32) -> SyncBlock {
     storage
         .sync_dal()
         .sync_block(MiniblockNumber(number), Address::default(), true)
@@ -41,7 +42,7 @@ async fn load_sync_block(storage: &mut StorageProcessor<'_>, number: u32) -> Syn
 
 /// Loads a block from the storage and converts it to a `FinalBlock`.
 pub(super) async fn load_final_block(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut ServerStorageProcessor<'_>,
     number: u32,
 ) -> FinalBlock {
     let sync_block = load_sync_block(storage, number).await;
@@ -56,7 +57,7 @@ fn convert_sync_blocks(sync_blocks: Vec<SyncBlock>) -> Vec<FinalBlock> {
 }
 
 pub(super) async fn block_payload(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut ServerStorageProcessor<'_>,
     number: u32,
 ) -> consensus::Payload {
     let sync_block = load_sync_block(storage, number).await;
@@ -65,7 +66,7 @@ pub(super) async fn block_payload(
 
 /// Adds consensus information for the specified `count` of miniblocks, starting from the genesis.
 pub(super) async fn add_consensus_fields(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut ServerStorageProcessor<'_>,
     validator_key: &validator::SecretKey,
     block_numbers: ops::Range<u32>,
 ) {
@@ -181,7 +182,10 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
     let pool = ConnectionPool::test_pool().await;
     let tx_hashes = run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
 
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     let genesis_block_payload = block_payload(&mut storage, 0).await.encode();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
     let rng = &mut ctx.rng();
@@ -262,7 +266,10 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
     .unwrap();
 
     // Check that received blocks have consensus fields persisted.
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     for number in [1, 2] {
         let block = load_final_block(&mut storage, number).await;
         block.justification.verify(&validator_set, 1).unwrap();
@@ -270,7 +277,7 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
 }
 
 /// Returns the removed blocks.
-async fn reset_storage(mut storage: StorageProcessor<'_>) -> Vec<SyncBlock> {
+async fn reset_storage(mut storage: ServerStorageProcessor<'_>) -> Vec<SyncBlock> {
     let sealed_miniblock_number = storage
         .blocks_dal()
         .get_sealed_miniblock_number()
@@ -308,7 +315,10 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
     let tx_hashes = run_state_keeper_with_multiple_l1_batches(pool.clone()).await;
     let tx_hashes: Vec<_> = tx_hashes.iter().map(Vec::as_slice).collect();
 
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     let genesis_block_payload = block_payload(&mut storage, 0).await.encode();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
     let rng = &mut ctx.rng();
@@ -367,7 +377,10 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
     .unwrap();
 
     // Check that received blocks have consensus fields persisted.
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     for number in [1, 2, 3] {
         let block = load_final_block(&mut storage, number).await;
         block.justification.verify(&validator_set, 1).unwrap();
@@ -382,7 +395,10 @@ async fn syncing_from_non_zero_block(first_block_number: u32) {
     let tx_hashes = run_state_keeper_with_multiple_l1_batches(pool.clone()).await;
     let tx_hashes: Vec<_> = tx_hashes.iter().map(Vec::as_slice).collect();
 
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     let genesis_block_payload = block_payload(&mut storage, first_block_number)
         .await
         .encode();
@@ -468,7 +484,10 @@ async fn syncing_from_non_zero_block(first_block_number: u32) {
     .unwrap();
 
     // Check that received blocks have consensus fields persisted.
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     for number in first_block_number..4 {
         let block = load_final_block(&mut storage, number).await;
         block.justification.verify(&validator_set, 1).unwrap();
@@ -482,9 +501,14 @@ async fn insert_sync_blocks(pool: ConnectionPool, blocks: Vec<SyncBlock>, tx_has
         .filter_map(|block| block.last_in_batch.then_some(block.l1_batch_number));
     let sealed_l1_batches: Vec<_> = sealed_l1_batches.collect();
 
-    let mut fetcher = FetcherCursor::new(&mut pool.access_storage().await.unwrap())
-        .await
-        .unwrap();
+    let mut fetcher = FetcherCursor::new(
+        &mut pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap(),
+    )
+    .await
+    .unwrap();
     let (actions_sender, actions) = ActionQueue::new();
     let state_keeper = StateKeeperHandles::new(pool.clone(), actions, tx_hashes).await;
     for block in blocks {

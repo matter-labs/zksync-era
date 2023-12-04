@@ -8,10 +8,11 @@ use tokio::{
     task::JoinHandle,
     time::{interval, Duration},
 };
+use zksync_server_dal::ServerStorageProcessor;
 
 use std::{collections::HashMap, sync::Arc};
 
-use zksync_dal::ConnectionPool;
+use zksync_db_connection::ConnectionPool;
 use zksync_types::{MiniblockNumber, H128, H256};
 use zksync_web3_decl::types::{BlockHeader, Log, PubSubFilter, PubSubResult};
 
@@ -41,7 +42,7 @@ struct PubSubNotifier<V> {
 impl<V: Clone> PubSubNotifier<V> {
     async fn sealed_miniblock_number(&self) -> anyhow::Result<MiniblockNumber> {
         self.connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .context("access_storage_tagged")?
             .blocks_web3_dal()
@@ -104,7 +105,7 @@ impl PubSubNotifier<typed::Sink<PubSubResult>> {
         last_block_number: MiniblockNumber,
     ) -> anyhow::Result<Vec<BlockHeader>> {
         self.connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .context("access_storage_tagged")?
             .blocks_web3_dal()
@@ -153,7 +154,7 @@ impl PubSubNotifier<typed::Sink<PubSubResult>> {
         last_time: chrono::NaiveDateTime,
     ) -> anyhow::Result<(Vec<H256>, Option<chrono::NaiveDateTime>)> {
         self.connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .context("access_storage_tagged")?
             .transactions_web3_dal()
@@ -203,7 +204,7 @@ impl PubSubNotifier<(typed::Sink<PubSubResult>, PubSubFilter)> {
 
     async fn new_logs(&self, last_block_number: MiniblockNumber) -> anyhow::Result<Vec<Log>> {
         self.connection_pool
-            .access_storage_tagged("api")
+            .access_storage_tagged::<ServerStorageProcessor>("api")
             .await
             .context("access_storage_tagged")?
             .events_web3_dal()

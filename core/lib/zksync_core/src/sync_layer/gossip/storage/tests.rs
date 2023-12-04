@@ -27,7 +27,10 @@ async fn block_store_basics_for_postgres() {
     let pool = ConnectionPool::test_pool().await;
     run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
 
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     add_consensus_fields(&mut storage, &thread_rng().gen(), 0..3).await;
     let cursor = FetcherCursor::new(&mut storage).await.unwrap();
     drop(storage);
@@ -61,7 +64,10 @@ async fn block_store_basics_for_postgres() {
 async fn subscribing_to_block_updates_for_postgres() {
     abort_on_panic();
     let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
             .await
@@ -107,7 +113,10 @@ async fn processing_new_blocks() {
     let pool = ConnectionPool::test_pool().await;
     run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
 
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     add_consensus_fields(&mut storage, &thread_rng().gen(), 0..3).await;
     let first_block = load_final_block(&mut storage, 1).await;
     let second_block = load_final_block(&mut storage, 2).await;
@@ -150,7 +159,10 @@ async fn ensuring_consensus_fields_for_genesis_block() {
     abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
             .await
@@ -169,7 +181,10 @@ async fn ensuring_consensus_fields_for_genesis_block() {
         .unwrap();
 
     // Check that the consensus fields are persisted for the genesis block.
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     let sync_block = storage
         .sync_dal()
         .sync_block(MiniblockNumber(0), Address::default(), false)
@@ -209,7 +224,10 @@ async fn genesis_block_payload_mismatch() {
     abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
             .await
@@ -248,7 +266,10 @@ async fn missing_genesis_block() {
     abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
             .await
@@ -275,7 +296,10 @@ async fn using_non_zero_genesis_block() {
     let pool = ConnectionPool::test_pool().await;
     run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
 
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool
+        .access_storage::<ServerStorageProcessor>()
+        .await
+        .unwrap();
     let cursor = FetcherCursor::new(&mut storage).await.unwrap();
     let block_payload = block_payload(&mut storage, 2).await.encode();
     drop(storage);

@@ -1445,65 +1445,6 @@
     },
     "query": "\n                UPDATE prover_jobs_fri\n                SET status = 'queued', updated_at = now(), processing_started_at = now()\n                WHERE id in (\n                    SELECT id\n                    FROM prover_jobs_fri\n                    WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)\n                    OR (status = 'in_gpu_proof' AND  processing_started_at <= now() - $1::interval AND attempts < $2)\n                    OR (status = 'failed' AND attempts < $2)\n                    FOR UPDATE SKIP LOCKED\n                )\n                RETURNING id, status, attempts\n                "
   },
-  "62aaa047e3da5bd966608fec421ddad1b8afa04aaf35e946219d703bbe6ac9c5": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "l1_batch_number",
-          "ordinal": 1,
-          "type_info": "Int8"
-        },
-        {
-          "name": "circuit_id",
-          "ordinal": 2,
-          "type_info": "Int2"
-        },
-        {
-          "name": "aggregation_round",
-          "ordinal": 3,
-          "type_info": "Int2"
-        },
-        {
-          "name": "sequence_number",
-          "ordinal": 4,
-          "type_info": "Int4"
-        },
-        {
-          "name": "depth",
-          "ordinal": 5,
-          "type_info": "Int4"
-        },
-        {
-          "name": "is_node_final_proof",
-          "ordinal": 6,
-          "type_info": "Bool"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Int2Array",
-          "Int2Array",
-          "Int4Array",
-          "Text"
-        ]
-      }
-    },
-    "query": "\n                UPDATE prover_jobs_fri\n                SET status = 'in_progress', attempts = attempts + 1,\n                    updated_at = now(), processing_started_at = now(),\n                    picked_by = $4\n                WHERE id = (\n                    SELECT pj.id\n                    FROM prover_jobs_fri AS pj\n                    JOIN (\n                        SELECT * FROM unnest($1::smallint[], $2::smallint[])\n                    )\n                    AS tuple (circuit_id, round)\n                    ON tuple.circuit_id = pj.circuit_id AND tuple.round = pj.aggregation_round\n                    WHERE pj.status = 'queued'\n                    AND pj.protocol_version = ANY($3)\n                    ORDER BY pj.l1_batch_number ASC, pj.aggregation_round DESC, pj.id ASC\n                    LIMIT 1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n                RETURNING prover_jobs_fri.id, prover_jobs_fri.l1_batch_number, prover_jobs_fri.circuit_id,\n                prover_jobs_fri.aggregation_round, prover_jobs_fri.sequence_number, prover_jobs_fri.depth,\n                prover_jobs_fri.is_node_final_proof\n                "
-  },
   "665112c83ed7f126f94d1c47408de3495ee6431970e334d94ae75f853496eb48": {
     "describe": {
       "columns": [],
@@ -2027,21 +1968,6 @@
     },
     "query": "\n                    INSERT INTO scheduler_dependency_tracker_fri\n                        (l1_batch_number, status, created_at, updated_at)\n                    VALUES ($1, 'waiting_for_proofs', now(), now())\n                    ON CONFLICT(l1_batch_number)\n                    DO UPDATE SET updated_at=now()\n                    "
   },
-  "8ff9d76b4791af1177231661847b6c8879ad625fd11c15de51a16c81d8712129": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Int8",
-          "Bytea",
-          "Text",
-          "Int4"
-        ]
-      }
-    },
-    "query": "INSERT INTO witness_inputs(l1_batch_number, merkle_tree_paths, merkel_tree_paths_blob_url, status, protocol_version, created_at, updated_at) VALUES ($1, $2, $3, 'waiting_for_artifacts', $4, now(), now()) ON CONFLICT (l1_batch_number) DO NOTHING"
-  },
   "944c38995043e7b11e6633beb68b5479059ff27b26fd2df171a3d9650f070547": {
     "describe": {
       "columns": [
@@ -2528,6 +2454,65 @@
       }
     },
     "query": "UPDATE proof_compression_jobs_fri SET status = $1, updated_at = now(), time_taken = $2, l1_proof_blob_url = $3WHERE l1_batch_number = $4"
+  },
+  "ac179b3a4eca421f3151f4f1eb844f2cee16fa1d2a47c910feb8e07d8f8ace6c": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "l1_batch_number",
+          "ordinal": 1,
+          "type_info": "Int8"
+        },
+        {
+          "name": "circuit_id",
+          "ordinal": 2,
+          "type_info": "Int2"
+        },
+        {
+          "name": "aggregation_round",
+          "ordinal": 3,
+          "type_info": "Int2"
+        },
+        {
+          "name": "sequence_number",
+          "ordinal": 4,
+          "type_info": "Int4"
+        },
+        {
+          "name": "depth",
+          "ordinal": 5,
+          "type_info": "Int4"
+        },
+        {
+          "name": "is_node_final_proof",
+          "ordinal": 6,
+          "type_info": "Bool"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int2Array",
+          "Int2Array",
+          "Int4Array",
+          "Text"
+        ]
+      }
+    },
+    "query": "\n                UPDATE prover_jobs_fri\n                SET status = 'in_progress', attempts = attempts + 1,\n                    processing_started_at = now(), updated_at = now(), \n                    picked_by = $4\n                WHERE id = (\n                    SELECT pj.id\n                    FROM ( SELECT * FROM unnest($1::smallint[], $2::smallint[]) ) AS tuple (circuit_id, round)\n                    JOIN LATERAL\n                    (\n                        SELECT * FROM prover_jobs_fri AS pj\n                        WHERE pj.status = 'queued'\n                        AND pj.protocol_version = ANY($3)\n                        AND pj.circuit_id = tuple.circuit_id AND pj.aggregation_round = tuple.round\n                        ORDER BY pj.l1_batch_number ASC, pj.id ASC\n                        LIMIT 1\n                    ) AS pj ON true\n                    ORDER BY pj.l1_batch_number ASC, pj.aggregation_round DESC, pj.id ASC\n                    LIMIT 1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n                RETURNING prover_jobs_fri.id, prover_jobs_fri.l1_batch_number, prover_jobs_fri.circuit_id,\n                prover_jobs_fri.aggregation_round, prover_jobs_fri.sequence_number, prover_jobs_fri.depth,\n                prover_jobs_fri.is_node_final_proof\n                "
   },
   "ad495160a947cf1bd7343819e723d18c9332bc95cfc2014ed8d04907eff3896e": {
     "describe": {
@@ -3210,6 +3195,21 @@
       }
     },
     "query": "\n                    INSERT INTO scheduler_witness_jobs_fri\n                        (l1_batch_number, scheduler_partial_input_blob_url, protocol_version, status, created_at, updated_at)\n                    VALUES ($1, $2, $3, 'waiting_for_proofs', now(), now())\n                    ON CONFLICT(l1_batch_number)\n                    DO UPDATE SET updated_at=now()\n                    "
+  },
+  "ec35fc5128cf59d19e6d65ed6d84fcc50fedce921405c4ce700dd2e08c990642": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Bytea",
+          "Text",
+          "Int4"
+        ]
+      }
+    },
+    "query": "INSERT INTO witness_inputs(l1_batch_number, merkle_tree_paths, merkel_tree_paths_blob_url, status, protocol_version, created_at, updated_at) VALUES ($1, $2, $3, 'queued', $4, now(), now()) ON CONFLICT (l1_batch_number) DO NOTHING"
   },
   "ed50c609371b4588964e29f8757c41973706710090a80eb025ec263ce3d019b4": {
     "describe": {

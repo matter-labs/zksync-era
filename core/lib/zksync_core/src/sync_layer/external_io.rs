@@ -127,7 +127,11 @@ impl ExternalIO {
 
     async fn load_previous_miniblock_hash(&self) -> H256 {
         let prev_miniblock_number = self.current_miniblock_number - 1;
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
+        let mut storage = self
+            .pool
+            .access_storage_tagged::<ServerStorageProcessor>("sync_layer")
+            .await
+            .unwrap();
         let header = storage
             .blocks_dal()
             .get_miniblock_header(prev_miniblock_number)

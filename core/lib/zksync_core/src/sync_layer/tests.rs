@@ -156,7 +156,13 @@ impl StateKeeperHandles {
         assert!(!tx_hashes.is_empty());
         assert!(tx_hashes.iter().all(|tx_hashes| !tx_hashes.is_empty()));
 
-        ensure_genesis(&mut pool.access_storage().await.unwrap()).await;
+        ensure_genesis(
+            &mut pool
+                .access_storage::<ServerStorageProcessor>()
+                .await
+                .unwrap(),
+        )
+        .await;
 
         let sync_state = SyncState::new();
         let io = ExternalIO::new(
