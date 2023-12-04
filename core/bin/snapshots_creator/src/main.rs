@@ -114,6 +114,7 @@ async fn process_factory_deps(
         .get_all_factory_deps(miniblock_number)
         .await?;
     let factory_deps = SnapshotFactoryDependencies { factory_deps };
+    drop(conn);
     let filename = blob_store
         .put(l1_batch_number, &factory_deps)
         .await
@@ -140,7 +141,8 @@ async fn run(
         .await?;
     let start_time = seconds_since_epoch();
 
-    let l1_batch_number = conn.blocks_dal().get_sealed_l1_batch_number().await? - 1; // we subtract 1 so that after restore, EN node has at least one l1 batch to fetch
+    // we subtract 1 so that after restore, EN node has at least one l1 batch to fetch
+    let l1_batch_number = conn.blocks_dal().get_sealed_l1_batch_number().await? - 1;
 
     let mut master_conn = master_pool
         .access_storage_tagged("snapshots_creator")
@@ -151,44 +153,36 @@ async fn run(
         .await?
         .is_some()
     {
-        tracing::info!(
-            "Snapshot for L1 batch number {} already exists, exiting",
-            l1_batch_number
-        );
+        tracing::info!("Snapshot for L1 batch number {l1_batch_number} already exists, exiting",);
         return Ok(());
     }
     drop(master_conn);
 
+    // snapshots always
     let last_miniblock_number_in_batch = conn
         .blocks_dal()
         .get_miniblock_range_of_l1_batch(l1_batch_number)
         .await?
-        .unwrap()
+        .context("Error fetching last miniblock number")?
         .1;
-    let storage_logs_chunks_count = conn
+    let distinct_storage_logs_keys_count = conn
         .snapshots_creator_dal()
-        .get_storage_logs_count(l1_batch_number)
+        .get_distinct_storage_logs_keys_count(l1_batch_number)
         .await?;
 
     drop(conn);
-    METRICS
-        .storage_logs_chunks_count
-        .set(storage_logs_chunks_count);
 
     let chunk_size = config.storage_logs_chunk_size;
     // we force at least 10 chunks to avoid situations where only one chunk is created in tests
-    let chunks_count = max(10, ceil_div(storage_logs_chunks_count, chunk_size));
+    let chunks_count = max(10, ceil_div(distinct_storage_logs_keys_count, chunk_size));
+
+    METRICS.storage_logs_chunks_count.set(chunks_count);
 
     tracing::info!(
-        "Creating snapshot for storage logs up to miniblock {}, l1_batch {}",
-        last_miniblock_number_in_batch,
+        "Creating snapshot for storage logs up to miniblock {last_miniblock_number_in_batch}, l1_batch {}",
         l1_batch_number.0
     );
-    tracing::info!(
-        "Starting to generate {} chunks of max size {}",
-        chunks_count,
-        chunk_size
-    );
+    tracing::info!("Starting to generate {chunks_count} chunks of expected size {chunk_size}");
 
     let factory_deps_output_file = process_factory_deps(
         &*blob_store,

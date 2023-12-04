@@ -9,7 +9,7 @@ pub struct SnapshotsCreatorDal<'a, 'c> {
 }
 
 impl SnapshotsCreatorDal<'_, '_> {
-    pub async fn get_storage_logs_count(
+    pub async fn get_distinct_storage_logs_keys_count(
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> sqlx::Result<u64> {
@@ -26,8 +26,7 @@ impl SnapshotsCreatorDal<'_, '_> {
         .instrument("get_storage_logs_count")
         .report_latency()
         .fetch_one(self.storage.conn())
-        .await
-        .unwrap()
+        .await?
         .index;
         Ok(count as u64)
     }
@@ -84,7 +83,7 @@ impl SnapshotsCreatorDal<'_, '_> {
         miniblock_number: MiniblockNumber,
     ) -> sqlx::Result<Vec<SnapshotFactoryDependency>> {
         let rows = sqlx::query!(
-            "SELECT bytecode, bytecode_hash FROM factory_deps WHERE miniblock_number <= $1",
+            "SELECT bytecode FROM factory_deps WHERE miniblock_number <= $1",
             miniblock_number.0 as i64,
         )
         .instrument("get_all_factory_deps")
