@@ -63,8 +63,9 @@ jobs:
 
       - name: Start services
         run: |
-          docker-compose -f docker-compose-runner.yml pull
-          docker-compose -f docker-compose-runner.yml up --build -d geth zk postgres
+          docker-compose -f docker-compose-local-genesis.yml up
+          docker-compose -f docker-compose-local-genesis.yml rm
+          docker-compose --profile runner up -d
           ci_run sccache --start-server
 
       - name: Init
