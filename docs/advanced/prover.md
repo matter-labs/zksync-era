@@ -184,7 +184,7 @@ pub struct UInt32<F: SmallField> {
     pub(crate) variable: Variable,
 }
 impl<F: SmallField> CSAllocatable<F> for UInt32<F> {
-    // So the 'witness' type (concrete value) for U32 is u32 - no surprsise ;-)
+    // So the 'witness' type (concrete value) for U32 is u32 - no surprises ;-)
     type Witness = u32;
     ...
 }

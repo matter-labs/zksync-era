@@ -12,7 +12,7 @@ use zksync_types::U256;
 use crate::interface::{
     dyn_tracers::vm_1_3_3::DynTracer, VmExecutionResultAndLogs, VmRevertReason,
 };
-use crate::tracers::call_tracer::{CallTracer, FarcallAndNearCallCount};
+use crate::tracers::call_tracer::CallTracer;
 use crate::vm_virtual_blocks::{
     ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory, VmTracer,
 };
@@ -27,9 +27,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
     ) {
         match data.opcode.variant.opcode {
             Opcode::NearCall(_) => {
-                if let Some(last) = self.stack.last_mut() {
-                    last.near_calls_after += 1;
-                }
+                self.increase_near_call_count();
             }
             Opcode::FarCall(far_call) => {
                 // We use parent gas for properly calculating gas used in the trace.
@@ -50,10 +48,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
                 };
 
                 self.handle_far_call_op_code_virtual_blocks(state, data, memory, &mut current_call);
-                self.stack.push(FarcallAndNearCallCount {
-                    farcall: current_call,
-                    near_calls_after: 0,
-                });
+                self.push_call_and_update_stats(current_call, 0);
             }
             Opcode::Ret(ret_code) => {
                 self.handle_ret_op_code_virtual_blocks(state, data, memory, ret_code);
@@ -187,7 +182,7 @@ impl CallTracer {
 
         if current_call.near_calls_after > 0 {
             current_call.near_calls_after -= 1;
-            self.stack.push(current_call);
+            self.push_call_and_update_stats(current_call.farcall, current_call.near_calls_after);
             return;
         }
 
@@ -203,7 +198,7 @@ impl CallTracer {
         if let Some(parent_call) = self.stack.last_mut() {
             parent_call.farcall.calls.push(current_call.farcall);
         } else {
-            self.stack.push(current_call);
+            self.push_call_and_update_stats(current_call.farcall, current_call.near_calls_after);
         }
     }
 }

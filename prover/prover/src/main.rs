@@ -2,6 +2,7 @@
 
 #[cfg(feature = "gpu")]
 mod artifact_provider;
+mod metrics;
 #[cfg(feature = "gpu")]
 mod prover;
 #[cfg(feature = "gpu")]
