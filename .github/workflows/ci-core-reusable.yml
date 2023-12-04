@@ -64,6 +64,9 @@ jobs:
       - name: Start services
         run: |
           mkdir -p ./volumes/postgres
+          mkdir -p ./volumes/geth
+          mkdir -p ./volumes/prysm/beacon
+          mkdir -p ./volumes/prysm/validator
           docker-compose -f docker-compose-local-genesis.yml up
           docker-compose -f docker-compose-local-genesis.yml rm -f
           docker-compose --profile runner up -d --wait
