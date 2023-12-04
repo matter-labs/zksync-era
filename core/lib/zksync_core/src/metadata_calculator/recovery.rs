@@ -24,9 +24,9 @@ impl GenericAsyncTree {
         let (tree, l1_batch) = match self {
             Self::Ready(tree) => return Ok(tree),
             Self::Recovering(tree) => {
-                let l1_batch = snapshot_l1_batch(pool)
-                    .await?
-                    .context("Merkle tree is recovering, but Postgres doesn't contain")?;
+                let l1_batch = snapshot_l1_batch(pool).await?.context(
+                    "Merkle tree is recovering, but Postgres doesn't contain snapshot L1 batch",
+                )?;
                 let recovered_version = tree.recovered_version();
                 anyhow::ensure!(
                     u64::from(l1_batch.0) == recovered_version,
@@ -50,6 +50,21 @@ impl GenericAsyncTree {
             }
         };
 
+        // FIXME: make choice of ranges more intelligent. NB: ranges must be the same for the entire recovery!
+        let chunk_count = 256;
+        tree.recover(l1_batch, chunk_count, pool, stop_receiver)
+            .await
+    }
+}
+
+impl AsyncTreeRecovery {
+    async fn recover(
+        self,
+        l1_batch: L1BatchNumber,
+        chunk_count: usize,
+        pool: &ConnectionPool,
+        stop_receiver: &watch::Receiver<bool>,
+    ) -> anyhow::Result<AsyncTree> {
         let mut storage = pool.access_storage().await?;
         let (_, snapshot_miniblock) = storage
             .blocks_dal()
@@ -62,19 +77,18 @@ impl GenericAsyncTree {
             .get_l1_batch_metadata(l1_batch)
             .await
             .with_context(|| format!("Failed getting metadata for L1 batch #{l1_batch}"))?
-            .with_context(|| format!("L1 batch #{l1_batch} has not metadata"))?
+            .with_context(|| format!("L1 batch #{l1_batch} has no metadata"))?
             .metadata
             .root_hash;
         drop(storage);
 
-        // FIXME: make choice of ranges more intelligent. NB: ranges must be the same for the entire recovery!
-        let ranges = Self::hashed_key_ranges(256);
-        let tree = Mutex::new(tree);
+        let chunks = Self::hashed_key_ranges(chunk_count);
+        let tree = Mutex::new(self);
 
-        let range_tasks = ranges.map(|range| {
-            Self::recover_key_range(&tree, snapshot_miniblock, range, pool, stop_receiver)
+        let chunl_tasks = chunks.map(|chunk| {
+            Self::recover_key_chunk(&tree, snapshot_miniblock, chunk, pool, stop_receiver)
         });
-        future::try_join_all(range_tasks).await?;
+        future::try_join_all(chunl_tasks).await?;
 
         let mut tree = tree.into_inner();
         let actual_root_hash = tree.root_hash().await;
@@ -106,7 +120,7 @@ impl GenericAsyncTree {
         })
     }
 
-    async fn recover_key_range(
+    async fn recover_key_chunk(
         tree: &Mutex<AsyncTreeRecovery>,
         snapshot_miniblock: MiniblockNumber,
         key_chunk: ops::RangeInclusive<H256>,
@@ -191,22 +205,34 @@ fn map_tree_entry(src: &StorageTreeEntry) -> anyhow::Result<TreeEntry> {
 
 #[cfg(test)]
 mod tests {
+    use tempfile::TempDir;
     use test_casing::test_casing;
 
+    use std::{path::PathBuf, time::Duration};
+
+    use zksync_config::configs::database::MerkleTreeMode;
+    use zksync_types::{L2ChainId, StorageLog};
     use zksync_utils::h256_to_u256;
 
     use super::*;
+    use crate::{
+        genesis::{ensure_genesis_state, GenesisParams},
+        metadata_calculator::{
+            helpers::create_db,
+            tests::{extend_db_state, gen_storage_logs, run_calculator, setup_calculator},
+        },
+    };
 
     #[test]
     fn calculating_hashed_key_ranges_with_single_chunk() {
-        let mut ranges = GenericAsyncTree::hashed_key_ranges(1);
+        let mut ranges = AsyncTreeRecovery::hashed_key_ranges(1);
         let full_range = ranges.next().unwrap();
         assert_eq!(full_range, H256::zero()..=H256([0xff; 32]));
     }
 
     #[test]
     fn calculating_hashed_key_ranges_for_256_chunks() {
-        let ranges = GenericAsyncTree::hashed_key_ranges(256);
+        let ranges = AsyncTreeRecovery::hashed_key_ranges(256);
         let mut start = H256::zero();
         let mut end = H256([0xff; 32]);
 
@@ -220,7 +246,7 @@ mod tests {
 
     #[test_casing(5, [3, 7, 23, 100, 255])]
     fn calculating_hashed_key_ranges_for_arbitrary_chunks(chunk_count: usize) {
-        let ranges: Vec<_> = GenericAsyncTree::hashed_key_ranges(chunk_count).collect();
+        let ranges: Vec<_> = AsyncTreeRecovery::hashed_key_ranges(chunk_count).collect();
         assert_eq!(ranges.len(), chunk_count);
 
         for window in ranges.windows(2) {
@@ -234,5 +260,56 @@ mod tests {
         }
         assert_eq!(*ranges.first().unwrap().start(), H256::zero());
         assert_eq!(*ranges.last().unwrap().end(), H256([0xff; 32]));
+    }
+
+    async fn create_tree_recovery(path: PathBuf, l1_batch: L1BatchNumber) -> AsyncTreeRecovery {
+        let db = create_db(
+            path,
+            0,
+            16 << 20,       // 16 MiB,
+            Duration::ZERO, // writes should never be stalled in tests
+            500,
+        )
+        .await;
+        AsyncTreeRecovery::new(db, l1_batch.0.into(), MerkleTreeMode::Full)
+    }
+
+    #[tokio::test]
+    async fn basic_recovery_workflow() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut storage = pool.access_storage().await.unwrap();
+        ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
+            .await
+            .unwrap();
+        let mut logs = gen_storage_logs(100..300, 1).pop().unwrap();
+
+        // Add all logs from the genesis L1 batch to `logs` so that they cover all state keys.
+        let genesis_logs = storage
+            .storage_logs_dal()
+            .get_touched_slots_for_l1_batch(L1BatchNumber(0))
+            .await;
+        let genesis_logs = genesis_logs
+            .into_iter()
+            .map(|(key, value)| StorageLog::new_write_log(key, value));
+        logs.extend(genesis_logs);
+        extend_db_state(&mut storage, vec![logs]).await;
+
+        let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+        // Ensure that metadata for L1 batch #1 is present in the DB.
+        let (calculator, _) = setup_calculator(&temp_dir.path().join("init"), &pool).await;
+        let prover_pool = ConnectionPool::test_pool().await;
+        let root_hash = run_calculator(calculator, pool.clone(), prover_pool).await;
+
+        let (_stop_sender, stop_receiver) = watch::channel(false);
+        for chunk_count in [1, 4, 9, 16, 60, 256] {
+            println!("Recovering tree with {chunk_count} chunks");
+            let tree_path = temp_dir.path().join(format!("recovery-{chunk_count}"));
+            let tree = create_tree_recovery(tree_path, L1BatchNumber(1)).await;
+            let tree = tree
+                .recover(L1BatchNumber(1), chunk_count, &pool, &stop_receiver)
+                .await
+                .unwrap();
+            assert_eq!(tree.root_hash(), root_hash);
+        }
     }
 }
