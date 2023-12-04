@@ -30,9 +30,9 @@ services:
       - --password=/var/lib/geth/data/password.sec
       - --syncmode=full
     depends_on:
-      beacon-chain:
+      beacon:
         condition: service_started
-  beacon-chain:
+  beacon:
     image: "gcr.io/prylabs-dev/prysm/beacon-chain:v4.1.1"
     command:
       - --datadir=/consensus/beacon/
@@ -63,14 +63,14 @@ services:
   validator:
     image: "gcr.io/prylabs-dev/prysm/validator:v4.1.1"
     command:
-      - --beacon-rpc-provider=beacon-chain:4000
+      - --beacon-rpc-provider=beacon:4000
       - --datadir=/consensus/validatordata
       - --accept-terms-of-use
       - --interop-num-validators=64
       - --interop-start-index=0
       - --chain-config-file=/consensus/config.yml
     depends_on:
-      beacon-chain:
+      beacon:
         condition: service_started
     volumes:
       - ./volumes/prysm:/consensus
@@ -91,6 +91,8 @@ services:
     depends_on:
       - geth
       - postgres
+      - beacon
+      - validator
     security_opt:
       - seccomp:unconfined
     command: tail -f /dev/null
