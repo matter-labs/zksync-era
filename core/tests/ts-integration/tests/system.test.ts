@@ -39,7 +39,7 @@ describe('System behavior checks', () => {
             data: '0x'
         };
 
-        const result_a = await expect(alice.providerL1!.call(transaction_a)).rejects.toThrow();
+        await expect(alice.providerL1!.call(transaction_a)).rejects.toThrow();
 
         const transaction_b = {
             to: address_b,
