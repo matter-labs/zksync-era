@@ -16,6 +16,7 @@ use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::recursion::lea
 use zksync_vk_setup_data_server_fri::get_recursive_layer_vk_for_circuit_type;
 use zksync_vk_setup_data_server_fri::utils::get_leaf_vk_params;
 
+use crate::metrics::WITNESS_GENERATOR_METRICS;
 use crate::utils::{
     load_proofs_for_job_ids, save_node_aggregations_artifacts,
     save_recursive_layer_prover_input_artifacts, AggregationWrapper,
@@ -108,11 +109,10 @@ impl NodeAggregationWitnessGenerator {
             node_vk_commitment,
             &job.all_leafs_layer_params,
         );
-        metrics::histogram!(
-                    "prover_fri.witness_generation.witness_generation_time",
-                    started_at.elapsed(),
-                    "aggregation_round" => format!("{:?}", AggregationRound::NodeAggregation),
-        );
+        WITNESS_GENERATOR_METRICS.witness_generation_time
+            [&AggregationRound::NodeAggregation.into()]
+            .observe(started_at.elapsed());
+
         tracing::info!(
             "Node witness generation for block {} with circuit id {} at depth {} with {} next_aggregations jobs completed in {:?}.",
             job.block_number.0,
@@ -228,11 +228,10 @@ pub async fn prepare_job(
     let started_at = Instant::now();
     let artifacts = get_artifacts(&metadata, object_store).await;
     let proofs = load_proofs_for_job_ids(&metadata.prover_job_ids_for_proofs, object_store).await;
-    metrics::histogram!(
-                    "prover_fri.witness_generation.blob_fetch_time",
-                    started_at.elapsed(),
-                    "aggregation_round" => format!("{:?}", AggregationRound::NodeAggregation),
-    );
+
+    WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::NodeAggregation.into()]
+        .observe(started_at.elapsed());
+
     let started_at = Instant::now();
     let leaf_vk = get_recursive_layer_vk_for_circuit_type(metadata.circuit_id)
         .context("get_recursive_layer_vk_for_circuit_type")?;
@@ -254,11 +253,9 @@ pub async fn prepare_job(
         }
     }
 
-    metrics::histogram!(
-                    "prover_fri.witness_generation.job_preparation_time",
-                    started_at.elapsed(),
-                    "aggregation_round" => format!("{:?}", AggregationRound::NodeAggregation),
-    );
+    WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::NodeAggregation.into()]
+        .observe(started_at.elapsed());
+
     Ok(NodeAggregationWitnessGeneratorJob {
         circuit_id: metadata.circuit_id,
         block_number: metadata.block_number,
@@ -376,11 +373,10 @@ async fn save_artifacts(
         Some(artifacts.circuit_id),
     )
     .await;
-    metrics::histogram!(
-                    "prover_fri.witness_generation.blob_save_time",
-                    started_at.elapsed(),
-                    "aggregation_round" => format!("{:?}", AggregationRound::NodeAggregation),
-    );
+
+    WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::NodeAggregation.into()]
+        .observe(started_at.elapsed());
+
     BlobUrls {
         node_aggregations_url: aggregations_urls,
         circuit_ids_and_urls,
