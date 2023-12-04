@@ -65,8 +65,9 @@ jobs:
         run: |
           mkdir -p ./volumes/postgres
           docker-compose -f docker-compose-local-genesis.yml up
-          docker-compose -f docker-compose-local-genesis.yml rm
+          docker-compose -f docker-compose-local-genesis.yml rm -f
           docker-compose --profile runner up -d
+          docker ps
           ci_run sccache --start-server
 
       - name: Init
