@@ -11,7 +11,8 @@ import { Provider } from 'zksync-web3';
 
 export { dataRestore };
 
-const L2Provider = new Provider('http://127.0.0.1:3050');
+const L2Provider = new Provider(process.env.API_WEB3_JSON_RPC_HTTP_URL);
+const L1Provider = new Provider(process.env.ETH_CLIENT_WEB3_URL);
 
 export async function deployERC20(
     command: 'dev' | 'new',
@@ -139,8 +140,14 @@ export async function cross_en_checker() {
     await utils.spawn(`${logLevel} ${suffix}`);
 }
 
-export async function erc20_balance(tokenAddress: string, walletAddress: string) {
+export async function l2_erc20_balance(tokenAddress: string, walletAddress: string) {
     let token = IERC20Factory.connect(tokenAddress, L2Provider);
+    let balance = await token.balanceOf(walletAddress);
+    console.log(`Balance is ${balance.toString()}`);
+}
+
+export async function l1_erc20_balance(tokenAddress: string, walletAddress: string) {
+    let token = IERC20Factory.connect(tokenAddress, L1Provider);
     let balance = await token.balanceOf(walletAddress);
     console.log(`Balance is ${balance.toString()}`);
 }
@@ -169,10 +176,17 @@ command
     });
 
 command
-    .command('erc20-balance <token-address> <wallet-address>')
+    .command('l1-erc20-balance <token-address> <wallet-address>')
     .description('get symbol, name and decimals parameters from token')
     .action(async (tokenAddress: string, walletAddress: string) => {
-        await erc20_balance(tokenAddress, walletAddress);
+        await l1_erc20_balance(tokenAddress, walletAddress);
+    });
+
+command
+    .command('l2-erc20-balance <token-address> <wallet-address>')
+    .description('get symbol, name and decimals parameters from token')
+    .action(async (tokenAddress: string, walletAddress: string) => {
+        await l2_erc20_balance(tokenAddress, walletAddress);
     });
 
 command
