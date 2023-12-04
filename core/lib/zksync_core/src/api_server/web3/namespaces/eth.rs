@@ -832,7 +832,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     .resolve_filter_block_number(filter.to_block)
                     .await?;
 
-                if matches!(filter.to_block, BlockNumber::Number(_)) {
+                if matches!(filter.to_block, Some(BlockNumber::Number(_))) {
                     to_block = to_block.min(
                         self.state
                             .resolve_filter_block_number(Some(BlockNumber::Latest))

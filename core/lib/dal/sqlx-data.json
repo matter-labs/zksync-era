@@ -8771,6 +8771,33 @@
     },
     "query": "\n                UPDATE scheduler_witness_jobs_fri\n                SET status='queued'\n                WHERE l1_batch_number = $1\n                AND status != 'successful'\n                AND status != 'in_progress'\n            "
   },
+  "a4a14eb42b9acca3f93c67e5760ba700c333b5e9a38c132a3060a94c988e7f13": {
+    "describe": {
+      "columns": [
+        {
+          "name": "hash",
+          "ordinal": 0,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "received_at",
+          "ordinal": 1,
+          "type_info": "Timestamp"
+        }
+      ],
+      "nullable": [
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Timestamp",
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT transactions.hash, transactions.received_at FROM transactions LEFT JOIN miniblocks ON miniblocks.number = miniblock_number WHERE received_at > $1 ORDER BY received_at ASC LIMIT $2"
+  },
   "a4f240188c1447f5b6dcef33dfcc9d00b105f62a6b4c3949a825bea979954160": {
     "describe": {
       "columns": [],
@@ -11991,33 +12018,6 @@
       }
     },
     "query": "SELECT number, timestamp, hash, l1_tx_count, l2_tx_count, base_fee_per_gas, l1_gas_price, l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version, virtual_blocks\n            FROM miniblocks ORDER BY number DESC LIMIT 1"
-  },
-  "fa29c9770df1a33b408397af262eb4cb0b51336c770b61977c3849b8f7a77bda": {
-    "describe": {
-      "columns": [
-        {
-          "name": "hash",
-          "ordinal": 0,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "received_at",
-          "ordinal": 1,
-          "type_info": "Timestamp"
-        }
-      ],
-      "nullable": [
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Timestamp",
-          "Int8"
-        ]
-      }
-    },
-    "query": "SELECT transactions.hash, transactions.received_at FROM transactions LEFT JOIN miniblocks ON miniblocks.number = miniblock_number WHERE received_at >= $1 ORDER BY received_at ASC LIMIT $2"
   },
   "fa2b4316aaef09e96d93b70f96b129ed123951732e01d63f30b4b292d441ea39": {
     "describe": {
