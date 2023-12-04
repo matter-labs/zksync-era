@@ -9917,6 +9917,40 @@
     },
     "query": "\n                UPDATE scheduler_witness_jobs_fri\n                SET status = 'in_progress', attempts = attempts + 1,\n                    updated_at = now(), processing_started_at = now(),\n                    picked_by = $2\n                WHERE l1_batch_number = (\n                    SELECT l1_batch_number\n                    FROM scheduler_witness_jobs_fri\n                    WHERE status = 'queued'\n                    AND protocol_version = ANY($1)\n                    ORDER BY l1_batch_number ASC\n                    LIMIT 1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n                RETURNING scheduler_witness_jobs_fri.*\n               "
   },
+  "c289a50ec67dcab5a5c84ddfa17b924c1fefe151c887b3f08f54306f1bde47a2": {
+    "describe": {
+      "columns": [
+        {
+          "name": "hashed_key?",
+          "ordinal": 0,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "value?",
+          "ordinal": 1,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "index",
+          "ordinal": 2,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        null,
+        null,
+        true
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "ByteaArray",
+          "ByteaArray"
+        ]
+      }
+    },
+    "query": "WITH sl AS ( SELECT ( SELECT ARRAY[hashed_key, value] AS kv FROM storage_logs WHERE storage_logs.miniblock_number = $1 AND storage_logs.hashed_key >= u.start_key AND storage_logs.hashed_key <= u.end_key ORDER BY storage_logs.hashed_key LIMIT 1 ) FROM UNNEST($2::bytea[], $3::bytea[]) AS u(start_key, end_key) ) SELECT sl.kv[1] AS \"hashed_key?\", sl.kv[2] AS \"value?\", initial_writes.index FROM sl LEFT OUTER JOIN initial_writes ON initial_writes.hashed_key = sl.kv[1]"
+  },
   "c2cf96a9eb6893c5ba7d9e5418d9f24084ccd87980cb6ee05de1b3bde5c654bd": {
     "describe": {
       "columns": [],
