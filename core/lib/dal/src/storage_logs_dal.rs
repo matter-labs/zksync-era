@@ -451,6 +451,12 @@ impl StorageLogsDal<'_, '_> {
             .await
     }
 
+    /// Fetches tree entries for the specified `miniblock_number` and `key_range`. This is used during
+    /// Merkle tree recovery.
+    ///
+    /// For the output to be usable, `miniblock_number` must be a snapshot miniblock (i.e., one in which
+    /// all keys are distinct). In the general case, the returned `Vec` is not guaranteed to be ordered
+    /// by the log application order.
     pub async fn get_tree_entries_for_miniblock(
         &mut self,
         miniblock_number: MiniblockNumber,
@@ -595,15 +601,6 @@ mod tests {
     async fn inserting_storage_logs() {
         let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
-
-        conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
-        conn.blocks_dal()
-            .delete_l1_batches(L1BatchNumber(0))
-            .await
-            .unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -688,15 +685,6 @@ mod tests {
     async fn getting_storage_logs_for_revert() {
         let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
-
-        conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
-        conn.blocks_dal()
-            .delete_l1_batches(L1BatchNumber(0))
-            .await
-            .unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -744,15 +732,6 @@ mod tests {
     async fn reverting_keys_without_initial_write() {
         let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
-
-        conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
-        conn.blocks_dal()
-            .delete_l1_batches(L1BatchNumber(0))
-            .await
-            .unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -811,6 +790,88 @@ mod tests {
                 3 => assert!(logs_for_revert[&hashed_key].is_none()),
                 _ => unreachable!("we only have 4 keys"),
             }
+        }
+    }
+
+    #[tokio::test]
+    async fn getting_tree_entries() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut conn = pool.access_storage().await.unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .await;
+
+        let account = AccountTreeId::new(Address::repeat_byte(1));
+        let logs: Vec<_> = (0..10)
+            .map(|i| {
+                let key = StorageKey::new(account, H256::repeat_byte(i));
+                StorageLog::new_write_log(key, H256::repeat_byte(i))
+            })
+            .collect();
+        insert_miniblock(&mut conn, 1, logs.clone()).await;
+
+        let mut initial_keys: Vec<_> = logs.iter().map(|log| log.key).collect();
+        initial_keys.sort_unstable();
+        conn.storage_logs_dedup_dal()
+            .insert_initial_writes(L1BatchNumber(1), &initial_keys)
+            .await;
+
+        let mut sorted_hashed_keys: Vec<_> = logs.iter().map(|log| log.key.hashed_key()).collect();
+        sorted_hashed_keys.sort_unstable();
+
+        // Try queries with a limit.
+        let key_range = H256::zero()..=H256::repeat_byte(0xff);
+        let tree_entries = conn
+            .storage_logs_dal()
+            .get_tree_entries_for_miniblock(MiniblockNumber(1), key_range, Some(1))
+            .await
+            .unwrap();
+        assert_eq!(tree_entries.len(), 1);
+        assert_eq!(
+            H256::from_slice(&tree_entries[0].hashed_key),
+            sorted_hashed_keys[0]
+        );
+
+        let key_range = H256::repeat_byte(0xa0)..=H256::repeat_byte(0xff);
+        let tree_entries = conn
+            .storage_logs_dal()
+            .get_tree_entries_for_miniblock(MiniblockNumber(1), key_range.clone(), Some(1))
+            .await
+            .unwrap();
+        assert_eq!(tree_entries.len(), 1);
+        assert_eq!(
+            H256::from_slice(&tree_entries[0].hashed_key),
+            *sorted_hashed_keys
+                .iter()
+                .find(|&key| key >= key_range.start())
+                .unwrap()
+        );
+
+        // Try queries without a limit.
+        let key_range = H256::zero()..=H256::repeat_byte(0xff);
+        let tree_entries = conn
+            .storage_logs_dal()
+            .get_tree_entries_for_miniblock(MiniblockNumber(1), key_range, None)
+            .await
+            .unwrap();
+        assert_eq!(tree_entries.len(), 10);
+        assert_eq!(
+            tree_entries
+                .iter()
+                .map(|entry| H256::from_slice(&entry.hashed_key))
+                .collect::<Vec<_>>(),
+            sorted_hashed_keys
+        );
+
+        let key_range = H256::repeat_byte(0x80)..=H256::repeat_byte(0xbf);
+        let tree_entries = conn
+            .storage_logs_dal()
+            .get_tree_entries_for_miniblock(MiniblockNumber(1), key_range.clone(), None)
+            .await
+            .unwrap();
+        assert!(!tree_entries.is_empty() && tree_entries.len() < 10);
+        for entry in &tree_entries {
+            assert!(key_range.contains(&H256::from_slice(&entry.hashed_key)));
         }
     }
 }
