@@ -58,6 +58,26 @@ impl PeriodicJob for FriProofCompressorStatsReporter {
             stats.in_progress as f64,
             "type" => "in_progress"
         );
+
+        let oldest_not_compressed_batch = self
+            .pool
+            .access_storage()
+            .await
+            .unwrap()
+            .fri_proof_compressor_dal()
+            .get_oldest_not_compressed_batch()
+            .await;
+
+        if let Some(l1_batch_number) = oldest_not_compressed_batch {
+            metrics::gauge!(
+                format!(
+                    "prover_fri.{}.oldest_not_compressed_batch",
+                    PROOF_COMPRESSOR_SERVICE_NAME
+                ),
+                l1_batch_number.0 as f64
+            );
+        }
+
         Ok(())
     }
 
