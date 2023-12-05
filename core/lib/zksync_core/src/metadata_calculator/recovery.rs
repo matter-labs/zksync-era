@@ -1,4 +1,28 @@
 //! High-level recovery logic for the Merkle tree.
+//!
+//! # Overview
+//!
+//! Tree recovery works by checking Postgres and Merkle tree state on Metadata calculator initialization.
+//! Depending on these states, we can have one of the following situations:
+//!
+//! - Tree is recovering.
+//! - Tree is empty and should be recovered (i.e., there's a snapshot in Postgres).
+//! - Tree is empty and should be built from scratch.
+//! - Tree is ready for normal operation (i.e., it's not empty and is not recovering).
+//!
+//! If recovery is necessary, it starts / resumes by loading the Postgres snapshot in chunks
+//! and feeding each chunk to the tree. Chunks are loaded concurrently since this is the most
+//! I/O-heavy operation; the concurrency is naturally limited by the number of connections to
+//! Postgres in the supplied connection pool. Before starting recovery in chunks, we filter out
+//! chunks that have already been recovered by checking if the first key in a chunk is present
+//! in the tree. (Note that for this to work, chunks **must** always be defined in the same way.)
+//!
+//! The recovery logic is fault-tolerant and supports graceful shutdown. If recovery is interrupted,
+//! recovery of the remaining chunks will continue when Metadata calculator is restarted.
+//!
+//! Recovery performs basic sanity checks to ensure that the tree won't end up containing garbage data.
+//! E.g., it's checked that the tree always recovers from the same snapshot; that the tree root hash
+//! after recovery matches one in the Postgres snapshot etc.
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -22,6 +46,8 @@ use super::{
     metrics::{ChunkRecoveryStage, RecoveryStage, RECOVERY_METRICS},
 };
 
+/// Handler of recovery life cycle events. This functionality is encapsulated in a trait to be able
+/// to control recovery behavior in tests.
 #[async_trait]
 trait HandleRecoveryEvent: fmt::Debug + Send + Sync {
     fn recovery_started(&mut self, _chunk_count: usize, _recovered_chunk_count: usize) {
@@ -256,7 +282,7 @@ impl AsyncTreeRecovery {
             .filter_map(|(i, &start)| Some((i, start?)));
         let start_keys = existing_starts
             .clone()
-            .map(|(_, start_entry)| start_entry.hashed_key)
+            .map(|(_, start_entry)| start_entry.key)
             .collect();
         let tree_entries = self.entries(start_keys).await;
 
@@ -267,10 +293,10 @@ impl AsyncTreeRecovery {
                 continue;
             }
             anyhow::ensure!(
-                tree_entry.value == db_entry.value && tree_entry.leaf_index == db_entry.index,
+                tree_entry.value == db_entry.value && tree_entry.leaf_index == db_entry.leaf_index,
                 "Mismatch between entry for key {:0>64x} in Postgres snapshot for miniblock #{snapshot_miniblock} \
                  ({db_entry:?}) and tree ({tree_entry:?}); the recovery procedure may be corrupted",
-                db_entry.hashed_key
+                db_entry.key
             );
         }
         Ok(output)
@@ -319,7 +345,7 @@ impl AsyncTreeRecovery {
                 unreachable!();
             };
             anyhow::ensure!(
-                prev_entry.hashed_key != next_entry.hashed_key,
+                prev_entry.key != next_entry.key,
                 "node snapshot in Postgres is corrupted: entries {prev_entry:?} and {next_entry:?} \
                  have same hashed_key"
             );
@@ -328,9 +354,9 @@ impl AsyncTreeRecovery {
         let all_entries = all_entries
             .into_iter()
             .map(|entry| TreeEntry {
-                key: entry.hashed_key,
+                key: entry.key,
                 value: entry.value,
-                leaf_index: entry.index,
+                leaf_index: entry.leaf_index,
             })
             .collect();
         let lock_tree_latency =

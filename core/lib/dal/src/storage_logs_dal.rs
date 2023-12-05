@@ -484,9 +484,9 @@ impl StorageLogsDal<'_, '_> {
 
         let rows = rows.into_iter().map(|row| {
             Some(StorageTreeEntry {
-                hashed_key: U256::from_little_endian(row.hashed_key.as_ref()?),
+                key: U256::from_little_endian(row.hashed_key.as_ref()?),
                 value: H256::from_slice(row.value.as_ref()?),
-                index: row.index? as u64,
+                leaf_index: row.index? as u64,
             })
         });
         Ok(rows.collect())
@@ -521,9 +521,9 @@ impl StorageLogsDal<'_, '_> {
         .await?;
 
         let rows = rows.into_iter().map(|row| StorageTreeEntry {
-            hashed_key: U256::from_little_endian(&row.hashed_key),
+            key: U256::from_little_endian(&row.hashed_key),
             value: H256::from_slice(&row.value),
-            index: row.index as u64,
+            leaf_index: row.index as u64,
         });
         Ok(rows.collect())
     }
@@ -873,11 +873,11 @@ mod tests {
                 .find(|&key| key_range.contains(key));
             if let Some(chunk_start) = chunk_start {
                 assert_eq!(
-                    u256_to_h256_reversed(chunk_start.hashed_key),
+                    u256_to_h256_reversed(chunk_start.key),
                     *expected_start_key.unwrap()
                 );
                 assert_ne!(chunk_start.value, H256::zero());
-                assert_ne!(chunk_start.index, 0);
+                assert_ne!(chunk_start.leaf_index, 0);
             } else {
                 assert_eq!(expected_start_key, None);
             }
@@ -924,7 +924,7 @@ mod tests {
             .unwrap();
         assert_eq!(tree_entries.len(), 1);
         assert_eq!(
-            u256_to_h256_reversed(tree_entries[0].hashed_key),
+            u256_to_h256_reversed(tree_entries[0].key),
             sorted_hashed_keys[0]
         );
 
@@ -936,7 +936,7 @@ mod tests {
             .unwrap();
         assert_eq!(tree_entries.len(), 1);
         assert_eq!(
-            u256_to_h256_reversed(tree_entries[0].hashed_key),
+            u256_to_h256_reversed(tree_entries[0].key),
             *sorted_hashed_keys
                 .iter()
                 .find(|&key| key >= key_range.start())
@@ -954,7 +954,7 @@ mod tests {
         assert_eq!(
             tree_entries
                 .iter()
-                .map(|entry| u256_to_h256_reversed(entry.hashed_key))
+                .map(|entry| u256_to_h256_reversed(entry.key))
                 .collect::<Vec<_>>(),
             sorted_hashed_keys
         );
@@ -967,7 +967,7 @@ mod tests {
             .unwrap();
         assert!(!tree_entries.is_empty() && tree_entries.len() < 10);
         for entry in &tree_entries {
-            assert!(key_range.contains(&u256_to_h256_reversed(entry.hashed_key)));
+            assert!(key_range.contains(&u256_to_h256_reversed(entry.key)));
         }
     }
 }

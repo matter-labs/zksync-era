@@ -1,4 +1,5 @@
 use sqlx::types::chrono::NaiveDateTime;
+
 use zksync_types::{AccountTreeId, Address, StorageKey, StorageLog, StorageLogKind, H256, U256};
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -28,9 +29,10 @@ impl From<DBStorageLog> for StorageLog {
     }
 }
 
+// We don't want to rely on the Merkle tree crate to import a single type, so we duplicate `TreeEntry` here.
 #[derive(Debug, Clone, Copy)]
 pub struct StorageTreeEntry {
-    pub hashed_key: U256,
+    pub key: U256,
     pub value: H256,
-    pub index: u64,
+    pub leaf_index: u64,
 }
