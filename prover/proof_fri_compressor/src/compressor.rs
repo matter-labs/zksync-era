@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use std::time::Instant;
 use tokio::task::JoinHandle;
 
+use crate::metrics::METRICS;
 use zkevm_test_harness::proof_wrapper_utils::{wrap_proof, WrapperConfig};
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
@@ -124,13 +125,13 @@ impl JobProcessor for ProofCompressor {
             "Started proof compression for L1 batch: {:?}",
             l1_batch_number
         );
-        let started_at = Instant::now();
+        let observer = METRICS.blob_fetch_time.start();
+
         let fri_proof: FriProofWrapper = self.blob_store.get(fri_proof_id)
             .await.with_context(|| format!("Failed to get fri proof from blob store for {l1_batch_number} with id {fri_proof_id}"))?;
-        metrics::histogram!(
-            "prover_fri.proof_fri_compressor.blob_fetch_time",
-            started_at.elapsed(),
-        );
+
+        observer.observe();
+
         let scheduler_proof = match fri_proof {
             FriProofWrapper::Base(_) => anyhow::bail!("Must be a scheduler proof not base layer"),
             FriProofWrapper::Recursive(proof) => proof,
@@ -166,10 +167,7 @@ impl JobProcessor for ProofCompressor {
         started_at: Instant,
         artifacts: Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>,
     ) -> anyhow::Result<()> {
-        metrics::histogram!(
-            "prover_fri.proof_fri_compressor.compression_time",
-            started_at.elapsed(),
-        );
+        METRICS.compression_time.observe(started_at.elapsed());
         tracing::info!(
             "Finished fri proof compression for job: {job_id} took: {:?}",
             started_at.elapsed()
@@ -192,10 +190,10 @@ impl JobProcessor for ProofCompressor {
             .put(job_id, &l1_batch_proof)
             .await
             .context("Failed to save converted l1_batch_proof")?;
-        metrics::histogram!(
-            "prover_fri.proof_fri_compressor.blob_save_time",
-            blob_save_started_at.elapsed(),
-        );
+        METRICS
+            .blob_save_time
+            .observe(blob_save_started_at.elapsed());
+
         self.pool
             .access_storage()
             .await

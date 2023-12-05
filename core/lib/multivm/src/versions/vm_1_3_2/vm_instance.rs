@@ -85,7 +85,7 @@ pub struct VmExecutionResult {
     pub l2_to_l1_logs: Vec<L2ToL1Log>,
     pub return_data: Vec<u8>,
 
-    /// Value denoting the amount of gas spent withing VM invocation.
+    /// Value denoting the amount of gas spent within VM invocation.
     /// Note that return value represents the difference between the amount of gas
     /// available to VM before and after execution.
     ///

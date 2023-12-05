@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package zksync.types;
+package zksync.dal;
 
 import "zksync/roles/validator.proto";
 
