@@ -6,7 +6,7 @@ use tokio::sync::{watch, Mutex};
 
 use std::ops;
 
-use zksync_dal::{storage_logs_dal::StorageTreeEntry, ConnectionPool};
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::TreeEntry;
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256, U256};
@@ -15,6 +15,8 @@ use zksync_utils::u256_to_h256;
 use super::helpers::{AsyncTree, AsyncTreeRecovery, GenericAsyncTree};
 
 impl GenericAsyncTree {
+    /// Ensures that the tree is ready for the normal operation, recovering it from a Postgres snapshot
+    /// if necessary.
     pub async fn ensure_ready(
         self,
         pool: &ConnectionPool,
@@ -59,7 +61,7 @@ impl GenericAsyncTree {
 
 impl AsyncTreeRecovery {
     async fn recover(
-        self,
+        mut self,
         l1_batch: L1BatchNumber,
         chunk_count: usize,
         pool: &ConnectionPool,
@@ -80,15 +82,25 @@ impl AsyncTreeRecovery {
             .with_context(|| format!("L1 batch #{l1_batch} has no metadata"))?
             .metadata
             .root_hash;
+
+        let chunks: Vec<_> = Self::hashed_key_ranges(chunk_count).collect();
+        tracing::info!(
+            "Recovering Merkle tree from Postgres snapshot in {chunk_count} concurrent chunks"
+        );
+        let remaining_chunks = self
+            .filter_chunks(&mut storage, snapshot_miniblock, &chunks)
+            .await?;
         drop(storage);
+        tracing::info!(
+            "Filtered recovered key chunks; {} / {chunk_count} chunks remaining",
+            remaining_chunks.len()
+        );
 
-        let chunks = Self::hashed_key_ranges(chunk_count);
         let tree = Mutex::new(self);
-
-        let chunl_tasks = chunks.map(|chunk| {
+        let chunk_tasks = remaining_chunks.into_iter().map(|chunk| {
             Self::recover_key_chunk(&tree, snapshot_miniblock, chunk, pool, stop_receiver)
         });
-        future::try_join_all(chunl_tasks).await?;
+        future::try_join_all(chunk_tasks).await?;
 
         let mut tree = tree.into_inner();
         let actual_root_hash = tree.root_hash().await;
@@ -120,6 +132,45 @@ impl AsyncTreeRecovery {
         })
     }
 
+    /// Filters out `key_chunks` for which recovery was successfully performed.
+    async fn filter_chunks(
+        &mut self,
+        storage: &mut StorageProcessor<'_>,
+        snapshot_miniblock: MiniblockNumber,
+        key_chunks: &[ops::RangeInclusive<H256>],
+    ) -> anyhow::Result<Vec<ops::RangeInclusive<H256>>> {
+        let chunk_starts = storage
+            .storage_logs_dal()
+            .get_chunk_starts_for_miniblock(snapshot_miniblock, key_chunks)
+            .await
+            .context("Failed getting chunk starts")?;
+
+        let existing_starts = chunk_starts
+            .iter()
+            .enumerate()
+            .filter_map(|(i, &start)| Some((i, start?)));
+        let start_keys = existing_starts
+            .clone()
+            .map(|(_, start_entry)| start_entry.hashed_key)
+            .collect();
+        let tree_entries = self.entries(start_keys).await;
+
+        let mut output = vec![];
+        for (tree_entry, (i, db_entry)) in tree_entries.into_iter().zip(existing_starts) {
+            if tree_entry.is_empty() {
+                output.push(key_chunks[i].clone());
+                continue;
+            }
+            anyhow::ensure!(
+                tree_entry.value == db_entry.value && tree_entry.leaf_index == db_entry.index,
+                "Mismatch between entry for key {:0>64x} in Postgres snapshot for miniblock #{snapshot_miniblock} \
+                 ({db_entry:?}) and tree ({tree_entry:?}); the recovery procedure may be corrupted",
+                db_entry.hashed_key
+            );
+        }
+        Ok(output)
+    }
+
     async fn recover_key_chunk(
         tree: &Mutex<AsyncTreeRecovery>,
         snapshot_miniblock: MiniblockNumber,
@@ -128,33 +179,6 @@ impl AsyncTreeRecovery {
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         let mut storage = pool.access_storage().await?;
-        let first_entry = storage
-            .storage_logs_dal()
-            .get_tree_entries_for_miniblock(snapshot_miniblock, key_chunk.clone(), Some(1))
-            .await
-            .with_context(|| {
-                format!("Failed getting first entry for chunk {key_chunk:?} in snapshot for miniblock #{snapshot_miniblock}")
-            })?;
-        let Some(first_entry) = first_entry.get(0) else {
-            tracing::debug!(
-                "Key chunk {key_chunk:?} has no entries in Postgres; skipping recovery"
-            );
-            return Ok(());
-        };
-        let first_entry = map_tree_entry(first_entry)?;
-
-        // FIXME: inefficient – tree may be locked doing writes
-        if let Some(existing_entry) = tree.lock().await.entry(first_entry.key).await {
-            anyhow::ensure!(
-                existing_entry.value == first_entry.value && existing_entry.leaf_index == first_entry.leaf_index,
-                "Mismatch between entry for key {:0>64x} in Postgres snapshot for miniblock #{snapshot_miniblock} \
-                 ({first_entry:?}) and tree ({existing_entry:?}); the recovery procedure may be corrupted",
-                first_entry.key
-            );
-            tracing::debug!("Key chunk {key_chunk:?} is already recovered");
-            return Ok(());
-        }
-
         if *stop_receiver.borrow() {
             return Ok(());
         }
@@ -172,10 +196,27 @@ impl AsyncTreeRecovery {
             return Ok(());
         }
 
+        // Sanity check: all entry keys must be distinct. Otherwise, we may end up writing non-final values
+        // to the tree, since we don't enforce any ordering on entries besides by the hashed key.
+        for window in all_entries.windows(2) {
+            let [prev_entry, next_entry] = window else {
+                unreachable!();
+            };
+            anyhow::ensure!(
+                prev_entry.hashed_key != next_entry.hashed_key,
+                "node snapshot in Postgres is corrupted: entries {prev_entry:?} and {next_entry:?} \
+                 have same hashed_key"
+            );
+        }
+
         let all_entries = all_entries
-            .iter()
-            .map(map_tree_entry)
-            .collect::<anyhow::Result<_>>()?;
+            .into_iter()
+            .map(|entry| TreeEntry {
+                key: entry.hashed_key,
+                value: entry.value,
+                leaf_index: entry.index,
+            })
+            .collect();
         let mut tree = tree.lock().await;
         if *stop_receiver.borrow() {
             return Ok(());
@@ -187,20 +228,7 @@ impl AsyncTreeRecovery {
 }
 
 async fn snapshot_l1_batch(_pool: &ConnectionPool) -> anyhow::Result<Option<L1BatchNumber>> {
-    Ok(None)
-}
-
-fn map_tree_entry(src: &StorageTreeEntry) -> anyhow::Result<TreeEntry> {
-    anyhow::ensure!(
-        src.hashed_key.len() == 32,
-        "Invalid StorageTreeEntry.hashed_key"
-    );
-    anyhow::ensure!(src.value.len() == 32, "Invalid StorageTreeEntry.value");
-    Ok(TreeEntry {
-        key: U256::from_little_endian(&src.hashed_key),
-        value: H256::from_slice(&src.value),
-        leaf_index: src.index as u64,
-    })
+    Ok(None) // FIXME: implement real logic
 }
 
 #[cfg(test)]
@@ -312,4 +340,6 @@ mod tests {
             assert_eq!(tree.root_hash(), root_hash);
         }
     }
+
+    // FIXME: test recovery fault tolerance
 }

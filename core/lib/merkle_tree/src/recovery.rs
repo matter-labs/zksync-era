@@ -35,19 +35,19 @@
 //! before extending the tree; these nodes are guaranteed to be the *only* DB reads necessary
 //! to insert new entries.
 
-use std::{iter, time::Instant};
+use std::time::Instant;
 
 use crate::{
     hasher::{HashTree, HasherWithStats},
-    storage::{PatchSet, PruneDatabase, PrunePatchSet, SortedKeys, Storage, WorkingPatchSet},
-    types::{Key, Manifest, Node, Root, TreeEntry, TreeTags, ValueHash},
+    storage::{PatchSet, PruneDatabase, PrunePatchSet, Storage},
+    types::{Key, Manifest, Root, TreeEntry, TreeTags, ValueHash},
 };
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 
 /// Handle to a Merkle tree during its recovery.
 #[derive(Debug)]
 pub struct MerkleTreeRecovery<DB, H = Blake2Hasher> {
-    db: DB,
+    pub(crate) db: DB,
     hasher: H,
     recovered_version: u64,
 }
@@ -121,23 +121,6 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
             return self.hasher.empty_tree_hash();
         };
         node.hash(&mut HasherWithStats::new(&self.hasher), 0)
-    }
-
-    /// Returns tree entry at the given `key`.
-    pub fn entry(&self, key: Key) -> Option<TreeEntry> {
-        let root = self.db.root(self.recovered_version)?;
-        let sorted_keys = SortedKeys::new(iter::once(key));
-        let mut patch_set = WorkingPatchSet::new(self.recovered_version, root);
-        let longest_prefixes = patch_set
-            .load_ancestors(&sorted_keys, &self.db)
-            .longest_prefixes;
-
-        let longest_prefix = longest_prefixes.last()?;
-        let node = patch_set.get(longest_prefix);
-        match node {
-            Some(Node::Leaf(leaf)) if leaf.full_key == key => Some((*leaf).into()),
-            _ => None,
-        }
     }
 
     /// Returns the last key processed during the recovery process.

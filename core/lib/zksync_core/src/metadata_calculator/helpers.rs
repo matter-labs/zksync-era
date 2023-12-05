@@ -241,12 +241,11 @@ impl AsyncTreeRecovery {
     }
 
     /// Returns an entry for the specified key.
-    pub async fn entry(&mut self, key: Key) -> Option<TreeEntry> {
+    pub async fn entries(&mut self, keys: Vec<Key>) -> Vec<TreeEntry> {
         let tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
-        let (entry, tree) = tokio::task::spawn_blocking(move || (tree.entry(key), tree))
+        let (entry, tree) = tokio::task::spawn_blocking(move || (tree.entries(&keys), tree))
             .await
             .unwrap();
-
         self.inner = Some(tree);
         entry
     }
@@ -257,7 +256,6 @@ impl AsyncTreeRecovery {
         let (root_hash, tree) = tokio::task::spawn_blocking(move || (tree.root_hash(), tree))
             .await
             .unwrap();
-
         self.inner = Some(tree);
         root_hash
     }
