@@ -91,7 +91,8 @@ describe('Tests for the custom bridge behavior', () => {
             if (l2Bridge != ethers.constants.AddressZero) {
                 const code = await alice._providerL2().getCode(l2Bridge);
                 console.log(code);
-                if (code.length > 2) { // empty bytecode is '0x' and this string has length 2.
+                // empty bytecode is '0x' and this string has length 2.
+                if (code.length > 2) {
                     ready = true;
                     break;
                 }
