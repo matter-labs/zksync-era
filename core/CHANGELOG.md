@@ -1,5 +1,17 @@
 # Changelog
 
+## [18.6.0](https://github.com/matter-labs/zksync-era/compare/core-v18.5.0...core-v18.6.0) (2023-12-05)
+
+
+### Features
+
+* **contract-verifier:** Support verification for zksolc v1.3.17 ([#606](https://github.com/matter-labs/zksync-era/issues/606)) ([b65fedd](https://github.com/matter-labs/zksync-era/commit/b65fedd6894497a4c9fbf38d558ccfaca535d1d2))
+
+
+### Bug Fixes
+
+* Fix database connections in house keeper ([#610](https://github.com/matter-labs/zksync-era/issues/610)) ([aeaaecb](https://github.com/matter-labs/zksync-era/commit/aeaaecb54b6bd3f173727531418dc242357b2aee))
+
 ## [18.5.0](https://github.com/matter-labs/zksync-era/compare/core-v18.4.0...core-v18.5.0) (2023-12-05)
 
 
