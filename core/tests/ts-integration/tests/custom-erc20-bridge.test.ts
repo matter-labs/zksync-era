@@ -75,6 +75,7 @@ describe('Tests for the custom bridge behavior', () => {
             const l2Bridge = await l1bridge2.l2Bridge();
             if (l2Bridge != ethers.constants.AddressZero) {
                 const code = await alice._providerL2().getCode(l2Bridge);
+                console.log(`code ${code} length ${code.length}`);
                 if (code.length > 2) {
                     ready = true;
                     break;
