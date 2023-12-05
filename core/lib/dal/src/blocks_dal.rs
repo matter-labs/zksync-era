@@ -10,12 +10,13 @@ use sqlx::Row;
 
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    block::{BlockGasCount, ConsensusBlockFields, L1BatchHeader, MiniblockHeader},
+    block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
     commitment::{L1BatchMetadata, L1BatchWithMetadata},
     Address, L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256,
     MAX_GAS_PER_PUBDATA_BYTE, U256,
 };
 
+pub use crate::models::storage_sync::ConsensusBlockFields;
 use crate::{
     instrument::InstrumentExt,
     models::storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageMiniblockHeader},
@@ -405,7 +406,7 @@ impl BlocksDal<'_, '_> {
         let result = sqlx::query!(
             "UPDATE miniblocks SET consensus = $2 WHERE number = $1",
             miniblock_number.0 as i64,
-            serde_json::to_value(consensus).unwrap(),
+            zksync_protobuf::serde::serialize(consensus, serde_json::value::Serializer).unwrap(),
         )
         .execute(self.storage.conn())
         .await?;

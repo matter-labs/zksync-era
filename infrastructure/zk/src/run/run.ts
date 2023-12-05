@@ -70,7 +70,8 @@ export async function plonkSetup(powers?: number[]) {
     const URL = 'https://storage.googleapis.com/universal-setup';
     fs.mkdirSync('keys/setup', { recursive: true });
     process.chdir('keys/setup');
-    for (let power = 20; power <= 26; power++) {
+    for (let i = 0; i < powers.length; i++) {
+        const power = powers[i];
         if (!fs.existsSync(`setup_2^${power}.key`)) {
             await utils.spawn(`curl -LO ${URL}/setup_2^${power}.key`);
             await utils.sleep(1);
