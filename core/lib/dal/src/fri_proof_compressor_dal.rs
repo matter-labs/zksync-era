@@ -116,7 +116,7 @@ impl FriProofCompressorDal<'_, '_> {
     ) {
         sqlx::query!(
             "UPDATE proof_compression_jobs_fri \
-             SET status = $1, updated_at = now(), time_taken = $2, l1_proof_blob_url = $3\
+             SET status = $1, updated_at = now(), time_taken = $2, l1_proof_blob_url = $3 \
              WHERE l1_batch_number = $4",
             ProofCompressionJobStatus::Successful.to_string(),
             duration_to_naive_time(time_taken),
