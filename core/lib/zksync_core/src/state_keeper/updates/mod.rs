@@ -1,12 +1,12 @@
 use multivm::interface::{L1BatchEnv, VmExecutionResultAndLogs};
 
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_dal::blocks_dal::ConsensusBlockFields;
 use zksync_types::vm_trace::Call;
 use zksync_types::{
-    block::{BlockGasCount, ConsensusBlockFields},
-    storage_writes_deduplicator::StorageWritesDeduplicator,
-    tx::tx_execution_info::ExecutionMetrics,
-    Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction,
+    block::BlockGasCount, storage_writes_deduplicator::StorageWritesDeduplicator,
+    tx::tx_execution_info::ExecutionMetrics, Address, L1BatchNumber, MiniblockNumber,
+    ProtocolVersionId, Transaction,
 };
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 

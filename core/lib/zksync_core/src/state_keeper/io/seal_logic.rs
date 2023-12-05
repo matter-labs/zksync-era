@@ -8,6 +8,7 @@ use std::{
 };
 
 use multivm::interface::{FinishedL1Batch, L1BatchEnv};
+use zksync_dal::blocks_dal::ConsensusBlockFields;
 use zksync_dal::StorageProcessor;
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
@@ -16,7 +17,7 @@ use zksync_types::{
     CURRENT_VIRTUAL_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_types::{
-    block::{ConsensusBlockFields, L1BatchHeader, MiniblockHeader},
+    block::{L1BatchHeader, MiniblockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
     storage_writes_deduplicator::{ModifiedSlot, StorageWritesDeduplicator},
     tx::{
