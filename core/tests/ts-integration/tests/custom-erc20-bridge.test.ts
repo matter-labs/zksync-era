@@ -47,31 +47,41 @@ describe('Tests for the custom bridge behavior', () => {
         console.log(`allowlist ${allowListContract}`);
         await allowListContract.deployTransaction.wait(2);
 
+        console.log(`here 1`);
         // load the l1bridge contract
         let l1bridgeFactory = new L1ERC20BridgeFactory(alice._signerL1());
         const gasPrice = await scaledGasPrice(alice);
+        console.log(`here 2`);
 
         let l1Bridge = await l1bridgeFactory.deploy(
             process.env.CONTRACTS_DIAMOND_PROXY_ADDR!,
             allowListContract.address
         );
+        console.log(`here 3`);
         await l1Bridge.deployTransaction.wait(2);
+        console.log(`here 4`);
         let l1BridgeProxyFactory = new TransparentUpgradeableProxyFactory(alice._signerL1());
         let l1BridgeProxy = await l1BridgeProxyFactory.deploy(l1Bridge.address, bob.address, '0x');
         const amount = 1000; // 1000 wei is enough.
         await l1BridgeProxy.deployTransaction.wait(2);
+        console.log(`here 5`);
 
         const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
         const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `cd $ZKSYNC_HOME && yarn l1-contracts`;
         let args = `--private-key ${alice.privateKey} --erc20-bridge ${l1BridgeProxy.address}`;
         let command = `${baseCommandL1} initialize-bridges ${args}`;
+        console.log(`here 6`);
         await spawn(command);
+        console.log(`here 7`);
 
         const setAccessModeTx = await allowListContract.setAccessMode(l1BridgeProxy.address, 2);
+        console.log(`here 8`);
         await setAccessModeTx.wait();
+        console.log(`here 9`);
 
         let l1bridge2 = new L1ERC20BridgeFactory(alice._signerL1()).attach(l1BridgeProxy.address);
 
+        console.log(`here 10`);
         const maxAttempts = 5;
         let ready = false;
         for (let i = 0; i < maxAttempts; ++i) {
@@ -88,6 +98,7 @@ describe('Tests for the custom bridge behavior', () => {
         if (!ready) {
             throw new Error('Failed to wait for the l2 bridge init');
         }
+        console.log(`here 11`);
 
         let l2TokenAddress = await l1bridge2.callStatic.l2TokenAddress(tokenDetails.l1Address);
         const initialBalanceL1 = await alice.getBalanceL1(tokenDetails.l1Address);
@@ -104,8 +115,10 @@ describe('Tests for the custom bridge behavior', () => {
             },
             bridgeAddress: l1BridgeProxy.address
         });
+        console.log(`here 12`);
 
         await tx.wait();
+        console.log(`here 13`);
         await expect(alice.getBalanceL1(tokenDetails.l1Address)).resolves.bnToBeEq(initialBalanceL1.sub(amount));
         await expect(alice.getBalance(l2TokenAddress)).resolves.bnToBeEq(initialBalanceL2.add(amount));
     });
