@@ -91,7 +91,7 @@ fn test_vm_loadnext_rollbacks() {
 
     let loadnext_tx_1 = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: address,
+            contract_address: Some(address),
             calldata: LoadnextContractExecutionParams {
                 reads: 100,
                 writes: 100,
@@ -109,7 +109,7 @@ fn test_vm_loadnext_rollbacks() {
 
     let loadnext_tx_2 = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: address,
+            contract_address: Some(address),
             calldata: LoadnextContractExecutionParams {
                 reads: 100,
                 writes: 100,

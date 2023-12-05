@@ -152,7 +152,7 @@ where
         let tx = if token.is_zero() || token == L2_ETH_TOKEN_ADDRESS {
             // ETH estimate
             Execute {
-                contract_address: to,
+                contract_address: Some(to),
                 calldata: Default::default(),
                 factory_deps: None,
                 value: amount,
@@ -160,7 +160,7 @@ where
         } else {
             // ERC-20 estimate
             Execute {
-                contract_address: token,
+                contract_address: Some(token),
                 calldata: create_transfer_calldata(to, amount),
                 factory_deps: None,
                 value: Default::default(),

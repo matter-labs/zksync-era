@@ -88,10 +88,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                     to: db_row
                         .transfer_to
                         .or(db_row.execute_contract_address)
-                        .map(|addr| {
-                            serde_json::from_value::<Address>(addr)
-                                .expect("invalid address value in the database")
-                        })
+                        .map(|addr| serde_json::from_value::<Address>(addr).unwrap_or_default())
                         // For better compatibility with various clients, we never return null.
                         .or_else(|| Some(Address::default())),
                     cumulative_gas_used: Default::default(), // TODO: Should be actually calculated (SMA-1183).

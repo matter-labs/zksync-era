@@ -353,10 +353,7 @@ impl<'r> FromRow<'r, PgRow> for StorageApiTransaction {
                     .ok()
                     .map(U64::from),
                 from: Some(H160::from_slice(db_row.get("initiator_address"))),
-                to: Some(
-                    serde_json::from_value::<Address>(db_row.get("execute_contract_address"))
-                        .expect("incorrect address value in the database"),
-                ),
+                to: serde_json::from_value::<Address>(db_row.get("execute_contract_address")).ok(),
                 value: bigdecimal_to_u256(db_row.get::<BigDecimal, &str>("value")),
                 // `gas_price`, `max_fee_per_gas`, `max_priority_fee_per_gas` will be zero for the priority transactions.
                 // For common L2 transactions `gas_price` is equal to `effective_gas_price` if the transaction is included

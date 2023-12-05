@@ -4,7 +4,7 @@
 
 use anyhow::Context as _;
 
-use zksync_contracts::BaseSystemContracts;
+use zksync_contracts::{read_sys_contract_bytecode, BaseSystemContracts, ContractLanguage};
 use zksync_dal::StorageProcessor;
 use zksync_merkle_tree::domain::ZkSyncTree;
 
@@ -17,7 +17,8 @@ use zksync_types::{
     tokens::{TokenInfo, TokenMetadata, ETHEREUM_ADDRESS},
     zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
     AccountTreeId, Address, L1BatchNumber, L2ChainId, LogQuery, MiniblockNumber, ProtocolVersionId,
-    StorageKey, StorageLog, StorageLogKind, Timestamp, H256,
+    StorageKey, StorageLog, StorageLogKind, Timestamp, CONTRACT_DEPLOYER_ADDRESS, H256,
+    KNOWN_CODES_STORAGE_ADDRESS,
 };
 use zksync_utils::{be_words_to_bytes, h256_to_u256};
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
@@ -175,6 +176,23 @@ async fn insert_system_contracts(
 ) {
     let system_context_init_logs = (H256::default(), get_system_context_init_logs(chain_id));
 
+    let evm_proxy_bytecode = read_sys_contract_bytecode("", "EvmContract", ContractLanguage::Sol);
+    let evm_proxy_hash = hash_bytecode(&evm_proxy_bytecode);
+    let evm_proxy_hash_log = vec![StorageLog::new_write_log(
+        StorageKey::new(
+            AccountTreeId::new(CONTRACT_DEPLOYER_ADDRESS),
+            H256::from_low_u64_be(1),
+        ),
+        evm_proxy_hash,
+    )];
+    let evm_proxy_known_code_log = vec![StorageLog::new_write_log(
+        StorageKey::new(
+            AccountTreeId::new(KNOWN_CODES_STORAGE_ADDRESS),
+            evm_proxy_hash,
+        ),
+        H256::from_low_u64_be(1),
+    )];
+
     let storage_logs: Vec<(H256, Vec<StorageLog>)> = contracts
         .iter()
         .map(|contract| {
@@ -187,6 +205,8 @@ async fn insert_system_contracts(
             )
         })
         .chain(Some(system_context_init_logs))
+        .chain(Some((H256::default(), evm_proxy_hash_log)))
+        .chain(Some((H256::default(), evm_proxy_known_code_log)))
         .collect();
 
     let mut transaction = storage.start_transaction().await.unwrap();
@@ -253,6 +273,7 @@ async fn insert_system_contracts(
     let factory_deps = contracts
         .iter()
         .map(|c| (hash_bytecode(&c.bytecode), c.bytecode.clone()))
+        .chain(Some((evm_proxy_hash, evm_proxy_bytecode.clone())))
         .collect();
     transaction
         .storage_dal()

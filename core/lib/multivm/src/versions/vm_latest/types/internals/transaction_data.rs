@@ -19,7 +19,7 @@ use crate::vm_latest::utils::overhead::{get_amortized_overhead, OverheadCoeficie
 pub(crate) struct TransactionData {
     pub(crate) tx_type: u8,
     pub(crate) from: Address,
-    pub(crate) to: Address,
+    pub(crate) to: Option<Address>,
     pub(crate) gas_limit: U256,
     pub(crate) pubdata_price_limit: U256,
     pub(crate) max_fee_per_gas: U256,
@@ -59,6 +59,12 @@ impl From<Transaction> for TransactionData {
                     U256::zero()
                 };
 
+                let should_deploy_contract = if execute_tx.execute.contract_address.is_none() {
+                    U256([1, 0, 0, 0])
+                } else {
+                    U256::zero()
+                };
+
                 TransactionData {
                     tx_type: (common_data.transaction_type as u32) as u8,
                     from: common_data.initiator_address,
@@ -72,7 +78,7 @@ impl From<Transaction> for TransactionData {
                     value: execute_tx.execute.value,
                     reserved: [
                         should_check_chain_id,
-                        U256::zero(),
+                        should_deploy_contract,
                         U256::zero(),
                         U256::zero(),
                     ],
@@ -156,7 +162,7 @@ impl TransactionData {
         encode(&[Token::Tuple(vec![
             Token::Uint(U256::from_big_endian(&self.tx_type.to_be_bytes())),
             Token::Address(self.from),
-            Token::Address(self.to),
+            Token::Address(self.to.unwrap_or_default()),
             Token::Uint(self.gas_limit),
             Token::Uint(self.pubdata_price_limit),
             Token::Uint(self.max_fee_per_gas),
@@ -311,7 +317,7 @@ mod tests {
         let transaction = TransactionData {
             tx_type: 113,
             from: Address::random(),
-            to: Address::random(),
+            to: Some(Address::random()),
             gas_limit: U256::from(1u32),
             pubdata_price_limit: U256::from(1u32),
             max_fee_per_gas: U256::from(1u32),

@@ -106,7 +106,7 @@ impl Eq for Transaction {}
 
 impl Transaction {
     /// Returns recipient account of the transaction.
-    pub fn recipient_account(&self) -> Address {
+    pub fn recipient_account(&self) -> Option<Address> {
         self.execute.contract_address
     }
 

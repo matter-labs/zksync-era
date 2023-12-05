@@ -10248,6 +10248,11 @@ mz@^2.7.0:
     object-assign "^4.0.1"
     thenify-all "^1.0.0"
 
+n@^9.2.0:
+  version "9.2.0"
+  resolved "https://registry.yarnpkg.com/n/-/n-9.2.0.tgz#da10edfaa2d48c7babf3ebe7cf77000fed2e8f13"
+  integrity sha512-R8mFN2OWwNVc+r1f9fDzcT34DnDwUIHskrpTesZ6SdluaXBBnRtTu5tlfaSPloBi1Z/eGJoPO9nhyawWPad5UQ==
+
 nan@^2.17.0:
   version "2.18.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.18.0.tgz#26a6faae7ffbeb293a39660e88a76b82e30b7554"
@@ -12316,6 +12321,20 @@ solc@^0.6.3:
     js-sha3 "0.8.0"
     memorystream "^0.3.1"
     require-from-string "^2.0.0"
+    semver "^5.5.0"
+    tmp "0.0.33"
+
+solc@^0.8.21:
+  version "0.8.23"
+  resolved "https://registry.yarnpkg.com/solc/-/solc-0.8.23.tgz#bfbb8ac7f7fcc7db95faf5d709edf15c4f006d89"
+  integrity sha512-uqe69kFWfJc3cKdxj+Eg9CdW1CP3PLZDPeyJStQVWL8Q9jjjKD0VuRAKBFR8mrWiq5A7gJqERxJFYJsklrVsfA==
+  dependencies:
+    command-exists "^1.2.8"
+    commander "^8.1.0"
+    follow-redirects "^1.12.1"
+    js-sha3 "0.8.0"
+    memorystream "^0.3.1"
+    n "^9.2.0"
     semver "^5.5.0"
     tmp "0.0.33"
 

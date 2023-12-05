@@ -378,7 +378,7 @@ impl TryFrom<Log> for ProtocolUpgrade {
                     .collect();
 
                 let execute = Execute {
-                    contract_address,
+                    contract_address: Some(contract_address),
                     calldata: calldata.to_vec(),
                     factory_deps: Some(factory_deps),
                     value: msg_value,

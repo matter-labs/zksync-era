@@ -153,7 +153,7 @@ impl EthClient for FakeEthClient {
 fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
     L1Tx {
         execute: Execute {
-            contract_address: Address::repeat_byte(0x11),
+            contract_address: Some(Address::repeat_byte(0x11)),
             calldata: vec![1, 2, 3],
             factory_deps: None,
             value: U256::zero(),
@@ -182,7 +182,7 @@ fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
 fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx {
     ProtocolUpgradeTx {
         execute: Execute {
-            contract_address: Address::repeat_byte(0x11),
+            contract_address: Some(Address::repeat_byte(0x11)),
             calldata: vec![1, 2, 3],
             factory_deps: None,
             value: U256::zero(),

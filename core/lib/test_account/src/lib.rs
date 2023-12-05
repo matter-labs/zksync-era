@@ -131,7 +131,7 @@ impl Account {
             .expect("failed to encode parameters");
 
         let execute = Execute {
-            contract_address: CONTRACT_DEPLOYER_ADDRESS,
+            contract_address: Some(CONTRACT_DEPLOYER_ADDRESS),
             calldata,
             factory_deps: Some(factory_deps),
             value: U256::zero(),
@@ -205,7 +205,7 @@ impl Account {
             .expect("failed to encode parameters");
 
         let execute = Execute {
-            contract_address: address,
+            contract_address: Some(address),
             calldata,
             value: value.unwrap_or_default(),
             factory_deps: None,
@@ -224,7 +224,7 @@ impl Account {
     ) -> Transaction {
         let calldata = params.to_bytes();
         let execute = Execute {
-            contract_address: address,
+            contract_address: Some(address),
             calldata,
             value: U256::zero(),
             factory_deps: None,

@@ -235,7 +235,7 @@ impl AccountLoadNextExecutable for Account {
     fn l1_execute(&mut self, serial_id: PriorityOpId) -> Transaction {
         self.get_l1_tx(
             Execute {
-                contract_address: Address::random(),
+                contract_address: Some(Address::random()),
                 value: Default::default(),
                 calldata: vec![],
                 factory_deps: None,
@@ -267,7 +267,7 @@ impl AccountLoadNextExecutable for Account {
 
         self.get_l2_tx_for_execute(
             Execute {
-                contract_address: address,
+                contract_address: Some(address),
                 calldata: LoadnextContractExecutionParams {
                     reads: 100,
                     writes: writes as usize,
@@ -290,7 +290,7 @@ impl AccountLoadNextExecutable for Account {
         let fee = fee(gas_limit);
         self.get_l2_tx_for_execute(
             Execute {
-                contract_address: Address::random(),
+                contract_address: Some(Address::random()),
                 calldata: vec![],
                 value: Default::default(),
                 factory_deps: None,
@@ -312,7 +312,7 @@ impl AccountLoadNextExecutable for Account {
 
         self.get_l2_tx_for_execute(
             Execute {
-                contract_address: address,
+                contract_address: Some(address),
                 calldata,
                 value: Default::default(),
                 factory_deps: None,
