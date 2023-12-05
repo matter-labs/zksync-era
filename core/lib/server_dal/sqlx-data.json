@@ -157,19 +157,19 @@
         }
       ],
       "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
         true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true
+        false,
+        false,
+        false,
+        false
       ],
       "parameters": {
         "Left": [
@@ -6436,26 +6436,6 @@
       }
     },
     "query": "SELECT MAX(operation_number) as \"max?\" FROM storage_logs WHERE miniblock_number = $1"
-  },
-  "a7c7e8f036404d24dc6bfa184a84b92d8f73ca034970481af34b6163e66dc59a": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Int2"
-        ]
-      }
-    },
-    "query": "\n                    SELECT l1_batch_number \n                    FROM prover_jobs_fri \n                    WHERE status <> 'skipped'\n                    AND status <> 'successful'\n                    AND aggregation_round = $1 \n                    ORDER BY l1_batch_number ASC \n                    LIMIT 1\n                "
   },
   "a8b32073a67ad77caab11e73a5cac5aa5b5382648ff95d6787a309eb3f64d434": {
     "describe": {
