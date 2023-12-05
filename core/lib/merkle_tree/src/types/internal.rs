@@ -114,7 +114,7 @@ impl Nibbles {
 
         debug_assert!(index < 2 * KEY_SIZE);
         // Since the `Key` layout is little-endian, we reverse indexing of `u64`:
-        // nibbles 0..=15 are in the final `u64`, etc.
+        // nibbles `0..=15` are in the final `u64`, etc.
         let u64_idx = 3 - index / NIBBLES_IN_U64;
         // The shift in `u64` is reversed as well: the 0th nibble needs the largest shift
         // `60 = 15 * 4`, the 1st one - 56, etc.
@@ -305,12 +305,12 @@ impl NodeKey {
     #[allow(clippy::cast_possible_truncation)]
     pub(crate) fn to_db_key(self) -> Vec<u8> {
         let nibbles_byte_len = (self.nibbles.nibble_count + 1) / 2;
-        // ^ equivalent to ceil(self.nibble_count / 2)
+        // ^ equivalent to `ceil(self.nibble_count / 2)`
         let mut bytes = Vec::with_capacity(9 + nibbles_byte_len);
         // ^ 8 bytes for `version` + 1 byte for nibble count
         bytes.extend_from_slice(&self.version.to_be_bytes());
         bytes.push(self.nibbles.nibble_count as u8);
-        // ^ conversion is safe: nibble_count <= 64
+        // ^ conversion is safe: `nibble_count <= 64`
         bytes.extend_from_slice(&self.nibbles.bytes[..nibbles_byte_len]);
         bytes
     }
@@ -558,7 +558,7 @@ mod tests {
     use zksync_types::U256;
 
     // `U256` uses little-endian `u64` ordering; i.e., this is
-    // 0x_dead_beef_0000_0000_.._0000.
+    // `0x_dead_beef_0000_0000_.._0000`.
     const TEST_KEY: Key = U256([0, 0, 0, 0x_dead_beef_0000_0000]);
 
     #[test]

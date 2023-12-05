@@ -143,7 +143,7 @@ impl Account {
         };
 
         let address =
-            // For L1Tx we usually use nonce 0
+            // For `L1Tx` we usually use nonce 0
             deployed_address_create(self.address, (tx.nonce().unwrap_or(Nonce(0)).0).into());
         DeployContractsTx {
             tx,

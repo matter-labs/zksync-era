@@ -15,9 +15,9 @@ use crate::{
 };
 use once_cell::sync::Lazy;
 
-// Note, that in the NONCE_HOLDER_ADDRESS's storage the nonces of accounts
+// Note, that in the `NONCE_HOLDER_ADDRESS` storage the nonces of accounts
 // are stored in the following form:
-// 2^128 * deployment_nonce + tx_nonce,
+// `2^128 * deployment_nonce + tx_nonce`,
 // where `tx_nonce` should be number of transactions, the account has processed
 // and the `deployment_nonce` should be the number of contracts.
 pub const TX_NONCE_INCREMENT: U256 = U256([1, 0, 0, 0]); // 1
@@ -115,7 +115,7 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 18] = [
         COMPLEX_UPGRADER_ADDRESS,
         ContractLanguage::Sol,
     ),
-    // For now, only zero address and the bootloader address have empty bytecode at the init
+    // For now, only zero address and the bootloader address have empty bytecode at the init.
     // In the future, we might want to set all of the system contracts this way.
     ("", "EmptyContract", Address::zero(), ContractLanguage::Sol),
     (

@@ -197,7 +197,7 @@ pub fn process_leaf_aggregation_job(
         stage_started_at.elapsed()
     );
 
-    // we need the list of vks that matches the list of job.basic_circuit_proofs
+    // we need the list of vks that matches the list of `job.basic_circuit_proofs`
     let vks_for_aggregation: Vec<
         VerificationKey<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>,
     > = get_ordered_vks_for_basic_circuits(&job.basic_circuits, &verification_keys);
@@ -251,8 +251,8 @@ async fn update_database(
     let mut prover_connection = prover_connection_pool.access_storage().await.unwrap();
     let mut transaction = prover_connection.start_transaction().await.unwrap();
 
-    // inserts artifacts into the node_aggregation_witness_jobs table
-    // and advances it to waiting_for_proofs status
+    // inserts artifacts into the `node_aggregation_witness_jobs` table
+    // and advances it to `waiting_for_proofs` status
     transaction
         .witness_generator_dal()
         .save_leaf_aggregation_artifacts(

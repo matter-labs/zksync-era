@@ -234,7 +234,7 @@ impl TransactionData {
         let l2_tx: L2Tx = self.clone().try_into().unwrap();
         let transaction_request: TransactionRequest = l2_tx.into();
 
-        // It is assumed that the TransactionData always has all the necessary components to recover the hash.
+        // It is assumed that the `TransactionData` always has all the necessary components to recover the hash.
         transaction_request
             .get_tx_hash(chain_id)
             .expect("Could not recover L2 transaction hash")

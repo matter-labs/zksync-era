@@ -386,7 +386,7 @@ impl BlocksWeb3Dal<'_, '_> {
         .collect())
     }
 
-    /// Returns `base_fee_per_gas` for miniblock range [min(newest_block - block_count + 1, 0), newest_block]
+    /// Returns `base_fee_per_gas` for miniblock range `[min(newest_block - block_count + 1, 0), newest_block]`
     /// in descending order of miniblock numbers.
     pub async fn get_fee_history(
         &mut self,
@@ -504,7 +504,7 @@ impl BlocksWeb3Dal<'_, '_> {
         from_virtual_block_number: u64,
     ) -> sqlx::Result<Option<u32>> {
         // Since virtual blocks are numerated from `migration_start_l1_batch_number` number and not from 0
-        // we have to subtract (migration_start_l1_batch_number - 1) from the `from` virtual block
+        // we have to subtract (`migration_start_l1_batch_number - 1`) from the `from` virtual block
         // to find miniblock using query below
         let virtual_block_offset = from_virtual_block_number - migration_start_l1_batch_number + 1;
 
@@ -545,7 +545,7 @@ impl BlocksWeb3Dal<'_, '_> {
         to_virtual_block_number: u64,
     ) -> sqlx::Result<Option<u32>> {
         // Since virtual blocks are numerated from `migration_start_l1_batch_number` number and not from 0
-        // we have to subtract (migration_start_l1_batch_number - 1) from the `to` virtual block
+        // we have to subtract (`migration_start_l1_batch_number - 1`) from the `to` virtual block
         // to find miniblock using query below
         let virtual_block_offset = to_virtual_block_number - migration_start_l1_batch_number + 1;
 
@@ -836,7 +836,7 @@ mod tests {
             (expected_miniblock_from, expected_miniblock_to),
         ) in inputs_with_expected_values
         {
-            // migration_start_l1_batch_number = 1
+            // `migration_start_l1_batch_number = 1`
             let miniblock_from = conn
                 .blocks_web3_dal()
                 .get_miniblock_for_virtual_block_from(1, virtual_block_start)

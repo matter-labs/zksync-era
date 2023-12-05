@@ -162,7 +162,7 @@ impl PostgresBlockStorage {
                 .context("ConsensusBlockFields::decode()")
                 .map_err(StorageError::Database)?;
             // While justifications may differ among nodes for an arbitrary block, we assume that
-            // the genesis block has a hardcoded justification.
+            // the genesis block has a hard-coded justification.
             if actual_consensus_fields != expected_consensus_fields {
                 let err = anyhow::anyhow!(
                     "Genesis block consensus fields in Postgres {actual_consensus_fields:?} do not match \
@@ -326,7 +326,7 @@ impl BlockStore for PostgresBlockStorage {
 #[async_trait]
 impl ContiguousBlockStore for PostgresBlockStorage {
     async fn schedule_next_block(&self, ctx: &ctx::Ctx, block: &FinalBlock) -> StorageResult<()> {
-        // last_in_batch` is always set to `false` by this call; it is properly set by `CursorWithCachedBlock`.
+        // `last_in_batch` is always set to `false` by this call; it is properly set by `CursorWithCachedBlock`.
         let fetched_block =
             FetchedBlock::from_gossip_block(block, false).map_err(StorageError::Database)?;
         let actions = sync::lock(ctx, &self.cursor).await?.advance(fetched_block);

@@ -24,12 +24,12 @@ pub struct ProverConfig {
     // Group id for this prover, provers running the same circuit types shall have same group id.
     pub specialized_prover_group_id: u8,
     // Number of setup-keys kept in memory without swapping
-    // number_of_setup_slots = (R-C*A-4)/S
+    // `number_of_setup_slots = (R-C*A-4)/S`
     // R is available ram
     // C is the number of parallel synth
-    // A is the size of Assembly that is 12gb
-    // S is the size of the Setup that is 20gb
-    // constant 4 is for the data copy with gpu
+    // A is the size of Assembly that is 12GB
+    // S is the size of the Setup that is 20GB
+    // constant 4 is for the data copy with GPU
     pub number_of_setup_slots: u8,
     /// Port at which server would be listening to receive incoming assembly
     pub assembly_receiver_port: u16,

@@ -200,22 +200,22 @@ impl TryFrom<Log> for L1Tx {
     fn try_from(event: Log) -> Result<Self, Self::Error> {
         // TODO: refactor according to tx type
         let transaction_param_type = ParamType::Tuple(vec![
-            ParamType::Uint(8),                                       // txType
-            ParamType::Address,                                       // sender
-            ParamType::Address,                                       // to
-            ParamType::Uint(256),                                     // gasLimit
-            ParamType::Uint(256),                                     // gasPerPubdataLimit
-            ParamType::Uint(256),                                     // maxFeePerGas
-            ParamType::Uint(256),                                     // maxPriorityFeePerGas
-            ParamType::Address,                                       // paymaster
-            ParamType::Uint(256),                                     // nonce (serial ID)
-            ParamType::Uint(256),                                     // value
-            ParamType::FixedArray(Box::new(ParamType::Uint(256)), 4), // reserved
-            ParamType::Bytes,                                         // calldata
-            ParamType::Bytes,                                         // signature
-            ParamType::Array(Box::new(ParamType::Uint(256))),         // factory deps
-            ParamType::Bytes,                                         // paymaster input
-            ParamType::Bytes,                                         // reservedDynamic
+            ParamType::Uint(8),                                       // `txType`
+            ParamType::Address,                                       // `sender`
+            ParamType::Address,                                       // `to`
+            ParamType::Uint(256),                                     // `gasLimit`
+            ParamType::Uint(256),                                     // `gasPerPubdataLimit`
+            ParamType::Uint(256),                                     // `maxFeePerGas`
+            ParamType::Uint(256),                                     // `maxPriorityFeePerGas`
+            ParamType::Address,                                       // `paymaster`
+            ParamType::Uint(256),                                     // `nonce (serial ID)`
+            ParamType::Uint(256),                                     // `value`
+            ParamType::FixedArray(Box::new(ParamType::Uint(256)), 4), // `reserved`
+            ParamType::Bytes,                                         // `calldata`
+            ParamType::Bytes,                                         // `signature`
+            ParamType::Array(Box::new(ParamType::Uint(256))),         // `factory deps`
+            ParamType::Bytes,                                         // `paymaster input`
+            ParamType::Bytes,                                         // `reservedDynamic`
         ]);
 
         let mut dec_ev = decode(
@@ -303,7 +303,7 @@ impl TryFrom<Log> for L1Tx {
         let signature = transaction.remove(0).into_bytes().unwrap();
         assert_eq!(signature.len(), 0);
 
-        // TODO (SMA-1621): check that reservedDynamic are constructed correctly.
+        // TODO (SMA-1621): check that `reservedDynamic` are constructed correctly.
         let _factory_deps_hashes = transaction.remove(0).into_array().unwrap();
         let _paymaster_input = transaction.remove(0).into_bytes().unwrap();
         let _reserved_dynamic = transaction.remove(0).into_bytes().unwrap();

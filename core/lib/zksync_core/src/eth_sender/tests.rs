@@ -28,7 +28,7 @@ use crate::eth_sender::{
 };
 use crate::l1_gas_price::GasAdjuster;
 
-// Alias to conveniently call static methods of ETHSender.
+// Alias to conveniently call static methods of `ETHSender`.
 type MockEthTxManager = EthTxManager<Arc<MockEthereum>, GasAdjuster<Arc<MockEthereum>>>;
 
 static DUMMY_OPERATION: Lazy<AggregatedOperation> = Lazy::new(|| {
@@ -107,7 +107,7 @@ impl EthSenderTester {
                 proof_sending_mode: ProofSendingMode::SkipEveryProof,
                 ..eth_sender_config.sender.clone()
             },
-            // Aggregator - unused
+            // `Aggregator - unused`
             Aggregator::new(
                 aggregator_config.clone(),
                 store_factory.create_store().await,
@@ -220,7 +220,7 @@ async fn confirm_many() -> anyhow::Result<()> {
     Ok(())
 }
 
-// Tests that we resend first unmined transaction every block with an increased gas price.
+// Tests that we resend first un-mined transaction every block with an increased gas price.
 #[tokio::test]
 async fn resend_each_block() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
@@ -267,7 +267,7 @@ async fn resend_each_block() -> anyhow::Result<()> {
     let sent_tx = tester.gateway.sent_txs.read().unwrap()[&hash];
     assert_eq!(sent_tx.hash, hash);
     assert_eq!(sent_tx.nonce, 0);
-    assert_eq!(sent_tx.base_fee.as_usize(), 18); // 6 * 3 * 2^0
+    assert_eq!(sent_tx.base_fee.as_usize(), 18); // `6 * 3 * 2^0`
 
     // now, median is 5
     tester.gateway.advance_block_number(2);
@@ -309,7 +309,7 @@ async fn resend_each_block() -> anyhow::Result<()> {
 
     let resent_tx = tester.gateway.sent_txs.read().unwrap()[&resent_hash];
     assert_eq!(resent_tx.nonce, 0);
-    assert_eq!(resent_tx.base_fee.as_usize(), 30); // 5 * 3 * 2^1
+    assert_eq!(resent_tx.base_fee.as_usize(), 30); // `5 * 3 * 2^1`
 
     Ok(())
 }
@@ -368,7 +368,7 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
         )
         .await?;
 
-    // check that transaction is still considered inflight
+    // check that transaction is still considered in-flight
     assert_eq!(
         tester
             .storage()
@@ -440,7 +440,7 @@ async fn three_scenarios() -> anyhow::Result<()> {
         .await?
         .expect("we should be trying to resend the last tx");
 
-    // check that last 2 transactions are still considered inflight
+    // check that last 2 transactions are still considered in-flight
     assert_eq!(
         tester
             .storage()

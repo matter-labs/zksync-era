@@ -194,7 +194,7 @@ async fn init_tasks(
         .build()
         .await
         .context("failed to build a tree_pool")?;
-    // todo: PLA-335
+    // TODO: PLA-335
     // Note: This pool isn't actually used by the metadata calculator, but it has to be provided anyway.
     let prover_tree_pool = ConnectionPool::singleton(&config.postgres.database_url)
         .build()

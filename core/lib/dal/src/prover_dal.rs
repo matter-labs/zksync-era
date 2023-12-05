@@ -265,7 +265,7 @@ impl ProverDal<'_, '_> {
     }
 
     // For each block in the provided range it returns a tuple:
-    // (aggregation_coords; scheduler_proof)
+    // `(aggregation_coords; scheduler_proof)`
     pub async fn get_final_proofs_for_blocks(
         &mut self,
         from_block: L1BatchNumber,

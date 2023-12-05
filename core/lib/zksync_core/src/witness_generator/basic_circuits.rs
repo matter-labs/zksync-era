@@ -443,7 +443,7 @@ pub async fn generate_witness(
     let hashes: HashSet<H256> = input
         .used_bytecodes_hashes
         .iter()
-        // SMA-1555: remove this hack once updated to the latest version of zkevm_test_harness
+        // SMA-1555: remove this hack once updated to the latest version of `zkevm_test_harness`
         .filter(|&&hash| hash != h256_to_u256(header.base_system_contracts_hashes.bootloader))
         .map(|hash| u256_to_h256(*hash))
         .collect();

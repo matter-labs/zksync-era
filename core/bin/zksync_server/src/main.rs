@@ -154,7 +154,7 @@ async fn main() -> anyhow::Result<()> {
         opt.components.0
     };
 
-    // OneShotWitnessGenerator is the only component that is not expected to run indefinitely
+    // `OneShotWitnessGenerator` is the only component that is not expected to run indefinitely
     // if this value is `false`, we expect all components to run indefinitely: we panic if any component returns.
     let is_only_oneshot_witness_generator_task = matches!(
         components.as_slice(),

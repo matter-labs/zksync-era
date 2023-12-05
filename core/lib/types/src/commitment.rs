@@ -219,19 +219,19 @@ impl L1BatchWithMetadata {
         crate::ethabi::encode(&[Token::Array(vec![self.l1_commit_data()])]).len()
     }
 
-    /// Packs all pubdata needed for batch commitment in boojum into one bytes array. The packing contains the
+    /// Packs all pubdata needed for batch commitment in Boojum into one bytes array. The packing contains the
     /// following: logs, messages, bytecodes, and compressed state diffs.
     /// This data is currently part of calldata but will be submitted as part of the blob section post EIP-4844.
     pub fn construct_pubdata(&self) -> Vec<u8> {
         let mut res: Vec<u8> = vec![];
 
-        // Process and Pack Logs
+        // Process and pack logs
         res.extend((self.header.l2_to_l1_logs.len() as u32).to_be_bytes());
         for l2_to_l1_log in &self.header.l2_to_l1_logs {
             res.extend(l2_to_l1_log.0.to_bytes());
         }
 
-        // Process and Pack Msgs
+        // Process and pack messages
         res.extend((self.header.l2_to_l1_messages.len() as u32).to_be_bytes());
         for msg in &self.header.l2_to_l1_messages {
             res.extend((msg.len() as u32).to_be_bytes());
@@ -322,15 +322,15 @@ struct L1BatchAuxiliaryOutput {
     l2_l1_logs_linear_hash: H256,
     l2_l1_logs_merkle_root: H256,
 
-    // Once cut over to boojum, these fields are no longer required as their values
-    // are covered by state_diffs_compressed and its hash.
+    // Once cut over to Boojum, these fields are no longer required as their values
+    // are covered by `state_diffs_compressed` and its hash.
     // Task to remove: PLA-640
     initial_writes_compressed: Vec<u8>,
     initial_writes_hash: H256,
     repeated_writes_compressed: Vec<u8>,
     repeated_writes_hash: H256,
 
-    // The fields below are necessary for boojum.
+    // The fields below are necessary for Boojum.
     system_logs_compressed: Vec<u8>,
     #[allow(dead_code)]
     system_logs_linear_hash: H256,
@@ -581,7 +581,7 @@ impl L1BatchCommitment {
                         last_leaf_index: rollup_last_leaf_index,
                         root_hash: rollup_root_hash,
                     },
-                    // Despite the fact that zk_porter is not available we have to add params about it.
+                    // Despite the fact that `zk_porter` is not available we have to add params about it.
                     RootState {
                         last_leaf_index: 0,
                         root_hash: H256::zero(),

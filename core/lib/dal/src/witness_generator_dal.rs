@@ -880,7 +880,7 @@ impl WitnessGeneratorDal<'_, '_> {
     pub async fn move_scheduler_jobs_from_waiting_to_queued(&mut self) -> Vec<i64> {
         {
             // There is always just one final node circuit
-            // hence we do AND p.number_of_jobs = 1
+            // hence we do AND `p.number_of_jobs = 1`
             sqlx::query!(
                 r#"
                 UPDATE scheduler_witness_jobs

@@ -187,9 +187,9 @@ pub static DEFAULT_SYSTEM_CONTRACTS_REPO: Lazy<SystemContractsRepo> =
 
 /// Structure representing a system contract repository - that allows
 /// fetching contracts that are located there.
-/// As most of the static methods in this file, is loading data based on ZKSYNC_HOME environment variable.
+/// As most of the static methods in this file, is loading data based on `ZKSYNC_HOME` environment variable.
 pub struct SystemContractsRepo {
-    // Path to the root of the system contracts repo.
+    // Path to the root of the system contracts repository.
     pub root: PathBuf,
 }
 

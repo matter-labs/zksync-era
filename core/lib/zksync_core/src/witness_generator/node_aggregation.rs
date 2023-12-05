@@ -293,8 +293,8 @@ async fn update_database(
     let mut prover_connection = prover_connection_pool.access_storage().await.unwrap();
     let mut transaction = prover_connection.start_transaction().await.unwrap();
 
-    // inserts artifacts into the scheduler_witness_jobs table
-    // and advances it to waiting_for_proofs status
+    // inserts artifacts into the `scheduler_witness_jobs` table
+    // and advances it to `waiting_for_proofs` status
     transaction
         .witness_generator_dal()
         .save_node_aggregation_artifacts(block_number, &blob_urls.node_aggregations_url)

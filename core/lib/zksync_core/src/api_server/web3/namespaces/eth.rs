@@ -468,7 +468,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 
         if let Some(proxy) = &self.state.tx_sender.0.proxy {
             // We're running an external node - check the proxy cache in
-            // case the transaction was proxied but not yet synced back to us
+            // case the transaction was proxies but not yet synced back to us
             if let Ok(Some(tx)) = &transaction {
                 // If the transaction is already in the db, remove it from cache
                 proxy.forget_tx(tx.hash).await

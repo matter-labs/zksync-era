@@ -102,8 +102,8 @@ pub(super) fn apply_vm_in_sandbox<T>(
     } else if current_l2_block_info.l2_block_number == 0 {
         // Special case:
         // - For environments, where genesis block was created before virtual block upgrade it doesn't matter what we put here.
-        // - Otherwise, we need to put actual values here. We cannot create next l2 block with block_number=0 and max_virtual_blocks_to_create=0
-        //   because of SystemContext requirements. But, due to intrinsics of SystemContext, block.number still will be resolved to 0.
+        // - Otherwise, we need to put actual values here. We cannot create next L2 block with `block_number=0` and `max_virtual_blocks_to_create=0`
+        //   because of SystemContext requirements. But, due to intrinsics of SystemContext, `block.number` still will be resolved to 0.
         L2BlockEnv {
             number: 1,
             timestamp: 0,
