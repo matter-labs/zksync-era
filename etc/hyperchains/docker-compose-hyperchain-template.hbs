@@ -133,7 +133,7 @@ services:
     image: matterlabs/witness-vector-generator:latest
     restart: always
     env_file:
-      - {{../envFilePath}}
+      - {{envFilePath}}
     deploy:
       mode: replicated
       replicas: {{witnessVectorGensCount}}
