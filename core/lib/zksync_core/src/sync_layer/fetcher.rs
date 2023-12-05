@@ -3,10 +3,9 @@ use tokio::sync::watch;
 
 use std::time::Duration;
 
-use zksync_dal::StorageProcessor;
+use zksync_dal::{blocks_dal::ConsensusBlockFields, StorageProcessor};
 use zksync_types::{
-    api::en::SyncBlock, block::ConsensusBlockFields, Address, L1BatchNumber, MiniblockNumber,
-    ProtocolVersionId,
+    api::en::SyncBlock, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId,
 };
 use zksync_web3_decl::jsonrpsee::core::Error as RpcError;
 
@@ -37,9 +36,10 @@ pub(super) struct FetchedBlock {
     pub consensus: Option<ConsensusBlockFields>,
 }
 
-impl From<SyncBlock> for FetchedBlock {
-    fn from(block: SyncBlock) -> Self {
-        Self {
+impl TryFrom<SyncBlock> for FetchedBlock {
+    type Error = anyhow::Error;
+    fn try_from(block: SyncBlock) -> anyhow::Result<Self> {
+        Ok(Self {
             number: block.number,
             l1_batch_number: block.l1_batch_number,
             last_in_batch: block.last_in_batch,
@@ -51,9 +51,14 @@ impl From<SyncBlock> for FetchedBlock {
             operator_address: block.operator_address,
             transactions: block
                 .transactions
-                .expect("Transactions are always requested"),
-            consensus: block.consensus,
-        }
+                .context("Transactions are always requested")?,
+            consensus: block
+                .consensus
+                .as_ref()
+                .map(ConsensusBlockFields::decode)
+                .transpose()
+                .context("ConsensusBlockFields::decode()")?,
+        })
     }
 }
 
@@ -273,7 +278,7 @@ impl MainNodeFetcher {
         request_latency.observe();
 
         let block_number = block.number;
-        let new_actions = self.cursor.advance(block.into());
+        let new_actions = self.cursor.advance(block.try_into()?);
 
         tracing::info!(
             "New miniblock: {block_number} / {}",

@@ -4,7 +4,7 @@ use crate::{
     instrument::InstrumentExt,
     metrics::MethodLatency,
     models::{storage_sync::StorageSyncBlock, storage_transaction::StorageTransaction},
-    SqlxError, StorageProcessor,
+    StorageProcessor,
 };
 
 /// DAL subset dedicated to the EN synchronization.
@@ -19,7 +19,7 @@ impl SyncDal<'_, '_> {
         block_number: MiniblockNumber,
         current_operator_address: Address,
         include_transactions: bool,
-    ) -> Result<Option<SyncBlock>, SqlxError> {
+    ) -> anyhow::Result<Option<SyncBlock>> {
         let latency = MethodLatency::new("sync_dal_sync_block");
         let storage_block_details = sqlx::query_as!(
             StorageSyncBlock,
@@ -65,7 +65,7 @@ impl SyncDal<'_, '_> {
             } else {
                 None
             };
-            Some(storage_block_details.into_sync_block(current_operator_address, transactions))
+            Some(storage_block_details.into_sync_block(current_operator_address, transactions)?)
         } else {
             None
         };
