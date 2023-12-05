@@ -589,7 +589,7 @@ pub(crate) fn get_bootloader_memory_for_encoded_tx(
     let encoding_length = encoded_tx.len();
     memory.extend((tx_description_offset..tx_description_offset + encoding_length).zip(encoded_tx));
 
-    // Note, +1 is moving for poitner
+    // Note, +1 is moving for pointer
     let compressed_bytecodes_offset =
         COMPRESSED_BYTECODES_OFFSET + 1 + previous_compressed_bytecode_size;
 

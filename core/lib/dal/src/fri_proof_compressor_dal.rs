@@ -206,6 +206,22 @@ impl FriProofCompressorDal<'_, '_> {
         }
     }
 
+    pub async fn get_oldest_not_compressed_batch(&mut self) -> Option<L1BatchNumber> {
+        let result: Option<L1BatchNumber> = sqlx::query!(
+            "SELECT l1_batch_number \
+            FROM proof_compression_jobs_fri \
+            WHERE status <> 'successful' \
+            ORDER BY l1_batch_number ASC \
+            LIMIT 1",
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| L1BatchNumber(row.l1_batch_number as u32));
+
+        result
+    }
+
     pub async fn requeue_stuck_jobs(
         &mut self,
         processing_timeout: Duration,
