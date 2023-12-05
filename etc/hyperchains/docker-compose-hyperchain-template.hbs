@@ -160,12 +160,12 @@ services:
     networks:
       - zksync-era_zkstack
     {{#if needBuildProver}}
-    build: # Needed for anything that is not Nvidia CUDA_ARCH 89
+    build: # Needed for anything that is not NVIDIA CUDA_ARCH 89
       dockerfile: ./docker/prover-gpu-fri/Dockerfile
       args:
         CUDA_ARCH: {{cudaArch}}
     {{else}}
-    image: matterlabs/prover-gpu-fri:latest # Only works for Nvidia CUDA_ARCH 89
+    image: matterlabs/prover-gpu-fri:latest # Only works for NVIDIA CUDA_ARCH 89
     {{/if}}
     env_file:
       - {{envFilePath}}

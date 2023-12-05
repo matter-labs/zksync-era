@@ -673,7 +673,7 @@ async function _generateDockerImages(_orgName?: string) {
             const cudaArchPrompt: BasePromptOptions[] = [
                 {
                     message:
-                        'What is your GPU CUDA version? You can find it in table here - https://en.wikipedia.org/wiki/CUDA#GPUs_supported Input only 2 numbers withous dot, e.g. if you have RTX 3070 -> CUDA 8.6 -> Answer is 86',
+                        'What is your GPU Compute Capability version? You can find it in table here - https://en.wikipedia.org/wiki/CUDA#GPUs_supported Input only 2 numbers withous dot, e.g. if you have RTX 3070 -> Compute Capability 8.6 -> Answer is 86',
                     name: 'cudaArch',
                     type: 'input',
                     required: true
