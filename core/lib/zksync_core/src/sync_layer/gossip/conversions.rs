@@ -12,6 +12,14 @@ use crate::{consensus, sync_layer::fetcher::FetchedBlock};
 pub(super) fn sync_block_to_consensus_block(mut block: SyncBlock) -> anyhow::Result<FinalBlock> {
     let number = BlockNumber(block.number.0.into());
     let consensus = block.consensus.take().context("Missing consensus fields")?;
+    let consensus_protocol_version = consensus.justification.message.protocol_version.as_u32();
+    let block_protocol_version = block.protocol_version as u32;
+    anyhow::ensure!(
+        consensus_protocol_version == block_protocol_version,
+        "Protocol version for justification ({consensus_protocol_version}) differs from \
+         SyncBlock.protocol_version={block_protocol_version}"
+    );
+
     let payload: consensus::Payload = block.try_into().context("Missing `SyncBlock` data")?;
     let payload = payload.encode();
     let header = BlockHeader {
@@ -36,11 +44,17 @@ impl FetchedBlock {
         let payload = consensus::Payload::decode(&block.payload)
             .context("Failed deserializing block payload")?;
 
+        let protocol_version = block.justification.message.protocol_version;
+        let protocol_version =
+            u16::try_from(protocol_version.as_u32()).context("Invalid protocol version")?;
+        let protocol_version = ProtocolVersionId::try_from(protocol_version)
+            .with_context(|| format!("Unsupported protocol version: {protocol_version}"))?;
+
         Ok(Self {
             number: MiniblockNumber(number),
             l1_batch_number: payload.l1_batch_number,
             last_in_batch,
-            protocol_version: ProtocolVersionId::latest(), // FIXME
+            protocol_version,
             timestamp: payload.timestamp,
             l1_gas_price: payload.l1_gas_price,
             l2_fair_gas_price: payload.l2_fair_gas_price,
