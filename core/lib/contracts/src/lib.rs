@@ -27,7 +27,7 @@ pub enum ContractLanguage {
 const BRIDGEHUB_CONTRACT_FILE: &str =
     "contracts/ethereum/artifacts/cache/solpp-generated-contracts/bridgehub/bridgehub-interfaces/IBridgehub.sol/IBridgehub.json";
 const STATE_TRANSITION_CONTRACT_FILE: &str =
-    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/state-transition/state-transition-interfaces/IStateTransition.sol/IStateTransition.json";
+    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/state-transition/state-transition-interfaces/IZkSyncStateTransition.sol/IZkSyncStateTransition.json";
 const STATE_TRANSITION_CHAIN_CONTRACT_FILE: &str =
     "contracts/ethereum/artifacts/cache/solpp-generated-contracts/state-transition/chain-interfaces/IStateTransitionChain.sol/IStateTransitionChain.json";
 const DIAMOND_INIT_CONTRACT_FILE: &str =

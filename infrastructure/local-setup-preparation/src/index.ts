@@ -21,11 +21,7 @@ async function depositWithRichAccounts() {
     // it is not possible to estimate the exact number of gas that is required for the transaction
     const DEPOSIT_L2_GAS_LIMIT = 10_000_000;
     const gasPrice = await ethProvider.getGasPrice();
-    const contract = new ethers.Contract(
-        process.env.CONTRACTS_BRIDGEHUB_PROXY_ADDR,
-        utils.BRIDGEHUB_ABI,
-        ethProvider
-    );
+    const contract = new ethers.Contract(process.env.CONTRACTS_BRIDGEHUB_PROXY_ADDR, utils.BRIDGEHUB_ABI, ethProvider);
 
     const expectedCost = await contract.l2TransactionBaseCost(
         chainId,
@@ -35,11 +31,7 @@ async function depositWithRichAccounts() {
     );
 
     for (const wallet of wallets) {
-        const contract = new ethers.Contract(
-            process.env.CONTRACTS_BRIDGEHUB_PROXY_ADDR,
-            utils.BRIDGEHUB_ABI,
-            wallet
-        );
+        const contract = new ethers.Contract(process.env.CONTRACTS_BRIDGEHUB_PROXY_ADDR, utils.BRIDGEHUB_ABI, wallet);
 
         const overrides = {
             value: AMOUNT_TO_DEPOSIT.add(expectedCost)

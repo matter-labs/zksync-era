@@ -69,10 +69,10 @@ describe('Smart contract behavior checks', () => {
             // type:113,
             // nonce: nonce,
             customData: {
-                factoryDeps: [contracts.create.factoryDep],
+                factoryDeps: [contracts.create.factoryDep]
                 // gasPerPubdata: 50000,
-            },
-            gasLimit : 5111111
+            }
+            // gasLimit: 5111111
         });
         console.log('kl todo after');
         await contract.deployed();
