@@ -12,7 +12,8 @@ use zksync_consensus_storage::{InMemoryStorage, WriteBlockStore};
 use zksync_db_connection::ConnectionPool;
 use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::{
-    api::en::SyncBlock, block::ConsensusBlockFields, Address, L1BatchNumber, MiniblockNumber, H256,
+    api::en::SyncBlock, block::ConsensusBlockFields, Address, L1BatchNumber, MiniblockNumber,
+    ProtocolVersionId, H256,
 };
 
 use super::*;
@@ -64,12 +65,19 @@ pub(super) async fn block_payload(
     consensus::Payload::try_from(sync_block).unwrap()
 }
 
+fn latest_protocol_version() -> validator::ProtocolVersion {
+    (ProtocolVersionId::latest() as u32)
+        .try_into()
+        .expect("latest protocol version is invalid")
+}
+
 /// Adds consensus information for the specified `count` of miniblocks, starting from the genesis.
 pub(super) async fn add_consensus_fields(
     storage: &mut ServerStorageProcessor<'_>,
     validator_key: &validator::SecretKey,
     block_numbers: ops::Range<u32>,
 ) {
+    let protocol_version = latest_protocol_version();
     let mut prev_block_hash = validator::BlockHeaderHash::from_bytes([0; 32]);
     let validator_set = validator::ValidatorSet::new([validator_key.public()]).unwrap();
     for number in block_numbers {
@@ -80,7 +88,7 @@ pub(super) async fn add_consensus_fields(
             payload: payload.hash(),
         };
         let replica_commit = validator::ReplicaCommit {
-            protocol_version: validator::CURRENT_VERSION,
+            protocol_version,
             view: validator::ViewNumber(number.into()),
             proposal: block_header,
         };
@@ -114,7 +122,7 @@ pub(super) fn create_genesis_block(
     };
     let validator_set = validator::ValidatorSet::new([validator_key.public()]).unwrap();
     let replica_commit = validator::ReplicaCommit {
-        protocol_version: validator::CURRENT_VERSION,
+        protocol_version: latest_protocol_version(),
         view: validator::ViewNumber(number),
         proposal: block_header,
     };
@@ -186,10 +194,12 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
         .access_storage::<ServerStorageProcessor>()
         .await
         .unwrap();
+    let protocol_version = latest_protocol_version();
     let genesis_block_payload = block_payload(&mut storage, 0).await.encode();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
     let rng = &mut ctx.rng();
-    let mut validator = FullValidatorConfig::for_single_validator(rng, genesis_block_payload);
+    let mut validator =
+        FullValidatorConfig::for_single_validator(rng, protocol_version, genesis_block_payload);
     let validator_set = validator.node_config.validators.clone();
     let external_node = validator.connect_full_node(rng);
 
@@ -211,19 +221,21 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
                 .unwrap();
         }
     }
-    let validator = Executor::new(
-        validator.node_config,
-        validator.node_key,
-        validator_storage.clone(),
-    )
-    .unwrap();
-    // ^ We intentionally do not run consensus on the validator node, since it'll produce blocks
-    // with payloads that cannot be parsed by the external node.
 
     let (actions_sender, mut actions) = ActionQueue::new();
     let (keeper_actions_sender, keeper_actions) = ActionQueue::new();
     let state_keeper = StateKeeperHandles::new(pool.clone(), keeper_actions, &[&tx_hashes]).await;
     scope::run!(ctx, |ctx, s| async {
+        let validator = Executor::new(
+            ctx,
+            validator.node_config,
+            validator.node_key,
+            validator_storage.clone(),
+        )
+        .await?;
+        // ^ We intentionally do not run consensus on the validator node, since it'll produce blocks
+        // with payloads that cannot be parsed by the external node.
+
         s.spawn_bg(validator.run(ctx));
         s.spawn_bg(run_gossip_fetcher_inner(
             ctx,
@@ -319,10 +331,12 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
         .access_storage::<ServerStorageProcessor>()
         .await
         .unwrap();
+    let protocol_version = latest_protocol_version();
     let genesis_block_payload = block_payload(&mut storage, 0).await.encode();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
     let rng = &mut ctx.rng();
-    let mut validator = FullValidatorConfig::for_single_validator(rng, genesis_block_payload);
+    let mut validator =
+        FullValidatorConfig::for_single_validator(rng, protocol_version, genesis_block_payload);
     let validator_set = validator.node_config.validators.clone();
     let external_node = validator.connect_full_node(rng);
 
@@ -337,16 +351,18 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
     for block in initial_blocks {
         validator_storage.put_block(ctx, block).await.unwrap();
     }
-    let validator = Executor::new(
-        validator.node_config,
-        validator.node_key,
-        validator_storage.clone(),
-    )
-    .unwrap();
 
     let (actions_sender, actions) = ActionQueue::new();
     let state_keeper = StateKeeperHandles::new(pool.clone(), actions, &tx_hashes).await;
     scope::run!(ctx, |ctx, s| async {
+        let validator = Executor::new(
+            ctx,
+            validator.node_config,
+            validator.node_key,
+            validator_storage.clone(),
+        )
+        .await?;
+
         s.spawn_bg(validator.run(ctx));
         s.spawn_bg(async {
             for block in delayed_blocks {
@@ -404,8 +420,12 @@ async fn syncing_from_non_zero_block(first_block_number: u32) {
         .encode();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
     let rng = &mut ctx.rng();
-    let mut validator =
-        FullValidatorConfig::for_single_validator(rng, genesis_block_payload.clone());
+    let protocol_version = latest_protocol_version();
+    let mut validator = FullValidatorConfig::for_single_validator(
+        rng,
+        protocol_version,
+        genesis_block_payload.clone(),
+    );
     // Override the genesis block since it has an incorrect block number.
     let genesis_block = create_genesis_block(
         &validator.validator_key,
@@ -434,13 +454,6 @@ async fn syncing_from_non_zero_block(first_block_number: u32) {
     tracing::trace!("Re-inserted blocks to node storage");
 
     let validator_storage = Arc::new(InMemoryStorage::new(genesis_block));
-    let validator = Executor::new(
-        validator.node_config,
-        validator.node_key,
-        validator_storage.clone(),
-    )
-    .unwrap();
-
     let tx_hashes = if first_block_number >= 2 {
         &tx_hashes[1..] // Skip transactions in L1 batch #1, since they won't be executed
     } else {
@@ -449,6 +462,14 @@ async fn syncing_from_non_zero_block(first_block_number: u32) {
     let (actions_sender, actions) = ActionQueue::new();
     let state_keeper = StateKeeperHandles::new(pool.clone(), actions, tx_hashes).await;
     scope::run!(ctx, |ctx, s| async {
+        let validator = Executor::new(
+            ctx,
+            validator.node_config,
+            validator.node_key,
+            validator_storage.clone(),
+        )
+        .await?;
+
         s.spawn_bg(validator.run(ctx));
         s.spawn_bg(async {
             for block in &delayed_blocks {
