@@ -118,10 +118,10 @@ jobs:
           mv solc-linux-amd64-v0.8.21+commit.d9974bed $(pwd)/etc/solc-bin/0.8.21/solc
           chmod +x $(pwd)/etc/solc-bin/0.8.21/solc
 
-          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.16
-          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.16
-          mv zksolc-linux-amd64-musl-v1.3.16 $(pwd)/etc/zksolc-bin/v1.3.16/zksolc
-          chmod +x $(pwd)/etc/zksolc-bin/v1.3.16/zksolc
+          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.17
+          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.17
+          mv zksolc-linux-amd64-musl-v1.3.17 $(pwd)/etc/zksolc-bin/v1.3.17/zksolc
+          chmod +x $(pwd)/etc/zksolc-bin/v1.3.17/zksolc
 
           mkdir -p $(pwd)/etc/vyper-bin/0.3.3
           wget -O vyper0.3.3 https://github.com/vyperlang/vyper/releases/download/v0.3.3/vyper.0.3.3%2Bcommit.48e326f0.linux
@@ -216,10 +216,10 @@ jobs:
           mv solc-linux-amd64-v0.8.21+commit.d9974bed $(pwd)/etc/solc-bin/0.8.21/solc
           chmod +x $(pwd)/etc/solc-bin/0.8.21/solc
 
-          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.16
-          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.16
-          mv zksolc-linux-amd64-musl-v1.3.16 $(pwd)/etc/zksolc-bin/v1.3.16/zksolc
-          chmod +x $(pwd)/etc/zksolc-bin/v1.3.16/zksolc
+          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.17
+          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.17
+          mv zksolc-linux-amd64-musl-v1.3.17 $(pwd)/etc/zksolc-bin/v1.3.17/zksolc
+          chmod +x $(pwd)/etc/zksolc-bin/v1.3.17/zksolc
 
           mkdir -p $(pwd)/etc/vyper-bin/0.3.3
           wget -O vyper0.3.3 https://github.com/vyperlang/vyper/releases/download/v0.3.3/vyper.0.3.3%2Bcommit.48e326f0.linux
