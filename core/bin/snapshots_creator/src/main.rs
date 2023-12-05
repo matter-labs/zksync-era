@@ -93,9 +93,9 @@ async fn process_storage_logs_single_chunk(
     let output_filepath_prefix = blob_store.get_storage_prefix::<SnapshotStorageLogsChunk>();
     let output_filepath = format!("{output_filepath_prefix}/{filename}");
 
-    let elapsed_ms = latency.observe().as_millis();
+    let elapsed = latency.observe();
     tracing::info!(
-        "Finished storage logs chunk {}/{chunks_count}, step took {elapsed_ms}ms, output stored in {output_filepath}",
+        "Finished storage logs chunk {}/{chunks_count}, step took {elapsed:?}, output stored in {output_filepath}",
         chunk_id + 1
     );
     Ok(output_filepath)
@@ -121,9 +121,9 @@ async fn process_factory_deps(
         .context("Error storing factory deps in blob store")?;
     let output_filepath_prefix = blob_store.get_storage_prefix::<SnapshotFactoryDependencies>();
     let output_filepath = format!("{output_filepath_prefix}/{filename}");
-    let elapsed_ms = latency.observe().as_millis();
+    let elapsed = latency.observe();
     tracing::info!(
-        "Finished factory dependencies, step took {elapsed_ms}ms , output stored in {}",
+        "Finished factory dependencies, step took {elapsed:?} , output stored in {}",
         output_filepath
     );
     Ok(output_filepath)
@@ -243,8 +243,8 @@ async fn run(
 
     METRICS.snapshot_l1_batch.set(l1_batch_number.0 as u64);
 
-    let elapsed_sec = latency.observe().as_secs();
-    tracing::info!("snapshot_generation_duration: {elapsed_sec}s");
+    let elapsed_ = latency.observe();
+    tracing::info!("snapshot_generation_duration: {elapsed:?}");
     tracing::info!("snapshot_l1_batch: {}", METRICS.snapshot_l1_batch.get());
     tracing::info!(
         "storage_logs_chunks_count: {}",
