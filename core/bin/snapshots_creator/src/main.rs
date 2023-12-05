@@ -243,7 +243,7 @@ async fn run(
 
     METRICS.snapshot_l1_batch.set(l1_batch_number.0 as u64);
 
-    let elapsed_ = latency.observe();
+    let elapsed = latency.observe();
     tracing::info!("snapshot_generation_duration: {elapsed:?}");
     tracing::info!("snapshot_l1_batch: {}", METRICS.snapshot_l1_batch.get());
     tracing::info!(
