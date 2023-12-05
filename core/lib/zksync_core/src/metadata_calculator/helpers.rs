@@ -282,7 +282,7 @@ impl AsyncTreeRecovery {
     }
 }
 
-/// Tree at any stage of its lifecycle.
+/// Tree at any stage of its life cycle.
 #[derive(Debug)]
 pub(super) enum GenericAsyncTree {
     /// Uninitialized tree.
