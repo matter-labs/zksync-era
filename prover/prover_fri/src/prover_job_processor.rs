@@ -19,6 +19,7 @@ use zksync_prover_fri_types::circuit_definitions::{
 
 use zkevm_test_harness::prover_utils::{prove_base_layer_circuit, prove_recursion_layer_circuit};
 
+use crate::metrics::{CircuitLabels, Layer, METRICS};
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_config::configs::FriProverConfig;
 
@@ -92,11 +93,9 @@ impl Prover {
                 let artifact: GoldilocksProverSetupData =
                     get_cpu_setup_data_for_circuit_type(key.clone())
                         .context("get_cpu_setup_data_for_circuit_type()")?;
-                metrics::histogram!(
-                    "prover_fri.prover.setup_data_load_time",
-                    started_at.elapsed(),
-                    "circuit_type" => key.circuit_id.to_string(),
-                );
+                METRICS.gpu_setup_data_load_time[&key.circuit_id.to_string()]
+                    .observe(started_at.elapsed());
+
                 Arc::new(artifact)
             }
         })
@@ -139,12 +138,13 @@ impl Prover {
             &artifact.wits_hint,
             &artifact.finalization_hint,
         );
-        metrics::histogram!(
-            "prover_fri.prover.proof_generation_time",
-            started_at.elapsed(),
-            "circuit_type" => circuit_id.to_string(),
-            "layer" => "recursive",
-        );
+
+        let label = CircuitLabels {
+            circuit_type: circuit_id,
+            layer: Layer::Recursive,
+        };
+        METRICS.proof_generation_time[&label].observe(started_at.elapsed());
+
         verify_proof(
             &CircuitWrapper::Recursive(circuit),
             &proof,
@@ -179,12 +179,13 @@ impl Prover {
             &artifact.wits_hint,
             &artifact.finalization_hint,
         );
-        metrics::histogram!(
-            "prover_fri.prover.proof_generation_time",
-            started_at.elapsed(),
-            "circuit_type" => circuit_id.to_string(),
-            "layer" => "base",
-        );
+
+        let label = CircuitLabels {
+            circuit_type: circuit_id,
+            layer: Layer::Base,
+        };
+        METRICS.proof_generation_time[&label].observe(started_at.elapsed());
+
         verify_proof(&CircuitWrapper::Base(circuit), &proof, &artifact.vk, job_id);
         FriProofWrapper::Base(ZkSyncBaseLayerProof::from_inner(circuit_id, proof))
     }
@@ -248,10 +249,8 @@ impl JobProcessor for Prover {
         started_at: Instant,
         artifacts: Self::JobArtifacts,
     ) -> anyhow::Result<()> {
-        metrics::histogram!(
-            "prover_fri.prover.cpu_total_proving_time",
-            started_at.elapsed(),
-        );
+        METRICS.cpu_total_proving_time.observe(started_at.elapsed());
+
         let mut storage_processor = self
             .prover_connection_pool
             .access_storage::<ProverStorageProcessor>()

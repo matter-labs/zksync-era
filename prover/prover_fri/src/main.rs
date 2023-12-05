@@ -31,6 +31,8 @@ mod prover_job_processor;
 mod socket_listener;
 mod utils;
 
+mod metrics;
+
 async fn graceful_shutdown(port: u16) -> anyhow::Result<impl Future<Output = ()>> {
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
     let pool = ConnectionPool::singleton(postgres_config.prover_url()?)

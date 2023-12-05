@@ -20,7 +20,7 @@ If you are a NixOS user or would like to have a reproducible environment, skip t
 Install `docker`. It is recommended to follow the instructions from the
 [official site](https://docs.docker.com/install/).
 
-Note: currently official site proposes using Docker Desktop for linux, which is a GUI tool with plenty of quirks. If you
+Note: currently official site proposes using Docker Desktop for Linux, which is a GUI tool with plenty of quirks. If you
 want to only have CLI tool, you need the `docker-ce` package and you can follow
 [this guide](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-20-04) for Ubuntu.
 

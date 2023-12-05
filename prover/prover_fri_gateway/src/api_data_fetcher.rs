@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use crate::metrics::METRICS;
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Serialize};
@@ -71,7 +72,7 @@ impl PeriodicApiStruct {
                         self.handle_response(job_id, response).await;
                     }
                     Err(err) => {
-                        metrics::counter!("prover_fri.prover_fri_gateway.http_error", 1, "service_name" => Self::SERVICE_NAME);
+                        METRICS.http_error[&Self::SERVICE_NAME].inc();
                         tracing::error!("HTTP request failed due to error: {}", err);
                     }
                 }

@@ -23,6 +23,7 @@ use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::blo
 use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness;
 use zksync_prover_fri_types::{AuxOutputWitnessWrapper, get_current_pod_name};
 
+use crate::metrics::WITNESS_GENERATOR_METRICS;
 use crate::storage_oracle::StorageOracle;
 use multivm::vm_latest::{
     constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
@@ -125,7 +126,7 @@ impl BasicWitnessGenerator {
             // We get value higher than `blocks_proving_percentage` with prob = `1 - blocks_proving_percentage`.
             // In this case job should be skipped.
             if threshold > blocks_proving_percentage && !shall_force_process_block {
-                metrics::counter!("server.witness_generator_fri.skipped_blocks", 1);
+                WITNESS_GENERATOR_METRICS.skipped_blocks.inc();
                 tracing::info!(
                     "Skipping witness generation for block {}, blocks_proving_percentage: {}",
                     block_number.0,
@@ -150,7 +151,7 @@ impl BasicWitnessGenerator {
             }
         }
 
-        metrics::counter!("server.witness_generator_fri.sampled_blocks", 1);
+        WITNESS_GENERATOR_METRICS.sampled_blocks.inc();
         tracing::info!(
             "Starting witness generation of type {:?} for block {}",
             AggregationRound::BasicCircuits,
@@ -204,11 +205,10 @@ impl JobProcessor for BasicWitnessGenerator {
                 );
                 let started_at = Instant::now();
                 let job = get_artifacts(block_number, &*self.object_store).await;
-                metrics::histogram!(
-                    "prover_fri.witness_generation.blob_fetch_time",
-                    started_at.elapsed(),
-                    "aggregation_round" => format!("{:?}", AggregationRound::BasicCircuits),
-                );
+
+                WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::BasicCircuits.into()]
+                    .observe(started_at.elapsed());
+
                 Ok(Some((block_number, job)))
             }
             None => Ok(None),
@@ -266,11 +266,10 @@ impl JobProcessor for BasicWitnessGenerator {
                     self.config.shall_save_to_public_bucket,
                 )
                 .await;
-                metrics::histogram!(
-                    "prover_fri.witness_generation.blob_save_time",
-                    blob_started_at.elapsed(),
-                    "aggregation_round" => format!("{:?}", AggregationRound::BasicCircuits),
-                );
+
+                WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::BasicCircuits.into()]
+                    .observe(blob_started_at.elapsed());
+
                 update_database(&self.prover_connection_pool, started_at, job_id, blob_urls).await;
                 Ok(())
             }
@@ -313,18 +312,10 @@ async fn process_basic_circuits_job(
         per_circuit_closed_form_inputs,
         scheduler_witness,
         aux_output_witness,
-    ) = generate_witness(
-        object_store,
-        config,
-        server_connection_pool,
-        witness_gen_input,
-    )
-    .await;
-    metrics::histogram!(
-        "prover_fri.witness_generation.witness_generation_time",
-        started_at.elapsed(),
-        "aggregation_round" => format!("{:?}", AggregationRound::BasicCircuits),
-    );
+    ) = generate_witness(object_store, config, connection_pool, witness_gen_input).await;
+    WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
+        .observe(started_at.elapsed());
+
     tracing::info!(
         "Witness generation for block {} is complete in {:?}",
         block_number.0,

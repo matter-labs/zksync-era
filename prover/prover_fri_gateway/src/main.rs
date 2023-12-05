@@ -13,6 +13,7 @@ use zksync_types::prover_server_api::{ProofGenerationDataRequest, SubmitProofReq
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 mod api_data_fetcher;
+mod metrics;
 mod proof_gen_data_fetcher;
 mod proof_submitter;
 

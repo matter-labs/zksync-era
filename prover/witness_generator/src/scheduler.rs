@@ -16,6 +16,7 @@ use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::Sch
 use zksync_vk_setup_data_server_fri::get_recursive_layer_vk_for_circuit_type;
 use zksync_vk_setup_data_server_fri::utils::get_leaf_vk_params;
 
+use crate::metrics::WITNESS_GENERATOR_METRICS;
 use crate::utils::{load_proofs_for_job_ids, SchedulerPartialInputWrapper};
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_db_connection::ConnectionPool;
@@ -87,11 +88,8 @@ impl SchedulerWitnessGenerator {
             transcript_params: (),
             _marker: std::marker::PhantomData,
         };
-        metrics::histogram!(
-                    "prover_fri.witness_generation.witness_generation_time",
-                    started_at.elapsed(),
-                    "aggregation_round" => format!("{:?}", AggregationRound::Scheduler),
-        );
+        WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::Scheduler.into()]
+            .observe(started_at.elapsed());
 
         tracing::info!(
             "Scheduler generation for block {} is complete in {:?}",
@@ -178,11 +176,8 @@ impl JobProcessor for SchedulerWitnessGenerator {
             .put(key, &CircuitWrapper::Recursive(artifacts.scheduler_circuit))
             .await
             .unwrap();
-        metrics::histogram!(
-                    "prover_fri.witness_generation.blob_save_time",
-                    blob_save_started_at.elapsed(),
-                    "aggregation_round" => format!("{:?}", AggregationRound::Scheduler),
-        );
+        WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::Scheduler.into()]
+            .observe(blob_save_started_at.elapsed());
 
         let mut connection = self
             .connection_pool
@@ -243,11 +238,9 @@ pub async fn prepare_job(
 ) -> anyhow::Result<SchedulerWitnessGeneratorJob> {
     let started_at = Instant::now();
     let proofs = load_proofs_for_job_ids(&proof_job_ids, object_store).await;
-    metrics::histogram!(
-                    "prover_fri.witness_generation.blob_fetch_time",
-                    started_at.elapsed(),
-                    "aggregation_round" => format!("{:?}", AggregationRound::Scheduler),
-    );
+    WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::Scheduler.into()]
+        .observe(started_at.elapsed());
+
     let mut recursive_proofs = vec![];
     for wrapper in proofs {
         match wrapper {
@@ -279,11 +272,9 @@ pub async fn prepare_job(
         .try_into()
         .unwrap();
     scheduler_witness.leaf_layer_parameters = leaf_layer_params;
-    metrics::histogram!(
-                "prover_fri.witness_generation.prepare_job_time",
-                started_at.elapsed(),
-                "aggregation_round" => format!("{:?}", AggregationRound::Scheduler),
-    );
+
+    WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::Scheduler.into()]
+        .observe(started_at.elapsed());
 
     Ok(SchedulerWitnessGeneratorJob {
         block_number: l1_batch_number,

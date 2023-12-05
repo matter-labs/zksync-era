@@ -22,6 +22,7 @@ use zksync_utils::wait_for_tasks::wait_for_tasks;
 use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
 mod generator;
+mod metrics;
 
 #[derive(Debug, StructOpt)]
 #[structopt(

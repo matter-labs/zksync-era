@@ -20,6 +20,7 @@ use zksync_utils::wait_for_tasks::wait_for_tasks;
 use crate::compressor::ProofCompressor;
 
 mod compressor;
+mod metrics;
 
 #[derive(Debug, StructOpt)]
 #[structopt(

@@ -2413,6 +2413,26 @@
     },
     "query": "\n                UPDATE scheduler_witness_jobs_fri\n                SET status='queued'\n                WHERE l1_batch_number = $1\n                AND status != 'successful'\n                AND status != 'in_progress'\n            "
   },
+  "a7c7e8f036404d24dc6bfa184a84b92d8f73ca034970481af34b6163e66dc59a": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int2"
+        ]
+      }
+    },
+    "query": "\n                    SELECT l1_batch_number \n                    FROM prover_jobs_fri \n                    WHERE status <> 'skipped'\n                    AND status <> 'successful'\n                    AND aggregation_round = $1 \n                    ORDER BY l1_batch_number ASC \n                    LIMIT 1\n                "
+  },
   "a9d96d6774af2637173d471f02995652cd4c131c05fdcb3d0e1644bcd1aa1809": {
     "describe": {
       "columns": [
@@ -3243,6 +3263,24 @@
       }
     },
     "query": "\n                UPDATE node_aggregation_witness_jobs\n                SET status='queued'\n                WHERE l1_batch_number IN\n                      (SELECT prover_jobs.l1_batch_number\n                       FROM prover_jobs\n                                JOIN node_aggregation_witness_jobs nawj ON prover_jobs.l1_batch_number = nawj.l1_batch_number\n                       WHERE nawj.status = 'waiting_for_proofs'\n                         AND prover_jobs.status = 'successful'\n                         AND prover_jobs.aggregation_round = 1\n                       GROUP BY prover_jobs.l1_batch_number, nawj.number_of_leaf_circuits\n                       HAVING COUNT(*) = nawj.number_of_leaf_circuits)\n                RETURNING l1_batch_number;\n            "
+  },
+  "f15f0848cfd830ec5d5b479fdcdd36c6a4439495b7680614ac1b0e4d73fb992f": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT l1_batch_number FROM proof_compression_jobs_fri WHERE status <> 'successful' ORDER BY l1_batch_number ASC LIMIT 1"
   },
   "f1defa140e20b9c250d3212602dc259c0a35598c2e69d1c42746a8fab6dd8d3e": {
     "describe": {
