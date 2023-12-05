@@ -29,8 +29,8 @@ enum BaseNetwork {
 
 enum ProverTypeOption {
     NONE = 'No (this hyperchain is for testing purposes only)',
-    CPU = 'Yes - With a CPU implementation',
-    GPU = 'Yes - With a GPU implementation (Coming soon)'
+    CPU  = 'Yes - With a CPU implementation',
+    GPU  = 'Yes - With a GPU implementation'
 }
 
 export interface BasePromptOptions {
@@ -42,6 +42,8 @@ export interface BasePromptOptions {
     choices?: string[] | object[];
     skip?: ((state: object) => boolean | Promise<boolean>) | boolean;
 }
+
+let useMatterlabsGeth = false
 
 // An init command that allows configuring and spinning up a new hyperchain network.
 async function initHyperchain() {
@@ -69,6 +71,12 @@ async function initHyperchain() {
     };
 
     await init(initArgs);
+
+    // if we used matterlabs/geth network, we need custom ENV file for hyperchain compose parts
+    if (useMatterlabsGeth) {
+        wrapEnvModify('ETH_CLIENT_WEB3_URL', "http://geth:8545");
+        wrapEnvModify('DATABASE_URL', "postgres://postgres:notsecurepassword@postgres:5432/zksync_local");
+    }
 
     env.mergeInitToEnv();
 
@@ -251,9 +259,11 @@ async function setHyperchainMetadata() {
             feeReceiverAddress = keyResults.feeReceiver;
         }
     } else {
+        useMatterlabsGeth = true
         l1Rpc = 'http://localhost:8545';
         l1Id = 9;
-        databaseUrl = 'postgres://postgres@localhost/zksync_local';
+        databaseUrl = 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local';
+        wrapEnvModify('DATABASE_URL', databaseUrl);
 
         const richWalletsRaw = await fetch(
             'https://raw.githubusercontent.com/matter-labs/local-setup/main/rich-wallets.json'
@@ -267,7 +277,7 @@ async function setHyperchainMetadata() {
         feeReceiver = undefined;
         feeReceiverAddress = richWallets[3].address;
 
-        await up();
+        await up('docker-compose-zkstack.yml');
         await announced('Ensuring databases are up', db.wait());
     }
 
@@ -362,23 +372,6 @@ async function setupHyperchainProver() {
 
     proverType = proverResults.prover;
 
-    if (proverType === ProverTypeOption.GPU) {
-        const gpuQuestions: BasePromptOptions[] = [
-            {
-                message: 'GPU prover is not yet available. Do you want to use the CPU implementation?',
-                name: 'prover',
-                type: 'confirm',
-                required: true
-            }
-        ];
-
-        const gpuResults: any = await enquirer.prompt(gpuQuestions);
-
-        if (gpuResults.prover) {
-            proverType = ProverTypeOption.CPU;
-        }
-    }
-
     switch (proverType) {
         case ProverTypeOption.NONE:
             wrapEnvModify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'SkipEveryProof');
@@ -410,7 +403,7 @@ async function initializeTestERC20s() {
         wrapEnvModify('DEPLOY_TEST_TOKENS', 'true');
         console.log(
             warning(
-                `The addresses for the tokens will be available at the /etc/tokens/${getEnv(
+                `The addresses for the generated test ECR20 tokens will be available at the /etc/tokens/${getEnv(
                     process.env.CHAIN_ETH_NETWORK!
                 )}.json file.`
             )
@@ -474,7 +467,7 @@ async function initializeWethTokenForHyperchain() {
 async function startServer() {
     const YES_DEFAULT = 'Yes (default components)';
     const YES_CUSTOM = 'Yes (custom components)';
-    const NO = 'Not right now';
+    const NO = 'Not right now (you want to use prover with docker-compose)';
 
     const questions: BasePromptOptions[] = [
         {
@@ -651,10 +644,8 @@ async function generateDockerImages(cmd: Command) {
 
 async function _generateDockerImages(_orgName?: string) {
     console.log(warning(`\nThis process will build the docker images and it can take a while. Please be patient.\n`));
-
     const envName = await selectHyperchainConfiguration();
     env.set(envName);
-
     const orgName = _orgName || envName;
 
     await docker.customBuildForHyperchain('server-v2', orgName);
@@ -662,7 +653,12 @@ async function _generateDockerImages(_orgName?: string) {
     console.log(warning(`\nDocker image for server created: Server image: ${orgName}/server-v2:latest\n`));
 
     let hasProver = false;
+    let hasGPUProver = false;
+    let hasCPUProver = false;
+    let needBuildProver = false;
     let artifactsPath, proverSetupArtifacts;
+    let witnessVectorGensCount = 0;
+    let cudaArch = '';
 
     if (process.env.ETH_SENDER_SENDER_PROOF_SENDING_MODE !== 'SkipEveryProof') {
         hasProver = true;
@@ -672,8 +668,25 @@ async function _generateDockerImages(_orgName?: string) {
         }
 
         if (process.env.PROVER_TYPE === ProverType.GPU) {
-            throw new Error('GPU prover configuration not available yet');
+            // throw new Error('GPU prover configuration not available yet');
+            hasGPUProver = true;
+            const cudaArchPrompt: BasePromptOptions[] = [
+                {
+                    message:
+                        'What is your GPU CUDA version? You can find it in table here - https://en.wikipedia.org/wiki/CUDA#GPUs_supported Input only 2 numbers withous dot, e.g. if you have RTX 3070 -> CUDA 8.6 -> Answer is 86',
+                    name: 'cudaArch',
+                    type: 'input',
+                    required: true,
+                }
+            ];
+            const cudaRes: any = await enquirer.prompt(cudaArchPrompt);
+            cudaArch = cudaRes.cudaArch;
+        } else {
+            hasCPUProver = true;
         }
+
+        // We need to generate at least 4 witnes-vector-generators per prover, but it can be less, and can be more
+        witnessVectorGensCount = 4;
 
         // For Now use only the public images. Too soon to allow prover to be customized
         // await docker.customBuildForHyperchain('witness-generator', orgName);
@@ -689,15 +702,33 @@ async function _generateDockerImages(_orgName?: string) {
         // }
     }
 
+    // We have precompiled GPU prover image only for CUDA arch 89 aka ADA, all others need to be re-build
+    if (process.env.PROVER_TYPE === ProverType.GPU && cudaArch != '89') {
+        needBuildProver = true;
+    }
+
     const composeArgs = {
         envFilePath: `./etc/env/${envName}.env`,
         orgName,
         hasProver,
         artifactsPath,
-        proverSetupArtifacts
+        proverSetupArtifacts,
+        hasGPUProver,
+        hasCPUProver,
+        cudaArch,
+        needBuildProver,
+        witnessVectorGensCount
     };
 
-    const templateFileName = './etc/hyperchains/docker-compose-hyperchain-template';
+    // Creating simple handlebars helper "if (foo AND bar)" to reduce copypaste in compose template
+    Handlebars.registerHelper('ifAnd', function(this: boolean, a: boolean, b: boolean, options: Handlebars.HelperOptions) {
+        if (a && b) {
+            return options.fn(this);
+        }
+        return options.inverse(this);
+    });
+
+    const templateFileName = './etc/hyperchains/docker-compose-hyperchain-template.hbs';
     const templateString = fs.existsSync(templateFileName) && fs.readFileSync(templateFileName).toString().trim();
     const template = Handlebars.compile(templateString);
     const result = template(composeArgs);
