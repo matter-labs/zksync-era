@@ -2,7 +2,6 @@ use crate::api_server::web3::backend_jsonrpc::error::internal_error;
 use crate::api_server::web3::metrics::API_METRICS;
 use crate::api_server::web3::state::RpcState;
 use crate::l1_gas_price::L1GasPriceProvider;
-use actix_web::web::method;
 use zksync_types::snapshots::{AllSnapshots, SnapshotHeader, SnapshotStorageLogsChunkMetadata};
 use zksync_types::L1BatchNumber;
 use zksync_web3_decl::error::Web3Error;
