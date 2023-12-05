@@ -67,8 +67,8 @@ pub struct SelectionGate {
 }
 ```
 
-Internally the `Variable` object is `pub struct Variable(pub(crate) u64);` - so it is an index to the position within the
-constraint system object.
+Internally the `Variable` object is `pub struct Variable(pub(crate) u64);` - so it is an index to the position within
+the constraint system object.
 
 And now let's see how we can add this gate into the system.
 
