@@ -3,7 +3,10 @@
 
 use tokio::sync::watch;
 
-use std::time::Duration;
+use std::{
+    future::{self, Future},
+    time::Duration,
+};
 
 use zksync_config::configs::{
     chain::OperationsManagerConfig,
@@ -102,6 +105,7 @@ impl<'a> MetadataCalculatorConfig<'a> {
 #[derive(Debug)]
 pub struct MetadataCalculator {
     tree: GenericAsyncTree,
+    tree_reader: watch::Sender<Option<AsyncTreeReader>>,
     object_store: Option<Box<dyn ObjectStore>>,
     delayer: Delayer,
     health_updater: HealthUpdater,
@@ -139,6 +143,7 @@ impl MetadataCalculator {
         let (_, health_updater) = ReactiveHealthCheck::new("tree");
         Self {
             tree,
+            tree_reader: watch::channel(None).0,
             object_store,
             delayer: Delayer::new(config.delay_interval),
             health_updater,
@@ -152,8 +157,19 @@ impl MetadataCalculator {
     }
 
     /// Returns a reference to the tree reader.
-    pub(crate) fn tree_reader(&self) -> AsyncTreeReader {
-        todo!()
+    pub(crate) fn tree_reader(&self) -> impl Future<Output = AsyncTreeReader> {
+        let mut receiver = self.tree_reader.subscribe();
+        async move {
+            loop {
+                if let Some(reader) = receiver.borrow().clone() {
+                    break reader;
+                }
+                if receiver.changed().await.is_err() {
+                    tracing::info!("Tree dropped without getting ready; not resolving tree reader");
+                    future::pending::<()>().await;
+                }
+            }
+        }
     }
 
     pub async fn run(
@@ -169,6 +185,7 @@ impl MetadataCalculator {
         let Some(tree) = tree else {
             return Ok(()); // recovery was aborted because a stop signal was received
         };
+        self.tree_reader.send_replace(Some(tree.reader()));
 
         let updater = TreeUpdater::new(tree, self.max_l1_batches_per_iter, self.object_store);
         updater
