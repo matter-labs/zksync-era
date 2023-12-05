@@ -166,9 +166,9 @@ impl MetadataCalculator {
             .tree
             .ensure_ready(&pool, &stop_receiver, &self.health_updater)
             .await?;
-        if *stop_receiver.borrow() {
-            return Ok(());
-        }
+        let Some(tree) = tree else {
+            return Ok(()); // recovery was aborted because a stop signal was received
+        };
 
         let updater = TreeUpdater::new(tree, self.max_l1_batches_per_iter, self.object_store);
         updater
