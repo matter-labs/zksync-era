@@ -27,7 +27,8 @@ jobs:
       - name: Setup db
         run: |
           ci_run zk
-          ci_run zk db migrate
+          ci_run zk db server-migrate
+          ci_run zk db prover-migrate
 
       - name: Lints
         run: |
@@ -36,5 +37,6 @@ jobs:
           ci_run zk lint js --check
           ci_run zk lint ts --check
           ci_run zk lint md --check
-          ci_run zk db check-sqlx-data
+          ci_run zk db server-check-sqlx-data
+          ci_run zk db prover-check-sqlx-data
 

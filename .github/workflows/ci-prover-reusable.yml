@@ -28,7 +28,8 @@ jobs:
       - name: Init
         run: |
           ci_run zk
-          ci_run zk db setup
+          ci_run zk db server-setup
+          ci_run zk db prover-setup
 
       - name: Formatting
         run: ci_run bash -c "cd prover && cargo fmt --check"
@@ -61,7 +62,8 @@ jobs:
       - name: Init
         run: |
           ci_run zk
-          ci_run zk db setup
+          ci_run zk db server-setup
+          ci_run zk db prover-setup
 
       - name: Prover unit tests
         run: |

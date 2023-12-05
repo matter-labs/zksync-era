@@ -13,8 +13,14 @@ if ! zk fmt --check; then
     exit 1
 fi
 
-if ! zk db check-sqlx-data; then
+if ! zk db server-check-sqlx-data; then
     echo -e "${RED}Push error!${NC}"
-    echo "Please update sqlx-data.json via 'zk db setup', cannot push invalid sqlx-data.json file"
+    echo "Please update server sqlx-data.json via 'zk db server-setup', cannot push invalid sqlx-data.json file"
+    exit 1
+fi
+
+if ! zk db prover-check-sqlx-data; then
+    echo -e "${RED}Push error!${NC}"
+    echo "Please update prover sqlx-data.json via 'zk db prover-setup', cannot push invalid sqlx-data.json file"
     exit 1
 fi

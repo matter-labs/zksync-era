@@ -30,7 +30,8 @@ jobs:
         run: |
           ci_run zk
           ci_run zk run yarn
-          ci_run zk db setup
+          ci_run zk db server-setup
+          ci_run zk db prover-setup
           ci_run zk compiler all
           ci_run zk contract build
 
@@ -255,7 +256,7 @@ jobs:
       - name: Run external node
         run: |
           ci_run zk env ext-node-docker
-          ci_run zk db setup
+          ci_run zk db server-setup
           ci_run zk external-node &>ext-node.log &
           ci_run sleep 30
 
