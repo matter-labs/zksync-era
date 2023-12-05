@@ -122,26 +122,26 @@ export async function dropProver() {
 }
 
 export async function migrateProver() {
-    await migrate('core/lib/server_dal', process.env.DATABASE_PROVER_URL!);
+    await migrate('prover/prover_dal', process.env.DATABASE_PROVER_URL!);
 }
 
 export async function generateMigrationProver(name: string) {
-    await generateMigration(name, 'core/lib/server_dal');
+    await generateMigration(name, 'prover/prover_dal');
 }
 
 export async function setupProver() {
-    await setup('core/lib/server_dal', process.env.DATABASE_PROVER_URL!);
+    await setup('prover/prover_dal', process.env.DATABASE_PROVER_URL!);
 }
 
 export async function waitProver() {
     await wait(process.env.DATABASE_PROVER_URL!);
 }
 export async function checkSqlxDataProver() {
-    await checkSqlxData('core/lib/server_dal', process.env.DATABASE_PROVER_URL!);
+    await checkSqlxData('prover/prover_dal', process.env.DATABASE_PROVER_URL!);
 }
 
 export async function resetTestProver() {
-    await resetTest('core/lib/server_dal', process.env.TEST_DATABASE_PROVER_URL!);
+    await resetTest('prover/prover_dal', process.env.TEST_DATABASE_PROVER_URL!);
 }
 
 export const command = new Command('db').description('database management');
