@@ -17,7 +17,10 @@ use zksync_merkle_tree::TreeEntry;
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256, U256};
 use zksync_utils::u256_to_h256;
 
-use super::helpers::{AsyncTree, AsyncTreeRecovery, GenericAsyncTree};
+use super::{
+    helpers::{AsyncTree, AsyncTreeRecovery, GenericAsyncTree},
+    metrics::{ChunkRecoveryStage, RecoveryStage, RECOVERY_METRICS},
+};
 
 #[async_trait]
 trait HandleRecoveryEvent: fmt::Debug + Send + Sync {
@@ -65,10 +68,16 @@ impl HandleRecoveryEvent for RecoveryHealthUpdater<'_> {
     fn recovery_started(&mut self, chunk_count: usize, recovered_chunk_count: usize) {
         self.chunk_count = chunk_count;
         *self.recovered_chunk_count.get_mut() = recovered_chunk_count;
+        RECOVERY_METRICS
+            .recovered_chunk_count
+            .set(recovered_chunk_count);
     }
 
     async fn chunk_recovered(&self) {
         let recovered_chunk_count = self.recovered_chunk_count.fetch_add(1, Ordering::SeqCst) + 1;
+        RECOVERY_METRICS
+            .recovered_chunk_count
+            .set(recovered_chunk_count);
         let health = Health::from(HealthStatus::Ready).with_details(RecoveryMerkleTreeInfo {
             mode: "recovery",
             chunk_count: self.chunk_count,
@@ -186,14 +195,19 @@ impl AsyncTreeRecovery {
             return Ok(None);
         }
 
+        let finalize_latency = RECOVERY_METRICS.latency[&RecoveryStage::Finalize].start();
         let mut tree = tree.into_inner();
         let actual_root_hash = tree.root_hash().await;
         anyhow::ensure!(
             actual_root_hash == expected_root_hash,
             "Root hash of recovered tree {actual_root_hash:?} differs from expected root hash {expected_root_hash:?}"
         );
-        tracing::info!("Finished tree recovery; resuming normal tree operation");
-        Ok(Some(tree.finalize().await))
+        let tree = tree.finalize().await;
+        let finalize_latency = finalize_latency.observe();
+        tracing::info!(
+            "Finished tree recovery in {finalize_latency:?}; resuming normal tree operation"
+        );
+        Ok(Some(tree))
     }
 
     fn hashed_key_ranges(count: usize) -> impl Iterator<Item = ops::RangeInclusive<H256>> {
@@ -223,11 +237,18 @@ impl AsyncTreeRecovery {
         snapshot_miniblock: MiniblockNumber,
         key_chunks: &[ops::RangeInclusive<H256>],
     ) -> anyhow::Result<Vec<ops::RangeInclusive<H256>>> {
+        let chunk_starts_latency =
+            RECOVERY_METRICS.latency[&RecoveryStage::LoadChunkStarts].start();
         let chunk_starts = storage
             .storage_logs_dal()
             .get_chunk_starts_for_miniblock(snapshot_miniblock, key_chunks)
             .await
             .context("Failed getting chunk starts")?;
+        let chunk_starts_latency = chunk_starts_latency.observe();
+        tracing::debug!(
+            "Loaded start entries for {} chunks in {chunk_starts_latency:?}",
+            key_chunks.len()
+        );
 
         let existing_starts = chunk_starts
             .iter()
@@ -262,12 +283,17 @@ impl AsyncTreeRecovery {
         pool: &ConnectionPool,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
+        let acquire_connection_latency =
+            RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::AcquireConnection].start();
         let mut storage = pool.access_storage().await?;
+        acquire_connection_latency.observe();
+
         if *stop_receiver.borrow() {
             return Ok(());
         }
 
-        // FIXME: metrics
+        let entries_latency =
+            RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::LoadEntries].start();
         let all_entries = storage
             .storage_logs_dal()
             .get_tree_entries_for_miniblock(snapshot_miniblock, key_chunk.clone(), None)
@@ -276,6 +302,12 @@ impl AsyncTreeRecovery {
                 format!("Failed getting entries for chunk {key_chunk:?} in snapshot for miniblock #{snapshot_miniblock}")
             })?;
         drop(storage);
+        let entries_latency = entries_latency.observe();
+        tracing::debug!(
+            "Loaded {} entries for chunk {key_chunk:?} in {entries_latency:?}",
+            all_entries.len()
+        );
+
         if *stop_receiver.borrow() {
             return Ok(());
         }
@@ -301,12 +333,22 @@ impl AsyncTreeRecovery {
                 leaf_index: entry.index,
             })
             .collect();
+        let lock_tree_latency =
+            RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::LockTree].start();
         let mut tree = tree.lock().await;
+        lock_tree_latency.observe();
+
         if *stop_receiver.borrow() {
             return Ok(());
         }
 
+        let extend_tree_latency =
+            RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::ExtendTree].start();
         tree.extend(all_entries).await;
+        let extend_tree_latency = extend_tree_latency.observe();
+        tracing::debug!(
+            "Extended Merkle tree with entries for chunk {key_chunk:?} in {extend_tree_latency:?}"
+        );
         Ok(())
     }
 }
