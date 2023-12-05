@@ -46,13 +46,13 @@ pub(super) async fn load_final_block(
     number: u32,
 ) -> FinalBlock {
     let sync_block = load_sync_block(storage, number).await;
-    conversions::sync_block_to_consensus_block(sync_block).unwrap()
+    consensus::sync_block_to_consensus_block(sync_block).unwrap()
 }
 
 fn convert_sync_blocks(sync_blocks: Vec<SyncBlock>) -> Vec<FinalBlock> {
     sync_blocks
         .into_iter()
-        .map(|sync_block| conversions::sync_block_to_consensus_block(sync_block).unwrap())
+        .map(|sync_block| consensus::sync_block_to_consensus_block(sync_block).unwrap())
         .collect()
 }
 

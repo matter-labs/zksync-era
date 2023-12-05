@@ -30,11 +30,11 @@ use zksync_types::{
 
 mod tester;
 
-pub(crate) use self::tester::TestBatchExecutorBuilder;
 use self::tester::{
     bootloader_tip_out_of_gas, pending_batch_data, random_tx, rejected_exec, successful_exec,
     successful_exec_with_metrics, TestScenario,
 };
+pub(crate) use self::tester::{MockBatchExecutorBuilder, TestBatchExecutorBuilder};
 use crate::gas_tracker::l1_batch_base_cost;
 use crate::state_keeper::{
     keeper::POLL_WAIT_DURATION,

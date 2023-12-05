@@ -15,7 +15,7 @@ use zksync_concurrency::{
     time,
 };
 use zksync_consensus_roles::validator::{BlockHeader, BlockNumber, FinalBlock, Payload};
-use zksync_consensus_storage::{BlockStore, InMemoryStorage, StorageResult, WriteBlockStore};
+use zksync_consensus_storage::{BlockStore, InMemoryStorage, WriteBlockStore};
 
 use super::*;
 
@@ -67,7 +67,7 @@ impl MockContiguousStore {
         &self,
         ctx: &ctx::Ctx,
         mut block_receiver: channel::UnboundedReceiver<FinalBlock>,
-    ) -> StorageResult<()> {
+    ) -> ctx::Result<()> {
         let rng = &mut ctx.rng();
         while let Ok(block) = block_receiver.recv(ctx).await {
             let head_block_number = self.head_block(ctx).await?.header.number;
@@ -83,23 +83,19 @@ impl MockContiguousStore {
 
 #[async_trait]
 impl BlockStore for MockContiguousStore {
-    async fn head_block(&self, ctx: &ctx::Ctx) -> StorageResult<FinalBlock> {
+    async fn head_block(&self, ctx: &ctx::Ctx) -> ctx::Result<FinalBlock> {
         self.inner.head_block(ctx).await
     }
 
-    async fn first_block(&self, ctx: &ctx::Ctx) -> StorageResult<FinalBlock> {
+    async fn first_block(&self, ctx: &ctx::Ctx) -> ctx::Result<FinalBlock> {
         self.inner.first_block(ctx).await
     }
 
-    async fn last_contiguous_block_number(&self, ctx: &ctx::Ctx) -> StorageResult<BlockNumber> {
+    async fn last_contiguous_block_number(&self, ctx: &ctx::Ctx) -> ctx::Result<BlockNumber> {
         self.inner.last_contiguous_block_number(ctx).await
     }
 
-    async fn block(
-        &self,
-        ctx: &ctx::Ctx,
-        number: BlockNumber,
-    ) -> StorageResult<Option<FinalBlock>> {
+    async fn block(&self, ctx: &ctx::Ctx, number: BlockNumber) -> ctx::Result<Option<FinalBlock>> {
         self.inner.block(ctx, number).await
     }
 
@@ -107,7 +103,7 @@ impl BlockStore for MockContiguousStore {
         &self,
         ctx: &ctx::Ctx,
         range: ops::Range<BlockNumber>,
-    ) -> StorageResult<Vec<BlockNumber>> {
+    ) -> ctx::Result<Vec<BlockNumber>> {
         self.inner.missing_block_numbers(ctx, range).await
     }
 
@@ -118,7 +114,7 @@ impl BlockStore for MockContiguousStore {
 
 #[async_trait]
 impl ContiguousBlockStore for MockContiguousStore {
-    async fn schedule_next_block(&self, _ctx: &ctx::Ctx, block: &FinalBlock) -> StorageResult<()> {
+    async fn schedule_next_block(&self, _ctx: &ctx::Ctx, block: &FinalBlock) -> ctx::Result<()> {
         tracing::trace!(block_number = block.header.number.0, "Scheduled next block");
         self.block_sender.send(block.clone());
         Ok(())
