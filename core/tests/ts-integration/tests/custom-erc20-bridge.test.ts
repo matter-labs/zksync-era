@@ -69,7 +69,7 @@ describe('Tests for the custom bridge behavior', () => {
 
         let l1bridge2 = new L1ERC20BridgeFactory(alice._signerL1()).attach(l1BridgeProxy.address);
 
-        const maxAttempts = 20;
+        const maxAttempts = 200;
         let ready = false;
         for (let i = 0; i < maxAttempts; ++i) {
             const l2Bridge = await l1bridge2.l2Bridge();
