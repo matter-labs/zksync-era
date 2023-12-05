@@ -2695,6 +2695,21 @@
     },
     "query": "UPDATE l1_batches SET hash = $1 WHERE number = $2"
   },
+  "2ec4a6be45ef9c8b8e4107b1ec93515294504bf6363ab79166db3479d7c11355": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Time",
+          "Text",
+          "Int8"
+        ]
+      }
+    },
+    "query": "UPDATE proof_compression_jobs_fri SET status = $1, updated_at = now(), time_taken = $2, l1_proof_blob_url = $3 WHERE l1_batch_number = $4"
+  },
   "2ff4a13a75537cc30b2c3d52d3ef6237850150e4a4569adeaa4da4a9ac5bc689": {
     "describe": {
       "columns": [
@@ -8460,21 +8475,6 @@
       }
     },
     "query": "SELECT prover_jobs.result as proof, scheduler_witness_jobs.aggregation_result_coords\n                FROM prover_jobs\n                INNER JOIN scheduler_witness_jobs\n                ON prover_jobs.l1_batch_number = scheduler_witness_jobs.l1_batch_number\n                WHERE prover_jobs.l1_batch_number >= $1 AND prover_jobs.l1_batch_number <= $2\n                AND prover_jobs.aggregation_round = 3\n                AND prover_jobs.status = 'successful'\n                "
-  },
-  "aa279ce3351b30788711be6c65cb99cb14304ac38f8fed6d332237ffafc7c86b": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Time",
-          "Text",
-          "Int8"
-        ]
-      }
-    },
-    "query": "UPDATE proof_compression_jobs_fri SET status = $1, updated_at = now(), time_taken = $2, l1_proof_blob_url = $3WHERE l1_batch_number = $4"
   },
   "aa7ae476aed5979227887891e9be995924588aa10ccba7424d6ce58f811eaa02": {
     "describe": {
