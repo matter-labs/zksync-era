@@ -433,7 +433,7 @@ pub(super) async fn mock_l1_batch_hash_computation(pool: ConnectionPool, number:
 
 /// Returns tx hashes of all generated transactions, grouped by the L1 batch.
 pub(super) async fn run_state_keeper_with_multiple_l1_batches(
-    pool: ServerStorageProcessor,
+    pool: ConnectionPool,
 ) -> Vec<Vec<H256>> {
     let l1_batch = open_l1_batch(1, 1, 1);
     let first_tx = create_l2_transaction(10, 100);

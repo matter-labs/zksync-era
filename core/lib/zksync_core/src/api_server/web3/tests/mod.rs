@@ -10,8 +10,9 @@ use zksync_config::configs::{
     ContractsConfig,
 };
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_db_connection::ConnectionPool;
 use zksync_health_check::CheckHealth;
-use zksync_server_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
+use zksync_server_dal::transactions_dal::L2TxSubmissionResult;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     block::MiniblockHeader, fee::TransactionExecutionMetrics, tx::IncludedTxLocation, Address,
@@ -146,7 +147,7 @@ trait HttpTest {
 }
 
 async fn test_http_server(test: impl HttpTest) {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let network_config = NetworkConfig::for_tests();
     let mut storage = pool
         .access_storage::<ServerStorageProcessor>()
@@ -220,7 +221,7 @@ async fn store_block(pool: &ConnectionPool) -> anyhow::Result<(MiniblockHeader, 
 }
 
 async fn store_events(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut ServerStorageProcessor<'_>,
     miniblock_number: u32,
     start_idx: u32,
 ) -> anyhow::Result<(IncludedTxLocation, Vec<VmEvent>)> {

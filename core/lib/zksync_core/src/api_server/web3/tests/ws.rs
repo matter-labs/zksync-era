@@ -74,7 +74,7 @@ trait WsTest {
 }
 
 async fn test_ws_server(test: impl WsTest) {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let network_config = NetworkConfig::for_tests();
     let mut storage = pool
         .access_storage::<ServerStorageProcessor>()

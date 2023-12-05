@@ -179,7 +179,7 @@ pub(super) async fn assert_second_block_actions(actions: &mut ActionQueue) -> Ve
 #[tokio::test]
 async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block: bool) {
     abort_on_panic();
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let tx_hashes = run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
 
     let mut storage = pool
@@ -311,7 +311,7 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
     assert!(initial_block_count <= 3);
     abort_on_panic();
 
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let tx_hashes = run_state_keeper_with_multiple_l1_batches(pool.clone()).await;
     let tx_hashes: Vec<_> = tx_hashes.iter().map(Vec::as_slice).collect();
 
@@ -391,7 +391,7 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
 #[tokio::test]
 async fn syncing_from_non_zero_block(first_block_number: u32) {
     abort_on_panic();
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let tx_hashes = run_state_keeper_with_multiple_l1_batches(pool.clone()).await;
     let tx_hashes: Vec<_> = tx_hashes.iter().map(Vec::as_slice).collect();
 

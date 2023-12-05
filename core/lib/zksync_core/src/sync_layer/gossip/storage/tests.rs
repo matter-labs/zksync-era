@@ -24,7 +24,7 @@ const TEST_TIMEOUT: time::Duration = time::Duration::seconds(10);
 #[tokio::test]
 async fn block_store_basics_for_postgres() {
     abort_on_panic();
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
 
     let mut storage = pool
@@ -63,7 +63,7 @@ async fn block_store_basics_for_postgres() {
 #[tokio::test]
 async fn subscribing_to_block_updates_for_postgres() {
     abort_on_panic();
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let mut storage = pool
         .access_storage::<ServerStorageProcessor>()
         .await
@@ -110,7 +110,7 @@ async fn subscribing_to_block_updates_for_postgres() {
 #[tokio::test]
 async fn processing_new_blocks() {
     abort_on_panic();
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
 
     let mut storage = pool
@@ -158,7 +158,7 @@ async fn processing_new_blocks() {
 async fn ensuring_consensus_fields_for_genesis_block() {
     abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let mut storage = pool
         .access_storage::<ServerStorageProcessor>()
         .await
@@ -223,7 +223,7 @@ async fn ensuring_consensus_fields_for_genesis_block() {
 async fn genesis_block_payload_mismatch() {
     abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let mut storage = pool
         .access_storage::<ServerStorageProcessor>()
         .await
@@ -265,7 +265,7 @@ async fn genesis_block_payload_mismatch() {
 async fn missing_genesis_block() {
     abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     let mut storage = pool
         .access_storage::<ServerStorageProcessor>()
         .await
@@ -293,7 +293,7 @@ async fn missing_genesis_block() {
 async fn using_non_zero_genesis_block() {
     abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::test_pool::<ServerStorageProcessor>().await;
     run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
 
     let mut storage = pool
