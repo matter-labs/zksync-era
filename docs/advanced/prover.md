@@ -67,7 +67,7 @@ pub struct SelectionGate {
 }
 ```
 
-Internaly the `Variable` object is `pub struct Variable(pub(crate) u64);` - so it is an index to the position within the
+Internally the `Variable` object is `pub struct Variable(pub(crate) u64);` - so it is an index to the position within the
 constraint system object.
 
 And now let's see how we can add this gate into the system.
@@ -209,7 +209,7 @@ how we were operating on regular 'Variables' above).
 
 ### CSSelectable
 
-Implements the `Selectable` trait - that allows this struct to participage in operations like conditionally select (so
+Implements the `Selectable` trait - that allows this struct to participate in operations like conditionally select (so
 it can be used as 'a' or 'b' in the Select gate example above).
 
 ### CSVarLengthEncodable
@@ -245,7 +245,7 @@ pub struct ZkSyncUniformCircuitInstance<F: SmallField, S: ZkSyncUniformSynthesis
     pub witness: AtomicCell<Option<S::Witness>>,
 
     // Configuration - that is circuit specific, in case of MainVM - the configuration
-    // is simply the amount of opcodes that we put wihtin 1 circuit.
+    // is simply the amount of opcodes that we put within 1 circuit.
     pub config: std::sync::Arc<S::Config>,
 
     // Circuit 'friendly' hash function.
