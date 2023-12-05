@@ -38,7 +38,7 @@ async fn test_filter_initialization() {
     assert_eq!(mempool.filter(), &L2TxFilter::default());
 }
 
-/// Ensure that MempoolIO.filter is modified correctly if there is a pending batch upon mempool initialization.
+/// Ensure that `MempoolIO.filter` is modified correctly if there is a pending batch upon mempool initialization.
 #[tokio::test]
 async fn test_filter_with_pending_batch() {
     let connection_pool = ConnectionPool::test_pool().await;
@@ -46,7 +46,7 @@ async fn test_filter_with_pending_batch() {
 
     tester.genesis(&connection_pool).await;
 
-    // Insert a sealed batch so there will be a prev_l1_batch_state_root.
+    // Insert a sealed batch so there will be a `prev_l1_batch_state_root`.
     // These gas values are random and don't matter for filter calculation as there will be a
     // pending batch the filter will be based off of.
     tester
@@ -82,14 +82,14 @@ async fn test_filter_with_pending_batch() {
     assert_eq!(mempool.filter(), &want_filter);
 }
 
-/// Ensure that MempoolIO.filter is modified correctly if there is no pending batch.
+/// Ensure that `MempoolIO.filter` is modified correctly if there is no pending batch.
 #[tokio::test]
 async fn test_filter_with_no_pending_batch() {
     let connection_pool = ConnectionPool::test_pool().await;
     let tester = Tester::new();
     tester.genesis(&connection_pool).await;
 
-    // Insert a sealed batch so there will be a prev_l1_batch_state_root.
+    // Insert a sealed batch so there will be a `prev_l1_batch_state_root`.
     // These gas values are random and don't matter for filter calculation.
     tester
         .insert_miniblock(&connection_pool, 1, 5, 55, 555)

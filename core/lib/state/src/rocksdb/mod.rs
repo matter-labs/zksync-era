@@ -675,7 +675,7 @@ mod tests {
         storage.update_from_postgres(&mut conn).await;
 
         assert_eq!(storage.l1_batch_number(), L1BatchNumber(2));
-        // Check that enum indices are correct after syncing with postgres.
+        // Check that enum indices are correct after syncing with Postgres.
         for log in &storage_logs {
             let expected_index = enum_indices[&log.key.hashed_key()];
             assert_eq!(

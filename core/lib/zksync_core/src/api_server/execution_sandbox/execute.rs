@@ -92,7 +92,7 @@ pub(crate) async fn execute_tx_eth_call(
 
     // Protection against infinite-loop eth_calls and alike:
     // limiting the amount of gas the call can use.
-    // We can't use BLOCK_ERGS_LIMIT here since the VM itself has some overhead.
+    // We can't use `BLOCK_ERGS_LIMIT` here since the VM itself has some overhead.
     tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
     let (vm_result, _) = execute_tx_in_sandbox(
         vm_permit,
@@ -119,7 +119,7 @@ pub(crate) async fn execute_tx_with_pending_state(
     let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
     let block_args = BlockArgs::pending(&mut connection).await;
     drop(connection);
-    // In order for execution to pass smoothlessly, we need to ensure that block's required gasPerPubdata will be
+    // In order for execution to pass seamlessly, we need to ensure that block's required `gasPerPubdata` will be
     // <= to the one in the transaction itself.
     shared_args.adjust_l1_gas_price(tx.gas_per_pubdata_byte_limit());
 

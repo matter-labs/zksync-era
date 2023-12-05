@@ -101,7 +101,7 @@ impl<H> ValidationTracer<H> {
             return true;
         }
 
-        // The pair of MSG_VALUE_SIMULATOR_ADDRESS & L2_ETH_TOKEN_ADDRESS simulates the behavior of transferring ETH
+        // The pair of `MSG_VALUE_SIMULATOR_ADDRESS` & `L2_ETH_TOKEN_ADDRESS` simulates the behavior of transferring ETH
         // that is safe for the DDoS protection rules.
         if valid_eth_token_call(address, msg_sender) {
             return true;
@@ -133,7 +133,7 @@ impl<H> ValidationTracer<H> {
         false
     }
 
-    // Used to remember user-related fields (its balance/allowance/etc).
+    // Used to remember user-related fields (its balance / allowance / etc).
     // Note that it assumes that the length of the calldata is 64 bytes.
     fn slot_to_add_from_keccak_call(
         &self,
@@ -145,17 +145,17 @@ impl<H> ValidationTracer<H> {
         let (potential_address_bytes, potential_position_bytes) = calldata.split_at(32);
         let potential_address = be_bytes_to_safe_address(potential_address_bytes);
 
-        // If the validation_address is equal to the potential_address,
-        // then it is a request that could be used for mapping of kind mapping(address => ...).
+        // If the `validation_address` is equal to the `potential_address`,
+        // then it is a request that could be used for mapping of kind `mapping(address => ...)`.
         //
-        // If the potential_position_bytes were already allowed before, then this keccak might be used
-        // for ERC-20 allowance or any other of mapping(address => mapping(...))
+        // If the `potential_position_bytes` were already allowed before, then this keccak might be used
+        // for ERC-20 allowance or any other of `mapping(address => mapping(...))`
         if potential_address == Some(validated_address)
             || self
                 .auxilary_allowed_slots
                 .contains(&H256::from_slice(potential_position_bytes))
         {
-            // This is request that could be used for mapping of kind mapping(address => ...)
+            // This is request that could be used for mapping of kind `mapping(address => ...)`
 
             // We could theoretically wait for the slot number to be returned by the
             // keccak256 precompile itself, but this would complicate the code even further
@@ -187,7 +187,7 @@ fn touches_allowed_context(address: Address, key: U256) -> bool {
         return false;
     }
 
-    // Only chain_id is allowed to be touched.
+    // Only `chain_id` is allowed to be touched.
     key == U256::from(0u32)
 }
 

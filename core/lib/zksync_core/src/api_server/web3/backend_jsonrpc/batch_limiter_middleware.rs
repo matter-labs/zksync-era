@@ -105,7 +105,7 @@ impl<T: jsonrpc_core::Metadata> Middleware<RateLimitMetadata<T>> for LimitMiddle
         X: Future<Output = Option<Response>> + Send + 'static,
     {
         // Check whether rate limiting is enabled, and if so, whether we should discard the request.
-        // Note that RPC batch requests are stil counted as a single request.
+        // Note that RPC batch requests are still counted as a single request.
         if let Some(rate_limiter) = &meta.rate_limiter {
             // Check number of actual RPC requests.
             let num_requests: usize = match &request {

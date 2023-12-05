@@ -273,7 +273,7 @@ async fn sealed_by_gas() {
     let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(GasCriterion)]);
 
     let l1_gas_per_tx = BlockGasCount {
-        commit: 1, // Both txs together with block_base_cost would bring it over the block 31_001 commit bound.
+        commit: 1, // Both txs together with `block_base_cost` would bring it over the block `31_001` commit bound.
         prove: 0,
         execute: 0,
     };

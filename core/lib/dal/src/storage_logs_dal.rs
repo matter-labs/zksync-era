@@ -262,7 +262,7 @@ impl StorageLogsDal<'_, '_> {
             stage_start.elapsed()
         );
 
-        // We need to filter `modified_keys` using the `initial_writes` table (i.e., take dedup logic
+        // We need to filter `modified_keys` using the `initial_writes` table (i.e., take de-duped logic
         // into account). Some keys that have `storage_logs` entries are actually never written to
         // as per `initial_writes`, so if we return such keys from this method, it will lead to
         // the incorrect state after revert.
@@ -280,7 +280,7 @@ impl StorageLogsDal<'_, '_> {
         modified_keys.retain(|key| {
             match l1_batch_and_index_by_key.get(key) {
                 None => {
-                    // Key is completely deduped. It should not be present in the output map.
+                    // Key is completely de-duped. It should not be present in the output map.
                     false
                 }
                 Some((write_batch, _)) if *write_batch > l1_batch_number => {
@@ -754,7 +754,7 @@ mod tests {
                 .storage_logs_dedup_dal()
                 .filter_written_slots(&all_keys)
                 .await;
-            // Pretend that dedup logic eliminates all writes with zero values.
+            // Pretend that de-duped logic eliminates all writes with zero values.
             let initial_keys: Vec<_> = logs
                 .iter()
                 .filter_map(|log| {
@@ -777,12 +777,12 @@ mod tests {
         for (i, log) in logs.iter().enumerate() {
             let hashed_key = log.key.hashed_key();
             match i {
-                // Key is deduped.
+                // Key is de-duped.
                 0 => assert!(!logs_for_revert.contains_key(&hashed_key)),
                 // Key is present in both batches as per `storage_logs` and `initial_writes`
                 1 | 2 => assert!(logs_for_revert[&hashed_key].is_some()),
                 // Key is present in both batches as per `storage_logs`, but `initial_writes`
-                // indicates that the first write was deduped.
+                // indicates that the first write was de-duped.
                 3 => assert!(logs_for_revert[&hashed_key].is_none()),
                 _ => unreachable!("we only have 4 keys"),
             }

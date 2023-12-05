@@ -152,9 +152,9 @@ pub(super) fn adjust_l1_gas_price_for_tx(
         // The current pubdata price is small enough
         l1_gas_price
     } else {
-        // gasPerPubdata = ceil(17 * l1gasprice / fair_l2_gas_price)
-        // gasPerPubdata <= 17 * l1gasprice / fair_l2_gas_price + 1
-        // fair_l2_gas_price(gasPerPubdata - 1) / 17 <= l1gasprice
+        // `gasPerPubdata = ceil(17 * l1gasprice / fair_l2_gas_price)`
+        // `gasPerPubdata <= 17 * l1gasprice / fair_l2_gas_price + 1`
+        // `fair_l2_gas_price(gasPerPubdata - 1) / 17 <= l1gasprice`
         let l1_gas_price = U256::from(fair_l2_gas_price)
             * (tx_gas_per_pubdata_limit - U256::from(1u32))
             / U256::from(17);

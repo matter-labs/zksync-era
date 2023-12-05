@@ -253,7 +253,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
             None => self.inner.default_priority_fee_per_gas,
         };
 
-        // Fetch current base fee and add max_priority_fee_per_gas
+        // Fetch current base fee and add `max_priority_fee_per_gas`
         let max_fee_per_gas = match options.max_fee_per_gas {
             Some(max_fee_per_gas) => max_fee_per_gas,
             None => {
@@ -275,7 +275,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
 
         let gas = options.gas.unwrap_or_else(|| {
             // Verbosity level is set to `error`, since we expect all the transactions to have
-            // a set limit, but don't want to crаsh the application if for some reason in some
+            // a set limit, but don't want to crash the application if for some reason in some
             // place limit was not set.
             tracing::error!(
                 "No gas limit was set for transaction, using the default limit: {}",

@@ -25,7 +25,7 @@ impl StorageDal<'_, '_> {
             .map(|dep| (dep.0.as_bytes(), dep.1.as_slice()))
             .unzip();
 
-        // Copy from stdin can't be used here because of 'ON CONFLICT'.
+        // Copy from stdin can't be used here because of `ON CONFLICT`.
         sqlx::query!(
             "INSERT INTO factory_deps \
             (bytecode_hash, bytecode, miniblock_number, created_at, updated_at) \
@@ -157,7 +157,7 @@ impl StorageDal<'_, '_> {
             Vec<_>,
         ) = query_parts.multiunzip();
 
-        // Copy from stdin can't be used here because of 'ON CONFLICT'.
+        // Copy from stdin can't be used here because of `ON CONFLICT`.
         sqlx::query!(
             "INSERT INTO storage (hashed_key, address, key, value, tx_hash, created_at, updated_at) \
             SELECT u.hashed_key, u.address, u.key, u.value, u.tx_hash, now(), now() \

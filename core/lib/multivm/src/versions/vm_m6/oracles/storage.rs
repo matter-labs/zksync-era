@@ -24,7 +24,7 @@ use crate::{
 };
 
 // While the storage does not support different shards, it was decided to write the
-// code of the StorageOracle with the shard parameters in mind.
+// code of the `StorageOracle` with the shard parameters in mind.
 pub fn triplet_to_storage_key(_shard_id: u8, address: Address, key: U256) -> StorageKey {
     StorageKey::new(AccountTreeId::new(address), u256_to_h256(key))
 }
@@ -183,13 +183,14 @@ impl<S: Storage, H: HistoryMode> StorageOracle<S, H> {
 }
 
 impl<S: Storage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
-    // Perform a storage read/write access by taking an partially filled query
-    // and returning filled query and cold/warm marker for pricing purposes
+    // Perform a storage read / write access by taking an partially filled query
+    // and returning filled query and cold / warm marker for pricing purposes
     fn execute_partial_query(
         &mut self,
         _monotonic_cycle_counter: u32,
         query: LogQuery,
     ) -> LogQuery {
+        // ```
         // tracing::trace!(
         //     "execute partial query cyc {:?} addr {:?} key {:?}, rw {:?}, wr {:?}, tx {:?}",
         //     _monotonic_cycle_counter,
@@ -199,6 +200,7 @@ impl<S: Storage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         //     query.written_value,
         //     query.tx_number_in_block
         // );
+        // ```
         assert!(!query.rollback);
         if query.rw_flag {
             // The number of bytes that have been compensated by the user to perform this write
@@ -278,7 +280,7 @@ impl<S: Storage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
                 );
 
                 // Additional validation that the current value was correct
-                // Unwrap is safe because the return value from write_inner is the previous value in this leaf.
+                // Unwrap is safe because the return value from `write_inner` is the previous value in this leaf.
                 // It is impossible to set leaf value to `None`
                 assert_eq!(current_value, written_value);
             }
@@ -292,8 +294,8 @@ impl<S: Storage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
 
 /// Returns the number of bytes needed to publish a slot.
 // Since we need to publish the state diffs onchain, for each of the updated storage slot
-// we basically need to publish the following pair: (<storage_key, new_value>).
-// While new_value is always 32 bytes long, for key we use the following optimization:
+// we basically need to publish the following pair: `(<storage_key, new_value>)`.
+// While `new_value` is always 32 bytes long, for key we use the following optimization:
 //   - The first time we publish it, we use 32 bytes.
 //         Then, we remember a 8-byte id for this slot and assign it to it. We call this initial write.
 //   - The second time we publish it, we will use this 8-byte instead of the 32 bytes of the entire key.

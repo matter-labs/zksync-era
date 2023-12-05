@@ -34,9 +34,9 @@ static METRICS: vise::Global<VmMetrics> = vise::Global::new();
 impl<S: WriteStorage> Vm<S, HistoryEnabled> {
     pub(crate) fn make_snapshot_inner(&mut self) {
         self.snapshots.push(VmSnapshot {
-            // Vm local state contains O(1) various parameters (registers/etc).
-            // The only "expensive" copying here is copying of the callstack.
-            // It will take O(callstack_depth) to copy it.
+            // Vm local state contains O(1) various parameters (registers / etc).
+            // The only "expensive" copying here is copying of the call stack.
+            // It will take `O(callstack_depth)` to copy it.
             // So it is generally recommended to get snapshots of the bootloader frame,
             // where the depth is 1.
             local_state: self.state.local_state.clone(),

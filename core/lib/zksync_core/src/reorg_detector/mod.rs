@@ -74,7 +74,7 @@ impl ReorgDetector {
             .await?
             .map(|header| header.hash)
         else {
-            // Due to reorg, locally we may be ahead of the main node.
+            // Due to re-org, locally we may be ahead of the main node.
             // Lack of the hash on the main node is treated as a hash match,
             // We need to wait for our knowledge of main node to catch up.
             return Ok(true);
@@ -107,7 +107,7 @@ impl ReorgDetector {
             .await?
             .and_then(|b| b.base.root_hash)
         else {
-            // Due to reorg, locally we may be ahead of the main node.
+            // Due to re-org, locally we may be ahead of the main node.
             // Lack of the root hash on the main node is treated as a hash match,
             // We need to wait for our knowledge of main node to catch up.
             return Ok(true);
@@ -175,12 +175,12 @@ impl ReorgDetector {
             let miniblock_hashes_match =
                 self.miniblock_hashes_match(sealed_miniblock_number).await?;
 
-            // The only event that triggers reorg detection and node rollback is if the
+            // The only event that triggers re-org detection and node rollback is if the
             // hash mismatch at the same block height is detected, be it miniblocks or batches.
             //
             // In other cases either there is only a height mismatch which means that one of
-            // the nodes needs to do catching up, howver it is not certain that there is actually
-            // a reorg taking place.
+            // the nodes needs to do catching up, however it is not certain that there is actually
+            // a re-org taking place.
             if root_hashes_match && miniblock_hashes_match {
                 EN_METRICS.last_correct_batch[&CheckerComponent::ReorgDetector]
                     .set(sealed_l1_batch_number.0.into());

@@ -1,7 +1,7 @@
 mod bootloader;
 mod default_aa;
 // TODO - fix this test
-// mod invalid_bytecode;
+// `mod invalid_bytecode;`
 mod bytecode_publishing;
 mod call_tracer;
 mod gas_limit;

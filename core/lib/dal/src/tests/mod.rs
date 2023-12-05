@@ -371,7 +371,7 @@ async fn test_requeue_prover_jobs() {
         )
         .await;
 
-    // take all jobs from prover_job table
+    // take all jobs from `prover_job` table
     for _ in 1..=4 {
         let job = prover_dal
             .get_next_prover_job(&[ProtocolVersionId::latest()])

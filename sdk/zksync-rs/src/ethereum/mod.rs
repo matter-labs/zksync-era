@@ -36,7 +36,7 @@ const ZKSYNC_INTERFACE: &str = include_str!("../abi/IZkSync.json");
 const L1_DEFAULT_BRIDGE_INTERFACE: &str = include_str!("../abi/IL1Bridge.json");
 const RAW_ERC20_DEPOSIT_GAS_LIMIT: &str = include_str!("DepositERC20GasLimit.json");
 
-// The gasPerPubdata to be used in L1->L2 requests. It may be almost any number, but here we 800
+// The `gasPerPubdata` to be used in L1->L2 requests. It may be almost any number, but here we 800
 // as an optimal one. In the future, it will be estimated.
 const L1_TO_L2_GAS_PER_PUBDATA: u32 = 800;
 
@@ -69,7 +69,7 @@ pub struct EthereumProvider<S: EthereumSigner> {
     polling_interval: Duration,
 }
 
-// TODO (SMA-1623): create a way to pass `Options` (e.g. nonce, gas_limit, priority_fee_per_gas)
+// TODO (SMA-1623): create a way to pass `Options` (e.g. `nonce`, `gas_limit`, `priority_fee_per_gas`)
 // into methods that perform L1 transactions. The unit is wei.
 pub const DEFAULT_PRIORITY_FEE: u64 = 2_000_000_000;
 
@@ -483,7 +483,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
 
         let mut options = eth_options.unwrap_or_default();
 
-        // If the user has already provided max_fee_per_gas or gas_price, we will use
+        // If the user has already provided `max_fee_per_gas` or `gas_price`, we will use
         // it to calculate the base cost for the transaction
         let gas_price = if let Some(max_fee_per_gas) = options.max_fee_per_gas {
             max_fee_per_gas

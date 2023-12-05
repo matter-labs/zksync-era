@@ -115,7 +115,7 @@ impl FetcherImpl for CoinGeckoFetcher {
         tokens: &[Address],
     ) -> Result<HashMap<Address, TokenPrice>, ApiFetchError> {
         let token_prices = {
-            // We have to find out the ether price separately from the erc20 tokens,
+            // We have to find out the ether price separately from the ERC20 tokens,
             // so we will launch requests concurrently
             if tokens.contains(&ETHEREUM_ADDRESS) {
                 let (mut token_prices, ethereum_price) = try_join!(

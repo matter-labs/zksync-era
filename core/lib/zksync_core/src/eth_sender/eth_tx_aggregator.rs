@@ -195,8 +195,8 @@ impl EthTxAggregator {
         ]
     }
 
-    // The role of the method below is to detokenize multicall call's result, which is actually a token.
-    // This token is an array of tuples like (bool, bytes), that contain the status and result for each contract call.
+    // The role of the method below is to de-tokenize multicall call's result, which is actually a token.
+    // This token is an array of tuples like `(bool, bytes)`, that contain the status and result for each contract call.
     pub(super) fn parse_multicall_data(
         &self,
         token: Token,

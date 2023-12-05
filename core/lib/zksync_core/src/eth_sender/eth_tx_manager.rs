@@ -175,7 +175,7 @@ where
             return Err(ETHSenderError::from(Error::from(Web3Error::Internal)));
         }
 
-        // Increase `priority_fee_per_gas` by at least 20% to prevent "replacement transaction underpriced" error.
+        // Increase `priority_fee_per_gas` by at least 20% to prevent "replacement transaction under-priced" error.
         Ok((previous_priority_fee + (previous_priority_fee / 5) + 1)
             .max(self.gas_adjuster.get_priority_fee()))
     }
@@ -304,7 +304,7 @@ where
         Ok(L1BlockNumbers { finalized, latest })
     }
 
-    // Monitors the inflight transactions, marks mined ones as confirmed,
+    // Monitors the in-flight transactions, marks mined ones as confirmed,
     // returns the one that has to be resent (if there is one).
     pub(super) async fn monitor_inflight_transactions(
         &mut self,
@@ -334,7 +334,7 @@ where
 
             // If the `operator_nonce.latest` <= `tx.nonce`, this means
             // that `tx` is not mined and we should resend it.
-            // We only resend the first unmined transaction.
+            // We only resend the first un-mined transaction.
             if operator_nonce.latest <= tx.nonce {
                 // None means txs hasn't been sent yet
                 let first_sent_at_block = storage
@@ -368,9 +368,9 @@ where
                 }
                 None => {
                     // The nonce has increased but we did not find the receipt.
-                    // This is an error because such a big reorg may cause transactions that were
+                    // This is an error because such a big re-org may cause transactions that were
                     // previously recorded as confirmed to become pending again and we have to
-                    // make sure it's not the case - otherwise eth_sender may not work properly.
+                    // make sure it's not the case - otherwise `eth_sender` may not work properly.
                     tracing::error!(
                         "Possible block reorgs: finalized nonce increase detected, but no tx receipt found for tx {:?}",
                         &tx
@@ -411,7 +411,7 @@ where
     ) {
         for tx in storage.eth_sender_dal().get_unsent_txs().await.unwrap() {
             // Check already sent txs not marked as sent and mark them as sent.
-            // The common reason for this behaviour is that we sent tx and stop the server
+            // The common reason for this behavior is that we sent tx and stop the server
             // before updating the database
             let tx_status = self.get_tx_status(tx.tx_hash).await;
 
@@ -562,8 +562,8 @@ where
             self.send_unsent_txs(&mut storage, l1_block_numbers).await;
         }
 
-        // It's mandatory to set last_known_l1_block to zero, otherwise the first iteration
-        // will never check inflight txs status
+        // It's mandatory to set `last_known_l1_block` to zero, otherwise the first iteration
+        // will never check in-flight txs status
         let mut last_known_l1_block = L1BlockNumber(0);
         loop {
             let mut storage = pool.access_storage_tagged("eth_sender").await.unwrap();

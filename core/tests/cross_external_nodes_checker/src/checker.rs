@@ -367,7 +367,7 @@ impl Checker {
         tracing::debug!("Maybe checking batch {}", miniblock_batch_number);
 
         // We should check batches only the first time we encounter them per instance
-        // (i.e., next_instance_batch_to_check == miniblock_batch_number)
+        // (i.e., `next_instance_batch_to_check == miniblock_batch_number`)
         match instance_batch_to_check.cmp(&miniblock_batch_number) {
             Greater => return Ok(()), // This batch has already been checked.
             Less => {

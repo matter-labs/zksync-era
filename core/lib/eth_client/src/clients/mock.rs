@@ -155,14 +155,14 @@ impl MockEthereum {
             .unwrap_or(self.max_priority_fee_per_gas);
         let nonce = options.nonce.expect("Nonce must be set for every tx");
 
-        // Nonce and gas_price are appended to distinguish the same transactions
+        // Nonce and `gas_price` are appended to distinguish the same transactions
         // with different gas by their hash in tests.
         raw_tx.append(&mut ethabi::encode(&max_fee_per_gas.into_tokens()));
         raw_tx.append(&mut ethabi::encode(&max_priority_fee_per_gas.into_tokens()));
         raw_tx.append(&mut ethabi::encode(&nonce.into_tokens()));
         let hash = Self::fake_sha256(&raw_tx); // Okay for test purposes.
 
-        // Concatenate raw_tx plus hash for test purposes
+        // Concatenate `raw_tx` plus hash for test purposes
         let mut new_raw_tx = hash.as_bytes().to_vec();
         new_raw_tx.extend(raw_tx);
         Ok(SignedCallResult {

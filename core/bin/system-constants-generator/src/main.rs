@@ -44,7 +44,7 @@ struct L1SystemConfig {
 }
 
 pub fn generate_l1_contracts_system_config(gas_constants: &IntrinsicSystemGasConstants) -> String {
-    // Currently this value is hardcoded here as a constant.
+    // Currently this value is hard-coded here as a constant.
     // L1->L2 txs are free for now and thus this value is unused on L1 contract, so it's ok.
     // Though, maybe it's worth to use some other approach when users will pay for L1->L2 txs.
     const FAIR_L2_GAS_PRICE_ON_L1_CONTRACT: u64 = 250_000_000;

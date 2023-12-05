@@ -27,7 +27,7 @@ pub struct SingleFetcherConfig<TYPE> {
     pub source: TYPE,
     /// URL of the API to use for fetching data. Not used for `mock` source.
     pub url: String,
-    // Interval for fetching API data in seconds. Basically, how ofter do we need to poll third-part APIs.
+    // Interval for fetching API data in seconds. Basically, how often do we need to poll third-part APIs.
     pub fetching_interval: u64,
 }
 

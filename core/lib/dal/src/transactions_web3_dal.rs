@@ -119,7 +119,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                     root: block_hash,
                     logs_bloom: Default::default(),
                     // Even though the Rust SDK recommends us to supply "None" for legacy transactions
-                    // we always supply some number anyway to have the same behaviour as most popular RPCs
+                    // we always supply some number anyway to have the same behavior as most popular RPCs
                     transaction_type: Some(tx_type),
                 }
             });

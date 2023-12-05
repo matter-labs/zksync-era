@@ -40,7 +40,7 @@ impl TxSharedArgs {
         .await
     }
 
-    // In order for validation to pass smoothlessly, we need to ensure that block's required gasPerPubdata will be
+    // In order for validation to pass seamlessly, we need to ensure that block's required `gasPerPubdata` will be
     // <= to the one in the transaction itself.
     pub fn adjust_l1_gas_price(&mut self, gas_per_pubdata_limit: U256) {
         self.l1_gas_price = adjust_l1_gas_price_for_tx(

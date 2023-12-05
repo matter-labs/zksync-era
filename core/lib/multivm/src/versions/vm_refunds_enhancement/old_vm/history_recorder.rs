@@ -19,7 +19,7 @@ pub(crate) type IntFrameManagerWithHistory<T, H> = HistoryRecorder<FramedStack<T
 fn normalize_timestamp(timestamp: Timestamp) -> Timestamp {
     let timestamp = timestamp.0;
 
-    // Making sure it is divisible by TIME_DELTA_PER_CYCLE
+    // Making sure it is divisible by `TIME_DELTA_PER_CYCLE`
     Timestamp(timestamp - timestamp % zkevm_opcode_defs::TIME_DELTA_PER_CYCLE)
 }
 

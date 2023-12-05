@@ -35,7 +35,7 @@ impl SourceCodeData {
 
 // Implementing Custom deserializer which deserializes `SourceCodeData`
 // as `SingleFile` if `codeFormat` is not specified.
-// Serde doesn't support this feature: https://github.com/serde-rs/serde/issues/2231
+// Serde doesn't support this feature: `https://github.com/serde-rs/serde/issues/2231`
 impl<'de> Deserialize<'de> for SourceCodeData {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where

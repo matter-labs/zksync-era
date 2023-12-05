@@ -478,19 +478,19 @@
 
 //     test_deposit(depositor_wallet, alice, &token, deposit_amount).await?;
 //     println!("Deposit ok, Token: {}", token.symbol);
-
+//
 //     test_change_pubkey(alice, &token.symbol).await?;
 //     println!("Change pubkey ok");
-
+//
 //     test_transfer(alice, bob, &token.symbol, transfer_amount).await?;
 //     println!("Transfer to new ok, Token: {}", token.symbol);
-
+//
 //     test_transfer(alice, bob, &token.symbol, transfer_amount).await?;
 //     println!("Transfer ok, Token: {}", token.symbol);
-
+//
 //     test_transfer_to_self(&alice, &token.symbol, transfer_amount).await?;
 //     println!("Transfer to self ok, Token: {}", token.symbol);
-
+//
 //     test_withdraw(
 //         &eth_provider,
 //         &main_contract,
@@ -501,63 +501,63 @@
 //     )
 //     .await?;
 //     println!("Withdraw ok, Token: {}", token.symbol);
-
+//
 //     // Currently fast withdraw aren't supported by zksync-rs, but they will be in the near future.
 //     // test_fast_withdraw(eth, main_contract, &bob, &bob, &token, withdraw_amount);
 //     // println!("Fast withdraw ok, Token: {}", token.symbol);
-
+//
 //     // Currently multi transactions aren't supported by zksync-rs, but they will be in the near future.
 //     // test_multi_transfer(alice, bob, &token.symbol, transfersAmount / 2);
 //     // println!("Batched transfers ok, Token: {}, token.symbol");
-
+//
 //     Ok(())
 // }
-
+//
 // /// Auxiliary function that generates a new wallet, performs an initial deposit and changes the public key.
 // async fn init_account_with_one_ether(
 // ) -> Result<Wallet<PrivateKeySigner, RpcProvider>, anyhow::Error> {
 //     let (eth_address, eth_private_key) = eth_random_account_credentials();
-
+//
 //     // Transfer funds from "rich" account to a randomly created one (so we won't reuse the same
 //     // account in subsequent test runs).
 //     transfer_to("ETH", one_ether(), eth_address).await?;
-
+//
 //     let provider = RpcProvider::new(Network::Localhost);
-
+//
 //     let eth_signer = PrivateKeySigner::new(eth_private_key);
 //     let credentials =
 //         WalletCredentials::from_eth_signer(eth_address, eth_signer, Network::Localhost)
 //             .await
 //             .unwrap();
-
+//
 //     let mut wallet = Wallet::new(provider, credentials).await?;
 //     let ethereum = wallet.ethereum(web3_addr()).await?;
-
+//
 //     let deposit_tx_hash = ethereum
 //         .deposit("ETH", one_ether() / 2, wallet.address())
 //         .await?;
-
+//
 //     ethereum.wait_for_tx(deposit_tx_hash).await?;
-
+//
 //     // Update stored wallet ID after we initialized a wallet via deposit.
 //     wait_for_deposit_and_update_account_id(&mut wallet).await;
-
+//
 //     if !wallet.is_signing_key_set().await? {
 //         let handle = wallet
 //             .start_change_pubkey()
 //             .fee_token("ETH")?
 //             .send()
 //             .await?;
-
+//
 //         handle
 //             .commit_timeout(Duration::from_secs(60))
 //             .wait_for_commit()
 //             .await?;
 //     }
-
+//
 //     Ok(wallet)
 // }
-
+//
 // async fn make_wallet(
 //     provider: RpcProvider,
 //     (eth_address, eth_private_key): (H160, H256),
@@ -567,20 +567,20 @@
 //         WalletCredentials::from_eth_signer(eth_address, eth_signer, Network::Localhost).await?;
 //     Wallet::new(provider, credentials).await
 // }
-
+//```
 // #[tokio::test]
 // #[cfg_attr(not(feature = "integration-tests"), ignore)]
 // async fn comprehensive_test() -> Result<(), anyhow::Error> {
 //     let provider = RpcProvider::new(Network::Localhost);
-
+//
 //     let main_wallet = make_wallet(provider.clone(), eth_main_account_credentials()).await?;
 //     let sync_depositor_wallet =
 //         make_wallet(provider.clone(), eth_random_account_credentials()).await?;
 //     let mut alice_wallet1 = make_wallet(provider.clone(), eth_random_account_credentials()).await?;
 //     let bob_wallet1 = make_wallet(provider.clone(), eth_random_account_credentials()).await?;
-
+//
 //     let ethereum = main_wallet.ethereum(web3_addr()).await?;
-
+//
 //     let main_contract = {
 //         let address_response = provider.contract_address().await?;
 //         let contract_address = if address_response.main_contract.starts_with("0x") {
@@ -593,7 +593,7 @@
 //             .client()
 //             .main_contract_with_address(contract_address)
 //     };
-
+//
 //     let token_eth = sync_depositor_wallet
 //         .tokens
 //         .resolve("ETH".into())
@@ -602,17 +602,17 @@
 //         .tokens
 //         .resolve("DAI".into())
 //         .ok_or_else(|| anyhow::anyhow!("Error resolve token"))?;
-
+//
 //     let dai_deposit_amount = U256::from(10).pow(18.into()) * 10000; // 10000 DAI
-
+//
 //     // Move ETH to wallets so they will have some funds for L1 transactions.
 //     let eth_deposit_amount = U256::from(10).pow(17.into()); // 0.1 ETH
 //     transfer_to("ETH", eth_deposit_amount, sync_depositor_wallet.address()).await?;
 //     transfer_to("ETH", eth_deposit_amount, alice_wallet1.address()).await?;
 //     transfer_to("ETH", eth_deposit_amount, bob_wallet1.address()).await?;
-
+//
 //     transfer_to("DAI", dai_deposit_amount, sync_depositor_wallet.address()).await?;
-
+//
 //     assert_eq!(
 //         get_ethereum_balance(&ethereum, sync_depositor_wallet.address(), &token_eth).await?,
 //         eth_deposit_amount
@@ -621,9 +621,9 @@
 //         get_ethereum_balance(&ethereum, sync_depositor_wallet.address(), &token_dai).await?,
 //         dai_deposit_amount
 //     );
-
+//
 //     test_tx_fail(&sync_depositor_wallet).await?;
-
+//
 //     move_funds(
 //         &main_contract,
 //         &ethereum,
@@ -635,15 +635,15 @@
 //         200_000_000_000_000_000_000u128,
 //     )
 //     .await?;
-
+//
 //     Ok(())
 // }
-
+//
 // #[tokio::test]
 // #[cfg_attr(not(feature = "integration-tests"), ignore)]
 // async fn simple_transfer() -> Result<(), anyhow::Error> {
 //     let wallet = init_account_with_one_ether().await?;
-
+//
 //     // Perform a transfer to itself.
 //     let handle = wallet
 //         .start_transfer()
@@ -652,34 +652,34 @@
 //         .amount(1_000_000u64)
 //         .send()
 //         .await?;
-
+//
 //     handle
 //         .commit_timeout(Duration::from_secs(180))
 //         .wait_for_commit()
 //         .await?;
-
+//
 //     Ok(())
 // }
-
+//
 // #[tokio::test]
 // #[cfg_attr(not(feature = "integration-tests"), ignore)]
 // async fn batch_transfer() -> Result<(), anyhow::Error> {
 //     let wallet = init_account_with_one_ether().await?;
-
+//
 //     const RECIPIENT_COUNT: usize = 4;
 //     let recipients = vec![eth_random_account_credentials().0; RECIPIENT_COUNT];
-
+//
 //     let token_like = TokenLike::Symbol("ETH".to_owned());
 //     let token = wallet
 //         .tokens
 //         .resolve(token_like.clone())
 //         .expect("ETH token resolving failed");
-
+//
 //     let mut nonce = wallet.account_info().await?.committed.nonce;
-
+//
 //     // Sign a transfer for each recipient created above
 //     let mut signed_transfers = Vec::with_capacity(recipients.len());
-
+//
 //     // Obtain total fee for this batch
 //     let mut total_fee = Some(
 //         wallet
@@ -691,7 +691,7 @@
 //             )
 //             .await?,
 //     );
-
+//
 //     for recipient in recipients {
 //         let (transfer, signature) = wallet
 //             .signer
@@ -706,12 +706,12 @@
 //             )
 //             .await
 //             .expect("Transfer signing error");
-
+//
 //         signed_transfers.push((ZkSyncTx::Transfer(Box::new(transfer)), signature));
-
+//
 //         *nonce += 1;
 //     }
-
+//
 //     // Send the batch and store its transaction hashes
 //     let handles = wallet
 //         .provider
@@ -719,13 +719,14 @@
 //         .await?
 //         .into_iter()
 //         .map(|tx_hash| SyncTransactionHandle::new(tx_hash, wallet.provider.clone()));
-
+//
 //     for handle in handles {
 //         handle
 //             .commit_timeout(Duration::from_secs(180))
 //             .wait_for_commit()
 //             .await?;
 //     }
-
+//
 //     Ok(())
 // }
+// ```

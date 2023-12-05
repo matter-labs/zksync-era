@@ -66,7 +66,7 @@ impl<W: EthClient + Sync> EventProcessor<W> for GovernanceUpgradesEventProcessor
                     );
                     continue;
                 };
-                // Scheduler VK is not present in proposal event. It is hardcoded in verifier contract.
+                // Scheduler VK is not present in proposal event. It is hard-coded in verifier contract.
                 let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
                     Some(client.scheduler_vk_hash(address).await?)
                 } else {
