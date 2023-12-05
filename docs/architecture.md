@@ -59,7 +59,7 @@ This section provides a physical map of folders & files in this repository.
     - `/mempool`: Implementation of the zkSync transaction pool.
     - `/merkle_tree`: Implementation of a sparse Merkle tree.
     - `/mini_merkle_tree`: In-memory implementation of a sparse Merkle tree.
-    - `/multivm`: A wrapper over several versions of VM that have been used by the main node.
+    - `/multiVM`: A wrapper over several versions of VM that have been used by the main node.
     - `/object_store`: Abstraction for storing blobs outside the main data store.
     - `/prometheus_exporter`: Prometheus data exporter.
     - `/prover_utils`: Utilities related to the proof generation.

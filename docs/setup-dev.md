@@ -242,7 +242,7 @@ Follow the instructions in the repo in order to install it and enable for Rust.
 
 ## Tip: Speeding up building `RocksDB`
 
-By default, each time you compile `rocksdb` crate, it will compile required C++ sources from scratch. It can be avoided
+By default, each time you compile `RocksDB` crate, it will compile required C++ sources from scratch. It can be avoided
 by using precompiled versions of library, and it will significantly improve your build times.
 
 In order to do so, you can put compiled libraries to some persistent location, and add the following to your shell
