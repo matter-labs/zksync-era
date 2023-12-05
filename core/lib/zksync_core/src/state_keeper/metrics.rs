@@ -253,6 +253,7 @@ pub(super) enum MiniblockSealStage {
     InsertEvents,
     ExtractL2ToL1Logs,
     InsertL2ToL1Logs,
+    InsertConsensus,
     CommitMiniblock,
 }
 

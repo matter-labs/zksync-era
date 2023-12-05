@@ -29,7 +29,7 @@ use crate::{
         extractors,
         io::{
             common::{l1_batch_params, load_pending_batch, poll_iters},
-            MiniblockParams, PendingBatchData, StateKeeperIO,
+            MiniblockParams, MiniblockSealerHandle, PendingBatchData, StateKeeperIO,
         },
         metrics::{KEEPER_METRICS, L1_BATCH_METRICS},
         seal_criteria::IoSealCriteria,
@@ -48,6 +48,7 @@ const POLL_INTERVAL: Duration = Duration::from_millis(100);
 /// to the one in the mempool IO (which is used in the main node).
 #[derive(Debug)]
 pub struct ExternalIO {
+    miniblock_sealer_handle: MiniblockSealerHandle,
     pool: ConnectionPool,
 
     current_l1_batch_number: L1BatchNumber,
@@ -64,7 +65,9 @@ pub struct ExternalIO {
 }
 
 impl ExternalIO {
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
+        miniblock_sealer_handle: MiniblockSealerHandle,
         pool: ConnectionPool,
         actions: ActionQueue,
         sync_state: SyncState,
@@ -95,6 +98,7 @@ impl ExternalIO {
         sync_state.set_local_block(last_miniblock_number);
 
         Self {
+            miniblock_sealer_handle,
             pool,
             current_l1_batch_number: last_sealed_l1_batch_header.number + 1,
             current_miniblock_number: last_miniblock_number + 1,
@@ -459,10 +463,9 @@ impl StateKeeperIO for ExternalIO {
             panic!("State keeper requested to seal miniblock, but the next action is {action:?}");
         };
 
+        let store_latency = L1_BATCH_METRICS.start_storing_on_en();
         let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
         let mut transaction = storage.start_transaction().await.unwrap();
-
-        let store_latency = L1_BATCH_METRICS.start_storing_on_en();
         // We don't store the transactions in the database until they're executed to not overcomplicate the state
         // recovery on restart. So we have to store them here.
         for tx in &updates_manager.miniblock.executed_transactions {
@@ -489,6 +492,7 @@ impl StateKeeperIO for ExternalIO {
                 unreachable!("Transaction {:?} is neither L1 nor L2", tx.transaction);
             }
         }
+        transaction.commit().await.unwrap();
         store_latency.observe();
 
         // Now transactions are stored, and we may mark them as executed.
@@ -496,19 +500,9 @@ impl StateKeeperIO for ExternalIO {
             self.current_l1_batch_number,
             self.current_miniblock_number,
             self.l2_erc20_bridge_addr,
+            consensus,
         );
-        command.seal(&mut transaction).await;
-
-        // We want to add miniblock consensus fields atomically with the miniblock data so that we
-        // don't need to deal with corner cases (e.g., a miniblock w/o consensus fields).
-        if let Some(consensus) = &consensus {
-            transaction
-                .blocks_dal()
-                .set_miniblock_consensus_fields(self.current_miniblock_number, consensus)
-                .await
-                .unwrap();
-        }
-        transaction.commit().await.unwrap();
+        self.miniblock_sealer_handle.submit(command).await;
 
         self.sync_state
             .set_local_block(self.current_miniblock_number);
@@ -531,6 +525,9 @@ impl StateKeeperIO for ExternalIO {
             );
         };
 
+        // We cannot start sealing an L1 batch until we've sealed all miniblocks included in it.
+        self.miniblock_sealer_handle.wait_for_all_commands().await;
+
         let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
         let mut transaction = storage.start_transaction().await.unwrap();
         updates_manager
@@ -540,15 +537,9 @@ impl StateKeeperIO for ExternalIO {
                 l1_batch_env,
                 finished_batch,
                 self.l2_erc20_bridge_addr,
+                consensus,
             )
             .await;
-        if let Some(consensus) = &consensus {
-            transaction
-                .blocks_dal()
-                .set_miniblock_consensus_fields(self.current_miniblock_number, consensus)
-                .await
-                .unwrap();
-        }
         transaction.commit().await.unwrap();
 
         tracing::info!("Batch {} is sealed", self.current_l1_batch_number);
