@@ -1126,7 +1126,7 @@ async fn add_house_keeper_to_task_futures(
 
     let l1_batch_metrics_reporter = L1BatchMetricsReporter::new(
         house_keeper_config.l1_batch_metrics_reporting_interval_ms,
-        server_connection_pool,
+        server_connection_pool.clone(),
         prover_connection_pool,
     );
 
@@ -1225,6 +1225,7 @@ async fn add_house_keeper_to_task_futures(
     let fri_prover_stats_reporter = FriProverStatsReporter::new(
         house_keeper_config.fri_prover_stats_reporting_interval_ms,
         prover_connection_pool.clone(),
+        server_connection_pool,
         fri_prover_group_config,
     );
     task_futures.push(tokio::spawn(fri_prover_stats_reporter.run()));

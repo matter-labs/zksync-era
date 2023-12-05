@@ -62,7 +62,7 @@ impl PeriodicJob for FriProofCompressorStatsReporter {
 
         let oldest_not_compressed_batch = self
             .pool
-            .access_storage()
+            .access_storage::<ProverStorageProcessor>()
             .await
             .unwrap()
             .fri_proof_compressor_dal()

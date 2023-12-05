@@ -3,11 +3,13 @@ use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_db_connection::ConnectionPool;
 use zksync_prover_dal::ProverStorageProcessor;
 use zksync_prover_utils::periodic_job::PeriodicJob;
+use zksync_server_dal::ServerStorageProcessor;
 
 #[derive(Debug)]
 pub struct FriProverStatsReporter {
     reporting_interval_ms: u64,
     prover_connection_pool: ConnectionPool,
+    server_connection_pool: ConnectionPool,
     config: FriProverGroupConfig,
 }
 
@@ -15,11 +17,13 @@ impl FriProverStatsReporter {
     pub fn new(
         reporting_interval_ms: u64,
         prover_connection_pool: ConnectionPool,
+        server_connection_pool: ConnectionPool,
         config: FriProverGroupConfig,
     ) -> Self {
         Self {
             reporting_interval_ms,
             prover_connection_pool,
+            server_connection_pool,
             config,
         }
     }
@@ -31,12 +35,21 @@ impl PeriodicJob for FriProverStatsReporter {
     const SERVICE_NAME: &'static str = "FriProverStatsReporter";
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
-        let mut conn = self
+        let mut prover_conn = self
             .prover_connection_pool
             .access_storage::<ProverStorageProcessor>()
             .await
             .unwrap();
-        let stats = conn.fri_prover_jobs_dal().get_prover_jobs_stats().await;
+        let mut server_conn = self
+            .server_connection_pool
+            .access_storage::<ServerStorageProcessor>()
+            .await
+            .unwrap();
+
+        let stats = prover_conn
+            .fri_prover_jobs_dal()
+            .get_prover_jobs_stats()
+            .await;
 
         for ((circuit_id, aggregation_round), stats) in stats.into_iter() {
             // BEWARE, HERE BE DRAGONS.
@@ -76,7 +89,7 @@ impl PeriodicJob for FriProverStatsReporter {
             );
         }
 
-        let lag_by_circuit_type = conn
+        let lag_by_circuit_type = prover_conn
             .fri_prover_jobs_dal()
             .min_unproved_l1_batch_number()
             .await;
@@ -90,7 +103,7 @@ impl PeriodicJob for FriProverStatsReporter {
 
         // FIXME: refactor metrics here
 
-        if let Some(l1_batch_number) = conn
+        if let Some(l1_batch_number) = server_conn
             .proof_generation_dal()
             .get_oldest_unprocessed_batch()
             .await
@@ -101,7 +114,7 @@ impl PeriodicJob for FriProverStatsReporter {
             )
         }
 
-        if let Some(l1_batch_number) = conn
+        if let Some(l1_batch_number) = server_conn
             .proof_generation_dal()
             .get_oldest_not_generated_batch()
             .await
@@ -113,7 +126,7 @@ impl PeriodicJob for FriProverStatsReporter {
         }
 
         for aggregation_round in 0..2 {
-            if let Some(l1_batch_number) = conn
+            if let Some(l1_batch_number) = prover_conn
                 .fri_prover_jobs_dal()
                 .min_unproved_l1_batch_number_for_aggregation_round(aggregation_round.into())
                 .await
