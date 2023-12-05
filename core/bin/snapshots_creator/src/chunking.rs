@@ -17,5 +17,5 @@ pub fn get_chunk_hashed_keys_range(chunk_id: u64, chunks_count: u64) -> ([u8; 2]
 
     let start_bytes = (chunk_start as u16).to_be_bytes();
     let end_bytes = (chunk_end as u16).to_be_bytes();
-    return (start_bytes, end_bytes);
+    (start_bytes, end_bytes)
 }

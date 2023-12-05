@@ -10,6 +10,7 @@ use std::pin::Pin;
 use std::time::Duration;
 use tokio::sync::watch;
 use tokio::sync::watch::Receiver;
+use vise::Unit;
 use vise::{Buckets, Gauge, Histogram, Metrics};
 use zksync_config::configs::PrometheusConfig;
 use zksync_config::{PostgresConfig, SnapshotsCreatorConfig};
@@ -25,7 +26,6 @@ use zksync_types::snapshots::{
 use zksync_types::zkevm_test_harness::zk_evm::zkevm_opcode_defs::decoding::AllowedPcOrImm;
 use zksync_types::{L1BatchNumber, MiniblockNumber};
 use zksync_utils::ceil_div;
-use zksync_utils::time::seconds_since_epoch;
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "snapshots_creator")]
@@ -34,15 +34,16 @@ struct SnapshotsCreatorMetrics {
 
     storage_logs_chunks_left_to_process: Gauge<u64>,
 
-    snapshot_generation_duration: Gauge<u64>,
+    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
+    snapshot_generation_duration: Histogram<Duration>,
 
     snapshot_l1_batch: Gauge<u64>,
 
-    #[metrics(buckets = Buckets::LATENCIES)]
-    storage_logs_processing_durations: Histogram<Duration>,
+    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
+    storage_logs_processing_duration: Histogram<Duration>,
 
-    #[metrics(buckets = Buckets::LATENCIES)]
-    factory_deps_processing_durations: Histogram<Duration>,
+    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
+    factory_deps_processing_duration: Histogram<Duration>,
 }
 #[vise::register]
 pub(crate) static METRICS: vise::Global<SnapshotsCreatorMetrics> = vise::Global::new();
@@ -72,7 +73,7 @@ async fn process_storage_logs_single_chunk(
     chunks_count: u64,
 ) -> anyhow::Result<String> {
     let (min_hashed_key, max_hashed_key) = get_chunk_hashed_keys_range(chunk_id, chunks_count);
-    let latency = METRICS.storage_logs_processing_durations.start();
+    let latency = METRICS.storage_logs_processing_duration.start();
     let mut conn = pool.access_storage_tagged("snapshots_creator").await?;
     let logs = conn
         .snapshots_creator_dal()
@@ -107,7 +108,7 @@ async fn process_factory_deps(
     miniblock_number: MiniblockNumber,
     l1_batch_number: L1BatchNumber,
 ) -> anyhow::Result<String> {
-    let latency = METRICS.factory_deps_processing_durations.start();
+    let latency = METRICS.factory_deps_processing_duration.start();
     let mut conn = pool.access_storage_tagged("snapshots_creator").await?;
     let factory_deps = conn
         .snapshots_creator_dal()
@@ -134,12 +135,13 @@ async fn run(
     replica_pool: ConnectionPool,
     master_pool: ConnectionPool,
 ) -> anyhow::Result<()> {
+    let latency = METRICS.snapshot_generation_duration.start();
+
     let config = SnapshotsCreatorConfig::from_env().context("SnapshotsCreatorConfig::from_env")?;
 
     let mut conn = replica_pool
         .access_storage_tagged("snapshots_creator")
         .await?;
-    let start_time = seconds_since_epoch();
 
     // we subtract 1 so that after restore, EN node has at least one l1 batch to fetch
     let l1_batch_number = conn.blocks_dal().get_sealed_l1_batch_number().await? - 1;
@@ -200,7 +202,7 @@ async fn run(
     let mut tasks =
         FuturesUnordered::<Pin<Box<dyn Future<Output = anyhow::Result<String>>>>>::new();
     let mut last_chunk_id = 0;
-    while last_chunk_id < chunks_count || tasks.len() != 0 {
+    while last_chunk_id < chunks_count || !tasks.is_empty() {
         while (tasks.len() as u32) < config.concurrent_queries_count && last_chunk_id < chunks_count
         {
             tasks.push(Box::pin(process_storage_logs_single_chunk(
@@ -242,15 +244,9 @@ async fn run(
         .await?;
 
     METRICS.snapshot_l1_batch.set(l1_batch_number.0.as_u64());
-    METRICS
-        .snapshot_generation_duration
-        .set(seconds_since_epoch() - start_time);
 
-    tracing::info!("Run metrics:");
-    tracing::info!(
-        "snapshot_generation_duration: {}s",
-        METRICS.snapshot_generation_duration.get()
-    );
+    let elapsed_sec = latency.observe().as_secs();
+    tracing::info!("snapshot_generation_duration: {elapsed_sec}s");
     tracing::info!("snapshot_l1_batch: {}", METRICS.snapshot_l1_batch.get());
     tracing::info!(
         "storage_logs_chunks_count: {}",

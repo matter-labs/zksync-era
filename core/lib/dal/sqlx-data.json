@@ -276,19 +276,19 @@
         }
       ],
       "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
         true,
-        false,
-        false,
-        false,
-        false
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
       ],
       "parameters": {
         "Left": [
@@ -4850,6 +4850,26 @@
       }
     },
     "query": "INSERT INTO events_queue (l1_batch_number, serialized_events_queue) VALUES ($1, $2)"
+  },
+  "61cc5a1564918a34b4235290c421f04c40ef935f72f2c72744a5b741439a966a": {
+    "describe": {
+      "columns": [
+        {
+          "name": "bytecode",
+          "ordinal": 0,
+          "type_info": "Bytea"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT bytecode FROM factory_deps WHERE miniblock_number <= $1"
   },
   "6317155050a5dae24ea202cfd54d1e58cc7aeb0bfd4d95aa351f85cff04d3bff": {
     "describe": {
