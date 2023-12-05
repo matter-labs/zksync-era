@@ -1,3 +1,4 @@
+mod proto;
 pub mod storage_block;
 pub mod storage_eth_tx;
 pub mod storage_event;

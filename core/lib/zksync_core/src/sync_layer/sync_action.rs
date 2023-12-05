@@ -1,9 +1,6 @@
 use tokio::sync::mpsc;
-
-use zksync_types::{
-    block::ConsensusBlockFields, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId,
-    Transaction,
-};
+use zksync_dal::blocks_dal::ConsensusBlockFields;
+use zksync_types::{Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction};
 
 use super::metrics::QUEUE_METRICS;
 
