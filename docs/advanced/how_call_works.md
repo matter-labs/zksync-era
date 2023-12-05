@@ -114,7 +114,7 @@ In this article, we covered the 'life of a call' from the RPC to the inner worki
 [execution_sandbox]:
   https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/api_server/execution_sandbox/execute.rs
   'execution sandbox'
-[vm_code]: https://github.com/matter-labs/zksync-era/blob/main/core/lib/multivm/src/versions/vm_latest/vm.rs 'vm code'
+[vm_code]: https://github.com/matter-labs/zksync-era/blob/ccd13ce88ff52c3135d794c6f92bec3b16f2210f/core/lib/multivm/src/versions/vm_latest/implementation/execution.rs#L108 'vm code'
 [bootloader_code]:
   https://github.com/matter-labs/era-system-contracts/blob/93a375ef6ccfe0181a248cb712c88a1babe1f119/bootloader/bootloader.yul
   'bootloader code'
