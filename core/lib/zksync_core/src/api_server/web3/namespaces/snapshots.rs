@@ -1,6 +1,8 @@
 use crate::api_server::web3::backend_jsonrpc::error::internal_error;
+use crate::api_server::web3::metrics::API_METRICS;
 use crate::api_server::web3::state::RpcState;
 use crate::l1_gas_price::L1GasPriceProvider;
+use actix_web::web::method;
 use zksync_types::snapshots::{AllSnapshots, SnapshotHeader, SnapshotStorageLogsChunkMetadata};
 use zksync_types::L1BatchNumber;
 use zksync_web3_decl::error::Web3Error;
@@ -23,6 +25,7 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
     }
     pub async fn get_all_snapshots_impl(&self) -> Result<AllSnapshots, Web3Error> {
         let method_name = "get_all_snapshots";
+        let method_latency = API_METRICS.start_call(method_name);
         let mut storage_processor = self
             .state
             .connection_pool
@@ -30,10 +33,12 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
             .await
             .map_err(|err| internal_error(method_name, err))?;
         let mut snapshots_dal = storage_processor.snapshots_dal();
-        snapshots_dal
+        let response = snapshots_dal
             .get_all_snapshots()
             .await
-            .map_err(|err| internal_error(method_name, err))
+            .map_err(|err| internal_error(method_name, err));
+        method_latency.observe();
+        response
     }
 
     pub async fn get_snapshot_by_l1_batch_number_impl(
@@ -41,6 +46,7 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
         l1_batch_number: L1BatchNumber,
     ) -> Result<Option<SnapshotHeader>, Web3Error> {
         let method_name = "get_snapshot_by_l1_batch_number";
+        let method_latency = API_METRICS.start_call(method_name);
         let mut storage_processor = self
             .state
             .connection_pool
@@ -75,6 +81,7 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
                 .map_err(|err| internal_error(method_name, err))?
                 .unwrap()
                 .1;
+            method_latency.observe();
             Ok(Some(SnapshotHeader {
                 l1_batch_number: snapshot_metadata.l1_batch_number,
                 miniblock_number,
@@ -83,6 +90,7 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
                 factory_deps_filepath: snapshot_metadata.factory_deps_filepath,
             }))
         } else {
+            method_latency.observe();
             Ok(None)
         }
     }

@@ -46,7 +46,7 @@ impl ObjectStore for MockStore {
         Ok(())
     }
 
-    fn get_storage_prefix_raw(&self, bucket: Bucket) -> String {
+    fn storage_prefix_raw(&self, bucket: Bucket) -> String {
         bucket.to_string()
     }
 }

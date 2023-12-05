@@ -23,7 +23,6 @@ use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_types::snapshots::{
     SnapshotFactoryDependencies, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
 };
-use zksync_types::zkevm_test_harness::zk_evm::zkevm_opcode_defs::decoding::AllowedPcOrImm;
 use zksync_types::{L1BatchNumber, MiniblockNumber};
 use zksync_utils::ceil_div;
 
@@ -80,6 +79,7 @@ async fn process_storage_logs_single_chunk(
         .get_storage_logs_chunk(miniblock_number, &min_hashed_key, &max_hashed_key)
         .await
         .context("Error fetching storage logs count")?;
+    drop(conn);
     let storage_logs_chunk = SnapshotStorageLogsChunk { storage_logs: logs };
     let key = SnapshotStorageLogsStorageKey {
         l1_batch_number,
@@ -98,7 +98,6 @@ async fn process_storage_logs_single_chunk(
         "Finished storage logs chunk {}/{chunks_count}, step took {elapsed_ms}ms, output stored in {output_filepath}",
         chunk_id + 1
     );
-    drop(conn);
     Ok(output_filepath)
 }
 
@@ -160,7 +159,6 @@ async fn run(
     }
     drop(master_conn);
 
-    // snapshots always
     let last_miniblock_number_in_batch = conn
         .blocks_dal()
         .get_miniblock_range_of_l1_batch(l1_batch_number)
@@ -243,7 +241,7 @@ async fn run(
         )
         .await?;
 
-    METRICS.snapshot_l1_batch.set(l1_batch_number.0.as_u64());
+    METRICS.snapshot_l1_batch.set(l1_batch_number.0 as u64);
 
     let elapsed_sec = latency.observe().as_secs();
     tracing::info!("snapshot_generation_duration: {elapsed_sec}s");

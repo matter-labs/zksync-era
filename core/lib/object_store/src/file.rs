@@ -71,7 +71,7 @@ impl ObjectStore for FileBackedObjectStore {
         fs::remove_file(filename).await.map_err(From::from)
     }
 
-    fn get_storage_prefix_raw(&self, bucket: Bucket) -> String {
+    fn storage_prefix_raw(&self, bucket: Bucket) -> String {
         format!("{}/{}", self.base_dir, bucket)
     }
 }

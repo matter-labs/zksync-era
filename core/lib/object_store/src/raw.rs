@@ -116,7 +116,7 @@ pub trait ObjectStore: fmt::Debug + Send + Sync {
     /// Returns an error if removal fails.
     async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError>;
 
-    fn get_storage_prefix_raw(&self, bucket: Bucket) -> String;
+    fn storage_prefix_raw(&self, bucket: Bucket) -> String;
 }
 
 #[async_trait]
@@ -138,8 +138,8 @@ impl<T: ObjectStore + ?Sized> ObjectStore for Arc<T> {
         (**self).remove_raw(bucket, key).await
     }
 
-    fn get_storage_prefix_raw(&self, bucket: Bucket) -> String {
-        (**self).get_storage_prefix_raw(bucket)
+    fn storage_prefix_raw(&self, bucket: Bucket) -> String {
+        (**self).storage_prefix_raw(bucket)
     }
 }
 

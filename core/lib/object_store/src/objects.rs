@@ -304,7 +304,7 @@ impl dyn ObjectStore + '_ {
     }
 
     pub fn get_storage_prefix<V: StoredObject>(&self) -> String {
-        self.get_storage_prefix_raw(V::BUCKET)
+        self.storage_prefix_raw(V::BUCKET)
     }
 }
 
