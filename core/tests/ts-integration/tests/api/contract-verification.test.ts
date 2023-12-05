@@ -13,7 +13,7 @@ const ZKSOLC_VERSION = 'v1.3.17';
 const SOLC_VERSION = '0.8.23';
 
 const ZKVYPER_VERSION = 'v1.3.13';
-const VYPER_VERSION = '0.3.3';
+const VYPER_VERSION = '0.3.10';
 
 type HttpMethod = 'POST' | 'GET';
 
