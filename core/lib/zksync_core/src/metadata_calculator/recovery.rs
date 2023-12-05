@@ -322,7 +322,7 @@ impl AsyncTreeRecovery {
             RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::LoadEntries].start();
         let all_entries = storage
             .storage_logs_dal()
-            .get_tree_entries_for_miniblock(snapshot_miniblock, key_chunk.clone(), None)
+            .get_tree_entries_for_miniblock(snapshot_miniblock, key_chunk.clone())
             .await
             .with_context(|| {
                 format!("Failed getting entries for chunk {key_chunk:?} in snapshot for miniblock #{snapshot_miniblock}")

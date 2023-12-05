@@ -451,6 +451,11 @@ impl StorageLogsDal<'_, '_> {
             .await
     }
 
+    /// Gets a starting tree entry for each of the supplied `key_ranges` for the specified snapshot
+    /// `miniblock_number`.
+    ///
+    /// This method doesn't check whether `miniblock_number` is actually a snapshot miniblock; if it's not,
+    /// the returned values can be overwritten by other entries in the same miniblock.
     pub async fn get_chunk_starts_for_miniblock(
         &mut self,
         miniblock_number: MiniblockNumber,
@@ -502,7 +507,6 @@ impl StorageLogsDal<'_, '_> {
         &mut self,
         miniblock_number: MiniblockNumber,
         key_range: ops::RangeInclusive<H256>,
-        limit: Option<usize>,
     ) -> sqlx::Result<Vec<StorageTreeEntry>> {
         let rows = sqlx::query!(
             "SELECT storage_logs.hashed_key, storage_logs.value, initial_writes.index \
@@ -511,11 +515,10 @@ impl StorageLogsDal<'_, '_> {
             WHERE storage_logs.miniblock_number = $1 \
                 AND storage_logs.hashed_key >= $2::bytea \
                 AND storage_logs.hashed_key <= $3::bytea \
-            ORDER BY storage_logs.hashed_key LIMIT $4",
+            ORDER BY storage_logs.hashed_key",
             miniblock_number.0 as i64,
             key_range.start().as_bytes(),
-            key_range.end().as_bytes(),
-            limit.map(|limit| limit as i64)
+            key_range.end().as_bytes()
         )
         .fetch_all(self.storage.conn())
         .await?;
@@ -915,39 +918,10 @@ mod tests {
         let mut conn = pool.access_storage().await.unwrap();
         let sorted_hashed_keys = prepare_tree_entries(&mut conn, 10).await;
 
-        // Try queries with a limit.
         let key_range = H256::zero()..=H256::repeat_byte(0xff);
         let tree_entries = conn
             .storage_logs_dal()
-            .get_tree_entries_for_miniblock(MiniblockNumber(1), key_range, Some(1))
-            .await
-            .unwrap();
-        assert_eq!(tree_entries.len(), 1);
-        assert_eq!(
-            u256_to_h256_reversed(tree_entries[0].key),
-            sorted_hashed_keys[0]
-        );
-
-        let key_range = H256::repeat_byte(0xa0)..=H256::repeat_byte(0xff);
-        let tree_entries = conn
-            .storage_logs_dal()
-            .get_tree_entries_for_miniblock(MiniblockNumber(1), key_range.clone(), Some(1))
-            .await
-            .unwrap();
-        assert_eq!(tree_entries.len(), 1);
-        assert_eq!(
-            u256_to_h256_reversed(tree_entries[0].key),
-            *sorted_hashed_keys
-                .iter()
-                .find(|&key| key >= key_range.start())
-                .unwrap()
-        );
-
-        // Try queries without a limit.
-        let key_range = H256::zero()..=H256::repeat_byte(0xff);
-        let tree_entries = conn
-            .storage_logs_dal()
-            .get_tree_entries_for_miniblock(MiniblockNumber(1), key_range, None)
+            .get_tree_entries_for_miniblock(MiniblockNumber(1), key_range)
             .await
             .unwrap();
         assert_eq!(tree_entries.len(), 10);
@@ -962,7 +936,7 @@ mod tests {
         let key_range = H256::repeat_byte(0x80)..=H256::repeat_byte(0xbf);
         let tree_entries = conn
             .storage_logs_dal()
-            .get_tree_entries_for_miniblock(MiniblockNumber(1), key_range.clone(), None)
+            .get_tree_entries_for_miniblock(MiniblockNumber(1), key_range.clone())
             .await
             .unwrap();
         assert!(!tree_entries.is_empty() && tree_entries.len() < 10);

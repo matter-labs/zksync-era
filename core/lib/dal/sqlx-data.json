@@ -3415,6 +3415,40 @@
     },
     "query": "SELECT id, contract_address, source_code, contract_name, zk_compiler_version, compiler_version, optimization_used, optimizer_mode, constructor_arguments, is_system FROM contract_verification_requests WHERE status = 'successful' ORDER BY id"
   },
+  "34d78a04a9aa834e1846083c991138cef1e81b57c874a27ec65de5793e5681cc": {
+    "describe": {
+      "columns": [
+        {
+          "name": "hashed_key",
+          "ordinal": 0,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "value",
+          "ordinal": 1,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "index",
+          "ordinal": 2,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Bytea",
+          "Bytea"
+        ]
+      }
+    },
+    "query": "SELECT storage_logs.hashed_key, storage_logs.value, initial_writes.index FROM storage_logs INNER JOIN initial_writes ON storage_logs.hashed_key = initial_writes.hashed_key WHERE storage_logs.miniblock_number = $1 AND storage_logs.hashed_key >= $2::bytea AND storage_logs.hashed_key <= $3::bytea ORDER BY storage_logs.hashed_key"
+  },
   "357347157ed8ff19d223c54533c3a85bd7e64a37514d657f8d49bd6eb5be1806": {
     "describe": {
       "columns": [
@@ -4934,41 +4968,6 @@
       }
     },
     "query": "SELECT MAX(number) as \"number\" FROM l1_batches WHERE hash IS NOT NULL"
-  },
-  "5c6f11737d23555bc0ed28e715d03c0980375591b66771ab1fe419a29d14ec2a": {
-    "describe": {
-      "columns": [
-        {
-          "name": "hashed_key",
-          "ordinal": 0,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "value",
-          "ordinal": 1,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "index",
-          "ordinal": 2,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Int8",
-          "Bytea",
-          "Bytea",
-          "Int8"
-        ]
-      }
-    },
-    "query": "SELECT storage_logs.hashed_key, storage_logs.value, initial_writes.index FROM storage_logs INNER JOIN initial_writes ON storage_logs.hashed_key = initial_writes.hashed_key WHERE storage_logs.miniblock_number = $1 AND storage_logs.hashed_key >= $2::bytea AND storage_logs.hashed_key <= $3::bytea ORDER BY storage_logs.hashed_key LIMIT $4"
   },
   "5cc93efebc14dc0b78ed32bf7f167a44bd083f32ab308662c57ce1f726c0f1f9": {
     "describe": {
