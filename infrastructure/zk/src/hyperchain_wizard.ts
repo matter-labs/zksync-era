@@ -29,8 +29,8 @@ enum BaseNetwork {
 
 enum ProverTypeOption {
     NONE = 'No (this hyperchain is for testing purposes only)',
-    CPU  = 'Yes - With a CPU implementation',
-    GPU  = 'Yes - With a GPU implementation'
+    CPU = 'Yes - With a CPU implementation',
+    GPU = 'Yes - With a GPU implementation'
 }
 
 export interface BasePromptOptions {
@@ -43,7 +43,7 @@ export interface BasePromptOptions {
     skip?: ((state: object) => boolean | Promise<boolean>) | boolean;
 }
 
-let useMatterlabsGeth = false
+let useMatterlabsGeth = false;
 
 // An init command that allows configuring and spinning up a new hyperchain network.
 async function initHyperchain() {
@@ -74,8 +74,8 @@ async function initHyperchain() {
 
     // if we used matterlabs/geth network, we need custom ENV file for hyperchain compose parts
     if (useMatterlabsGeth) {
-        wrapEnvModify('ETH_CLIENT_WEB3_URL', "http://geth:8545");
-        wrapEnvModify('DATABASE_URL', "postgres://postgres:notsecurepassword@postgres:5432/zksync_local");
+        wrapEnvModify('ETH_CLIENT_WEB3_URL', 'http://geth:8545');
+        wrapEnvModify('DATABASE_URL', 'postgres://postgres:notsecurepassword@postgres:5432/zksync_local');
     }
 
     env.mergeInitToEnv();
@@ -259,7 +259,7 @@ async function setHyperchainMetadata() {
             feeReceiverAddress = keyResults.feeReceiver;
         }
     } else {
-        useMatterlabsGeth = true
+        useMatterlabsGeth = true;
         l1Rpc = 'http://localhost:8545';
         l1Id = 9;
         databaseUrl = 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local';
@@ -676,7 +676,7 @@ async function _generateDockerImages(_orgName?: string) {
                         'What is your GPU CUDA version? You can find it in table here - https://en.wikipedia.org/wiki/CUDA#GPUs_supported Input only 2 numbers withous dot, e.g. if you have RTX 3070 -> CUDA 8.6 -> Answer is 86',
                     name: 'cudaArch',
                     type: 'input',
-                    required: true,
+                    required: true
                 }
             ];
             const cudaRes: any = await enquirer.prompt(cudaArchPrompt);
@@ -721,12 +721,15 @@ async function _generateDockerImages(_orgName?: string) {
     };
 
     // Creating simple handlebars helper "if (foo AND bar)" to reduce copypaste in compose template
-    Handlebars.registerHelper('ifAnd', function(this: boolean, a: boolean, b: boolean, options: Handlebars.HelperOptions) {
-        if (a && b) {
-            return options.fn(this);
+    Handlebars.registerHelper(
+        'ifAnd',
+        function (this: boolean, a: boolean, b: boolean, options: Handlebars.HelperOptions) {
+            if (a && b) {
+                return options.fn(this);
+            }
+            return options.inverse(this);
         }
-        return options.inverse(this);
-    });
+    );
 
     const templateFileName = './etc/hyperchains/docker-compose-hyperchain-template.hbs';
     const templateString = fs.existsSync(templateFileName) && fs.readFileSync(templateFileName).toString().trim();

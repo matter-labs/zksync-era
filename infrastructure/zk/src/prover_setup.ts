@@ -50,7 +50,9 @@ async function downloadCSR(proverType: ProverType, region: string) {
     });
     process.chdir(`${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`);
     console.log(chalk.yellow('Downloading ceremony (CSR) file'));
-    await utils.spawn(`wget -q --show-progress -c https://storage.googleapis.com/matterlabs-setup-keys-${region}/setup-keys/setup_2^24.key`);
+    await utils.spawn(
+        `wget -q --show-progress -c https://storage.googleapis.com/matterlabs-setup-keys-${region}/setup-keys/setup_2^24.key`
+    );
     await utils.sleep(1);
     process.chdir(process.env.ZKSYNC_HOME as string);
     wrapEnvModify('CRS_FILE', `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`);
@@ -84,7 +86,7 @@ async function setupProverKeys(proverType: ProverType) {
     ];
     const proverKeysResults: any = await enquirer.prompt(proverKeysQuestions);
     keysRegion = proverKeysResults.proverKeys;
-    await downloadCSR(proverType,keysRegion);
+    await downloadCSR(proverType, keysRegion);
     if (results.proverKeys == DOWNLOAD) {
         await downloadDefaultSetupKeys(proverType, keysRegion);
     } else {
@@ -192,13 +194,14 @@ async function generateSetupData(isBaseLayer: boolean, proverType: ProverType) {
     const range = isBaseLayer ? 13 : 15;
     const gpuFeatureFlag = proverType == ProverType.GPU ? '--features "gpu"' : '';
     for (let i = 1; i <= range; i++) {
-        const spawnCommand = `zk f cargo run ${gpuFeatureFlag} --release --bin zksync_setup_data_generator_fri -- --numeric-circuit ${i} ${isBaseLayer ? '--is_base_layer' : ''}`;
+        const spawnCommand = `zk f cargo run ${gpuFeatureFlag} --release --bin zksync_setup_data_generator_fri -- --numeric-circuit ${i} ${
+            isBaseLayer ? '--is_base_layer' : ''
+        }`;
         await utils.spawn(spawnCommand);
     }
 
     process.chdir(process.env.ZKSYNC_HOME as string);
 }
-
 
 async function generateAllSetupData(proverType: ProverType) {
     await generateSetupDataForBaseLayer(proverType);
@@ -238,13 +241,15 @@ async function downloadFilesFromGCP(gcpUri: string, destination: string): Promis
     process.chdir(destination);
 
     // Download all files in parallel
-    await Promise.all(files.map((file, index) => {
-        return (async () => {
-            console.log(chalk.yellow(`Downloading file ${index + 1} of ${files.length}`));
-            await utils.spawn(`wget -q --show-progress -c "${file}"`);
-            await utils.sleep(1);
-        })();
-    }));
+    await Promise.all(
+        files.map((file, index) => {
+            return (async () => {
+                console.log(chalk.yellow(`Downloading file ${index + 1} of ${files.length}`));
+                await utils.spawn(`wget -q --show-progress -c "${file}"`);
+                await utils.sleep(1);
+            })();
+        })
+    );
     process.chdir(process.env.ZKSYNC_HOME as string);
 }
 
