@@ -18,6 +18,7 @@ use zksync_vk_setup_data_server_fri::{
     get_base_layer_vk_for_circuit_type, get_recursive_layer_vk_for_circuit_type,
 };
 
+use crate::metrics::WITNESS_GENERATOR_METRICS;
 use crate::utils::{
     load_proofs_for_job_ids, save_node_aggregations_artifacts,
     save_recursive_layer_prover_input_artifacts, ClosedFormInputWrapper,
@@ -199,11 +200,10 @@ pub async fn prepare_leaf_aggregation_job(
     let started_at = Instant::now();
     let closed_form_input = get_artifacts(&metadata, object_store).await;
     let proofs = load_proofs_for_job_ids(&metadata.prover_job_ids_for_proofs, object_store).await;
-    metrics::histogram!(
-        "prover_fri.witness_generation.blob_fetch_time",
-        started_at.elapsed(),
-        "aggregation_round" => format!("{:?}", AggregationRound::LeafAggregation),
-    );
+
+    WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::LeafAggregation.into()]
+        .observe(started_at.elapsed());
+
     let started_at = Instant::now();
     let base_vk = get_base_layer_vk_for_circuit_type(metadata.circuit_id)
         .context("get_base_layer_vk_for_circuit_type()")?;
@@ -221,11 +221,10 @@ pub async fn prepare_leaf_aggregation_job(
         }
     }
     let leaf_params = compute_leaf_params(metadata.circuit_id, base_vk.clone(), leaf_vk);
-    metrics::histogram!(
-        "prover_fri.witness_generation.prepare_job_time",
-        started_at.elapsed(),
-        "aggregation_round" => format!("{:?}", AggregationRound::LeafAggregation),
-    );
+
+    WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::LeafAggregation.into()]
+        .observe(started_at.elapsed());
+
     Ok(LeafAggregationWitnessGeneratorJob {
         circuit_id: metadata.circuit_id,
         block_number: metadata.block_number,
@@ -249,11 +248,9 @@ pub fn process_leaf_aggregation_job(
     let leaf_params = (circuit_id, job.leaf_params);
     let (aggregations, closed_form_inputs) =
         create_leaf_witnesses(subsets, job.proofs, job.base_vk, leaf_params);
-    metrics::histogram!(
-        "prover_fri.witness_generation.witness_generation_time",
-        started_at.elapsed(),
-        "aggregation_round" => format!("{:?}", AggregationRound::LeafAggregation),
-    );
+    WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::LeafAggregation.into()]
+        .observe(started_at.elapsed());
+
     tracing::info!(
         "Leaf witness generation for block {} with circuit id {}: is complete in {:?}.",
         job.block_number.0,
@@ -379,11 +376,9 @@ async fn save_artifacts(
         None,
     )
     .await;
-    metrics::histogram!(
-        "prover_fri.witness_generation.blob_save_time",
-        started_at.elapsed(),
-        "aggregation_round" => format!("{:?}", AggregationRound::LeafAggregation),
-    );
+    WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::LeafAggregation.into()]
+        .observe(started_at.elapsed());
+
     BlobUrls {
         circuit_ids_and_urls,
         aggregations_urls,

@@ -8,5 +8,7 @@ pub mod scheduler;
 mod storage_oracle;
 pub mod utils;
 
+pub mod metrics;
+
 #[cfg(test)]
 mod tests;

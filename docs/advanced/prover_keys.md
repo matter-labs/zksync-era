@@ -114,7 +114,7 @@ For SNARK circuits (like snark_wrapper), we use keccak as hash function. For STA
 friendly hash function (currently Poseidon2).
 
 [basic_circuit_list]:
-  https://github.com/matter-labs/era-zkevm_test_harness/blob/3cd647aa57fc2e1180bab53f7a3b61ec47502a46/circuit_definitions/src/circuit_definitions/base_layer/mod.rs#L80
+  https://github.com/matter-labs/era-zkevm_test_harness/blob/3cd647aa57fc2e1180bab53f7a3b61ec47502a46/circuit_definitions/src/circuit_definitions/base_layer/mod.rs#L77
 [recursive_circuit_list]:
   https://github.com/matter-labs/era-zkevm_test_harness/blob/3cd647aa57fc2e1180bab53f7a3b61ec47502a46/circuit_definitions/src/circuit_definitions/recursion_layer/mod.rs#L29
 [verification_key_list]:
