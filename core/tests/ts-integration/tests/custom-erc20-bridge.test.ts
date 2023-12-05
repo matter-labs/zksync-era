@@ -34,6 +34,7 @@ describe('Tests for the custom bridge behavior', () => {
             return;
         }
         let balance = await alice.getBalanceL1();
+        console.log(`Balance alice ${balance}`);
         let transferTx = await alice._signerL1().sendTransaction({
             to: bob.address,
             value: balance.div(2)
@@ -41,7 +42,9 @@ describe('Tests for the custom bridge behavior', () => {
         await transferTx.wait();
 
         let allowList = new AllowListFactory(alice._signerL1());
+        console.log(`allowlist ${allowList}`);
         let allowListContract = await allowList.deploy(alice.address);
+        console.log(`allowlist ${allowListContract}`);
         await allowListContract.deployTransaction.wait(2);
 
         // load the l1bridge contract
