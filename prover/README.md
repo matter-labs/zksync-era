@@ -29,7 +29,7 @@ feature flag).
 
 Only used in GPU proving mode. Prepares all the witness data using CPU, and then streams it to the prover_fri.
 
-This is mosty used for resource efficiency (as machines with GPUs are more expensive, it allows us to run many
+This is mostly used for resource efficiency (as machines with GPUs are more expensive, it allows us to run many
 witness_vector_generators, that can 'share' as single gpu based prover_fri).
 
 ### proof_fri_compressor
