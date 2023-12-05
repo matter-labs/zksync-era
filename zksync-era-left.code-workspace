@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"name": "zksync-era",
+			"path": "./"
+		}
+	],
+	"settings": {
+		"solidity.defaultCompiler": "localNodeModule"
+	}
+}
