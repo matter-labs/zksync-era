@@ -1,9 +1,9 @@
-use crate::commitment::SerializeCommitment;
-use crate::{Address, H256};
 use serde::{Deserialize, Serialize};
 use zk_evm::reference_impls::event_sink::EventMessage;
 use zk_evm_1_4_0::reference_impls::event_sink::EventMessage as EventMessage_1_4_0;
 use zksync_utils::u256_to_h256;
+
+use crate::{commitment::SerializeCommitment, Address, H256};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, Eq)]
 pub struct L2ToL1Log {
@@ -94,10 +94,11 @@ impl From<EventMessage_1_4_0> for L2ToL1Log {
 
 #[cfg(test)]
 mod tests {
-    use super::L2ToL1Log;
     use zksync_basic_types::U256;
     use zksync_system_constants::L1_MESSENGER_ADDRESS;
     use zksync_utils::u256_to_h256;
+
+    use super::L2ToL1Log;
 
     #[test]
     fn l2_to_l1_log_to_bytes() {

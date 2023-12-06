@@ -1,10 +1,9 @@
-use serde::{Deserialize, Serialize};
-use zksync_system_constants::SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER;
-
 use std::{fmt, ops};
 
+use serde::{Deserialize, Serialize};
 use zksync_basic_types::{H2048, H256, U256};
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_system_constants::SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER;
 
 use crate::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},

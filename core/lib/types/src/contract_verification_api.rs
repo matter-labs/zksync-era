@@ -6,9 +6,8 @@ use serde::{
     Deserialize, Serialize,
 };
 
-use crate::{Address, Bytes};
-
 pub use crate::Execute as ExecuteData;
+use crate::{Address, Bytes};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "codeFormat", content = "sourceCode")]
