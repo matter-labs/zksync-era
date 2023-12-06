@@ -81,8 +81,7 @@ output.
 
 ## Running server using Google cloud storage object store instead of default In memory store
 
-Get the service_account.json file containing the GCP credentials from kubernetes secret for relevant environment(stage2/
-testnet2) add that file to the default location ~/gcloud/service_account.json or update object_store.toml with the file
+Get the `service_account.json` file containing the GCP credentials from Kubernetes secret for relevant environment(`stage2/testnet2`) add that file to the default location `~/gcloud/service_account.json` or update `object_store.toml` with the file
 location
 
 ```
@@ -259,7 +258,7 @@ Error: Genesis is not needed (either Postgres DB or tree's Rocks DB is not empty
 your `zksync-2-dev/etc/system-contracts/package.json`'s dependency on `"@matterlabs/hardhat-zksync-solc"` is outdated.
 We don't expect this error to happen as we've updated to latest version which fixes the problem.
 
-**Solution**. Update your dependency and reinit:
+**Solution**. Update your dependency and re-init:
 
 ```
 yarn add -D @matterlabs/hardhat-zksync-solc # in the system-contracts folder
@@ -310,7 +309,7 @@ Error: Child process exited with code 1
 your `zksync-2-dev/contracts/zksync/package.json`'s dependency on `"@matterlabs/hardhat-zksync-solc"` is outdated. We
 don't expect this error to happen as we've updated to latest version which fixes the problem.
 
-**Solution**. Update your dependency and reinit:
+**Solution**. Update your dependency and re-init:
 
 ```
 yarn add -D @matterlabs/hardhat-zksync-solc # in the system-contracts folder

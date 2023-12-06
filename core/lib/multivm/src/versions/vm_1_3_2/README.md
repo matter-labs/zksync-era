@@ -1,12 +1,12 @@
 # VM Crate
 
-This crate contains code that interacts with the VM - the VM itself is in a separate repo internal:
+This crate contains code that interacts with the VM - the VM itself is in a separate repository internal:
 [zk_evm][zk_evm_repo] or external:[era-zk_evm][zk_evm_repo_ext]
 
 ## VM dependencies
 
 The VM relies on several subcomponents or traits, such as Memory and Storage. These traits are defined in the `zk_evm`
-repo, while their implementations can be found in this crate, like the storage implementation in `oracles/storage.rs`
+repository, while their implementations can be found in this crate, like the storage implementation in `oracles/storage.rs`
 and the Memory implementation in `memory.rs`.
 
 Many of these implementations also support easy rollbacks and history, which is useful when creating a block with

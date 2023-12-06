@@ -2,11 +2,11 @@
 
 ## Supported operating systems
 
-zkSync currently can be launched on any \*nix operating system (e.g. any linux distribution or MacOS).
+zkSync currently can be launched on any \*nix operating system (e.g. any Linux distribution or MacOS).
 
 If you're using Windows, then make sure to use WSL 2, since WSL 1 is known to cause troubles.
 
-Additionally, if you are going to use WSL 2, make sure that your project is located in the _linux filesystem_, since
+Additionally, if you are going to use WSL 2, make sure that your project is located in the _Linux filesystem_, since
 accessing NTFS partitions from inside of WSL is very slow.
 
 If you're using MacOS with an ARM processor (e.g. M1/M2), make sure that you are working in the _native_ environment
@@ -17,34 +17,34 @@ If you are a NixOS user or would like to have a reproducible environment, skip t
 
 ## `Docker`
 
-Install `docker`. It is recommended to follow the instructions from the
+Install `Docker`. It is recommended to follow the instructions from the
 [official site](https://docs.docker.com/install/).
 
 Note: currently official site proposes using Docker Desktop for Linux, which is a GUI tool with plenty of quirks. If you
 want to only have CLI tool, you need the `docker-ce` package and you can follow
 [this guide](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-20-04) for Ubuntu.
 
-Installing `docker` via `snap` or from the default repository can cause troubles.
+Installing `Docker` via `snap` or from the default repository can cause troubles.
 
-You need to install both `docker` and `docker-compose`.
+You need to install both `Docker` and `docker-compose`.
 
 **Note:** `docker-compose` is installed automatically with `Docker Desktop`.
 
-**Note:** On linux you may encounter the following error when you’ll try to work with `zksync`:
+**Note:** On Linux you may encounter the following error when you will try to work with `zkSync`:
 
 ```
 ERROR: Couldn't connect to Docker daemon - you might need to run `docker-machine start default`.
 ```
 
 If so, you **do not need** to install `docker-machine`. Most probably, it means that your user is not added to
-the`docker` group. You can check it as follows:
+the `Docker` group. You can check it as follows:
 
 ```bash
 docker-compose up # Should raise the same error.
 sudo docker-compose up # Should start doing things.
 ```
 
-If the first command fails, but the second succeeds, then you need to add your user to the `docker` group:
+If the first command fails, but the second succeeds, then you need to add your user to the `Docker` group:
 
 ```bash
 sudo usermod -a -G docker your_user_name
@@ -76,7 +76,7 @@ On mac:
 brew install axel
 ```
 
-On debian-based linux:
+On debian-based Linux:
 
 ```bash
 sudo apt-get install axel
@@ -92,9 +92,9 @@ Make sure the version is higher than `2.17.10`.
 
 ## `clang`
 
-In order to compile RocksDB, you must have LLVM available. On debian-based linux it can be installed as follows:
+In order to compile RocksDB, you must have LLVM available. On debian-based Linux it can be installed as follows:
 
-On linux:
+On Linux:
 
 ```bash
 sudo apt-get install build-essential pkg-config cmake clang lldb lld
@@ -103,7 +103,7 @@ sudo apt-get install build-essential pkg-config cmake clang lldb lld
 On mac:
 
 You need to have an up-to-date `Xcode`. You can install it directly from `App Store`. With Xcode command line tools, you
-get the Clang compiler installed by default. Thus, having XCode you don't need to install `clang`.
+get the Clang compiler installed by default. Thus, having Xcode you don't need to install `clang`.
 
 ## `OpenSSL`
 
@@ -115,7 +115,7 @@ On mac:
 brew install openssl
 ```
 
-On linux:
+On Linux:
 
 ```bash
 sudo apt-get install libssl-dev
@@ -154,12 +154,12 @@ active toolchain
 ```
 
 If you see `x86_64` mentioned in the output, probably you're running (or used to run) your IDE/terminal in Rosetta. If
-that's the case, you should probably change the way you run terminal, and/or reinstall your IDE, and then reinstall the
+that's the case, you should probably change the way you run terminal, and/or re-install your IDE, and then re-install the
 Rust toolchain as well.
 
 ## Postgres
 
-Install the latest postgres:
+Install the latest Postgres:
 
 On mac:
 
@@ -167,7 +167,7 @@ On mac:
 brew install postgresql@14
 ```
 
-On linux:
+On Linux:
 
 ```bash
 sudo apt-get install postgresql
@@ -203,7 +203,7 @@ Alternatively, download a [precompiled version](https://github.com/ethereum/solc
 
 ## Python
 
-Most environments will have this preinstalled but if not, install Python.
+Most environments will have this pre-installed but if not, install Python.
 
 ## Easier method using `nix`
 
@@ -212,10 +212,10 @@ it is likely that it can be adapted to Mac.
 
 Install `nix`. Enable the nix command and flakes.
 
-Install docker, rustup and use rust to install SQLx CLI like described above. If you are on NixOS, you also need to
+Install Docker, Rustup and use rust to install SQLx CLI like described above. If you are on NixOS, you also need to
 enable nix-ld.
 
-Go to the zksync folder and run `nix develop --impure`. After it finishes, you are in a shell that has all the
+Go to the zkSync folder and run `nix develop --impure`. After it finishes, you are in a shell that has all the
 dependencies.
 
 ## Environment
@@ -238,7 +238,7 @@ Optionally, you may want to optimize the build time with the modern linker, [`mo
 
 This linker will speed up the build times, which can be pretty big for Rust binaries.
 
-Follow the instructions in the repo in order to install it and enable for Rust.
+Follow the instructions in the repository in order to install it and enable for Rust.
 
 ## Tip: Speeding up building `RocksDB`
 

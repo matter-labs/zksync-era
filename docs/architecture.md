@@ -70,7 +70,7 @@ This section provides a physical map of folders & files in this repository.
     - `/types`: zkSync network operations, transactions, and common types.
     - `/utils`: Miscellaneous helpers for zkSync crates.
     - `/vlog`: zkSync logging utility.
-    - `/vm`: ULightweight out-of-circuit VM interface.
+    - `/vm`: Lightweight out-of-circuit VM interface.
     - `/web3_decl`: Declaration of the Web3 API.
     - `zksync_core/src`
       - `/api_server` Externally facing APIs.

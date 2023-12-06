@@ -10,7 +10,7 @@ To setup the main toolkit, `zk`, simply run:
 zk
 ```
 
-You may also configure autocompletion for your shell via:
+You may also configure auto-completion for your shell via:
 
 ```
 zk completion install
@@ -30,7 +30,7 @@ This command will do the following:
 - Generate required smart contracts.
 - Compile all the smart contracts.
 - Deploy smart contracts to the local Ethereum network.
-- Create “genesis block” for server.
+- Create "genesis block" for server.
 
 Initializing may take pretty long, but many steps (such as downloading & unpacking keys and initializing containers) are
 required to be done only once.
@@ -54,7 +54,7 @@ zk clean --database --backups # Remove database *and* backups, but not configs.
    may try removing `$ZKSYNC_HOME/etc/env/dev.env` and running `zk init` once again. This may help if the application
    configuration has changed.
 
-If you don’t need all of the `zk init` functionality, but just need to start/stop containers, use the following
+If you do not need all of the `zk init` functionality, but just need to start/stop containers, use the following
 commands:
 
 ```
@@ -62,7 +62,7 @@ zk up   # Set up `geth` container
 zk down # Shut down `geth` container
 ```
 
-## Reinitializing
+## Re-initializing
 
 When actively changing something that affects infrastructure (for example, contracts code), you normally don't need the
 whole `init` functionality, as it contains many external steps (e.g. deploying ERC20 tokens) which don't have to be
@@ -141,7 +141,7 @@ To switch dummy prover to real prover, one must change `dummy_verifier` to `fals
 zk contract build
 ```
 
-### Publish source code on etherscan
+### Publish source code on Etherscan
 
 ```
 zk contract publish
