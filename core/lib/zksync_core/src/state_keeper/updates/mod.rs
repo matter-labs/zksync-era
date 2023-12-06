@@ -83,6 +83,7 @@ impl UpdatesManager {
         miniblock_number: MiniblockNumber,
         l2_erc20_bridge_addr: Address,
         consensus: Option<ConsensusBlockFields>,
+        pre_insert_txs: bool,
     ) -> MiniblockSealCommand {
         MiniblockSealCommand {
             l1_batch_number,
@@ -96,6 +97,7 @@ impl UpdatesManager {
             protocol_version: Some(self.protocol_version),
             l2_erc20_bridge_addr,
             consensus,
+            pre_insert_txs,
         }
     }
 
@@ -176,6 +178,10 @@ pub(crate) struct MiniblockSealCommand {
     pub protocol_version: Option<ProtocolVersionId>,
     pub l2_erc20_bridge_addr: Address,
     pub consensus: Option<ConsensusBlockFields>,
+    /// Whether transactions should be pre-inserted to DB.
+    /// Should be set to `true` for EN's IO as EN doesn't store transactions in DB
+    /// before they are included into miniblocks.
+    pub pre_insert_txs: bool,
 }
 
 #[cfg(test)]

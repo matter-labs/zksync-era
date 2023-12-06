@@ -275,6 +275,7 @@ where
             self.current_miniblock_number,
             self.l2_erc20_bridge_addr,
             None,
+            false,
         );
         self.miniblock_sealer_handle.submit(command).await;
         self.current_miniblock_number += 1;

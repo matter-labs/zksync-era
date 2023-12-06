@@ -19,14 +19,18 @@ use zksync_types::{
 use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
+    l1::L1Tx,
+    l2::L2Tx,
+    protocol_version::ProtocolUpgradeTx,
     storage_writes_deduplicator::{ModifiedSlot, StorageWritesDeduplicator},
     tx::{
         tx_execution_info::DeduplicatedWritesMetrics, IncludedTxLocation,
         TransactionExecutionResult,
     },
     zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
-    AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, LogQuery, MiniblockNumber,
-    StorageKey, StorageLog, StorageLogQuery, StorageValue, Transaction, VmEvent, H256,
+    AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, LogQuery,
+    MiniblockNumber, StorageKey, StorageLog, StorageLogQuery, StorageValue, Transaction, VmEvent,
+    H256,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::{h256_to_u256, time::millis_since_epoch, u256_to_h256};
@@ -66,6 +70,7 @@ impl UpdatesManager {
             current_miniblock_number,
             l2_erc20_bridge_addr,
             consensus,
+            false, // fictive miniblocks don't have txs, so it's fine to pass `false` here.
         );
         miniblock_command.seal_inner(&mut transaction, true).await;
         progress.observe(None);
@@ -277,6 +282,36 @@ impl MiniblockSealCommand {
     async fn seal_inner(&self, storage: &mut StorageProcessor<'_>, is_fictive: bool) {
         self.assert_valid_miniblock(is_fictive);
 
+        let mut transaction = storage.start_transaction().await.unwrap();
+        if self.pre_insert_txs {
+            let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::PreInsertTxs, is_fictive);
+            for tx in &self.miniblock.executed_transactions {
+                if let Ok(l1_tx) = L1Tx::try_from(tx.transaction.clone()) {
+                    let l1_block_number = L1BlockNumber(l1_tx.common_data.eth_block as u32);
+                    transaction
+                        .transactions_dal()
+                        .insert_transaction_l1(l1_tx, l1_block_number)
+                        .await;
+                } else if let Ok(l2_tx) = L2Tx::try_from(tx.transaction.clone()) {
+                    // Using `Default` for execution metrics should be OK here, since this data is not used on the EN.
+                    transaction
+                        .transactions_dal()
+                        .insert_transaction_l2(l2_tx, Default::default())
+                        .await;
+                } else if let Ok(protocol_system_upgrade_tx) =
+                    ProtocolUpgradeTx::try_from(tx.transaction.clone())
+                {
+                    transaction
+                        .transactions_dal()
+                        .insert_system_transaction(protocol_system_upgrade_tx)
+                        .await;
+                } else {
+                    unreachable!("Transaction {:?} is neither L1 nor L2", tx.transaction);
+                }
+            }
+            progress.observe(Some(self.miniblock.executed_transactions.len()));
+        }
+
         let l1_batch_number = self.l1_batch_number;
         let miniblock_number = self.miniblock_number;
         let started_at = Instant::now();
@@ -294,7 +329,6 @@ impl MiniblockSealCommand {
             event_count = self.miniblock.events.len()
         );
 
-        let mut transaction = storage.start_transaction().await.unwrap();
         let miniblock_header = MiniblockHeader {
             number: miniblock_number,
             timestamp: self.miniblock.timestamp,

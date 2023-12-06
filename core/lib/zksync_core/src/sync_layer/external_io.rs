@@ -1,20 +1,14 @@
 use async_trait::async_trait;
 use futures::future;
 
-use std::{
-    collections::HashMap,
-    convert::{TryFrom, TryInto},
-    iter::FromIterator,
-    time::Duration,
-};
+use std::{collections::HashMap, convert::TryInto, iter::FromIterator, time::Duration};
 
 use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    ethabi::Address, l1::L1Tx, l2::L2Tx, protocol_version::ProtocolUpgradeTx,
-    witness_block_state::WitnessBlockState, L1BatchNumber, L1BlockNumber, L2ChainId,
-    MiniblockNumber, ProtocolVersionId, Transaction, H256, U256,
+    ethabi::Address, protocol_version::ProtocolUpgradeTx, witness_block_state::WitnessBlockState,
+    L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256, U256,
 };
 use zksync_utils::{be_words_to_bytes, bytes_to_be_words};
 
@@ -31,7 +25,7 @@ use crate::{
             common::{l1_batch_params, load_pending_batch, poll_iters},
             MiniblockParams, MiniblockSealerHandle, PendingBatchData, StateKeeperIO,
         },
-        metrics::{KEEPER_METRICS, L1_BATCH_METRICS},
+        metrics::KEEPER_METRICS,
         seal_criteria::IoSealCriteria,
         updates::UpdatesManager,
     },
@@ -463,44 +457,13 @@ impl StateKeeperIO for ExternalIO {
             panic!("State keeper requested to seal miniblock, but the next action is {action:?}");
         };
 
-        let store_latency = L1_BATCH_METRICS.start_storing_on_en();
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
-        let mut transaction = storage.start_transaction().await.unwrap();
-        // We don't store the transactions in the database until they're executed to not overcomplicate the state
-        // recovery on restart. So we have to store them here.
-        for tx in &updates_manager.miniblock.executed_transactions {
-            if let Ok(l1_tx) = L1Tx::try_from(tx.transaction.clone()) {
-                let l1_block_number = L1BlockNumber(l1_tx.common_data.eth_block as u32);
-                transaction
-                    .transactions_dal()
-                    .insert_transaction_l1(l1_tx, l1_block_number)
-                    .await;
-            } else if let Ok(l2_tx) = L2Tx::try_from(tx.transaction.clone()) {
-                // Using `Default` for execution metrics should be OK here, since this data is not used on the EN.
-                transaction
-                    .transactions_dal()
-                    .insert_transaction_l2(l2_tx, Default::default())
-                    .await;
-            } else if let Ok(protocol_system_upgrade_tx) =
-                ProtocolUpgradeTx::try_from(tx.transaction.clone())
-            {
-                transaction
-                    .transactions_dal()
-                    .insert_system_transaction(protocol_system_upgrade_tx)
-                    .await;
-            } else {
-                unreachable!("Transaction {:?} is neither L1 nor L2", tx.transaction);
-            }
-        }
-        transaction.commit().await.unwrap();
-        store_latency.observe();
-
         // Now transactions are stored, and we may mark them as executed.
         let command = updates_manager.seal_miniblock_command(
             self.current_l1_batch_number,
             self.current_miniblock_number,
             self.l2_erc20_bridge_addr,
             consensus,
+            true,
         );
         self.miniblock_sealer_handle.submit(command).await;
 
