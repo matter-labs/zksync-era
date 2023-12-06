@@ -1,5 +1,6 @@
-use criterion::black_box;
 use std::time::{Duration, Instant};
+
+use criterion::black_box;
 use vm_benchmark_harness::{cut_to_allowed_bytecode_size, get_deploy_tx, BenchmarkingVm};
 
 fn main() {
