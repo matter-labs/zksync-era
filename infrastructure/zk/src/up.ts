@@ -34,9 +34,9 @@ export async function up(composeFile?: string) {
     if (composeFile) {
         await utils.spawn(`docker compose -f ${composeFile} up -d geth postgres`);
     } else {
-      await utils.spawn('docker-compose -f docker-compose-local-genesis.yml up');
-      await utils.spawn('docker-compose -f docker-compose-local-genesis.yml rm -f');
-      await utils.spawn('docker-compose up -d');
+        await utils.spawn('docker-compose -f docker-compose-local-genesis.yml up');
+        await utils.spawn('docker-compose -f docker-compose-local-genesis.yml rm -f');
+        await utils.spawn('docker-compose up -d');
     }
 }
 
