@@ -416,39 +416,27 @@ impl StorageLogsDal<'_, '_> {
             .collect()
     }
 
-    /// Resolves hashed keys into storage keys ((address, key) tuples).
-    /// Panics if there is an unknown hashed key in the input.
-    pub async fn resolve_hashed_keys(&mut self, hashed_keys: &[H256]) -> Vec<StorageKey> {
-        let hashed_keys: Vec<_> = hashed_keys.iter().map(H256::as_bytes).collect();
-        sqlx::query!(
-            "SELECT \
-                (SELECT ARRAY[address,key] FROM storage_logs \
-                WHERE hashed_key = u.hashed_key \
-                ORDER BY miniblock_number, operation_number \
-                LIMIT 1) as \"address_and_key?\" \
-            FROM UNNEST($1::bytea[]) AS u(hashed_key)",
-            &hashed_keys as &[&[u8]],
-        )
-        .fetch_all(self.storage.conn())
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|row| {
-            let address_and_key = row.address_and_key.unwrap();
-            StorageKey::new(
-                AccountTreeId::new(Address::from_slice(&address_and_key[0])),
-                H256::from_slice(&address_and_key[1]),
-            )
-        })
-        .collect()
-    }
-
     pub async fn get_miniblock_storage_logs(
         &mut self,
         miniblock_number: MiniblockNumber,
     ) -> Vec<(H256, H256, u32)> {
         self.get_miniblock_storage_logs_from_table(miniblock_number, "storage_logs")
             .await
+    }
+
+    /// Counts the total number of storage logs in the specified miniblock,
+    // TODO(PLA-596): add storage log count to snapshot metadata instead?
+    pub async fn count_miniblock_storage_logs(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+    ) -> sqlx::Result<u64> {
+        let count = sqlx::query_scalar!(
+            "SELECT COUNT(*) FROM storage_logs WHERE miniblock_number = $1",
+            miniblock_number.0 as i32
+        )
+        .fetch_one(self.storage.conn())
+        .await?;
+        Ok(count.unwrap_or(0) as u64)
     }
 
     /// Gets a starting tree entry for each of the supplied `key_ranges` for the specified snapshot

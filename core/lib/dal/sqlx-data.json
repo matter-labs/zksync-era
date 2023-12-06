@@ -364,6 +364,26 @@
     },
     "query": "UPDATE l1_batches SET hash = $1, merkle_root_hash = $2, compressed_repeated_writes = $3, compressed_initial_writes = $4, l2_l1_compressed_messages = $5, l2_l1_merkle_root = $6, zkporter_is_available = $7, parent_hash = $8, rollup_last_leaf_index = $9, pass_through_data_hash = $10, meta_parameters_hash = $11, compressed_state_diffs = $12, updated_at = now() WHERE number = $13 AND hash IS NULL"
   },
+  "0a3c928a616b5ebc0b977bd773edcde721ca1c652ae2f8db41fb75cecdecb674": {
+    "describe": {
+      "columns": [
+        {
+          "name": "count",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        null
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT COUNT(*) FROM storage_logs WHERE miniblock_number = $1"
+  },
   "0c212f47b9a0e719f947a419be8284837b1b01aa23994ba6401b420790b802b8": {
     "describe": {
       "columns": [],
@@ -5929,26 +5949,6 @@
       }
     },
     "query": "UPDATE l1_batches SET hash = $1, merkle_root_hash = $2, commitment = $3, default_aa_code_hash = $4, compressed_repeated_writes = $5, compressed_initial_writes = $6, l2_l1_compressed_messages = $7, l2_l1_merkle_root = $8, zkporter_is_available = $9, bootloader_code_hash = $10, rollup_last_leaf_index = $11, aux_data_hash = $12, pass_through_data_hash = $13, meta_parameters_hash = $14, compressed_state_diffs = $15, updated_at = now() WHERE number = $16"
-  },
-  "780b30e56a3ecfb3daa5310168ac6cd9e94bd5f1d871e1eaf36fbfd463a5e7e0": {
-    "describe": {
-      "columns": [
-        {
-          "name": "address_and_key?",
-          "ordinal": 0,
-          "type_info": "ByteaArray"
-        }
-      ],
-      "nullable": [
-        null
-      ],
-      "parameters": {
-        "Left": [
-          "ByteaArray"
-        ]
-      }
-    },
-    "query": "SELECT (SELECT ARRAY[address,key] FROM storage_logs WHERE hashed_key = u.hashed_key ORDER BY miniblock_number, operation_number LIMIT 1) as \"address_and_key?\" FROM UNNEST($1::bytea[]) AS u(hashed_key)"
   },
   "78ba607e97bdf8b7c0b5e3cf87e10dc3b352a8552c2e94532b0f392af7dbe9cd": {
     "describe": {
