@@ -17,13 +17,12 @@ use zksync_types::{
 };
 
 use super::{fetcher::FetcherCursor, sync_action::SyncAction, *};
-use crate::state_keeper::MiniblockSealer;
 use crate::{
     api_server::web3::tests::spawn_http_server,
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
         tests::{create_l1_batch_metadata, create_l2_transaction, TestBatchExecutorBuilder},
-        ZkSyncStateKeeper,
+        MiniblockSealer, ZkSyncStateKeeper,
     },
 };
 
@@ -157,7 +156,7 @@ impl StateKeeperHandles {
         ensure_genesis(&mut pool.access_storage().await.unwrap()).await;
 
         let sync_state = SyncState::new();
-        let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(pool.clone(), 0);
+        let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(pool.clone(), 5);
         tokio::spawn(miniblock_sealer.run());
 
         let io = ExternalIO::new(
