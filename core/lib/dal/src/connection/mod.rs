@@ -224,7 +224,7 @@ impl ConnectionPool {
             Ok(conn) => Ok(conn),
             Err(err) => {
                 Self::report_connection_error(&err);
-                anyhow::bail!("Run out of retries getting a DB connetion, last error: {err}");
+                anyhow::bail!("Run out of retries getting a DB connection, last error: {err}");
             }
         }
     }
