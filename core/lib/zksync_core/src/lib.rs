@@ -35,7 +35,6 @@ use zksync_prover_utils::periodic_job::PeriodicJob;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
-    proofs::AggregationRound,
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
     L2ChainId, PackedEthSignature, ProtocolVersionId,
@@ -238,9 +237,6 @@ pub enum Component {
     /// Produces input for basic witness generator and uploads it as bin encoded file (blob) to GCS.
     /// The blob is later used as input for Basic Witness Generators.
     BasicWitnessInputProducer,
-    /// Witness Generator. The first argument is a number of jobs to process. If None, runs indefinitely.
-    /// The second argument is the type of the witness-generation performed
-    WitnessGenerator(Option<usize>, AggregationRound),
     /// Component for housekeeping task such as cleaning blobs from GCS, reporting metrics etc.
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
@@ -275,38 +271,6 @@ impl FromStr for Components {
             "housekeeper" => Ok(Components(vec![Component::Housekeeper])),
             "basic_witness_input_producer" => {
                 Ok(Components(vec![Component::BasicWitnessInputProducer]))
-            }
-            "witness_generator" => Ok(Components(vec![
-                Component::WitnessGenerator(None, AggregationRound::BasicCircuits),
-                Component::WitnessGenerator(None, AggregationRound::LeafAggregation),
-                Component::WitnessGenerator(None, AggregationRound::NodeAggregation),
-                Component::WitnessGenerator(None, AggregationRound::Scheduler),
-            ])),
-            "one_shot_witness_generator" => Ok(Components(vec![
-                Component::WitnessGenerator(Some(1), AggregationRound::BasicCircuits),
-                Component::WitnessGenerator(Some(1), AggregationRound::LeafAggregation),
-                Component::WitnessGenerator(Some(1), AggregationRound::NodeAggregation),
-                Component::WitnessGenerator(Some(1), AggregationRound::Scheduler),
-            ])),
-            "one_shot_basic_witness_generator" => {
-                Ok(Components(vec![Component::WitnessGenerator(
-                    Some(1),
-                    AggregationRound::BasicCircuits,
-                )]))
-            }
-            "one_shot_leaf_witness_generator" => Ok(Components(vec![Component::WitnessGenerator(
-                Some(1),
-                AggregationRound::LeafAggregation,
-            )])),
-            "one_shot_node_witness_generator" => Ok(Components(vec![Component::WitnessGenerator(
-                Some(1),
-                AggregationRound::NodeAggregation,
-            )])),
-            "one_shot_scheduler_witness_generator" => {
-                Ok(Components(vec![Component::WitnessGenerator(
-                    Some(1),
-                    AggregationRound::Scheduler,
-                )]))
             }
             "eth" => Ok(Components(vec![
                 Component::EthWatcher,
