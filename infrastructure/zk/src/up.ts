@@ -34,10 +34,13 @@ export async function up(composeFile?: string) {
     if (composeFile) {
         await utils.spawn(`docker compose -f ${composeFile} up -d geth postgres`);
     } else {
-        await utils.spawn('docker-compose -f docker-compose-local-genesis.yml up');
-        await utils.spawn('docker-compose -f docker-compose-local-genesis.yml rm -f');
         await utils.spawn('docker-compose up -d');
     }
 }
 
-export const command = new Command('up').description('start development containers').action(up);
+export const command = new Command('up')
+    .description('start development containers')
+    .option('--docker-file', 'path to a custom docker file')
+    .action(async (cmd) => {
+        await up(cmd.dockerFile);
+    });
