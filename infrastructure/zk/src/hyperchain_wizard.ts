@@ -476,7 +476,7 @@ async function initializeWethTokenForHyperchain() {
 async function startServer() {
     const YES_DEFAULT = 'Yes (default components)';
     const YES_CUSTOM = 'Yes (custom components)';
-    const NO = 'Not right now (you want to use prover with docker-compose)';
+    const NO = 'Not right now (you can now configure prover, generate docker files, or just run the server later)';
 
     const questions: BasePromptOptions[] = [
         {
