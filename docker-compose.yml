@@ -22,7 +22,6 @@ services:
     command: --datadir=/execution init /execution/genesis.json
     volumes:
       - ./volumes/geth:/execution
-      - ./volumes/geth/genesis.json:/execution/genesis.json
     depends_on:
       create-beacon-chain-genesis:
         condition: service_completed_successfully
