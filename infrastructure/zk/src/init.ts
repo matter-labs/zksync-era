@@ -17,11 +17,6 @@ const announce = chalk.yellow;
 const success = chalk.green;
 const timestamp = chalk.grey;
 
-async function generateLocalGenesis() {
-    await utils.spawn('docker-compose -f docker-compose-local-genesis.yml up');
-    await utils.spawn('docker-compose -f docker-compose-local-genesis.yml rm -f');
-}
-
 export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     const {
         skipSubmodulesCheckout,
@@ -36,7 +31,6 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
         await announced('Pulling images', docker.pull());
         await announced('Checking environment', checkEnv());
         await announced('Checking git hooks', env.gitHooks());
-        await announced('Generating local L1 genesis', generateLocalGenesis());
         await announced('Setting up containers', up());
         !skipPlonkStep && (await announced('Checking PLONK setup', run.plonkSetup()));
     }
