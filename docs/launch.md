@@ -81,8 +81,9 @@ output.
 
 ## Running server using Google cloud storage object store instead of default In memory store
 
-Get the `service_account.json` file containing the GCP credentials from Kubernetes secret for relevant environment(`stage2/testnet2`) add that file to the default location `~/gcloud/service_account.json` or update `object_store.toml` with the file
-location
+Get the `service_account.json` file containing the GCP credentials from Kubernetes secret for relevant
+environment(`stage2/testnet2`) add that file to the default location `~/gcloud/service_account.json` or update
+`object_store.toml` with the file location
 
 ```
 zk server

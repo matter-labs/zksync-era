@@ -36,8 +36,8 @@ You need to install both `Docker` and `docker-compose`.
 ERROR: Couldn't connect to Docker daemon - you might need to run `docker-machine start default`.
 ```
 
-If so, you **do not need** to install `docker-machine`. Most probably, it means that your user is not added to
-the `Docker` group. You can check it as follows:
+If so, you **do not need** to install `docker-machine`. Most probably, it means that your user is not added to the
+`Docker` group. You can check it as follows:
 
 ```bash
 docker-compose up # Should raise the same error.
@@ -154,8 +154,8 @@ active toolchain
 ```
 
 If you see `x86_64` mentioned in the output, probably you're running (or used to run) your IDE/terminal in Rosetta. If
-that's the case, you should probably change the way you run terminal, and/or re-install your IDE, and then re-install the
-Rust toolchain as well.
+that's the case, you should probably change the way you run terminal, and/or re-install your IDE, and then re-install
+the Rust toolchain as well.
 
 ## Postgres
 
