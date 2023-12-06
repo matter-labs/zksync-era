@@ -29,11 +29,15 @@ function createVolumes() {
     );
 }
 
-export async function up() {
+export async function up(composeFile?: string) {
     createVolumes();
-    await utils.spawn('docker-compose -f docker-compose-local-genesis.yml up');
-    await utils.spawn('docker-compose -f docker-compose-local-genesis.yml rm -f');
-    await utils.spawn('docker-compose up -d');
+    if (composeFile) {
+        await utils.spawn(`docker compose -f ${composeFile} up -d geth postgres`);
+    } else {
+      await utils.spawn('docker-compose -f docker-compose-local-genesis.yml up');
+      await utils.spawn('docker-compose -f docker-compose-local-genesis.yml rm -f');
+      await utils.spawn('docker-compose up -d');
+    }
 }
 
 export const command = new Command('up').description('start development containers').action(up);
