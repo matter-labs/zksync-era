@@ -2,7 +2,7 @@ use crate::genesis::{ensure_genesis_state, GenesisParams};
 use crate::state_keeper::tests::{
     create_l1_batch_metadata, create_l2_transaction, MockBatchExecutorBuilder,
 };
-use crate::state_keeper::ZkSyncStateKeeper;
+use crate::state_keeper::{MiniblockSealer, ZkSyncStateKeeper};
 use crate::sync_layer::{
     sync_action::{ActionQueue, ActionQueueSender, SyncAction},
     ExternalIO, MainNodeClient, SyncState,
@@ -259,7 +259,10 @@ impl StateKeeperRunner {
                     .await
                     .context("ensure_genesis_state()")?;
             }
+            let (stop_sender, stop_receiver) = sync::watch::channel(false);
+            let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(pool.clone(), 5);
             let io = ExternalIO::new(
+                miniblock_sealer_handle,
                 pool.clone(),
                 self.actions_queue,
                 SyncState::new(),
@@ -269,21 +272,19 @@ impl StateKeeperRunner {
                 L2ChainId::default(),
             )
             .await;
-            let (stop_sender, stop_receiver) = sync::watch::channel(false);
-            s.spawn(run_metadata_calculator(ctx, pool.clone()));
-            s.spawn(async {
-                let stop_sender = stop_sender;
-                ctx.canceled().await;
-                let _ = stop_sender.send(true);
-                Ok(())
-            });
-            ZkSyncStateKeeper::without_sealer(
-                stop_receiver,
-                Box::new(io),
-                Box::new(MockBatchExecutorBuilder),
-            )
-            .run()
-            .await
+            s.spawn_bg(miniblock_sealer.run());
+            s.spawn_bg(run_metadata_calculator(ctx, pool.clone()));
+            s.spawn_bg(
+                ZkSyncStateKeeper::without_sealer(
+                    stop_receiver,
+                    Box::new(io),
+                    Box::new(MockBatchExecutorBuilder),
+                )
+                .run(),
+            );
+            ctx.canceled().await;
+            let _ = stop_sender.send(true);
+            Ok(())
         })
         .await
     }
