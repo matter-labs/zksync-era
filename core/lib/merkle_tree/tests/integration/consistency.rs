@@ -3,9 +3,9 @@
 
 use rand::{rngs::StdRng, seq::SliceRandom, Rng, SeedableRng};
 use tempfile::TempDir;
+use zksync_merkle_tree::{MerkleTree, MerkleTreeColumnFamily, RocksDBWrapper};
 
 use crate::common::generate_key_value_pairs;
-use zksync_merkle_tree::{MerkleTree, MerkleTreeColumnFamily, RocksDBWrapper};
 
 // Something (maybe RocksDB) makes the test below work very slowly in the debug mode;
 // thus, the number of test cases is conditionally reduced.
