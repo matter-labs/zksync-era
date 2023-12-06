@@ -3,7 +3,13 @@ use zksync_concurrency::{ctx, scope};
 use zksync_consensus_executor::testonly::FullValidatorConfig;
 use zksync_consensus_roles::validator;
 use zksync_dal::ConnectionPool;
-use zksync_types::Address;
+use zksync_types::{Address, ProtocolVersionId};
+
+fn latest_protocol_version() -> validator::ProtocolVersion {
+    (ProtocolVersionId::latest() as u32)
+        .try_into()
+        .expect("latest protocol version is invalid")
+}
 
 // In the current implementation, consensus certificates are created asynchronously
 // for the miniblocks constructed by the StateKeeper. This means that consensus actor
@@ -37,7 +43,7 @@ async fn test_backfill() {
         };
         let cfg = FullValidatorConfig::for_single_validator(
             &mut ctx.rng(),
-            validator::ProtocolVersion::EARLIEST,
+            latest_protocol_version(),
             genesis_payload.encode(),
             GENESIS_BLOCK,
         );
@@ -54,7 +60,7 @@ async fn test_backfill() {
         s.spawn_bg(cfg.run(ctx, pool.clone()));
         sk.sync_consensus(ctx, &pool)
             .await
-            .context("sk.sync_consensus(<1st phase)")?;
+            .context("sk.sync_consensus(<1st phase>)")?;
 
         // Generate couple more blocks and wait for consensus to catch up.
         sk.push_random_blocks(rng, 7).await;

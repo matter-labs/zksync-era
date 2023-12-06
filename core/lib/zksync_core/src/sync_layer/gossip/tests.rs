@@ -417,9 +417,15 @@ async fn syncing_from_non_zero_block(first_block_number: u32) {
         rng,
         protocol_version,
         genesis_block_payload.clone(),
-        validator::BlockNumber(first_block_number.into()),
+        validator::BlockNumber(0),
     );
-    let genesis_block = validator.node_config.genesis_block.clone();
+    // Override the genesis block since it has an incorrect block number.
+    let genesis_block = create_genesis_block(
+        &validator.validator_key,
+        first_block_number.into(),
+        genesis_block_payload,
+    );
+    validator.node_config.genesis_block = genesis_block.clone();
     let validator_set = validator.node_config.validators.clone();
     let external_node = validator.connect_full_node(rng);
 
