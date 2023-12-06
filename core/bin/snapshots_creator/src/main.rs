@@ -71,12 +71,12 @@ async fn process_storage_logs_single_chunk(
     chunk_id: u64,
     chunks_count: u64,
 ) -> anyhow::Result<String> {
-    let (min_hashed_key, max_hashed_key) = get_chunk_hashed_keys_range(chunk_id, chunks_count);
+    let hashed_keys_range = get_chunk_hashed_keys_range(chunk_id, chunks_count);
     let latency = METRICS.storage_logs_processing_duration.start();
     let mut conn = pool.access_storage_tagged("snapshots_creator").await?;
     let logs = conn
         .snapshots_creator_dal()
-        .get_storage_logs_chunk(miniblock_number, &min_hashed_key, &max_hashed_key)
+        .get_storage_logs_chunk(miniblock_number, hashed_keys_range)
         .await
         .context("Error fetching storage logs count")?;
     drop(conn);

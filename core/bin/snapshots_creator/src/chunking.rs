@@ -1,6 +1,7 @@
 use std::cmp::min;
+use zksync_types::H256;
 
-pub fn get_chunk_hashed_keys_range(chunk_id: u64, chunks_count: u64) -> ([u8; 2], [u8; 2]) {
+pub fn get_chunk_hashed_keys_range(chunk_id: u64, chunks_count: u64) -> std::ops::Range<H256> {
     //we don't need whole [u8; 32] range of H256, first two bytes are already enough to evenly divide work
     // as two bytes = 65536 buckets and the chunks count would go in thousands
     let buckets = (u16::MAX as u64) + 1;
@@ -15,7 +16,14 @@ pub fn get_chunk_hashed_keys_range(chunk_id: u64, chunks_count: u64) -> ([u8; 2]
     let chunk_start = chunk_id * chunk_size + min(chunk_id, buckets % chunks_count);
     let chunk_end = (chunk_id + 1) * chunk_size + min(chunk_id + 1, buckets % chunks_count) - 1;
 
-    let start_bytes = (chunk_start as u16).to_be_bytes();
-    let end_bytes = (chunk_end as u16).to_be_bytes();
-    (start_bytes, end_bytes)
+    let mut start_bytes = (chunk_start as u16).to_be_bytes().to_vec();
+    let mut end_bytes = (chunk_end as u16).to_be_bytes().to_vec();
+
+    start_bytes.resize(32, 0);
+    end_bytes.resize(32, 0);
+
+    std::ops::Range {
+        start: H256::from_slice(&start_bytes),
+        end: H256::from_slice(&end_bytes),
+    }
 }

@@ -34,16 +34,15 @@ impl SnapshotsCreatorDal<'_, '_> {
     pub async fn get_storage_logs_chunk(
         &mut self,
         miniblock_number: MiniblockNumber,
-        min_hashed_key: &[u8],
-        max_hashed_key: &[u8],
+        hashed_keys_range: std::ops::Range<H256>,
     ) -> sqlx::Result<Vec<SnapshotStorageLog>> {
         let storage_logs = sqlx::query!(
             r#"
-            SELECT storage_logs.key,
-                   storage_logs.value,
-                   storage_logs.address,
-                   storage_logs.miniblock_number,
-                   initial_writes.l1_batch_number,
+            SELECT storage_logs.key as "key!",
+                   storage_logs.value as "value!",
+                   storage_logs.address as "address!",
+                   storage_logs.miniblock_number as "miniblock_number!",
+                   initial_writes.l1_batch_number as "l1_batch_number!",
                    initial_writes.index
             FROM (SELECT hashed_key,
                          max(ARRAY [miniblock_number, operation_number]::int[]) AS op
@@ -57,21 +56,24 @@ impl SnapshotsCreatorDal<'_, '_> {
                      INNER JOIN initial_writes ON keys.hashed_key = initial_writes.hashed_key;
              "#,
             miniblock_number.0 as i64,
-            min_hashed_key,
-            max_hashed_key,
+            hashed_keys_range.start.0.as_slice(),
+            hashed_keys_range.end.0.as_slice(),
         )
         .instrument("get_storage_logs_chunk")
+        .with_arg("miniblock_number", &miniblock_number)
+        .with_arg("min_hashed_key", &hashed_keys_range.start)
+        .with_arg("max_hashed_key", &hashed_keys_range.end)
         .report_latency()
         .fetch_all(self.storage.conn())
         .await?
         .iter()
         .map(|row| SnapshotStorageLog {
             key: StorageKey::new(
-                AccountTreeId::new(Address::from_slice(row.address.as_ref().unwrap())),
-                H256::from_slice(row.key.as_ref().unwrap()),
+                AccountTreeId::new(Address::from_slice(&row.address)),
+                H256::from_slice(&row.key),
             ),
-            value: H256::from_slice(row.value.as_ref().unwrap()),
-            l1_batch_number_of_initial_write: L1BatchNumber(row.l1_batch_number.unwrap() as u32),
+            value: H256::from_slice(&row.value),
+            l1_batch_number_of_initial_write: L1BatchNumber(row.l1_batch_number as u32),
             enumeration_index: row.index.unwrap() as u64,
         })
         .collect();
