@@ -1,17 +1,20 @@
 //! Conversion logic between server and consensus types.
-
 use anyhow::Context as _;
 
 use zksync_consensus_roles::validator::{BlockHeader, BlockNumber, FinalBlock};
-use zksync_types::{
-    api::en::SyncBlock, block::ConsensusBlockFields, MiniblockNumber, ProtocolVersionId,
-};
+use zksync_dal::blocks_dal::ConsensusBlockFields;
+use zksync_types::{api::en, MiniblockNumber, ProtocolVersionId};
 
 use crate::{consensus, sync_layer::fetcher::FetchedBlock};
 
-pub(super) fn sync_block_to_consensus_block(mut block: SyncBlock) -> anyhow::Result<FinalBlock> {
+pub(super) fn sync_block_to_consensus_block(block: en::SyncBlock) -> anyhow::Result<FinalBlock> {
     let number = BlockNumber(block.number.0.into());
-    let consensus = block.consensus.take().context("Missing consensus fields")?;
+    let consensus = block
+        .consensus
+        .as_ref()
+        .context("Missing consensus fields")?;
+    let consensus =
+        ConsensusBlockFields::decode(consensus).context("ConsensusBlockFields::decode()")?;
     let consensus_protocol_version = consensus.justification.message.protocol_version.as_u32();
     let block_protocol_version = block.protocol_version as u32;
     anyhow::ensure!(

@@ -12,8 +12,9 @@ use zksync_concurrency::{
 };
 use zksync_consensus_roles::validator::{BlockNumber, FinalBlock};
 use zksync_consensus_storage::{BlockStore, StorageError, StorageResult};
+use zksync_dal::blocks_dal::ConsensusBlockFields;
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_types::{api::en::SyncBlock, block::ConsensusBlockFields, Address, MiniblockNumber};
+use zksync_types::{api::en::SyncBlock, Address, MiniblockNumber};
 
 #[cfg(test)]
 mod tests;
@@ -157,9 +158,12 @@ impl PostgresBlockStorage {
             justification: genesis_block.justification.clone(),
         };
         if let Some(actual_consensus_fields) = &actual_consensus_fields {
+            let actual_consensus_fields = ConsensusBlockFields::decode(actual_consensus_fields)
+                .context("ConsensusBlockFields::decode()")
+                .map_err(StorageError::Database)?;
             // While justifications may differ among nodes for an arbitrary block, we assume that
             // the genesis block has a hardcoded justification.
-            if *actual_consensus_fields != expected_consensus_fields {
+            if actual_consensus_fields != expected_consensus_fields {
                 let err = anyhow::anyhow!(
                     "Genesis block consensus fields in Postgres {actual_consensus_fields:?} do not match \
                      the configured ones {expected_consensus_fields:?}"
