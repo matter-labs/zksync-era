@@ -127,7 +127,7 @@ struct Completable<T> {
 
 /// Handle for [`MiniblockSealer`] allowing to submit [`MiniblockSealCommand`]s.
 #[derive(Debug)]
-pub(crate) struct MiniblockSealerHandle {
+pub struct MiniblockSealerHandle {
     commands_sender: mpsc::Sender<Completable<MiniblockSealCommand>>,
     latest_completion_receiver: Option<oneshot::Receiver<()>>,
     // If true, `submit()` will wait for the operation to complete.
@@ -141,7 +141,7 @@ impl MiniblockSealerHandle {
     ///
     /// If there are currently too many unprocessed commands, this method will wait until
     /// enough of them are processed (i.e., there is back pressure).
-    pub async fn submit(&mut self, command: MiniblockSealCommand) {
+    pub(crate) async fn submit(&mut self, command: MiniblockSealCommand) {
         let miniblock_number = command.miniblock_number;
         tracing::debug!(
             "Enqueuing sealing command for miniblock #{miniblock_number} with #{} txs (L1 batch #{})",
@@ -206,7 +206,7 @@ impl MiniblockSealerHandle {
 
 /// Component responsible for sealing miniblocks (i.e., storing their data to Postgres).
 #[derive(Debug)]
-pub(crate) struct MiniblockSealer {
+pub struct MiniblockSealer {
     pool: ConnectionPool,
     is_sync: bool,
     // Weak sender handle to get queue capacity stats.
@@ -217,10 +217,7 @@ pub(crate) struct MiniblockSealer {
 impl MiniblockSealer {
     /// Creates a sealer that will use the provided Postgres connection and will have the specified
     /// `command_capacity` for unprocessed sealing commands.
-    pub(crate) fn new(
-        pool: ConnectionPool,
-        mut command_capacity: usize,
-    ) -> (Self, MiniblockSealerHandle) {
+    pub fn new(pool: ConnectionPool, mut command_capacity: usize) -> (Self, MiniblockSealerHandle) {
         let is_sync = command_capacity == 0;
         command_capacity = command_capacity.max(1);
 

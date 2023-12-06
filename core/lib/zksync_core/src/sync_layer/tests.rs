@@ -21,7 +21,7 @@ use crate::{
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
         tests::{create_l1_batch_metadata, create_l2_transaction, TestBatchExecutorBuilder},
-        ZkSyncStateKeeper,
+        MiniblockSealer, ZkSyncStateKeeper,
     },
 };
 
@@ -155,7 +155,11 @@ impl StateKeeperHandles {
         ensure_genesis(&mut pool.access_storage().await.unwrap()).await;
 
         let sync_state = SyncState::new();
+        let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(pool.clone(), 5);
+        tokio::spawn(miniblock_sealer.run());
+
         let io = ExternalIO::new(
+            miniblock_sealer_handle,
             pool,
             actions,
             sync_state.clone(),
