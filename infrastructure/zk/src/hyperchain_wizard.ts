@@ -671,7 +671,6 @@ async function _generateDockerImages(_orgName?: string) {
         }
 
         if (process.env.PROVER_TYPE === ProverType.GPU) {
-            // throw new Error('GPU prover configuration not available yet');
             hasGPUProver = true;
             const cudaArchPrompt: BasePromptOptions[] = [
                 {
