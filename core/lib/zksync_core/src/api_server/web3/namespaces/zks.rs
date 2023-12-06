@@ -2,7 +2,6 @@ use std::{collections::HashMap, convert::TryInto};
 
 use bigdecimal::{BigDecimal, Zero};
 use zksync_dal::StorageProcessor;
-
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
     api::{
@@ -25,11 +24,13 @@ use zksync_web3_decl::{
     types::{Address, Filter, Log, Token, H256},
 };
 
-use crate::api_server::{
-    tree::TreeApiClient,
-    web3::{backend_jsonrpc::error::internal_error, metrics::API_METRICS, RpcState},
+use crate::{
+    api_server::{
+        tree::TreeApiClient,
+        web3::{backend_jsonrpc::error::internal_error, metrics::API_METRICS, RpcState},
+    },
+    l1_gas_price::L1GasPriceProvider,
 };
-use crate::l1_gas_price::L1GasPriceProvider;
 
 #[derive(Debug)]
 pub struct ZksNamespace<G> {

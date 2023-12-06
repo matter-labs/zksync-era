@@ -1,9 +1,8 @@
+use std::{sync::Arc, time::Instant};
+
 use assert_matches::assert_matches;
 use async_trait::async_trait;
 use tokio::sync::watch;
-
-use std::{sync::Arc, time::Instant};
-
 use zksync_config::configs::{
     api::Web3JsonRpcConfig,
     chain::{NetworkConfig, StateKeeperConfig},
@@ -23,14 +22,14 @@ use zksync_web3_decl::{
     types::FilterChanges,
 };
 
-mod ws;
-
 use super::{metrics::ApiTransportLabel, *};
 use crate::{
     api_server::tx_sender::TxSenderConfig,
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::tests::create_l2_transaction,
 };
+
+mod ws;
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);

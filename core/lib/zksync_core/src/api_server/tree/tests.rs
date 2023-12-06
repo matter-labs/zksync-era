@@ -1,9 +1,8 @@
 //! Tests for the Merkle tree API.
 
-use tempfile::TempDir;
-
 use std::net::Ipv4Addr;
 
+use tempfile::TempDir;
 use zksync_dal::ConnectionPool;
 
 use super::*;

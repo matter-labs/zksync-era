@@ -1,14 +1,13 @@
 //! High-level sync layer tests.
 
-use async_trait::async_trait;
-use tokio::{sync::watch, task::JoinHandle};
-
 use std::{
     collections::{HashMap, VecDeque},
     iter,
     time::{Duration, Instant},
 };
 
+use async_trait::async_trait;
+use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::NetworkConfig;
 use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::{ConnectionPool, StorageProcessor};

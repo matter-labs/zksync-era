@@ -1,5 +1,3 @@
-use async_trait::async_trait;
-
 use std::{
     cmp,
     collections::HashMap,
@@ -7,9 +5,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
-use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
-
+use async_trait::async_trait;
+use multivm::{
+    interface::{FinishedL1Batch, L1BatchEnv, SystemEnv},
+    vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata,
+};
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
@@ -523,7 +523,6 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
 #[cfg(test)]
 mod tests {
     use tokio::time::timeout_at;
-
     use zksync_utils::time::seconds_since_epoch;
 
     use super::*;

@@ -1,15 +1,14 @@
 //! General-purpose state keeper metrics.
 
-use vise::{
-    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver,
-    Metrics,
-};
-
 use std::{
     sync::{Mutex, Weak},
     time::Duration,
 };
 
+use vise::{
+    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver,
+    Metrics,
+};
 use zksync_mempool::MempoolStore;
 
 use super::seal_criteria::SealResolution;

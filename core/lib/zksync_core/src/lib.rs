@@ -7,7 +7,6 @@ use futures::channel::oneshot;
 use prometheus_exporter::PrometheusExporterConfig;
 use temp_config_store::TempConfigStore;
 use tokio::{sync::watch, task::JoinHandle};
-
 use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker, CircuitBreaker,
     CircuitBreakerChecker, CircuitBreakerError,
@@ -26,9 +25,10 @@ use zksync_config::{
 };
 use zksync_contracts::{governance_contract, BaseSystemContracts};
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
-use zksync_eth_client::clients::http::QueryClient;
-use zksync_eth_client::EthInterface;
-use zksync_eth_client::{clients::http::PKSigningClient, BoundEthInterface};
+use zksync_eth_client::{
+    clients::http::{PKSigningClient, QueryClient},
+    BoundEthInterface, EthInterface,
+};
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_utils::periodic_job::PeriodicJob;
@@ -41,6 +41,46 @@ use zksync_types::{
     L2ChainId, PackedEthSignature, ProtocolVersionId,
 };
 use zksync_verification_key_server::get_cached_commitments;
+
+use crate::{
+    api_server::{
+        contract_verification,
+        execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
+        healthcheck::HealthCheckHandle,
+        tx_sender::{ApiContracts, TxSender, TxSenderBuilder, TxSenderConfig},
+        web3,
+        web3::{state::InternalApiConfig, ApiServerHandles, Namespace},
+    },
+    basic_witness_input_producer::BasicWitnessInputProducer,
+    data_fetchers::run_data_fetchers,
+    eth_sender::{Aggregator, EthTxAggregator, EthTxManager},
+    eth_watch::start_eth_watch,
+    house_keeper::{
+        blocks_state_reporter::L1BatchMetricsReporter,
+        fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager,
+        fri_proof_compressor_queue_monitor::FriProofCompressorStatsReporter,
+        fri_prover_job_retry_manager::FriProverJobRetryManager,
+        fri_prover_queue_monitor::FriProverStatsReporter,
+        fri_scheduler_circuit_queuer::SchedulerCircuitQueuer,
+        fri_witness_generator_jobs_retry_manager::FriWitnessGeneratorJobRetryManager,
+        fri_witness_generator_queue_monitor::FriWitnessGeneratorStatsReporter,
+        gpu_prover_queue_monitor::GpuProverQueueMonitor,
+        prover_job_retry_manager::ProverJobRetryManager, prover_queue_monitor::ProverStatsReporter,
+        waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
+        waiting_to_queued_witness_job_mover::WaitingToQueuedWitnessJobMover,
+        witness_generator_queue_monitor::WitnessGeneratorStatsReporter,
+    },
+    l1_gas_price::{GasAdjusterSingleton, L1GasPriceProvider},
+    metadata_calculator::{
+        MetadataCalculator, MetadataCalculatorConfig, MetadataCalculatorModeConfig,
+    },
+    metrics::{InitStage, APP_METRICS},
+    state_keeper::{create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer},
+    witness_generator::{
+        basic_circuits::BasicWitnessGenerator, leaf_aggregation::LeafAggregationWitnessGenerator,
+        node_aggregation::NodeAggregationWitnessGenerator, scheduler::SchedulerWitnessGenerator,
+    },
+};
 
 pub mod api_server;
 pub mod basic_witness_input_producer;
@@ -62,47 +102,6 @@ pub mod state_keeper;
 pub mod sync_layer;
 pub mod temp_config_store;
 pub mod witness_generator;
-
-use crate::api_server::healthcheck::HealthCheckHandle;
-use crate::api_server::tx_sender::{TxSender, TxSenderBuilder, TxSenderConfig};
-use crate::api_server::web3::{state::InternalApiConfig, ApiServerHandles, Namespace};
-use crate::basic_witness_input_producer::BasicWitnessInputProducer;
-use crate::eth_sender::{Aggregator, EthTxManager};
-use crate::house_keeper::fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager;
-use crate::house_keeper::fri_proof_compressor_queue_monitor::FriProofCompressorStatsReporter;
-use crate::house_keeper::fri_prover_job_retry_manager::FriProverJobRetryManager;
-use crate::house_keeper::fri_prover_queue_monitor::FriProverStatsReporter;
-use crate::house_keeper::fri_scheduler_circuit_queuer::SchedulerCircuitQueuer;
-use crate::house_keeper::fri_witness_generator_jobs_retry_manager::FriWitnessGeneratorJobRetryManager;
-use crate::house_keeper::fri_witness_generator_queue_monitor::FriWitnessGeneratorStatsReporter;
-use crate::house_keeper::{
-    blocks_state_reporter::L1BatchMetricsReporter, gpu_prover_queue_monitor::GpuProverQueueMonitor,
-    prover_job_retry_manager::ProverJobRetryManager, prover_queue_monitor::ProverStatsReporter,
-    waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
-    waiting_to_queued_witness_job_mover::WaitingToQueuedWitnessJobMover,
-    witness_generator_queue_monitor::WitnessGeneratorStatsReporter,
-};
-use crate::l1_gas_price::{GasAdjusterSingleton, L1GasPriceProvider};
-use crate::metadata_calculator::{
-    MetadataCalculator, MetadataCalculatorConfig, MetadataCalculatorModeConfig,
-};
-use crate::state_keeper::{create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer};
-use crate::witness_generator::{
-    basic_circuits::BasicWitnessGenerator, leaf_aggregation::LeafAggregationWitnessGenerator,
-    node_aggregation::NodeAggregationWitnessGenerator, scheduler::SchedulerWitnessGenerator,
-};
-use crate::{
-    api_server::{
-        contract_verification,
-        execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
-        tx_sender::ApiContracts,
-        web3,
-    },
-    data_fetchers::run_data_fetchers,
-    eth_sender::EthTxAggregator,
-    eth_watch::start_eth_watch,
-    metrics::{InitStage, APP_METRICS},
-};
 
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(

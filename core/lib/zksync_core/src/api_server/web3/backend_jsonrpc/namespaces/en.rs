@@ -1,13 +1,7 @@
-// Built-in uses
-
-// External uses
 use jsonrpc_core::{BoxFuture, Result};
 use jsonrpc_derive::rpc;
-
-// Workspace uses
 use zksync_types::{api::en::SyncBlock, MiniblockNumber};
 
-// Local uses
 use crate::{
     api_server::web3::{backend_jsonrpc::error::into_jsrpc_error, EnNamespace},
     l1_gas_price::L1GasPriceProvider,

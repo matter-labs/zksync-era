@@ -7,7 +7,6 @@ use itertools::Itertools;
 use num::{rational::Ratio, BigUint};
 use reqwest::{Client, Url};
 use serde::{Deserialize, Serialize};
-
 use zksync_config::FetcherConfig;
 use zksync_types::{
     tokens::{TokenPrice, ETHEREUM_ADDRESS},
@@ -15,9 +14,8 @@ use zksync_types::{
 };
 use zksync_utils::UnsignedRatioSerializeAsDecimal;
 
-use crate::data_fetchers::error::ApiFetchError;
-
 use super::FetcherImpl;
+use crate::data_fetchers::error::ApiFetchError;
 
 #[derive(Debug, Clone)]
 pub struct CoinGeckoFetcher {

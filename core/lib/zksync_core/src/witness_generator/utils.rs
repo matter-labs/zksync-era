@@ -1,8 +1,12 @@
 use zksync_object_store::{CircuitKey, ObjectStore};
-use zksync_types::zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
-use zksync_types::zkevm_test_harness::bellman::bn256::Bn256;
-use zksync_types::zkevm_test_harness::witness::oracle::VmWitnessOracle;
-use zksync_types::{proofs::AggregationRound, L1BatchNumber};
+use zksync_types::{
+    proofs::AggregationRound,
+    zkevm_test_harness::{
+        abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit, bellman::bn256::Bn256,
+        witness::oracle::VmWitnessOracle,
+    },
+    L1BatchNumber,
+};
 
 pub async fn save_prover_input_artifacts(
     block_number: L1BatchNumber,
