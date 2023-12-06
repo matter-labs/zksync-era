@@ -1,15 +1,15 @@
-use std::io::Cursor;
-use std::io::Read;
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::{
+    io::{Cursor, Read},
+    sync::Arc,
+};
 
 use prover_service::RemoteSynthesizer;
 use queues::{Buffer, IsQueue};
-
-use crate::metrics::METRICS;
-use tokio::runtime::Handle;
+use tokio::{runtime::Handle, sync::Mutex};
 use zksync_dal::ConnectionPool;
 use zksync_types::proofs::SocketAddress;
+
+use crate::metrics::METRICS;
 
 pub type SharedAssemblyQueue = Arc<Mutex<Buffer<Vec<u8>>>>;
 
