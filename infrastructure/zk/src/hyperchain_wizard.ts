@@ -43,7 +43,8 @@ export interface BasePromptOptions {
     skip?: ((state: object) => boolean | Promise<boolean>) | boolean;
 }
 
-let useMatterlabsGeth = false;
+// PLA:681
+let isLocalhost = false;
 
 // An init command that allows configuring and spinning up a new hyperchain network.
 async function initHyperchain() {
@@ -75,7 +76,8 @@ async function initHyperchain() {
     // if we used matterlabs/geth network, we need custom ENV file for hyperchain compose parts
     // This breaks `zk status prover` command, but neccessary for working in isolated docker-network
     // TODO: Think about better implementation
-    if (useMatterlabsGeth) {
+    // PLA:681
+    if (isLocalhost) {
         wrapEnvModify('ETH_CLIENT_WEB3_URL', 'http://geth:8545');
         wrapEnvModify('DATABASE_URL', 'postgres://postgres:notsecurepassword@postgres:5432/zksync_local');
     }
@@ -261,7 +263,8 @@ async function setHyperchainMetadata() {
             feeReceiverAddress = keyResults.feeReceiver;
         }
     } else {
-        useMatterlabsGeth = true;
+        // PLA:681
+        isLocalhost = true;
         l1Rpc = 'http://localhost:8545';
         l1Id = 9;
         databaseUrl = 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local';
@@ -331,6 +334,7 @@ async function setHyperchainMetadata() {
     await compileConfig(environment);
     env.set(environment);
     // TODO: Generate url for data-compressor with selected region or fix env variable for keys location
+    // PLA-595
     wrapEnvModify('DATABASE_URL', databaseUrl);
     wrapEnvModify('ETH_CLIENT_CHAIN_ID', l1Id.toString());
     wrapEnvModify('ETH_CLIENT_WEB3_URL', l1Rpc);
@@ -392,6 +396,7 @@ function printAddressInfo(name: string, address: string) {
 
 async function initializeTestERC20s() {
     // TODO: For now selecting NO breaks server-core deployment, should be always YES or create empty-mock file for v2-core
+    // PLA-595
     const questions: BasePromptOptions[] = [
         {
             message:
@@ -690,6 +695,7 @@ async function _generateDockerImages(_orgName?: string) {
 
         // TODO: Make this param configurable
         // We need to generate at least 4 witnes-vector-generators per prover, but it can be less, and can be more
+        // PLA-683
         witnessVectorGensCount = 4;
 
         // For Now use only the public images. Too soon to allow prover to be customized
@@ -708,6 +714,7 @@ async function _generateDockerImages(_orgName?: string) {
 
     // TODO: Autodetect version via nvidia-smi
     // We have precompiled GPU prover image only for CUDA arch 89 aka ADA, all others need to be re-build
+    // PLA-682
     if (process.env.PROVER_TYPE === ProverType.GPU && cudaArch != '89') {
         needBuildProver = true;
     }
