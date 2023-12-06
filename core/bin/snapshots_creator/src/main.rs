@@ -220,7 +220,7 @@ async fn run(
                 chunks_count,
                 tasks.len()
             );
-            storage_logs_output_files.push(result.unwrap());
+            storage_logs_output_files.push(result.context("Chunk task failed")?);
             METRICS
                 .storage_logs_chunks_left_to_process
                 .set(chunks_count - last_chunk_id - tasks.len() as u64);
