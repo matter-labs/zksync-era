@@ -113,6 +113,53 @@ impl HandleRecoveryEvent for RecoveryHealthUpdater<'_> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+struct SnapshotParameters {
+    miniblock: MiniblockNumber,
+    expected_root_hash: H256,
+    log_count: u64,
+}
+
+impl SnapshotParameters {
+    /// This is intentionally not configurable because chunks must be the same for the entire recovery
+    /// (i.e., not changed after a node restart).
+    const DESIRED_CHUNK_SIZE: u64 = 200_000;
+
+    async fn new(pool: &ConnectionPool, l1_batch: L1BatchNumber) -> anyhow::Result<Self> {
+        let mut storage = pool.access_storage().await?;
+        let (_, miniblock) = storage
+            .blocks_dal()
+            .get_miniblock_range_of_l1_batch(l1_batch)
+            .await
+            .with_context(|| format!("Failed getting miniblock range for L1 batch #{l1_batch}"))?
+            .with_context(|| format!("L1 batch #{l1_batch} doesn't have miniblocks"))?;
+        let expected_root_hash = storage
+            .blocks_dal()
+            .get_l1_batch_metadata(l1_batch)
+            .await
+            .with_context(|| format!("Failed getting metadata for L1 batch #{l1_batch}"))?
+            .with_context(|| format!("L1 batch #{l1_batch} has no metadata"))?
+            .metadata
+            .root_hash;
+        let log_count = storage
+            .storage_logs_dal()
+            .count_miniblock_storage_logs(miniblock)
+            .await
+            .with_context(|| format!("Failed getting number of logs for miniblock #{miniblock}"))?;
+
+        Ok(Self {
+            miniblock,
+            expected_root_hash,
+            log_count,
+        })
+    }
+
+    fn chunk_count(&self) -> usize {
+        zksync_utils::ceil_div(self.log_count, Self::DESIRED_CHUNK_SIZE) as usize
+    }
+}
+
+/// Options for tree recovery.
 #[derive(Debug)]
 struct RecoveryOptions<'a> {
     chunk_count: usize,
@@ -157,12 +204,13 @@ impl GenericAsyncTree {
             }
         };
 
-        // FIXME: make choice of ranges more intelligent. NB: ranges must be the same for the entire recovery!
+        let snapshot = SnapshotParameters::new(pool, l1_batch).await?;
+        tracing::debug!("Obtained snapshot parameters: {snapshot:?}");
         let recovery_options = RecoveryOptions {
-            chunk_count: 256,
+            chunk_count: snapshot.chunk_count(),
             events: Box::new(RecoveryHealthUpdater::new(health_updater)),
         };
-        tree.recover(l1_batch, recovery_options, pool, stop_receiver)
+        tree.recover(snapshot, recovery_options, pool, stop_receiver)
             .await
     }
 }
@@ -170,34 +218,20 @@ impl GenericAsyncTree {
 impl AsyncTreeRecovery {
     async fn recover(
         mut self,
-        l1_batch: L1BatchNumber,
+        snapshot: SnapshotParameters,
         mut options: RecoveryOptions<'_>,
         pool: &ConnectionPool,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<AsyncTree>> {
-        let mut storage = pool.access_storage().await?;
-        let (_, snapshot_miniblock) = storage
-            .blocks_dal()
-            .get_miniblock_range_of_l1_batch(l1_batch)
-            .await
-            .with_context(|| format!("Failed getting miniblock range for L1 batch #{l1_batch}"))?
-            .with_context(|| format!("L1 batch #{l1_batch} doesn't have miniblocks"))?;
-        let expected_root_hash = storage
-            .blocks_dal()
-            .get_l1_batch_metadata(l1_batch)
-            .await
-            .with_context(|| format!("Failed getting metadata for L1 batch #{l1_batch}"))?
-            .with_context(|| format!("L1 batch #{l1_batch} has no metadata"))?
-            .metadata
-            .root_hash;
-
         let chunk_count = options.chunk_count;
         let chunks: Vec<_> = Self::hashed_key_ranges(chunk_count).collect();
         tracing::info!(
             "Recovering Merkle tree from Postgres snapshot in {chunk_count} concurrent chunks"
         );
+
+        let mut storage = pool.access_storage().await?;
         let remaining_chunks = self
-            .filter_chunks(&mut storage, snapshot_miniblock, &chunks)
+            .filter_chunks(&mut storage, snapshot.miniblock, &chunks)
             .await?;
         drop(storage);
         options
@@ -211,7 +245,7 @@ impl AsyncTreeRecovery {
         let tree = Mutex::new(self);
         let chunk_tasks = remaining_chunks.into_iter().map(|chunk| async {
             options.events.chunk_started().await;
-            Self::recover_key_chunk(&tree, snapshot_miniblock, chunk, pool, stop_receiver).await?;
+            Self::recover_key_chunk(&tree, snapshot.miniblock, chunk, pool, stop_receiver).await?;
             options.events.chunk_recovered().await;
             anyhow::Ok(())
         });
@@ -225,8 +259,9 @@ impl AsyncTreeRecovery {
         let mut tree = tree.into_inner();
         let actual_root_hash = tree.root_hash().await;
         anyhow::ensure!(
-            actual_root_hash == expected_root_hash,
-            "Root hash of recovered tree {actual_root_hash:?} differs from expected root hash {expected_root_hash:?}"
+            actual_root_hash == snapshot.expected_root_hash,
+            "Root hash of recovered tree {actual_root_hash:?} differs from expected root hash {:?}",
+            snapshot.expected_root_hash
         );
         let tree = tree.finalize().await;
         let finalize_latency = finalize_latency.observe();
@@ -445,6 +480,22 @@ mod tests {
         assert_eq!(*ranges.last().unwrap().end(), H256([0xff; 32]));
     }
 
+    #[test]
+    fn calculating_chunk_count() {
+        let mut snapshot = SnapshotParameters {
+            miniblock: MiniblockNumber(1),
+            log_count: 160_000_000,
+            expected_root_hash: H256::zero(),
+        };
+        assert_eq!(snapshot.chunk_count(), 800);
+
+        snapshot.log_count += 1;
+        assert_eq!(snapshot.chunk_count(), 801);
+
+        snapshot.log_count = 100;
+        assert_eq!(snapshot.chunk_count(), 1);
+    }
+
     async fn create_tree_recovery(path: PathBuf, l1_batch: L1BatchNumber) -> AsyncTreeRecovery {
         let db = create_db(
             path,
@@ -462,6 +513,13 @@ mod tests {
         let pool = ConnectionPool::test_pool().await;
         let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
         let root_hash = prepare_recovery_snapshot(&pool, &temp_dir).await;
+        let snapshot = SnapshotParameters::new(&pool, L1BatchNumber(1))
+            .await
+            .unwrap();
+
+        assert!(snapshot.log_count > 200);
+        assert_eq!(snapshot.miniblock, MiniblockNumber(1));
+        assert_eq!(snapshot.expected_root_hash, root_hash);
 
         let (_stop_sender, stop_receiver) = watch::channel(false);
         for chunk_count in [1, 4, 9, 16, 60, 256] {
@@ -475,7 +533,7 @@ mod tests {
                 events: Box::new(RecoveryHealthUpdater::new(&health_updater)),
             };
             let tree = tree
-                .recover(L1BatchNumber(1), recovery_options, &pool, &stop_receiver)
+                .recover(snapshot, recovery_options, &pool, &stop_receiver)
                 .await
                 .unwrap()
                 .expect("Tree recovery unexpectedly aborted");
@@ -577,8 +635,11 @@ mod tests {
             chunk_count,
             events: Box::new(TestEventListener::new(1, stop_sender)),
         };
+        let snapshot = SnapshotParameters::new(&pool, L1BatchNumber(1))
+            .await
+            .unwrap();
         assert!(tree
-            .recover(L1BatchNumber(1), recovery_options, &pool, &stop_receiver)
+            .recover(snapshot, recovery_options, &pool, &stop_receiver)
             .await
             .unwrap()
             .is_none());
@@ -592,7 +653,7 @@ mod tests {
             events: Box::new(TestEventListener::new(2, stop_sender).expect_recovered_chunks(1)),
         };
         assert!(tree
-            .recover(L1BatchNumber(1), recovery_options, &pool, &stop_receiver)
+            .recover(snapshot, recovery_options, &pool, &stop_receiver)
             .await
             .unwrap()
             .is_none());
@@ -608,7 +669,7 @@ mod tests {
             ),
         };
         let tree = tree
-            .recover(L1BatchNumber(1), recovery_options, &pool, &stop_receiver)
+            .recover(snapshot, recovery_options, &pool, &stop_receiver)
             .await
             .unwrap()
             .expect("Tree recovery unexpectedly aborted");
