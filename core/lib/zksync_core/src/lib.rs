@@ -40,7 +40,6 @@ use zksync_types::{
     system_contracts::get_system_smart_contracts,
     L2ChainId, PackedEthSignature, ProtocolVersionId,
 };
-use zksync_verification_key_server::get_cached_commitments;
 
 pub mod api_server;
 pub mod basic_witness_input_producer;
@@ -61,7 +60,6 @@ pub mod reorg_detector;
 pub mod state_keeper;
 pub mod sync_layer;
 pub mod temp_config_store;
-pub mod witness_generator;
 
 use crate::api_server::healthcheck::HealthCheckHandle;
 use crate::api_server::tx_sender::{TxSender, TxSenderBuilder, TxSenderConfig};
@@ -79,18 +77,12 @@ use crate::house_keeper::{
     blocks_state_reporter::L1BatchMetricsReporter, gpu_prover_queue_monitor::GpuProverQueueMonitor,
     prover_job_retry_manager::ProverJobRetryManager, prover_queue_monitor::ProverStatsReporter,
     waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
-    waiting_to_queued_witness_job_mover::WaitingToQueuedWitnessJobMover,
-    witness_generator_queue_monitor::WitnessGeneratorStatsReporter,
 };
 use crate::l1_gas_price::{GasAdjusterSingleton, L1GasPriceProvider};
 use crate::metadata_calculator::{
     MetadataCalculator, MetadataCalculatorConfig, MetadataCalculatorModeConfig,
 };
 use crate::state_keeper::{create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer};
-use crate::witness_generator::{
-    basic_circuits::BasicWitnessGenerator, leaf_aggregation::LeafAggregationWitnessGenerator,
-    node_aggregation::NodeAggregationWitnessGenerator, scheduler::SchedulerWitnessGenerator,
-};
 use crate::{
     api_server::{
         contract_verification,
@@ -351,10 +343,6 @@ pub async fn initialize_components(
         .build()
         .await
         .context("failed to build connection_pool")?;
-    let prover_connection_pool = ConnectionPool::builder(postgres_config.prover_url()?, pool_size)
-        .build()
-        .await
-        .context("failed to build prover_connection_pool")?;
     let replica_connection_pool =
         ConnectionPool::builder(postgres_config.replica_url()?, pool_size)
             .set_statement_timeout(statement_timeout)
@@ -704,17 +692,6 @@ pub async fn initialize_components(
     )
     .await
     .context("add_trees_to_task_futures()")?;
-    add_witness_generator_to_task_futures(
-        configs,
-        &mut task_futures,
-        &components,
-        &connection_pool,
-        &prover_connection_pool,
-        &store_factory,
-        &stop_receiver,
-    )
-    .await
-    .context("add_witness_generator_to_task_futures()")?;
 
     if components.contains(&Component::BasicWitnessInputProducer) {
         let singleton_connection_pool = ConnectionPool::singleton(postgres_config.master_url()?)
@@ -984,101 +961,6 @@ async fn add_basic_witness_input_producer_to_task_futures(
     Ok(())
 }
 
-async fn add_witness_generator_to_task_futures(
-    configs: &TempConfigStore,
-    task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
-    components: &[Component],
-    connection_pool: &ConnectionPool,
-    prover_connection_pool: &ConnectionPool,
-    store_factory: &ObjectStoreFactory,
-    stop_receiver: &watch::Receiver<bool>,
-) -> anyhow::Result<()> {
-    // We don't want witness generator to run on local nodes, as it's CPU heavy.
-    if std::env::var("ZKSYNC_LOCAL_SETUP") == Ok("true".to_owned()) {
-        return Ok(());
-    }
-
-    let generator_params = components.iter().filter_map(|component| {
-        if let Component::WitnessGenerator(batch_size, component_type) = component {
-            Some((*batch_size, *component_type))
-        } else {
-            None
-        }
-    });
-
-    for (batch_size, component_type) in generator_params {
-        let started_at = Instant::now();
-        tracing::info!(
-            "initializing the {component_type:?} witness generator, batch size: {batch_size:?}"
-        );
-
-        let vk_commitments = get_cached_commitments();
-        let protocol_versions = prover_connection_pool
-            .access_storage()
-            .await
-            .unwrap()
-            .protocol_versions_dal()
-            .protocol_version_for(&vk_commitments)
-            .await;
-        let config = configs
-            .witness_generator_config
-            .clone()
-            .context("witness_generator_config")?;
-        let task = match component_type {
-            AggregationRound::BasicCircuits => {
-                let witness_generator = BasicWitnessGenerator::new(
-                    config,
-                    store_factory,
-                    protocol_versions.clone(),
-                    connection_pool.clone(),
-                    prover_connection_pool.clone(),
-                )
-                .await;
-                tokio::spawn(witness_generator.run(stop_receiver.clone(), batch_size))
-            }
-            AggregationRound::LeafAggregation => {
-                let witness_generator = LeafAggregationWitnessGenerator::new(
-                    config,
-                    store_factory,
-                    protocol_versions.clone(),
-                    connection_pool.clone(),
-                    prover_connection_pool.clone(),
-                )
-                .await;
-                tokio::spawn(witness_generator.run(stop_receiver.clone(), batch_size))
-            }
-            AggregationRound::NodeAggregation => {
-                let witness_generator = NodeAggregationWitnessGenerator::new(
-                    config,
-                    store_factory,
-                    protocol_versions.clone(),
-                    connection_pool.clone(),
-                    prover_connection_pool.clone(),
-                )
-                .await;
-                tokio::spawn(witness_generator.run(stop_receiver.clone(), batch_size))
-            }
-            AggregationRound::Scheduler => {
-                let witness_generator = SchedulerWitnessGenerator::new(
-                    config,
-                    store_factory,
-                    protocol_versions.clone(),
-                    connection_pool.clone(),
-                    prover_connection_pool.clone(),
-                )
-                .await;
-                tokio::spawn(witness_generator.run(stop_receiver.clone(), batch_size))
-            }
-        };
-        task_futures.push(task);
-
-        let elapsed = started_at.elapsed();
-        APP_METRICS.init_latency[&InitStage::WitnessGenerator(component_type)].set(elapsed);
-        tracing::info!("initialized {component_type:?} witness generator in {elapsed:?}");
-    }
-    Ok(())
-}
-
 async fn add_house_keeper_to_task_futures(
     configs: &TempConfigStore,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
@@ -1129,20 +1011,9 @@ async fn add_house_keeper_to_task_futures(
         prover_connection_pool.clone(),
         prover_group_config.clone(),
     );
-    let waiting_to_queued_witness_job_mover = WaitingToQueuedWitnessJobMover::new(
-        house_keeper_config.witness_job_moving_interval_ms,
-        prover_connection_pool.clone(),
-    );
-    let witness_generator_stats_reporter = WitnessGeneratorStatsReporter::new(
-        house_keeper_config.witness_generator_stats_reporting_interval_ms,
-        prover_connection_pool.clone(),
-    );
-
-    task_futures.push(tokio::spawn(witness_generator_stats_reporter.run()));
     task_futures.push(tokio::spawn(gpu_prover_queue.run()));
     task_futures.push(tokio::spawn(l1_batch_metrics_reporter.run()));
     task_futures.push(tokio::spawn(prover_stats_reporter.run()));
-    task_futures.push(tokio::spawn(waiting_to_queued_witness_job_mover.run()));
     task_futures.push(tokio::spawn(prover_job_retry_manager.run()));
 
     // All FRI Prover related components are configured below.

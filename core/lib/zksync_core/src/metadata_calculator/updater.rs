@@ -207,10 +207,6 @@ impl TreeUpdater {
                             .await;
                     }
                 }
-                prover_storage
-                    .witness_generator_dal()
-                    .save_witness_inputs(l1_batch_number, object_key, protocol_version_id)
-                    .await;
                 storage
                     .basic_witness_input_producer_dal()
                     .create_basic_witness_input_producer_job(l1_batch_number)

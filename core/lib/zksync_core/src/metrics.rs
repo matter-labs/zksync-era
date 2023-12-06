@@ -5,7 +5,7 @@ use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Hi
 use std::{fmt, time::Duration};
 
 use zksync_dal::transactions_dal::L2TxSubmissionResult;
-use zksync_types::{aggregated_operations::AggregatedActionType, proofs::AggregationRound};
+use zksync_types::aggregated_operations::AggregatedActionType;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage")]
@@ -19,7 +19,6 @@ pub(crate) enum InitStage {
     EthTxManager,
     DataFetcher,
     Tree,
-    WitnessGenerator(AggregationRound),
     BasicWitnessInputProducer,
 }
 
@@ -35,7 +34,6 @@ impl fmt::Display for InitStage {
             Self::EthTxManager => formatter.write_str("eth_tx_manager"),
             Self::DataFetcher => formatter.write_str("data_fetchers"),
             Self::Tree => formatter.write_str("tree"),
-            Self::WitnessGenerator(round) => write!(formatter, "witness_generator_{round:?}"),
             Self::BasicWitnessInputProducer => formatter.write_str("basic_witness_input_producer"),
         }
     }
