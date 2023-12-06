@@ -1,9 +1,9 @@
-use serde::Deserialize;
-
 use std::{net::SocketAddr, time::Duration};
 
-pub use crate::configs::PrometheusConfig;
+use serde::Deserialize;
 use zksync_basic_types::H256;
+
+pub use crate::configs::PrometheusConfig;
 
 /// API configuration.
 #[derive(Debug, Deserialize, Clone, PartialEq)]

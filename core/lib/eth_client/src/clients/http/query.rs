@@ -1,12 +1,6 @@
-use async_trait::async_trait;
-
 use std::sync::Arc;
 
-use crate::{
-    clients::http::{Method, COUNTERS, LATENCIES},
-    types::{Error, ExecutedTxStatus, FailureInfo},
-    EthInterface,
-};
+use async_trait::async_trait;
 use zksync_types::web3::{
     self,
     contract::{
@@ -20,6 +14,12 @@ use zksync_types::web3::{
         TransactionReceipt, H256, U256, U64,
     },
     Web3,
+};
+
+use crate::{
+    clients::http::{Method, COUNTERS, LATENCIES},
+    types::{Error, ExecutedTxStatus, FailureInfo},
+    EthInterface,
 };
 
 /// An "anonymous" Ethereum client that can invoke read-only methods that aren't

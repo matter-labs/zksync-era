@@ -1,16 +1,16 @@
+use std::time::Duration;
+
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Histogram, LabeledFamily, Metrics,
 };
-
-use std::time::Duration;
-
-mod query;
-mod signing;
 
 pub use self::{
     query::QueryClient,
     signing::{PKSigningClient, SigningClient},
 };
+
+mod query;
+mod signing;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "method", rename_all = "snake_case")]

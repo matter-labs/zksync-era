@@ -1,20 +1,14 @@
-// External uses
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
-
-// Workspace uses
-use crate::types::{
-    Block, Bytes, FeeHistory, Filter, FilterChanges, Index, Log, SyncState, TransactionReceipt,
-    U256, U64,
-};
-
 use zksync_types::{
-    api::Transaction,
-    api::{BlockIdVariant, BlockNumber, TransactionVariant},
+    api::{BlockIdVariant, BlockNumber, Transaction, TransactionVariant},
     transaction_request::CallRequest,
     Address, H256,
 };
 
-// Local uses
+use crate::types::{
+    Block, Bytes, FeeHistory, Filter, FilterChanges, Index, Log, SyncState, TransactionReceipt,
+    U256, U64,
+};
 
 #[cfg_attr(
     all(feature = "client", feature = "server"),
