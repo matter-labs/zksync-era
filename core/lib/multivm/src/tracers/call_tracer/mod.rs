@@ -1,7 +1,9 @@
-use crate::tracers::call_tracer::metrics::CALL_METRICS;
-use once_cell::sync::OnceCell;
 use std::sync::Arc;
+
+use once_cell::sync::OnceCell;
 use zksync_types::vm_trace::Call;
+
+use crate::tracers::call_tracer::metrics::CALL_METRICS;
 
 mod metrics;
 pub mod vm_latest;

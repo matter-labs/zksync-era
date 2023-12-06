@@ -1,10 +1,16 @@
 use zksync_types::event::extract_long_l2_to_l1_messages;
 use zksync_utils::bytecode::compress_bytecode;
 
-use crate::interface::{TxExecutionMode, VmExecutionMode, VmInterface};
-use crate::vm_latest::tests::tester::{DeployContractsTx, TxType, VmTesterBuilder};
-use crate::vm_latest::tests::utils::read_test_contract;
-use crate::vm_latest::HistoryEnabled;
+use crate::{
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    vm_latest::{
+        tests::{
+            tester::{DeployContractsTx, TxType, VmTesterBuilder},
+            utils::read_test_contract,
+        },
+        HistoryEnabled,
+    },
+};
 
 #[test]
 fn test_bytecode_publishing() {

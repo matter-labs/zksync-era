@@ -1,5 +1,18 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
+pub use zk_evm_1_3_3::{self, block_properties::BlockProperties};
+pub use zksync_types::vm_trace::VmExecutionTrace;
+
+pub(crate) use self::vm_instance::VmInstance;
+pub use self::{
+    errors::TxRevertReason,
+    history_recorder::{HistoryDisabled, HistoryEnabled, HistoryMode},
+    oracle_tools::OracleTools,
+    oracles::storage::StorageOracle,
+    vm::Vm,
+    vm_instance::{VmBlockResult, VmExecutionResult},
+};
+
 mod bootloader_state;
 pub mod errors;
 pub mod event_sink;
@@ -11,25 +24,13 @@ pub mod oracles;
 mod pubdata_utils;
 mod refunds;
 pub mod test_utils;
-pub mod transaction_data;
-pub mod utils;
-pub mod vm_with_bootloader;
-
 #[cfg(test)]
 mod tests;
+pub mod transaction_data;
+pub mod utils;
 mod vm;
 pub mod vm_instance;
-
-pub use errors::TxRevertReason;
-pub use history_recorder::{HistoryDisabled, HistoryEnabled, HistoryMode};
-pub use oracle_tools::OracleTools;
-pub use oracles::storage::StorageOracle;
-pub use vm::Vm;
-pub(crate) use vm_instance::VmInstance;
-pub use vm_instance::{VmBlockResult, VmExecutionResult};
-pub use zk_evm_1_3_3;
-pub use zk_evm_1_3_3::block_properties::BlockProperties;
-pub use zksync_types::vm_trace::VmExecutionTrace;
+pub mod vm_with_bootloader;
 
 pub type Word = zksync_types::U256;
 

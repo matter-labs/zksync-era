@@ -1,14 +1,9 @@
-use crate::vm_1_3_2::history_recorder::HistoryMode;
-use crate::vm_1_3_2::memory::SimpleMemory;
-use crate::vm_1_3_2::utils::{aux_heap_page_from_base, heap_page_from_base};
-use crate::vm_1_3_2::vm_instance::{get_vm_hook_params, VM_HOOK_POSITION};
-use crate::vm_1_3_2::vm_with_bootloader::BOOTLOADER_HEAP_PAGE;
-
-use zk_evm_1_3_3::aux_structures::MemoryPage;
-use zk_evm_1_3_3::zkevm_opcode_defs::{FarCallABI, FarCallForwardPageType};
 use zk_evm_1_3_3::{
+    aux_structures::MemoryPage,
     tracing::{BeforeExecutionData, VmLocalStateData},
-    zkevm_opcode_defs::{FatPointer, LogOpcode, Opcode, UMAOpcode},
+    zkevm_opcode_defs::{
+        FarCallABI, FarCallForwardPageType, FatPointer, LogOpcode, Opcode, UMAOpcode,
+    },
 };
 use zksync_system_constants::{
     ECRECOVER_PRECOMPILE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS,
@@ -16,6 +11,14 @@ use zksync_system_constants::{
 };
 use zksync_types::U256;
 use zksync_utils::u256_to_h256;
+
+use crate::vm_1_3_2::{
+    history_recorder::HistoryMode,
+    memory::SimpleMemory,
+    utils::{aux_heap_page_from_base, heap_page_from_base},
+    vm_instance::{get_vm_hook_params, VM_HOOK_POSITION},
+    vm_with_bootloader::BOOTLOADER_HEAP_PAGE,
+};
 
 #[derive(Clone, Debug, Copy)]
 pub(crate) enum VmHook {
