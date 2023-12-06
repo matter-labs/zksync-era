@@ -38,7 +38,7 @@ pub fn get_operator_pubdata_price(l1_gas_price: u64, l1_pubdata_price: u64) -> u
     let block_overhead_eth = U256::from(l1_gas_price) * U256::from(BLOCK_OVERHEAD_L1_GAS);
 
     // todo: maybe either use a different constant or use coeficients struct
-    let block_overhead_part = block_overhead_eth / U256::from(MAX_PUBDATA_PER_L1_BATCH * 2);
+    let block_overhead_part = block_overhead_eth / U256::from(MAX_PUBDATA_PER_L1_BATCH);
 
     l1_pubdata_price + block_overhead_part.as_u64()
 }

@@ -4,6 +4,7 @@ use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics
 use crate::interface::traits::tracers::dyn_tracers::vm_1_4_1::DynTracer;
 use crate::interface::types::tracer::TracerExecutionStatus;
 use crate::interface::{L1BatchEnv, Refunds};
+use crate::vm_latest::{TxExecutionMode, VmExecutionMode};
 use zk_evm_1_4_1::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
@@ -51,11 +52,12 @@ pub(crate) struct RefundsTracer<S> {
     gas_spent_on_bytecodes_and_long_messages: u32,
     l1_batch: L1BatchEnv,
     pubdata_published: u32,
+    execution_mode: VmExecutionMode,
     _phantom: PhantomData<S>,
 }
 
 impl<S> RefundsTracer<S> {
-    pub(crate) fn new(l1_batch: L1BatchEnv) -> Self {
+    pub(crate) fn new(l1_batch: L1BatchEnv, execution_mode: VmExecutionMode) -> Self {
         Self {
             pending_operator_refund: None,
             refund_gas: 0,
@@ -66,6 +68,7 @@ impl<S> RefundsTracer<S> {
             spent_pubdata_counter_before: 0,
             gas_spent_on_bytecodes_and_long_messages: 0,
             l1_batch,
+            execution_mode,
             pubdata_published: 0,
             _phantom: PhantomData,
         }
@@ -99,10 +102,9 @@ impl<S> RefundsTracer<S> {
         tx_gas_limit: u32,
         current_ergs_per_pubdata_byte: u32,
         pubdata_published: u32,
+        to_print: bool,
     ) -> u32 {
         let total_gas_spent = tx_gas_limit - bootloader_refund;
-
-        println!("Bootloader refund: {}", bootloader_refund);
 
         let gas_spent_on_computation = total_gas_spent
             .checked_sub(gas_spent_on_pubdata)
@@ -115,27 +117,13 @@ impl<S> RefundsTracer<S> {
                 0
             });
 
-        println!("Gas spent on computation: {}", gas_spent_on_computation);
-
         // For now, bootloader charges only for base fee.
         let effective_gas_price = self.l1_batch.base_fee();
-
-        println!("Effective gas price: {}", effective_gas_price);
 
         let bootloader_eth_price_per_pubdata_byte =
             U256::from(effective_gas_price) * U256::from(current_ergs_per_pubdata_byte);
 
-        println!(
-            "Bootloader eth price per pubdata byte: {}",
-            bootloader_eth_price_per_pubdata_byte
-        );
-
         let fair_eth_price_per_pubdata_byte = U256::from(self.l1_batch.fair_pubdata_price);
-
-        println!(
-            "Fair eth price per pubdata byte: {}",
-            fair_eth_price_per_pubdata_byte
-        );
 
         // For now, L1 originated transactions are allowed to pay less than fair fee per pubdata,
         // so we should take it into account.
@@ -144,24 +132,11 @@ impl<S> RefundsTracer<S> {
             fair_eth_price_per_pubdata_byte,
         );
 
-        println!(
-            "Eth price per pubdata byte for calculation: {}",
-            eth_price_per_pubdata_byte_for_calculation
-        );
-
-        println!("Pubdata published: {}", pubdata_published);
-
-        println!("Fair L2 gas price: {}", self.l1_batch.fair_l2_gas_price);
-
         let fair_fee_eth = U256::from(gas_spent_on_computation)
             * U256::from(self.l1_batch.fair_l2_gas_price)
             + U256::from(pubdata_published) * eth_price_per_pubdata_byte_for_calculation;
 
-        println!("Fair fee eth: {}", fair_fee_eth);
-
         let pre_paid_eth: U256 = U256::from(tx_gas_limit) * U256::from(effective_gas_price);
-
-        println!("Prepaid eth: {}", pre_paid_eth);
 
         let refund_eth = pre_paid_eth.checked_sub(fair_fee_eth).unwrap_or_else(|| {
             tracing::error!(
@@ -172,12 +147,36 @@ impl<S> RefundsTracer<S> {
             U256::zero()
         });
 
-        println!("Refund eth: {}", refund_eth);
+        if to_print {
+            println!("Bootloader refund: {}", bootloader_refund);
+            println!("Gas spent on computation: {}", gas_spent_on_computation);
+            println!("Effective gas price: {}", effective_gas_price);
+            println!(
+                "Bootloader eth price per pubdata byte: {}",
+                bootloader_eth_price_per_pubdata_byte
+            );
+            println!(
+                "Fair eth price per pubdata byte: {}",
+                fair_eth_price_per_pubdata_byte
+            );
+            println!(
+                "Eth price per pubdata byte for calculation: {}",
+                eth_price_per_pubdata_byte_for_calculation
+            );
 
-        println!(
-            "Refund gas: {}",
-            ceil_div_u256(refund_eth, effective_gas_price.into()).as_u32()
-        );
+            println!("Pubdata published: {}", pubdata_published);
+
+            println!("Fair L2 gas price: {}", self.l1_batch.fair_l2_gas_price);
+            println!("Fair fee eth: {}", fair_fee_eth);
+            println!("Prepaid eth: {}", pre_paid_eth);
+
+            println!("Refund eth: {}", refund_eth);
+
+            println!(
+                "Refund gas: {}",
+                ceil_div_u256(refund_eth, effective_gas_price.into()).as_u32()
+            );
+        }
 
         ceil_div_u256(refund_eth, effective_gas_price.into()).as_u32()
     }
@@ -285,16 +284,24 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
             self.pubdata_published = pubdata_published;
             let current_ergs_per_pubdata_byte = state.local_state.current_ergs_per_pubdata_byte;
 
+            // let to_print = if let VmExecutionMode::Bootloader = self.execution_mode {
             println!(
                 "Fee profile for tx {:#?}",
                 bootloader_state.last_l2_block().last_tx_hash().unwrap()
             );
+
+            //     true
+            // } else {
+            //     false
+            // };
+
             let tx_body_refund = self.tx_body_refund(
                 bootloader_refund,
                 gas_spent_on_pubdata,
                 tx_gas_limit,
                 current_ergs_per_pubdata_byte,
                 pubdata_published,
+                true,
             );
 
             if tx_body_refund < bootloader_refund {
@@ -382,6 +389,21 @@ pub(crate) fn pubdata_published<S: WriteStorage, H: HistoryMode>(
         .iter()
         .map(|bytecodehash| bytecode_len_in_bytes(*bytecodehash) as u32 + PUBLISH_BYTECODE_OVERHEAD)
         .sum();
+
+    println!("Storage published for next tx:");
+    println!(
+        "Storage writes pubdata published: {}",
+        storage_writes_pubdata_published
+    );
+    println!("l2_l1_logs_bytes published: {}", l2_l1_logs_bytes);
+    println!(
+        "l2_l1_long_messages_bytes published: {}",
+        l2_l1_long_messages_bytes
+    );
+    println!(
+        "published_bytecode_bytes published: {}",
+        published_bytecode_bytes
+    );
 
     storage_writes_pubdata_published
         + l2_l1_logs_bytes

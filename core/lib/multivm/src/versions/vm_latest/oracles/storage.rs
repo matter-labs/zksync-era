@@ -202,6 +202,14 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
                 .copied()
                 .unwrap_or_default();
 
+            if required_pubdata.saturating_sub(prepaid_for_slot) > 0 {
+                println!(
+                    "User paid for {} {:#?}",
+                    required_pubdata.saturating_sub(prepaid_for_slot),
+                    key
+                );
+            }
+
             published += required_pubdata.saturating_sub(prepaid_for_slot);
 
             // We remove the slot from the paid changes and move to the pre-paid changes as
