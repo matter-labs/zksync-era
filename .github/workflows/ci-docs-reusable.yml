@@ -19,8 +19,7 @@ jobs:
 
       - name: Start services
         run: |
-          prep_localnet
-          docker ps
+          ci_localnet_up
 
       - name: Lints
         run: |

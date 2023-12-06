@@ -27,8 +27,7 @@ jobs:
 
       - name: start-services
         run: |
-          prep_localnet
-          docker ps
+          ci_localnet_up
 
       - name: init
         run: |

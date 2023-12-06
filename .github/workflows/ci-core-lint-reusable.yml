@@ -20,7 +20,7 @@ jobs:
 
       - name: Start services
         run: |
-          prep_localnet
+          ci_localnet_up
           ci_run sccache --start-server
 
       - name: Setup db
