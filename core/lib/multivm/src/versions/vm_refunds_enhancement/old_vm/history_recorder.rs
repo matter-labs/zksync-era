@@ -438,7 +438,7 @@ impl<T, H: HistoryMode> HistoryRecorder<FramedStack<T>, H> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct AppDataFrameManagerWithHistory<T, H: HistoryMode> {
+pub struct AppDataFrameManagerWithHistory<T, H: HistoryMode> {
     forward: HistoryRecorder<FramedStack<T>, H>,
     rollback: HistoryRecorder<FramedStack<T>, H>,
 }

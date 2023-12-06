@@ -1,5 +1,7 @@
 pub use old_vm::{
-    history_recorder::{HistoryDisabled, HistoryEnabled, HistoryMode},
+    history_recorder::{
+        AppDataFrameManagerWithHistory, HistoryDisabled, HistoryEnabled, HistoryMode,
+    },
     memory::SimpleMemory,
 };
 
