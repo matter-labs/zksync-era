@@ -6,8 +6,8 @@ This crate contains code that interacts with the VM - the VM itself is in a sepa
 ## VM dependencies
 
 The VM relies on several subcomponents or traits, such as Memory and Storage. These traits are defined in the `zk_evm`
-repository, while their implementations can be found in this crate, like the storage implementation in `oracles/storage.rs`
-and the Memory implementation in `memory.rs`.
+repository, while their implementations can be found in this crate, like the storage implementation in
+`oracles/storage.rs` and the Memory implementation in `memory.rs`.
 
 Many of these implementations also support easy rollbacks and history, which is useful when creating a block with
 multiple transactions and needing to return the VM to a previous state if transaction doesn't fit.
