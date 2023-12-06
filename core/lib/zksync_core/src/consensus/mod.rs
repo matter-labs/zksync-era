@@ -1,4 +1,5 @@
 //! Consensus-related functionality.
+use anyhow::Context as _;
 use std::sync::Arc;
 use zksync_concurrency::{ctx, scope};
 use zksync_consensus_executor::{ConsensusConfig, Executor, ExecutorConfig};
@@ -27,6 +28,7 @@ pub struct Config {
 }
 
 impl Config {
+    #[allow(dead_code)]
     pub async fn run(self, ctx: &ctx::Ctx, pool: ConnectionPool) -> anyhow::Result<()> {
         assert_eq!(
             self.executor.validators,
@@ -43,12 +45,14 @@ impl Config {
             .await?,
         );
         let mut executor = Executor::new(ctx, self.executor, self.node_key, store.clone()).await?;
-        executor.set_validator(
-            self.consensus,
-            self.validator_key,
-            store.clone(),
-            store.clone(),
-        );
+        executor
+            .set_validator(
+                self.consensus,
+                self.validator_key,
+                store.clone(),
+                store.clone(),
+            )
+            .context("executor.set_validator()")?;
         scope::run!(&ctx, |ctx, s| async {
             s.spawn_bg(store.run_background_tasks(ctx));
             executor.run(ctx).await

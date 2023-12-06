@@ -9,10 +9,10 @@ use zksync_concurrency::{ctx, scope, testonly::abort_on_panic, time};
 use zksync_consensus_executor::testonly::FullValidatorConfig;
 use zksync_consensus_roles::validator::{self, FinalBlock};
 use zksync_consensus_storage::{InMemoryStorage, WriteBlockStore};
+use zksync_dal::blocks_dal::ConsensusBlockFields;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
-    api::en::SyncBlock, block::ConsensusBlockFields, Address, L1BatchNumber, MiniblockNumber,
-    ProtocolVersionId, H256,
+    api::en::SyncBlock, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
 };
 
 use super::*;
@@ -194,8 +194,12 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
     let genesis_block_payload = block_payload(&mut storage, 0).await.encode();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
     let rng = &mut ctx.rng();
-    let mut validator =
-        FullValidatorConfig::for_single_validator(rng, protocol_version, genesis_block_payload);
+    let mut validator = FullValidatorConfig::for_single_validator(
+        rng,
+        protocol_version,
+        genesis_block_payload,
+        validator::BlockNumber(0),
+    );
     let validator_set = validator.node_config.validators.clone();
     let external_node = validator.connect_full_node(rng);
 
@@ -325,8 +329,12 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
     let genesis_block_payload = block_payload(&mut storage, 0).await.encode();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
     let rng = &mut ctx.rng();
-    let mut validator =
-        FullValidatorConfig::for_single_validator(rng, protocol_version, genesis_block_payload);
+    let mut validator = FullValidatorConfig::for_single_validator(
+        rng,
+        protocol_version,
+        genesis_block_payload,
+        validator::BlockNumber(0),
+    );
     let validator_set = validator.node_config.validators.clone();
     let external_node = validator.connect_full_node(rng);
 
@@ -409,14 +417,9 @@ async fn syncing_from_non_zero_block(first_block_number: u32) {
         rng,
         protocol_version,
         genesis_block_payload.clone(),
+        validator::BlockNumber(first_block_number.into()),
     );
-    // Override the genesis block since it has an incorrect block number.
-    let genesis_block = create_genesis_block(
-        &validator.validator_key,
-        first_block_number.into(),
-        genesis_block_payload,
-    );
-    validator.node_config.genesis_block = genesis_block.clone();
+    let genesis_block = validator.node_config.genesis_block.clone();
     let validator_set = validator.node_config.validators.clone();
     let external_node = validator.connect_full_node(rng);
 
@@ -509,7 +512,7 @@ async fn insert_sync_blocks(pool: ConnectionPool, blocks: Vec<SyncBlock>, tx_has
     let (actions_sender, actions) = ActionQueue::new();
     let state_keeper = StateKeeperHandles::new(pool.clone(), actions, tx_hashes).await;
     for block in blocks {
-        let block_actions = fetcher.advance(block.into());
+        let block_actions = fetcher.advance(block.try_into().unwrap());
         actions_sender.push_actions(block_actions).await;
     }
 

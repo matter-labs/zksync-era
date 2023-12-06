@@ -1,8 +1,9 @@
-use std::convert::TryInto;
-
+use anyhow::Context as _;
+use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_types::api::en::SyncBlock;
-use zksync_types::{Address, L1BatchNumber, MiniblockNumber, Transaction, H256};
+use zksync_protobuf::{read_required, ProtoFmt};
+use zksync_types::api::en;
+use zksync_types::{Address, L1BatchNumber, MiniblockNumber, Transaction, H160, H256};
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct StorageSyncBlock {
@@ -24,45 +25,126 @@ pub struct StorageSyncBlock {
     pub consensus: Option<serde_json::Value>,
 }
 
+fn parse_h256(bytes: &[u8]) -> anyhow::Result<H256> {
+    Ok(<[u8; 32]>::try_from(bytes).context("invalid size")?.into())
+}
+
+fn parse_h160(bytes: &[u8]) -> anyhow::Result<H160> {
+    Ok(<[u8; 20]>::try_from(bytes).context("invalid size")?.into())
+}
+
 impl StorageSyncBlock {
     pub(crate) fn into_sync_block(
         self,
         current_operator_address: Address,
         transactions: Option<Vec<Transaction>>,
-    ) -> SyncBlock {
-        let number = self.number;
-
-        SyncBlock {
-            number: MiniblockNumber(self.number as u32),
-            l1_batch_number: L1BatchNumber(self.l1_batch_number as u32),
+    ) -> anyhow::Result<en::SyncBlock> {
+        Ok(en::SyncBlock {
+            number: MiniblockNumber(self.number.try_into().context("number")?),
+            l1_batch_number: L1BatchNumber(
+                self.l1_batch_number.try_into().context("l1_batch_number")?,
+            ),
             last_in_batch: self
                 .last_batch_miniblock
-                .map(|n| n == number)
+                .map(|n| n == self.number)
                 .unwrap_or(false),
-            timestamp: self.timestamp as u64,
-            root_hash: self.root_hash.as_deref().map(H256::from_slice),
-            l1_gas_price: self.l1_gas_price as u64,
-            l2_fair_gas_price: self.l2_fair_gas_price as u64,
-            // TODO (SMA-1635): Make these filed non optional in database
+            timestamp: self.timestamp.try_into().context("timestamp")?,
+            root_hash: self
+                .root_hash
+                .map(|h| parse_h256(&h))
+                .transpose()
+                .context("root_hash")?,
+            l1_gas_price: self.l1_gas_price.try_into().context("l1_gas_price")?,
+            l2_fair_gas_price: self
+                .l2_fair_gas_price
+                .try_into()
+                .context("l2_fair_gas_price")?,
+            // TODO (SMA-1635): Make these fields non optional in database
             base_system_contracts_hashes: BaseSystemContractsHashes {
-                bootloader: self
-                    .bootloader_code_hash
-                    .map(|bootloader_code_hash| H256::from_slice(&bootloader_code_hash))
-                    .expect("Should not be none"),
-                default_aa: self
-                    .default_aa_code_hash
-                    .map(|default_aa_code_hash| H256::from_slice(&default_aa_code_hash))
-                    .expect("Should not be none"),
+                bootloader: parse_h256(
+                    &self
+                        .bootloader_code_hash
+                        .context("bootloader_code_hash should not be none")?,
+                )
+                .context("bootloader_code_hash")?,
+                default_aa: parse_h256(
+                    &self
+                        .default_aa_code_hash
+                        .context("default_aa_code_hash should not be none")?,
+                )
+                .context("default_aa_code_hash")?,
             },
-            operator_address: self
-                .fee_account_address
-                .map(|fee_account_address| Address::from_slice(&fee_account_address))
-                .unwrap_or(current_operator_address),
+            operator_address: match self.fee_account_address {
+                Some(addr) => parse_h160(&addr).context("fee_account_address")?,
+                None => current_operator_address,
+            },
             transactions,
-            virtual_blocks: Some(self.virtual_blocks as u32),
-            hash: Some(H256::from_slice(&self.hash)),
-            protocol_version: (self.protocol_version as u16).try_into().unwrap(),
-            consensus: self.consensus.map(|v| serde_json::from_value(v).unwrap()),
+            virtual_blocks: Some(self.virtual_blocks.try_into().context("virtual_blocks")?),
+            hash: Some(parse_h256(&self.hash).context("hash")?),
+            protocol_version: u16::try_from(self.protocol_version)
+                .context("protocol_version")?
+                .try_into()
+                .context("protocol_version")?,
+            consensus: match self.consensus {
+                None => None,
+                Some(v) => {
+                    let v: ConsensusBlockFields =
+                        zksync_protobuf::serde::deserialize(v).context("consensus")?;
+                    Some(v.encode())
+                }
+            },
+        })
+    }
+}
+
+/// Consensus-related L2 block (= miniblock) fields.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConsensusBlockFields {
+    /// Hash of the previous consensus block.
+    pub parent: validator::BlockHeaderHash,
+    /// Quorum certificate for the block.
+    pub justification: validator::CommitQC,
+}
+
+impl ConsensusBlockFields {
+    pub fn encode(&self) -> en::ConsensusBlockFields {
+        en::ConsensusBlockFields(zksync_protobuf::encode(self).into())
+    }
+    pub fn decode(x: &en::ConsensusBlockFields) -> anyhow::Result<Self> {
+        zksync_protobuf::decode(&x.0 .0)
+    }
+}
+
+impl ProtoFmt for ConsensusBlockFields {
+    type Proto = crate::models::proto::ConsensusBlockFields;
+    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
+        Ok(Self {
+            parent: read_required(&r.parent).context("parent")?,
+            justification: read_required(&r.justification).context("justification")?,
+        })
+    }
+    fn build(&self) -> Self::Proto {
+        Self::Proto {
+            parent: Some(self.parent.build()),
+            justification: Some(self.justification.build()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ConsensusBlockFields;
+    use rand::Rng;
+    use zksync_consensus_roles::validator;
+
+    #[tokio::test]
+    async fn encode_decode() {
+        let rng = &mut rand::thread_rng();
+        let block = rng.gen::<validator::FinalBlock>();
+        let want = ConsensusBlockFields {
+            parent: block.header.parent,
+            justification: block.justification,
+        };
+        assert_eq!(want, ConsensusBlockFields::decode(&want.encode()).unwrap());
     }
 }

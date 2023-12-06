@@ -22,7 +22,7 @@ use super::*;
 fn init_store(rng: &mut impl Rng) -> (FinalBlock, InMemoryStorage) {
     let payload = Payload(vec![]);
     let genesis_block = FinalBlock {
-        header: BlockHeader::genesis(payload.hash()),
+        header: BlockHeader::genesis(payload.hash(), BlockNumber(0)),
         payload,
         justification: rng.gen(),
     };

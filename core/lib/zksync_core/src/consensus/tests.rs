@@ -1,5 +1,4 @@
 use super::*;
-use anyhow::Context as _;
 use zksync_concurrency::{ctx, scope};
 use zksync_consensus_executor::testonly::FullValidatorConfig;
 use zksync_consensus_roles::validator;

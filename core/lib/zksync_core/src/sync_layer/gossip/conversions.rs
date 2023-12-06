@@ -1,9 +1,9 @@
 //! Conversion logic between server and consensus types.
-
 use anyhow::Context as _;
 
 use zksync_consensus_roles::validator::FinalBlock;
-use zksync_types::{block::ConsensusBlockFields, MiniblockNumber, ProtocolVersionId};
+use zksync_dal::blocks_dal::ConsensusBlockFields;
+use zksync_types::{MiniblockNumber, ProtocolVersionId};
 
 use crate::{consensus, sync_layer::fetcher::FetchedBlock};
 

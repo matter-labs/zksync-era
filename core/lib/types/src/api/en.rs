@@ -5,7 +5,13 @@ use zk_evm::ethereum_types::Address;
 use zksync_basic_types::{L1BatchNumber, MiniblockNumber, H256};
 use zksync_contracts::BaseSystemContractsHashes;
 
-use crate::{block::ConsensusBlockFields, ProtocolVersionId};
+use crate::ProtocolVersionId;
+
+/// Protobuf-encoded consensus-related L2 block (= miniblock) fields.
+/// See `zksync_dal::models::storage_sync::ConsensusBlockFields`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(transparent)]
+pub struct ConsensusBlockFields(pub zksync_basic_types::Bytes);
 
 /// Representation of the L2 block, as needed for the EN synchronization.
 /// This structure has several fields that describe *L1 batch* rather than

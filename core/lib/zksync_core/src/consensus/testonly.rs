@@ -48,8 +48,8 @@ impl MainNodeClient for MockMainNodeClient {
     }
     async fn fetch_l2_block(
         &self,
-        number: MiniblockNumber,
-        with_transactions: bool,
+        _number: MiniblockNumber,
+        _with_transactions: bool,
     ) -> anyhow::Result<Option<api::en::SyncBlock>> {
         unimplemented!()
     }
@@ -104,7 +104,6 @@ impl StateKeeperHandle {
                 operator_address: self.operator_address,
                 protocol_version: ProtocolVersionId::latest(),
                 first_miniblock_info: (self.next_block, 1),
-                prev_miniblock_hash: H256::default(),
             };
             self.next_batch += 1;
             self.next_block += 1;
@@ -244,7 +243,7 @@ async fn run_metadata_calculator(ctx: &ctx::Ctx, pool: ConnectionPool) -> anyhow
 }
 
 impl StateKeeperRunner {
-    pub async fn run(mut self, ctx: &ctx::Ctx, pool: &ConnectionPool) -> anyhow::Result<()> {
+    pub async fn run(self, ctx: &ctx::Ctx, pool: &ConnectionPool) -> anyhow::Result<()> {
         scope::run!(ctx, |ctx, s| async {
             let mut storage = pool.access_storage().await.context("access_storage()")?;
             // ensure genesis

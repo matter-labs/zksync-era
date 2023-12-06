@@ -6,14 +6,28 @@ use zksync_concurrency::{ctx, error::Wrap as _, sync, time};
 use zksync_consensus_bft::PayloadSource;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::{BlockStore, ReplicaState, ReplicaStateStore, WriteBlockStore};
-use zksync_dal::ConnectionPool;
-use zksync_types::{api::en::SyncBlock, block::ConsensusBlockFields, Address, MiniblockNumber};
+use zksync_dal::{blocks_dal::ConsensusBlockFields, ConnectionPool};
+use zksync_types::{api::en::SyncBlock, Address, MiniblockNumber};
 
 pub(crate) fn sync_block_to_consensus_block(
-    mut block: SyncBlock,
+    block: SyncBlock,
 ) -> anyhow::Result<validator::FinalBlock> {
     let number = validator::BlockNumber(block.number.0.into());
-    let consensus = block.consensus.take().context("Missing consensus fields")?;
+    let consensus = ConsensusBlockFields::decode(
+        block
+            .consensus
+            .as_ref()
+            .context("Missing consensus fields")?,
+    )
+    .context("ConsensusBlockFields::decode()")?;
+    let consensus_protocol_version = consensus.justification.message.protocol_version.as_u32();
+    let block_protocol_version = block.protocol_version as u32;
+    anyhow::ensure!(
+        consensus_protocol_version == block_protocol_version,
+        "Protocol version for justification ({consensus_protocol_version}) differs from \
+         SyncBlock.protocol_version={block_protocol_version}"
+    );
+
     let payload: consensus::Payload = block.try_into()?;
     let payload = payload.encode();
     Ok(validator::FinalBlock {
@@ -126,7 +140,7 @@ impl<'a> StorageProcessor<'a> {
         };
 
         // Early exit if consensus field is already set to the expected value.
-        if Some(want) == sync_block.consensus.as_ref() {
+        if Some(want.encode()) == sync_block.consensus {
             return Ok(());
         }
 
@@ -254,6 +268,24 @@ impl WriteBlockStore for SignedBlockStore {
     async fn put_block(&self, ctx: &ctx::Ctx, block: &validator::FinalBlock) -> ctx::Result<()> {
         tracing::error!("SignedBlockStore::put_block()");
         let storage = &mut storage(ctx, &self.pool).await.wrap("storage()")?;
+
+        // Currently main node is the only validator, so it should be the only one creating new
+        // blocks. To ensure that no gaps in the blocks are created we check here that we always
+        // insert a new head.
+        let head = *self.head.borrow();
+        let head = storage
+            .find_head_forward(ctx, head, self.operator_address)
+            .await
+            .wrap("find_head_forward()")?;
+        if block.header.number != head.header.number.next() {
+            return Err(anyhow::anyhow!(
+                "expected block with number {}, got {}",
+                head.header.number.next(),
+                block.header.number
+            )
+            .into());
+        }
+
         storage
             .put_block(ctx, block, self.operator_address)
             .await
@@ -269,7 +301,7 @@ impl BlockStore for SignedBlockStore {
         storage
             .find_head_forward(ctx, head, self.operator_address)
             .await
-            .wrap("fing_head_forward()")
+            .wrap("find_head_forward()")
     }
 
     async fn first_block(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::FinalBlock> {
