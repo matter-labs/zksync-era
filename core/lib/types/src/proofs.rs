@@ -98,6 +98,17 @@ impl AggregationRound {
     }
 }
 
+impl std::fmt::Display for AggregationRound {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::BasicCircuits => "basic_circuits",
+            Self::LeafAggregation => "leaf_aggregation",
+            Self::NodeAggregation => "node_aggregation",
+            Self::Scheduler => "scheduler",
+        })
+    }
+}
+
 impl FromStr for AggregationRound {
     type Err = String;
 
