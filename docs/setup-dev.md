@@ -1,6 +1,7 @@
 # Installing dependencies
 
 ## TL;DR;
+
 If you run on 'clean' Debian on GCP:
 
 ```bash
@@ -27,7 +28,6 @@ sudo systemctl stop postgresql
 # Start docker.
 sudo systemctl start docker
 ```
-
 
 ## Supported operating systems
 
