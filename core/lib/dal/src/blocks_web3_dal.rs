@@ -161,7 +161,7 @@ impl BlocksWeb3Dal<'_, '_> {
         }))
     }
 
-    /// Returns hashes of blocks with numbers greater than `from_block` and the number of the last block.
+    /// Returns hashes of blocks with numbers starting from `from_block` and the number of the last block.
     pub async fn get_block_hashes_since(
         &mut self,
         from_block: MiniblockNumber,

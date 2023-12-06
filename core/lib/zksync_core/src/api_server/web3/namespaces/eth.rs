@@ -785,7 +785,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                 FilterChanges::Hashes(block_hashes)
             }
 
-            TypedFilter::PendingTransactions(from_timestamp) => {
+            TypedFilter::PendingTransactions(from_timestamp_excluded) => {
                 let mut conn = self
                     .state
                     .connection_pool
@@ -795,16 +795,13 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                 let (tx_hashes, last_timestamp) = conn
                     .transactions_web3_dal()
                     .get_pending_txs_hashes_after(
-                        *from_timestamp,
+                        *from_timestamp_excluded,
                         Some(self.state.api_config.req_entities_limit),
                     )
                     .await
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
 
-                *from_timestamp = match last_timestamp {
-                    Some(last_timestamp) => last_timestamp,
-                    None => *from_timestamp,
-                };
+                *from_timestamp_excluded = last_timestamp.unwrap_or(*from_timestamp_excluded);
 
                 FilterChanges::Hashes(tx_hashes)
             }
