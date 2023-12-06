@@ -1,7 +1,6 @@
 use zksync_types::api::ProtocolVersion;
 
-use crate::models::storage_protocol_version::StorageProtocolVersion;
-use crate::StorageProcessor;
+use crate::{models::storage_protocol_version::StorageProtocolVersion, StorageProcessor};
 
 #[derive(Debug)]
 pub struct ProtocolVersionsWeb3Dal<'a, 'c> {

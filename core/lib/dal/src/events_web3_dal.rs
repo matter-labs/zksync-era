@@ -1,5 +1,4 @@
 use sqlx::Row;
-
 use zksync_types::{
     api::{GetLogsFilter, Log},
     Address, MiniblockNumber, H256,
@@ -172,8 +171,7 @@ impl EventsWeb3Dal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::api::BlockNumber;
-    use zksync_types::{Address, H256};
+    use zksync_types::{api::BlockNumber, Address, H256};
 
     use super::*;
     use crate::connection::ConnectionPool;
