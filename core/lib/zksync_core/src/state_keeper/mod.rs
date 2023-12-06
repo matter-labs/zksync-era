@@ -24,14 +24,14 @@ pub(crate) mod updates;
 
 pub use self::{
     batch_executor::{L1BatchExecutorBuilder, MainBatchExecutorBuilder},
+    io::{MiniblockSealer, MiniblockSealerHandle},
     keeper::ZkSyncStateKeeper,
 };
 pub(crate) use self::{
-    io::MiniblockSealer, mempool_actor::MempoolFetcher, seal_criteria::ConditionalSealer,
-    types::MempoolGuard,
+    mempool_actor::MempoolFetcher, seal_criteria::ConditionalSealer, types::MempoolGuard,
 };
 
-use self::io::{MempoolIO, MiniblockSealerHandle};
+use self::io::MempoolIO;
 use crate::l1_gas_price::L1GasPriceProvider;
 
 #[allow(clippy::too_many_arguments)]
