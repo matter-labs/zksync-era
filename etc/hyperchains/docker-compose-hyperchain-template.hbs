@@ -180,7 +180,4 @@ services:
         reservations:
           devices:
             - capabilities: [gpu]
-    volumes:
-      - artifacts:{{artifactsPath}}
-      - {{proverSetupArtifacts}}:{{proverSetupArtifacts}}
   {{/ifAnd}}
