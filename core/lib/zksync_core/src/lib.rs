@@ -1088,13 +1088,16 @@ async fn add_house_keeper_to_task_futures(
         .clone()
         .context("house_keeper_config")?;
     let postgres_config = configs.postgres_config.clone().context("postgres_config")?;
-    let connection_pool = ConnectionPool::singleton(postgres_config.replica_url()?)
-        .build()
-        .await
-        .context("failed to build a connection pool")?;
+    let connection_pool = ConnectionPool::builder(
+        postgres_config.replica_url()?,
+        postgres_config.max_connections()?,
+    )
+    .build()
+    .await
+    .context("failed to build a connection pool")?;
     let l1_batch_metrics_reporter = L1BatchMetricsReporter::new(
         house_keeper_config.l1_batch_metrics_reporting_interval_ms,
-        connection_pool,
+        connection_pool.clone(),
     );
 
     let prover_connection_pool = ConnectionPool::builder(
@@ -1192,6 +1195,7 @@ async fn add_house_keeper_to_task_futures(
     let fri_prover_stats_reporter = FriProverStatsReporter::new(
         house_keeper_config.fri_prover_stats_reporting_interval_ms,
         prover_connection_pool.clone(),
+        connection_pool.clone(),
         fri_prover_group_config,
     );
     task_futures.push(tokio::spawn(fri_prover_stats_reporter.run()));
