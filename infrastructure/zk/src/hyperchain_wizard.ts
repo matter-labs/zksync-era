@@ -394,7 +394,8 @@ async function initializeTestERC20s() {
     // TODO: For now selecting NO breaks server-core deployment, should be always YES or create empty-mock file for v2-core
     const questions: BasePromptOptions[] = [
         {
-            message: 'Do you want to deploy some test ERC20s to your hyperchain? NB: Temporary broken, always select YES',
+            message:
+                'Do you want to deploy some test ERC20s to your hyperchain? NB: Temporary broken, always select YES',
             name: 'deployERC20s',
             type: 'confirm'
         }
