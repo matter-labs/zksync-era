@@ -41,7 +41,7 @@ pub(crate) fn sync_block_to_consensus_block(
     })
 }
 
-/// Context-aware zksync_dal::StorageProcessor wrapper.
+/// Context-aware `zksync_dal::StorageProcessor` wrapper.
 pub(super) struct StorageProcessor<'a>(zksync_dal::StorageProcessor<'a>);
 
 pub(super) async fn storage<'a>(
@@ -200,7 +200,7 @@ impl<'a> StorageProcessor<'a> {
 }
 
 /// Postgres-based [`BlockStore`] implementation, which
-/// considers blocks as stored iff they have consensus field set.
+/// considers blocks as stored <=> they have consensus field set.
 #[derive(Debug)]
 pub(super) struct SignedBlockStore {
     genesis: validator::BlockNumber,

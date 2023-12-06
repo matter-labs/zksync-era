@@ -770,7 +770,7 @@ impl StateKeeperIO for TestIO {
     }
 }
 
-/// L1BatchExecutorBuilder which doesn't check anything at all.
+/// `L1BatchExecutorBuilder` which doesn't check anything at all.
 /// Accepts all transactions.
 #[derive(Debug)]
 pub(crate) struct MockBatchExecutorBuilder;
