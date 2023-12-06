@@ -73,6 +73,8 @@ async function initHyperchain() {
     await init(initArgs);
 
     // if we used matterlabs/geth network, we need custom ENV file for hyperchain compose parts
+    // This breaks `zk status prover` command, but neccessary for working in isolated docker-network
+    // TODO: Think about better implementation
     if (useMatterlabsGeth) {
         wrapEnvModify('ETH_CLIENT_WEB3_URL', 'http://geth:8545');
         wrapEnvModify('DATABASE_URL', 'postgres://postgres:notsecurepassword@postgres:5432/zksync_local');
@@ -277,7 +279,7 @@ async function setHyperchainMetadata() {
         feeReceiver = undefined;
         feeReceiverAddress = richWallets[3].address;
 
-        await up('docker-compose-zkstack.yml');
+        await up('docker-compose-zkstack-common.yml');
         await announced('Ensuring databases are up', db.wait());
     }
 
@@ -328,7 +330,7 @@ async function setHyperchainMetadata() {
 
     await compileConfig(environment);
     env.set(environment);
-
+    // TODO: Generate url for data-compressor with selected region or fix env variable for keys location
     wrapEnvModify('DATABASE_URL', databaseUrl);
     wrapEnvModify('ETH_CLIENT_CHAIN_ID', l1Id.toString());
     wrapEnvModify('ETH_CLIENT_WEB3_URL', l1Rpc);
@@ -389,9 +391,10 @@ function printAddressInfo(name: string, address: string) {
 }
 
 async function initializeTestERC20s() {
+    // TODO: For now selecting NO breaks server-core deployment, should be always YES or create empty-mock file for v2-core
     const questions: BasePromptOptions[] = [
         {
-            message: 'Do you want to deploy some test ERC20s to your hyperchain (only use on testing scenarios)?',
+            message: 'Do you want to deploy some test ERC20s to your hyperchain? NB: Temporary broken, always select YES',
             name: 'deployERC20s',
             type: 'confirm'
         }
@@ -685,6 +688,7 @@ async function _generateDockerImages(_orgName?: string) {
             hasCPUProver = true;
         }
 
+        // TODO: Make this param configurable
         // We need to generate at least 4 witnes-vector-generators per prover, but it can be less, and can be more
         witnessVectorGensCount = 4;
 
@@ -702,6 +706,7 @@ async function _generateDockerImages(_orgName?: string) {
         // }
     }
 
+    // TODO: Autodetect version via nvidia-smi
     // We have precompiled GPU prover image only for CUDA arch 89 aka ADA, all others need to be re-build
     if (process.env.PROVER_TYPE === ProverType.GPU && cudaArch != '89') {
         needBuildProver = true;

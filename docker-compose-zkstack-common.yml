@@ -25,7 +25,7 @@ services:
         source: ./volumes/postgres
         target: /var/lib/postgresql/data
     environment:
-      # We bind only to 127.0.0.1, so setting insecure password is acceptable here
+      # We bind only on 127.0.0.1, so setting not secure password is kind-a ok
       - POSTGRES_PASSWORD=notsecurepassword
     command:
       - "postgres"
