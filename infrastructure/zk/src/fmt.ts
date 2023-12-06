@@ -50,7 +50,8 @@ async function prettierSystemContracts(check: boolean = false) {
 
 export async function rustfmt(check: boolean = false) {
     process.chdir(process.env.ZKSYNC_HOME as string);
-    const command = check ? 'cargo fmt -- --check' : 'cargo fmt';
+    const config = '--config imports_granularity=Crate --config group_imports=StdExternalCrate';
+    const command = check ? `cargo fmt -- --check ${config}` : `cargo fmt -- ${config}`;
     await utils.spawn(command);
     process.chdir('./prover');
     await utils.spawn(command);
