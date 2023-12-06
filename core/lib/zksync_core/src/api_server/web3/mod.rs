@@ -368,7 +368,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         }
         if namespaces.contains(&Namespace::Snapshots) {
             rpc.merge(SnapshotsNamespace::new(rpc_state).into_rpc())
-                .expect("Can't merge debug namespace");
+                .expect("Can't merge snapshots namespace");
         }
         rpc
     }
