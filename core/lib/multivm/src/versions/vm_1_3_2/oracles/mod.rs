@@ -3,7 +3,7 @@ use zk_evm_1_3_3::aux_structures::Timestamp;
 // so for now it is fine.
 pub use zk_evm_1_3_3::reference_impls::event_sink::InMemoryEventSink as EventSinkOracle;
 // We will discard RAM as soon as the execution of a tx ends, so
-// it is ok for now to use SimpleMemory
+// it is ok for now to use `SimpleMemory`
 pub use zk_evm_1_3_3::reference_impls::memory::SimpleMemory as RamOracle;
 pub use zk_evm_1_3_3::testing::simple_tracer::NoopTracer;
 
