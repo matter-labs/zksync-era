@@ -12,7 +12,7 @@ mod proto;
 mod storage;
 
 #[cfg(test)]
-mod testonly;
+pub(crate) mod testonly;
 #[cfg(test)]
 mod tests;
 

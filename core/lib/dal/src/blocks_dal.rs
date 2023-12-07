@@ -413,6 +413,14 @@ impl BlocksDal<'_, '_> {
         Ok(Some(MiniblockNumber(row.number.try_into()?)))
     }
 
+    /// Fetches the number of the next miniblock with consensus field
+    pub async fn has_consensus_fields(&mut self, number: MiniblockNumber) -> sqlx::Result<bool> {
+        Ok(sqlx::query!("SELECT COUNT(*) as \"count!\"  FROM miniblocks WHERE number = $1 AND consensus IS NOT NULL", number.0 as i64)
+            .fetch_one(self.storage.conn())
+            .await?
+            .count > 0)
+    }
+
     /// Sets consensus-related fields for the specified miniblock.
     pub async fn set_miniblock_consensus_fields(
         &mut self,

@@ -69,18 +69,26 @@ impl<'a> StorageProcessor<'a> {
         Ok(ctx.wait(self.0.commit()).await?.context("sqlx")?)
     }
 
+    async fn fetch_sync_block(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: validator::BlockNumber,
+        operator_address: Address,
+    ) -> ctx::Result<Option<SyncBlock>> {
+        let number = MiniblockNumber(number.0.try_into().context("MiniblockNumber")?);
+        Ok(ctx
+            .wait(self.0.sync_dal().sync_block(number, operator_address, true))
+            .await?
+            .context("sync_block()")?)
+    }
+
     pub async fn fetch_block(
         &mut self,
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,
         operator_address: Address,
     ) -> ctx::Result<Option<validator::FinalBlock>> {
-        let number = MiniblockNumber(number.0.try_into().context("MiniblockNumber")?);
-        let Some(block) = ctx
-            .wait(self.0.sync_dal().sync_block(number, operator_address, true))
-            .await?
-            .context("sync_block()")?
-        else {
+        let Some(block) = self.fetch_sync_block(ctx, number, operator_address).await? else {
             return Ok(None);
         };
         if block.consensus.is_none() {
@@ -97,11 +105,9 @@ impl<'a> StorageProcessor<'a> {
         block_number: validator::BlockNumber,
         operator_address: Address,
     ) -> ctx::Result<Option<consensus::Payload>> {
-        let n = MiniblockNumber(block_number.0.try_into().context("MiniblockNumber")?);
-        let Some(sync_block) = ctx
-            .wait(self.0.sync_dal().sync_block(n, operator_address, true))
+        let Some(sync_block) = self
+            .fetch_sync_block(ctx, block_number, operator_address)
             .await?
-            .context("sync_block()")?
         else {
             return Ok(None);
         };
@@ -114,7 +120,6 @@ impl<'a> StorageProcessor<'a> {
         block: &validator::FinalBlock,
         operator_address: Address,
     ) -> ctx::Result<()> {
-        tracing::error!("put_block({:?})", block.header.number);
         let n = MiniblockNumber(
             block
                 .header
@@ -129,18 +134,19 @@ impl<'a> StorageProcessor<'a> {
             .wrap("start_transaction()")?;
 
         // We require the block to be already stored in Postgres when we set the consensus field.
-        let sync_block = ctx
-            .wait(txn.0.sync_dal().sync_block(n, operator_address, true))
+        let sync_block = txn
+            .fetch_sync_block(ctx, block.header.number, operator_address)
             .await?
-            .context("sync_block()")?
             .context("unknown block")?;
         let want = &ConsensusBlockFields {
             parent: block.header.parent,
             justification: block.justification.clone(),
         };
 
-        // Early exit if consensus field is already set to the expected value.
-        if Some(want.encode()) == sync_block.consensus {
+        // If consensus field is already set, just validate the stored value but don't override it.
+        if sync_block.consensus.is_some() {
+            sync_block_to_consensus_block(sync_block)
+                .context("an invalid block found in storage")?;
             return Ok(());
         }
 
@@ -181,21 +187,16 @@ impl<'a> StorageProcessor<'a> {
         &mut self,
         ctx: &ctx::Ctx,
         start_at: validator::BlockNumber,
-        operator_address: Address,
-    ) -> ctx::Result<validator::FinalBlock> {
-        let mut block = self
-            .fetch_block(ctx, start_at, operator_address)
-            .await
-            .wrap("fetch_block()")?
-            .context("head not found")?;
-        while let Some(next) = self
-            .fetch_block(ctx, block.header.number.next(), operator_address)
-            .await
-            .wrap("fetch_block()")?
+    ) -> ctx::Result<validator::BlockNumber> {
+        let mut head = MiniblockNumber(start_at.0.try_into().context("MiniblockNumber")?);
+        while ctx
+            .wait(self.0.blocks_dal().has_consensus_fields(head + 1))
+            .await?
+            .context("has_consensus_fields()")?
         {
-            block = next;
+            head += 1;
         }
-        Ok(block)
+        Ok(validator::BlockNumber(head.0.into()))
     }
 }
 
@@ -251,22 +252,21 @@ impl WriteBlockStore for SignedBlockStore {
         block_number: validator::BlockNumber,
         payload: &validator::Payload,
     ) -> ctx::Result<()> {
-        tracing::error!("SignedBlockStore::verify_payload({block_number:?})");
         let storage = &mut storage(ctx, &self.pool).await.wrap("storage()")?;
         let want = storage
             .fetch_payload(ctx, block_number, self.operator_address)
             .await
             .wrap("fetch_payload()")?
             .context("unknown block")?;
-        if payload != &want.encode() {
-            return Err(anyhow::anyhow!("unexpected payload").into());
+        let got = consensus::Payload::decode(payload).context("consensus::Payload::decode()")?;
+        if got != want {
+            return Err(anyhow::anyhow!("unexpected payload: got {got:?} want {want:?}").into());
         }
         Ok(())
     }
 
     /// Puts a block into this storage.
     async fn put_block(&self, ctx: &ctx::Ctx, block: &validator::FinalBlock) -> ctx::Result<()> {
-        tracing::error!("SignedBlockStore::put_block()");
         let storage = &mut storage(ctx, &self.pool).await.wrap("storage()")?;
 
         // Currently main node is the only validator, so it should be the only one creating new
@@ -274,13 +274,13 @@ impl WriteBlockStore for SignedBlockStore {
         // insert a new head.
         let head = *self.head.borrow();
         let head = storage
-            .find_head_forward(ctx, head, self.operator_address)
+            .find_head_forward(ctx, head)
             .await
             .wrap("find_head_forward()")?;
-        if block.header.number != head.header.number.next() {
+        if block.header.number != head.next() {
             return Err(anyhow::anyhow!(
                 "expected block with number {}, got {}",
-                head.header.number.next(),
+                head.next(),
                 block.header.number
             )
             .into());
@@ -296,20 +296,14 @@ impl WriteBlockStore for SignedBlockStore {
 #[async_trait::async_trait]
 impl BlockStore for SignedBlockStore {
     async fn head_block(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::FinalBlock> {
-        let storage = &mut storage(ctx, &self.pool).await.wrap("storage()")?;
-        let head = *self.head.borrow();
-        storage
-            .find_head_forward(ctx, head, self.operator_address)
-            .await
-            .wrap("find_head_forward()")
+        let head = self.last_contiguous_block_number(ctx).await?;
+        Ok(self.block(ctx, head).await?.context("head block missing")?)
     }
 
     async fn first_block(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::FinalBlock> {
-        let storage = &mut storage(ctx, &self.pool).await.wrap("storage()")?;
-        Ok(storage
-            .fetch_block(ctx, self.genesis, self.operator_address)
-            .await
-            .wrap("fetch_block()")?
+        Ok(self
+            .block(ctx, self.genesis)
+            .await?
             .context("Genesis miniblock not present in Postgres")?)
     }
 
@@ -317,7 +311,12 @@ impl BlockStore for SignedBlockStore {
         &self,
         ctx: &ctx::Ctx,
     ) -> ctx::Result<validator::BlockNumber> {
-        Ok(self.head_block(ctx).await?.header.number)
+        let storage = &mut storage(ctx, &self.pool).await.wrap("storage()")?;
+        let head = *self.head.borrow();
+        storage
+            .find_head_forward(ctx, head)
+            .await
+            .wrap("find_head_forward()")
     }
 
     async fn block(
@@ -375,7 +374,6 @@ impl PayloadSource for SignedBlockStore {
         ctx: &ctx::Ctx,
         block_number: validator::BlockNumber,
     ) -> ctx::Result<validator::Payload> {
-        tracing::error!("propose({block_number:?})");
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
         loop {
             let storage = &mut storage(ctx, &self.pool).await.wrap("storage()")?;
@@ -399,11 +397,9 @@ impl SignedBlockStore {
             loop {
                 let storage = &mut storage(ctx, &self.pool).await.wrap("storage()")?;
                 head = storage
-                    .find_head_forward(ctx, head, self.operator_address)
+                    .find_head_forward(ctx, head)
                     .await
-                    .wrap("find_head_forward()")?
-                    .header
-                    .number;
+                    .wrap("find_head_forward()")?;
                 self.head.send_if_modified(|x| {
                     if *x >= head {
                         return false;

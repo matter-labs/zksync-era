@@ -16,6 +16,8 @@ fn latest_protocol_version() -> validator::ProtocolVersion {
 // is effectively just backfilling the consensus certificates for the miniblocks in storage.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_backfill() {
+    const OPERATOR_ADDRESS: Address = Address::repeat_byte(17);
+
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
@@ -23,7 +25,6 @@ async fn test_backfill() {
 
     scope::run!(ctx, |ctx, s| async {
         // Start state keeper.
-        const OPERATOR_ADDRESS: Address = Address::repeat_byte(17);
         let (mut sk, sk_runner) = testonly::StateKeeperHandle::new(OPERATOR_ADDRESS);
         s.spawn_bg(sk_runner.run(ctx, &pool));
 
@@ -34,12 +35,12 @@ async fn test_backfill() {
         // Prepare genesis block for consensus.
         const GENESIS_BLOCK: validator::BlockNumber = validator::BlockNumber(5);
         let genesis_payload = {
-            let mut storage = storage::storage(ctx, &pool).await.unwrap();
+            let mut storage = storage::storage(ctx, &pool).await.context("storage()")?;
             storage
                 .fetch_payload(ctx, GENESIS_BLOCK, OPERATOR_ADDRESS)
                 .await
-                .unwrap()
-                .unwrap()
+                .context("fetch_payload(<genesis>)")?
+                .context("genesis block missing")?
         };
         let cfg = FullValidatorConfig::for_single_validator(
             &mut ctx.rng(),

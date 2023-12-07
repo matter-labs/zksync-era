@@ -1,6 +1,4 @@
 //! High-level sync layer tests.
-
-use async_trait::async_trait;
 use tokio::{sync::watch, task::JoinHandle};
 
 use std::{
@@ -10,13 +8,13 @@ use std::{
 };
 
 use zksync_config::configs::chain::NetworkConfig;
-use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
-    api, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256,
+    Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256,
 };
 
 use super::{fetcher::FetcherCursor, sync_action::SyncAction, *};
+use crate::consensus::testonly::MockMainNodeClient;
 use crate::{
     api_server::web3::tests::spawn_http_server,
     genesis::{ensure_genesis_state, GenesisParams},
@@ -28,105 +26,6 @@ use crate::{
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
-
-#[derive(Debug, Default)]
-struct MockMainNodeClient {
-    l2_blocks: Vec<api::en::SyncBlock>,
-}
-
-impl MockMainNodeClient {
-    /// `miniblock_count` doesn't include a fictive miniblock. Returns hashes of generated transactions.
-    fn push_l1_batch(&mut self, miniblock_count: u32) -> Vec<H256> {
-        let l1_batch_number = self
-            .l2_blocks
-            .last()
-            .map_or(L1BatchNumber(0), |block| block.l1_batch_number + 1);
-        let number_offset = self.l2_blocks.len() as u32;
-
-        let mut tx_hashes = vec![];
-        let l2_blocks = (0..=miniblock_count).map(|number| {
-            let is_fictive = number == miniblock_count;
-            let transactions = if is_fictive {
-                vec![]
-            } else {
-                let transaction = create_l2_transaction(10, 100);
-                tx_hashes.push(transaction.hash());
-                vec![transaction.into()]
-            };
-            let number = number + number_offset;
-
-            api::en::SyncBlock {
-                number: MiniblockNumber(number),
-                l1_batch_number,
-                last_in_batch: is_fictive,
-                timestamp: number.into(),
-                root_hash: Some(H256::repeat_byte(1)),
-                l1_gas_price: 2,
-                l2_fair_gas_price: 3,
-                base_system_contracts_hashes: BaseSystemContractsHashes::default(),
-                operator_address: Address::repeat_byte(2),
-                transactions: Some(transactions),
-                virtual_blocks: Some(!is_fictive as u32),
-                hash: Some(H256::repeat_byte(1)),
-                protocol_version: ProtocolVersionId::latest(),
-                consensus: None,
-            }
-        });
-
-        self.l2_blocks.extend(l2_blocks);
-        tx_hashes
-    }
-}
-
-#[async_trait]
-impl MainNodeClient for MockMainNodeClient {
-    async fn fetch_system_contract_by_hash(
-        &self,
-        _hash: H256,
-    ) -> anyhow::Result<SystemContractCode> {
-        anyhow::bail!("Not implemented");
-    }
-
-    async fn fetch_genesis_contract_bytecode(
-        &self,
-        _address: Address,
-    ) -> anyhow::Result<Option<Vec<u8>>> {
-        anyhow::bail!("Not implemented");
-    }
-
-    async fn fetch_protocol_version(
-        &self,
-        _protocol_version: ProtocolVersionId,
-    ) -> anyhow::Result<api::ProtocolVersion> {
-        anyhow::bail!("Not implemented");
-    }
-
-    async fn fetch_genesis_l1_batch_hash(&self) -> anyhow::Result<H256> {
-        anyhow::bail!("Not implemented");
-    }
-
-    async fn fetch_l2_block_number(&self) -> anyhow::Result<MiniblockNumber> {
-        if let Some(number) = self.l2_blocks.len().checked_sub(1) {
-            Ok(MiniblockNumber(number as u32))
-        } else {
-            anyhow::bail!("Not implemented");
-        }
-    }
-
-    async fn fetch_l2_block(
-        &self,
-        number: MiniblockNumber,
-        with_transactions: bool,
-    ) -> anyhow::Result<Option<api::en::SyncBlock>> {
-        let Some(mut block) = self.l2_blocks.get(number.0 as usize).cloned() else {
-            return Ok(None);
-        };
-        if !with_transactions {
-            block.transactions = None;
-        }
-        Ok(Some(block))
-    }
-}
 
 fn open_l1_batch(number: u32, timestamp: u64, first_miniblock_number: u32) -> SyncAction {
     SyncAction::OpenBatch {
