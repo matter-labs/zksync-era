@@ -551,6 +551,7 @@ Armeabi
 scijava
 gluk
 @Deniallugo's
+emilluta
 
 // Programming related words
 bytecode
@@ -560,6 +561,7 @@ subrange
 timeframe
 leaf_count
 mkdir
+librocksdb
 zksolc
 zksyncrobot
 precompiles
@@ -758,3 +760,33 @@ codebase
 compactions
 M6
 compiler_common
+rustc
+sqlx
+zkevm
+Boojum
+Sepolia
+psql
+Cuda
+cuda
+hdcaa
+impls
+abda
+edaf
+unsynchronized
+CUDA
+gcloud
+NVME
+OTLP
+multiVM
+decommitter
+Decommittments
+decommitments
+decommitment
+Decommit
+decommit
+Deduplicator
+lobkc
+sread
+myfunction
+merklelization
+beaf

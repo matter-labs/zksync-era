@@ -37,7 +37,7 @@
     {
     "name": "zksync",
     "addWords": true,
-    "path": "./cspell-zksync.txt"
+    "path": "./era.dic"
     }
 ],
 "allowCompoundWords": true
