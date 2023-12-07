@@ -140,12 +140,6 @@ export async function cross_en_checker() {
     await utils.spawn(`${logLevel} ${suffix}`);
 }
 
-export async function l2_erc20_balance(tokenAddress: string, walletAddress: string) {
-    let token = IERC20Factory.connect(tokenAddress, L2Provider);
-    let balance = await token.balanceOf(walletAddress);
-    console.log(`Balance is ${balance.toString()}`);
-}
-
 export async function l1_erc20_balance(tokenAddress: string, walletAddress: string) {
     let token = IERC20Factory.connect(tokenAddress, L1Provider);
     let balance = await token.balanceOf(walletAddress);
@@ -180,13 +174,6 @@ command
     .description('get symbol, name and decimals parameters from token')
     .action(async (tokenAddress: string, walletAddress: string) => {
         await l1_erc20_balance(tokenAddress, walletAddress);
-    });
-
-command
-    .command('l2-erc20-balance <token-address> <wallet-address>')
-    .description('get symbol, name and decimals parameters from token')
-    .action(async (tokenAddress: string, walletAddress: string) => {
-        await l2_erc20_balance(tokenAddress, walletAddress);
     });
 
 command
