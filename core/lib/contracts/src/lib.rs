@@ -3,17 +3,18 @@
 //! Careful: some of the methods are reading the contracts based on the ZKSYNC_HOME environment variable.
 
 #![allow(clippy::derive_partial_eq_without_eq)]
+
+use std::{
+    fs::{self, File},
+    path::{Path, PathBuf},
+};
+
 use ethabi::{
     ethereum_types::{H256, U256},
     Contract, Function,
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use std::{
-    fs::{self, File},
-    path::{Path, PathBuf},
-};
-
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
 
 pub mod test_contracts;

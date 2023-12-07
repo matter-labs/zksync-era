@@ -1,8 +1,8 @@
-use std::fmt::{Debug, Formatter};
-use std::marker::PhantomData;
+use std::{
+    fmt::{Debug, Formatter},
+    marker::PhantomData,
+};
 
-use crate::interface::tracer::{TracerExecutionStopReason, VmExecutionStopReason};
-use crate::interface::{Halt, VmExecutionMode};
 use zk_evm_1_4_0::{
     tracing::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
@@ -14,23 +14,30 @@ use zk_evm_1_4_0::{
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::Timestamp;
 
-use crate::interface::traits::tracers::dyn_tracers::vm_1_4_0::DynTracer;
-use crate::interface::types::tracer::TracerExecutionStatus;
-use crate::vm_latest::bootloader_state::utils::apply_l2_block;
-use crate::vm_latest::bootloader_state::BootloaderState;
-use crate::vm_latest::constants::BOOTLOADER_HEAP_PAGE;
-use crate::vm_latest::old_vm::history_recorder::HistoryMode;
-use crate::vm_latest::old_vm::memory::SimpleMemory;
-use crate::vm_latest::tracers::dispatcher::TracerDispatcher;
-use crate::vm_latest::tracers::utils::{
-    computational_gas_price, gas_spent_on_bytecodes_and_long_messages_this_opcode,
-    print_debug_if_needed, VmHook,
-};
-use crate::vm_latest::tracers::{RefundsTracer, ResultTracer};
-use crate::vm_latest::types::internals::ZkSyncVmState;
-use crate::vm_latest::VmTracer;
-
 use super::PubdataTracer;
+use crate::{
+    interface::{
+        tracer::{TracerExecutionStopReason, VmExecutionStopReason},
+        traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
+        types::tracer::TracerExecutionStatus,
+        Halt, VmExecutionMode,
+    },
+    vm_latest::{
+        bootloader_state::{utils::apply_l2_block, BootloaderState},
+        constants::BOOTLOADER_HEAP_PAGE,
+        old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
+        tracers::{
+            dispatcher::TracerDispatcher,
+            utils::{
+                computational_gas_price, gas_spent_on_bytecodes_and_long_messages_this_opcode,
+                print_debug_if_needed, VmHook,
+            },
+            RefundsTracer, ResultTracer,
+        },
+        types::internals::ZkSyncVmState,
+        VmTracer,
+    },
+};
 
 /// Default tracer for the VM. It manages the other tracers execution and stop the vm when needed.
 pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {

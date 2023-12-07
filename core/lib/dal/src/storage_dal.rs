@@ -1,7 +1,6 @@
-use itertools::Itertools;
-
 use std::collections::{HashMap, HashSet};
 
+use itertools::Itertools;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_types::{MiniblockNumber, StorageKey, StorageLog, StorageValue, H256, U256};
 use zksync_utils::{bytes_to_be_words, bytes_to_chunks};
@@ -210,9 +209,10 @@ impl StorageDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    use zksync_types::{AccountTreeId, Address};
+
     use super::*;
     use crate::ConnectionPool;
-    use zksync_types::{AccountTreeId, Address};
 
     #[tokio::test]
     async fn applying_storage_logs() {

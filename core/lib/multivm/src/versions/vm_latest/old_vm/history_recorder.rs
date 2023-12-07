@@ -5,7 +5,6 @@ use zk_evm_1_4_0::{
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::{self},
 };
-
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{StorageKey, U256};
 use zksync_utils::{h256_to_u256, u256_to_h256};
@@ -771,10 +770,13 @@ impl<S: WriteStorage, H: HistoryMode> HistoryRecorder<StorageWrapper<S>, H> {
 
 #[cfg(test)]
 mod tests {
-    use crate::vm_latest::old_vm::history_recorder::{HistoryRecorder, MemoryWrapper};
-    use crate::vm_latest::HistoryDisabled;
     use zk_evm_1_4_0::{aux_structures::Timestamp, vm_state::PrimitiveValue};
     use zksync_types::U256;
+
+    use crate::vm_latest::{
+        old_vm::history_recorder::{HistoryRecorder, MemoryWrapper},
+        HistoryDisabled,
+    };
 
     #[test]
     fn memory_equality() {

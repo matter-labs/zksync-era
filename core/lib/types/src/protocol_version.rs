@@ -1,3 +1,10 @@
+use std::convert::{TryFrom, TryInto};
+
+use num_enum::TryFromPrimitive;
+use serde::{Deserialize, Serialize};
+use zksync_contracts::BaseSystemContractsHashes;
+use zksync_utils::u256_to_account_address;
+
 use crate::{
     ethabi::{decode, encode, ParamType, Token},
     helpers::unix_timestamp_ms,
@@ -8,11 +15,6 @@ use crate::{
     Address, Execute, ExecuteTransactionCommon, Log, Transaction, TransactionType, VmVersion, H256,
     PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
-use num_enum::TryFromPrimitive;
-use serde::{Deserialize, Serialize};
-use std::convert::{TryFrom, TryInto};
-use zksync_contracts::BaseSystemContractsHashes;
-use zksync_utils::u256_to_account_address;
 
 #[repr(u16)]
 #[derive(

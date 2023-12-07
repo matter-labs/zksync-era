@@ -1,16 +1,14 @@
+use std::{env, fmt, time::Duration};
+
+use anyhow::Context as _;
 use sqlx::{
     pool::PoolConnection,
     postgres::{PgConnectOptions, PgPool, PgPoolOptions, Postgres},
 };
 
-use anyhow::Context as _;
-use std::env;
-use std::fmt;
-use std::time::Duration;
+use crate::{metrics::CONNECTION_METRICS, StorageProcessor};
 
 pub mod holder;
-
-use crate::{metrics::CONNECTION_METRICS, StorageProcessor};
 
 /// Obtains the test database URL from the environment variable.
 fn get_test_database_url() -> anyhow::Result<String> {

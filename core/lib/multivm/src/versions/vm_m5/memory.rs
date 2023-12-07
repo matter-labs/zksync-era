@@ -1,12 +1,16 @@
-use zk_evm_1_3_1::abstractions::{Memory, MemoryType, MEMORY_CELLS_OTHER_PAGES};
-use zk_evm_1_3_1::aux_structures::{MemoryPage, MemoryQuery, Timestamp};
-use zk_evm_1_3_1::vm_state::PrimitiveValue;
-use zk_evm_1_3_1::zkevm_opcode_defs::FatPointer;
+use zk_evm_1_3_1::{
+    abstractions::{Memory, MemoryType, MEMORY_CELLS_OTHER_PAGES},
+    aux_structures::{MemoryPage, MemoryQuery, Timestamp},
+    vm_state::PrimitiveValue,
+    zkevm_opcode_defs::FatPointer,
+};
 use zksync_types::U256;
 
-use crate::vm_m5::history_recorder::{IntFrameManagerWithHistory, MemoryWithHistory};
-use crate::vm_m5::oracles::OracleWithHistory;
-use crate::vm_m5::utils::{aux_heap_page_from_base, heap_page_from_base, stack_page_from_base};
+use crate::vm_m5::{
+    history_recorder::{IntFrameManagerWithHistory, MemoryWithHistory},
+    oracles::OracleWithHistory,
+    utils::{aux_heap_page_from_base, heap_page_from_base, stack_page_from_base},
+};
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct SimpleMemory {

@@ -1,5 +1,3 @@
-use sqlx::Error;
-
 use std::{
     collections::HashMap,
     convert::{TryFrom, TryInto},
@@ -7,6 +5,7 @@ use std::{
     time::Duration,
 };
 
+use sqlx::Error;
 use zksync_types::{
     aggregated_operations::L1BatchProofForL1,
     proofs::{

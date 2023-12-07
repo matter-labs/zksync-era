@@ -1,21 +1,24 @@
-use crate::glue::GlueInto;
-use crate::vm_m6::errors::VmRevertReason;
-use crate::vm_m6::history_recorder::HistoryMode;
-use crate::vm_m6::memory::SimpleMemory;
-use std::convert::TryFrom;
-use std::marker::PhantomData;
-use std::mem;
-use zk_evm_1_3_1::abstractions::{
-    AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
-};
-use zk_evm_1_3_1::zkevm_opcode_defs::FatPointer;
-use zk_evm_1_3_1::zkevm_opcode_defs::{
-    FarCallABI, FarCallOpcode, Opcode, RetOpcode, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER,
-    RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
+use std::{convert::TryFrom, marker::PhantomData, mem};
+
+use zk_evm_1_3_1::{
+    abstractions::{
+        AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
+    },
+    zkevm_opcode_defs::{
+        FarCallABI, FarCallOpcode, FatPointer, Opcode, RetOpcode,
+        CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER, RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
+    },
 };
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
-use zksync_types::vm_trace::{Call, CallType};
-use zksync_types::U256;
+use zksync_types::{
+    vm_trace::{Call, CallType},
+    U256,
+};
+
+use crate::{
+    glue::GlueInto,
+    vm_m6::{errors::VmRevertReason, history_recorder::HistoryMode, memory::SimpleMemory},
+};
 
 /// NOTE Auto implementing clone for this tracer can cause stack overflow.
 /// This is because of the stack field which is a Vec with nested vecs inside.
@@ -283,9 +286,12 @@ fn filter_near_call(mut call: Call) -> Vec<Call> {
 
 #[cfg(test)]
 mod tests {
-    use crate::glue::GlueInto;
-    use crate::vm_m6::oracles::tracer::call::{filter_near_call, Call, CallType};
     use zk_evm_1_3_1::zkevm_opcode_defs::FarCallOpcode;
+
+    use crate::{
+        glue::GlueInto,
+        vm_m6::oracles::tracer::call::{filter_near_call, Call, CallType},
+    };
 
     #[test]
     fn test_filter_near_calls() {

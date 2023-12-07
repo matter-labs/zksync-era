@@ -1,8 +1,8 @@
 //! General-purpose cache metrics.
 
-use vise::{Buckets, Counter, EncodeLabelValue, Gauge, Histogram, LabeledFamily, Metrics};
-
 use std::time::Duration;
+
+use vise::{Buckets, Counter, EncodeLabelValue, Gauge, Histogram, LabeledFamily, Metrics};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
 #[metrics(rename_all = "snake_case")]

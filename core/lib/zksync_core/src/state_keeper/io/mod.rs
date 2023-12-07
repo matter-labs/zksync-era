@@ -1,23 +1,17 @@
-use async_trait::async_trait;
-use tokio::sync::{mpsc, oneshot};
-
 use std::{
     fmt,
     time::{Duration, Instant},
 };
 
+use async_trait::async_trait;
 use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
-
+use tokio::sync::{mpsc, oneshot};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
     block::MiniblockExecutionData, protocol_version::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, L1BatchNumber, MiniblockNumber, ProtocolVersionId,
     Transaction,
 };
-
-pub(crate) mod common;
-pub(crate) mod mempool;
-pub(crate) mod seal_logic;
 
 pub(crate) use self::mempool::MempoolIO;
 use super::{
@@ -26,6 +20,9 @@ use super::{
     updates::{MiniblockSealCommand, UpdatesManager},
 };
 
+pub(crate) mod common;
+pub(crate) mod mempool;
+pub(crate) mod seal_logic;
 #[cfg(test)]
 mod tests;
 

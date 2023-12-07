@@ -1,6 +1,5 @@
-// Built-in uses
 use std::time::Duration;
-// External uses
+
 use serde::Deserialize;
 
 /// Configuration for the Ethereum sender crate.

@@ -1,10 +1,9 @@
+use std::{collections::HashMap, fmt, time::Duration};
+
+use anyhow::Context;
 use bigdecimal::BigDecimal;
 use itertools::Itertools;
 use sqlx::{error, types::chrono::NaiveDateTime};
-
-use anyhow::Context;
-use std::{collections::HashMap, fmt, time::Duration};
-
 use zksync_types::{
     block::MiniblockExecutionData,
     fee::TransactionExecutionMetrics,

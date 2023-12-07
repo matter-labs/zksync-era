@@ -1,6 +1,5 @@
 use zksync_object_store::{ObjectStore, ObjectStoreError};
-use zksync_types::aggregated_operations::L1BatchProofForL1;
-use zksync_types::L1BatchNumber;
+use zksync_types::{aggregated_operations::L1BatchProofForL1, L1BatchNumber};
 
 pub async fn load_wrapped_fri_proofs_for_range(
     from: L1BatchNumber,

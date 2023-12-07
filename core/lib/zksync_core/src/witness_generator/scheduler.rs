@@ -1,7 +1,6 @@
-use async_trait::async_trait;
-
 use std::{collections::HashMap, slice, time::Instant};
 
+use async_trait::async_trait;
 use zksync_config::configs::WitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};

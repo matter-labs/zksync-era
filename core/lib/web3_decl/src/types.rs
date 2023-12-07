@@ -5,16 +5,15 @@
 //!
 //! These "extensions" are required to provide more zkSync-specific information while remaining Web3-compilant.
 
-use itertools::unfold;
-use rlp::Rlp;
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-
 use core::{
     convert::{TryFrom, TryInto},
     fmt,
     marker::PhantomData,
 };
 
+use itertools::unfold;
+use rlp::Rlp;
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 pub use zksync_types::{
     api::{Block, BlockNumber, Log, TransactionReceipt, TransactionRequest},
     vm_trace::{ContractSourceDebugInfo, VmDebugTrace, VmExecutionStep},
@@ -350,8 +349,9 @@ pub enum PubSubResult {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use zksync_types::api::{BlockId, BlockIdVariant};
+
+    use super::*;
 
     #[test]
     fn get_block_number_serde() {

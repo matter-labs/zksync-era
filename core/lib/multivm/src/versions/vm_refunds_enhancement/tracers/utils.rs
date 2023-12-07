@@ -5,7 +5,6 @@ use zk_evm_1_3_3::{
         FarCallABI, FarCallForwardPageType, FatPointer, LogOpcode, Opcode, UMAOpcode,
     },
 };
-
 use zksync_system_constants::{
     ECRECOVER_PRECOMPILE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS,
     L1_MESSENGER_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
@@ -13,13 +12,15 @@ use zksync_system_constants::{
 use zksync_types::U256;
 use zksync_utils::u256_to_h256;
 
-use crate::vm_refunds_enhancement::constants::{
-    BOOTLOADER_HEAP_PAGE, VM_HOOK_PARAMS_COUNT, VM_HOOK_PARAMS_START_POSITION, VM_HOOK_POSITION,
-};
-use crate::vm_refunds_enhancement::old_vm::{
-    history_recorder::HistoryMode,
-    memory::SimpleMemory,
-    utils::{aux_heap_page_from_base, heap_page_from_base},
+use crate::vm_refunds_enhancement::{
+    constants::{
+        BOOTLOADER_HEAP_PAGE, VM_HOOK_PARAMS_COUNT, VM_HOOK_PARAMS_START_POSITION, VM_HOOK_POSITION,
+    },
+    old_vm::{
+        history_recorder::HistoryMode,
+        memory::SimpleMemory,
+        utils::{aux_heap_page_from_base, heap_page_from_base},
+    },
 };
 
 #[derive(Clone, Debug, Copy)]

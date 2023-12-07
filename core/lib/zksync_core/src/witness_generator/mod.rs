@@ -38,10 +38,9 @@
 //! Note that the very first input table (`basic_circuit_witness_jobs` (TODO SMA-1362: will be renamed from `witness_inputs`))
 //! is populated by the tree (as the input artifact for the `WitnessGeneratorJobType::BasicCircuits` is the merkle proofs)
 
-use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
-
 use std::{fmt, time::Duration};
 
+use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 use zksync_types::proofs::AggregationRound;
 
 pub mod basic_circuits;

@@ -1,6 +1,3 @@
-use crate::tx::primitives::eip712_signature::typed_structure::{
-    EIP712TypedStructure, Eip712Domain,
-};
 use ethereum_types_old::H256 as ParityCryptoH256;
 use parity_crypto::{
     publickey::{
@@ -13,6 +10,10 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
 use zksync_basic_types::{Address, H256};
 use zksync_utils::ZeroPrefixHexSerde;
+
+use crate::tx::primitives::eip712_signature::typed_structure::{
+    EIP712TypedStructure, Eip712Domain,
+};
 
 /// Struct used for working with Ethereum signatures created using eth_sign (using geth, ethers.js, etc)
 /// message is serialized as 65 bytes long `0x` prefixed string.

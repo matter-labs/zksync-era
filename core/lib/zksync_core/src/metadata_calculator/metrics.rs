@@ -1,11 +1,10 @@
 //! Metrics for `MetadataCalculator`.
 
+use std::time::{Duration, Instant};
+
 use vise::{
     Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver, Metrics,
 };
-
-use std::time::{Duration, Instant};
-
 use zksync_types::block::L1BatchHeader;
 use zksync_utils::time::seconds_since_epoch;
 

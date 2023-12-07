@@ -1,7 +1,7 @@
+use std::{collections::HashMap, future::Future, time::Duration};
+
 use futures::channel::oneshot;
 use serde_json::{Map, Value};
-use std::future::Future;
-use std::{collections::HashMap, time::Duration};
 use tokio::time::sleep;
 
 /// Sets up an interrupt handler and returns a future that resolves once an interrupt signal is received.
@@ -132,8 +132,9 @@ impl ExponentialBackoff {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_same_json() {

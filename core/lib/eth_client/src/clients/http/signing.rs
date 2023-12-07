@@ -1,24 +1,25 @@
-use async_trait::async_trait;
-
 use std::{fmt, sync::Arc};
 
+use async_trait::async_trait;
 use zksync_config::{ContractsConfig, ETHClientConfig, ETHSenderConfig};
 use zksync_contracts::zksync_contract;
 use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, PrivateKeySigner};
-use zksync_types::web3::{
-    self,
-    contract::{
-        tokens::{Detokenize, Tokenize},
-        Options,
+use zksync_types::{
+    web3::{
+        self,
+        contract::{
+            tokens::{Detokenize, Tokenize},
+            Options,
+        },
+        ethabi,
+        transports::Http,
+        types::{
+            Address, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt,
+            H160, H256, U256, U64,
+        },
     },
-    ethabi,
-    transports::Http,
-    types::{
-        Address, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, H160,
-        H256, U256, U64,
-    },
+    L1ChainId, PackedEthSignature, EIP_1559_TX_TYPE,
 };
-use zksync_types::{L1ChainId, PackedEthSignature, EIP_1559_TX_TYPE};
 
 use super::{query::QueryClient, Method, LATENCIES};
 use crate::{

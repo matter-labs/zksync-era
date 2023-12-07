@@ -1,11 +1,10 @@
-use anyhow::Context;
-use clap::Parser;
-use tokio::{sync::watch, task, time::sleep};
-
 use std::{sync::Arc, time::Duration};
 
+use anyhow::Context;
+use clap::Parser;
 use futures::{future::FusedFuture, FutureExt};
 use prometheus_exporter::PrometheusExporterConfig;
+use tokio::{sync::watch, task, time::sleep};
 use zksync_basic_types::{Address, L2ChainId};
 use zksync_core::{
     api_server::{
