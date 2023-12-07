@@ -1,5 +1,6 @@
-use super::VmRevertReason;
 use std::fmt::{Display, Formatter};
+
+use super::VmRevertReason;
 
 /// Structure for non-contract errors from the Virtual Machine (EVM).
 

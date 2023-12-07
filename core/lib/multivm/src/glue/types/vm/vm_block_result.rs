@@ -1,9 +1,11 @@
 use zksync_types::l2_to_l1_log::UserL2ToL1Log;
 
-use crate::glue::{GlueFrom, GlueInto};
-use crate::interface::{
-    types::outputs::VmExecutionLogs, CurrentExecutionState, ExecutionResult, Refunds,
-    VmExecutionResultAndLogs, VmExecutionStatistics,
+use crate::{
+    glue::{GlueFrom, GlueInto},
+    interface::{
+        types::outputs::VmExecutionLogs, CurrentExecutionState, ExecutionResult, Refunds,
+        VmExecutionResultAndLogs, VmExecutionStatistics,
+    },
 };
 
 // Note: In version after vm VmVirtualBlocks the bootloader memory knowledge is encapsulated into the VM.

@@ -1,27 +1,29 @@
 use std::collections::HashMap;
 
-use crate::vm_latest::old_vm::history_recorder::{
-    AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
-    HistoryRecorder, StorageWrapper, VectorHistoryEvent, WithHistory,
-};
-use crate::vm_latest::old_vm::oracles::OracleWithHistory;
-
-use zk_evm_1_4_0::abstractions::RefundedAmounts;
-use zk_evm_1_4_0::zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES;
 use zk_evm_1_4_0::{
-    abstractions::{RefundType, Storage as VmStorageOracle},
+    abstractions::{RefundType, RefundedAmounts, Storage as VmStorageOracle},
     aux_structures::{LogQuery, Timestamp},
+    zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
-
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::utils::storage_key_for_eth_balance;
-use zksync_types::writes::compression::compress_with_best_strategy;
-use zksync_types::writes::{BYTES_PER_DERIVED_KEY, BYTES_PER_ENUMERATION_INDEX};
 use zksync_types::{
+    utils::storage_key_for_eth_balance,
+    writes::{
+        compression::compress_with_best_strategy, BYTES_PER_DERIVED_KEY,
+        BYTES_PER_ENUMERATION_INDEX,
+    },
     AccountTreeId, Address, StorageKey, StorageLogQuery, StorageLogQueryType, BOOTLOADER_ADDRESS,
     U256,
 };
 use zksync_utils::u256_to_h256;
+
+use crate::vm_latest::old_vm::{
+    history_recorder::{
+        AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
+        HistoryRecorder, StorageWrapper, VectorHistoryEvent, WithHistory,
+    },
+    oracles::OracleWithHistory,
+};
 
 // While the storage does not support different shards, it was decided to write the
 // code of the StorageOracle with the shard parameters in mind.

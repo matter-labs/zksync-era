@@ -1,5 +1,4 @@
-use crate::aggregated_operations::AggregatedActionType;
-use crate::{Address, Nonce, H256};
+use crate::{aggregated_operations::AggregatedActionType, Address, Nonce, H256};
 
 #[derive(Clone)]
 pub struct EthTx {

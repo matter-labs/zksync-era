@@ -1,16 +1,16 @@
 use zk_evm_1_4_0::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
-use zksync_types::event::extract_l2tol1logs_from_l1_messenger;
+use zksync_types::{
+    event::extract_l2tol1logs_from_l1_messenger,
+    l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
+    VmEvent,
+};
 
-use crate::HistoryMode;
-use zksync_types::l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log};
-use zksync_types::VmEvent;
-
-use crate::interface::types::outputs::VmExecutionLogs;
-
-use crate::vm_latest::old_vm::utils::precompile_calls_count_after_timestamp;
-use crate::vm_latest::utils::logs;
-use crate::vm_latest::vm::Vm;
+use crate::{
+    interface::types::outputs::VmExecutionLogs,
+    vm_latest::{old_vm::utils::precompile_calls_count_after_timestamp, utils::logs, vm::Vm},
+    HistoryMode,
+};
 
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     pub(crate) fn collect_execution_logs_after_timestamp(

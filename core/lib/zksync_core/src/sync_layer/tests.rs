@@ -7,6 +7,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+use async_trait::async_trait;
+use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::NetworkConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{

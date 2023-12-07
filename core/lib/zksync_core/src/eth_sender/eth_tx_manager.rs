@@ -1,9 +1,7 @@
+use std::{sync::Arc, time::Duration};
+
 use anyhow::Context as _;
 use tokio::sync::watch;
-
-use std::sync::Arc;
-use std::time::Duration;
-
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{
@@ -22,8 +20,7 @@ use zksync_types::{
 use zksync_utils::time::seconds_since_epoch;
 
 use super::{metrics::METRICS, ETHSenderError};
-use crate::l1_gas_price::L1TxParamsProvider;
-use crate::metrics::BlockL1Stage;
+use crate::{l1_gas_price::L1TxParamsProvider, metrics::BlockL1Stage};
 
 #[derive(Debug)]
 struct EthFee {

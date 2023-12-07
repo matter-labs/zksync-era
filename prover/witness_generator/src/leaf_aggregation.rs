@@ -1,36 +1,46 @@
-use zkevm_test_harness::witness::recursive_aggregation::{
-    compute_leaf_params, create_leaf_witnesses,
-};
-
-use anyhow::Context as _;
 use std::time::Instant;
 
+use anyhow::Context as _;
 use async_trait::async_trait;
-use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::GoldilocksField;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::base_layer::{
-    ZkSyncBaseLayerClosedFormInput, ZkSyncBaseLayerProof, ZkSyncBaseLayerVerificationKey,
-};
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursiveLayerCircuit;
-use zksync_prover_fri_types::circuit_definitions::encodings::recursion_request::RecursionQueueSimulator;
-use zksync_prover_fri_types::{get_current_pod_name, FriProofWrapper};
-use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
-use zksync_vk_setup_data_server_fri::{
-    get_base_layer_vk_for_circuit_type, get_recursive_layer_vk_for_circuit_type,
-};
-
-use crate::metrics::WITNESS_GENERATOR_METRICS;
-use crate::utils::{
-    load_proofs_for_job_ids, save_node_aggregations_artifacts,
-    save_recursive_layer_prover_input_artifacts, ClosedFormInputWrapper,
+use zkevm_test_harness::witness::recursive_aggregation::{
+    compute_leaf_params, create_leaf_witnesses,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{ClosedFormInputKey, ObjectStore, ObjectStoreFactory};
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::recursion::leaf_layer::input::RecursionLeafParametersWitness;
+use zksync_prover_fri_types::{
+    circuit_definitions::{
+        boojum::field::goldilocks::GoldilocksField,
+        circuit_definitions::{
+            base_layer::{
+                ZkSyncBaseLayerClosedFormInput, ZkSyncBaseLayerProof,
+                ZkSyncBaseLayerVerificationKey,
+            },
+            recursion_layer::ZkSyncRecursiveLayerCircuit,
+        },
+        encodings::recursion_request::RecursionQueueSimulator,
+        zkevm_circuits::recursion::leaf_layer::input::RecursionLeafParametersWitness,
+    },
+    get_current_pod_name, FriProofWrapper,
+};
+use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::proofs::{AggregationRound, LeafAggregationJobMetadata};
-use zksync_types::protocol_version::FriProtocolVersionId;
-use zksync_types::L1BatchNumber;
+use zksync_types::{
+    proofs::{AggregationRound, LeafAggregationJobMetadata},
+    protocol_version::FriProtocolVersionId,
+    L1BatchNumber,
+};
+use zksync_vk_setup_data_server_fri::{
+    get_base_layer_vk_for_circuit_type, get_recursive_layer_vk_for_circuit_type,
+};
+
+use crate::{
+    metrics::WITNESS_GENERATOR_METRICS,
+    utils::{
+        load_proofs_for_job_ids, save_node_aggregations_artifacts,
+        save_recursive_layer_prover_input_artifacts, ClosedFormInputWrapper,
+    },
+};
 
 pub struct LeafAggregationArtifacts {
     circuit_id: u8,

@@ -7,7 +7,6 @@ use std::{
 use anyhow::Context as _;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
 use sqlx::Row;
-
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},

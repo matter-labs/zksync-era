@@ -1,16 +1,14 @@
 //! Tests for consensus adapters for EN synchronization logic.
 
-use assert_matches::assert_matches;
-use test_casing::{test_casing, Product};
-
 use std::ops;
 
+use assert_matches::assert_matches;
+use test_casing::{test_casing, Product};
 use zksync_concurrency::{ctx, scope, testonly::abort_on_panic, time};
 use zksync_consensus_executor::testonly::FullValidatorConfig;
 use zksync_consensus_roles::validator::{self, FinalBlock};
 use zksync_consensus_storage::{InMemoryStorage, WriteBlockStore};
-use zksync_dal::blocks_dal::ConsensusBlockFields;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{blocks_dal::ConsensusBlockFields, ConnectionPool, StorageProcessor};
 use zksync_types::{
     api::en::SyncBlock, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
 };

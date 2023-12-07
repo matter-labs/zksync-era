@@ -1,9 +1,8 @@
 //! Buffered [`BlockStore`] implementation.
 
-use async_trait::async_trait;
-
 use std::{collections::BTreeMap, ops, time::Instant};
 
+use async_trait::async_trait;
 #[cfg(test)]
 use zksync_concurrency::ctx::channel;
 use zksync_concurrency::{
@@ -13,13 +12,13 @@ use zksync_concurrency::{
 use zksync_consensus_roles::validator::{BlockNumber, FinalBlock, Payload};
 use zksync_consensus_storage::{BlockStore, WriteBlockStore};
 
-#[cfg(test)]
-mod tests;
-
 use super::{
     metrics::{BlockResponseKind, METRICS},
     utils::MissingBlockNumbers,
 };
+
+#[cfg(test)]
+mod tests;
 
 /// [`BlockStore`] variation that upholds additional invariants as to how blocks are processed.
 ///

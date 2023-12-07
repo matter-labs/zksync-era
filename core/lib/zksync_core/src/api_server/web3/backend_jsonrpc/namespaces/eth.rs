@@ -1,10 +1,5 @@
-// Built-in uses
-
-// External uses
 use jsonrpc_core::{BoxFuture, Result};
 use jsonrpc_derive::rpc;
-
-// Workspace uses
 use zksync_types::{
     api::{
         BlockId, BlockIdVariant, BlockNumber, Transaction, TransactionId, TransactionReceipt,
@@ -16,9 +11,10 @@ use zksync_types::{
 };
 use zksync_web3_decl::types::{Block, Filter, FilterChanges, Log};
 
-// Local uses
-use crate::web3::namespaces::EthNamespace;
-use crate::{l1_gas_price::L1GasPriceProvider, web3::backend_jsonrpc::error::into_jsrpc_error};
+use crate::{
+    l1_gas_price::L1GasPriceProvider,
+    web3::{backend_jsonrpc::error::into_jsrpc_error, namespaces::EthNamespace},
+};
 
 #[rpc]
 pub trait EthNamespaceT {

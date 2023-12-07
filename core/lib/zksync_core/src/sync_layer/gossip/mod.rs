@@ -1,14 +1,16 @@
 //! Consensus adapter for EN synchronization logic.
 
-use anyhow::Context as _;
-use tokio::sync::watch;
-
 use std::sync::Arc;
 
+use anyhow::Context as _;
+use tokio::sync::watch;
 use zksync_concurrency::{ctx, scope};
 use zksync_consensus_executor::{Executor, ExecutorConfig};
 use zksync_consensus_roles::node;
 use zksync_dal::ConnectionPool;
+
+use self::{buffered::Buffered, storage::PostgresBlockStorage};
+use super::{fetcher::FetcherCursor, sync_action::ActionQueueSender};
 
 mod buffered;
 mod conversions;
@@ -17,9 +19,6 @@ mod storage;
 #[cfg(test)]
 mod tests;
 mod utils;
-
-use self::{buffered::Buffered, storage::PostgresBlockStorage};
-use super::{fetcher::FetcherCursor, sync_action::ActionQueueSender};
 
 /// Starts fetching L2 blocks using peer-to-peer gossip network.
 pub async fn run_gossip_fetcher(

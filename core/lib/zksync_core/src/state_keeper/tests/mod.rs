@@ -1,5 +1,3 @@
-use once_cell::sync::Lazy;
-
 use std::{
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -8,11 +6,14 @@ use std::{
     time::Instant,
 };
 
-use multivm::interface::{
-    CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, Refunds,
-    SystemEnv, TxExecutionMode, VmExecutionResultAndLogs, VmExecutionStatistics,
+use multivm::{
+    interface::{
+        CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, Refunds,
+        SystemEnv, TxExecutionMode, VmExecutionResultAndLogs, VmExecutionStatistics,
+    },
+    vm_latest::{constants::BLOCK_GAS_LIMIT, VmExecutionLogs},
 };
-use multivm::vm_latest::{constants::BLOCK_GAS_LIMIT, VmExecutionLogs};
+use once_cell::sync::Lazy;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
@@ -42,9 +43,9 @@ use crate::state_keeper::{
         criteria::{GasCriterion, SlotsCriterion},
         ConditionalSealer,
     },
-    types::ExecutionMetricsForCriteria,
-    updates::UpdatesManager,
 };
+
+mod tester;
 
 pub(super) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);

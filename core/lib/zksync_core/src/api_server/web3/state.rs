@@ -1,5 +1,3 @@
-use zksync_utils::h256_to_u256;
-
 use std::{
     collections::HashMap,
     convert::TryFrom,
@@ -10,9 +8,9 @@ use std::{
     },
     time::{Duration, Instant},
 };
+
 use tokio::sync::Mutex;
 use vise::GaugeGuard;
-
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
@@ -23,6 +21,7 @@ use zksync_types::{
     AccountTreeId, Address, L1BatchNumber, L1ChainId, L2ChainId, MiniblockNumber, StorageKey, H256,
     SYSTEM_CONTEXT_ADDRESS, U256, U64, VIRTUIAL_BLOCK_UPGRADE_INFO_POSITION,
 };
+use zksync_utils::h256_to_u256;
 use zksync_web3_decl::{
     error::Web3Error,
     types::{Filter, Log},
@@ -505,9 +504,10 @@ impl<E> RpcState<E> {
             .enumerate()
             .filter_map(|(idx, topics)| topics.map(|topics| (idx as u32 + 1, topics.0)))
             .collect();
+
         let get_logs_filter = GetLogsFilter {
             from_block,
-            to_block: filter.to_block,
+            to_block,
             addresses,
             topics,
         };

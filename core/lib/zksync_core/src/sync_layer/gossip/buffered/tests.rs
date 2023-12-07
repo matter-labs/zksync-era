@@ -1,12 +1,11 @@
 //! Tests for buffered storage.
 
+use std::{iter, ops};
+
 use assert_matches::assert_matches;
 use async_trait::async_trait;
 use rand::{rngs::StdRng, seq::SliceRandom, Rng};
 use test_casing::test_casing;
-
-use std::{iter, ops};
-
 use zksync_concurrency::{
     ctx::{self, channel},
     scope,

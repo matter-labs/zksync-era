@@ -1,9 +1,13 @@
 use serde::{Deserialize, Serialize};
-use zksync_types::proofs::{PrepareBasicCircuitsJob, StorageLogMetadata};
-use zksync_types::zkevm_test_harness::blake2::Blake2s256;
-use zksync_types::zkevm_test_harness::witness::tree::BinaryHasher;
-use zksync_types::zkevm_test_harness::witness::tree::{
-    BinarySparseStorageTree, EnumeratedBinaryLeaf, LeafQuery, ZkSyncStorageLeaf,
+use zksync_types::{
+    proofs::{PrepareBasicCircuitsJob, StorageLogMetadata},
+    zkevm_test_harness::{
+        blake2::Blake2s256,
+        witness::tree::{
+            BinaryHasher, BinarySparseStorageTree, EnumeratedBinaryLeaf, LeafQuery,
+            ZkSyncStorageLeaf,
+        },
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]

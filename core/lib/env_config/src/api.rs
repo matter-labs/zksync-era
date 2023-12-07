@@ -1,12 +1,12 @@
 use anyhow::Context as _;
-
-use crate::{envy_load, FromEnv};
 use zksync_config::configs::{
     api::{
         ContractVerificationApiConfig, HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig,
     },
     ApiConfig, PrometheusConfig,
 };
+
+use crate::{envy_load, FromEnv};
 
 impl FromEnv for ApiConfig {
     fn from_env() -> anyhow::Result<Self> {

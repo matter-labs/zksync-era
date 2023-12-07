@@ -1,7 +1,6 @@
-use async_trait::async_trait;
-
 use std::{collections::HashMap, env, time::Instant};
 
+use async_trait::async_trait;
 use zksync_config::configs::WitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
@@ -13,8 +12,7 @@ use zksync_types::{
     proofs::{AggregationRound, PrepareNodeAggregationCircuitJob, WitnessGeneratorJobMetadata},
     zkevm_test_harness::{
         abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
-        bellman::bn256::Bn256,
-        bellman::plonk::better_better_cs::setup::VerificationKey,
+        bellman::{bn256::Bn256, plonk::better_better_cs::setup::VerificationKey},
         ff::to_hex,
         witness::{
             self,

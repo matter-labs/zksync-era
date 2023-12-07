@@ -1,17 +1,17 @@
 //! Metrics for the JSON-RPC server.
 
-use vise::{
-    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LabeledFamily,
-    LatencyObserver, Metrics, Unit,
-};
-
 use std::{
     fmt,
     time::{Duration, Instant},
 };
 
-use super::{ApiTransport, TypedFilter};
+use vise::{
+    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LabeledFamily,
+    LatencyObserver, Metrics, Unit,
+};
 use zksync_types::api;
+
+use super::{ApiTransport, TypedFilter};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "scheme", rename_all = "UPPERCASE")]

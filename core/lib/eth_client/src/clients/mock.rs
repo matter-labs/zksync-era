@@ -1,9 +1,13 @@
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        RwLock,
+    },
+};
 
 use async_trait::async_trait;
 use jsonrpc_core::types::error::Error as RpcError;
-use std::collections::{BTreeMap, HashMap};
-use std::sync::RwLock;
 use zksync_types::{
     web3::{
         contract::{
@@ -92,8 +96,7 @@ impl MockEthereum {
     /// A fake `sha256` hasher, which calculates an `std::hash` instead.
     /// This is done for simplicity and it's also much faster.
     pub fn fake_sha256(data: &[u8]) -> H256 {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::Hasher;
+        use std::{collections::hash_map::DefaultHasher, hash::Hasher};
 
         let mut hasher = DefaultHasher::new();
         hasher.write(data);

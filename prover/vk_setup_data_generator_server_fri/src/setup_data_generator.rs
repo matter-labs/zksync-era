@@ -1,28 +1,28 @@
 use anyhow::Context as _;
-use zksync_prover_fri_types::circuit_definitions::aux_definitions::witness_oracle::VmWitnessOracle;
-use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::GoldilocksField;
-use zksync_prover_fri_types::circuit_definitions::boojum::worker::Worker;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::base_layer::ZkSyncBaseLayerCircuit;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursiveLayerCircuit;
-use zksync_prover_fri_types::circuit_definitions::{
-    ZkSyncDefaultRoundFunction, BASE_LAYER_CAP_SIZE, BASE_LAYER_FRI_LDE_FACTOR,
-};
-
 use structopt::StructOpt;
-use zkevm_test_harness::geometry_config::get_geometry_config;
-use zkevm_test_harness::prover_utils::create_recursive_layer_setup_data;
+use zkevm_test_harness::{
+    geometry_config::get_geometry_config, prover_utils::create_recursive_layer_setup_data,
+};
+use zksync_prover_fri_types::{
+    circuit_definitions::{
+        aux_definitions::witness_oracle::VmWitnessOracle,
+        boojum::{field::goldilocks::GoldilocksField, worker::Worker},
+        circuit_definitions::{
+            base_layer::ZkSyncBaseLayerCircuit, recursion_layer::ZkSyncRecursiveLayerCircuit,
+        },
+        ZkSyncDefaultRoundFunction, BASE_LAYER_CAP_SIZE, BASE_LAYER_FRI_LDE_FACTOR,
+    },
+    ProverServiceDataKey,
+};
 use zksync_types::proofs::AggregationRound;
-use zksync_vk_setup_data_server_fri::generate_cpu_base_layer_setup_data;
-use zksync_vk_setup_data_server_fri::utils::{
-    get_basic_circuits, get_leaf_circuits, get_node_circuit, get_scheduler_circuit, CYCLE_LIMIT,
-};
 use zksync_vk_setup_data_server_fri::{
-    get_finalization_hints, get_recursive_layer_vk_for_circuit_type,
-    get_round_for_recursive_circuit_type, save_setup_data, GoldilocksProverSetupData,
-    ProverSetupData,
+    generate_cpu_base_layer_setup_data, get_finalization_hints,
+    get_recursive_layer_vk_for_circuit_type, get_round_for_recursive_circuit_type, save_setup_data,
+    utils::{
+        get_basic_circuits, get_leaf_circuits, get_node_circuit, get_scheduler_circuit, CYCLE_LIMIT,
+    },
+    GoldilocksProverSetupData, ProverSetupData,
 };
-
-use zksync_prover_fri_types::ProverServiceDataKey;
 #[cfg(feature = "gpu")]
 use {
     shivini::cs::setup::GpuSetup, shivini::ProverContext,

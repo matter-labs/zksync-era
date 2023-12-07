@@ -1,18 +1,16 @@
-use futures::{channel::mpsc, SinkExt};
 use std::{
     collections::VecDeque,
     sync::Arc,
     time::{Duration, Instant},
 };
-use tokio::sync::RwLock;
 
+use futures::{channel::mpsc, SinkExt};
+use tokio::sync::RwLock;
 use zksync::{error::ClientError, operations::SyncTransactionHandle, HttpClient};
+use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 use zksync_types::{api::TransactionReceipt, Address, Nonce, H256, U256, U64};
 use zksync_web3_decl::jsonrpsee::core::Error as CoreError;
 
-use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
-
-use crate::utils::format_gwei;
 use crate::{
     account::tx_command_executor::SubmitResult,
     account_pool::{AddressPool, TestWallet},
@@ -20,6 +18,7 @@ use crate::{
     config::{LoadtestConfig, RequestLimiters},
     constants::{MAX_L1_TRANSACTIONS, POLLING_INTERVAL},
     report::{Report, ReportBuilder, ReportLabel},
+    utils::format_gwei,
 };
 
 mod api_request_executor;

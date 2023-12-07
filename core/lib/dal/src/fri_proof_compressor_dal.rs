@@ -1,14 +1,16 @@
+use std::{collections::HashMap, str::FromStr, time::Duration};
+
 use sqlx::Row;
-use std::collections::HashMap;
-use std::str::FromStr;
-use std::time::Duration;
 use strum::{Display, EnumString};
+use zksync_types::{
+    proofs::{JobCountStatistics, StuckJobs},
+    L1BatchNumber,
+};
 
-use zksync_types::proofs::{JobCountStatistics, StuckJobs};
-use zksync_types::L1BatchNumber;
-
-use crate::time_utils::{duration_to_naive_time, pg_interval_from_duration};
-use crate::StorageProcessor;
+use crate::{
+    time_utils::{duration_to_naive_time, pg_interval_from_duration},
+    StorageProcessor,
+};
 
 #[derive(Debug)]
 pub struct FriProofCompressorDal<'a, 'c> {

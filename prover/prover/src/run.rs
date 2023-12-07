@@ -1,11 +1,10 @@
-use anyhow::Context as _;
 use std::{env, future::Future, sync::Arc, time::Instant};
-use tokio::sync::{oneshot, Mutex};
 
+use anyhow::Context as _;
 use local_ip_address::local_ip;
-use queues::Buffer;
-
 use prometheus_exporter::PrometheusExporterConfig;
+use queues::Buffer;
+use tokio::sync::{oneshot, Mutex};
 use zksync_config::{
     configs::{
         api::PrometheusConfig, prover_group::ProverGroupConfig, AlertsConfig, ObjectStoreConfig,
@@ -19,12 +18,11 @@ use zksync_prover_utils::region_fetcher::{get_region, get_zone};
 use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
-use crate::artifact_provider::ProverArtifactProvider;
-use crate::metrics::METRICS;
-use crate::prover::ProverReporter;
-use crate::prover_params::ProverParams;
-use crate::socket_listener::incoming_socket_listener;
-use crate::synthesized_circuit_provider::SynthesizedCircuitProvider;
+use crate::{
+    artifact_provider::ProverArtifactProvider, metrics::METRICS, prover::ProverReporter,
+    prover_params::ProverParams, socket_listener::incoming_socket_listener,
+    synthesized_circuit_provider::SynthesizedCircuitProvider,
+};
 
 async fn graceful_shutdown() -> anyhow::Result<impl Future<Output = ()>> {
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;

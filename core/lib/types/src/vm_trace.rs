@@ -1,11 +1,15 @@
-use crate::{Address, U256};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+    fmt::Display,
+};
+
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::collections::{HashMap, HashSet};
-use std::fmt;
-use std::fmt::Display;
 use zk_evm::zkevm_opcode_defs::FarCallOpcode;
 use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_utils::u256_to_h256;
+
+use crate::{Address, U256};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum VmTrace {

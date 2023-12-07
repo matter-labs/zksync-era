@@ -1,10 +1,9 @@
 //! Storage implementation based on DAL.
 
-use anyhow::Context as _;
-use async_trait::async_trait;
-
 use std::ops;
 
+use anyhow::Context as _;
+use async_trait::async_trait;
 use zksync_concurrency::{
     ctx,
     sync::{self, watch, Mutex},
@@ -28,6 +27,9 @@ use crate::{
         sync_action::{ActionQueueSender, SyncAction},
     },
 };
+
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug)]
 struct CursorWithCachedBlock {

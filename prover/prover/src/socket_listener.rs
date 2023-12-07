@@ -1,15 +1,18 @@
-use crate::synthesized_circuit_provider::SharedAssemblyQueue;
-use queues::IsQueue;
-use std::net::{IpAddr, SocketAddr};
-use std::time::Instant;
-use zksync_dal::ConnectionPool;
-use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
+use std::{
+    net::{IpAddr, SocketAddr},
+    time::Instant,
+};
 
 use anyhow::Context as _;
+use queues::IsQueue;
 use tokio::{
     io::copy,
     net::{TcpListener, TcpStream},
 };
+use zksync_dal::ConnectionPool;
+use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
+
+use crate::synthesized_circuit_provider::SharedAssemblyQueue;
 
 #[allow(clippy::too_many_arguments)]
 pub async fn incoming_socket_listener(

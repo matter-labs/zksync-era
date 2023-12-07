@@ -1,18 +1,8 @@
 #![allow(clippy::derive_partial_eq_without_eq, clippy::format_push_string)]
 
-// Built-in deps
-pub use sqlx::Error as SqlxError;
-use sqlx::{postgres::Postgres, Connection, PgConnection, Transaction};
-// External imports
-use sqlx::pool::PoolConnection;
-pub use sqlx::types::BigDecimal;
+use sqlx::{pool::PoolConnection, postgres::Postgres, Connection, PgConnection, Transaction};
+pub use sqlx::{types::BigDecimal, Error as SqlxError};
 
-// Local imports
-use crate::accounts_dal::AccountsDal;
-use crate::basic_witness_input_producer_dal::BasicWitnessInputProducerDal;
-use crate::blocks_dal::BlocksDal;
-use crate::blocks_web3_dal::BlocksWeb3Dal;
-use crate::connection::holder::ConnectionHolder;
 pub use crate::connection::ConnectionPool;
 use crate::consensus_dal::ConsensusDal;
 use crate::contract_verification_dal::ContractVerificationDal;

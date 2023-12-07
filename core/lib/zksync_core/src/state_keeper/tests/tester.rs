@@ -1,6 +1,3 @@
-use async_trait::async_trait;
-use tokio::sync::{mpsc, watch};
-
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     convert::TryInto,
@@ -8,11 +5,15 @@ use std::{
     time::{Duration, Instant},
 };
 
-use multivm::interface::{
-    ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
-    VmExecutionResultAndLogs,
+use async_trait::async_trait;
+use multivm::{
+    interface::{
+        ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
+        VmExecutionResultAndLogs,
+    },
+    vm_latest::constants::BLOCK_GAS_LIMIT,
 };
-use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
+use tokio::sync::{mpsc, watch};
 use zksync_types::{
     block::MiniblockExecutionData, protocol_version::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
