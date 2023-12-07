@@ -191,10 +191,6 @@ impl JobProcessor for BasicWitnessInputProducer {
             .await
             .context("failed to mark job as successful for BasicWitnessInputProducer")?;
         transaction
-            .witness_generator_dal()
-            .mark_witness_inputs_job_as_queued(job_id)
-            .await;
-        transaction
             .commit()
             .await
             .context("failed to commit DB transaction for BasicWitnessInputProducer")?;

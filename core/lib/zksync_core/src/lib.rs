@@ -35,12 +35,10 @@ use zksync_prover_utils::periodic_job::PeriodicJob;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
-    proofs::AggregationRound,
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
     L2ChainId, PackedEthSignature, ProtocolVersionId,
 };
-use zksync_verification_key_server::get_cached_commitments;
 
 use crate::{
     api_server::{
@@ -67,8 +65,6 @@ use crate::{
         gpu_prover_queue_monitor::GpuProverQueueMonitor,
         prover_job_retry_manager::ProverJobRetryManager, prover_queue_monitor::ProverStatsReporter,
         waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
-        waiting_to_queued_witness_job_mover::WaitingToQueuedWitnessJobMover,
-        witness_generator_queue_monitor::WitnessGeneratorStatsReporter,
     },
     l1_gas_price::{GasAdjusterSingleton, L1GasPriceProvider},
     metadata_calculator::{
@@ -76,10 +72,6 @@ use crate::{
     },
     metrics::{InitStage, APP_METRICS},
     state_keeper::{create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer},
-    witness_generator::{
-        basic_circuits::BasicWitnessGenerator, leaf_aggregation::LeafAggregationWitnessGenerator,
-        node_aggregation::NodeAggregationWitnessGenerator, scheduler::SchedulerWitnessGenerator,
-    },
 };
 
 pub mod api_server;
@@ -101,7 +93,6 @@ pub mod reorg_detector;
 pub mod state_keeper;
 pub mod sync_layer;
 pub mod temp_config_store;
-pub mod witness_generator;
 
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(
@@ -245,9 +236,6 @@ pub enum Component {
     /// Produces input for basic witness generator and uploads it as bin encoded file (blob) to GCS.
     /// The blob is later used as input for Basic Witness Generators.
     BasicWitnessInputProducer,
-    /// Witness Generator. The first argument is a number of jobs to process. If None, runs indefinitely.
-    /// The second argument is the type of the witness-generation performed
-    WitnessGenerator(Option<usize>, AggregationRound),
     /// Component for housekeeping task such as cleaning blobs from GCS, reporting metrics etc.
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
@@ -283,38 +271,6 @@ impl FromStr for Components {
             "basic_witness_input_producer" => {
                 Ok(Components(vec![Component::BasicWitnessInputProducer]))
             }
-            "witness_generator" => Ok(Components(vec![
-                Component::WitnessGenerator(None, AggregationRound::BasicCircuits),
-                Component::WitnessGenerator(None, AggregationRound::LeafAggregation),
-                Component::WitnessGenerator(None, AggregationRound::NodeAggregation),
-                Component::WitnessGenerator(None, AggregationRound::Scheduler),
-            ])),
-            "one_shot_witness_generator" => Ok(Components(vec![
-                Component::WitnessGenerator(Some(1), AggregationRound::BasicCircuits),
-                Component::WitnessGenerator(Some(1), AggregationRound::LeafAggregation),
-                Component::WitnessGenerator(Some(1), AggregationRound::NodeAggregation),
-                Component::WitnessGenerator(Some(1), AggregationRound::Scheduler),
-            ])),
-            "one_shot_basic_witness_generator" => {
-                Ok(Components(vec![Component::WitnessGenerator(
-                    Some(1),
-                    AggregationRound::BasicCircuits,
-                )]))
-            }
-            "one_shot_leaf_witness_generator" => Ok(Components(vec![Component::WitnessGenerator(
-                Some(1),
-                AggregationRound::LeafAggregation,
-            )])),
-            "one_shot_node_witness_generator" => Ok(Components(vec![Component::WitnessGenerator(
-                Some(1),
-                AggregationRound::NodeAggregation,
-            )])),
-            "one_shot_scheduler_witness_generator" => {
-                Ok(Components(vec![Component::WitnessGenerator(
-                    Some(1),
-                    AggregationRound::Scheduler,
-                )]))
-            }
             "eth" => Ok(Components(vec![
                 Component::EthWatcher,
                 Component::EthTxAggregator,
@@ -332,7 +288,6 @@ impl FromStr for Components {
 pub async fn initialize_components(
     configs: &TempConfigStore,
     components: Vec<Component>,
-    use_prometheus_push_gateway: bool,
 ) -> anyhow::Result<(
     Vec<JoinHandle<anyhow::Result<()>>>,
     watch::Sender<bool>,
@@ -350,10 +305,6 @@ pub async fn initialize_components(
         .build()
         .await
         .context("failed to build connection_pool")?;
-    let prover_connection_pool = ConnectionPool::builder(postgres_config.prover_url()?, pool_size)
-        .build()
-        .await
-        .context("failed to build prover_connection_pool")?;
     let replica_connection_pool =
         ConnectionPool::builder(postgres_config.replica_url()?, pool_size)
             .set_statement_timeout(statement_timeout)
@@ -398,11 +349,7 @@ pub async fn initialize_components(
         .prometheus_config
         .clone()
         .context("prometheus_config")?;
-    let prom_config = if use_prometheus_push_gateway {
-        PrometheusExporterConfig::push(prom_config.gateway_endpoint(), prom_config.push_interval())
-    } else {
-        PrometheusExporterConfig::pull(prom_config.listener_port)
-    };
+    let prom_config = PrometheusExporterConfig::pull(prom_config.listener_port);
 
     let (prometheus_health_check, prometheus_health_updater) =
         ReactiveHealthCheck::new("prometheus_exporter");
@@ -703,17 +650,6 @@ pub async fn initialize_components(
     )
     .await
     .context("add_trees_to_task_futures()")?;
-    add_witness_generator_to_task_futures(
-        configs,
-        &mut task_futures,
-        &components,
-        &connection_pool,
-        &prover_connection_pool,
-        &store_factory,
-        &stop_receiver,
-    )
-    .await
-    .context("add_witness_generator_to_task_futures()")?;
 
     if components.contains(&Component::BasicWitnessInputProducer) {
         let singleton_connection_pool = ConnectionPool::singleton(postgres_config.master_url()?)
@@ -944,11 +880,7 @@ async fn run_tree(
         .build()
         .await
         .context("failed to build connection pool")?;
-    let prover_pool = ConnectionPool::singleton(postgres_config.prover_url()?)
-        .build()
-        .await
-        .context("failed to build prover_pool")?;
-    let tree_task = tokio::spawn(metadata_calculator.run(pool, prover_pool, stop_receiver));
+    let tree_task = tokio::spawn(metadata_calculator.run(pool, stop_receiver));
     task_futures.push(tree_task);
 
     let elapsed = started_at.elapsed();
@@ -980,101 +912,6 @@ async fn add_basic_witness_input_producer_to_task_futures(
     );
     let elapsed = started_at.elapsed();
     APP_METRICS.init_latency[&InitStage::BasicWitnessInputProducer].set(elapsed);
-    Ok(())
-}
-
-async fn add_witness_generator_to_task_futures(
-    configs: &TempConfigStore,
-    task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
-    components: &[Component],
-    connection_pool: &ConnectionPool,
-    prover_connection_pool: &ConnectionPool,
-    store_factory: &ObjectStoreFactory,
-    stop_receiver: &watch::Receiver<bool>,
-) -> anyhow::Result<()> {
-    // We don't want witness generator to run on local nodes, as it's CPU heavy.
-    if std::env::var("ZKSYNC_LOCAL_SETUP") == Ok("true".to_owned()) {
-        return Ok(());
-    }
-
-    let generator_params = components.iter().filter_map(|component| {
-        if let Component::WitnessGenerator(batch_size, component_type) = component {
-            Some((*batch_size, *component_type))
-        } else {
-            None
-        }
-    });
-
-    for (batch_size, component_type) in generator_params {
-        let started_at = Instant::now();
-        tracing::info!(
-            "initializing the {component_type:?} witness generator, batch size: {batch_size:?}"
-        );
-
-        let vk_commitments = get_cached_commitments();
-        let protocol_versions = prover_connection_pool
-            .access_storage()
-            .await
-            .unwrap()
-            .protocol_versions_dal()
-            .protocol_version_for(&vk_commitments)
-            .await;
-        let config = configs
-            .witness_generator_config
-            .clone()
-            .context("witness_generator_config")?;
-        let task = match component_type {
-            AggregationRound::BasicCircuits => {
-                let witness_generator = BasicWitnessGenerator::new(
-                    config,
-                    store_factory,
-                    protocol_versions.clone(),
-                    connection_pool.clone(),
-                    prover_connection_pool.clone(),
-                )
-                .await;
-                tokio::spawn(witness_generator.run(stop_receiver.clone(), batch_size))
-            }
-            AggregationRound::LeafAggregation => {
-                let witness_generator = LeafAggregationWitnessGenerator::new(
-                    config,
-                    store_factory,
-                    protocol_versions.clone(),
-                    connection_pool.clone(),
-                    prover_connection_pool.clone(),
-                )
-                .await;
-                tokio::spawn(witness_generator.run(stop_receiver.clone(), batch_size))
-            }
-            AggregationRound::NodeAggregation => {
-                let witness_generator = NodeAggregationWitnessGenerator::new(
-                    config,
-                    store_factory,
-                    protocol_versions.clone(),
-                    connection_pool.clone(),
-                    prover_connection_pool.clone(),
-                )
-                .await;
-                tokio::spawn(witness_generator.run(stop_receiver.clone(), batch_size))
-            }
-            AggregationRound::Scheduler => {
-                let witness_generator = SchedulerWitnessGenerator::new(
-                    config,
-                    store_factory,
-                    protocol_versions.clone(),
-                    connection_pool.clone(),
-                    prover_connection_pool.clone(),
-                )
-                .await;
-                tokio::spawn(witness_generator.run(stop_receiver.clone(), batch_size))
-            }
-        };
-        task_futures.push(task);
-
-        let elapsed = started_at.elapsed();
-        APP_METRICS.init_latency[&InitStage::WitnessGenerator(component_type)].set(elapsed);
-        tracing::info!("initialized {component_type:?} witness generator in {elapsed:?}");
-    }
     Ok(())
 }
 
@@ -1128,20 +965,9 @@ async fn add_house_keeper_to_task_futures(
         prover_connection_pool.clone(),
         prover_group_config.clone(),
     );
-    let waiting_to_queued_witness_job_mover = WaitingToQueuedWitnessJobMover::new(
-        house_keeper_config.witness_job_moving_interval_ms,
-        prover_connection_pool.clone(),
-    );
-    let witness_generator_stats_reporter = WitnessGeneratorStatsReporter::new(
-        house_keeper_config.witness_generator_stats_reporting_interval_ms,
-        prover_connection_pool.clone(),
-    );
-
-    task_futures.push(tokio::spawn(witness_generator_stats_reporter.run()));
     task_futures.push(tokio::spawn(gpu_prover_queue.run()));
     task_futures.push(tokio::spawn(l1_batch_metrics_reporter.run()));
     task_futures.push(tokio::spawn(prover_stats_reporter.run()));
-    task_futures.push(tokio::spawn(waiting_to_queued_witness_job_mover.run()));
     task_futures.push(tokio::spawn(prover_job_retry_manager.run()));
 
     // All FRI Prover related components are configured below.
