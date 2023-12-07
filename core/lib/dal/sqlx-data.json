@@ -1948,6 +1948,33 @@
     },
     "query": "SELECT * from prover_jobs where id=$1"
   },
+  "2044947d6d29f29cda508b2160c39f74a8bfd524afa2ffc20a98ae039bc86ed7": {
+    "describe": {
+      "columns": [
+        {
+          "name": "number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "hash",
+          "ordinal": 1,
+          "type_info": "Bytea"
+        }
+      ],
+      "nullable": [
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT number, hash FROM miniblocks WHERE number >= $1 ORDER BY number ASC LIMIT $2"
+  },
   "20b22fd457417e9a72f5941887448f9a11b97b449db4759da0b9d368ce93996b": {
     "describe": {
       "columns": [
@@ -9525,33 +9552,6 @@
       }
     },
     "query": "\n                    SELECT id, circuit_input_blob_url FROM prover_jobs\n                    WHERE status='successful'\n                    AND circuit_input_blob_url is NOT NULL\n                    AND updated_at < NOW() - INTERVAL '30 days'\n                    LIMIT $1;\n                "
-  },
-  "b479b7d3334f8d4566c294a44e2adb282fbc66a87be5c248c65211c2a8a07db0": {
-    "describe": {
-      "columns": [
-        {
-          "name": "number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "hash",
-          "ordinal": 1,
-          "type_info": "Bytea"
-        }
-      ],
-      "nullable": [
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Int8",
-          "Int8"
-        ]
-      }
-    },
-    "query": "SELECT number, hash FROM miniblocks WHERE number > $1 ORDER BY number ASC LIMIT $2"
   },
   "b4a3c902646725188f7c79ebac992cdce5896fc6fcc9f485c0cba9d90c4c982c": {
     "describe": {

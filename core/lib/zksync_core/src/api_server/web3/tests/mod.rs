@@ -386,10 +386,10 @@ impl HttpTest for LogFilterChanges {
         assert_logs_match(&topics_logs, &[events[1], events[3]]);
 
         let new_all_logs = client.get_filter_changes(all_logs_filter_id).await?;
-        let FilterChanges::Logs(new_all_logs) = new_all_logs else {
+        let FilterChanges::Hashes(new_all_logs) = new_all_logs else {
             panic!("Unexpected getFilterChanges output: {:?}", new_all_logs);
         };
-        assert_eq!(new_all_logs, all_logs); // FIXME(#546): update test after behavior is fixed
+        assert!(new_all_logs.is_empty());
         Ok(())
     }
 }
@@ -458,11 +458,10 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         };
         assert_logs_match(&lower_bound_logs, &new_events);
 
-        // FIXME(#546): update test after behavior is fixed
         let new_upper_bound_logs = client.get_filter_changes(upper_bound_filter_id).await?;
-        assert_eq!(new_upper_bound_logs, FilterChanges::Logs(upper_bound_logs));
+        assert_matches!(new_upper_bound_logs, FilterChanges::Hashes(hashes) if hashes.is_empty());
         let new_bounded_logs = client.get_filter_changes(bounded_filter_id).await?;
-        assert_eq!(new_bounded_logs, FilterChanges::Logs(bounded_logs));
+        assert_matches!(new_bounded_logs, FilterChanges::Hashes(hashes) if hashes.is_empty());
 
         // Add miniblock #3. It should not be picked up by the bounded and upper bound filters,
         // and should be picked up by the lower bound filter.
@@ -472,27 +471,22 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         let new_events: Vec<_> = new_events.iter().collect();
 
         let bounded_logs = client.get_filter_changes(bounded_filter_id).await?;
-        let FilterChanges::Logs(bounded_logs) = bounded_logs else {
+        let FilterChanges::Hashes(bounded_logs) = bounded_logs else {
             panic!("Unexpected getFilterChanges output: {:?}", bounded_logs);
         };
-        assert!(bounded_logs
-            .iter()
-            .all(|log| log.block_number.unwrap() < 3.into()));
+        assert!(bounded_logs.is_empty());
 
         let upper_bound_logs = client.get_filter_changes(upper_bound_filter_id).await?;
-        let FilterChanges::Logs(upper_bound_logs) = upper_bound_logs else {
+        let FilterChanges::Hashes(upper_bound_logs) = upper_bound_logs else {
             panic!("Unexpected getFilterChanges output: {:?}", upper_bound_logs);
         };
-        assert!(upper_bound_logs
-            .iter()
-            .all(|log| log.block_number.unwrap() < 3.into()));
+        assert!(upper_bound_logs.is_empty());
 
         let lower_bound_logs = client.get_filter_changes(lower_bound_filter_id).await?;
         let FilterChanges::Logs(lower_bound_logs) = lower_bound_logs else {
             panic!("Unexpected getFilterChanges output: {:?}", lower_bound_logs);
         };
-        let start_idx = lower_bound_logs.len() - 4;
-        assert_logs_match(&lower_bound_logs[start_idx..], &new_events);
+        assert_logs_match(&lower_bound_logs, &new_events);
         Ok(())
     }
 }

@@ -548,7 +548,7 @@ pub struct TransactionDetails {
 #[derive(Debug, Clone)]
 pub struct GetLogsFilter {
     pub from_block: MiniblockNumber,
-    pub to_block: Option<BlockNumber>,
+    pub to_block: MiniblockNumber,
     pub addresses: Vec<Address>,
     pub topics: Vec<(u32, Vec<H256>)>,
 }

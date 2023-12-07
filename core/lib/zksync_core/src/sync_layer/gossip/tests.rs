@@ -9,10 +9,10 @@ use zksync_concurrency::{ctx, scope, testonly::abort_on_panic, time};
 use zksync_consensus_executor::testonly::FullValidatorConfig;
 use zksync_consensus_roles::validator::{self, FinalBlock};
 use zksync_consensus_storage::{InMemoryStorage, WriteBlockStore};
+use zksync_dal::blocks_dal::ConsensusBlockFields;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
-    api::en::SyncBlock, block::ConsensusBlockFields, Address, L1BatchNumber, MiniblockNumber,
-    ProtocolVersionId, H256,
+    api::en::SyncBlock, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
 };
 
 use super::*;
@@ -509,7 +509,7 @@ async fn insert_sync_blocks(pool: ConnectionPool, blocks: Vec<SyncBlock>, tx_has
     let (actions_sender, actions) = ActionQueue::new();
     let state_keeper = StateKeeperHandles::new(pool.clone(), actions, tx_hashes).await;
     for block in blocks {
-        let block_actions = fetcher.advance(block.into());
+        let block_actions = fetcher.advance(block.try_into().unwrap());
         actions_sender.push_actions(block_actions).await;
     }
 
