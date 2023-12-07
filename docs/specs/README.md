@@ -1,7 +1,5 @@
 # zkSync protocol specification
 
-#
-
 ## Table of contents
 
 - README.md
