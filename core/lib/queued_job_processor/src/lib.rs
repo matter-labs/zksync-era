@@ -1,15 +1,13 @@
-use std::fmt::Debug;
-use std::time::{Duration, Instant};
+use std::{
+    fmt::Debug,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context as _;
 pub use async_trait::async_trait;
-use tokio::sync::watch;
-use tokio::task::JoinHandle;
-use tokio::time::sleep;
-
-use zksync_utils::panic_extractor::try_extract_panic_message;
-
+use tokio::{sync::watch, task::JoinHandle, time::sleep};
 use vise::{Buckets, Counter, Histogram, LabeledFamily, Metrics};
+use zksync_utils::panic_extractor::try_extract_panic_message;
 
 const ATTEMPT_BUCKETS: Buckets = Buckets::exponential(1.0..=64.0, 2.0);
 
@@ -111,6 +109,16 @@ pub trait JobProcessor: Sync + Send {
         task: JoinHandle<anyhow::Result<Self::JobArtifacts>>,
     ) -> anyhow::Result<()> {
         let attempts = self.get_job_attempts(&job_id).await?;
+        let max_attempts = self.max_attempts();
+        if attempts == max_attempts {
+            METRICS.max_attempts_reached[&(Self::SERVICE_NAME, format!("{job_id:?}"))].inc();
+            tracing::error!(
+                "Max attempts ({max_attempts}) reached for {} job {:?}",
+                Self::SERVICE_NAME,
+                job_id,
+            );
+        }
+
         let result = loop {
             tracing::trace!(
                 "Polling {} task with id {:?}. Is finished: {}",
@@ -146,15 +154,6 @@ pub trait JobProcessor: Sync + Send {
             error_message
         );
 
-        let max_attempts = self.max_attempts();
-        if attempts == max_attempts {
-            METRICS.max_attempts_reached[&(Self::SERVICE_NAME, format!("{job_id:?}"))].inc();
-            tracing::error!(
-                "Max attempts ({max_attempts}) reached for {} job {:?}",
-                Self::SERVICE_NAME,
-                job_id,
-            );
-        }
         self.save_failure(job_id, started_at, error_message).await;
         Ok(())
     }

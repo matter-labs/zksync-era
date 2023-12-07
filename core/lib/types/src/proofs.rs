@@ -1,25 +1,25 @@
-use std::convert::{TryFrom, TryInto};
-use std::fmt::Debug;
-use std::net::IpAddr;
-use std::ops::Add;
-use std::str::FromStr;
+use std::{
+    convert::{TryFrom, TryInto},
+    fmt::Debug,
+    net::IpAddr,
+    ops::Add,
+    str::FromStr,
+};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
-use zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
-use zkevm_test_harness::bellman::bn256::Bn256;
-use zkevm_test_harness::bellman::plonk::better_better_cs::proof::Proof;
-use zkevm_test_harness::encodings::{recursion_request::RecursionRequest, QueueSimulator};
-use zkevm_test_harness::witness::full_block_artifact::{
-    BlockBasicCircuits, BlockBasicCircuitsPublicInputs,
-};
-use zkevm_test_harness::witness::oracle::VmWitnessOracle;
 use zkevm_test_harness::{
+    abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
+    bellman::{bn256::Bn256, plonk::better_better_cs::proof::Proof},
+    encodings::{recursion_request::RecursionRequest, QueueSimulator},
+    witness::{
+        full_block_artifact::{BlockBasicCircuits, BlockBasicCircuitsPublicInputs},
+        oracle::VmWitnessOracle,
+    },
     LeafAggregationOutputDataWitness, NodeAggregationOutputDataWitness,
     SchedulerCircuitInstanceWitness,
 };
-
 use zksync_basic_types::{L1BatchNumber, H256, U256};
 
 const HASH_LEN: usize = H256::len_bytes();

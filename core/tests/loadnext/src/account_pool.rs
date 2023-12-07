@@ -3,7 +3,6 @@ use std::{collections::VecDeque, convert::TryFrom, str::FromStr, sync::Arc, time
 use once_cell::sync::OnceCell;
 use rand::Rng;
 use tokio::time::timeout;
-
 use zksync::{signer::Signer, HttpClient, HttpClientBuilder, Wallet, ZksNamespaceClient};
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_types::{tx::primitives::PackedEthSignature, Address, L2ChainId, H256};

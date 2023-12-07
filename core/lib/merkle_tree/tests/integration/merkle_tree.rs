@@ -1,10 +1,9 @@
 //! Tests not tied to the zksync domain.
 
-use rand::{rngs::StdRng, seq::SliceRandom, Rng, SeedableRng};
-use test_casing::test_casing;
-
 use std::{cmp, mem};
 
+use rand::{rngs::StdRng, seq::SliceRandom, Rng, SeedableRng};
+use test_casing::test_casing;
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
     Database, HashTree, MerkleTree, PatchSet, Patched, TreeEntry, TreeInstruction, TreeLogEntry,
@@ -532,15 +531,15 @@ fn range_proofs_with_random_ranges() {
 
 /// RocksDB-specific tests.
 mod rocksdb {
+    use std::collections::BTreeMap;
+
     use serde::{Deserialize, Serialize};
     use serde_with::{hex::Hex, serde_as};
     use tempfile::TempDir;
-
-    use std::collections::BTreeMap;
-
-    use super::*;
     use zksync_merkle_tree::{MerkleTreeColumnFamily, MerkleTreePruner, RocksDBWrapper};
     use zksync_storage::RocksDB;
+
+    use super::*;
 
     #[derive(Debug)]
     struct Harness {

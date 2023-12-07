@@ -1,8 +1,7 @@
-use async_trait::async_trait;
-use chrono::Utc;
-
 use std::fmt;
 
+use async_trait::async_trait;
+use chrono::Utc;
 use zksync_dal::StorageProcessor;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, L1BatchNumber,

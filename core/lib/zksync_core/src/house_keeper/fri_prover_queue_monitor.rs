@@ -7,6 +7,7 @@ use zksync_prover_utils::periodic_job::PeriodicJob;
 pub struct FriProverStatsReporter {
     reporting_interval_ms: u64,
     prover_connection_pool: ConnectionPool,
+    db_connection_pool: ConnectionPool,
     config: FriProverGroupConfig,
 }
 
@@ -14,11 +15,13 @@ impl FriProverStatsReporter {
     pub fn new(
         reporting_interval_ms: u64,
         prover_connection_pool: ConnectionPool,
+        db_connection_pool: ConnectionPool,
         config: FriProverGroupConfig,
     ) -> Self {
         Self {
             reporting_interval_ms,
             prover_connection_pool,
+            db_connection_pool,
             config,
         }
     }
@@ -85,7 +88,9 @@ impl PeriodicJob for FriProverStatsReporter {
 
         // FIXME: refactor metrics here
 
-        if let Some(l1_batch_number) = conn
+        let mut db_conn = self.db_connection_pool.access_storage().await.unwrap();
+
+        if let Some(l1_batch_number) = db_conn
             .proof_generation_dal()
             .get_oldest_unprocessed_batch()
             .await
@@ -96,7 +101,7 @@ impl PeriodicJob for FriProverStatsReporter {
             )
         }
 
-        if let Some(l1_batch_number) = conn
+        if let Some(l1_batch_number) = db_conn
             .proof_generation_dal()
             .get_oldest_not_generated_batch()
             .await

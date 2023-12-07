@@ -1,17 +1,19 @@
 #![feature(generic_const_exprs)]
+
 use anyhow::Context as _;
 use circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerVerificationKey;
-use zkevm_test_harness::compute_setups::{
-    generate_base_layer_vks_and_proofs, generate_recursive_layer_vks_and_proofs,
+use zkevm_test_harness::{
+    compute_setups::{generate_base_layer_vks_and_proofs, generate_recursive_layer_vks_and_proofs},
+    data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource},
+    proof_wrapper_utils::{get_wrapper_setup_and_vk_from_scheduler_vk, WrapperConfig},
 };
-use zkevm_test_harness::data_source::in_memory_data_source::InMemoryDataSource;
-use zkevm_test_harness::data_source::SetupDataSource;
-use zkevm_test_harness::proof_wrapper_utils::{
-    get_wrapper_setup_and_vk_from_scheduler_vk, WrapperConfig,
+use zksync_prover_fri_types::{
+    circuit_definitions::{
+        circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
+        zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
+    },
+    ProverServiceDataKey,
 };
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType;
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
-use zksync_prover_fri_types::ProverServiceDataKey;
 use zksync_types::proofs::AggregationRound;
 use zksync_vk_setup_data_server_fri::{
     get_round_for_recursive_circuit_type, save_base_layer_vk, save_finalization_hints,

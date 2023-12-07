@@ -1,9 +1,10 @@
-use crate::{envy_load, FromEnv};
 use anyhow::Context as _;
 use zksync_config::configs::chain::{
     ChainConfig, CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
     StateKeeperConfig,
 };
+
+use crate::{envy_load, FromEnv};
 
 impl FromEnv for ChainConfig {
     fn from_env() -> anyhow::Result<Self> {

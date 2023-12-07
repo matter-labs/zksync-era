@@ -1,14 +1,17 @@
 use std::fmt::Debug;
 
-use crate::vm_1_3_2::event_sink::InMemoryEventSink;
-use crate::vm_1_3_2::history_recorder::HistoryMode;
-use crate::vm_1_3_2::memory::SimpleMemory;
-use crate::vm_1_3_2::oracles::{
-    decommitter::DecommitterOracle, precompile::PrecompilesProcessorWithHistory,
-    storage::StorageOracle,
-};
 use zk_evm_1_3_3::witness_trace::DummyTracer;
 use zksync_state::{StoragePtr, WriteStorage};
+
+use crate::vm_1_3_2::{
+    event_sink::InMemoryEventSink,
+    history_recorder::HistoryMode,
+    memory::SimpleMemory,
+    oracles::{
+        decommitter::DecommitterOracle, precompile::PrecompilesProcessorWithHistory,
+        storage::StorageOracle,
+    },
+};
 
 /// zkEVM requires a bunch of objects implementing given traits to work.
 /// For example: Storage, Memory, PrecompilerProcessor etc

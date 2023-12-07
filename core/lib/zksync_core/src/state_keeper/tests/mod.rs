@@ -1,5 +1,3 @@
-use once_cell::sync::Lazy;
-
 use std::{
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -8,11 +6,14 @@ use std::{
     time::Instant,
 };
 
-use multivm::interface::{
-    CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, Refunds,
-    SystemEnv, TxExecutionMode, VmExecutionResultAndLogs, VmExecutionStatistics,
+use multivm::{
+    interface::{
+        CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, Refunds,
+        SystemEnv, TxExecutionMode, VmExecutionResultAndLogs, VmExecutionStatistics,
+    },
+    vm_latest::{constants::BLOCK_GAS_LIMIT, VmExecutionLogs},
 };
-use multivm::vm_latest::{constants::BLOCK_GAS_LIMIT, VmExecutionLogs};
+use once_cell::sync::Lazy;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
@@ -28,23 +29,25 @@ use zksync_types::{
     StorageLogQuery, StorageLogQueryType, Timestamp, Transaction, H256, U256,
 };
 
-mod tester;
-
 pub(crate) use self::tester::TestBatchExecutorBuilder;
 use self::tester::{
     bootloader_tip_out_of_gas, pending_batch_data, random_tx, rejected_exec, successful_exec,
     successful_exec_with_metrics, TestScenario,
 };
-use crate::gas_tracker::l1_batch_base_cost;
-use crate::state_keeper::{
-    keeper::POLL_WAIT_DURATION,
-    seal_criteria::{
-        criteria::{GasCriterion, SlotsCriterion},
-        ConditionalSealer,
+use crate::{
+    gas_tracker::l1_batch_base_cost,
+    state_keeper::{
+        keeper::POLL_WAIT_DURATION,
+        seal_criteria::{
+            criteria::{GasCriterion, SlotsCriterion},
+            ConditionalSealer,
+        },
+        types::ExecutionMetricsForCriteria,
+        updates::UpdatesManager,
     },
-    types::ExecutionMetricsForCriteria,
-    updates::UpdatesManager,
 };
+
+mod tester;
 
 pub(super) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);

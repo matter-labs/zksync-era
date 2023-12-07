@@ -1,8 +1,7 @@
-use anyhow::Context as _;
-use clap::Parser;
-
 use std::{path::Path, time::Instant};
 
+use anyhow::Context as _;
+use clap::Parser;
 use zksync_config::DBConfig;
 use zksync_env_config::FromEnv;
 use zksync_merkle_tree::domain::ZkSyncTree;

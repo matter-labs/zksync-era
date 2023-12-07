@@ -1,7 +1,11 @@
-use crate::witness_generator::precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider;
 use std::convert::TryInto;
-use zksync_types::proofs::StorageLogMetadata;
-use zksync_types::zkevm_test_harness::witness::tree::{BinarySparseStorageTree, ZkSyncStorageLeaf};
+
+use zksync_types::{
+    proofs::StorageLogMetadata,
+    zkevm_test_harness::witness::tree::{BinarySparseStorageTree, ZkSyncStorageLeaf},
+};
+
+use crate::witness_generator::precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider;
 
 #[test]
 fn test_filter_renumerate_all_first_writes() {

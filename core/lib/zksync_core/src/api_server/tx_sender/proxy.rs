@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use tokio::sync::RwLock;
 
+use tokio::sync::RwLock;
 use zksync_types::{
     api::{BlockId, Transaction, TransactionDetails, TransactionId, TransactionReceipt},
     l2::L2Tx,

@@ -2,23 +2,26 @@ use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use tokio::task::JoinHandle;
-
-use crate::metrics::METRICS;
-use tokio::time::sleep;
+use tokio::{task::JoinHandle, time::sleep};
 use zksync_config::configs::FriWitnessVectorGeneratorConfig;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
-use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::GoldilocksField;
-use zksync_prover_fri_types::{CircuitWrapper, ProverJob, WitnessVectorArtifacts};
-use zksync_prover_fri_utils::fetch_next_circuit;
-use zksync_prover_fri_utils::get_numeric_circuit_id;
-use zksync_prover_fri_utils::socket_utils::send_assembly;
+use zksync_prover_fri_types::{
+    circuit_definitions::boojum::field::goldilocks::GoldilocksField, CircuitWrapper, ProverJob,
+    WitnessVectorArtifacts,
+};
+use zksync_prover_fri_utils::{
+    fetch_next_circuit, get_numeric_circuit_id, socket_utils::send_assembly,
+};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::basic_fri_types::CircuitIdRoundTuple;
-use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
-use zksync_types::protocol_version::L1VerifierConfig;
+use zksync_types::{
+    basic_fri_types::CircuitIdRoundTuple,
+    proofs::{GpuProverInstanceStatus, SocketAddress},
+    protocol_version::L1VerifierConfig,
+};
 use zksync_vk_setup_data_server_fri::get_finalization_hints;
+
+use crate::metrics::METRICS;
 
 pub struct WitnessVectorGenerator {
     blob_store: Box<dyn ObjectStore>,

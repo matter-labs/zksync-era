@@ -29,9 +29,10 @@
 //! - Add this trait as a trait bound to the `MultiVMTracer`.
 //! - Add this trait as a trait bound for `T` in `MultiVMTracer` implementation.
 //! - Implement the trait for `T` with a bound to `VmTracer` for a specific version.
-//!
-use crate::HistoryMode;
+
 use zksync_state::WriteStorage;
+
+use crate::HistoryMode;
 
 pub type MultiVmTracerPointer<S, H> = Box<dyn MultiVMTracer<S, H>>;
 

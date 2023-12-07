@@ -1,9 +1,8 @@
 //! Application-wide metrics.
 
-use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
-
 use std::{fmt, time::Duration};
 
+use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
 use zksync_dal::transactions_dal::L2TxSubmissionResult;
 use zksync_types::{aggregated_operations::AggregatedActionType, proofs::AggregationRound};
 

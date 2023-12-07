@@ -1,13 +1,12 @@
 //! Pure functions that convert data as required by the state keeper.
 
-use chrono::{DateTime, TimeZone, Utc};
-
 use std::{
     convert::TryFrom,
     fmt,
     time::{Duration, Instant},
 };
 
+use chrono::{DateTime, TimeZone, Utc};
 use zksync_dal::StorageProcessor;
 use zksync_types::{L1BatchNumber, U256};
 use zksync_utils::h256_to_u256;

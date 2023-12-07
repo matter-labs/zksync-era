@@ -1,7 +1,6 @@
 //! Tests for Postgres storage implementation.
 
 use rand::{thread_rng, Rng};
-
 use zksync_concurrency::{scope, testonly::abort_on_panic};
 use zksync_consensus_roles::validator;
 use zksync_types::L2ChainId;

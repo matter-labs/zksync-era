@@ -1,15 +1,12 @@
-// Built-in imports
 use std::fmt::Debug;
-// Workspace uses
+
 use zksync_eth_signer::{error::SignerError, EthereumSigner};
-use zksync_types::L2_ETH_TOKEN_ADDRESS;
 use zksync_types::{
     fee::Fee, l2::L2Tx, transaction_request::PaymasterParams, Address, Eip712Domain, L2ChainId,
-    Nonce, PackedEthSignature, U256,
+    Nonce, PackedEthSignature, L2_ETH_TOKEN_ADDRESS, U256,
 };
-// Local imports
-use crate::operations::create_transfer_calldata;
-use crate::types::TransactionRequest;
+
+use crate::{operations::create_transfer_calldata, types::TransactionRequest};
 
 fn signing_failed_error(err: impl ToString) -> SignerError {
     SignerError::SigningFailed(err.to_string())

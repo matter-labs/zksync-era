@@ -1,10 +1,14 @@
-use crate::l1_gas_price::{BoundedGasAdjuster, GasAdjuster};
-use anyhow::Context as _;
 use std::sync::Arc;
-use tokio::sync::{watch, OnceCell};
-use tokio::task::JoinHandle;
+
+use anyhow::Context as _;
+use tokio::{
+    sync::{watch, OnceCell},
+    task::JoinHandle,
+};
 use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::clients::http::QueryClient;
+
+use crate::l1_gas_price::{BoundedGasAdjuster, GasAdjuster};
 
 /// Special struct for creating a singleton of `GasAdjuster`.
 /// This is needed only for running the server.

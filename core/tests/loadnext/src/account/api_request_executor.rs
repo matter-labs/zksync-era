@@ -2,7 +2,6 @@ use std::time::Instant;
 
 use rand::seq::IteratorRandom;
 use regex::Regex;
-
 use zksync::{
     error::{ClientError, RpcError},
     types::FilterBuilder,
