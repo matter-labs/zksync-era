@@ -333,10 +333,14 @@ impl BlockStore for SignedBlockStore {
 
     async fn missing_block_numbers(
         &self,
-        _ctx: &ctx::Ctx,
-        _range: ops::Range<validator::BlockNumber>,
+        ctx: &ctx::Ctx,
+        range: ops::Range<validator::BlockNumber>,
     ) -> ctx::Result<Vec<validator::BlockNumber>> {
-        Ok(vec![]) // The storage never has missing blocks by construction
+        let last = self.last_contiguous_block_number(ctx).await?;
+        let mut output = vec![];
+        output.extend((range.start.0..self.genesis.0).map(validator::BlockNumber));
+        output.extend((last.next().0..range.end.0).map(validator::BlockNumber));
+        Ok(output)
     }
 
     fn subscribe_to_block_writes(&self) -> sync::watch::Receiver<validator::BlockNumber> {
