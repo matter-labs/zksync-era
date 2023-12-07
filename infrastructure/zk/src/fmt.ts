@@ -50,6 +50,10 @@ async function prettierSystemContracts(check: boolean = false) {
 
 export async function rustfmt(check: boolean = false) {
     process.chdir(process.env.ZKSYNC_HOME as string);
+
+    // We rely on a supposedly undocumented bug/feature of `rustfmt` that allows us to use unstable features on stable Rust.
+    // Please note that this only works with CLI flags, and if you happened to visit this place after things suddenly stopped working,
+    // it is certainly possible that the feature was deemed a bug and was fixed. Then welp.
     const config = '--config imports_granularity=Crate --config group_imports=StdExternalCrate';
     const command = check ? `cargo fmt -- --check ${config}` : `cargo fmt -- ${config}`;
     await utils.spawn(command);
