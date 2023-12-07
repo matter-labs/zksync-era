@@ -1,8 +1,8 @@
 //! Getters for the Merkle tree.
 
-use crate::recovery::MerkleTreeRecovery;
 use crate::{
     hasher::HasherWithStats,
+    recovery::MerkleTreeRecovery,
     storage::{LoadAncestorsResult, SortedKeys, WorkingPatchSet},
     types::{Nibbles, Node, TreeEntry, TreeEntryWithProof},
     Database, HashTree, Key, MerkleTree, NoVersionError, PruneDatabase, ValueHash,

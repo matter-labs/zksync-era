@@ -24,17 +24,16 @@
 //! E.g., it's checked that the tree always recovers from the same snapshot; that the tree root hash
 //! after recovery matches one in the Postgres snapshot etc.
 
-use anyhow::Context as _;
-use async_trait::async_trait;
-use futures::future;
-use serde::{Deserialize, Serialize};
-use tokio::sync::{watch, Mutex};
-
 use std::{
     fmt, ops,
     sync::atomic::{AtomicUsize, Ordering},
 };
 
+use anyhow::Context as _;
+use async_trait::async_trait;
+use futures::future;
+use serde::{Deserialize, Serialize};
+use tokio::sync::{watch, Mutex};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater};
 use zksync_merkle_tree::TreeEntry;
@@ -420,13 +419,12 @@ async fn snapshot_l1_batch(_pool: &ConnectionPool) -> anyhow::Result<Option<L1Ba
 
 #[cfg(test)]
 mod tests {
+    use std::{path::PathBuf, sync::Arc, time::Duration};
+
     use assert_matches::assert_matches;
     use tempfile::TempDir;
     use test_casing::test_casing;
     use tokio::sync::OwnedMutexGuard;
-
-    use std::{path::PathBuf, sync::Arc, time::Duration};
-
     use zksync_config::configs::database::MerkleTreeMode;
     use zksync_health_check::{CheckHealth, ReactiveHealthCheck};
     use zksync_types::{L2ChainId, StorageLog};

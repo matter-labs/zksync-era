@@ -1,14 +1,15 @@
 use std::convert::{TryFrom, TryInto};
+
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolUpgradeTx, ProtocolVersion, VerifierParams},
     Address, ProtocolVersionId, H256,
 };
 
-use crate::models::storage_protocol_version::{
-    protocol_version_from_storage, StorageProtocolVersion,
+use crate::{
+    models::storage_protocol_version::{protocol_version_from_storage, StorageProtocolVersion},
+    StorageProcessor,
 };
-use crate::StorageProcessor;
 
 #[derive(Debug)]
 pub struct ProtocolVersionsDal<'a, 'c> {

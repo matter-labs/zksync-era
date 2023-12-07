@@ -1,12 +1,11 @@
 //! Tree recovery load test.
 
+use std::time::Instant;
+
 use clap::Parser;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tempfile::TempDir;
 use tracing_subscriber::EnvFilter;
-
-use std::time::Instant;
-
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
     recovery::MerkleTreeRecovery, HashTree, Key, MerkleTree, PatchSet, PruneDatabase,

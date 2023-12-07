@@ -1,11 +1,10 @@
 //! Tree updater trait and its implementations.
 
+use std::{ops, time::Instant};
+
 use anyhow::Context as _;
 use futures::{future, FutureExt};
 use tokio::sync::watch;
-
-use std::{ops, time::Instant};
-
 use zksync_commitment_utils::{bootloader_initial_content_commitment, events_queue_commitment};
 use zksync_config::configs::database::MerkleTreeMode;
 use zksync_dal::{ConnectionPool, StorageProcessor};

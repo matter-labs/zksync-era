@@ -2,7 +2,6 @@
 
 use async_trait::async_trait;
 use tokio::sync::watch;
-
 use zksync_config::configs::chain::NetworkConfig;
 use zksync_dal::ConnectionPool;
 use zksync_types::{api, Address, L1BatchNumber, H256, U64};

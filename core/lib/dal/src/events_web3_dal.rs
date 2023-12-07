@@ -1,5 +1,4 @@
 use sqlx::Row;
-
 use zksync_types::{
     api::{GetLogsFilter, Log},
     Address, MiniblockNumber, H256,

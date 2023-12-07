@@ -563,8 +563,9 @@ impl StaleNodeKey {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use zksync_types::U256;
+
+    use super::*;
 
     // `U256` uses little-endian `u64` ordering; i.e., this is
     // 0x_dead_beef_0000_0000_.._0000.

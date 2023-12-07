@@ -1,21 +1,18 @@
 use multivm::interface::{L1BatchEnv, VmExecutionResultAndLogs};
-
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::blocks_dal::ConsensusBlockFields;
-use zksync_types::vm_trace::Call;
 use zksync_types::{
     block::BlockGasCount, storage_writes_deduplicator::StorageWritesDeduplicator,
-    tx::tx_execution_info::ExecutionMetrics, Address, L1BatchNumber, MiniblockNumber,
-    ProtocolVersionId, Transaction,
+    tx::tx_execution_info::ExecutionMetrics, vm_trace::Call, Address, L1BatchNumber,
+    MiniblockNumber, ProtocolVersionId, Transaction,
 };
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
+pub(crate) use self::{l1_batch_updates::L1BatchUpdates, miniblock_updates::MiniblockUpdates};
+use super::io::MiniblockParams;
+
 pub mod l1_batch_updates;
 pub mod miniblock_updates;
-
-pub(crate) use self::{l1_batch_updates::L1BatchUpdates, miniblock_updates::MiniblockUpdates};
-
-use super::io::MiniblockParams;
 
 /// Most of the information needed to seal the l1 batch/mini-block is contained within the VM,
 /// things that are not captured there are accumulated externally.

@@ -1,9 +1,5 @@
 //! Various helpers for the metadata calculator.
 
-use serde::{Deserialize, Serialize};
-#[cfg(test)]
-use tokio::sync::mpsc;
-
 use std::{
     collections::BTreeMap,
     future::Future,
@@ -11,6 +7,9 @@ use std::{
     time::Duration,
 };
 
+use serde::{Deserialize, Serialize};
+#[cfg(test)]
+use tokio::sync::mpsc;
 use zksync_config::configs::database::MerkleTreeMode;
 use zksync_dal::StorageProcessor;
 use zksync_health_check::{Health, HealthStatus};
@@ -430,7 +429,6 @@ impl L1BatchWithLogs {
 #[cfg(test)]
 mod tests {
     use tempfile::TempDir;
-
     use zksync_dal::ConnectionPool;
     use zksync_types::{proofs::PrepareBasicCircuitsJob, L2ChainId, StorageKey, StorageLog};
 

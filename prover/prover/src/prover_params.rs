@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use prover_service::Params;
-
 use zksync_config::ProverConfig;
 
 #[derive(Debug)]

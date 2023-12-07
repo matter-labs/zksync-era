@@ -1,8 +1,6 @@
-use super::halt::Halt;
-
 use std::fmt::Display;
 
-use super::{BootloaderErrorCode, VmRevertReason};
+use super::{halt::Halt, BootloaderErrorCode, VmRevertReason};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TxRevertReason {

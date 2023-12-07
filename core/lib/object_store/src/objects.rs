@@ -1,15 +1,17 @@
 //! Stored objects.
 
-use zksync_types::aggregated_operations::L1BatchProofForL1;
 use zksync_types::{
+    aggregated_operations::L1BatchProofForL1,
     proofs::{AggregationRound, PrepareBasicCircuitsJob},
     storage::witness_block_state::WitnessBlockState,
     zkevm_test_harness::{
         abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
         bellman::bn256::Bn256,
         encodings::{recursion_request::RecursionRequest, QueueSimulator},
-        witness::full_block_artifact::{BlockBasicCircuits, BlockBasicCircuitsPublicInputs},
-        witness::oracle::VmWitnessOracle,
+        witness::{
+            full_block_artifact::{BlockBasicCircuits, BlockBasicCircuitsPublicInputs},
+            oracle::VmWitnessOracle,
+        },
         LeafAggregationOutputDataWitness, NodeAggregationOutputDataWitness,
         SchedulerCircuitInstanceWitness,
     },

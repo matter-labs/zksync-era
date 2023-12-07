@@ -1,27 +1,26 @@
+use std::{path::Path, time::Duration};
+
 use bitflags::bitflags;
 use serde::Serialize;
 use tokio::time::sleep;
-
-use std::path::Path;
-use std::time::Duration;
-
 use zksync_config::{ContractsConfig, ETHSenderConfig};
 use zksync_contracts::zksync_contract;
 use zksync_dal::ConnectionPool;
+use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_state::RocksdbStorage;
 use zksync_storage::RocksDB;
-use zksync_types::aggregated_operations::AggregatedActionType;
-use zksync_types::ethabi::Token;
-use zksync_types::web3::{
-    contract::{Contract, Options},
-    transports::Http,
-    types::{BlockId, BlockNumber},
-    Web3,
+use zksync_types::{
+    aggregated_operations::AggregatedActionType,
+    ethabi::Token,
+    web3::{
+        contract::{Contract, Options},
+        transports::Http,
+        types::{BlockId, BlockNumber},
+        Web3,
+    },
+    L1BatchNumber, PackedEthSignature, H160, H256, U256,
 };
-use zksync_types::{L1BatchNumber, PackedEthSignature, H160, H256, U256};
-
-use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
 
 bitflags! {
     pub struct BlockReverterFlags: u32 {

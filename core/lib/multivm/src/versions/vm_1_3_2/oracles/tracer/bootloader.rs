@@ -1,12 +1,5 @@
 use std::marker::PhantomData;
 
-use crate::vm_1_3_2::history_recorder::HistoryMode;
-use crate::vm_1_3_2::memory::SimpleMemory;
-use crate::vm_1_3_2::oracles::tracer::{
-    utils::gas_spent_on_bytecodes_and_long_messages_this_opcode, ExecutionEndTracer,
-    PendingRefundTracer, PubdataSpentTracer, StorageInvocationTracer,
-};
-
 use zk_evm_1_3_3::{
     tracing::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
@@ -14,6 +7,15 @@ use zk_evm_1_3_3::{
     vm_state::{ErrorFlags, VmLocalState},
     witness_trace::DummyTracer,
     zkevm_opcode_defs::{Opcode, RetOpcode},
+};
+
+use crate::vm_1_3_2::{
+    history_recorder::HistoryMode,
+    memory::SimpleMemory,
+    oracles::tracer::{
+        utils::gas_spent_on_bytecodes_and_long_messages_this_opcode, ExecutionEndTracer,
+        PendingRefundTracer, PubdataSpentTracer, StorageInvocationTracer,
+    },
 };
 
 /// Tells the VM to end the execution before `ret` from the bootloader if there is no panic or revert.

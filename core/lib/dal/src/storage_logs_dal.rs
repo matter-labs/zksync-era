@@ -1,14 +1,12 @@
-use sqlx::types::chrono::Utc;
-use sqlx::Row;
-
 use std::{collections::HashMap, ops, time::Instant};
 
-pub use crate::models::storage_log::StorageTreeEntry;
-use crate::{instrument::InstrumentExt, StorageProcessor};
+use sqlx::{types::chrono::Utc, Row};
 use zksync_types::{
     get_code_key, AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, StorageLog,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256, U256,
 };
+
+use crate::{instrument::InstrumentExt, models::storage_log::StorageTreeEntry, StorageProcessor};
 
 #[derive(Debug)]
 pub struct StorageLogsDal<'a, 'c> {
@@ -598,13 +596,14 @@ impl StorageLogsDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool};
     use zksync_contracts::BaseSystemContractsHashes;
     use zksync_types::{
         block::{BlockGasCount, L1BatchHeader},
         ProtocolVersion, ProtocolVersionId,
     };
+
+    use super::*;
+    use crate::{tests::create_miniblock_header, ConnectionPool};
 
     fn u256_to_h256_reversed(value: U256) -> H256 {
         let mut bytes = [0_u8; 32];

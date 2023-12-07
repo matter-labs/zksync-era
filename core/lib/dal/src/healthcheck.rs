@@ -1,6 +1,5 @@
 use serde::Serialize;
 use sqlx::PgPool;
-
 use zksync_health_check::{async_trait, CheckHealth, Health, HealthStatus};
 
 use crate::ConnectionPool;

@@ -2,7 +2,6 @@
 
 use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 use test_casing::test_casing;
-
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
     recovery::MerkleTreeRecovery, Database, MerkleTree, PatchSet, PruneDatabase, ValueHash,
@@ -125,9 +124,9 @@ fn recovery_in_chunks(kind: RecoveryKind, chunk_size: usize) {
 
 mod rocksdb {
     use tempfile::TempDir;
+    use zksync_merkle_tree::RocksDBWrapper;
 
     use super::*;
-    use zksync_merkle_tree::RocksDBWrapper;
 
     #[test_casing(8, test_casing::Product((RecoveryKind::ALL, [6, 10, 17, 42])))]
     fn recovery_in_chunks(kind: RecoveryKind, chunk_size: usize) {

@@ -1,5 +1,6 @@
-use crate::{HistoryMode, MultiVmTracerPointer};
 use zksync_state::WriteStorage;
+
+use crate::{HistoryMode, MultiVmTracerPointer};
 
 /// Tracer dispatcher is a tracer that can dispatch calls to multiple tracers.
 pub struct TracerDispatcher<S, H> {

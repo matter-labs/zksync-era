@@ -1,5 +1,4 @@
 use sqlx::types::chrono::NaiveDateTime;
-
 use zksync_types::{AccountTreeId, Address, StorageKey, StorageLog, StorageLogKind, H256, U256};
 
 #[derive(Debug, Clone, sqlx::FromRow)]

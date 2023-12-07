@@ -12,7 +12,6 @@ use zk_evm_1_3_1::{
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::MAX_TXS_IN_BLOCK;
-
 use zksync_types::{
     zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address, Transaction, BOOTLOADER_ADDRESS,
     L1_GAS_PER_PUBDATA_BYTE, MAX_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
@@ -24,10 +23,10 @@ use zksync_utils::{
     misc::ceil_div,
 };
 
-use crate::vm_m6::storage::Storage;
 use crate::vm_m6::{
     bootloader_state::BootloaderState,
     history_recorder::HistoryMode,
+    storage::Storage,
     transaction_data::{TransactionData, L1_TX_TYPE},
     utils::{
         code_page_candidate_from_base, heap_page_from_base, BLOCK_GAS_LIMIT, INITIAL_BASE_PAGE,

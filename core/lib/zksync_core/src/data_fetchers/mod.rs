@@ -9,8 +9,7 @@
 //! Every data fetcher is represented by an autonomic routine, which spend most of the time sleeping;
 //! once in the configurable interval it fetches the data from an API and store it into the database.
 
-use tokio::sync::watch;
-use tokio::task::JoinHandle;
+use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::FetcherConfig;
 use zksync_dal::ConnectionPool;
 

@@ -1,15 +1,16 @@
-use crate::interface::{
-    BootloaderMemory, CurrentExecutionState, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
-    VmExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
-    VmMemoryMetrics,
-};
-
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::VmVersion;
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
-use crate::glue::history_mode::HistoryMode;
-use crate::tracers::TracerDispatcher;
+use crate::{
+    glue::history_mode::HistoryMode,
+    interface::{
+        BootloaderMemory, CurrentExecutionState, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
+        SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+        VmInterfaceHistoryEnabled, VmMemoryMetrics,
+    },
+    tracers::TracerDispatcher,
+};
 
 #[derive(Debug)]
 pub enum VmInstance<S: WriteStorage, H: HistoryMode> {

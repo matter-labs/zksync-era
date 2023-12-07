@@ -1,5 +1,4 @@
-use std::fs;
-use std::time::Duration;
+use std::{fs, time::Duration};
 
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
@@ -14,14 +13,15 @@ use zksync_types::{
     PriorityOpId, ProtocolVersion, ProtocolVersionId, H160, H256, MAX_GAS_PER_PUBDATA_BYTE, U256,
 };
 
-use crate::blocks_dal::BlocksDal;
-use crate::connection::ConnectionPool;
-use crate::protocol_versions_dal::ProtocolVersionsDal;
-use crate::prover_dal::{GetProverJobsParams, ProverDal};
-use crate::transactions_dal::L2TxSubmissionResult;
-use crate::transactions_dal::TransactionsDal;
-use crate::transactions_web3_dal::TransactionsWeb3Dal;
-use crate::witness_generator_dal::WitnessGeneratorDal;
+use crate::{
+    blocks_dal::BlocksDal,
+    connection::ConnectionPool,
+    protocol_versions_dal::ProtocolVersionsDal,
+    prover_dal::{GetProverJobsParams, ProverDal},
+    transactions_dal::{L2TxSubmissionResult, TransactionsDal},
+    transactions_web3_dal::TransactionsWeb3Dal,
+    witness_generator_dal::WitnessGeneratorDal,
+};
 
 const DEFAULT_GAS_PER_PUBDATA: u32 = 100;
 
