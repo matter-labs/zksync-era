@@ -91,6 +91,16 @@ jobs:
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
 
+      - name: Show geth logs
+        if: always()
+        run: |
+          ci_run bash -c "docker ps | grep client-go | awk '{print $1}' | xargs docker logs"
+
+      - name: Show beacon logs
+        if: always()
+        run: |
+          ci_run bash -c "docker ps | grep beacon | awk '{print $1}' | xargs docker logs"
+
   integration:
     runs-on: [matterlabs-ci-runner]
 
