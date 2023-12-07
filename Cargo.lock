@@ -4255,7 +4255,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae)",
  "zk_evm 1.3.1",
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zk_evm 1.4.0",
@@ -5263,7 +5263,7 @@ dependencies = [
  "metrics",
  "metrics-exporter-prometheus",
  "tokio",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae)",
  "vise-exporter",
 ]
 
@@ -7725,13 +7725,25 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "vise"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/vise.git?rev=dd0513#dd05139b76ab0843443ab3ff730174942c825dae"
+dependencies = [
+ "elsa",
+ "linkme",
+ "once_cell",
+ "prometheus-client",
+ "vise-macros 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=dd0513)",
+]
+
+[[package]]
+name = "vise"
+version = "0.1.0"
 source = "git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae#dd05139b76ab0843443ab3ff730174942c825dae"
 dependencies = [
  "elsa",
  "linkme",
  "once_cell",
  "prometheus-client",
- "vise-macros",
+ "vise-macros 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae)",
 ]
 
 [[package]]
@@ -7744,7 +7756,17 @@ dependencies = [
  "once_cell",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae)",
+]
+
+[[package]]
+name = "vise-macros"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/vise.git?rev=dd0513#dd05139b76ab0843443ab3ff730174942c825dae"
+dependencies = [
+ "proc-macro2 1.0.69",
+ "quote 1.0.33",
+ "syn 2.0.38",
 ]
 
 [[package]]
@@ -8514,7 +8536,7 @@ dependencies = [
 [[package]]
 name = "zksync_concurrency"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=421b8dd43918b377b9d4adafe82c9636472562ea#421b8dd43918b377b9d4adafe82c9636472562ea"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=b06ae4b144719d8ffef0067a4b54a266df0dff35#b06ae4b144719d8ffef0067a4b54a266df0dff35"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -8526,7 +8548,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=dd0513)",
 ]
 
 [[package]]
@@ -8541,7 +8563,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_bft"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=421b8dd43918b377b9d4adafe82c9636472562ea#421b8dd43918b377b9d4adafe82c9636472562ea"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=b06ae4b144719d8ffef0067a4b54a266df0dff35#b06ae4b144719d8ffef0067a4b54a266df0dff35"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8549,7 +8571,7 @@ dependencies = [
  "rand 0.8.5",
  "thiserror",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=dd0513)",
  "zksync_concurrency",
  "zksync_consensus_crypto",
  "zksync_consensus_network",
@@ -8562,7 +8584,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_crypto"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=421b8dd43918b377b9d4adafe82c9636472562ea#421b8dd43918b377b9d4adafe82c9636472562ea"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=b06ae4b144719d8ffef0067a4b54a266df0dff35#b06ae4b144719d8ffef0067a4b54a266df0dff35"
 dependencies = [
  "anyhow",
  "blst",
@@ -8580,13 +8602,13 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_executor"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=421b8dd43918b377b9d4adafe82c9636472562ea#421b8dd43918b377b9d4adafe82c9636472562ea"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=b06ae4b144719d8ffef0067a4b54a266df0dff35#b06ae4b144719d8ffef0067a4b54a266df0dff35"
 dependencies = [
  "anyhow",
  "prost",
  "rand 0.8.5",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=dd0513)",
  "zksync_concurrency",
  "zksync_consensus_bft",
  "zksync_consensus_crypto",
@@ -8602,7 +8624,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_network"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=421b8dd43918b377b9d4adafe82c9636472562ea#421b8dd43918b377b9d4adafe82c9636472562ea"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=b06ae4b144719d8ffef0067a4b54a266df0dff35#b06ae4b144719d8ffef0067a4b54a266df0dff35"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8614,7 +8636,7 @@ dependencies = [
  "snow",
  "thiserror",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=dd0513)",
  "zksync_concurrency",
  "zksync_consensus_crypto",
  "zksync_consensus_roles",
@@ -8626,7 +8648,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_roles"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=421b8dd43918b377b9d4adafe82c9636472562ea#421b8dd43918b377b9d4adafe82c9636472562ea"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=b06ae4b144719d8ffef0067a4b54a266df0dff35#b06ae4b144719d8ffef0067a4b54a266df0dff35"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -8646,7 +8668,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_storage"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=421b8dd43918b377b9d4adafe82c9636472562ea#421b8dd43918b377b9d4adafe82c9636472562ea"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=b06ae4b144719d8ffef0067a4b54a266df0dff35#b06ae4b144719d8ffef0067a4b54a266df0dff35"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8663,7 +8685,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_sync_blocks"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=421b8dd43918b377b9d4adafe82c9636472562ea#421b8dd43918b377b9d4adafe82c9636472562ea"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=b06ae4b144719d8ffef0067a4b54a266df0dff35#b06ae4b144719d8ffef0067a4b54a266df0dff35"
 dependencies = [
  "anyhow",
  "thiserror",
@@ -8678,7 +8700,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_utils"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=421b8dd43918b377b9d4adafe82c9636472562ea#421b8dd43918b377b9d4adafe82c9636472562ea"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=b06ae4b144719d8ffef0067a4b54a266df0dff35#b06ae4b144719d8ffef0067a4b54a266df0dff35"
 dependencies = [
  "thiserror",
  "zksync_concurrency",
@@ -8770,7 +8792,7 @@ dependencies = [
  "tower",
  "tower-http",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae)",
  "vlog",
  "zksync_circuit_breaker",
  "zksync_commitment_utils",
@@ -8840,7 +8862,7 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae)",
  "zksync_consensus_roles",
  "zksync_consensus_storage",
  "zksync_contracts",
@@ -8875,7 +8897,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae)",
  "zksync_config",
  "zksync_contracts",
  "zksync_eth_signer",
@@ -8971,7 +8993,7 @@ dependencies = [
  "thiserror",
  "tracing",
  "tracing-subscriber",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae)",
  "zksync_crypto",
  "zksync_storage",
  "zksync_system_constants",
@@ -9002,7 +9024,7 @@ dependencies = [
  "tempdir",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae)",
  "zksync_config",
  "zksync_types",
 ]
@@ -9010,7 +9032,7 @@ dependencies = [
 [[package]]
 name = "zksync_protobuf"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=421b8dd43918b377b9d4adafe82c9636472562ea#421b8dd43918b377b9d4adafe82c9636472562ea"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=b06ae4b144719d8ffef0067a4b54a266df0dff35#b06ae4b144719d8ffef0067a4b54a266df0dff35"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -9028,7 +9050,7 @@ dependencies = [
 [[package]]
 name = "zksync_protobuf_build"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=421b8dd43918b377b9d4adafe82c9636472562ea#421b8dd43918b377b9d4adafe82c9636472562ea"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=b06ae4b144719d8ffef0067a4b54a266df0dff35#b06ae4b144719d8ffef0067a4b54a266df0dff35"
 dependencies = [
  "anyhow",
  "heck 0.4.1",
@@ -9068,7 +9090,7 @@ dependencies = [
  "async-trait",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae)",
  "zksync_utils",
 ]
 
@@ -9102,7 +9124,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae)",
  "zksync_dal",
  "zksync_storage",
  "zksync_types",
@@ -9118,7 +9140,7 @@ dependencies = [
  "rocksdb",
  "tempfile",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae)",
 ]
 
 [[package]]

@@ -10,7 +10,7 @@ use zksync_concurrency::{
     ctx, scope,
     sync::{self, watch, Mutex},
 };
-use zksync_consensus_roles::validator::{BlockNumber, FinalBlock};
+use zksync_consensus_roles::validator::{BlockNumber, FinalBlock, Payload};
 use zksync_consensus_storage::{BlockStore, WriteBlockStore};
 
 #[cfg(test)]
@@ -316,6 +316,23 @@ impl<T: ContiguousBlockStore> BlockStore for Buffered<T> {
 
 #[async_trait]
 impl<T: ContiguousBlockStore> WriteBlockStore for Buffered<T> {
+    /// Verify that `payload` is a correct proposal for the block `block_number`.
+    async fn verify_payload(
+        &self,
+        _ctx: &ctx::Ctx,
+        _block_number: BlockNumber,
+        _payload: &Payload,
+    ) -> ctx::Result<()> {
+        // This is storage for non-validator nodes (aka full nodes),
+        // so verify_payload() won't be called.
+        // Still, it probably would be better to either
+        // * move verify_payload() to BlockStore, so that Buffered can just forward the call
+        // * create another separate trait for verify_payload.
+        // It will be clear what needs to be done when we implement multi-validator consensus for
+        // zksync-era.
+        unimplemented!()
+    }
+
     async fn put_block(&self, ctx: &ctx::Ctx, block: &FinalBlock) -> ctx::Result<()> {
         let buffer_block_latency = METRICS.buffer_block_latency.start();
         {
