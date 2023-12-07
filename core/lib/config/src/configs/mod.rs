@@ -20,9 +20,9 @@ pub use self::{
     proof_data_handler::ProofDataHandlerConfig,
     prover::{ProverConfig, ProverConfigs},
     prover_group::ProverGroupConfig,
+    snapshots_creator::SnapshotsCreatorConfig,
     utils::PrometheusConfig,
     witness_generator::WitnessGeneratorConfig,
-    snapshots_creator::SnapshotsCreatorConfig,
 };
 
 pub mod alerts;

@@ -8,7 +8,7 @@ use zksync_web3_decl::error::Web3Error;
 
 #[derive(Debug)]
 pub struct SnapshotsNamespace<G> {
-    pub state: RpcState<G>,
+    state: RpcState<G>,
 }
 
 impl<G> Clone for SnapshotsNamespace<G> {
@@ -22,6 +22,7 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
     pub fn new(state: RpcState<G>) -> Self {
         Self { state }
     }
+
     pub async fn get_all_snapshots_impl(&self) -> Result<AllSnapshots, Web3Error> {
         let method_name = "get_all_snapshots";
         let method_latency = API_METRICS.start_call(method_name);

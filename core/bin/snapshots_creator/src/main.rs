@@ -1,15 +1,10 @@
 mod chunking;
 
 use anyhow::Context as _;
-use futures::stream::FuturesUnordered;
-use futures::StreamExt;
 use prometheus_exporter::PrometheusExporterConfig;
 use std::cmp::max;
-use std::future::Future;
-use std::pin::Pin;
 use std::time::Duration;
-use tokio::sync::watch;
-use tokio::sync::watch::Receiver;
+use tokio::sync::{watch, Semaphore};
 use vise::Unit;
 use vise::{Buckets, Gauge, Histogram, Metrics};
 use zksync_config::configs::PrometheusConfig;
@@ -47,7 +42,9 @@ struct SnapshotsCreatorMetrics {
 #[vise::register]
 pub(crate) static METRICS: vise::Global<SnapshotsCreatorMetrics> = vise::Global::new();
 
-async fn maybe_enable_prometheus_metrics(stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
+async fn maybe_enable_prometheus_metrics(
+    stop_receiver: watch::Receiver<bool>,
+) -> anyhow::Result<()> {
     let prometheus_config = PrometheusConfig::from_env().ok();
     if let Some(prometheus_config) = prometheus_config {
         let exporter_config = PrometheusExporterConfig::push(
@@ -66,11 +63,13 @@ async fn maybe_enable_prometheus_metrics(stop_receiver: Receiver<bool>) -> anyho
 async fn process_storage_logs_single_chunk(
     blob_store: &dyn ObjectStore,
     pool: &ConnectionPool,
+    semaphore: &Semaphore,
     miniblock_number: MiniblockNumber,
     l1_batch_number: L1BatchNumber,
     chunk_id: u64,
     chunks_count: u64,
 ) -> anyhow::Result<String> {
+    let _permit = semaphore.acquire().await?;
     let hashed_keys_range = get_chunk_hashed_keys_range(chunk_id, chunks_count);
     let latency = METRICS.storage_logs_processing_duration.start();
     let mut conn = pool.access_storage_tagged("snapshots_creator").await?;
@@ -94,10 +93,13 @@ async fn process_storage_logs_single_chunk(
     let output_filepath = format!("{output_filepath_prefix}/{filename}");
 
     let elapsed = latency.observe();
+    let tasks_left = METRICS.storage_logs_chunks_left_to_process.dec_by(1) - 1;
     tracing::info!(
-        "Finished storage logs chunk {}/{chunks_count}, step took {elapsed:?}, output stored in {output_filepath}",
-        chunk_id + 1
-    );
+                "Finished chunk number {chunk_id}, overall_progress {}/{}, step took {elapsed:?}, output stored in {output_filepath}",
+                chunks_count - tasks_left,
+                chunks_count
+            );
+
     Ok(output_filepath)
 }
 
@@ -192,46 +194,32 @@ async fn run(
     )
     .await?;
 
-    let mut storage_logs_output_files = vec![];
-
     METRICS
         .storage_logs_chunks_left_to_process
         .set(chunks_count);
-    let mut tasks =
-        FuturesUnordered::<Pin<Box<dyn Future<Output = anyhow::Result<String>>>>>::new();
-    let mut last_chunk_id = 0;
-    while last_chunk_id < chunks_count || !tasks.is_empty() {
-        while (tasks.len() as u32) < config.concurrent_queries_count && last_chunk_id < chunks_count
-        {
-            tasks.push(Box::pin(process_storage_logs_single_chunk(
-                &*blob_store,
-                &replica_pool,
-                last_miniblock_number_in_batch,
-                l1_batch_number,
-                last_chunk_id,
-                chunks_count,
-            )));
-            last_chunk_id += 1;
-        }
-        if let Some(result) = tasks.next().await {
-            tracing::info!(
-                "Completed chunk {}/{}, {} chunks are still in progress",
-                last_chunk_id - tasks.len() as u64,
-                chunks_count,
-                tasks.len()
-            );
-            storage_logs_output_files.push(result.context("Chunk task failed")?);
-            METRICS
-                .storage_logs_chunks_left_to_process
-                .set(chunks_count - last_chunk_id - tasks.len() as u64);
-        }
-    }
+
+    let semaphore = Semaphore::new(config.concurrent_queries_count as usize);
+    let tasks = (0..chunks_count).map(|chunk_id| {
+        process_storage_logs_single_chunk(
+            &*blob_store,
+            &replica_pool,
+            &semaphore,
+            last_miniblock_number_in_batch,
+            l1_batch_number,
+            chunk_id,
+            chunks_count,
+        )
+    });
+    let mut storage_logs_output_files = futures::future::try_join_all(tasks).await?;
     tracing::info!("Finished generating snapshot, storing progress in db");
 
     let mut master_conn = master_pool
         .access_storage_tagged("snapshots_creator")
         .await?;
 
+    storage_logs_output_files.sort();
+    //sanity check
+    assert_eq!(storage_logs_output_files.len(), chunks_count as usize);
     master_conn
         .snapshots_dal()
         .add_snapshot(

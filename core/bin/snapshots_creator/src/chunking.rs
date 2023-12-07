@@ -22,8 +22,5 @@ pub fn get_chunk_hashed_keys_range(chunk_id: u64, chunks_count: u64) -> std::ops
     start_bytes.resize(32, 0);
     end_bytes.resize(32, 0);
 
-    std::ops::Range {
-        start: H256::from_slice(&start_bytes),
-        end: H256::from_slice(&end_bytes),
-    }
+    H256::from_slice(&start_bytes)..H256::from_slice(&end_bytes)
 }

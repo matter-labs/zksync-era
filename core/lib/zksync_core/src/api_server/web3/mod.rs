@@ -64,22 +64,6 @@ pub mod state;
 #[cfg(test)]
 pub(crate) mod tests;
 
-use self::backend_jsonrpc::{
-    batch_limiter_middleware::{LimitMiddleware, Transport},
-    error::internal_error,
-    namespaces::{
-        debug::DebugNamespaceT, en::EnNamespaceT, eth::EthNamespaceT, net::NetNamespaceT,
-        web3::Web3NamespaceT, zks::ZksNamespaceT,
-    },
-    pub_sub::Web3PubSub,
-};
-use self::metrics::API_METRICS;
-use self::namespaces::{
-    DebugNamespace, EnNamespace, EthNamespace, NetNamespace, Web3Namespace, ZksNamespace,
-};
-use self::pubsub::{EthSubscribe, PubSubEvent};
-use self::state::{Filters, InternalApiConfig, RpcState, SealedMiniblockNumber};
-
 /// Timeout for graceful shutdown logic within API servers.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 
