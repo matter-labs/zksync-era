@@ -1,10 +1,9 @@
 //! Storage implementation based on DAL.
 
-use anyhow::Context as _;
-use async_trait::async_trait;
-
 use std::ops;
 
+use anyhow::Context as _;
+use async_trait::async_trait;
 use zksync_concurrency::{
     ctx,
     sync::{self, watch, Mutex},
@@ -12,12 +11,8 @@ use zksync_concurrency::{
 };
 use zksync_consensus_roles::validator::{BlockNumber, FinalBlock};
 use zksync_consensus_storage::{BlockStore, StorageError, StorageResult};
-use zksync_dal::blocks_dal::ConsensusBlockFields;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{blocks_dal::ConsensusBlockFields, ConnectionPool, StorageProcessor};
 use zksync_types::{api::en::SyncBlock, Address, MiniblockNumber};
-
-#[cfg(test)]
-mod tests;
 
 use super::{buffered::ContiguousBlockStore, conversions::sync_block_to_consensus_block};
 use crate::{
@@ -27,6 +22,9 @@ use crate::{
         sync_action::{ActionQueueSender, SyncAction},
     },
 };
+
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug)]
 struct CursorWithCachedBlock {

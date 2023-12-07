@@ -1,16 +1,17 @@
-use once_cell::sync::Lazy;
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
-use multivm::interface::{
-    dyn_tracers::vm_1_4_0::DynTracer, tracer::VmExecutionStopReason, L1BatchEnv, L2BlockEnv,
-    SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
+use multivm::{
+    interface::{
+        dyn_tracers::vm_1_4_0::DynTracer, tracer::VmExecutionStopReason, L1BatchEnv, L2BlockEnv,
+        SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
+    },
+    vm_latest::{
+        constants::{BLOCK_GAS_LIMIT, BOOTLOADER_HEAP_PAGE},
+        BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, Vm, VmTracer,
+        ZkSyncVmState,
+    },
 };
-use multivm::vm_latest::{
-    constants::{BLOCK_GAS_LIMIT, BOOTLOADER_HEAP_PAGE},
-    BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, Vm, VmTracer,
-    ZkSyncVmState,
-};
+use once_cell::sync::Lazy;
 use zksync_contracts::{
     load_sys_contract, read_bootloader_code, read_sys_contract_bytecode, read_zbin_bytecode,
     BaseSystemContracts, ContractLanguage, SystemContractCode,

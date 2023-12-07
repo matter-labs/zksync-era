@@ -1,14 +1,11 @@
 use zk_evm_1_3_1::{
-    abstractions::Memory,
-    abstractions::PrecompileCyclesWitness,
-    abstractions::PrecompilesProcessor,
+    abstractions::{Memory, PrecompileCyclesWitness, PrecompilesProcessor},
     aux_structures::{LogQuery, MemoryQuery, Timestamp},
     precompiles::DefaultPrecompilesProcessor,
 };
 
-use crate::vm_m6::history_recorder::{HistoryEnabled, HistoryMode, HistoryRecorder};
-
 use super::OracleWithHistory;
+use crate::vm_m6::history_recorder::{HistoryEnabled, HistoryMode, HistoryRecorder};
 
 /// Wrap of DefaultPrecompilesProcessor that store queue
 /// of timestamp when precompiles are called to be executed.

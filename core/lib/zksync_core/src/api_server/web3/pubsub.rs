@@ -1,5 +1,7 @@
 //! (Largely) backend-agnostic logic for dealing with Web3 subscriptions.
 
+use std::{collections::HashMap, sync::Arc};
+
 use anyhow::Context as _;
 use jsonrpc_core::error::{Error, ErrorCode};
 use jsonrpc_pubsub::{typed, SubscriptionId};
@@ -8,9 +10,6 @@ use tokio::{
     task::JoinHandle,
     time::{interval, Duration},
 };
-
-use std::{collections::HashMap, sync::Arc};
-
 use zksync_dal::ConnectionPool;
 use zksync_types::{MiniblockNumber, H128, H256};
 use zksync_web3_decl::types::{BlockHeader, Log, PubSubFilter, PubSubResult};

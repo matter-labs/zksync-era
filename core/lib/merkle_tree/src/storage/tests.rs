@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet};
+
 use assert_matches::assert_matches;
 use rand::{
     rngs::StdRng,
@@ -5,16 +7,14 @@ use rand::{
     Rng, SeedableRng,
 };
 use test_casing::test_casing;
-
-use std::collections::{HashMap, HashSet};
+use zksync_crypto::hasher::blake2::Blake2Hasher;
+use zksync_types::{H256, U256};
 
 use super::*;
 use crate::{
     hasher::{HasherWithStats, MerklePath},
     types::{NodeKey, TreeInstruction, KEY_SIZE},
 };
-use zksync_crypto::hasher::blake2::Blake2Hasher;
-use zksync_types::{H256, U256};
 
 pub(super) const FIRST_KEY: Key = U256([0, 0, 0, 0x_dead_beef_0000_0000]);
 const SECOND_KEY: Key = U256([0, 0, 0, 0x_dead_beef_0100_0000]);

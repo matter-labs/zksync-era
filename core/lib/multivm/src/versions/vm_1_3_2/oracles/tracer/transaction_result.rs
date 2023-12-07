@@ -7,18 +7,18 @@ use zk_evm_1_3_3::{
 };
 use zksync_types::{vm_trace, U256};
 
-use crate::vm_1_3_2::memory::SimpleMemory;
-use crate::vm_1_3_2::oracles::tracer::{
-    CallTracer, ExecutionEndTracer, PendingRefundTracer, PubdataSpentTracer,
-    StorageInvocationTracer,
-};
-use crate::vm_1_3_2::vm_instance::get_vm_hook_params;
 use crate::vm_1_3_2::{
     history_recorder::HistoryMode,
-    oracles::tracer::utils::{
-        gas_spent_on_bytecodes_and_long_messages_this_opcode, print_debug_if_needed, read_pointer,
-        VmHook,
+    memory::SimpleMemory,
+    oracles::tracer::{
+        utils::{
+            gas_spent_on_bytecodes_and_long_messages_this_opcode, print_debug_if_needed,
+            read_pointer, VmHook,
+        },
+        CallTracer, ExecutionEndTracer, PendingRefundTracer, PubdataSpentTracer,
+        StorageInvocationTracer,
     },
+    vm_instance::get_vm_hook_params,
 };
 
 #[derive(Debug)]

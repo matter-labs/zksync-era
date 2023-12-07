@@ -1,6 +1,6 @@
 //! Conversion logic between server and consensus types.
-use anyhow::Context as _;
 
+use anyhow::Context as _;
 use zksync_consensus_roles::validator::{BlockHeader, BlockNumber, FinalBlock};
 use zksync_dal::blocks_dal::ConsensusBlockFields;
 use zksync_types::{api::en, MiniblockNumber, ProtocolVersionId};

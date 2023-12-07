@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+
 use zksync_dal::StorageProcessor;
 use zksync_types::{web3::types::Log, ProtocolUpgrade, ProtocolVersionId, H256};
 

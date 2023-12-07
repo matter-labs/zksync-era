@@ -1,13 +1,14 @@
-use multivm::interface::{ExecutionResult, L2BlockEnv, VmExecutionResultAndLogs};
-use multivm::vm_latest::TransactionVmExt;
 use std::collections::HashMap;
-use zksync_types::l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log};
 
+use multivm::{
+    interface::{ExecutionResult, L2BlockEnv, VmExecutionResultAndLogs},
+    vm_latest::TransactionVmExt,
+};
 use zksync_types::{
     block::{BlockGasCount, MiniblockHasher},
     event::extract_bytecodes_marked_as_known,
-    tx::tx_execution_info::TxExecutionStatus,
-    tx::{ExecutionMetrics, TransactionExecutionResult},
+    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
     vm_trace::Call,
     MiniblockNumber, ProtocolVersionId, StorageLogQuery, Transaction, VmEvent, H256,
 };
@@ -162,9 +163,10 @@ impl MiniblockUpdates {
 
 #[cfg(test)]
 mod tests {
+    use multivm::vm_latest::TransactionVmExt;
+
     use super::*;
     use crate::state_keeper::tests::{create_execution_result, create_transaction};
-    use multivm::vm_latest::TransactionVmExt;
 
     #[test]
     fn apply_empty_l2_tx() {

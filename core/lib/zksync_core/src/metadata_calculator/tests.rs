@@ -1,10 +1,9 @@
+use std::{future::Future, ops, panic, path::Path, time::Duration};
+
 use assert_matches::assert_matches;
 use itertools::Itertools;
 use tempfile::TempDir;
 use tokio::sync::{mpsc, watch};
-
-use std::{future::Future, ops, panic, path::Path, time::Duration};
-
 use zksync_config::configs::{chain::OperationsManagerConfig, database::MerkleTreeConfig};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, StorageProcessor};

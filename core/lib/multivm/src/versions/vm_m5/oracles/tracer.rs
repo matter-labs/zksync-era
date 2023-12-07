@@ -1,19 +1,8 @@
-use std::fmt::Debug;
 use std::{
     collections::HashSet,
-    fmt::{self, Display},
+    fmt::{self, Debug, Display},
 };
 
-use crate::vm_m5::{
-    errors::VmRevertReasonParsingResult,
-    memory::SimpleMemory,
-    storage::StoragePtr,
-    utils::{aux_heap_page_from_base, heap_page_from_base},
-    vm_instance::{get_vm_hook_params, VM_HOOK_POSITION},
-    vm_with_bootloader::BOOTLOADER_HEAP_PAGE,
-};
-// use zk_evm_1_3_1::testing::memory::SimpleMemory;
-use crate::vm_m5::storage::Storage;
 use zk_evm_1_3_1::{
     abstractions::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
@@ -26,7 +15,6 @@ use zk_evm_1_3_1::{
         LogOpcode, Opcode, RetOpcode, UMAOpcode,
     },
 };
-
 use zksync_types::{
     get_code_key, web3::signing::keccak256, AccountTreeId, Address, StorageKey,
     ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS, H256,
@@ -35,6 +23,15 @@ use zksync_types::{
 };
 use zksync_utils::{
     be_bytes_to_safe_address, h256_to_account_address, u256_to_account_address, u256_to_h256,
+};
+
+use crate::vm_m5::{
+    errors::VmRevertReasonParsingResult,
+    memory::SimpleMemory,
+    storage::{Storage, StoragePtr},
+    utils::{aux_heap_page_from_base, heap_page_from_base},
+    vm_instance::{get_vm_hook_params, VM_HOOK_POSITION},
+    vm_with_bootloader::BOOTLOADER_HEAP_PAGE,
 };
 
 pub trait ExecutionEndTracer: Tracer<SupportedMemory = SimpleMemory> {

@@ -1,28 +1,31 @@
 use std::marker::PhantomData;
+
 use zksync_contracts::BaseSystemContracts;
 use zksync_state::{InMemoryStorage, StoragePtr, StorageView, WriteStorage};
-
-use zksync_types::block::MiniblockHasher;
-use zksync_types::helpers::unix_timestamp_ms;
-use zksync_types::utils::{deployed_address_create, storage_key_for_eth_balance};
 use zksync_types::{
-    get_code_key, get_is_account_key, Address, L1BatchNumber, L2ChainId, MiniblockNumber, Nonce,
-    ProtocolVersionId, U256,
+    block::MiniblockHasher,
+    get_code_key, get_is_account_key,
+    helpers::unix_timestamp_ms,
+    utils::{deployed_address_create, storage_key_for_eth_balance},
+    Address, L1BatchNumber, L2ChainId, MiniblockNumber, Nonce, ProtocolVersionId, U256,
 };
-use zksync_utils::bytecode::hash_bytecode;
-use zksync_utils::u256_to_h256;
+use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
-use crate::vm_latest::constants::BLOCK_GAS_LIMIT;
-
-use crate::interface::{
-    L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
+use crate::{
+    interface::{
+        L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
+    },
+    vm_latest::{
+        constants::BLOCK_GAS_LIMIT,
+        tests::{
+            tester::{Account, TxType},
+            utils::read_test_contract,
+        },
+        utils::l2_blocks::load_last_l2_block,
+        Vm,
+    },
+    HistoryMode,
 };
-use crate::vm_latest::tests::tester::Account;
-use crate::vm_latest::tests::tester::TxType;
-use crate::vm_latest::tests::utils::read_test_contract;
-use crate::vm_latest::utils::l2_blocks::load_last_l2_block;
-use crate::vm_latest::Vm;
-use crate::HistoryMode;
 
 pub(crate) type InMemoryStorageView = StorageView<InMemoryStorage>;
 

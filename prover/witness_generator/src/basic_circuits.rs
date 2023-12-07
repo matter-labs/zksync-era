@@ -1,54 +1,61 @@
-use std::hash::Hash;
-use std::sync::Arc;
 use std::{
     collections::{hash_map::DefaultHasher, HashMap, HashSet},
-    hash::Hasher,
+    hash::{Hash, Hasher},
+    sync::Arc,
     time::Instant,
 };
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use zksync_prover_fri_types::circuit_definitions::ZkSyncDefaultRoundFunction;
-use rand::Rng;
-use serde::{Deserialize, Serialize};
-use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::{GoldilocksExt2, GoldilocksField};
-use zksync_prover_fri_types::circuit_definitions::boojum::gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge;
-use zkevm_test_harness::geometry_config::get_geometry_config;
-use zkevm_test_harness::toolset::GeometryConfig;
-use zkevm_test_harness::witness::full_block_artifact::{
-    BlockBasicCircuits, BlockBasicCircuitsPublicCompactFormsWitnesses,
-    BlockBasicCircuitsPublicInputs,
-};
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness;
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness;
-use zksync_prover_fri_types::{AuxOutputWitnessWrapper, get_current_pod_name};
-
-use crate::metrics::WITNESS_GENERATOR_METRICS;
-use crate::storage_oracle::StorageOracle;
 use multivm::vm_latest::{
     constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
 };
+use rand::Rng;
+use serde::{Deserialize, Serialize};
+use zkevm_test_harness::{
+    geometry_config::get_geometry_config,
+    toolset::GeometryConfig,
+    witness::full_block_artifact::{
+        BlockBasicCircuits, BlockBasicCircuitsPublicCompactFormsWitnesses,
+        BlockBasicCircuitsPublicInputs,
+    },
+};
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_dal::fri_witness_generator_dal::FriWitnessJobStatus;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{fri_witness_generator_dal::FriWitnessJobStatus, ConnectionPool};
 use zksync_object_store::{
     Bucket, ClosedFormInputKey, ObjectStore, ObjectStoreFactory, StoredObject,
+};
+use zksync_prover_fri_types::{
+    circuit_definitions::{
+        boojum::{
+            field::goldilocks::{GoldilocksExt2, GoldilocksField},
+            gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge,
+        },
+        zkevm_circuits::scheduler::{
+            block_header::BlockAuxilaryOutputWitness, input::SchedulerCircuitInstanceWitness,
+        },
+        ZkSyncDefaultRoundFunction,
+    },
+    get_current_pod_name, AuxOutputWitnessWrapper,
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::{PostgresStorage, StorageView};
-use zksync_types::proofs::AggregationRound;
-use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::{
-    proofs::{BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
+    proofs::{AggregationRound, BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
+    protocol_version::FriProtocolVersionId,
     Address, L1BatchNumber, BOOTLOADER_ADDRESS, H256, U256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
-use crate::precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider;
-use crate::utils::{
-    expand_bootloader_contents, save_base_prover_input_artifacts, ClosedFormInputWrapper,
-    SchedulerPartialInputWrapper,
+use crate::{
+    metrics::WITNESS_GENERATOR_METRICS,
+    precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
+    storage_oracle::StorageOracle,
+    utils::{
+        expand_bootloader_contents, save_base_prover_input_artifacts, ClosedFormInputWrapper,
+        SchedulerPartialInputWrapper,
+    },
 };
 
 pub struct BasicCircuitArtifacts {

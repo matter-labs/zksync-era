@@ -1,20 +1,21 @@
 use chrono::{DateTime, Utc};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use strum::Display;
-
 use zksync_basic_types::{
     web3::types::{Bytes, H160, H256, H64, U256, U64},
     L1BatchNumber,
 };
 use zksync_contracts::BaseSystemContractsHashes;
 
-use crate::protocol_version::L1VerifierConfig;
 pub use crate::transaction_request::{
     Eip712Meta, SerializationTransactionError, TransactionRequest,
 };
-use crate::vm_trace::{Call, CallType};
-use crate::web3::types::{AccessList, Index, H2048};
-use crate::{Address, MiniblockNumber, ProtocolVersionId};
+use crate::{
+    protocol_version::L1VerifierConfig,
+    vm_trace::{Call, CallType},
+    web3::types::{AccessList, Index, H2048},
+    Address, MiniblockNumber, ProtocolVersionId,
+};
 
 pub mod en;
 
@@ -548,7 +549,7 @@ pub struct TransactionDetails {
 #[derive(Debug, Clone)]
 pub struct GetLogsFilter {
     pub from_block: MiniblockNumber,
-    pub to_block: Option<BlockNumber>,
+    pub to_block: MiniblockNumber,
     pub addresses: Vec<Address>,
     pub topics: Vec<(u32, Vec<H256>)>,
 }

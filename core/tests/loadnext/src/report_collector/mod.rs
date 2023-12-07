@@ -1,7 +1,7 @@
+use std::time::{Duration, Instant};
+
 use futures::{channel::mpsc::Receiver, StreamExt};
 use operation_results_collector::OperationResultsCollector;
-
-use std::time::{Duration, Instant};
 
 use crate::{
     report::{ActionType, Report, ReportLabel},

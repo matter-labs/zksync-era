@@ -1,6 +1,5 @@
 use bigdecimal::BigDecimal;
 use sqlx::Row;
-
 use zksync_system_constants::EMPTY_UNCLES_HASH;
 use zksync_types::{
     api,
@@ -13,14 +12,17 @@ use zksync_types::{
 };
 use zksync_utils::bigdecimal_to_u256;
 
-use crate::models::{
-    storage_block::{
-        bind_block_where_sql_params, web3_block_number_to_sql, web3_block_where_sql,
-        StorageBlockDetails, StorageL1BatchDetails,
+use crate::{
+    instrument::InstrumentExt,
+    models::{
+        storage_block::{
+            bind_block_where_sql_params, web3_block_number_to_sql, web3_block_where_sql,
+            StorageBlockDetails, StorageL1BatchDetails,
+        },
+        storage_transaction::{extract_web3_transaction, web3_transaction_select_sql, CallTrace},
     },
-    storage_transaction::{extract_web3_transaction, web3_transaction_select_sql, CallTrace},
+    StorageProcessor,
 };
-use crate::{instrument::InstrumentExt, StorageProcessor};
 
 const BLOCK_GAS_LIMIT: u32 = system_params::VM_INITIAL_FRAME_ERGS;
 
@@ -161,15 +163,15 @@ impl BlocksWeb3Dal<'_, '_> {
         }))
     }
 
-    /// Returns hashes of blocks with numbers greater than `from_block` and the number of the last block.
-    pub async fn get_block_hashes_after(
+    /// Returns hashes of blocks with numbers starting from `from_block` and the number of the last block.
+    pub async fn get_block_hashes_since(
         &mut self,
         from_block: MiniblockNumber,
         limit: usize,
     ) -> sqlx::Result<(Vec<H256>, Option<MiniblockNumber>)> {
         let rows = sqlx::query!(
             "SELECT number, hash FROM miniblocks \
-            WHERE number > $1 \
+            WHERE number >= $1 \
             ORDER BY number ASC \
             LIMIT $2",
             from_block.0 as i64,

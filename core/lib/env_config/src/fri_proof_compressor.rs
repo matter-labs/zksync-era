@@ -10,9 +10,8 @@ impl FromEnv for FriProofCompressorConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_utils::EnvMutex;
-
     use super::*;
+    use crate::test_utils::EnvMutex;
 
     static MUTEX: EnvMutex = EnvMutex::new();
 

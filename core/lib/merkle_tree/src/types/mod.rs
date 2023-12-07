@@ -1,13 +1,13 @@
 //! Basic storage types.
 
-mod internal;
+use zksync_types::{H256, U256};
 
 pub(crate) use self::internal::{
     ChildRef, Nibbles, NibblesBytes, StaleNodeKey, TreeTags, HASH_SIZE, KEY_SIZE, TREE_DEPTH,
 };
 pub use self::internal::{InternalNode, LeafNode, Manifest, Node, NodeKey, Root};
 
-use zksync_types::{H256, U256};
+mod internal;
 
 /// Key stored in the tree.
 pub type Key = U256;

@@ -1,7 +1,7 @@
+use std::fmt;
+
 use jsonrpc_core::{Error, ErrorCode};
 use zksync_web3_decl::error::Web3Error;
-
-use std::fmt;
 
 use crate::api_server::web3::metrics::API_METRICS;
 

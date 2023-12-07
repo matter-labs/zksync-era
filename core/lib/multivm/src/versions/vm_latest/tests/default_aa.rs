@@ -1,13 +1,21 @@
 use zksync_system_constants::L2_ETH_TOKEN_ADDRESS;
-use zksync_types::system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREMENT};
-
-use zksync_types::{get_code_key, get_known_code_key, get_nonce_key, AccountTreeId, U256};
+use zksync_types::{
+    get_code_key, get_known_code_key, get_nonce_key,
+    system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREMENT},
+    AccountTreeId, U256,
+};
 use zksync_utils::u256_to_h256;
 
-use crate::interface::{TxExecutionMode, VmExecutionMode, VmInterface};
-use crate::vm_latest::tests::tester::{DeployContractsTx, TxType, VmTesterBuilder};
-use crate::vm_latest::tests::utils::{get_balance, read_test_contract, verify_required_storage};
-use crate::vm_latest::HistoryEnabled;
+use crate::{
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    vm_latest::{
+        tests::{
+            tester::{DeployContractsTx, TxType, VmTesterBuilder},
+            utils::{get_balance, read_test_contract, verify_required_storage},
+        },
+        HistoryEnabled,
+    },
+};
 
 #[test]
 fn test_default_aa_interaction() {

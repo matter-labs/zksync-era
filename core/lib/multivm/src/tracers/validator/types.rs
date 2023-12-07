@@ -1,8 +1,8 @@
+use std::{collections::HashSet, fmt::Display};
+
+use zksync_types::{vm_trace::ViolatedValidationRule, Address, H256, U256};
+
 use crate::interface::Halt;
-use std::collections::HashSet;
-use std::fmt::Display;
-use zksync_types::vm_trace::ViolatedValidationRule;
-use zksync_types::{Address, H256, U256};
 
 #[derive(Debug, Clone, Eq, PartialEq, Copy)]
 #[allow(clippy::enum_variant_names)]

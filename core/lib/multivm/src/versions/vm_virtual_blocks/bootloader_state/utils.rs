@@ -1,16 +1,19 @@
 use zksync_types::U256;
-use zksync_utils::bytecode::CompressedBytecodeInfo;
-use zksync_utils::{bytes_to_be_words, h256_to_u256};
-
-use crate::interface::{BootloaderMemory, TxExecutionMode};
-use crate::vm_virtual_blocks::bootloader_state::l2_block::BootloaderL2Block;
-use crate::vm_virtual_blocks::constants::{
-    BOOTLOADER_TX_DESCRIPTION_OFFSET, BOOTLOADER_TX_DESCRIPTION_SIZE, COMPRESSED_BYTECODES_OFFSET,
-    OPERATOR_REFUNDS_OFFSET, TX_DESCRIPTION_OFFSET, TX_OPERATOR_L2_BLOCK_INFO_OFFSET,
-    TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO, TX_OVERHEAD_OFFSET, TX_TRUSTED_GAS_LIMIT_OFFSET,
-};
+use zksync_utils::{bytecode::CompressedBytecodeInfo, bytes_to_be_words, h256_to_u256};
 
 use super::tx::BootloaderTx;
+use crate::{
+    interface::{BootloaderMemory, TxExecutionMode},
+    vm_virtual_blocks::{
+        bootloader_state::l2_block::BootloaderL2Block,
+        constants::{
+            BOOTLOADER_TX_DESCRIPTION_OFFSET, BOOTLOADER_TX_DESCRIPTION_SIZE,
+            COMPRESSED_BYTECODES_OFFSET, OPERATOR_REFUNDS_OFFSET, TX_DESCRIPTION_OFFSET,
+            TX_OPERATOR_L2_BLOCK_INFO_OFFSET, TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
+            TX_OVERHEAD_OFFSET, TX_TRUSTED_GAS_LIMIT_OFFSET,
+        },
+    },
+};
 
 pub(super) fn get_memory_for_compressed_bytecodes(
     compressed_bytecodes: &[CompressedBytecodeInfo],

@@ -1,17 +1,16 @@
-use itertools::Itertools;
-use sqlx::Row;
-
 use std::{collections::HashMap, ops::Range, time::Duration};
 
-use zksync_types::proofs::{
-    AggregationRound, JobCountStatistics, WitnessGeneratorJobMetadata, WitnessJobInfo,
+use itertools::Itertools;
+use sqlx::Row;
+use zksync_types::{
+    proofs::{AggregationRound, JobCountStatistics, WitnessGeneratorJobMetadata, WitnessJobInfo},
+    zkevm_test_harness::{
+        abstract_zksync_circuit::concrete_circuits::{ZkSyncCircuit, ZkSyncProof},
+        bellman::{bn256::Bn256, plonk::better_better_cs::proof::Proof},
+        witness::oracle::VmWitnessOracle,
+    },
+    L1BatchNumber, ProtocolVersionId,
 };
-use zksync_types::zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
-use zksync_types::zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncProof;
-use zksync_types::zkevm_test_harness::bellman::bn256::Bn256;
-use zksync_types::zkevm_test_harness::bellman::plonk::better_better_cs::proof::Proof;
-use zksync_types::zkevm_test_harness::witness::oracle::VmWitnessOracle;
-use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
 use crate::{
     instrument::InstrumentExt,

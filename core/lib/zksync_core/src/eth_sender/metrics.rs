@@ -1,9 +1,8 @@
 //! Metrics for the Ethereum sender component.
 
-use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
-
 use std::{fmt, time::Duration};
 
+use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
 use zksync_dal::StorageProcessor;
 use zksync_types::{aggregated_operations::AggregatedActionType, eth_sender::EthTx};
 use zksync_utils::time::seconds_since_epoch;

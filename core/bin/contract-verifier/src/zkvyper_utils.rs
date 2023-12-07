@@ -1,8 +1,4 @@
-use std::collections::HashMap;
-use std::fs::File;
-use std::io::Write;
-use std::path::PathBuf;
-use std::process::Stdio;
+use std::{collections::HashMap, fs::File, io::Write, path::PathBuf, process::Stdio};
 
 use crate::error::ContractVerifierError;
 

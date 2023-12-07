@@ -1,7 +1,6 @@
-use async_trait::async_trait;
-
 use std::{collections::HashMap, time::Instant};
 
+use async_trait::async_trait;
 use zksync_config::configs::WitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
@@ -10,10 +9,12 @@ use zksync_types::{
     circuit::LEAF_SPLITTING_FACTOR,
     proofs::{AggregationRound, PrepareLeafAggregationCircuitsJob, WitnessGeneratorJobMetadata},
     zkevm_test_harness::{
-        abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit, bellman::bn256::Bn256,
-        bellman::plonk::better_better_cs::setup::VerificationKey,
-        encodings::recursion_request::RecursionRequest, encodings::QueueSimulator, witness,
-        witness::oracle::VmWitnessOracle, LeafAggregationOutputDataWitness,
+        abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
+        bellman::{bn256::Bn256, plonk::better_better_cs::setup::VerificationKey},
+        encodings::{recursion_request::RecursionRequest, QueueSimulator},
+        witness,
+        witness::oracle::VmWitnessOracle,
+        LeafAggregationOutputDataWitness,
     },
     L1BatchNumber, ProtocolVersionId,
 };

@@ -1,14 +1,14 @@
+use std::{env, time::Duration};
+
 use anyhow::Context;
 use serde::Deserialize;
-use std::{env, time::Duration};
 use url::Url;
-
 use zksync_basic_types::{Address, L1ChainId, L2ChainId, MiniblockNumber};
 use zksync_core::api_server::{
-    tx_sender::TxSenderConfig, web3::state::InternalApiConfig, web3::Namespace,
+    tx_sender::TxSenderConfig,
+    web3::{state::InternalApiConfig, Namespace},
 };
 use zksync_types::api::BridgeAddresses;
-
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
@@ -190,6 +190,11 @@ pub struct OptionalENConfig {
     /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
     #[serde(default = "OptionalENConfig::default_enum_index_migration_chunk_size")]
     pub enum_index_migration_chunk_size: usize,
+    /// Capacity of the queue for asynchronous miniblock sealing. Once this many miniblocks are queued,
+    /// sealing will block until some of the miniblocks from the queue are processed.
+    /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
+    #[serde(default = "OptionalENConfig::default_miniblock_seal_queue_capacity")]
+    pub miniblock_seal_queue_capacity: usize,
 }
 
 impl OptionalENConfig {
@@ -286,6 +291,10 @@ impl OptionalENConfig {
 
     const fn default_enum_index_migration_chunk_size() -> usize {
         5000
+    }
+
+    const fn default_miniblock_seal_queue_capacity() -> usize {
+        10
     }
 
     pub fn polling_interval(&self) -> Duration {

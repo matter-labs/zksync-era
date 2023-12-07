@@ -1,22 +1,21 @@
 //! This module determines the fees to pay in txs containing blocks submitted to the L1.
 
-use tokio::sync::watch;
-
 use std::{
     collections::VecDeque,
     sync::{Arc, RwLock},
 };
 
+use tokio::sync::watch;
 use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::{types::Error, EthInterface};
+
+use self::metrics::METRICS;
+use super::{L1GasPriceProvider, L1TxParamsProvider};
 
 pub mod bounded_gas_adjuster;
 mod metrics;
 #[cfg(test)]
 mod tests;
-
-use self::metrics::METRICS;
-use super::{L1GasPriceProvider, L1TxParamsProvider};
 
 /// This component keeps track of the median base_fee from the last `max_base_fee_samples` blocks.
 /// It is used to adjust the base_fee of transactions sent to L1.
