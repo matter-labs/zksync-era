@@ -1,5 +1,3 @@
-use sqlx::Error;
-
 use std::{
     collections::HashMap,
     convert::{TryFrom, TryInto},
@@ -7,6 +5,7 @@ use std::{
     time::Duration,
 };
 
+use sqlx::Error;
 use zksync_types::{
     aggregated_operations::L1BatchProofForL1,
     proofs::{
@@ -246,7 +245,7 @@ impl ProverDal<'_, '_> {
             sqlx::query!(
                 "
                 UPDATE prover_jobs
-                SET status = 'queued', attempts = attempts + 1, updated_at = now(), processing_started_at = now()
+                SET status = 'queued', updated_at = now(), processing_started_at = now()
                 WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)
                 OR (status = 'in_gpu_proof' AND  processing_started_at <= now() - $1::interval AND attempts < $2)
                 OR (status = 'failed' AND attempts < $2)

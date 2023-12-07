@@ -53,7 +53,7 @@ In pre-boojum era the superset of pubdata fields and input to the `commitBlocks`
 /// @param repeatedStorageChanges Storage write access as a concatenation index-value
 /// @param l2Logs concatenation of all L2 -> L1 logs in the block
 /// @param l2ArbitraryLengthMessages array of hash preimages that were sent as value of L2 logs by special system L2 contract
-/// @param factoryDeps (contract bytecodes) array of l2 bytecodes that were deployed
+/// @param factoryDeps (contract bytecodes) array of L2 bytecodes that were deployed
 struct CommitBlockInfo {
   uint64 blockNumber;
   uint64 timestamp;
@@ -194,4 +194,4 @@ the writes will be repeated ones.
 Given the structure above, there is a tool, created by the [Equilibrium Team](https://equilibrium.co/) that solely uses
 L1 pubdata for reconstructing the state and verifying that the state root on L1 can be created using pubdata. A link to
 the repo can be found [here](https://github.com/eqlabs/zksync-state-reconstruct). The way the tool works is by parsing
-out all the L1 pubdata for an executed batch, compaing the state roots after each batch is processed.
+out all the L1 pubdata for an executed batch, comparing the state roots after each batch is processed.

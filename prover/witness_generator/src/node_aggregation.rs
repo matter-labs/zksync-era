@@ -2,31 +2,41 @@ use std::time::Instant;
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::GoldilocksField;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::{
-    ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
-    ZkSyncRecursionLayerVerificationKey, ZkSyncRecursiveLayerCircuit,
-};
-use zksync_prover_fri_types::circuit_definitions::encodings::recursion_request::RecursionQueueSimulator;
-
 use zkevm_test_harness::witness::recursive_aggregation::{
     compute_node_vk_commitment, create_node_witnesses,
 };
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::recursion::leaf_layer::input::RecursionLeafParametersWitness;
-use zksync_vk_setup_data_server_fri::get_recursive_layer_vk_for_circuit_type;
-use zksync_vk_setup_data_server_fri::utils::get_leaf_vk_params;
-
-use crate::utils::{
-    load_proofs_for_job_ids, save_node_aggregations_artifacts,
-    save_recursive_layer_prover_input_artifacts, AggregationWrapper,
-};
+use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{AggregationsKey, ObjectStore, ObjectStoreFactory};
-use zksync_prover_fri_types::{get_current_pod_name, FriProofWrapper};
+use zksync_prover_fri_types::{
+    circuit_definitions::{
+        boojum::field::goldilocks::GoldilocksField,
+        circuit_definitions::recursion_layer::{
+            ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
+            ZkSyncRecursionLayerVerificationKey, ZkSyncRecursiveLayerCircuit,
+        },
+        encodings::recursion_request::RecursionQueueSimulator,
+        zkevm_circuits::recursion::leaf_layer::input::RecursionLeafParametersWitness,
+    },
+    get_current_pod_name, FriProofWrapper,
+};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::proofs::NodeAggregationJobMetadata;
-use zksync_types::protocol_version::FriProtocolVersionId;
-use zksync_types::{proofs::AggregationRound, L1BatchNumber};
+use zksync_types::{
+    proofs::{AggregationRound, NodeAggregationJobMetadata},
+    protocol_version::FriProtocolVersionId,
+    L1BatchNumber,
+};
+use zksync_vk_setup_data_server_fri::{
+    get_recursive_layer_vk_for_circuit_type, utils::get_leaf_vk_params,
+};
+
+use crate::{
+    metrics::WITNESS_GENERATOR_METRICS,
+    utils::{
+        load_proofs_for_job_ids, save_node_aggregations_artifacts,
+        save_recursive_layer_prover_input_artifacts, AggregationWrapper,
+    },
+};
 
 pub struct NodeAggregationArtifacts {
     circuit_id: u8,
@@ -63,6 +73,7 @@ pub struct NodeAggregationWitnessGeneratorJob {
 
 #[derive(Debug)]
 pub struct NodeAggregationWitnessGenerator {
+    config: FriWitnessGeneratorConfig,
     object_store: Box<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool,
     protocol_versions: Vec<FriProtocolVersionId>,
@@ -70,11 +81,13 @@ pub struct NodeAggregationWitnessGenerator {
 
 impl NodeAggregationWitnessGenerator {
     pub async fn new(
+        config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
         prover_connection_pool: ConnectionPool,
         protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {
+            config,
             object_store: store_factory.create_store().await,
             prover_connection_pool,
             protocol_versions,
@@ -104,11 +117,10 @@ impl NodeAggregationWitnessGenerator {
             node_vk_commitment,
             &job.all_leafs_layer_params,
         );
-        metrics::histogram!(
-                    "prover_fri.witness_generation.witness_generation_time",
-                    started_at.elapsed(),
-                    "aggregation_round" => format!("{:?}", AggregationRound::NodeAggregation),
-        );
+        WITNESS_GENERATOR_METRICS.witness_generation_time
+            [&AggregationRound::NodeAggregation.into()]
+            .observe(started_at.elapsed());
+
         tracing::info!(
             "Node witness generation for block {} with circuit id {} at depth {} with {} next_aggregations jobs completed in {:?}.",
             job.block_number.0,
@@ -197,6 +209,24 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         .await;
         Ok(())
     }
+
+    fn max_attempts(&self) -> u32 {
+        self.config.max_attempts
+    }
+
+    async fn get_job_attempts(&self, job_id: &u32) -> anyhow::Result<u32> {
+        let mut prover_storage = self
+            .prover_connection_pool
+            .access_storage()
+            .await
+            .context("failed to acquire DB connection for NodeAggregationWitnessGenerator")?;
+        prover_storage
+            .fri_witness_generator_dal()
+            .get_node_aggregation_job_attempts(*job_id)
+            .await
+            .map(|attempts| attempts.unwrap_or(0))
+            .context("failed to get job attempts for NodeAggregationWitnessGenerator")
+    }
 }
 
 pub async fn prepare_job(
@@ -206,11 +236,10 @@ pub async fn prepare_job(
     let started_at = Instant::now();
     let artifacts = get_artifacts(&metadata, object_store).await;
     let proofs = load_proofs_for_job_ids(&metadata.prover_job_ids_for_proofs, object_store).await;
-    metrics::histogram!(
-                    "prover_fri.witness_generation.blob_fetch_time",
-                    started_at.elapsed(),
-                    "aggregation_round" => format!("{:?}", AggregationRound::NodeAggregation),
-    );
+
+    WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::NodeAggregation.into()]
+        .observe(started_at.elapsed());
+
     let started_at = Instant::now();
     let leaf_vk = get_recursive_layer_vk_for_circuit_type(metadata.circuit_id)
         .context("get_recursive_layer_vk_for_circuit_type")?;
@@ -232,11 +261,9 @@ pub async fn prepare_job(
         }
     }
 
-    metrics::histogram!(
-                    "prover_fri.witness_generation.job_preparation_time",
-                    started_at.elapsed(),
-                    "aggregation_round" => format!("{:?}", AggregationRound::NodeAggregation),
-    );
+    WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::NodeAggregation.into()]
+        .observe(started_at.elapsed());
+
     Ok(NodeAggregationWitnessGeneratorJob {
         circuit_id: metadata.circuit_id,
         block_number: metadata.block_number,
@@ -354,11 +381,10 @@ async fn save_artifacts(
         Some(artifacts.circuit_id),
     )
     .await;
-    metrics::histogram!(
-                    "prover_fri.witness_generation.blob_save_time",
-                    started_at.elapsed(),
-                    "aggregation_round" => format!("{:?}", AggregationRound::NodeAggregation),
-    );
+
+    WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::NodeAggregation.into()]
+        .observe(started_at.elapsed());
+
     BlobUrls {
         node_aggregations_url: aggregations_urls,
         circuit_ids_and_urls,

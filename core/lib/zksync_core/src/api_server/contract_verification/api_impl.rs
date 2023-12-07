@@ -3,7 +3,6 @@ use actix_web::{
     HttpResponse, Result as ActixResult,
 };
 use serde::Serialize;
-
 use zksync_types::{contract_verification_api::VerificationIncomingRequest, Address};
 
 use super::{api_decl::RestApi, metrics::METRICS};
@@ -53,6 +52,7 @@ impl RestApi {
             .contract_verification_dal()
             .is_contract_verified(request.contract_address)
             .await
+            .unwrap()
         {
             return Ok(HttpResponse::BadRequest().body("This contract is already verified"));
         }

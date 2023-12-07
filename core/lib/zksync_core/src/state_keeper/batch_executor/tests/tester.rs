@@ -1,11 +1,12 @@
 //! Testing harness for the batch executor.
 //! Contains helper functionality to initialize test context and perform tests without too much boilerplate.
 
+use multivm::{
+    interface::{L1BatchEnv, SystemEnv},
+    vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
+};
 use tempfile::TempDir;
-
-use multivm::interface::{L1BatchEnv, SystemEnv};
-use multivm::vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES;
-
+use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
 use zksync_dal::ConnectionPool;
 use zksync_state::RocksdbStorage;
@@ -18,10 +19,12 @@ use zksync_types::{
 };
 use zksync_utils::u256_to_h256;
 
-use crate::genesis::create_genesis_l1_batch;
-use crate::state_keeper::{
-    batch_executor::BatchExecutorHandle,
-    tests::{default_l1_batch_env, default_system_env, BASE_SYSTEM_CONTRACTS},
+use crate::{
+    genesis::create_genesis_l1_batch,
+    state_keeper::{
+        batch_executor::BatchExecutorHandle,
+        tests::{default_l1_batch_env, default_system_env, BASE_SYSTEM_CONTRACTS},
+    },
 };
 
 const DEFAULT_GAS_PER_PUBDATA: u32 = 100;
@@ -40,17 +43,13 @@ pub(super) struct TestConfig {
 
 impl TestConfig {
     pub(super) fn new() -> Self {
-        // Values are taken from the actual env config used in local development.
-        // These values remain static for a long time, so it's a better alternative than to introduce dependency
-        // on env config.
-        const MAX_ALLOWED_TX_GAS_LIMIT: u32 = 4000000000;
-        const VALIDATION_COMPUTATIONAL_GAS_LIMIT: u32 = 300000;
+        let config = StateKeeperConfig::for_tests();
 
         Self {
             vm_gas_limit: None,
             save_call_traces: false,
-            max_allowed_tx_gas_limit: MAX_ALLOWED_TX_GAS_LIMIT,
-            validation_computational_gas_limit: VALIDATION_COMPUTATIONAL_GAS_LIMIT,
+            max_allowed_tx_gas_limit: config.max_allowed_l2_tx_gas_limit,
+            validation_computational_gas_limit: config.validation_computational_gas_limit,
             upload_witness_inputs_to_gcs: false,
         }
     }

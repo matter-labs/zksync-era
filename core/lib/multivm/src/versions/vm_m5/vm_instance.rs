@@ -1,43 +1,52 @@
-use std::convert::TryFrom;
-use std::fmt::Debug;
+use std::{convert::TryFrom, fmt::Debug};
 
-use zk_evm_1_3_1::aux_structures::Timestamp;
-use zk_evm_1_3_1::vm_state::{PrimitiveValue, VmLocalState, VmState};
-use zk_evm_1_3_1::witness_trace::DummyTracer;
-use zk_evm_1_3_1::zkevm_opcode_defs::decoding::{
-    AllowedPcOrImm, EncodingModeProduction, VmEncodingMode,
+use zk_evm_1_3_1::{
+    aux_structures::Timestamp,
+    vm_state::{PrimitiveValue, VmLocalState, VmState},
+    witness_trace::DummyTracer,
+    zkevm_opcode_defs::{
+        decoding::{AllowedPcOrImm, EncodingModeProduction, VmEncodingMode},
+        definitions::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
+    },
 };
-use zk_evm_1_3_1::zkevm_opcode_defs::definitions::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER;
 use zksync_system_constants::MAX_TXS_IN_BLOCK;
-
-use zksync_types::l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log};
-use zksync_types::tx::tx_execution_info::TxExecutionStatus;
-use zksync_types::vm_trace::VmExecutionTrace;
-use zksync_types::{L1BatchNumber, StorageLogQuery, VmEvent, U256};
-
-use crate::interface::types::outputs::VmExecutionLogs;
-use crate::vm_m5::bootloader_state::BootloaderState;
-use crate::vm_m5::errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult};
-use crate::vm_m5::event_sink::InMemoryEventSink;
-use crate::vm_m5::events::merge_events;
-use crate::vm_m5::glue::GlueInto;
-use crate::vm_m5::memory::SimpleMemory;
-use crate::vm_m5::oracles::decommitter::DecommitterOracle;
-use crate::vm_m5::oracles::precompile::PrecompilesProcessorWithHistory;
-use crate::vm_m5::oracles::storage::StorageOracle;
-use crate::vm_m5::oracles::tracer::{
-    BootloaderTracer, ExecutionEndTracer, OneTxTracer, PendingRefundTracer, PubdataSpentTracer,
-    TransactionResultTracer, ValidationError, ValidationTracer, ValidationTracerParams,
+use zksync_types::{
+    l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
+    tx::tx_execution_info::TxExecutionStatus,
+    vm_trace::VmExecutionTrace,
+    L1BatchNumber, StorageLogQuery, VmEvent, U256,
 };
-use crate::vm_m5::oracles::OracleWithHistory;
-use crate::vm_m5::storage::Storage;
-use crate::vm_m5::utils::{
-    collect_log_queries_after_timestamp, collect_storage_log_queries_after_timestamp,
-    dump_memory_page_using_primitive_value, precompile_calls_count_after_timestamp,
-};
-use crate::vm_m5::vm_with_bootloader::{
-    BootloaderJobType, DerivedBlockContext, TxExecutionMode, BOOTLOADER_HEAP_PAGE,
-    OPERATOR_REFUNDS_OFFSET,
+
+use crate::{
+    glue::GlueInto,
+    interface::types::outputs::VmExecutionLogs,
+    vm_m5::{
+        bootloader_state::BootloaderState,
+        errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult},
+        event_sink::InMemoryEventSink,
+        events::merge_events,
+        memory::SimpleMemory,
+        oracles::{
+            decommitter::DecommitterOracle,
+            precompile::PrecompilesProcessorWithHistory,
+            storage::StorageOracle,
+            tracer::{
+                BootloaderTracer, ExecutionEndTracer, OneTxTracer, PendingRefundTracer,
+                PubdataSpentTracer, TransactionResultTracer, ValidationError, ValidationTracer,
+                ValidationTracerParams,
+            },
+            OracleWithHistory,
+        },
+        storage::Storage,
+        utils::{
+            collect_log_queries_after_timestamp, collect_storage_log_queries_after_timestamp,
+            dump_memory_page_using_primitive_value, precompile_calls_count_after_timestamp,
+        },
+        vm_with_bootloader::{
+            BootloaderJobType, DerivedBlockContext, TxExecutionMode, BOOTLOADER_HEAP_PAGE,
+            OPERATOR_REFUNDS_OFFSET,
+        },
+    },
 };
 
 pub type ZkSyncVmState<S> = VmState<
@@ -103,12 +112,12 @@ pub struct VmExecutionResult {
     pub l2_to_l1_logs: Vec<L2ToL1Log>,
     pub return_data: Vec<u8>,
 
-    /// Value denoting the amount of gas spent withing VM invocation.
+    /// Value denoting the amount of gas spent within VM invocation.
     /// Note that return value represents the difference between the amount of gas
     /// available to VM before and after execution.
     ///
     /// It means, that depending on the context, `gas_used` may represent different things.
-    /// If VM is continously invoked and interrupted after each tx, this field may represent the
+    /// If VM is continuously invoked and interrupted after each tx, this field may represent the
     /// amount of gas spent by a single transaction.
     ///
     /// To understand, which value does `gas_used` represent, see the documentation for the method
@@ -819,7 +828,7 @@ impl<S: Storage> VmInstance<S> {
     }
 
     // returns Some only when there is just one frame in execution trace.
-    fn get_final_log_queries(&self) -> Vec<StorageLogQuery> {
+    pub(crate) fn get_final_log_queries(&self) -> Vec<StorageLogQuery> {
         assert_eq!(
             self.state.storage.frames_stack.inner().len(),
             1,

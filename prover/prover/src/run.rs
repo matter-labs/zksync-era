@@ -1,32 +1,32 @@
-use anyhow::Context as _;
 use std::{env, future::Future, sync::Arc, time::Instant};
-use tokio::sync::{oneshot, Mutex};
 
+use anyhow::Context as _;
 use local_ip_address::local_ip;
-use queues::Buffer;
-
 use prometheus_exporter::PrometheusExporterConfig;
+use queues::Buffer;
+use tokio::sync::{oneshot, Mutex};
 use zksync_config::{
     configs::{
         api::PrometheusConfig, prover_group::ProverGroupConfig, AlertsConfig, ObjectStoreConfig,
     },
-    ApiConfig, ProverConfig, ProverConfigs,
+    ApiConfig, PostgresConfig, ProverConfig, ProverConfigs,
 };
-use zksync_dal::{connection::DbVariant, ConnectionPool};
+use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_utils::region_fetcher::{get_region, get_zone};
 use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
-use crate::artifact_provider::ProverArtifactProvider;
-use crate::prover::ProverReporter;
-use crate::prover_params::ProverParams;
-use crate::socket_listener::incoming_socket_listener;
-use crate::synthesized_circuit_provider::SynthesizedCircuitProvider;
+use crate::{
+    artifact_provider::ProverArtifactProvider, metrics::METRICS, prover::ProverReporter,
+    prover_params::ProverParams, socket_listener::incoming_socket_listener,
+    synthesized_circuit_provider::SynthesizedCircuitProvider,
+};
 
 async fn graceful_shutdown() -> anyhow::Result<impl Future<Output = ()>> {
-    let pool = ConnectionPool::singleton(DbVariant::Prover)
+    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
+    let pool = ConnectionPool::singleton(postgres_config.prover_url()?)
         .build()
         .await
         .context("failed to build a connection pool")?;
@@ -147,8 +147,7 @@ pub async fn run() -> anyhow::Result<()> {
         &prover_config.initial_setup_key_path,
         &prover_config.key_download_url,
     );
-    metrics::histogram!("server.prover.download_time", started_at.elapsed());
-
+    METRICS.download_time.observe(started_at.elapsed());
     env::set_var("CRS_FILE", prover_config.initial_setup_key_path.clone());
     // We don't have a graceful shutdown process for the prover, so `_stop_sender` is unused.
     // Though we still need to create a channel because circuit breaker expects `stop_receiver`.
@@ -178,11 +177,12 @@ pub async fn run() -> anyhow::Result<()> {
     };
     tracing::info!("local IP address is: {:?}", local_ip);
 
+    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
     tasks.push(tokio::task::spawn(incoming_socket_listener(
         local_ip,
         prover_config.assembly_receiver_port,
         producer,
-        ConnectionPool::singleton(DbVariant::Prover)
+        ConnectionPool::singleton(postgres_config.prover_url()?)
             .build()
             .await
             .context("failed to build a connection pool")?,
@@ -197,7 +197,7 @@ pub async fn run() -> anyhow::Result<()> {
         ObjectStoreConfig::from_env().context("ObjectStoreConfig::from_env()")?;
     let store_factory = ObjectStoreFactory::new(object_store_config);
 
-    let circuit_provider_pool = ConnectionPool::singleton(DbVariant::Prover)
+    let circuit_provider_pool = ConnectionPool::singleton(postgres_config.prover_url()?)
         .build()
         .await
         .context("failed to build circuit_provider_pool")?;
@@ -211,8 +211,9 @@ pub async fn run() -> anyhow::Result<()> {
             zone,
             rt_handle.clone(),
         );
-        let prover_job_reporter = ProverReporter::new(prover_config, &store_factory, rt_handle)
-            .context("ProverReporter::new()")?;
+        let prover_job_reporter =
+            ProverReporter::new(postgres_config, prover_config, &store_factory, rt_handle)
+                .context("ProverReporter::new()")?;
         prover_service::run_prover::run_prover_with_remote_synthesizer(
             synthesized_circuit_provider,
             ProverArtifactProvider,

@@ -1,10 +1,9 @@
-use serde::{Deserialize, Serialize};
-use zksync_system_constants::SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER;
-
 use std::{fmt, ops};
 
+use serde::{Deserialize, Serialize};
 use zksync_basic_types::{H2048, H256, U256};
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_system_constants::SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER;
 
 use crate::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
@@ -61,7 +60,7 @@ pub struct L1BatchHeader {
     /// The L2 gas price that the operator agrees on.
     pub l2_fair_gas_price: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
-    /// System logs are those emitted as part of the Vm excecution.
+    /// System logs are those emitted as part of the Vm execution.
     pub system_logs: Vec<SystemL2ToL1Log>,
     /// Version of protocol used for the L1 batch.
     pub protocol_version: Option<ProtocolVersionId>,

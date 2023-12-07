@@ -46,28 +46,29 @@ RUN apt-get update && apt-get install -y \
     jq \
     openssh-server \
     openssh-client \
-    wget \
     vim \
     ca-certificates \
     gnupg2 \
     postgresql-client \
     wget \
-    bzip2
+    bzip2 \
+    hub \
+    unzip
 
 # Install dependencies for RocksDB.
 RUN apt-get update && \
     apt-get install -y \
-    curl \
     gnutls-bin git \
     build-essential \
     clang-15 \
     lldb-15 \
     lld-15 \
-    liburing-dev
+    liburing-dev \
+    libclang-dev
 
 # Install Docker
 RUN apt-get update && \
-    apt-get install ca-certificates curl gnupg && \
+    apt-get install ca-certificates gnupg && \
     install -m 0755 -d /etc/apt/keyrings && \
     wget -c -O - https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
     chmod a+r /etc/apt/keyrings/docker.gpg && \
@@ -132,5 +133,5 @@ ENV RUSTC_WRAPPER=/usr/local/cargo/bin/sccache
 
 FROM rust-lightweight as rust-lightweight-nightly
 
-RUN rustup install nightly-2023-07-21 && \
-    rustup default nightly-2023-07-21
+RUN rustup install nightly-2023-08-21 && \
+    rustup default nightly-2023-08-21

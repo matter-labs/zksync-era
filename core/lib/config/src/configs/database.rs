@@ -1,6 +1,7 @@
-use serde::{Deserialize, Serialize};
-
 use std::time::Duration;
+
+use anyhow::Context as _;
+use serde::{Deserialize, Serialize};
 
 /// Mode of operation for the Merkle tree.
 ///
@@ -111,9 +112,6 @@ impl MerkleTreeConfig {
 /// Database configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct DBConfig {
-    /// Statement timeout in seconds for Postgres connections. Applies only to the replica
-    /// connection pool used by the API servers.
-    pub statement_timeout_sec: Option<u64>,
     /// Path to the RocksDB data directory that serves state cache.
     #[serde(default = "DBConfig::default_state_keeper_db_path")]
     pub state_keeper_db_path: String,
@@ -143,12 +141,58 @@ impl DBConfig {
         60_000
     }
 
+    pub fn backup_interval(&self) -> Duration {
+        Duration::from_millis(self.backup_interval_ms)
+    }
+}
+
+/// Collection of different database URLs and general PostgreSQL options.
+/// All the entries are optional, since some components may only require a subset of them,
+/// and any component may have overrides.
+#[derive(Debug, Clone)]
+pub struct PostgresConfig {
+    /// URL for the main (sequencer) database.
+    pub master_url: Option<String>,
+    /// URL for the replica database.
+    pub replica_url: Option<String>,
+    /// URL for the prover database.
+    pub prover_url: Option<String>,
+    /// Maximum size of the connection pool.
+    pub max_connections: Option<u32>,
+    /// Statement timeout in seconds for Postgres connections. Applies only to the replica
+    /// connection pool used by the API servers.
+    pub statement_timeout_sec: Option<u64>,
+}
+
+impl PostgresConfig {
+    /// Returns a copy of the master database URL as a `Result` to simplify error propagation.
+    pub fn master_url(&self) -> anyhow::Result<&str> {
+        self.master_url
+            .as_deref()
+            .context("Master DB URL is absent")
+    }
+
+    /// Returns a copy of the replica database URL as a `Result` to simplify error propagation.
+    pub fn replica_url(&self) -> anyhow::Result<&str> {
+        self.replica_url
+            .as_deref()
+            .context("Replica DB URL is absent")
+    }
+
+    /// Returns a copy of the prover database URL as a `Result` to simplify error propagation.
+    pub fn prover_url(&self) -> anyhow::Result<&str> {
+        self.prover_url
+            .as_deref()
+            .context("Prover DB URL is absent")
+    }
+
+    /// Returns the maximum size of the connection pool as a `Result` to simplify error propagation.
+    pub fn max_connections(&self) -> anyhow::Result<u32> {
+        self.max_connections.context("Max connections is absent")
+    }
+
     /// Returns the Postgres statement timeout.
     pub fn statement_timeout(&self) -> Option<Duration> {
         self.statement_timeout_sec.map(Duration::from_secs)
-    }
-
-    pub fn backup_interval(&self) -> Duration {
-        Duration::from_millis(self.backup_interval_ms)
     }
 }

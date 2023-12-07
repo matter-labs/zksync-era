@@ -1,19 +1,20 @@
-use anyhow::Context as _;
 use std::{env, time::Duration};
 
+use anyhow::Context as _;
 use prover_service::{
     JobReporter,
     JobResult::{self, Failure, ProofGenerated},
 };
 use tokio::runtime::Handle;
-use zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncProof;
-use zkevm_test_harness::pairing::bn256::Bn256;
-
-use zksync_config::ProverConfig;
-use zksync_dal::StorageProcessor;
-use zksync_dal::{connection::DbVariant, ConnectionPool};
+use zkevm_test_harness::{
+    abstract_zksync_circuit::concrete_circuits::ZkSyncProof, pairing::bn256::Bn256,
+};
+use zksync_config::{PostgresConfig, ProverConfig};
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory};
 use zksync_types::proofs::ProverJobMetadata;
+
+use crate::metrics::METRICS;
 
 #[derive(Debug)]
 pub struct ProverReporter {
@@ -30,12 +31,13 @@ fn assembly_debug_blob_url(job_id: usize, circuit_id: u8) -> String {
 
 impl ProverReporter {
     pub(crate) fn new(
+        postgres_config: PostgresConfig,
         config: ProverConfig,
         store_factory: &ObjectStoreFactory,
         rt_handle: Handle,
     ) -> anyhow::Result<Self> {
         let pool = rt_handle
-            .block_on(ConnectionPool::singleton(DbVariant::Prover).build())
+            .block_on(ConnectionPool::singleton(postgres_config.prover_url()?).build())
             .context("failed to build a connection pool")?;
         Ok(Self {
             pool,
@@ -63,11 +65,9 @@ impl ProverReporter {
             serialized.len() >> 10,
             duration,
         );
-        metrics::histogram!(
-            "server.prover.proof_generation_time",
-            duration,
-            "circuit_type" => circuit_type,
-        );
+
+        METRICS.proof_generation_time[&circuit_type].observe(duration);
+
         let job_id = job_id as u32;
         self.rt_handle.block_on(async {
             let mut connection = self.pool.access_storage().await.unwrap();
@@ -186,11 +186,7 @@ impl JobReporter for ProverReporter {
                     circuit_type,
                     duration,
                 );
-                metrics::histogram!(
-                    "server.prover.circuit_synthesis_time",
-                    duration,
-                    "circuit_type" => circuit_type,
-                );
+                METRICS.circuit_synthesis_time[&circuit_type].observe(duration);
             }
 
             JobResult::AssemblyFinalized(job_id, duration) => {
@@ -201,11 +197,7 @@ impl JobReporter for ProverReporter {
                     circuit_type,
                     duration,
                 );
-                metrics::histogram!(
-                    "server.prover.assembly_finalize_time",
-                    duration,
-                    "circuit_type" => circuit_type,
-                );
+                METRICS.assembly_finalize_time[&circuit_type].observe(duration);
             }
 
             JobResult::SetupLoaded(job_id, duration, cache_miss) => {
@@ -218,16 +210,8 @@ impl JobReporter for ProverReporter {
                     duration,
                     cache_miss
                 );
-                metrics::histogram!(
-                    "server.prover.setup_load_time",
-                    duration,
-                    "circuit_type" => circuit_type.clone()
-                );
-                metrics::counter!(
-                    "server.prover.setup_loading_cache_miss",
-                    1,
-                    "circuit_type" => circuit_type
-                );
+                METRICS.setup_load_time[&circuit_type].observe(duration);
+                METRICS.setup_loading_cache_miss[&circuit_type].inc();
             }
 
             JobResult::AssemblyEncoded(job_id, duration) => {
@@ -238,11 +222,7 @@ impl JobReporter for ProverReporter {
                     circuit_type,
                     duration,
                 );
-                metrics::histogram!(
-                    "server.prover.assembly_encoding_time",
-                    duration,
-                    "circuit_type" => circuit_type,
-                );
+                METRICS.assembly_encoding_time[&circuit_type].observe(duration);
             }
 
             JobResult::AssemblyDecoded(job_id, duration) => {
@@ -253,11 +233,7 @@ impl JobReporter for ProverReporter {
                     circuit_type,
                     duration,
                 );
-                metrics::histogram!(
-                    "server.prover.assembly_decoding_time",
-                    duration,
-                    "circuit_type" => circuit_type,
-                );
+                METRICS.assembly_decoding_time[&circuit_type].observe(duration);
             }
 
             JobResult::FailureWithDebugging(job_id, circuit_id, assembly, error) => {
@@ -284,11 +260,7 @@ impl JobReporter for ProverReporter {
                     circuit_type,
                     duration,
                 );
-                metrics::histogram!(
-                    "server.prover.assembly_transferring_time",
-                    duration,
-                    "circuit_type" => circuit_type,
-                );
+                METRICS.assembly_transferring_time[&circuit_type].observe(duration);
             }
 
             JobResult::ProverWaitedIdle(prover_id, duration) => {
@@ -297,17 +269,17 @@ impl JobReporter for ProverReporter {
                     duration,
                     prover_id
                 );
-                metrics::histogram!("server.prover.prover_wait_idle_time", duration,);
+                METRICS.prover_wait_idle_time.observe(duration);
             }
 
             JobResult::SetupLoaderWaitedIdle(duration) => {
                 tracing::trace!("Setup load wait idle time: {:?}", duration);
-                metrics::histogram!("server.prover.setup_load_wait_wait_idle_time", duration,);
+                METRICS.setup_load_wait_idle_time.observe(duration);
             }
 
             JobResult::SchedulerWaitedIdle(duration) => {
                 tracing::trace!("Scheduler wait idle time: {:?}", duration);
-                metrics::histogram!("server.prover.scheduler_wait_idle_time", duration,);
+                METRICS.scheduler_wait_idle_time.observe(duration);
             }
         }
     }

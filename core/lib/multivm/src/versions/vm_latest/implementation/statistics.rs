@@ -1,12 +1,12 @@
 use zk_evm_1_4_0::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
-
-use crate::HistoryMode;
 use zksync_types::U256;
 
-use crate::interface::{VmExecutionStatistics, VmMemoryMetrics};
-use crate::vm_latest::tracers::DefaultExecutionTracer;
-use crate::vm_latest::vm::Vm;
+use crate::{
+    interface::{VmExecutionStatistics, VmMemoryMetrics},
+    vm_latest::{tracers::DefaultExecutionTracer, vm::Vm},
+    HistoryMode,
+};
 
 /// Module responsible for observing the VM behavior, i.e. calculating the statistics of the VM runs
 /// or reporting the VM memory usage.
@@ -43,7 +43,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         }
     }
 
-    /// Returns the hashes the bytecodes that have been decommitted by the decomittment processor.
+    /// Returns the hashes the bytecodes that have been decommitted by the decommitment processor.
     pub(crate) fn get_used_contracts(&self) -> Vec<U256> {
         self.state
             .decommittment_processor
@@ -55,7 +55,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     }
 
     /// Returns the info about all oracles' sizes.
-    pub fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
+    pub(crate) fn record_vm_memory_metrics_inner(&self) -> VmMemoryMetrics {
         VmMemoryMetrics {
             event_sink_inner: self.state.event_sink.get_size(),
             event_sink_history: self.state.event_sink.get_history_size(),

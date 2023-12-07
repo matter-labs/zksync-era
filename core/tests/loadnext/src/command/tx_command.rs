@@ -1,7 +1,6 @@
 use once_cell::sync::OnceCell;
 use rand::Rng;
 use static_assertions::const_assert;
-
 use zksync_types::{Address, U256};
 
 use crate::{

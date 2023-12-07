@@ -1,13 +1,10 @@
+use std::{env, time::Duration};
+
 use anyhow::Context as _;
-use std::env;
-use structopt::StructOpt;
-use tokio::{sync::oneshot, sync::watch};
-
-use std::time::Duration;
-
 use prometheus_exporter::PrometheusExporterConfig;
-use zksync_config::configs::FriProofCompressorConfig;
-use zksync_dal::connection::DbVariant;
+use structopt::StructOpt;
+use tokio::sync::{oneshot, watch};
+use zksync_config::configs::{FriProofCompressorConfig, PostgresConfig};
 use zksync_dal::ConnectionPool;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
@@ -17,6 +14,7 @@ use zksync_utils::wait_for_tasks::wait_for_tasks;
 use crate::compressor::ProofCompressor;
 
 mod compressor;
+mod metrics;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -49,10 +47,14 @@ async fn main() -> anyhow::Result<()> {
 
     let opt = Opt::from_args();
     let config = FriProofCompressorConfig::from_env().context("FriProofCompressorConfig")?;
-    let pool = ConnectionPool::builder(DbVariant::Prover)
-        .build()
-        .await
-        .context("failed to build a connection pool")?;
+    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
+    let pool = ConnectionPool::builder(
+        postgres_config.prover_url()?,
+        postgres_config.max_connections()?,
+    )
+    .build()
+    .await
+    .context("failed to build a connection pool")?;
     let object_store_config =
         ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;
     let blob_store = ObjectStoreFactory::new(object_store_config.0)
@@ -63,6 +65,7 @@ async fn main() -> anyhow::Result<()> {
         pool,
         config.compression_mode,
         config.verify_wrapper_proof,
+        config.max_attempts,
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);

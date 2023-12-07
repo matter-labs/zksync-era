@@ -3,14 +3,13 @@
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
 use anyhow::Context as _;
-
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::StorageProcessor;
 use zksync_merkle_tree::domain::ZkSyncTree;
-
 use zksync_types::{
-    block::DeployedContract,
-    block::{legacy_miniblock_hash, BlockGasCount, L1BatchHeader, MiniblockHeader},
+    block::{
+        legacy_miniblock_hash, BlockGasCount, DeployedContract, L1BatchHeader, MiniblockHeader,
+    },
     commitment::{L1BatchCommitment, L1BatchMetadata},
     get_code_key, get_system_context_init_logs,
     protocol_version::{L1VerifierConfig, ProtocolVersion},
@@ -19,8 +18,7 @@ use zksync_types::{
     AccountTreeId, Address, L1BatchNumber, L2ChainId, LogQuery, MiniblockNumber, ProtocolVersionId,
     StorageKey, StorageLog, StorageLogKind, Timestamp, H256,
 };
-use zksync_utils::{be_words_to_bytes, h256_to_u256};
-use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
+use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
 use crate::metadata_calculator::L1BatchWithLogs;
 
@@ -111,6 +109,7 @@ pub async fn ensure_genesis_state(
         vec![],
         H256::zero(),
         H256::zero(),
+        protocol_version.is_pre_boojum(),
     );
 
     save_genesis_l1_batch_metadata(

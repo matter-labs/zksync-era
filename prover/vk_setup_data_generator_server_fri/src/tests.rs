@@ -1,9 +1,13 @@
 use proptest::prelude::*;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::{
-    base_circuit_type_into_recursive_leaf_circuit_type, ZkSyncRecursionLayerStorageType,
+use zksync_prover_fri_types::{
+    circuit_definitions::{
+        circuit_definitions::recursion_layer::{
+            base_circuit_type_into_recursive_leaf_circuit_type, ZkSyncRecursionLayerStorageType,
+        },
+        zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
+    },
+    ProverServiceDataKey,
 };
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
-use zksync_prover_fri_types::ProverServiceDataKey;
 use zksync_types::proofs::AggregationRound;
 use zksync_vk_setup_data_server_fri::{
     get_base_layer_vk_for_circuit_type, get_base_path, get_file_path, get_finalization_hints,

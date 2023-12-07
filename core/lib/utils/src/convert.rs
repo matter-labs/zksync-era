@@ -1,3 +1,5 @@
+use std::convert::TryInto;
+
 use bigdecimal::BigDecimal;
 use num::{
     bigint::ToBigInt,
@@ -5,8 +7,7 @@ use num::{
     traits::{sign::Signed, Pow},
     BigUint,
 };
-use std::convert::TryInto;
-use zksync_basic_types::{Address, H256, U128, U256};
+use zksync_basic_types::{Address, H256, U256};
 
 pub fn u256_to_big_decimal(value: U256) -> BigDecimal {
     let ratio = Ratio::new_raw(u256_to_biguint(value), BigUint::from(1u8));
@@ -44,21 +45,14 @@ fn round_precision_raw_no_div(num: &Ratio<BigUint>, precision: usize) -> BigUint
 }
 
 /// Converts `U256` into the corresponding `BigUint` value.
-pub fn u256_to_biguint(value: U256) -> BigUint {
+fn u256_to_biguint(value: U256) -> BigUint {
     let mut bytes = [0u8; 32];
     value.to_little_endian(&mut bytes);
     BigUint::from_bytes_le(&bytes)
 }
 
-/// Converts `U128` into the corresponding `BigUint` value.
-pub fn u128_to_biguint(value: U128) -> BigUint {
-    let mut bytes = [0u8; 16];
-    value.to_little_endian(&mut bytes);
-    BigUint::from_bytes_le(&bytes)
-}
-
 /// Converts `BigUint` value into the corresponding `U256` value.
-pub fn biguint_to_u256(value: BigUint) -> U256 {
+fn biguint_to_u256(value: BigUint) -> U256 {
     let bytes = value.to_bytes_le();
     U256::from_little_endian(&bytes)
 }
@@ -99,13 +93,6 @@ pub fn bytes_to_chunks(bytes: &[u8]) -> Vec<[u8; 32]> {
             chunk.copy_from_slice(el);
             chunk
         })
-        .collect()
-}
-
-pub fn le_chunks_to_words(chunks: Vec<[u8; 32]>) -> Vec<U256> {
-    chunks
-        .into_iter()
-        .map(|el| U256::from_little_endian(&el))
         .collect()
 }
 
@@ -168,23 +155,10 @@ pub fn h256_to_u32(value: H256) -> u32 {
     u32::from_be_bytes(be_u32_bytes)
 }
 
-/// Converts u32 into the h256 as BE bytes
+/// Converts u32 into the H256 as BE bytes
 pub fn u32_to_h256(value: u32) -> H256 {
     let mut result = [0u8; 32];
     result[28..].copy_from_slice(&value.to_be_bytes());
-    H256(result)
-}
-
-/// Converts `h256` value as BE into the u64
-pub fn h256_to_u64(value: H256) -> u64 {
-    let be_u64_bytes: [u8; 8] = value[24..].try_into().unwrap();
-    u64::from_be_bytes(be_u64_bytes)
-}
-
-/// Converts u64 into the h256 as BE bytes
-pub fn u64_to_h256(value: u64) -> H256 {
-    let mut result = [0u8; 32];
-    result[24..].copy_from_slice(&value.to_be_bytes());
     H256(result)
 }
 
@@ -197,9 +171,11 @@ pub fn u256_to_bytes_be(value: &U256) -> Vec<u8> {
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use num::BigInt;
     use std::str::FromStr;
+
+    use num::BigInt;
+
+    use super::*;
 
     #[test]
     fn test_ratio_to_big_decimal() {

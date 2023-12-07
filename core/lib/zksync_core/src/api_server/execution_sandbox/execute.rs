@@ -1,13 +1,13 @@
 //! Implementation of "executing" methods, e.g. `eth_call`.
 
+use multivm::{
+    interface::{TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface},
+    tracers::StorageInvocations,
+    vm_latest::constants::ETH_CALL_GAS_LIMIT,
+    MultiVMTracer,
+};
 use tracing::{span, Level};
-
-use multivm::interface::{TxExecutionMode, VmExecutionResultAndLogs};
-use multivm::tracers::StorageInvocations;
-use multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
-use multivm::MultivmTracer;
 use zksync_dal::ConnectionPool;
-
 use zksync_types::{
     fee::TransactionExecutionMetrics, l2::L2Tx, ExecuteTransactionCommon, Nonce,
     PackedEthSignature, Transaction, U256,
@@ -164,7 +164,7 @@ async fn execute_tx_in_sandbox(
             tx,
             block_args,
             |vm, tx| {
-                vm.push_transaction(&tx);
+                vm.push_transaction(tx);
                 let storage_invocation_tracer =
                     StorageInvocations::new(execution_args.missed_storage_invocation_limit);
                 let custom_tracers: Vec<_> = custom_tracers
@@ -172,7 +172,7 @@ async fn execute_tx_in_sandbox(
                     .map(|tracer| tracer.into_boxed())
                     .chain(vec![storage_invocation_tracer.into_tracer_pointer()])
                     .collect();
-                vm.inspect_next_transaction(custom_tracers)
+                vm.inspect(custom_tracers.into(), VmExecutionMode::OneTx)
             },
         );
         span.exit();

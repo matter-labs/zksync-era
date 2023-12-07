@@ -1,3 +1,10 @@
+use std::fmt::Debug;
+
+use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
+use zksync_basic_types::ethabi::Token;
+use zksync_utils::{h256_to_account_address, u256_to_bytes_be, u256_to_h256};
+
 use crate::{
     ethabi,
     l2_to_l1_log::L2ToL1Log,
@@ -5,11 +12,6 @@ use crate::{
     Address, L1BatchNumber, CONTRACT_DEPLOYER_ADDRESS, H256, KNOWN_CODES_STORAGE_ADDRESS,
     L1_MESSENGER_ADDRESS, U256,
 };
-use once_cell::sync::Lazy;
-use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
-use zksync_basic_types::ethabi::Token;
-use zksync_utils::{h256_to_account_address, u256_to_bytes_be, u256_to_h256};
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct VmEvent {
@@ -249,14 +251,11 @@ pub fn extract_l2tol1logs_from_l1_messenger(
                 && event.indexed_topics[0] == l1_messenger_l2_to_l1_log_event_signature
         })
         .map(|event| {
-            let tuple = ethabi::decode(
-                params,
-                &event.value,
-            )
-            .expect("Failed to decode L2ToL1LogSent message")
-            .first()
-            .unwrap()
-            .clone();
+            let tuple = ethabi::decode(params, &event.value)
+                .expect("Failed to decode L2ToL1LogSent message")
+                .first()
+                .unwrap()
+                .clone();
             let Token::Tuple(tokens) = tuple else {
                 panic!("Tuple was expected, got: {}", tuple);
             };
@@ -351,13 +350,12 @@ mod tests {
     };
     use zksync_utils::u256_to_h256;
 
-    use crate::VmEvent;
-
     use super::{
         extract_bytecode_publication_requests_from_l1_messenger,
         extract_l2tol1logs_from_l1_messenger, L1MessengerBytecodePublicationRequest,
         L1MessengerL2ToL1Log,
     };
+    use crate::VmEvent;
 
     fn create_l2_to_l1_log_sent_value(
         tx_number: U256,

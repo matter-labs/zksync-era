@@ -1,9 +1,13 @@
-use crate::instrument::InstrumentExt;
-use crate::time_utils::{duration_to_naive_time, pg_interval_from_duration};
-use crate::StorageProcessor;
-use sqlx::postgres::types::PgInterval;
 use std::time::{Duration, Instant};
+
+use sqlx::postgres::types::PgInterval;
 use zksync_types::L1BatchNumber;
+
+use crate::{
+    instrument::InstrumentExt,
+    time_utils::{duration_to_naive_time, pg_interval_from_duration},
+    StorageProcessor,
+};
 
 #[derive(Debug)]
 pub struct BasicWitnessInputProducerDal<'a, 'c> {
@@ -11,7 +15,7 @@ pub struct BasicWitnessInputProducerDal<'a, 'c> {
 }
 
 /// The amount of attempts to process a job before giving up.
-const JOB_MAX_ATTEMPT: i16 = 10;
+pub const JOB_MAX_ATTEMPT: i16 = 10;
 
 /// Time to wait for job to be processed
 const JOB_PROCESSING_TIMEOUT: PgInterval = pg_interval_from_duration(Duration::from_secs(10 * 60));
@@ -96,6 +100,22 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         .map(|job| L1BatchNumber(job.l1_batch_number as u32));
 
         Ok(l1_batch_number)
+    }
+
+    pub async fn get_basic_witness_input_producer_job_attempts(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> sqlx::Result<Option<u32>> {
+        let attempts = sqlx::query!(
+            "SELECT attempts FROM basic_witness_input_producer_jobs \
+            WHERE l1_batch_number = $1",
+            l1_batch_number.0 as i64,
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
+        .map(|job| job.attempts as u32);
+
+        Ok(attempts)
     }
 
     pub async fn mark_job_as_successful(

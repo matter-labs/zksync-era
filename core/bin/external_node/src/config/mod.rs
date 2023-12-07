@@ -1,14 +1,14 @@
+use std::{env, time::Duration};
+
 use anyhow::Context;
 use serde::Deserialize;
-use std::{env, time::Duration};
 use url::Url;
-
 use zksync_basic_types::{Address, L1ChainId, L2ChainId, MiniblockNumber};
 use zksync_core::api_server::{
-    tx_sender::TxSenderConfig, web3::state::InternalApiConfig, web3::Namespace,
+    tx_sender::TxSenderConfig,
+    web3::{state::InternalApiConfig, Namespace},
 };
 use zksync_types::api::BridgeAddresses;
-
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
@@ -105,7 +105,7 @@ pub struct OptionalENConfig {
     /// Max possible size of an ABI encoded tx (in bytes).
     #[serde(default = "OptionalENConfig::default_max_tx_size")]
     pub max_tx_size: usize,
-    /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the api server panics.
+    /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the API server panics.
     /// This is a temporary solution to mitigate API request resulting in thousands of DB queries.
     pub vm_execution_cache_misses_limit: Option<usize>,
     /// Inbound transaction limit used for throttling.
@@ -190,6 +190,11 @@ pub struct OptionalENConfig {
     /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
     #[serde(default = "OptionalENConfig::default_enum_index_migration_chunk_size")]
     pub enum_index_migration_chunk_size: usize,
+    /// Capacity of the queue for asynchronous miniblock sealing. Once this many miniblocks are queued,
+    /// sealing will block until some of the miniblocks from the queue are processed.
+    /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
+    #[serde(default = "OptionalENConfig::default_miniblock_seal_queue_capacity")]
+    pub miniblock_seal_queue_capacity: usize,
 }
 
 impl OptionalENConfig {
@@ -288,6 +293,10 @@ impl OptionalENConfig {
         5000
     }
 
+    const fn default_miniblock_seal_queue_capacity() -> usize {
+        10
+    }
+
     pub fn polling_interval(&self) -> Duration {
         Duration::from_millis(self.polling_interval)
     }
@@ -375,11 +384,35 @@ impl RequiredENConfig {
     }
 }
 
+/// Configuration for Postgres database.
+/// While also mandatory, it historically used different naming scheme for corresponding
+/// environment variables.
+/// Thus it is kept separately for backward compatibility and ease of deserialization.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct PostgresConfig {
+    pub database_url: String,
+    pub max_connections: u32,
+}
+
+impl PostgresConfig {
+    pub fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            database_url: env::var("DATABASE_URL")
+                .context("DATABASE_URL env variable is not set")?,
+            max_connections: env::var("DATABASE_POOL_SIZE")
+                .context("DATABASE_POOL_SIZE env variable is not set")?
+                .parse()
+                .context("Unable to parse DATABASE_POOL_SIZE env variable")?,
+        })
+    }
+}
+
 /// External Node Config contains all the configuration required for the EN operation.
 /// It is split into three parts: required, optional and remote for easier navigation.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ExternalNodeConfig {
     pub required: RequiredENConfig,
+    pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
     pub remote: RemoteENConfig,
 }
@@ -440,8 +473,11 @@ impl ExternalNodeConfig {
             );
         }
 
+        let postgres = PostgresConfig::from_env()?;
+
         Ok(Self {
             remote,
+            postgres,
             required,
             optional,
         })

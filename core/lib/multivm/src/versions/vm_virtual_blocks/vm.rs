@@ -1,20 +1,22 @@
-use crate::interface::{
-    BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, L1BatchEnv, L2BlockEnv,
-    SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
-};
-use crate::vm_latest::HistoryEnabled;
-use crate::HistoryMode;
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::l2_to_l1_log::UserL2ToL1Log;
-use zksync_types::Transaction;
+use zksync_types::{l2_to_l1_log::UserL2ToL1Log, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
-use crate::vm_virtual_blocks::old_vm::events::merge_events;
-
-use crate::vm_virtual_blocks::bootloader_state::BootloaderState;
-use crate::vm_virtual_blocks::tracers::dispatcher::TracerDispatcher;
-
-use crate::vm_virtual_blocks::types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState};
+use crate::{
+    interface::{
+        BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, L1BatchEnv, L2BlockEnv,
+        SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+        VmInterfaceHistoryEnabled, VmMemoryMetrics,
+    },
+    vm_latest::HistoryEnabled,
+    vm_virtual_blocks::{
+        bootloader_state::BootloaderState,
+        old_vm::events::merge_events,
+        tracers::dispatcher::TracerDispatcher,
+        types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState},
+    },
+    HistoryMode,
+};
 
 /// Main entry point for Virtual Machine integration.
 /// The instance should process only one l1 batch
@@ -31,7 +33,6 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
     _phantom: std::marker::PhantomData<H>,
 }
 
-/// Public interface for VM
 impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     type TracerDispatcher = TracerDispatcher<S, H::VmVirtualBlocksMode>;
 
@@ -126,9 +127,13 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             Ok(result)
         }
     }
+
+    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
+        self.record_vm_memory_metrics_inner()
+    }
 }
 
-/// Methods of vm, which required some history manipullations
+/// Methods of vm, which required some history manipulations
 impl<S: WriteStorage> VmInterfaceHistoryEnabled<S> for Vm<S, HistoryEnabled> {
     /// Create snapshot of current vm state and push it into the memory
     fn make_snapshot(&mut self) {

@@ -4,23 +4,27 @@ use zk_evm_1_3_3::{
     zkevm_opcode_defs::FatPointer,
 };
 use zksync_state::{StoragePtr, WriteStorage};
-
-use crate::interface::dyn_tracers::vm_1_3_3::DynTracer;
-use crate::interface::tracer::{TracerExecutionStopReason, VmExecutionStopReason};
-use crate::interface::{ExecutionResult, Halt, TxRevertReason, VmExecutionMode, VmRevertReason};
 use zksync_types::U256;
 
-use crate::vm_refunds_enhancement::bootloader_state::BootloaderState;
-use crate::vm_refunds_enhancement::old_vm::{
-    history_recorder::HistoryMode,
-    memory::SimpleMemory,
-    utils::{vm_may_have_ended_inner, VmExecutionResult},
+use crate::{
+    interface::{
+        dyn_tracers::vm_1_3_3::DynTracer,
+        tracer::{TracerExecutionStopReason, VmExecutionStopReason},
+        ExecutionResult, Halt, TxRevertReason, VmExecutionMode, VmRevertReason,
+    },
+    vm_refunds_enhancement::{
+        bootloader_state::BootloaderState,
+        constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT},
+        old_vm::{
+            history_recorder::HistoryMode,
+            memory::SimpleMemory,
+            utils::{vm_may_have_ended_inner, VmExecutionResult},
+        },
+        tracers::utils::{get_vm_hook_params, read_pointer, VmHook},
+        types::internals::ZkSyncVmState,
+        VmTracer,
+    },
 };
-use crate::vm_refunds_enhancement::tracers::utils::{get_vm_hook_params, read_pointer, VmHook};
-
-use crate::vm_refunds_enhancement::constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT};
-use crate::vm_refunds_enhancement::types::internals::ZkSyncVmState;
-use crate::vm_refunds_enhancement::VmTracer;
 
 #[derive(Debug, Clone)]
 enum Result {

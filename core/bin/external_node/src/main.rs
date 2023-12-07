@@ -1,11 +1,10 @@
-use anyhow::Context;
-use clap::Parser;
-use tokio::{sync::watch, task, time::sleep};
-
 use std::{sync::Arc, time::Duration};
 
+use anyhow::Context;
+use clap::Parser;
 use futures::{future::FusedFuture, FutureExt};
 use prometheus_exporter::PrometheusExporterConfig;
+use tokio::{sync::watch, task, time::sleep};
 use zksync_basic_types::{Address, L2ChainId};
 use zksync_core::{
     api_server::{
@@ -22,14 +21,16 @@ use zksync_core::{
     },
     reorg_detector::ReorgDetector,
     setup_sigint_handler,
-    state_keeper::{L1BatchExecutorBuilder, MainBatchExecutorBuilder, ZkSyncStateKeeper},
+    state_keeper::{
+        L1BatchExecutorBuilder, MainBatchExecutorBuilder, MiniblockSealer, MiniblockSealerHandle,
+        ZkSyncStateKeeper,
+    },
     sync_layer::{
-        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
-        fetcher::MainNodeFetcherCursor, genesis::perform_genesis_if_needed, ActionQueue,
-        MainNodeClient, SyncState,
+        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, fetcher::FetcherCursor,
+        genesis::perform_genesis_if_needed, ActionQueue, MainNodeClient, SyncState,
     },
 };
-use zksync_dal::{connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
+use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
@@ -48,6 +49,7 @@ async fn build_state_keeper(
     connection_pool: ConnectionPool,
     sync_state: SyncState,
     l2_erc20_bridge_addr: Address,
+    miniblock_sealer_handle: MiniblockSealerHandle,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
 ) -> ZkSyncStateKeeper {
@@ -74,6 +76,7 @@ async fn build_state_keeper(
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .expect("Failed creating JSON-RPC client for main node");
     let io = ExternalIO::new(
+        miniblock_sealer_handle,
         connection_pool,
         action_queue,
         sync_state,
@@ -83,7 +86,6 @@ async fn build_state_keeper(
         chain_id,
     )
     .await;
-    io.recalculate_miniblock_hashes().await;
 
     ZkSyncStateKeeper::without_sealer(stop_receiver, Box::new(io), batch_executor_base)
 }
@@ -108,6 +110,14 @@ async fn init_tasks(
 
     let sync_state = SyncState::new();
     let (action_queue_sender, action_queue) = ActionQueue::new();
+
+    let mut task_handles = vec![];
+    let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(
+        connection_pool.clone(),
+        config.optional.miniblock_seal_queue_capacity,
+    );
+    task_handles.push(tokio::spawn(miniblock_sealer.run()));
+
     let state_keeper = build_state_keeper(
         action_queue,
         config.required.state_cache_path.clone(),
@@ -115,6 +125,7 @@ async fn init_tasks(
         connection_pool.clone(),
         sync_state.clone(),
         config.remote.l2_erc20_bridge_addr,
+        miniblock_sealer_handle,
         stop_receiver.clone(),
         config.remote.l2_chain_id,
     )
@@ -122,14 +133,14 @@ async fn init_tasks(
 
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
-    let singleton_pool_builder = ConnectionPool::singleton(DbVariant::Master);
+    let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
     let fetcher_cursor = {
         let pool = singleton_pool_builder
             .build()
             .await
             .context("failed to build a connection pool for `MainNodeFetcher`")?;
         let mut storage = pool.access_storage_tagged("sync_layer").await?;
-        MainNodeFetcherCursor::new(&mut storage)
+        FetcherCursor::new(&mut storage)
             .await
             .context("failed to load `MainNodeFetcher` cursor from Postgres")?
     };
@@ -182,13 +193,7 @@ async fn init_tasks(
         .build()
         .await
         .context("failed to build a tree_pool")?;
-    // todo: PLA-335
-    let prover_tree_pool = ConnectionPool::singleton(DbVariant::Prover)
-        .build()
-        .await
-        .context("failed to build a prover_tree_pool")?;
-    let tree_handle =
-        task::spawn(metadata_calculator.run(tree_pool, prover_tree_pool, tree_stop_receiver));
+    let tree_handle = task::spawn(metadata_calculator.run(tree_pool, tree_stop_receiver));
 
     let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
 
@@ -272,7 +277,6 @@ async fn init_tasks(
         healthchecks,
     );
 
-    let mut task_handles = vec![];
     if let Some(port) = config.optional.prometheus_port {
         let prometheus_task = PrometheusExporterConfig::pull(port).run(stop_receiver.clone());
         task_handles.push(tokio::spawn(prometheus_task));
@@ -348,10 +352,13 @@ async fn main() -> anyhow::Result<()> {
         .main_node_url()
         .context("Main node URL is incorrect")?;
 
-    let connection_pool = ConnectionPool::builder(DbVariant::Master)
-        .build()
-        .await
-        .context("failed to build a connection_pool")?;
+    let connection_pool = ConnectionPool::builder(
+        &config.postgres.database_url,
+        config.postgres.max_connections,
+    )
+    .build()
+    .await
+    .context("failed to build a connection_pool")?;
 
     if opt.revert_pending_l1_batch {
         tracing::info!("Rolling pending L1 batch back..");

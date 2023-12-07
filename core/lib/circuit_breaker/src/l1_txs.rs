@@ -1,5 +1,6 @@
-use crate::{CircuitBreaker, CircuitBreakerError};
 use zksync_dal::ConnectionPool;
+
+use crate::{CircuitBreaker, CircuitBreakerError};
 
 #[derive(Debug)]
 pub struct FailedL1TransactionChecker {
@@ -17,6 +18,7 @@ impl CircuitBreaker for FailedL1TransactionChecker {
             .eth_sender_dal()
             .get_number_of_failed_transactions()
             .await
+            .unwrap()
             > 0
         {
             return Err(CircuitBreakerError::FailedL1Transaction);

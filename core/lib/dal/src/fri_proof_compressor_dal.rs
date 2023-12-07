@@ -1,14 +1,16 @@
+use std::{collections::HashMap, str::FromStr, time::Duration};
+
 use sqlx::Row;
-use std::collections::HashMap;
-use std::str::FromStr;
-use std::time::Duration;
 use strum::{Display, EnumString};
+use zksync_types::{
+    proofs::{JobCountStatistics, StuckJobs},
+    L1BatchNumber,
+};
 
-use zksync_types::proofs::{JobCountStatistics, StuckJobs};
-use zksync_types::L1BatchNumber;
-
-use crate::time_utils::{duration_to_naive_time, pg_interval_from_duration};
-use crate::StorageProcessor;
+use crate::{
+    time_utils::{duration_to_naive_time, pg_interval_from_duration},
+    StorageProcessor,
+};
 
 #[derive(Debug)]
 pub struct FriProofCompressorDal<'a, 'c> {
@@ -67,7 +69,7 @@ impl FriProofCompressorDal<'_, '_> {
         &mut self,
         picked_by: &str,
     ) -> Option<L1BatchNumber> {
-        let result: Option<L1BatchNumber> = sqlx::query!(
+        sqlx::query!(
             "UPDATE proof_compression_jobs_fri \
                 SET status = $1, attempts = attempts + 1, \
                     updated_at = now(), processing_started_at = now(), \
@@ -89,8 +91,23 @@ impl FriProofCompressorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| L1BatchNumber(row.l1_batch_number as u32));
-        result
+        .map(|row| L1BatchNumber(row.l1_batch_number as u32))
+    }
+
+    pub async fn get_proof_compression_job_attempts(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> sqlx::Result<Option<u32>> {
+        let attempts = sqlx::query!(
+            "SELECT attempts FROM proof_compression_jobs_fri \
+            WHERE l1_batch_number = $1",
+            l1_batch_number.0 as i64,
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
+        .map(|row| row.attempts as u32);
+
+        Ok(attempts)
     }
 
     pub async fn mark_proof_compression_job_successful(
@@ -191,6 +208,22 @@ impl FriProofCompressorDal<'_, '_> {
         }
     }
 
+    pub async fn get_oldest_not_compressed_batch(&mut self) -> Option<L1BatchNumber> {
+        let result: Option<L1BatchNumber> = sqlx::query!(
+            "SELECT l1_batch_number \
+            FROM proof_compression_jobs_fri \
+            WHERE status <> 'successful' \
+            ORDER BY l1_batch_number ASC \
+            LIMIT 1",
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| L1BatchNumber(row.l1_batch_number as u32));
+
+        result
+    }
+
     pub async fn requeue_stuck_jobs(
         &mut self,
         processing_timeout: Duration,
@@ -200,7 +233,7 @@ impl FriProofCompressorDal<'_, '_> {
         {
             sqlx::query!(
                 "UPDATE proof_compression_jobs_fri \
-                SET status = 'queued', attempts = attempts + 1, updated_at = now(), processing_started_at = now() \
+                SET status = 'queued', updated_at = now(), processing_started_at = now() \
                 WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2) \
                 OR (status = 'failed' AND attempts < $2) \
                 RETURNING l1_batch_number, status, attempts",

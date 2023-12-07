@@ -1,10 +1,7 @@
-use crate::vm_m5::glue::GlueInto;
-use crate::vm_m5::{memory::SimpleMemory, vm_with_bootloader::BlockContext};
 use once_cell::sync::Lazy;
-
-use zk_evm_1_3_1::block_properties::BlockProperties;
 use zk_evm_1_3_1::{
     aux_structures::{LogQuery, MemoryPage, Timestamp},
+    block_properties::BlockProperties,
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::FatPointer,
 };
@@ -12,6 +9,11 @@ use zksync_contracts::{read_zbin_bytecode, BaseSystemContracts};
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{Address, StorageLogQuery, H160, MAX_L2_TX_GAS_LIMIT, U256};
 use zksync_utils::h256_to_u256;
+
+use crate::{
+    glue::GlueInto,
+    vm_m5::{memory::SimpleMemory, vm_with_bootloader::BlockContext},
+};
 
 pub const INITIAL_TIMESTAMP: u32 = 1024;
 pub const INITIAL_MEMORY_COUNTER: u32 = 2048;

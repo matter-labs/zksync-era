@@ -6,12 +6,14 @@
 //! required for the rollup to execute L1 batches, it's needed for the proof generation and the Ethereum
 //! transactions, thus the calculations are done separately and asynchronously.
 
-use serde::{Deserialize, Serialize};
-
 use std::{collections::HashMap, convert::TryFrom};
 
+use serde::{Deserialize, Serialize};
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
+use zksync_system_constants::{
+    L2_TO_L1_LOGS_TREE_ROOT_KEY, STATE_DIFF_HASH_KEY, ZKPORTER_IS_AVAILABLE,
+};
+use zksync_utils::u256_to_h256;
 
 use crate::{
     block::L1BatchHeader,
@@ -32,6 +34,21 @@ pub trait SerializeCommitment {
     /// Serializes this struct into the provided buffer, which is guaranteed to have byte length
     /// [`Self::SERIALIZED_SIZE`].
     fn serialize_commitment(&self, buffer: &mut [u8]);
+}
+
+/// Serialize elements for commitment. The results consist of:
+/// 1. Number of elements (4 bytes)
+/// 2. Serialized elements
+pub(crate) fn pre_boojum_serialize_commitments<I: SerializeCommitment>(values: &[I]) -> Vec<u8> {
+    let final_len = values.len() * I::SERIALIZED_SIZE + 4;
+    let mut input = vec![0_u8; final_len];
+    input[0..4].copy_from_slice(&(values.len() as u32).to_be_bytes());
+
+    let chunks = input[4..].chunks_mut(I::SERIALIZED_SIZE);
+    for (value, chunk) in values.iter().zip(chunks) {
+        value.serialize_commitment(chunk);
+    }
+    input
 }
 
 /// Serialize elements for commitment. The result consists of packed serialized elements.
@@ -323,9 +340,11 @@ struct L1BatchAuxiliaryOutput {
     bootloader_heap_hash: H256,
     #[allow(dead_code)]
     events_state_queue_hash: H256,
+    is_pre_boojum: bool,
 }
 
 impl L1BatchAuxiliaryOutput {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         l2_l1_logs: Vec<UserL2ToL1Log>,
         initial_writes: Vec<InitialStorageWrite>,
@@ -334,12 +353,47 @@ impl L1BatchAuxiliaryOutput {
         state_diffs: Vec<StateDiffRecord>,
         bootloader_heap_hash: H256,
         events_state_queue_hash: H256,
+        is_pre_boojum: bool,
     ) -> Self {
-        let l2_l1_logs_compressed = serialize_commitments(&l2_l1_logs);
-        let initial_writes_compressed = serialize_commitments(&initial_writes);
-        let repeated_writes_compressed = serialize_commitments(&repeated_writes);
-        let system_logs_compressed = serialize_commitments(&system_logs);
-        let state_diffs_packed = serialize_commitments(&state_diffs);
+        let state_diff_hash_from_logs = system_logs.iter().find_map(|log| {
+            if log.0.key == u256_to_h256(STATE_DIFF_HASH_KEY.into()) {
+                Some(log.0.value)
+            } else {
+                None
+            }
+        });
+
+        let merke_tree_root_from_logs = system_logs.iter().find_map(|log| {
+            if log.0.key == u256_to_h256(L2_TO_L1_LOGS_TREE_ROOT_KEY.into()) {
+                Some(log.0.value)
+            } else {
+                None
+            }
+        });
+
+        let (
+            l2_l1_logs_compressed,
+            initial_writes_compressed,
+            repeated_writes_compressed,
+            system_logs_compressed,
+            state_diffs_packed,
+        ) = if is_pre_boojum {
+            (
+                pre_boojum_serialize_commitments(&l2_l1_logs),
+                pre_boojum_serialize_commitments(&initial_writes),
+                pre_boojum_serialize_commitments(&repeated_writes),
+                pre_boojum_serialize_commitments(&system_logs),
+                pre_boojum_serialize_commitments(&state_diffs),
+            )
+        } else {
+            (
+                serialize_commitments(&l2_l1_logs),
+                serialize_commitments(&initial_writes),
+                serialize_commitments(&repeated_writes),
+                serialize_commitments(&system_logs),
+                serialize_commitments(&state_diffs),
+            )
+        };
 
         let state_diffs_compressed = compress_state_diffs(state_diffs.clone());
 
@@ -349,13 +403,36 @@ impl L1BatchAuxiliaryOutput {
         let repeated_writes_hash = H256::from(keccak256(&repeated_writes_compressed));
         let state_diffs_hash = H256::from(keccak256(&(state_diffs_packed)));
 
-        let merkle_tree_leaves = l2_l1_logs_compressed
+        let serialized_logs = if is_pre_boojum {
+            &l2_l1_logs_compressed[4..]
+        } else {
+            &l2_l1_logs_compressed
+        };
+
+        let merkle_tree_leaves = serialized_logs
             .chunks(UserL2ToL1Log::SERIALIZED_SIZE)
             .map(|chunk| <[u8; UserL2ToL1Log::SERIALIZED_SIZE]>::try_from(chunk).unwrap());
         // ^ Skip first 4 bytes of the serialized logs (i.e., the number of logs).
-        let min_tree_size = Some(L2ToL1Log::MIN_L2_L1_LOGS_TREE_SIZE);
+        let min_tree_size = if is_pre_boojum {
+            L2ToL1Log::PRE_BOOJUM_MIN_L2_L1_LOGS_TREE_SIZE
+        } else {
+            L2ToL1Log::MIN_L2_L1_LOGS_TREE_SIZE
+        };
         let l2_l1_logs_merkle_root =
-            MiniMerkleTree::new(merkle_tree_leaves, min_tree_size).merkle_root();
+            MiniMerkleTree::new(merkle_tree_leaves, Some(min_tree_size)).merkle_root();
+
+        if !system_logs.is_empty() {
+            assert_eq!(
+                state_diffs_hash,
+                state_diff_hash_from_logs.unwrap(),
+                "State diff hash mismatch"
+            );
+            assert_eq!(
+                l2_l1_logs_merkle_root,
+                merke_tree_root_from_logs.unwrap(),
+                "L2 L1 logs tree root mismatch"
+            );
+        }
 
         Self {
             l2_l1_logs_compressed,
@@ -375,6 +452,7 @@ impl L1BatchAuxiliaryOutput {
 
             bootloader_heap_hash,
             events_state_queue_hash,
+            is_pre_boojum,
         }
     }
 
@@ -382,10 +460,18 @@ impl L1BatchAuxiliaryOutput {
         // 4 H256 values
         const SERIALIZED_SIZE: usize = 128;
         let mut result = Vec::with_capacity(SERIALIZED_SIZE);
-        result.extend(self.system_logs_linear_hash.as_bytes());
-        result.extend(self.state_diffs_hash.as_bytes());
-        result.extend(self.bootloader_heap_hash.as_bytes());
-        result.extend(self.events_state_queue_hash.as_bytes());
+
+        if self.is_pre_boojum {
+            result.extend(self.l2_l1_logs_merkle_root.as_bytes());
+            result.extend(self.l2_l1_logs_linear_hash.as_bytes());
+            result.extend(self.initial_writes_hash.as_bytes());
+            result.extend(self.repeated_writes_hash.as_bytes());
+        } else {
+            result.extend(self.system_logs_linear_hash.as_bytes());
+            result.extend(self.state_diffs_hash.as_bytes());
+            result.extend(self.bootloader_heap_hash.as_bytes());
+            result.extend(self.events_state_queue_hash.as_bytes());
+        }
         result
     }
 
@@ -479,6 +565,7 @@ impl L1BatchCommitment {
         state_diffs: Vec<StateDiffRecord>,
         bootloader_heap_hash: H256,
         events_state_queue_hash: H256,
+        is_pre_boojum: bool,
     ) -> Self {
         let meta_parameters = L1BatchMetaParameters {
             zkporter_is_available: ZKPORTER_IS_AVAILABLE,
@@ -508,6 +595,7 @@ impl L1BatchCommitment {
                 state_diffs,
                 bootloader_heap_hash,
                 events_state_queue_hash,
+                is_pre_boojum,
             ),
             meta_parameters,
         }
@@ -577,12 +665,15 @@ mod tests {
     use serde::{Deserialize, Serialize};
     use serde_with::serde_as;
 
-    use crate::commitment::{
-        L1BatchAuxiliaryOutput, L1BatchCommitment, L1BatchMetaParameters, L1BatchPassThroughData,
+    use crate::{
+        commitment::{
+            L1BatchAuxiliaryOutput, L1BatchCommitment, L1BatchMetaParameters,
+            L1BatchPassThroughData,
+        },
+        l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
+        writes::{InitialStorageWrite, RepeatedStorageWrite},
+        H256, U256,
     };
-    use crate::l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log};
-    use crate::writes::{InitialStorageWrite, RepeatedStorageWrite};
-    use crate::{H256, U256};
 
     #[serde_as]
     #[derive(Debug, Serialize, Deserialize)]
@@ -630,8 +721,6 @@ mod tests {
         expected_outputs: ExpectedOutput,
     }
 
-    // TODO(PLA-568): restore this test
-    #[ignore]
     #[test]
     fn commitment_test() {
         let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
@@ -665,6 +754,7 @@ mod tests {
             vec![],
             H256::zero(),
             H256::zero(),
+            false,
         );
 
         let commitment = L1BatchCommitment {

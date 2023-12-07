@@ -1,8 +1,7 @@
-use anyhow::Context as _;
-use clap::Parser;
-
 use std::{str::FromStr, time::Duration};
 
+use anyhow::Context as _;
+use clap::Parser;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
@@ -10,18 +9,17 @@ use zksync_config::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
             StateKeeperConfig,
         },
+        fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, PrometheusConfig,
         ProofDataHandlerConfig, ProverGroupConfig, WitnessGeneratorConfig,
     },
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
-    FetcherConfig, GasAdjusterConfig, ObjectStoreConfig, ProverConfigs,
+    FetcherConfig, GasAdjusterConfig, ObjectStoreConfig, PostgresConfig, ProverConfigs,
 };
-
-use zksync_core::temp_config_store::TempConfigStore;
 use zksync_core::{
-    genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler, Component,
-    Components,
+    genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
+    temp_config_store::TempConfigStore, Component, Components,
 };
 use zksync_env_config::FromEnv;
 use zksync_storage::RocksDB;
@@ -43,7 +41,7 @@ struct Cli {
     /// Comma-separated list of components to launch.
     #[arg(
         long,
-        default_value = "api,tree,eth,data_fetcher,state_keeper,witness_generator,housekeeper,basic_witness_input_producer"
+        default_value = "api,tree,eth,data_fetcher,state_keeper,housekeeper,basic_witness_input_producer"
     )]
     components: ComponentsToRun,
 }
@@ -91,37 +89,12 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("No sentry URL was provided");
     }
 
-    if opt.genesis || is_genesis_needed().await {
-        let network = NetworkConfig::from_env().context("NetworkConfig")?;
-        let eth_sender = ETHSenderConfig::from_env().context("ETHSenderConfig")?;
-        let contracts = ContractsConfig::from_env().context("ContractsConfig")?;
-        let eth_client = ETHClientConfig::from_env().context("EthClientConfig")?;
-        genesis_init(&eth_sender, &network, &contracts, &eth_client.web3_url)
-            .await
-            .context("genesis_init")?;
-        if opt.genesis {
-            return Ok(());
-        }
-    }
-
-    let components = if opt.rebuild_tree {
-        vec![Component::Tree]
-    } else {
-        opt.components.0
-    };
-
-    // OneShotWitnessGenerator is the only component that is not expected to run indefinitely
-    // if this value is `false`, we expect all components to run indefinitely: we panic if any component returns.
-    let is_only_oneshot_witness_generator_task = matches!(
-        components.as_slice(),
-        [Component::WitnessGenerator(Some(_), _)]
-    );
-
     // TODO (QIT-22): Only deserialize configs on demand.
     // Right now, we are trying to deserialize all the configs that may be needed by `zksync_core`.
     // "May" is the key word here, since some configs are only used by certain component configuration,
     // hence we are using `Option`s.
-    let configs = TempConfigStore {
+    let configs: TempConfigStore = TempConfigStore {
+        postgres_config: PostgresConfig::from_env().ok(),
         health_check_config: HealthCheckConfig::from_env().ok(),
         merkle_tree_api_config: MerkleTreeApiConfig::from_env().ok(),
         web3_json_rpc_config: Web3JsonRpcConfig::from_env().ok(),
@@ -133,6 +106,7 @@ async fn main() -> anyhow::Result<()> {
         house_keeper_config: HouseKeeperConfig::from_env().ok(),
         fri_proof_compressor_config: FriProofCompressorConfig::from_env().ok(),
         fri_prover_config: FriProverConfig::from_env().ok(),
+        fri_prover_group_config: FriProverGroupConfig::from_env().ok(),
         fri_witness_generator_config: FriWitnessGeneratorConfig::from_env().ok(),
         prometheus_config: PrometheusConfig::from_env().ok(),
         proof_data_handler_config: ProofDataHandlerConfig::from_env().ok(),
@@ -150,9 +124,36 @@ async fn main() -> anyhow::Result<()> {
         object_store_config: ObjectStoreConfig::from_env().ok(),
     };
 
+    let postgres_config = configs.postgres_config.clone().context("PostgresConfig")?;
+
+    if opt.genesis || is_genesis_needed(&postgres_config).await {
+        let network = NetworkConfig::from_env().context("NetworkConfig")?;
+        let eth_sender = ETHSenderConfig::from_env().context("ETHSenderConfig")?;
+        let contracts = ContractsConfig::from_env().context("ContractsConfig")?;
+        let eth_client = ETHClientConfig::from_env().context("EthClientConfig")?;
+        genesis_init(
+            &postgres_config,
+            &eth_sender,
+            &network,
+            &contracts,
+            &eth_client.web3_url,
+        )
+        .await
+        .context("genesis_init")?;
+        if opt.genesis {
+            return Ok(());
+        }
+    }
+
+    let components = if opt.rebuild_tree {
+        vec![Component::Tree]
+    } else {
+        opt.components.0
+    };
+
     // Run core actors.
     let (core_task_handles, stop_sender, cb_receiver, health_check_handle) =
-        initialize_components(&configs, components, is_only_oneshot_witness_generator_task)
+        initialize_components(&configs, components)
             .await
             .context("Unable to start Core actors")?;
 
@@ -161,7 +162,7 @@ async fn main() -> anyhow::Result<()> {
 
     let particular_crypto_alerts = None::<Vec<String>>;
     let graceful_shutdown = None::<futures::future::Ready<()>>;
-    let tasks_allowed_to_finish = is_only_oneshot_witness_generator_task;
+    let tasks_allowed_to_finish = false;
     tokio::select! {
         _ = wait_for_tasks(core_task_handles, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
         _ = sigint_receiver => {

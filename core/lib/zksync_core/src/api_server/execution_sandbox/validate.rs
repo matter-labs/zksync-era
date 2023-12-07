@@ -1,12 +1,14 @@
-use multivm::interface::ExecutionResult;
-use multivm::MultivmTracer;
 use std::collections::HashSet;
 
-use multivm::tracers::{
-    validator::{ValidationError, ValidationTracer, ValidationTracerParams},
-    StorageInvocations,
+use multivm::{
+    interface::{ExecutionResult, VmExecutionMode, VmInterface},
+    tracers::{
+        validator::{ValidationError, ValidationTracer, ValidationTracerParams},
+        StorageInvocations,
+    },
+    vm_latest::HistoryDisabled,
+    MultiVMTracer,
 };
-use multivm::vm_latest::HistoryDisabled;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{l2::L2Tx, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS, U256};
 
@@ -77,16 +79,20 @@ impl TxSharedArgs {
                 |vm, tx| {
                     let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Validation].start();
                     let span = tracing::debug_span!("validation").entered();
-                    vm.push_transaction(&tx);
+                    vm.push_transaction(tx);
 
                     let (tracer, validation_result) =
                         ValidationTracer::<HistoryDisabled>::new(validation_params);
 
-                    let result = vm.inspect_next_transaction(vec![
-                        tracer.into_tracer_pointer(),
-                        StorageInvocations::new(execution_args.missed_storage_invocation_limit)
-                            .into_tracer_pointer(),
-                    ]);
+                    let result = vm.inspect(
+                        vec![
+                            tracer.into_tracer_pointer(),
+                            StorageInvocations::new(execution_args.missed_storage_invocation_limit)
+                                .into_tracer_pointer(),
+                        ]
+                        .into(),
+                        VmExecutionMode::OneTx,
+                    );
 
                     let result = match (result.result, validation_result.get()) {
                         (_, Some(err)) => Err(ValidationError::ViolatedRule(err.clone())),

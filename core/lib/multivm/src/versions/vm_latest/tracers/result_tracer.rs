@@ -1,26 +1,29 @@
+use std::marker::PhantomData;
+
 use zk_evm_1_4_0::{
     tracing::{AfterDecodingData, BeforeExecutionData, VmLocalStateData},
     vm_state::{ErrorFlags, VmLocalState},
     zkevm_opcode_defs::FatPointer,
 };
 use zksync_state::{StoragePtr, WriteStorage};
-
-use crate::interface::{
-    tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
-    types::tracer::TracerExecutionStopReason, ExecutionResult, Halt, TxRevertReason,
-    VmExecutionMode, VmRevertReason,
-};
 use zksync_types::U256;
 
-use crate::vm_latest::{
-    constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT},
-    old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
-    tracers::{
-        traits::VmTracer,
-        utils::{get_vm_hook_params, read_pointer, VmHook},
+use crate::{
+    interface::{
+        tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
+        types::tracer::TracerExecutionStopReason, ExecutionResult, Halt, TxRevertReason,
+        VmExecutionMode, VmRevertReason,
     },
-    types::internals::ZkSyncVmState,
-    BootloaderState, HistoryMode, SimpleMemory,
+    vm_latest::{
+        constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT},
+        old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
+        tracers::{
+            traits::VmTracer,
+            utils::{get_vm_hook_params, read_pointer, VmHook},
+        },
+        types::internals::ZkSyncVmState,
+        BootloaderState, HistoryMode, SimpleMemory,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -32,18 +35,20 @@ enum Result {
 
 /// Tracer responsible for handling the VM execution result.
 #[derive(Debug, Clone)]
-pub(crate) struct ResultTracer {
+pub(crate) struct ResultTracer<S> {
     result: Option<Result>,
     bootloader_out_of_gas: bool,
     execution_mode: VmExecutionMode,
+    _phantom: PhantomData<S>,
 }
 
-impl ResultTracer {
+impl<S> ResultTracer<S> {
     pub(crate) fn new(execution_mode: VmExecutionMode) -> Self {
         Self {
             result: None,
             bootloader_out_of_gas: false,
             execution_mode,
+            _phantom: PhantomData,
         }
     }
 }
@@ -55,7 +60,7 @@ fn current_frame_is_bootloader(local_state: &VmLocalState) -> bool {
     local_state.callstack.inner.len() == 1
 }
 
-impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer {
+impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer<S> {
     fn after_decoding(
         &mut self,
         state: VmLocalStateData<'_>,
@@ -99,7 +104,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for ResultTracer {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for ResultTracer<S> {
     fn after_vm_execution(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,
@@ -127,11 +132,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for ResultTracer {
     }
 }
 
-impl ResultTracer {
-    fn vm_finished_execution<S: WriteStorage, H: HistoryMode>(
-        &mut self,
-        state: &ZkSyncVmState<S, H>,
-    ) {
+impl<S: WriteStorage> ResultTracer<S> {
+    fn vm_finished_execution<H: HistoryMode>(&mut self, state: &ZkSyncVmState<S, H>) {
         let Some(result) = vm_may_have_ended_inner(state) else {
             // The VM has finished execution, but the result is not yet available.
             self.result = Some(Result::Success {
@@ -180,7 +182,7 @@ impl ResultTracer {
         }
     }
 
-    fn vm_stopped_execution<S: WriteStorage, H: HistoryMode>(
+    fn vm_stopped_execution<H: HistoryMode>(
         &mut self,
         state: &ZkSyncVmState<S, H>,
         bootloader_state: &BootloaderState,

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use itertools::Itertools;
 use zk_evm_1_3_3::{
     aux_structures::{MemoryPage, Timestamp},
     block_properties::BlockProperties,
@@ -11,8 +12,8 @@ use zk_evm_1_3_3::{
     },
 };
 use zksync_contracts::BaseSystemContracts;
+use zksync_state::WriteStorage;
 use zksync_system_constants::MAX_TXS_IN_BLOCK;
-
 use zksync_types::{
     l1::is_l1_tx_type, zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address, Transaction,
     BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, MAX_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS,
@@ -24,9 +25,6 @@ use zksync_utils::{
     bytes_to_be_words, h256_to_u256,
     misc::ceil_div,
 };
-
-use itertools::Itertools;
-use zksync_state::WriteStorage;
 
 use crate::vm_1_3_2::{
     bootloader_state::BootloaderState,
@@ -221,7 +219,7 @@ pub fn init_vm<S: WriteStorage, H: HistoryMode>(
     block_properties: BlockProperties,
     execution_mode: TxExecutionMode,
     base_system_contract: &BaseSystemContracts,
-) -> Box<VmInstance<S, H>> {
+) -> VmInstance<S, H> {
     init_vm_with_gas_limit(
         oracle_tools,
         block_context,
@@ -239,7 +237,7 @@ pub fn init_vm_with_gas_limit<S: WriteStorage, H: HistoryMode>(
     execution_mode: TxExecutionMode,
     base_system_contract: &BaseSystemContracts,
     gas_limit: u32,
-) -> Box<VmInstance<S, H>> {
+) -> VmInstance<S, H> {
     init_vm_inner(
         oracle_tools,
         block_context,
@@ -334,7 +332,7 @@ pub fn init_vm_inner<S: WriteStorage, H: HistoryMode>(
     gas_limit: u32,
     base_system_contract: &BaseSystemContracts,
     execution_mode: TxExecutionMode,
-) -> Box<VmInstance<S, H>> {
+) -> VmInstance<S, H> {
     oracle_tools.decommittment_processor.populate(
         vec![(
             h256_to_u256(base_system_contract.default_aa.hash),
@@ -359,14 +357,14 @@ pub fn init_vm_inner<S: WriteStorage, H: HistoryMode>(
 
     let state = get_default_local_state(oracle_tools, block_properties, gas_limit);
 
-    Box::new(VmInstance {
+    VmInstance {
         gas_limit,
         state,
         execution_mode,
         block_context: block_context.inner_block_context(),
         bootloader_state: BootloaderState::new(),
         snapshots: Vec::new(),
-    })
+    }
 }
 
 fn bootloader_initial_memory(block_properties: &BlockContextMode) -> Vec<(usize, U256)> {
@@ -464,14 +462,7 @@ pub fn push_raw_transaction_to_bootloader_memory<H: HistoryMode, S: WriteStorage
             .enumerate()
             .sorted_by_key(|(_idx, dep)| *dep)
             .dedup_by(|x, y| x.1 == y.1)
-            .filter(|(_idx, dep)| {
-                !vm.state
-                    .storage
-                    .storage
-                    .get_ptr()
-                    .borrow_mut()
-                    .is_bytecode_known(&hash_bytecode(dep))
-            })
+            .filter(|(_idx, dep)| !vm.is_bytecode_known(&hash_bytecode(dep)))
             .sorted_by_key(|(idx, _dep)| *idx)
             .filter_map(|(_idx, dep)| {
                 compress_bytecode(dep)
@@ -596,7 +587,7 @@ pub(crate) fn get_bootloader_memory_for_encoded_tx(
     let encoding_length = encoded_tx.len();
     memory.extend((tx_description_offset..tx_description_offset + encoding_length).zip(encoded_tx));
 
-    // Note, +1 is moving for poitner
+    // Note, +1 is moving for pointer
     let compressed_bytecodes_offset =
         COMPRESSED_BYTECODES_OFFSET + 1 + previous_compressed_bytecode_size;
 

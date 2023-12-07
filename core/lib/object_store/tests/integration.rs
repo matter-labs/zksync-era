@@ -1,7 +1,6 @@
 //! Integration tests for object store.
 
 use tokio::fs;
-
 use zksync_object_store::{Bucket, ObjectStoreFactory};
 use zksync_types::{
     proofs::{PrepareBasicCircuitsJob, StorageLogMetadata},

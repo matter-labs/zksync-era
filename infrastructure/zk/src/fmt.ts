@@ -4,6 +4,10 @@ import * as utils from './utils';
 const EXTENSIONS = ['ts', 'md', 'sol', 'js'];
 const CONFIG_PATH = 'etc/prettier-config';
 
+function prettierFlags(phaseName: string) {
+    phaseName = phaseName.replace('/', '-').replace('.', '');
+    return ` --cache --cache-location node_modules/.cache/prettier/.prettier-cache-${phaseName}`;
+}
 export async function prettier(extension: string, check: boolean = false) {
     if (!EXTENSIONS.includes(extension)) {
         throw new Error('Unsupported extension');
@@ -17,24 +21,41 @@ export async function prettier(extension: string, check: boolean = false) {
         return;
     }
 
-    await utils.spawn(`yarn --silent prettier --config ${CONFIG_PATH}/${extension}.js --${command} ${files}`);
+    await utils.spawn(
+        `yarn --silent prettier --config ${CONFIG_PATH}/${extension}.js --${command} ${files} ${prettierFlags(
+            extension
+        )}  ${check ? '' : '> /dev/null'}`
+    );
+}
+
+async function prettierContracts(check: boolean, directory: string) {
+    await utils.spawn(
+        `yarn --silent --cwd ${directory} prettier:${check ? 'check' : 'fix'} ${prettierFlags(directory)} ${
+            check ? '' : '> /dev/null'
+        }`
+    );
 }
 
 async function prettierL1Contracts(check: boolean = false) {
-    await utils.spawn(`yarn --silent --cwd contracts/ethereum prettier:${check ? 'check' : 'fix'}`);
+    await prettierContracts(check, 'contracts/ethereum');
 }
 
 async function prettierL2Contracts(check: boolean = false) {
-    await utils.spawn(`yarn --silent --cwd contracts/zksync prettier:${check ? 'check' : 'fix'}`);
+    await prettierContracts(check, 'contracts/zksync');
 }
 
 async function prettierSystemContracts(check: boolean = false) {
-    await utils.spawn(`yarn --silent --cwd etc/system-contracts prettier:${check ? 'check' : 'fix'}`);
+    await prettierContracts(check, 'etc/system-contracts');
 }
 
 export async function rustfmt(check: boolean = false) {
     process.chdir(process.env.ZKSYNC_HOME as string);
-    const command = check ? 'cargo fmt -- --check' : 'cargo fmt';
+
+    // We rely on a supposedly undocumented bug/feature of `rustfmt` that allows us to use unstable features on stable Rust.
+    // Please note that this only works with CLI flags, and if you happened to visit this place after things suddenly stopped working,
+    // it is certainly possible that the feature was deemed a bug and was fixed. Then welp.
+    const config = '--config imports_granularity=Crate --config group_imports=StdExternalCrate';
+    const command = check ? `cargo fmt -- --check ${config}` : `cargo fmt -- ${config}`;
     await utils.spawn(command);
     process.chdir('./prover');
     await utils.spawn(command);

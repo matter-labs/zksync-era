@@ -1,9 +1,12 @@
+use zksync_types::{
+    block::BlockGasCount,
+    priority_op_onchain_data::PriorityOpOnchainData,
+    tx::{tx_execution_info::ExecutionMetrics, TransactionExecutionResult},
+    ExecuteTransactionCommon,
+};
+
 use super::miniblock_updates::MiniblockUpdates;
 use crate::gas_tracker::new_block_gas_count;
-use zksync_types::block::BlockGasCount;
-use zksync_types::priority_op_onchain_data::PriorityOpOnchainData;
-use zksync_types::tx::tx_execution_info::ExecutionMetrics;
-use zksync_types::{tx::TransactionExecutionResult, ExecuteTransactionCommon};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct L1BatchUpdates {
@@ -44,6 +47,7 @@ impl L1BatchUpdates {
 
 #[cfg(test)]
 mod tests {
+    use multivm::vm_latest::TransactionVmExt;
     use zksync_types::{ProtocolVersionId, H256};
 
     use super::*;
@@ -51,7 +55,6 @@ mod tests {
         gas_tracker::new_block_gas_count,
         state_keeper::tests::{create_execution_result, create_transaction},
     };
-    use multivm::vm_latest::TransactionVmExt;
 
     #[test]
     fn apply_miniblock_with_empty_tx() {

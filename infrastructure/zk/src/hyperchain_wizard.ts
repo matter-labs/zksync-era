@@ -12,6 +12,7 @@ import * as fs from 'fs';
 import fetch from 'node-fetch';
 import { up } from './up';
 import * as Handlebars from 'handlebars';
+import { ProverType, setupProver } from './prover_setup';
 
 const title = chalk.blueBright;
 const warning = chalk.yellowBright;
@@ -26,30 +27,38 @@ enum BaseNetwork {
     MAINNET = 'mainnet'
 }
 
-interface BasePromptOptions {
+enum ProverTypeOption {
+    NONE = 'No (this hyperchain is for testing purposes only)',
+    CPU = 'Yes - With a CPU implementation',
+    GPU = 'Yes - With a GPU implementation'
+}
+
+export interface BasePromptOptions {
     name: string | (() => string);
     type: string | (() => string);
     message: string | (() => string) | (() => Promise<string>);
     initial?: any;
     required?: boolean;
-    choices?: string[];
+    choices?: string[] | object[];
     skip?: ((state: object) => boolean | Promise<boolean>) | boolean;
 }
 
-// An init command that allows configuring and spinning up a new Hyperchain network.
+// PLA:681
+let isLocalhost = false;
+
+// An init command that allows configuring and spinning up a new hyperchain network.
 async function initHyperchain() {
-    await announced('Initializing Hyperchain creation', setupConfiguration());
+    await announced('Initializing hyperchain creation', setupConfiguration());
 
     const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
     const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
-    const governorAddress = process.env.GOVERNOR_ADDRESS;
     const deployL2Weth = Boolean(process.env.DEPLOY_L2_WETH || false);
     const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || false);
 
     const initArgs: InitArgs = {
         skipSubmodulesCheckout: false,
         skipEnvSetup: true,
-        deployerL1ContractInputArgs: ['--private-key', deployerPrivateKey, '--governor-address', governorAddress],
+        skipPlonkStep: true,
         governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
         deployerL2ContractInput: {
             args: ['--private-key', deployerPrivateKey],
@@ -64,9 +73,20 @@ async function initHyperchain() {
 
     await init(initArgs);
 
+    // if we used matterlabs/geth network, we need custom ENV file for hyperchain compose parts
+    // This breaks `zk status prover` command, but neccessary for working in isolated docker-network
+    // TODO: Think about better implementation
+    // PLA:681
+    if (isLocalhost) {
+        wrapEnvModify('ETH_CLIENT_WEB3_URL', 'http://geth:8545');
+        wrapEnvModify('DATABASE_URL', 'postgres://postgres:notsecurepassword@postgres:5432/zksync_local');
+    }
+
     env.mergeInitToEnv();
 
-    console.log(announce(`\nYour Hyperchain configuration is available at ${process.env.ENV_FILE}\n`));
+    console.log(announce(`\nYour hyperchain configuration is available at ${process.env.ENV_FILE}\n`));
+
+    console.log(warning(`\nIf you want to add a prover to your hyperchain, please run zk stack prover-setup now.\n`));
 
     await announced('Start server', startServer());
 }
@@ -86,8 +106,8 @@ async function setupConfiguration() {
     const results: any = await enquirer.prompt(questions);
 
     if (results.config === CONFIGURE) {
-        await announced('Setting Hyperchain configuration', setHyperchainMetadata());
-        await announced('Validating information and balances to deploy Hyperchain', checkReadinessToDeploy());
+        await announced('Setting hyperchain configuration', setHyperchainMetadata());
+        await announced('Validating information and balances to deploy hyperchain', checkReadinessToDeploy());
     } else {
         const envName = await selectHyperchainConfiguration();
 
@@ -107,19 +127,19 @@ async function setHyperchainMetadata() {
     const INSERT_KEYS = 'Insert keys';
     const questions: BasePromptOptions[] = [
         {
-            message: 'What is your Hyperchain name?',
+            message: 'What is your hyperchain name?',
             name: 'chainName',
             type: 'input',
             required: true
         },
         {
-            message: 'What is your Hyperchain id? Make sure this is not used by other chains.',
+            message: 'What is your hyperchain id? Make sure this is not used by other chains.',
             name: 'chainId',
             type: 'numeral',
             required: true
         },
         {
-            message: 'To which L1 Network will your Hyperchain rollup to?',
+            message: 'To which L1 Network will your hyperchain rollup to?',
             name: 'l1Chain',
             type: 'select',
             required: true,
@@ -243,9 +263,12 @@ async function setHyperchainMetadata() {
             feeReceiverAddress = keyResults.feeReceiver;
         }
     } else {
+        // PLA:681
+        isLocalhost = true;
         l1Rpc = 'http://localhost:8545';
         l1Id = 9;
-        databaseUrl = 'postgres://postgres@localhost/zksync_local';
+        databaseUrl = 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local';
+        wrapEnvModify('DATABASE_URL', databaseUrl);
 
         const richWalletsRaw = await fetch(
             'https://raw.githubusercontent.com/matter-labs/local-setup/main/rich-wallets.json'
@@ -259,7 +282,7 @@ async function setHyperchainMetadata() {
         feeReceiver = undefined;
         feeReceiverAddress = richWallets[3].address;
 
-        await up();
+        await up('docker-compose-zkstack-common.yml');
         await announced('Ensuring databases are up', db.wait());
     }
 
@@ -310,7 +333,8 @@ async function setHyperchainMetadata() {
 
     await compileConfig(environment);
     env.set(environment);
-
+    // TODO: Generate url for data-compressor with selected region or fix env variable for keys location
+    // PLA-595
     wrapEnvModify('DATABASE_URL', databaseUrl);
     wrapEnvModify('ETH_CLIENT_CHAIN_ID', l1Id.toString());
     wrapEnvModify('ETH_CLIENT_WEB3_URL', l1Rpc);
@@ -323,6 +347,8 @@ async function setHyperchainMetadata() {
     wrapEnvModify('GOVERNOR_PRIVATE_KEY', governor.privateKey);
     wrapEnvModify('GOVERNOR_ADDRESS', governor.address);
     wrapEnvModify('CHAIN_STATE_KEEPER_FEE_ACCOUNT_ADDR', feeReceiverAddress);
+    wrapEnvModify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'SkipEveryProof');
+
     if (feeReceiver) {
         wrapEnvModify('FEE_RECEIVER_PRIVATE_KEY', feeReceiver.privateKey);
     }
@@ -335,6 +361,33 @@ async function setHyperchainMetadata() {
     env.load();
 }
 
+async function setupHyperchainProver() {
+    let proverType = ProverTypeOption.NONE;
+
+    const proverQuestions: BasePromptOptions[] = [
+        {
+            message: 'Which ZK Prover implementation you want for your hyperchain?',
+            name: 'prover',
+            type: 'select',
+            required: true,
+            choices: [ProverTypeOption.NONE, ProverTypeOption.CPU, ProverTypeOption.GPU]
+        }
+    ];
+
+    const proverResults: any = await enquirer.prompt(proverQuestions);
+
+    proverType = proverResults.prover;
+
+    switch (proverType) {
+        case ProverTypeOption.NONE:
+            wrapEnvModify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'SkipEveryProof');
+            env.mergeInitToEnv();
+            break;
+        default:
+            await setupProver(proverType === ProverTypeOption.CPU ? ProverType.CPU : ProverType.GPU);
+    }
+}
+
 function printAddressInfo(name: string, address: string) {
     console.log(title(name));
     console.log(`Address - ${address}`);
@@ -342,9 +395,12 @@ function printAddressInfo(name: string, address: string) {
 }
 
 async function initializeTestERC20s() {
+    // TODO: For now selecting NO breaks server-core deployment, should be always YES or create empty-mock file for v2-core
+    // PLA-595
     const questions: BasePromptOptions[] = [
         {
-            message: 'Do you want to deploy some test ERC20s to your Hyperchain (only use on testing scenarios)?',
+            message:
+                'Do you want to deploy some test ERC20s to your hyperchain? NB: Temporary broken, always select YES',
             name: 'deployERC20s',
             type: 'confirm'
         }
@@ -356,7 +412,7 @@ async function initializeTestERC20s() {
         wrapEnvModify('DEPLOY_TEST_TOKENS', 'true');
         console.log(
             warning(
-                `The addresses for the tokens will be available at the /etc/tokens/${getEnv(
+                `The addresses for the generated test ECR20 tokens will be available at the /etc/tokens/${getEnv(
                     process.env.CHAIN_ETH_NETWORK!
                 )}.json file.`
             )
@@ -367,7 +423,7 @@ async function initializeTestERC20s() {
 async function initializeWethTokenForHyperchain() {
     const questions: BasePromptOptions[] = [
         {
-            message: 'Do you want to deploy Wrapped ETH to your Hyperchain?',
+            message: 'Do you want to deploy Wrapped ETH to your hyperchain?',
             name: 'deployWeth',
             type: 'confirm'
         }
@@ -420,11 +476,11 @@ async function initializeWethTokenForHyperchain() {
 async function startServer() {
     const YES_DEFAULT = 'Yes (default components)';
     const YES_CUSTOM = 'Yes (custom components)';
-    const NO = 'Not right now';
+    const NO = 'Not right now (you can now configure prover, generate docker files, or just run the server later)';
 
     const questions: BasePromptOptions[] = [
         {
-            message: 'Do you want to start your Hyperchain server now?',
+            message: 'Do you want to start your hyperchain server now?',
             name: 'start',
             type: 'select',
             choices: [YES_DEFAULT, YES_CUSTOM, NO]
@@ -457,7 +513,7 @@ async function startServer() {
 }
 
 // The current env.modify requires to write down the variable name twice. This wraps it so the caller only writes the name and the value.
-function wrapEnvModify(variable: string, assignedVariable: string) {
+export function wrapEnvModify(variable: string, assignedVariable: string) {
     env.modify(variable, `${variable}=${assignedVariable}`);
 }
 
@@ -500,7 +556,7 @@ async function checkReadinessToDeploy() {
         const fundResults: any = await enquirer.prompt(fundQuestions);
 
         if (fundResults.fund === EXIT) {
-            console.log('Exiting Hyperchain initializer.');
+            console.log('Exiting hyperchain initializer.');
             process.exit(0);
         }
     }
@@ -580,7 +636,7 @@ async function selectHyperchainConfiguration() {
 
     const envQuestions = [
         {
-            message: 'Which Hyperchain configuration do you want to use?',
+            message: 'Which hyperchain configuration do you want to use?',
             name: 'env',
             type: 'select',
             choices: [...envs].sort()
@@ -592,38 +648,102 @@ async function selectHyperchainConfiguration() {
 }
 
 async function generateDockerImages(cmd: Command) {
-    console.log(warning(`\nThis process will build the docker images and it can take a while. Please be patient.\n`));
+    await _generateDockerImages(cmd.customDockerOrg);
+}
 
+async function _generateDockerImages(_orgName?: string) {
+    console.log(warning(`\nThis process will build the docker images and it can take a while. Please be patient.\n`));
     const envName = await selectHyperchainConfiguration();
-    const orgName = cmd.customDockerOrg ?? envName;
+    env.set(envName);
+    const orgName = _orgName || envName;
 
     await docker.customBuildForHyperchain('server-v2', orgName);
 
     console.log(warning(`\nDocker image for server created: Server image: ${orgName}/server-v2:latest\n`));
 
     let hasProver = false;
+    let hasGPUProver = false;
+    let hasCPUProver = false;
+    let needBuildProver = false;
+    let artifactsPath, proverSetupArtifacts;
+    let witnessVectorGensCount = 0;
+    let cudaArch = '';
 
     if (process.env.ETH_SENDER_SENDER_PROOF_SENDING_MODE !== 'SkipEveryProof') {
         hasProver = true;
-        // TODO: (PRO-48) Hyperchain is using prover, so we must include Boojum images - wait for Boojum merge
-        // proof-fri-compressor, prover-fri, witness-generator, prover-fri-gateway
-        // Must be added to the init flow
-        // Setup key is downloaded and added somewhere - reference: https://github.com/matter-labs/zksync-era/blob/7b23ab0ba14cb6600ecf7e596a9e9536ffa5fda2/.github/workflows/build-core-template.yml#L72C1-L73C1
-        // Data keys are already downloaded from: https://console.cloud.google.com/storage/browser/matterlabs-zksync-v2-infra-blob-store/prover_setup_data/2d33a27?pageState=(%22StorageObjectListTable%22:(%22f%22:%22%255B%255D%22))&orgonly=true&project=matterlabs-infra&supportedpurview=organizationId&prefix=&forceOnObjectsSortingFiltering=false
-        // to: ./prover_setup-data
-        // - Following should be added to the hyperchain env file:
-        // OBJECT_STORE_FILE_BACKED_BASE_PATH: /path/to/server/artifacts
-        // PROVER_OBJECT_STORE_FILE_BACKED_BASE_PATH: /path/to/prover/artifacts
-        // - Inspired by https://github.com/matter-labs/zksync-era/tree/main/prover/prover_fri
+        if (process.env.OBJECT_STORE_MODE === 'FileBacked') {
+            artifactsPath = process.env.OBJECT_STORE_FILE_BACKED_BASE_PATH;
+            proverSetupArtifacts = process.env.FRI_PROVER_SETUP_DATA_PATH;
+        }
+
+        if (process.env.PROVER_TYPE === ProverType.GPU) {
+            hasGPUProver = true;
+            const cudaArchPrompt: BasePromptOptions[] = [
+                {
+                    message:
+                        'What is your GPU Compute Capability version? You can find it in table here - https://en.wikipedia.org/wiki/CUDA#GPUs_supported. Input only 2 numbers withous dot, e.g. if you have RTX 3070 -> Compute Capability 8.6 -> Answer is 86',
+                    name: 'cudaArch',
+                    type: 'input',
+                    required: true
+                }
+            ];
+            const cudaRes: any = await enquirer.prompt(cudaArchPrompt);
+            cudaArch = cudaRes.cudaArch;
+        } else {
+            hasCPUProver = true;
+        }
+
+        // TODO: Make this param configurable
+        // We need to generate at least 4 witnes-vector-generators per prover, but it can be less, and can be more
+        // PLA-683
+        witnessVectorGensCount = 4;
+
+        // For Now use only the public images. Too soon to allow prover to be customized
+        // await docker.customBuildForHyperchain('witness-generator', orgName);
+        // await docker.customBuildForHyperchain('witness-vector-generator', orgName);
+        // await docker.customBuildForHyperchain('prover-fri-gateway', orgName);
+        // await docker.customBuildForHyperchain('proof-fri-compressor', orgName);
+        // if (process.env.PROVER_TYPE === ProverType.CPU) {
+        //     isCPUProver = true;
+        //     await docker.customBuildForHyperchain('prover-fri', orgName);
+        // } else {
+        //     await docker.customBuildForHyperchain('witness-vector-generator', orgName);
+        //     await docker.customBuildForHyperchain('prover-gpu-fri', orgName);
+        // }
+    }
+
+    // TODO: Autodetect version via nvidia-smi
+    // We have precompiled GPU prover image only for CUDA arch 89 aka ADA, all others need to be re-build
+    // PLA-682
+    if (process.env.PROVER_TYPE === ProverType.GPU && cudaArch != '89') {
+        needBuildProver = true;
     }
 
     const composeArgs = {
         envFilePath: `./etc/env/${envName}.env`,
         orgName,
-        hasProver
+        hasProver,
+        artifactsPath,
+        proverSetupArtifacts,
+        hasGPUProver,
+        hasCPUProver,
+        cudaArch,
+        needBuildProver,
+        witnessVectorGensCount
     };
 
-    const templateFileName = './etc/hyperchains/docker-compose-hyperchain-template';
+    // Creating simple handlebars helper "if (foo AND bar)" to reduce copypaste in compose template
+    Handlebars.registerHelper(
+        'ifAnd',
+        function (this: boolean, a: boolean, b: boolean, options: Handlebars.HelperOptions) {
+            if (a && b) {
+                return options.fn(this);
+            }
+            return options.inverse(this);
+        }
+    );
+
+    const templateFileName = './etc/hyperchains/docker-compose-hyperchain-template.hbs';
     const templateString = fs.existsSync(templateFileName) && fs.readFileSync(templateFileName).toString().trim();
     const template = Handlebars.compile(templateString);
     const result = template(composeArgs);
@@ -632,19 +752,123 @@ async function generateDockerImages(cmd: Command) {
 
     console.log(
         announce(
-            `Docker images generated successfully, and compose file generate (hyperchain-${envName}.yml). Run the images with "docker compose -f hyperchain-${envName} up)".\n\n`
+            `Docker images generated successfully, and compose file generate (hyperchain-${envName}.yml). Run the images with "docker compose -f hyperchain-${envName}.yml up -d".\n\n`
         )
     );
 }
 
-export const initHyperchainCommand = new Command('stack').description('ZK Stack Hyperchains management');
+async function configDemoHyperchain(cmd: Command) {
+    fs.existsSync('/etc/env/demo.env') && fs.unlinkSync('/etc/env/demo.env');
+    fs.existsSync('/etc/hyperchains/hyperchain-demo.yml') && fs.unlinkSync('/etc/hyperchains/hyperchain-demo.yml');
+    await compileConfig('demo');
+    env.set('demo');
+
+    wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK', 'Zeek hyperchain');
+    wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK_ID', '1337');
+    wrapEnvModify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'SkipEveryProof');
+    wrapEnvModify('ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS', '20');
+
+    const richWalletsRaw = await fetch(
+        'https://raw.githubusercontent.com/matter-labs/local-setup/main/rich-wallets.json'
+    );
+
+    const richWallets = await richWalletsRaw.json();
+
+    const deployer = new ethers.Wallet(richWallets[0].privateKey);
+    const governor = new ethers.Wallet(richWallets[1].privateKey);
+
+    wrapEnvModify('DEPLOYER_PRIVATE_KEY', deployer.privateKey);
+    wrapEnvModify('GOVERNOR_PRIVATE_KEY', governor.privateKey);
+    wrapEnvModify('GOVERNOR_ADDRESS', governor.address);
+
+    env.load();
+
+    const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
+    const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
+    const deployL2Weth = Boolean(process.env.DEPLOY_L2_WETH || false);
+    const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || false);
+
+    const initArgs: InitArgs = {
+        skipSubmodulesCheckout: false,
+        skipEnvSetup: cmd.skipEnvSetup,
+        skipPlonkStep: true,
+        governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
+        deployerL2ContractInput: {
+            args: ['--private-key', deployerPrivateKey],
+            includePaymaster: false,
+            includeL2WETH: deployL2Weth
+        },
+        testTokens: {
+            deploy: deployTestTokens,
+            args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
+        }
+    };
+
+    if (!cmd.skipEnvSetup) {
+        await up();
+    }
+    await init(initArgs);
+
+    env.mergeInitToEnv();
+
+    if (cmd.prover) {
+        await setupProver(cmd.prover === 'gpu' ? ProverType.GPU : ProverType.CPU);
+    }
+}
+
+function printReadme() {
+    console.log(
+        title(
+            '-----------------------------------\nWelcome to ZK Stack hyperchain CLI\n-----------------------------------\n'
+        )
+    );
+
+    console.log(
+        announce('Please follow these steps/commands to get your hyperchain tailored to your (and your users) needs.\n')
+    );
+
+    console.log(
+        `${chalk.bgBlueBright('zk stack init')} ${chalk.blueBright('- Wizard for hyperchain creation/configuration')}`
+    );
+    console.log(
+        `${chalk.bgBlueBright('zk stack prover-setup')} ${chalk.blueBright(
+            '- Configure the ZK Prover instance for your hyperchain'
+        )}`
+    );
+    console.log(
+        `${chalk.bgBlueBright('zk stack docker-setup')} ${chalk.blueBright(
+            '- Generate docker images and compose file for your hyperchain'
+        )}`
+    );
+    console.log(
+        `${chalk.bgBlueBright('zk stack demo')} ${chalk.blueBright(
+            '- Spin up a demo hyperchain with default settings for testing purposes'
+        )}`
+    );
+
+    console.log('\n');
+}
+
+export const initHyperchainCommand = new Command('stack')
+    .description('ZK Stack hyperchains management')
+    .action(printReadme);
 
 initHyperchainCommand
     .command('init')
-    .description('Wizard for Hyperchain creation/configuration')
+    .description('Wizard for hyperchain creation/configuration')
     .action(initHyperchain);
 initHyperchainCommand
     .command('docker-setup')
     .option('--custom-docker-org <value>', 'Custom organization name for the docker images')
-    .description('Generate docker images and compose file for your Hyperchain')
+    .description('Generate docker images and compose file for your hyperchain')
     .action(generateDockerImages);
+initHyperchainCommand
+    .command('prover-setup')
+    .description('Configure the ZK Prover instance for your hyperchain')
+    .action(setupHyperchainProver);
+initHyperchainCommand
+    .command('demo')
+    .option('--prover <value>', 'Add a cpu or gpu prover to the hyperchain')
+    .option('--skip-env-setup', 'Run env setup automatically (pull docker containers, etc)')
+    .description('Spin up a demo hyperchain with default settings for testing purposes')
+    .action(configDemoHyperchain);

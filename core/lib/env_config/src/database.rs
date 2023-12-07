@@ -1,4 +1,7 @@
-use zksync_config::DBConfig;
+use std::env;
+
+use anyhow::Context as _;
+use zksync_config::{DBConfig, PostgresConfig};
 
 use crate::{envy_load, FromEnv};
 
@@ -7,6 +10,37 @@ impl FromEnv for DBConfig {
         Ok(Self {
             merkle_tree: envy_load("database_merkle_tree", "DATABASE_MERKLE_TREE_")?,
             ..envy_load("database", "DATABASE_")?
+        })
+    }
+}
+
+impl FromEnv for PostgresConfig {
+    fn from_env() -> anyhow::Result<Self> {
+        let master_url = env::var("DATABASE_URL").ok();
+        let replica_url = env::var("DATABASE_REPLICA_URL")
+            .ok()
+            .or_else(|| master_url.clone());
+        let prover_url = env::var("DATABASE_PROVER_URL")
+            .ok()
+            .or_else(|| master_url.clone());
+        let max_connections = env::var("DATABASE_POOL_SIZE")
+            .ok()
+            .map(|val| val.parse().context("failed to parse DATABASE_POOL_SIZE"))
+            .transpose()?;
+        let statement_timeout_sec = env::var("DATABASE_STATEMENT_TIMEOUT")
+            .ok()
+            .map(|val| {
+                val.parse()
+                    .context("failed to parse DATABASE_STATEMENT_TIMEOUT")
+            })
+            .transpose()?;
+
+        Ok(Self {
+            master_url,
+            replica_url,
+            prover_url,
+            max_connections,
+            statement_timeout_sec,
         })
     }
 }

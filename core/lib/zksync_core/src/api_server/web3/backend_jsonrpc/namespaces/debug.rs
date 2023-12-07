@@ -1,13 +1,13 @@
-// External uses
-use crate::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
-use crate::api_server::web3::namespaces::DebugNamespace;
 use jsonrpc_core::{BoxFuture, Result};
 use jsonrpc_derive::rpc;
-
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
     transaction_request::CallRequest,
     H256,
+};
+
+use crate::api_server::web3::{
+    backend_jsonrpc::error::into_jsrpc_error, namespaces::DebugNamespace,
 };
 
 #[rpc]
