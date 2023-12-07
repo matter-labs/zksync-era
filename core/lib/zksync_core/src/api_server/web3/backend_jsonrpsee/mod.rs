@@ -3,8 +3,11 @@
 //! namespace structures defined in `zksync_core`.
 
 use std::error::Error;
-use zksync_web3_decl::error::Web3Error;
-use zksync_web3_decl::jsonrpsee::types::{error::ErrorCode, ErrorObjectOwned};
+
+use zksync_web3_decl::{
+    error::Web3Error,
+    jsonrpsee::types::{error::ErrorCode, ErrorObjectOwned},
+};
 
 pub mod namespaces;
 
@@ -29,6 +32,7 @@ pub fn into_jsrpc_error(err: Web3Error) -> ErrorObjectOwned {
             Web3Error::SubmitTransactionError(_, _) | Web3Error::SerializationError(_) => 3,
             Web3Error::PubSubTimeout => 4,
             Web3Error::RequestTimeout => 5,
+            Web3Error::TreeApiUnavailable => 6,
         },
         match err {
             Web3Error::SubmitTransactionError(ref message, _) => message.clone(),

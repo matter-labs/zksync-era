@@ -1,16 +1,15 @@
 //! Tree recovery load test.
 
+use std::time::Instant;
+
 use clap::Parser;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tempfile::TempDir;
 use tracing_subscriber::EnvFilter;
-
-use std::time::Instant;
-
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
-    recovery::{MerkleTreeRecovery, RecoveryEntry},
-    HashTree, Key, PatchSet, PruneDatabase, RocksDBWrapper, ValueHash,
+    recovery::MerkleTreeRecovery, HashTree, Key, PatchSet, PruneDatabase, RocksDBWrapper,
+    TreeEntry, ValueHash,
 };
 use zksync_storage::{RocksDB, RocksDBOptions};
 
@@ -23,6 +22,9 @@ struct Cli {
     /// Number of entries per update.
     #[arg(name = "ops")]
     writes_per_update: usize,
+    /// Perform random recovery instead of linear recovery.
+    #[arg(name = "random", long)]
+    random: bool,
     /// Use a no-op hashing function.
     #[arg(name = "no-hash", long)]
     no_hashing: bool,
@@ -89,17 +91,29 @@ impl Cli {
             let started_at = Instant::now();
             let recovery_entries = (0..self.writes_per_update)
                 .map(|_| {
-                    last_key += key_step - Key::from(rng.gen::<u64>());
-                    // ^ Increases the key by a random increment close to `key` step with some randomness.
                     last_leaf_index += 1;
-                    RecoveryEntry {
-                        key: last_key,
-                        value: ValueHash::zero(),
-                        leaf_index: last_leaf_index,
+                    if self.random {
+                        TreeEntry {
+                            key: Key::from(rng.gen::<[u8; 32]>()),
+                            value: ValueHash::zero(),
+                            leaf_index: last_leaf_index,
+                        }
+                    } else {
+                        last_key += key_step - Key::from(rng.gen::<u64>());
+                        // ^ Increases the key by a random increment close to `key` step with some randomness.
+                        TreeEntry {
+                            key: last_key,
+                            value: ValueHash::zero(),
+                            leaf_index: last_leaf_index,
+                        }
                     }
                 })
                 .collect();
-            recovery.extend(recovery_entries);
+            if self.random {
+                recovery.extend_random(recovery_entries);
+            } else {
+                recovery.extend_linear(recovery_entries);
+            }
             tracing::info!(
                 "Updated tree with recovery chunk #{updated_idx} in {:?}",
                 started_at.elapsed()
@@ -112,7 +126,7 @@ impl Cli {
             recovery_started_at.elapsed()
         );
         let started_at = Instant::now();
-        tree.verify_consistency(recovered_version).unwrap();
+        tree.verify_consistency(recovered_version, true).unwrap();
         tracing::info!("Verified consistency in {:?}", started_at.elapsed());
     }
 }

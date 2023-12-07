@@ -3,12 +3,10 @@
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
 use structopt::StructOpt;
-use tokio::{sync::oneshot, sync::watch};
-
-use crate::generator::WitnessVectorGenerator;
-use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
+use tokio::sync::{oneshot, watch};
 use zksync_config::configs::{
-    FriProverConfig, FriWitnessVectorGeneratorConfig, PostgresConfig, ProverGroupConfig,
+    fri_prover_group::FriProverGroupConfig, FriProverConfig, FriWitnessVectorGeneratorConfig,
+    PostgresConfig, ProverGroupConfig,
 };
 use zksync_dal::ConnectionPool;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
@@ -19,7 +17,10 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
+use crate::generator::WitnessVectorGenerator;
+
 mod generator;
+mod metrics;
 
 #[derive(Debug, StructOpt)]
 #[structopt(

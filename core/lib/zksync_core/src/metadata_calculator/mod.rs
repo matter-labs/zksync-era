@@ -1,10 +1,9 @@
 //! This module applies updates to the ZkSyncTree, calculates metadata for sealed blocks, and
 //! stores them in the DB.
 
-use tokio::sync::watch;
-
 use std::time::Duration;
 
+use tokio::sync::watch;
 use zksync_config::configs::{
     chain::OperationsManagerConfig,
     database::{MerkleTreeConfig, MerkleTreeMode},
@@ -19,12 +18,6 @@ use zksync_types::{
     H256,
 };
 
-mod helpers;
-mod metrics;
-#[cfg(test)]
-pub(crate) mod tests;
-mod updater;
-
 pub(crate) use self::helpers::{AsyncTreeReader, L1BatchWithLogs, MerkleTreeInfo};
 use self::{
     helpers::Delayer,
@@ -32,6 +25,12 @@ use self::{
     updater::TreeUpdater,
 };
 use crate::gas_tracker::commit_gas_count_for_l1_batch;
+
+mod helpers;
+mod metrics;
+#[cfg(test)]
+pub(crate) mod tests;
+mod updater;
 
 /// Part of [`MetadataCalculator`] related to the operation mode of the Merkle tree.
 #[derive(Debug, Clone, Copy)]
@@ -185,6 +184,11 @@ impl MetadataCalculator {
         events_queue_commitment: Option<H256>,
         bootloader_initial_content_commitment: Option<H256>,
     ) -> L1BatchMetadata {
+        let is_pre_boojum = header
+            .protocol_version
+            .map(|v| v.is_pre_boojum())
+            .unwrap_or(true);
+
         let merkle_root_hash = tree_metadata.root_hash;
 
         let commitment = L1BatchCommitment::new(
@@ -199,12 +203,12 @@ impl MetadataCalculator {
             tree_metadata.state_diffs,
             bootloader_initial_content_commitment.unwrap_or_default(),
             events_queue_commitment.unwrap_or_default(),
-            header.protocol_version.unwrap(),
+            is_pre_boojum,
         );
         let commitment_hash = commitment.hash();
         tracing::trace!("L1 batch commitment: {commitment:?}");
 
-        let l2_l1_messages_compressed = if header.protocol_version.unwrap().is_pre_boojum() {
+        let l2_l1_messages_compressed = if is_pre_boojum {
             commitment.l2_l1_logs_compressed().to_vec()
         } else {
             commitment.system_logs_compressed().to_vec()

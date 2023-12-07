@@ -1,7 +1,7 @@
+use std::fmt;
+
 use jsonrpc_core::{Error, ErrorCode};
 use zksync_web3_decl::error::Web3Error;
-
-use std::fmt;
 
 use crate::api_server::web3::metrics::API_METRICS;
 
@@ -22,6 +22,7 @@ pub fn into_jsrpc_error(err: Web3Error) -> Error {
             Web3Error::SubmitTransactionError(_, _) | Web3Error::SerializationError(_) => 3.into(),
             Web3Error::PubSubTimeout => 4.into(),
             Web3Error::RequestTimeout => 5.into(),
+            Web3Error::TreeApiUnavailable => 6.into(),
         },
         message: match err {
             Web3Error::SubmitTransactionError(_, _) => err.to_string(),

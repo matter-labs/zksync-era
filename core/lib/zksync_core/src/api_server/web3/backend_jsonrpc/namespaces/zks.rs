@@ -1,15 +1,11 @@
-// Built-in uses
 use std::collections::HashMap;
 
-// External uses
 use bigdecimal::BigDecimal;
 use jsonrpc_core::{BoxFuture, Result};
 use jsonrpc_derive::rpc;
-
-// Workspace uses
 use zksync_types::{
     api::{
-        BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, ProtocolVersion,
+        BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
         TransactionDetails,
     },
     fee::Fee,
@@ -18,9 +14,10 @@ use zksync_types::{
 };
 use zksync_web3_decl::types::{Filter, Log, Token};
 
-// Local uses
-use crate::web3::namespaces::ZksNamespace;
-use crate::{l1_gas_price::L1GasPriceProvider, web3::backend_jsonrpc::error::into_jsrpc_error};
+use crate::{
+    l1_gas_price::L1GasPriceProvider,
+    web3::{backend_jsonrpc::error::into_jsrpc_error, namespaces::ZksNamespace},
+};
 
 #[rpc]
 pub trait ZksNamespaceT {
@@ -111,6 +108,14 @@ pub trait ZksNamespaceT {
 
     #[rpc(name = "zks_getLogsWithVirtualBlocks")]
     fn get_logs_with_virtual_blocks(&self, filter: Filter) -> BoxFuture<Result<Vec<Log>>>;
+
+    #[rpc(name = "zks_getProof")]
+    fn get_proof(
+        &self,
+        address: Address,
+        keys: Vec<H256>,
+        l1_batch_number: L1BatchNumber,
+    ) -> BoxFuture<Result<Proof>>;
 }
 
 impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceT for ZksNamespace<G> {
@@ -304,6 +309,21 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceT for ZksNamespa
         Box::pin(async move {
             self_
                 .get_logs_with_virtual_blocks_impl(filter)
+                .await
+                .map_err(into_jsrpc_error)
+        })
+    }
+
+    fn get_proof(
+        &self,
+        address: Address,
+        keys: Vec<H256>,
+        l1_batch_number: L1BatchNumber,
+    ) -> BoxFuture<Result<Proof>> {
+        let self_ = self.clone();
+        Box::pin(async move {
+            self_
+                .get_proofs_impl(address, keys.clone(), l1_batch_number)
                 .await
                 .map_err(into_jsrpc_error)
         })

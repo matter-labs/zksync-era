@@ -1,17 +1,16 @@
-use itertools::Itertools;
-use sqlx::Row;
-
 use std::{collections::HashMap, ops::Range, time::Duration};
 
-use zksync_types::proofs::{
-    AggregationRound, JobCountStatistics, WitnessGeneratorJobMetadata, WitnessJobInfo,
+use itertools::Itertools;
+use sqlx::Row;
+use zksync_types::{
+    proofs::{AggregationRound, JobCountStatistics, WitnessGeneratorJobMetadata, WitnessJobInfo},
+    zkevm_test_harness::{
+        abstract_zksync_circuit::concrete_circuits::{ZkSyncCircuit, ZkSyncProof},
+        bellman::{bn256::Bn256, plonk::better_better_cs::proof::Proof},
+        witness::oracle::VmWitnessOracle,
+    },
+    L1BatchNumber, ProtocolVersionId,
 };
-use zksync_types::zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
-use zksync_types::zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncProof;
-use zksync_types::zkevm_test_harness::bellman::bn256::Bn256;
-use zksync_types::zkevm_test_harness::bellman::plonk::better_better_cs::proof::Proof;
-use zksync_types::zkevm_test_harness::witness::oracle::VmWitnessOracle;
-use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
 use crate::{
     instrument::InstrumentExt,
@@ -527,7 +526,7 @@ impl WitnessGeneratorDal<'_, '_> {
     /// Saves artifacts in node_aggregation_job
     /// and advances it to `waiting_for_proofs` status
     /// it will be advanced to `queued` by the prover when all the dependency proofs are computed.
-    /// If the node aggregation job was already `queued` in case of connrecunt run of same leaf aggregation job
+    /// If the node aggregation job was already `queued` in case of connector run of same leaf aggregation job
     /// we keep the status as is to prevent data race.
     pub async fn save_leaf_aggregation_artifacts(
         &mut self,
@@ -728,7 +727,7 @@ impl WitnessGeneratorDal<'_, '_> {
         {
             sqlx::query!(
                 "INSERT INTO witness_inputs(l1_batch_number, merkle_tree_paths, merkel_tree_paths_blob_url, status, protocol_version, created_at, updated_at) \
-                 VALUES ($1, $2, $3, 'waiting_for_artifacts', $4, now(), now()) \
+                 VALUES ($1, $2, $3, 'queued', $4, now(), now()) \
                  ON CONFLICT (l1_batch_number) DO NOTHING",
                 block_number.0 as i64,
                 // TODO(SMA-1476): remove the below column once blob is migrated to GCS.

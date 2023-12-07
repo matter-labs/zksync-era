@@ -10,9 +10,10 @@ function saveVerificationKeys(
     recursionCircuitsSetVksHash: BytesLike,
     environment: string
 ) {
-    recursionNodeLevelVkHash = recursionNodeLevelVkHash ?? process.env.CONTRACTS_RECURSION_NODE_LEVEL_VK_HASH;
-    recursionLeafLevelVkHash = recursionLeafLevelVkHash ?? process.env.CONTRACTS_RECURSION_LEAF_LEVEL_VK_HASH;
-    recursionCircuitsSetVksHash = recursionCircuitsSetVksHash ?? process.env.CONTRACTS_RECURSION_CIRCUITS_SET_VKS_HASH;
+    recursionNodeLevelVkHash = recursionNodeLevelVkHash ?? process.env.CONTRACTS_FRI_RECURSION_NODE_LEVEL_VK_HASH;
+    recursionLeafLevelVkHash = recursionLeafLevelVkHash ?? process.env.CONTRACTS_FRI_RECURSION_LEAF_LEVEL_VK_HASH;
+    recursionCircuitsSetVksHash =
+        recursionCircuitsSetVksHash ?? process.env.CONTRACTS_FRI_RECURSION_SCHEDULER_LEVEL_VK_HASH;
     const verificationParams: VerifierParams = {
         recursionNodeLevelVkHash,
         recursionLeafLevelVkHash,
@@ -57,7 +58,7 @@ command
 
 command
     .command('deploy-verifier')
-    .option('--l1Rpc <l1Rpc>')
+    .option('--l1rpc <l1Rpc>')
     .option('--private-key <privateKey>')
     .option('--create2-address <create2Address>')
     .option('--nonce <nonce>')

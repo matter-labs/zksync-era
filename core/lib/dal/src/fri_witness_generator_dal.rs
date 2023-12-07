@@ -1,14 +1,12 @@
+use std::{collections::HashMap, convert::TryFrom, time::Duration};
+
 use sqlx::Row;
-
-use std::convert::TryFrom;
-use std::{collections::HashMap, time::Duration};
-
-use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::{
     proofs::{
         AggregationRound, JobCountStatistics, LeafAggregationJobMetadata,
         NodeAggregationJobMetadata, StuckJobs,
     },
+    protocol_version::FriProtocolVersionId,
     L1BatchNumber,
 };
 

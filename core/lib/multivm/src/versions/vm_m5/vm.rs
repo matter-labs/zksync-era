@@ -1,21 +1,23 @@
-use crate::interface::{
-    BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch, L1BatchEnv,
-    L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
-    VmInterfaceHistoryEnabled, VmMemoryMetrics,
-};
-
 use zksync_state::StoragePtr;
-use zksync_types::l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log};
-use zksync_types::{Transaction, VmVersion};
-use zksync_utils::bytecode::CompressedBytecodeInfo;
-use zksync_utils::{h256_to_u256, u256_to_h256};
+use zksync_types::{
+    l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
+    Transaction, VmVersion,
+};
+use zksync_utils::{bytecode::CompressedBytecodeInfo, h256_to_u256, u256_to_h256};
 
-use crate::glue::history_mode::HistoryMode;
-use crate::glue::GlueInto;
-use crate::vm_m5::events::merge_events;
-use crate::vm_m5::storage::Storage;
-use crate::vm_m5::vm_instance::MultiVMSubversion;
-use crate::vm_m5::vm_instance::VmInstance;
+use crate::{
+    glue::{history_mode::HistoryMode, GlueInto},
+    interface::{
+        BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch,
+        L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
+        VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+    },
+    vm_m5::{
+        events::merge_events,
+        storage::Storage,
+        vm_instance::{MultiVMSubversion, VmInstance},
+    },
+};
 
 #[derive(Debug)]
 pub struct Vm<S: Storage, H: HistoryMode> {

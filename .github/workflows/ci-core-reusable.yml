@@ -113,25 +113,25 @@ jobs:
         run: |
           sudo apt update && sudo apt install wget -y
 
-          mkdir -p $(pwd)/etc/solc-bin/0.8.21
-          wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-v0.8.21%2Bcommit.d9974bed
-          mv solc-linux-amd64-v0.8.21+commit.d9974bed $(pwd)/etc/solc-bin/0.8.21/solc
-          chmod +x $(pwd)/etc/solc-bin/0.8.21/solc
+          mkdir -p $(pwd)/etc/solc-bin/0.8.23
+          wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-v0.8.23%2Bcommit.f704f362
+          mv solc-linux-amd64-v0.8.23+commit.f704f362 $(pwd)/etc/solc-bin/0.8.23/solc
+          chmod +x $(pwd)/etc/solc-bin/0.8.23/solc
 
-          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.16
-          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.16
-          mv zksolc-linux-amd64-musl-v1.3.16 $(pwd)/etc/zksolc-bin/v1.3.16/zksolc
-          chmod +x $(pwd)/etc/zksolc-bin/v1.3.16/zksolc
+          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.17
+          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.17
+          mv zksolc-linux-amd64-musl-v1.3.17 $(pwd)/etc/zksolc-bin/v1.3.17/zksolc
+          chmod +x $(pwd)/etc/zksolc-bin/v1.3.17/zksolc
 
-          mkdir -p $(pwd)/etc/vyper-bin/0.3.3
-          wget -O vyper0.3.3 https://github.com/vyperlang/vyper/releases/download/v0.3.3/vyper.0.3.3%2Bcommit.48e326f0.linux
-          mv vyper0.3.3 $(pwd)/etc/vyper-bin/0.3.3/vyper
-          chmod +x $(pwd)/etc/vyper-bin/0.3.3/vyper
+          mkdir -p $(pwd)/etc/vyper-bin/0.3.10
+          wget -O vyper0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10%2Bcommit.91361694.linux
+          mv vyper0.3.10 $(pwd)/etc/vyper-bin/0.3.10/vyper
+          chmod +x $(pwd)/etc/vyper-bin/0.3.10/vyper
 
-          mkdir -p $(pwd)/etc/zkvyper-bin/v1.3.11
-          wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-v1.3.11
-          mv zkvyper-linux-amd64-musl-v1.3.11 $(pwd)/etc/zkvyper-bin/v1.3.11/zkvyper
-          chmod +x $(pwd)/etc/zkvyper-bin/v1.3.11/zkvyper
+          mkdir -p $(pwd)/etc/zkvyper-bin/v1.3.13
+          wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-v1.3.13
+          mv zkvyper-linux-amd64-musl-v1.3.13 $(pwd)/etc/zkvyper-bin/v1.3.13/zkvyper
+          chmod +x $(pwd)/etc/zkvyper-bin/v1.3.13/zkvyper
 
       - name: Start services
         run: |
@@ -211,20 +211,20 @@ jobs:
         run: |
           sudo apt update && sudo apt install wget -y
 
-          mkdir -p $(pwd)/etc/solc-bin/0.8.21
-          wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-v0.8.21%2Bcommit.d9974bed
-          mv solc-linux-amd64-v0.8.21+commit.d9974bed $(pwd)/etc/solc-bin/0.8.21/solc
-          chmod +x $(pwd)/etc/solc-bin/0.8.21/solc
+          mkdir -p $(pwd)/etc/solc-bin/0.8.23
+          wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-v0.8.23%2Bcommit.f704f362
+          mv solc-linux-amd64-v0.8.23+commit.f704f362 $(pwd)/etc/solc-bin/0.8.23/solc
+          chmod +x $(pwd)/etc/solc-bin/0.8.23/solc
 
-          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.16
-          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.16
-          mv zksolc-linux-amd64-musl-v1.3.16 $(pwd)/etc/zksolc-bin/v1.3.16/zksolc
-          chmod +x $(pwd)/etc/zksolc-bin/v1.3.16/zksolc
+          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.17
+          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.17
+          mv zksolc-linux-amd64-musl-v1.3.17 $(pwd)/etc/zksolc-bin/v1.3.17/zksolc
+          chmod +x $(pwd)/etc/zksolc-bin/v1.3.17/zksolc
 
-          mkdir -p $(pwd)/etc/vyper-bin/0.3.3
-          wget -O vyper0.3.3 https://github.com/vyperlang/vyper/releases/download/v0.3.3/vyper.0.3.3%2Bcommit.48e326f0.linux
-          mv vyper0.3.3 $(pwd)/etc/vyper-bin/0.3.3/vyper
-          chmod +x $(pwd)/etc/vyper-bin/0.3.3/vyper
+          mkdir -p $(pwd)/etc/vyper-bin/0.3.10
+          wget -O vyper0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10%2Bcommit.91361694.linux
+          mv vyper0.3.10 $(pwd)/etc/vyper-bin/0.3.10/vyper
+          chmod +x $(pwd)/etc/vyper-bin/0.3.10/vyper
 
           mkdir -p $(pwd)/etc/zkvyper-bin/v1.3.11
           wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-v1.3.11

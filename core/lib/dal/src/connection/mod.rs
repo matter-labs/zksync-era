@@ -1,16 +1,14 @@
+use std::{env, fmt, time::Duration};
+
+use anyhow::Context as _;
 use sqlx::{
     pool::PoolConnection,
     postgres::{PgConnectOptions, PgPool, PgPoolOptions, Postgres},
 };
 
-use anyhow::Context as _;
-use std::env;
-use std::fmt;
-use std::time::Duration;
+use crate::{metrics::CONNECTION_METRICS, StorageProcessor};
 
 pub mod holder;
-
-use crate::{metrics::CONNECTION_METRICS, StorageProcessor};
 
 /// Obtains the test database URL from the environment variable.
 fn get_test_database_url() -> anyhow::Result<String> {
@@ -72,13 +70,13 @@ impl<'a> ConnectionPoolBuilder<'a> {
     }
 }
 
-/// Constructucts a new temporary database (with a randomized name)
+/// Constructs a new temporary database (with a randomized name)
 /// by cloning the database template pointed by TEST_DATABASE_URL env var.
 /// The template is expected to have all migrations from dal/migrations applied.
-/// For efficiency, the postgres container of TEST_DATABASE_URL should be
+/// For efficiency, the Postgres container of TEST_DATABASE_URL should be
 /// configured with option "fsync=off" - it disables waiting for disk synchronization
-/// whenever you write to the DBs, therefore making it as fast as an inmem postgres instance.
-/// The database is not cleaned up automatically, but rather the whole postgres
+/// whenever you write to the DBs, therefore making it as fast as an in-memory Postgres instance.
+/// The database is not cleaned up automatically, but rather the whole Postgres
 /// container is recreated whenever you call "zk test rust".
 pub(super) async fn create_test_db() -> anyhow::Result<url::Url> {
     use rand::Rng as _;

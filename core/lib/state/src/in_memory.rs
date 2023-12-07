@@ -1,6 +1,5 @@
 use std::collections::{hash_map::Entry, BTreeMap, HashMap};
 
-use crate::ReadStorage;
 use zksync_types::{
     block::DeployedContract, get_code_key, get_known_code_key, get_system_context_init_logs,
     system_contracts::get_system_smart_contracts, L2ChainId, StorageKey, StorageLog,
@@ -8,7 +7,9 @@ use zksync_types::{
 };
 use zksync_utils::u256_to_h256;
 
-/// Network ID we use by defailt for in memory storage.
+use crate::ReadStorage;
+
+/// Network ID we use by default for in memory storage.
 pub const IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID: u32 = 270;
 
 /// In-memory storage.

@@ -1,8 +1,7 @@
-use assert_matches::assert_matches;
 use std::sync::{atomic::Ordering, Arc};
 
+use assert_matches::assert_matches;
 use once_cell::sync::Lazy;
-
 use zksync_config::{
     configs::eth_sender::{ProofSendingMode, SenderConfig},
     ContractsConfig, ETHSenderConfig, GasAdjusterConfig,
@@ -23,10 +22,12 @@ use zksync_types::{
     Address, L1BatchNumber, L1BlockNumber, ProtocolVersionId, H256,
 };
 
-use crate::eth_sender::{
-    eth_tx_manager::L1BlockNumbers, Aggregator, ETHSenderError, EthTxAggregator, EthTxManager,
+use crate::{
+    eth_sender::{
+        eth_tx_manager::L1BlockNumbers, Aggregator, ETHSenderError, EthTxAggregator, EthTxManager,
+    },
+    l1_gas_price::GasAdjuster,
 };
-use crate::l1_gas_price::GasAdjuster;
 
 // Alias to conveniently call static methods of ETHSender.
 type MockEthTxManager = EthTxManager<Arc<MockEthereum>, GasAdjuster<Arc<MockEthereum>>>;
@@ -897,6 +898,7 @@ async fn insert_l1_batch(tester: &EthSenderTester, number: L1BatchNumber) -> L1B
             header.number,
             &default_l1_batch_metadata(),
             Default::default(),
+            false,
         )
         .await
         .unwrap();

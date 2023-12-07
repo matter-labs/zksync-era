@@ -1,7 +1,3 @@
-use async_trait::async_trait;
-use rand::Rng;
-use serde::{Deserialize, Serialize};
-
 use std::{
     collections::{hash_map::DefaultHasher, HashMap, HashSet},
     hash::{Hash, Hasher},
@@ -9,9 +5,12 @@ use std::{
     time::Instant,
 };
 
+use async_trait::async_trait;
 use multivm::vm_latest::{
     constants::MAX_CYCLES_FOR_TX, HistoryDisabled, SimpleMemory, StorageOracle as VmStorageOracle,
 };
+use rand::Rng;
+use serde::{Deserialize, Serialize};
 use zksync_config::configs::{
     witness_generator::BasicWitnessGeneratorDataSource, WitnessGeneratorConfig,
 };
@@ -23,12 +22,14 @@ use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_types::{
     circuit::GEOMETRY_CONFIG,
     proofs::{AggregationRound, BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
-    zkevm_test_harness::toolset::GeometryConfig,
     zkevm_test_harness::{
         abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
         bellman::bn256::Bn256,
-        witness::full_block_artifact::{BlockBasicCircuits, BlockBasicCircuitsPublicInputs},
-        witness::oracle::VmWitnessOracle,
+        toolset::GeometryConfig,
+        witness::{
+            full_block_artifact::{BlockBasicCircuits, BlockBasicCircuitsPublicInputs},
+            oracle::VmWitnessOracle,
+        },
         SchedulerCircuitInstanceWitness,
     },
     Address, L1BatchNumber, ProtocolVersionId, H256, U256, USED_BOOTLOADER_MEMORY_BYTES,

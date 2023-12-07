@@ -1,9 +1,7 @@
+use std::{sync::Arc, time::Duration};
+
 use anyhow::Context as _;
 use tokio::sync::watch;
-
-use std::sync::Arc;
-use std::time::Duration;
-
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{
@@ -12,14 +10,17 @@ use zksync_eth_client::{
 };
 use zksync_types::{
     eth_sender::EthTx,
-    web3::{contract::Options, error::Error as Web3Error},
+    web3::{
+        contract::Options,
+        error::Error as Web3Error,
+        types::{BlockId, BlockNumber},
+    },
     L1BlockNumber, Nonce, H256, U256,
 };
 use zksync_utils::time::seconds_since_epoch;
 
 use super::{metrics::METRICS, ETHSenderError};
-use crate::l1_gas_price::L1TxParamsProvider;
-use crate::metrics::BlockL1Stage;
+use crate::{l1_gas_price::L1TxParamsProvider, metrics::BlockL1Stage};
 
 #[derive(Debug)]
 struct EthFee {
@@ -43,7 +44,7 @@ pub(super) struct L1BlockNumbers {
 
 /// The component is responsible for managing sending eth_txs attempts:
 /// Based on eth_tx queue the component generates new attempt with the minimum possible fee,
-/// save it to the database, and send it to ethereum.
+/// save it to the database, and send it to Ethereum.
 /// Based on eth_tx_history queue the component can mark txs as stuck and create the new attempt
 /// with higher gas price
 #[derive(Debug)]
@@ -285,7 +286,7 @@ where
             (latest_block_number.saturating_sub(confirmations) as u32).into()
         } else {
             self.ethereum_gateway
-                .block("finalized".to_string(), "eth_tx_manager")
+                .block(BlockId::Number(BlockNumber::Finalized), "eth_tx_manager")
                 .await?
                 .expect("Finalized block must be present on L1")
                 .number

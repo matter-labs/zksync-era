@@ -1,8 +1,7 @@
-use anyhow::Context as _;
-use clap::Parser;
-
 use std::{str::FromStr, time::Duration};
 
+use anyhow::Context as _;
+use clap::Parser;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
@@ -10,6 +9,7 @@ use zksync_config::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
             StateKeeperConfig,
         },
+        fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, PrometheusConfig,
         ProofDataHandlerConfig, ProverGroupConfig, WitnessGeneratorConfig,
@@ -17,11 +17,9 @@ use zksync_config::{
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
     FetcherConfig, GasAdjusterConfig, ObjectStoreConfig, PostgresConfig, ProverConfigs,
 };
-
-use zksync_core::temp_config_store::TempConfigStore;
 use zksync_core::{
-    genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler, Component,
-    Components,
+    genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
+    temp_config_store::TempConfigStore, Component, Components,
 };
 use zksync_env_config::FromEnv;
 use zksync_storage::RocksDB;
@@ -108,6 +106,7 @@ async fn main() -> anyhow::Result<()> {
         house_keeper_config: HouseKeeperConfig::from_env().ok(),
         fri_proof_compressor_config: FriProofCompressorConfig::from_env().ok(),
         fri_prover_config: FriProverConfig::from_env().ok(),
+        fri_prover_group_config: FriProverGroupConfig::from_env().ok(),
         fri_witness_generator_config: FriWitnessGeneratorConfig::from_env().ok(),
         prometheus_config: PrometheusConfig::from_env().ok(),
         proof_data_handler_config: ProofDataHandlerConfig::from_env().ok(),
