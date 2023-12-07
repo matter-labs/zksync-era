@@ -880,11 +880,7 @@ async fn run_tree(
         .build()
         .await
         .context("failed to build connection pool")?;
-    let prover_pool = ConnectionPool::singleton(postgres_config.prover_url()?)
-        .build()
-        .await
-        .context("failed to build prover_pool")?;
-    let tree_task = tokio::spawn(metadata_calculator.run(pool, prover_pool, stop_receiver));
+    let tree_task = tokio::spawn(metadata_calculator.run(pool, stop_receiver));
     task_futures.push(tree_task);
 
     let elapsed = started_at.elapsed();
