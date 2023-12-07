@@ -94,6 +94,7 @@ jobs:
       - name: Show geth logs
         if: always()
         run: |
+          docker ps
           bash -c "docker ps | grep client-go | awk '{print $1}' | xargs docker logs"
 
       - name: Show beacon logs
