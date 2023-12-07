@@ -289,7 +289,6 @@ impl FromStr for Components {
 pub async fn initialize_components(
     configs: &TempConfigStore,
     components: Vec<Component>,
-    use_prometheus_push_gateway: bool,
 ) -> anyhow::Result<(
     Vec<JoinHandle<anyhow::Result<()>>>,
     watch::Sender<bool>,
@@ -351,11 +350,7 @@ pub async fn initialize_components(
         .prometheus_config
         .clone()
         .context("prometheus_config")?;
-    let prom_config = if use_prometheus_push_gateway {
-        PrometheusExporterConfig::push(prom_config.gateway_endpoint(), prom_config.push_interval())
-    } else {
-        PrometheusExporterConfig::pull(prom_config.listener_port)
-    };
+    let prom_config = PrometheusExporterConfig::pull(prom_config.listener_port);
 
     let (prometheus_health_check, prometheus_health_updater) =
         ReactiveHealthCheck::new("prometheus_exporter");

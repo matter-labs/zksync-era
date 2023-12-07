@@ -154,13 +154,9 @@ async fn main() -> anyhow::Result<()> {
         opt.components.0
     };
 
-    // OneShotWitnessGenerator is the only component that is not expected to run indefinitely
-    // if this value is `false`, we expect all components to run indefinitely: we panic if any component returns.
-    let is_only_oneshot_witness_generator_task = false;
-
     // Run core actors.
     let (core_task_handles, stop_sender, cb_receiver, health_check_handle) =
-        initialize_components(&configs, components, is_only_oneshot_witness_generator_task)
+        initialize_components(&configs, components)
             .await
             .context("Unable to start Core actors")?;
 
@@ -169,7 +165,7 @@ async fn main() -> anyhow::Result<()> {
 
     let particular_crypto_alerts = None::<Vec<String>>;
     let graceful_shutdown = None::<futures::future::Ready<()>>;
-    let tasks_allowed_to_finish = is_only_oneshot_witness_generator_task;
+    let tasks_allowed_to_finish = false;
     tokio::select! {
         _ = wait_for_tasks(core_task_handles, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
         _ = sigint_receiver => {
