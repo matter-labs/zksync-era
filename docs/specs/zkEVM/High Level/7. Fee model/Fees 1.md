@@ -28,7 +28,7 @@ to L1. The maximum gas for a transaction is 80 million (80M/4k = 20k).
 
 ### L2 Fair price
 
-The L2 fair gas price is currently determined by the StateKeeper configuration and is set at 0.25 Gwei (see
+The L2 fair gas price is currently determined by the StateKeeper/Sequencer configuration and is set at 0.25 Gwei (see
 `fair_l2_gas_price` in the config). This price is meant to cover the compute costs (CPU + GPU) for the sequencer and
 prover. It can be changed as needed, with a safety limit of 10k Gwei in the bootloader. Once the system is
 decentralized, more deterministic rules will be established for this price.

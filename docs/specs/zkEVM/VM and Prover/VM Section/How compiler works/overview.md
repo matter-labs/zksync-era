@@ -1,0 +1,144 @@
+# Overview
+
+
+
+## Glossary
+
+| Entity | Description |
+| --- | --- |
+| zksolc | The Solidity compiler, developed by Matter Labs. |
+| solc | The original Solidity compiler, developed by the Ethereum community. Called by zksolc as a subprocess to get the IRs of the source code of the project. |
+| LLVM | The compiler framework, used for optimizations and assembly generation. |
+| EraVM assembler/linker | The tool written in Rust. Translates the assembly emitted by LLVM to the target bytecode. |
+| Virtual machine | The zkSync Era virtual machine called EraVM with a custom instruction set. |
+| Intermediate representation (IR) | The data structure or code used internally by the compiler to represent source code. |
+| Yul | One of the Solidity IRs. Is a superset of the assembly available in Solidity. Used by default for contracts written in Solidity ≥0.8. |
+| EVMLA | One of the Solidity IRs called EVM legacy assembly. Is a predecessor of Yul, but must closer to the pure EVM bytecode. Used by default for contracts written in Solidity <0.8. |
+| LLVM IR | The IR native to the LLVM framework. |
+| EraVM assembly | The text representation of the EraVM bytecode. Emitted by the LLVM framework. Translated into the EraVM bytecode by the EraVM assembler/linker. |
+| EraVM bytecode | The smart contract bytecode, executed by EraVM. |
+| Stack | The segment of the non-persistent contract memory. Consists of two parts: 1. The global data, accessible from anywhere. Available to the compiler, not available to the user code. 2. The function-local stack frame without the depth limit like in EVM. |
+| Heap | The segment of the non-persistent contract memory. All the data is globally accessible by both the compiler and user code. The allocation is handled by the solc’s Yul/EVMLA allocator only. |
+| Auxiliary heap | The segment of the non-persistent contract memory, introduced to avoid conflicts with the solc’s allocator. All the data is globally accessible by the compiler only. The allocation is handled by the zksolc’s compiler only. All contract calls specific to zkSync, including the system contracts, are made via the auxiliary heap. It is also used to return data (e.g. the array of immutables) from the constructor. |
+| Calldata | The segment of the non-persistent contract memory. The heap or auxiliary heap of the parent/caller contract. |
+| Return data | The segment of the non-persistent contract memory. The heap or auxiliary heap of the child/callee contract. |
+| Contract storage | The persistent contract memory. No relevant differences from that of EVM. |
+| System contracts | The special set of zkSync kernel contracts written in Solidity by Matter Labs. |
+| Contract context | The special storage of VM that keeps data like the current address, the caller’s address, etc. |
+
+
+
+## Concepts
+
+- [Code Separation](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/VM%20Section/How%20compiler%20works/code_separation.md)
+- [System Contracts](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/VM%20Section/How%20compiler%20works/system_contracts.md)
+- [Exception Handling](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/VM%20Section/How%20compiler%20works/exception_handling.md)
+- [EVMLA translator](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/VM%20Section/How%20compiler%20works/evmla_translator.md)
+
+
+
+## Instruction Set
+
+The table below describes the scheme of translation Yul and EVMLA to EraVM bytecode.
+
+At the moment it does not explain much of the LLVM IR and assembly aspects, but mainly focus on the EVM-equivalence for the sake of assisting the upcoming audit.
+
+| Yul name | EVMLA name | Descriptive keywords | Input/output | System contract usage | Front end notes |
+| --- | --- | --- | --- | --- | --- |
+| add | ADD | arithmetic, binary | Stack: 2 inputs, 1 output | - | - |
+| sub | SUB | arithmetic, binary | Stack: 2 inputs, 1 output | - | - |
+| mul | MUL | arithmetic, binary | Stack: 2 inputs, 1 output | - | - |
+| div | DIV | arithmetic, binary | Stack: 2 inputs, 1 output | - | x / 0. Division by 0 returns 0. |
+| sdiv | SDIV | arithmetic, binary, signed | Stack: 2 inputs, 1 output | - | x / 0. Division by 0 returns 0. -(2^255) / (-1). In case of overflow the first operand is returned. |
+| mod | MOD | arithmetic, binary | Stack: 2 inputs, 1 output | - | x % 0. Remainder of division by 0 returns 0. |
+| smod | SMOD | arithmetic, binary, signed | Stack: 2 inputs, 1 output | - | x % 0. Remainder of division by 0 returns 0. |
+| exp | EXP | arithmetic, binary | Stack: 2 inputs, 1 output | - | Unfolds into the binary exponentiation algorithm. |
+| lt | LT | logical, binary | Stack: 2 inputs, 1 output | - | - |
+| slt | SLT | logical, binary, signed | Stack: 2 inputs, 1 output | - | - |
+| gt | GT | logical, binary | Stack: 2 inputs, 1 output | - | - |
+| sgt | SGT | logical, binary, signed | Stack: 2 inputs, 1 output | - | - |
+| eq | EQ | logical, binary | Stack: 2 inputs, 1 output | - | - |
+| iszero | ISZERO | logical, unary | Stack: 1 input, 1 output | - | - |
+| or | OR | bitwise, binary | Stack: 2 inputs, 1 output | - | - |
+| xor | XOR | bitwise, binary | Stack: 2 inputs, 1 output | - | - |
+| and | AND | bitwise, binary | Stack: 2 inputs, 1 output | - | - |
+| not | NOT | bitwise, unary | Stack: 1 input, 1 output | - | - |
+| shl | SHL | bitwise, binary | Stack: 2 inputs, 1 output | - | x << N, N > 255. Shifting by more than a word size is a UB in LLVM. This case is checked explicitly and zero is returned. |
+| shr | SHR | bitwise, binary | Stack: 2 inputs, 1 output | - | x >> N, N > 255. Shifting by more than a word size is a UB in LLVM. This case is checked explicitly and zero is returned. |
+| sar | SAR | bitwise, binary, signed | Stack: 2 inputs, 1 output | - | x >> N, N > 255. Shifting by more than a word size is a UB in LLVM. This case is checked explicitly and zero or minus one is returned, depending on the sign bit. |
+| signextend | SIGNEXTEND | bitwise, binary | Stack: 2 inputs, 1 output | - | See the LLVM runtime section below. |
+| byte | BYTE | bitwise, binary | Stack: 2 inputs, 1 output | - | - |
+| addmod | ADDMOD | modular, ternary | Stack: 3 inputs, 1 output | - | - |
+| mulmod | MULMOD | modular, ternary | Stack: 3 inputs, 1 output | - | - |
+| - | PUSH | stack | Stack: 1 output | - | - |
+| - | PUSH{1..32} | stack | Stack: 1 output | - | - |
+| - | PUSHSIZE | stack | Stack: 1 output | - | Pushes 0. |
+| - | PUSH [tag] | stack | Stack: 1 output (compile time) | - | - |
+| - | PUSH data | stack | Stack: 1 output | - | Unfolded into several cells if the length is more than 32 bytes. |
+| - | Tag | stack | - | - | - |
+| pop | POP | stack | Stack: 1 input | - | - |
+| - | DUP{1..16} | stack | Stack: 1 output | - | - |
+| - | SWAP{1..16} | stack | Stack: 1 swap | - | - |
+| - | JUMP | stack | Stack: 1 input (compile time) | - | Expects a compile-time known tag and generates an unconditional jump to the statically known block of LLVM IR. |
+| - | JUMPI | stack | Stack: 2 inputs (1 in compile time) | - | Expects a compile-time known tag and generates a conditional jump to the statically known block of LLVM IR. |
+| - | JUMPDEST | stack | - | - | Unused by the static analyzer and totally discarded. |
+| mload` | MLOAD | heap | Stack: 1 input. Heap: read 32 bytes. Stack: 1 output | - | - |
+| mstore | MSTORE | heap | Stack: 2 inputs. Heap: write 32 bytes | - | - |
+| mstore8 | MSTORE8 | heap | Stack: 2 inputs. Heap: write 1 byte | - | - |
+| msize | MSIZE | heap, context | Context: 1 request. Stack: 1 output | - | - |
+| memoryguard |  | heap | Stack: 1 output | - | - |
+| sload | SLOAD | storage | Stack: 1 input. Storage: read 1 slot. Stack: 1 output | - | - |
+| sstore | SSTORE | storage | Stack: 2 inputs. Storage: write 1 slot | - | - |
+| loadimmutable | PUSHIMMUTABLE | immutable, heap | Stack: 1 input (compile time). Heap: read 32 bytes (deploy code). System contracts: 1 request (runtime code) | ImmutableSimulator | - |
+| setimmutable | ASSIGNIMMUTABLE | immutable, heap | Stack: 3 inputs (1 in compile time). Heap: write 32 bytes (deploy code) | ImmutableSimulator | No-op in the runtime code. |
+| log0 | LOG0 | event | Stack: 2 inputs. Heap: read N bytes. VM: write 1 event (0 topics, N bytes) | - | - |
+| log1 | LOG1 | event | Stack: 3 inputs. Heap: read N bytes. VM: write 1 event (1 topics, N bytes) | - | - |
+| log2 | LOG2 | event | Stack: 4 inputs. Heap: read N bytes. VM: write 1 event (2 topics, N bytes) | - | - |
+| log3 | LOG3 | event | Stack: 5 inputs. Heap: read N bytes. VM: write 1 event (3 topics, N bytes) | - | - |
+| log4 | LOG4 | event | Stack: 6 inputs. Heap: read N bytes. VM: write 1 event (4 topics, N bytes) | - | - |
+| calldataload | CALLDATALOAD | calldata | Stack: 1 input. Calldata: read 32 bytes. Stack: 1 output | - | 0 in deploy code. |
+| calldatacopy | CALLDATACOPY | calldata, heap | Stack: 3 inputs. Calldata: read N bytes. Heap: write N bytes | - | Generated by solc in the runtime code only. Copies 0 in deploy code. |
+| calldatasize | CALLDATASIZE | calldata | Stack: 1 output | - | 0 in deploy code. |
+| codecopy | CODECOPY | calldata | Stack: 3 inputs. Calldata: read N bytes. Heap: write N bytes | - | Generated by solc in the deploy code only, but is treated as CALLDATACOPY, since the constructor arguments are calldata in zkSync 2.0. Compile time error in Yul runtime code. Copies 0 in EVMLA runtime code. |
+| codesize | CODESIZE | calldata | Stack: 1 output | - | - |
+| returndatacopy | RETURNDATACOPY | return data, heap | Stack: 3 inputs. Return data: read N bytes. Heap: write N bytes | - | - |
+| returndatasize | RETURNDATASIZE | return data | Stack: 1 output | - | - |
+| keccak256 | KECCAK256 | SHA3 | hash | Heap: read N bytes. System contracts: 1 request. Stack: 1 output | Keccak256 | Calls a system contract which may revert if the input is too long. In this case the error is bubbled-up and the calling contract also reverts. |
+| call | CALL | call | Stack: 7 inputs, 1 output. Heap: read N bytes, write M bytes | MsgValueSimulator | - |
+| staticcall | STATICCALL | call | Stack: 6 inputs, 1 output. Heap: read N bytes, write M bytes | Ecrecover, SHA256 | - |
+| delegatecall | DELEGATECALL | call | Stack: 6 inputs, 1 output. Heap: read N bytes, write M bytes | - | - |
+| linkersymbol | PUSHLIB | library | Stack: 1 output | - | - |
+| - | PUSHDEPLOYADDRESS | library | Context: 1 request. Stack: 1 output | - | - |
+| create | CREATE | create |  | ContractDeployer, MsgValueSimulator | - |
+| create2 | CREATE2 | create |  | ContractDeployer, MsgValueSimulator | - |
+| datasize | PUSH #[$] | create | Stack: 1 output | - | - |
+| dataoffset | PUSH [$] | create | Stack: 1 output | - | - |
+| datacopy | CODECOPY | create, heap | Stack: 3 inputs. Heap: write 32 bytes | - | - |
+| return | RETURN | return, positive | Stack: 2 inputs | - | In the deploy code the auxiliary heap is used to avoid conflicts with memory allocated by the Yul generator. |
+| stop | STOP | return, positive | - | - | - |
+| revert | REVERT | return, negative | Stack: 2 inputs | - | - |
+| invalid | INVALID | return, negative | - | - | - |
+| address | ADDRESS | context, transaction | Context: 1 request. Stack: 1 output | - | - |
+| caller | CALLER | context, transaction | Context: 1 request. Stack: 1 output | - | - |
+| gas | GAS | context, transaction | Context: 1 request. Stack: 1 output | - | - |
+| chainid | CHAINID | context, transaction | System contracts: 1 request. Stack: 1 output | ContractContext | - |
+| gasprice | GASPRICE | context, transaction | System contracts: 1 request. Stack: 1 output | ContractContext | - |
+| origin | ORIGIN | context, transaction | System contracts: 1 request. Stack: 1 output | ContractContext | - |
+| callvalue | CALLVALUE | context, transaction | Context: 1 request. Stack: 1 output | - | - |
+| blockhash | BLOCKHASH | context, block | Stack: 1 input. System contracts: 1 request. Stack: 1 output | ContractContext | - |
+| gaslimit | GASLIMIT | context, block | System contracts: 1 request. Stack: 1 output | ContractContext | - |
+| basefee | BASEFEE | context, block | System contracts: 1 request. Stack: 1 output | ContractContext | - |
+| timestamp | TIMESTAMP | context, block | System contracts: 1 request. Stack: 1 output | ContractContext | - |
+| coinbase | COINBASE | context, block | System contracts: 1 request. Stack: 1 output | ContractContext | - |
+| difficulty | DIFFICULTY | context, block | System contracts: 1 request. Stack: 1 output | ContractContext | - |
+| balance | BALANCE | context, contract | Stack: 1 input. System contracts: 1 request. Stack: 1 output | L2EthToken | - |
+| selfbalance | SELFBALANCE | context, contract | System contracts: 1 request. Stack: 1 output | L2EthToken | - |
+| extcodesize | EXTCODESIZE | context, contract | Stack: 1 input, 1 output | AccountCodeStorage | Is requested at the beginning of the runtime code and checked for being non-zero. This way we check if the constructor has been called before. |
+| extcodehash | EXTCODEHASH | context, contract | Stack: 1 input, 1 output | AccountCodeStorage | - |
+| verbatim_\<n\>i_\<m\>o | - | extension | Stack: N inputs, M outputs | - | See the Yul extensions section below. |
+| callcode | CALLCODE | unsupported | - | - | Compile time error |
+| extcodecopy | EXTCODECOPY | unsupported | - | - | Compile time error |
+| pc | PC | unsupported | - | - | Compile time error |
+| selfdestruct | SELFDESTRUCT | unsupported | - | - | Compile time error |
+
+For more information on how zkSync Era achieves EVM-equivalence, see the [Instructions](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/VM%20Section/How%20compiler%20works/instructions) section.
