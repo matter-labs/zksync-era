@@ -58,18 +58,18 @@
 
 ### Examples & documentation
 
-| Public repository                                                                       | Description                                                                                            |
-| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| [zksync-web-era-docs](https://github.com/matter-labs/zksync-web-era-docs)               | [Public zkSync documentation](https://era.zksync.io/docs/), API descriptions etc.                      |
-| [zksync-contract-templates](https://github.com/matter-labs/zksync-contract-templates)   | Quick contract deployment and testing with tools like Hardhat on Solidity or Vyper                     |
-| [zksync-frontend-templates](https://github.com/matter-labs/zksync-frontend-templates)   | Rapid UI development with templates for Vue, React, Next.js, Nuxt, Vite, etc.                          |
-| [zksync-scripting-templates](https://github.com/matter-labs/zksync-scripting-templates) | Automated interactions and advanced zkSync operations using Node.js                                    |
-| [tutorials](https://github.com/matter-labs/tutorials)                                   | Tutorials for developing on zkSync                                                                     |
+| Public repository                                                                       | Description                                                                        |
+| --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| [zksync-web-era-docs](https://github.com/matter-labs/zksync-web-era-docs)               | [Public zkSync documentation](https://era.zksync.io/docs/), API descriptions etc.  |
+| [zksync-contract-templates](https://github.com/matter-labs/zksync-contract-templates)   | Quick contract deployment and testing with tools like Hardhat on Solidity or Vyper |
+| [zksync-frontend-templates](https://github.com/matter-labs/zksync-frontend-templates)   | Rapid UI development with templates for Vue, React, Next.js, Nuxt, Vite, etc.      |
+| [zksync-scripting-templates](https://github.com/matter-labs/zksync-scripting-templates) | Automated interactions and advanced zkSync operations using Node.js                |
+| [tutorials](https://github.com/matter-labs/tutorials)                                   | Tutorials for developing on zkSync                                                 |
 
 ## zkSync Lite
 
-| Public repository                                                           | Description                        |
-| --------------------------------------------------------------------------- | ---------------------------------- |
-| [zksync](https://github.com/matter-labs/zksync)                             | zkSync Lite implementation         |
-| [zksync-docs](https://github.com/matter-labs/zksync-docs)                   | Public zkSync Lite documentation   |
-| [zksync-dapp-checkout](https://github.com/matter-labs/zksync-dapp-checkout) | Batch payments DApp                |
+| Public repository                                                           | Description                      |
+| --------------------------------------------------------------------------- | -------------------------------- |
+| [zksync](https://github.com/matter-labs/zksync)                             | zkSync Lite implementation       |
+| [zksync-docs](https://github.com/matter-labs/zksync-docs)                   | Public zkSync Lite documentation |
+| [zksync-dapp-checkout](https://github.com/matter-labs/zksync-dapp-checkout) | Batch payments DApp              |
