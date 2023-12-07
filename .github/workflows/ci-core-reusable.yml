@@ -90,6 +90,13 @@ jobs:
 
       - name: Perform loadtest
         run: ci_run zk run loadtest
+ 
+      - name: Show geth logs
+        if: always()
+        run: |
+          docker ps
+          docker ps | grep client-go | awk '{print $1}'
+          docker ps | grep client-go | awk '{print $1}' | xargs docker logs
 
       - name: Show logs
         if: always()
@@ -97,13 +104,13 @@ jobs:
           ci_run cat server.log
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
-
       
       - name: Show beacon logs
         if: always()
         run: |
-          bash -c "docker ps | grep beacon | awk '{print $1}' | xargs docker logs"
-
+          docker ps
+          docker ps | grep client-go | awk '{print $1}'
+          docker ps | grep beacon | awk '{print $1}' | xargs docker logs
   integration:
     runs-on: [matterlabs-ci-runner]
 
