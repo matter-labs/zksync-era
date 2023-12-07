@@ -163,15 +163,15 @@ impl BlocksWeb3Dal<'_, '_> {
         }))
     }
 
-    /// Returns hashes of blocks with numbers greater than `from_block` and the number of the last block.
-    pub async fn get_block_hashes_after(
+    /// Returns hashes of blocks with numbers starting from `from_block` and the number of the last block.
+    pub async fn get_block_hashes_since(
         &mut self,
         from_block: MiniblockNumber,
         limit: usize,
     ) -> sqlx::Result<(Vec<H256>, Option<MiniblockNumber>)> {
         let rows = sqlx::query!(
             "SELECT number, hash FROM miniblocks \
-            WHERE number > $1 \
+            WHERE number >= $1 \
             ORDER BY number ASC \
             LIMIT $2",
             from_block.0 as i64,

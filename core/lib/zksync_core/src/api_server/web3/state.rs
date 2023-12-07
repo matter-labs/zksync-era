@@ -504,9 +504,10 @@ impl<E> RpcState<E> {
             .enumerate()
             .filter_map(|(idx, topics)| topics.map(|topics| (idx as u32 + 1, topics.0)))
             .collect();
+
         let get_logs_filter = GetLogsFilter {
             from_block,
-            to_block: filter.to_block,
+            to_block,
             addresses,
             topics,
         };

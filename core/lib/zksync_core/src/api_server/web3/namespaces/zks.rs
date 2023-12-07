@@ -284,7 +284,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
                 .get_logs(
                     GetLogsFilter {
                         from_block: first_miniblock_of_l1_batch,
-                        to_block: Some(block_number.0.into()),
+                        to_block: block_number,
                         addresses: vec![L1_MESSENGER_ADDRESS],
                         topics: vec![(2, vec![address_to_h256(&sender)]), (3, vec![msg])],
                     },
