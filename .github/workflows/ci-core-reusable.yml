@@ -81,6 +81,13 @@ jobs:
           ci_run zk server --uring --components api,tree,eth,data_fetcher,state_keeper,housekeeper &>server.log &
           ci_run sleep 30
 
+      - name: Show geth logs
+        if: always()
+        run: |
+          docker ps
+          docker ps | grep client-go | awk '{print $1}'
+          docker ps | grep client-go | awk '{print $1}' | xargs docker logs
+
       - name: Perform loadtest
         run: ci_run zk run loadtest
 
@@ -91,12 +98,7 @@ jobs:
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
 
-      - name: Show geth logs
-        if: always()
-        run: |
-          docker ps
-          bash -c "docker ps | grep client-go | awk '{print $1}' | xargs docker logs"
-
+      
       - name: Show beacon logs
         if: always()
         run: |
