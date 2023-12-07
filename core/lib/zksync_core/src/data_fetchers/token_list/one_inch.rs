@@ -3,13 +3,11 @@ use std::{collections::HashMap, str::FromStr};
 use async_trait::async_trait;
 use reqwest::{Client, Url};
 use serde::{Deserialize, Serialize};
-
 use zksync_config::FetcherConfig;
 use zksync_types::{tokens::TokenMetadata, Address};
 
-use crate::data_fetchers::error::ApiFetchError;
-
 use super::FetcherImpl;
+use crate::data_fetchers::error::ApiFetchError;
 
 #[derive(Debug, Clone)]
 pub struct OneInchTokenListFetcher {

@@ -300,9 +300,10 @@ impl Manifest {
 
 #[cfg(test)]
 mod tests {
+    use zksync_types::H256;
+
     use super::*;
     use crate::types::TreeEntry;
-    use zksync_types::H256;
 
     #[test]
     fn serializing_manifest() {

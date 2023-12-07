@@ -1,8 +1,9 @@
 use anyhow::Context as _;
 use regex::Regex;
-use reqwest::header::{HeaderMap, HeaderValue};
-use reqwest::Method;
-
+use reqwest::{
+    header::{HeaderMap, HeaderValue},
+    Method,
+};
 use zksync_config::configs::ProverGroupConfig;
 use zksync_utils::http_with_retries::send_request_with_retries;
 

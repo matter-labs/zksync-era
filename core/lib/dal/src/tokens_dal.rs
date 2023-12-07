@@ -1,4 +1,3 @@
-use crate::StorageProcessor;
 use num::{rational::Ratio, BigUint};
 use sqlx::types::chrono::Utc;
 use zksync_types::{
@@ -7,6 +6,8 @@ use zksync_types::{
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH,
 };
 use zksync_utils::ratio_to_big_decimal;
+
+use crate::StorageProcessor;
 
 // Precision of the USD price per token
 pub(crate) const STORED_USD_PRICE_PRECISION: usize = 6;

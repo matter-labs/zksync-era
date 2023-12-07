@@ -1,4 +1,5 @@
 use std::time::Duration;
+
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, LabeledFamily, Metrics};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]

@@ -1,12 +1,12 @@
 //! Types related to DB patches: `PatchSet` and `WorkingPatchSet`.
 
-use rayon::prelude::*;
-
 use std::{
     collections::{hash_map::Entry, HashMap},
     iter,
     time::Instant,
 };
+
+use rayon::prelude::*;
 
 use crate::{
     hasher::{HashTree, HasherWithStats, MerklePath},

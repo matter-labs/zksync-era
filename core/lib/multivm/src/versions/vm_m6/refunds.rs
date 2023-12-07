@@ -1,12 +1,13 @@
-use crate::vm_m6::history_recorder::HistoryMode;
-use crate::vm_m6::storage::Storage;
-use crate::vm_m6::vm_with_bootloader::{
-    eth_price_per_pubdata_byte, BOOTLOADER_HEAP_PAGE, TX_GAS_LIMIT_OFFSET,
-};
-use crate::vm_m6::VmInstance;
 use zk_evm_1_3_1::aux_structures::Timestamp;
 use zksync_types::U256;
 use zksync_utils::ceil_div_u256;
+
+use crate::vm_m6::{
+    history_recorder::HistoryMode,
+    storage::Storage,
+    vm_with_bootloader::{eth_price_per_pubdata_byte, BOOTLOADER_HEAP_PAGE, TX_GAS_LIMIT_OFFSET},
+    VmInstance,
+};
 
 impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
     pub(crate) fn tx_body_refund(

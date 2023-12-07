@@ -3,8 +3,11 @@
 //! namespace structures defined in `zksync_core`.
 
 use std::error::Error;
-use zksync_web3_decl::error::Web3Error;
-use zksync_web3_decl::jsonrpsee::types::{error::ErrorCode, ErrorObjectOwned};
+
+use zksync_web3_decl::{
+    error::Web3Error,
+    jsonrpsee::types::{error::ErrorCode, ErrorObjectOwned},
+};
 
 pub mod namespaces;
 

@@ -2,18 +2,21 @@ use std::time::Instant;
 
 use zksync_dal::StorageProcessor;
 use zksync_object_store::{FriCircuitKey, ObjectStore};
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::base_circuit_type_into_recursive_leaf_circuit_type;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType;
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
-use zksync_types::basic_fri_types::CircuitIdRoundTuple;
-
 use zksync_prover_fri_types::{
+    circuit_definitions::{
+        circuit_definitions::recursion_layer::{
+            base_circuit_type_into_recursive_leaf_circuit_type, ZkSyncRecursionLayerStorageType,
+        },
+        zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
+    },
     get_current_pod_name, CircuitWrapper, ProverJob, ProverServiceDataKey,
+};
+use zksync_types::{
+    basic_fri_types::CircuitIdRoundTuple, proofs::AggregationRound,
+    protocol_version::L1VerifierConfig,
 };
 
 use crate::metrics::{CircuitLabels, PROVER_FRI_UTILS_METRICS};
-use zksync_types::proofs::AggregationRound;
-use zksync_types::protocol_version::L1VerifierConfig;
 
 pub mod metrics;
 pub mod socket_utils;

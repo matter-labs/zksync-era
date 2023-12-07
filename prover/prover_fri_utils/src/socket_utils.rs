@@ -1,9 +1,9 @@
-use std::io::copy;
-use std::io::ErrorKind;
-use std::io::Read;
-use std::net::SocketAddr;
-use std::net::TcpStream;
-use std::time::{Duration, Instant};
+use std::{
+    io::{copy, ErrorKind, Read},
+    net::{SocketAddr, TcpStream},
+    time::{Duration, Instant},
+};
+
 use zksync_types::proofs::SocketAddress;
 
 pub fn send_assembly(

@@ -1,27 +1,28 @@
 #[cfg(feature = "gpu")]
 pub mod gpu_socket_listener {
+    use std::{net::SocketAddr, time::Instant};
+
+    use anyhow::Context as _;
     use shivini::synthesis_utils::{
         init_base_layer_cs_for_repeated_proving, init_recursive_layer_cs_for_repeated_proving,
     };
-    use std::net::SocketAddr;
-    use std::time::Instant;
+    use tokio::{
+        io::copy,
+        net::{TcpListener, TcpStream},
+        sync::watch,
+    };
     use zksync_dal::ConnectionPool;
-    use zksync_types::proofs::AggregationRound;
-    use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
+    use zksync_object_store::bincode;
+    use zksync_prover_fri_types::{CircuitWrapper, ProverServiceDataKey, WitnessVectorArtifacts};
+    use zksync_types::proofs::{AggregationRound, GpuProverInstanceStatus, SocketAddress};
     use zksync_vk_setup_data_server_fri::{
         get_finalization_hints, get_round_for_recursive_circuit_type,
     };
 
-    use crate::metrics::METRICS;
-    use crate::utils::{GpuProverJob, ProvingAssembly, SharedWitnessVectorQueue};
-    use anyhow::Context as _;
-    use tokio::sync::watch;
-    use tokio::{
-        io::copy,
-        net::{TcpListener, TcpStream},
+    use crate::{
+        metrics::METRICS,
+        utils::{GpuProverJob, ProvingAssembly, SharedWitnessVectorQueue},
     };
-    use zksync_object_store::bincode;
-    use zksync_prover_fri_types::{CircuitWrapper, ProverServiceDataKey, WitnessVectorArtifacts};
 
     pub(crate) struct SocketListener {
         address: SocketAddress,

@@ -1,6 +1,13 @@
 //! Tying the Merkle tree implementation to the problem domain.
 
 use rayon::{ThreadPool, ThreadPoolBuilder};
+use zksync_crypto::hasher::blake2::Blake2Hasher;
+use zksync_storage::RocksDB;
+use zksync_types::{
+    proofs::{PrepareBasicCircuitsJob, StorageLogMetadata},
+    writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
+    L1BatchNumber, StorageKey, U256,
+};
 use zksync_utils::h256_to_u256;
 
 use crate::{
@@ -10,13 +17,6 @@ use crate::{
         TREE_DEPTH,
     },
     BlockOutput, HashTree, MerkleTree, NoVersionError,
-};
-use zksync_crypto::hasher::blake2::Blake2Hasher;
-use zksync_storage::RocksDB;
-use zksync_types::{
-    proofs::{PrepareBasicCircuitsJob, StorageLogMetadata},
-    writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
-    L1BatchNumber, StorageKey, U256,
 };
 
 /// Metadata for the current tree state.

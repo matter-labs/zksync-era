@@ -2,8 +2,7 @@ use anyhow::Context as _;
 use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_protobuf::{read_required, ProtoFmt};
-use zksync_types::api::en;
-use zksync_types::{Address, L1BatchNumber, MiniblockNumber, Transaction, H160, H256};
+use zksync_types::{api::en, Address, L1BatchNumber, MiniblockNumber, Transaction, H160, H256};
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct StorageSyncBlock {
@@ -133,9 +132,10 @@ impl ProtoFmt for ConsensusBlockFields {
 
 #[cfg(test)]
 mod tests {
-    use super::ConsensusBlockFields;
     use rand::Rng;
     use zksync_consensus_roles::validator;
+
+    use super::ConsensusBlockFields;
 
     #[tokio::test]
     async fn encode_decode() {

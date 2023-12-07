@@ -2,16 +2,14 @@ use std::{collections::HashMap, fs::read_to_string, path::PathBuf, str::FromStr}
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-
-use zksync_types::network::Network;
 use zksync_types::{
+    network::Network,
     tokens::{TokenMetadata, ETHEREUM_ADDRESS},
     Address,
 };
 
-use crate::data_fetchers::error::ApiFetchError;
-
 use super::FetcherImpl;
+use crate::data_fetchers::error::ApiFetchError;
 
 #[derive(Debug, Clone)]
 pub struct MockTokenListFetcher {

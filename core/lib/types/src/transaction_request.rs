@@ -1,17 +1,15 @@
-// Built-in uses
 use std::convert::{TryFrom, TryInto};
 
-// External uses
 use rlp::{DecoderError, Rlp, RlpStream};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use zksync_basic_types::H256;
-
 use zksync_system_constants::{MAX_GAS_PER_PUBDATA_BYTE, USED_BOOTLOADER_MEMORY_BYTES};
-use zksync_utils::bytecode::{hash_bytecode, validate_bytecode, InvalidBytecodeError};
-use zksync_utils::{concat_and_hash, u256_to_h256};
+use zksync_utils::{
+    bytecode::{hash_bytecode, validate_bytecode, InvalidBytecodeError},
+    concat_and_hash, u256_to_h256,
+};
 
-// Local uses
 use super::{EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE};
 use crate::{
     fee::Fee,
@@ -947,13 +945,14 @@ pub fn validate_factory_deps(
 
 #[cfg(test)]
 mod tests {
+    use secp256k1::SecretKey;
+
     use super::*;
     use crate::web3::{
         api::Namespace,
         transports::test::TestTransport,
         types::{TransactionParameters, H256, U256},
     };
-    use secp256k1::SecretKey;
 
     #[tokio::test]
     async fn decode_real_tx() {

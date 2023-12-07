@@ -1,15 +1,19 @@
 use std::collections::HashMap;
 
-use zk_evm_1_4_0::aux_structures::Timestamp;
-use zk_evm_1_4_0::vm_state::VmLocalState;
+use zk_evm_1_4_0::{aux_structures::Timestamp, vm_state::VmLocalState};
 use zksync_state::WriteStorage;
-
 use zksync_types::{StorageKey, StorageLogQuery, StorageValue, U256};
 
-use crate::vm_latest::old_vm::event_sink::InMemoryEventSink;
-use crate::vm_latest::old_vm::history_recorder::{AppDataFrameManagerWithHistory, HistoryRecorder};
-use crate::vm_latest::{HistoryEnabled, HistoryMode, SimpleMemory, Vm};
-use crate::HistoryMode as CommonHistoryMode;
+use crate::{
+    vm_latest::{
+        old_vm::{
+            event_sink::InMemoryEventSink,
+            history_recorder::{AppDataFrameManagerWithHistory, HistoryRecorder},
+        },
+        HistoryEnabled, HistoryMode, SimpleMemory, Vm,
+    },
+    HistoryMode as CommonHistoryMode,
+};
 
 #[derive(Clone, Debug)]
 pub(crate) struct ModifiedKeysMap(HashMap<StorageKey, StorageValue>);

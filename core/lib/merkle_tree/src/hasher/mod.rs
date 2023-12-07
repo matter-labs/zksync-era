@@ -1,11 +1,9 @@
 //! Hashing operations on the Merkle tree.
 
-use once_cell::sync::Lazy;
-
 use std::{fmt, iter};
 
-mod nodes;
-mod proofs;
+use once_cell::sync::Lazy;
+use zksync_crypto::hasher::{blake2::Blake2Hasher, Hasher};
 
 pub(crate) use self::nodes::{InternalNodeCache, MerklePath};
 pub use self::proofs::TreeRangeDigest;
@@ -13,7 +11,9 @@ use crate::{
     metrics::HashingStats,
     types::{TreeEntry, ValueHash, TREE_DEPTH},
 };
-use zksync_crypto::hasher::{blake2::Blake2Hasher, Hasher};
+
+mod nodes;
+mod proofs;
 
 /// Tree hashing functionality.
 pub trait HashTree: Send + Sync {
@@ -222,9 +222,10 @@ impl HasherWithStats<'_> {
 
 #[cfg(test)]
 mod tests {
+    use zksync_types::{AccountTreeId, Address, StorageKey, H256};
+
     use super::*;
     use crate::types::LeafNode;
-    use zksync_types::{AccountTreeId, Address, StorageKey, H256};
 
     #[test]
     fn empty_tree_hash_is_as_expected() {
