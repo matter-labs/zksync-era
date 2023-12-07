@@ -13,7 +13,6 @@ use crate::metadata_calculator::tests::{
 #[tokio::test]
 async fn merkle_tree_api() {
     let pool = ConnectionPool::test_pool().await;
-    let prover_pool = ConnectionPool::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
     let api_addr = (Ipv4Addr::LOCALHOST, 0).into();
@@ -28,7 +27,7 @@ async fn merkle_tree_api() {
 
     reset_db_state(&pool, 5).await;
     // Wait until the calculator processes initial L1 batches.
-    run_calculator(calculator, pool, prover_pool).await;
+    run_calculator(calculator, pool).await;
 
     // Query the API.
     let tree_info = api_client.get_info().await.unwrap();
