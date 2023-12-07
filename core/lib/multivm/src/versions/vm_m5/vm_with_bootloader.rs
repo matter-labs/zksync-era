@@ -12,7 +12,6 @@ use zk_evm_1_3_1::{
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::MAX_TXS_IN_BLOCK;
-
 use zksync_types::{
     zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address, Transaction, BOOTLOADER_ADDRESS,
     L1_GAS_PER_PUBDATA_BYTE, MAX_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
@@ -21,16 +20,15 @@ use zksync_utils::{
     address_to_u256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, misc::ceil_div,
 };
 
-use crate::vm_m5::storage::Storage;
 use crate::vm_m5::{
     bootloader_state::BootloaderState,
     oracles::OracleWithHistory,
+    storage::Storage,
     transaction_data::TransactionData,
     utils::{
         code_page_candidate_from_base, heap_page_from_base, BLOCK_GAS_LIMIT, INITIAL_BASE_PAGE,
     },
-    vm_instance::VmInstance,
-    vm_instance::{MultiVMSubversion, ZkSyncVmState},
+    vm_instance::{MultiVMSubversion, VmInstance, ZkSyncVmState},
     OracleTools,
 };
 

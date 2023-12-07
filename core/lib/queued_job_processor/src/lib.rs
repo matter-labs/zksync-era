@@ -1,15 +1,13 @@
-use std::fmt::Debug;
-use std::time::{Duration, Instant};
+use std::{
+    fmt::Debug,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context as _;
 pub use async_trait::async_trait;
-use tokio::sync::watch;
-use tokio::task::JoinHandle;
-use tokio::time::sleep;
-
-use zksync_utils::panic_extractor::try_extract_panic_message;
-
+use tokio::{sync::watch, task::JoinHandle, time::sleep};
 use vise::{Buckets, Counter, Histogram, LabeledFamily, Metrics};
+use zksync_utils::panic_extractor::try_extract_panic_message;
 
 const ATTEMPT_BUCKETS: Buckets = Buckets::exponential(1.0..=64.0, 2.0);
 

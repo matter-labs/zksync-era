@@ -1,10 +1,10 @@
 use std::convert::TryInto;
 
-use crate::H256;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{Address, U256};
 
 pub(crate) use self::compression::{compress_with_best_strategy, COMPRESSION_VERSION_NUMBER};
+use crate::H256;
 
 pub mod compression;
 
@@ -184,12 +184,13 @@ fn prepend_header(compressed_state_diffs: Vec<u8>) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
-    use std::ops::{Add, Sub};
-    use std::str::FromStr;
+    use std::{
+        ops::{Add, Sub},
+        str::FromStr,
+    };
 
     use super::*;
-    use crate::commitment::serialize_commitments;
-    use crate::{H256, U256};
+    use crate::{commitment::serialize_commitments, H256, U256};
 
     #[test]
     fn calculate_hash_for_storage_writes() {

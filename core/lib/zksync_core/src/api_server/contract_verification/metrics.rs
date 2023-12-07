@@ -1,8 +1,8 @@
 //! Metrics for contract verification.
 
-use vise::{Buckets, Histogram, LabeledFamily, Metrics};
-
 use std::time::Duration;
+
+use vise::{Buckets, Histogram, LabeledFamily, Metrics};
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "api_contract_verification")]

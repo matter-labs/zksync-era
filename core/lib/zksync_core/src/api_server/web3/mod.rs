@@ -1,16 +1,17 @@
+use std::{net::SocketAddr, sync::Arc, time::Duration};
+
 use anyhow::Context as _;
+use chrono::NaiveDateTime;
 use futures::future;
 use jsonrpc_core::MetaIoHandler;
 use jsonrpc_http_server::hyper;
 use jsonrpc_pubsub::PubSubHandler;
 use serde::Deserialize;
-use tokio::sync::{mpsc, oneshot, watch, Mutex};
+use tokio::{
+    sync::{mpsc, oneshot, watch, Mutex},
+    task::JoinHandle,
+};
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
-
-use chrono::NaiveDateTime;
-use std::{net::SocketAddr, sync::Arc, time::Duration};
-use tokio::task::JoinHandle;
-
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{api, MiniblockNumber};
@@ -27,6 +28,23 @@ use zksync_web3_decl::{
     types::Filter,
 };
 
+use self::{
+    backend_jsonrpc::{
+        batch_limiter_middleware::{LimitMiddleware, Transport},
+        error::internal_error,
+        namespaces::{
+            debug::DebugNamespaceT, en::EnNamespaceT, eth::EthNamespaceT, net::NetNamespaceT,
+            web3::Web3NamespaceT, zks::ZksNamespaceT,
+        },
+        pub_sub::Web3PubSub,
+    },
+    metrics::API_METRICS,
+    namespaces::{
+        DebugNamespace, EnNamespace, EthNamespace, NetNamespace, Web3Namespace, ZksNamespace,
+    },
+    pubsub::{EthSubscribe, PubSubEvent},
+    state::{Filters, InternalApiConfig, RpcState, SealedMiniblockNumber},
+};
 use crate::{
     api_server::{
         execution_sandbox::VmConcurrencyBarrier, tree::TreeApiHttpClient, tx_sender::TxSender,
@@ -44,22 +62,6 @@ mod pubsub;
 pub mod state;
 #[cfg(test)]
 pub(crate) mod tests;
-
-use self::backend_jsonrpc::{
-    batch_limiter_middleware::{LimitMiddleware, Transport},
-    error::internal_error,
-    namespaces::{
-        debug::DebugNamespaceT, en::EnNamespaceT, eth::EthNamespaceT, net::NetNamespaceT,
-        web3::Web3NamespaceT, zks::ZksNamespaceT,
-    },
-    pub_sub::Web3PubSub,
-};
-use self::metrics::API_METRICS;
-use self::namespaces::{
-    DebugNamespace, EnNamespace, EthNamespace, NetNamespace, Web3Namespace, ZksNamespace,
-};
-use self::pubsub::{EthSubscribe, PubSubEvent};
-use self::state::{Filters, InternalApiConfig, RpcState, SealedMiniblockNumber};
 
 /// Timeout for graceful shutdown logic within API servers.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);

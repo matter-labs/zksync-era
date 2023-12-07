@@ -1,7 +1,7 @@
-use crate::get_loadnext_contract;
-use ethabi::ethereum_types::U256;
-use ethabi::{Bytes, Token};
+use ethabi::{ethereum_types::U256, Bytes, Token};
 use serde::Deserialize;
+
+use crate::get_loadnext_contract;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct LoadnextContractExecutionParams {

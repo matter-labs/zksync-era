@@ -1,19 +1,11 @@
-mod types;
-mod vm_latest;
-mod vm_refunds_enhancement;
-mod vm_virtual_blocks;
-
-use std::sync::Arc;
-use std::{collections::HashSet, marker::PhantomData};
+use std::{collections::HashSet, marker::PhantomData, sync::Arc};
 
 use once_cell::sync::OnceCell;
-
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::{
     ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS,
     L2_ETH_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
 };
-
 use zksync_types::{
     vm_trace::ViolatedValidationRule, web3::signing::keccak256, AccountTreeId, Address, StorageKey,
     H256, U256,
@@ -22,6 +14,11 @@ use zksync_utils::{be_bytes_to_safe_address, u256_to_account_address, u256_to_h2
 
 use crate::tracers::validator::types::{NewTrustedValidationItems, ValidationTracerMode};
 pub use crate::tracers::validator::types::{ValidationError, ValidationTracerParams};
+
+mod types;
+mod vm_latest;
+mod vm_refunds_enhancement;
+mod vm_virtual_blocks;
 
 /// Tracer that is used to ensure that the validation adheres to all the rules
 /// to prevent DDoS attacks on the server.

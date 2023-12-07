@@ -1,4 +1,5 @@
 use std::time::Duration;
+
 use vise::{Buckets, Counter, Histogram, LabeledFamily, Metrics};
 
 const PROVER_LATENCY_BUCKETS: Buckets = Buckets::values(&[

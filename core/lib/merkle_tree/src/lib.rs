@@ -46,6 +46,23 @@
     clippy::doc_markdown // frequent false positive: RocksDB
 )]
 
+use zksync_crypto::hasher::blake2::Blake2Hasher;
+
+pub use crate::{
+    errors::NoVersionError,
+    hasher::{HashTree, TreeRangeDigest},
+    pruning::{MerkleTreePruner, MerkleTreePrunerHandle},
+    storage::{
+        Database, MerkleTreeColumnFamily, PatchSet, Patched, PruneDatabase, PrunePatchSet,
+        RocksDBWrapper,
+    },
+    types::{
+        BlockOutput, BlockOutputWithProofs, Key, TreeEntry, TreeEntryWithProof, TreeInstruction,
+        TreeLogEntry, TreeLogEntryWithProof, ValueHash,
+    },
+};
+use crate::{hasher::HasherWithStats, storage::Storage, types::Root};
+
 mod consistency;
 pub mod domain;
 mod errors;
@@ -68,23 +85,6 @@ pub mod unstable {
         types::{Manifest, Node, NodeKey, Root},
     };
 }
-
-pub use crate::{
-    errors::NoVersionError,
-    hasher::{HashTree, TreeRangeDigest},
-    pruning::{MerkleTreePruner, MerkleTreePrunerHandle},
-    storage::{
-        Database, MerkleTreeColumnFamily, PatchSet, Patched, PruneDatabase, PrunePatchSet,
-        RocksDBWrapper,
-    },
-    types::{
-        BlockOutput, BlockOutputWithProofs, Key, TreeEntry, TreeEntryWithProof, TreeInstruction,
-        TreeLogEntry, TreeLogEntryWithProof, ValueHash,
-    },
-};
-
-use crate::{hasher::HasherWithStats, storage::Storage, types::Root};
-use zksync_crypto::hasher::blake2::Blake2Hasher;
 
 /// Binary Merkle tree implemented using AR16MT from Diem [Jellyfish Merkle tree] white paper.
 ///

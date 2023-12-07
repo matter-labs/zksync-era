@@ -1,13 +1,13 @@
 //! General-purpose RocksDB metrics. All metrics code in the crate should be in this module.
 
-use once_cell::sync::Lazy;
-use vise::{Buckets, Collector, Counter, EncodeLabelSet, Family, Gauge, Histogram, Metrics, Unit};
-
 use std::{
     collections::HashMap,
     sync::{Mutex, Weak},
     time::Duration,
 };
+
+use once_cell::sync::Lazy;
+use vise::{Buckets, Collector, Counter, EncodeLabelSet, Family, Gauge, Histogram, Metrics, Unit};
 
 use crate::db::RocksDBInner;
 

@@ -1,9 +1,13 @@
-use crate::instrument::InstrumentExt;
-use crate::time_utils::{duration_to_naive_time, pg_interval_from_duration};
-use crate::StorageProcessor;
-use sqlx::postgres::types::PgInterval;
 use std::time::{Duration, Instant};
+
+use sqlx::postgres::types::PgInterval;
 use zksync_types::L1BatchNumber;
+
+use crate::{
+    instrument::InstrumentExt,
+    time_utils::{duration_to_naive_time, pg_interval_from_duration},
+    StorageProcessor,
+};
 
 #[derive(Debug)]
 pub struct BasicWitnessInputProducerDal<'a, 'c> {

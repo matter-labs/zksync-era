@@ -1,7 +1,7 @@
+use std::time::Duration;
+
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
-
-use std::time::Duration;
 
 /// Mode of operation for the Merkle tree.
 ///

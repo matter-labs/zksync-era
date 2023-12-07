@@ -10,8 +10,10 @@ use std::collections::HashMap;
 
 use itertools::Itertools;
 use zk_evm_1_3_3::{aux_structures::Timestamp, vm_state::VmLocalState};
-use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
-use zksync_contracts::{deployer_contract, get_loadnext_contract, load_contract};
+use zksync_contracts::{
+    deployer_contract, get_loadnext_contract, load_contract,
+    test_contracts::LoadnextContractExecutionParams,
+};
 use zksync_state::WriteStorage;
 use zksync_types::{
     ethabi::{Address, Token},

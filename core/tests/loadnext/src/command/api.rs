@@ -1,6 +1,5 @@
 use num::Integer;
 use rand::RngCore;
-
 use zksync::EthNamespaceClient;
 use zksync_types::api;
 
