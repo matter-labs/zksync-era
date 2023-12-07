@@ -5,12 +5,11 @@ use zksync_protobuf::{read_required, ProtoFmt};
 use zksync_types::{api::en, Address, L1BatchNumber, MiniblockNumber, Transaction, H160, H256};
 
 #[derive(Debug, Clone, sqlx::FromRow)]
-pub struct StorageSyncBlock {
+pub(crate) struct StorageSyncBlock {
     pub number: i64,
     pub l1_batch_number: i64,
     pub last_batch_miniblock: Option<i64>,
     pub timestamp: i64,
-    pub root_hash: Option<Vec<u8>>,
     // L1 gas price assumed in the corresponding batch
     pub l1_gas_price: i64,
     // L2 gas price assumed in the corresponding batch
@@ -48,11 +47,6 @@ impl StorageSyncBlock {
                 .map(|n| n == self.number)
                 .unwrap_or(false),
             timestamp: self.timestamp.try_into().context("timestamp")?,
-            root_hash: self
-                .root_hash
-                .map(|h| parse_h256(&h))
-                .transpose()
-                .context("root_hash")?,
             l1_gas_price: self.l1_gas_price.try_into().context("l1_gas_price")?,
             l2_fair_gas_price: self
                 .l2_fair_gas_price
@@ -106,22 +100,25 @@ pub struct ConsensusBlockFields {
 }
 
 impl ConsensusBlockFields {
+    pub fn decode(src: &en::ConsensusBlockFields) -> anyhow::Result<Self> {
+        zksync_protobuf::decode(&src.0 .0)
+    }
+
     pub fn encode(&self) -> en::ConsensusBlockFields {
         en::ConsensusBlockFields(zksync_protobuf::encode(self).into())
-    }
-    pub fn decode(x: &en::ConsensusBlockFields) -> anyhow::Result<Self> {
-        zksync_protobuf::decode(&x.0 .0)
     }
 }
 
 impl ProtoFmt for ConsensusBlockFields {
     type Proto = crate::models::proto::ConsensusBlockFields;
+
     fn read(r: &Self::Proto) -> anyhow::Result<Self> {
         Ok(Self {
             parent: read_required(&r.parent).context("parent")?,
             justification: read_required(&r.justification).context("justification")?,
         })
     }
+
     fn build(&self) -> Self::Proto {
         Self::Proto {
             parent: Some(self.parent.build()),

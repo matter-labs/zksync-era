@@ -27,7 +27,6 @@ impl SyncDal<'_, '_> {
                 COALESCE(miniblocks.l1_batch_number, (SELECT (max(number) + 1) FROM l1_batches)) as \"l1_batch_number!\", \
                 (SELECT max(m2.number) FROM miniblocks m2 WHERE miniblocks.l1_batch_number = m2.l1_batch_number) as \"last_batch_miniblock?\", \
                 miniblocks.timestamp, \
-                miniblocks.hash as \"root_hash?\", \
                 miniblocks.l1_gas_price, \
                 miniblocks.l2_fair_gas_price, \
                 miniblocks.bootloader_code_hash, \
@@ -47,30 +46,28 @@ impl SyncDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await?;
 
-        let res = if let Some(storage_block_details) = storage_block_details {
-            let transactions = if include_transactions {
-                let block_transactions = sqlx::query_as!(
-                    StorageTransaction,
-                    r#"SELECT * FROM transactions WHERE miniblock_number = $1 ORDER BY index_in_block"#,
-                    block_number.0 as i64
-                )
-                .instrument("sync_dal_sync_block.transactions")
-                .with_arg("block_number", &block_number)
-                .fetch_all(self.storage.conn())
-                .await?
-                .into_iter()
-                .map(Transaction::from)
-                .collect();
-                Some(block_transactions)
-            } else {
-                None
-            };
-            Some(storage_block_details.into_sync_block(current_operator_address, transactions)?)
+        let Some(storage_block_details) = storage_block_details else {
+            return Ok(None);
+        };
+        let transactions = if include_transactions {
+            let transactions = sqlx::query_as!(
+                StorageTransaction,
+                r#"SELECT * FROM transactions WHERE miniblock_number = $1 ORDER BY index_in_block"#,
+                block_number.0 as i64
+            )
+            .instrument("sync_dal_sync_block.transactions")
+            .with_arg("block_number", &block_number)
+            .fetch_all(self.storage.conn())
+            .await?;
+
+            Some(transactions.into_iter().map(Transaction::from).collect())
         } else {
             None
         };
 
+        let block =
+            storage_block_details.into_sync_block(current_operator_address, transactions)?;
         drop(latency);
-        Ok(res)
+        Ok(Some(block))
     }
 }
