@@ -1,6 +1,6 @@
-use zk_evm_1_4_0::abstractions::Memory;
-use zk_evm_1_4_0::tracing::{
-    AfterDecodingData, AfterExecutionData, BeforeExecutionData, VmLocalStateData,
+use zk_evm_1_4_0::{
+    abstractions::Memory,
+    tracing::{AfterDecodingData, AfterExecutionData, BeforeExecutionData, VmLocalStateData},
 };
 use zksync_state::StoragePtr;
 

@@ -1,8 +1,9 @@
-use crate::HistoryMode;
 use zksync_state::WriteStorage;
 
-use crate::vm_latest::tracers::DefaultExecutionTracer;
-use crate::vm_latest::vm::Vm;
+use crate::{
+    vm_latest::{tracers::DefaultExecutionTracer, vm::Vm},
+    HistoryMode,
+};
 
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     /// Returns the amount of gas remaining to the VM.

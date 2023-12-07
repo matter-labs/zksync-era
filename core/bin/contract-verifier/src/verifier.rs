@@ -1,7 +1,9 @@
-use std::collections::HashMap;
-use std::env;
-use std::path::Path;
-use std::time::{Duration, Instant};
+use std::{
+    collections::HashMap,
+    env,
+    path::Path,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context as _;
 use chrono::Utc;
@@ -9,7 +11,6 @@ use ethabi::{Contract, Token};
 use lazy_static::lazy_static;
 use regex::Regex;
 use tokio::time;
-
 use zksync_config::ContractVerifierConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_env_config::FromEnv;
@@ -22,11 +23,11 @@ use zksync_types::{
     Address,
 };
 
-use crate::error::ContractVerifierError;
-use crate::zksolc_utils::{
-    Optimizer, Settings, Source, StandardJson, ZkSolc, ZkSolcInput, ZkSolcOutput,
+use crate::{
+    error::ContractVerifierError,
+    zksolc_utils::{Optimizer, Settings, Source, StandardJson, ZkSolc, ZkSolcInput, ZkSolcOutput},
+    zkvyper_utils::{ZkVyper, ZkVyperInput},
 };
-use crate::zkvyper_utils::{ZkVyper, ZkVyperInput};
 
 lazy_static! {
     static ref DEPLOYER_CONTRACT: Contract = zksync_contracts::deployer_contract();

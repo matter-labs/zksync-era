@@ -1,15 +1,13 @@
 use assert_matches::assert_matches;
-
 use zksync_dal::ConnectionPool;
+use zksync_test_account::Account;
 use zksync_types::PriorityOpId;
-
-mod tester;
 
 use self::tester::Tester;
 use super::TxExecutionResult;
 use crate::state_keeper::batch_executor::tests::tester::{AccountLoadNextExecutable, TestConfig};
 
-use zksync_test_account::Account;
+mod tester;
 
 /// Ensures that the transaction was executed successfully.
 fn assert_executed(execution_result: &TxExecutionResult) {

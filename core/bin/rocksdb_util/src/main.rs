@@ -1,6 +1,5 @@
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
-
 use zksync_config::DBConfig;
 use zksync_env_config::FromEnv;
 use zksync_storage::rocksdb::{
@@ -57,8 +56,9 @@ fn main() -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use tempfile::TempDir;
+
+    use super::*;
 
     #[test]
     fn backup_restore_workflow() {

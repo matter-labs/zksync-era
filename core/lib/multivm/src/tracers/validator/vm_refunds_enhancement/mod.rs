@@ -2,31 +2,30 @@ use zk_evm_1_3_3::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{ContextOpcode, FarCallABI, LogOpcode, Opcode},
 };
-
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::KECCAK256_PRECOMPILE_ADDRESS;
-
-use crate::HistoryMode;
 use zksync_types::{
     get_code_key, vm_trace::ViolatedValidationRule, AccountTreeId, StorageKey, H256,
 };
 use zksync_utils::{h256_to_account_address, u256_to_account_address, u256_to_h256};
 
-use crate::interface::{
-    traits::tracers::dyn_tracers::vm_1_3_3::DynTracer,
-    types::tracer::{TracerExecutionStatus, TracerExecutionStopReason},
-    Halt,
-};
-use crate::tracers::validator::{
-    types::{NewTrustedValidationItems, ValidationTracerMode},
-    {ValidationRoundResult, ValidationTracer},
-};
-
-use crate::vm_refunds_enhancement::{
-    tracers::utils::{
-        computational_gas_price, get_calldata_page_via_abi, print_debug_if_needed, VmHook,
+use crate::{
+    interface::{
+        traits::tracers::dyn_tracers::vm_1_3_3::DynTracer,
+        types::tracer::{TracerExecutionStatus, TracerExecutionStopReason},
+        Halt,
     },
-    BootloaderState, SimpleMemory, VmTracer, ZkSyncVmState,
+    tracers::validator::{
+        types::{NewTrustedValidationItems, ValidationTracerMode},
+        ValidationRoundResult, ValidationTracer,
+    },
+    vm_refunds_enhancement::{
+        tracers::utils::{
+            computational_gas_price, get_calldata_page_via_abi, print_debug_if_needed, VmHook,
+        },
+        BootloaderState, SimpleMemory, VmTracer, ZkSyncVmState,
+    },
+    HistoryMode,
 };
 
 impl<H: HistoryMode> ValidationTracer<H> {

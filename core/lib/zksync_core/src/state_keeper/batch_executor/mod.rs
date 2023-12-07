@@ -1,13 +1,6 @@
-use async_trait::async_trait;
-use once_cell::sync::OnceCell;
-use tokio::{
-    sync::{mpsc, oneshot},
-    task::JoinHandle,
-};
-
-use multivm::MultiVMTracer;
 use std::{fmt, sync::Arc};
 
+use async_trait::async_trait;
 use multivm::{
     interface::{
         ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
@@ -15,15 +8,17 @@ use multivm::{
     },
     tracers::CallTracer,
     vm_latest::HistoryEnabled,
-    VmInstance,
+    MultiVMTracer, VmInstance,
+};
+use once_cell::sync::OnceCell;
+use tokio::{
+    sync::{mpsc, oneshot},
+    task::JoinHandle,
 };
 use zksync_dal::ConnectionPool;
 use zksync_state::{RocksdbStorage, StorageView, WriteStorage};
 use zksync_types::{vm_trace::Call, witness_block_state::WitnessBlockState, Transaction, U256};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
-
-#[cfg(test)]
-mod tests;
 
 use crate::{
     gas_tracker::{gas_count_from_metrics, gas_count_from_tx_and_metrics},
@@ -33,6 +28,9 @@ use crate::{
         types::ExecutionMetricsForCriteria,
     },
 };
+
+#[cfg(test)]
+mod tests;
 
 /// Representation of a transaction executed in the virtual machine.
 #[derive(Debug, Clone)]

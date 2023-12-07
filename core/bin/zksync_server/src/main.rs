@@ -1,8 +1,7 @@
-use anyhow::Context as _;
-use clap::Parser;
-
 use std::{str::FromStr, time::Duration};
 
+use anyhow::Context as _;
+use clap::Parser;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
@@ -18,11 +17,9 @@ use zksync_config::{
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
     FetcherConfig, GasAdjusterConfig, ObjectStoreConfig, PostgresConfig, ProverConfigs,
 };
-
-use zksync_core::temp_config_store::TempConfigStore;
 use zksync_core::{
-    genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler, Component,
-    Components,
+    genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
+    temp_config_store::TempConfigStore, Component, Components,
 };
 use zksync_env_config::FromEnv;
 use zksync_storage::RocksDB;

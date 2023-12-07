@@ -258,9 +258,10 @@ impl Node {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use zksync_crypto::hasher::{blake2::Blake2Hasher, Hasher};
     use zksync_types::H256;
+
+    use super::*;
 
     fn test_internal_node_hashing(child_indexes: &[u8]) {
         println!("Testing indices: {child_indexes:?}");

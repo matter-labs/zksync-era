@@ -1,11 +1,7 @@
-/// External uses
+use std::{str::FromStr, time::Duration};
+
 use serde::Deserialize;
-use std::str::FromStr;
-/// Built-in uses
-use std::time::Duration;
-// Local uses
-use zksync_basic_types::network::Network;
-use zksync_basic_types::{Address, L2ChainId};
+use zksync_basic_types::{network::Network, Address, L2ChainId};
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ChainConfig {

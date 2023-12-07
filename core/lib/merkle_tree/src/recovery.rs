@@ -37,13 +37,14 @@
 
 use std::time::Instant;
 
+use zksync_crypto::hasher::blake2::Blake2Hasher;
+
 use crate::{
     hasher::{HashTree, HasherWithStats},
     storage::{PatchSet, PruneDatabase, PrunePatchSet, Storage},
     types::{Key, Manifest, Root, TreeEntry, TreeTags, ValueHash},
     MerkleTree,
 };
-use zksync_crypto::hasher::blake2::Blake2Hasher;
 
 /// Handle to a Merkle tree during its recovery.
 #[derive(Debug)]
