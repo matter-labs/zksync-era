@@ -325,7 +325,7 @@
 //     verify_required_storage(&vm.state, expected_slots);
 //
 //     assert!(!tx_has_failed(&vm.state, 0));
-
+//
 //     let expected_fee =
 //         maximal_fee - U256::from(tx_execution_result.gas_refunded) * U256::from(base_fee);
 //     let operator_balance = get_balance(
