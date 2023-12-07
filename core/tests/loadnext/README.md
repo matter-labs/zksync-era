@@ -18,7 +18,7 @@ The general flow is as follows:
 
 It:
 
-- doesn't care whether the server is alive or not. At worst, it will just consider the test failed.
+- doesn't care whether the server is alive or not. In the worst-case scenario, it will simply mark the test as failed.
 - does a unique set of operations for each participating account.
 - sends transactions and priority operations.
 - sends incorrect transactions as well as correct ones and compares the outcome to the expected one.
