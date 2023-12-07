@@ -1,7 +1,9 @@
 pub use self::{
     bootloader_state::BootloaderState,
     old_vm::{
-        history_recorder::{HistoryDisabled, HistoryEnabled, HistoryMode},
+        history_recorder::{
+            AppDataFrameManagerWithHistory, HistoryDisabled, HistoryEnabled, HistoryMode,
+        },
         memory::SimpleMemory,
     },
     oracles::storage::StorageOracle,

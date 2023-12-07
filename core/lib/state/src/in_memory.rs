@@ -13,7 +13,7 @@ use crate::ReadStorage;
 pub const IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID: u32 = 270;
 
 /// In-memory storage.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct InMemoryStorage {
     pub(crate) state: HashMap<StorageKey, (StorageValue, u64)>,
     pub(crate) factory_deps: HashMap<H256, Vec<u8>>,
@@ -100,6 +100,11 @@ impl InMemoryStorage {
     /// Stores a factory dependency with the specified `hash` and `bytecode`.
     pub fn store_factory_dep(&mut self, hash: H256, bytecode: Vec<u8>) {
         self.factory_deps.insert(hash, bytecode);
+    }
+
+    /// Get internal state of the storage.
+    pub fn get_state(&self) -> &HashMap<StorageKey, (StorageValue, u64)> {
+        &self.state
     }
 }
 
