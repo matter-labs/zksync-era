@@ -1,6 +1,6 @@
 # Installing dependencies
 
-## TL;DR;
+## TL;DR
 
 If you run on 'clean' Debian on GCP:
 
