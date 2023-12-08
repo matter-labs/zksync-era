@@ -166,9 +166,10 @@ impl error::Error for NoVersionError {}
 
 #[cfg(test)]
 mod tests {
+    use zksync_types::U256;
+
     use super::*;
     use crate::{types::Nibbles, Key};
-    use zksync_types::U256;
 
     const TEST_KEY: Key = U256([0, 0, 0, 0x_dead_beef_0000_0000]);
 

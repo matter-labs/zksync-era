@@ -1,12 +1,20 @@
-use crate::interface::{TxExecutionMode, VmExecutionMode, VmInterface};
-use crate::tracers::CallTracer;
-use crate::vm_latest::constants::BLOCK_GAS_LIMIT;
-use crate::vm_latest::tests::tester::VmTesterBuilder;
-use crate::vm_latest::tests::utils::{read_max_depth_contract, read_test_contract};
-use crate::vm_latest::{HistoryEnabled, ToTracerPointer};
-use once_cell::sync::OnceCell;
 use std::sync::Arc;
+
+use once_cell::sync::OnceCell;
 use zksync_types::{Address, Execute};
+
+use crate::{
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    tracers::CallTracer,
+    vm_latest::{
+        constants::BLOCK_GAS_LIMIT,
+        tests::{
+            tester::VmTesterBuilder,
+            utils::{read_max_depth_contract, read_test_contract},
+        },
+        HistoryEnabled, ToTracerPointer,
+    },
+};
 
 // This test is ultra slow, so it's ignored by default.
 #[test]

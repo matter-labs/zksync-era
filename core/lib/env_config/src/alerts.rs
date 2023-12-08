@@ -1,5 +1,6 @@
-use crate::{envy_load, FromEnv};
 use zksync_config::configs::AlertsConfig;
+
+use crate::{envy_load, FromEnv};
 
 impl FromEnv for AlertsConfig {
     fn from_env() -> anyhow::Result<Self> {

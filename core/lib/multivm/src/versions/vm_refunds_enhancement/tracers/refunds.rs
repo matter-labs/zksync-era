@@ -1,5 +1,4 @@
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
-
 use zk_evm_1_3_3::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
@@ -12,27 +11,27 @@ use zksync_types::{
     l2_to_l1_log::L2ToL1Log,
     L1BatchNumber, U256,
 };
-use zksync_utils::bytecode::bytecode_len_in_bytes;
-use zksync_utils::{ceil_div_u256, u256_to_h256};
+use zksync_utils::{bytecode::bytecode_len_in_bytes, ceil_div_u256, u256_to_h256};
 
-use crate::interface::{
-    dyn_tracers::vm_1_3_3::DynTracer, tracer::TracerExecutionStatus, L1BatchEnv, Refunds,
-};
-use crate::vm_refunds_enhancement::constants::{
-    BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET,
-};
-
-use crate::vm_refunds_enhancement::{
-    bootloader_state::BootloaderState,
-    old_vm::{
-        events::merge_events, history_recorder::HistoryMode, memory::SimpleMemory,
-        utils::eth_price_per_pubdata_byte,
+use crate::{
+    interface::{
+        dyn_tracers::vm_1_3_3::DynTracer, tracer::TracerExecutionStatus, L1BatchEnv, Refunds,
     },
-    tracers::{
-        traits::VmTracer,
-        utils::{gas_spent_on_bytecodes_and_long_messages_this_opcode, get_vm_hook_params, VmHook},
+    vm_refunds_enhancement::{
+        bootloader_state::BootloaderState,
+        constants::{BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET},
+        old_vm::{
+            events::merge_events, history_recorder::HistoryMode, memory::SimpleMemory,
+            utils::eth_price_per_pubdata_byte,
+        },
+        tracers::{
+            traits::VmTracer,
+            utils::{
+                gas_spent_on_bytecodes_and_long_messages_this_opcode, get_vm_hook_params, VmHook,
+            },
+        },
+        types::internals::ZkSyncVmState,
     },
-    types::internals::ZkSyncVmState,
 };
 
 /// Tracer responsible for collecting information about refunds.

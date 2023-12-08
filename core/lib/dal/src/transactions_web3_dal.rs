@@ -1,20 +1,22 @@
 use sqlx::types::chrono::NaiveDateTime;
-
 use zksync_types::{
     api, Address, L2ChainId, MiniblockNumber, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256, U256, U64,
 };
 use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
 
-use crate::models::{
-    storage_block::{bind_block_where_sql_params, web3_block_where_sql},
-    storage_event::StorageWeb3Log,
-    storage_transaction::{
-        extract_web3_transaction, web3_transaction_select_sql, StorageTransaction,
-        StorageTransactionDetails,
+use crate::{
+    instrument::InstrumentExt,
+    models::{
+        storage_block::{bind_block_where_sql_params, web3_block_where_sql},
+        storage_event::StorageWeb3Log,
+        storage_transaction::{
+            extract_web3_transaction, web3_transaction_select_sql, StorageTransaction,
+            StorageTransactionDetails,
+        },
     },
+    SqlxError, StorageProcessor,
 };
-use crate::{instrument::InstrumentExt, SqlxError, StorageProcessor};
 
 #[derive(Debug)]
 pub struct TransactionsWeb3Dal<'a, 'c> {

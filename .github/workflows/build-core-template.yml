@@ -53,7 +53,7 @@ jobs:
       - name: start-services
         run: |
           echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
-          docker-compose -f docker-compose-runner.yml up -d zk geth postgres
+          ci_localnet_up
           ci_run sccache --start-server
 
       - name: init
@@ -83,7 +83,7 @@ jobs:
           COMPONENT: ${{ matrix.component }}
         run: |
           ci_run rustup default nightly-2023-08-21
-          ci_run zk docker $DOCKER_ACTION $COMPONENT -- --public
+          ci_run zk docker $DOCKER_ACTION $COMPONENT
       - name: Show sccache stats
         if: always()
         run: |

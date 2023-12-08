@@ -1,10 +1,13 @@
 use zk_evm_1_3_1::zkevm_opcode_defs::system_params::{MAX_PUBDATA_PER_BLOCK, MAX_TX_ERGS_LIMIT};
-use zksync_types::ethabi::{encode, Address, Token};
-use zksync_types::fee::encoding_len;
-use zksync_types::MAX_TXS_IN_BLOCK;
-use zksync_types::{l2::TransactionType, ExecuteTransactionCommon, Transaction, U256};
-use zksync_utils::{address_to_h256, ceil_div_u256};
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
+use zksync_types::{
+    ethabi::{encode, Address, Token},
+    fee::encoding_len,
+    l2::TransactionType,
+    ExecuteTransactionCommon, Transaction, MAX_TXS_IN_BLOCK, U256,
+};
+use zksync_utils::{
+    address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, ceil_div_u256, h256_to_u256,
+};
 
 use crate::vm_m5::vm_with_bootloader::{
     BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA, BOOTLOADER_TX_ENCODING_SPACE,
@@ -225,7 +228,7 @@ pub fn derive_overhead(gas_limit: u32, gas_price_per_pubdata: u32, encoded_len: 
     let gas_price_per_pubdata = U256::from(gas_price_per_pubdata);
     let encoded_len = U256::from(encoded_len);
 
-    // The MAX_TX_ERGS_LIMIT is formed in a way that may fullfills a single-instance circuits
+    // The MAX_TX_ERGS_LIMIT is formed in a way that may fulfills a single-instance circuits
     // if used in full. That is, within MAX_TX_ERGS_LIMIT it is possible to fully saturate all the single-instance
     // circuits.
     let overhead_for_single_instance_circuits =

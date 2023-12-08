@@ -2,7 +2,6 @@ use sqlx::types::{
     chrono::{DateTime, NaiveDateTime, Utc},
     BigDecimal,
 };
-
 use zksync_types::tokens::TokenPrice;
 use zksync_utils::big_decimal_to_ratio;
 

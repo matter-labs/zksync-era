@@ -8,12 +8,16 @@
 //! We can refactor this code and adapt it for our needs better, but I prefer to reuse as much code as we can.
 //! In the case where it will be possible to use only the web3 library without copy-paste, the changes will be small and simple
 //! Link to @Deniallugo's PR to web3: https://github.com/tomusdrw/rust-web3/pull/630
+
 use rlp::RlpStream;
-use zksync_types::web3::{
-    signing::{self, Signature},
-    types::{AccessList, SignedTransaction},
+use zksync_types::{
+    ethabi::Address,
+    web3::{
+        signing::{self, Signature},
+        types::{AccessList, SignedTransaction},
+    },
+    U256, U64,
 };
-use zksync_types::{ethabi::Address, U256, U64};
 
 const LEGACY_TX_ID: u64 = 0;
 const ACCESSLISTS_TX_ID: u64 = 1;

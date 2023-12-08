@@ -1,43 +1,52 @@
-use std::convert::TryFrom;
-use std::fmt::Debug;
+use std::{convert::TryFrom, fmt::Debug};
 
-use zk_evm_1_3_3::aux_structures::Timestamp;
-use zk_evm_1_3_3::vm_state::{PrimitiveValue, VmLocalState, VmState};
-use zk_evm_1_3_3::witness_trace::DummyTracer;
-use zk_evm_1_3_3::zkevm_opcode_defs::decoding::{
-    AllowedPcOrImm, EncodingModeProduction, VmEncodingMode,
+use zk_evm_1_3_3::{
+    aux_structures::Timestamp,
+    vm_state::{PrimitiveValue, VmLocalState, VmState},
+    witness_trace::DummyTracer,
+    zkevm_opcode_defs::{
+        decoding::{AllowedPcOrImm, EncodingModeProduction, VmEncodingMode},
+        definitions::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
+    },
 };
-use zk_evm_1_3_3::zkevm_opcode_defs::definitions::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER;
 use zksync_state::WriteStorage;
 use zksync_system_constants::MAX_TXS_IN_BLOCK;
-use zksync_types::l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log};
-use zksync_types::tx::tx_execution_info::TxExecutionStatus;
-use zksync_types::vm_trace::{Call, VmExecutionTrace, VmTrace};
-use zksync_types::{L1BatchNumber, StorageLogQuery, VmEvent, H256, U256};
+use zksync_types::{
+    l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
+    tx::tx_execution_info::TxExecutionStatus,
+    vm_trace::{Call, VmExecutionTrace, VmTrace},
+    L1BatchNumber, StorageLogQuery, VmEvent, H256, U256,
+};
 
-use crate::interface::types::outputs::VmExecutionLogs;
-use crate::vm_1_3_2::bootloader_state::BootloaderState;
-use crate::vm_1_3_2::errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult};
-use crate::vm_1_3_2::event_sink::InMemoryEventSink;
-use crate::vm_1_3_2::events::merge_events;
-use crate::vm_1_3_2::history_recorder::{HistoryEnabled, HistoryMode};
-use crate::vm_1_3_2::memory::SimpleMemory;
-use crate::vm_1_3_2::oracles::decommitter::DecommitterOracle;
-use crate::vm_1_3_2::oracles::precompile::PrecompilesProcessorWithHistory;
-use crate::vm_1_3_2::oracles::storage::StorageOracle;
-use crate::vm_1_3_2::oracles::tracer::{
-    BootloaderTracer, ExecutionEndTracer, OneTxTracer, PendingRefundTracer, PubdataSpentTracer,
-    StorageInvocationTracer, TransactionResultTracer, ValidationError, ValidationTracer,
-    ValidationTracerParams,
-};
-use crate::vm_1_3_2::oracles::OracleWithHistory;
-use crate::vm_1_3_2::utils::{
-    calculate_computational_gas_used, dump_memory_page_using_primitive_value,
-    precompile_calls_count_after_timestamp,
-};
-use crate::vm_1_3_2::vm_with_bootloader::{
-    BootloaderJobType, DerivedBlockContext, TxExecutionMode, BOOTLOADER_HEAP_PAGE,
-    OPERATOR_REFUNDS_OFFSET,
+use crate::{
+    interface::types::outputs::VmExecutionLogs,
+    vm_1_3_2::{
+        bootloader_state::BootloaderState,
+        errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult},
+        event_sink::InMemoryEventSink,
+        events::merge_events,
+        history_recorder::{HistoryEnabled, HistoryMode},
+        memory::SimpleMemory,
+        oracles::{
+            decommitter::DecommitterOracle,
+            precompile::PrecompilesProcessorWithHistory,
+            storage::StorageOracle,
+            tracer::{
+                BootloaderTracer, ExecutionEndTracer, OneTxTracer, PendingRefundTracer,
+                PubdataSpentTracer, StorageInvocationTracer, TransactionResultTracer,
+                ValidationError, ValidationTracer, ValidationTracerParams,
+            },
+            OracleWithHistory,
+        },
+        utils::{
+            calculate_computational_gas_used, dump_memory_page_using_primitive_value,
+            precompile_calls_count_after_timestamp,
+        },
+        vm_with_bootloader::{
+            BootloaderJobType, DerivedBlockContext, TxExecutionMode, BOOTLOADER_HEAP_PAGE,
+            OPERATOR_REFUNDS_OFFSET,
+        },
+    },
 };
 
 pub type ZkSyncVmState<S, H> = VmState<
@@ -85,7 +94,7 @@ pub struct VmExecutionResult {
     pub l2_to_l1_logs: Vec<L2ToL1Log>,
     pub return_data: Vec<u8>,
 
-    /// Value denoting the amount of gas spent withing VM invocation.
+    /// Value denoting the amount of gas spent within VM invocation.
     /// Note that return value represents the difference between the amount of gas
     /// available to VM before and after execution.
     ///
@@ -364,7 +373,7 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
         }
     }
 
-    /// Removes the latest snapshot without rollbacking to it.
+    /// Removes the latest snapshot without rolling it back.
     /// This function expects that there is at least one snapshot present.
     pub fn pop_snapshot_no_rollback(&mut self) {
         self.snapshots.pop().unwrap();

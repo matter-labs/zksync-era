@@ -1,13 +1,14 @@
-use crate::eth_watch::{
-    client::{Error, EthClient},
-    event_processors::EventProcessor,
-};
-use std::convert::TryFrom;
-use std::time::Instant;
+use std::{convert::TryFrom, time::Instant};
+
 use zksync_dal::StorageProcessor;
 use zksync_types::{
     ethabi::Contract, protocol_version::GovernanceOperation, web3::types::Log, Address,
     ProtocolUpgrade, ProtocolVersionId, H256,
+};
+
+use crate::eth_watch::{
+    client::{Error, EthClient},
+    event_processors::EventProcessor,
 };
 
 /// Listens to operation events coming from the governance contract and saves new protocol upgrade proposals to the database.

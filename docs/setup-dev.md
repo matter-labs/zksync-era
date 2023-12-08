@@ -1,5 +1,34 @@
 # Installing dependencies
 
+## TL;DR
+
+If you run on 'clean' Debian on GCP:
+
+```bash
+# Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+# NVM
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+# All necessary stuff
+sudo apt-get install build-essential pkg-config cmake clang lldb lld libssl-dev postgresql docker-compose
+# Docker
+sudo usermod -aG docker YOUR_USER
+
+## You might need to re-connect (due to usermod change).
+
+# Node & yarn
+nvm install node
+npm install -g yarn
+yarn set version 1.22.19
+
+# SQL tools
+cargo install sqlx-cli --version 0.5.13
+# Stop default postgres (as we'll use the docker one)
+sudo systemctl stop postgresql
+# Start docker.
+sudo systemctl start docker
+```
+
 ## Supported operating systems
 
 zkSync currently can be launched on any \*nix operating system (e.g. any linux distribution or MacOS).
@@ -20,7 +49,7 @@ If you are a NixOS user or would like to have a reproducible environment, skip t
 Install `docker`. It is recommended to follow the instructions from the
 [official site](https://docs.docker.com/install/).
 
-Note: currently official site proposes using Docker Desktop for linux, which is a GUI tool with plenty of quirks. If you
+Note: currently official site proposes using Docker Desktop for Linux, which is a GUI tool with plenty of quirks. If you
 want to only have CLI tool, you need the `docker-ce` package and you can follow
 [this guide](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-20-04) for Ubuntu.
 

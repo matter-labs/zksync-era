@@ -7,10 +7,10 @@ use anyhow::Context as _;
 use zksync_contracts::{read_sys_contract_bytecode, BaseSystemContracts, ContractLanguage};
 use zksync_dal::StorageProcessor;
 use zksync_merkle_tree::domain::ZkSyncTree;
-
 use zksync_types::{
-    block::DeployedContract,
-    block::{legacy_miniblock_hash, BlockGasCount, L1BatchHeader, MiniblockHeader},
+    block::{
+        legacy_miniblock_hash, BlockGasCount, DeployedContract, L1BatchHeader, MiniblockHeader,
+    },
     commitment::{L1BatchCommitment, L1BatchMetadata},
     get_code_key, get_system_context_init_logs,
     protocol_version::{L1VerifierConfig, ProtocolVersion},
@@ -20,8 +20,7 @@ use zksync_types::{
     StorageKey, StorageLog, StorageLogKind, Timestamp, CONTRACT_DEPLOYER_ADDRESS, H256,
     KNOWN_CODES_STORAGE_ADDRESS,
 };
-use zksync_utils::{be_words_to_bytes, h256_to_u256};
-use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
+use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
 use crate::metadata_calculator::L1BatchWithLogs;
 

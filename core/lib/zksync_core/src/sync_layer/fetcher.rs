@@ -1,12 +1,10 @@
-use anyhow::Context as _;
-use tokio::sync::watch;
-
 use std::time::Duration;
 
-use zksync_dal::StorageProcessor;
+use anyhow::Context as _;
+use tokio::sync::watch;
+use zksync_dal::{blocks_dal::ConsensusBlockFields, StorageProcessor};
 use zksync_types::{
-    api::en::SyncBlock, block::ConsensusBlockFields, Address, L1BatchNumber, MiniblockNumber,
-    ProtocolVersionId, H256,
+    api::en::SyncBlock, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId,
 };
 use zksync_web3_decl::jsonrpsee::core::Error as RpcError;
 
@@ -29,7 +27,6 @@ pub(super) struct FetchedBlock {
     pub last_in_batch: bool,
     pub protocol_version: ProtocolVersionId,
     pub timestamp: u64,
-    pub hash: H256,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
     pub virtual_blocks: u32,
@@ -38,24 +35,29 @@ pub(super) struct FetchedBlock {
     pub consensus: Option<ConsensusBlockFields>,
 }
 
-impl FetchedBlock {
-    fn from_sync_block(block: SyncBlock) -> Self {
-        Self {
+impl TryFrom<SyncBlock> for FetchedBlock {
+    type Error = anyhow::Error;
+    fn try_from(block: SyncBlock) -> anyhow::Result<Self> {
+        Ok(Self {
             number: block.number,
             l1_batch_number: block.l1_batch_number,
             last_in_batch: block.last_in_batch,
             protocol_version: block.protocol_version,
             timestamp: block.timestamp,
-            hash: block.hash.unwrap_or_default(),
             l1_gas_price: block.l1_gas_price,
             l2_fair_gas_price: block.l2_fair_gas_price,
             virtual_blocks: block.virtual_blocks.unwrap_or(0),
             operator_address: block.operator_address,
             transactions: block
                 .transactions
-                .expect("Transactions are always requested"),
-            consensus: block.consensus,
-        }
+                .context("Transactions are always requested")?,
+            consensus: block
+                .consensus
+                .as_ref()
+                .map(ConsensusBlockFields::decode)
+                .transpose()
+                .context("ConsensusBlockFields::decode()")?,
+        })
     }
 }
 
@@ -64,7 +66,6 @@ impl FetchedBlock {
 pub struct FetcherCursor {
     // Fields are public for testing purposes.
     pub(super) next_miniblock: MiniblockNumber,
-    pub(super) prev_miniblock_hash: H256,
     pub(super) l1_batch: L1BatchNumber,
 }
 
@@ -93,7 +94,6 @@ impl FetcherCursor {
 
         // Miniblocks are always fully processed.
         let next_miniblock = last_miniblock_header.number + 1;
-        let prev_miniblock_hash = last_miniblock_header.hash;
         // Decide whether the next batch should be explicitly opened or not.
         let l1_batch = if was_new_batch_open {
             // No `OpenBatch` action needed.
@@ -106,7 +106,6 @@ impl FetcherCursor {
         Ok(Self {
             next_miniblock,
             l1_batch,
-            prev_miniblock_hash,
         })
     }
 
@@ -136,7 +135,6 @@ impl FetcherCursor {
                 protocol_version: block.protocol_version,
                 // `block.virtual_blocks` can be `None` only for old VM versions where it's not used, so it's fine to provide any number.
                 first_miniblock_info: (block.number, block.virtual_blocks),
-                prev_miniblock_hash: self.prev_miniblock_hash,
             });
             FETCHER_METRICS.l1_batch[&L1BatchStage::Open].set(block.l1_batch_number.0.into());
             self.l1_batch += 1;
@@ -168,7 +166,6 @@ impl FetcherCursor {
             new_actions.push(SyncAction::SealMiniblock(block.consensus));
         }
         self.next_miniblock += 1;
-        self.prev_miniblock_hash = block.hash;
 
         new_actions
     }
@@ -280,8 +277,7 @@ impl MainNodeFetcher {
         request_latency.observe();
 
         let block_number = block.number;
-        let fetched_block = FetchedBlock::from_sync_block(block);
-        let new_actions = self.cursor.advance(fetched_block);
+        let new_actions = self.cursor.advance(block.try_into()?);
 
         tracing::info!(
             "New miniblock: {block_number} / {}",

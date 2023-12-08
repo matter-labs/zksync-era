@@ -1,16 +1,17 @@
+use std::{net::SocketAddr, sync::Arc, time::Duration};
+
 use anyhow::Context as _;
+use chrono::NaiveDateTime;
 use futures::future;
 use jsonrpc_core::MetaIoHandler;
 use jsonrpc_http_server::hyper;
 use jsonrpc_pubsub::PubSubHandler;
 use serde::Deserialize;
-use tokio::sync::{oneshot, watch, Mutex};
+use tokio::{
+    sync::{mpsc, oneshot, watch, Mutex},
+    task::JoinHandle,
+};
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
-
-use chrono::NaiveDateTime;
-use std::{net::SocketAddr, sync::Arc, time::Duration};
-use tokio::task::JoinHandle;
-
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{api, MiniblockNumber};
@@ -27,6 +28,23 @@ use zksync_web3_decl::{
     types::Filter,
 };
 
+use self::{
+    backend_jsonrpc::{
+        batch_limiter_middleware::{LimitMiddleware, Transport},
+        error::internal_error,
+        namespaces::{
+            debug::DebugNamespaceT, en::EnNamespaceT, eth::EthNamespaceT, net::NetNamespaceT,
+            web3::Web3NamespaceT, zks::ZksNamespaceT,
+        },
+        pub_sub::Web3PubSub,
+    },
+    metrics::API_METRICS,
+    namespaces::{
+        DebugNamespace, EnNamespace, EthNamespace, NetNamespace, Web3Namespace, ZksNamespace,
+    },
+    pubsub::{EthSubscribe, PubSubEvent},
+    state::{Filters, InternalApiConfig, RpcState, SealedMiniblockNumber},
+};
 use crate::{
     api_server::{
         execution_sandbox::VmConcurrencyBarrier, tree::TreeApiHttpClient, tx_sender::TxSender,
@@ -40,27 +58,10 @@ pub mod backend_jsonrpc;
 pub mod backend_jsonrpsee;
 mod metrics;
 pub mod namespaces;
-mod pubsub_notifier;
+mod pubsub;
 pub mod state;
 #[cfg(test)]
 pub(crate) mod tests;
-
-use self::backend_jsonrpc::{
-    batch_limiter_middleware::{LimitMiddleware, Transport},
-    error::internal_error,
-    namespaces::{
-        debug::DebugNamespaceT, en::EnNamespaceT, eth::EthNamespaceT, net::NetNamespaceT,
-        web3::Web3NamespaceT, zks::ZksNamespaceT,
-    },
-    pub_sub::Web3PubSub,
-};
-use self::metrics::API_METRICS;
-use self::namespaces::{
-    DebugNamespace, EnNamespace, EthNamespace, EthSubscribe, NetNamespace, Web3Namespace,
-    ZksNamespace,
-};
-use self::pubsub_notifier::{notify_blocks, notify_logs, notify_txs};
-use self::state::{Filters, InternalApiConfig, RpcState, SealedMiniblockNumber};
 
 /// Timeout for graceful shutdown logic within API servers.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
@@ -150,6 +151,7 @@ pub struct ApiBuilder<G> {
     namespaces: Option<Vec<Namespace>>,
     logs_translator_enabled: bool,
     tree_api_url: Option<String>,
+    pub_sub_events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
 }
 
 impl<G> ApiBuilder<G> {
@@ -174,6 +176,7 @@ impl<G> ApiBuilder<G> {
             config,
             logs_translator_enabled: false,
             tree_api_url: None,
+            pub_sub_events_sender: None,
         }
     }
 
@@ -273,6 +276,12 @@ impl<G> ApiBuilder<G> {
 
     pub fn with_tree_api(mut self, tree_api_url: Option<String>) -> Self {
         self.tree_api_url = tree_api_url;
+        self
+    }
+
+    #[cfg(test)]
+    fn with_pub_sub_events(mut self, sender: mpsc::UnboundedSender<PubSubEvent>) -> Self {
+        self.pub_sub_events_sender = Some(sender);
         self
     }
 }
@@ -541,30 +550,19 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
             .unwrap()
             .contains(&Namespace::Pubsub)
         {
-            let pub_sub = EthSubscribe::new(runtime.handle().clone());
+            let mut pub_sub = EthSubscribe::new(runtime.handle().clone());
+            if let Some(sender) = self.pub_sub_events_sender.take() {
+                pub_sub.set_events_sender(sender);
+            }
             let polling_interval = self
                 .polling_interval
                 .context("Polling interval is not set")?;
-            tasks.extend([
-                tokio::spawn(notify_blocks(
-                    pub_sub.active_block_subs.clone(),
-                    self.pool.clone(),
-                    polling_interval,
-                    stop_receiver.clone(),
-                )),
-                tokio::spawn(notify_txs(
-                    pub_sub.active_tx_subs.clone(),
-                    self.pool.clone(),
-                    polling_interval,
-                    stop_receiver.clone(),
-                )),
-                tokio::spawn(notify_logs(
-                    pub_sub.active_log_subs.clone(),
-                    self.pool.clone(),
-                    polling_interval,
-                    stop_receiver.clone(),
-                )),
-            ]);
+
+            tasks.extend(pub_sub.spawn_notifiers(
+                self.pool.clone(),
+                polling_interval,
+                stop_receiver.clone(),
+            ));
             io_handler.extend_with(pub_sub.to_delegate());
         }
         self.extend_jsonrpc_methods(&mut io_handler).await;

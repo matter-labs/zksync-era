@@ -1,14 +1,13 @@
 //! High-level sync layer tests.
 
-use async_trait::async_trait;
-use tokio::{sync::watch, task::JoinHandle};
-
 use std::{
     collections::{HashMap, VecDeque},
     iter,
     time::{Duration, Instant},
 };
 
+use async_trait::async_trait;
+use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::NetworkConfig;
 use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::{ConnectionPool, StorageProcessor};
@@ -22,7 +21,7 @@ use crate::{
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
         tests::{create_l1_batch_metadata, create_l2_transaction, TestBatchExecutorBuilder},
-        ZkSyncStateKeeper,
+        MiniblockSealer, ZkSyncStateKeeper,
     },
 };
 
@@ -137,7 +136,6 @@ fn open_l1_batch(number: u32, timestamp: u64, first_miniblock_number: u32) -> Sy
         operator_address: Default::default(),
         protocol_version: ProtocolVersionId::latest(),
         first_miniblock_info: (MiniblockNumber(first_miniblock_number), 1),
-        prev_miniblock_hash: H256::default(),
     }
 }
 
@@ -157,7 +155,11 @@ impl StateKeeperHandles {
         ensure_genesis(&mut pool.access_storage().await.unwrap()).await;
 
         let sync_state = SyncState::new();
+        let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(pool.clone(), 5);
+        tokio::spawn(miniblock_sealer.run());
+
         let io = ExternalIO::new(
+            miniblock_sealer_handle,
             pool,
             actions,
             sync_state.clone(),
@@ -404,7 +406,7 @@ pub(super) async fn mock_l1_batch_hash_computation(pool: ConnectionPool, number:
         let metadata = create_l1_batch_metadata(number);
         storage
             .blocks_dal()
-            .save_l1_batch_metadata(L1BatchNumber(1), &metadata, H256::zero(), false)
+            .save_l1_batch_metadata(L1BatchNumber(number), &metadata, H256::zero(), false)
             .await
             .unwrap();
         break;
@@ -574,15 +576,6 @@ async fn fetcher_with_real_server() {
     // Fill in transactions grouped in multiple miniblocks in the storage.
     let tx_hashes = run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
     let mut tx_hashes = VecDeque::from(tx_hashes);
-    let mut connection = pool.access_storage().await.unwrap();
-    let genesis_miniblock_hash = connection
-        .blocks_dal()
-        .get_miniblock_header(MiniblockNumber(0))
-        .await
-        .unwrap()
-        .expect("No genesis miniblock")
-        .hash;
-    drop(connection);
 
     // Start the API server.
     let network_config = NetworkConfig::for_tests();
@@ -598,7 +591,6 @@ async fn fetcher_with_real_server() {
     let client = <dyn MainNodeClient>::json_rpc(&format!("http://{server_addr}/")).unwrap();
     let fetcher_cursor = FetcherCursor {
         next_miniblock: MiniblockNumber(1),
-        prev_miniblock_hash: genesis_miniblock_hash,
         l1_batch: L1BatchNumber(0),
     };
     let fetcher = fetcher_cursor.into_fetcher(

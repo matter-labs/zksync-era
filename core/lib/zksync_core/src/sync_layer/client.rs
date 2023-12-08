@@ -1,10 +1,9 @@
 //! Client abstractions for syncing between the external node and the main node.
 
-use anyhow::Context as _;
-use async_trait::async_trait;
-
 use std::{collections::HashMap, convert::TryInto, fmt};
 
+use anyhow::Context as _;
+use async_trait::async_trait;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{

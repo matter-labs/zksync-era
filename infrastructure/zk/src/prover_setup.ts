@@ -12,6 +12,12 @@ export enum ProverType {
     GPU = 'gpu'
 }
 
+enum KeysRegionOption {
+    US = 'us',
+    EU = 'europe',
+    ASIA = 'asia'
+}
+
 export async function setupProver(proverType: ProverType) {
     // avoid doing work if receives the wrong param from the CLI
     if (proverType == ProverType.GPU || proverType == ProverType.CPU) {
@@ -37,14 +43,16 @@ export async function setupProver(proverType: ProverType) {
     }
 }
 
-async function downloadCSR(proverType: ProverType) {
+async function downloadCSR(proverType: ProverType, region: string) {
     const currentEnv = env.get();
     fs.mkdirSync(`${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`, {
         recursive: true
     });
     process.chdir(`${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`);
     console.log(chalk.yellow('Downloading ceremony (CSR) file'));
-    await utils.spawn('wget -c https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^24.key');
+    await utils.spawn(
+        `wget -q --show-progress -c https://storage.googleapis.com/matterlabs-setup-keys-${region}/setup-keys/setup_2^24.key`
+    );
     await utils.sleep(1);
     process.chdir(process.env.ZKSYNC_HOME as string);
     wrapEnvModify('CRS_FILE', `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`);
@@ -53,6 +61,8 @@ async function downloadCSR(proverType: ProverType) {
 async function setupProverKeys(proverType: ProverType) {
     const DOWNLOAD = 'Download default keys';
     const GENERATE = 'Generate locally';
+    let keysRegion = '';
+
     const questions: BasePromptOptions[] = [
         {
             message:
@@ -65,9 +75,20 @@ async function setupProverKeys(proverType: ProverType) {
 
     const results: any = await enquirer.prompt(questions);
 
-    await downloadCSR(proverType);
+    const proverKeysQuestions: BasePromptOptions[] = [
+        {
+            message: 'From which s3 region download ceremony (CSR) file and/or Prover Keys?',
+            name: 'proverKeys',
+            type: 'select',
+            required: true,
+            choices: [KeysRegionOption.US, KeysRegionOption.EU, KeysRegionOption.ASIA]
+        }
+    ];
+    const proverKeysResults: any = await enquirer.prompt(proverKeysQuestions);
+    keysRegion = proverKeysResults.proverKeys;
+    await downloadCSR(proverType, keysRegion);
     if (results.proverKeys == DOWNLOAD) {
-        await downloadDefaultSetupKeys(proverType);
+        await downloadDefaultSetupKeys(proverType, keysRegion);
     } else {
         await generateAllSetupData(proverType);
     }
@@ -165,17 +186,20 @@ async function generateSetupDataForRecursiveLayers(proverType: ProverType) {
 
 async function generateSetupData(isBaseLayer: boolean, proverType: ProverType) {
     const currentEnv = env.get();
-    fs.mkdirSync(`${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`, {
-        recursive: true
-    });
-    process.chdir(`${process.env.ZKSYNC_HOME}/prover`);
-    await utils.spawn(
-        `for i in {1..${isBaseLayer ? '13' : '15'}}; do zk f cargo run ${
-            proverType == ProverType.GPU ? '--features "gpu"' : ''
-        } --release --bin zksync_setup_data_generator_fri -- --numeric-circuit $i ${
+
+    const proverKeysDir = `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`;
+    fs.mkdirSync(proverKeysDir, { recursive: true });
+    const proverDir = `${process.env.ZKSYNC_HOME}/prover`;
+    process.chdir(proverDir);
+    const range = isBaseLayer ? 13 : 15;
+    const gpuFeatureFlag = proverType == ProverType.GPU ? '--features "gpu"' : '';
+    for (let i = 1; i <= range; i++) {
+        const spawnCommand = `zk f cargo run ${gpuFeatureFlag} --release --bin zksync_setup_data_generator_fri -- --numeric-circuit ${i} ${
             isBaseLayer ? '--is_base_layer' : ''
-        }; done`
-    );
+        }`;
+        await utils.spawn(spawnCommand);
+    }
+
     process.chdir(process.env.ZKSYNC_HOME as string);
 }
 
@@ -184,7 +208,7 @@ async function generateAllSetupData(proverType: ProverType) {
     await generateSetupDataForRecursiveLayers(proverType);
 }
 
-async function downloadDefaultSetupKeys(proverType: ProverType, region: 'us' | 'asia' | 'europe' = 'us') {
+async function downloadDefaultSetupKeys(proverType: ProverType, region: string) {
     const proverKeysUrls = require(`${process.env.ZKSYNC_HOME}/prover/setup-data-${proverType}-keys.json`);
     const currentEnv = env.get();
     await downloadFilesFromGCP(
@@ -216,14 +240,16 @@ async function downloadFilesFromGCP(gcpUri: string, destination: string): Promis
     fs.mkdirSync(destination, { recursive: true });
     process.chdir(destination);
 
-    const length = files.length;
-    for (const index in files) {
-        console.log(chalk.yellow(`Downloading file ${Number(index) + 1} of ${length}`));
-        const file = files[index];
-        await utils.spawn(`wget -c ${file}`);
-        await utils.sleep(1);
-        console.log(``);
-    }
+    // Download all files in parallel
+    await Promise.all(
+        files.map((file, index) => {
+            return (async () => {
+                console.log(chalk.yellow(`Downloading file ${index + 1} of ${files.length}`));
+                await utils.spawn(`wget -q --show-progress -c "${file}"`);
+                await utils.sleep(1);
+            })();
+        })
+    );
     process.chdir(process.env.ZKSYNC_HOME as string);
 }
 

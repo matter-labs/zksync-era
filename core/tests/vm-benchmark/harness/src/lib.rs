@@ -1,9 +1,12 @@
-use multivm::interface::{
-    L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
-};
-use multivm::vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryEnabled, Vm};
-use once_cell::sync::Lazy;
 use std::{cell::RefCell, rc::Rc};
+
+use multivm::{
+    interface::{
+        L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+    },
+    vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryEnabled, Vm},
+};
+use once_cell::sync::Lazy;
 use zksync_contracts::{deployer_contract, BaseSystemContracts};
 use zksync_state::{InMemoryStorage, StorageView};
 use zksync_system_constants::ethereum::MAX_GAS_PER_PUBDATA_BYTE;
@@ -133,8 +136,9 @@ pub fn get_deploy_tx(code: &[u8]) -> Transaction {
 
 #[cfg(test)]
 mod tests {
-    use crate::*;
     use zksync_contracts::read_bytecode;
+
+    use crate::*;
 
     #[test]
     fn can_deploy_contract() {

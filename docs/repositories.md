@@ -1,6 +1,6 @@
 # Repositories
 
-## zkSync Era
+## zkSync
 
 ### Core components
 
@@ -49,27 +49,27 @@
 | Public repository                                               | Description                                                                   |
 | --------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | [local-setup](https://github.com/matter-labs/local-setup)       | Docker-based zk server (together with L1), that can be used for local testing |
-| [zksolc-bin](https://github.com/matter-labs/zksolc-bin)         | repository with solc compiler binaries                                        |
-| [zkvyper-bin](https://github.com/matter-labs/zkvyper-bin)       | repository with vyper compiler binaries                                       |
-| [zksync-cli](<(https://github.com/matter-labs/zksync-cli)>)     | Command line tool to interact with zksync                                     |
-| [hardhat-zksync](https://github.com/matter-labs/hardhat-zksync) | Plugins for hardhat                                                           |
+| [zksync-cli](https://github.com/matter-labs/zksync-cli)         | Command line tool to interact with zksync                                     |
+| [block-explorer](https://github.com/matter-labs/block-explorer) | Online blockchain browser for viewing and analyzing zkSync chain              |
+| [dapp-portal](https://github.com/matter-labs/dapp-portal)       | zkSync Wallet + Bridge DApp                                                   |
+| [hardhat-zksync](https://github.com/matter-labs/hardhat-zksync) | zkSync Hardhat plugins                                                        |
+| [zksolc-bin](https://github.com/matter-labs/zksolc-bin)         | solc compiler binaries                                                        |
+| [zkvyper-bin](https://github.com/matter-labs/zkvyper-bin)       | vyper compiler binaries                                                       |
 
 ### Examples & documentation
 
-| Public repository                                                                     | Description                                                                                            |
-| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| [zksync-web-era-docs](https://github.com/matter-labs/zksync-web-era-docs)             | Public documentation, API descriptions etc. Source code for [public docs](https://era.zksync.io/docs/) |
-| [era-tutorial-examples](https://github.com/matter-labs/era-tutorial-examples)         | List of tutorials                                                                                      |
-| [custom-paymaster-tutorial](https://github.com/matter-labs/custom-paymaster-tutorial) | ??                                                                                                     |
-| [daily-spendlimit-tutorial](https://github.com/matter-labs/daily-spendlimit-tutorial) | ??                                                                                                     |
-| [custom-aa-tutorial](https://github.com/matter-labs/custom-aa-tutorial)               | Tutorial for Account Abstraction                                                                       |
-| [era-hardhat-with-plugins](https://github.com/matter-labs/era-hardhat-with-plugins)   | ??                                                                                                     |
-| [zksync-hardhat-template](https://github.com/matter-labs/zksync-hardhat-template)     | ??                                                                                                     |
+| Public repository                                                                       | Description                                                                        |
+| --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| [zksync-web-era-docs](https://github.com/matter-labs/zksync-web-era-docs)               | [Public zkSync documentation](https://era.zksync.io/docs/), API descriptions etc.  |
+| [zksync-contract-templates](https://github.com/matter-labs/zksync-contract-templates)   | Quick contract deployment and testing with tools like Hardhat on Solidity or Vyper |
+| [zksync-frontend-templates](https://github.com/matter-labs/zksync-frontend-templates)   | Rapid UI development with templates for Vue, React, Next.js, Nuxt, Vite, etc.      |
+| [zksync-scripting-templates](https://github.com/matter-labs/zksync-scripting-templates) | Automated interactions and advanced zkSync operations using Node.js                |
+| [tutorials](https://github.com/matter-labs/tutorials)                                   | Tutorials for developing on zkSync                                                 |
 
-## zkSync Lite (v1)
+## zkSync Lite
 
-| Public repository                                                           | Description                        |
-| --------------------------------------------------------------------------- | ---------------------------------- |
-| [zksync](https://github.com/matter-labs/zksync)                             | zksync Lite/v1 implementation      |
-| [zksync-docs](https://github.com/matter-labs/zksync-docs)                   | Public documentation for zkSync v1 |
-| [zksync-dapp-checkout](https://github.com/matter-labs/zksync-dapp-checkout) | ??                                 |
+| Public repository                                                           | Description                      |
+| --------------------------------------------------------------------------- | -------------------------------- |
+| [zksync](https://github.com/matter-labs/zksync)                             | zkSync Lite implementation       |
+| [zksync-docs](https://github.com/matter-labs/zksync-docs)                   | Public zkSync Lite documentation |
+| [zksync-dapp-checkout](https://github.com/matter-labs/zksync-dapp-checkout) | Batch payments DApp              |

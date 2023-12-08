@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use once_cell::sync::Lazy;
 use zksync_basic_types::{AccountTreeId, Address, U256};
 use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
 use zksync_system_constants::{
@@ -14,7 +15,6 @@ use crate::{
     L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, NONCE_HOLDER_ADDRESS,
     SHA256_PRECOMPILE_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
 };
-use once_cell::sync::Lazy;
 
 // Note, that in the NONCE_HOLDER_ADDRESS's storage the nonces of accounts
 // are stored in the following form:

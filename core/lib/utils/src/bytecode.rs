@@ -1,8 +1,10 @@
+use std::{collections::HashMap, convert::TryInto};
+
 use itertools::Itertools;
-use std::collections::HashMap;
-use std::convert::TryInto;
-use zksync_basic_types::ethabi::{encode, Token};
-use zksync_basic_types::H256;
+use zksync_basic_types::{
+    ethabi::{encode, Token},
+    H256,
+};
 
 use crate::bytes_to_chunks;
 
@@ -27,7 +29,7 @@ pub enum FailedToCompressBytecodeError {
     InvalidBytecode(#[from] InvalidBytecodeError),
 }
 
-/// Implelements a simple compression algorithm for the bytecode.
+/// Implements, a simple compression algorithm for the bytecode.
 pub fn compress_bytecode(code: &[u8]) -> Result<Vec<u8>, FailedToCompressBytecodeError> {
     validate_bytecode(code)?;
 

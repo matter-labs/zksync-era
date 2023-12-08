@@ -2,6 +2,7 @@ use std::{
     io::Write,
     time::{Duration, Instant},
 };
+
 use vm_benchmark_harness::*;
 
 fn main() {

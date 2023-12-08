@@ -1,5 +1,6 @@
-use crate::vm_virtual_blocks::types::internals::TransactionData;
 use zksync_types::Transaction;
+
+use crate::vm_virtual_blocks::types::internals::TransactionData;
 
 /// Extension  for transactions, specific for VM. Required for bypassing the orphan rule
 pub trait TransactionVmExt {

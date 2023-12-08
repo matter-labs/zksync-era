@@ -45,8 +45,6 @@ jobs:
       matrix:
         component:
           - witness-generator
-          - prover-v2
-          - circuit-synthesizer
           - prover-fri
           - prover-gpu-fri
           - witness-vector-generator
@@ -74,16 +72,14 @@ jobs:
       - name: init
         run: |
           ci_run git config --global --add safe.directory /usr/src/zksync
-          ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
           ci_run git config --global --add safe.directory /usr/src/zksync/etc/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
-          ci_run zk clean --all
-          ci_run zk run yarn
-          ci_run cp etc/tokens/{test,localhost}.json
-          ci_run zk compiler all
-          ci_run zk contract build
-          ci_run zk f yarn run l2-contracts build
+      
+      # We need the CRS only for the fri compressor.
+      - name: download CRS
+        if: matrix.component == 'proof-fri-compressor'
+        run: |
           ci_run curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
       - name: login to Docker registries

@@ -1,9 +1,8 @@
 //! Metrics for the Ethereum sender component.
 
-use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
-
 use std::{fmt, time::Duration};
 
+use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
 use zksync_dal::StorageProcessor;
 use zksync_types::{aggregated_operations::AggregatedActionType, eth_sender::EthTx};
 use zksync_utils::time::seconds_since_epoch;
@@ -78,7 +77,7 @@ pub(super) struct EthSenderMetrics {
     pub used_priority_fee_per_gas: Histogram<u64>,
     /// Last L1 block observed by the Ethereum sender.
     pub last_known_l1_block: Gauge<u64>,
-    /// Number of inflight txs produced by the Ethereum sender.
+    /// Number of in-flight txs produced by the Ethereum sender.
     pub number_of_inflight_txs: Gauge<usize>,
     #[metrics(buckets = GAS_BUCKETS)]
     pub l1_gas_used: Family<ActionTypeLabel, Histogram<f64>>,

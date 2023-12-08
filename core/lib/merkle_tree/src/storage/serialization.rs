@@ -26,7 +26,11 @@ impl LeafNode {
         let leaf_index = leb128::read::unsigned(&mut bytes).map_err(|err| {
             DeserializeErrorKind::Leb128(err).with_context(ErrorContext::LeafIndex)
         })?;
-        Ok(Self::new(full_key, value_hash, leaf_index))
+        Ok(Self {
+            full_key,
+            value_hash,
+            leaf_index,
+        })
     }
 
     pub(super) fn serialize(&self, buffer: &mut Vec<u8>) {
@@ -296,8 +300,10 @@ impl Manifest {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use zksync_types::H256;
+
+    use super::*;
+    use crate::types::TreeEntry;
 
     #[test]
     fn serializing_manifest() {
@@ -369,7 +375,7 @@ mod tests {
 
     #[test]
     fn serializing_leaf_node() {
-        let leaf = LeafNode::new(513.into(), H256([4; 32]), 42);
+        let leaf = LeafNode::new(TreeEntry::new(513.into(), 42, H256([4; 32])));
         let mut buffer = vec![];
         leaf.serialize(&mut buffer);
         assert_eq!(buffer[..30], [0; 30]); // padding for the key
@@ -426,7 +432,7 @@ mod tests {
 
     #[test]
     fn serializing_root_with_leaf() {
-        let leaf = LeafNode::new(513.into(), H256([4; 32]), 42);
+        let leaf = LeafNode::new(TreeEntry::new(513.into(), 42, H256([4; 32])));
         let root = Root::new(1, leaf.into());
         let mut buffer = vec![];
         root.serialize(&mut buffer);
