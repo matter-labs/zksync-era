@@ -206,10 +206,10 @@ dictionary: Map[chunk, index]
 encoded_data: List[index]
 
 for position, chunk in chunked_bytecode:
-	if chunk is in statistic:
-		statistic[chunk].count += 1
-	else:
-		statistic[chunk] = (count=1, first_pos=pos)
+ if chunk is in statistic:
+  statistic[chunk].count += 1
+ else:
+  statistic[chunk] = (count=1, first_pos=pos)
 
 # We want the more frequently used bytes to have smaller ids to save on calldata (zero bytes cost less)
 statistic.sort(primary=count, secondary=first_pos, order=desc)
@@ -218,7 +218,7 @@ for index, chunk in enumerated(sorted_statistics):
   dictionary[chunk] = index
 
 for chunk in chunked_bytecode:
-	encoded_data.append(dictionary[chunk])
+ encoded_data.append(dictionary[chunk])
 
 return [len(dictionary), dictionary.keys(order=index asc), encoded_data]
 ```
@@ -243,9 +243,9 @@ assert(num_entries(dictionary) <= 2^16)
 assert(len(encoded_data) * 4 == len(_bytecode)) # given that each chunk is 8 bytes and each index is 2 bytes they should differ by a factor of 4
 
 for (index, dict_index) in list(enumerate(encoded_data)):
-	encoded_chunk = dictionary[dict_index]
-	real_chunk = _bytecode.readUint64(index * 8) # need to pull from index * 8 to account for difference in element size
-	verify(encoded_chunk == real_chunk)
+ encoded_chunk = dictionary[dict_index]
+ real_chunk = _bytecode.readUint64(index * 8) # need to pull from index * 8 to account for difference in element size
+ verify(encoded_chunk == real_chunk)
 
 # Sending the compressed bytecode to L1 for data availability
 sendToL1(_rawCompressedBytecode)
@@ -285,7 +285,7 @@ struct CommitBlockInfo {
 
 These two fields would be then included into the block commitment and checked by the verifier.
 
-## Difference between initial and repeated writes.
+## Difference between initial and repeated writes
 
 zkSync publishes state changes that happened within the batch instead of transactions themselves. Meaning, that for
 instance some storage slot `S` under account `A` has changed to value `V`, we could publish a triple of `A,S,V`. Users

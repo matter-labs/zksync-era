@@ -31,7 +31,7 @@ pub struct EcrecoverCircuitFSMInputOutput<F: SmallField> {
 ## Main circuit logic
 
 This circuit implements the ecrecover precompile described in the Ethereum yellow paper:
-https://ethereum.github.io/yellowpaper/paper.pdf
+<https://ethereum.github.io/yellowpaper/paper.pdf>
 
 The purpose of ecrecover is to recover the signer’s public key from digital signature.
 

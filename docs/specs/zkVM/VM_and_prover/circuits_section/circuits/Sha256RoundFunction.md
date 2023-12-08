@@ -143,7 +143,7 @@ let compact_form =
     }
 ```
 
-### Inner part:
+### Inner part
 
 Start for set up different flags: `precompile_address`, `aux_byte_for_precompile`, and plugs:
 

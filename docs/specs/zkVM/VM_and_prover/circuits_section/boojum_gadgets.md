@@ -136,10 +136,10 @@ explanation how it works:
 
 ```rust
 Struct CircuitQueue{
-	head: HashState,
-	tail: HashState,
-	length: UInt32,
-	witness: VecDeque<Witness>,
+ head: HashState,
+ tail: HashState,
+ length: UInt32,
+ witness: VecDeque<Witness>,
 }
 ```
 
@@ -151,22 +151,22 @@ And here is the main functions:
 
 ```rust
 fn push(&mut self, value: Element) {
-	// increment lenght
-	// head - hash(head, value)
-	// witness.push_back(value.witness)
+ // increment lenght
+ // head - hash(head, value)
+ // witness.push_back(value.witness)
 }
 
 fn pop(&mut self) -> Element {
-	// check length > 0
-	// decrement length
-	// value = witness.pop_front()
-	// tail = hash(tail, value)
-	// return value
+ // check length > 0
+ // decrement length
+ // value = witness.pop_front()
+ // tail = hash(tail, value)
+ // return value
 }
 
 fn final_check(&self) -> Element {
-	// check that length == 0
-	// check that head == tail
+ // check that length == 0
+ // check that head == tail
 }
 ```
 

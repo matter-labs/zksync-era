@@ -167,7 +167,7 @@ We compute contribution to permutation argument accumulators.
 ```rust
 for ((challenges, lhs), rhs) in fs_challenges.iter().zip(lhs.iter_mut()).zip(rhs.iter_mut())
 {
-		...
+  ...
 }
 ```
 

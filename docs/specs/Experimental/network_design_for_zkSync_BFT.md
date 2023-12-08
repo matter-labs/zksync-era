@@ -149,7 +149,7 @@ implemented, we will perform a loadtest to verify our assumptions.
 
 ### <300ms round trip to other validators
 
-This should cover most of the world, according to: https://wondernetwork.com/pings. This requirement is for the whole
+This should cover most of the world, according to: <https://wondernetwork.com/pings>. This requirement is for the whole
 set of validators (not every single one individually). In practice, it means that for now we are OK excluding some parts
 of the world with very poor connectivity, and we are OK excluding some sophisticated setups (validators behind TOR
 network, multi-hop VPNs, etc.). We might revisit this assumption in the future if needed.
@@ -304,11 +304,11 @@ The idea is roughly to connect to random nodes of the P2P network with uniform p
 stable for a long time (connection stability is important to attack resistance; TODO: elaborate on that). The set of all
 the nodes on the network is not known locally, so it is not that straightforward to draw a peer uniformly at random.
 
-- Polkadot uses kademlia DHT: https://spec.polkadot.network/#sect-discovery-mechanism
+- Polkadot uses kademlia DHT: <https://spec.polkadot.network/#sect-discovery-mechanism>
   ([substrate docs](https://crates.parity.io/sc_network/index.html#discovery-mechanisms))
-- Brahms algorithm: https://iditkeidar.com/wp-content/uploads/files/ftp/Brahms-PODC.pdf
+- Brahms algorithm: <https://iditkeidar.com/wp-content/uploads/files/ftp/Brahms-PODC.pdf>
   ([implementation analysis](https://www.net.in.tum.de/fileadmin/bibtex/publications/theses/totakura2015_brahms.pdf))
-- A survey on crypto-currency networking: https://arxiv.org/pdf/2008.08412.pdf
+- A survey on crypto-currency networking: <https://arxiv.org/pdf/2008.08412.pdf>
 - [related concept] [SCION](https://scion-architecture.net/) initiative
 
 TODO: elaborate

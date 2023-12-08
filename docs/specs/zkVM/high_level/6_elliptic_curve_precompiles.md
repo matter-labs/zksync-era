@@ -79,7 +79,7 @@ efficiently divide and take module over this number and it practically satisfies
 
 ### Montgomery Reduction Algorithm (REDC)
 
-> Reference: https://en.wikipedia.org/wiki/Montgomery_modular_multiplication#The_REDC_algorithm
+> Reference: <https://en.wikipedia.org/wiki/Montgomery_modular_multiplication#The_REDC_algorithm>
 
 ```solidity
 /// @notice Implementation of the Montgomery reduction algorithm (a.k.a. REDC).

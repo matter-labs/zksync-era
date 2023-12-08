@@ -32,7 +32,7 @@ Here are the different repositories we use:
 - **zkevm_test_harness**: It's like our testing ground. Here, we have different tests to ensure our circuits work
   correctly. Additionally, it has the necessary code that helps kickstart and run these circuits smoothly.
 
-### What is a circuit?
+### What is a circuit
 
 ZK circuits get their name from Arithmetic Circuits, which look like this (see picture). You can read the circuit by
 starting at the bottom with the inputs, and following the arrows, computing each operation as you go.
@@ -46,7 +46,7 @@ It is very important that every step is actually “constrained”. The prover m
 If the circuit is missing a constraint, then a malicious prover can create proofs that will pass verification but not be
 valid. The ZK terminology for this is that an underconstrained circuit could lead to a soundness error.
 
-### What do zkSync’s circuits prove?
+### What do zkSync’s circuits prove
 
 The main goal of our circuits is to prove correct execution of our VM. This includes proving each opcode run within the
 VM, as well as other components such as precompiles, storage, and circuits that connect everything else together. This

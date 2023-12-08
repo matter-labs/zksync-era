@@ -79,7 +79,7 @@ runtime function.
 ### System Contract
 
 This information is requested a System Contract called
-[SystemContext]https://github.com/code-423n4/2023-10-zksync/blob/main/code/system-contracts/contracts/SystemContext.sol).
+[SystemContext]<https://github.com/code-423n4/2023-10-zksync/blob/main/code/system-contracts/contracts/SystemContext.sol>).
 
 On how the System Contract is called, see
 [this section](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/VM%20Section/How%20compiler%20works/system_contracts.md#environmental-data-storage).

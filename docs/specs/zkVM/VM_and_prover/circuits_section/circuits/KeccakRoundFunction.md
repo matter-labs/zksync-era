@@ -52,7 +52,7 @@ should be written, along with some peripheral data like the timestamp of the has
 Next, the circuit will take data from another queue, which contains memory queries. This will give the circuit witnesses
 to push into the keccak buffer.
 
-Learn more about Keccak here: https://keccak.team/keccak.html.
+Learn more about Keccak here: <https://keccak.team/keccak.html>.
 
 ### [First part](https://github.com/matter-labs/era-zkevm_circuits/blob/main/src/keccak256_round_function/mod.rs#L423)
 

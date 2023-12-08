@@ -42,7 +42,7 @@ pub struct LogDemuxerFSMInputOutput<F: SmallField> {
 The input of Log_Demuxer receives log_queue, consisting of a request to storage, events, L1messages request, and a
 request to the precompiles ecrecover, sha256, and keccak256. It divides this queue into six new queues. See our diagram.
 
-### Start:
+### Start
 
 The function of circuits is `demultiplex_storage_logs_enty_point`. We start for allocation of queue witnesses:
 

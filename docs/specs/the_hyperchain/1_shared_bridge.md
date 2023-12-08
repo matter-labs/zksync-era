@@ -82,6 +82,7 @@ be able to leverage them when available).
     with chainId,
   - Ether needs to be deposited and withdrawn from here.
   - This is where L2 transactions can be requested.
+
   ```
   function requestL2Transaction(
           uint256 _chainId,
@@ -108,6 +109,7 @@ be able to leverage them when available).
           );
       }
   ```
+
 - `Hypermailbox`
   - This will allow general message passing (L2<>L2, L2<>L3, etc). This is where the `Mailbox` sends the `Hyperlogs`.
     `Hyperlogs` are commitments to these messages sent from a single hyperchain. `Hyperlogs` are aggregated into a
@@ -124,6 +126,7 @@ be able to leverage them when available).
   - The pair on L2 is deployed from L1. The hash of the factory dependencies is stored on L1, and when a hyperchain
     wants to register, it can passes it in for deployment, it is verified, and the contract is deployed on L2. The
     actual token contracts on L2 are deployed by the L2 bridge.
+
   ```
   function initializeChain(
           uint256 _chainId,
@@ -131,8 +134,8 @@ be able to leverage them when available).
           uint256 _deployBridgeImplementationFee,
           uint256 _deployBridgeProxyFee
       ) external payable {
-  				....
-  				// Deploy L2 bridge proxy contract
+      ....
+      // Deploy L2 bridge proxy contract
           l2Bridge[_chainId] = BridgeInitializationHelper.requestDeployTransaction(
               _chainId,
               bridgehead,

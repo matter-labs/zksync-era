@@ -23,30 +23,30 @@ assert!(input_queue.len() == sorted_queue.len());
 let previous_element = input_queue.pop();
 let previous_sorted_element = sorted_queue.pop();
 loop {
-	previous_encoding: [Num<F>; N] = previous_element.to_encoding();
-	previous_sorted_encoding: [Num<F>; N] = previous_sorted_element.to_encoding();
+ previous_encoding: [Num<F>; N] = previous_element.to_encoding();
+ previous_sorted_encoding: [Num<F>; N] = previous_sorted_element.to_encoding();
 
-	lhs *= previous_encoding[0] * challenges[0]
-		+ previous_encoding[1] * challenges[1]
-		+ ...
-		+ challenges[N];
+ lhs *= previous_encoding[0] * challenges[0]
+  + previous_encoding[1] * challenges[1]
+  + ...
+  + challenges[N];
 
-	rhs *= previous_sorted_encoding[0] * challenges[0]
-		+ previous_sorted_encoding[1] * challenges[1]
-		+ ...
-		+ challenges[N];
+ rhs *= previous_sorted_encoding[0] * challenges[0]
+  + previous_sorted_encoding[1] * challenges[1]
+  + ...
+  + challenges[N];
 
-	if input_queue.is_empty() || sorted_queue.is_empty() {
-		break;
-	}
+ if input_queue.is_empty() || sorted_queue.is_empty() {
+  break;
+ }
 
-	let next_element = input_queue.pop();
-	let next_sorted_element = sorted_queue.pop();
+ let next_element = input_queue.pop();
+ let next_sorted_element = sorted_queue.pop();
 
-	assert!(next_sorted_element >= previous_sorted_element);
+ assert!(next_sorted_element >= previous_sorted_element);
 
-	previous_element = next_element;
-	previous_sorted_element = next_sorted_element;
+ previous_element = next_element;
+ previous_sorted_element = next_sorted_element;
 }
 assert!(lhs == rhs);
 ```

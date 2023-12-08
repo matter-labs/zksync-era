@@ -8,10 +8,10 @@ It consists of multiple cycles, where on each iteration we take a next opcode an
 
 ```rust
 if opcode == Add {
-	// do addition
+ // do addition
 }
 if opcode == SRead {
-	// do storage read
+ // do storage read
 }
 ...
 ```
@@ -23,11 +23,11 @@ That’s why we can use the following approach:
 
 ```rust
 if opcode == Add {
-	// do addition
+ // do addition
 }
 if opcode == SRead {
-	storage_queue.push((address, value));
-	// proof storage read in other circuit
+ storage_queue.push((address, value));
+ // proof storage read in other circuit
 }
 ...
 ```
@@ -50,6 +50,7 @@ For now, we have 13 base layer circuits:
 - [EventsSorter](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Circuits%20Section/Circuits/LogSorter.md)
 - [L1MessagesSorter](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Circuits%20Section/Circuits/LogSorter.md)
 - [L1MessagesHasher](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Circuits%20Section/Circuits/L1MessagesHasher.md)
+
 -
 
 They mostly communicate by queues (the diagram of communication is below).
@@ -88,7 +89,7 @@ The equality of corresponding parts in different circuits is done during aggrega
 done by recursion level circuits that also verify base layer proofs. For now this is out of our scope, so we will focus
 only on base layer.
 
-## How do all the base layer circuits fit together?
+## How do all the base layer circuits fit together
 
 ![flowchart.png](./circuits/flowchart.png)
 

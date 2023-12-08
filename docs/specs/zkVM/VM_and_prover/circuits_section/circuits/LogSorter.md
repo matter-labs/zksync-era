@@ -178,7 +178,7 @@ for el in input_commitment.iter() {
 }
 ```
 
-### Inner part:
+### Inner part
 
 Note: we have specific logic for rollback. When we have an event of some function and then that function makes a return
 then we should cancel this event. Inside the VM, we create exactly the same event: same key, block number, timestamp,

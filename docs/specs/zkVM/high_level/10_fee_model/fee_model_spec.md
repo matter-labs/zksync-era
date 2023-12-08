@@ -198,7 +198,7 @@ $$
 
 There are now two situations that can be observed:
 
-1.  $$
+1. $$
     EP_f > EP_{Max}
     $$
 
