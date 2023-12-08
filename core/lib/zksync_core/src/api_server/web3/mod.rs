@@ -112,9 +112,6 @@ impl Namespace {
         Namespace::En,
         Namespace::Pubsub,
     ];
-
-    pub const DEBUG: &'static [Namespace] = &[Namespace::Debug];
-    pub const SNAPSHOTS: &'static [Namespace] = &[Namespace::Snapshots];
 }
 
 /// Handles to the initialized API server.

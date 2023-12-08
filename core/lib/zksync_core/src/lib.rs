@@ -1131,9 +1131,9 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
 
     let mut namespaces = Namespace::DEFAULT.to_vec();
     if with_debug_namespace {
-        namespaces.extend(Namespace::DEBUG.to_vec());
+        namespaces.push(Namespace::Debug)
     }
-    namespaces.extend(Namespace::SNAPSHOTS.to_vec());
+    namespaces.push(Namespace::Snapshots);
 
     let last_miniblock_pool = ConnectionPool::singleton(postgres_config.replica_url()?)
         .build()
@@ -1187,7 +1187,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
         .context("failed to build last_miniblock_pool")?;
 
     let mut namespaces = Namespace::DEFAULT.to_vec();
-    namespaces.extend(Namespace::SNAPSHOTS.to_vec());
+    namespaces.push(Namespace::Snapshots);
 
     let mut api_builder =
         web3::ApiBuilder::jsonrpc_backend(internal_api.clone(), replica_connection_pool)
