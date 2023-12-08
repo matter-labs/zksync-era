@@ -58,7 +58,6 @@ async function initHyperchain() {
     const initArgs: InitArgs = {
         skipSubmodulesCheckout: false,
         skipEnvSetup: true,
-        skipPlonkStep: true,
         governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
         deployerL2ContractInput: {
             args: ['--private-key', deployerPrivateKey],
@@ -566,8 +565,7 @@ async function checkBalance(wallet: ethers.Wallet, expectedBalance: BigNumber): 
     const balance = await wallet.getBalance();
     if (balance.lt(expectedBalance)) {
         console.log(
-            `Wallet ${
-                wallet.address
+            `Wallet ${wallet.address
             } has insufficient funds. Expected ${expectedBalance.toString()}, got ${balance.toString()}`
         );
         return false;
@@ -791,7 +789,6 @@ async function configDemoHyperchain(cmd: Command) {
     const initArgs: InitArgs = {
         skipSubmodulesCheckout: false,
         skipEnvSetup: cmd.skipEnvSetup,
-        skipPlonkStep: true,
         governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
         deployerL2ContractInput: {
             args: ['--private-key', deployerPrivateKey],
