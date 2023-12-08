@@ -1,10 +1,9 @@
 ./volumes/**/*
 node_modules
-**/node_modules/** 
+**/node_modules/**
 build/
 dist/
 volumes/
-.tslintrc.js
 bellman-cuda
 
 # Ignore contract submodules
