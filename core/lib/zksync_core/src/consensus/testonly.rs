@@ -331,7 +331,7 @@ impl StateKeeperRunner {
                 pool.clone(),
                 self.actions_queue,
                 SyncState::new(),
-                Box::new(MockMainNodeClient::default()),
+                Box::<MockMainNodeClient>::default(),
                 self.operator_address,
                 u32::MAX,
                 L2ChainId::default(),
