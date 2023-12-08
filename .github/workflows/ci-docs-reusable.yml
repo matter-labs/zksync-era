@@ -19,7 +19,8 @@ jobs:
 
       - name: Start services
         run: |
-          ci_localnet_up
+          docker-compose -f docker-compose-runner-basic.yml up -d zk
+
 
       - name: Lints
         run: |
