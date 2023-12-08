@@ -3,19 +3,15 @@
 This document presumes familiarity with Rollups. For a better understanding, consider reading the Rollup introduction
 [here](https://era.zksync.io/docs/reference/concepts/rollups.html).
 
-Unlike Ethereum, zkSync Era doesn't need to have its separate consensus to achieve a high level of decentralization.
-Instead, it inherits security guarantees from Ethereum, on which it stores information about changes in the blockchain,
+Rollups inherit security and decentralization guarantees from Ethereum, on which they store information about changes in their own state,
 providing validity proofs for state transition, implementing a communication mechanism, etc. In practice, all this is
-achieved by Smart Contracts built on top of Ethereum. This document details the architecture of zkSync contracts on
-Ethereum Layer 1.
+achieved by Smart Contracts built on top of Ethereum. This document details the architecture of the L2 contracts on
+Ethereum Layer 1. We also have contracts that support the hyperchain ecosystem, we cover those in the [Shared Bridge](../../the_hyperchain/1_shared_bridge.md) section. The Shared Bridge relies on these individual contracts. 
 
 ## Diamond
 
-Technically, this L1 smart contract acts as a connector between Ethereum (L1) and zkSync (L2). It checks the validity
-proof and data availability, handles L2 <-> L1 communication, finalizes L2 state transition, and more.
-
-There are also important contracts deployed on the L2 that can also execute logic called _system contracts_. Using L2
-<-> L1 communication can affect both the L1 and the L2.
+Technically, this L1 smart contract acts as a connector between Ethereum (L1) and a single L2. It checks the validity
+proof and data availability, handles L2 <-> L1 communication, finalizes L2 state transition, and more. 
 
 ![diamondProxy.png](./img/diamondProxy.jpg)
 
@@ -67,7 +63,7 @@ The facet that handles L2 <-> L1 communication, an overview for which can be fou
 The Mailbox performs three functions:
 
 - L1 <-> L2 communication.
-- Bridging native Ether to the L2.
+- Bridging native Ether to the L2 (with the launch of the Shared Bridge this will be moved)
 - Censorship resistance mechanism (in the research stage).
 
 L1 -> L2 communication is implemented as requesting an L2 transaction on L1 and executing it on L2. This means a user
@@ -98,8 +94,8 @@ function applyL1ToL2Alias(address l1Address) internal pure returns (address l2Ad
 ```
 
 For most of the rollups the address aliasing needs to prevent cross-chain exploits that would otherwise be possible if
-we simply reused the same L1 addresses as the L2 sender. In zkSync Era address derivation rule is different from the
-Ethereum, so cross-chain exploits are already impossible. However, zkSync Era may add full EVM support in the future, so
+we simply reused the same L1 addresses as the L2 sender. In zkVM address derivation rule is different from the
+Ethereum, so cross-chain exploits are already impossible. However, the zkVM may add full EVM support in the future, so
 applying address aliasing leaves room for future EVM compatibility.
 
 The L1 -> L2 communication is also used for bridging ether. The user should include a `msg.value` when initiating a
@@ -220,7 +216,7 @@ The owner of the L2WethBridge and L2Weth contracts is the Governance contract.
 
 ## Governance
 
-This contract manages calls for all governed zkSync Era contracts on L1 and L2. Mostly, it is used for upgradability and
+This contract manages calls for all governed zkVM contracts on L1 and L2. Mostly, it is used for upgradability an
 changing critical system parameters. The contract has minimum delay settings for the call execution.
 
 Each upgrade consists of two steps:

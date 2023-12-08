@@ -1,14 +1,11 @@
 # Hyperbridges
 
-# Table of Contents
-
----
-
-# Introduction
+## Introduction
 
 In the Shared bridge document we described how the L1 smart contracts work to support multiple chains, and we emphasized
 that the core feature is hyperbridging, but we did not outline the hyperbridges themselves. This is because hyperbridges
 are mostly L2 contracts. In this document we describe what hyperbridges are, and specify the necessary infrastructure.
+
 
 ### Hyperbridge description
 
@@ -17,8 +14,10 @@ Trustlessness is achieved by relying on the main hyperchain bridge to send a com
 sent to and expanded on the destination hyperchain.
 
 Technically they are a system of smart contracts that build on top of the enshrined L1<>L2 validating bridges, and can
-interpret messages sent from L2 to L2 by verifying merkle proofs. They are built alongside the protocol, they can
+interpret messages sent from L2 to L2 by verifying Merkle proofs. They are built alongside the protocol, they can
 transfer the native asset of the ecosystem, and they can be used for asynchronous function calls between hyperchains.
+
+![Hyperbridges](./img/hyperbridges.png)
 
 The trustless nature of hyperbridges allows the ecosystem to resemble a single VM. To illustrate imagine a new
 hyperchain joining the ecosystem. We will want ether/Dai/etc. to be accessible on this hyperchain. This can be done
@@ -28,40 +27,11 @@ ecosystem.
 
 ### High Level design
 
-There are two options for organizing chains. The first option is to have fractal scaling, i.e. L2s, L3s, L4s, etc. The
-other option is to have Layered aggregation, which is a combination of an L2-L3 system, and , but has an aggregation
-layer, that can settle proofs and allows fast bridging. Layered aggregation is more scalable, and provides better
-security assumptions. However fractal scaling is more general. We will focus on Layered Aggregation now, and in the
-future we will think about fractal scaling.
+![Hyperbridging](./img/hyperbridging.png)
 
-# Components:
+### L1
 
-_L1:_
-
-- _Shared Bridge_
-
-L2s*:*
-
-- _Outbox system contract. It collects the hyperbridge txs into the hyperlog of the hyperchain._
-- _Inbox system contract. This is where the hyperroot is imported and sent to L1 for settlement. Merkle proofs are
-  verified here, tx calls are started from here, nullifiers are stored here (add epochs later)_
-
-L3s*:*
-
-- _Shared bridge contracts_
-- _HyperMailbox added to shared bridge. This is where the hyperlogs (syslogs of the hyperchains that are commitments to
-  the hyperbridge txs) for a merkle tree with the hyperroot as the root of the merkle tree._
-- _Executor facet. When verifying the proof of a hyperchain, the exported hyperroot has to be verified._
-
-### L1 Contracts
-
-Due to the L1 security properties some L1→L2 transactions need to be atomic
-
-- Current Mailbox Facets (part of StateTransitionChain contract) → PriorityQueue
-  For simplicity all L1→L2 transactions will go via the priority queue. All L2→L1 transactions will go via
-
-### Aggregation Layer contracts
-
+For the larger context see the [Shared Bridge](./1_shared_bridge.md) document, here we will focus on 
 - HyperMailbox (part of Bridgehub)
   This is the Hypermailbox + Verifier of the L1, shared for all rollups.
   These L1<>L2 messages are not atomic, a Merkle tree is needed to read from it.
@@ -102,6 +72,11 @@ Due to the L1 security properties some L1→L2 transactions need to be atomic
 
 ### L2 Contracts
 
+- Outbox system contract. It collects the hyperbridge txs into the hyperlog of the hyperchain.
+- Inbox system contract. This is where the hyperroot is imported and sent to L1 for settlement. Merkle proofs are
+  verified here, tx calls are started from here, nullifiers are stored here (add epochs later)
+
+
 - HyperMailbox
   - Hyperbridge messages will send a single SysLog for the L2 header which will be used to update the Alt L1 header.
     Each hyperbridge transaction will also send an L2Log for DA.
@@ -136,10 +111,3 @@ Due to the L1 security properties some L1→L2 transactions need to be atomic
   - L3 to L3 same L2 eth transfer
   - L3 to L3 different L2 eth transfer
   - Cross Prover L2 to L2 transfer
-
-## Long term features:
-
-- Fractal scaling
-- multiple gas tokens.
-  We need to be able to send a message that has not
-- supporting shared validity sequencing

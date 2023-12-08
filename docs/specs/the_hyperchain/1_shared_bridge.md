@@ -5,7 +5,7 @@
 # Introduction
 
 Ethereum's future is rollup-centric. This means breaking with the current paradigm of isolated EVM chains to
-infrastructure that is focused on an ecosystem of interconnected zkEVMs/zkVMs, (which we name Hyperchains). This
+infrastructure that is focused on an ecosystem of interconnected zkVMs, (which we name Hyperchains). This
 ecosystem will be grounded on Ethereum, requiring the appropriate L1 smart contracts. Here we outline our ZK Stack
 approach for these contracts, their interfaces, the needed changes to the existing architecture, as well as future
 features to be implemented.
@@ -53,7 +53,7 @@ be able to leverage them when available).
 
 ## General Architecture
 
-![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/703ee435-9e35-441a-b595-a8f42972ac1a/357b736e-7176-480d-9f8c-90f6c3927671/Untitled.png)
+![Contracts](./img/contractsExternal.png)
 
 ## Components
 
@@ -76,7 +76,7 @@ be able to leverage them when available).
   function newStateTransition(address _stateTransition) external;
   ```
 - `BridgehubMailbox` routes messages to the Diamond proxy’s Mailbox facet based on chainID
-  - Same as the current zkSync Era
+  - Same as the current zkVM
     [Mailbox](https://github.com/matter-labs/era-contracts/blob/main/ethereum/contracts/zksync/facets/Mailbox.sol), just
     with chainId,
   - Ether needs to be deposited and withdrawn from here.
@@ -189,15 +189,15 @@ In this section, we will present some diagrams showing the interaction of differ
 
 A chain registers in the Bridgehub, this is where the chain ID is determined. The chain’s governor specifies the State
 Transition that they plan to use. In the first version only a single State Transition contract will be available for
-use, our zkEVM with Boojum proof verification.
+use, our  with Boojum proof verification.
 
-After this, the chain can be initialized in the State Transition contract. We store the genesis batch hash in the ST
+At initialization we prepare the `StateTransitionChain` contract. We store the genesis batch hash in the ST
 contract, all chains start out with the same state. A diamond proxy is deployed and initialised with this initial value,
 along with predefined facets which are made available by the ST contract. These facets contain the proof verification
 and other features required to process proofs. The chain ID is set in the VM in a special system transaction sent from
 L1.
 
-![newChain.png](https://prod-files-secure.s3.us-west-2.amazonaws.com/703ee435-9e35-441a-b595-a8f42972ac1a/e836d8e0-b30f-44e2-aa80-fa3edd2a8ec5/newChain.png)
+<!--![newChain.png](./img/newChain.png) Image outdated--> 
 
 ### WETH Contract
 
@@ -205,7 +205,7 @@ Ether, the native gas token is part of the core system contracts, so deploying i
 smart contract, it needs to be deployed and initialised. This happens from the L1 WETH bridge. This deploys on L2 the
 corresponding bridge and ERC20 contract. This is deployed from L1, but the L2 address is known at deployment time.
 
-![deployWeth.png](https://prod-files-secure.s3.us-west-2.amazonaws.com/703ee435-9e35-441a-b595-a8f42972ac1a/bdbbf361-e16c-49c6-b9ef-8c52b1155d25/deployWeth.png)
+![deployWeth.png](./img/deployWeth.png)
 
 ### Deposit WETH
 
@@ -213,7 +213,7 @@ The user can deposit WETH into the ecosystem using the WETH bridge on L1. The de
 The Bridgehub unwraps the WETH, and keeps the ETH, and send a message to the destination L2 to mint WETH to the
 specified address.
 
-![depositWeth.png](https://prod-files-secure.s3.us-west-2.amazonaws.com/703ee435-9e35-441a-b595-a8f42972ac1a/11bc9b53-ce6d-410b-b43a-66c58be4165a/depositWeth.png)
+![depositWeth.png](./img/depositWeth.png)
 
 ---
 
@@ -226,7 +226,7 @@ here.
 
 ### Upgrade mechanism
 
-Currently, there are three types of upgrades for zkSync Era. Normal upgrades (used for new features) are initiated by
+Currently, there are three types of upgrades for zkVM. Normal upgrades (used for new features) are initiated by
 the Governor (a multisig) and are public for a certain timeframe before they can be applied. Shadow upgrades are similar
 to normal upgrades, but the data is not known at the moment the upgrade is proposed, but only when executed (they can be
 executed with the delay, or instantly if approved by the security council). Instant upgrades (used for security issues),
@@ -246,116 +246,3 @@ content of the upgrade becomes public once the first chain is upgraded. The actu
 3. Freeze not upgraded chains
    - After a certain time the chains that are not upgraded are frozen.
 
----
-
-# Rollout - outdated
-
-### Backwards compatibility
-
-~~Considerations:~~
-
-- ~~The current zkSync Era bridges have to be kept working. But bridges will have to communicate with Bridgehub, this is
-  where they will have to send ether.~~
-- ~~Current offchain interaction with Diamond proxy should keep working.~~
-
-### ~~Steps~~
-
-1. ~~Deploy new Contracts: StateTransition facets, Bridgehub facets.~~
-2. ~~Convert current zkSync Era diamond proxy into Bridgehub.~~
-   - ~~Currently the Era diamond proxy is where ether is stored and what bridges communicate with. For backwards
-     compatibility this means the Era diamond proxy will be upgraded to become the Bridgehub contract.~~
-   - ~~This means removing the old facets and applying the new facets. Most storage variables will be deprecated.~~
-   - ~~Bridges will point to Bridgehub. Old bridges will call it without chainId, in this messages will be forwarded to
-     Era. Withdrawals will be filtered based on batch number, as old batches will be verified from here, and new
-     messages will be stored in the new diamond proxy.~~
-3. ~~Register Era with a fixed chainId~~
-4. ~~Initialize Era’s new diamond proxy with a special upgrade. We also have to update Era’s L2 contracts. This should
-   also be a part of this upgrade. We have to initialize it with:~~
-   - ~~Special Initialization data~~
-     - all single-value variables
-     - validators
-     - all the batch hashes from the latest executed batch hash
-     - priority queue
-     - totalDepositedAmountPerUser
-     - NOT: isEthWithdrawalFinalized. This can be kept and filtered in bridgehub.
-   - ~~L2 upgrade:~~
-     - System context contract.
-       The system context contract specifies the batch number, block number and other details. We need to add the change
-       chainId function.
-     - Upgrade Weth Bridge
-5. Upgrade other contracts: WETH, ERC20
-   1. deploy new implementation
-   2. Set new implemenatation
-   3. Give ownership to ProxyAdmin (we have to do this as we will want to call the contracts from the governor for
-      functions requiring special permissions)
-
-**Other (not contract related):**
-
-- Because the old diamond will become the Bridgehub, zkSync Era External Nodes (ENs) will have to sync from multiple L1
-  contracts when syncing from L1.
-- JS web3 package and other offchain interactions with the contract (such as EthSender and EthWatcher) will keep on
-  working via the diamondProxy. But new features should be added so JS packages can also send messages based on chainId.
-
-### Security assumptions
-
-- We want our partners to run their own provers, but there might be bugs in the circuits, which we don’t want them to
-  exploit. In order to guarantee the security of the L1 assets, we should run external nodes for all chains running on
-  Mainnet, and verify the proofs. We should delay withdrawals instead of delaying execution, as this would allow faster
-  messaging between chains, especially L3s. In case of an invalid
-
----
-
-# Future work
-
-- Tx Checker. We want to make the L1→L2 mailbox customisable. Specifically, we some hyperchains might want to reject
-  certain transactions. For this we will do the following modification:
-  - We will add a customisable TxChecker contract that Mailbox can make a call to. This TxChecker can reject the tx, in
-    which case it is not added to the PriorityQueue.
-- Hyperbridges have not been implemented yet (Chains can't message each other on this first version).
-  - Hyperbridges fit well into the described architecture above, but they are not yet implemented.
-  - HyperbridgeSender system contract on the hyperchain. A hyperlog is a Merkle tree commitment to L2→L2 txs happening
-    inside a block. This is recorded and sent to L1.
-  - Hypermailbox on L1 to record L2→L1 hyperlogs and aggregate them across hyperchains into hyperRoot.
-  - HyperbridgeReceiver. Imports hyperRoots and L2→L2 txs can be verified based on it. Hyperroots are sent to L1 in a
-    system log for settlement.
-- Custom native tokens for Hyperchains (other than Ether)
-- L3s
-  - Is an implementation detail of the ST. L3s with the same proof system as the L2 need to be handled by the same ST,
-    just deployed on the L2, and not the L1. This means we have to synchronize these contracts across chains.
-  - For L3s the Mailbox is frozen. Communication can happen through the Hypermailbox, and via the L2’s Mailbox, for
-    L1→L3 forced transactions.
-- New State Transition options
-  - `NewStateTransition` to register alternative STs
-  - `SwitchStateTransition`: would allow chains to change their ST contract. This would have to be enabled by the
-    governance of the new ST contract. This will be very useful for ST updates, unwilling chains can exit to the new ST
-    contract which would be a copy of the original ST contract.
-  - Note: Trust assumptions for bridging between state transitions.
-    Hyperbridging between different STs is as good as the weakest proof verifier of the two STs. Because ST should be
-    allowed to be deployed permissionlessly, this might not be very secure, as the proof verifiers might not be secure.
-    To secure assets locked in the shared bridges, only the hyperchains with zkSync’s trusted zkEVM + Boojum ST will be
-    allowed to deposit and withdraw funds from these shared bridges. Hyperchains on other STs can access these type of
-    assets by building their own bridges. They can bridge them from L1 or from a trusted L2. Bridging from the trusted
-    ecosystem requires trust in the trusted ST’s proof system, but it is more scalable and interoperability with other
-    L2s will be better preserved.
-    In the long term with ZK IP assets can be directly hyperbridged between all STs, and also with L1.
-- ZK IP
-  - The idea of ZK IP is to have minimal proof that only stores the balance of the chain’s assets.
-  - This would secure the tokens in the Bridgehub, so ST implementations could be added permissionlessly. Chains would
-    have to prove the transfer of assets in the ZK IP.
-  - ZK IP would be compatible with L3s via layered aggregation. L3’s ZK IP proof would have to be submitted on the L2
-    and L1.
-- Sovereignty
-  - An L3 becoming and L2
-  - Changing State Transition contracts
-  - Leaving the shared bridges, and taking each asset to another shared bridge.
-- Proof Aggregation
-  - Proof aggregation is the process of merging the proofs of multiple chains into a single proof, and settling the new
-    proof on L1. This saves gas costs. There are multiple versions of this.
-  - Simple aggregation, in this version the proofs of different chains are aggregated as independent statements. Here
-    proofs are aggregated across time for a single chain, then these proofs are aggregated across chains.
-  - Layered Aggregation, in this version the proofs of different chains are aggregated first across chains, and then
-    across time. The advantage of this is that it allows the hyperchains can hyperbridge with each other. This is
-    similar to how L3s settling on the same L2 can message with other. This also means that the state of the hyperchains
-    are entangled because of this messaging. If one chain were to revert, all of them would have to revert. So similarly
-    to how the L3s will have to settle on the L2, the Layered Aggregator will have an intermediate Proof Aggregation
-    Layer between the L3s and the L1.

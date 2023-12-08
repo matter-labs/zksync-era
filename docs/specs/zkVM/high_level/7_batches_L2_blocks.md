@@ -50,7 +50,7 @@ block][reasons_for_sealing], which include:
 - Gas limit (currently set to `MAX_L2_TX_GAS_LIMIT` = 80M).
 - Published data limit (as each L1 batch must publish information about the changed slots to L1, so all the changes must
   fit within the L1 transaction limit, currently set to `MAX_PUBDATA_PER_L1_BATCH`= 120k).
-- zkEVM Geometry limits - For certain operations like merklelization, there is a maximum number of circuits that can be
+- zkVM Geometry limits - For certain operations like merklelization, there is a maximum number of circuits that can be
   included in a single L1 batch. If this limit is exceeded, we wouldn't be able to generate the proof.
 
 We also have a `TimeoutCriterion` - but it is not enabled.

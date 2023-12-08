@@ -1,4 +1,4 @@
-# Netword design for zkSync-BFT
+# Netword design for ZK Stack BFT
 
 # Introduction
 
@@ -10,13 +10,13 @@ A PoW based blockchain network is usually fully decentralized P2P network:
   randomized in practice
 - Block production goes on even if the network is partitioned.
 
-In contrast, zksync-BFT blockchain is supposed to be an L2 PoS blockchain, responsible for sequencing the transactions:
+In contrast, ZK Stack BFT blockchain is supposed to be an L2 PoS blockchain, responsible for sequencing the transactions:
 availability of the blockchain state and censorship resistance are provided on a best effort basis (with a weight of
 stake on the L2 chain) as the strong guarantees on these properties are provided by the L1 Ethereum chain (thanks to the
-zkSync SNARK proofs and Ethereum calldata storage). In a sense, we could reduce our L2-blockchain to just leader
+ZK Stack SNARK proofs and Ethereum calldata storage). In a sense, we could reduce our L2-blockchain to just leader
 election and it would be equally decentralized (and simpler in implementation). The problem with such a leader-election
-system would mean that the only notion of finality that we would get would be the one provided by L1 (which is O(hours)
-given the current zkSync implementation). zkSync L2 PoS chain is supposed to provide a fast “optimistic” finality
+system would mean that the only notion of finality that we would get would be the one provided by L1 (which is O(mins)
+as we want to utilize state diff compression for cheap DA costs). ZK Stack L2 PoS chain is supposed to provide a fast “optimistic” finality
 (single party finality < **L2 finality** < L1 finality). That’s why it is important to reach the L2 consensus fast (like
 ~1s per block) and that requires a careful design of the network layer to get the messages between the consensus
 participants fast enough.
@@ -26,7 +26,7 @@ participants (aka validators). The communication between them can be authenticat
 blockchain state itself) and it is critical for the new blocks to be produced (partitioning of the PoS validator network
 can stall the blockchain). Apart from validator <-> validator communication, a PoS network also requires “external world
 -> validator” communication (sending transactions to be included in the block), and “validator -> external world”
-communication (announcing the finalized blocks). This document outlines a design of the network stack for zkSync PoS L2
+communication (announcing the finalized blocks). This document outlines a design of the network stack for ZK Stack PoS L2
 blockchain for these communication patterns (as well as some auxiliary communication patterns).
 
 # Types of traffic

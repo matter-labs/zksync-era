@@ -1,31 +1,27 @@
-# zkEVM internals
+# zkVM internals
 
-## zkEVM clarifier
+## zkVM clarifier
 
-The zkSync zkEVM plays a fundamentally different role in the zkStack than the EVM does in Ethereum. The EVM is used to
+The zkSync zkVM plays a fundamentally different role in the zkStack than the EVM does in Ethereum. The EVM is used to
 execute code in Ethereum's state transition function. This STF needs a client to implement and run it. Ethereum has a
 multi-client philosophy, there are multiple clients, and they are written in Go, Rust, and other traditional programming
 languages, all running and verifying the same STF.
 
 We have a different set of requirements, we need to produce a proof that some client executed the STF correctly. The
 first consequence is that the client needs to be hard-coded, we cannot have the same multi-client philosophy. This
-client is a VM that can run STF efficiently, including the EVM, and all of this needs to be proven efficiently. This is
-the zkEVM.
+client is the zkVM, it can run the STF efficiently, including execution of smart contracts similarly to the EVM. The zkVM was also designed to be proven efficiently.
 
-For efficiency reasons it the zkEVM is similar to the EVM. This makes executing smart programs inside of it easy. It
+For efficiency reasons it the zkVM is similar to the EVM. This makes executing smart programs inside of it easy. It
 also has special features that are not in the EVM but are needed for the rollup's STF, storage, gas metering,
-precompiles and other things. Some of these features are built into the VM, while others are implemented as system
-contracts. System Contracts are contracts with special permissions, deployed at predefined addresses. Finally, we have
-the bootloader, which is also a contract, although it is not deployed at any address. This is the STF that is ultimately
-executed by the zkEVM, and executes the transaction against the state.
+precompiles and other things. Some of these features are implemented as system contracts while others are built into the VM. System Contracts are contracts with special permissions, deployed at predefined addresses. Finally, we have the bootloader, which is also a contract, although it is not deployed at any address. This is the STF that is ultimately
+executed by the zkVM, and executes the transaction against the state.
 
 <!-- KL todo *Add different abstraction levels diagram here:*-->
 
-Full specification of the zkEVM is beyond the scope of this document. However, this section will give you most of the
-details needed for understanding the L2 system smart contracts & basic differences between EVM and zkEVM. Note also that
-usually understanding the EVM is needed for efficient smart contract development. For this fully understanding the zkEVM
-is not necessary, this guide is aimed at developers of the rollup itself, or people who just want to understand the
-protocol.
+Full specification of the zkVM is beyond the scope of this document. However, this section will give you most of the
+details needed for understanding the L2 system smart contracts & basic differences between EVM and zkVM. Note also that
+usually understanding the EVM is needed for efficient smart contract development. Understanding the zkVM goes beyond this, it is needed 
+for developing the rollup itself.
 
 ## Registers and memory management
 
@@ -36,7 +32,7 @@ On EVM, during transaction execution, the following memory areas are available:
 - `returndata` the immutable slice returned by the latest call to another contract.
 - `stack` where the local variables are stored.
 
-Unlike EVM, which is stack machine, zkEVM has 16 registers. Instead of receiving input from `calldata`, zkEVM starts by
+Unlike EVM, which is stack machine, zkVM has 16 registers. Instead of receiving input from `calldata`, zkVM starts by
 receiving a _pointer_ in its first register *(*basically a packed struct with 4 elements: the memory page id, start and
 length of the slice to which it points to*)* to the calldata page of the parent. Similarly, a transaction can receive
 some other additional data within its registers at the start of the program: whether the transaction should invoke the
@@ -56,7 +52,7 @@ _Pointers_ are separate type in the VM. It is only possible to:
   What this means is that it is only possible to `return` only pointer to the memory of the current frame or one of the
   pointers returned by the subcalls of the current frame.
 
-### Memory areas in zkEVM
+### Memory areas in zkVM
 
 For each frame, the following memory areas are allocated:
 
@@ -65,7 +61,7 @@ For each frame, the following memory areas are allocated:
   calldata/copy the returndata from the calls to system contracts to not interfere with the standard Solidity memory
   alignment.
 - _Stack_. Unlike Ethereum, stack is not the primary place to get arguments for opcodes. The biggest difference between
-  stack on zkEVM and EVM is that on zkSync stack can be accessed at any location (just like memory). While users do not
+  stack on zkVM and EVM is that on zkSync stack can be accessed at any location (just like memory). While users do not
   pay for the growth of stack, the stack can be fully cleared at the end of the frame, so the overhead is minimal.
 - _Code_. The memory area from which the VM executes the code of the contract. The contract itself can not read the code
   page, it is only done implicitly by the VM.
@@ -123,7 +119,7 @@ returndatacopy(...)
 Since the call to keccak precompile would modify the `returndata`. To avoid this, our compiler does not override the
 latest `returndata` pointer after calls to such opcode-like precompiles.
 
-## zkSync specific opcodes
+## zkVM specific opcodes
 
 While some Ethereum opcodes are not supported out of the box, some of the new opcodes were added to facilitate the
 development of the system contracts.
@@ -224,7 +220,7 @@ by another system contract (since Matter Labs is fully aware of system contracts
 In the future, we plan to introduce our “extended” version of Solidity with more supported opcodes than the original
 one. However, right now it was beyond the capacity of the team to do, so in order to represent accessing zkSync-specific
 opcodes, we use `call` opcode with certain constant parameters that will be automatically replaced by the compiler with
-zkEVM native opcode.
+zkVM native opcode.
 
 Example:
 

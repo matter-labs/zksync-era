@@ -1,15 +1,15 @@
-# ZkSync Era Virtual Machine primer
+# ZkSync Virtual Machine primer
 
-Unlike EVM, EraVM is a register machine. EVM instructions operate on a stack. Instead, EraVM operates primarily on
+Unlike EVM, zkVM is a register machine. EVM instructions operate on a stack. Instead, zkVM operates primarily on
 sixteen registers and memory like most modern computers. That simplifies zero-knowledge proofs, which largely rely on
 building arithmetic circuits.
 
-This document describes EraVM assembly language, then the aspects of VM related to smart-contracts. Its purpose is not
+This document describes zkVM assembly language, then the aspects of VM related to smart-contracts. Its purpose is not
 to be a complete reference, but to guide you through the main ideas.
 
 # VM architecture
 
-The native type for EraVM is a 256-bits wide unsigned integer, we call it a _word_.
+The native type for zkVM is a 256-bits wide unsigned integer, we call it a _word_.
 
 Contracts are sequences of instructions. To support the execution of contracts, VM provides the following transient
 state:
@@ -91,7 +91,7 @@ Every contract may have at most $2^{16}$ instructions.
 
 ## Arithmetic instructions
 
-Besides `add`, EraVM implements `sub` for subtraction, `and`/ `or` / `xor` for bitwise logics, `shl`/ `shr` for logical
+Besides `add`, zkVM implements `sub` for subtraction, `and`/ `or` / `xor` for bitwise logics, `shl`/ `shr` for logical
 shifts, `rol`/ `ror` for circular shifts. These instructions follow the same format, e.g.:
 
 ```nasm
@@ -203,7 +203,7 @@ Other modifiers are instruction-specific. They are described in full in the inst
 # Calls and returns
 
 The `jump` instruction allows to continue execution from a different place, but it does not allow to return back. An
-alternative is using calls; EraVM supports calling code inside the contract itself (near calls) as well as calling other
+alternative is using calls; zkVM supports calling code inside the contract itself (near calls) as well as calling other
 contracts (far calls).
 
 ## Far calls
@@ -274,7 +274,7 @@ Additional two arguments:
   execution of the exception handler.
 - register `r2` holds how much gas we allocate to the function.
 
-As we see, EraVM supports allocating ergs not only for far calls, but also for near calls. Passing zero will allocate
+As we see, zkVM supports allocating ergs not only for far calls, but also for near calls. Passing zero will allocate
 all available gas. Unlike in far calls, near calls do not limit the amount of gas passed to 63/64 of available gas.
 
 - On revert, unspent gas of the function is **returned**
@@ -432,7 +432,7 @@ much gas is available.
 
 ### Heap and Auxheap
 
-In EraVM, there are two heaps; every far call allocates memory for both of them.
+In zkVM, there are two heaps; every far call allocates memory for both of them.
 
 Heaps are selected with modifiers `.1` or `.2` :
 
@@ -441,11 +441,11 @@ Heaps are selected with modifiers `.1` or `.2` :
 
 The reason why we need two heaps is technical. Heap contains calldata and returndata for calls to user contracts, while
 auxheap contains calldata and returndata for calls to system contracts. This ensures better compatibility with EVM as
-users should be able to call EraVM-specific system contracts without them affecting calldata or returndata.
+users should be able to call zkVM-specific system contracts without them affecting calldata or returndata.
 
 # Fat pointers
 
-A fat pointer is the second type of values in EraVM, beside raw integers.
+A fat pointer is the second type of values in zkVM, beside raw integers.
 
 As we noted, registers and stacks are internally tagged by VM to keep track of the cells containing pointers in their
 low 128 bits. Only cells with a set pointer tag are considered fat pointers.
@@ -488,7 +488,7 @@ incrementing the pointer. It is impossible to write by a fat pointer.
 
 All accounts are associated with contracts. There are $2^{160}$ valid account addresses.
 
-In EraVM, contracts may have multiple **functions** in them; a contract may execute its functions by using `near_call` ;
+In zkVM, contracts may have multiple **functions** in them; a contract may execute its functions by using `near_call` ;
 it may call other contracts by using `far_call` or its variations `delegate_call` / `mimic_call` (mimic is reserved for
 system contracts).
 
@@ -522,7 +522,7 @@ System contracts implement contract deployment, extensions such as keccak256, de
 
 ## Decommitter
 
-Decommitter is a module external to EraVM allowing accessing deployed code by its hash.
+Decommitter is a module external to zkVM allowing accessing deployed code by its hash.
 
 ![arch-overview.png](./zkSync_era_vm_primer/arch-overview.png)
 
@@ -539,10 +539,10 @@ If decommitter does not have the code for the requested hash, one of two things 
 
 ## Server
 
-The VM is controlled by a _server._ When the server needs to build a new batch, it starts an instance of EraVM and feeds
+The VM is controlled by a _server._ When the server needs to build a new batch, it starts an instance of zkVM and feeds
 the transactions to the [Bootloader](#bootloader).
 
-EraVM accepts three parameters:
+zkVM accepts three parameters:
 
 1. Bootloader’s hash. It is used to fetch the bootloader code from decommitter.
 2. Code hash of `DefaultAccount` contract code. It is used to fetch the default code from Decommitter in case of a far
@@ -550,36 +550,36 @@ EraVM accepts three parameters:
 3. A boolean flag `is_porter_available`, to determine the number of shards (two if zkPorter is available, one
    otherwise).
 
-EraVM retrieves the code of bootloader from Decommitter and proceeds with sequential execution of instructions on the
+zkVM retrieves the code of bootloader from Decommitter and proceeds with sequential execution of instructions on the
 bootloader’s code page.
 
 ### Failures and rollbacks
 
 There are three types of behaviour triggered by execution failures.
 
-1. Skipping a malformed transaction. It is a mechanism implemented by the server, external to EraVM. Server makes a
-   snapshot of EraVM state after completing every transaction. If the bootloader encounters a malformed transaction, it
-   fails, and the server restarts EraVM from the most recent snapshot, skipping this transaction.
+1. Skipping a malformed transaction. It is a mechanism implemented by the server, external to zkVM. Server makes a
+   snapshot of zkVM state after completing every transaction. If the bootloader encounters a malformed transaction, it
+   fails, and the server restarts zkVM from the most recent snapshot, skipping this transaction.
 
    This behaviour is specific to server/bootloader; the contract code has no ways of invoking it.
 
-2. Revert is triggered by the contract code explicitly by executing `revert`. EraVM saves its persistent state on every
-   near or far call. If the contract code identifies a recoverable error, it may execute `revert`; then EraVM rolls the
+2. Revert is triggered by the contract code explicitly by executing `revert`. zkVM saves its persistent state on every
+   near or far call. If the contract code identifies a recoverable error, it may execute `revert`; then zkVM rolls the
    storage and event queues back to the last checkpoint and executes the exception handler.
 3. Panic is triggered either explicitly by executing `panic` or internally when some execution invariants are violated
    e.g. attempt to use raw integer in `ptr.add` instruction.
 
-   On panic, the persistent state of EraVM is rolled back in the same way as on revert.
+   On panic, the persistent state of zkVM is rolled back in the same way as on revert.
 
 ## Bootloader
 
 Bootloader is a system contract in charge of block construction
 (**[sources](https://github.com/matter-labs/era-system-contracts/blob/main/bootloader/bootloader.yul)**).
 
-Formally, bootloader is assigned an address BOOTLOADER_SYSTEM_CONTRACT_ADDRESS = $2^{15}+1$, but EraVM decommits its
+Formally, bootloader is assigned an address BOOTLOADER_SYSTEM_CONTRACT_ADDRESS = $2^{15}+1$, but zkVM decommits its
 code directly by its hash.
 
-The heap of the bootloader is special: it acts as an interface between server and EraVM. Server gradually fills the
+The heap of the bootloader is special: it acts as an interface between server and zkVM. Server gradually fills the
 bootloader’s heap with transaction data, formatted according to an implementation-defined convention.
 
 The bootloader then acts roughly as the following code (not an actual implementation):
@@ -615,16 +615,16 @@ The bootloader is therefore responsible for:
 - executing transactions to form a new block;
 - setting some of the transaction- or block-wide transaction parameters (e.g. `blockhash`, `tx.origin`).
 
-Server makes a snapshot of EraVM state after completing every transaction. When the bootloader encounters a malformed
-transaction, it fails, and the server restarts EraVM from the most recent snapshot, skipping this transaction. If a
-transaction is well-formed, EraVM may still panic while handling it outside the bootloader code. This is a normal
-situation and is handled by EraVM in a regular way, through panics.
+Server makes a snapshot of zkVM state after completing every transaction. When the bootloader encounters a malformed
+transaction, it fails, and the server restarts zkVM from the most recent snapshot, skipping this transaction. If a
+transaction is well-formed, zkVM may still panic while handling it outside the bootloader code. This is a normal
+situation and is handled by zkVM in a regular way, through panics.
 
 The exact code of the bootloader is a part of a protocol; its hash is included in the block header.
 
 ## Context value
 
-A part of the EraVM state is a 128-bit _context value_. It implements `msg.value` standing for the amount of wei sent in
+A part of the zkVM state is a 128-bit _context value_. It implements `msg.value` standing for the amount of wei sent in
 a transaction. In assembly, it is used as follows:
 
 1. Execute `context.set_context_u128 reg` to set the value;

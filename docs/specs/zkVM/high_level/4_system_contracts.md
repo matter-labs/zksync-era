@@ -108,7 +108,7 @@ without circuit counterparts. You can read more about them
 
 ## L2EthToken & MsgValueSimulator
 
-Unlike Ethereum, zkEVM does not have any notion of any special native token. That’s why we have to simulate operations
+Unlike Ethereum, zkVM does not have any notion of any special native token. That’s why we have to simulate operations
 with Ether via two contracts: `L2EthToken` & `MsgValueSimulator`.
 
 `L2EthToken` is a contract that holds the balances of ETH for the users. This contract does NOT provide ERC20 interface.

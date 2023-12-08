@@ -446,7 +446,7 @@ At the moment, this counter is not accessible within the VM and so the operator 
 
 ### Refunds for repeated writes
 
-zkSync Era is a statediff-based rollup, i.e. the pubdata is published not for transactions, but for storage changes.
+zkVM is a statediff-based rollup, i.e. the pubdata is published not for transactions, but for storage changes.
 This means that whenever a user writes into a storage slot, he incurs certain amount of pubdata. However, not all writes
 are equal:
 
@@ -492,7 +492,7 @@ The `executeBatches` operation on L1 is executed in `O(N)` where N is the number
 batch. Each executed priority operation will be popped and so it incurs cost for storage modifications. As of now, we do
 not charge for it.
 
-# zkSync Era Fee Components (Revenue & Costs)
+# zkVM Fee Components (Revenue & Costs)
 
 - On-Chain L1 Costs
   - L1 Commit Batches
@@ -509,10 +509,10 @@ not charge for it.
       Multiple L1 batches can be included in a single execute transaction.
   - L1 Finalize Withdrawals
     - While not strictly part of the L1 fees, the cost to finalize L2 → L1 withdrawals are covered by Matter Labs. The
-      finalize withdrawals transaction processes user token withdrawals from zkSync Era to Ethereum. Multiple L2
+      finalize withdrawals transaction processes user token withdrawals from zkVM to Ethereum. Multiple L2
       withdrawal transactions are included in each finalize withdrawal transaction.
 - On-Chain L2 Revenue
   - L2 Transaction Fee
-    - This fee is what the user pays to complete a transaction on zkSync Era. It is calculated as
+    - This fee is what the user pays to complete a transaction on zkVM. It is calculated as
       `gasLimit x baseFeePerGas - refundedGas x baseFeePerGas`, or more simply, `gasUsed x baseFeePerGas`.
 - Profit = L2 Revenue - L1 Costs - Off Chain Infrastructure Costs
