@@ -37,7 +37,7 @@ Here are the different repositories we use:
 ZK circuits get their name from Arithmetic Circuits, which look like this (see picture). You can read the circuit by
 starting at the bottom with the inputs, and following the arrows, computing each operation as you go.
 
-![Untitled](https://github.com/code-423n4/2023-10-zksync/tree/main/docs/Circuits%20Section/Intro%20to%20zkSync%E2%80%99s%20ZK/circuit.png)
+![Untitled](./intro_to_zkSync’s_ZK/circuit.png)
 
 The prover will prove that the circuit is “satisfied” by the inputs, meaning every step is computed correctly, leading
 to a correct output.

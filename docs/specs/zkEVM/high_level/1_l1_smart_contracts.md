@@ -17,7 +17,7 @@ proof and data availability, handles L2 <-> L1 communication, finalizes L2 state
 There are also important contracts deployed on the L2 that can also execute logic called _system contracts_. Using L2
 <-> L1 communication can affect both the L1 and the L2.
 
-![diamondProxy.png](L1%20smart%20contracts/diamondProxy.jpg)
+![diamondProxy.png](./img/diamondProxy.jpg)
 
 ### DiamondProxy
 
@@ -240,7 +240,7 @@ Please note, that both the Owner and Security council can cancel the upgrade bef
 
 The diagram below outlines the complete journey from the initiation of an operation to its execution.
 
-![governance.png](L1%20smart%20contracts/governance.jpg)
+![governance.png](./img/governance.jpg)
 
 ## ValidatorTimelock
 
