@@ -3,16 +3,15 @@
 //! Should be compiled with the release profile, otherwise hashing and other ops would be
 //! prohibitively slow.
 
-use clap::Parser;
-use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
-use tempfile::TempDir;
-use tracing_subscriber::EnvFilter;
-
 use std::{
     thread,
     time::{Duration, Instant},
 };
 
+use clap::Parser;
+use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
+use tempfile::TempDir;
+use tracing_subscriber::EnvFilter;
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
     Database, HashTree, MerkleTree, MerkleTreePruner, PatchSet, RocksDBWrapper, TreeEntry,
@@ -21,9 +20,9 @@ use zksync_merkle_tree::{
 use zksync_storage::{RocksDB, RocksDBOptions};
 use zksync_types::{AccountTreeId, Address, StorageKey, H256, U256};
 
-mod batch;
-
 use crate::batch::WithBatching;
+
+mod batch;
 
 /// CLI for load-testing for the Merkle tree implementation.
 #[derive(Debug, Parser)]

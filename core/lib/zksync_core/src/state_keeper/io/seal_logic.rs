@@ -1,26 +1,21 @@
 //! This module is a source-of-truth on what is expected to be done when sealing a block.
 //! It contains the logic of the block sealing, which is used by both the mempool-based and external node IO.
 
-use itertools::Itertools;
 use std::{
     collections::HashMap,
     time::{Duration, Instant},
 };
 
+use itertools::Itertools;
 use multivm::interface::{FinishedL1Batch, L1BatchEnv};
-use zksync_dal::blocks_dal::ConsensusBlockFields;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{blocks_dal::ConsensusBlockFields, StorageProcessor};
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
-    block::unpack_block_info,
-    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    CURRENT_VIRTUAL_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_ADDRESS,
-};
-use zksync_types::{
-    block::{L1BatchHeader, MiniblockHeader},
+    block::{unpack_block_info, L1BatchHeader, MiniblockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
     l1::L1Tx,
     l2::L2Tx,
+    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     protocol_version::ProtocolUpgradeTx,
     storage_writes_deduplicator::{ModifiedSlot, StorageWritesDeduplicator},
     tx::{
@@ -30,7 +25,7 @@ use zksync_types::{
     zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
     AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, LogQuery,
     MiniblockNumber, StorageKey, StorageLog, StorageLogQuery, StorageValue, Transaction, VmEvent,
-    H256,
+    CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::{h256_to_u256, time::millis_since_epoch, u256_to_h256};

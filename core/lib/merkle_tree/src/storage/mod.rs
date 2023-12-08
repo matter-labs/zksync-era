@@ -1,20 +1,11 @@
 //! Storage-related logic.
 
-mod database;
-mod patch;
-mod proofs;
-mod rocksdb;
-mod serialization;
-#[cfg(test)]
-mod tests;
-
 pub(crate) use self::patch::{LoadAncestorsResult, WorkingPatchSet};
 pub use self::{
     database::{Database, NodeKeys, Patched, PruneDatabase, PrunePatchSet},
     patch::PatchSet,
     rocksdb::{MerkleTreeColumnFamily, RocksDBWrapper},
 };
-
 use crate::{
     hasher::HashTree,
     metrics::{TreeUpdaterStats, BLOCK_TIMINGS, GENERAL_METRICS},
@@ -23,6 +14,14 @@ use crate::{
         TreeEntry, TreeLogEntry, TreeTags, ValueHash,
     },
 };
+
+mod database;
+mod patch;
+mod proofs;
+mod rocksdb;
+mod serialization;
+#[cfg(test)]
+mod tests;
 
 /// Tree operation: either inserting a new version or updating an existing one (the latter is only
 /// used during tree recovery).

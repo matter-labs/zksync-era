@@ -1,11 +1,10 @@
-use anyhow::Context;
-use clap::Parser;
-use tokio::{sync::watch, task, time::sleep};
-
 use std::{sync::Arc, time::Duration};
 
+use anyhow::Context;
+use clap::Parser;
 use futures::{future::FusedFuture, FutureExt};
 use prometheus_exporter::PrometheusExporterConfig;
+use tokio::{sync::watch, task, time::sleep};
 use zksync_basic_types::{Address, L2ChainId};
 use zksync_core::{
     api_server::{
@@ -194,14 +193,7 @@ async fn init_tasks(
         .build()
         .await
         .context("failed to build a tree_pool")?;
-    // todo: PLA-335
-    // Note: This pool isn't actually used by the metadata calculator, but it has to be provided anyway.
-    let prover_tree_pool = ConnectionPool::singleton(&config.postgres.database_url)
-        .build()
-        .await
-        .context("failed to build a prover_tree_pool")?;
-    let tree_handle =
-        task::spawn(metadata_calculator.run(tree_pool, prover_tree_pool, tree_stop_receiver));
+    let tree_handle = task::spawn(metadata_calculator.run(tree_pool, tree_stop_receiver));
 
     let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
 

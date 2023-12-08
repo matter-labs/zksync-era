@@ -1,3 +1,5 @@
+use std::{future::Future, num::NonZeroU32, sync::Arc};
+
 use futures::{future, FutureExt};
 use governor::{
     clock::DefaultClock,
@@ -11,8 +13,6 @@ use jsonrpc_core::{
 };
 use jsonrpc_pubsub::Session;
 use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
-
-use std::{future::Future, num::NonZeroU32, sync::Arc};
 
 /// Configures the rate limiting for the WebSocket API.
 /// Rate limiting is applied per active connection, e.g. a single connected user may not send more than X requests

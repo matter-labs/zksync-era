@@ -1,8 +1,8 @@
 //! Metrics for the object storage.
 
-use vise::{Buckets, Histogram, LabeledFamily, LatencyObserver, Metrics};
-
 use std::time::Duration;
+
+use vise::{Buckets, Histogram, LabeledFamily, LatencyObserver, Metrics};
 
 use crate::Bucket;
 

@@ -1,9 +1,9 @@
-use async_trait::async_trait;
-
 use std::{error, fmt, sync::Arc};
 
-use crate::{file::FileBackedObjectStore, gcs::GoogleCloudStorage, mock::MockStore};
+use async_trait::async_trait;
 use zksync_config::configs::object_store::{ObjectStoreConfig, ObjectStoreMode};
+
+use crate::{file::FileBackedObjectStore, gcs::GoogleCloudStorage, mock::MockStore};
 
 /// Bucket for [`ObjectStore`] in which objects can be placed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

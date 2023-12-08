@@ -1,33 +1,39 @@
-use std::option::Option;
-use std::time::Duration;
-use std::time::Instant;
+use std::{
+    option::Option,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context as _;
 use local_ip_address::local_ip;
-use prover_service::prover::{Prover, ProvingAssembly};
-use prover_service::remote_synth::serialize_job;
-use tokio::task::JoinHandle;
-use tokio::time::sleep;
-use zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
-use zkevm_test_harness::bellman::plonk::better_better_cs::cs::Circuit;
-use zkevm_test_harness::pairing::bn256::Bn256;
-use zkevm_test_harness::witness::oracle::VmWitnessOracle;
-
-use crate::metrics::METRICS;
-use zksync_config::configs::prover_group::ProverGroupConfig;
-use zksync_config::configs::CircuitSynthesizerConfig;
-use zksync_config::ProverConfigs;
+use prover_service::{
+    prover::{Prover, ProvingAssembly},
+    remote_synth::serialize_job,
+};
+use tokio::{task::JoinHandle, time::sleep};
+use zkevm_test_harness::{
+    abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
+    bellman::plonk::better_better_cs::cs::Circuit, pairing::bn256::Bn256,
+    witness::oracle::VmWitnessOracle,
+};
+use zksync_config::{
+    configs::{prover_group::ProverGroupConfig, CircuitSynthesizerConfig},
+    ProverConfigs,
+};
 use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;
 use zksync_object_store::{CircuitKey, ObjectStore, ObjectStoreError, ObjectStoreFactory};
 use zksync_prover_fri_utils::socket_utils::send_assembly;
-use zksync_prover_utils::numeric_index_to_circuit_name;
-use zksync_prover_utils::region_fetcher::{get_region, get_zone};
+use zksync_prover_utils::{
+    numeric_index_to_circuit_name,
+    region_fetcher::{get_region, get_zone},
+};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
     proofs::{GpuProverInstanceStatus, SocketAddress},
     protocol_version::L1VerifierConfig,
 };
+
+use crate::metrics::METRICS;
 
 #[derive(thiserror::Error, Debug)]
 pub enum CircuitSynthesizerError {

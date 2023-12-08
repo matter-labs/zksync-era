@@ -1,37 +1,37 @@
 #![feature(generic_const_exprs)]
 
+use std::time::Instant;
+
 use anyhow::{anyhow, Context as _};
 use prometheus_exporter::PrometheusExporterConfig;
-use std::time::Instant;
 use structopt::StructOpt;
 use tokio::sync::watch;
-use zksync_config::configs::{FriWitnessGeneratorConfig, PostgresConfig, PrometheusConfig};
-use zksync_config::ObjectStoreConfig;
+use zksync_config::{
+    configs::{FriWitnessGeneratorConfig, PostgresConfig, PrometheusConfig},
+    ObjectStoreConfig,
+};
 use zksync_dal::ConnectionPool;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_utils::get_stop_signal_receiver;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::proofs::AggregationRound;
-use zksync_types::web3::futures::StreamExt;
+use zksync_types::{proofs::AggregationRound, web3::futures::StreamExt};
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
-use crate::basic_circuits::BasicWitnessGenerator;
-use crate::leaf_aggregation::LeafAggregationWitnessGenerator;
-use crate::metrics::SERVER_METRICS;
-use crate::node_aggregation::NodeAggregationWitnessGenerator;
-use crate::scheduler::SchedulerWitnessGenerator;
+use crate::{
+    basic_circuits::BasicWitnessGenerator, leaf_aggregation::LeafAggregationWitnessGenerator,
+    metrics::SERVER_METRICS, node_aggregation::NodeAggregationWitnessGenerator,
+    scheduler::SchedulerWitnessGenerator,
+};
 
 mod basic_circuits;
 mod leaf_aggregation;
+mod metrics;
 mod node_aggregation;
 mod precalculated_merkle_paths_provider;
 mod scheduler;
 mod storage_oracle;
-
-mod metrics;
-
 mod utils;
 
 #[derive(Debug, StructOpt)]

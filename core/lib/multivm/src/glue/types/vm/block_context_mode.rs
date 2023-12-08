@@ -1,5 +1,6 @@
-use crate::glue::GlueFrom;
 use zksync_utils::h256_to_u256;
+
+use crate::glue::GlueFrom;
 
 impl GlueFrom<crate::interface::L1BatchEnv> for crate::vm_m5::vm_with_bootloader::BlockContextMode {
     fn glue_from(value: crate::interface::L1BatchEnv) -> Self {

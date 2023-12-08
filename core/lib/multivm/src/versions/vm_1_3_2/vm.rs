@@ -1,21 +1,24 @@
-use crate::interface::{
-    BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch, L1BatchEnv,
-    L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
-    VmInterfaceHistoryEnabled, VmMemoryMetrics,
-};
-
 use std::collections::HashSet;
 
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log};
-use zksync_types::Transaction;
-use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
-use zksync_utils::{h256_to_u256, u256_to_h256};
+use zksync_types::{
+    l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
+    Transaction,
+};
+use zksync_utils::{
+    bytecode::{hash_bytecode, CompressedBytecodeInfo},
+    h256_to_u256, u256_to_h256,
+};
 
-use crate::glue::history_mode::HistoryMode;
-use crate::glue::GlueInto;
-use crate::vm_1_3_2::events::merge_events;
-use crate::vm_1_3_2::VmInstance;
+use crate::{
+    glue::{history_mode::HistoryMode, GlueInto},
+    interface::{
+        BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch,
+        L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
+        VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+    },
+    vm_1_3_2::{events::merge_events, VmInstance},
+};
 
 #[derive(Debug)]
 pub struct Vm<S: WriteStorage, H: HistoryMode> {

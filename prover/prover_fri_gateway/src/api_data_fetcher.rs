@@ -1,13 +1,13 @@
 use std::time::Duration;
 
-use crate::metrics::METRICS;
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Serialize};
-use tokio::sync::watch;
-use tokio::time::sleep;
+use tokio::{sync::watch, time::sleep};
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
+
+use crate::metrics::METRICS;
 
 /// The path to the API endpoint that returns the next proof generation data.
 pub(crate) const PROOF_GENERATION_DATA_PATH: &str = "/proof_generation_data";
