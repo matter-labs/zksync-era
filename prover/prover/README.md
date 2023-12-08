@@ -1,4 +1,4 @@
-# Readme
+# OLD PROVER - OBSOLETE
 
 For compiling locally (no cuda) set `features=["legacy"], default-features=false` for:
 
