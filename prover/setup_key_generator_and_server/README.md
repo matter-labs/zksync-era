@@ -1,0 +1,1 @@
+# Setup key generator for old proof system - OBSOLETE
