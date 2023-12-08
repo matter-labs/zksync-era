@@ -199,8 +199,8 @@ $$
 There are now two situations that can be observed:
 
 1. $$
-    EP_f > EP_{Max}
-    $$
+   EP_f > EP_{Max}
+   $$
 
 This means that the L1 gas price is so high that if we treated all the prices fairly, then the number of gas required to
 publish guaranteed pubdata is too high, i.e. allowing at least _PG_ pubdata bytes per transaction would mean that we
