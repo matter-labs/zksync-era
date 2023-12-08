@@ -1,6 +1,6 @@
 # Fees (a.k.a gas)
-[Back to ToC](../../../README.md)
 
+[Back to ToC](../../../README.md)
 
 What is the L2 gas price? It's **0.25 Gwei** (and as we improve our provers/VM we hope it will go down). However, it can
 vary at times. Please see further information below.

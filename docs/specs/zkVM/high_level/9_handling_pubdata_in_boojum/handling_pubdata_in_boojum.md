@@ -1,6 +1,6 @@
 # Handling pubdata in Boojum
-[Back to ToC](../../../README.md)
 
+[Back to ToC](../../../README.md)
 
 Pubdata in zkSync can be divided up into 4 different categories:
 

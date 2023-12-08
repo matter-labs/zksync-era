@@ -1,4 +1,5 @@
 # State diff Compression
+
 [Back to ToC](../../../README.md)
 
 The most basic strategy to publish state diffs is to publish those in either of the following two forms:

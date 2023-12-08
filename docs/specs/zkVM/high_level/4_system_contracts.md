@@ -1,6 +1,6 @@
 # System contracts
-[Back to ToC](../../README.md)
 
+[Back to ToC](../../README.md)
 
 While most of the primitive EVM opcodes can be supported out of the box (i.e. zero-value calls,
 addition/multiplication/memory/storage management, etc), some of the opcodes are not supported by the VM by default and

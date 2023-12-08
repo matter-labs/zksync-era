@@ -1,6 +1,6 @@
 # Blocks & Batches - How we package transactions
-[Back to ToC](../../README.md)
 
+[Back to ToC](../../README.md)
 
 In this article, we will explore the processing of transactions, how we group them into blocks, what it means to "seal"
 a block, and why it is important to have rollbacks in our virtual machine (VM).

@@ -1,8 +1,8 @@
 # zkVM internals
 
 ## zkVM clarifier
-[Back to ToC](../../README.md)
 
+[Back to ToC](../../README.md)
 
 The zkSync zkVM plays a fundamentally different role in the zkStack than the EVM does in Ethereum. The EVM is used to
 execute code in Ethereum's state transition function. This STF needs a client to implement and run it. Ethereum has a

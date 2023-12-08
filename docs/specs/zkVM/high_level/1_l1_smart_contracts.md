@@ -1,4 +1,5 @@
 # L1 Smart contracts
+
 [Back to ToC](../../README.md)
 
 This document presumes familiarity with Rollups. For a better understanding, consider reading the Rollup introduction

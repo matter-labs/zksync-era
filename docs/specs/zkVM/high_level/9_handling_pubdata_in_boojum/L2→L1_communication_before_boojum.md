@@ -1,6 +1,6 @@
 # L2→L1 communication before Boojum
-[Back to ToC](../../../README.md)
 
+[Back to ToC](../../../README.md)
 
 The only “provable” part of the communication from L2 to L1 are native L2→L1 logs emitted by VM. These can be emitted by
 the `to_l1`
