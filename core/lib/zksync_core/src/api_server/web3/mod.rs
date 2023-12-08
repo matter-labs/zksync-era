@@ -104,26 +104,17 @@ pub enum Namespace {
 }
 
 impl Namespace {
-    pub const ALL: &'static [Namespace] = &[
+    pub const DEFAULT: &'static [Namespace] = &[
         Namespace::Eth,
         Namespace::Net,
         Namespace::Web3,
-        Namespace::Debug,
         Namespace::Zks,
         Namespace::En,
         Namespace::Pubsub,
-        Namespace::Snapshots,
     ];
 
-    pub const NON_DEBUG: &'static [Namespace] = &[
-        Namespace::Eth,
-        Namespace::Net,
-        Namespace::Web3,
-        Namespace::Zks,
-        Namespace::En,
-        Namespace::Pubsub,
-        Namespace::Snapshots,
-    ];
+    pub const DEBUG: &'static [Namespace] = &[Namespace::Debug];
+    pub const SNAPSHOTS: &'static [Namespace] = &[Namespace::Snapshots];
 }
 
 /// Handles to the initialized API server.
@@ -367,7 +358,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
 
         if self.namespaces.is_none() {
             tracing::warn!("debug_ API namespace will be disabled by default in ApiBuilder");
-            self.namespaces = Some(Namespace::NON_DEBUG.to_vec());
+            self.namespaces = Some(Namespace::DEFAULT.to_vec());
         }
 
         if self
