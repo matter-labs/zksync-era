@@ -32,79 +32,11 @@ ecosystem.
 
 For the larger context see the [Shared Bridge](./1_shared_bridge.md) document, here we will focus on
 
-- HyperMailbox (part of Bridgehub) This is the Hypermailbox + Verifier of the L1, shared for all rollups. These L1<>L2
-  messages are not atomic, a Merkle tree is needed to read from it. Header is updated on L1 when there is an L1→ L2
-  message is added, and when and L2 settles. We keep the header, as we will want cross-rollup views and not only
-  hyperbridge transactions.
-  - Header structure
-    - L1 Alt-Header
-      - Previous alt L1 header’s hash
-      - Tree Root/Rolling hash of L2 Headers
-        - L2 Header
-          - Previous L2 header hash
-          - Tree root of L3 headers
-            - ….
-          - L2 HyperTransaction root
-          - L2 other data for views:
-            - …
-      - L1 HyperLogs’ root
-        - Should this be
-      - L1 other data for views:
-        - Storage Root
-        - Transaction Root
-        - …
-    - Questions:
-      - Should the L2 headers be in a tree or a rolling hash? If we do a rolling hash, it is cheaper on L1, but we do
-        not have a state of each rollup that is easy to expand from each root. Rolling hashes also be simply proof
-        aggregated if the proving is not permissionless, as the L1 root hash can be fed into the proof. In this case
-        however the tree can also be aggregated, but the higher write cost remains. If we want to do layered proof
-        aggregation then we can also do
-      - Should the hyperlogs be stored in a permanent tree, or should each block have its own tree? It depends on a lot
-        of things. Who will submit the receiving tx? If a relayer, then
-      - We should keep the same recursive structure, L1 header has L2 headers, has L3 headers, etc. We should also aim
-        for layered aggregation, i.e. allow the L2 header to be a fake header, created in an aggregate proof. The
-        layered aggregator should be a tree, with offchain DA.
-    - note for Layered aggregation L2 Transaction hash and L2 other data will be 0, but the structure is the same.
-    - Note the Hyperbridge transaction root should not be zeroed every block. It can be zeroed every L1 verification, or
-      even rarer.
+- HyperMailbox (part of Bridgehub). Contains the Hyperroot, root of Merkle tree of Hyperlogs. Hyperlogs are the L2->L1 SysLogs that record the sent hyperbridge messages from the L2s. 
+
 
 ### L2 Contracts
 
 - Outbox system contract. It collects the hyperbridge txs into the hyperlog of the hyperchain.
 - Inbox system contract. This is where the hyperroot is imported and sent to L1 for settlement. Merkle proofs are
   verified here, tx calls are started from here, nullifiers are stored here (add epochs later)
-
-- HyperMailbox
-  - Hyperbridge messages will send a single SysLog for the L2 header which will be used to update the Alt L1 header.
-    Each hyperbridge transaction will also send an L2Log for DA.
-  - For every new tx, it is added to the transaction Merkle tree. This tree’s root is the L2’s Transaction Root. This
-    tree can be pruned time to time.
-  - For L3s inside the VM:
-    - We also need to manage L3 Transaction Roots here if we have L3s.
-    - We have to output the a header of all messages, of the L2 and the L3s. Being a header means that it should contain
-      the hash of the previous header. This is useful for importing of multiple consecutive headers, they can be linked.
-      Great for L3s with quick messaging.
-  - Message Verifier, checks a merkle proof against an imported message root.
-    - Imported message roots, has to be loaded from the underlying layers. A SysLog is sent to L1 to verify the used
-      roots. On an L3, we import both the L2 and L1 root.
-    - Nullifier tree to prevent double mint
-
-### Example Transactions:
-
-- Transfers
-  - L1 to L2 deposit
-    - atomic via logs
-    - nonatomic via hyperbridge
-  - L2 to L1 withdrawal
-    - via logs, nonatomic
-    - via hyperbridge, nonatomic
-  - L1 to L3 deposit
-  - L3 to L1 deposit
-  - L2 to L2 eth transfer
-  - L2 to L2 ERC20 transfer
-    - So for an ERC20 the standard will need to be extended to have a transferToNewChain(uint256 destinationChainId,
-      uint256 destination). This function will burn the asset and make a call to a system contract that records all the
-      sent transactions and sends them compressed to L1 via an L2Log.
-  - L3 to L3 same L2 eth transfer
-  - L3 to L3 different L2 eth transfer
-  - Cross Prover L2 to L2 transfer
