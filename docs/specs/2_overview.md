@@ -2,27 +2,29 @@
 
 The ZK Stack can be used to launch zero-knowledge rollups. Rollups are blockchains that "roll up" their data and
 execution to a base chain, in our case this is Ethereum. Rolling up data is relatively easy, the data required to
-reconstruct the state of the rollup can be just sent to L1. Rolling up execution is hard, the ZK Stack uses cutting
-edge cryptography, zero-knowledge proofs to get this done. Zero-knowledge proofs use advanced
-mathematics to show that the execution of the rollup was done correctly.
+reconstruct the state of the rollup can be just sent to L1. Rolling up execution is hard, the ZK Stack uses cutting edge
+cryptography, zero-knowledge proofs to get this done. Zero-knowledge proofs use advanced mathematics to show that the
+execution of the rollup was done correctly.
 
 Using this method the rollup is as secure as L1, funds on the rollup can not be lost or stolen as long as the L1 is
 secure, and they can always be withdrawn to L1.
 
-The core actors that are needed to run a rollup are the sequencer and the prover, they create blocks and proofs, and submit them to the L1 contract.
+The core actors that are needed to run a rollup are the sequencer and the prover, they create blocks and proofs, and
+submit them to the L1 contract.
 
 A user submits their transaction to the sequencer. The job of the sequencer is to collect transactions and execute them
-using the zkEVM, and to provide a soft confirmation to the user that their transaction was executed. If the user
-chooses they can force the sequencer to include their transaction by submitting it via L1. After the sequencer executes
-the block, it sends it over to the prover, who creates a cryptographic proof of the block's execution. This proof is then
+using the zkEVM, and to provide a soft confirmation to the user that their transaction was executed. If the user chooses
+they can force the sequencer to include their transaction by submitting it via L1. After the sequencer executes the
+block, it sends it over to the prover, who creates a cryptographic proof of the block's execution. This proof is then
 sent to the L1 contract alongside the necessary data. On the L1 a
 [smart contract](./1_zkEVM/1_high_level/1_l1_smart_contracts.md) verifies that the proof is valid and all the data has
 been submitted, and the rollup's state is also updated in the contract.
 
 ![Components](./L2_Components.png)
 
-The core of this mechanism was the execution of the zkEVM plays a fundamentally different role in the zkStack than the EVM does in Ethereum. The EVM is used to
-execute code in Ethereum's state transition function. This STF needs a client to implement and run it.
+The core of this mechanism was the execution of the zkEVM plays a fundamentally different role in the zkStack than the
+EVM does in Ethereum. The EVM is used to execute code in Ethereum's state transition function. This STF needs a client
+to implement and run it.
 
 Rollups have a different set of requirements, they need to produce a proof that some client executed the STF correctly.
 This client is the [zkEVM](./1_zkEVM/1_high_level/2_vm_internals.md), it is made to run the STF efficiently. The STF is

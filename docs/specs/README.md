@@ -9,5 +9,3 @@
 1. [Data Availability](./7_data_availability.md)
 1. [Prover](./8_prover.md)
 1. [The Hyperchain](./9_the_hyperchain.md)
-
-
