@@ -357,7 +357,9 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         }
 
         if self.namespaces.is_none() {
-            tracing::warn!("debug_ API namespace will be disabled by default in ApiBuilder");
+            tracing::warn!(
+                "debug_  and snapshots_ API namespace will be disabled by default in ApiBuilder"
+            );
             self.namespaces = Some(Namespace::DEFAULT.to_vec());
         }
 
