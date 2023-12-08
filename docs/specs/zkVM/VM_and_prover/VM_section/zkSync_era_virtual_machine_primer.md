@@ -2,12 +2,12 @@
 
 [Back to ToC](../../../README.md)
 
-Unlike EVM, zkEVM is a register machine. EVM instructions operate on a stack. Instead, zkEVM operates primarily on sixteen
-registers and memory like most modern computers. That simplifies zero-knowledge proofs, which largely rely on building
-arithmetic circuits.
+Unlike EVM, zkEVM is a register machine. EVM instructions operate on a stack. Instead, zkEVM operates primarily on
+sixteen registers and memory like most modern computers. That simplifies zero-knowledge proofs, which largely rely on
+building arithmetic circuits.
 
-This document describes zkEVM assembly language, then the aspects of VM related to smart-contracts. Its purpose is not to
-be a complete reference, but to guide you through the main ideas.
+This document describes zkEVM assembly language, then the aspects of VM related to smart-contracts. Its purpose is not
+to be a complete reference, but to guide you through the main ideas.
 
 # VM architecture
 
@@ -276,8 +276,8 @@ Additional two arguments:
   execution of the exception handler.
 - register `r2` holds how much gas we allocate to the function.
 
-As we see, zkEVM supports allocating ergs not only for far calls, but also for near calls. Passing zero will allocate all
-available gas. Unlike in far calls, near calls do not limit the amount of gas passed to 63/64 of available gas.
+As we see, zkEVM supports allocating ergs not only for far calls, but also for near calls. Passing zero will allocate
+all available gas. Unlike in far calls, near calls do not limit the amount of gas passed to 63/64 of available gas.
 
 - On revert, unspent gas of the function is **returned**
 - On panic, unspent gas of the function is **lost**
@@ -578,8 +578,8 @@ There are three types of behaviour triggered by execution failures.
 Bootloader is a system contract in charge of block construction
 (**[sources](https://github.com/matter-labs/era-system-contracts/blob/main/bootloader/bootloader.yul)**).
 
-Formally, bootloader is assigned an address BOOTLOADER_SYSTEM_CONTRACT_ADDRESS = $2^{15}+1$, but zkEVM decommits its code
-directly by its hash.
+Formally, bootloader is assigned an address BOOTLOADER_SYSTEM_CONTRACT_ADDRESS = $2^{15}+1$, but zkEVM decommits its
+code directly by its hash.
 
 The heap of the bootloader is special: it acts as an interface between server and zkEVM. Server gradually fills the
 bootloader’s heap with transaction data, formatted according to an implementation-defined convention.
