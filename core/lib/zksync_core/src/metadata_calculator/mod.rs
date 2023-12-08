@@ -140,17 +140,10 @@ impl MetadataCalculator {
     pub async fn run(
         self,
         pool: ConnectionPool,
-        prover_pool: ConnectionPool,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         self.updater
-            .loop_updating_tree(
-                self.delayer,
-                &pool,
-                &prover_pool,
-                stop_receiver,
-                self.health_updater,
-            )
+            .loop_updating_tree(self.delayer, &pool, stop_receiver, self.health_updater)
             .await
     }
 
