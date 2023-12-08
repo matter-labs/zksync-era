@@ -1,3 +1,8 @@
+  <head> 
+  <style> ol {list-style-type: lower-arabic;} 
+  </style>
+  </head>
+  
 # ZK Stack specs
 
 ![Logo](./zk-the-collective-action.jpeg)
@@ -5,11 +10,6 @@
 ## Specification Contents
 
 - zkVM Overview
-  <head> 
-  <style> ol {list-style-type: lower-arabic;} 
-  </style>
-  </head>
-
   <ol>
   <li>
     <a href="./zkVM/high_level/1_l1_smart_contracts.md "> L1 Contracts</a> </li>
