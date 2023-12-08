@@ -5,7 +5,7 @@
 # Introduction
 
 Ethereum's future is rollup-centric. This means breaking with the current paradigm of isolated EVM chains to
-infrastructure that is focused on an ecosystem of interconnected zkVMs, (which we name Hyperchains). This ecosystem will
+infrastructure that is focused on an ecosystem of interconnected zkEVMs, (which we name Hyperchains). This ecosystem will
 be grounded on Ethereum, requiring the appropriate L1 smart contracts. Here we outline our ZK Stack approach for these
 contracts, their interfaces, the needed changes to the existing architecture, as well as future features to be
 implemented.
@@ -78,7 +78,7 @@ be able to leverage them when available).
 
 - `BridgehubMailbox` routes messages to the Diamond proxy’s Mailbox facet based on chainID
 
-  - Same as the current zkVM
+  - Same as the current zkEVM
     [Mailbox](https://github.com/matter-labs/era-contracts/blob/main/ethereum/contracts/zksync/facets/Mailbox.sol), just
     with chainId,
   - Ether needs to be deposited and withdrawn from here.
@@ -228,7 +228,7 @@ here.
 
 ### Upgrade mechanism
 
-Currently, there are three types of upgrades for zkVM. Normal upgrades (used for new features) are initiated by the
+Currently, there are three types of upgrades for zkEVM. Normal upgrades (used for new features) are initiated by the
 Governor (a multisig) and are public for a certain timeframe before they can be applied. Shadow upgrades are similar to
 normal upgrades, but the data is not known at the moment the upgrade is proposed, but only when executed (they can be
 executed with the delay, or instantly if approved by the security council). Instant upgrades (used for security issues),

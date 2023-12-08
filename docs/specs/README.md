@@ -4,7 +4,7 @@
 
 ## Specification Contents
 
-### zkVM Overview
+### zkEVM Overview
 
 1. [L1 Contracts](./zkVM/high_level/1_l1_smart_contracts.md)
 1. [VM internals](./zkVM/high_level/2_vm_internals.md)
@@ -18,7 +18,7 @@
 1. [Fee model](./zkVM/high_level/10_fee_model/fee_model.md)
 1. [Prover](./zkVM/high_level/11_prover/zk_intuition.md)
 
-### zkVM and Prover full specification
+### zkEVM and Prover full specification
 
 - [VM](./zkVM/VM_and_prover/VM_section/zkSync_era_virtual_machine_primer.md)
 - [Circuits](./zkVM/VM_and_prover/circuits_section/intro_to_zkSync’s_ZK.md)
@@ -36,8 +36,8 @@
 
 Hi 👋, if you're looking for the specifications of the ZK Stack protocol, then you're in the right place!
 
-You will find the main content of our specs focuses on the zkVM, a register machine which serves to prove the state
-transition function of every hyperchain. These specs will provide a high level overview of the zkVM and a full
+You will find the main content of our specs focuses on the zkEVM, a register machine which serves to prove the state
+transition function of every hyperchain. These specs will provide a high level overview of the zkEVM and a full
 specification of its more technical components (such as the prover, compiler, and the VM itself).
 
 We also specify the decentralised consensus mechanism, and the hyperchain ecosystem including hyperbridging.

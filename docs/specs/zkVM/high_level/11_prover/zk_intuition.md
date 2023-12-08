@@ -1,4 +1,4 @@
-# Intuition guide to ZK in zkVM
+# Intuition guide to ZK in zkEVM
 
 **WARNING**: This guide simplifies the complex details of how we use ZK in our systems, just to give you a better
 understanding. We're leaving out a lot of details to keep things brief.
