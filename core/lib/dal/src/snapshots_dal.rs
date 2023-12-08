@@ -1,7 +1,9 @@
-use crate::instrument::InstrumentExt;
-use crate::StorageProcessor;
-use zksync_types::snapshots::{AllSnapshots, SnapshotMetadata};
-use zksync_types::L1BatchNumber;
+use zksync_types::{
+    snapshots::{AllSnapshots, SnapshotMetadata},
+    L1BatchNumber,
+};
+
+use crate::{instrument::InstrumentExt, StorageProcessor};
 
 #[derive(Debug)]
 pub struct SnapshotsDal<'a, 'c> {
@@ -68,8 +70,9 @@ impl SnapshotsDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ConnectionPool;
     use zksync_types::L1BatchNumber;
+
+    use crate::ConnectionPool;
 
     #[tokio::test]
     async fn adding_snapshot() {

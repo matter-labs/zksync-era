@@ -3,13 +3,14 @@
 // External uses
 use jsonrpc_core::{BoxFuture, Result};
 use jsonrpc_derive::rpc;
+use zksync_types::{
+    snapshots::{AllSnapshots, SnapshotHeader},
+    L1BatchNumber,
+};
 
 // Workspace uses
 use crate::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
 use crate::l1_gas_price::L1GasPriceProvider;
-use zksync_types::snapshots::{AllSnapshots, SnapshotHeader};
-use zksync_types::L1BatchNumber;
-
 // Local uses
 use crate::web3::namespaces::SnapshotsNamespace;
 

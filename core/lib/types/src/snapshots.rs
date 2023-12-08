@@ -1,7 +1,7 @@
-use crate::commitment::L1BatchWithMetadata;
-use crate::{StorageKey, StorageValue};
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{L1BatchNumber, MiniblockNumber};
+
+use crate::{commitment::L1BatchWithMetadata, StorageKey, StorageValue};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

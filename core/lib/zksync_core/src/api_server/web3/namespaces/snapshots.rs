@@ -1,10 +1,15 @@
-use crate::api_server::web3::backend_jsonrpc::error::internal_error;
-use crate::api_server::web3::metrics::API_METRICS;
-use crate::api_server::web3::state::RpcState;
-use crate::l1_gas_price::L1GasPriceProvider;
-use zksync_types::snapshots::{AllSnapshots, SnapshotHeader, SnapshotStorageLogsChunkMetadata};
-use zksync_types::L1BatchNumber;
+use zksync_types::{
+    snapshots::{AllSnapshots, SnapshotHeader, SnapshotStorageLogsChunkMetadata},
+    L1BatchNumber,
+};
 use zksync_web3_decl::error::Web3Error;
+
+use crate::{
+    api_server::web3::{
+        backend_jsonrpc::error::internal_error, metrics::API_METRICS, state::RpcState,
+    },
+    l1_gas_price::L1GasPriceProvider,
+};
 
 #[derive(Debug)]
 pub struct SnapshotsNamespace<G> {

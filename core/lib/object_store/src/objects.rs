@@ -1,12 +1,14 @@
 //! Stored objects.
 
-use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use std::io::Read;
+
+use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use zksync_types::{
     aggregated_operations::L1BatchProofForL1,
     proofs::{AggregationRound, PrepareBasicCircuitsJob},
-    snapshots::SnapshotStorageLogsChunk,
-    snapshots::{SnapshotFactoryDependencies, SnapshotStorageLogsStorageKey},
+    snapshots::{
+        SnapshotFactoryDependencies, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
+    },
     storage::witness_block_state::WitnessBlockState,
     zkevm_test_harness::{
         abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,

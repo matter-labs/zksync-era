@@ -1,11 +1,14 @@
-use crate::api_server::web3::backend_jsonrpsee::into_jsrpc_error;
-use crate::api_server::web3::namespaces::SnapshotsNamespace;
-use crate::l1_gas_price::L1GasPriceProvider;
 use async_trait::async_trait;
-use zksync_types::snapshots::{AllSnapshots, SnapshotHeader};
-use zksync_types::L1BatchNumber;
-use zksync_web3_decl::jsonrpsee::core::RpcResult;
-use zksync_web3_decl::namespaces::SnapshotsNamespaceServer;
+use zksync_types::{
+    snapshots::{AllSnapshots, SnapshotHeader},
+    L1BatchNumber,
+};
+use zksync_web3_decl::{jsonrpsee::core::RpcResult, namespaces::SnapshotsNamespaceServer};
+
+use crate::{
+    api_server::web3::{backend_jsonrpsee::into_jsrpc_error, namespaces::SnapshotsNamespace},
+    l1_gas_price::L1GasPriceProvider,
+};
 
 #[async_trait]
 impl<G: L1GasPriceProvider + Send + Sync + 'static> SnapshotsNamespaceServer

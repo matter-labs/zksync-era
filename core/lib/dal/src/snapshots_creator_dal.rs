@@ -1,7 +1,9 @@
-use crate::instrument::InstrumentExt;
-use crate::StorageProcessor;
-use zksync_types::snapshots::{SnapshotFactoryDependency, SnapshotStorageLog};
-use zksync_types::{AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, H256};
+use zksync_types::{
+    snapshots::{SnapshotFactoryDependency, SnapshotStorageLog},
+    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, H256,
+};
+
+use crate::{instrument::InstrumentExt, StorageProcessor};
 
 #[derive(Debug)]
 pub struct SnapshotsCreatorDal<'a, 'c> {

@@ -1,25 +1,24 @@
 mod chunking;
 
+use std::{cmp::max, time::Duration};
+
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
-use std::cmp::max;
-use std::time::Duration;
 use tokio::sync::{watch, Semaphore};
-use vise::Unit;
-use vise::{Buckets, Gauge, Histogram, Metrics};
-use zksync_config::configs::PrometheusConfig;
-use zksync_config::{PostgresConfig, SnapshotsCreatorConfig};
+use vise::{Buckets, Gauge, Histogram, Metrics, Unit};
+use zksync_config::{configs::PrometheusConfig, PostgresConfig, SnapshotsCreatorConfig};
+use zksync_dal::ConnectionPool;
+use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
+use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_types::{
+    snapshots::{
+        SnapshotFactoryDependencies, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
+    },
+    L1BatchNumber, MiniblockNumber,
+};
+use zksync_utils::ceil_div;
 
 use crate::chunking::get_chunk_hashed_keys_range;
-use zksync_dal::ConnectionPool;
-use zksync_env_config::object_store::SnapshotsObjectStoreConfig;
-use zksync_env_config::FromEnv;
-use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_types::snapshots::{
-    SnapshotFactoryDependencies, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
-};
-use zksync_types::{L1BatchNumber, MiniblockNumber};
-use zksync_utils::ceil_div;
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "snapshots_creator")]

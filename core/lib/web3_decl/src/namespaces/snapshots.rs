@@ -1,6 +1,8 @@
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
-use zksync_types::snapshots::{AllSnapshots, SnapshotHeader};
-use zksync_types::L1BatchNumber;
+use zksync_types::{
+    snapshots::{AllSnapshots, SnapshotHeader},
+    L1BatchNumber,
+};
 
 #[cfg_attr(
     all(feature = "client", feature = "server"),

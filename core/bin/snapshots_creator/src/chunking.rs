@@ -1,5 +1,5 @@
-use std::cmp::min;
 use std::ops;
+
 use zksync_types::{H256, U256};
 use zksync_utils::u256_to_h256;
 
