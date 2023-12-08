@@ -36,16 +36,18 @@ use self::tester::{
     successful_exec_with_metrics, TestScenario,
 };
 pub(crate) use self::tester::{MockBatchExecutorBuilder, TestBatchExecutorBuilder};
-use crate::gas_tracker::l1_batch_base_cost;
-use crate::state_keeper::{
-    keeper::POLL_WAIT_DURATION,
-    seal_criteria::{
-        criteria::{GasCriterion, SlotsCriterion},
-        ConditionalSealer,
+use crate::{
+    gas_tracker::l1_batch_base_cost,
+    state_keeper::{
+        keeper::POLL_WAIT_DURATION,
+        seal_criteria::{
+            criteria::{GasCriterion, SlotsCriterion},
+            ConditionalSealer,
+        },
+        types::ExecutionMetricsForCriteria,
+        updates::UpdatesManager,
     },
 };
-
-mod tester;
 
 pub(super) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);

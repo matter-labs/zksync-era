@@ -1,12 +1,3 @@
-use crate::genesis::{ensure_genesis_state, GenesisParams};
-use crate::state_keeper::tests::{
-    create_l1_batch_metadata, create_l2_transaction, MockBatchExecutorBuilder,
-};
-use crate::state_keeper::{MiniblockSealer, ZkSyncStateKeeper};
-use crate::sync_layer::{
-    sync_action::{ActionQueue, ActionQueueSender, SyncAction},
-    ExternalIO, MainNodeClient, SyncState,
-};
 use anyhow::Context as _;
 use rand::Rng;
 use zksync_concurrency::{ctx, scope, sync, time};
@@ -15,6 +6,18 @@ use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
     api, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, H256,
+};
+
+use crate::{
+    genesis::{ensure_genesis_state, GenesisParams},
+    state_keeper::{
+        tests::{create_l1_batch_metadata, create_l2_transaction, MockBatchExecutorBuilder},
+        MiniblockSealer, ZkSyncStateKeeper,
+    },
+    sync_layer::{
+        sync_action::{ActionQueue, ActionQueueSender, SyncAction},
+        ExternalIO, MainNodeClient, SyncState,
+    },
 };
 
 #[derive(Debug, Default)]

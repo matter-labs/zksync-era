@@ -1,13 +1,10 @@
 //! High-level sync layer tests.
-use tokio::{sync::watch, task::JoinHandle};
-
 use std::{
     collections::{HashMap, VecDeque},
     iter,
     time::{Duration, Instant},
 };
 
-use async_trait::async_trait;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::NetworkConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
@@ -16,9 +13,9 @@ use zksync_types::{
 };
 
 use super::{fetcher::FetcherCursor, sync_action::SyncAction, *};
-use crate::consensus::testonly::MockMainNodeClient;
 use crate::{
     api_server::web3::tests::spawn_http_server,
+    consensus::testonly::MockMainNodeClient,
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
         tests::{create_l1_batch_metadata, create_l2_transaction, TestBatchExecutorBuilder},

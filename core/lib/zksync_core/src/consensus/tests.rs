@@ -1,9 +1,10 @@
-use super::*;
 use zksync_concurrency::{ctx, scope};
 use zksync_consensus_executor::testonly::FullValidatorConfig;
 use zksync_consensus_roles::validator;
 use zksync_dal::ConnectionPool;
 use zksync_types::{Address, ProtocolVersionId};
+
+use super::*;
 
 fn latest_protocol_version() -> validator::ProtocolVersion {
     (ProtocolVersionId::latest() as u32)

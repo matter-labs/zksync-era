@@ -1,13 +1,15 @@
 //! Storage implementation based on DAL.
-use crate::consensus;
-use anyhow::Context as _;
 use std::ops;
+
+use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, sync, time};
 use zksync_consensus_bft::PayloadSource;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::{BlockStore, ReplicaState, ReplicaStateStore, WriteBlockStore};
 use zksync_dal::{blocks_dal::ConsensusBlockFields, ConnectionPool};
 use zksync_types::{api::en::SyncBlock, Address, MiniblockNumber};
+
+use crate::consensus;
 
 pub(crate) fn sync_block_to_consensus_block(
     block: SyncBlock,

@@ -11,25 +11,21 @@ use zksync_concurrency::{
 };
 use zksync_consensus_roles::validator::{BlockNumber, FinalBlock};
 use zksync_consensus_storage::BlockStore;
-use zksync_dal::blocks_dal::ConsensusBlockFields;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{blocks_dal::ConsensusBlockFields, ConnectionPool, StorageProcessor};
 use zksync_types::{api::en::SyncBlock, Address, MiniblockNumber};
 
 #[cfg(test)]
 mod tests;
 
 use super::buffered::ContiguousBlockStore;
-use crate::consensus::sync_block_to_consensus_block;
 use crate::{
     consensus,
+    consensus::sync_block_to_consensus_block,
     sync_layer::{
         fetcher::{FetchedBlock, FetcherCursor},
         sync_action::{ActionQueueSender, SyncAction},
     },
 };
-
-#[cfg(test)]
-mod tests;
 
 #[derive(Debug)]
 struct CursorWithCachedBlock {

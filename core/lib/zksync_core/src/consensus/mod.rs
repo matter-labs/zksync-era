@@ -1,6 +1,7 @@
 //! Consensus-related functionality.
-use anyhow::Context as _;
 use std::sync::Arc;
+
+use anyhow::Context as _;
 use zksync_concurrency::{ctx, scope};
 use zksync_consensus_executor::{ConsensusConfig, Executor, ExecutorConfig};
 use zksync_consensus_roles::{node, validator};
@@ -16,8 +17,7 @@ pub(crate) mod testonly;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use self::payload::Payload;
-pub(crate) use self::storage::sync_block_to_consensus_block;
+pub(crate) use self::{payload::Payload, storage::sync_block_to_consensus_block};
 
 pub struct Config {
     pub executor: ExecutorConfig,

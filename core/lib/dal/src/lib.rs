@@ -4,12 +4,11 @@ use sqlx::{pool::PoolConnection, postgres::Postgres, Connection, PgConnection, T
 pub use sqlx::{types::BigDecimal, Error as SqlxError};
 
 pub use crate::connection::ConnectionPool;
-use crate::consensus_dal::ConsensusDal;
 use crate::{
     accounts_dal::AccountsDal, basic_witness_input_producer_dal::BasicWitnessInputProducerDal,
     blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal, connection::holder::ConnectionHolder,
-    contract_verification_dal::ContractVerificationDal, eth_sender_dal::EthSenderDal,
-    events_dal::EventsDal, events_web3_dal::EventsWeb3Dal,
+    consensus_dal::ConsensusDal, contract_verification_dal::ContractVerificationDal,
+    eth_sender_dal::EthSenderDal, events_dal::EventsDal, events_web3_dal::EventsWeb3Dal,
     fri_gpu_prover_queue_dal::FriGpuProverQueueDal,
     fri_proof_compressor_dal::FriProofCompressorDal,
     fri_protocol_versions_dal::FriProtocolVersionsDal, fri_prover_dal::FriProverDal,

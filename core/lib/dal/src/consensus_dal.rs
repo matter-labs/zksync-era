@@ -1,5 +1,6 @@
-use crate::StorageProcessor;
 use zksync_consensus_storage::ReplicaState;
+
+use crate::StorageProcessor;
 
 #[derive(Debug)]
 pub struct ConsensusDal<'a, 'c> {
@@ -30,9 +31,10 @@ impl ConsensusDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ConnectionPool;
     use rand::Rng as _;
     use zksync_consensus_storage::ReplicaState;
+
+    use crate::ConnectionPool;
 
     #[tokio::test]
     async fn replica_state_read_write() {
