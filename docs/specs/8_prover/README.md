@@ -1,4 +1,5 @@
 # Prover
+
 - [Overview](./1_overview.md)
 - [ZK terminology](./2_zk_terminology.md)
 - [Getting Started](./3_getting_started.md)
