@@ -6,7 +6,6 @@ In the Shared bridge document we described how the L1 smart contracts work to su
 that the core feature is hyperbridging, but we did not outline the hyperbridges themselves. This is because hyperbridges
 are mostly L2 contracts. In this document we describe what hyperbridges are, and specify the necessary infrastructure.
 
-
 ### Hyperbridge description
 
 Hyperbridges are trustless and cheap general native bridges between hyperchains, allowing cross-chain function calls.
@@ -31,12 +30,12 @@ ecosystem.
 
 ### L1
 
-For the larger context see the [Shared Bridge](./1_shared_bridge.md) document, here we will focus on 
-- HyperMailbox (part of Bridgehub)
-  This is the Hypermailbox + Verifier of the L1, shared for all rollups.
-  These L1<>L2 messages are not atomic, a Merkle tree is needed to read from it.
-  Header is updated on L1 when there is an L1→ L2 message is added, and when and L2 settles. We keep the header, as we
-  will want cross-rollup views and not only hyperbridge transactions.
+For the larger context see the [Shared Bridge](./1_shared_bridge.md) document, here we will focus on
+
+- HyperMailbox (part of Bridgehub) This is the Hypermailbox + Verifier of the L1, shared for all rollups. These L1<>L2
+  messages are not atomic, a Merkle tree is needed to read from it. Header is updated on L1 when there is an L1→ L2
+  message is added, and when and L2 settles. We keep the header, as we will want cross-rollup views and not only
+  hyperbridge transactions.
   - Header structure
     - L1 Alt-Header
       - Previous alt L1 header’s hash
@@ -55,14 +54,13 @@ For the larger context see the [Shared Bridge](./1_shared_bridge.md) document, h
         - Transaction Root
         - …
     - Questions:
-      - Should the L2 headers be in a tree or a rolling hash?
-        If we do a rolling hash, it is cheaper on L1, but we do not have a state of each rollup that is easy to expand
-        from each root.
-        Rolling hashes also be simply proof aggregated if the proving is not permissionless, as the L1 root hash can be
-        fed into the proof. In this case however the tree can also be aggregated, but the higher write cost remains.
-        If we want to do layered proof aggregation then we can also do
-      - Should the hyperlogs be stored in a permanent tree, or should each block have its own tree?
-        It depends on a lot of things. Who will submit the receiving tx? If a relayer, then
+      - Should the L2 headers be in a tree or a rolling hash? If we do a rolling hash, it is cheaper on L1, but we do
+        not have a state of each rollup that is easy to expand from each root. Rolling hashes also be simply proof
+        aggregated if the proving is not permissionless, as the L1 root hash can be fed into the proof. In this case
+        however the tree can also be aggregated, but the higher write cost remains. If we want to do layered proof
+        aggregation then we can also do
+      - Should the hyperlogs be stored in a permanent tree, or should each block have its own tree? It depends on a lot
+        of things. Who will submit the receiving tx? If a relayer, then
       - We should keep the same recursive structure, L1 header has L2 headers, has L3 headers, etc. We should also aim
         for layered aggregation, i.e. allow the L2 header to be a fake header, created in an aggregate proof. The
         layered aggregator should be a tree, with offchain DA.
@@ -75,7 +73,6 @@ For the larger context see the [Shared Bridge](./1_shared_bridge.md) document, h
 - Outbox system contract. It collects the hyperbridge txs into the hyperlog of the hyperchain.
 - Inbox system contract. This is where the hyperroot is imported and sent to L1 for settlement. Merkle proofs are
   verified here, tx calls are started from here, nullifiers are stored here (add epochs later)
-
 
 - HyperMailbox
   - Hyperbridge messages will send a single SysLog for the L2 header which will be used to update the Alt L1 header.

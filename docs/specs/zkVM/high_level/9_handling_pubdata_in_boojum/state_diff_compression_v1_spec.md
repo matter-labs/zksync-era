@@ -1,4 +1,4 @@
-# State diff Compression 
+# State diff Compression
 
 The most basic strategy to publish state diffs is to publish those in either of the following two forms:
 
@@ -124,7 +124,7 @@ beneficial, the added complexity may not be worth it.
 That being said, we _could_ rearange those for _repeated_ writes, but for now we stick to the same value compression
 format for simplicity.
 
-# Bytecode Compression doc 2. 
+# Bytecode Compression doc 2.
 
 ## Overview
 
@@ -249,4 +249,3 @@ for index in encoded_data:
 sendToL1(_rawCompressedBytecode)
 markPublished(hash(_bytecode), hash(_rawCompressedData), len(_rawCompressedData))
 ```
-

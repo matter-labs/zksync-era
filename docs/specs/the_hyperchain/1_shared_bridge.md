@@ -5,10 +5,10 @@
 # Introduction
 
 Ethereum's future is rollup-centric. This means breaking with the current paradigm of isolated EVM chains to
-infrastructure that is focused on an ecosystem of interconnected zkVMs, (which we name Hyperchains). This
-ecosystem will be grounded on Ethereum, requiring the appropriate L1 smart contracts. Here we outline our ZK Stack
-approach for these contracts, their interfaces, the needed changes to the existing architecture, as well as future
-features to be implemented.
+infrastructure that is focused on an ecosystem of interconnected zkVMs, (which we name Hyperchains). This ecosystem will
+be grounded on Ethereum, requiring the appropriate L1 smart contracts. Here we outline our ZK Stack approach for these
+contracts, their interfaces, the needed changes to the existing architecture, as well as future features to be
+implemented.
 
 If you want to know more about Hyperchains, check this
 [blog post](https://blog.matter-labs.io/introduction-to-hyperchains-fdb33414ead7), or go through
@@ -62,11 +62,11 @@ be able to leverage them when available).
 - Acts as a hub for bridges, so that they have a single point of communication with all hyperchain contracts. This
   allows L1 assets to be locked in the same contract for all hyperchains, including L3s and validiums. The `Bridgehub`
   also implements the following:
-- `Registry`
-  This is where hyperchains can register, starting in a permissioned manner, but with the goal to be permissionless in
-  the future. This is where their `chainID` is determined. L3s will also register here.
-  This `Registry` is also where State Transition contracts should register. Each chain has to specify its desired ST
-  when registering (Initially, only one will be available).
+- `Registry` This is where hyperchains can register, starting in a permissioned manner, but with the goal to be
+  permissionless in the future. This is where their `chainID` is determined. L3s will also register here. This
+  `Registry` is also where State Transition contracts should register. Each chain has to specify its desired ST when
+  registering (Initially, only one will be available).
+
   ```
   function newChain(
           uint256 _chainId,
@@ -75,6 +75,7 @@ be able to leverage them when available).
 
   function newStateTransition(address _stateTransition) external;
   ```
+
 - `BridgehubMailbox` routes messages to the Diamond proxy’s Mailbox facet based on chainID
   - Same as the current zkVM
     [Mailbox](https://github.com/matter-labs/era-contracts/blob/main/ethereum/contracts/zksync/facets/Mailbox.sol), just
@@ -149,20 +150,17 @@ This topic is now covered more thoroughly by the Custom native token discussion.
 
 ### State Transition
 
-- `StateTransition`
-  A state transition manages proof verification and DA for multiple chains. It also implements the following
-  functionalities:
-  - `StateTransitionRegistry`
-    The ST is shared for multiple chains, so initialization and upgrades have to be the same for all chains.
-    Registration is not permissionless but happens based on the registrations in the bridgehub’s `Registry`. At
-    registration a `DiamondProxy` is deployed and initialized with the appropriate `Facets` for each Hyperchain.
-  - `Facets` and `Verifier`
-    are shared across chains that relies on the same ST: `Base`, `Executor` , `Getters`, `Admin` , `Mailbox.`The
-    `Verifier` is the contract that actually verifies the proof, and is called by the `Executor`.
-  - Upgrade Mechanism
-    The system requires all chains to be up-to-date with the latest implementation, so whenever an update is needed, we
-    have to “force” each chain to update, but due to decentralization, we have to give each chain a time frame (more
-    information in the
+- `StateTransition` A state transition manages proof verification and DA for multiple chains. It also implements the
+  following functionalities:
+  - `StateTransitionRegistry` The ST is shared for multiple chains, so initialization and upgrades have to be the same
+    for all chains. Registration is not permissionless but happens based on the registrations in the bridgehub’s
+    `Registry`. At registration a `DiamondProxy` is deployed and initialized with the appropriate `Facets` for each
+    Hyperchain.
+  - `Facets` and `Verifier` are shared across chains that relies on the same ST: `Base`, `Executor` , `Getters`, `Admin`
+    , `Mailbox.`The `Verifier` is the contract that actually verifies the proof, and is called by the `Executor`.
+  - Upgrade Mechanism The system requires all chains to be up-to-date with the latest implementation, so whenever an
+    update is needed, we have to “force” each chain to update, but due to decentralization, we have to give each chain a
+    time frame (more information in the
     [Upgrade Mechanism](https://www.notion.so/ZK-Stack-shared-bridge-alpha-version-a37c4746f8b54fb899d67e474bfac3bb?pvs=21)
     section). This is done in the update mechanism contract, this is where the bootloader and system contracts are
     published, and the `ProposedUpgrade` is stored. Then each chain can call this upgrade for themselves as needed.
@@ -189,15 +187,14 @@ In this section, we will present some diagrams showing the interaction of differ
 
 A chain registers in the Bridgehub, this is where the chain ID is determined. The chain’s governor specifies the State
 Transition that they plan to use. In the first version only a single State Transition contract will be available for
-use, our  with Boojum proof verification.
+use, our with Boojum proof verification.
 
-At initialization we prepare the `StateTransitionChain` contract. We store the genesis batch hash in the ST
-contract, all chains start out with the same state. A diamond proxy is deployed and initialised with this initial value,
-along with predefined facets which are made available by the ST contract. These facets contain the proof verification
-and other features required to process proofs. The chain ID is set in the VM in a special system transaction sent from
-L1.
+At initialization we prepare the `StateTransitionChain` contract. We store the genesis batch hash in the ST contract,
+all chains start out with the same state. A diamond proxy is deployed and initialised with this initial value, along
+with predefined facets which are made available by the ST contract. These facets contain the proof verification and
+other features required to process proofs. The chain ID is set in the VM in a special system transaction sent from L1.
 
-<!--![newChain.png](./img/newChain.png) Image outdated--> 
+<!--![newChain.png](./img/newChain.png) Image outdated-->
 
 ### WETH Contract
 
@@ -226,9 +223,9 @@ here.
 
 ### Upgrade mechanism
 
-Currently, there are three types of upgrades for zkVM. Normal upgrades (used for new features) are initiated by
-the Governor (a multisig) and are public for a certain timeframe before they can be applied. Shadow upgrades are similar
-to normal upgrades, but the data is not known at the moment the upgrade is proposed, but only when executed (they can be
+Currently, there are three types of upgrades for zkVM. Normal upgrades (used for new features) are initiated by the
+Governor (a multisig) and are public for a certain timeframe before they can be applied. Shadow upgrades are similar to
+normal upgrades, but the data is not known at the moment the upgrade is proposed, but only when executed (they can be
 executed with the delay, or instantly if approved by the security council). Instant upgrades (used for security issues),
 on the other hand happen quickly and need to be approved by the Security Council in addition to the Governor. For
 hyperchains the difference is that upgrades now happen on multiple chains. This is only a problem for shadow upgrades -
@@ -245,4 +242,3 @@ content of the upgrade becomes public once the first chain is upgraded. The actu
      differences. If this is also not possible, we have to set the `diamondCut` for each chain by hand.
 3. Freeze not upgraded chains
    - After a certain time the chains that are not upgraded are frozen.
-

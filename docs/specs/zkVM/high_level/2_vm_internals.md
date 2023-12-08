@@ -9,19 +9,22 @@ languages, all running and verifying the same STF.
 
 We have a different set of requirements, we need to produce a proof that some client executed the STF correctly. The
 first consequence is that the client needs to be hard-coded, we cannot have the same multi-client philosophy. This
-client is the zkVM, it can run the STF efficiently, including execution of smart contracts similarly to the EVM. The zkVM was also designed to be proven efficiently.
+client is the zkVM, it can run the STF efficiently, including execution of smart contracts similarly to the EVM. The
+zkVM was also designed to be proven efficiently.
 
-For efficiency reasons it the zkVM is similar to the EVM. This makes executing smart programs inside of it easy. It
-also has special features that are not in the EVM but are needed for the rollup's STF, storage, gas metering,
-precompiles and other things. Some of these features are implemented as system contracts while others are built into the VM. System Contracts are contracts with special permissions, deployed at predefined addresses. Finally, we have the bootloader, which is also a contract, although it is not deployed at any address. This is the STF that is ultimately
-executed by the zkVM, and executes the transaction against the state.
+For efficiency reasons it the zkVM is similar to the EVM. This makes executing smart programs inside of it easy. It also
+has special features that are not in the EVM but are needed for the rollup's STF, storage, gas metering, precompiles and
+other things. Some of these features are implemented as system contracts while others are built into the VM. System
+Contracts are contracts with special permissions, deployed at predefined addresses. Finally, we have the bootloader,
+which is also a contract, although it is not deployed at any address. This is the STF that is ultimately executed by the
+zkVM, and executes the transaction against the state.
 
 <!-- KL todo *Add different abstraction levels diagram here:*-->
 
 Full specification of the zkVM is beyond the scope of this document. However, this section will give you most of the
 details needed for understanding the L2 system smart contracts & basic differences between EVM and zkVM. Note also that
-usually understanding the EVM is needed for efficient smart contract development. Understanding the zkVM goes beyond this, it is needed 
-for developing the rollup itself.
+usually understanding the EVM is needed for efficient smart contract development. Understanding the zkVM goes beyond
+this, it is needed for developing the rollup itself.
 
 ## Registers and memory management
 

@@ -284,8 +284,8 @@ When a transaction is being estimated, the server returns the following gasLimit
 _tx_.*gasLimit* = *tx*.*actualGasLimit* + *overhead*\__gas_(_tx_)
 
 Note, that when the operator receives the transaction, it knows only _tx_._gasLimit_. The operator could derive the
-_overhead__*gas*(*tx*) and provide the bootloader with it. The bootloader will then derive
-*tx*.*actualGasLimit* = *tx*.*gasLimit* − *overhead*__gas_(_tx_) and use the formulas above to derive the overhead that
+_overhead***gas*(*tx*) and provide the bootloader with it. The bootloader will then derive
+*tx*.*actualGasLimit* = *tx*.*gasLimit* − *overhead***gas_(_tx_) and use the formulas above to derive the overhead that
 the user should’ve paid under the derived _tx_._actualGasLimit_ to ensure that the operator does not overcharge the
 user.
 
@@ -446,9 +446,9 @@ At the moment, this counter is not accessible within the VM and so the operator 
 
 ### Refunds for repeated writes
 
-zkVM is a statediff-based rollup, i.e. the pubdata is published not for transactions, but for storage changes.
-This means that whenever a user writes into a storage slot, he incurs certain amount of pubdata. However, not all writes
-are equal:
+zkVM is a statediff-based rollup, i.e. the pubdata is published not for transactions, but for storage changes. This
+means that whenever a user writes into a storage slot, he incurs certain amount of pubdata. However, not all writes are
+equal:
 
 - If a slot has been already written to in one of the previous batches, the slot has received a short id, which allows
   it to require less pubdata in the state diff.
@@ -509,8 +509,8 @@ not charge for it.
       Multiple L1 batches can be included in a single execute transaction.
   - L1 Finalize Withdrawals
     - While not strictly part of the L1 fees, the cost to finalize L2 → L1 withdrawals are covered by Matter Labs. The
-      finalize withdrawals transaction processes user token withdrawals from zkVM to Ethereum. Multiple L2
-      withdrawal transactions are included in each finalize withdrawal transaction.
+      finalize withdrawals transaction processes user token withdrawals from zkVM to Ethereum. Multiple L2 withdrawal
+      transactions are included in each finalize withdrawal transaction.
 - On-Chain L2 Revenue
   - L2 Transaction Fee
     - This fee is what the user pays to complete a transaction on zkVM. It is calculated as
