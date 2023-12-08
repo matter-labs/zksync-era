@@ -14,7 +14,7 @@
 1. [Precompiles](./zkVM/high_level/6_elliptic_curve_precompiles.md)
 1. [Batches and L2 blocks](./zkVM/high_level/7_batches_L2_blocks.md)
 1. [L1-> L2 messages, Deposits and Withdrawals](./zkVM/high_level/8_handling_L1→L2_ops.md)
-1. [DA, Pubdata, Compression, Rollup, Validium and Porter](./zkVM/high_level/9_handling_pubdata_in_boojum/bytecode_compression.md)
+1. [DA, Pubdata, Compression, Rollup, Validium and Porter](./zkVM/high_level/9_handling_pubdata_in_boojum/handling_pubdata_in_boojum.md)
 1. [Fee model](./zkVM/high_level/10_fee_model/fee_model.md)
 1. [Prover](./zkVM/high_level/11_prover/zk_intuition.md)
 
@@ -30,7 +30,7 @@
 
 ### Experimental
 
-- [Decentralisation](./zkVM/Decentralisation/network_design_for_zkSync_BFT.md)
+- [Decentralisation](./Experimental/network_design_for_zkSync_BFT.md)
 
 ## Introduction
 

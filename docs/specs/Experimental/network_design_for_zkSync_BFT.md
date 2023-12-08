@@ -1,4 +1,6 @@
-# Netword design for ZK Stack BFT
+# Network design for ZK Stack BFT
+[Back to ToC](../README.md)
+
 
 # Introduction
 
