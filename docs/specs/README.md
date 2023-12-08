@@ -1,11 +1,10 @@
-# ZK Stack protocol specification
+# ZK Stack specs
 
-![Logo](./zk-stack-git.png)
+![Logo](./zk-the-collective-action.jpeg)
 
-## Table of contents
+## Specification Contents
 
-- README.md
-- zkVM High level overview
+- zkVM Overview
   1. [L1 Contracts](./zkVM/high_level/1_l1_smart_contracts.md)
   1. [VM internals](./zkVM/high_level/2_vm_internals.md)
   1. [Bootloader](./zkVM/high_level/3_bootloader.md)
@@ -25,9 +24,13 @@
   - [Shared Bridge](./the_hyperchain/1_shared_bridge.md)
   - [Hyperbridging](./the_hyperchain/2_hyperbridges.md)
 
-## Introduction
+## Overview
 
-This document is a specification of the ZK Stack protocol. The main part focuses on the zkVM, which serves to prove the
-state transition function of all hyperchains. This provides a high level overview of the zkVM, and a full specification
-of its more technical components such as the prover, compiler, and a full specification of the VM itself. We also
-specify the decentralised consensus mechanism, and the hyperchain ecosystem including hyperbridging.
+This document is a specification of the ZK Stack protocol.
+
+The main part focuses on the zkVM, which serves to prove the state transition function of all
+hyperchains. This provides a high level overview of the zkVM, and a full specification of its more
+technical components (such as the prover, compiler, and a full specification of the VM itself).
+
+We also specify the decentralised consensus mechanism, and the hyperchain ecosystem including
+hyperbridging.
