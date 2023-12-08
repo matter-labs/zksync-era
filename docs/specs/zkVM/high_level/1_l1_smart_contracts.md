@@ -98,8 +98,8 @@ function applyL1ToL2Alias(address l1Address) internal pure returns (address l2Ad
 ```
 
 For most of the rollups the address aliasing needs to prevent cross-chain exploits that would otherwise be possible if
-we simply reused the same L1 addresses as the L2 sender. In zkVM address derivation rule is different from the Ethereum,
-so cross-chain exploits are already impossible. However, the zkVM may add full EVM support in the future, so applying
+we simply reused the same L1 addresses as the L2 sender. In zkEVM address derivation rule is different from the Ethereum,
+so cross-chain exploits are already impossible. However, the zkEVM may add full EVM support in the future, so applying
 address aliasing leaves room for future EVM compatibility.
 
 The L1 -> L2 communication is also used for bridging ether. The user should include a `msg.value` when initiating a
@@ -220,7 +220,7 @@ The owner of the L2WethBridge and L2Weth contracts is the Governance contract.
 
 ## Governance
 
-This contract manages calls for all governed zkVM contracts on L1 and L2. Mostly, it is used for upgradability an
+This contract manages calls for all governed zkEVM contracts on L1 and L2. Mostly, it is used for upgradability an
 changing critical system parameters. The contract has minimum delay settings for the call execution.
 
 Each upgrade consists of two steps:
