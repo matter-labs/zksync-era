@@ -32,8 +32,8 @@ ecosystem.
 
 For the larger context see the [Shared Bridge](./1_shared_bridge.md) document, here we will focus on
 
-- HyperMailbox (part of Bridgehub). Contains the Hyperroot, root of Merkle tree of Hyperlogs. Hyperlogs are the L2->L1 SysLogs that record the sent hyperbridge messages from the L2s. 
-
+- HyperMailbox (part of Bridgehub). Contains the Hyperroot, root of Merkle tree of Hyperlogs. Hyperlogs are the L2->L1
+  SysLogs that record the sent hyperbridge messages from the L2s.
 
 ### L2 Contracts
 

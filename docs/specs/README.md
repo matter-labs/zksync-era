@@ -32,9 +32,8 @@
 
 This document is a specification of the ZK Stack protocol.
 
-The main part focuses on the zkVM, which serves to prove the state transition function of all
-hyperchains. This provides a high level overview of the zkVM, and a full specification of its more
-technical components (such as the prover, compiler, and a full specification of the VM itself).
+The main part focuses on the zkVM, which serves to prove the state transition function of all hyperchains. This provides
+a high level overview of the zkVM, and a full specification of its more technical components (such as the prover,
+compiler, and a full specification of the VM itself).
 
-We also specify the decentralised consensus mechanism, and the hyperchain ecosystem including
-hyperbridging.
+We also specify the decentralised consensus mechanism, and the hyperchain ecosystem including hyperbridging.
