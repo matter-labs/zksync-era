@@ -1,4 +1,5 @@
 # L1 Smart contracts
+[Back to ToC](../../README.md)
 
 This document presumes familiarity with Rollups. For a better understanding, consider reading the Rollup introduction
 [here](https://era.zksync.io/docs/reference/concepts/rollups.html).

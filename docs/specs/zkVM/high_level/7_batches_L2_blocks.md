@@ -1,6 +1,6 @@
-# Batches & L2 blocks
-
 # Blocks & Batches - How we package transactions
+[Back to ToC](../../README.md)
+
 
 In this article, we will explore the processing of transactions, how we group them into blocks, what it means to "seal"
 a block, and why it is important to have rollbacks in our virtual machine (VM).
@@ -86,7 +86,7 @@ comprehensive understanding of their functionality and interactions.
   https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/state_keeper/seal_criteria/mod.rs#L106
   'Reasons for Sealing'
 
-# codeArena
+# Deeper dive
 
 ## Glossary
 
