@@ -17,7 +17,7 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN cargo build --release --bin witness_generator
+RUN cargo build --release --bin zksync_witness_generator
 
 FROM debian:bookworm-slim
 
