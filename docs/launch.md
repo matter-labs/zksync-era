@@ -17,7 +17,6 @@ zk # installs and builds zk itself
 zk init
 ```
 
-
 If you face any other problems with the `zk init` command, go to the [Troubleshooting](#Troubleshooting) section at the
 end of this file. There are solutions for some common error cases.
 

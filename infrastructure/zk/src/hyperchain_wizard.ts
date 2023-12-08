@@ -565,7 +565,8 @@ async function checkBalance(wallet: ethers.Wallet, expectedBalance: BigNumber): 
     const balance = await wallet.getBalance();
     if (balance.lt(expectedBalance)) {
         console.log(
-            `Wallet ${wallet.address
+            `Wallet ${
+                wallet.address
             } has insufficient funds. Expected ${expectedBalance.toString()}, got ${balance.toString()}`
         );
         return false;

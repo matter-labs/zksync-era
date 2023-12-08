@@ -63,7 +63,6 @@ export async function deployTestkit(genesisRoot: string) {
     await utils.spawn(`yarn l1-contracts deploy-testkit --genesis-root ${genesisRoot}`);
 }
 
-
 export async function revertReason(txHash: string, web3url?: string) {
     await utils.spawn(`yarn l1-contracts ts-node scripts/revert-reason.ts ${txHash} ${web3url || ''}`);
 }
@@ -142,7 +141,6 @@ command
     .action(async (address: string) => {
         await tokenInfo(address);
     });
-
 
 command
     .command('deploy-testkit')
