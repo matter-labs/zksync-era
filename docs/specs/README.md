@@ -1,5 +1,7 @@
 # zk Stack protocol specification
+
 [![Logo](eraLogo.png)](https://zksync.io/)
+
 ## Table of contents
 
 - README.md

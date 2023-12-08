@@ -17,7 +17,7 @@ Let’s focus on ecrecover. Ecrecover is a precompile that, given your signature
 works correctly, we should be able to recover the proper address, and be able to prove the computation was done
 correctly.
 
-![Contest(4).png](./circuit_testing/Contest(4).png)
+![Contest(4).png](<./circuit_testing/Contest(4).png>)
 
 The test begins by defining the geometry, max_variables, and max_trace_len. This data will be used to create the
 constraint system. Next, we define a helper function:
