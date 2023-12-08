@@ -98,9 +98,9 @@ function applyL1ToL2Alias(address l1Address) internal pure returns (address l2Ad
 ```
 
 For most of the rollups the address aliasing needs to prevent cross-chain exploits that would otherwise be possible if
-we simply reused the same L1 addresses as the L2 sender. In zkEVM address derivation rule is different from the Ethereum,
-so cross-chain exploits are already impossible. However, the zkEVM may add full EVM support in the future, so applying
-address aliasing leaves room for future EVM compatibility.
+we simply reused the same L1 addresses as the L2 sender. In zkEVM address derivation rule is different from the
+Ethereum, so cross-chain exploits are already impossible. However, the zkEVM may add full EVM support in the future, so
+applying address aliasing leaves room for future EVM compatibility.
 
 The L1 -> L2 communication is also used for bridging ether. The user should include a `msg.value` when initiating a
 transaction request on the L1 contract. Before executing a transaction on L2, the specified address will be credited

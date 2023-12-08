@@ -14,12 +14,12 @@ first consequence is that the client needs to be hard-coded, we cannot have the 
 client is the zkEVM, it can run the STF efficiently, including execution of smart contracts similarly to the EVM. The
 zkEVM was also designed to be proven efficiently.
 
-For efficiency reasons it the zkEVM is similar to the EVM. This makes executing smart programs inside of it easy. It also
-has special features that are not in the EVM but are needed for the rollup's STF, storage, gas metering, precompiles and
-other things. Some of these features are implemented as system contracts while others are built into the VM. System
-Contracts are contracts with special permissions, deployed at predefined addresses. Finally, we have the bootloader,
-which is also a contract, although it is not deployed at any address. This is the STF that is ultimately executed by the
-zkEVM, and executes the transaction against the state.
+For efficiency reasons it the zkEVM is similar to the EVM. This makes executing smart programs inside of it easy. It
+also has special features that are not in the EVM but are needed for the rollup's STF, storage, gas metering,
+precompiles and other things. Some of these features are implemented as system contracts while others are built into the
+VM. System Contracts are contracts with special permissions, deployed at predefined addresses. Finally, we have the
+bootloader, which is also a contract, although it is not deployed at any address. This is the STF that is ultimately
+executed by the zkEVM, and executes the transaction against the state.
 
 <!-- KL todo *Add different abstraction levels diagram here:*-->
 
