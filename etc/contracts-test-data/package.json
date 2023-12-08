@@ -7,7 +7,7 @@
     "hardhat": "=2.16.0"
   },
   "devDependencies": {
-    "@matterlabs/hardhat-zksync-solc": "^0.3.15"
+    "@matterlabs/hardhat-zksync-solc": "^1.0.3"
   },
   "scripts": {
     "build": "hardhat compile",

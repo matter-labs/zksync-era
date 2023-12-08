@@ -23,7 +23,7 @@
         "zksync-web3": "^0.15.5"
     },
     "devDependencies": {
-        "@matterlabs/hardhat-zksync-solc": "^0.3.15",
+        "@matterlabs/hardhat-zksync-solc": "^1.0.3",
         "@types/deep-extend": "^0.4.31",
         "@types/node": "^14.6.1",
         "@types/node-fetch": "^2.5.7",

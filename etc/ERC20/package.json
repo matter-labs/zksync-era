@@ -4,11 +4,11 @@
   "main": "index.js",
   "license": "MIT",
   "devDependencies": {
-    "@matterlabs/hardhat-zksync-deploy": "^0.6.1",
-    "@matterlabs/hardhat-zksync-solc": "0.4.2",
+    "@matterlabs/hardhat-zksync-deploy": "^1.0.3",
+    "@matterlabs/hardhat-zksync-solc": "^1.0.3",
     "hardhat": "=2.16.0"
   },
   "scripts": {
-      "build": "hardhat compile"
+    "build": "hardhat compile"
   }
 }
