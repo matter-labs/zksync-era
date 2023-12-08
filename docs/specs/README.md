@@ -17,22 +17,22 @@ We also specify the foundations of the hyperchain ecosystem including hyperbridg
 
 ### zkEVM Overview
 
-1. [L1 Contracts](./zkVM/high_level/1_l1_smart_contracts.md)
-1. [VM internals](./zkVM/high_level/2_vm_internals.md)
-1. [Bootloader](./zkVM/high_level/3_bootloader.md)
-1. [L2 System Contracts](./zkVM/high_level/4_system_contracts.md)
-1. [Precompiles](./zkVM/high_level/6_elliptic_curve_precompiles.md)
-1. [Account Abstraction](./zkVM/high_level/5_account_abstraction.md)
-1. [L1-> L2 messages, Deposits and Withdrawals](./zkVM/high_level/8_handling_L1→L2_ops.md)
-1. [Fee model](./zkVM/high_level/10_fee_model/fee_model.md)
-1. [Batches and L2 blocks](./zkVM/high_level/7_batches_L2_blocks.md)
-1. [DA, Pubdata, Compression, Rollup, Validium and Porter](./zkVM/high_level/9_handling_pubdata_in_boojum/handling_pubdata_in_boojum.md)
-1. [Prover](./zkVM/high_level/11_prover/zk_intuition.md)
+1. [L1 Contracts](./zkEVM/high_level/1_l1_smart_contracts.md)
+1. [VM internals](./zkEVM/high_level/2_vm_internals.md)
+1. [Bootloader](./zkEVM/high_level/3_bootloader.md)
+1. [L2 System Contracts](./zkEVM/high_level/4_system_contracts.md)
+1. [Precompiles](./zkEVM/high_level/6_elliptic_curve_precompiles.md)
+1. [Account Abstraction](./zkEVM/high_level/5_account_abstraction.md)
+1. [L1-> L2 messages, Deposits and Withdrawals](./zkEVM/high_level/8_handling_L1→L2_ops.md)
+1. [Fee model](./zkEVM/high_level/10_fee_model/fee_model.md)
+1. [Batches and L2 blocks](./zkEVM/high_level/7_batches_L2_blocks.md)
+1. [DA, Pubdata, Compression, Rollup, Validium and Porter](./zkEVM/high_level/9_handling_pubdata_in_boojum/handling_pubdata_in_boojum.md)
+1. [Prover](./zkEVM/high_level/11_prover/zk_intuition.md)
 
 ### zkEVM and Prover full specification
 
-- [VM](./zkVM/VM_and_prover/VM_section/zkSync_era_virtual_machine_primer.md)
-- [Circuits](./zkVM/VM_and_prover/circuits_section/intro_to_zkSync’s_ZK.md)
+- [VM](./zkEVM/VM_and_prover/VM_section/zkSync_era_virtual_machine_primer.md)
+- [Circuits](./zkEVM/VM_and_prover/circuits_section/intro_to_zkSync’s_ZK.md)
 
 ### The Hyperchain
 
@@ -57,7 +57,7 @@ using the zkEVM, and to provide a soft confirmation to the user that their trans
 chooses they can force the sequencer to include their transaction by submitting it via L1. After the sequencer executes
 the block, it sends it over the prover, who creates a cryptographic proof of the blocks execution. This proof is then
 sent to the L1 contract alongside the necessary data. On the L1 a
-[smart contract](./zkVM/high_level/1_l1_smart_contracts.md) verifies that the proof is valid and all the data has been
+[smart contract](./zkEVM/high_level/1_l1_smart_contracts.md) verifies that the proof is valid and all the data has been
 submitted, and update the rollup's stored state on L1.
 
 ![Components](./L2_Components.png)
@@ -66,48 +66,48 @@ The zkSync zkEVM plays a fundamentally different role in the zkStack than the EV
 execute code in Ethereum's state transition function. This STF needs a client to implement and run it.
 
 Rollups have a different set of requirements, they need to produce a proof that some client executed the STF correctly.
-This client is the [zkEVM](./zkVM/high_level/2_vm_internals.md), it is made to run the STF efficiently. The STF is the
-[Bootloader](./zkVM/high_level/3_bootloader.md).
+This client is the [zkEVM](./zkEVM/high_level/2_vm_internals.md), it is made to run the STF efficiently. The STF is the
+[Bootloader](./zkEVM/high_level/3_bootloader.md).
 
 The smart contracts are native zkEVM bytecode, zkEVM can execute these easily. In the future the ZK Stack will also
 support EVM bytecode by running an efficient interpreter inside the zkEVM.
 
 The zkEVM has a lot of special features compared to the EVM that are needed for the rollup's STF, storage, gas metering,
 precompiles etc. These functions are either built into the zkEVM, or there are special
-[system contract](./zkVM/high_level/4_system_contracts.md) for them. The system contracts are deployed at predefined
+[system contract](./zkEVM/high_level/4_system_contracts.md) for them. The system contracts are deployed at predefined
 addresses, they are called by the Bootloader, and they have special permissions compared to normal user contracts. These
-are not to be confused with the [precompiles](./zkVM/high_level/6_elliptic_curve_precompiles.md), which are also
+are not to be confused with the [precompiles](./zkEVM/high_level/6_elliptic_curve_precompiles.md), which are also
 predeloyed contracts with special support from the zkEVM, but these contract do not have special permissions and are
 called by the users and not the Bootloader.
 
 Now that we understand the main components of the zkEVM lets look at executing a transaction. Transactions are normally
 submitted by users directly to the sequencers. For the best possible UX the ZK Stack supports native
-[account abstraction](./zkVM/high_level/5_account_abstraction.md). This means users can fully customize how they pay the
+[account abstraction](./zkEVM/high_level/5_account_abstraction.md). This means users can fully customize how they pay the
 fees needed to execute their transactions.
 
 Transactions can also be submitted via L1. This happens via the same process that allows L1<>L2 communication
-[L1-> L2 messages, deposits and withdrawals](./zkVM/high_level/8_handling_L1→L2_ops.md). This method provides the rollup
+[L1-> L2 messages, deposits and withdrawals](./zkEVM/high_level/8_handling_L1→L2_ops.md). This method provides the rollup
 with censorship resistance, and allows trustless bridges between the layers to be written by anybody.
 
 All transactions need to pay fees. The requirements to run a rollup are different than the ones needed to run Ethereum,
-so the ZK Stack has a different [fee model](./zkVM/high_level/10_fee_model/fee_model.md). The fee model is designed to
+so the ZK Stack has a different [fee model](./zkEVM/high_level/10_fee_model/fee_model.md). The fee model is designed to
 consider all the components that are needed to run the rollup: data and proof execution costs on L1, sequencer costs,
 and prover costs.
 
-Once the sequencer has enough transactions it collects them into [blocks](./zkVM/high_level/7_batches_L2_blocks.md),
+Once the sequencer has enough transactions it collects them into [blocks](./zkEVM/high_level/7_batches_L2_blocks.md),
 similarly to Ethereum. To provide the best UX the protocol has small blocks with quick soft confirmations for the users.
 Unlike Ethereum, the zkEVM does not just have blocks, but also batches. The batch is the unit that the prover processes,
 and a batch contains multiple smaller blocks. Proofs can be aggregated, it is much cheaper for rollups to submit a
 single proof for a whole batch instead of multiple proofs for each block.
 
 There is another reason why big batches are advantageous, and this is how the ZK Stack handles
-[data submission](./zkVM/high_level/9_handling_pubdata_in_boojum/handling_pubdata_in_boojum.md) to L1. Instead of
+[data submission](./zkEVM/high_level/9_handling_pubdata_in_boojum/handling_pubdata_in_boojum.md) to L1. Instead of
 submitting the data of each transaction, we submit how the state of the blockchain changes, this change is called the
 state diff. This approach allows the transactions that change the same storage slots to be very cheap, since these
 transactions don't incur additional data costs. The state diff is also compressed when it is sent to L1.
 
 Finally at the end of the process, we create the proofs and send them to L1. Our
-[Boojum](./zkVM/high_level/11_prover/zk_intuition.md) proof system provides excellent performance, and can be run on
+[Boojum](./zkEVM/high_level/11_prover/zk_intuition.md) proof system provides excellent performance, and can be run on
 just 16Gb of GPU RAM. This will enable the proof generation to be truly decentralized.
 
 Up to this point we have only talked about a single chain. These chains will be launched on L1 into a
