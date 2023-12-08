@@ -1,4 +1,4 @@
-# Elliptic curve precompiles
+# Precompiles
 
 [Back to ToC](../../README.md)
 

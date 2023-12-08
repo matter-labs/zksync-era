@@ -64,7 +64,7 @@ copy a value `X` to `Y` .
 
 Commonly, instructions accept two inputs and one output operands, following the schema:
 
-![arithmetic opcode.png](./zkSync_era_vm_primer//arithmetic_opcode.png)
+![arithmetic opcode.png](./img/arithmetic_opcode.png)
 
 The first operand can be taken from:
 
@@ -526,7 +526,7 @@ System contracts implement contract deployment, extensions such as keccak256, de
 
 Decommitter is a module external to zkEVM allowing accessing deployed code by its hash.
 
-![arch-overview.png](./zkSync_era_vm_primer/arch-overview.png)
+![arch-overview.png](./img/arch-overview.png)
 
 The system contracts at the address $2^{15}+2$ , called Deployer, keeps hashes of code of each contract in its storage.
 Far calls to a contract with address $C$ perform as follows:
