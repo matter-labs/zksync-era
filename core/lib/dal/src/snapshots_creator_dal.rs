@@ -34,7 +34,7 @@ impl SnapshotsCreatorDal<'_, '_> {
     pub async fn get_storage_logs_chunk(
         &mut self,
         miniblock_number: MiniblockNumber,
-        hashed_keys_range: std::ops::Range<H256>,
+        hashed_keys_range: std::ops::RangeInclusive<H256>,
     ) -> sqlx::Result<Vec<SnapshotStorageLog>> {
         let storage_logs = sqlx::query!(
             r#"
@@ -56,13 +56,13 @@ impl SnapshotsCreatorDal<'_, '_> {
                      INNER JOIN initial_writes ON keys.hashed_key = initial_writes.hashed_key;
              "#,
             miniblock_number.0 as i64,
-            hashed_keys_range.start.0.as_slice(),
-            hashed_keys_range.end.0.as_slice(),
+            hashed_keys_range.start().0.as_slice(),
+            hashed_keys_range.end().0.as_slice(),
         )
         .instrument("get_storage_logs_chunk")
         .with_arg("miniblock_number", &miniblock_number)
-        .with_arg("min_hashed_key", &hashed_keys_range.start)
-        .with_arg("max_hashed_key", &hashed_keys_range.end)
+        .with_arg("min_hashed_key", &hashed_keys_range.start())
+        .with_arg("max_hashed_key", &hashed_keys_range.end())
         .report_latency()
         .fetch_all(self.storage.conn())
         .await?
