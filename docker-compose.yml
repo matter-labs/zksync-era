@@ -118,6 +118,7 @@ services:
   # This is specific to runner
   zk:
     image: "matterlabs/zk-environment:latest2.0-lightweight"
+    user: "1001:1001"
     depends_on:
       - geth
       - postgres
