@@ -130,7 +130,7 @@ services:
       - .:/usr/src/zksync
       - /usr/src/cache:/usr/src/cache
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./hardhat-nodejs:./root/.cache/hardhat-nodejs
+      - ./hardhat-nodejs:/root/.cache/hardhat-nodejs
     environment:
       - CACHE_DIR=/usr/src/cache
       - SCCACHE_CACHE_SIZE=50g
