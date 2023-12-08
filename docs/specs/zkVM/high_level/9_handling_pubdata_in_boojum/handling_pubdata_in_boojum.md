@@ -457,7 +457,7 @@ Pubdata in zkSync can be divided up into 4 different categories:
 4. Storage writes
 
 Using data corresponding to these 4 facets, across all executed batches, we’re able to reconstruct the full state of L2.
-One thing to note is that the way that the data is represented changes in a pre-boojum and post-boojum zkVM. At a high
+One thing to note is that the way that the data is represented changes in a pre-boojum and post-boojum zkEVM. At a high
 level, in a pre-boojum era these are represented as separate fields while in boojum they are packed into a single bytes
 array.
 
