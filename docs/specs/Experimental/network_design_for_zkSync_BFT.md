@@ -1,6 +1,6 @@
 # Network design for ZK Stack BFT
-[Back to ToC](../README.md)
 
+[Back to ToC](../README.md)
 
 # Introduction
 

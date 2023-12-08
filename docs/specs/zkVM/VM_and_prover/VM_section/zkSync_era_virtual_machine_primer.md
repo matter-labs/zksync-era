@@ -1,4 +1,5 @@
 # ZkSync Virtual Machine primer
+
 [Back to ToC](../../../README.md)
 
 Unlike EVM, zkVM is a register machine. EVM instructions operate on a stack. Instead, zkVM operates primarily on sixteen

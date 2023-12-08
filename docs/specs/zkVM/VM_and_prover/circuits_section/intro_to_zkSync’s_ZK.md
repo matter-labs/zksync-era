@@ -1,4 +1,5 @@
 # Intro to zkSync’s ZK
+
 [Back to ToC](../../../README.md)
 
 This page is specific to our cryptography. For a general introduction, please read:
