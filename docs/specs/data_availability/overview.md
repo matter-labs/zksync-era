@@ -5,8 +5,8 @@ each transaction, we submit how the state of the blockchain changes, this change
 allows the transactions that change the same storage slots to be very cheap, since these transactions don't incur
 additional data costs.
 
-Besides the state diff we also [post additional](./pubdata.md) data to L1, such as the L2->L1 messages, the L2->L1
-logs, the bytecodes of the deployed smart contracts.
+Besides the state diff we also [post additional](./pubdata.md) data to L1, such as the L2->L1 messages, the L2->L1 logs,
+the bytecodes of the deployed smart contracts.
 
 We also [compress](./compression.md) all the data that we send to L1, to reduce the costs of posting it.
 
