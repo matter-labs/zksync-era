@@ -1,7 +1,5 @@
 # zkSync fee model
 
-
-
 This document will assume that you already know how gas & fees work on Ethereum.
 
 On Ethereum, all the computational, as well as storage costs, are represented via one unit: gas. Each operation costs a

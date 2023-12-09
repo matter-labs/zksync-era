@@ -1,7 +1,5 @@
 # Precompiles
 
-
-
 Precompiled contracts for elliptic curve operations are required in order to perform zkSNARK verification.
 
 The operations that you need to be able to perform are elliptic curve point addition, elliptic curve point scalar

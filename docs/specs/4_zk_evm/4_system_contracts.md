@@ -1,7 +1,5 @@
 # System contracts
 
-
-
 While most of the primitive EVM opcodes can be supported out of the box (i.e. zero-value calls,
 addition/multiplication/memory/storage management, etc), some of the opcodes are not supported by the VM by default and
 they are implemented via “system contracts” — these contracts are located in a special _kernel space,_ i.e. in the

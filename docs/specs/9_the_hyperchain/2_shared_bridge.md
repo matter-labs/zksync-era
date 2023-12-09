@@ -1,7 +1,5 @@
 # Introduction
 
-
-
 Ethereum's future is rollup-centric. This means breaking with the current paradigm of isolated EVM chains to
 infrastructure that is focused on an ecosystem of interconnected zkEVMs, (which we name Hyperchains). This ecosystem
 will be grounded on Ethereum, requiring the appropriate L1 smart contracts. Here we outline our ZK Stack approach for

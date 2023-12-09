@@ -1,7 +1,5 @@
 # Intro to zkSync’s ZK
 
-
-
 This page is specific to our cryptography. For a general introduction, please read:
 [https://docs.zksync.io/userdocs/intro/#introduction](https://docs.zksync.io/userdocs/intro/#introduction)
 

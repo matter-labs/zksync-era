@@ -1,7 +1,5 @@
 # Bootloader
 
-
-
 On standard Ethereum clients, the workflow for executing blocks is the following:
 
 1. Pick a transaction, validate the transactions & charge the fee, execute it

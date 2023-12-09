@@ -1,7 +1,8 @@
 # L2→L1 communication
 
-The L2→L1 communication is more fundamental than the L1→L2 communication, as the second relies on the first. L2→L1 communication happens by the L1 smart contract verifying messages alongside the proofs. The only “provable” part of the communication from L2 to L1 are native L2→L1 logs emitted by VM. These can be emitted by
-the `to_l1`
+The L2→L1 communication is more fundamental than the L1→L2 communication, as the second relies on the first. L2→L1
+communication happens by the L1 smart contract verifying messages alongside the proofs. The only “provable” part of the
+communication from L2 to L1 are native L2→L1 logs emitted by VM. These can be emitted by the `to_l1`
 [opcode](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/System%20contracts%20bootloader%20description.md).
 Each log consists of the following fields:
 

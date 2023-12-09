@@ -2,8 +2,6 @@
 
 ## Introduction
 
-
-
 In the Shared bridge document we described how the L1 smart contracts work to support multiple chains, and we emphasized
 that the core feature is hyperbridging, but we did not outline the hyperbridges themselves. This is because hyperbridges
 are mostly L2 contracts. In this document we describe what hyperbridges are, and specify the necessary infrastructure.

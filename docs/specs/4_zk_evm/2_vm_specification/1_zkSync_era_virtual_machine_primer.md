@@ -1,7 +1,5 @@
 # ZkSync Virtual Machine primer
 
-
-
 Unlike EVM, zkEVM is a register machine. EVM instructions operate on a stack. Instead, zkEVM operates primarily on
 sixteen registers and memory like most modern computers. That simplifies zero-knowledge proofs, which largely rely on
 building arithmetic circuits.

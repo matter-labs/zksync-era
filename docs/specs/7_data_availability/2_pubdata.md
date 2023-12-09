@@ -1,7 +1,5 @@
 # Handling pubdata in Boojum
 
-
-
 Pubdata in zkSync can be divided up into 4 different categories:
 
 1. L2 to L1 Logs
