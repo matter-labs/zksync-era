@@ -22,8 +22,7 @@ jobs:
 
       - name: Start services
         run: |
-          docker-compose -f docker-compose-runner.yml pull
-          docker-compose -f docker-compose-runner.yml up --build -d geth zk postgres
+          ci_localnet_up
           ci_run sccache --start-server
 
       - name: Init
@@ -63,8 +62,7 @@ jobs:
 
       - name: Start services
         run: |
-          docker-compose -f docker-compose-runner.yml pull
-          docker-compose -f docker-compose-runner.yml up --build -d geth zk postgres
+          ci_localnet_up
           ci_run sccache --start-server
 
       - name: Init
@@ -92,7 +90,6 @@ jobs:
           ci_run cat server.log
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
-
   integration:
     runs-on: [matterlabs-ci-runner]
 
@@ -135,8 +132,7 @@ jobs:
 
       - name: Start services
         run: |
-          docker-compose -f docker-compose-runner.yml pull
-          docker-compose -f docker-compose-runner.yml up --build -d geth zk postgres
+          ci_localnet_up 
           ci_run sccache --start-server
 
       - name: Init
@@ -233,8 +229,7 @@ jobs:
 
       - name: Start services
         run: |
-          docker-compose -f docker-compose-runner.yml pull
-          docker-compose -f docker-compose-runner.yml up --build -d geth zk postgres
+          ci_localnet_up
           ci_run sccache --start-server
 
       - name: Init

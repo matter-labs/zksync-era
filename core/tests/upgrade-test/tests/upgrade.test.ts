@@ -197,7 +197,7 @@ describe('Upgrade test', function () {
         ).wait();
 
         // Wait for server to process L1 event.
-        await utils.sleep(10);
+        await utils.sleep(30);
     });
 
     step('Check bootloader is updated on L2', async () => {

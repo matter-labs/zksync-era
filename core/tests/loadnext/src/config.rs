@@ -312,9 +312,9 @@ impl TransactionWeights {
 impl Default for TransactionWeights {
     fn default() -> Self {
         Self {
-            deposit: 0.1,
+            deposit: 0.05,
             withdrawal: 0.5,
-            l1_transactions: 0.1,
+            l1_transactions: 0.05,
             l2_transactions: 1.0,
         }
     }
