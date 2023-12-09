@@ -28,7 +28,6 @@ pub struct AccountTreeId {
     address: Address,
 }
 
-
 impl AccountTreeId {
     pub fn new(address: Address) -> Self {
         Self { address }
