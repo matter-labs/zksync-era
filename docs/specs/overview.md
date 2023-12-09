@@ -9,31 +9,31 @@ using the zkEVM, and to provide a soft confirmation to the user that their trans
 they can force the sequencer to include their transaction by submitting it via L1. After the sequencer executes the
 block, it sends it over to the prover, who creates a cryptographic proof of the block's execution. This proof is then
 sent to the L1 contract alongside the necessary data. On the L1 a
-[smart contract](./1_zkEVM/1_high_level/1_l1_smart_contracts.md) verifies that the proof is valid and all the data has
+[smart contract](./zkEVM/high_level/l1_smart_contracts.md) verifies that the proof is valid and all the data has
 been submitted, and the rollup's state is also updated in the contract.
 
 ![Components](./img/L2_Components.png)
 
-The core of this mechanism was the execution of transactions. The ZK Stack uses the [zkEVM](./4_zk_evm/README.md) for
+The core of this mechanism was the execution of transactions. The ZK Stack uses the [zkEVM](./zk_evm/README.md) for
 this, which is similar to the EVM, but its role is different than the EVM's role in Ethereum.
 
 Transactions can also be submitted via L1. This happens via the same process that allows
-[L1<>L2 communication](./5_l1_l2_communication/README.md). This method provides the rollup with censorship resistance,
+[L1<>L2 communication](./l1_l2_communication/README.md). This method provides the rollup with censorship resistance,
 and allows trustless bridges to the L1.
 
-The sequencer collects transactions into blocks [blocks](./6_blocks_batches.md), similarly to Ethereum. To provide the
+The sequencer collects transactions into blocks [blocks](./blocks_batches.md), similarly to Ethereum. To provide the
 best UX the protocol has small blocks with quick soft confirmations for the users. Unlike Ethereum, the zkEVM does not
 just have blocks, but also batches, which are just a collection of blocks. A batch is the unit that the prover
 processes.
 
-Before we submit a proof we send the [data](./7_data_availability/README.md) to L1. Instead of submitting the data of
+Before we submit a proof we send the [data](./data_availability/README.md) to L1. Instead of submitting the data of
 each transaction, we submit how the state of the blockchain changes, this change is called the state diff. This approach
 allows the transactions that change the same storage slots to be very cheap, since these transactions don't incur
 additional data costs.
 
-Finally at the end of the process, we [create the proofs](./7_data_availability/README.md) and send them to L1. Our
+Finally at the end of the process, we [create the proofs](./data_availability/README.md) and send them to L1. Our
 Boojum proof system provides excellent performance, and can be run on just 16Gb of GPU RAM. This will enable the proof
 generation to be truly decentralized.
 
 Up to this point we have only talked about a single chain. We will connect these chains into a single ecosystem, called
-[the hyperchain](./9_the_hyperchain/README.md).
+[the hyperchain](./the_hyperchain/README.md).
