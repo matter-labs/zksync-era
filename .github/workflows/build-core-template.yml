@@ -60,19 +60,21 @@ jobs:
           # Download needed versions of zksolc compiler
           mkdir -p ./hardhat-nodejs/compilers-v2/zksolc
           wget -O ./hardhat-nodejs/compilers-v2/zksolc/zksolc-v1.3.14 https://github.com/matter-labs/zksolc-bin/releases/download/v1.3.14/zksolc-linux-amd64-musl-v1.3.14
+          chmod +x  ./hardhat-nodejs/compilers-v2/zksolc/zksolc-v1.3.14
           wget -O ./hardhat-nodejs/compilers-v2/zksolc/zksolc-v1.3.16 https://github.com/matter-labs/zksolc-bin/releases/download/v1.3.16/zksolc-linux-amd64-musl-v1.3.16
+          chmod +x  ./hardhat-nodejs/compilers-v2/zksolc/zksolc-v1.3.16
           wget -O ./hardhat-nodejs/compilers-v2/zksolc/zksolc-v1.3.17 https://github.com/matter-labs/zksolc-bin/releases/download/v1.3.17/zksolc-linux-amd64-musl-v1.3.17
+          chmod +x  ./hardhat-nodejs/compilers-v2/zksolc/zksolc-v1.3.17
           # Download needed versions of zkvyper compiler
           mkdir -p ./hardhat-nodejs/compilers-v2/zkvyper
           wget -O ./hardhat-nodejs/compilers-v2/zkvyper/zkvyper-v1.3.13 https://github.com/matter-labs/zkvyper-bin/releases/download/v1.3.13/zkvyper-linux-amd64-musl-v1.3.13
+          chmod +x  ./hardhat-nodejs/compilers-v2/zkvyper/zkvyper-v1.3.13
 
       - name: start-services
         run: |
           echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
           ci_localnet_up
           ci_run sccache --start-server
-          # Fix compiler permissions
-          ci_run chown -R root:root /root/
 
       - name: init
         run: |
