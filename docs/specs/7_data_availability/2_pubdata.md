@@ -1,6 +1,6 @@
 # Handling pubdata in Boojum
 
-[Back to ToC](../../../README.md)
+
 
 Pubdata in zkSync can be divided up into 4 different categories:
 
@@ -637,10 +637,3 @@ the writes will be repeated ones.
   - packing type as a 1 byte value, which consists of 5 bits to denote the length of the packing and 3 bits to denote
     the type of the packing (either `Add`, `Sub`, `Transform` or `NoCompression`).
   - The packed value itself.
-
-## L2 State Recosntruction Tool
-
-Given the structure above, there is a tool, created by the [Equilibrium Team](https://equilibrium.co/) that solely uses
-L1 pubdata for reconstructing the state and verifying that the state root on L1 can be created using pubdata. A link to
-the repo can be found [here](https://github.com/eqlabs/zksync-state-reconstruct). The way the tool works is by parsing
-out all the L1 pubdata for an executed batch, comparing the state roots after each batch is processed.
