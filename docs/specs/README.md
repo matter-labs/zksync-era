@@ -23,7 +23,7 @@
    - [Reconstruction](./data_availability/reconstruction.md)
    - [Validium and zkPorter](./data_availability/validium_zk_porter.md)
 1. [Prover](./prover/README.md)
-   - [Overview](./prover/overview.md)
+   - [Overview - Boojum](./prover/overview.md)
    - [ZK Terminology](./prover/zk_terminology.md)
    - [Getting Started](./prover/getting_started.md)
    - [Circuits](./prover/circuits/)
