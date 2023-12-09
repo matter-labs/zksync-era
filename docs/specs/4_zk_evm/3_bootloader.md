@@ -1,6 +1,6 @@
 # Bootloader
 
-[Back to ToC](../../README.md)
+
 
 On standard Ethereum clients, the workflow for executing blocks is the following:
 

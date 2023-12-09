@@ -67,7 +67,7 @@ always use $n$ `MainVm` instances to handle up to $nx$ opcode executions.
 
 All circuits have the following PI structure:
 
-![diagram.png](./circuits/diagram.png)
+![diagram.png](./img/diagram.png)
 
 | start flag               | Boolean that shows if this is the first instance of corresponding circuit type                                                                                                   |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -83,7 +83,7 @@ In terms of Arithmetization we don’t allocate all these fields like public inp
 would be computing commitment of type `[Num<F>; 4]` with poseidon2 and then allocating these 4 variables as public
 inputs.
 
-![image.png](./circuits/image.png)
+![image.png](./img/image.png)
 
 The equality of corresponding parts in different circuits is done during aggregating base layer circuits. Aggregating is
 done by recursion level circuits that also verify base layer proofs. For now this is out of our scope, so we will focus
@@ -91,7 +91,7 @@ only on base layer.
 
 ## How do all the base layer circuits fit together
 
-![flowchart.png](./circuits/flowchart.png)
+![flowchart.png](./img/flowchart.png)
 
 ## All base layer circuits inner parts
 

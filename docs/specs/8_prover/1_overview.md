@@ -1,6 +1,6 @@
 # Intro to zkSync’s ZK
 
-[Back to ToC](../../../README.md)
+
 
 This page is specific to our cryptography. For a general introduction, please read:
 [https://docs.zksync.io/userdocs/intro/#introduction](https://docs.zksync.io/userdocs/intro/#introduction)
@@ -39,7 +39,7 @@ Here are the different repositories we use:
 ZK circuits get their name from Arithmetic Circuits, which look like this (see picture). You can read the circuit by
 starting at the bottom with the inputs, and following the arrows, computing each operation as you go.
 
-![Untitled](./intro_to_zkSync’s_ZK/circuit.png)
+![Untitled](./img/intro_to_zkSync’s_ZK/circuit.png)
 
 The prover will prove that the circuit is “satisfied” by the inputs, meaning every step is computed correctly, leading
 to a correct output.

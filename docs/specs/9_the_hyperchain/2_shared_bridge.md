@@ -1,6 +1,6 @@
 # Introduction
 
-[Back to ToC](../README.md)
+
 
 Ethereum's future is rollup-centric. This means breaking with the current paradigm of isolated EVM chains to
 infrastructure that is focused on an ecosystem of interconnected zkEVMs, (which we name Hyperchains). This ecosystem
