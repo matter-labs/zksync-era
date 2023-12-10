@@ -14,7 +14,7 @@ more common to general-purpose languages, and the latter was inherited from the 
 | Efficient                                              | Yes                     | Huge size impact due to numerous catch blocks. |
 | Extra cycles are needed for propagating the exception. |
 
-# Contract Level
+## Contract Level
 
 This type of exceptions is inherited from the EVM architecture. On EVM, such instructions as `REVERT` and `INVALID`,
 immediately terminate the contract execution and return the control to the callee. It is impossible to catch them within
@@ -42,7 +42,7 @@ contract, leaving no possibility to catch and handle it on the way.
 These types of exceptions are more efficient, as you can revert at any point of the execution without propagating the
 control flow all the way up to the uppermost function frame.
 
-# Function Level
+## Function Level
 
 This type of exceptions is more common to general-purpose languages like C++. That is why it was easy to support within
 the LLVM framework, even though it is not supported by the smart contract languages we work with. That is also one of

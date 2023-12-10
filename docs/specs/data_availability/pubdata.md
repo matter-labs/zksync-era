@@ -19,9 +19,9 @@ is that a committed or even proven block can be reverted but an executed one can
 batches that have been executed, we then will pull the transaction input and the relevant fields, applying them in order
 to reconstruct the current state of L2.
 
-# L2→L1 communication
+## L2→L1 communication
 
-## L2→L1 communication before Boojum
+### L2→L1 communication before Boojum
 
 While there were quite some changes during Boojum upgrade, most of the scheme remains the same and so explaining how it
 worked before gives some background on why certain decisions are made and kept for backward compatibility.
@@ -37,9 +37,9 @@ enable
 [proving](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/bridge/L1ERC20Bridge.sol#L255)
 failed deposits for bridges.
 
-## Changes with Boojum
+### Changes with Boojum
 
-### Problems with the previous approach
+#### Problems with the previous approach
 
 - There was a limit of 512 L2→L1 logs per batch, which is very limiting. It causes our block to be forcefully closed
   based on the number of these messages instead of having the pubdata as the only limit.
@@ -50,7 +50,7 @@ failed deposits for bridges.
   keep only the essential logs as parts of calldata and the rest should be separated so that they could be moved the
   EIP4844 blob in the future.
 
-### Solution
+#### Solution
 
 We will implement the calculation of the Merkle root of the L2→L1 messages via a system contract as part of the
 `L1Messenger`. Basically, whenever a new log emitted by users that needs to be Merklized is created, the `L1Messenger`
@@ -68,7 +68,7 @@ natively by VM _system_ logs. Here is a short comparison table for better unders
 | We have constant small number of those.                                                                         | We can have as much as possible as long as the commitBatches function on L1 remains executable (it is the job of the operator to ensure that only such transactions are selected)                                                   |
 | In EIP4844 they will remain part of the calldata.                                                               | In EIP4844 they will become part of the blobs.                                                                                                                                                                                      |
 
-### Backwards-compatibility
+#### Backwards-compatibility
 
 Note, that to maintain a unified interface with the previous version of the protocol, the leaves of the Merkle tree will
 have to maintain the following structure:
@@ -98,7 +98,7 @@ bytes32 hashedLog = keccak256(
 To put it shortly, the proofs for L2→L1 log inclusion will continue having exactly the same format as they did in the
 pre-Boojum system, which avoids breaking changes for SDKs and bridges alike.
 
-### Implementation of `L1Messenger`
+#### Implementation of `L1Messenger`
 
 The L1Messenger contract will maintain a rolling hash of all the L2ToL1 logs `chainedLogsHash` as well as the rolling
 hashes of messages `chainedMessagesHash`. Whenever a contract wants to send an L2→L1 log, the following operation will
@@ -121,7 +121,7 @@ same as in the `chainedLogsHash` and calculate the merkle tree of the provided m
 Merkle tree of size `2048`, but we charge the user as if the tree was built dynamically based on the number of leaves in
 there. The implementation of the dynamic tree has been postponed until the later upgrades.
 
-### Long L2→L1 messages & bytecodes
+#### Long L2→L1 messages & bytecodes
 
 Before, the fact that the correct preimages for L2→L1 messages as bytecodes were provided was checked on the L1 side.
 Now, it will be done on L2.
@@ -136,7 +136,7 @@ provided at the end of the batch to form the full pubdata for the batch.
 Note, that in for backward compatibility, just like before any long message or bytecode is accompanied by the
 corresponding user L2→L1 log.
 
-### Using system L2→L1 logs vs the user logs
+#### Using system L2→L1 logs vs the user logs
 
 The content of the L2→L1 logs by the L1Messenger will go to the blob of EIP4844. Meaning, that all the data that belongs
 to the tree by L1Messenger’s L2→L1 logs should not be needed during block commitment. Also, note that in the future we
@@ -148,7 +148,7 @@ The only places where the built-in L2→L1 messaging should continue to be used:
 - Logs by L1Messenger for the merkle root of the L2→L1 tree as well as the hash of the `totalPubdata`.
 - `chainedPriorityTxsHash` and `numberOfLayer1Txs` from the bootloader (read more about it below).
 
-### Obtaining `txNumberInBlock`
+#### Obtaining `txNumberInBlock`
 
 To have the same log format, the `txNumberInBlock` must be obtained. While it is internally counted in the VM, there is
 currently no opcode to retrieve this number. We will have a public variable `txNumberInBlock` in the `SystemContext`,
@@ -156,7 +156,7 @@ which will be incremented with each new transaction and retrieve this variable f
 [zeroed out](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/contracts/SystemContext.sol#L458)
 at the end of the batch.
 
-## Bootloader implementation
+### Bootloader implementation
 
 The bootloader has a memory segment dedicated to the ABI-encoded data of the L1ToL2Messenger to perform the
 `publishPubdataAndClearState` call.
@@ -167,23 +167,23 @@ i.e user L2→L1 logs, long messages, bytecodes, etc. After that, the
 is performed to the `L1Messenger` system contract, that should validate the adherence of the pubdata to the required
 format
 
-# Bytecode Publishing
+## Bytecode Publishing
 
 Within pubdata, bytecodes are published in 1 of 2 ways: (1) uncompressed via `factoryDeps` (pre-boojum this is within
 its own field, and post-boojum as part of the `totalPubdata`) and (2) compressed via long l2 → l1 messages.
 
-## Uncompressed Bytecode Publishing
+### Uncompressed Bytecode Publishing
 
 With Boojum, `factoryDeps` are included within the `totalPubdata` bytes and have the following format:
 `number of bytecodes || forEachBytecode (length of bytecode(n) || bytecode(n))` .
 
-## Compressed Bytecode Publishing
+### Compressed Bytecode Publishing
 
 This part stays the same in a pre and post boojum zkSync. Unlike uncompressed bytecode which are published as part of
 `factoryDeps`, compressed bytecodes are published as long l2 → l1 messages which can be seen
 [here](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/contracts/Compressor.sol#L80).
 
-### Bytecode Compression Algorithm — Server Side
+#### Bytecode Compression Algorithm — Server Side
 
 This is the part that is responsible for taking bytecode, that has already been chunked into 8 byte words, performing
 validation, and compressing it.
@@ -223,7 +223,7 @@ for chunk in chunked_bytecode:
 return [len(dictionary), dictionary.keys(order=index asc), encoded_data]
 ```
 
-### Verification And Publishing — L2 Contract
+#### Verification And Publishing — L2 Contract
 
 The function `publishCompressBytecode` takes in both the original `_bytecode` and the `_rawCompressedData` , the latter
 of which comes from the output of the server’s compression algorithm. Looping over the encoded data, derived from
@@ -252,12 +252,12 @@ sendToL1(_rawCompressedBytecode)
 markAsPublished(hash(_bytecode))
 ```
 
-# Storage diff publishing
+## Storage diff publishing
 
 zkSync is a statediff-based rollup and so publishing the correct state diffs plays an integral role in ensuring data
 availability.
 
-## How publishing of storage diffs worked before Boojum
+### How publishing of storage diffs worked before Boojum
 
 As always in order to understand the new system better, some information about the previous one is important.
 
@@ -285,7 +285,7 @@ struct CommitBlockInfo {
 
 These two fields would be then included into the block commitment and checked by the verifier.
 
-## Difference between initial and repeated writes
+### Difference between initial and repeated writes
 
 zkSync publishes state changes that happened within the batch instead of transactions themselves. Meaning, that for
 instance some storage slot `S` under account `A` has changed to value `V`, we could publish a triple of `A,S,V`. Users
@@ -327,7 +327,7 @@ sorted. The enumeration indexes are part of the state merkle tree, it is **cruci
 published in the correct order, so that anyone could restore the correct enum indexes for the storage slots. In
 addition, an enumeration index of `0` indicates that the storage write is an initial write.
 
-## State diffs after Boojum upgrade
+### State diffs after Boojum upgrade
 
 Firstly, let’s define what we’ll call the `stateDiffs`. A _state diff_ is an element of the following structure.
 
@@ -357,9 +357,9 @@ will be helpful for the more advanced compression algorithms in the future. The
 [algorithm](#state-diff-compression-format) for Boojum will already utilize the difference between the `initial_value`
 and `final_value` for saving up on pubdata.
 
-## How the new pubdata verification would work
+### How the new pubdata verification would work
 
-**L2**
+#### L2
 
 1. The operator provides both full `stateDiffs` (i.e. the array of the structs above) and the compressed state diffs
    (i.e. the array which contains the state diffs, compressed by the algorithm explained
@@ -368,7 +368,7 @@ and `final_value` for saving up on pubdata.
 3. Once verified, the L1Messenger will publish the _hash_ of the original state diff via a system log. It will also
    include the compressed state diffs into the totalPubdata to be published onto L1.
 
-**L1**
+#### L1
 
 1. During committing the block, the L1
    [verifies](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/facets/Executor.sol#L139)
@@ -385,13 +385,13 @@ provided hash of the `stateDiffs` is correct. This means that the L1Messenger in
 format, while L1 contracts on the commit stage double checked that the operator provided the preimage for the compressed
 state diffs.
 
-## State diff compression format
+### State diff compression format
 
 The following algorithm is used for the state diff compression:
 
 [State diff compression v1 spec](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20pubdata%20in%20Boojum/State%20diff%20compression%20v1%20spec.md)
 
-# General pubdata format
+## General pubdata format
 
 At the end of the execution of the batch, the bootloader provides the `L1Messenger` with the preimages for the user
 L2→L1 logs, L2→L1 long messages as well as uncompressed bytecodes. It also provides with compressed state diffs as well
@@ -445,193 +445,3 @@ struct CommitBatchInfo {
 
 ```
 
-# Overview
-
-Pubdata in zkSync can be divided up into 4 different categories:
-
-1. L2 to L1 Logs
-2. L2 to L1 Messages
-3. Smart Contract Bytecodes
-4. Storage writes
-
-Using data corresponding to these 4 facets, across all executed batches, we’re able to reconstruct the full state of L2.
-One thing to note is that the way that the data is represented changes in a pre-boojum and post-boojum zkEVM. At a high
-level, in a pre-boojum era these are represented as separate fields while in boojum they are packed into a single bytes
-array.
-
-> Note: Once 4844 gets integrated this bytes array will move from being part of the calldata to blob data.
-
-While the structure of the pubdata changes, we can use the same strategy to pull the relevant information. First, we
-need to filter all of the transactions to the L1 zkSync contract for only the `commitBlocks` transactions where the
-proposed block has been referenced by a corresponding `executeBlocks` call (the reason for this is that a committed or
-even proven block can be reverted but an executed one cannot). Once we have all the committed blocks that have been
-executed, we then will pull the transaction input and the relevant fields, applying them in order to reconstruct the
-current state of L2.
-
-One thing to note is that in both systems some of the contract bytecode is compressed into an array of indices where
-each 2 byte index corresponds to an 8 byte word in a dictionary. More on how that is done
-[here](./bytecode_compression.md). Once the bytecode has been expanded, the hash can be taken and checked against the
-storage writes within the `AccountCodeStorage` contract which connects an address on L2 with the 32 byte code hash:
-
-```solidity
-function _storeCodeHash(address _address, bytes32 _hash) internal {
-  uint256 addressAsKey = uint256(uint160(_address));
-  assembly {
-    sstore(addressAsKey, _hash)
-  }
-}
-
-```
-
-## Pre-Boojum Era
-
-In pre-boojum era the superset of pubdata fields and input to the `commitBlocks` function follows the following format:
-
-```solidity
-/// @notice Data needed to commit new block
-/// @param blockNumber Number of the committed block
-/// @param timestamp Unix timestamp denoting the start of the block execution
-/// @param indexRepeatedStorageChanges The serial number of the shortcut index that's used as a unique identifier for storage keys that were used twice or more
-/// @param newStateRoot The state root of the full state tree
-/// @param numberOfLayer1Txs Number of priority operations to be processed
-/// @param l2LogsTreeRoot The root hash of the tree that contains all L2 -> L1 logs in the block
-/// @param priorityOperationsHash Hash of all priority operations from this block
-/// @param initialStorageChanges Storage write access as a concatenation key-value
-/// @param repeatedStorageChanges Storage write access as a concatenation index-value
-/// @param l2Logs concatenation of all L2 -> L1 logs in the block
-/// @param l2ArbitraryLengthMessages array of hash preimages that were sent as value of L2 logs by special system L2 contract
-/// @param factoryDeps (contract bytecodes) array of L2 bytecodes that were deployed
-struct CommitBlockInfo {
-  uint64 blockNumber;
-  uint64 timestamp;
-  uint64 indexRepeatedStorageChanges;
-  bytes32 newStateRoot;
-  uint256 numberOfLayer1Txs;
-  bytes32 l2LogsTreeRoot;
-  bytes32 priorityOperationsHash;
-  bytes initialStorageChanges;
-  bytes repeatedStorageChanges;
-  bytes l2Logs;
-  bytes[] l2ArbitraryLengthMessages;
-  bytes[] factoryDeps;
-}
-
-```
-
-The 4 main fields to look at here are:
-
-1. `initialStorageChanges`: Storage slots being written to for the first time and the corresponding value
-   1. Structure: `num entries as u32 || for each entry: (32 bytes key, 32 bytes final value)`
-2. `repeatedStorageChanges`: ids of the slots being written to and the corresponding value
-   1. Structure: `num entries as u32 || for each entry: (8 byte id, 32 bytes final value)`
-3. `factoryDeps`: An array of uncompressed bytecodes
-4. `l2ArbitraryLengthMessages` : L2 → L1 Messages
-   1. We don’t need them all, we are just concerned with messages sent from the `Compressor/BytcodeCompressor` contract
-   2. These messages will follow the compression algorithm outline [here](./bytecode_compression.md)
-
-For the ids on the repeated writes, they are generated as we process the first time keys. For example: if we see
-`[<key1, val1>, <key2, val2>]` (starting from an empty state) then we can assume that the next time a write happens to
-`key1` it will be encoded as `<1, new_val>` and so on and so forth. There is a little shortcut here where the last new
-id generated as part of a batch will be in the `indexRepeatedStorageChanges` field.
-
-## Post-Boojum Era
-
-```solidity
-/// @notice Data needed to commit new block
-/// @param blockNumber Number of the committed block
-/// @param timestamp Unix timestamp denoting the start of the block execution
-/// @param indexRepeatedStorageChanges The serial number of the shortcut index that's used as a unique identifier for storage keys that were used twice or more
-/// @param newStateRoot The state root of the full state tree
-/// @param numberOfLayer1Txs Number of priority operations to be processed
-/// @param priorityOperationsHash Hash of all priority operations from this block
-/// @param systemLogs concatenation of all L2 -> L1 system logs in the block
-/// @param totalL2ToL1Pubdata Total pubdata committed to as part of bootloader run. Contents are: l2Tol1Logs <> l2Tol1Messages <> publishedBytecodes <> stateDiffs
-struct CommitBlockInfo {
-  uint64 blockNumber;
-  uint64 timestamp;
-  uint64 indexRepeatedStorageChanges;
-  bytes32 newStateRoot;
-  uint256 numberOfLayer1Txs;
-  bytes32 priorityOperationsHash;
-  bytes systemLogs;
-  bytes totalL2ToL1Pubdata;
-}
-
-```
-
-The main difference between the two `CommitBlockInfo` structs is that we have taken a few of the fields and merged them
-into a single bytes array called `totalL2ToL1Pubdata`. The contents of pubdata include:
-
-1. L2 to L1 Logs
-2. L2 to L1 Messages
-3. Published Bytecodes
-4. Compressed State Diffs
-
-The 2 main fields needed for state reconstruction are the bytecodes and the state diffs. The bytecodes follow the same
-structure and reasoning in the old system (as explained above). The state diffs will follow the compression illustrated
-below.
-
-## Compression of State Diffs in Post-Boojum Era
-
-### Keys
-
-Keys will be packed in the same way as they were before boojum. The only change is that we’ll avoid using the 8-byte
-enumeration index and will pack it to the minimal necessary number of bytes. This number will be part of the pubdata.
-Once a key has been used, it can already use the 4 or 5 byte enumeration index and it is very hard to have something
-cheaper for keys that has been used already. The opportunity comes when remembering the ids for accounts to spare some
-bytes on nonce/balance key, but ultimately the complexity may not be worth it.
-
-There is some room for the keys that are being written for the first time, however, these are rather more complex and
-achieve only a one-time effect (when the key is published for the first time).
-
-### Values
-
-Values are much easier to compress, since they usually contain only zeroes. Also, we can leverage the nature of how
-those values are changed. For instance if nonce has been increased only by 1, we do not need to write the entire 32-byte
-new value, we can just tell that the slot has been _increased_ and then supply only 1-byte value of _the size by which_
-it was increased. This way instead of 32 bytes we need to publish only 2 bytes: first byte to denote which operation has
-been applied and the second by to denote the size by which the addition has been made.
-
-If we decide to have just the following 4 types of changes: `Add`, `Sub,` `Transform`, `NoCompression` where:
-
-- `Add` denotes that the value has been increased. (modulo 2^256)
-- `Sub` denotes that the value has been decreased. (modulo 2^256)
-- `Transform` denotes the value just has been changed (i.e. we disregard any potential relation between the previous and
-  the new value, though the new value might be small enough to save up on the number of bytes).
-- `NoCompression` denotes that the whole 32 byte value will be used.
-
-Where the byte size of the output can be anywhere from 0 to 31 (also 0 makes sense for `Transform`, since it denotes
-that it has been zeroed out). For `NoCompression` the whole 32 byte value is used.
-
-So the format of the pubdata will be the following:
-
-#### Part 1. Header
-
-- `<version = 1 byte>` — this will enable easier automated unpacking in the future. Currently, it will be only equal to
-  `1`.
-- `<total_logs_len = 3 bytes>` — we need only 3 bytes to describe the total length of the L2→L1 logs.
-- `<the number of bytes used for derived keys = 1 byte>`. At the beginning it will be equal to `4`, but then it will
-  automatically switch to `5` when needed.
-
-#### Part 2. Initial writes
-
-- `<num_of_initial_writes = 2 bytes>` (since each initial write publishes at least 32 bytes for key, then
-  `2^16 * 32 = 2097152` will be enough for a lot of time (right now with the limit of 120kb it will take more than 15 L1
-  txs to use up all the space there).
-- Then for each `<key, value>` pair for each initial write:
-  - print key as 32-byte derived key.
-  - packing type as a 1 byte value, which consists of 5 bits to denote the length of the packing and 3 bits to denote
-    the type of the packing (either `Add`, `Sub`, `Transform` or `NoCompression`). More on it
-    [below](https://www.notion.so/Pubdata-compression-v1-4b0dd8c151014c8ab96dbd7e66e17599?pvs=21).
-  - The packed value itself.
-
-#### Part 3. Repeated writes
-
-Note, that there is no need to write the number of repeated writes, since we know that until the end of the pubdata, all
-the writes will be repeated ones.
-
-- For each `<key, value>` pair for each repeated write:
-  - print key as either 4 or 5 byte derived key.
-  - packing type as a 1 byte value, which consists of 5 bits to denote the length of the packing and 3 bits to denote
-    the type of the packing (either `Add`, `Sub`, `Transform` or `NoCompression`).
-  - The packed value itself.

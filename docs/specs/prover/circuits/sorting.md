@@ -1,3 +1,5 @@
+# Sorting
+
 We have four circuits, that receive some queue of elements and do sorting: SortDecommitments, StorageSorter,
 EventsSorter and L1MessageSorter.
 

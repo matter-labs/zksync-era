@@ -107,7 +107,7 @@ Like on EVM, the payload consists of topics and data:
 For reference, see
 [the LLVM IR codegen source code](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/evm/event.rs).
 
-# Auxiliary Heap
+## Auxiliary Heap
 
 Both [zksolc](https://era.zksync.io/docs/tools/compiler-toolchain/solidity.html) and
 [zkvyper](https://era.zksync.io/docs/tools/compiler-toolchain/vyper.html) compilers for EraVM operate on

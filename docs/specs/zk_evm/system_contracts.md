@@ -301,7 +301,7 @@ This contract contains utility methods that are used to verify the correctness o
 compression. You can read more on how we compress state diffs and bytecodes in the corresponding
 [document](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20L1%E2%86%92L2%20ops%20on%20zkSync.md).
 
-# Known issues to be resolved
+## Known issues to be resolved
 
 The protocol, while conceptually complete, contains some known issues which will be resolved in the short to middle
 term.

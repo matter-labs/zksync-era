@@ -9,7 +9,7 @@ The same as for [RETURN](#return).
 [The LLVM IR generator code](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/evm/return.rs#L103)
 is common for Yul and EVMLA representations.
 
-# [RETURN](https://www.evm.codes/#f3?fork=shanghai)
+## [RETURN](https://www.evm.codes/#f3?fork=shanghai)
 
 This instruction works differently in deploy code. For more information, see
 [the zkSync Era documentation](https://era.zksync.io/docs/reference/architecture/differences-with-ethereum.html#return).
@@ -28,7 +28,7 @@ entry:
 [The LLVM IR generator code](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/evm/return.rs#L16)
 is common for Yul and EVMLA representations.
 
-# [REVERT](https://www.evm.codes/#fd?fork=shanghai)
+## [REVERT](https://www.evm.codes/#fd?fork=shanghai)
 
 ### LLVM IR
 
@@ -44,7 +44,7 @@ entry:
 [The LLVM IR generator code](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/evm/return.rs#L86)
 is common for Yul and EVMLA representations.
 
-# [INVALID](https://www.evm.codes/#fe?fork=shanghai)
+## [INVALID](https://www.evm.codes/#fe?fork=shanghai)
 
 This instruction is a [REVERT](#revert) with an empty data payload.
 

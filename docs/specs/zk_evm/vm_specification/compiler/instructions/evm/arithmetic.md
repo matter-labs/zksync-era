@@ -17,7 +17,7 @@ is common for Yul and EVMLA representations.
 add     r1, r2, r1
 ```
 
-# [MUL](https://www.evm.codes/#02?fork=shanghai)
+## [MUL](https://www.evm.codes/#02?fork=shanghai)
 
 ### Differences from EVM
 
@@ -52,7 +52,7 @@ is common for Yul and EVMLA representations.
 mul     r1, r2, r1, r2
 ```
 
-# [SUB](https://www.evm.codes/#03?fork=shanghai)
+## [SUB](https://www.evm.codes/#03?fork=shanghai)
 
 ### LLVM IR
 
@@ -71,7 +71,7 @@ is common for Yul and EVMLA representations.
 sub     r1, r2, r1
 ```
 
-# [DIV](https://www.evm.codes/#04?fork=shanghai)
+## [DIV](https://www.evm.codes/#04?fork=shanghai)
 
 ### Differences from EVM
 
@@ -100,7 +100,7 @@ is common for Yul and EVMLA representations.
 
 [LLVM IR instruction documentation](https://releases.llvm.org/15.0.0/docs/LangRef.html#udiv-instruction)
 
-# [SDIV](https://www.evm.codes/#05?fork=shanghai)
+## [SDIV](https://www.evm.codes/#05?fork=shanghai)
 
 ### LLVM IR
 
@@ -131,7 +131,7 @@ is common for Yul and EVMLA representations.
 
 [LLVM IR instruction documentation](https://releases.llvm.org/15.0.0/docs/LangRef.html#sdiv-instruction)
 
-# [MOD](https://www.evm.codes/#06?fork=shanghai)
+## [MOD](https://www.evm.codes/#06?fork=shanghai)
 
 ### Differences from EVM
 
@@ -160,7 +160,7 @@ is common for Yul and EVMLA representations.
 
 [LLVM IR instruction documentation](https://releases.llvm.org/15.0.0/docs/LangRef.html#urem-instruction)
 
-# [SMOD](https://www.evm.codes/#07?fork=shanghai)
+## [SMOD](https://www.evm.codes/#07?fork=shanghai)
 
 ### LLVM IR
 
@@ -191,7 +191,7 @@ is common for Yul and EVMLA representations.
 
 [LLVM IR instruction documentation](https://releases.llvm.org/15.0.0/docs/LangRef.html#srem-instruction)
 
-# [ADDMOD](https://www.evm.codes/#08?fork=shanghai)
+## [ADDMOD](https://www.evm.codes/#08?fork=shanghai)
 
 ### LLVM IR
 
@@ -225,7 +225,7 @@ return:
 [The LLVM IR generator code](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/evm/math.rs#L16)
 is common for Yul and EVMLA representations.
 
-# [MULMOD](https://www.evm.codes/#09?fork=shanghai)
+## [MULMOD](https://www.evm.codes/#09?fork=shanghai)
 
 ### LLVM IR
 
@@ -264,7 +264,7 @@ slow:
 [The LLVM IR generator code](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/evm/math.rs#L43)
 is common for Yul and EVMLA representations.
 
-# [EXP](https://www.evm.codes/#0a?fork=shanghai)
+## [EXP](https://www.evm.codes/#0a?fork=shanghai)
 
 ### LLVM IR
 
@@ -296,7 +296,7 @@ exponent_loop_body:
 [The LLVM IR generator code](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/evm/math.rs#L70)
 is common for Yul and EVMLA representations.
 
-# [SIGNEXTEND](https://www.evm.codes/#0b?fork=shanghai)
+## [SIGNEXTEND](https://www.evm.codes/#0b?fork=shanghai)
 
 ### LLVM IR
 

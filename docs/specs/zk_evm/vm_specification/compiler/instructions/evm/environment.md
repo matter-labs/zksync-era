@@ -7,7 +7,7 @@ This value is fetched with a native EraVM instruction.
 [The LLVM IR generator code](https://github.com/matter-labs/era-compiler-solidity/blob/main/src/yul/parser/statement/expression/function_call/mod.rs#L973)
 is common for Yul and EVMLA representations.
 
-# [BALANCE](https://www.evm.codes/#31?fork=shanghai)
+## [BALANCE](https://www.evm.codes/#31?fork=shanghai)
 
 ### System Contract
 
@@ -26,7 +26,7 @@ The request to the System Contract is done via the
 [SystemRequest](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/context/function/runtime/system_request.rs)
 runtime function.
 
-# [ORIGIN](https://www.evm.codes/#32?fork=shanghai)
+## [ORIGIN](https://www.evm.codes/#32?fork=shanghai)
 
 ### System Contract
 
@@ -45,7 +45,7 @@ The request to the System Contract is done via the
 [SystemRequest](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/context/function/runtime/system_request.rs)
 runtime function.
 
-# [CALLER](https://www.evm.codes/#33?fork=shanghai)
+## [CALLER](https://www.evm.codes/#33?fork=shanghai)
 
 This value is fetched with a native EraVM instruction.
 
@@ -54,7 +54,7 @@ This value is fetched with a native EraVM instruction.
 [The LLVM IR generator code](https://github.com/matter-labs/era-compiler-solidity/blob/main/src/yul/parser/statement/expression/function_call/mod.rs#L974)
 is common for Yul and EVMLA representations.
 
-# [CALLVALUE](https://www.evm.codes/#34?fork=shanghai)
+## [CALLVALUE](https://www.evm.codes/#34?fork=shanghai)
 
 This value is fetched with a native EraVM instruction.
 
@@ -63,7 +63,7 @@ This value is fetched with a native EraVM instruction.
 [The LLVM IR generator code](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/evm/ether_gas.rs#L25)
 is common for Yul and EVMLA representations.
 
-# [CALLDATALOAD](https://www.evm.codes/#35?fork=shanghai)
+## [CALLDATALOAD](https://www.evm.codes/#35?fork=shanghai)
 
 Calldata is accessed with a generic memory access instruction, but the memory chunk itself is a reference to the calling
 contract's heap. A fat pointer to the parent contract is passed via ABI using registers.
@@ -95,7 +95,7 @@ ptr.add stack[@ptr_calldata], r0, r1                                            
 ld      r1, r1                                                                      ; loading the value to `r1`
 ```
 
-# [CALLDATASIZE](https://www.evm.codes/#36?fork=shanghai)
+## [CALLDATASIZE](https://www.evm.codes/#36?fork=shanghai)
 
 Calldata size is stored in the fat pointer passed from the parent contract (see [CALLDATALOAD](#calldataload)).
 
@@ -126,7 +126,7 @@ CPI0_0:
     .cell 4294967295
 ```
 
-# [CALLDATACOPY](https://www.evm.codes/#37?fork=shanghai)
+## [CALLDATACOPY](https://www.evm.codes/#37?fork=shanghai)
 
 Unlike on EVM, on EraVM it is a simple loop over [CALLDATALOAD](#calldataload)).
 
@@ -158,19 +158,19 @@ is common for Yul and EVMLA representations.
     jump.lt @.BB0_3             ; loop continuation branching
 ```
 
-# [CODECOPY](https://www.evm.codes/#38?fork=shanghai)
+## [CODECOPY](https://www.evm.codes/#38?fork=shanghai)
 
 See [the EraVM docs](https://era.zksync.io/docs/reference/architecture/differences-with-ethereum.html#codecopy).
 
 [The LLVM IR generator code](https://github.com/matter-labs/era-compiler-solidity/blob/main/src/evmla/ethereal_ir/function/block/element/mod.rs#L856).
 
-# [CODESIZE](https://www.evm.codes/#39?fork=shanghai)
+## [CODESIZE](https://www.evm.codes/#39?fork=shanghai)
 
 See [the EraVM docs](https://era.zksync.io/docs/reference/architecture/differences-with-ethereum.html#codesize).
 
 [The LLVM IR generator code](https://github.com/matter-labs/era-compiler-solidity/blob/main/src/evmla/ethereal_ir/function/block/element/mod.rs#L837).
 
-# [GASPRICE](https://www.evm.codes/#3a?fork=shanghai)
+## [GASPRICE](https://www.evm.codes/#3a?fork=shanghai)
 
 ### System Contract
 
@@ -189,7 +189,7 @@ The request to the System Contract is done via the
 [SystemRequest](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/context/function/runtime/system_request.rs)
 runtime function.
 
-# [EXTCODESIZE](https://www.evm.codes/#3b?fork=shanghai)
+## [EXTCODESIZE](https://www.evm.codes/#3b?fork=shanghai)
 
 ### System Contract
 
@@ -208,11 +208,11 @@ The request to the System Contract is done via the
 [SystemRequest](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/context/function/runtime/system_request.rs)
 runtime function.
 
-# [EXTCODECOPY](https://www.evm.codes/#3c?fork=shanghai)
+## [EXTCODECOPY](https://www.evm.codes/#3c?fork=shanghai)
 
 Not supported. Triggers a compile-time error.
 
-# [RETURNDATASIZE](https://www.evm.codes/#3d?fork=shanghai)
+## [RETURNDATASIZE](https://www.evm.codes/#3d?fork=shanghai)
 
 Return data size is read from the fat pointer returned from the child contract.
 
@@ -242,7 +242,7 @@ CPI0_1:
     .cell 4294967295
 ```
 
-# [RETURNDATACOPY](https://www.evm.codes/#3e?fork=shanghai)
+## [RETURNDATACOPY](https://www.evm.codes/#3e?fork=shanghai)
 
 Unlike on EVM, on EraVM it is a simple loop over memory operations on 256-bit values.
 
@@ -274,7 +274,7 @@ is common for Yul and EVMLA representations.
     jump.lt @.BB0_3             ; loop continuation branching
 ```
 
-# [EXTCODEHASH](https://www.evm.codes/#3f?fork=shanghai)
+## [EXTCODEHASH](https://www.evm.codes/#3f?fork=shanghai)
 
 ### System Contract
 

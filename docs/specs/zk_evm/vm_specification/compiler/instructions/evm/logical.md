@@ -26,7 +26,7 @@ add.lt  1, r0, r1
 st.1    128, r1
 ```
 
-# [GT](https://www.evm.codes/#11?fork=shanghai)
+## [GT](https://www.evm.codes/#11?fork=shanghai)
 
 ### LLVM IR
 
@@ -54,7 +54,7 @@ add.gt  1, r0, r1
 st.1    128, r1
 ```
 
-# [SLT](https://www.evm.codes/#12?fork=shanghai)
+## [SLT](https://www.evm.codes/#12?fork=shanghai)
 
 ### LLVM IR
 
@@ -94,7 +94,7 @@ add.ne  1, r0, r1
 st.1    128, r1
 ```
 
-# [SGT](https://www.evm.codes/#13?fork=shanghai)
+## [SGT](https://www.evm.codes/#13?fork=shanghai)
 
 ### LLVM IR
 
@@ -134,7 +134,7 @@ add.ne  1, r0, r1
 st.1    128, r1
 ```
 
-# [EQ](https://www.evm.codes/#14?fork=shanghai)
+## [EQ](https://www.evm.codes/#14?fork=shanghai)
 
 ### LLVM IR
 
@@ -162,7 +162,7 @@ add.eq  1, r0, r1
 st.1    128, r1
 ```
 
-# [ISZERO](https://www.evm.codes/#15?fork=shanghai)
+## [ISZERO](https://www.evm.codes/#15?fork=shanghai)
 
 ### LLVM IR
 

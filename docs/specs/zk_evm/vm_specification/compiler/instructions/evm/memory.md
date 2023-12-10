@@ -19,7 +19,7 @@ is common for Yul and EVMLA representations.
 ld.1    r1, r2
 ```
 
-# [MSTORE](https://www.evm.codes/#52?fork=shanghai)
+## [MSTORE](https://www.evm.codes/#52?fork=shanghai)
 
 Heap memory load operation is modeled with a native EraVM instruction.
 
@@ -40,7 +40,7 @@ is common for Yul and EVMLA representations.
 st.1    r1, r2
 ```
 
-# [MSTORE8](https://www.evm.codes/#53?fork=shanghai)
+## [MSTORE8](https://www.evm.codes/#53?fork=shanghai)
 
 ### LLVM IR
 

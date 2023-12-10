@@ -3,7 +3,7 @@
 These instructions do not have a direct representation in EVM or EraVM. Instead, they perform auxiliary operations
 required for generating the target bytecode.
 
-# [datasize](https://docs.soliditylang.org/en/latest/yul.html#datasize-dataoffset-datacopy)
+## [datasize](https://docs.soliditylang.org/en/latest/yul.html#datasize-dataoffset-datacopy)
 
 Unlike on EVM, on EraVM target this instruction returns the size of the header part of the calldata sent to the
 [ContractDeployer](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/VM%20Section/How%20compiler%20works/system_contracts.md#contract-deployer).
@@ -15,7 +15,7 @@ LLVM IR codegen references:
 1. [zksolc compiler](https://github.com/matter-labs/era-compiler-solidity/blob/main/src/yul/parser/statement/expression/function_call/mod.rs#L928)
 2. [Shared FE code](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/evm/create.rs#L149)
 
-# [dataoffset](https://docs.soliditylang.org/en/latest/yul.html#datasize-dataoffset-datacopy)
+## [dataoffset](https://docs.soliditylang.org/en/latest/yul.html#datasize-dataoffset-datacopy)
 
 Unlike on EVM, on EraVM target this instruction has nothing to do with the offset. Instead, it returns the bytecode hash
 of the contract referenced by the Yul object identifier. Since our compiler translates instructions without analyzing
@@ -28,7 +28,7 @@ LLVM IR codegen references:
 1. [zksolc compiler](https://github.com/matter-labs/era-compiler-solidity/blob/main/src/yul/parser/statement/expression/function_call/mod.rs#L918)
 2. [Shared FE code](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/evm/create.rs#L97)
 
-# [datacopy](https://docs.soliditylang.org/en/latest/yul.html#datasize-dataoffset-datacopy)
+## [datacopy](https://docs.soliditylang.org/en/latest/yul.html#datasize-dataoffset-datacopy)
 
 Unlike on EVM, on EraVM target this instruction copies the bytecode hash passed as [dataoffset](#dataoffset) to the
 destination. For more information, see
@@ -36,7 +36,7 @@ destination. For more information, see
 
 [The LLVM IR generator code](https://github.com/matter-labs/era-compiler-solidity/blob/main/src/yul/parser/statement/expression/function_call/mod.rs#L938).
 
-# [setimmutable](https://docs.soliditylang.org/en/latest/yul.html#setimmutable-loadimmutable)
+## [setimmutable](https://docs.soliditylang.org/en/latest/yul.html#setimmutable-loadimmutable)
 
 Writes immutables to the auxiliary heap.
 
@@ -48,7 +48,7 @@ LLVM IR codegen references:
 1. [zksolc compiler](https://github.com/matter-labs/era-compiler-solidity/blob/main/src/yul/parser/statement/expression/function_call/mod.rs#L562)
 2. [Shared FE code](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/evm/immutable.rs#L79)
 
-# [loadimmutable](https://docs.soliditylang.org/en/latest/yul.html#setimmutable-loadimmutable)
+## [loadimmutable](https://docs.soliditylang.org/en/latest/yul.html#setimmutable-loadimmutable)
 
 Reads immutables from the
 [ImmutableSimulator](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/VM%20Section/How%20compiler%20works/system_contracts.md#simulator-of-immutables).
@@ -61,7 +61,7 @@ LLVM IR codegen references:
 1. [zksolc compiler](https://github.com/matter-labs/era-compiler-solidity/blob/main/src/yul/parser/statement/expression/function_call/mod.rs#L540)
 2. [Shared FE code](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/evm/immutable.rs#L17)
 
-# [linkersymbol](https://docs.soliditylang.org/en/latest/yul.html#linkersymbol)
+## [linkersymbol](https://docs.soliditylang.org/en/latest/yul.html#linkersymbol)
 
 Returns the address of a deployable library. The address must be passed to `zksolc` with the `--libraries` option,
 otherwise a compile-time error will be produced.
@@ -75,13 +75,13 @@ For more information, see the
 
 [The LLVM IR generator code](https://github.com/matter-labs/era-compiler-solidity/blob/main/src/yul/parser/statement/expression/function_call/mod.rs#L956).
 
-# [memoryguard](https://docs.soliditylang.org/en/latest/yul.html#memoryguard)
+## [memoryguard](https://docs.soliditylang.org/en/latest/yul.html#memoryguard)
 
 Is a Yul optimizer hint which is not used by our compiler. Instead, its only argument is simply unwrapped and returned.
 
 [The LLVM IR generator code](https://github.com/matter-labs/era-compiler-solidity/blob/main/src/yul/parser/statement/expression/function_call/mod.rs#L968).
 
-# [verbatim](https://docs.soliditylang.org/en/latest/yul.html#verbatim)
+## [verbatim](https://docs.soliditylang.org/en/latest/yul.html#verbatim)
 
 Unlike on EVM, on EraVM target this instruction has nothing to do with inserting of EVM bytecode. Instead, it is used to
 implement

@@ -1,4 +1,6 @@
-# Introduction
+# Shared Bridge
+
+## Introduction
 
 Ethereum's future is rollup-centric. This means breaking with the current paradigm of isolated EVM chains to
 infrastructure that is focused on an ecosystem of interconnected zkEVMs, (which we name Hyperchains). This ecosystem
@@ -10,7 +12,7 @@ If you want to know more about Hyperchains, check this
 [blog post](https://blog.matter-labs.io/introduction-to-hyperchains-fdb33414ead7), or go through
 [our docs](https://era.zksync.io/docs/reference/concepts/hyperscaling.html).
 
-## High-level design
+### High-level design
 
 We want to create a system where:
 
@@ -45,15 +47,15 @@ be able to leverage them when available).
 
 ---
 
-# Architecture
+## Architecture
 
-## General Architecture
+### General Architecture
 
 ![Contracts](./img/contractsExternal.png)
 
-## Components
+### Components
 
-### Bridgehub
+#### Bridgehub
 
 - Acts as a hub for bridges, so that they have a single point of communication with all hyperchain contracts. This
   allows L1 assets to be locked in the same contract for all hyperchains, including L3s and validiums. The `Bridgehub`
@@ -113,7 +115,7 @@ be able to leverage them when available).
     `HyperRoot` in the `HyperMailbox`.
   - This component has not been implemented yet
 
-### Main asset shared bridges
+#### Main asset shared bridges
 
 - Some assets have to be natively supported (ETH, WETH) and it also makes sense to support some generally accepted token
   standards (ERC20 tokens), as this makes it easy to bridge those tokens (and ensures a single version of them exists on
@@ -149,7 +151,7 @@ This topic is now covered more thoroughly by the Custom native token discussion.
 
 [Custom native token compatible with Hyperbridging](https://www.notion.so/Custom-native-token-compatible-with-Hyperbridging-54e190a1a76f44248cf84a38304a0641?pvs=21)
 
-### State Transition
+#### State Transition
 
 - `StateTransition` A state transition manages proof verification and DA for multiple chains. It also implements the
   following functionalities:
@@ -174,17 +176,17 @@ This topic is now covered more thoroughly by the Custom native token discussion.
   - In the future the DiamondProxy can be configured by picking alternative facets e.g. Validiums will have their own
     `Executor`
 
-### Chain specific contracts
+#### Chain specific contracts
 
 - A chain might implement its own specific consensus mechanism. This needs its own contracts. Only this contract will be
   able to submit proofs to the State Transition contract.
 - Currently, the `ValidatorTimelock` is an example of such a contract.
 
-## Components interactions
+### Components interactions
 
 In this section, we will present some diagrams showing the interaction of different components.
 
-### New Chain
+#### New Chain
 
 A chain registers in the Bridgehub, this is where the chain ID is determined. The chain’s governor specifies the State
 Transition that they plan to use. In the first version only a single State Transition contract will be available for
@@ -197,7 +199,7 @@ other features required to process proofs. The chain ID is set in the VM in a sp
 
 <!--![newChain.png](./img/newChain.png) Image outdated-->
 
-### WETH Contract
+#### WETH Contract
 
 Ether, the native gas token is part of the core system contracts, so deploying it is not necessary. But WETH is just a
 smart contract, it needs to be deployed and initialised. This happens from the L1 WETH bridge. This deploys on L2 the
@@ -205,7 +207,7 @@ corresponding bridge and ERC20 contract. This is deployed from L1, but the L2 ad
 
 ![deployWeth.png](./img/deployWeth.png)
 
-### Deposit WETH
+#### Deposit WETH
 
 The user can deposit WETH into the ecosystem using the WETH bridge on L1. The destination chain ID has to be specified.
 The Bridgehub unwraps the WETH, and keeps the ETH, and send a message to the destination L2 to mint WETH to the
@@ -215,14 +217,14 @@ specified address.
 
 ---
 
-## Common Standards and Upgrades
+### Common Standards and Upgrades
 
 In this initial phase, Hyperchains have to follow some common standards, so that they can trust each other. This means
 all chains start out with the same empty state, they have the same VM implementations and proof systems, asset contracts
 can trust each on different chains, and the chains are upgraded together. We elaborate on the shared upgrade mechanism
 here.
 
-### Upgrade mechanism
+#### Upgrade mechanism
 
 Currently, there are three types of upgrades for zkEVM. Normal upgrades (used for new features) are initiated by the
 Governor (a multisig) and are public for a certain timeframe before they can be applied. Shadow upgrades are similar to

@@ -84,9 +84,9 @@ comprehensive understanding of their functionality and interactions.
   https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/state_keeper/seal_criteria/mod.rs#L106
   'Reasons for Sealing'
 
-# Deeper dive
+## Deeper dive
 
-## Glossary
+### Glossary
 
 - Batch - a set of transactions that the bootloader processes (`commitBatches`, `proveBatches`,
   and `executeBatches` work with it). A batch consists of multiple transactions.
@@ -98,7 +98,7 @@ comprehensive understanding of their functionality and interactions.
   They are called “virtual”, since they have no trace in our API, i.e. it is not possible to query information about
   them in any way.
 
-## Motivation
+### Motivation
 
 Before the recent upgrade, `block.number`, `block.timestamp`, as well as `blockhash` in Solidity, returned information
 about _batches_, i.e. large blocks that are proven on L1 and which consist of many small L2 blocks. At the same time,
@@ -121,7 +121,7 @@ returned. The blocks the info of which will be returned during this process are 
 information will never be available in any of our APIs, which should not be a major breaking change, since our API
 already mostly works with L2 blocks, while L1 batches’s information is returned in the runtime.
 
-## Adapting for Solidity
+### Adapting for Solidity
 
 In order to get the returned value for `block.number`, `block.timestamp`, `blockhash` our compiler used the following
 functions:
@@ -133,13 +133,13 @@ functions:
 During the migration process, these will return the values of the virtual blocks. After the migration is complete, they
 will return values for L2 blocks.
 
-## Migration status
+### Migration status
 
 At the time of this writing, the migration has been complete on testnet, i.e. there we already have only the L2 block
 information returned. However, the [migration](https://github.com/zkSync-Community-Hub/zkync-developers/discussions/87)
 on mainnet is still ongoing and most likely will end on late October / early November.
 
-# Blocks’ processing and consistency checks
+## Blocks’ processing and consistency checks
 
 Our `SystemContext` contract allows to get information about batches and L2 blocks. Some of the information is hard to
 calculate onchain. For instace, time. The timing information (for both batches and L2 blocks) are provided by the

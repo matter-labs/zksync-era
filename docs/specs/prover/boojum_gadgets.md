@@ -6,7 +6,7 @@ hash functions, lookup tables, and different circuit types. These gadgets are mo
 have been changed to use the Goldilocks field (order 2^64 - 2^32 + 1), which is much smaller than bn256. This allows us
 to reduce the proof system.
 
-# Circuits types
+## Circuits types
 
 We have next types with we use for circuits:
 
@@ -79,7 +79,7 @@ pub struct UInt512<F: SmallField> {
 }
 ```
 
-      Every type consists of a Variable (the number inside Variable is just the index):
+Every type consists of a Variable (the number inside Variable is just the index):
 
 ```rust
 pub struct Variable(pub(crate) u64);
@@ -118,7 +118,7 @@ impl<F: SmallField> CSAllocatable<F> for Boolean<F> {
 
 As you see, you can allocate both with and without witnesses.
 
-# Hash function
+## Hash function
 
 In gadgets we have a lot of hast implementation:
 
@@ -129,7 +129,7 @@ In gadgets we have a lot of hast implementation:
 
 Each of them perform different functions in our proof system.
 
-# Queues
+## Queues
 
 One of the most important gadgets in our system is queue. It helps us to send data between circuits. Here is the quick
 explanation how it works:

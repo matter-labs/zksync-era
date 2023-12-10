@@ -23,7 +23,7 @@ and     r1, r2, r1
 st.1    128, r1
 ```
 
-# [OR](https://www.evm.codes/#17?fork=shanghai)
+## [OR](https://www.evm.codes/#17?fork=shanghai)
 
 ### LLVM IR
 
@@ -48,7 +48,7 @@ or      r1, r2, r1
 st.1    128, r1
 ```
 
-# [XOR](https://www.evm.codes/#18?fork=shanghai)
+## [XOR](https://www.evm.codes/#18?fork=shanghai)
 
 ### LLVM IR
 
@@ -73,7 +73,7 @@ xor     r1, r2, r1
 st.1    128, r1
 ```
 
-# [NOT](https://www.evm.codes/#19?fork=shanghai)
+## [NOT](https://www.evm.codes/#19?fork=shanghai)
 
 ### LLVM IR
 
@@ -94,7 +94,7 @@ xor     r1, r2, r1
 st.1    128, r1
 ```
 
-# [BYTE](https://www.evm.codes/#1a?fork=shanghai)
+## [BYTE](https://www.evm.codes/#1a?fork=shanghai)
 
 ### LLVM IR
 
@@ -119,7 +119,7 @@ return:
 [The LLVM IR generator code](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/evm/bitwise.rs#L229)
 is common for Yul and EVMLA representations.
 
-# [SHL](https://www.evm.codes/#1b?fork=shanghai)
+## [SHL](https://www.evm.codes/#1b?fork=shanghai)
 
 ### LLVM IR
 
@@ -142,7 +142,7 @@ return:
 [The LLVM IR generator code](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/evm/bitwise.rs#L67)
 is common for Yul and EVMLA representations.
 
-# [SHR](https://www.evm.codes/#1c?fork=shanghai)
+## [SHR](https://www.evm.codes/#1c?fork=shanghai)
 
 ### LLVM IR
 
@@ -165,7 +165,7 @@ return:
 [The LLVM IR generator code](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/evm/bitwise.rs#L111)
 is common for Yul and EVMLA representations.
 
-# [SAR](https://www.evm.codes/#1d?fork=shanghai)
+## [SAR](https://www.evm.codes/#1d?fork=shanghai)
 
 ### LLVM IR
 
