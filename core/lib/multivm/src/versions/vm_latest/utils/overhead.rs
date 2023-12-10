@@ -17,7 +17,10 @@ pub fn derive_overhead(
     if is_l1 {
         derive_overhead_l1_tx(gas_limit, gas_price_per_pubdata, encoded_len, coefficients)
     } else {
-        derive_overhead_l2_tx(encoded_len)
+        std::cmp::min(
+            derive_overhead_l2_tx(encoded_len),
+            derive_overhead_l1_tx(gas_limit, gas_price_per_pubdata, encoded_len, coefficients),
+        )
     }
 }
 
@@ -156,7 +159,15 @@ pub fn get_amortized_overhead(
         )
     } else {
         // For L2 transactions the function for deriving the overhead is the same as the one for calculating it
-        derive_overhead_l2_tx(encoded_len)
+        std::cmp::min(
+            derive_overhead_l2_tx(encoded_len),
+            get_amortized_overhead_l1_tx(
+                total_gas_limit,
+                gas_per_pubdata_byte_limit,
+                encoded_len,
+                coefficients,
+            ),
+        )
     }
 }
 

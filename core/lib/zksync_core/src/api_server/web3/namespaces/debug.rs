@@ -32,7 +32,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct DebugNamespace {
     connection_pool: ConnectionPool,
-    fair_l2_gas_price: u64,
+    minimal_l2_gas_price: u64,
     api_contracts: ApiContracts,
     vm_execution_cache_misses_limit: Option<usize>,
     vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
@@ -48,7 +48,7 @@ impl DebugNamespace {
         let api_contracts = ApiContracts::load_from_disk();
         Self {
             connection_pool: state.connection_pool,
-            fair_l2_gas_price: sender_config.fair_l2_gas_price,
+            minimal_l2_gas_price: sender_config.minimal_l2_gas_price,
             api_contracts,
             vm_execution_cache_misses_limit: sender_config.vm_execution_cache_misses_limit,
             vm_concurrency_limiter: state.tx_sender.vm_concurrency_limiter(),
@@ -209,7 +209,7 @@ impl DebugNamespace {
         TxSharedArgs {
             operator_account: AccountTreeId::default(),
             l1_gas_price: 100_000,
-            fair_l2_gas_price: self.fair_l2_gas_price,
+            minimal_l2_gas_price: self.minimal_l2_gas_price,
             base_system_contracts: self.api_contracts.eth_call.clone(),
             caches: self.storage_caches.clone(),
             validation_computational_gas_limit: BLOCK_GAS_LIMIT,

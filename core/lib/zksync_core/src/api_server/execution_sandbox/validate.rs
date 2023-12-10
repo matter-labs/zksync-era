@@ -17,6 +17,7 @@ use super::{
     vm_metrics::{SandboxStage, EXECUTION_METRICS, SANDBOX_METRICS},
     BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
+use crate::fee_model::FeeModel;
 
 impl TxSharedArgs {
     pub async fn validate_tx_with_pending_state(
@@ -43,11 +44,19 @@ impl TxSharedArgs {
     // In order for validation to pass smoothlessly, we need to ensure that block's required gasPerPubdata will be
     // <= to the one in the transaction itself.
     pub fn adjust_l1_gas_price(&mut self, gas_per_pubdata_limit: U256) {
-        self.l1_gas_price = adjust_l1_gas_price_for_tx(
+        let mut fee_model = FeeModel::new(
             self.l1_gas_price,
-            self.fair_l2_gas_price,
-            gas_per_pubdata_limit,
+            self.minimal_l2_gas_price,
+            0.0,
+            1.0,
+            800_000,
+            120_000_000,
+            100_000,
         );
+
+        fee_model.adjust_pubdata_price_for_tx(gas_per_pubdata_limit);
+
+        self.l1_gas_price = fee_model.get_output().l1_gas_price;
     }
 
     async fn validate_tx_in_sandbox(

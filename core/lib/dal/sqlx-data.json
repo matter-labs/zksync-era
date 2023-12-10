@@ -2161,7 +2161,7 @@
     },
     "query": "SELECT attempts FROM prover_jobs_fri WHERE id = $1"
   },
-  "2a631217cd29388b9b6a23175b054a6838d0c4f2a83473297b0e908901dc5c6b": {
+  "2a38561e789af470d6ef1a905143f2d8d102b4ff23cebe97586681da9e4084a9": {
     "describe": {
       "columns": [
         {
@@ -2205,33 +2205,27 @@
           "type_info": "Int8"
         },
         {
-          "name": "l1_fair_pubdata_price",
-          "ordinal": 8,
-          "type_info": "Int8"
-        },
-        {
           "name": "bootloader_code_hash",
-          "ordinal": 9,
+          "ordinal": 8,
           "type_info": "Bytea"
         },
         {
           "name": "default_aa_code_hash",
-          "ordinal": 10,
+          "ordinal": 9,
           "type_info": "Bytea"
         },
         {
           "name": "protocol_version",
-          "ordinal": 11,
+          "ordinal": 10,
           "type_info": "Int4"
         },
         {
           "name": "virtual_blocks",
-          "ordinal": 12,
+          "ordinal": 11,
           "type_info": "Int8"
         }
       ],
       "nullable": [
-        false,
         false,
         false,
         false,
@@ -2246,10 +2240,12 @@
         false
       ],
       "parameters": {
-        "Left": []
+        "Left": [
+          "Int8"
+        ]
       }
     },
-    "query": "SELECT number, timestamp, hash, l1_tx_count, l2_tx_count, base_fee_per_gas, l1_gas_price, l2_fair_gas_price, l1_fair_pubdata_price, bootloader_code_hash, default_aa_code_hash, protocol_version, virtual_blocks\n            FROM miniblocks ORDER BY number DESC LIMIT 1"
+    "query": "SELECT number, timestamp, hash, l1_tx_count, l2_tx_count, base_fee_per_gas, l1_gas_price, l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version, virtual_blocks\n            FROM miniblocks WHERE number = $1"
   },
   "2a98f1b149045f25d2830c0b4ffaaa400b4c572eb3842add22e8540f44943711": {
     "describe": {
@@ -3742,98 +3738,6 @@
       }
     },
     "query": "SELECT hash FROM miniblocks WHERE number = $1"
-  },
-  "4448a02ac92f60efda157b937edef7c76281f4f2e6efa2cc3e373c5cd9060acc": {
-    "describe": {
-      "columns": [
-        {
-          "name": "number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "timestamp",
-          "ordinal": 1,
-          "type_info": "Int8"
-        },
-        {
-          "name": "hash",
-          "ordinal": 2,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "l1_tx_count",
-          "ordinal": 3,
-          "type_info": "Int4"
-        },
-        {
-          "name": "l2_tx_count",
-          "ordinal": 4,
-          "type_info": "Int4"
-        },
-        {
-          "name": "base_fee_per_gas",
-          "ordinal": 5,
-          "type_info": "Numeric"
-        },
-        {
-          "name": "l1_gas_price",
-          "ordinal": 6,
-          "type_info": "Int8"
-        },
-        {
-          "name": "l2_fair_gas_price",
-          "ordinal": 7,
-          "type_info": "Int8"
-        },
-        {
-          "name": "l1_fair_pubdata_price",
-          "ordinal": 8,
-          "type_info": "Int8"
-        },
-        {
-          "name": "bootloader_code_hash",
-          "ordinal": 9,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "default_aa_code_hash",
-          "ordinal": 10,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "protocol_version",
-          "ordinal": 11,
-          "type_info": "Int4"
-        },
-        {
-          "name": "virtual_blocks",
-          "ordinal": 12,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        true,
-        true,
-        true,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Int8"
-        ]
-      }
-    },
-    "query": "SELECT number, timestamp, hash, l1_tx_count, l2_tx_count, base_fee_per_gas, l1_gas_price, l2_fair_gas_price, l1_fair_pubdata_price, bootloader_code_hash, default_aa_code_hash, protocol_version, virtual_blocks\n            FROM miniblocks WHERE number = $1"
   },
   "448d283cab6ae334de9676f69416974656d11563b58e0188d53ca9e0995dd287": {
     "describe": {
@@ -11415,6 +11319,90 @@
       }
     },
     "query": "SELECT trace FROM transaction_traces WHERE tx_hash = $1"
+  },
+  "fa177254ba516ad1588f4f6960be96706d1f43c23ff1d57ba2bc7bc7148bdcac": {
+    "describe": {
+      "columns": [
+        {
+          "name": "number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "timestamp",
+          "ordinal": 1,
+          "type_info": "Int8"
+        },
+        {
+          "name": "hash",
+          "ordinal": 2,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "l1_tx_count",
+          "ordinal": 3,
+          "type_info": "Int4"
+        },
+        {
+          "name": "l2_tx_count",
+          "ordinal": 4,
+          "type_info": "Int4"
+        },
+        {
+          "name": "base_fee_per_gas",
+          "ordinal": 5,
+          "type_info": "Numeric"
+        },
+        {
+          "name": "l1_gas_price",
+          "ordinal": 6,
+          "type_info": "Int8"
+        },
+        {
+          "name": "l2_fair_gas_price",
+          "ordinal": 7,
+          "type_info": "Int8"
+        },
+        {
+          "name": "bootloader_code_hash",
+          "ordinal": 8,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "default_aa_code_hash",
+          "ordinal": 9,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "protocol_version",
+          "ordinal": 10,
+          "type_info": "Int4"
+        },
+        {
+          "name": "virtual_blocks",
+          "ordinal": 11,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT number, timestamp, hash, l1_tx_count, l2_tx_count, base_fee_per_gas, l1_gas_price, l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version, virtual_blocks\n            FROM miniblocks ORDER BY number DESC LIMIT 1"
   },
   "fa2b4316aaef09e96d93b70f96b129ed123951732e01d63f30b4b292d441ea39": {
     "describe": {

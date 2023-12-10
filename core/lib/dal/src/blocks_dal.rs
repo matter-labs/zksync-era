@@ -423,7 +423,7 @@ impl BlocksDal<'_, '_> {
         Ok(sqlx::query_as!(
             StorageMiniblockHeader,
             "SELECT number, timestamp, hash, l1_tx_count, l2_tx_count, \
-                base_fee_per_gas, l1_gas_price, l2_fair_gas_price, l1_fair_pubdata_price, \
+                base_fee_per_gas, l1_gas_price, l2_fair_gas_price, \
                 bootloader_code_hash, default_aa_code_hash, protocol_version, \
                 virtual_blocks
             FROM miniblocks \
@@ -442,7 +442,7 @@ impl BlocksDal<'_, '_> {
         Ok(sqlx::query_as!(
             StorageMiniblockHeader,
             "SELECT number, timestamp, hash, l1_tx_count, l2_tx_count, \
-                base_fee_per_gas, l1_gas_price, l2_fair_gas_price, l1_fair_pubdata_price, \
+                base_fee_per_gas, l1_gas_price, l2_fair_gas_price, \
                 bootloader_code_hash, default_aa_code_hash, protocol_version, \
                 virtual_blocks
             FROM miniblocks \

@@ -133,6 +133,7 @@ fn open_l1_batch(number: u32, timestamp: u64, first_miniblock_number: u32) -> Sy
         timestamp,
         l1_gas_price: 2,
         l2_fair_gas_price: 3,
+        l1_fair_pubdata_price: 24,
         operator_address: Default::default(),
         protocol_version: ProtocolVersionId::latest(),
         first_miniblock_info: (MiniblockNumber(first_miniblock_number), 1),

@@ -191,6 +191,7 @@ fn create_miniblock(number: u32) -> MiniblockHeader {
         base_fee_per_gas: 100,
         l1_gas_price: 100,
         l2_fair_gas_price: 100,
+        l1_fair_pubdata_price: 1700,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         virtual_blocks: 1,

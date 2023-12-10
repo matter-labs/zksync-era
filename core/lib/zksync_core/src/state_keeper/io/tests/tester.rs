@@ -8,6 +8,7 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_dal::ConnectionPool;
 use zksync_eth_client::clients::mock::MockEthereum;
 use zksync_object_store::ObjectStoreFactory;
+use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},
     protocol_version::L1VerifierConfig,
@@ -57,7 +58,7 @@ impl Tester {
     }
 
     // Constant value to be used both in tests and inside of the IO.
-    pub(super) fn fair_l2_gas_price(&self) -> u64 {
+    pub(super) fn minimal_l2_gas_price(&self) -> u64 {
         100
     }
 
@@ -73,7 +74,7 @@ impl Tester {
         tokio::spawn(miniblock_sealer.run());
 
         let config = StateKeeperConfig {
-            fair_l2_gas_price: self.fair_l2_gas_price(),
+            minimal_l2_gas_price: self.minimal_l2_gas_price(),
             virtual_blocks_interval: 1,
             virtual_blocks_per_miniblock: 1,
             ..StateKeeperConfig::default()
@@ -138,6 +139,7 @@ impl Tester {
                 base_fee_per_gas,
                 l1_gas_price,
                 l2_fair_gas_price,
+                l1_fair_pubdata_price: l1_gas_price * L1_GAS_PER_PUBDATA_BYTE as u64,
                 base_system_contracts_hashes: self.base_system_contracts.hashes(),
                 protocol_version: Some(ProtocolVersionId::latest()),
                 virtual_blocks: 0,

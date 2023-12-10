@@ -8,6 +8,7 @@ use sqlx::{
 };
 use thiserror::Error;
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api,
     block::{L1BatchHeader, MiniblockHeader},
@@ -502,7 +503,6 @@ pub struct StorageMiniblockHeader {
     pub l2_tx_count: i32,
     pub base_fee_per_gas: BigDecimal,
     pub l1_gas_price: i64,
-    pub l1_fair_pubdata_price: i64,
     // L1 gas price assumed in the corresponding batch
     pub l2_fair_gas_price: i64,
     // L2 gas price assumed in the corresponding batch
@@ -519,6 +519,8 @@ pub struct StorageMiniblockHeader {
 
 impl From<StorageMiniblockHeader> for MiniblockHeader {
     fn from(row: StorageMiniblockHeader) -> Self {
+        let l1_gas_price = row.l1_gas_price as u64;
+
         MiniblockHeader {
             number: MiniblockNumber(row.number as u32),
             timestamp: row.timestamp as u64,
@@ -526,8 +528,8 @@ impl From<StorageMiniblockHeader> for MiniblockHeader {
             l1_tx_count: row.l1_tx_count as u16,
             l2_tx_count: row.l2_tx_count as u16,
             base_fee_per_gas: row.base_fee_per_gas.to_u64().unwrap(),
-            l1_gas_price: row.l1_gas_price as u64,
-            l1_fair_pubdata_price: row.l1_fair_pubdata_price as u64,
+            l1_gas_price: l1_gas_price,
+            l1_fair_pubdata_price: l1_gas_price * L1_GAS_PER_PUBDATA_BYTE as u64,
             l2_fair_gas_price: row.l2_fair_gas_price as u64,
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 row.bootloader_code_hash,

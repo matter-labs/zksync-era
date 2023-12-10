@@ -31,7 +31,7 @@ pub struct RemoteENConfig {
     pub l2_chain_id: L2ChainId,
     pub l1_chain_id: L1ChainId,
 
-    pub fair_l2_gas_price: u64,
+    pub minimal_l2_gas_price: u64,
 }
 
 impl RemoteENConfig {
@@ -82,7 +82,9 @@ impl RemoteENConfig {
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
             l2_chain_id,
             l1_chain_id,
-            fair_l2_gas_price: block_header.l2_fair_gas_price,
+
+            // FIXME: this is very incorrect.
+            minimal_l2_gas_price: block_header.l2_fair_gas_price,
         })
     }
 }
@@ -529,7 +531,7 @@ impl From<ExternalNodeConfig> for TxSenderConfig {
                 .unwrap(),
             gas_price_scale_factor: config.optional.gas_price_scale_factor,
             max_nonce_ahead: config.optional.max_nonce_ahead,
-            fair_l2_gas_price: config.remote.fair_l2_gas_price,
+            minimal_l2_gas_price: config.remote.minimal_l2_gas_price,
             vm_execution_cache_misses_limit: config.optional.vm_execution_cache_misses_limit,
             // We set these values to the maximum since we don't know the actual values
             // and they will be enforced by the main node anyway.

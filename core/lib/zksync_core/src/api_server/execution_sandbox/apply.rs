@@ -177,7 +177,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     let TxSharedArgs {
         operator_account,
         l1_gas_price,
-        fair_l2_gas_price,
+        minimal_l2_gas_price,
         base_system_contracts,
         validation_computational_gas_limit,
         chain_id,
@@ -198,7 +198,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     // TODO: make those params
     let params = FeeModel::new(
         l1_gas_price,
-        fair_l2_gas_price,
+        minimal_l2_gas_price,
         0.0,
         1.0,
         800_000,

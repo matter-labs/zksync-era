@@ -3,6 +3,7 @@ use std::time::Duration;
 use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_dal::{blocks_dal::ConsensusBlockFields, StorageProcessor};
+use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::en::SyncBlock, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId,
 };
@@ -131,6 +132,7 @@ impl FetcherCursor {
                 timestamp: block.timestamp,
                 l1_gas_price: block.l1_gas_price,
                 l2_fair_gas_price: block.l2_fair_gas_price,
+                l1_fair_pubdata_price: block.l1_gas_price * L1_GAS_PER_PUBDATA_BYTE as u64,
                 operator_address: block.operator_address,
                 protocol_version: block.protocol_version,
                 // `block.virtual_blocks` can be `None` only for old VM versions where it's not used, so it's fine to provide any number.

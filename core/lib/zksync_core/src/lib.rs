@@ -722,7 +722,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
     object_store: Box<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
-    let fair_l2_gas_price = state_keeper_config.fair_l2_gas_price;
+    let minimal_l2_gas_price = state_keeper_config.minimal_l2_gas_price;
     let pool_builder = ConnectionPool::singleton(postgres_config.master_url()?);
     let state_keeper_pool = pool_builder
         .build()
@@ -773,7 +773,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         mempool_fetcher_pool,
         mempool_config.remove_stuck_txs,
         mempool_config.stuck_tx_timeout(),
-        fair_l2_gas_price,
+        minimal_l2_gas_price,
         stop_receiver,
     ));
     task_futures.push(mempool_fetcher_handle);

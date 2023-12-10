@@ -1,4 +1,4 @@
--- Add down migration script here
+-- -- Add down migration script here
 
-ALTER TABLE miniblocks
-    REMOVE COLUMN l1_fair_pubdata_price;
+-- ALTER TABLE miniblocks
+--     REMOVE COLUMN l1_fair_pubdata_price;

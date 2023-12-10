@@ -174,7 +174,7 @@ where
                 "(l1_gas_price, fair_l2_gas_price) for L1 batch #{} is ({}, {})",
                 self.current_l1_batch_number.0,
                 self.filter.l1_gas_price,
-                self.fair_l2_gas_price
+                self.filter.fair_l2_gas_price
             );
             let mut storage = self.pool.access_storage().await.unwrap();
             let (base_system_contracts, protocol_version) = storage
