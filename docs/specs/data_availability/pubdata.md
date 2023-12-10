@@ -444,4 +444,3 @@ struct CommitBatchInfo {
 }
 
 ```
-

@@ -199,19 +199,20 @@ $$
 There are now two situations that can be observed:
 
 I.
- $$
-   EP_f > EP_{Max}
-   $$
 
-  This means that the L1 gas price is so high that if we treated all the prices fairly, then the number of gas required to
-  publish guaranteed pubdata is too high, i.e. allowing at least _PG_ pubdata bytes per transaction would mean that we
-  would to support _tx_._gasLimit_ greater that the maximum gas per transaction _TM_, allowing to run out of other finite
-  resources.
+$$
+  EP_f > EP_{Max}
+$$
 
-  If $EP_f > EP_{Max}$, then the user needs to artificially increase the provided _Ef_ to bring the needed
+This means that the L1 gas price is so high that if we treated all the prices fairly, then the number of gas required to
+publish guaranteed pubdata is too high, i.e. allowing at least _PG_ pubdata bytes per transaction would mean that we
+would to support _tx_._gasLimit_ greater that the maximum gas per transaction _TM_, allowing to run out of other finite
+resources.
+
+If $EP_f > EP_{Max}$, then the user needs to artificially increase the provided _Ef_ to bring the needed
 _tx_._gasPerPubdataByte_ to _EPmax_
 
-  In this case we set the EIP1559 `baseFee` (_Base_):
+In this case we set the EIP1559 `baseFee` (_Base_):
 
 $$
 Base = max(E_f, \lceil \frac{L1_P * L1_{PUB}}{EP_{max}} \rceil)
@@ -219,7 +220,7 @@ $$
 
 Only transactions that have at least this high gasPrice will be allowed into the batch.
 
-II. 
+II.
 
 Otherwise, we keep $Base* = E_f$
 

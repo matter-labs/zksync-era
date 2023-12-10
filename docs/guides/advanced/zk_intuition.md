@@ -153,4 +153,3 @@ version 1.4.0.
   https://github.com/matter-labs/zkevm_test_harness/blob/0c17bc7baa4e0b64634d414942ef4200d8613bbd/src/external_calls.rs#L575
 [heavy_ops_service repo]: https://github.com/matter-labs/heavy-ops-service/tree/v1.3.2
 [franklin repo]: https://github.com/matter-labs/franklin-crypto
-

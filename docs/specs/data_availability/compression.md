@@ -123,4 +123,3 @@ beneficial, the added complexity may not be worth it.
 
 That being said, we _could_ rearange those for _repeated_ writes, but for now we stick to the same value compression
 format for simplicity.
-
