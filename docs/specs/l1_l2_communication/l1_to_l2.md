@@ -6,7 +6,7 @@ be initiated on L1:
 - Priority operations. These are the kind of operations that any user can create.
 - Upgrade transactions. These can be created only during upgrades.
 
-## Prerequisites
+### Prerequisites
 
 Please read the full
 [article](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/System%20contracts%20bootloader%20description.md)
@@ -14,9 +14,9 @@ on the general system contracts / bootloader structure as well as the pubdata st
 [the difference](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20pubdata%20in%20Boojum.md)
 between system and user logs.
 
-# Priority operations
+## Priority operations
 
-## Initiation
+### Initiation
 
 A new priority operation can be appended by calling the
 [requestL2Transaction](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/facets/Mailbox.sol#L236)
@@ -25,7 +25,7 @@ provides enough fee to compensate the operator for this transaction. Then, this 
 [appended](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/facets/Mailbox.sol#L369C1-L369C1)
 to the priority queue.
 
-## Bootloader
+### Bootloader
 
 Whenever an operator sees a priority operation, it can include the transaction into the batch. While for normal L2
 transaction the account abstraction protocol will ensure that the `msg.sender` has indeed agreed to start a transaction
@@ -51,19 +51,19 @@ Then, at the end of the batch, we
 [submit](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/bootloader/bootloader.yul#L3819)
 and 2 L2→L1 log system log with these values.
 
-## Batch commit
+### Batch commit
 
 During block commit, the contract will remember those values, but not validate them in any way.
 
-## Batch execution
+### Batch execution
 
 During batch execution, we would pop `numberOfPriorityTransactions` from the top of priority queue and
 [verify](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/facets/Executor.sol#L282)
 that their rolling hash does indeed equal to `priorityOperationsRollingHash`.
 
-# Upgrade transactions
+## Upgrade transactions
 
-## Initiation
+### Initiation
 
 Upgrade transactions can only be created during a system upgrade. It is done if the `DiamondProxy` delegatecalls to the
 implementation that manually puts this transaction into the storage of the DiamondProxy. Note, that since it happens
@@ -82,7 +82,7 @@ We will also track the batch where the upgrade has been committed in the `l2Syst
 We can not support multiple upgrades in parallel, i.e. the next upgrade should start only after the previous one has
 been complete.
 
-## Bootloader
+### Bootloader
 
 The upgrade transactions are processed just like with priority transactions, with only the following differences:
 
@@ -91,7 +91,7 @@ The upgrade transactions are processed just like with priority transactions, wit
   `numberOfPriorityTransactions`. Instead, its hash is calculated via a system L2→L1 log _before_ it gets executed.
   Note, that it is an important property. More on it [below](#security-considerations).
 
-## Commit
+### Commit
 
 After an upgrade has been initiated, it will be required that the next commit batches operation already contains the
 system upgrade transaction. It is
@@ -101,7 +101,7 @@ by verifying the corresponding L2→L1 log.
 We also remember that the upgrade transaction has been processed in this batch (by amending the
 `l2SystemContractsUpgradeBatchNumber` variable).
 
-## Revert
+### Revert
 
 In a very rare event when the team needs to revert the batch with the upgrade on zkSync, the
 `l2SystemContractsUpgradeBatchNumber` is
@@ -111,14 +111,14 @@ Note, however, that we do not “remember” that certain batches had a version 
 batches will have to be reexecuted, the upgrade transaction must still be present there, even if some of the deleted
 batches were committed before the upgrade and thus didn’t contain the transaction.
 
-## Execute
+### Execute
 
 Once batch with the upgrade transaction has been executed, we
 [delete](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/facets/Executor.sol#L304)
 them from storage for efficiency to signify that the upgrade has been fully processed and that a new upgrade can be
 initiated.
 
-# Security considerations
+## Security considerations
 
 Since the operator can put any data into the bootloader memory and for L1→L2 transactions the bootloader has to blindly
 trust it and rely on L1 contracts to validate it, it may be a very powerful tool for a malicious operator. Note, that
@@ -152,7 +152,7 @@ why
 [emit](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/bootloader/bootloader.yul#L587)
 its hash via a system L2→L1 log before actually processing it.
 
-## Why it doesn’t break on the previous version of the system
+### Why it doesn’t break on the previous version of the system
 
 This section is not required for Boojum understanding but for those willing to analyze the production system that is
 deployed at the time of this writing.

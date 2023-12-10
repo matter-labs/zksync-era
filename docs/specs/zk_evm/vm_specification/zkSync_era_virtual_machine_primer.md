@@ -7,7 +7,7 @@ building arithmetic circuits.
 This document describes zkEVM assembly language, then the aspects of VM related to smart-contracts. Its purpose is not
 to be a complete reference, but to guide you through the main ideas.
 
-# VM architecture
+## VM architecture
 
 The native type for zkEVM is a 256-bits wide unsigned integer, we call it a _word_.
 
@@ -40,7 +40,7 @@ VM is capable of both near calls (to the code within the same contract) and far 
 
 Let us now gradually introduce the VM functionality guided by the instruction set.
 
-# Basic instructions
+## Basic instructions
 
 Contract code consists of instructions, they are executed sequentially.
 
@@ -89,7 +89,7 @@ out of gas panics and none of its side effects are performed.
 
 Every contract may have at most $2^{16}$ instructions.
 
-## Arithmetic instructions
+### Arithmetic instructions
 
 Besides `add`, zkEVM implements `sub` for subtraction, `and`/ `or` / `xor` for bitwise logics, `shl`/ `shr` for logical
 shifts, `rol`/ `ror` for circular shifts. These instructions follow the same format, e.g.:
@@ -103,12 +103,12 @@ Instructions `mul` and `div` are particular: they have two output operands:
 - `mul r1, r2, r3, r4` stores the low 256 bits of r1*r2 in r3, high 256 bits of r1*r2 in r4
 - `div r1, r2, r3, r4` stores the quotient in `r3` and remainder in `r4`.
 
-## Modifiers
+### Modifiers
 
 Most instructions support modifiers that alter their behaviour. The modifiers are appended to the name of the
 instruction, separated by a dot e.g. `sub.s` . Three basic modifier types are: `set_flags` , predicates, and `swap`.
 
-### Set flags
+#### Set flags
 
 By default, most instructions preserve flags.
 
@@ -127,7 +127,7 @@ sub! r1, r2, r3 ; r3 <- (r1 - r2); EQ = 1
 You can learn more in the
 [formal specification](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/VM%20Section/EraVM%20Formal%20specification.pdf).
 
-### Predicates
+#### Predicates
 
 Another type of modifiers allows transforming any instruction into a _predicated_, conditional instruction. Predicated
 instructions are only executed if flags satisfy their condition.
@@ -162,7 +162,7 @@ Here is a full list of available predicates:
 You can learn more in the
 [formal specification](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/VM%20Section/EraVM%20Formal%20specification.pdf).
 
-### Swap
+#### Swap
 
 Recall that instructions may only accept data from stack as their first operand. What if we need the second operand from
 stack? For commutative operation, like `add` , `mul`, or `and`, the order of operands does not matter and we can just
@@ -200,13 +200,13 @@ $$
 
 Other modifiers are instruction-specific. They are described in full in the instruction reference.
 
-# Calls and returns
+## Calls and returns
 
 The `jump` instruction allows to continue execution from a different place, but it does not allow to return back. An
 alternative is using calls; zkEVM supports calling code inside the contract itself (near calls) as well as calling other
 contracts (far calls).
 
-## Far calls
+### Far calls
 
 Far calls are the equivalent of calls in EVM.
 
@@ -235,7 +235,7 @@ system contracts.
 Any of far call variants can be additionally marked as `.static` to call a contract in static mode — see section
 **Static Mode**.
 
-## Return, revert, panic
+### Return, revert, panic
 
 There are three types of situations where control returns to the caller:
 
@@ -244,7 +244,7 @@ There are three types of situations where control returns to the caller:
   The instruction is `revert`.
 - Panic: an irrecoverable error happened. Same as revert, but unspent gas is burned. The instruction is `ret.panic`.
 
-## Near calls
+### Near calls
 
 Instruction `near_call reg, address` passes the control to a different address inside the same contract, like `jump`.
 Additionally, it remembers the context of execution in a special _call stack_ (it is different from data stack and not
@@ -287,9 +287,9 @@ Near calls cannot be used from Solidity to their full extent. Compiler generates
 revert or panic, the whole contract reverts of panics. Explicit exception handlers and allocating just a portion of
 available gas are reserved for low-level code.
 
-# Accessing data outside registers
+## Accessing data outside registers
 
-## Stack addressing
+### Stack addressing
 
 As we already know, instructions may accept data not only in registers or as immediate 16-bit values, but also on stack.
 
@@ -299,7 +299,7 @@ to stack increases SP.
 
 On far call, SP starts in a new stack memory at 1024.
 
-### Reading from stack
+#### Reading from stack
 
 There are several ways of accessing stack cells:
 
@@ -326,7 +326,7 @@ Currently, the last mode is only used in a `nop` instruction as a way to rewind 
 nop stack-=[reg+imm]
 ```
 
-### Writing to stack
+#### Writing to stack
 
 Storing results on stack is also possible:
 
@@ -352,7 +352,7 @@ Currently, the last mode is only used in a `nop` instruction as a way to forward
 nop r0, r0, stack+=[reg+imm]
 ```
 
-## Code addressing
+### Code addressing
 
 Sometimes we might need to work with larger immediates that do not fit into 16-bit. In this case we can use the
 (read-only) code memory as a constant pool and read 256-bit constants from there.
@@ -380,16 +380,16 @@ not correctly encoded will trigger panic.
 
 Contracts always need to be divisible by 32 bytes (4 instructions) because of this addressing mode.
 
-## Using heap
+### Using heap
 
 Heap is a bounded memory region to store data between near calls, and to communicate data between contracts.
 
-### Heap boundary growth
+#### Heap boundary growth
 
 Accessing an address beyond the heap bound leads to heap growth: the bound is adjusted to accommodate this address. The
 difference between old and new bounds is paid in gas.
 
-### Instructions to access heap
+#### Instructions to access heap
 
 Most instructions can not use heap directly. Instructions `ld.1` and `st.1` are used to load and store data on heap:
 
@@ -430,7 +430,7 @@ is $2^{32}-1$.
 The topmost 32 bytes of heap are considered forbidden addresses, trying to access them results in panic no matter how
 much gas is available.
 
-### Heap and Auxheap
+#### Heap and Auxheap
 
 In zkEVM, there are two heaps; every far call allocates memory for both of them.
 
@@ -443,7 +443,7 @@ The reason why we need two heaps is technical. Heap contains calldata and return
 auxheap contains calldata and returndata for calls to system contracts. This ensures better compatibility with EVM as
 users should be able to call zkEVM-specific system contracts without them affecting calldata or returndata.
 
-# Fat pointers
+## Fat pointers
 
 A fat pointer is the second type of values in zkEVM, beside raw integers.
 
@@ -470,7 +470,7 @@ The restrictions on fat pointers provide allows to pass data between contracts s
 - bits 64…95 : starting address of the fragment
 - bits 96…127 : length of the fragment
 
-### Instructions to manipulate fat pointers
+#### Instructions to manipulate fat pointers
 
 Only special instructions can manipulate fat pointers without automatically clearing its pointer tag.
 
@@ -484,7 +484,7 @@ Doing e.g. `add r1, 0, r2` on a pointer in `r1` clears its tag, and it is now co
 Instructions `ld` and `[ld.inc](http://ld.inc)` (without indices 1 or 2) allow loading data by fat pointers, possibly
 incrementing the pointer. It is impossible to write by a fat pointer.
 
-# Contracts and storage
+## Contracts and storage
 
 All accounts are associated with contracts. There are $2^{160}$ valid account addresses.
 
@@ -494,13 +494,13 @@ system contracts).
 
 Size of a contract should be divisible by 32 bytes (4 instructions).
 
-## Storage of contracts
+### Storage of contracts
 
 Every account has a storage. Storage maps $2^{256}$ keys to values; both keys and values are 256-bit untagged words.
 
 Contracts may write to their own storage by using `sstore key, value` and read from storage using `sload key, dest`.
 
-## Static mode
+### Static mode
 
 Static mode prevents contracts from modifying their storage and emitting events. In static mode, executing an
 instruction like `sstore` sends VM into panic.
@@ -508,7 +508,7 @@ instruction like `sstore` sends VM into panic.
 To execute a contract C in static mode, use a `static` modifier: `far_call.static`. All contracts, called by C
 recursively, will also be executed in static mode. VM exits static mode automatically when C terminates.
 
-## System contracts
+### System contracts
 
 Part of Era’s functionality is implemented through system contracts. These contracts have addresses from 0 to $2^{64}$
 and are executed in kernel mode, where they have access to privileged instructions. An example of such instruction is
@@ -518,9 +518,9 @@ anyone’s tokens.
 
 System contracts implement contract deployment, extensions such as keccak256, decommitting code etc.
 
-# Server and VM environment
+## Server and VM environment
 
-## Decommitter
+### Decommitter
 
 Decommitter is a module external to zkEVM allowing accessing deployed code by its hash.
 
@@ -537,7 +537,7 @@ If decommitter does not have the code for the requested hash, one of two things 
 - if C is a system contract (i.e. address of $C < 2^{16}$), the call will fail
 - otherwise, VM will call the `DefaultAccount` contract.
 
-## Server
+### Server
 
 The VM is controlled by a _server._ When the server needs to build a new batch, it starts an instance of zkEVM and feeds
 the transactions to the [Bootloader](#bootloader).
@@ -553,7 +553,7 @@ zkEVM accepts three parameters:
 zkEVM retrieves the code of bootloader from Decommitter and proceeds with sequential execution of instructions on the
 bootloader’s code page.
 
-### Failures and rollbacks
+#### Failures and rollbacks
 
 There are three types of behaviour triggered by execution failures.
 
@@ -571,7 +571,7 @@ There are three types of behaviour triggered by execution failures.
 
    On panic, the persistent state of zkEVM is rolled back in the same way as on revert.
 
-## Bootloader
+### Bootloader
 
 Bootloader is a system contract in charge of block construction
 (**[sources](https://github.com/matter-labs/era-system-contracts/blob/main/bootloader/bootloader.yul)**).
@@ -622,7 +622,7 @@ situation and is handled by zkEVM in a regular way, through panics.
 
 The exact code of the bootloader is a part of a protocol; its hash is included in the block header.
 
-## Context value
+### Context value
 
 A part of the zkEVM state is a 128-bit _context value_. It implements `msg.value` standing for the amount of wei sent in
 a transaction. In assembly, it is used as follows:

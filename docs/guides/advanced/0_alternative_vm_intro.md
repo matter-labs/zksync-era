@@ -273,7 +273,7 @@ _Important note:_ the compiler behaves in a way that if there is a `revert` in t
 _Important note 2:_ The 63/64 rule does not apply to `near_call`. Also, if 0 gas is provided to the near call, then
 actually all of the available gas will go to it.
 
-**Notes on security**
+### Notes on security
 
 To prevent unintended substitution, the compiler requires `--system-mode` flag to be passed during compilation for the
 above substitutions to work.

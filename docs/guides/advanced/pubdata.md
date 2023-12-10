@@ -1,4 +1,4 @@
-## Overview
+# Overview
 
 Pubdata in zkSync can be divided up into 4 different categories:
 
