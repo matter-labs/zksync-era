@@ -7,21 +7,34 @@ use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
-use crate::l1_gas_price::L1GasPriceProvider;
+use crate::{fee_model::FeeModel, l1_gas_price::L1GasPriceProvider};
 
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.
 /// The filter is used to filter out transactions from the mempool that do not cover expenses
 /// to process them.
 pub fn l2_tx_filter<G: L1GasPriceProvider>(
     gas_price_provider: &G,
-    fair_l2_gas_price: u64,
+    minimal_l2_gas_price: u64,
 ) -> L2TxFilter {
     let effective_gas_price = gas_price_provider.estimate_effective_gas_price();
 
+    let output = FeeModel::new(
+        effective_gas_price,
+        minimal_l2_gas_price,
+        0.0,
+        1.0,
+        800_000,
+        120_000_000,
+        100_000,
+    )
+    .get_output();
+
     let (base_fee, gas_per_pubdata) =
-        derive_base_fee_and_gas_per_pubdata(effective_gas_price, fair_l2_gas_price);
+        derive_base_fee_and_gas_per_pubdata(output.l1_gas_price, output.fair_l2_gas_price);
     L2TxFilter {
-        l1_gas_price: effective_gas_price,
+        l1_gas_price: output.l1_gas_price,
+        fair_pubdata_price: output.fair_pubdata_price,
+        fair_l2_gas_price: output.fair_l2_gas_price,
         fee_per_gas: base_fee,
         gas_per_pubdata: gas_per_pubdata as u32,
     }

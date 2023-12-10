@@ -25,6 +25,7 @@ use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     fee::{Fee, TransactionExecutionMetrics},
     get_code_key, get_intrinsic_constants,
+    l1::is_l1_tx_type,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     utils::storage_key_for_eth_balance,
     AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, Nonce, PackedEthSignature,
@@ -43,6 +44,7 @@ use crate::{
         },
         tx_sender::result::ApiCallResult,
     },
+    fee_model::FeeModel,
     l1_gas_price::L1GasPriceProvider,
     metrics::{TxStage, APP_METRICS},
     state_keeper::seal_criteria::{ConditionalSealer, SealData},
@@ -224,7 +226,7 @@ pub struct TxSenderConfig {
     pub gas_price_scale_factor: f64,
     pub max_nonce_ahead: u32,
     pub max_allowed_l2_tx_gas_limit: u32,
-    pub fair_l2_gas_price: u64,
+    pub minimal_l2_gas_price: u64,
     pub vm_execution_cache_misses_limit: Option<usize>,
     pub validation_computational_gas_limit: u32,
     pub chain_id: L2ChainId,
@@ -241,7 +243,7 @@ impl TxSenderConfig {
             gas_price_scale_factor: web3_json_config.gas_price_scale_factor,
             max_nonce_ahead: web3_json_config.max_nonce_ahead,
             max_allowed_l2_tx_gas_limit: state_keeper_config.max_allowed_l2_tx_gas_limit,
-            fair_l2_gas_price: state_keeper_config.fair_l2_gas_price,
+            minimal_l2_gas_price: state_keeper_config.minimal_l2_gas_price,
             vm_execution_cache_misses_limit: web3_json_config.vm_execution_cache_misses_limit,
             validation_computational_gas_limit: state_keeper_config
                 .validation_computational_gas_limit,
@@ -589,6 +591,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
     ) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics) {
         let gas_limit_with_overhead = tx_gas_limit
             + derive_overhead(
+                is_l1_tx_type(tx.tx_format() as u8),
                 tx_gas_limit,
                 gas_per_pubdata_byte as u32,
                 tx.encoding_len(),
@@ -821,6 +824,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         self.ensure_tx_executable(tx.clone(), &tx_metrics, false)?;
 
         let overhead = derive_overhead(
+            is_l1_tx_type(tx.tx_format() as u8),
             suggested_gas_limit,
             gas_per_pubdata_byte as u32,
             tx.encoding_len(),
@@ -871,9 +875,21 @@ impl<G: L1GasPriceProvider> TxSender<G> {
     pub fn gas_price(&self) -> u64 {
         let gas_price = self.0.l1_gas_price_source.estimate_effective_gas_price();
         let l1_gas_price = (gas_price as f64 * self.0.sender_config.gas_price_scale_factor).round();
-        let (base_fee, _) = derive_base_fee_and_gas_per_pubdata(
+
+        let fee_model_params = FeeModel::new(
             l1_gas_price as u64,
-            self.0.sender_config.fair_l2_gas_price,
+            self.0.sender_config.minimal_l2_gas_price,
+            0.0,
+            1.0,
+            800_000,
+            120_000_000,
+            100_000,
+        )
+        .get_output();
+
+        let (base_fee, _) = derive_base_fee_and_gas_per_pubdata(
+            fee_model_params.l1_gas_price,
+            fee_model_params.fair_l2_gas_price,
         );
         base_fee
     }

@@ -7,8 +7,29 @@ use crate::vm_latest::constants::{
     BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA, BOOTLOADER_TX_ENCODING_SPACE,
 };
 
-/// Derives the overhead for processing transactions in a block.
 pub fn derive_overhead(
+    is_l1: bool,
+    gas_limit: u32,
+    gas_price_per_pubdata: u32,
+    encoded_len: usize,
+    coefficients: OverheadCoefficients,
+) -> u32 {
+    if is_l1 {
+        derive_overhead_l1_tx(gas_limit, gas_price_per_pubdata, encoded_len, coefficients)
+    } else {
+        derive_overhead_l2_tx(encoded_len)
+    }
+}
+
+const TX_SLOT_OVERHEAD: usize = 80_000;
+const TX_MEMORY_BYTE_OVERHEAD: usize = 10;
+
+fn derive_overhead_l2_tx(encoded_len: usize) -> u32 {
+    std::cmp::max(TX_SLOT_OVERHEAD, encoded_len * TX_MEMORY_BYTE_OVERHEAD) as u32
+}
+
+/// Derives the overhead for processing transactions in a block.
+fn derive_overhead_l1_tx(
     gas_limit: u32,
     gas_price_per_pubdata: u32,
     encoded_len: usize,
@@ -119,8 +140,28 @@ impl OverheadCoefficients {
     }
 }
 
+pub fn get_amortized_overhead(
+    is_l1: bool,
+    total_gas_limit: u32,
+    gas_per_pubdata_byte_limit: u32,
+    encoded_len: usize,
+    coefficients: OverheadCoefficients,
+) -> u32 {
+    if is_l1 {
+        get_amortized_overhead_l1_tx(
+            total_gas_limit,
+            gas_per_pubdata_byte_limit,
+            encoded_len,
+            coefficients,
+        )
+    } else {
+        // For L2 transactions the function for deriving the overhead is the same as the one for calculating it
+        derive_overhead_l2_tx(encoded_len)
+    }
+}
+
 /// This method returns the overhead for processing the block  
-pub(crate) fn get_amortized_overhead(
+fn get_amortized_overhead_l1_tx(
     total_gas_limit: u32,
     gas_per_pubdata_byte_limit: u32,
     encoded_len: usize,
@@ -238,7 +279,7 @@ pub(crate) fn get_amortized_overhead(
     // body of the transaction does not have any more than MAX_L2_TX_GAS_LIMIT ergs available to it.
     if limit_after_deducting_overhead.as_u64() > MAX_L2_TX_GAS_LIMIT {
         // We derive the same overhead that would exist for the MAX_L2_TX_GAS_LIMIT ergs
-        derive_overhead(
+        derive_overhead_l1_tx(
             MAX_L2_TX_GAS_LIMIT as u32,
             gas_per_pubdata_byte_limit,
             encoded_len.as_usize(),
@@ -277,7 +318,7 @@ mod tests {
         // It is accepted if the derived overhead (i.e. the actual overhead that the user has to pay)
         // is >= than the overhead proposed by the operator.
         let is_overhead_accepted = |suggested_overhead: u32| {
-            let derived_overhead = derive_overhead(
+            let derived_overhead = derive_overhead_l1_tx(
                 total_gas_limit - suggested_overhead,
                 gas_per_pubdata_byte_limit,
                 encoded_len,
@@ -311,8 +352,12 @@ mod tests {
                            gas_per_pubdata: u32,
                            encoded_len: usize,
                            coefficients: OverheadCoefficients| {
-            let result_by_efficient_search =
-                get_amortized_overhead(total_gas_limit, gas_per_pubdata, encoded_len, coefficients);
+            let result_by_efficient_search = get_amortized_overhead_l1_tx(
+                total_gas_limit,
+                gas_per_pubdata,
+                encoded_len,
+                coefficients,
+            );
 
             let result_by_binary_search = get_maximal_allowed_overhead_bin_search(
                 total_gas_limit,
@@ -331,7 +376,7 @@ mod tests {
         test_params(0, 1, 12, OverheadCoefficients::new_l2());
 
         // Relatively big parameters
-        let max_tx_overhead = derive_overhead(
+        let max_tx_overhead = derive_overhead_l1_tx(
             MAX_TX_ERGS_LIMIT,
             5000,
             10000,

@@ -11,6 +11,7 @@ pub struct L1BatchEnv {
     pub number: L1BatchNumber,
     pub timestamp: u64,
     pub l1_gas_price: u64,
+    pub fair_pubdata_price: u64,
     pub fair_l2_gas_price: u64,
     pub fee_account: Address,
     pub enforced_base_fee: Option<u64>,

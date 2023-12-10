@@ -214,6 +214,7 @@ impl TransactionData {
 
         let coefficients = OverheadCoefficients::from_tx_type(self.tx_type);
         get_amortized_overhead(
+            is_l1_tx_type(self.tx_type),
             total_gas_limit,
             gas_price_per_pubdata,
             encoded_len,

@@ -502,6 +502,7 @@ pub struct StorageMiniblockHeader {
     pub l2_tx_count: i32,
     pub base_fee_per_gas: BigDecimal,
     pub l1_gas_price: i64,
+    pub l1_fair_pubdata_price: i64,
     // L1 gas price assumed in the corresponding batch
     pub l2_fair_gas_price: i64,
     // L2 gas price assumed in the corresponding batch
@@ -526,6 +527,7 @@ impl From<StorageMiniblockHeader> for MiniblockHeader {
             l2_tx_count: row.l2_tx_count as u16,
             base_fee_per_gas: row.base_fee_per_gas.to_u64().unwrap(),
             l1_gas_price: row.l1_gas_price as u64,
+            l1_fair_pubdata_price: row.l1_fair_pubdata_price as u64,
             l2_fair_gas_price: row.l2_fair_gas_price as u64,
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 row.bootloader_code_hash,

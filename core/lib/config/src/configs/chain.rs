@@ -78,7 +78,7 @@ pub struct StateKeeperConfig {
     pub fee_account_addr: Address,
 
     /// The price the operator spends on 1 gas of computation in wei.
-    pub fair_l2_gas_price: u64,
+    pub minimal_l2_gas_price: u64,
 
     /// Max number of computational gas that validation step is allowed to take.
     pub validation_computational_gas_limit: u32,
@@ -114,7 +114,7 @@ impl StateKeeperConfig {
             close_block_at_gas_percentage: 0.95,
             fee_account_addr: Address::from_str("0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7")
                 .unwrap(),
-            fair_l2_gas_price: 250000000,
+            minimal_l2_gas_price: 250000000,
             validation_computational_gas_limit: 300000,
             save_call_traces: true,
             virtual_blocks_interval: 1,
