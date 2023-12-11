@@ -1,23 +1,24 @@
 use std::fs;
 
+use codegen::{Block, Scope};
+use multivm::vm_latest::constants::{
+    BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_L1_GAS, BOOTLOADER_TX_ENCODING_SPACE, MAX_PUBDATA_PER_BLOCK,
+};
 use serde::{Deserialize, Serialize};
 use zksync_types::{
+    zkevm_test_harness::zk_evm::zkevm_opcode_defs::{
+        circuit_prices::{
+            ECRECOVER_CIRCUIT_COST_IN_ERGS, KECCAK256_CIRCUIT_COST_IN_ERGS,
+            SHA256_CIRCUIT_COST_IN_ERGS,
+        },
+        system_params::MAX_TX_ERGS_LIMIT,
+    },
     IntrinsicSystemGasConstants, GUARANTEED_PUBDATA_IN_TX, L1_GAS_PER_PUBDATA_BYTE,
     MAX_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, MAX_TXS_IN_BLOCK,
 };
 
 mod intrinsic_costs;
 mod utils;
-
-use codegen::Block;
-use codegen::Scope;
-use vm::constants::{
-    BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_L1_GAS, BOOTLOADER_TX_ENCODING_SPACE, MAX_PUBDATA_PER_BLOCK,
-};
-use zksync_types::zkevm_test_harness::zk_evm::zkevm_opcode_defs::circuit_prices::{
-    ECRECOVER_CIRCUIT_COST_IN_ERGS, KECCAK256_CIRCUIT_COST_IN_ERGS, SHA256_CIRCUIT_COST_IN_ERGS,
-};
-use zksync_types::zkevm_test_harness::zk_evm::zkevm_opcode_defs::system_params::MAX_TX_ERGS_LIMIT;
 
 // Params needed for L1 contracts
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
@@ -210,7 +211,7 @@ fn save_file(path_in_repo: &str, content: String) {
 fn update_rust_system_constants(intrinsic_gas_constants: &IntrinsicSystemGasConstants) {
     let rust_fee_constants = generate_rust_fee_constants(intrinsic_gas_constants);
     save_file(
-        "core/lib/config/src/constants/fees/intrinsic.rs",
+        "core/lib/constants/src/fees/intrinsic.rs",
         rust_fee_constants,
     );
 }

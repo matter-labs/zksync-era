@@ -1,14 +1,11 @@
 use sqlx::Row;
-
 use zksync_types::{
     api::{GetLogsFilter, Log},
     Address, MiniblockNumber, H256,
 };
 
 use crate::{
-    instrument::InstrumentExt,
-    models::{storage_block::web3_block_number_to_sql, storage_event::StorageWeb3Log},
-    SqlxError, StorageProcessor,
+    instrument::InstrumentExt, models::storage_event::StorageWeb3Log, SqlxError, StorageProcessor,
 };
 
 #[derive(Debug)]
@@ -119,10 +116,8 @@ impl EventsWeb3Dal<'_, '_> {
 
         let mut where_sql = format!("(miniblock_number >= {})", filter.from_block.0 as i64);
 
-        if let Some(to_block) = filter.to_block {
-            let block_sql = web3_block_number_to_sql(to_block);
-            where_sql += &format!(" AND (miniblock_number <= {})", block_sql);
-        }
+        where_sql += &format!(" AND (miniblock_number <= {})", filter.to_block.0 as i64);
+
         if !filter.addresses.is_empty() {
             where_sql += &format!(" AND (address = ANY(${}))", arg_index);
             arg_index += 1;
@@ -172,20 +167,19 @@ impl EventsWeb3Dal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use db_test_macro::db_test;
-    use zksync_types::api::BlockNumber;
     use zksync_types::{Address, H256};
 
     use super::*;
     use crate::connection::ConnectionPool;
 
-    #[db_test(dal_crate)]
-    async fn test_build_get_logs_where_clause(connection_pool: ConnectionPool) {
-        let storage = &mut connection_pool.access_test_storage().await;
+    #[tokio::test]
+    async fn test_build_get_logs_where_clause() {
+        let connection_pool = ConnectionPool::test_pool().await;
+        let storage = &mut connection_pool.access_storage().await.unwrap();
         let events_web3_dal = EventsWeb3Dal { storage };
         let filter = GetLogsFilter {
             from_block: MiniblockNumber(100),
-            to_block: Some(BlockNumber::Number(200.into())),
+            to_block: MiniblockNumber(200),
             addresses: vec![Address::from_low_u64_be(123)],
             topics: vec![(0, vec![H256::from_low_u64_be(456)])],
         };

@@ -1,8 +1,7 @@
-use crate::proof_data_handler::request_processor::RequestProcessor;
-use anyhow::Context as _;
-use axum::extract::Path;
-use axum::{routing::post, Json, Router};
 use std::net::SocketAddr;
+
+use anyhow::Context as _;
+use axum::{extract::Path, routing::post, Json, Router};
 use tokio::sync::watch;
 use zksync_config::{
     configs::{proof_data_handler::ProtocolVersionLoadingMode, ProofDataHandlerConfig},
@@ -16,23 +15,25 @@ use zksync_types::{
     H256,
 };
 
+use crate::proof_data_handler::request_processor::RequestProcessor;
+
 mod request_processor;
 
-fn fri_l1_verifier_config_from_env() -> anyhow::Result<L1VerifierConfig> {
-    let config = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
-    Ok(L1VerifierConfig {
+fn fri_l1_verifier_config(contracts_config: &ContractsConfig) -> L1VerifierConfig {
+    L1VerifierConfig {
         params: VerifierParams {
-            recursion_node_level_vk_hash: config.fri_recursion_node_level_vk_hash,
-            recursion_leaf_level_vk_hash: config.fri_recursion_leaf_level_vk_hash,
+            recursion_node_level_vk_hash: contracts_config.fri_recursion_node_level_vk_hash,
+            recursion_leaf_level_vk_hash: contracts_config.fri_recursion_leaf_level_vk_hash,
             // The base layer commitment is not used in the FRI prover verification.
             recursion_circuits_set_vks_hash: H256::zero(),
         },
-        recursion_scheduler_level_vk_hash: config.fri_recursion_scheduler_level_vk_hash,
-    })
+        recursion_scheduler_level_vk_hash: contracts_config.snark_wrapper_vk_hash,
+    }
 }
 
 pub(crate) async fn run_server(
     config: ProofDataHandlerConfig,
+    contracts_config: ContractsConfig,
     blob_store: Box<dyn ObjectStore>,
     pool: ConnectionPool,
     mut stop_receiver: watch::Receiver<bool>,
@@ -41,9 +42,7 @@ pub(crate) async fn run_server(
     tracing::debug!("Starting proof data handler server on {bind_address}");
     let l1_verifier_config: Option<L1VerifierConfig> = match config.protocol_version_loading_mode {
         ProtocolVersionLoadingMode::FromDb => None,
-        ProtocolVersionLoadingMode::FromEnvVar => {
-            Some(fri_l1_verifier_config_from_env().context("fri_l1_verified_config_from_env()")?)
-        }
+        ProtocolVersionLoadingMode::FromEnvVar => Some(fri_l1_verifier_config(&contracts_config)),
     };
     let get_proof_gen_processor =
         RequestProcessor::new(blob_store, pool, config, l1_verifier_config);

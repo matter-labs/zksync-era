@@ -1,28 +1,29 @@
 use std::{convert::TryInto, str::FromStr};
 
-use crate::BigDecimal;
 use bigdecimal::Zero;
-
 use serde::{Deserialize, Serialize};
-use sqlx::postgres::PgRow;
-use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
-use sqlx::{Error, FromRow, Row};
-
-use zksync_types::l2::TransactionType;
-use zksync_types::protocol_version::ProtocolUpgradeTxCommonData;
-use zksync_types::transaction_request::PaymasterParams;
-use zksync_types::vm_trace::Call;
-use zksync_types::web3::types::U64;
-use zksync_types::{api, Bytes, ExecuteTransactionCommon};
+use sqlx::{
+    postgres::PgRow,
+    types::chrono::{DateTime, NaiveDateTime, Utc},
+    Error, FromRow, Row,
+};
 use zksync_types::{
+    api,
     api::{TransactionDetails, TransactionStatus},
     fee::Fee,
     l1::{OpProcessingType, PriorityQueueType},
-    Address, Execute, L1TxCommonData, L2ChainId, L2TxCommonData, Nonce, PackedEthSignature,
-    PriorityOpId, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H160, H256,
-    PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256,
+    l2::TransactionType,
+    protocol_version::ProtocolUpgradeTxCommonData,
+    transaction_request::PaymasterParams,
+    vm_trace::Call,
+    web3::types::U64,
+    Address, Bytes, Execute, ExecuteTransactionCommon, L1TxCommonData, L2ChainId, L2TxCommonData,
+    Nonce, PackedEthSignature, PriorityOpId, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE,
+    EIP_712_TX_TYPE, H160, H256, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_utils::bigdecimal_to_u256;
+
+use crate::BigDecimal;
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct StorageTransaction {
@@ -389,7 +390,7 @@ impl<'r> FromRow<'r, PgRow> for StorageApiTransaction {
                     .unwrap_or_default()
                     .map(U64::from),
                 access_list: None,
-                chain_id: 0,
+                chain_id: U256::zero(),
                 l1_batch_number: db_row
                     .try_get::<i64, &str>("l1_batch_number_tx")
                     .ok()
@@ -502,7 +503,13 @@ pub fn web3_transaction_select_sql() -> &'static str {
 
 pub fn extract_web3_transaction(db_row: PgRow, chain_id: L2ChainId) -> api::Transaction {
     let mut storage_api_tx = StorageApiTransaction::from_row(&db_row).unwrap();
-    storage_api_tx.inner_api_transaction.chain_id = chain_id.as_u64();
+    storage_api_tx.inner_api_transaction.chain_id = U256::from(chain_id.as_u64());
+    if storage_api_tx.inner_api_transaction.transaction_type == Some(U64::from(0)) {
+        storage_api_tx.inner_api_transaction.v = storage_api_tx
+            .inner_api_transaction
+            .v
+            .map(|v| v + 35 + chain_id.as_u64() * 2);
+    }
     storage_api_tx.into()
 }
 

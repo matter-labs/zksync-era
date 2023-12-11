@@ -1,5 +1,4 @@
-use zksync_basic_types::web3::signing::keccak256;
-use zksync_basic_types::{H256, U256};
+use zksync_basic_types::{web3::signing::keccak256, H256, U256};
 
 pub const fn ceil_div(a: u64, b: u64) -> u64 {
     if a == 0 {
@@ -18,6 +17,16 @@ pub fn concat_and_hash(hash1: H256, hash2: H256) -> H256 {
     bytes[..32].copy_from_slice(&hash1.0);
     bytes[32..].copy_from_slice(&hash2.0);
     H256(keccak256(&bytes))
+}
+
+pub fn expand_memory_contents(packed: &[(usize, U256)], memory_size_bytes: usize) -> Vec<u8> {
+    let mut result: Vec<u8> = vec![0; memory_size_bytes];
+
+    for (offset, value) in packed {
+        value.to_big_endian(&mut result[(offset * 32)..(offset + 1) * 32]);
+    }
+
+    result.to_vec()
 }
 
 #[cfg(test)]

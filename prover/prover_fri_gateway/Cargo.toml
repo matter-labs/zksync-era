@@ -4,9 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "dd05139b76ab0843443ab3ff730174942c825dae" }
+
 zksync_types = { path = "../../core/lib/types" }
 zksync_dal = { path = "../../core/lib/dal" }
 zksync_config = { path = "../../core/lib/config" }
+zksync_env_config = { path = "../../core/lib/env_config" }
 zksync_object_store = { path = "../../core/lib/object_store" }
 zksync_utils = { path = "../../core/lib/utils" }
 prometheus_exporter = { path = "../../core/lib/prometheus_exporter" }
@@ -20,5 +23,4 @@ ctrlc = { version = "3.1", features = ["termination"] }
 async-trait = "0.1"
 futures = { version = "0.3", features = ["compat"] }
 serde = { version = "1.0", features = ["derive"] }
-metrics = "0.21"
 log = "0.4.20"

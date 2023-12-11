@@ -1,12 +1,15 @@
-use once_cell::sync::Lazy;
 use std::{cell::RefCell, rc::Rc};
-use vm::{
-    constants::BLOCK_GAS_LIMIT, HistoryEnabled, L2BlockEnv, TxExecutionMode, Vm, VmExecutionMode,
-    VmExecutionResultAndLogs,
+
+use multivm::{
+    interface::{
+        L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+    },
+    vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryEnabled, Vm},
 };
-use zksync_config::constants::ethereum::MAX_GAS_PER_PUBDATA_BYTE;
+use once_cell::sync::Lazy;
 use zksync_contracts::{deployer_contract, BaseSystemContracts};
 use zksync_state::{InMemoryStorage, StorageView};
+use zksync_system_constants::ethereum::MAX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::legacy_miniblock_hash,
     ethabi::{encode, Token},
@@ -62,7 +65,7 @@ impl BenchmarkingVm {
         let timestamp = unix_timestamp_ms();
 
         Self(Vm::new(
-            vm::L1BatchEnv {
+            multivm::interface::L1BatchEnv {
                 previous_batch_hash: None,
                 number: L1BatchNumber(1),
                 timestamp,
@@ -77,7 +80,7 @@ impl BenchmarkingVm {
                     max_virtual_blocks_to_create: 100,
                 },
             },
-            vm::SystemEnv {
+            multivm::interface::SystemEnv {
                 zk_porter_available: false,
                 version: ProtocolVersionId::latest(),
                 base_system_smart_contracts: SYSTEM_CONTRACTS.clone(),
@@ -87,7 +90,6 @@ impl BenchmarkingVm {
                 chain_id: L2ChainId::from(270),
             },
             Rc::new(RefCell::new(StorageView::new(&*STORAGE))),
-            HistoryEnabled,
         ))
     }
 
@@ -114,7 +116,7 @@ pub fn get_deploy_tx(code: &[u8]) -> Transaction {
         calldata,
         Nonce(0),
         Fee {
-            gas_limit: U256::from(10000000u32),
+            gas_limit: U256::from(30000000u32),
             max_fee_per_gas: U256::from(250_000_000),
             max_priority_fee_per_gas: U256::from(0),
             gas_per_pubdata_limit: U256::from(MAX_GAS_PER_PUBDATA_BYTE),
@@ -134,8 +136,9 @@ pub fn get_deploy_tx(code: &[u8]) -> Transaction {
 
 #[cfg(test)]
 mod tests {
-    use crate::*;
     use zksync_contracts::read_bytecode;
+
+    use crate::*;
 
     #[test]
     fn can_deploy_contract() {
@@ -145,6 +148,9 @@ mod tests {
         let mut vm = BenchmarkingVm::new();
         let res = vm.run_transaction(&get_deploy_tx(&test_contract));
 
-        assert!(matches!(res.result, vm::ExecutionResult::Success { .. }));
+        assert!(matches!(
+            res.result,
+            multivm::interface::ExecutionResult::Success { .. }
+        ));
     }
 }

@@ -1,8 +1,37 @@
 # Installing dependencies
 
+## TL;DR
+
+If you run on 'clean' Debian on GCP:
+
+```bash
+# Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+# NVM
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+# All necessary stuff
+sudo apt-get install build-essential pkg-config cmake clang lldb lld libssl-dev postgresql docker-compose
+# Docker
+sudo usermod -aG docker YOUR_USER
+
+## You might need to re-connect (due to usermod change).
+
+# Node & yarn
+nvm install node
+npm install -g yarn
+yarn set version 1.22.19
+
+# SQL tools
+cargo install sqlx-cli --version 0.5.13
+# Stop default postgres (as we'll use the docker one)
+sudo systemctl stop postgresql
+# Start docker.
+sudo systemctl start docker
+```
+
 ## Supported operating systems
 
-zkSync is currently can be launched on any \*nix operating system (e.g. any linux distribution or MacOS).
+zkSync currently can be launched on any \*nix operating system (e.g. any linux distribution or MacOS).
 
 If you're using Windows, then make sure to use WSL 2, since WSL 1 is known to cause troubles.
 
@@ -15,22 +44,12 @@ Rosetta may cause problems that are hard to spot and debug, so make sure to chec
 
 If you are a NixOS user or would like to have a reproducible environment, skip to the section about `nix`.
 
-## `git`
-
-If you are using an ssh key to authenticate with Github you need to make git always use ssh instead of http.
-
-```bash
-git config --global url."ssh://git@github.com/".insteadOf https://github.com/
-```
-
-[More information about how we use git](https://www.notion.so/matterlabs/Working-with-dependencies-in-private-repositories-697620178338452798a0ea5ac0d8e56a)
-
 ## `Docker`
 
 Install `docker`. It is recommended to follow the instructions from the
 [official site](https://docs.docker.com/install/).
 
-Note: currently official site proposes using Docker Desktop for linux, which is a GUI tool with plenty of quirks. If you
+Note: currently official site proposes using Docker Desktop for Linux, which is a GUI tool with plenty of quirks. If you
 want to only have CLI tool, you need the `docker-ce` package and you can follow
 [this guide](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-20-04) for Ubuntu.
 
@@ -160,7 +179,7 @@ installed toolchains
 active toolchain
 ----------------
 
-1.67.1-aarch64-apple-darwin (overridden by '/Users/user/workspace/zksync-2-dev/rust-toolchain')
+1.67.1-aarch64-apple-darwin (overridden by '/Users/user/workspace/zksync-era/rust-toolchain')
 ```
 
 If you see `x86_64` mentioned in the output, probably you're running (or used to run) your IDE/terminal in Rosetta. If
@@ -169,10 +188,18 @@ Rust toolchain as well.
 
 ## Postgres
 
-Install the latest postgres.
+Install the latest postgres:
+
+On mac:
 
 ```bash
 brew install postgresql@14
+```
+
+On linux:
+
+```bash
+sudo apt-get install postgresql
 ```
 
 ### Cargo nextest

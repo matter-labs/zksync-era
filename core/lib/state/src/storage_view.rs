@@ -1,13 +1,14 @@
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::{
+    cell::RefCell,
     collections::HashMap,
     fmt, mem,
+    rc::Rc,
     time::{Duration, Instant},
 };
 
-use crate::{ReadStorage, WriteStorage};
 use zksync_types::{witness_block_state::WitnessBlockState, StorageKey, StorageValue, H256};
+
+use crate::{ReadStorage, WriteStorage};
 
 /// Metrics for [`StorageView`].
 #[derive(Debug, Default, Clone, Copy)]
@@ -79,6 +80,10 @@ where
 
     fn is_bytecode_known(&mut self, bytecode_hash: &H256) -> bool {
         (**self).is_bytecode_known(bytecode_hash)
+    }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        (**self).get_enumeration_index(key)
     }
 }
 
@@ -163,6 +168,10 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
         self.storage_handle.load_factory_dep(hash)
     }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        self.storage_handle.get_enumeration_index(key)
+    }
 }
 
 impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
@@ -196,9 +205,10 @@ impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
 
 #[cfg(test)]
 mod test {
+    use zksync_types::{AccountTreeId, Address, H256};
+
     use super::*;
     use crate::InMemoryStorage;
-    use zksync_types::{AccountTreeId, Address, H256};
 
     #[test]
     fn test_storage_access() {

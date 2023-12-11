@@ -7,7 +7,7 @@ understanding. We're leaving out a lot of details to keep things brief.
 
 In our case, the prover takes public input and witness (which is huge - you'll see below), and produces a proof, but the
 verifier takes (public input, proof) only, without witness. This means that the huge witness doesn't have to be
-submitted to L1. This property can be used for many things, like privacy, but here we use it to ipmlement an efficient
+submitted to L1. This property can be used for many things, like privacy, but here we use it to implement an efficient
 rollup that publishes the least required amount of data to L1.
 
 ## Basic overview
@@ -85,7 +85,7 @@ located in a module [zksync core witness]. However, for the new proof system, th
 new location called [separate witness binary].
 
 Inside this new location, after the necessary data is fetched from storage, the witness generator calls another piece of
-code from [zkevm_test_harness witness] named `run_with_fixed_params`. This code is responsible for createing the
+code from [zkevm_test_harness witness] named `run_with_fixed_params`. This code is responsible for creating the
 witnesses themselves (which can get really HUGE).
 
 ## Generating the Proof
@@ -138,17 +138,15 @@ this guide was written, the latest version was 1.3.4, but there was also ongoing
 version 1.4.0.
 
 [witness_example]:
-  https://github.com/matter-labs/zkevm_test_harness/blob/0c17bc7baa4e0b64634d414942ef4200d8613bbd/src/witness/individual_circuits/decommit_code.rs#L23
-[verifier]:
-  https://github.com/matter-labs/zksync-2-contracts/blob/d9785355518edc7f686fb2c91ff7d1caced9f9b8/ethereum/contracts/zksync/Plonk4VerifierWithAccessToDNext.sol#L284
+  https://github.com/matter-labs/era-zkevm_test_harness/tree/main/src/witness/individual_circuits/decommit_code.rs#L24
+[verifier]: https://github.com/matter-labs/era-contracts/blob/main/ethereum/contracts/zksync/Verifier.sol
 [bellman repo]: https://github.com/matter-labs/bellman
 [bellman cuda repo]: https://github.com/matter-labs/era-bellman-cuda
 [example ecrecover circuit]:
   https://github.com/matter-labs/sync_vm/blob/683ade0bbb445f3e2ceb82dd3f4346a0c5d16a78/src/glue/ecrecover_circuit/mod.rs#L157
 [zksync core witness]:
-  https://github.com/matter-labs/zksync-2-dev/blob/847e7e099175052ccdcad90ea8b3f92c443cc8cd/core/bin/zksync_core/src/witness_generator/mod.rs#L18
-[separate witness binary]:
-  https://github.com/matter-labs/zksync-2-dev/blob/847e7e099175052ccdcad90ea8b3f92c443cc8cd/core/bin/witness_generator/src/main.rs#L37
+  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/witness_generator/mod.rs
+[separate witness binary]: https://github.com/matter-labs/zksync-era/blob/main/prover/witness_generator/src/main.rs
 [zkevm_test_harness witness]:
   https://github.com/matter-labs/zkevm_test_harness/blob/0c17bc7baa4e0b64634d414942ef4200d8613bbd/src/external_calls.rs#L575
 [heavy_ops_service repo]: https://github.com/matter-labs/heavy-ops-service/tree/v1.3.2

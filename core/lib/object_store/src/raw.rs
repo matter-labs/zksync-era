@@ -1,11 +1,9 @@
-use anyhow::Context as _;
-use async_trait::async_trait;
-
 use std::{error, fmt, sync::Arc};
 
+use async_trait::async_trait;
+use zksync_config::configs::object_store::{ObjectStoreConfig, ObjectStoreMode};
+
 use crate::{file::FileBackedObjectStore, gcs::GoogleCloudStorage, mock::MockStore};
-use zksync_config::configs::object_store::ObjectStoreMode;
-use zksync_config::ObjectStoreConfig;
 
 /// Bucket for [`ObjectStore`] in which objects can be placed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -160,28 +158,6 @@ impl ObjectStoreFactory {
         Self {
             origin: ObjectStoreOrigin::Config(config),
         }
-    }
-
-    /// Creates an object store factory with the configuration taken from the environment.
-    ///
-    /// # Errors
-    ///
-    /// Invalid or missing configuration.
-    pub fn from_env() -> anyhow::Result<Self> {
-        Ok(Self::new(
-            ObjectStoreConfig::from_env().context("ObjectStoreConfig::from_env()")?,
-        ))
-    }
-
-    /// Creates an object store factory with the prover configuration taken from the environment.
-    ///
-    /// # Errors
-    ///
-    /// Invalid or missing configuration.
-    pub fn prover_from_env() -> anyhow::Result<Self> {
-        Ok(Self::new(
-            ObjectStoreConfig::prover_from_env().context("ObjectStoreConfig::prover_from_env()")?,
-        ))
     }
 
     /// Creates an object store factory with a mock in-memory store.

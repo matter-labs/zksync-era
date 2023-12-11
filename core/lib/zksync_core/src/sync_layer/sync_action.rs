@@ -1,50 +1,15 @@
-use std::{
-    collections::VecDeque,
-    sync::{Arc, RwLock},
-    time::Instant,
-};
+use tokio::sync::mpsc;
+use zksync_dal::blocks_dal::ConsensusBlockFields;
+use zksync_types::{Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction};
 
-use zksync_types::{Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction, H256};
+use super::metrics::QUEUE_METRICS;
 
-/// Action queue is used to communicate between the fetcher and the rest of the external node
-/// by collecting the fetched data in memory until it gets processed by the different entities.
-///
-/// TODO (BFT-82): This structure right now expects no more than a single consumer. Using `peek/pop` pairs in
-/// two different threads may lead to a race condition.
-#[derive(Debug, Clone, Default)]
-pub struct ActionQueue {
-    inner: Arc<RwLock<ActionQueueInner>>,
-}
+#[derive(Debug)]
+pub struct ActionQueueSender(mpsc::Sender<SyncAction>);
 
-impl ActionQueue {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Removes the first action from the queue.
-    pub(crate) fn pop_action(&self) -> Option<SyncAction> {
-        self.write_lock().actions.pop_front().map(|action| {
-            metrics::decrement_gauge!("external_node.action_queue.action_queue_size", 1_f64);
-            action
-        })
-    }
-
-    /// Returns the first action from the queue without removing it.
-    pub(crate) fn peek_action(&self) -> Option<SyncAction> {
-        self.read_lock().actions.front().cloned()
-    }
-
-    /// Returns true if the queue has capacity for a new action.
-    /// Capacity is limited to avoid memory exhaustion.
+impl ActionQueueSender {
     pub(crate) fn has_action_capacity(&self) -> bool {
-        const ACTION_CAPACITY: usize = 32_768; // TODO: Make it configurable.
-
-        // Since the capacity is read before the action is pushed,
-        // it is possible that the capacity will be exceeded, since the fetcher will
-        // decompose received data into a sequence of actions.
-        // This is not a problem, since the size of decomposed action is much smaller
-        // than the configured capacity.
-        self.read_lock().actions.len() < ACTION_CAPACITY
+        self.0.capacity() > 0
     }
 
     /// Pushes a set of actions to the queue.
@@ -52,15 +17,14 @@ impl ActionQueue {
     /// Requires that the actions are in the correct order: starts with a new open batch/miniblock,
     /// followed by 0 or more transactions, have mandatory `SealMiniblock` and optional `SealBatch` at the end.
     /// Would panic if the order is incorrect.
-    pub(crate) fn push_actions(&self, actions: Vec<SyncAction>) {
-        // We need to enforce the ordering of actions to make sure that they can be processed.
-        Self::check_action_sequence(&actions).expect("Invalid sequence of actions.");
-        metrics::increment_gauge!(
-            "external_node.action_queue.action_queue_size",
-            actions.len() as f64
-        );
-
-        self.write_lock().actions.extend(actions);
+    pub(crate) async fn push_actions(&self, actions: Vec<SyncAction>) {
+        Self::check_action_sequence(&actions).unwrap();
+        for action in actions {
+            self.0.send(action).await.expect("EN sync logic panicked");
+            QUEUE_METRICS
+                .action_queue_size
+                .set(self.0.max_capacity() - self.0.capacity());
+        }
     }
 
     /// Checks whether the action sequence is valid.
@@ -88,7 +52,7 @@ impl ActionQueue {
                         return Err(format!("Unexpected Tx: {:?}", actions));
                     }
                 }
-                SyncAction::SealMiniblock | SyncAction::SealBatch { .. } => {
+                SyncAction::SealMiniblock(_) | SyncAction::SealBatch { .. } => {
                     if !opened || miniblock_sealed {
                         return Err(format!("Unexpected SealMiniblock/SealBatch: {:?}", actions));
                     }
@@ -101,25 +65,61 @@ impl ActionQueue {
         }
         Ok(())
     }
-
-    fn read_lock(&self) -> std::sync::RwLockReadGuard<'_, ActionQueueInner> {
-        let start = Instant::now();
-        let lock = self.inner.read().unwrap();
-        metrics::histogram!("external_node.action_queue.lock", start.elapsed(), "action" => "acquire_read");
-        lock
-    }
-
-    fn write_lock(&self) -> std::sync::RwLockWriteGuard<'_, ActionQueueInner> {
-        let start = Instant::now();
-        let lock = self.inner.write().unwrap();
-        metrics::histogram!("external_node.action_queue.lock", start.elapsed(), "action" => "acquire_write");
-        lock
-    }
 }
 
-#[derive(Debug, Default)]
-struct ActionQueueInner {
-    actions: VecDeque<SyncAction>,
+/// Action queue is used to communicate between the fetcher and the rest of the external node
+/// by collecting the fetched data in memory until it gets processed by the different entities.
+#[derive(Debug)]
+pub struct ActionQueue {
+    receiver: mpsc::Receiver<SyncAction>,
+    peeked: Option<SyncAction>,
+}
+
+impl ActionQueue {
+    pub fn new() -> (ActionQueueSender, Self) {
+        const ACTION_CAPACITY: usize = 32_768; // TODO: Make it configurable.
+
+        let (sender, receiver) = mpsc::channel(ACTION_CAPACITY);
+        let sender = ActionQueueSender(sender);
+        let this = Self {
+            receiver,
+            peeked: None,
+        };
+        (sender, this)
+    }
+
+    /// Removes the first action from the queue.
+    pub(super) fn pop_action(&mut self) -> Option<SyncAction> {
+        if let Some(peeked) = self.peeked.take() {
+            QUEUE_METRICS.action_queue_size.dec_by(1);
+            return Some(peeked);
+        }
+        let action = self.receiver.try_recv().ok();
+        if action.is_some() {
+            QUEUE_METRICS.action_queue_size.dec_by(1);
+        }
+        action
+    }
+
+    #[cfg(test)]
+    pub(super) async fn recv_action(&mut self) -> SyncAction {
+        if let Some(peeked) = self.peeked.take() {
+            return peeked;
+        }
+        self.receiver
+            .recv()
+            .await
+            .expect("actions sender was dropped prematurely")
+    }
+
+    /// Returns the first action from the queue without removing it.
+    pub(super) fn peek_action(&mut self) -> Option<SyncAction> {
+        if let Some(action) = &self.peeked {
+            return Some(action.clone());
+        }
+        self.peeked = self.receiver.try_recv().ok();
+        self.peeked.clone()
+    }
 }
 
 /// An instruction for the ExternalIO to request a certain action from the state keeper.
@@ -134,7 +134,6 @@ pub(crate) enum SyncAction {
         protocol_version: ProtocolVersionId,
         // Miniblock number and virtual blocks count.
         first_miniblock_info: (MiniblockNumber, u32),
-        prev_miniblock_hash: H256,
     },
     Miniblock {
         number: MiniblockNumber,
@@ -146,11 +145,13 @@ pub(crate) enum SyncAction {
     /// that they are sealed, but at the same time the next miniblock may not exist yet.
     /// By having a dedicated action for that we prevent a situation where the miniblock is kept open on the EN until
     /// the next one is sealed on the main node.
-    SealMiniblock,
+    SealMiniblock(Option<ConsensusBlockFields>),
     /// Similarly to `SealMiniblock` we must be able to seal the batch even if there is no next miniblock yet.
     SealBatch {
-        // Virtual blocks count for the fictive miniblock.
+        /// Virtual blocks count for the fictive miniblock.
         virtual_blocks: u32,
+        /// Consensus-related fields for the fictive miniblock.
+        consensus: Option<ConsensusBlockFields>,
     },
 }
 
@@ -175,7 +176,6 @@ mod tests {
             operator_address: Default::default(),
             protocol_version: ProtocolVersionId::latest(),
             first_miniblock_info: (1.into(), 1),
-            prev_miniblock_hash: H256::default(),
         }
     }
 
@@ -204,11 +204,14 @@ mod tests {
     }
 
     fn seal_miniblock() -> SyncAction {
-        SyncAction::SealMiniblock
+        SyncAction::SealMiniblock(None)
     }
 
     fn seal_batch() -> SyncAction {
-        SyncAction::SealBatch { virtual_blocks: 1 }
+        SyncAction::SealBatch {
+            virtual_blocks: 1,
+            consensus: None,
+        }
     }
 
     #[test]
@@ -225,7 +228,7 @@ mod tests {
             vec![miniblock(), tx(), seal_batch()],
         ];
         for (idx, sequence) in test_vector.into_iter().enumerate() {
-            ActionQueue::check_action_sequence(&sequence)
+            ActionQueueSender::check_action_sequence(&sequence)
                 .unwrap_or_else(|_| panic!("Valid sequence #{} failed", idx));
         }
     }
@@ -273,7 +276,7 @@ mod tests {
             (vec![seal_batch()], "Unexpected SealMiniblock/SealBatch"),
         ];
         for (idx, (sequence, expected_err)) in test_vector.into_iter().enumerate() {
-            let Err(err) = ActionQueue::check_action_sequence(&sequence) else {
+            let Err(err) = ActionQueueSender::check_action_sequence(&sequence) else {
                 panic!(
                     "Invalid sequence passed the test. Sequence #{}, expected error: {}",
                     idx, expected_err

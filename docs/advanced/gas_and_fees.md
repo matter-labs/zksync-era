@@ -86,7 +86,7 @@ transaction.
 ```rust
 let gas_remaining_before = vm.gas_remaining();
 execute_tx();
-let gas_used = gas_remainig_before = vm.gas_remaining();
+let gas_used = gas_remaining_before - vm.gas_remaining();
 ```
 
 ## Gas estimation
@@ -123,12 +123,9 @@ There are a few reasons why refunds might be 'larger' on zkSync (i.e., why we mi
   might cause the estimation to be significantly higher, especially when the L1 gas price is already high, as it then
   impacts the amount of gas used by pubdata.
 
-[main_node_fetcher]:
-  https://github.com/matter-labs/zksync-2-dev/blob/d590b3f0965a23eb0011779aab829d86d4fdc1d1/core/bin/zksync_core/src/l1_gas_price/main_node_fetcher.rs#L33
-  'main node fetcher'
 [gas_adjuster]:
-  https://github.com/matter-labs/zksync-2-dev/blob/d590b3f0965a23eb0011779aab829d86d4fdc1d1/core/bin/zksync_core/src/l1_gas_price/gas_adjuster/mod.rs#L25
+  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/l1_gas_price/gas_adjuster/mod.rs#L30
   'gas_adjuster'
 [get_txs_fee_in_wei]:
-  https://github.com/matter-labs/zksync-2-dev/blob/d590b3f0965a23eb0011779aab829d86d4fdc1d1/core/bin/zksync_core/src/api_server/tx_sender/mod.rs#L450
+  https://github.com/matter-labs/zksync-era/blob/714a8905d407de36a906a4b6d464ec2cab6eb3e8/core/lib/zksync_core/src/api_server/tx_sender/mod.rs#L656
   'get_txs_fee_in_wei'

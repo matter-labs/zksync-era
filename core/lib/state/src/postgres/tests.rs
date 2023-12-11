@@ -1,14 +1,12 @@
 //! Tests for `PostgresStorage`.
 
+use std::{collections::HashMap, mem};
+
 use rand::{
+    rngs::StdRng,
     seq::{IteratorRandom, SliceRandom},
     Rng, SeedableRng,
 };
-
-use rand::rngs::StdRng;
-use std::{collections::HashMap, mem};
-
-use db_test_macro::db_test;
 use zksync_dal::ConnectionPool;
 use zksync_types::StorageLog;
 
@@ -126,8 +124,9 @@ fn test_postgres_storage_basics(
     }
 }
 
-#[db_test]
-async fn postgres_storage_basics(pool: ConnectionPool) {
+#[tokio::test]
+async fn postgres_storage_basics() {
+    let pool = ConnectionPool::test_pool().await;
     tokio::task::spawn_blocking(move || {
         test_postgres_storage_basics(&pool, Handle::current(), false);
     })
@@ -135,8 +134,9 @@ async fn postgres_storage_basics(pool: ConnectionPool) {
     .unwrap();
 }
 
-#[db_test]
-async fn postgres_storage_with_initial_writes_cache(pool: ConnectionPool) {
+#[tokio::test]
+async fn postgres_storage_with_initial_writes_cache() {
+    let pool = ConnectionPool::test_pool().await;
     tokio::task::spawn_blocking(move || {
         test_postgres_storage_basics(&pool, Handle::current(), true);
     })
@@ -190,8 +190,9 @@ fn test_postgres_storage_after_sealing_miniblock(
     }
 }
 
-#[db_test]
-async fn postgres_storage_after_sealing_miniblock(pool: ConnectionPool) {
+#[tokio::test]
+async fn postgres_storage_after_sealing_miniblock() {
+    let pool = ConnectionPool::test_pool().await;
     tokio::task::spawn_blocking(move || {
         println!("Considering new L1 batch");
         test_postgres_storage_after_sealing_miniblock(&pool, Handle::current(), true);
@@ -242,8 +243,9 @@ fn test_factory_deps_cache(pool: &ConnectionPool, rt_handle: Handle) {
     assert_eq!(caches.factory_deps.get(&zero_addr), Some(vec![1, 2, 3]));
 }
 
-#[db_test]
-async fn using_factory_deps_cache(pool: ConnectionPool) {
+#[tokio::test]
+async fn using_factory_deps_cache() {
+    let pool = ConnectionPool::test_pool().await;
     let handle = Handle::current();
     tokio::task::spawn_blocking(move || test_factory_deps_cache(&pool, handle))
         .await
@@ -347,8 +349,9 @@ fn test_initial_writes_cache(pool: &ConnectionPool, rt_handle: Handle) {
     assert!(storage.is_write_initial(&non_existing_key));
 }
 
-#[db_test]
-async fn using_initial_writes_cache(pool: ConnectionPool) {
+#[tokio::test]
+async fn using_initial_writes_cache() {
+    let pool = ConnectionPool::test_pool().await;
     let handle = Handle::current();
     tokio::task::spawn_blocking(move || test_initial_writes_cache(&pool, handle))
         .await
@@ -489,8 +492,9 @@ fn test_values_cache(pool: &ConnectionPool, rt_handle: Handle) {
     assert_final_cache();
 }
 
-#[db_test]
-async fn using_values_cache(pool: ConnectionPool) {
+#[tokio::test]
+async fn using_values_cache() {
+    let pool = ConnectionPool::test_pool().await;
     let handle = Handle::current();
     tokio::task::spawn_blocking(move || test_values_cache(&pool, handle))
         .await
@@ -579,9 +583,10 @@ fn mini_fuzz_values_cache_inner(rng: &mut impl Rng, pool: &ConnectionPool, mut r
     }
 }
 
-#[db_test]
-async fn mini_fuzz_values_cache(pool: ConnectionPool) {
+#[tokio::test]
+async fn mini_fuzz_values_cache() {
     const RNG_SEED: u64 = 123;
+    let pool = ConnectionPool::test_pool().await;
 
     let handle = Handle::current();
     let mut rng = StdRng::seed_from_u64(RNG_SEED);

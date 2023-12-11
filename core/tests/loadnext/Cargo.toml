@@ -17,8 +17,9 @@ zksync_utils = { path = "../../lib/utils" }
 zksync_eth_signer = { path = "../../lib/eth_signer" }
 zksync_web3_decl = { path = "../../lib/web3_decl" }
 zksync_eth_client = { path = "../../lib/eth_client" }
-zksync_contracts = { path = "../../lib/contracts" }
 zksync_config = { path = "../../lib/config" }
+zksync_contracts = { path = "../../lib/contracts" }
+zksync_system_constants = { path = "../../lib/constants" }
 vlog = { path = "../../lib/vlog" }
 prometheus_exporter = { path = "../../lib/prometheus_exporter" }
 

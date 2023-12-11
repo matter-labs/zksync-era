@@ -1,23 +1,28 @@
 import * as hre from 'hardhat';
 import * as fs from 'fs';
-import { spawn as _spawn } from 'child_process';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { exec as _exec, spawn as _spawn } from 'child_process';
 
-import { getZksolcPath, getZksolcUrl, saltFromUrl } from '@matterlabs/hardhat-zksync-solc';
+import { getZksolcUrl, saltFromUrl } from '@matterlabs/hardhat-zksync-solc';
+import { getCompilersDir } from 'hardhat/internal/util/global-dir';
+import path from 'path';
 
-const COMPILER_VERSION = '1.3.14';
+const COMPILER_VERSION = '1.3.17';
 const IS_COMPILER_PRE_RELEASE = false;
 
 async function compilerLocation(): Promise<string> {
+    const compilersCache = await getCompilersDir();
+
+    let salt = '';
+
     if (IS_COMPILER_PRE_RELEASE) {
         const url = getZksolcUrl('https://github.com/matter-labs/zksolc-prerelease', hre.config.zksolc.version);
-        const salt = saltFromUrl(url);
-        return await getZksolcPath(COMPILER_VERSION, salt);
-    } else {
-        return await getZksolcPath(COMPILER_VERSION, '');
+        salt = saltFromUrl(url);
     }
+
+    return path.join(compilersCache, 'zksolc', `zksolc-v${COMPILER_VERSION}${salt ? '-' : ''}${salt}`);
 }
 
-// executes a command in a new shell
 // but pipes data to parent's stdout/stderr
 export function spawn(command: string) {
     command = command.replace(/\n/g, ' ');

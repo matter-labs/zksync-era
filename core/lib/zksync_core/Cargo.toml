@@ -1,7 +1,7 @@
 [package]
 name = "zksync_core"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
 repository = "https://github.com/matter-labs/zksync-era"
@@ -10,19 +10,21 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
+vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "dd05139b76ab0843443ab3ff730174942c825dae" }
 zksync_state = { path = "../state" }
 zksync_types = { path = "../types" }
 zksync_dal = { path = "../dal" }
 zksync_config = { path = "../config" }
 zksync_utils = { path = "../utils" }
 zksync_contracts = { path = "../contracts" }
+zksync_system_constants = { path = "../../lib/constants" }
+zksync_commitment_utils = { path = "../commitment_utils" }
 zksync_eth_client = { path = "../eth_client" }
 zksync_eth_signer = { path = "../eth_signer" }
 zksync_mempool = { path = "../mempool" }
 zksync_prover_utils = { path = "../prover_utils" }
 zksync_queued_job_processor = { path = "../queued_job_processor" }
 zksync_circuit_breaker = { path = "../circuit_breaker" }
-vm = { path = "../vm" }
 zksync_storage = { path = "../storage" }
 zksync_merkle_tree = { path = "../merkle_tree" }
 zksync_mini_merkle_tree = { path = "../mini_merkle_tree" }
@@ -37,11 +39,18 @@ zksync_health_check = { path = "../health_check" }
 vlog = { path = "../vlog" }
 
 multivm = { path = "../multivm" }
+# Consensus dependenices
+zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "da015d4c94b19962bc11622b6cc256e214256555" }
+zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "da015d4c94b19962bc11622b6cc256e214256555" }
+zksync_consensus_storage = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "da015d4c94b19962bc11622b6cc256e214256555" }
+zksync_consensus_executor = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "da015d4c94b19962bc11622b6cc256e214256555" }
+zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "da015d4c94b19962bc11622b6cc256e214256555" }
 
+prost = "0.12.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-metrics = "0.21"
 itertools = "0.10.3"
+metrics = "0.21"
 ctrlc = { version = "3.1", features = ["termination"] }
 rand = "0.8"
 
@@ -82,9 +91,11 @@ actix-web = "4.0.0-beta.8"
 tracing = "0.1.26"
 
 [dev-dependencies]
-db_test_macro = { path = "../db_test_macro" }
-
-assert_matches = "1.5"
 zksync_test_account = { path = "../test_account" }
 
+assert_matches = "1.5"
 tempfile = "3.0.2"
+test-casing = "0.1.2"
+
+[build-dependencies]
+zksync_protobuf_build = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "da015d4c94b19962bc11622b6cc256e214256555" }

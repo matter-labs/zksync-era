@@ -1,22 +1,21 @@
-use tokio::{runtime::Handle, sync::mpsc};
-
 use std::{
     mem,
     sync::{Arc, RwLock},
 };
 
+use tokio::{runtime::Handle, sync::mpsc};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{L1BatchNumber, MiniblockNumber, StorageKey, StorageValue, H256};
-
-mod metrics;
-#[cfg(test)]
-mod tests;
 
 use self::metrics::{Method, ValuesUpdateStage, CACHE_METRICS, STORAGE_METRICS};
 use crate::{
     cache::{Cache, CacheValue},
     ReadStorage,
 };
+
+mod metrics;
+#[cfg(test)]
+mod tests;
 
 /// Type alias for smart contract source code cache.
 type FactoryDepsCache = Cache<H256, Vec<u8>>;
@@ -494,5 +493,15 @@ impl ReadStorage for PostgresStorage<'_> {
 
         latency.observe();
         result
+    }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        let mut dal = self.connection.storage_logs_dedup_dal();
+
+        let value = self
+            .rt_handle
+            .block_on(dal.get_enumeration_index_for_key(*key));
+
+        value
     }
 }

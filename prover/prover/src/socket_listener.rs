@@ -1,15 +1,18 @@
-use crate::synthesized_circuit_provider::SharedAssemblyQueue;
-use queues::IsQueue;
-use std::net::{IpAddr, SocketAddr};
-use std::time::Instant;
-use zksync_dal::ConnectionPool;
-use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
+use std::{
+    net::{IpAddr, SocketAddr},
+    time::Instant,
+};
 
 use anyhow::Context as _;
+use queues::IsQueue;
 use tokio::{
     io::copy,
     net::{TcpListener, TcpStream},
 };
+use zksync_dal::ConnectionPool;
+use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
+
+use crate::synthesized_circuit_provider::SharedAssemblyQueue;
 
 #[allow(clippy::too_many_arguments)]
 pub async fn incoming_socket_listener(
@@ -34,7 +37,9 @@ pub async fn incoming_socket_listener(
     let address = SocketAddress { host, port };
 
     let queue_capacity = queue.lock().await.capacity();
-    pool.access_storage().await.unwrap()
+    pool.access_storage()
+        .await
+        .unwrap()
         .gpu_prover_queue_dal()
         .insert_prover_instance(
             address.clone(),
@@ -49,7 +54,11 @@ pub async fn incoming_socket_listener(
     let mut now = Instant::now();
 
     loop {
-        let stream = listener.accept().await.context("could not accept connection")?.0;
+        let stream = listener
+            .accept()
+            .await
+            .context("could not accept connection")?
+            .0;
         tracing::trace!(
             "Received new assembly send connection, waited for {}ms.",
             now.elapsed().as_millis()
@@ -104,7 +113,9 @@ async fn handle_incoming_file(
         (queue_free_slots, status)
     };
 
-    pool.access_storage().await.unwrap()
+    pool.access_storage()
+        .await
+        .unwrap()
         .gpu_prover_queue_dal()
         .update_prover_instance_status(address, status, queue_free_slots, region, zone)
         .await;

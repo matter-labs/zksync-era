@@ -86,7 +86,7 @@ pub fn select<F: SmallField, CS: ConstraintSystem<F>>(
 ```
 
 And then there is a block of code for witness evaluation (let's skip it for now), and the final block that adds the gate
-to the constrain system `cs`:
+to the constraint system `cs`:
 
 ```rust
     if <CS::Config as CSConfig>::SetupConfig::KEEP_SETUP {
@@ -184,7 +184,7 @@ pub struct UInt32<F: SmallField> {
     pub(crate) variable: Variable,
 }
 impl<F: SmallField> CSAllocatable<F> for UInt32<F> {
-    // So the 'witness' type (concrete value) for U32 is u32 - no surprsise ;-)
+    // So the 'witness' type (concrete value) for U32 is u32 - no surprises ;-)
     type Witness = u32;
     ...
 }
@@ -204,7 +204,7 @@ filled with concrete values.
 
 ### CsAllocatable
 
-Implements CsAllocatable - which allows you to directly 'allocate' this struct within constraing system (similarly to
+Implements CsAllocatable - which allows you to directly 'allocate' this struct within constraint system (similarly to
 how we were operating on regular 'Variables' above).
 
 ### CSSelectable
@@ -214,7 +214,7 @@ it can be used as 'a' or 'b' in the Select gate example above).
 
 ### CSVarLengthEncodable
 
-Implements CircuitVarLengthEncodable - which allows encoding the struct into a vector of varaibles (think about it as
+Implements CircuitVarLengthEncodable - which allows encoding the struct into a vector of variables (think about it as
 serializing to Bytes).
 
 ### Summary
@@ -401,7 +401,7 @@ And we'll run it over all the operands:
 
         out_of_circuit_vm
             .cycle(&mut tracer)
-            .expect("cycle should finish succesfully");
+            .expect("cycle should finish successfully");
     }
 ```
 

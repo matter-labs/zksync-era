@@ -2,21 +2,22 @@ use std::time::Instant;
 
 use serde::Serialize;
 use zksync_config::ObjectStoreConfig;
+use zksync_env_config::FromEnv;
 use zksync_object_store::{AggregationsKey, FriCircuitKey, ObjectStoreFactory};
-use zksync_types::proofs::{
-    AggregationRound, LeafAggregationJobMetadata, NodeAggregationJobMetadata,
-};
-use zksync_types::L1BatchNumber;
-
 use zksync_prover_fri_types::CircuitWrapper;
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
-use zksync_witness_generator::leaf_aggregation::{
-    prepare_leaf_aggregation_job, LeafAggregationWitnessGenerator,
+use zksync_types::{
+    proofs::{AggregationRound, LeafAggregationJobMetadata, NodeAggregationJobMetadata},
+    L1BatchNumber,
 };
-use zksync_witness_generator::node_aggregation::NodeAggregationWitnessGenerator;
-use zksync_witness_generator::scheduler::SchedulerWitnessGenerator;
-use zksync_witness_generator::utils::AggregationWrapper;
-use zksync_witness_generator::{node_aggregation, scheduler};
+use zksync_witness_generator::{
+    leaf_aggregation::{prepare_leaf_aggregation_job, LeafAggregationWitnessGenerator},
+    node_aggregation,
+    node_aggregation::NodeAggregationWitnessGenerator,
+    scheduler,
+    scheduler::SchedulerWitnessGenerator,
+    utils::AggregationWrapper,
+};
 
 fn compare_serialized<T: Serialize>(expected: &T, actual: &T) {
     let serialized_expected = bincode::serialize(expected).unwrap();
@@ -51,7 +52,9 @@ async fn test_leaf_witness_gen() {
         prover_job_ids_for_proofs: vec![4639043, 4639044, 4639045],
     };
 
-    let job = prepare_leaf_aggregation_job(leaf_aggregation_job_metadata, &*object_store).await.unwrap();
+    let job = prepare_leaf_aggregation_job(leaf_aggregation_job_metadata, &*object_store)
+        .await
+        .unwrap();
 
     let artifacts = LeafAggregationWitnessGenerator::process_job_sync(job, Instant::now());
     let aggregations = AggregationWrapper(artifacts.aggregations);
@@ -86,7 +89,9 @@ async fn test_node_witness_gen() {
         prover_job_ids_for_proofs: vec![5211320],
     };
 
-    let job = node_aggregation::prepare_job(node_aggregation_job_metadata, &*object_store).await.unwrap();
+    let job = node_aggregation::prepare_job(node_aggregation_job_metadata, &*object_store)
+        .await
+        .unwrap();
 
     let artifacts = NodeAggregationWitnessGenerator::process_job_sync(job, Instant::now());
     let aggregations = AggregationWrapper(artifacts.next_aggregations);
@@ -118,7 +123,9 @@ async fn test_scheduler_witness_gen() {
         5627093, 5627094, 5629097,
     ];
 
-    let job = scheduler::prepare_job(block_number, proof_job_ids, &*object_store).await.unwrap();
+    let job = scheduler::prepare_job(block_number, proof_job_ids, &*object_store)
+        .await
+        .unwrap();
 
     let artifacts = SchedulerWitnessGenerator::process_job_sync(job, Instant::now());
     let circuit = CircuitWrapper::Recursive(artifacts.scheduler_circuit);

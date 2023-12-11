@@ -1,29 +1,28 @@
-use async_trait::async_trait;
-use tokio::sync::{mpsc, oneshot};
-
 use std::{
     fmt,
     time::{Duration, Instant},
 };
 
-use vm::FinishedL1Batch;
-use vm::{L1BatchEnv, SystemEnv};
-
+use async_trait::async_trait;
+use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
+use tokio::sync::{mpsc, oneshot};
 use zksync_dal::ConnectionPool;
-use zksync_types::witness_block_state::WitnessBlockState;
 use zksync_types::{
-    block::MiniblockReexecuteData, protocol_version::ProtocolUpgradeTx, L1BatchNumber,
-    MiniblockNumber, ProtocolVersionId, Transaction,
+    block::MiniblockExecutionData, protocol_version::ProtocolUpgradeTx,
+    witness_block_state::WitnessBlockState, L1BatchNumber, MiniblockNumber, ProtocolVersionId,
+    Transaction,
+};
+
+pub(crate) use self::mempool::MempoolIO;
+use super::{
+    metrics::{MiniblockQueueStage, MINIBLOCK_METRICS},
+    seal_criteria::IoSealCriteria,
+    updates::{MiniblockSealCommand, UpdatesManager},
 };
 
 pub(crate) mod common;
 pub(crate) mod mempool;
 pub(crate) mod seal_logic;
-
-pub(crate) use self::mempool::MempoolIO;
-
-use super::updates::{MiniblockSealCommand, UpdatesManager};
-
 #[cfg(test)]
 mod tests;
 
@@ -42,7 +41,7 @@ pub struct PendingBatchData {
     pub(crate) l1_batch_env: L1BatchEnv,
     pub(crate) system_env: SystemEnv,
     /// List of miniblocks and corresponding transactions that were executed within batch.
-    pub(crate) pending_miniblocks: Vec<MiniblockReexecuteData>,
+    pub(crate) pending_miniblocks: Vec<MiniblockExecutionData>,
 }
 
 #[derive(Debug, Copy, Clone, Default)]
@@ -64,7 +63,7 @@ pub struct MiniblockParams {
 /// it's used to receive volatile parameters (such as batch parameters), and also it's used to perform
 /// mutable operations on the persistent state (e.g. persist executed batches).
 #[async_trait]
-pub trait StateKeeperIO: 'static + Send {
+pub trait StateKeeperIO: 'static + Send + IoSealCriteria {
     /// Returns the number of the currently processed L1 batch.
     fn current_l1_batch_number(&self) -> L1BatchNumber;
     /// Returns the number of the currently processed miniblock (aka L2 block).
@@ -128,7 +127,7 @@ struct Completable<T> {
 
 /// Handle for [`MiniblockSealer`] allowing to submit [`MiniblockSealCommand`]s.
 #[derive(Debug)]
-pub(crate) struct MiniblockSealerHandle {
+pub struct MiniblockSealerHandle {
     commands_sender: mpsc::Sender<Completable<MiniblockSealCommand>>,
     latest_completion_receiver: Option<oneshot::Receiver<()>>,
     // If true, `submit()` will wait for the operation to complete.
@@ -141,8 +140,8 @@ impl MiniblockSealerHandle {
     /// Submits a new sealing `command` to the sealer that this handle is attached to.
     ///
     /// If there are currently too many unprocessed commands, this method will wait until
-    /// enough of them are processed (i.e., there is backpressure).
-    pub async fn submit(&mut self, command: MiniblockSealCommand) {
+    /// enough of them are processed (i.e., there is back pressure).
+    pub(crate) async fn submit(&mut self, command: MiniblockSealCommand) {
         let miniblock_number = command.miniblock_number;
         tracing::debug!(
             "Enqueuing sealing command for miniblock #{miniblock_number} with #{} txs (L1 batch #{})",
@@ -172,15 +171,8 @@ impl MiniblockSealerHandle {
         if self.is_sync {
             self.wait_for_all_commands().await;
         } else {
-            metrics::gauge!(
-                "server.state_keeper.miniblock.seal_queue.capacity",
-                queue_capacity as f64
-            );
-            metrics::histogram!(
-                "server.state_keeper.miniblock.seal_queue.latency",
-                elapsed,
-                "stage" => "submit"
-            );
+            MINIBLOCK_METRICS.seal_queue_capacity.set(queue_capacity);
+            MINIBLOCK_METRICS.seal_queue_latency[&MiniblockQueueStage::Submit].observe(elapsed);
         }
     }
 
@@ -203,22 +195,18 @@ impl MiniblockSealerHandle {
         // Since this method called from outside is essentially a no-op if `self.is_sync`,
         // we don't report its metrics in this case.
         if !self.is_sync {
-            metrics::histogram!(
-                "server.state_keeper.miniblock.seal_queue.latency",
-                elapsed,
-                "stage" => "wait_for_all_commands"
-            );
-            metrics::gauge!(
-                "server.state_keeper.miniblock.seal_queue.capacity",
-                self.commands_sender.capacity() as f64
-            );
+            MINIBLOCK_METRICS
+                .seal_queue_capacity
+                .set(self.commands_sender.capacity());
+            MINIBLOCK_METRICS.seal_queue_latency[&MiniblockQueueStage::WaitForAllCommands]
+                .observe(elapsed);
         }
     }
 }
 
 /// Component responsible for sealing miniblocks (i.e., storing their data to Postgres).
 #[derive(Debug)]
-pub(crate) struct MiniblockSealer {
+pub struct MiniblockSealer {
     pool: ConnectionPool,
     is_sync: bool,
     // Weak sender handle to get queue capacity stats.
@@ -229,10 +217,7 @@ pub(crate) struct MiniblockSealer {
 impl MiniblockSealer {
     /// Creates a sealer that will use the provided Postgres connection and will have the specified
     /// `command_capacity` for unprocessed sealing commands.
-    pub(crate) fn new(
-        pool: ConnectionPool,
-        mut command_capacity: usize,
-    ) -> (Self, MiniblockSealerHandle) {
+    pub fn new(pool: ConnectionPool, mut command_capacity: usize) -> (Self, MiniblockSealerHandle) {
         let is_sync = command_capacity == 0;
         command_capacity = command_capacity.max(1);
 
@@ -276,7 +261,7 @@ impl MiniblockSealer {
                 .unwrap();
             completable.command.seal(&mut conn).await;
             if let Some(delta) = miniblock_seal_delta {
-                metrics::histogram!("server.state_keeper.miniblock.seal_delta", delta.elapsed());
+                MINIBLOCK_METRICS.seal_delta.observe(delta.elapsed());
             }
             miniblock_seal_delta = Some(Instant::now());
 
@@ -300,19 +285,12 @@ impl MiniblockSealer {
         }
 
         if !self.is_sync {
-            metrics::histogram!(
-                "server.state_keeper.miniblock.seal_queue.latency",
-                elapsed,
-                "stage" => "next_command"
-            );
+            MINIBLOCK_METRICS.seal_queue_latency[&MiniblockQueueStage::NextCommand]
+                .observe(elapsed);
             if let Some(sender) = self.commands_sender.upgrade() {
-                metrics::gauge!(
-                    "server.state_keeper.miniblock.seal_queue.capacity",
-                    sender.capacity() as f64
-                );
+                MINIBLOCK_METRICS.seal_queue_capacity.set(sender.capacity());
             }
         }
-
         command
     }
 }

@@ -3,13 +3,11 @@ use std::{collections::HashMap, str::FromStr};
 use async_trait::async_trait;
 use reqwest::{Client, Url};
 use serde::{Deserialize, Serialize};
-
 use zksync_config::FetcherConfig;
 use zksync_types::{tokens::TokenMetadata, Address};
 
-use crate::data_fetchers::error::ApiFetchError;
-
 use super::FetcherImpl;
+use crate::data_fetchers::error::ApiFetchError;
 
 #[derive(Debug, Clone)]
 pub struct OneInchTokenListFetcher {
@@ -54,20 +52,4 @@ impl FetcherImpl for OneInchTokenListFetcher {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(super) struct OneInchTokensResponse {
     pub tokens: HashMap<Address, TokenMetadata>,
-}
-
-#[tokio::test]
-#[ignore]
-// We can't rely on 1inch API in unit tests, so we ignore this test.
-async fn test_fetch_one_inch_token_list() {
-    let mut config = FetcherConfig::from_env().unwrap();
-    config.token_list.url = "https://api.1inch.exchange".to_string();
-
-    let fetcher = OneInchTokenListFetcher::new(&config);
-
-    let token_list = fetcher
-        .fetch_token_list()
-        .await
-        .expect("failed get token list");
-    assert!(!token_list.is_empty(), "Token list is empty");
 }

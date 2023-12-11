@@ -19,18 +19,18 @@
 //! | Contracts    | address (20 bytes)              | `Vec<u8>`                       | Contract contents                         |
 //! | Factory deps | hash (32 bytes)                 | `Vec<u8>`                       | Bytecodes for new contracts that a certain contract may deploy. |
 
-use itertools::{Either, Itertools};
 use std::{collections::HashMap, convert::TryInto, mem, path::Path, time::Instant};
 
+use itertools::{Either, Itertools};
 use zksync_dal::StorageProcessor;
 use zksync_storage::{db::NamedColumnFamily, RocksDB};
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256, U256};
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
-mod metrics;
-
 use self::metrics::METRICS;
 use crate::{InMemoryStorage, ReadStorage};
+
+mod metrics;
 
 fn serialize_block_number(block_number: u32) -> [u8; 4] {
     block_number.to_le_bytes()
@@ -114,11 +114,11 @@ impl RocksdbStorage {
 
     /// Creates a new storage with the provided RocksDB `path`.
     pub fn new(path: &Path) -> Self {
-        let db = RocksDB::new(path, true);
+        let db = RocksDB::new(path);
         Self {
             db,
             pending_patch: InMemoryStorage::default(),
-            enum_index_migration_chunk_size: 0,
+            enum_index_migration_chunk_size: 100,
         }
     }
 
@@ -185,7 +185,11 @@ impl RocksdbStorage {
             "Secondary storage for L1 batch #{latest_l1_batch_number} initialized, size is {estimated_size}"
         );
 
-        self.save_missing_enum_indices(conn).await;
+        assert!(self.enum_index_migration_chunk_size > 0);
+        // Enum indices must be at the storage. Run migration till the end.
+        while self.enum_migration_start_from().is_some() {
+            self.save_missing_enum_indices(conn).await;
+        }
     }
 
     async fn apply_storage_logs(
@@ -490,19 +494,25 @@ impl ReadStorage for RocksdbStorage {
             .get_cf(cf, hash.as_bytes())
             .expect("failed to read RocksDB state value")
     }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        // Can safely unwrap here since it indicates that the migration has not yet ended and boojum will
+        // only be deployed when the migration is finished.
+        self.read_state_value(key)
+            .map(|state_value| state_value.enum_index.unwrap())
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use db_test_macro::db_test;
     use tempfile::TempDir;
+    use zksync_dal::ConnectionPool;
+    use zksync_types::{MiniblockNumber, StorageLog};
 
     use super::*;
     use crate::test_utils::{
         create_l1_batch, create_miniblock, gen_storage_logs, prepare_postgres,
     };
-    use zksync_dal::ConnectionPool;
-    use zksync_types::{MiniblockNumber, StorageLog};
 
     #[tokio::test]
     async fn rocksdb_storage_basics() {
@@ -540,8 +550,9 @@ mod tests {
         }
     }
 
-    #[db_test]
-    async fn rocksdb_storage_syncing_with_postgres(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn rocksdb_storage_syncing_with_postgres() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);
@@ -571,8 +582,9 @@ mod tests {
             .await;
     }
 
-    #[db_test]
-    async fn rocksdb_storage_revert(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn rocksdb_storage_revert() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);
@@ -642,8 +654,9 @@ mod tests {
         }
     }
 
-    #[db_test]
-    async fn rocksdb_enum_index_migration(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn rocksdb_enum_index_migration() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);

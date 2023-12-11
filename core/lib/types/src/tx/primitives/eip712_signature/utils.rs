@@ -1,7 +1,8 @@
+use serde_json::{Map, Value};
+
 use crate::tx::primitives::eip712_signature::typed_structure::{
     EIP712TypedStructure, Eip712Domain,
 };
-use serde_json::{Map, Value};
 
 /// Formats the data that needs to be signed in json according to the standard eip-712.
 /// Compatible with `eth_signTypedData` RPC call.

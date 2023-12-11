@@ -1,13 +1,11 @@
 //! Testing harness for the batch executor.
 //! Contains helper functionality to initialize test context and perform tests without too much boilerplate.
 
-use tempfile::TempDir;
-
-use vm::{
-    constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
-    {L1BatchEnv, SystemEnv},
+use multivm::{
+    interface::{L1BatchEnv, SystemEnv},
+    vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
-
+use tempfile::TempDir;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
 use zksync_dal::ConnectionPool;
@@ -21,10 +19,12 @@ use zksync_types::{
 };
 use zksync_utils::u256_to_h256;
 
-use crate::genesis::create_genesis_l1_batch;
-use crate::state_keeper::{
-    batch_executor::BatchExecutorHandle,
-    tests::{default_l1_batch_env, default_system_env, BASE_SYSTEM_CONTRACTS},
+use crate::{
+    genesis::create_genesis_l1_batch,
+    state_keeper::{
+        batch_executor::BatchExecutorHandle,
+        tests::{default_l1_batch_env, default_system_env, BASE_SYSTEM_CONTRACTS},
+    },
 };
 
 const DEFAULT_GAS_PER_PUBDATA: u32 = 100;
@@ -43,8 +43,7 @@ pub(super) struct TestConfig {
 
 impl TestConfig {
     pub(super) fn new() -> Self {
-        // It's OK to use env config here, since we would load the postgres URL from there anyway.
-        let config = StateKeeperConfig::from_env().unwrap();
+        let config = StateKeeperConfig::for_tests();
 
         Self {
             vm_gas_limit: None,
@@ -100,6 +99,7 @@ impl Tester {
             .access_storage_tagged("state_keeper")
             .await
             .unwrap();
+
         secondary_storage.update_from_postgres(&mut conn).await;
         drop(conn);
 

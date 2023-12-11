@@ -1,17 +1,17 @@
-import '@nomiclabs/hardhat-vyper';
 import '@matterlabs/hardhat-zksync-solc';
+import '@nomiclabs/hardhat-vyper';
 import '@matterlabs/hardhat-zksync-vyper';
 
 export default {
     zksolc: {
-        version: '1.3.14',
+        version: '1.3.17',
         compilerSource: 'binary',
         settings: {
             isSystem: true
         }
     },
     zkvyper: {
-        version: '1.3.10',
+        version: '1.3.13',
         compilerSource: 'binary'
     },
     networks: {
@@ -20,9 +20,9 @@ export default {
         }
     },
     solidity: {
-        version: '0.8.21'
+        version: '0.8.23'
     },
     vyper: {
-        version: '0.3.3'
+        version: '0.3.10'
     }
 };

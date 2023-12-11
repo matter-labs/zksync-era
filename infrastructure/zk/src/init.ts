@@ -1,15 +1,15 @@
-import { Command } from 'commander';
 import chalk from 'chalk';
+import { Command } from 'commander';
 import * as utils from './utils';
 
-import * as server from './server';
-import * as contract from './contract';
-import * as run from './run/run';
-import * as compiler from './compiler';
-import * as db from './database';
 import { clean } from './clean';
-import * as env from './env';
+import * as compiler from './compiler';
+import * as contract from './contract';
+import * as db from './database';
 import * as docker from './docker';
+import * as env from './env';
+import * as run from './run/run';
+import * as server from './server';
 import { up } from './up';
 
 const entry = chalk.bold.yellow;
@@ -18,21 +18,14 @@ const success = chalk.green;
 const timestamp = chalk.grey;
 
 export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
-    const {
-        skipSubmodulesCheckout,
-        skipEnvSetup,
-        testTokens,
-        deployerL1ContractInputArgs,
-        governorPrivateKeyArgs,
-        deployerL2ContractInput
-    } = initArgs;
+    const { skipSubmodulesCheckout, skipEnvSetup, testTokens, governorPrivateKeyArgs, deployerL2ContractInput } =
+        initArgs;
 
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
         await announced('Checking environment', checkEnv());
         await announced('Checking git hooks', env.gitHooks());
         await announced('Setting up containers', up());
-        await announced('Checking PLONK setup', run.plonkSetup());
     }
     if (!skipSubmodulesCheckout) {
         await announced('Checkout system-contracts submodule', submoduleUpdate());
@@ -51,9 +44,9 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     await announced('Deploying L1 verifier', contract.deployVerifier([]));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
-    await announced('Deploying L1 contracts', contract.redeployL1(deployerL1ContractInputArgs));
+    await announced('Deploying L1 contracts', contract.redeployL1(governorPrivateKeyArgs));
     await announced('Initializing validator', contract.initializeValidator(governorPrivateKeyArgs));
-    await announced('Initialize L1 allow list ', contract.initializeL1AllowList(governorPrivateKeyArgs));
+    await announced('Initialize L1 allow list', contract.initializeL1AllowList(governorPrivateKeyArgs));
     await announced(
         'Deploying L2 contracts',
         contract.deployL2(
@@ -66,6 +59,13 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     if (deployerL2ContractInput.includeL2WETH) {
         await announced('Initializing L2 WETH token', contract.initializeWethToken(governorPrivateKeyArgs));
     }
+    await announced(
+        'Initializing governance',
+        contract.initializeGovernance([
+            ...governorPrivateKeyArgs,
+            !deployerL2ContractInput.includeL2WETH ? ['--skip-weth-bridge'] : []
+        ])
+    );
 }
 
 // A smaller version of `init` that "resets" the localhost environment, for which `init` was already called before.
@@ -83,10 +83,11 @@ export async function reinit() {
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
     await announced('Deploying L1 contracts', contract.redeployL1([]));
-    await announced('Initializing validator', contract.initializeValidator());
     await announced('Initializing L1 Allow list', contract.initializeL1AllowList());
     await announced('Deploying L2 contracts', contract.deployL2([], true, true));
     await announced('Initializing L2 WETH token', contract.initializeWethToken());
+    await announced('Initializing governance', contract.initializeGovernance());
+    await announced('Initializing validator', contract.initializeValidator());
 }
 
 // A lightweight version of `init` that sets up local databases, generates genesis and deploys precompiled contracts
@@ -100,6 +101,7 @@ export async function lightweightInit() {
     await announced('Initializing validator', contract.initializeValidator());
     await announced('Initializing L1 Allow list', contract.initializeL1AllowList());
     await announced('Deploying L2 contracts', contract.deployL2([], true, false));
+    await announced('Initializing governance', contract.initializeGovernance());
 }
 
 // Wrapper that writes an announcement and completion notes for each executed task.
@@ -125,7 +127,7 @@ export async function submoduleUpdate() {
 }
 
 async function checkEnv() {
-    const tools = ['node', 'yarn', 'docker', 'docker-compose', 'cargo'];
+    const tools = ['node', 'yarn', 'docker', 'cargo'];
     for (const tool of tools) {
         await utils.exec(`which ${tool}`);
     }
@@ -140,7 +142,6 @@ async function checkEnv() {
 export interface InitArgs {
     skipSubmodulesCheckout: boolean;
     skipEnvSetup: boolean;
-    deployerL1ContractInputArgs: any[];
     governorPrivateKeyArgs: any[];
     deployerL2ContractInput: {
         args: any[];
@@ -156,7 +157,6 @@ export interface InitArgs {
 const DEFAULT_ARGS: InitArgs = {
     skipSubmodulesCheckout: false,
     skipEnvSetup: false,
-    deployerL1ContractInputArgs: [],
     governorPrivateKeyArgs: [],
     deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
     testTokens: { deploy: true, args: [] }
@@ -170,7 +170,6 @@ export const initCommand = new Command('init')
         const initArgs: InitArgs = {
             skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
             skipEnvSetup: cmd.skipEnvSetup,
-            deployerL1ContractInputArgs: [],
             governorPrivateKeyArgs: [],
             deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
             testTokens: { deploy: true, args: [] }

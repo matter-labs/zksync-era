@@ -7,7 +7,6 @@ use std::{
 
 use serde_json::Value;
 use tokio::{sync::watch::Receiver, time::sleep};
-
 use zksync_types::{
     api::{BlockDetails, BlockNumber, L1BatchDetails},
     web3::types::U64,
@@ -15,15 +14,17 @@ use zksync_types::{
 };
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 use zksync_web3_decl::{
-    jsonrpsee::core::Error,
-    jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
+    jsonrpsee::{
+        core::Error,
+        http_client::{HttpClient, HttpClientBuilder},
+    },
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
     types::FilterBuilder,
     RpcResult,
 };
 
-use crate::config::{CheckerConfig, RpcMode};
 use crate::{
+    config::{CheckerConfig, RpcMode},
     divergence::{Divergence, DivergenceDetails},
     helpers::compare_json,
 };
@@ -472,10 +473,7 @@ impl Checker {
         match self.mode {
             RpcMode::Triggered => {
                 // Add a divergence to the list of divergences for the given EN instance.
-                let divergences = self
-                    .divergences
-                    .entry(url.to_string())
-                    .or_insert_with(Vec::new);
+                let divergences = self.divergences.entry(url.to_string()).or_default();
                 divergences.push(divergence.clone());
                 tracing::error!("{}", divergence);
             }

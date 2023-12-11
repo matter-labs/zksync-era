@@ -30,6 +30,26 @@ describe('System behavior checks', () => {
         alice = testMaster.mainAccount();
     });
 
+    test('Network should be supporting Cancun+Deneb', async () => {
+        const address_a = '0x000000000000000000000000000000000000000A';
+        const address_b = '0x000000000000000000000000000000000000000b';
+
+        const transaction_a = {
+            to: address_a,
+            data: '0x'
+        };
+
+        await expect(alice.providerL1!.call(transaction_a)).rejects.toThrow();
+
+        const transaction_b = {
+            to: address_b,
+            data: '0x'
+        };
+
+        const result_b = await alice.providerL1!.call(transaction_b);
+        expect(result_b).toEqual('0x');
+    });
+
     test('Should check that system contracts and SDK create same CREATE/CREATE2 addresses', async () => {
         const deployerContract = new zksync.Contract(
             zksync.utils.CONTRACT_DEPLOYER_ADDRESS,
@@ -380,7 +400,7 @@ export interface TransactionData {
     // is to be passed to account and any changes to its structure
     // would mean a breaking change to these accounts. In order to prevent this,
     // we should keep some fields as "reserved".
-    // It is also recommneded that their length is fixed, since
+    // It is also recommended that their length is fixed, since
     // it would allow easier proof integration (in case we will need
     // some special circuit for preprocessing transactions).
     reserved: BigNumberish[];

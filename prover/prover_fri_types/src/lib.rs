@@ -1,26 +1,23 @@
+use std::env;
+
+pub use circuit_definitions;
+use circuit_definitions::{
+    aux_definitions::witness_oracle::VmWitnessOracle,
+    boojum::{cs::implementations::witness::WitnessVec, field::goldilocks::GoldilocksField},
+    circuit_definitions::{
+        base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerProof},
+        recursion_layer::{ZkSyncRecursionLayerProof, ZkSyncRecursiveLayerCircuit},
+    },
+    zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness,
+    ZkSyncDefaultRoundFunction,
+};
+use zksync_object_store::{serialize_using_bincode, Bucket, FriCircuitKey, StoredObject};
+use zksync_types::{proofs::AggregationRound, L1BatchNumber};
+
 pub mod queue;
 
-use std::env;
-pub use circuit_definitions;
-
-use circuit_definitions::aux_definitions::witness_oracle::VmWitnessOracle;
-use circuit_definitions::boojum::cs::implementations::witness::WitnessVec;
-use circuit_definitions::boojum::field::goldilocks::GoldilocksField;
-use circuit_definitions::circuit_definitions::base_layer::ZkSyncBaseLayerCircuit;
-use circuit_definitions::circuit_definitions::base_layer::ZkSyncBaseLayerProof;
-use circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerProof;
-use circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursiveLayerCircuit;
-use circuit_definitions::zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness;
-use circuit_definitions::ZkSyncDefaultRoundFunction;
-
-use zksync_object_store::serialize_using_bincode;
-use zksync_object_store::Bucket;
-use zksync_object_store::FriCircuitKey;
-use zksync_object_store::StoredObject;
-use zksync_types::proofs::AggregationRound;
-use zksync_types::L1BatchNumber;
-
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum CircuitWrapper {
     Base(
         ZkSyncBaseLayerCircuit<
@@ -118,7 +115,6 @@ impl ProverServiceDataKey {
     }
 }
 
-
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct AuxOutputWitnessWrapper(pub BlockAuxilaryOutputWitness<GoldilocksField>);
 
@@ -134,6 +130,5 @@ impl StoredObject for AuxOutputWitnessWrapper {
 }
 
 pub fn get_current_pod_name() -> String {
-    env::var("POD_NAME")
-        .unwrap_or("UNKNOWN_POD".to_owned())
+    env::var("POD_NAME").unwrap_or("UNKNOWN_POD".to_owned())
 }

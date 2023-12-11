@@ -11,7 +11,8 @@ export async function l1Contracts() {
 }
 
 export async function prover() {
-    // await utils.spawn('cargo test -p zksync_prover --release');
+    process.chdir(process.env.ZKSYNC_HOME! + '/prover');
+    await utils.spawn('cargo test --release --workspace');
 }
 
 export async function js() {
@@ -32,7 +33,7 @@ export async function rust(options: string[]) {
         test_runner = 'cargo test';
     }
 
-    let cmd = `${test_runner} --release ${options.join(' ')}`;
+    let cmd = `SQLX_OFFLINE=true ${test_runner} --release ${options.join(' ')}`;
     console.log(`running unit tests with '${cmd}'`);
 
     await utils.spawn(cmd);

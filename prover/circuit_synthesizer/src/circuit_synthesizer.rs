@@ -1,30 +1,41 @@
-use std::option::Option;
-use std::time::Duration;
-use std::time::Instant;
+use std::{
+    option::Option,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context as _;
 use local_ip_address::local_ip;
-use prover_service::prover::{Prover, ProvingAssembly};
-use prover_service::remote_synth::serialize_job;
-use tokio::task::JoinHandle;
-use tokio::time::sleep;
-use zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
-use zkevm_test_harness::bellman::plonk::better_better_cs::cs::Circuit;
-use zkevm_test_harness::pairing::bn256::Bn256;
-use zkevm_test_harness::witness::oracle::VmWitnessOracle;
-
-use zksync_config::configs::prover_group::ProverGroupConfig;
-use zksync_config::configs::CircuitSynthesizerConfig;
-use zksync_config::ProverConfigs;
+use prover_service::{
+    prover::{Prover, ProvingAssembly},
+    remote_synth::serialize_job,
+};
+use tokio::{task::JoinHandle, time::sleep};
+use zkevm_test_harness::{
+    abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
+    bellman::plonk::better_better_cs::cs::Circuit, pairing::bn256::Bn256,
+    witness::oracle::VmWitnessOracle,
+};
+use zksync_config::{
+    configs::{prover_group::ProverGroupConfig, CircuitSynthesizerConfig},
+    ProverConfigs,
+};
 use zksync_dal::ConnectionPool;
+use zksync_env_config::FromEnv;
 use zksync_object_store::{CircuitKey, ObjectStore, ObjectStoreError, ObjectStoreFactory};
 use zksync_prover_fri_utils::socket_utils::send_assembly;
-use zksync_prover_utils::numeric_index_to_circuit_name;
-use zksync_prover_utils::region_fetcher::{get_region, get_zone};
+use zksync_prover_utils::{
+    numeric_index_to_circuit_name,
+    region_fetcher::{get_region, get_zone},
+};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
-use zksync_types::{protocol_version::L1VerifierConfig, proofs::{GpuProverInstanceStatus, SocketAddress}};
+use zksync_types::{
+    proofs::{GpuProverInstanceStatus, SocketAddress},
+    protocol_version::L1VerifierConfig,
+};
 
-#[derive(thiserror::Error,Debug)]
+use crate::metrics::METRICS;
+
+#[derive(thiserror::Error, Debug)]
 pub enum CircuitSynthesizerError {
     #[error("InvalidaGroupCircuits: {0}")]
     InvalidGroupCircuits(u8),
@@ -85,8 +96,12 @@ impl CircuitSynthesizer {
             blob_store: store_factory.create_store().await,
             allowed_circuit_types: allowed_circuit_types
                 .map(|x| x.into_iter().map(|x| x.1).collect()),
-            region: get_region().await.map_err(CircuitSynthesizerError::GetRegionFailed)?,
-            zone: get_zone().await.map_err(CircuitSynthesizerError::GetZoneFailed)?,
+            region: get_region(&prover_groups)
+                .await
+                .map_err(CircuitSynthesizerError::GetRegionFailed)?,
+            zone: get_zone(&prover_groups)
+                .await
+                .map_err(CircuitSynthesizerError::GetZoneFailed)?,
             vk_commitments,
             prover_connection_pool,
         })
@@ -108,11 +123,7 @@ impl CircuitSynthesizer {
             "Finished circuit synthesis for circuit: {circuit_type} took {:?}",
             start_instant.elapsed()
         );
-        metrics::histogram!(
-            "server.circuit_synthesizer.synthesize",
-            start_instant.elapsed(),
-            "circuit_type" => circuit_type,
-        );
+        METRICS.synthesize[&circuit_type].observe(start_instant.elapsed());
 
         // we don't perform assembly finalization here since it increases the assembly size significantly due to padding.
         Ok((assembly, circuit.numeric_circuit_type()))
@@ -144,9 +155,16 @@ impl JobProcessor for CircuitSynthesizer {
                     .get_next_prover_job_by_circuit_types(types.clone(), &protocol_versions)
                     .await
             }
-            None => storage.prover_dal().get_next_prover_job(&protocol_versions).await,
+            None => {
+                storage
+                    .prover_dal()
+                    .get_next_prover_job(&protocol_versions)
+                    .await
+            }
         };
-        let Some(prover_job) = prover_job else { return Ok(None) };
+        let Some(prover_job) = prover_job else {
+            return Ok(None);
+        };
 
         let circuit_key = CircuitKey {
             block_number: prover_job.block_number,
@@ -164,8 +182,11 @@ impl JobProcessor for CircuitSynthesizer {
     }
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
-        let res = self.prover_connection_pool
-            .access_storage().await.unwrap()
+        let res = self
+            .prover_connection_pool
+            .access_storage()
+            .await
+            .unwrap()
             .prover_dal()
             .save_proof_error(job_id, error, self.config.max_attempts)
             .await;
@@ -208,7 +229,9 @@ impl JobProcessor for CircuitSynthesizer {
         while now.elapsed() < self.config.prover_instance_wait_timeout() {
             let prover = self
                 .prover_connection_pool
-                .access_storage().await.unwrap()
+                .access_storage()
+                .await
+                .unwrap()
                 .gpu_prover_queue_dal()
                 .lock_available_prover(
                     self.config.gpu_prover_queue_timeout(),
@@ -219,7 +242,7 @@ impl JobProcessor for CircuitSynthesizer {
                 .await;
 
             if let Some(address) = prover {
-                let result = send_assembly(job_id, &mut serialized, &address);
+                let result = send_assembly(job_id, &serialized, &address);
                 handle_send_result(
                     &result,
                     job_id,
@@ -227,7 +250,9 @@ impl JobProcessor for CircuitSynthesizer {
                     &self.prover_connection_pool,
                     self.region.clone(),
                     self.zone.clone(),
-                ).await.context("handle_send_result()")?;
+                )
+                .await
+                .context("handle_send_result()")?;
 
                 if result.is_ok() {
                     return Ok(());
@@ -250,6 +275,15 @@ impl JobProcessor for CircuitSynthesizer {
         );
         Ok(())
     }
+
+    fn max_attempts(&self) -> u32 {
+        self.config.max_attempts
+    }
+
+    async fn get_job_attempts(&self, _job_id: &u32) -> anyhow::Result<u32> {
+        // Circuit synthesizer will be removed soon in favor of FRI one, so returning blank value.
+        Ok(1)
+    }
 }
 
 async fn handle_send_result(
@@ -271,15 +305,14 @@ async fn handle_send_result(
                 "Sent assembly of size: {blob_size_in_gb}GB successfully, took: {elapsed:?} \
                  for job: {job_id} by: {local_ip:?} to: {address:?}"
             );
-            metrics::histogram!(
-                "server.circuit_synthesizer.blob_sending_time",
-                *elapsed,
-                "blob_size_in_gb" => blob_size_in_gb.to_string(),
-            );
+
+            METRICS.blob_sending_time[&blob_size_in_gb].observe(*elapsed);
 
             // endregion
 
-            pool.access_storage().await.unwrap()
+            pool.access_storage()
+                .await
+                .unwrap()
                 .prover_dal()
                 .update_status(job_id, "in_gpu_proof")
                 .await;
@@ -292,7 +325,9 @@ async fn handle_send_result(
             );
 
             // mark prover instance in gpu_prover_queue dead
-            pool.access_storage().await.unwrap()
+            pool.access_storage()
+                .await
+                .unwrap()
                 .gpu_prover_queue_dal()
                 .update_prover_instance_status(
                     address.clone(),
@@ -307,7 +342,10 @@ async fn handle_send_result(
                 .context("ProverConfigs::from_env()")?
                 .non_gpu;
             // mark the job as failed
-            let res = pool.access_storage().await.unwrap()
+            let res = pool
+                .access_storage()
+                .await
+                .unwrap()
                 .prover_dal()
                 .save_proof_error(
                     job_id,

@@ -1,13 +1,13 @@
 //! Shared utils for unit tests.
 
+use std::ops;
+
 use zksync_dal::StorageProcessor;
 use zksync_types::{
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
     AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersion, StorageKey,
     StorageLog, H256,
 };
-
-use std::ops;
 
 pub(crate) async fn prepare_postgres(conn: &mut StorageProcessor<'_>) {
     if conn.blocks_dal().is_genesis_needed().await.unwrap() {
@@ -106,7 +106,7 @@ pub(crate) async fn create_l1_batch(
     );
     header.is_finished = true;
     conn.blocks_dal()
-        .insert_l1_batch(&header, &[], BlockGasCount::default())
+        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
         .await
         .unwrap();
     conn.blocks_dal()

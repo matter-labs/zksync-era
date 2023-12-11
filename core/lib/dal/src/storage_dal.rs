@@ -1,7 +1,6 @@
-use itertools::Itertools;
-
 use std::collections::{HashMap, HashSet};
 
+use itertools::Itertools;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_types::{MiniblockNumber, StorageKey, StorageLog, StorageValue, H256, U256};
 use zksync_utils::{bytes_to_be_words, bytes_to_chunks};
@@ -43,7 +42,7 @@ impl StorageDal<'_, '_> {
         .unwrap();
     }
 
-    /// Returns bytecode for a factory dep with the specified bytecode `hash`.
+    /// Returns bytecode for a factory dependency with the specified bytecode `hash`.
     pub async fn get_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
         sqlx::query!(
             "SELECT bytecode FROM factory_deps WHERE bytecode_hash = $1",
@@ -210,13 +209,14 @@ impl StorageDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::ConnectionPool;
-    use db_test_macro::db_test;
     use zksync_types::{AccountTreeId, Address};
 
-    #[db_test(dal_crate)]
-    async fn applying_storage_logs(pool: ConnectionPool) {
+    use super::*;
+    use crate::ConnectionPool;
+
+    #[tokio::test]
+    async fn applying_storage_logs() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
 
         let account = AccountTreeId::new(Address::repeat_byte(1));

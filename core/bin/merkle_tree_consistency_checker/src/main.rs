@@ -1,9 +1,9 @@
-use anyhow::Context as _;
-use clap::Parser;
-
 use std::{path::Path, time::Instant};
 
+use anyhow::Context as _;
+use clap::Parser;
 use zksync_config::DBConfig;
+use zksync_env_config::FromEnv;
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_storage::RocksDB;
 use zksync_types::L1BatchNumber;
@@ -27,7 +27,7 @@ impl Cli {
         let db_path = &config.merkle_tree.path;
         tracing::info!("Verifying consistency of Merkle tree at {db_path}");
         let start = Instant::now();
-        let db = RocksDB::new(Path::new(db_path), true);
+        let db = RocksDB::new(Path::new(db_path));
         let tree = ZkSyncTree::new_lightweight(db);
 
         let l1_batch_number = if let Some(number) = self.l1_batch {

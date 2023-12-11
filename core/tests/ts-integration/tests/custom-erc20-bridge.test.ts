@@ -7,6 +7,7 @@ import { Token } from '../src/types';
 import { spawn as _spawn } from 'child_process';
 
 import * as zksync from 'zksync-web3';
+import * as ethers from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
 import {
     L1ERC20BridgeFactory,
@@ -62,10 +63,29 @@ describe('Tests for the custom bridge behavior', () => {
         let args = `--private-key ${alice.privateKey} --erc20-bridge ${l1BridgeProxy.address}`;
         let command = `${baseCommandL1} initialize-bridges ${args}`;
         await spawn(command);
-        await sleep(2);
 
-        await allowListContract.setAccessMode(l1BridgeProxy.address, 2);
+        const setAccessModeTx = await allowListContract.setAccessMode(l1BridgeProxy.address, 2);
+        await setAccessModeTx.wait();
+
         let l1bridge2 = new L1ERC20BridgeFactory(alice._signerL1()).attach(l1BridgeProxy.address);
+
+        const maxAttempts = 200;
+        let ready = false;
+        for (let i = 0; i < maxAttempts; ++i) {
+            const l2Bridge = await l1bridge2.l2Bridge();
+            if (l2Bridge != ethers.constants.AddressZero) {
+                const code = await alice._providerL2().getCode(l2Bridge);
+                if (code.length > 2) {
+                    ready = true;
+                    break;
+                }
+            }
+            await sleep(1);
+        }
+        if (!ready) {
+            throw new Error('Failed to wait for the l2 bridge init');
+        }
+
         let l2TokenAddress = await l1bridge2.callStatic.l2TokenAddress(tokenDetails.l1Address);
         const initialBalanceL1 = await alice.getBalanceL1(tokenDetails.l1Address);
         const initialBalanceL2 = await alice.getBalance(l2TokenAddress);

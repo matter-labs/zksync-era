@@ -9,15 +9,13 @@
 //! Every data fetcher is represented by an autonomic routine, which spend most of the time sleeping;
 //! once in the configurable interval it fetches the data from an API and store it into the database.
 
-use tokio::sync::watch;
-use tokio::task::JoinHandle;
+use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::FetcherConfig;
 use zksync_dal::ConnectionPool;
 
 pub mod error;
 pub mod token_list;
 pub mod token_price;
-pub mod token_trading_volume;
 
 pub fn run_data_fetchers(
     config: &FetcherConfig,
@@ -27,11 +25,9 @@ pub fn run_data_fetchers(
 ) -> Vec<JoinHandle<anyhow::Result<()>>> {
     let list_fetcher = token_list::TokenListFetcher::new(config.clone(), network);
     let price_fetcher = token_price::TokenPriceFetcher::new(config.clone());
-    let volume_fetcher = token_trading_volume::TradingVolumeFetcher::new(config.clone());
 
     vec![
         tokio::spawn(list_fetcher.run(pool.clone(), stop_receiver.clone())),
         tokio::spawn(price_fetcher.run(pool.clone(), stop_receiver.clone())),
-        tokio::spawn(volume_fetcher.run(pool, stop_receiver)),
     ]
 }

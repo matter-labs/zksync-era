@@ -1,6 +1,5 @@
 use std::collections::{hash_map::Entry, BTreeMap, HashMap};
 
-use crate::ReadStorage;
 use zksync_types::{
     block::DeployedContract, get_code_key, get_known_code_key, get_system_context_init_logs,
     system_contracts::get_system_smart_contracts, L2ChainId, StorageKey, StorageLog,
@@ -8,11 +7,13 @@ use zksync_types::{
 };
 use zksync_utils::u256_to_h256;
 
-/// Network ID we use by defailt for in memory storage.
+use crate::ReadStorage;
+
+/// Network ID we use by default for in memory storage.
 pub const IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID: u32 = 270;
 
 /// In-memory storage.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct InMemoryStorage {
     pub(crate) state: HashMap<StorageKey, (StorageValue, u64)>,
     pub(crate) factory_deps: HashMap<H256, Vec<u8>>,
@@ -100,6 +101,11 @@ impl InMemoryStorage {
     pub fn store_factory_dep(&mut self, hash: H256, bytecode: Vec<u8>) {
         self.factory_deps.insert(hash, bytecode);
     }
+
+    /// Get internal state of the storage.
+    pub fn get_state(&self) -> &HashMap<StorageKey, (StorageValue, u64)> {
+        &self.state
+    }
 }
 
 impl ReadStorage for &InMemoryStorage {
@@ -118,6 +124,10 @@ impl ReadStorage for &InMemoryStorage {
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
         self.factory_deps.get(&hash).cloned()
     }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        self.state.get(key).map(|(_, idx)| *idx)
+    }
 }
 
 impl ReadStorage for InMemoryStorage {
@@ -131,5 +141,9 @@ impl ReadStorage for InMemoryStorage {
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
         (&*self).load_factory_dep(hash)
+    }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        (&*self).get_enumeration_index(key)
     }
 }

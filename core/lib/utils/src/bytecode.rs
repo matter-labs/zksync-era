@@ -1,8 +1,10 @@
+use std::{collections::HashMap, convert::TryInto};
+
 use itertools::Itertools;
-use std::collections::HashMap;
-use std::convert::TryInto;
-use zksync_basic_types::ethabi::{encode, Token};
-use zksync_basic_types::H256;
+use zksync_basic_types::{
+    ethabi::{encode, Token},
+    H256,
+};
 
 use crate::bytes_to_chunks;
 
@@ -27,13 +29,13 @@ pub enum FailedToCompressBytecodeError {
     InvalidBytecode(#[from] InvalidBytecodeError),
 }
 
-/// Implelements a simple compression algorithm for the bytecode.
+/// Implements, a simple compression algorithm for the bytecode.
 pub fn compress_bytecode(code: &[u8]) -> Result<Vec<u8>, FailedToCompressBytecodeError> {
     validate_bytecode(code)?;
 
-    // Statistic is a hash map of values (number of occurences, first occurence position),
+    // Statistic is a hash map of values (number of occurrences, first occurrence position),
     // this is needed to ensure that the determinism during sorting of the statistic, i.e.
-    // each element will have unique first occurence position
+    // each element will have unique first occurrence position
     let mut statistic: HashMap<u64, (usize, usize)> = HashMap::new();
     let mut dictionary: HashMap<u64, u16> = HashMap::new();
     let mut encoded_data: Vec<u8> = Vec::new();

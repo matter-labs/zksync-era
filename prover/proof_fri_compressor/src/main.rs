@@ -1,14 +1,12 @@
+use std::{env, time::Duration};
+
 use anyhow::Context as _;
-use std::env;
-use structopt::StructOpt;
-use tokio::{sync::oneshot, sync::watch};
-
-use std::time::Duration;
-
 use prometheus_exporter::PrometheusExporterConfig;
-use zksync_config::configs::FriProofCompressorConfig;
-use zksync_dal::connection::DbVariant;
+use structopt::StructOpt;
+use tokio::sync::{oneshot, watch};
+use zksync_config::configs::{FriProofCompressorConfig, PostgresConfig};
 use zksync_dal::ConnectionPool;
+use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
@@ -16,6 +14,7 @@ use zksync_utils::wait_for_tasks::wait_for_tasks;
 use crate::compressor::ProofCompressor;
 
 mod compressor;
+mod metrics;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -48,12 +47,17 @@ async fn main() -> anyhow::Result<()> {
 
     let opt = Opt::from_args();
     let config = FriProofCompressorConfig::from_env().context("FriProofCompressorConfig")?;
-    let pool = ConnectionPool::builder(DbVariant::Prover)
-        .build()
-        .await
-        .context("failed to build a connection pool")?;
-    let blob_store = ObjectStoreFactory::prover_from_env()
-        .context("ObjectSToreFactor::prover_from_env()")?
+    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
+    let pool = ConnectionPool::builder(
+        postgres_config.prover_url()?,
+        postgres_config.max_connections()?,
+    )
+    .build()
+    .await
+    .context("failed to build a connection pool")?;
+    let object_store_config =
+        ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;
+    let blob_store = ObjectStoreFactory::new(object_store_config.0)
         .create_store()
         .await;
     let proof_compressor = ProofCompressor::new(
@@ -61,6 +65,7 @@ async fn main() -> anyhow::Result<()> {
         pool,
         config.compression_mode,
         config.verify_wrapper_proof,
+        config.max_attempts,
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -92,7 +97,7 @@ async fn main() -> anyhow::Result<()> {
     ];
 
     let graceful_shutdown = None::<futures::future::Ready<()>>;
-    let tasks_allowed_to_finish = false;
+    let tasks_allowed_to_finish = true;
     tokio::select! {
         _ = wait_for_tasks(tasks, None, graceful_shutdown, tasks_allowed_to_finish) => {},
         _ = stop_signal_receiver => {

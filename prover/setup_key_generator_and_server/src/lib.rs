@@ -1,17 +1,20 @@
-use std::fs::File;
-use std::io::Read;
-use std::path::Path;
+use std::{fs::File, io::Read, path::Path};
+
 use anyhow::Context as _;
-
-use zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
-use zkevm_test_harness::bellman::bn256::Bn256;
-use zkevm_test_harness::witness::oracle::VmWitnessOracle;
-use zkevm_test_harness::witness::recursive_aggregation::padding_aggregations;
-use zkevm_test_harness::witness::vk_set_generator::circuits_for_vk_generation;
-use zksync_types::circuit::GEOMETRY_CONFIG;
-
+use zkevm_test_harness::{
+    abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
+    bellman::bn256::Bn256,
+    witness::{
+        oracle::VmWitnessOracle, recursive_aggregation::padding_aggregations,
+        vk_set_generator::circuits_for_vk_generation,
+    },
+};
 use zksync_config::ProverConfigs;
-use zksync_types::circuit::{LEAF_SPLITTING_FACTOR, NODE_SPLITTING_FACTOR, SCHEDULER_UPPER_BOUND};
+use zksync_env_config::FromEnv;
+use zksync_types::circuit::{
+    GEOMETRY_CONFIG, LEAF_SPLITTING_FACTOR, NODE_SPLITTING_FACTOR, SCHEDULER_UPPER_BOUND,
+};
+
 pub fn get_setup_for_circuit_type(circuit_type: u8) -> anyhow::Result<Box<dyn Read>> {
     let filepath = get_setup_key_file_path(circuit_type).context("get_setup_key_file_path()")?;
     tracing::info!("Fetching setup key from path: {}", filepath);
@@ -45,7 +48,9 @@ pub fn get_setup_key_write_file_path(circuit_type: u8) -> String {
 }
 
 fn get_setup_key_file_path(circuit_type: u8) -> anyhow::Result<String> {
-    let prover_config = ProverConfigs::from_env().context("ProverConfigs::from_env()")?.non_gpu;
+    let prover_config = ProverConfigs::from_env()
+        .context("ProverConfigs::from_env()")?
+        .non_gpu;
     Ok(format!(
         "{}/{}",
         prover_config.setup_keys_path,

@@ -1,14 +1,15 @@
-use std::io::Cursor;
-use std::io::Read;
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::{
+    io::{Cursor, Read},
+    sync::Arc,
+};
 
 use prover_service::RemoteSynthesizer;
 use queues::{Buffer, IsQueue};
-
-use tokio::runtime::Handle;
+use tokio::{runtime::Handle, sync::Mutex};
 use zksync_dal::ConnectionPool;
 use zksync_types::proofs::SocketAddress;
+
+use crate::metrics::METRICS;
 
 pub type SharedAssemblyQueue = Arc<Mutex<Buffer<Vec<u8>>>>;
 
@@ -51,7 +52,9 @@ impl RemoteSynthesizer for SynthesizedCircuitProvider {
                 if is_full {
                     self.rt_handle.block_on(async {
                         self.pool
-                            .access_storage().await.unwrap()
+                            .access_storage()
+                            .await
+                            .unwrap()
                             .gpu_prover_queue_dal()
                             .update_prover_instance_from_full_to_available(
                                 self.address.clone(),
@@ -67,11 +70,9 @@ impl RemoteSynthesizer for SynthesizedCircuitProvider {
                     queue_free_slots,
                     assembly_queue.capacity()
                 );
-                metrics::histogram!(
-                    "server.prover.queue_free_slots",
-                    queue_free_slots as f64,
-                    "queue_capacity" => assembly_queue.capacity().to_string()
-                );
+                METRICS.queue_free_slots[&assembly_queue.capacity().to_string()]
+                    .observe(queue_free_slots);
+
                 Some(Box::new(Cursor::new(blob)))
             }
             Err(_) => None,

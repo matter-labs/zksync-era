@@ -1,37 +1,41 @@
-use std::collections::HashMap;
-use std::{sync::Arc, time::Instant};
+use std::{collections::HashMap, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use tokio::task::JoinHandle;
-use zksync_prover_fri_types::circuit_definitions::aux_definitions::witness_oracle::VmWitnessOracle;
-use zksync_prover_fri_types::circuit_definitions::boojum::cs::implementations::pow::NoPow;
-use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::GoldilocksField;
-use zksync_prover_fri_types::circuit_definitions::boojum::worker::Worker;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::base_layer::{
-    ZkSyncBaseLayerCircuit, ZkSyncBaseLayerProof,
-};
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::{
-    ZkSyncRecursionLayerProof, ZkSyncRecursiveLayerCircuit,
-};
-use zksync_prover_fri_types::circuit_definitions::{
-    base_layer_proof_config, recursion_layer_proof_config, ZkSyncDefaultRoundFunction,
-};
-
 use zkevm_test_harness::prover_utils::{prove_base_layer_circuit, prove_recursion_layer_circuit};
-
-use zksync_config::configs::fri_prover_group::{CircuitIdRoundTuple, FriProverGroupConfig};
-use zksync_config::configs::FriProverConfig;
+use zksync_config::configs::{fri_prover_group::FriProverGroupConfig, FriProverConfig};
 use zksync_dal::ConnectionPool;
+use zksync_env_config::FromEnv;
 use zksync_object_store::ObjectStore;
-use zksync_prover_fri_types::{CircuitWrapper, FriProofWrapper, ProverJob, ProverServiceDataKey};
+use zksync_prover_fri_types::{
+    circuit_definitions::{
+        aux_definitions::witness_oracle::VmWitnessOracle,
+        base_layer_proof_config,
+        boojum::{
+            cs::implementations::pow::NoPow, field::goldilocks::GoldilocksField, worker::Worker,
+        },
+        circuit_definitions::{
+            base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerProof},
+            recursion_layer::{ZkSyncRecursionLayerProof, ZkSyncRecursiveLayerCircuit},
+        },
+        recursion_layer_proof_config, ZkSyncDefaultRoundFunction,
+    },
+    CircuitWrapper, FriProofWrapper, ProverJob, ProverServiceDataKey,
+};
 use zksync_prover_fri_utils::fetch_next_circuit;
 use zksync_queued_job_processor::{async_trait, JobProcessor};
-use zksync_types::protocol_version::L1VerifierConfig;
+use zksync_types::{basic_fri_types::CircuitIdRoundTuple, protocol_version::L1VerifierConfig};
 use zksync_vk_setup_data_server_fri::{
     get_cpu_setup_data_for_circuit_type, GoldilocksProverSetupData,
 };
 
-use crate::utils::{save_proof, setup_metadata_to_setup_data_key, verify_proof, ProverArtifacts};
+use crate::{
+    metrics::{CircuitLabels, Layer, METRICS},
+    utils::{
+        get_setup_data_key, save_proof, setup_metadata_to_setup_data_key, verify_proof,
+        ProverArtifacts,
+    },
+};
 
 pub enum SetupLoadMode {
     FromMemory(HashMap<ProverServiceDataKey, Arc<GoldilocksProverSetupData>>),
@@ -72,7 +76,11 @@ impl Prover {
         }
     }
 
-    fn get_setup_data(&self, key: ProverServiceDataKey) -> anyhow::Result<Arc<GoldilocksProverSetupData>> {
+    fn get_setup_data(
+        &self,
+        key: ProverServiceDataKey,
+    ) -> anyhow::Result<Arc<GoldilocksProverSetupData>> {
+        let key = get_setup_data_key(key);
         Ok(match &self.setup_load_mode {
             SetupLoadMode::FromMemory(cache) => cache
                 .get(&key)
@@ -83,11 +91,9 @@ impl Prover {
                 let artifact: GoldilocksProverSetupData =
                     get_cpu_setup_data_for_circuit_type(key.clone())
                         .context("get_cpu_setup_data_for_circuit_type()")?;
-                metrics::histogram!(
-                    "prover_fri.prover.setup_data_load_time",
-                    started_at.elapsed(),
-                    "circuit_type" => key.circuit_id.to_string(),
-                );
+                METRICS.gpu_setup_data_load_time[&key.circuit_id.to_string()]
+                    .observe(started_at.elapsed());
+
                 Arc::new(artifact)
             }
         })
@@ -130,12 +136,13 @@ impl Prover {
             &artifact.wits_hint,
             &artifact.finalization_hint,
         );
-        metrics::histogram!(
-            "prover_fri.prover.proof_generation_time",
-            started_at.elapsed(),
-            "circuit_type" => circuit_id.to_string(),
-            "layer" => "recursive",
-        );
+
+        let label = CircuitLabels {
+            circuit_type: circuit_id,
+            layer: Layer::Recursive,
+        };
+        METRICS.proof_generation_time[&label].observe(started_at.elapsed());
+
         verify_proof(
             &CircuitWrapper::Recursive(circuit),
             &proof,
@@ -170,12 +177,13 @@ impl Prover {
             &artifact.wits_hint,
             &artifact.finalization_hint,
         );
-        metrics::histogram!(
-            "prover_fri.prover.proof_generation_time",
-            started_at.elapsed(),
-            "circuit_type" => circuit_id.to_string(),
-            "layer" => "base",
-        );
+
+        let label = CircuitLabels {
+            circuit_type: circuit_id,
+            layer: Layer::Base,
+        };
+        METRICS.proof_generation_time[&label].observe(started_at.elapsed());
+
         verify_proof(&CircuitWrapper::Base(circuit), &proof, &artifact.vk, job_id);
         FriProofWrapper::Base(ZkSyncBaseLayerProof::from_inner(circuit_id, proof))
     }
@@ -196,13 +204,18 @@ impl JobProcessor for Prover {
             &self.circuit_ids_for_round_to_be_proven,
             &self.vk_commitments,
         )
-        .await else { return Ok(None) };
-       Ok(Some((prover_job.job_id, prover_job)))
+        .await
+        else {
+            return Ok(None);
+        };
+        Ok(Some((prover_job.job_id, prover_job)))
     }
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
         self.prover_connection_pool
-            .access_storage().await.unwrap()
+            .access_storage()
+            .await
+            .unwrap()
             .fri_prover_jobs_dal()
             .save_proof_error(job_id, error)
             .await;
@@ -216,7 +229,11 @@ impl JobProcessor for Prover {
         let config = Arc::clone(&self.config);
         let setup_data = self.get_setup_data(job.setup_data_key.clone());
         tokio::task::spawn_blocking(move || {
-            Ok(Self::prove(job, config, setup_data.context("get_setup_data()")?))
+            Ok(Self::prove(
+                job,
+                config,
+                setup_data.context("get_setup_data()")?,
+            ))
         })
     }
 
@@ -226,10 +243,8 @@ impl JobProcessor for Prover {
         started_at: Instant,
         artifacts: Self::JobArtifacts,
     ) -> anyhow::Result<()> {
-        metrics::histogram!(
-            "prover_fri.prover.cpu_total_proving_time",
-            started_at.elapsed(),
-        );
+        METRICS.cpu_total_proving_time.observe(started_at.elapsed());
+
         let mut storage_processor = self.prover_connection_pool.access_storage().await.unwrap();
         save_proof(
             job_id,
@@ -242,6 +257,24 @@ impl JobProcessor for Prover {
         )
         .await;
         Ok(())
+    }
+
+    fn max_attempts(&self) -> u32 {
+        self.config.max_attempts
+    }
+
+    async fn get_job_attempts(&self, job_id: &u32) -> anyhow::Result<u32> {
+        let mut prover_storage = self
+            .prover_connection_pool
+            .access_storage()
+            .await
+            .context("failed to acquire DB connection for Prover")?;
+        prover_storage
+            .fri_prover_jobs_dal()
+            .get_prover_job_attempts(*job_id)
+            .await
+            .map(|attempts| attempts.unwrap_or(0))
+            .context("failed to get job attempts for Prover")
     }
 }
 
@@ -256,6 +289,7 @@ pub fn load_setup_data_cache(config: &FriProverConfig) -> anyhow::Result<SetupLo
                 &config.specialized_group_id
             );
             let prover_setup_metadata_list = FriProverGroupConfig::from_env()
+                .context("FriProverGroupConfig::from_env()")?
                 .get_circuit_ids_for_group_id(config.specialized_group_id)
                 .expect(
                     "At least one circuit should be configured for group when running in FromMemory mode",

@@ -1,49 +1,61 @@
-use std::hash::Hash;
-use std::sync::Arc;
 use std::{
     collections::{hash_map::DefaultHasher, HashMap, HashSet},
-    hash::Hasher,
+    hash::{Hash, Hasher},
+    sync::Arc,
     time::Instant,
 };
 
+use anyhow::Context as _;
 use async_trait::async_trait;
-use zksync_prover_fri_types::circuit_definitions::ZkSyncDefaultRoundFunction;
+use multivm::vm_latest::{
+    constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
+};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::{GoldilocksExt2, GoldilocksField};
-use zksync_prover_fri_types::circuit_definitions::boojum::gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge;
-use zkevm_test_harness::geometry_config::get_geometry_config;
-use zkevm_test_harness::toolset::GeometryConfig;
-use zkevm_test_harness::witness::full_block_artifact::{
-    BlockBasicCircuits, BlockBasicCircuitsPublicCompactFormsWitnesses,
-    BlockBasicCircuitsPublicInputs,
+use zkevm_test_harness::{
+    geometry_config::get_geometry_config,
+    toolset::GeometryConfig,
+    witness::full_block_artifact::{
+        BlockBasicCircuits, BlockBasicCircuitsPublicCompactFormsWitnesses,
+        BlockBasicCircuitsPublicInputs,
+    },
 };
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness;
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness;
-use zksync_prover_fri_types::{AuxOutputWitnessWrapper, get_current_pod_name};
-
-use vm::{constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle};
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_dal::fri_witness_generator_dal::FriWitnessJobStatus;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{fri_witness_generator_dal::FriWitnessJobStatus, ConnectionPool};
 use zksync_object_store::{
     Bucket, ClosedFormInputKey, ObjectStore, ObjectStoreFactory, StoredObject,
+};
+use zksync_prover_fri_types::{
+    circuit_definitions::{
+        boojum::{
+            field::goldilocks::{GoldilocksExt2, GoldilocksField},
+            gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge,
+        },
+        zkevm_circuits::scheduler::{
+            block_header::BlockAuxilaryOutputWitness, input::SchedulerCircuitInstanceWitness,
+        },
+        ZkSyncDefaultRoundFunction,
+    },
+    get_current_pod_name, AuxOutputWitnessWrapper,
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::{PostgresStorage, StorageView};
-use zksync_types::proofs::AggregationRound;
-use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::{
-    proofs::{BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
+    proofs::{AggregationRound, BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
+    protocol_version::FriProtocolVersionId,
     Address, L1BatchNumber, BOOTLOADER_ADDRESS, H256, U256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
-use crate::precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider;
-use crate::utils::{
-    expand_bootloader_contents, save_base_prover_input_artifacts, ClosedFormInputWrapper,
-    SchedulerPartialInputWrapper,
+use crate::{
+    metrics::WITNESS_GENERATOR_METRICS,
+    precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
+    storage_oracle::StorageOracle,
+    utils::{
+        expand_bootloader_contents, save_base_prover_input_artifacts, ClosedFormInputWrapper,
+        SchedulerPartialInputWrapper,
+    },
 };
 
 pub struct BasicCircuitArtifacts {
@@ -120,7 +132,7 @@ impl BasicWitnessGenerator {
             // We get value higher than `blocks_proving_percentage` with prob = `1 - blocks_proving_percentage`.
             // In this case job should be skipped.
             if threshold > blocks_proving_percentage && !shall_force_process_block {
-                metrics::counter!("server.witness_generator_fri.skipped_blocks", 1);
+                WITNESS_GENERATOR_METRICS.skipped_blocks.inc();
                 tracing::info!(
                     "Skipping witness generation for block {}, blocks_proving_percentage: {}",
                     block_number.0,
@@ -142,7 +154,7 @@ impl BasicWitnessGenerator {
             }
         }
 
-        metrics::counter!("server.witness_generator_fri.sampled_blocks", 1);
+        WITNESS_GENERATOR_METRICS.sampled_blocks.inc();
         tracing::info!(
             "Starting witness generation of type {:?} for block {}",
             AggregationRound::BasicCircuits,
@@ -192,11 +204,10 @@ impl JobProcessor for BasicWitnessGenerator {
                 );
                 let started_at = Instant::now();
                 let job = get_artifacts(block_number, &*self.object_store).await;
-                metrics::histogram!(
-                    "prover_fri.witness_generation.blob_fetch_time",
-                    started_at.elapsed(),
-                    "aggregation_round" => format!("{:?}", AggregationRound::BasicCircuits),
-                );
+
+                WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::BasicCircuits.into()]
+                    .observe(started_at.elapsed());
+
                 Ok(Some((block_number, job)))
             }
             None => Ok(None),
@@ -205,7 +216,9 @@ impl JobProcessor for BasicWitnessGenerator {
 
     async fn save_failure(&self, job_id: L1BatchNumber, _started_at: Instant, error: String) -> () {
         self.prover_connection_pool
-            .access_storage().await.unwrap()
+            .access_storage()
+            .await
+            .unwrap()
             .fri_witness_generator_dal()
             .mark_witness_job_failed(&error, job_id)
             .await;
@@ -229,7 +242,8 @@ impl JobProcessor for BasicWitnessGenerator {
                 job,
                 started_at,
                 config,
-            ).await)
+            )
+            .await)
         })
     }
 
@@ -251,15 +265,32 @@ impl JobProcessor for BasicWitnessGenerator {
                     self.config.shall_save_to_public_bucket,
                 )
                 .await;
-                metrics::histogram!(
-                    "prover_fri.witness_generation.blob_save_time",
-                    blob_started_at.elapsed(),
-                    "aggregation_round" => format!("{:?}", AggregationRound::BasicCircuits),
-                );
+
+                WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::BasicCircuits.into()]
+                    .observe(blob_started_at.elapsed());
+
                 update_database(&self.prover_connection_pool, started_at, job_id, blob_urls).await;
                 Ok(())
             }
         }
+    }
+
+    fn max_attempts(&self) -> u32 {
+        self.config.max_attempts
+    }
+
+    async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<u32> {
+        let mut prover_storage = self
+            .prover_connection_pool
+            .access_storage()
+            .await
+            .context("failed to acquire DB connection for BasicWitnessGenerator")?;
+        prover_storage
+            .fri_witness_generator_dal()
+            .get_basic_circuit_witness_job_attempts(*job_id)
+            .await
+            .map(|attempts| attempts.unwrap_or(0))
+            .context("failed to get job attempts for BasicWitnessGenerator")
     }
 }
 
@@ -280,11 +311,9 @@ async fn process_basic_circuits_job(
         scheduler_witness,
         aux_output_witness,
     ) = generate_witness(object_store, config, connection_pool, witness_gen_input).await;
-    metrics::histogram!(
-        "prover_fri.witness_generation.witness_generation_time",
-        started_at.elapsed(),
-        "aggregation_round" => format!("{:?}", AggregationRound::BasicCircuits),
-    );
+    WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
+        .observe(started_at.elapsed());
+
     tracing::info!(
         "Witness generation for block {} is complete in {:?}",
         block_number.0,
@@ -447,22 +476,26 @@ async fn build_basic_circuits_witness_generator_input(
         .blocks_dal()
         .get_l1_batch_header(l1_batch_number)
         .await
-        .unwrap().unwrap();
+        .unwrap()
+        .unwrap();
     let initial_heap_content = connection
         .blocks_dal()
         .get_initial_bootloader_heap(l1_batch_number)
         .await
-        .unwrap().unwrap();
+        .unwrap()
+        .unwrap();
     let (_, previous_block_timestamp) = connection
         .blocks_dal()
         .get_l1_batch_state_root_and_timestamp(l1_batch_number - 1)
         .await
-        .unwrap().unwrap();
+        .unwrap()
+        .unwrap();
     let previous_block_hash = connection
         .blocks_dal()
         .get_l1_batch_state_root(l1_batch_number - 1)
         .await
-        .unwrap().expect("cannot generate witness before the root hash is computed");
+        .unwrap()
+        .expect("cannot generate witness before the root hash is computed");
     BasicCircuitWitnessGeneratorInput {
         block_number: l1_batch_number,
         previous_block_timestamp,
@@ -495,7 +528,18 @@ async fn generate_witness(
         .blocks_dal()
         .get_l1_batch_header(input.block_number)
         .await
-        .unwrap().unwrap();
+        .unwrap()
+        .unwrap();
+
+    let previous_batch_with_metadata = connection
+        .blocks_dal()
+        .get_l1_batch_metadata(zksync_types::L1BatchNumber(
+            input.block_number.checked_sub(1).unwrap(),
+        ))
+        .await
+        .unwrap()
+        .unwrap();
+
     let bootloader_code_bytes = connection
         .storage_dal()
         .get_factory_dep(header.base_system_contracts_hashes.bootloader)
@@ -519,6 +563,13 @@ async fn generate_witness(
         .map(|hash| u256_to_h256(*hash))
         .collect();
 
+    let storage_refunds = connection
+        .blocks_dal()
+        .get_storage_refunds(input.block_number)
+        .await
+        .unwrap()
+        .unwrap();
+
     let mut used_bytecodes = connection.storage_dal().get_factory_deps(&hashes).await;
     if input.used_bytecodes_hashes.contains(&account_code_hash) {
         used_bytecodes.insert(account_code_hash, account_bytecode);
@@ -537,7 +588,8 @@ async fn generate_witness(
         .blocks_dal()
         .get_miniblock_range_of_l1_batch(input.block_number - 1)
         .await
-        .unwrap().expect("L1 batch should contain at least one miniblock");
+        .unwrap()
+        .expect("L1 batch should contain at least one miniblock");
     drop(connection);
 
     let mut tree = PrecalculatedMerklePathsProvider::new(
@@ -578,12 +630,25 @@ async fn generate_witness(
 
     // The following part is CPU-heavy, so we move it to a separate thread.
     let rt_handle = tokio::runtime::Handle::current();
-    tokio::task::spawn_blocking(move || {
-        let connection = rt_handle.block_on(connection_pool.access_storage()).unwrap();
+
+    let (
+        basic_circuits,
+        basic_circuits_public_inputs,
+        basic_circuits_public_compact_witness,
+        mut scheduler_witness,
+        block_aux_witness,
+    ) = tokio::task::spawn_blocking(move || {
+        let connection = rt_handle
+            .block_on(connection_pool.access_storage())
+            .unwrap();
+
         let storage = PostgresStorage::new(rt_handle, connection, last_miniblock_number, true);
         let storage_view = StorageView::new(storage).to_rc_ptr();
-        let storage_oracle: StorageOracle<StorageView<PostgresStorage<'_>>, HistoryDisabled> =
-            StorageOracle::new(storage_view.clone());
+
+        let vm_storage_oracle: VmStorageOracle<StorageView<PostgresStorage<'_>>, HistoryDisabled> =
+            VmStorageOracle::new(storage_view.clone());
+        let storage_oracle = StorageOracle::new(vm_storage_oracle, storage_refunds);
+
         zkevm_test_harness::external_calls::run_with_fixed_params(
             Address::zero(),
             BOOTLOADER_ADDRESS,
@@ -600,7 +665,20 @@ async fn generate_witness(
         )
     })
     .await
-    .unwrap()
+    .unwrap();
+
+    scheduler_witness.previous_block_meta_hash =
+        previous_batch_with_metadata.metadata.meta_parameters_hash.0;
+    scheduler_witness.previous_block_aux_hash =
+        previous_batch_with_metadata.metadata.aux_data_hash.0;
+
+    (
+        basic_circuits,
+        basic_circuits_public_inputs,
+        basic_circuits_public_compact_witness,
+        scheduler_witness,
+        block_aux_witness,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]

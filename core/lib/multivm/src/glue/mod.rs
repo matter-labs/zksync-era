@@ -7,14 +7,11 @@
 //!
 //! The "private glue" lies in the `types` module.
 
-pub(crate) mod block_properties;
 pub(crate) mod history_mode;
-pub(crate) mod init_vm;
-pub(crate) mod oracle_tools;
-pub(crate) mod tracer;
+pub mod tracers;
 mod types;
 
-/// This trait is a workaround on the Rust'c [orphan rule](orphan_rule).
+/// This trait is a workaround on the Rust's [orphan rule](orphan_rule).
 /// We need to convert a lot of types that come from two different versions of some crate,
 /// and `From`/`Into` traits are natural way of doing so. Unfortunately, we can't implement an
 /// external trait on a pair of external types, so we're unable to use these traits.

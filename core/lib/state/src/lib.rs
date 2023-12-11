@@ -43,7 +43,7 @@ pub trait ReadStorage: fmt::Debug {
 
     /// Checks whether a write to this storage at the specified `key` would be an initial write.
     /// Roughly speaking, this is the case when the storage doesn't contain `key`, although
-    /// in case of mutable storages, the caveats apply (a write to a key that is present
+    /// in case of mutable storage, the caveats apply (a write to a key that is present
     /// in the storage but was not committed is still an initial write).
     fn is_write_initial(&mut self, key: &StorageKey) -> bool;
 
@@ -55,6 +55,9 @@ pub trait ReadStorage: fmt::Debug {
         let code_key = get_known_code_key(bytecode_hash);
         self.read_value(&code_key) != H256::zero()
     }
+
+    /// Retrieves the enumeration index for a given `key`.
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64>;
 }
 
 /// Functionality to write to the VM storage in a batch.

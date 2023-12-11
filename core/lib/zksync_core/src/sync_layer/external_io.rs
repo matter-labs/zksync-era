@@ -1,87 +1,37 @@
-use std::{
-    collections::HashMap,
-    convert::{TryFrom, TryInto},
-    iter::FromIterator,
-    time::Duration,
-};
+use std::{collections::HashMap, convert::TryInto, iter::FromIterator, time::Duration};
 
-use actix_rt::time::Instant;
 use async_trait::async_trait;
-
-use vm::{FinishedL1Batch, L1BatchEnv, SystemEnv};
+use futures::future;
+use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::ConnectionPool;
-use zksync_types::block::legacy_miniblock_hash;
-use zksync_types::witness_block_state::WitnessBlockState;
 use zksync_types::{
-    ethabi::Address, l1::L1Tx, l2::L2Tx, protocol_version::ProtocolUpgradeTx, L1BatchNumber,
-    L1BlockNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256, U256,
+    ethabi::Address, protocol_version::ProtocolUpgradeTx, witness_block_state::WitnessBlockState,
+    L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256, U256,
 };
 use zksync_utils::{be_words_to_bytes, bytes_to_be_words};
 
-use crate::state_keeper::{
-    extractors,
-    io::{
-        common::{l1_batch_params, load_pending_batch, poll_iters},
-        MiniblockParams, PendingBatchData, StateKeeperIO,
-    },
-    seal_criteria::SealerFn,
-    updates::UpdatesManager,
-};
-
 use super::{
-    genesis::{
-        fetch_protocol_version, fetch_sync_block_without_transactions,
-        fetch_system_contract_by_hash,
-    },
+    client::MainNodeClient,
     sync_action::{ActionQueue, SyncAction},
     SyncState,
+};
+use crate::{
+    metrics::{BlockStage, APP_METRICS},
+    state_keeper::{
+        extractors,
+        io::{
+            common::{l1_batch_params, load_pending_batch, poll_iters},
+            MiniblockParams, MiniblockSealerHandle, PendingBatchData, StateKeeperIO,
+        },
+        metrics::KEEPER_METRICS,
+        seal_criteria::IoSealCriteria,
+        updates::UpdatesManager,
+    },
 };
 
 /// The interval between the action queue polling attempts for the new actions.
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
-
-/// In the external node we don't actually decide whether we want to seal l1 batch or l2 block.
-/// We must replicate the state as it's present in the main node.
-/// This structure declares an "unconditional sealer" which would tell the state keeper to seal
-/// blocks/batches at the same point as in the main node.
-#[derive(Debug, Clone)]
-pub struct ExternalNodeSealer {
-    actions: ActionQueue,
-}
-
-impl ExternalNodeSealer {
-    pub fn new(actions: ActionQueue) -> Self {
-        Self { actions }
-    }
-
-    fn should_seal_miniblock(&self) -> bool {
-        let res = matches!(self.actions.peek_action(), Some(SyncAction::SealMiniblock));
-        if res {
-            tracing::info!("Sealing miniblock");
-        }
-        res
-    }
-
-    fn should_seal_batch(&self) -> bool {
-        let res = matches!(
-            self.actions.peek_action(),
-            Some(SyncAction::SealBatch { .. })
-        );
-        if res {
-            tracing::info!("Sealing the batch");
-        }
-        res
-    }
-
-    pub fn into_unconditional_batch_seal_criterion(self) -> Box<SealerFn> {
-        Box::new(move |_| self.should_seal_batch())
-    }
-
-    pub fn into_miniblock_seal_criterion(self) -> Box<SealerFn> {
-        Box::new(move |_| self.should_seal_miniblock())
-    }
-}
 
 /// ExternalIO is the IO abstraction for the state keeper that is used in the external node.
 /// It receives a sequence of actions from the fetcher via the action queue and propagates it
@@ -91,13 +41,14 @@ impl ExternalNodeSealer {
 /// to the one in the mempool IO (which is used in the main node).
 #[derive(Debug)]
 pub struct ExternalIO {
+    miniblock_sealer_handle: MiniblockSealerHandle,
     pool: ConnectionPool,
 
     current_l1_batch_number: L1BatchNumber,
     current_miniblock_number: MiniblockNumber,
     actions: ActionQueue,
     sync_state: SyncState,
-    main_node_url: String,
+    main_node_client: Box<dyn MainNodeClient>,
 
     /// Required to extract newly added tokens.
     l2_erc20_bridge_addr: Address,
@@ -107,11 +58,13 @@ pub struct ExternalIO {
 }
 
 impl ExternalIO {
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
+        miniblock_sealer_handle: MiniblockSealerHandle,
         pool: ConnectionPool,
         actions: ActionQueue,
         sync_state: SyncState,
-        main_node_url: String,
+        main_node_client: Box<dyn MainNodeClient>,
         l2_erc20_bridge_addr: Address,
         validation_computational_gas_limit: u32,
         chain_id: L2ChainId,
@@ -138,88 +91,39 @@ impl ExternalIO {
         sync_state.set_local_block(last_miniblock_number);
 
         Self {
+            miniblock_sealer_handle,
             pool,
             current_l1_batch_number: last_sealed_l1_batch_header.number + 1,
             current_miniblock_number: last_miniblock_number + 1,
             actions,
             sync_state,
-            main_node_url,
+            main_node_client,
             l2_erc20_bridge_addr,
             validation_computational_gas_limit,
             chain_id,
         }
     }
 
-    pub async fn recalculate_miniblock_hashes(&self) {
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
-        let last_blocks: Vec<_> = storage
-            .blocks_dal()
-            .get_last_miniblocks_for_version(5, ProtocolVersionId::Version12)
-            .await
-            .unwrap();
-
-        // All last miniblocks are good that means we have already applied this migrations
-        if last_blocks
-            .into_iter()
-            .all(|(number, hash)| legacy_miniblock_hash(number) == hash)
-        {
-            return;
-        }
-
-        // August 29 2023
-        let timestamp = 1693267200;
-        let mut miniblock_and_hashes = storage
-            .blocks_dal()
-            .get_miniblock_hashes_from_date(timestamp, 1000, ProtocolVersionId::Version12)
-            .await
-            .unwrap();
-
-        let mut updated_hashes = vec![];
-
-        let mut last_miniblock_number = 0;
-        while !miniblock_and_hashes.is_empty() {
-            for (number, hash) in miniblock_and_hashes {
-                if hash != legacy_miniblock_hash(number) {
-                    updated_hashes.push((number, legacy_miniblock_hash(number)))
-                }
-                last_miniblock_number = number.0;
-            }
-            if !updated_hashes.is_empty() {
-                storage
-                    .blocks_dal()
-                    .update_hashes(&updated_hashes)
-                    .await
-                    .unwrap();
-                updated_hashes = vec![];
-            }
-
-            miniblock_and_hashes = storage
-                .blocks_dal()
-                .get_miniblocks_since_block(
-                    last_miniblock_number as i64 + 1,
-                    1000,
-                    ProtocolVersionId::Version12,
-                )
-                .await
-                .unwrap();
-            tracing::info!("Last updated miniblock {}", last_miniblock_number);
-        }
-
-        tracing::info!("Finish the hash recalculation")
-    }
-
     async fn load_previous_l1_batch_hash(&self) -> U256 {
         let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
-
-        let stage_started_at: Instant = Instant::now();
+        let wait_latency = KEEPER_METRICS.wait_for_prev_hash_time.start();
         let (hash, _) =
             extractors::wait_for_prev_l1_batch_params(&mut storage, self.current_l1_batch_number)
                 .await;
-        metrics::histogram!(
-            "server.state_keeper.wait_for_prev_hash_time",
-            stage_started_at.elapsed()
-        );
+        wait_latency.observe();
         hash
+    }
+
+    async fn load_previous_miniblock_hash(&self) -> H256 {
+        let prev_miniblock_number = self.current_miniblock_number - 1;
+        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
+        let header = storage
+            .blocks_dal()
+            .get_miniblock_header(prev_miniblock_number)
+            .await
+            .unwrap()
+            .unwrap_or_else(|| panic!("Miniblock #{prev_miniblock_number} is missing"));
+        header.hash
     }
 
     async fn load_base_system_contracts_by_version_id(
@@ -238,7 +142,9 @@ impl ExternalIO {
         match base_system_contracts {
             Some(version) => version,
             None => {
-                let protocol_version = fetch_protocol_version(&self.main_node_url, id)
+                let protocol_version = self
+                    .main_node_client
+                    .fetch_protocol_version(id)
                     .await
                     .expect("Failed to fetch protocol version from the main node");
                 self.pool
@@ -260,11 +166,9 @@ impl ExternalIO {
                 let bootloader = self
                     .get_base_system_contract(protocol_version.base_system_contracts.bootloader)
                     .await;
-
                 let default_aa = self
                     .get_base_system_contract(protocol_version.base_system_contracts.default_aa)
                     .await;
-
                 BaseSystemContracts {
                     bootloader,
                     default_aa,
@@ -289,9 +193,10 @@ impl ExternalIO {
                 hash,
             },
             None => {
-                let main_node_url = self.main_node_url.clone();
                 tracing::info!("Fetching base system contract bytecode from the main node");
-                let contract = fetch_system_contract_by_hash(&main_node_url, hash)
+                let contract = self
+                    .main_node_client
+                    .fetch_system_contract_by_hash(hash)
                     .await
                     .expect("Failed to fetch base system contract bytecode from the main node");
                 self.pool
@@ -307,6 +212,22 @@ impl ExternalIO {
                 contract
             }
         }
+    }
+}
+
+impl IoSealCriteria for ExternalIO {
+    fn should_seal_l1_batch_unconditionally(&mut self, _manager: &UpdatesManager) -> bool {
+        matches!(
+            self.actions.peek_action(),
+            Some(SyncAction::SealBatch { .. })
+        )
+    }
+
+    fn should_seal_miniblock(&mut self, _manager: &UpdatesManager) -> bool {
+        matches!(
+            self.actions.peek_action(),
+            Some(SyncAction::SealMiniblock(_))
+        )
     }
 }
 
@@ -352,14 +273,13 @@ impl StateKeeperIO for ExternalIO {
             .unwrap()?;
 
         if pending_miniblock_header.protocol_version.is_none() {
-            // Fetch protocol version ID for pending miniblocks to know which VM to use to reexecute them.
-            let sync_block = fetch_sync_block_without_transactions(
-                &self.main_node_url,
-                pending_miniblock_header.number,
-            )
-            .await
-            .expect("Failed to fetch block from the main node")
-            .expect("Block must exist");
+            // Fetch protocol version ID for pending miniblocks to know which VM to use to re-execute them.
+            let sync_block = self
+                .main_node_client
+                .fetch_l2_block(pending_miniblock_header.number, false)
+                .await
+                .expect("Failed to fetch block from the main node")
+                .expect("Block must exist");
             // Loading base system contracts will insert protocol version in the database if it's not present there.
             let _ = self
                 .load_base_system_contracts_by_version_id(sync_block.protocol_version)
@@ -396,15 +316,20 @@ impl StateKeeperIO for ExternalIO {
                     operator_address,
                     protocol_version,
                     first_miniblock_info: (miniblock_number, virtual_blocks),
-                    prev_miniblock_hash,
                 }) => {
                     assert_eq!(
                         number, self.current_l1_batch_number,
                         "Batch number mismatch"
                     );
-                    tracing::info!("Getting previous L1 batch hash");
-                    let previous_l1_batch_hash = self.load_previous_l1_batch_hash().await;
-                    tracing::info!("Previous L1 batch hash: {previous_l1_batch_hash}");
+                    tracing::info!("Getting previous L1 batch hash and miniblock hash");
+                    let (previous_l1_batch_hash, previous_miniblock_hash) = future::join(
+                        self.load_previous_l1_batch_hash(),
+                        self.load_previous_miniblock_hash(),
+                    )
+                    .await;
+                    tracing::info!(
+                        "Previous L1 batch hash: {previous_l1_batch_hash}, previous miniblock hash: {previous_miniblock_hash}"
+                    );
 
                     let base_system_contracts = self
                         .load_base_system_contracts_by_version_id(protocol_version)
@@ -417,7 +342,7 @@ impl StateKeeperIO for ExternalIO {
                         l1_gas_price,
                         l2_fair_gas_price,
                         miniblock_number,
-                        prev_miniblock_hash,
+                        previous_miniblock_hash,
                         base_system_contracts,
                         self.validation_computational_gas_limit,
                         protocol_version,
@@ -442,7 +367,7 @@ impl StateKeeperIO for ExternalIO {
         _prev_miniblock_timestamp: u64,
     ) -> Option<MiniblockParams> {
         // Wait for the next miniblock to appear in the queue.
-        let actions = &self.actions;
+        let actions = &mut self.actions;
         for _ in 0..poll_iters(POLL_INTERVAL, max_wait) {
             match actions.peek_action() {
                 Some(SyncAction::Miniblock {
@@ -460,7 +385,7 @@ impl StateKeeperIO for ExternalIO {
                         virtual_blocks,
                     });
                 }
-                Some(SyncAction::SealBatch { virtual_blocks }) => {
+                Some(SyncAction::SealBatch { virtual_blocks, .. }) => {
                     // We've reached the next batch, so this situation would be handled by the batch sealer.
                     // No need to pop the action from the queue.
                     // It also doesn't matter which timestamp we return, since there will be no more miniblocks in this
@@ -486,7 +411,7 @@ impl StateKeeperIO for ExternalIO {
     }
 
     async fn wait_for_next_tx(&mut self, max_wait: Duration) -> Option<Transaction> {
-        let actions = &self.actions;
+        let actions = &mut self.actions;
         tracing::debug!(
             "Waiting for the new tx, next action is {:?}",
             actions.peek_action()
@@ -526,64 +451,25 @@ impl StateKeeperIO for ExternalIO {
     }
 
     async fn seal_miniblock(&mut self, updates_manager: &UpdatesManager) {
-        match self.actions.pop_action() {
-            Some(SyncAction::SealMiniblock) => {}
-            other => panic!(
-                "State keeper requested to seal miniblock, but the next action is {:?}",
-                other
-            ),
+        let action = self.actions.pop_action();
+        let Some(SyncAction::SealMiniblock(consensus)) = action else {
+            panic!("State keeper requested to seal miniblock, but the next action is {action:?}");
         };
-
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
-        let mut transaction = storage.start_transaction().await.unwrap();
-
-        let start = Instant::now();
-        // We don't store the transactions in the database until they're executed to not overcomplicate the state
-        // recovery on restart. So we have to store them here.
-        for tx in updates_manager.miniblock.executed_transactions.iter() {
-            if let Ok(l1_tx) = L1Tx::try_from(tx.transaction.clone()) {
-                let l1_block_number = L1BlockNumber(l1_tx.common_data.eth_block as u32);
-
-                transaction
-                    .transactions_dal()
-                    .insert_transaction_l1(l1_tx, l1_block_number)
-                    .await;
-            } else if let Ok(l2_tx) = L2Tx::try_from(tx.transaction.clone()) {
-                // Using `Default` for execution metrics should be OK here, since this data is not used on the EN.
-                transaction
-                    .transactions_dal()
-                    .insert_transaction_l2(l2_tx, Default::default())
-                    .await;
-            } else if let Ok(protocol_system_upgrade_tx) =
-                ProtocolUpgradeTx::try_from(tx.transaction.clone())
-            {
-                transaction
-                    .transactions_dal()
-                    .insert_system_transaction(protocol_system_upgrade_tx)
-                    .await;
-            } else {
-                unreachable!("Transaction {:?} is neither L1 nor L2", tx.transaction);
-            }
-        }
-        metrics::histogram!(
-            "server.state_keeper.l1_batch.sealed_time_stage",
-            start.elapsed(),
-            "stage" => "external_node_store_transactions"
-        );
 
         // Now transactions are stored, and we may mark them as executed.
         let command = updates_manager.seal_miniblock_command(
             self.current_l1_batch_number,
             self.current_miniblock_number,
             self.l2_erc20_bridge_addr,
+            consensus,
+            true,
         );
-        command.seal(&mut transaction).await;
-        transaction.commit().await.unwrap();
+        self.miniblock_sealer_handle.submit(command).await;
 
         self.sync_state
             .set_local_block(self.current_miniblock_number);
-        self.current_miniblock_number += 1;
         tracing::info!("Miniblock {} is sealed", self.current_miniblock_number);
+        self.current_miniblock_number += 1;
     }
 
     async fn seal_l1_batch(
@@ -594,33 +480,37 @@ impl StateKeeperIO for ExternalIO {
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,
     ) -> anyhow::Result<()> {
-        match self.actions.pop_action() {
-            Some(SyncAction::SealBatch { .. }) => {}
-            other => anyhow::bail!(
-                "State keeper requested to seal the batch, but the next action is {other:?}"
-            ),
+        let action = self.actions.pop_action();
+        let Some(SyncAction::SealBatch { consensus, .. }) = action else {
+            anyhow::bail!(
+                "State keeper requested to seal the batch, but the next action is {action:?}"
+            );
         };
 
+        // We cannot start sealing an L1 batch until we've sealed all miniblocks included in it.
+        self.miniblock_sealer_handle.wait_for_all_commands().await;
+
         let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
+        let mut transaction = storage.start_transaction().await.unwrap();
         updates_manager
             .seal_l1_batch(
-                &mut storage,
+                &mut transaction,
                 self.current_miniblock_number,
                 l1_batch_env,
                 finished_batch,
                 self.l2_erc20_bridge_addr,
+                consensus,
             )
             .await;
+        transaction.commit().await.unwrap();
 
         tracing::info!("Batch {} is sealed", self.current_l1_batch_number);
 
-        // Mimic the metric emitted by the main node to reuse existing grafana charts.
-        metrics::gauge!(
-            "server.block_number",
-            self.current_l1_batch_number.0 as f64,
-            "stage" =>  "sealed"
-        );
+        // Mimic the metric emitted by the main node to reuse existing Grafana charts.
+        APP_METRICS.block_number[&BlockStage::Sealed].set(self.current_l1_batch_number.0.into());
 
+        self.sync_state
+            .set_local_block(self.current_miniblock_number);
         self.current_miniblock_number += 1; // Due to fictive miniblock being sealed.
         self.current_l1_batch_number += 1;
         Ok(())

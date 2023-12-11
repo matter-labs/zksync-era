@@ -1,6 +1,6 @@
-use sqlx::postgres::types::PgInterval;
-use sqlx::types::chrono::NaiveTime;
 use std::time::Duration;
+
+use sqlx::{postgres::types::PgInterval, types::chrono::NaiveTime};
 
 pub fn duration_to_naive_time(duration: Duration) -> NaiveTime {
     let total_seconds = duration.as_secs() as u32;
@@ -12,7 +12,7 @@ pub fn duration_to_naive_time(duration: Duration) -> NaiveTime {
     .unwrap()
 }
 
-pub fn pg_interval_from_duration(processing_timeout: Duration) -> PgInterval {
+pub const fn pg_interval_from_duration(processing_timeout: Duration) -> PgInterval {
     PgInterval {
         months: 0,
         days: 0,

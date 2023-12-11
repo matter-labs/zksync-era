@@ -1,27 +1,23 @@
 //! Helper module to submit transactions into the zkSync Network.
 
-// External uses
+use std::{cmp, num::NonZeroU32, sync::Arc, time::Instant};
+
 use governor::{
     clock::MonotonicClock,
     middleware::NoOpMiddleware,
     state::{InMemoryState, NotKeyed},
     Quota, RateLimiter,
 };
-
-// Built-in uses
-use std::{cmp, num::NonZeroU32, sync::Arc, time::Instant};
-
-// Workspace uses
-
-use vm::{
-    constants::{BLOCK_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK},
-    utils::{
-        fee::derive_base_fee_and_gas_per_pubdata,
-        overhead::{derive_overhead, OverheadCoeficients},
+use multivm::{
+    interface::VmExecutionResultAndLogs,
+    vm_latest::{
+        constants::{BLOCK_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK},
+        utils::{
+            fee::derive_base_fee_and_gas_per_pubdata,
+            overhead::{derive_overhead, OverheadCoefficients},
+        },
     },
-    VmExecutionResultAndLogs,
 };
-
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
@@ -29,33 +25,31 @@ use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     fee::{Fee, TransactionExecutionMetrics},
     get_code_key, get_intrinsic_constants,
-    l2::error::TxCheckError::TxDuplication,
-    l2::L2Tx,
+    l2::{error::TxCheckError::TxDuplication, L2Tx},
     utils::storage_key_for_eth_balance,
     AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, Nonce, PackedEthSignature,
     ProtocolVersionId, Transaction, H160, H256, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT,
     MAX_NEW_FACTORY_DEPS, U256,
 };
-
 use zksync_utils::h256_to_u256;
 
-// Local uses
-use crate::api_server::{
-    execution_sandbox::{
-        adjust_l1_gas_price_for_tx, execute_tx_eth_call, execute_tx_with_pending_state,
-        get_pubdata_for_factory_deps, BlockArgs, TxExecutionArgs, TxSharedArgs,
-        VmConcurrencyLimiter, VmPermit,
+pub(super) use self::{proxy::TxProxy, result::SubmitTxError};
+use crate::{
+    api_server::{
+        execution_sandbox::{
+            adjust_l1_gas_price_for_tx, execute_tx_eth_call, execute_tx_with_pending_state,
+            get_pubdata_for_factory_deps, BlockArgs, SubmitTxStage, TxExecutionArgs, TxSharedArgs,
+            VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
+        },
+        tx_sender::result::ApiCallResult,
     },
-    tx_sender::result::ApiCallResult,
+    l1_gas_price::L1GasPriceProvider,
+    metrics::{TxStage, APP_METRICS},
+    state_keeper::seal_criteria::{ConditionalSealer, SealData},
 };
-
-use crate::l1_gas_price::L1GasPriceProvider;
-use crate::state_keeper::seal_criteria::{ConditionalSealer, SealData};
 
 mod proxy;
 mod result;
-
-pub(super) use self::{proxy::TxProxy, result::SubmitTxError};
 
 /// Type alias for the rate limiter implementation.
 type TxSenderRateLimiter =
@@ -69,6 +63,8 @@ pub struct MultiVMBaseSystemContracts {
     pub(crate) post_virtual_blocks: BaseSystemContracts,
     /// Contracts to be used for protocol versions after virtual block upgrade fix.
     pub(crate) post_virtual_blocks_finish_upgrade_fix: BaseSystemContracts,
+    /// Contracts to be used for post-boojum protocol versions.
+    pub(crate) post_boojum: BaseSystemContracts,
 }
 
 impl MultiVMBaseSystemContracts {
@@ -92,6 +88,7 @@ impl MultiVMBaseSystemContracts {
             | ProtocolVersionId::Version15
             | ProtocolVersionId::Version16
             | ProtocolVersionId::Version17 => self.post_virtual_blocks_finish_upgrade_fix,
+            ProtocolVersionId::Version18 | ProtocolVersionId::Version19 => self.post_boojum,
         }
     }
 }
@@ -106,7 +103,7 @@ pub struct ApiContracts {
     pub(crate) estimate_gas: MultiVMBaseSystemContracts,
     /// Contracts to be used when performing `eth_call` requests.
     /// These contracts (mainly, bootloader) normally should be tuned to provide better UX
-    /// exeprience (e.g. revert messages).
+    /// experience (e.g. revert messages).
     pub(crate) eth_call: MultiVMBaseSystemContracts,
 }
 
@@ -121,12 +118,14 @@ impl ApiContracts {
                 post_virtual_blocks: BaseSystemContracts::estimate_gas_post_virtual_blocks(),
                 post_virtual_blocks_finish_upgrade_fix:
                     BaseSystemContracts::estimate_gas_post_virtual_blocks_finish_upgrade_fix(),
+                post_boojum: BaseSystemContracts::estimate_gas_post_boojum(),
             },
             eth_call: MultiVMBaseSystemContracts {
                 pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
                 post_virtual_blocks: BaseSystemContracts::playground_post_virtual_blocks(),
                 post_virtual_blocks_finish_upgrade_fix:
                     BaseSystemContracts::playground_post_virtual_blocks_finish_upgrade_fix(),
+                post_boojum: BaseSystemContracts::playground_post_boojum(),
             },
         }
     }
@@ -228,8 +227,6 @@ pub struct TxSenderConfig {
     pub fair_l2_gas_price: u64,
     pub vm_execution_cache_misses_limit: Option<usize>,
     pub validation_computational_gas_limit: u32,
-    pub default_aa: H256,
-    pub bootloader: H256,
     pub chain_id: L2ChainId,
 }
 
@@ -248,8 +245,6 @@ impl TxSenderConfig {
             vm_execution_cache_misses_limit: web3_json_config.vm_execution_cache_misses_limit,
             validation_computational_gas_limit: state_keeper_config
                 .validation_computational_gas_limit,
-            default_aa: state_keeper_config.default_aa_hash,
-            bootloader: state_keeper_config.bootloader_hash,
             chain_id,
         }
     }
@@ -310,11 +305,11 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             }
         }
 
-        let mut stage_started_at = Instant::now();
+        let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::Validate].start();
         self.validate_tx(&tx).await?;
-        metrics::histogram!("api.web3.submit_tx", stage_started_at.elapsed(), "stage" => "1_validate");
-        stage_started_at = Instant::now();
+        stage_latency.observe();
 
+        let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::DryRun].start();
         let shared_args = self.shared_args();
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
@@ -333,9 +328,9 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             tx.hash(),
             tx_metrics
         );
-        metrics::histogram!("api.web3.submit_tx", stage_started_at.elapsed(), "stage" => "2_dry_run");
-        stage_started_at = Instant::now();
+        stage_latency.observe();
 
+        let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::VerifyExecute].start();
         let computational_gas_limit = self.0.sender_config.validation_computational_gas_limit;
         let validation_result = shared_args
             .validate_tx_with_pending_state(
@@ -345,14 +340,13 @@ impl<G: L1GasPriceProvider> TxSender<G> {
                 computational_gas_limit,
             )
             .await;
-
-        metrics::histogram!("api.web3.submit_tx", stage_started_at.elapsed(), "stage" => "3_verify_execute");
-        stage_started_at = Instant::now();
+        stage_latency.observe();
 
         if let Err(err) = validation_result {
             return Err(err.into());
         }
 
+        let stage_started_at = Instant::now();
         self.ensure_tx_executable(tx.clone().into(), &tx_metrics, true)?;
 
         if let Some(proxy) = &self.0.proxy {
@@ -365,8 +359,8 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             // since we don't want to store txs that might have been replaced or otherwise removed
             // from the mempool.
             proxy.forget_tx(tx.hash()).await;
-            metrics::histogram!("api.web3.submit_tx", stage_started_at.elapsed(), "stage" => "4_tx_proxy");
-            metrics::counter!("server.processed_txs", 1, "stage" => "proxied");
+            SANDBOX_METRICS.submit_tx[&SubmitTxStage::TxProxy].observe(stage_started_at.elapsed());
+            APP_METRICS.processed_txs[&TxStage::Proxied].inc();
             return Ok(L2TxSubmissionResult::Proxied);
         } else {
             assert!(
@@ -390,37 +384,21 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             .insert_transaction_l2(tx, tx_metrics)
             .await;
 
-        let status: String;
-        let submission_result = match submission_res_handle {
-            L2TxSubmissionResult::AlreadyExecuted => {
-                status = "already_executed".to_string();
-                Err(SubmitTxError::NonceIsTooLow(
-                    expected_nonce.0,
-                    expected_nonce.0 + self.0.sender_config.max_nonce_ahead,
-                    nonce,
-                ))
-            }
-            L2TxSubmissionResult::Duplicate => {
-                status = "duplicated".to_string();
-                Err(SubmitTxError::IncorrectTx(TxDuplication(hash)))
-            }
+        APP_METRICS.processed_txs[&TxStage::Mempool(submission_res_handle)].inc();
+
+        match submission_res_handle {
+            L2TxSubmissionResult::AlreadyExecuted => Err(SubmitTxError::NonceIsTooLow(
+                expected_nonce.0,
+                expected_nonce.0 + self.0.sender_config.max_nonce_ahead,
+                nonce,
+            )),
+            L2TxSubmissionResult::Duplicate => Err(SubmitTxError::IncorrectTx(TxDuplication(hash))),
             _ => {
-                metrics::histogram!("api.web3.submit_tx", stage_started_at.elapsed(), "stage" => "4_db_insert");
-                status = format!(
-                    "mempool_{}",
-                    submission_res_handle.to_string().to_lowercase()
-                );
+                SANDBOX_METRICS.submit_tx[&SubmitTxStage::DbInsert]
+                    .observe(stage_started_at.elapsed());
                 Ok(submission_res_handle)
             }
-        };
-
-        metrics::counter!(
-            "server.processed_txs",
-            1,
-            "stage" => status
-        );
-
-        submission_result
+        }
     }
 
     fn shared_args(&self) -> TxSharedArgs {
@@ -614,7 +592,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
                 tx_gas_limit,
                 gas_per_pubdata_byte as u32,
                 tx.encoding_len(),
-                OverheadCoeficients::from_tx_type(tx.tx_format() as u8),
+                OverheadCoefficients::from_tx_type(tx.tx_format() as u8),
             );
 
         match &mut tx.common_data {
@@ -818,10 +796,9 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             );
             number_of_iterations += 1;
         }
-        metrics::histogram!(
-            "api.web3.estimate_gas_binary_search_iterations",
-            number_of_iterations as f64
-        );
+        SANDBOX_METRICS
+            .estimate_gas_binary_search_iterations
+            .observe(number_of_iterations);
 
         let tx_body_gas_limit = cmp::min(
             MAX_L2_TX_GAS_LIMIT as u32,
@@ -847,7 +824,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             suggested_gas_limit,
             gas_per_pubdata_byte as u32,
             tx.encoding_len(),
-            OverheadCoeficients::from_tx_type(tx.tx_format() as u8),
+            OverheadCoefficients::from_tx_type(tx.tx_format() as u8),
         );
 
         let full_gas_limit =
@@ -922,8 +899,14 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             H256::zero()
         };
 
-        let seal_data = SealData::for_transaction(transaction, tx_metrics);
-        if let Some(reason) = ConditionalSealer::find_unexecutable_reason(sk_config, &seal_data) {
+        // Using `ProtocolVersionId::latest()` for a short period we might end up in a scenario where the StateKeeper is still pre-boojum
+        // but the API assumes we are post boojum. In this situation we will determine a tx as being executable but the StateKeeper will
+        // still reject them as it's not.
+        let protocol_version = ProtocolVersionId::latest();
+        let seal_data = SealData::for_transaction(transaction, tx_metrics, protocol_version);
+        if let Some(reason) =
+            ConditionalSealer::find_unexecutable_reason(sk_config, &seal_data, protocol_version)
+        {
             let message = format!(
                 "Tx is Unexecutable because of {reason}; inputs for decision: {seal_data:?}"
             );

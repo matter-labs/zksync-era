@@ -1,11 +1,11 @@
-use crate::web3::signing::keccak256;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::tx::primitives::eip712_signature::struct_builder::{
-    EncodeBuilder, StructBuilder, TypeBuilder,
+use crate::{
+    tx::primitives::eip712_signature::struct_builder::{EncodeBuilder, StructBuilder, TypeBuilder},
+    web3::signing::keccak256,
+    L2ChainId, H256, U256,
 };
-use crate::{L2ChainId, H256, U256};
 
 #[derive(Debug, Clone)]
 pub struct EncodedStructureMember {
@@ -29,7 +29,7 @@ impl EncodedStructureMember {
         }
     }
 
-    /// Encodes the structure as `name ‖ "(" ‖ member₁ ‖ "," ‖ member₂ ‖ "," ‖ … ‖ memberₙ ")".
+    /// Encodes the structure as `name ‖ "(" ‖ member₁ ‖ "," ‖ member₂ ‖ "," ‖ … ‖ memberₙ ")"`.
     pub fn get_encoded_type(&self) -> String {
         let mut encoded_type = String::new();
         encoded_type.push_str(&self.member_type);

@@ -1,34 +1,36 @@
-use tokio::sync::watch;
-
 use std::sync::Arc;
 
+use tokio::sync::watch;
 use zksync_config::{
     configs::chain::{MempoolConfig, NetworkConfig, StateKeeperConfig},
-    constants::MAX_TXS_IN_BLOCK,
     ContractsConfig, DBConfig,
 };
 use zksync_dal::ConnectionPool;
+use zksync_object_store::ObjectStore;
+use zksync_system_constants::MAX_TXS_IN_BLOCK;
+
+use self::io::MempoolIO;
+pub use self::{
+    batch_executor::{L1BatchExecutorBuilder, MainBatchExecutorBuilder},
+    io::{MiniblockSealer, MiniblockSealerHandle},
+    keeper::ZkSyncStateKeeper,
+};
+pub(crate) use self::{
+    mempool_actor::MempoolFetcher, seal_criteria::ConditionalSealer, types::MempoolGuard,
+};
+use crate::l1_gas_price::L1GasPriceProvider;
 
 mod batch_executor;
 pub(crate) mod extractors;
 pub(crate) mod io;
 mod keeper;
 mod mempool_actor;
+pub(crate) mod metrics;
 pub(crate) mod seal_criteria;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 pub(crate) mod types;
 pub(crate) mod updates;
-
-pub use self::{
-    batch_executor::{L1BatchExecutorBuilder, MainBatchExecutorBuilder},
-    keeper::ZkSyncStateKeeper,
-    seal_criteria::SealManager,
-};
-pub(crate) use self::{io::MiniblockSealer, mempool_actor::MempoolFetcher, types::MempoolGuard};
-
-use self::io::{MempoolIO, MiniblockSealerHandle};
-use crate::l1_gas_price::L1GasPriceProvider;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn create_state_keeper<G>(
@@ -41,6 +43,7 @@ pub(crate) async fn create_state_keeper<G>(
     mempool: MempoolGuard,
     l1_gas_price_provider: Arc<G>,
     miniblock_sealer_handle: MiniblockSealerHandle,
+    object_store: Box<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
 ) -> ZkSyncStateKeeper
 where
@@ -64,6 +67,7 @@ where
 
     let io = MempoolIO::new(
         mempool,
+        object_store,
         miniblock_sealer_handle,
         l1_gas_price_provider,
         pool,
@@ -75,7 +79,7 @@ where
     )
     .await;
 
-    let sealer = SealManager::new(state_keeper_config);
+    let sealer = ConditionalSealer::new(state_keeper_config);
     ZkSyncStateKeeper::new(
         stop_receiver,
         Box::new(io),

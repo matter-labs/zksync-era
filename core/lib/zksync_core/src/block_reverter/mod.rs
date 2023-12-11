@@ -1,27 +1,26 @@
+use std::{path::Path, time::Duration};
+
 use bitflags::bitflags;
 use serde::Serialize;
 use tokio::time::sleep;
-
-use std::path::Path;
-use std::time::Duration;
-
 use zksync_config::{ContractsConfig, ETHSenderConfig};
 use zksync_contracts::zksync_contract;
 use zksync_dal::ConnectionPool;
+use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_state::RocksdbStorage;
 use zksync_storage::RocksDB;
-use zksync_types::aggregated_operations::AggregatedActionType;
-use zksync_types::ethabi::Token;
-use zksync_types::web3::{
-    contract::{Contract, Options},
-    transports::Http,
-    types::{BlockId, BlockNumber},
-    Web3,
+use zksync_types::{
+    aggregated_operations::AggregatedActionType,
+    ethabi::Token,
+    web3::{
+        contract::{Contract, Options},
+        transports::Http,
+        types::{BlockId, BlockNumber},
+        Web3,
+    },
+    L1BatchNumber, PackedEthSignature, H160, H256, U256,
 };
-use zksync_types::{L1BatchNumber, PackedEthSignature, H160, H256, U256};
-
-use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
 
 bitflags! {
     pub struct BlockReverterFlags: u32 {
@@ -190,7 +189,7 @@ impl BlockReverter {
         path: &Path,
         storage_root_hash: H256,
     ) {
-        let db = RocksDB::new(path, true);
+        let db = RocksDB::new(path);
         let mut tree = ZkSyncTree::new_lightweight(db);
 
         if tree.next_l1_batch_number() <= last_l1_batch_to_keep {
@@ -300,9 +299,13 @@ impl BlockReverter {
         let signer = PrivateKeySigner::new(eth_config.reverter_private_key);
         let chain_id = web3.eth().chain_id().await.unwrap().as_u64();
 
-        let data = contract
+        let revert_function = contract
             .function("revertBlocks")
-            .unwrap()
+            .or_else(|_| contract.function("revertBatches"))
+            .expect(
+                "Either `revertBlocks` or `revertBatches` function must be present in contract",
+            );
+        let data = revert_function
             .encode_input(&[Token::Uint(last_l1_batch_to_keep.0.into())])
             .unwrap();
 
@@ -347,9 +350,9 @@ impl BlockReverter {
 
     async fn get_l1_batch_number_from_contract(&self, op: AggregatedActionType) -> L1BatchNumber {
         let function_name = match op {
-            AggregatedActionType::Commit => "getTotalBlocksCommitted",
-            AggregatedActionType::PublishProofOnchain => "getTotalBlocksVerified",
-            AggregatedActionType::Execute => "getTotalBlocksExecuted",
+            AggregatedActionType::Commit => "getTotalBatchesCommitted",
+            AggregatedActionType::PublishProofOnchain => "getTotalBatchesVerified",
+            AggregatedActionType::Execute => "getTotalBatchesExecuted",
         };
         let eth_config = self
             .eth_config
@@ -418,7 +421,8 @@ impl BlockReverter {
             .unwrap()
             .eth_sender_dal()
             .clear_failed_transactions()
-            .await;
+            .await
+            .unwrap();
     }
 
     pub fn change_rollback_executed_l1_batches_allowance(

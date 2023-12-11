@@ -2,15 +2,15 @@
 
 ## Overview
 
-As we are a rollup - all the bytecodes that contracts use in our chain must be copied into L1 (so that the chain can be
+As we are a rollup - all the bytecodes that contracts used in our chain must be copied into L1 (so that the chain can be
 reconstructed from L1 if needed).
 
 Given the want/need to cutdown on space used, bytecode is compressed prior to being posted to L1. At a high level
 bytecode is chunked into opcodes (which have a size of 8 bytes), assigned a 2 byte index, and the newly formed byte
 sequence (indexes) are verified and sent to L1. This process is split into 2 different parts: (1)
-[the server side operator](https://github.com/matter-labs/zksync-2-dev/blob/main/core/lib/utils/src/bytecode.rs#L31)
+[the server side operator](https://github.com/matter-labs/zksync-era/blob/main/core/lib/utils/src/bytecode.rs#L31)
 handling the compression and (2)
-[the system contract](https://github.com/matter-labs/system-contracts/blob/main/contracts/BytecodeCompressor.sol)
+[the system contract](https://github.com/matter-labs/era-system-contracts/blob/main/contracts/BytecodeCompressor.sol)
 verifying that the compression is correct before sending to L1.
 
 ## Example
@@ -31,7 +31,7 @@ Dictionary would be:
 3 -> 0xC (count: 1)
 ```
 
-Note that '1' maps to '0xD', as it occurs twice, and first occurence is earlier than first occurence of 0xB, that also
+Note that '1' maps to '0xD', as it occurs twice, and first occurrence is earlier than first occurence of 0xB, that also
 occurs twice.
 
 Compressed bytecode:
@@ -55,7 +55,7 @@ For bytecode to be considered valid it must satisfy the following:
 2. Bytecode length must be a multiple of 32.
 3. Number of words cannot be even.
 
-[Source](https://github.com/matter-labs/zksync-2-dev/blob/ec4037ca0d9dc148eda3ca9e04380302574e03d8/core/lib/utils/src/bytecode.rs#L133)
+[Source](https://github.com/matter-labs/zksync-era/blob/main/core/lib/utils/src/bytecode.rs#L133)
 
 ### Compression Algorithm
 
@@ -90,7 +90,8 @@ return [len(dictionary), dictionary.keys(order=index asc), encoded_data]
 
 ## System Contract Compression Verification & Publishing
 
-The [Bytecode Compressor](https://github.com/matter-labs/system-contracts/blob/main/contracts/BytecodeCompressor.sol)
+The
+[Bytecode Compressor](https://github.com/matter-labs/era-system-contracts/blob/main/contracts/BytecodeCompressor.sol)
 contract performs validation on the compressed bytecode generated on the server side. At the current moment, publishing
 bytecode to L1 may only be called by the bootloader but in the future anyone will be able to publish compressed bytecode
 with no change to the underlying algorithm.
@@ -98,10 +99,10 @@ with no change to the underlying algorithm.
 ### Verification & Publication
 
 The function `publishCompressBytecode` takes in both the original `_bytecode` and the `_rawCompressedData` , the latter
-of which comes from the output of the server’s compression algorithm. Looping over the encoded data, derived from
-`_rawCompressedData` , the corresponding chunks are pulled from the dictionary and compared to the original byte code,
-reverting if there is a mismatch. After the encoded data has been verified, it is published to L1 and marked accordingly
-within the `KnownCodesStorage` contract.
+of which comes from the server’s compression algorithm output. Looping over the encoded data, derived from
+`_rawCompressedData` , the corresponding chunks are retrieved from the dictionary and compared to the original byte
+code, reverting if there is a mismatch. After the encoded data has been verified, it is published to L1 and marked
+accordingly within the `KnownCodesStorage` contract.
 
 Pseudo-code implementation:
 

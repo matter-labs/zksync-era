@@ -15,11 +15,9 @@ use std::{
 
 use async_trait::async_trait;
 use tokio::sync::watch;
-
 use zksync_config::{configs::fetcher::TokenListSource, FetcherConfig};
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_types::network::Network;
-use zksync_types::{tokens::TokenMetadata, Address};
+use zksync_types::{network::Network, tokens::TokenMetadata, Address};
 
 use super::error::{ApiFetchError, ErrorAnalyzer};
 

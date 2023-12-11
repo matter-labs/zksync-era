@@ -1,15 +1,16 @@
+#![cfg_attr(not(feature = "gpu"), allow(unused_imports))]
+
+use std::{env, fs::File};
+
 use anyhow::Context as _;
-use api::Prover;
-use prover_service::utils::generate_setup_for_circuit;
-use prover_service::Setup;
-use std::env;
-use std::fs::File;
 use structopt::StructOpt;
-use zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
-use zkevm_test_harness::bellman::bn256::Bn256;
-use zkevm_test_harness::witness::oracle::VmWitnessOracle;
+use zkevm_test_harness::{
+    abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit, bellman::bn256::Bn256,
+    witness::oracle::VmWitnessOracle,
+};
 use zksync_setup_key_server::{get_circuits_for_vk, get_setup_key_write_file_path};
 
+#[cfg(feature = "gpu")]
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "Generate setup keys for individual circuit",
@@ -21,6 +22,12 @@ struct Opt {
     numeric_circuit: u8,
 }
 
+#[cfg(not(feature = "gpu"))]
+fn main() {
+    unimplemented!("This binary is only available with `gpu` feature enabled");
+}
+
+#[cfg(feature = "gpu")]
 fn main() -> anyhow::Result<()> {
     let opt = Opt::from_args();
     env::set_var("CRS_FILE", "setup_2^26.key");
@@ -33,8 +40,11 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "gpu")]
 fn generate_setup_key_for_circuit(circuit: ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>) {
-    let mut prover = Prover::new();
+    use prover_service::utils::generate_setup_for_circuit;
+
+    let mut prover = api::Prover::new();
     let setup = generate_setup_for_circuit(&mut prover, &circuit);
     save_setup_for_circuit_type(circuit.numeric_circuit_type(), setup);
     tracing::info!(
@@ -44,7 +54,8 @@ fn generate_setup_key_for_circuit(circuit: ZkSyncCircuit<Bn256, VmWitnessOracle<
     );
 }
 
-fn save_setup_for_circuit_type(circuit_type: u8, setup: Setup) {
+#[cfg(feature = "gpu")]
+fn save_setup_for_circuit_type(circuit_type: u8, setup: prover_service::Setup) {
     let filepath = get_setup_key_write_file_path(circuit_type);
     tracing::info!("saving setup key to: {}", filepath);
     let setup_file = File::create(&filepath).unwrap();

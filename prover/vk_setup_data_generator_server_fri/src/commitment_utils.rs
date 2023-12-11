@@ -1,16 +1,22 @@
-use crate::get_recursive_layer_vk_for_circuit_type;
-use crate::utils::get_leaf_vk_params;
+use std::str::FromStr;
+
 use anyhow::Context as _;
 use once_cell::sync::Lazy;
-use std::str::FromStr;
 use structopt::lazy_static::lazy_static;
 use zkevm_test_harness::witness::recursive_aggregation::{
     compute_leaf_vks_and_params_commitment, compute_node_vk_commitment,
 };
-use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::GoldilocksField;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType;
-use zksync_types::protocol_version::{L1VerifierConfig, VerifierParams};
-use zksync_types::H256;
+use zksync_prover_fri_types::circuit_definitions::{
+    boojum::field::goldilocks::GoldilocksField,
+    circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
+};
+use zksync_types::{
+    protocol_version::{L1VerifierConfig, VerifierParams},
+    H256,
+};
+
+use crate::{get_recursive_layer_vk_for_circuit_type, utils::get_leaf_vk_params};
+
 lazy_static! {
     // TODO: do not initialize a static const with data read in runtime.
     static ref COMMITMENTS: Lazy<L1VerifierConfig> = Lazy::new(|| { circuit_commitments().unwrap() });
@@ -24,6 +30,8 @@ pub struct VkCommitments {
 
 fn circuit_commitments() -> anyhow::Result<L1VerifierConfig> {
     let commitments = generate_commitments().context("generate_commitments()")?;
+    let snark_wrapper_vk = std::env::var("CONTRACTS_SNARK_WRAPPER_VK_HASH")
+        .context("SNARK wrapper VK not found in the config")?;
     Ok(L1VerifierConfig {
         params: VerifierParams {
             recursion_node_level_vk_hash: H256::from_str(&commitments.node)
@@ -33,14 +41,21 @@ fn circuit_commitments() -> anyhow::Result<L1VerifierConfig> {
             // The base layer commitment is not used in the FRI prover verification.
             recursion_circuits_set_vks_hash: H256::zero(),
         },
-        recursion_scheduler_level_vk_hash: H256::from_str(&commitments.scheduler)
-            .context("invalid scheduler commitment")?,
+        // Instead of loading the FRI scheduler verification key here,
+        // we load the SNARK-wrapper verification key.
+        // This is due to the fact that these keys are used only for picking the
+        // prover jobs / witgen jobs from the DB. The keys are matched with the ones in
+        // `prover_protocol_versions` table, which has the SNARK-wrapper verification key.
+        // This is OK because if the FRI VK changes, the SNARK-wrapper VK will change as well.
+        // You can actually compute the SNARK-wrapper VK from the FRI VK, but this is not yet
+        // implemented in the `zkevm_test_harness`, so instead we're loading it from the env.
+        recursion_scheduler_level_vk_hash: H256::from_str(&snark_wrapper_vk)
+            .context("invalid SNARK wrapper VK")?,
     })
 }
 
 pub fn generate_commitments() -> anyhow::Result<VkCommitments> {
-    let leaf_vk_params = get_leaf_vk_params()
-        .context("get_leaf_vk_params()")?;
+    let leaf_vk_params = get_leaf_vk_params().context("get_leaf_vk_params()")?;
     let leaf_layer_params = leaf_vk_params
         .iter()
         .map(|el| el.1.clone())
@@ -51,12 +66,14 @@ pub fn generate_commitments() -> anyhow::Result<VkCommitments> {
 
     let node_vk = get_recursive_layer_vk_for_circuit_type(
         ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
-    ).context("get_recursive_layer_vk_for_circuit_type(NodeLayerCircuit)")?;
+    )
+    .context("get_recursive_layer_vk_for_circuit_type(NodeLayerCircuit)")?;
     let node_vk_commitment = compute_node_vk_commitment(node_vk.clone());
 
     let scheduler_vk = get_recursive_layer_vk_for_circuit_type(
         ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
-    ).context("get_recursive_layer_vk_for_circuit_type(SchedulerCircuit)")?;
+    )
+    .context("get_recursive_layer_vk_for_circuit_type(SchedulerCircuit)")?;
     let scheduler_vk_commitment = compute_node_vk_commitment(scheduler_vk.clone());
 
     let hex_concatenator = |hex_array: [GoldilocksField; 4]| {
@@ -88,6 +105,7 @@ pub fn generate_commitments() -> anyhow::Result<VkCommitments> {
 }
 
 pub fn get_cached_commitments() -> L1VerifierConfig {
+    tracing::info!("Using cached commitments {:?}", **COMMITMENTS);
     **COMMITMENTS
 }
 

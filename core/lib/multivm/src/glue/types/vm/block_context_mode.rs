@@ -1,10 +1,11 @@
-use crate::glue::GlueFrom;
 use zksync_utils::h256_to_u256;
 
-impl GlueFrom<vm_latest::L1BatchEnv> for vm_m5::vm_with_bootloader::BlockContextMode {
-    fn glue_from(value: vm_latest::L1BatchEnv) -> Self {
-        let derived = vm_m5::vm_with_bootloader::DerivedBlockContext {
-            context: vm_m5::vm_with_bootloader::BlockContext {
+use crate::glue::GlueFrom;
+
+impl GlueFrom<crate::interface::L1BatchEnv> for crate::vm_m5::vm_with_bootloader::BlockContextMode {
+    fn glue_from(value: crate::interface::L1BatchEnv) -> Self {
+        let derived = crate::vm_m5::vm_with_bootloader::DerivedBlockContext {
+            context: crate::vm_m5::vm_with_bootloader::BlockContext {
                 block_number: value.number.0,
                 block_timestamp: value.timestamp,
                 operator_address: value.fee_account,
@@ -20,10 +21,10 @@ impl GlueFrom<vm_latest::L1BatchEnv> for vm_m5::vm_with_bootloader::BlockContext
     }
 }
 
-impl GlueFrom<vm_latest::L1BatchEnv> for vm_m6::vm_with_bootloader::BlockContextMode {
-    fn glue_from(value: vm_latest::L1BatchEnv) -> Self {
-        let derived = vm_m6::vm_with_bootloader::DerivedBlockContext {
-            context: vm_m6::vm_with_bootloader::BlockContext {
+impl GlueFrom<crate::interface::L1BatchEnv> for crate::vm_m6::vm_with_bootloader::BlockContextMode {
+    fn glue_from(value: crate::interface::L1BatchEnv) -> Self {
+        let derived = crate::vm_m6::vm_with_bootloader::DerivedBlockContext {
+            context: crate::vm_m6::vm_with_bootloader::BlockContext {
                 block_number: value.number.0,
                 block_timestamp: value.timestamp,
                 operator_address: value.fee_account,
@@ -39,10 +40,12 @@ impl GlueFrom<vm_latest::L1BatchEnv> for vm_m6::vm_with_bootloader::BlockContext
     }
 }
 
-impl GlueFrom<vm_latest::L1BatchEnv> for vm_1_3_2::vm_with_bootloader::BlockContextMode {
-    fn glue_from(value: vm_latest::L1BatchEnv) -> Self {
-        let derived = vm_1_3_2::vm_with_bootloader::DerivedBlockContext {
-            context: vm_1_3_2::vm_with_bootloader::BlockContext {
+impl GlueFrom<crate::interface::L1BatchEnv>
+    for crate::vm_1_3_2::vm_with_bootloader::BlockContextMode
+{
+    fn glue_from(value: crate::interface::L1BatchEnv) -> Self {
+        let derived = crate::vm_1_3_2::vm_with_bootloader::DerivedBlockContext {
+            context: crate::vm_1_3_2::vm_with_bootloader::BlockContext {
                 block_number: value.number.0,
                 block_timestamp: value.timestamp,
                 operator_address: value.fee_account,

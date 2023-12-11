@@ -69,7 +69,8 @@ opcodes similar to EVM, but operates on registers rather than a stack. We have t
 'pure rust' without circuits (in the zk_evm repository), and the other has circuits (in the sync_vm repository). In this
 example, the api server uses the 'zk_evm' implementation without circuits.
 
-Most of the code that the server uses to interact with the VM is in [core/lib/vm/src/vm.rs][vm_code].
+Most of the code that the server uses to interact with the VM is in
+[core/lib/multivm/src/versions/vm_latest/implementation/execution.rs][vm_code].
 
 In this line, we're calling self.state.cycle(), which executes a single VM instruction. You can see that we do a lot of
 things around this, such as executing multiple tracers after each instruction. This allows us to debug and provide
@@ -106,19 +107,19 @@ In this article, we covered the 'life of a call' from the RPC to the inner worki
 'out-of-circuit' VM with the bootloader.
 
 [namespaces_rpc_api]:
-  https://github.com/matter-labs/zksync-2-dev/blob/edd48fc37bdd58f9f9d85e27d684c01ef2cac8ae/core/bin/zksync_core/src/api_server/web3/backend_jsonrpc/namespaces/eth.rs
+  https://github.com/matter-labs/zksync-era/blob/edd48fc37bdd58f9f9d85e27d684c01ef2cac8ae/core/bin/zksync_core/src/api_server/web3/backend_jsonrpc/namespaces/eth.rs
   'namespaces RPC api'
 [namespaces_rpc_impl]:
-  https://github.com/matter-labs/zksync-2-dev/blob/edd48fc37bdd58f9f9d85e27d684c01ef2cac8ae/core/bin/zksync_core/src/api_server/web3/namespaces/eth.rs#L94
+  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/api_server/web3/namespaces/eth.rs#L94
   'namespaces RPC implementation'
 [execution_sandbox]:
-  https://github.com/matter-labs/zksync-2-dev/blob/dc3b3d6b055c558b0e1a76ef5de3184291489d9f/core/bin/zksync_core/src/api_server/execution_sandbox.rs#L99
+  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/api_server/execution_sandbox/execute.rs
   'execution sandbox'
 [vm_code]:
-  https://github.com/matter-labs/zksync-2-dev/blob/dc3b3d6b055c558b0e1a76ef5de3184291489d9f/core/lib/vm/src/vm.rs#L544
+  https://github.com/matter-labs/zksync-era/blob/ccd13ce88ff52c3135d794c6f92bec3b16f2210f/core/lib/multivm/src/versions/vm_latest/implementation/execution.rs#L108
   'vm code'
 [bootloader_code]:
-  https://github.com/matter-labs/system-contracts/blob/93a375ef6ccfe0181a248cb712c88a1babe1f119/bootloader/bootloader.yul
+  https://github.com/matter-labs/era-system-contracts/blob/93a375ef6ccfe0181a248cb712c88a1babe1f119/bootloader/bootloader.yul
   'bootloader code'
 [init_vm_inner]:
   https://github.com/matter-labs/zksync-2-dev/blob/dc3b3d6b055c558b0e1a76ef5de3184291489d9f/core/lib/vm/src/vm_with_bootloader.rs#L348

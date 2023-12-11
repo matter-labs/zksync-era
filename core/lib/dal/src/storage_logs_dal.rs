@@ -1,13 +1,12 @@
-use sqlx::types::chrono::Utc;
-use sqlx::Row;
-
 use std::{collections::HashMap, time::Instant};
 
-use crate::{instrument::InstrumentExt, StorageProcessor};
+use sqlx::{types::chrono::Utc, Row};
 use zksync_types::{
     get_code_key, AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, StorageLog,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256,
 };
+
+use crate::{instrument::InstrumentExt, StorageProcessor};
 
 #[derive(Debug)]
 pub struct StorageLogsDal<'a, 'c> {
@@ -529,14 +528,14 @@ impl StorageLogsDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool};
-    use db_test_macro::db_test;
     use zksync_contracts::BaseSystemContractsHashes;
     use zksync_types::{
         block::{BlockGasCount, L1BatchHeader},
         ProtocolVersion, ProtocolVersionId,
     };
+
+    use super::*;
+    use crate::{tests::create_miniblock_header, ConnectionPool};
 
     async fn insert_miniblock(conn: &mut StorageProcessor<'_>, number: u32, logs: Vec<StorageLog>) {
         let mut header = L1BatchHeader::new(
@@ -548,7 +547,7 @@ mod tests {
         );
         header.is_finished = true;
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default())
+            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
             .await
             .unwrap();
         conn.blocks_dal()
@@ -567,8 +566,9 @@ mod tests {
             .unwrap();
     }
 
-    #[db_test(dal_crate)]
-    async fn inserting_storage_logs(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn inserting_storage_logs() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
 
         conn.blocks_dal()
@@ -659,8 +659,9 @@ mod tests {
         assert!(value.is_none());
     }
 
-    #[db_test(dal_crate)]
-    async fn getting_storage_logs_for_revert(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn getting_storage_logs_for_revert() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
 
         conn.blocks_dal()
@@ -714,8 +715,9 @@ mod tests {
         }
     }
 
-    #[db_test(dal_crate)]
-    async fn reverting_keys_without_initial_write(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn reverting_keys_without_initial_write() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
 
         conn.blocks_dal()

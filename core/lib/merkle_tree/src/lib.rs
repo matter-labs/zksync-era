@@ -26,9 +26,14 @@
 //! - Hash of a vacant leaf is `hash([0_u8; 40])`, where `hash` is the hash function used
 //!   (Blake2s-256).
 //! - Hash of an occupied leaf is `hash(u64::to_be_bytes(leaf_index) ++ value_hash)`,
-//!   where `leaf_index` is the 1-based index of the leaf key in the order of insertion,
+//!   where `leaf_index` is a 1-based index of the leaf key provided when the leaf is inserted / updated,
 //!   `++` is byte concatenation.
 //! - Hash of an internal node is `hash(left_child_hash ++ right_child_hash)`.
+//!
+//! Currently in zksync, leaf indices enumerate leaves in the order of their insertion into the tree.
+//! Indices are computed externally and are provided to the tree as inputs; the tree doesn't verify
+//! index assignment and doesn't rely on particular index assignment assumptions (other than when
+//! [verifying tree consistency](MerkleTree::verify_consistency())).
 //!
 //! [Jellyfish Merkle tree]: https://developers.diem.com/papers/jellyfish-merkle-tree/2021-01-14.pdf
 
@@ -41,27 +46,7 @@
     clippy::doc_markdown // frequent false positive: RocksDB
 )]
 
-mod consistency;
-pub mod domain;
-mod errors;
-mod getters;
-mod hasher;
-mod metrics;
-mod pruning;
-mod storage;
-mod types;
-mod utils;
-
-/// Unstable types that should not be used unless you know what you're doing (e.g., implementing
-/// `Database` trait for a custom type). There are no guarantees whatsoever that APIs / structure of
-/// these types will remain stable.
-#[doc(hidden)]
-pub mod unstable {
-    pub use crate::{
-        errors::DeserializeError,
-        types::{Manifest, Node, NodeKey, Root},
-    };
-}
+use zksync_crypto::hasher::blake2::Blake2Hasher;
 
 pub use crate::{
     errors::NoVersionError,
@@ -76,9 +61,30 @@ pub use crate::{
         TreeLogEntry, TreeLogEntryWithProof, ValueHash,
     },
 };
+use crate::{hasher::HasherWithStats, storage::Storage, types::Root};
 
-use crate::{storage::Storage, types::Root};
-use zksync_crypto::hasher::blake2::Blake2Hasher;
+mod consistency;
+pub mod domain;
+mod errors;
+mod getters;
+mod hasher;
+mod metrics;
+mod pruning;
+pub mod recovery;
+mod storage;
+mod types;
+mod utils;
+
+/// Unstable types that should not be used unless you know what you're doing (e.g., implementing
+/// `Database` trait for a custom type). There are no guarantees whatsoever that APIs / structure of
+/// these types will remain stable.
+#[doc(hidden)]
+pub mod unstable {
+    pub use crate::{
+        errors::DeserializeError,
+        types::{Manifest, Node, NodeKey, Root},
+    };
+}
 
 /// Binary Merkle tree implemented using AR16MT from Diem [Jellyfish Merkle tree] white paper.
 ///
@@ -122,31 +128,33 @@ use zksync_crypto::hasher::blake2::Blake2Hasher;
 ///
 /// [Jellyfish Merkle tree]: https://developers.diem.com/papers/jellyfish-merkle-tree/2021-01-14.pdf
 #[derive(Debug)]
-pub struct MerkleTree<'a, DB> {
+pub struct MerkleTree<DB, H = Blake2Hasher> {
     db: DB,
-    hasher: &'a dyn HashTree,
+    hasher: H,
 }
 
-impl<'a, DB: Database> MerkleTree<'a, DB> {
+impl<DB: Database> MerkleTree<DB> {
     /// Loads a tree with the default Blake2 hasher.
     ///
     /// # Panics
     ///
     /// Panics in the same situations as [`Self::with_hasher()`].
     pub fn new(db: DB) -> Self {
-        Self::with_hasher(db, &Blake2Hasher)
+        Self::with_hasher(db, Blake2Hasher)
     }
+}
 
+impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     /// Loads a tree with the specified hasher.
     ///
     /// # Panics
     ///
     /// Panics if the hasher or basic tree parameters (e.g., the tree depth)
     /// do not match those of the tree loaded from the database.
-    pub fn with_hasher(db: DB, hasher: &'a dyn HashTree) -> Self {
+    pub fn with_hasher(db: DB, hasher: H) -> Self {
         let tags = db.manifest().and_then(|manifest| manifest.tags);
         if let Some(tags) = tags {
-            tags.assert_consistency(hasher);
+            tags.assert_consistency(&hasher, false);
         }
         // If there are currently no tags in the tree, we consider that it fits
         // for backward compatibility. The tags will be added the next time the tree is saved.
@@ -161,7 +169,7 @@ impl<'a, DB: Database> MerkleTree<'a, DB> {
         let Root::Filled { node, .. } = root else {
             return Some(self.hasher.empty_tree_hash());
         };
-        Some(node.hash(&mut self.hasher.into(), 0))
+        Some(node.hash(&mut HasherWithStats::new(&self.hasher), 0))
     }
 
     pub(crate) fn root(&self, version: u64) -> Option<Root> {
@@ -206,10 +214,10 @@ impl<'a, DB: Database> MerkleTree<'a, DB> {
     /// # Return value
     ///
     /// Returns information about the update such as the final tree hash.
-    pub fn extend(&mut self, key_value_pairs: Vec<(Key, ValueHash)>) -> BlockOutput {
+    pub fn extend(&mut self, entries: Vec<TreeEntry>) -> BlockOutput {
         let next_version = self.db.manifest().unwrap_or_default().version_count;
-        let storage = Storage::new(&self.db, self.hasher, next_version);
-        let (output, patch) = storage.extend(key_value_pairs);
+        let storage = Storage::new(&self.db, &self.hasher, next_version, true);
+        let (output, patch) = storage.extend(entries);
         self.db.apply_patch(patch);
         output
     }
@@ -223,10 +231,10 @@ impl<'a, DB: Database> MerkleTree<'a, DB> {
     /// instruction.
     pub fn extend_with_proofs(
         &mut self,
-        instructions: Vec<(Key, TreeInstruction)>,
+        instructions: Vec<TreeInstruction>,
     ) -> BlockOutputWithProofs {
         let next_version = self.db.manifest().unwrap_or_default().version_count;
-        let storage = Storage::new(&self.db, self.hasher, next_version);
+        let storage = Storage::new(&self.db, &self.hasher, next_version, true);
         let (output, patch) = storage.extend_with_proofs(instructions);
         self.db.apply_patch(patch);
         output
@@ -246,6 +254,7 @@ mod tests {
             architecture: "AR64MT".to_owned(),
             depth: 256,
             hasher: "blake2s256".to_string(),
+            is_recovering: false,
         });
 
         MerkleTree::new(db);
@@ -259,6 +268,7 @@ mod tests {
             architecture: "AR16MT".to_owned(),
             depth: 128,
             hasher: "blake2s256".to_string(),
+            is_recovering: false,
         });
 
         MerkleTree::new(db);
@@ -272,6 +282,7 @@ mod tests {
             architecture: "AR16MT".to_owned(),
             depth: 256,
             hasher: "sha256".to_string(),
+            is_recovering: false,
         });
 
         MerkleTree::new(db);

@@ -1,8 +1,6 @@
-use serde::Deserialize;
-
 use std::{env, time::Duration};
 
-use crate::configs::envy_load;
+use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct PrometheusConfig {
@@ -15,10 +13,6 @@ pub struct PrometheusConfig {
 }
 
 impl PrometheusConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
-        envy_load("prometheus", "API_PROMETHEUS_")
-    }
-
     pub fn push_interval(&self) -> Duration {
         Duration::from_millis(self.push_interval_ms.unwrap_or(100))
     }

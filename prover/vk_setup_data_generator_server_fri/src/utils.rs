@@ -1,58 +1,74 @@
+use std::{
+    collections::{HashMap, VecDeque},
+    fs,
+};
+
+use anyhow::Context as _;
+use itertools::Itertools;
+use zkevm_test_harness::{
+    compute_setups::{generate_base_layer_vks_and_proofs, generate_recursive_layer_vks_and_proofs},
+    data_source::{in_memory_data_source::InMemoryDataSource, BlockDataSource},
+    ethereum_types::{Address, U256},
+    external_calls::run,
+    helper::artifact_utils::{save_predeployed_contracts, TestArtifact},
+    sha3::{Digest, Keccak256},
+    toolset::GeometryConfig,
+    witness::{
+        full_block_artifact::{
+            BlockBasicCircuits, BlockBasicCircuitsPublicCompactFormsWitnesses,
+            BlockBasicCircuitsPublicInputs,
+        },
+        recursive_aggregation::compute_leaf_params,
+        tree::{BinarySparseStorageTree, ZKSyncTestingTree},
+    },
+};
+use zksync_prover_fri_types::circuit_definitions::{
+    aux_definitions::witness_oracle::VmWitnessOracle,
+    base_layer_proof_config,
+    boojum::{
+        field::goldilocks::{GoldilocksExt2, GoldilocksField},
+        gadgets::{
+            queue::full_state_queue::FullStateCircuitQueueRawWitness,
+            recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge,
+            traits::allocatable::CSAllocatable,
+        },
+    },
+    circuit_definitions::{
+        base_layer::ZkSyncBaseLayerCircuit,
+        recursion_layer::{
+            base_circuit_type_into_recursive_leaf_circuit_type,
+            leaf_layer::ZkSyncLeafLayerRecursiveCircuit,
+            node_layer::ZkSyncNodeLayerRecursiveCircuit, scheduler::SchedulerCircuit,
+            ZkSyncRecursionLayerStorageType, ZkSyncRecursionProof, ZkSyncRecursiveLayerCircuit,
+            RECURSION_ARITY, SCHEDULER_CAPACITY,
+        },
+    },
+    recursion_layer_proof_config, zk_evm,
+    zk_evm::{bytecode_to_code_hash, testing::storage::InMemoryStorage},
+    zkevm_circuits::{
+        recursion::{
+            leaf_layer::{
+                input::{
+                    RecursionLeafInput, RecursionLeafInstanceWitness,
+                    RecursionLeafParametersWitness,
+                },
+                LeafLayerRecursionConfig,
+            },
+            node_layer::{
+                input::{RecursionNodeInput, RecursionNodeInstanceWitness},
+                NodeLayerRecursionConfig,
+            },
+        },
+        scheduler::{
+            aux::BaseLayerCircuitType, input::SchedulerCircuitInstanceWitness, SchedulerConfig,
+        },
+    },
+    ZkSyncDefaultRoundFunction,
+};
+
 use crate::{
     get_base_layer_vk_for_circuit_type, get_base_path, get_recursive_layer_vk_for_circuit_type,
 };
-use zksync_prover_fri_types::circuit_definitions::aux_definitions::witness_oracle::VmWitnessOracle;
-use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::{GoldilocksExt2, GoldilocksField};
-use zksync_prover_fri_types::circuit_definitions::boojum::gadgets::queue::full_state_queue::FullStateCircuitQueueRawWitness;
-use zksync_prover_fri_types::circuit_definitions::boojum::gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge;
-use zksync_prover_fri_types::circuit_definitions::boojum::gadgets::traits::allocatable::CSAllocatable;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::base_layer::ZkSyncBaseLayerCircuit;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::leaf_layer::ZkSyncLeafLayerRecursiveCircuit;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::node_layer::ZkSyncNodeLayerRecursiveCircuit;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::scheduler::SchedulerCircuit;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::{
-    base_circuit_type_into_recursive_leaf_circuit_type, ZkSyncRecursionLayerStorageType,
-    ZkSyncRecursionProof, ZkSyncRecursiveLayerCircuit, RECURSION_ARITY, SCHEDULER_CAPACITY,
-};
-use zksync_prover_fri_types::circuit_definitions::zk_evm::bytecode_to_code_hash;
-use zksync_prover_fri_types::circuit_definitions::zk_evm::testing::storage::InMemoryStorage;
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::recursion::leaf_layer::input::RecursionLeafParametersWitness;
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::recursion::leaf_layer::input::{
-    RecursionLeafInput, RecursionLeafInstanceWitness,
-};
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::recursion::leaf_layer::LeafLayerRecursionConfig;
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::recursion::node_layer::input::{
-    RecursionNodeInput, RecursionNodeInstanceWitness,
-};
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::recursion::node_layer::NodeLayerRecursionConfig;
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness;
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::SchedulerConfig;
-use zksync_prover_fri_types::circuit_definitions::{
-    base_layer_proof_config, recursion_layer_proof_config, zk_evm, ZkSyncDefaultRoundFunction,
-};
-use anyhow::Context as _;
-use itertools::Itertools;
-use std::collections::{HashMap, VecDeque};
-use std::fs;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerProof;
-use zkevm_test_harness::compute_setups::{
-    generate_base_layer_vks_and_proofs, generate_recursive_layer_vks_and_proofs,
-};
-use zkevm_test_harness::data_source::BlockDataSource;
-use zkevm_test_harness::ethereum_types::{Address, U256};
-use zkevm_test_harness::external_calls::run;
-use zkevm_test_harness::helper::artifact_utils::{save_predeployed_contracts, TestArtifact};
-use zkevm_test_harness::sha3::{Digest, Keccak256};
-use zkevm_test_harness::toolset::GeometryConfig;
-use zkevm_test_harness::witness::full_block_artifact::{
-    BlockBasicCircuits, BlockBasicCircuitsPublicCompactFormsWitnesses,
-    BlockBasicCircuitsPublicInputs,
-};
-use zkevm_test_harness::witness::recursive_aggregation::compute_leaf_params;
-use zkevm_test_harness::witness::tree::{BinarySparseStorageTree, ZKSyncTestingTree};
-
-use zkevm_test_harness::in_memory_data_source::InMemoryDataSource;
 
 pub const CYCLE_LIMIT: usize = 20000;
 
@@ -65,12 +81,14 @@ fn read_witness_artifact(filepath: &str) -> anyhow::Result<TestArtifact> {
 pub fn get_basic_circuits(
     cycle_limit: usize,
     geometry: GeometryConfig,
-) -> anyhow::Result<Vec<
-    ZkSyncBaseLayerCircuit<
-        GoldilocksField,
-        VmWitnessOracle<GoldilocksField>,
-        ZkSyncDefaultRoundFunction,
-    >>,
+) -> anyhow::Result<
+    Vec<
+        ZkSyncBaseLayerCircuit<
+            GoldilocksField,
+            VmWitnessOracle<GoldilocksField>,
+            ZkSyncDefaultRoundFunction,
+        >,
+    >,
 > {
     let path = format!("{}/witness_artifacts.json", get_base_path());
     let test_artifact = read_witness_artifact(&path).context("read_withess_artifact()")?;
@@ -82,13 +100,6 @@ pub fn get_basic_circuits(
         .collect())
 }
 
-pub fn get_scheduler_proof_for_snark_vk_generation() -> anyhow::Result<ZkSyncRecursionLayerProof> {
-    let path = format!("{}/scheduler_proof.bin", get_base_path());
-    let proof_serialized = std::fs::read(path).context("Failed to read proof from file")?;
-    bincode::deserialize::<ZkSyncRecursionLayerProof>(&proof_serialized)
-        .context("Failed to deserialize proof")
-}
-
 pub fn get_leaf_circuits() -> anyhow::Result<Vec<ZkSyncRecursiveLayerCircuit>> {
     let mut circuits = vec![];
     for base_circuit_type in
@@ -96,7 +107,7 @@ pub fn get_leaf_circuits() -> anyhow::Result<Vec<ZkSyncRecursiveLayerCircuit>> {
     {
         let input = RecursionLeafInput::placeholder_witness();
         let vk = get_base_layer_vk_for_circuit_type(base_circuit_type)
-            .with_context(||format!("get_base_layer_vk_for_circuit_type({base_circuit_type})"))?;
+            .with_context(|| format!("get_base_layer_vk_for_circuit_type({base_circuit_type})"))?;
 
         let witness = RecursionLeafInstanceWitness {
             input,
@@ -116,8 +127,8 @@ pub fn get_leaf_circuits() -> anyhow::Result<Vec<ZkSyncRecursiveLayerCircuit>> {
 
         let circuit = ZkSyncLeafLayerRecursiveCircuit {
             base_layer_circuit_type: BaseLayerCircuitType::from_numeric_value(base_circuit_type),
-            witness: witness,
-            config: config,
+            witness,
+            config,
             transcript_params: (),
             _marker: std::marker::PhantomData,
         };
@@ -136,7 +147,8 @@ pub fn get_node_circuit() -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
 
     let input_vk = get_recursive_layer_vk_for_circuit_type(
         ZkSyncRecursionLayerStorageType::LeafLayerCircuitForMainVM as u8,
-    ).context("get_recursive_layer_vk_for_circuit_type(LeafLAyerCircyutFromMainVM")?;
+    )
+    .context("get_recursive_layer_vk_for_circuit_type(LeafLAyerCircyutFromMainVM")?;
     let witness = RecursionNodeInstanceWitness {
         input,
         vk_witness: input_vk.clone().into_inner(),
@@ -152,8 +164,8 @@ pub fn get_node_circuit() -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
         _marker: std::marker::PhantomData,
     };
     let circuit = ZkSyncNodeLayerRecursiveCircuit {
-        witness: witness,
-        config: config,
+        witness,
+        config,
         transcript_params: (),
         _marker: std::marker::PhantomData,
     };
@@ -183,7 +195,9 @@ pub fn get_scheduler_circuit() -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
         transcript_params: (),
         _marker: std::marker::PhantomData,
     };
-    Ok(ZkSyncRecursiveLayerCircuit::SchedulerCircuit(scheduler_circuit))
+    Ok(ZkSyncRecursiveLayerCircuit::SchedulerCircuit(
+        scheduler_circuit,
+    ))
 }
 
 #[allow(dead_code)]
@@ -204,7 +218,8 @@ fn get_recursive_layer_proofs() -> Vec<ZkSyncRecursionProof> {
     scheduler_proofs
 }
 
-pub fn get_leaf_vk_params() -> anyhow::Result<Vec<(u8, RecursionLeafParametersWitness<GoldilocksField>)>> {
+pub fn get_leaf_vk_params(
+) -> anyhow::Result<Vec<(u8, RecursionLeafParametersWitness<GoldilocksField>)>> {
     let mut leaf_vk_commits = vec![];
 
     for circuit_type in
@@ -214,15 +229,18 @@ pub fn get_leaf_vk_params() -> anyhow::Result<Vec<(u8, RecursionLeafParametersWi
             BaseLayerCircuitType::from_numeric_value(circuit_type),
         );
         let base_vk = get_base_layer_vk_for_circuit_type(circuit_type)
-            .with_context(||format!("get_base_layer_vk_for_circuit_type({circuit_type})"))?;
+            .with_context(|| format!("get_base_layer_vk_for_circuit_type({circuit_type})"))?;
         let leaf_vk = get_recursive_layer_vk_for_circuit_type(recursive_circuit_type as u8)
-            .with_context(||format!("get_recursive_layer_vk_for_circuit_type({recursive_circuit_type:?})"))?;
+            .with_context(|| {
+                format!("get_recursive_layer_vk_for_circuit_type({recursive_circuit_type:?})")
+            })?;
         let params = compute_leaf_params(circuit_type, base_vk, leaf_vk);
         leaf_vk_commits.push((circuit_type, params));
     }
     Ok(leaf_vk_commits)
 }
 
+#[allow(clippy::type_complexity)]
 fn get_circuits(
     mut test_artifact: TestArtifact,
     cycle_limit: usize,
@@ -259,10 +277,10 @@ fn get_circuits(
     let used_bytecodes = HashMap::from_iter(
         test_artifact
             .predeployed_contracts
-            .iter()
-            .map(|(_, bytecode)| {
+            .values()
+            .map(|bytecode| {
                 (
-                    bytecode_to_code_hash(&bytecode).unwrap().into(),
+                    bytecode_to_code_hash(bytecode).unwrap().into(),
                     bytecode.clone(),
                 )
             })
@@ -281,24 +299,24 @@ fn get_circuits(
     // simualate content hash
 
     let mut hasher = Keccak256::new();
-    hasher.update(&previous_enumeration_index.to_be_bytes());
-    hasher.update(&previous_root);
-    hasher.update(&0u64.to_be_bytes()); // porter shard
-    hasher.update(&[0u8; 32]); // porter shard
+    hasher.update(previous_enumeration_index.to_be_bytes());
+    hasher.update(previous_root);
+    hasher.update(0u64.to_be_bytes()); // porter shard
+    hasher.update([0u8; 32]); // porter shard
 
     let mut previous_data_hash = [0u8; 32];
-    (&mut previous_data_hash[..]).copy_from_slice(&hasher.finalize().as_slice());
+    previous_data_hash[..].copy_from_slice(hasher.finalize().as_slice());
 
     let previous_aux_hash = [0u8; 32];
     let previous_meta_hash = [0u8; 32];
 
     let mut hasher = Keccak256::new();
-    hasher.update(&previous_data_hash);
-    hasher.update(&previous_meta_hash);
-    hasher.update(&previous_aux_hash);
+    hasher.update(previous_data_hash);
+    hasher.update(previous_meta_hash);
+    hasher.update(previous_aux_hash);
 
     let mut previous_content_hash = [0u8; 32];
-    (&mut previous_content_hash[..]).copy_from_slice(&hasher.finalize().as_slice());
+    previous_content_hash[..].copy_from_slice(hasher.finalize().as_slice());
 
     let default_account_codehash =
         bytecode_to_code_hash(&test_artifact.default_account_code).unwrap();
@@ -320,7 +338,7 @@ fn get_circuits(
         used_bytecodes,
         vec![],
         cycle_limit,
-        round_function.clone(),
+        round_function,
         geometry,
         storage_impl,
         &mut tree,

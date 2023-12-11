@@ -1,8 +1,10 @@
-use crate::StorageProcessor;
-use sqlx::types::chrono::Utc;
 use std::collections::HashSet;
+
+use sqlx::types::chrono::Utc;
 use zksync_types::{AccountTreeId, Address, L1BatchNumber, LogQuery, StorageKey, H256};
 use zksync_utils::u256_to_h256;
+
+use crate::StorageProcessor;
 
 #[derive(Debug)]
 pub struct StorageLogsDedupDal<'a, 'c> {
@@ -116,6 +118,19 @@ impl StorageLogsDedupDal<'_, '_> {
         .into_iter()
         .map(|row| (H256::from_slice(&row.hashed_key), row.index as u64))
         .collect()
+    }
+
+    pub async fn get_enumeration_index_for_key(&mut self, key: StorageKey) -> Option<u64> {
+        sqlx::query!(
+            "SELECT index \
+             FROM initial_writes \
+             WHERE hashed_key = $1",
+            key.hashed_key().0.to_vec()
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| row.index as u64)
     }
 
     /// Returns `hashed_keys` that are both present in the input and in `initial_writes` table.

@@ -1,11 +1,12 @@
 //! Consistency verification for the Merkle tree.
 
-use rayon::prelude::*;
-
 use std::sync::atomic::{AtomicU64, Ordering};
+
+use rayon::prelude::*;
 
 use crate::{
     errors::DeserializeError,
+    hasher::{HashTree, HasherWithStats},
     types::{LeafNode, Nibbles, Node, NodeKey, Root},
     Database, Key, MerkleTree, ValueHash,
 };
@@ -55,18 +56,30 @@ pub enum ConsistencyError {
     },
     #[error("leaf with key {full_key} has same index {index} as another key")]
     DuplicateLeafIndex { index: u64, full_key: Key },
+    #[error("internal node with key {key} does not have children")]
+    EmptyInternalNode { key: NodeKey },
+    #[error(
+        "internal node with key {key} should have version {expected_version} (max among child ref versions)"
+    )]
+    KeyVersionMismatch { key: NodeKey, expected_version: u64 },
+    #[error("root node should have version >={max_child_version} (max among child ref versions)")]
+    RootVersionMismatch { max_child_version: u64 },
 }
 
-impl<DB> MerkleTree<'_, DB>
-where
-    DB: Database,
-{
+impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     /// Verifies the internal tree consistency as stored in the database.
+    ///
+    /// If `validate_indices` flag is set, it will be checked that indices for all tree leaves are unique
+    /// and are sequentially assigned starting from 1.
     ///
     /// # Errors
     ///
     /// Returns an error (the first encountered one if there are multiple).
-    pub fn verify_consistency(&self, version: u64) -> Result<(), ConsistencyError> {
+    pub fn verify_consistency(
+        &self,
+        version: u64,
+        validate_indices: bool,
+    ) -> Result<(), ConsistencyError> {
         let manifest = self.db.try_manifest()?;
         let manifest = manifest.ok_or(ConsistencyError::MissingVersion(version))?;
         if version >= manifest.version_count {
@@ -85,16 +98,19 @@ where
         // We want to perform a depth-first walk of the tree in order to not keep
         // much in memory.
         let root_key = Nibbles::EMPTY.with_version(version);
-        let leaf_data = LeafConsistencyData::new(leaf_count);
-        self.validate_node(&root_node, root_key, &leaf_data)?;
-        leaf_data.validate_count()
+        let leaf_data = validate_indices.then(|| LeafConsistencyData::new(leaf_count));
+        self.validate_node(&root_node, root_key, leaf_data.as_ref())?;
+        if let Some(leaf_data) = leaf_data {
+            leaf_data.validate_count()?;
+        }
+        Ok(())
     }
 
     fn validate_node(
         &self,
         node: &Node,
         key: NodeKey,
-        leaf_data: &LeafConsistencyData,
+        leaf_data: Option<&LeafConsistencyData>,
     ) -> Result<ValueHash, ConsistencyError> {
         match node {
             Node::Leaf(leaf) => {
@@ -105,10 +121,27 @@ where
                         full_key: leaf.full_key,
                     });
                 }
-                leaf_data.insert_leaf(leaf)?;
+                if let Some(leaf_data) = leaf_data {
+                    leaf_data.insert_leaf(leaf)?;
+                }
             }
 
             Node::Internal(node) => {
+                let expected_version = node.child_refs().map(|child_ref| child_ref.version).max();
+                let Some(expected_version) = expected_version else {
+                    return Err(ConsistencyError::EmptyInternalNode { key });
+                };
+                if !key.is_empty() && expected_version != key.version {
+                    return Err(ConsistencyError::KeyVersionMismatch {
+                        key,
+                        expected_version,
+                    });
+                } else if key.is_empty() && expected_version > key.version {
+                    return Err(ConsistencyError::RootVersionMismatch {
+                        max_child_version: expected_version,
+                    });
+                }
+
                 // `.into_par_iter()` below is the only place where `rayon`-based parallelism
                 // is used in tree verification.
                 let children: Vec<_> = node.children().collect();
@@ -146,7 +179,7 @@ where
         }
 
         let level = key.nibbles.nibble_count() * 4;
-        Ok(node.hash(&mut self.hasher.into(), level))
+        Ok(node.hash(&mut HasherWithStats::new(&self.hasher), level))
     }
 }
 
@@ -234,13 +267,17 @@ impl AtomicBitSet {
 
 #[cfg(test)]
 mod tests {
-    use assert_matches::assert_matches;
-
     use std::num::NonZeroU64;
 
-    use super::*;
-    use crate::PatchSet;
+    use assert_matches::assert_matches;
+    use rayon::ThreadPoolBuilder;
     use zksync_types::{H256, U256};
+
+    use super::*;
+    use crate::{
+        types::{InternalNode, TreeEntry},
+        PatchSet,
+    };
 
     const FIRST_KEY: Key = U256([0, 0, 0, 0x_dead_beef_0000_0000]);
     const SECOND_KEY: Key = U256([0, 0, 0, 0x_dead_beef_0100_0000]);
@@ -248,8 +285,8 @@ mod tests {
     fn prepare_database() -> PatchSet {
         let mut tree = MerkleTree::new(PatchSet::default());
         tree.extend(vec![
-            (FIRST_KEY, H256([1; 32])),
-            (SECOND_KEY, H256([2; 32])),
+            TreeEntry::new(FIRST_KEY, 1, H256([1; 32])),
+            TreeEntry::new(SECOND_KEY, 2, H256([2; 32])),
         ]);
         tree.db
     }
@@ -269,7 +306,16 @@ mod tests {
     #[test]
     fn basic_consistency_checks() {
         let db = prepare_database();
-        MerkleTree::new(db).verify_consistency(0).unwrap();
+        deterministic_verify_consistency(db).unwrap();
+    }
+
+    /// Limits the number of `rayon` threads to 1 in order to get deterministic test execution.
+    fn deterministic_verify_consistency(db: PatchSet) -> Result<(), ConsistencyError> {
+        let thread_pool = ThreadPoolBuilder::new()
+            .num_threads(1)
+            .build()
+            .expect("failed initializing `rayon` thread pool");
+        thread_pool.install(|| MerkleTree::new(db).verify_consistency(0, true))
     }
 
     #[test]
@@ -277,16 +323,16 @@ mod tests {
         let mut db = prepare_database();
         db.manifest_mut().version_count = 0;
 
-        let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
+        let err = deterministic_verify_consistency(db).unwrap_err();
         assert_matches!(err, ConsistencyError::MissingVersion(0));
     }
 
     #[test]
     fn missing_root_error() {
         let mut db = prepare_database();
-        db.roots_mut().remove(&0);
+        db.remove_root(0);
 
-        let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
+        let err = deterministic_verify_consistency(db).unwrap_err();
         assert_matches!(err, ConsistencyError::MissingRoot(0));
     }
 
@@ -300,7 +346,7 @@ mod tests {
         let leaf_key = leaf_key.unwrap();
         db.remove_node(&leaf_key);
 
-        let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
+        let err = deterministic_verify_consistency(db).unwrap_err();
         assert_matches!(
             err,
             ConsistencyError::MissingNode { key, is_leaf: true } if key == leaf_key
@@ -311,13 +357,13 @@ mod tests {
     fn leaf_count_mismatch_error() {
         let mut db = prepare_database();
 
-        let root = db.roots_mut().get_mut(&0).unwrap();
+        let root = db.root_mut(0).unwrap();
         let Root::Filled { leaf_count, .. } = root else {
             panic!("unexpected root: {root:?}");
         };
         *leaf_count = NonZeroU64::new(42).unwrap();
 
-        let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
+        let err = deterministic_verify_consistency(db).unwrap_err();
         assert_matches!(
             err,
             ConsistencyError::LeafCountMismatch {
@@ -331,7 +377,7 @@ mod tests {
     fn hash_mismatch_error() {
         let mut db = prepare_database();
 
-        let root = db.roots_mut().get_mut(&0).unwrap();
+        let root = db.root_mut(0).unwrap();
         let Root::Filled {
             node: Node::Internal(node),
             ..
@@ -342,7 +388,7 @@ mod tests {
         let child_ref = node.child_ref_mut(0xd).unwrap();
         child_ref.hash = ValueHash::zero();
 
-        let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
+        let err = deterministic_verify_consistency(db).unwrap_err();
         assert_matches!(
             err,
             ConsistencyError::HashMismatch {
@@ -367,7 +413,7 @@ mod tests {
         });
         let leaf_key = leaf_key.unwrap();
 
-        let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
+        let err = deterministic_verify_consistency(db).unwrap_err();
         assert_matches!(
             err,
             ConsistencyError::FullKeyMismatch { key, full_key }
@@ -388,7 +434,7 @@ mod tests {
         });
         leaf_key.unwrap();
 
-        let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
+        let err = deterministic_verify_consistency(db).unwrap_err();
         assert_matches!(
             err,
             ConsistencyError::LeafIndexOverflow {
@@ -409,7 +455,65 @@ mod tests {
             }
         }
 
-        let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
+        let err = deterministic_verify_consistency(db).unwrap_err();
         assert_matches!(err, ConsistencyError::DuplicateLeafIndex { index: 1, .. });
+    }
+
+    #[test]
+    fn empty_internal_node_error() {
+        let mut db = prepare_database();
+        let node_key = db.nodes_mut().find_map(|(key, node)| {
+            if let Node::Internal(node) = node {
+                *node = InternalNode::default();
+                return Some(*key);
+            }
+            None
+        });
+        let node_key = node_key.unwrap();
+
+        let err = deterministic_verify_consistency(db).unwrap_err();
+        assert_matches!(err, ConsistencyError::EmptyInternalNode { key } if key == node_key);
+    }
+
+    #[test]
+    fn version_mismatch_error() {
+        let mut db = prepare_database();
+        let node_key = db.nodes_mut().find_map(|(key, node)| {
+            if let Node::Internal(node) = node {
+                let (nibble, _) = node.children().next().unwrap();
+                node.child_ref_mut(nibble).unwrap().version = 1;
+                return Some(*key);
+            }
+            None
+        });
+        let node_key = node_key.unwrap();
+
+        let err = deterministic_verify_consistency(db).unwrap_err();
+        assert_matches!(
+            err,
+            ConsistencyError::KeyVersionMismatch { key, expected_version: 1 } if key == node_key
+        );
+    }
+
+    #[test]
+    fn root_version_mismatch_error() {
+        let mut db = prepare_database();
+        let Some(Root::Filled {
+            node: Node::Internal(node),
+            ..
+        }) = db.root_mut(0)
+        else {
+            unreachable!();
+        };
+        let (nibble, _) = node.children().next().unwrap();
+        node.child_ref_mut(nibble).unwrap().version = 42;
+
+        let err = deterministic_verify_consistency(db).unwrap_err();
+        assert_matches!(
+            err,
+            ConsistencyError::RootVersionMismatch {
+                max_child_version: 42,
+            }
+        );
     }
 }

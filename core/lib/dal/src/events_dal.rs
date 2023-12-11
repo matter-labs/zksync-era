@@ -1,11 +1,13 @@
-use sqlx::types::chrono::Utc;
-
 use std::fmt;
 
-use crate::{models::storage_event::StorageL2ToL1Log, SqlxError, StorageProcessor};
+use sqlx::types::chrono::Utc;
 use zksync_types::{
-    l2_to_l1_log::L2ToL1Log, tx::IncludedTxLocation, MiniblockNumber, VmEvent, H256,
+    l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
+    tx::IncludedTxLocation,
+    MiniblockNumber, VmEvent, H256,
 };
+
+use crate::{models::storage_event::StorageL2ToL1Log, SqlxError, StorageProcessor};
 
 /// Wrapper around an optional event topic allowing to hex-format it for `COPY` instructions.
 #[derive(Debug)]
@@ -99,12 +101,12 @@ impl EventsDal<'_, '_> {
         .unwrap();
     }
 
-    /// Saves L2-to-L1 logs from a miniblock. Logs must be ordered by transaction location
+    /// Saves user L2-to-L1 logs from a miniblock. Logs must be ordered by transaction location
     /// and within each transaction.
-    pub async fn save_l2_to_l1_logs(
+    pub async fn save_user_l2_to_l1_logs(
         &mut self,
         block_number: MiniblockNumber,
-        all_block_l2_to_l1_logs: &[(IncludedTxLocation, Vec<&L2ToL1Log>)],
+        all_block_l2_to_l1_logs: &[(IncludedTxLocation, Vec<&UserL2ToL1Log>)],
     ) {
         let mut copy = self
             .storage
@@ -139,7 +141,7 @@ impl EventsDal<'_, '_> {
                     sender,
                     key,
                     value,
-                } = log;
+                } = log.0;
 
                 write_str!(
                     &mut buffer,
@@ -194,10 +196,10 @@ impl EventsDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    use zksync_types::{Address, L1BatchNumber, ProtocolVersion};
+
     use super::*;
     use crate::{tests::create_miniblock_header, ConnectionPool};
-    use db_test_macro::db_test;
-    use zksync_types::{Address, L1BatchNumber, ProtocolVersion};
 
     fn create_vm_event(index: u8, topic_count: u8) -> VmEvent {
         assert!(topic_count <= 4);
@@ -209,8 +211,9 @@ mod tests {
         }
     }
 
-    #[db_test(dal_crate)]
-    async fn storing_events(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn storing_events() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.events_dal().rollback_events(MiniblockNumber(0)).await;
         conn.blocks_dal()
@@ -273,19 +276,20 @@ mod tests {
         }
     }
 
-    fn create_l2_to_l1_log(tx_number_in_block: u16, index: u8) -> L2ToL1Log {
-        L2ToL1Log {
+    fn create_l2_to_l1_log(tx_number_in_block: u16, index: u8) -> UserL2ToL1Log {
+        UserL2ToL1Log(L2ToL1Log {
             shard_id: 0,
             is_service: false,
             tx_number_in_block,
             sender: Address::repeat_byte(index),
             key: H256::from_low_u64_be(u64::from(index)),
             value: H256::repeat_byte(index),
-        }
+        })
     }
 
-    #[db_test(dal_crate)]
-    async fn storing_l2_to_l1_logs(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn storing_l2_to_l1_logs() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.events_dal()
             .rollback_l2_to_l1_logs(MiniblockNumber(0))
@@ -323,7 +327,7 @@ mod tests {
             (second_location, second_logs.iter().collect()),
         ];
         conn.events_dal()
-            .save_l2_to_l1_logs(MiniblockNumber(1), &all_logs)
+            .save_user_l2_to_l1_logs(MiniblockNumber(1), &all_logs)
             .await;
 
         let logs = conn
@@ -337,9 +341,9 @@ mod tests {
             assert_eq!(log.log_index_in_tx as usize, i);
         }
         for (log, expected_log) in logs.iter().zip(&first_logs) {
-            assert_eq!(log.key, expected_log.key.as_bytes());
-            assert_eq!(log.value, expected_log.value.as_bytes());
-            assert_eq!(log.sender, expected_log.sender.as_bytes());
+            assert_eq!(log.key, expected_log.0.key.as_bytes());
+            assert_eq!(log.value, expected_log.0.value.as_bytes());
+            assert_eq!(log.sender, expected_log.0.sender.as_bytes());
         }
 
         let logs = conn
@@ -353,9 +357,9 @@ mod tests {
             assert_eq!(log.log_index_in_tx as usize, i);
         }
         for (log, expected_log) in logs.iter().zip(&second_logs) {
-            assert_eq!(log.key, expected_log.key.as_bytes());
-            assert_eq!(log.value, expected_log.value.as_bytes());
-            assert_eq!(log.sender, expected_log.sender.as_bytes());
+            assert_eq!(log.key, expected_log.0.key.as_bytes());
+            assert_eq!(log.value, expected_log.0.value.as_bytes());
+            assert_eq!(log.sender, expected_log.0.sender.as_bytes());
         }
     }
 }

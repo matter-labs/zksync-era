@@ -1,6 +1,3 @@
-use tokio::sync::RwLock;
-use zksync_utils::h256_to_u256;
-
 use std::{
     collections::HashMap,
     convert::TryFrom,
@@ -12,6 +9,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+use tokio::sync::Mutex;
+use vise::GaugeGuard;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
@@ -22,18 +21,21 @@ use zksync_types::{
     AccountTreeId, Address, L1BatchNumber, L1ChainId, L2ChainId, MiniblockNumber, StorageKey, H256,
     SYSTEM_CONTEXT_ADDRESS, U256, U64, VIRTUIAL_BLOCK_UPGRADE_INFO_POSITION,
 };
+use zksync_utils::h256_to_u256;
 use zksync_web3_decl::{
     error::Web3Error,
-    types::{Filter, Log, TypedFilter},
+    types::{Filter, Log},
 };
 
+use super::metrics::{FilterType, API_METRICS, FILTER_METRICS};
 use crate::{
     api_server::{
         execution_sandbox::BlockArgs,
+        tree::TreeApiHttpClient,
         tx_sender::TxSender,
         web3::{
             backend_jsonrpc::error::internal_error, namespaces::eth::EVENT_TOPIC_NUMBER_LIMIT,
-            resolve_block,
+            resolve_block, TypedFilter,
         },
     },
     sync_layer::SyncState,
@@ -164,8 +166,9 @@ impl SealedMiniblockNumber {
 /// Holder for the data required for the API to be functional.
 #[derive(Debug)]
 pub struct RpcState<E> {
-    pub installed_filters: Arc<RwLock<Filters>>,
+    pub(crate) installed_filters: Arc<Mutex<Filters>>,
     pub connection_pool: ConnectionPool,
+    pub tree_api: Option<TreeApiHttpClient>,
     pub tx_sender: TxSender<E>,
     pub sync_state: Option<SyncState>,
     pub(super) api_config: InternalApiConfig,
@@ -184,6 +187,7 @@ impl<E> Clone for RpcState<E> {
             installed_filters: self.installed_filters.clone(),
             connection_pool: self.connection_pool.clone(),
             tx_sender: self.tx_sender.clone(),
+            tree_api: self.tree_api.clone(),
             sync_state: self.sync_state.clone(),
             api_config: self.api_config.clone(),
             last_sealed_miniblock: self.last_sealed_miniblock.clone(),
@@ -326,9 +330,9 @@ impl<E> RpcState<E> {
 
     /// Returns logs for the given filter, taking into account block.number migration with virtual blocks
     pub async fn translate_get_logs(&self, filter: Filter) -> Result<Vec<Log>, Web3Error> {
-        let start = Instant::now();
         const METHOD_NAME: &str = "translate_get_logs";
 
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         // no support for block hash filtering
         if filter.block_hash.is_some() {
             return Err(Web3Error::InvalidFilterBlockHash);
@@ -424,8 +428,7 @@ impl<E> RpcState<E> {
             )
             .await;
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
-
+        method_latency.observe();
         result
     }
 
@@ -501,9 +504,10 @@ impl<E> RpcState<E> {
             .enumerate()
             .filter_map(|(idx, topics)| topics.map(|topics| (idx as u32 + 1, topics.0)))
             .collect();
+
         let get_logs_filter = GetLogsFilter {
             from_block,
-            to_block: filter.to_block,
+            to_block,
             addresses,
             topics,
         };
@@ -538,10 +542,52 @@ impl<E> RpcState<E> {
 }
 
 /// Contains mapping from index to `Filter` with optional location.
-#[derive(Default, Debug, Clone)]
-pub struct Filters {
-    state: HashMap<U256, TypedFilter>,
+#[derive(Default, Debug)]
+pub(crate) struct Filters {
+    state: HashMap<U256, InstalledFilter>,
     max_cap: usize,
+}
+
+#[derive(Debug)]
+struct InstalledFilter {
+    pub filter: TypedFilter,
+    _guard: GaugeGuard,
+    created_at: Instant,
+    last_request: Instant,
+    request_count: usize,
+}
+
+impl InstalledFilter {
+    pub fn new(filter: TypedFilter) -> Self {
+        let guard = FILTER_METRICS.metrics_count[&FilterType::from(&filter)].inc_guard(1);
+        Self {
+            filter,
+            _guard: guard,
+            created_at: Instant::now(),
+            last_request: Instant::now(),
+            request_count: 0,
+        }
+    }
+
+    pub fn update_stats(&mut self) {
+        let previous_request_timestamp = self.last_request;
+        let now = Instant::now();
+
+        self.last_request = now;
+        self.request_count += 1;
+
+        let filter_type = FilterType::from(&self.filter);
+        FILTER_METRICS.request_frequency[&filter_type].observe(now - previous_request_timestamp);
+    }
+}
+
+impl Drop for InstalledFilter {
+    fn drop(&mut self) {
+        let filter_type = FilterType::from(&self.filter);
+
+        FILTER_METRICS.filter_count[&filter_type].observe(self.request_count);
+        FILTER_METRICS.filter_lifetime[&filter_type].observe(self.created_at.elapsed());
+    }
 }
 
 impl Filters {
@@ -561,7 +607,8 @@ impl Filters {
                 break val;
             }
         };
-        self.state.insert(idx, filter);
+
+        self.state.insert(idx, InstalledFilter::new(filter));
 
         // Check if we reached max capacity
         if self.state.len() > self.max_cap {
@@ -574,17 +621,18 @@ impl Filters {
     }
 
     /// Retrieves filter from the state.
-    pub fn get(&self, index: U256) -> Option<&TypedFilter> {
-        self.state.get(&index)
+    pub fn get_and_update_stats(&mut self, index: U256) -> Option<TypedFilter> {
+        let installed_filter = self.state.get_mut(&index)?;
+
+        installed_filter.update_stats();
+
+        Some(installed_filter.filter.clone())
     }
 
     /// Updates filter in the state.
-    pub fn update(&mut self, index: U256, new_filter: TypedFilter) -> bool {
-        if let Some(typed_filter) = self.state.get_mut(&index) {
-            *typed_filter = new_filter;
-            true
-        } else {
-            false
+    pub fn update(&mut self, index: U256, new_filter: TypedFilter) {
+        if let Some(installed_filter) = self.state.get_mut(&index) {
+            installed_filter.filter = new_filter;
         }
     }
 

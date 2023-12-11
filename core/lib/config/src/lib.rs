@@ -3,9 +3,7 @@
 pub use crate::configs::{
     ApiConfig, ChainConfig, ContractVerifierConfig, ContractsConfig, DBConfig, ETHClientConfig,
     ETHSenderConfig, ETHWatchConfig, FetcherConfig, GasAdjusterConfig, ObjectStoreConfig,
-    ProverConfig, ProverConfigs,
+    PostgresConfig, ProverConfig, ProverConfigs,
 };
 
 pub mod configs;
-pub mod constants;
-pub mod test_config;

@@ -43,7 +43,7 @@ Sample test suite would look like this:
  */
 
 import { TestMaster } from '../src/index';
-import { shouldChangeETHBalances } from '../src/matchers/transaction-modifiers';
+import { shouldChangeETHBalances } from '../src/modifiers/balance-checker.ts';
 
 import * as zksync from 'zksync-web3';
 import { BigNumber } from 'ethers';
@@ -102,8 +102,7 @@ are others (like `shouldChangeTokenBalances` or `shouldOnlyTakeFee`), and if nee
 These modifiers would be applied to the transaction receipt, and you can implement any kind of custom logic there. To do
 so, you just need to declare a class that inherits `MatcherModifier` class and implements the `check` method.
 
-For more details on the interface, see the
-[transaction-modifiers.ts](./src/transaction-matcher-modifiers/transaction-modifiers.ts).
+For more details on the interface, see the [index.ts](./src/modifiers/index.ts).
 
 Note: you don't have to always declare modifiers there. If your modifier is specific to one suite only, you can declare
 it right there and use in your tests.
@@ -135,7 +134,7 @@ finalization: it make take several hours to generate a proof and send it onchain
 Because of that, framework supports "fast" and "long" modes. `TestMaster` objects have `isFastMode` method to determine
 which mode is currently being used.
 
-If you're going to write a test that can make test run duration longer, it is adviced to guard the "long" part with the
+If you're going to write a test that can make test run duration longer, it is advised to guard the "long" part with the
 corresponding check.
 
 By default, "long" mode is assumed, and to enable the "fast" mode one must set the `ZK_INTEGRATION_TESTS_FAST_MODE`

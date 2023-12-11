@@ -4,10 +4,9 @@
 
 use std::{fmt, num::NonZeroU64};
 
-use zksync_types::{H256, U256};
-
 use crate::{
     hasher::{HashTree, InternalNodeCache},
+    types::{Key, TreeEntry, ValueHash},
     utils::SmallMap,
 };
 
@@ -25,6 +24,7 @@ pub(crate) struct TreeTags {
     pub architecture: String,
     pub depth: usize,
     pub hasher: String,
+    pub is_recovering: bool,
 }
 
 impl TreeTags {
@@ -35,10 +35,11 @@ impl TreeTags {
             architecture: Self::ARCHITECTURE.to_owned(),
             hasher: hasher.name().to_owned(),
             depth: TREE_DEPTH,
+            is_recovering: false,
         }
     }
 
-    pub fn assert_consistency(&self, hasher: &dyn HashTree) {
+    pub fn assert_consistency(&self, hasher: &dyn HashTree, expecting_recovery: bool) {
         assert_eq!(
             self.architecture,
             Self::ARCHITECTURE,
@@ -59,6 +60,18 @@ impl TreeTags {
             hasher.name(),
             self.hasher
         );
+
+        if expecting_recovery {
+            assert!(
+                self.is_recovering,
+                "Tree is expected to be in the process of recovery, but it is not"
+            );
+        } else {
+            assert!(
+                !self.is_recovering,
+                "Tree is being recovered; cannot access it until recovery finishes"
+            );
+        }
     }
 }
 
@@ -205,6 +218,26 @@ impl Nibbles {
         }
         Some(child)
     }
+
+    /// Returns nibbles that form a common prefix between these nibbles and the provided `key`.
+    pub fn common_prefix(mut self, other: &Self) -> Self {
+        for i in 0..(self.nibble_count + 1) / 2 {
+            let (this_byte, other_byte) = (self.bytes[i], other.bytes[i]);
+            if this_byte != other_byte {
+                // Check whether the first nibble matches.
+                if this_byte & 0xf0 == other_byte & 0xf0 {
+                    self.nibble_count = i * 2 + 1;
+                    self.bytes[i] &= 0xf0;
+                    self.bytes[(i + 1)..].fill(0);
+                } else {
+                    self.nibble_count = i * 2;
+                    self.bytes[i..].fill(0);
+                }
+                return self;
+            }
+        }
+        self
+    }
 }
 
 impl fmt::Display for Nibbles {
@@ -289,11 +322,6 @@ impl fmt::Display for NodeKey {
     }
 }
 
-/// Key stored in the tree.
-pub type Key = U256;
-/// Hashed value stored in the tree.
-pub type ValueHash = H256;
-
 /// Leaf node of the tree.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
@@ -304,12 +332,17 @@ pub struct LeafNode {
 }
 
 impl LeafNode {
-    pub(crate) fn new(full_key: Key, value_hash: ValueHash, leaf_index: u64) -> Self {
+    pub(crate) fn new(entry: TreeEntry) -> Self {
         Self {
-            full_key,
-            value_hash,
-            leaf_index,
+            full_key: entry.key,
+            value_hash: entry.value,
+            leaf_index: entry.leaf_index,
         }
+    }
+
+    pub(crate) fn update_from(&mut self, entry: TreeEntry) {
+        self.value_hash = entry.value;
+        self.leaf_index = entry.leaf_index;
     }
 }
 
@@ -407,6 +440,16 @@ impl InternalNode {
 
     pub(crate) fn child_refs(&self) -> impl Iterator<Item = &ChildRef> + '_ {
         self.children.values()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn child_refs_mut(&mut self) -> impl Iterator<Item = &mut ChildRef> + '_ {
+        self.children.values_mut()
+    }
+
+    pub(crate) fn last_child_ref(&self) -> (u8, &ChildRef) {
+        self.children.last().unwrap()
+        // ^ `unwrap()` is safe by construction; all persisted internal nodes are not empty
     }
 
     pub(crate) fn child_hashes(&self) -> [Option<ValueHash>; Self::CHILD_COUNT as usize] {
@@ -511,6 +554,8 @@ impl StaleNodeKey {
 
 #[cfg(test)]
 mod tests {
+    use zksync_types::U256;
+
     use super::*;
 
     // `U256` uses little-endian `u64` ordering; i.e., this is
@@ -559,6 +604,34 @@ mod tests {
 
         let nibbles = Nibbles::new(&TEST_KEY, 64);
         assert!(nibbles.push(0xb).is_none());
+    }
+
+    #[test]
+    fn nibbles_prefix() {
+        let nibbles = Nibbles::new(&TEST_KEY, 6);
+        assert_eq!(nibbles.common_prefix(&nibbles), nibbles);
+
+        let nibbles = Nibbles::new(&TEST_KEY, 6);
+        let prefix = Nibbles::new(&TEST_KEY, 4);
+        assert_eq!(nibbles.common_prefix(&prefix), prefix);
+        assert_eq!(prefix.common_prefix(&nibbles), prefix);
+
+        let nibbles = Nibbles::new(&TEST_KEY, 7);
+        assert_eq!(nibbles.common_prefix(&prefix), prefix);
+        assert_eq!(prefix.common_prefix(&nibbles), prefix);
+
+        let nibbles = Nibbles::new(&TEST_KEY, 64);
+        let diverging_nibbles = Nibbles::new(&TEST_KEY, 4).push(0x1).unwrap();
+        assert_eq!(nibbles.common_prefix(&diverging_nibbles), prefix);
+
+        let diverging_nibbles = Nibbles::new(&TEST_KEY, 5).push(0x1).unwrap();
+        assert_eq!(
+            nibbles.common_prefix(&diverging_nibbles),
+            Nibbles::new(&TEST_KEY, 5)
+        );
+
+        let diverging_nibbles = Nibbles::from_parts([0xff; KEY_SIZE], 64);
+        assert_eq!(nibbles.common_prefix(&diverging_nibbles), Nibbles::EMPTY);
     }
 
     #[test]
