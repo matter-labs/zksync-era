@@ -100,7 +100,7 @@ export function printAllConfigs(environment?: string) {
     console.log(`${JSON.stringify(config, null, 2)}`);
 }
 
-export function compileConfig(environment?: string) {
+export function compileConfig(environment?: string, writeOutputToFile: boolean = true): string {
     environment ??= process.env.ZKSYNC_ENV!;
     const config = loadConfig(environment);
     const variables = collectVariables(config);
@@ -110,9 +110,12 @@ export function compileConfig(environment?: string) {
         outputFileContents += `${key}=${value}\n`;
     });
 
-    const outputFileName = `etc/env/${environment}.env`;
-    fs.writeFileSync(outputFileName, outputFileContents);
-    console.log(`Configs compiled for ${environment}`);
+    if (writeOutputToFile) {
+        const outputFileName = `etc/env/${environment}.env`;
+        fs.writeFileSync(outputFileName, outputFileContents);
+        console.log(`Configs compiled for ${environment}`);
+    }
+    return outputFileContents;
 }
 
 export const command = new Command('config').description('config management');

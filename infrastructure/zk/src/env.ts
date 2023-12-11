@@ -3,6 +3,7 @@ import fs from 'fs';
 import dotenv from 'dotenv';
 import * as utils from './utils';
 import * as config from './config';
+import {compileConfig} from "./config";
 
 export const getAvailableEnvsFromFiles = () => {
     const envs = new Set();
@@ -94,7 +95,7 @@ export function reload() {
 }
 
 export function getEnvVariables(env: string) {
-    return dotenv.parse(fs.readFileSync(`${process.env.ZKSYNC_HOME}/etc/env/${env}.env`));
+    return dotenv.parse(compileConfig(env, false));
 }
 
 // loads environment variables
