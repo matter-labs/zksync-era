@@ -3,7 +3,7 @@ import fs from 'fs';
 import dotenv from 'dotenv';
 import * as utils from './utils';
 import * as config from './config';
-import {compileConfig} from "./config";
+import { compileConfig } from './config';
 
 export const getAvailableEnvsFromFiles = () => {
     const envs = new Set();
