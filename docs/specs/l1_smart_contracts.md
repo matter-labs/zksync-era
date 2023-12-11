@@ -217,7 +217,7 @@ The owner of the L2WethBridge and L2Weth contracts is the Governance contract.
 
 ## Governance
 
-This contract manages calls for all governed zkEVM contracts on L1 and L2. Mostly, it is used for upgradability an
+This contract manages calls for all governed zkEVM contracts on L1 and L2. Mostly, it is used for upgradability and
 changing critical system parameters. The contract has minimum delay settings for the call execution.
 
 Each upgrade consists of two steps:
