@@ -40,11 +40,10 @@ where
 #[tokio::test]
 async fn genesis_creation() {
     let pool = ConnectionPool::test_pool().await;
-    let prover_pool = ConnectionPool::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
 
     let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
-    run_calculator(calculator, pool.clone(), prover_pool).await;
+    run_calculator(calculator, pool.clone()).await;
     let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
 
     let GenericAsyncTree::Ready(tree) = &calculator.tree else {
@@ -58,13 +57,12 @@ async fn genesis_creation() {
 #[tokio::test]
 async fn basic_workflow() {
     let pool = ConnectionPool::test_pool().await;
-    let prover_pool = ConnectionPool::test_pool().await;
 
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
 
     let (calculator, object_store) = setup_calculator(temp_dir.path(), &pool).await;
     reset_db_state(&pool, 1).await;
-    let merkle_tree_hash = run_calculator(calculator, pool.clone(), prover_pool).await;
+    let merkle_tree_hash = run_calculator(calculator, pool.clone()).await;
 
     // Check the hash against the reference.
     let expected_tree_hash = expected_tree_hash(&pool).await;
@@ -104,7 +102,6 @@ async fn expected_tree_hash(pool: &ConnectionPool) -> H256 {
 #[tokio::test]
 async fn status_receiver_has_correct_states() {
     let pool = ConnectionPool::test_pool().await;
-    let prover_pool = ConnectionPool::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
 
     let (mut calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
@@ -123,7 +120,7 @@ async fn status_receiver_has_correct_states() {
     let (delay_sx, mut delay_rx) = mpsc::unbounded_channel();
     calculator.delayer.delay_notifier = delay_sx;
 
-    let calculator_handle = tokio::spawn(calculator.run(pool, prover_pool, stop_rx));
+    let calculator_handle = tokio::spawn(calculator.run(pool, stop_rx));
     delay_rx.recv().await.unwrap();
     assert_eq!(
         tree_health_check.check_health().await.status(),
@@ -153,19 +150,18 @@ async fn status_receiver_has_correct_states() {
 #[tokio::test]
 async fn multi_l1_batch_workflow() {
     let pool = ConnectionPool::test_pool().await;
-    let prover_pool = ConnectionPool::test_pool().await;
 
     // Collect all storage logs in a single L1 batch
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
     reset_db_state(&pool, 1).await;
-    let root_hash = run_calculator(calculator, pool.clone(), prover_pool.clone()).await;
+    let root_hash = run_calculator(calculator, pool.clone()).await;
 
     // Collect the same logs in multiple L1 batches
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let (calculator, object_store) = setup_calculator(temp_dir.path(), &pool).await;
     reset_db_state(&pool, 10).await;
-    let multi_block_root_hash = run_calculator(calculator, pool, prover_pool).await;
+    let multi_block_root_hash = run_calculator(calculator, pool).await;
     assert_eq!(multi_block_root_hash, root_hash);
 
     let mut prev_index = None;
@@ -190,20 +186,18 @@ async fn multi_l1_batch_workflow() {
 #[tokio::test]
 async fn running_metadata_calculator_with_additional_blocks() {
     let pool = ConnectionPool::test_pool().await;
-    let prover_pool = ConnectionPool::test_pool().await;
 
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let calculator = setup_lightweight_calculator(temp_dir.path(), &pool).await;
     reset_db_state(&pool, 5).await;
-    run_calculator(calculator, pool.clone(), prover_pool.clone()).await;
+    run_calculator(calculator, pool.clone()).await;
 
     let mut calculator = setup_lightweight_calculator(temp_dir.path(), &pool).await;
     let (stop_sx, stop_rx) = watch::channel(false);
     let (delay_sx, mut delay_rx) = mpsc::unbounded_channel();
     calculator.delayer.delay_notifier = delay_sx;
 
-    let calculator_handle =
-        tokio::spawn(calculator.run(pool.clone(), prover_pool.clone(), stop_rx));
+    let calculator_handle = tokio::spawn(calculator.run(pool.clone(), stop_rx));
     // Wait until the calculator has processed initial L1 batches.
     let (next_l1_batch, _) = tokio::time::timeout(RUN_TIMEOUT, delay_rx.recv())
         .await
@@ -235,14 +229,13 @@ async fn running_metadata_calculator_with_additional_blocks() {
 
     // Switch to the full tree. It should pick up from the same spot and result in the same tree root hash.
     let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
-    let root_hash_for_full_tree = run_calculator(calculator, pool, prover_pool).await;
+    let root_hash_for_full_tree = run_calculator(calculator, pool).await;
     assert_eq!(root_hash_for_full_tree, updated_root_hash);
 }
 
 #[tokio::test]
 async fn shutting_down_calculator() {
     let pool = ConnectionPool::test_pool().await;
-    let prover_pool = ConnectionPool::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let (merkle_tree_config, mut operation_config) = create_config(temp_dir.path());
     operation_config.delay_interval = 30_000; // ms; chosen to be larger than `RUN_TIMEOUT`
@@ -258,7 +251,7 @@ async fn shutting_down_calculator() {
     reset_db_state(&pool, 5).await;
 
     let (stop_sx, stop_rx) = watch::channel(false);
-    let calculator_task = tokio::spawn(calculator.run(pool, prover_pool, stop_rx));
+    let calculator_task = tokio::spawn(calculator.run(pool, stop_rx));
     tokio::time::sleep(Duration::from_millis(100)).await;
     stop_sx.send_replace(true);
     run_with_timeout(RUN_TIMEOUT, calculator_task)
@@ -272,11 +265,10 @@ async fn test_postgres_backup_recovery(
     insert_batch_without_metadata: bool,
 ) {
     let pool = ConnectionPool::test_pool().await;
-    let prover_pool = ConnectionPool::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let calculator = setup_lightweight_calculator(temp_dir.path(), &pool).await;
     reset_db_state(&pool, 5).await;
-    run_calculator(calculator, pool.clone(), prover_pool.clone()).await;
+    run_calculator(calculator, pool.clone()).await;
 
     // Simulate recovery from a DB snapshot in which some newer L1 batches are erased.
     let last_batch_after_recovery = L1BatchNumber(3);
@@ -310,7 +302,7 @@ async fn test_postgres_backup_recovery(
     let (delay_sx, mut delay_rx) = mpsc::unbounded_channel();
     calculator.delayer.delay_notifier = delay_sx;
 
-    let calculator_handle = tokio::spawn(calculator.run(pool.clone(), prover_pool, stop_rx));
+    let calculator_handle = tokio::spawn(calculator.run(pool.clone(), stop_rx));
     // Wait until the calculator has processed initial L1 batches.
     let (next_l1_batch, _) = tokio::time::timeout(RUN_TIMEOUT, delay_rx.recv())
         .await
@@ -425,7 +417,6 @@ fn path_to_string(path: &Path) -> String {
 pub(crate) async fn run_calculator(
     mut calculator: MetadataCalculator,
     pool: ConnectionPool,
-    prover_pool: ConnectionPool,
 ) -> H256 {
     let (stop_sx, stop_rx) = watch::channel(false);
     let (delay_sx, mut delay_rx) = mpsc::unbounded_channel();
@@ -441,7 +432,7 @@ pub(crate) async fn run_calculator(
         root_hash
     });
 
-    run_with_timeout(RUN_TIMEOUT, calculator.run(pool, prover_pool, stop_rx))
+    run_with_timeout(RUN_TIMEOUT, calculator.run(pool, stop_rx))
         .await
         .unwrap();
     delayer_handle.await.unwrap()

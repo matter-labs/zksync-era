@@ -20,7 +20,7 @@ use crate::{
     storage_logs_dedup_dal::StorageLogsDedupDal, storage_web3_dal::StorageWeb3Dal,
     sync_dal::SyncDal, system_dal::SystemDal, tokens_dal::TokensDal,
     tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
-    transactions_web3_dal::TransactionsWeb3Dal, witness_generator_dal::WitnessGeneratorDal,
+    transactions_web3_dal::TransactionsWeb3Dal,
 };
 
 #[macro_use]
@@ -60,7 +60,6 @@ pub mod tokens_dal;
 pub mod tokens_web3_dal;
 pub mod transactions_dal;
 pub mod transactions_web3_dal;
-pub mod witness_generator_dal;
 
 #[cfg(test)]
 mod tests;
@@ -181,10 +180,6 @@ impl<'a> StorageProcessor<'a> {
 
     pub fn prover_dal(&mut self) -> ProverDal<'_, 'a> {
         ProverDal { storage: self }
-    }
-
-    pub fn witness_generator_dal(&mut self) -> WitnessGeneratorDal<'_, 'a> {
-        WitnessGeneratorDal { storage: self }
     }
 
     pub fn contract_verification_dal(&mut self) -> ContractVerificationDal<'_, 'a> {

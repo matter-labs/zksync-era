@@ -18,21 +18,14 @@ const success = chalk.green;
 const timestamp = chalk.grey;
 
 export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
-    const {
-        skipSubmodulesCheckout,
-        skipEnvSetup,
-        skipPlonkStep,
-        testTokens,
-        governorPrivateKeyArgs,
-        deployerL2ContractInput
-    } = initArgs;
+    const { skipSubmodulesCheckout, skipEnvSetup, testTokens, governorPrivateKeyArgs, deployerL2ContractInput } =
+        initArgs;
 
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
         await announced('Checking environment', checkEnv());
         await announced('Checking git hooks', env.gitHooks());
         await announced('Setting up containers', up());
-        !skipPlonkStep && (await announced('Checking PLONK setup', run.plonkSetup()));
     }
     if (!skipSubmodulesCheckout) {
         await announced('Checkout system-contracts submodule', submoduleUpdate());
@@ -134,7 +127,7 @@ export async function submoduleUpdate() {
 }
 
 async function checkEnv() {
-    const tools = ['node', 'yarn', 'docker', 'docker-compose', 'cargo'];
+    const tools = ['node', 'yarn', 'docker', 'cargo'];
     for (const tool of tools) {
         await utils.exec(`which ${tool}`);
     }
@@ -149,7 +142,6 @@ async function checkEnv() {
 export interface InitArgs {
     skipSubmodulesCheckout: boolean;
     skipEnvSetup: boolean;
-    skipPlonkStep: boolean;
     governorPrivateKeyArgs: any[];
     deployerL2ContractInput: {
         args: any[];
@@ -165,7 +157,6 @@ export interface InitArgs {
 const DEFAULT_ARGS: InitArgs = {
     skipSubmodulesCheckout: false,
     skipEnvSetup: false,
-    skipPlonkStep: false,
     governorPrivateKeyArgs: [],
     deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
     testTokens: { deploy: true, args: [] }
@@ -179,7 +170,6 @@ export const initCommand = new Command('init')
         const initArgs: InitArgs = {
             skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
             skipEnvSetup: cmd.skipEnvSetup,
-            skipPlonkStep: false,
             governorPrivateKeyArgs: [],
             deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
             testTokens: { deploy: true, args: [] }

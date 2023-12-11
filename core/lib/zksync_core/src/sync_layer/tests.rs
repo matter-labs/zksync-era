@@ -59,7 +59,6 @@ impl MockMainNodeClient {
                 l1_batch_number,
                 last_in_batch: is_fictive,
                 timestamp: number.into(),
-                root_hash: Some(H256::repeat_byte(1)),
                 l1_gas_price: 2,
                 l2_fair_gas_price: 3,
                 base_system_contracts_hashes: BaseSystemContractsHashes::default(),

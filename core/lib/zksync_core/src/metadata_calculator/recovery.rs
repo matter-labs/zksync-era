@@ -563,8 +563,7 @@ mod tests {
 
         // Ensure that metadata for L1 batch #1 is present in the DB.
         let (calculator, _) = setup_calculator(&temp_dir.path().join("init"), pool).await;
-        let prover_pool = ConnectionPool::test_pool().await;
-        run_calculator(calculator, pool.clone(), prover_pool).await
+        run_calculator(calculator, pool.clone()).await
     }
 
     #[derive(Debug)]
