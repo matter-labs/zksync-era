@@ -99,7 +99,7 @@ impl GoogleCloudStorage {
         format!("{bucket}/{filename}")
     }
 
-    // For some bizzare reason, `async fn` doesn't work here, failing with the following error:
+    // For some bizarre reason, `async fn` doesn't work here, failing with the following error:
     //
     // > hidden type for `impl std::future::Future<Output = Result<(), ObjectStoreError>>`
     // > captures lifetime that does not appear in bounds
@@ -206,6 +206,14 @@ impl ObjectStore for GoogleCloudStorage {
 
     async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError> {
         self.remove_inner(bucket.as_str(), key).await
+    }
+
+    fn storage_prefix_raw(&self, bucket: Bucket) -> String {
+        format!(
+            "https://storage.googleapis.com/{}/{}",
+            self.bucket_prefix.clone(),
+            bucket.as_str()
+        )
     }
 }
 
