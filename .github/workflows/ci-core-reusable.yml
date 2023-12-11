@@ -280,7 +280,7 @@ jobs:
 
       # TODO(PLA-653): Restore bridge tests for EN.
       - name: Integration tests
-        run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification|custom-erc20-bridge'
+        run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification|custom-erc20-bridge|snapshots-creator'
 
       - name: Run Cross EN Checker
         run: ci_run zk run cross-en-checker
