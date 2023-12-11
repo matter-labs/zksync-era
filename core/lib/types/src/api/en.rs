@@ -30,8 +30,6 @@ pub struct SyncBlock {
     pub last_in_batch: bool,
     /// L2 block timestamp.
     pub timestamp: u64,
-    /// Hash of the L2 block (not the Merkle root hash).
-    pub root_hash: Option<H256>,
     /// L1 gas price used as VM parameter for the L1 batch corresponding to this L2 block.
     pub l1_gas_price: u64,
     /// L2 gas price used as VM parameter for the L1 batch corresponding to this L2 block.
