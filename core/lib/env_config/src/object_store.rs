@@ -30,6 +30,16 @@ impl FromEnv for ProverObjectStoreConfig {
     }
 }
 
+#[derive(Debug)]
+pub struct SnapshotsObjectStoreConfig(pub ObjectStoreConfig);
+
+impl FromEnv for SnapshotsObjectStoreConfig {
+    fn from_env() -> anyhow::Result<Self> {
+        let config = envy_load("snapshots_object_store", "SNAPSHOTS_OBJECT_STORE_")?;
+        Ok(Self(config))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
@@ -92,5 +102,20 @@ mod tests {
         lock.set_env(config);
         let actual = ProverObjectStoreConfig::from_env().unwrap().0;
         assert_eq!(actual, expected_config("/prover_base_url"));
+    }
+
+    #[test]
+    fn snapshots_bucket_config_from_env() {
+        let mut lock = MUTEX.lock();
+        let config = r#"
+            SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL="/snapshots_base_url"
+            SNAPSHOTS_OBJECT_STORE_MODE="FileBacked"
+            SNAPSHOTS_OBJECT_STORE_FILE_BACKED_BASE_PATH="artifacts"
+            SNAPSHOTS_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials.json"
+            SNAPSHOTS_OBJECT_STORE_MAX_RETRIES="5"
+        "#;
+        lock.set_env(config);
+        let actual = SnapshotsObjectStoreConfig::from_env().unwrap().0;
+        assert_eq!(actual, expected_config("/snapshots_base_url"));
     }
 }
