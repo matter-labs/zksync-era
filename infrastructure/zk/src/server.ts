@@ -91,7 +91,6 @@ export async function isolatedExternalNode() {
     const enProcess = utils.background(cmd);
 
     let startTime = new Date();
-    console.log(dockerEnv);
     while (true) {
         if (new Date().getTime() - startTime.getTime() > 30 * 1000) {
             throw new Error('Timeout waiting for EN to start');
