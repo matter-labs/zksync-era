@@ -316,7 +316,7 @@ async function setHyperchainMetadata() {
 
     const environment = getEnv(results.chainName);
 
-    await compileConfig(environment);
+    compileConfig(environment);
     env.set(environment);
     // TODO: Generate url for data-compressor with selected region or fix env variable for keys location
     // PLA-595
@@ -745,7 +745,7 @@ async function _generateDockerImages(_orgName?: string) {
 async function configDemoHyperchain(cmd: Command) {
     fs.existsSync('/etc/env/demo.env') && fs.unlinkSync('/etc/env/demo.env');
     fs.existsSync('/etc/hyperchains/hyperchain-demo.yml') && fs.unlinkSync('/etc/hyperchains/hyperchain-demo.yml');
-    await compileConfig('demo');
+    compileConfig('demo');
     env.set('demo');
 
     wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK', 'Zeek hyperchain');
