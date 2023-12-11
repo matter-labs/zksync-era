@@ -125,4 +125,6 @@ command.command('load [environment]').description('load the config for a certain
 command
     .command('compile [environment]')
     .description('compile the config for a certain environment')
-    .action(promisify(compileConfig));
+    .action((env) => {
+        compileConfig(env);
+    });
