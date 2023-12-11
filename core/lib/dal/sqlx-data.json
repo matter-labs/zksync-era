@@ -1686,6 +1686,26 @@
     },
     "query": "UPDATE transactions SET in_mempool = FALSE WHERE in_mempool = TRUE"
   },
+  "1f84a62da9b5e00dff0353de76b28f22220a5a859a9955afc2ad59135bd25e6c": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int2"
+        ]
+      }
+    },
+    "query": "\n                    SELECT l1_batch_number\n                    FROM prover_jobs_fri \n                    WHERE status <> 'skipped'\n                    AND status <> 'successful'\n                    AND aggregation_round = $1\n                    ORDER BY l1_batch_number ASC \n                    LIMIT 1\n                "
+  },
   "1faf6552c221c75b7232b55210c0c37be76a57ec9dc94584b6ccb562e8b182f2": {
     "describe": {
       "columns": [
@@ -9904,26 +9924,6 @@
       }
     },
     "query": "UPDATE tokens SET token_list_name = $2, token_list_symbol = $3,\n                token_list_decimals = $4, well_known = true, updated_at = now()\n                WHERE l1_address = $1\n                "
-  },
-  "d6f7622a96b99eac21dde1a5cff73d7b04a1ede8f482ece0f7515a9ded4fb764": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Int2"
-        ]
-      }
-    },
-    "query": "\n                    SELECT l1_batch_number\n                    FROM prover_jobs_fri \n                    WHERE status <> 'skipped'\n                    AND status <> 'skipped_manually'\n                    AND status <> 'successful'\n                    AND aggregation_round = $1\n                    ORDER BY l1_batch_number ASC \n                    LIMIT 1\n                "
   },
   "d7060880fe56fd99af7b7ed3f4c7fb9d0858cee30f44c5197821aae83c6c9666": {
     "describe": {
