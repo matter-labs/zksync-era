@@ -70,7 +70,7 @@ pub fn load_contract<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Contract {
 
 pub fn load_sys_contract(contract_name: &str) -> Contract {
     load_contract(format!(
-        "etc/system-contracts/artifacts-zk/cache-zk/solpp-generated-contracts/{0}.sol/{0}.json",
+        "etc/system-contracts/artifacts-zk/contracts-preprocessed/{0}.sol/{0}.json",
         contract_name
     ))
 }
@@ -211,7 +211,7 @@ impl SystemContractsRepo {
     ) -> Vec<u8> {
         match lang {
             ContractLanguage::Sol => read_bytecode_from_path(self.root.join(format!(
-                "artifacts-zk/cache-zk/solpp-generated-contracts/{0}{1}.sol/{1}.json",
+                "artifacts-zk/contracts-preprocessed/{0}{1}.sol/{1}.json",
                 directory, name
             ))),
             ContractLanguage::Yul => read_zbin_bytecode_from_path(self.root.join(format!(
@@ -224,8 +224,8 @@ impl SystemContractsRepo {
 
 pub fn read_bootloader_code(bootloader_type: &str) -> Vec<u8> {
     read_zbin_bytecode(format!(
-        "etc/system-contracts/bootloader/build/artifacts/{}.yul/{}.yul.zbin",
-        bootloader_type, bootloader_type
+        "etc/system-contracts/bootloader/build/artifacts/{}.yul.zbin",
+        bootloader_type
     ))
 }
 
