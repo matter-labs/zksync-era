@@ -2,7 +2,6 @@ import { Command } from 'commander';
 import * as toml from '@iarna/toml';
 import * as fs from 'fs';
 import deepExtend from 'deep-extend';
-import {promisify} from "util";
 
 const CONFIG_FILES = [
     'alerts.toml',
