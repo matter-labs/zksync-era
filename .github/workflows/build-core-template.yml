@@ -76,7 +76,8 @@ jobs:
       - name: start-services
         run: |
           echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
-          ci_localnet_up
+          mkdir -p ./volumes/postgres
+          docker compose up -d zk postgres
           ci_run sccache --start-server
 
       - name: init
