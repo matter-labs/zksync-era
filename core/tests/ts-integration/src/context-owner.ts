@@ -8,7 +8,7 @@ import { scaledGasPrice } from './helpers';
 import { RetryProvider } from './retry-provider';
 import fs from 'fs';
 import * as utils from 'zk/build/utils';
-import path from "path";
+import path from 'path';
 
 // These amounts of ETH would be provided to each test suite through its "main" account.
 // It is assumed to be enough to run a set of "normal" transactions.
@@ -405,15 +405,15 @@ export class TestContextOwner {
 
     async cleanUpDockerAndPostgres() {
         this.reporter.startAction(`Stopping docker containers`);
-        const filepath = `${process.env.ZKSYNC_HOME}.instances_to_clean`;
-        if (!fs.existsSync(filepath)) {
+        const instancesToCleanPath = path.join(process.env.ZKSYNC_HOME as string, 'instances_to_clean');
+        if (!fs.existsSync(instancesToCleanPath)) {
             return;
         }
-        const instancesToClean = fs.readFileSync(filepath).toString().trim().split('\n');
+        const instancesToClean = fs.readFileSync(instancesToCleanPath).toString().trim().split('\n');
         for (const instance of instancesToClean) {
             try {
-                const filename = `ts-integration-${new Date().toISOString().slice(0, 19)}-${instance}.log`
-                const logPath = path.join(process.env.ZKSYNC_HOME as string, `logs/${filename}`)
+                const filename = `ts-integration-${new Date().toISOString().slice(0, 19)}-${instance}.log`;
+                const logPath = path.join(process.env.ZKSYNC_HOME as string, `logs/${filename}`);
                 await utils.spawn(`docker logs ${instance} > ${logPath} 2>&1`);
                 const { stdout: status } = await utils.exec(
                     `docker container inspect ${instance} --format={{.State.Status}}`
@@ -440,7 +440,7 @@ export class TestContextOwner {
             } catch (e) {}
         }
         if (process.env.TS_INTEGRATION_PRESERVE_TEST_DATABASES === undefined) {
-            fs.rmSync(filepath);
+            fs.rmSync(instancesToCleanPath);
         }
         this.reporter.finishAction();
     }

@@ -62,7 +62,9 @@ export async function isolatedExternalNode() {
         .toString()
         .padStart(6, '0');
     const instanceName = `zksync_ext_node_${randomSuffix}`;
-    fs.writeFileSync(`${process.env.ZKSYNC_HOME}.instances_to_clean`, instanceName + '\n', { flag: 'a+' });
+    fs.writeFileSync(path.join(process.env.ZKSYNC_HOME as string, 'instances_to_clean'), instanceName + '\n', {
+        flag: 'a+'
+    });
 
     const binaryPath = '/usr/bin/zksync_external_node';
     let dockerEnv = ` --env "INTEGRATION_TEST_NODE_BINARY_PATH=${binaryPath}" `;
@@ -77,8 +79,8 @@ export async function isolatedExternalNode() {
         envVarValue = envVarValue.replace('127.0.0.1', 'host.docker.internal');
         dockerEnv += ` --env "${envVar}=${envVarValue}" `;
     }
-
-    const dockerVolumes = ` -v ${process.env.ZKSYNC_HOME}artifacts:/usr/src/zksync/artifacts`;
+    const artifactsHostDirectory = path.join(process.env.ZKSYNC_HOME as string, 'artifactss');
+    const dockerVolumes = ` -v ${artifactsHostDirectory}:/usr/src/zksync/artifacts`;
     const publishedPorts = '-p 3060:3060 -p 3061:3061 -p 3081:3081';
     const networkingFlags = '--add-host=host.docker.internal:host-gateway';
     const nameFlag = `--name ${instanceName}`;

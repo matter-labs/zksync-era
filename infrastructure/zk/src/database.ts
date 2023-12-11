@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import * as utils from './utils';
+import path from 'path';
 
 export async function reset() {
     await utils.confirmAction();
@@ -46,7 +47,7 @@ export async function generateMigration(name: String) {
 export async function setupIsolatedDatabase(databaseName: String) {
     const localDbUrl = 'postgres://postgres@localhost';
     const databaseUrl = `${localDbUrl}/${databaseName}`;
-    const migrationsDirectory = `${process.env.ZKSYNC_HOME}/core/lib/dal/migrations`;
+    const migrationsDirectory = path.join(process.env.ZKSYNC_HOME as string, 'core/lib/dal/migrations');
 
     await utils.exec(`cargo sqlx database create --database-url ${databaseUrl}`);
     await utils.exec(`cargo sqlx migrate run --database-url ${databaseUrl} --source ${migrationsDirectory} `);
