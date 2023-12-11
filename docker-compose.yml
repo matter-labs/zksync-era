@@ -106,6 +106,7 @@ services:
       - ./volumes/prysm:/consensus
   postgres:
     image: "postgres:14"
+    user: "${UID}:${GID}"
     ports:
       - 5432:5432
     volumes:
