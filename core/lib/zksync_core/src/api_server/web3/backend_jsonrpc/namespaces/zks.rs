@@ -30,6 +30,9 @@ pub trait ZksNamespaceT {
     #[rpc(name = "zks_estimateGasL1ToL2")]
     fn estimate_gas_l1_to_l2(&self, req: CallRequest) -> BoxFuture<Result<U256>>;
 
+    #[rpc(name = "zks_getBridgehubContract")]
+    fn get_bridgehub_contract(&self) -> BoxFuture<Result<Address>>;
+
     #[rpc(name = "zks_getMainContract")]
     fn get_main_contract(&self) -> BoxFuture<Result<Address>>;
 
@@ -135,6 +138,11 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceT for ZksNamespa
                 .await
                 .map_err(into_jsrpc_error)
         })
+    }
+
+    fn get_bridgehub_contract(&self) -> BoxFuture<Result<Address>> {
+        let self_ = self.clone();
+        Box::pin(async move { Ok(self_.get_bridgehub_contract_impl()) })
     }
 
     fn get_main_contract(&self) -> BoxFuture<Result<Address>> {
