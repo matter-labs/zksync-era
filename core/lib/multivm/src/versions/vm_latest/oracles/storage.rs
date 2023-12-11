@@ -446,7 +446,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
 //   - The second time we publish it, we will use the 4/5 byte representation of this 8-byte instead of the 32
 //     bytes of the entire key.
 // For value compression, we use a metadata byte which holds the length of the value and the operation from the
-// previous state to the new state, and the compressed value. The maxiumum for this is 33 bytes.
+// previous state to the new state, and the compressed value. The maximum for this is 33 bytes.
 // Total bytes for initial writes then becomes 65 bytes and repeated writes becomes 38 bytes.
 fn get_pubdata_price_bytes(initial_value: U256, final_value: U256, is_initial: bool) -> u32 {
     // TODO (SMA-1702): take into account the content of the log query, i.e. values that contain mostly zeroes
