@@ -347,11 +347,12 @@ impl FriProverDal<'_, '_> {
     ) -> Option<L1BatchNumber> {
         sqlx::query!(
             r#"
-                    SELECT l1_batch_number 
+                    SELECT l1_batch_number
                     FROM prover_jobs_fri 
                     WHERE status <> 'skipped'
+                    AND status <> 'skipped_manually'
                     AND status <> 'successful'
-                    AND aggregation_round = $1 
+                    AND aggregation_round = $1
                     ORDER BY l1_batch_number ASC 
                     LIMIT 1
                 "#,
