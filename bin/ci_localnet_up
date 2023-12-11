@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 cd $ZKSYNC_HOME
 
 mkdir -p ./volumes/postgres ./volumes/geth/keystore ./volumes/prysm/beacon ./volumes/prysm/validator
