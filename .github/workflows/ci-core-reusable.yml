@@ -6,7 +6,7 @@ on:
         description: 'JSON of required compilers and their versions'
         type: string
         required: false
-        default: '[{ "zksolc": ["1.3.14", "1.3.16", "1.3.18"] } , { "zkvyper": ["1.3.13"] }]'
+        default: '[{ "zksolc": ["1.3.14", "1.3.16", "1.3.17", "1.3.18"] } , { "zkvyper": ["1.3.13"] }]'
 
 jobs:
   lint:
