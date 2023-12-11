@@ -46,7 +46,7 @@ reject_tx_at_eth_params_percentage=0.95
 reject_tx_at_gas_percentage=0.95
 
 # The price the operator spends on 1 gas of computation in wei.
-minimal_l2_gas_price=250000000
+minimal_l2_gas_price=100000000
 
 # Max number of computational gas that validation step is allowed to take.
 validation_computational_gas_limit=300000
