@@ -129,7 +129,7 @@ impl ProofGenerationDal<'_, '_> {
         let result: Option<L1BatchNumber> = sqlx::query!(
             "SELECT l1_batch_number \
              FROM proof_generation_details \
-             WHERE status <> 'generated' \
+             WHERE status = 'picked_by_prover' \
              ORDER BY l1_batch_number ASC \
              LIMIT 1",
         )
