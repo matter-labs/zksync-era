@@ -7,6 +7,11 @@ on:
         type: string
         required: false
         default: "latest2.0"
+      compilers:
+        description: 'JSON of required compilers and their versions'
+        type: string
+        required: false
+        default: '[{ "zksolc": ["1.3.14", "1.3.16", "1.3.17"] } , { "zkvyper": ["1.3.13"] }]'
 
 jobs:
   build-images:
@@ -29,21 +34,17 @@ jobs:
       - name: pre-download compiilers
         run: |
           # Download needed versions of vyper compiler
+          # Not sanitized due to unconventional path and tags
           mkdir -p ./hardhat-nodejs/compilers-v2/vyper/linux
           wget -O ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.linux
           chmod +x  ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.10
-          # Download needed versions of zksolc compiler
-          mkdir -p ./hardhat-nodejs/compilers-v2/zksolc
-          wget -O ./hardhat-nodejs/compilers-v2/zksolc/zksolc-v1.3.14 https://github.com/matter-labs/zksolc-bin/releases/download/v1.3.14/zksolc-linux-amd64-musl-v1.3.14
-          chmod +x  ./hardhat-nodejs/compilers-v2/zksolc/zksolc-v1.3.14
-          wget -O ./hardhat-nodejs/compilers-v2/zksolc/zksolc-v1.3.16 https://github.com/matter-labs/zksolc-bin/releases/download/v1.3.16/zksolc-linux-amd64-musl-v1.3.16
-          chmod +x  ./hardhat-nodejs/compilers-v2/zksolc/zksolc-v1.3.16
-          wget -O ./hardhat-nodejs/compilers-v2/zksolc/zksolc-v1.3.17 https://github.com/matter-labs/zksolc-bin/releases/download/v1.3.17/zksolc-linux-amd64-musl-v1.3.17
-          chmod +x  ./hardhat-nodejs/compilers-v2/zksolc/zksolc-v1.3.17
-          # Download needed versions of zkvyper compiler
-          mkdir -p ./hardhat-nodejs/compilers-v2/zkvyper
-          wget -O ./hardhat-nodejs/compilers-v2/zkvyper/zkvyper-v1.3.13 https://github.com/matter-labs/zkvyper-bin/releases/download/v1.3.13/zkvyper-linux-amd64-musl-v1.3.13
-          chmod +x  ./hardhat-nodejs/compilers-v2/zkvyper/zkvyper-v1.3.13
+
+          COMPILERS_JSON='${{ inputs.compilers }}'
+          echo "$COMPILERS_JSON" | jq -r '.[] | to_entries[] | .key as $compiler | .value[] | "\(.),\($compiler)"' | while IFS=, read -r version compiler; do
+            mkdir -p "./hardhat-nodejs/compilers-v2/$compiler"
+            wget -O "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}" "https://github.com/matter-labs/${compiler}-bin/releases/download/v${version}/${compiler}-linux-amd64-musl-v${version}"
+            chmod +x "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}"
+          done
 
       - name: start-services
         run: |

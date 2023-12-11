@@ -25,8 +25,6 @@ pub struct CircuitBreakerChecker {
     sync_interval: Duration,
 }
 
-// Added random comment to trigger build CI for testing changes
-
 #[async_trait::async_trait]
 pub trait CircuitBreaker: std::fmt::Debug + Send + Sync {
     async fn check(&self) -> Result<(), CircuitBreakerError>;
