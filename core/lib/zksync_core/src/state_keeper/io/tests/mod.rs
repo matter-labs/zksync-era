@@ -185,8 +185,7 @@ async fn l1_batch_timestamp_respects_prev_miniblock_with_clock_skew() {
 #[tokio::test]
 async fn processing_storage_logs_when_sealing_miniblock() {
     let connection_pool = ConnectionPool::test_pool().await;
-    let mut miniblock =
-        MiniblockUpdates::new(0, 1, H256::zero(), 1, Some(ProtocolVersionId::latest()));
+    let mut miniblock = MiniblockUpdates::new(0, 1, H256::zero(), 1, ProtocolVersionId::latest());
 
     let tx = create_transaction(10, 100);
     let storage_logs = [
@@ -283,8 +282,7 @@ async fn processing_storage_logs_when_sealing_miniblock() {
 async fn processing_events_when_sealing_miniblock() {
     let pool = ConnectionPool::test_pool().await;
     let l1_batch_number = L1BatchNumber(2);
-    let mut miniblock =
-        MiniblockUpdates::new(0, 1, H256::zero(), 1, Some(ProtocolVersionId::latest()));
+    let mut miniblock = MiniblockUpdates::new(0, 1, H256::zero(), 1, ProtocolVersionId::latest());
 
     let events = (0_u8..10).map(|i| VmEvent {
         location: (l1_batch_number, u32::from(i / 4)),
