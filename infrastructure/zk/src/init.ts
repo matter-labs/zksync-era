@@ -264,13 +264,13 @@ export const initHyperCommand = new Command('init-hyper')
         await initHyperchain();
     });
 export const finishBridgeInitCommand = new Command('finish-bridge-init')
-.description('finishing bridge init')
-.option('--env-name <env-name>', 'env name to use for initialization')
-.action(async (cmd: Command) => {
-    if (cmd.l2ChainName) {
-        process.env.ZKSYNC_ENV = cmd.envName;
-        env.reload();
-    }
+    .description('finishing bridge init')
+    .option('--env-name <env-name>', 'env name to use for initialization')
+    .action(async (cmd: Command) => {
+        if (cmd.l2ChainName) {
+            process.env.ZKSYNC_ENV = cmd.envName;
+            env.reload();
+        }
 
-    await finishBridgeInit();
-});
+        await finishBridgeInit();
+    });

@@ -12,7 +12,7 @@ import {
     reinitCommand as reinit,
     lightweightInitCommand as lightweightInit,
     initHyperCommand as initHyper,
-    finishBridgeInitCommand as finishBridgeInit,
+    finishBridgeInitCommand as finishBridgeInit
 } from './init';
 import { initHyperchainCommand } from './hyperchain_wizard';
 import { command as run } from './run/run';
