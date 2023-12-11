@@ -9,6 +9,7 @@ import { RetryProvider } from './retry-provider';
 import fs from 'fs';
 import * as utils from 'zk/build/utils';
 import path from 'path';
+import {isolatedDatabaseUrl} from "zk/build/database";
 
 // These amounts of ETH would be provided to each test suite through its "main" account.
 // It is assumed to be enough to run a set of "normal" transactions.
@@ -425,13 +426,9 @@ export class TestContextOwner {
         }
         this.reporter.finishAction();
         this.reporter.startAction(`Deleting temporary postgres databases`);
-        for (const instance of instancesToClean) {
+        for (const instanceName of instancesToClean) {
             try {
-                const localDbUrl = 'postgres://postgres@localhost';
-                const databaseUrl = `${localDbUrl}/${instance}`;
-                if (databaseUrl.trim().length == 0) {
-                    continue; //sanity check, we really don't want sqlx to delete main postgres database
-                }
+                const databaseUrl = isolatedDatabaseUrl(instanceName);
                 if (process.env.TS_INTEGRATION_PRESERVE_TEST_DATABASES === undefined) {
                     await utils.spawn(`cargo sqlx database drop -y --database-url ${databaseUrl}`);
                 } else {
