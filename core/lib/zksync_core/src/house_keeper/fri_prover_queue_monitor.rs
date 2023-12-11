@@ -112,7 +112,7 @@ impl PeriodicJob for FriProverStatsReporter {
             )
         }
 
-        for aggregation_round in 0..2 {
+        for aggregation_round in 0..3 {
             if let Some(l1_batch_number) = conn
                 .fri_prover_jobs_dal()
                 .min_unproved_l1_batch_number_for_aggregation_round(aggregation_round.into())

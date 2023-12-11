@@ -37,7 +37,9 @@ jobs:
           # Not sanitized due to unconventional path and tags
           mkdir -p ./hardhat-nodejs/compilers-v2/vyper/linux
           wget -O ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.linux
+          wget -O ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.3 https://github.com/vyperlang/vyper/releases/download/v0.3.3/vyper.0.3.3+commit.48e326f0.linux
           chmod +x  ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.10
+          chmod +x  ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.3
 
           COMPILERS_JSON='${{ inputs.compilers }}'
           echo "$COMPILERS_JSON" | jq -r '.[] | to_entries[] | .key as $compiler | .value[] | "\(.),\($compiler)"' | while IFS=, read -r version compiler; do
