@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import * as toml from '@iarna/toml';
 import * as fs from 'fs';
 import deepExtend from 'deep-extend';
+import {promisify} from "util";
 
 const CONFIG_FILES = [
     'alerts.toml',
@@ -124,4 +125,4 @@ command.command('load [environment]').description('load the config for a certain
 command
     .command('compile [environment]')
     .description('compile the config for a certain environment')
-    .action(compileConfig);
+    .action(promisify(compileConfig));
