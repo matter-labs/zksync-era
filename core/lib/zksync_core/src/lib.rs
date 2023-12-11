@@ -1129,11 +1129,12 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     )
     .await;
 
-    let namespaces = if with_debug_namespace {
-        Namespace::ALL.to_vec()
-    } else {
-        Namespace::NON_DEBUG.to_vec()
-    };
+    let mut namespaces = Namespace::DEFAULT.to_vec();
+    if with_debug_namespace {
+        namespaces.push(Namespace::Debug)
+    }
+    namespaces.push(Namespace::Snapshots);
+
     let last_miniblock_pool = ConnectionPool::singleton(postgres_config.replica_url()?)
         .build()
         .await
@@ -1185,6 +1186,9 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
         .await
         .context("failed to build last_miniblock_pool")?;
 
+    let mut namespaces = Namespace::DEFAULT.to_vec();
+    namespaces.push(Namespace::Snapshots);
+
     let mut api_builder =
         web3::ApiBuilder::jsonrpc_backend(internal_api.clone(), replica_connection_pool)
             .ws(api_config.web3_json_rpc.ws_port)
@@ -1202,7 +1206,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
             .with_threads(api_config.web3_json_rpc.ws_server_threads())
             .with_tree_api(api_config.web3_json_rpc.tree_api_url())
             .with_tx_sender(tx_sender, vm_barrier)
-            .enable_api_namespaces(Namespace::NON_DEBUG.to_vec());
+            .enable_api_namespaces(namespaces);
 
     if with_logs_request_translator_enabled {
         api_builder = api_builder.enable_request_translator();

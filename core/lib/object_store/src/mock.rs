@@ -45,4 +45,8 @@ impl ObjectStore for MockStore {
         bucket_map.remove(key);
         Ok(())
     }
+
+    fn storage_prefix_raw(&self, bucket: Bucket) -> String {
+        bucket.to_string()
+    }
 }
