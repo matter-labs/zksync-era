@@ -225,6 +225,17 @@ impl ProtocolVersionsDal<'_, '_> {
         Some((id as u16).try_into().unwrap())
     }
 
+    pub async fn last_used_verion_id(&mut self) -> Option<ProtocolVersionId> {
+        let id =
+            sqlx::query!(r#"SELECT protocol_version FROM l1_batches ORDER BY number DESC LIMIT 1"#)
+                .fetch_optional(self.storage.conn())
+                .await
+                .unwrap()?
+                .protocol_version?;
+
+        Some((id as u16).try_into().unwrap())
+    }
+
     pub async fn all_version_ids(&mut self) -> Vec<ProtocolVersionId> {
         let rows = sqlx::query!("SELECT id FROM protocol_versions")
             .fetch_all(self.storage.conn())

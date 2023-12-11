@@ -35,6 +35,7 @@ use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
+use zksync_types::ProtocolVersionId;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 mod config;
@@ -138,9 +139,9 @@ async fn init_tasks(
                 .await
                 .unwrap()
                 .protocol_versions_dal()
-                .last_version_id()
+                .last_used_verion_id()
                 .await
-                .unwrap();
+                .unwrap_or(ProtocolVersionId::Version0);
 
             EN_METRICS.version[&(format!("{}", version), protocol_version as u16)].set(1);
 
