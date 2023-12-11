@@ -16,6 +16,7 @@ use crate::{
     fri_witness_generator_dal::FriWitnessGeneratorDal, gpu_prover_queue_dal::GpuProverQueueDal,
     proof_generation_dal::ProofGenerationDal, protocol_versions_dal::ProtocolVersionsDal,
     protocol_versions_web3_dal::ProtocolVersionsWeb3Dal, prover_dal::ProverDal,
+    snapshots_creator_dal::SnapshotsCreatorDal, snapshots_dal::SnapshotsDal,
     storage_dal::StorageDal, storage_logs_dal::StorageLogsDal,
     storage_logs_dedup_dal::StorageLogsDedupDal, storage_web3_dal::StorageWeb3Dal,
     sync_dal::SyncDal, system_dal::SystemDal, tokens_dal::TokensDal,
@@ -50,6 +51,8 @@ pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
 pub mod protocol_versions_web3_dal;
 pub mod prover_dal;
+pub mod snapshots_creator_dal;
+pub mod snapshots_dal;
 pub mod storage_dal;
 pub mod storage_logs_dal;
 pub mod storage_logs_dedup_dal;
@@ -239,5 +242,13 @@ impl<'a> StorageProcessor<'a> {
 
     pub fn system_dal(&mut self) -> SystemDal<'_, 'a> {
         SystemDal { storage: self }
+    }
+
+    pub fn snapshots_dal(&mut self) -> SnapshotsDal<'_, 'a> {
+        SnapshotsDal { storage: self }
+    }
+
+    pub fn snapshots_creator_dal(&mut self) -> SnapshotsCreatorDal<'_, 'a> {
+        SnapshotsCreatorDal { storage: self }
     }
 }
