@@ -142,9 +142,9 @@ async fn init_tasks(
                 .await
                 .unwrap();
 
-            EN_METRICS.versions[&(format!("{}", version), protocol_version as u16)].set(1);
+            EN_METRICS.version[&(format!("{}", version), protocol_version as u16)].set(1);
 
-            tokio::time::sleep(Duration::from_secs(10));
+            tokio::time::sleep(Duration::from_secs(10)).await;
         }
     }));
 
