@@ -25,7 +25,7 @@ jobs:
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
 
-      # TODO: Remove when we after upgrade of hardhat-plugins
+      # TODO: Remove after when we can upgrade hardhat-plugins
       - name: pre-download compiilers
         run: |
           # Download needed versions of vyper compiler

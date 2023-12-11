@@ -223,6 +223,7 @@ jobs:
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
           echo ZKSYNC_DEBUG_LOGS=true >> .env
 
+      # TODO: Remove after when we can upgrade hardhat-plugins
       - name: Download zksolc/solc and zkvyper/vyper
         run: |
           sudo apt update && sudo apt install wget -y
