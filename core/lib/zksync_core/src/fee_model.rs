@@ -44,9 +44,12 @@ impl FeeModel {
         max_gas_per_batch: u64,
         max_pubdata_per_batch: u64,
     ) -> Self {
+        // FIXME: overflow is possible
+        let l1_batch_overhead_wei = base_l1_gas_price * batch_overhead_l1_gas;
+
         let fair_l2_gas_price = {
             let compute_overhead_wei =
-                (batch_overhead_l1_gas as f64 * compute_overhead_percent) as u64;
+                (l1_batch_overhead_wei as f64 * compute_overhead_percent) as u64;
             let gas_overhead_wei = compute_overhead_wei / max_gas_per_batch;
 
             base_l2_gas_price + gas_overhead_wei
@@ -56,7 +59,7 @@ impl FeeModel {
             let base_pubdata_price_wei = base_l1_gas_price * (L1_GAS_PER_PUBDATA_BYTE as u64);
 
             let pubdata_overhead_wei =
-                (batch_overhead_l1_gas as f64 * pubdata_overhead_percent) as u64;
+                (l1_batch_overhead_wei as f64 * pubdata_overhead_percent) as u64;
             let pubdata_overhead_wei = pubdata_overhead_wei / max_pubdata_per_batch;
 
             let pubdata_price_wei = base_pubdata_price_wei + pubdata_overhead_wei;
@@ -83,7 +86,7 @@ impl FeeModel {
         assert!(l1_gas_price > 0, "L1 gas price must be non-zero");
         assert!(
             l1_gas_price >= base_l1_gas_price,
-            "L1 gas price must be greater than base L1 gas price"
+            "L1 gas price must be greater or equal to the L1 gas price"
         );
 
         Self {
