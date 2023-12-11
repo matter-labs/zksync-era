@@ -437,11 +437,8 @@ impl StorageLogsDal<'_, '_> {
         Ok(count.unwrap_or(0) as u64)
     }
 
-    /// Gets a starting tree entry for each of the supplied `key_ranges` for the specified snapshot
-    /// `miniblock_number`.
-    ///
-    /// This method doesn't check whether `miniblock_number` is actually a snapshot miniblock; if it's not,
-    /// the returned values can be overwritten by other entries in the same miniblock.
+    /// Gets a starting tree entry for each of the supplied `key_ranges` for the specified
+    /// `miniblock_number`. This method is used during Merkle tree recovery.
     pub async fn get_chunk_starts_for_miniblock(
         &mut self,
         miniblock_number: MiniblockNumber,
@@ -485,10 +482,6 @@ impl StorageLogsDal<'_, '_> {
 
     /// Fetches tree entries for the specified `miniblock_number` and `key_range`. This is used during
     /// Merkle tree recovery.
-    ///
-    /// For the output to be usable, `miniblock_number` must be a snapshot miniblock (i.e., one in which
-    /// all keys are distinct). In the general case, the returned `Vec` is not guaranteed to be ordered
-    /// by the log application order.
     pub async fn get_tree_entries_for_miniblock(
         &mut self,
         miniblock_number: MiniblockNumber,
