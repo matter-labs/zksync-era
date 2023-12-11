@@ -559,7 +559,7 @@ struct InstalledFilter {
 
 impl InstalledFilter {
     pub fn new(filter: TypedFilter) -> Self {
-        let guard = FILTER_METRICS.metrics_count[&FilterType::from(&filter)].inc_guard(1);
+        let guard = FILTER_METRICS.filter_count[&FilterType::from(&filter)].inc_guard(1);
         Self {
             filter,
             _guard: guard,
@@ -585,7 +585,7 @@ impl Drop for InstalledFilter {
     fn drop(&mut self) {
         let filter_type = FilterType::from(&self.filter);
 
-        FILTER_METRICS.filter_count[&filter_type].observe(self.request_count);
+        FILTER_METRICS.request_count[&filter_type].observe(self.request_count);
         FILTER_METRICS.filter_lifetime[&filter_type].observe(self.created_at.elapsed());
     }
 }
