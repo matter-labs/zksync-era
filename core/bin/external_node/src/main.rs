@@ -3,6 +3,7 @@ use std::{sync::Arc, time::Duration};
 use anyhow::Context;
 use clap::Parser;
 use futures::{future::FusedFuture, FutureExt};
+use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task, time::sleep};
 use zksync_basic_types::{Address, L2ChainId};
@@ -37,6 +38,10 @@ use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 mod config;
+mod metrics;
+
+const RELEASE_MANIFEST: &str =
+    std::include_str!("../../../../.github/release-please/manifest.json");
 
 use crate::config::ExternalNodeConfig;
 
@@ -99,6 +104,14 @@ async fn init_tasks(
     HealthCheckHandle,
     watch::Receiver<bool>,
 )> {
+    let release_manifest: serde_json::Value = serde_json::from_str(RELEASE_MANIFEST)
+        .expect("release manifest is a valid json document; qed");
+    let release_manifest_version = release_manifest["core"].as_str().expect(
+        "a release-please manifest with \"core\" version field was specified at build time; qed.",
+    );
+
+    let version = semver::Version::parse(release_manifest_version)
+        .expect("version in manifest is a correct semver format; qed");
     let main_node_url = config
         .required
         .main_node_url()
@@ -117,6 +130,23 @@ async fn init_tasks(
         config.optional.miniblock_seal_queue_capacity,
     );
     task_handles.push(tokio::spawn(miniblock_sealer.run()));
+    let pool = connection_pool.clone();
+    task_handles.push(tokio::spawn(async move {
+        loop {
+            let protocol_version = pool
+                .access_storage()
+                .await
+                .unwrap()
+                .protocol_versions_dal()
+                .last_version_id()
+                .await
+                .unwrap();
+
+            EN_METRICS.versions[&(format!("{}", version), protocol_version as u16)].set(1);
+
+            tokio::time::sleep(Duration::from_secs(10));
+        }
+    }));
 
     let state_keeper = build_state_keeper(
         action_queue,
