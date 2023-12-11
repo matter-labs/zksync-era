@@ -151,11 +151,11 @@ export async function push(image: string, cmd: Command) {
 }
 
 export async function restart(container: string) {
-    await utils.spawn(`docker-compose restart ${container}`);
+    await utils.spawn(`docker compose restart ${container}`);
 }
 
 export async function pull() {
-    await utils.spawn('docker-compose pull');
+    await utils.spawn('docker compose pull');
 }
 
 export const command = new Command('docker').description('docker management');
