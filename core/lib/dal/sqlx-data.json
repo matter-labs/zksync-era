@@ -4789,6 +4789,24 @@
     },
     "query": "SELECT (SELECT l1_batch_number FROM miniblocks WHERE number = $1) as \"block_batch?\", (SELECT MAX(number) + 1 FROM l1_batches) as \"max_batch?\""
   },
+  "5f29e71af038c974e2d83b908c5a2559ab8afbb169bc0ae9f881a6628dc087fd": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT l1_batch_number FROM proof_generation_details WHERE status NOT IN ('generated', 'skipped') ORDER BY l1_batch_number ASC LIMIT 1"
+  },
   "5f40849646bb7436e29cda8fb87fece2a4dcb580644f45ecb82388dece04f222": {
     "describe": {
       "columns": [
@@ -9705,24 +9723,6 @@
       }
     },
     "query": "SELECT attempts FROM proof_compression_jobs_fri WHERE l1_batch_number = $1"
-  },
-  "ce1411f367e9e22561fbe41b3ae5bbe06a9971221b5e019b4468a48bd8d10013": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        false
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "SELECT l1_batch_number FROM proof_generation_details WHERE status = 'picked_by_prover' ORDER BY l1_batch_number ASC LIMIT 1"
   },
   "ce3666b149f7fc62a68139a8efb83ed149c7deace17b8968817941763e45a147": {
     "describe": {

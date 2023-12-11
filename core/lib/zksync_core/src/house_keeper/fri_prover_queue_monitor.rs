@@ -92,7 +92,7 @@ impl PeriodicJob for FriProverStatsReporter {
 
         if let Some(l1_batch_number) = db_conn
             .proof_generation_dal()
-            .get_oldest_unprocessed_batch()
+            .get_oldest_unpicked_batch()
             .await
         {
             metrics::gauge!(
