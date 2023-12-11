@@ -19,6 +19,7 @@ mod tests;
 
 pub(crate) use self::{payload::Payload, storage::sync_block_to_consensus_block};
 
+#[derive(Debug)]
 pub struct Config {
     pub executor: ExecutorConfig,
     pub consensus: ConsensusConfig,
@@ -30,9 +31,9 @@ pub struct Config {
 impl Config {
     #[allow(dead_code)]
     pub async fn run(self, ctx: &ctx::Ctx, pool: ConnectionPool) -> anyhow::Result<()> {
-        assert_eq!(
-            self.executor.validators,
-            validator::ValidatorSet::new(vec![self.validator_key.public()]).unwrap(),
+        anyhow::ensure!(
+            self.executor.validators
+                == validator::ValidatorSet::new(vec![self.validator_key.public()]).unwrap(),
             "currently only consensus with just 1 validator is supported"
         );
         let store = Arc::new(

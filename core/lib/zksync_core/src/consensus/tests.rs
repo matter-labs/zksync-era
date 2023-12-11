@@ -18,6 +18,7 @@ fn latest_protocol_version() -> validator::ProtocolVersion {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_backfill() {
     const OPERATOR_ADDRESS: Address = Address::repeat_byte(17);
+    const GENESIS_BLOCK: validator::BlockNumber = validator::BlockNumber(5);
 
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
@@ -34,7 +35,6 @@ async fn test_backfill() {
         sk.sync(ctx, &pool).await.context("sk.sync(<1st phase>)")?;
 
         // Prepare genesis block for consensus.
-        const GENESIS_BLOCK: validator::BlockNumber = validator::BlockNumber(5);
         let genesis_payload = {
             let mut storage = storage::storage(ctx, &pool).await.context("storage()")?;
             storage

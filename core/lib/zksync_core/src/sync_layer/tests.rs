@@ -1,4 +1,5 @@
 //! High-level sync layer tests.
+
 use std::{
     collections::{HashMap, VecDeque},
     iter,

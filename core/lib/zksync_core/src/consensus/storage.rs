@@ -273,7 +273,7 @@ impl WriteBlockStore for SignedBlockStore {
 
         // Currently main node is the only validator, so it should be the only one creating new
         // blocks. To ensure that no gaps in the blocks are created we check here that we always
-        // insert a new head.
+        // insert the next block after the current head block.
         let head = *self.head.borrow();
         let head = storage
             .find_head_forward(ctx, head)
