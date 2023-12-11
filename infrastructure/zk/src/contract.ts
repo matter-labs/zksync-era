@@ -195,6 +195,40 @@ export async function deployL1(args: any[]) {
     fs.writeFileSync('deployed_contracts.log', updatedContracts);
 }
 
+export async function wethBridgeFinish(args: any[] = [], includePaymaster?: boolean) {
+    await utils.confirmAction();
+
+    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
+
+    const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
+    if (deployerPrivateKey) {
+        args.push('--private-key', deployerPrivateKey);
+    }
+
+    // In the localhost setup scenario we don't have the workspace,
+    // so we have to `--cwd` into the required directory.
+    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
+
+    await utils.spawn(`${baseCommandL1} initialize-weth-bridge-chain-finish ${args.join(' ')} | tee -a deployL2.log`);
+}
+
+export async function erc20BridgeFinish(args: any[] = [], includePaymaster?: boolean) {
+    await utils.confirmAction();
+
+    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
+
+    const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
+    if (deployerPrivateKey) {
+        args.push('--private-key', deployerPrivateKey);
+    }
+
+    // In the localhost setup scenario we don't have the workspace,
+    // so we have to `--cwd` into the required directory.
+    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
+
+    await utils.spawn(`${baseCommandL1} initialize-erc20-bridge-chain-finish ${args.join(' ')} | tee -a deployL2.log`);
+}
+
 export async function redeployL1(args: any[]) {
     const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
     const governorAddress = process.env.GOVERNOR_ADDRESS;
