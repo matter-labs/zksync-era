@@ -35,7 +35,6 @@ use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
-use zksync_types::ProtocolVersionId;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 mod config;
@@ -139,11 +138,11 @@ async fn init_tasks(
                 .await
                 .unwrap()
                 .protocol_versions_dal()
-                .last_used_verion_id()
+                .last_used_version_id()
                 .await
-                .unwrap_or(ProtocolVersionId::Version0);
+                .map(|version| version as u16);
 
-            EN_METRICS.version[&(format!("{}", version), protocol_version as u16)].set(1);
+            EN_METRICS.version[&(format!("{}", version), protocol_version)].set(1);
 
             tokio::time::sleep(Duration::from_secs(10)).await;
         }

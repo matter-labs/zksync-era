@@ -4,7 +4,7 @@ use vise::{Gauge, LabeledFamily, Metrics};
 #[metrics(prefix = "external_node")]
 pub(crate) struct EnMetrics {
     #[metrics(labels = ["server_version", "protocol_version"])]
-    pub version: LabeledFamily<(String, u16), Gauge<u64>, 2>,
+    pub version: LabeledFamily<(String, Option<u16>), Gauge<u64>, 2>,
 }
 
 #[vise::register]
