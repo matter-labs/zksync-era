@@ -119,7 +119,7 @@ be able to leverage them when available).
 
 - Some assets have to be natively supported (ETH, WETH) and it also makes sense to support some generally accepted token
   standards (ERC20 tokens), as this makes it easy to bridge those tokens (and ensures a single version of them exists on
-  the hyperchain). These cannonical asset contracts are deployed from L1 by a bridge shared by all hyperchains. This is
+  the hyperchain). These canonical asset contracts are deployed from L1 by a bridge shared by all hyperchains. This is
   where assets are locked on L1. These bridges use the Bridgehub to communicate with all hyperchains. Currently, these
   bridges are the `WETH` and `ERC20` bridges.
 
