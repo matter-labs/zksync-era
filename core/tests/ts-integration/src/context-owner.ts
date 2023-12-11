@@ -9,7 +9,7 @@ import { RetryProvider } from './retry-provider';
 import fs from 'fs';
 import * as utils from 'zk/build/utils';
 import path from 'path';
-import {isolatedDatabaseUrl} from "zk/build/database";
+import { isolatedDatabaseUrl } from 'zk/build/database';
 
 // These amounts of ETH would be provided to each test suite through its "main" account.
 // It is assumed to be enough to run a set of "normal" transactions.
