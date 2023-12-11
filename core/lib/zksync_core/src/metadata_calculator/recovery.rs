@@ -13,7 +13,8 @@
 //! If recovery is necessary, it starts / resumes by loading the Postgres snapshot in chunks
 //! and feeding each chunk to the tree. Chunks are loaded concurrently since this is the most
 //! I/O-heavy operation; the concurrency is naturally limited by the number of connections to
-//! Postgres in the supplied connection pool. Before starting recovery in chunks, we filter out
+//! Postgres in the supplied connection pool, but we explicitly use a [`Semaphore`] to control it
+//! in order to not run into DB timeout errors. Before starting recovery in chunks, we filter out
 //! chunks that have already been recovered by checking if the first key in a chunk is present
 //! in the tree. (Note that for this to work, chunks **must** always be defined in the same way.)
 //!
@@ -33,7 +34,7 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use futures::future;
 use serde::{Deserialize, Serialize};
-use tokio::sync::{watch, Mutex};
+use tokio::sync::{watch, Mutex, Semaphore};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater};
 use zksync_merkle_tree::TreeEntry;
@@ -162,6 +163,7 @@ impl SnapshotParameters {
 #[derive(Debug)]
 struct RecoveryOptions<'a> {
     chunk_count: usize,
+    concurrency_limit: usize,
     events: Box<dyn HandleRecoveryEvent + 'a>,
 }
 
@@ -207,6 +209,7 @@ impl GenericAsyncTree {
         tracing::debug!("Obtained snapshot parameters: {snapshot:?}");
         let recovery_options = RecoveryOptions {
             chunk_count: snapshot.chunk_count(),
+            concurrency_limit: pool.max_size() as usize,
             events: Box::new(RecoveryHealthUpdater::new(health_updater)),
         };
         tree.recover(snapshot, recovery_options, pool, stop_receiver)
@@ -242,7 +245,12 @@ impl AsyncTreeRecovery {
         );
 
         let tree = Mutex::new(self);
+        let semaphore = Semaphore::new(options.concurrency_limit);
         let chunk_tasks = remaining_chunks.into_iter().map(|chunk| async {
+            let _permit = semaphore
+                .acquire()
+                .await
+                .context("semaphore is never closed")?;
             options.events.chunk_started().await;
             Self::recover_key_chunk(&tree, snapshot.miniblock, chunk, pool, stop_receiver).await?;
             options.events.chunk_recovered().await;
@@ -419,12 +427,11 @@ async fn snapshot_l1_batch(_pool: &ConnectionPool) -> anyhow::Result<Option<L1Ba
 
 #[cfg(test)]
 mod tests {
-    use std::{path::PathBuf, sync::Arc, time::Duration};
+    use std::{path::PathBuf, time::Duration};
 
     use assert_matches::assert_matches;
     use tempfile::TempDir;
     use test_casing::test_casing;
-    use tokio::sync::OwnedMutexGuard;
     use zksync_config::configs::database::MerkleTreeMode;
     use zksync_health_check::{CheckHealth, ReactiveHealthCheck};
     use zksync_types::{L2ChainId, StorageLog};
@@ -528,6 +535,7 @@ mod tests {
             let (health_check, health_updater) = ReactiveHealthCheck::new("tree");
             let recovery_options = RecoveryOptions {
                 chunk_count,
+                concurrency_limit: 1,
                 events: Box::new(RecoveryHealthUpdater::new(&health_updater)),
             };
             let tree = tree
@@ -572,11 +580,6 @@ mod tests {
         stop_threshold: usize,
         processed_chunk_count: AtomicUsize,
         stop_sender: watch::Sender<bool>,
-        // We want to precisely control chunk recovery, so we linearize it via `chunk_started()`
-        // `chunk_recovered()` hooks using a mutex. Using a DB pool with a single connection would
-        // be imprecise, since a connection is dropped before the chunk recovery is fully finished.
-        mutex: Arc<Mutex<()>>,
-        acquired_guard: Mutex<Option<OwnedMutexGuard<()>>>,
     }
 
     impl TestEventListener {
@@ -586,8 +589,6 @@ mod tests {
                 stop_threshold,
                 processed_chunk_count: AtomicUsize::new(0),
                 stop_sender,
-                mutex: Arc::default(),
-                acquired_guard: Mutex::default(),
             }
         }
 
@@ -603,18 +604,12 @@ mod tests {
             assert_eq!(recovered_chunk_count, self.expected_recovered_chunks);
         }
 
-        async fn chunk_started(&self) {
-            let guard = Arc::clone(&self.mutex).lock_owned().await;
-            *self.acquired_guard.lock().await = Some(guard);
-        }
-
         async fn chunk_recovered(&self) {
             let processed_chunk_count =
                 self.processed_chunk_count.fetch_add(1, Ordering::SeqCst) + 1;
             if processed_chunk_count >= self.stop_threshold {
                 self.stop_sender.send_replace(true);
             }
-            *self.acquired_guard.lock().await = None;
         }
     }
 
@@ -630,6 +625,7 @@ mod tests {
         let (stop_sender, stop_receiver) = watch::channel(false);
         let recovery_options = RecoveryOptions {
             chunk_count,
+            concurrency_limit: 1,
             events: Box::new(TestEventListener::new(1, stop_sender)),
         };
         let snapshot = SnapshotParameters::new(&pool, L1BatchNumber(1))
@@ -647,6 +643,7 @@ mod tests {
         let (stop_sender, stop_receiver) = watch::channel(false);
         let recovery_options = RecoveryOptions {
             chunk_count,
+            concurrency_limit: 1,
             events: Box::new(TestEventListener::new(2, stop_sender).expect_recovered_chunks(1)),
         };
         assert!(tree
@@ -661,6 +658,7 @@ mod tests {
         let (stop_sender, stop_receiver) = watch::channel(false);
         let recovery_options = RecoveryOptions {
             chunk_count,
+            concurrency_limit: 1,
             events: Box::new(
                 TestEventListener::new(usize::MAX, stop_sender).expect_recovered_chunks(3),
             ),
