@@ -3,15 +3,15 @@ services:
   zk:
     image: matterlabs/zk-environment:latest2.0-lightweight-nightly
     extends:
-      file: docker-compose-runner.yml
+      file: docker-compose.yml
       service: zk
 
   postgres:
     extends:
-      file: docker-compose-runner.yml
+      file: docker-compose.yml
       service: postgres
 
   geth:
     extends:
-      file: docker-compose-runner.yml
+      file: docker-compose.yml
       service: geth
