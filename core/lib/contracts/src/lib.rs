@@ -215,7 +215,7 @@ impl SystemContractsRepo {
                 directory, name
             ))),
             ContractLanguage::Yul => read_zbin_bytecode_from_path(self.root.join(format!(
-                "contracts/{0}artifacts/{1}.yul/{1}.yul.zbin",
+                "contracts/{}artifacts/{}.yul.zbin",
                 directory, name
             ))),
         }
