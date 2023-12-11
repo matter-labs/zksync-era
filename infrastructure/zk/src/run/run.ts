@@ -63,23 +63,6 @@ export async function deployTestkit(genesisRoot: string) {
     await utils.spawn(`yarn l1-contracts deploy-testkit --genesis-root ${genesisRoot}`);
 }
 
-export async function plonkSetup(powers?: number[]) {
-    if (!powers) {
-        powers = [20, 21, 22, 23, 24, 25, 26];
-    }
-    const URL = 'https://storage.googleapis.com/universal-setup';
-    fs.mkdirSync('keys/setup', { recursive: true });
-    process.chdir('keys/setup');
-    for (let i = 0; i < powers.length; i++) {
-        const power = powers[i];
-        if (!fs.existsSync(`setup_2^${power}.key`)) {
-            await utils.spawn(`curl -LO ${URL}/setup_2^${power}.key`);
-            await utils.sleep(1);
-        }
-    }
-    process.chdir(process.env.ZKSYNC_HOME as string);
-}
-
 export async function revertReason(txHash: string, web3url?: string) {
     await utils.spawn(`yarn l1-contracts ts-node scripts/revert-reason.ts ${txHash} ${web3url || ''}`);
 }
@@ -157,17 +140,6 @@ command
     .description('get symbol, name and decimals parameters from token')
     .action(async (address: string) => {
         await tokenInfo(address);
-    });
-
-command
-    .command('plonk-setup [powers]')
-    .description('download missing keys')
-    .action(async (powers?: string) => {
-        const powersArray = powers
-            ?.split(' ')
-            .map((x) => parseInt(x))
-            .filter((x) => !Number.isNaN(x));
-        await plonkSetup(powersArray);
     });
 
 command

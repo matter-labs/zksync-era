@@ -27,7 +27,7 @@ jobs:
 
       - name: start-services
         run: |
-          docker-compose -f docker-compose-runner.yml up -d zk geth postgres
+          ci_localnet_up
 
       - name: init
         run: |
