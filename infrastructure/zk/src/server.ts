@@ -68,7 +68,8 @@ export async function isolatedExternalNode() {
 
     const binaryPath = '/usr/bin/zksync_external_node';
     let dockerEnv = ` --env "INTEGRATION_TEST_NODE_BINARY_PATH=${binaryPath}" `;
-    const extNodeEnv = env.getEnvVariables('ext-node');
+    const extNodeEnvName = process.env.IN_DOCKER ? 'ext-node-docker' : 'ext-node';
+    const extNodeEnv = env.getEnvVariables(extNodeEnvName);
     const dbUrl = await db.setupIsolatedDatabase(instanceName);
     for (const envVar in extNodeEnv) {
         let envVarValue = extNodeEnv[envVar];
@@ -79,9 +80,10 @@ export async function isolatedExternalNode() {
         envVarValue = envVarValue.replace('127.0.0.1', 'host.docker.internal');
         dockerEnv += ` --env "${envVar}=${envVarValue}" `;
     }
-    const artifactsHostDirectory = path.join(process.env.ZKSYNC_HOME as string, 'artifactss');
+    const artifactsHostDirectory = path.join(process.env.ZKSYNC_HOME as string, 'artifacts');
     const dockerVolumes = ` -v ${artifactsHostDirectory}:/usr/src/zksync/artifacts`;
-    const publishedPorts = '-p 3060:3060 -p 3061:3061 -p 3081:3081';
+    //http_port = 3060, ws_port = 3061, healthcheck_port = 3081, prometheus_port = 3322
+    const publishedPorts = '-p 3060:3060 -p 3061:3061 -p 3081:3081 -p 3322:3322';
     const networkingFlags = '--add-host=host.docker.internal:host-gateway';
     const nameFlag = `--name ${instanceName}`;
     const allFlags = `${networkingFlags} ${publishedPorts} ${dockerVolumes} ${dockerEnv} ${nameFlag}`;
@@ -89,6 +91,7 @@ export async function isolatedExternalNode() {
     const enProcess = utils.background(cmd);
 
     let startTime = new Date();
+    console.log(dockerEnv);
     while (true) {
         if (new Date().getTime() - startTime.getTime() > 30 * 1000) {
             throw new Error('Timeout waiting for EN to start');
