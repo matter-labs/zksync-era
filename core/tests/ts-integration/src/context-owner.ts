@@ -8,6 +8,7 @@ import { scaledGasPrice } from './helpers';
 import { RetryProvider } from './retry-provider';
 import fs from 'fs';
 import * as utils from 'zk/build/utils';
+import path from "path";
 
 // These amounts of ETH would be provided to each test suite through its "main" account.
 // It is assumed to be enough to run a set of "normal" transactions.
@@ -411,9 +412,8 @@ export class TestContextOwner {
         const instancesToClean = fs.readFileSync(filepath).toString().trim().split('\n');
         for (const instance of instancesToClean) {
             try {
-                const logPath = `${process.env.ZKSYNC_HOME}logs/ts-integration-${new Date()
-                    .toISOString()
-                    .slice(0, 19)}-${instance}.log`;
+                const filename = `ts-integration-${new Date().toISOString().slice(0, 19)}-${instance}.log`
+                const logPath = path.join(process.env.ZKSYNC_HOME as string, `logs/${filename}`)
                 await utils.spawn(`docker logs ${instance} > ${logPath} 2>&1`);
                 const { stdout: status } = await utils.exec(
                     `docker container inspect ${instance} --format={{.State.Status}}`
