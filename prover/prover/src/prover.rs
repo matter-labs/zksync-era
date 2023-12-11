@@ -1,20 +1,20 @@
-use anyhow::Context as _;
 use std::{env, time::Duration};
 
+use anyhow::Context as _;
 use prover_service::{
     JobReporter,
     JobResult::{self, Failure, ProofGenerated},
 };
 use tokio::runtime::Handle;
-use zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncProof;
-use zkevm_test_harness::pairing::bn256::Bn256;
-
-use crate::metrics::METRICS;
+use zkevm_test_harness::{
+    abstract_zksync_circuit::concrete_circuits::ZkSyncProof, pairing::bn256::Bn256,
+};
 use zksync_config::{PostgresConfig, ProverConfig};
-use zksync_dal::ConnectionPool;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory};
 use zksync_types::proofs::ProverJobMetadata;
+
+use crate::metrics::METRICS;
 
 #[derive(Debug)]
 pub struct ProverReporter {

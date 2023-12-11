@@ -1,12 +1,9 @@
 use serde::{Deserialize, Serialize};
-
-use zkevm_test_harness::witness::tree::{BinaryHasher, EnumeratedBinaryLeaf, LeafQuery};
-
-use zksync_types::proofs::{PrepareBasicCircuitsJob, StorageLogMetadata};
-
 use zk_evm::blake2::Blake2s256;
-use zkevm_test_harness::witness::tree::BinarySparseStorageTree;
-use zkevm_test_harness::witness::tree::ZkSyncStorageLeaf;
+use zkevm_test_harness::witness::tree::{
+    BinaryHasher, BinarySparseStorageTree, EnumeratedBinaryLeaf, LeafQuery, ZkSyncStorageLeaf,
+};
+use zksync_types::proofs::{PrepareBasicCircuitsJob, StorageLogMetadata};
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct PrecalculatedMerklePathsProvider {

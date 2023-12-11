@@ -1,8 +1,3 @@
-use rocksdb::{
-    properties, BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor, DBPinnableSlice,
-    Direction, IteratorMode, Options, PrefixRange, ReadOptions, WriteOptions, DB,
-};
-
 use std::{
     collections::{HashMap, HashSet},
     ffi::CStr,
@@ -13,6 +8,11 @@ use std::{
     sync::{Arc, Condvar, Mutex},
     thread,
     time::{Duration, Instant},
+};
+
+use rocksdb::{
+    properties, BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor, DBPinnableSlice,
+    Direction, IteratorMode, Options, PrefixRange, ReadOptions, WriteOptions, DB,
 };
 
 use crate::metrics::{RocksdbLabels, RocksdbSizeMetrics, METRICS};

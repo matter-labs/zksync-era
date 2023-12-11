@@ -1,14 +1,15 @@
 use anyhow::{anyhow, Context};
-
-use crate::state_keeper::io::common::load_l1_batch_params;
-
-use multivm::interface::{VmInterface, VmInterfaceHistoryEnabled};
-use multivm::vm_latest::HistoryEnabled;
-use multivm::VmInstance;
+use multivm::{
+    interface::{VmInterface, VmInterfaceHistoryEnabled},
+    vm_latest::HistoryEnabled,
+    VmInstance,
+};
 use tokio::runtime::Handle;
 use zksync_dal::StorageProcessor;
 use zksync_state::{PostgresStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{L1BatchNumber, L2ChainId, Transaction};
+
+use crate::state_keeper::io::common::load_l1_batch_params;
 
 pub(super) type VmAndStorage<'a> = (
     VmInstance<StorageView<PostgresStorage<'a>>, HistoryEnabled>,

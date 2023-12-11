@@ -1,22 +1,24 @@
 use std::convert::TryInto;
 
 use ethabi::Token;
-
-use zksync_eth_signer::raw_ethereum_tx::TransactionParameters;
-use zksync_eth_signer::EthereumSigner;
+use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner};
 use zksync_system_constants::L2_ETH_TOKEN_ADDRESS;
-use zksync_types::fee::Fee;
-use zksync_types::l2::L2Tx;
-use zksync_types::transaction_request::TransactionRequest;
-use zksync_types::utils::storage_key_for_standard_token_balance;
 use zksync_types::{
-    AccountTreeId, Address, Eip712Domain, Execute, L2ChainId, Nonce, Transaction, U256,
+    fee::Fee, l2::L2Tx, transaction_request::TransactionRequest,
+    utils::storage_key_for_standard_token_balance, AccountTreeId, Address, Eip712Domain, Execute,
+    L2ChainId, Nonce, Transaction, U256,
 };
 
-use crate::interface::{TxExecutionMode, VmExecutionMode, VmInterface};
-use crate::vm_latest::tests::tester::{Account, VmTester, VmTesterBuilder};
-use crate::vm_latest::tests::utils::read_many_owners_custom_account_contract;
-use crate::vm_latest::HistoryDisabled;
+use crate::{
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    vm_latest::{
+        tests::{
+            tester::{Account, VmTester, VmTesterBuilder},
+            utils::read_many_owners_custom_account_contract,
+        },
+        HistoryDisabled,
+    },
+};
 
 impl VmTester<HistoryDisabled> {
     pub(crate) fn get_eth_balance(&mut self, address: Address) -> U256 {

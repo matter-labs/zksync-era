@@ -1,8 +1,7 @@
-use chrono::{DateTime, Utc};
-use tokio::sync::watch::Receiver;
-
 use std::time::Duration;
 
+use chrono::{DateTime, Utc};
+use tokio::sync::watch::Receiver;
 use zksync_dal::ConnectionPool;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, api::BlockDetails, L1BatchNumber, MiniblockNumber,

@@ -1,9 +1,7 @@
 use anyhow::Context as _;
-
 use zksync_consensus_roles::validator;
 use zksync_protobuf::{required, ProtoFmt};
-use zksync_types::api::en::SyncBlock;
-use zksync_types::{Address, L1BatchNumber, Transaction, H256};
+use zksync_types::{api::en::SyncBlock, Address, L1BatchNumber, Transaction, H256};
 
 /// L2 block (= miniblock) payload.
 #[derive(Debug, PartialEq)]

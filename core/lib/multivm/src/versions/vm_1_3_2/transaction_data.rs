@@ -1,12 +1,14 @@
 use zk_evm_1_3_3::zkevm_opcode_defs::system_params::MAX_TX_ERGS_LIMIT;
-use zksync_types::ethabi::{encode, Address, Token};
-use zksync_types::fee::encoding_len;
 use zksync_types::{
-    l1::is_l1_tx_type, l2::TransactionType, ExecuteTransactionCommon, Transaction, U256,
+    ethabi::{encode, Address, Token},
+    fee::encoding_len,
+    l1::is_l1_tx_type,
+    l2::TransactionType,
+    ExecuteTransactionCommon, Transaction, MAX_L2_TX_GAS_LIMIT, MAX_TXS_IN_BLOCK, U256,
 };
-use zksync_types::{MAX_L2_TX_GAS_LIMIT, MAX_TXS_IN_BLOCK};
-use zksync_utils::{address_to_h256, ceil_div_u256};
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
+use zksync_utils::{
+    address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, ceil_div_u256, h256_to_u256,
+};
 
 use crate::vm_1_3_2::vm_with_bootloader::{
     BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA, BOOTLOADER_TX_ENCODING_SPACE,

@@ -1,17 +1,22 @@
-use crate::models::storage_eth_tx::{
-    L1BatchEthSenderStats, StorageEthTx, StorageTxHistory, StorageTxHistoryToSend,
-};
-use crate::StorageProcessor;
+use std::{convert::TryFrom, str::FromStr};
+
 use anyhow::Context as _;
 use sqlx::{
     types::chrono::{DateTime, Utc},
     Row,
 };
-use std::convert::TryFrom;
-use std::str::FromStr;
-use zksync_types::aggregated_operations::AggregatedActionType;
-use zksync_types::eth_sender::{EthTx, TxHistory, TxHistoryToSend};
-use zksync_types::{Address, L1BatchNumber, H256, U256};
+use zksync_types::{
+    aggregated_operations::AggregatedActionType,
+    eth_sender::{EthTx, TxHistory, TxHistoryToSend},
+    Address, L1BatchNumber, H256, U256,
+};
+
+use crate::{
+    models::storage_eth_tx::{
+        L1BatchEthSenderStats, StorageEthTx, StorageTxHistory, StorageTxHistoryToSend,
+    },
+    StorageProcessor,
+};
 
 #[derive(Debug)]
 pub struct EthSenderDal<'a, 'c> {

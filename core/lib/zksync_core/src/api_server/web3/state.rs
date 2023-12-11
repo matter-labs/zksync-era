@@ -1,5 +1,3 @@
-use zksync_utils::h256_to_u256;
-
 use std::{
     collections::HashMap,
     convert::TryFrom,
@@ -10,9 +8,9 @@ use std::{
     },
     time::{Duration, Instant},
 };
+
 use tokio::sync::Mutex;
 use vise::GaugeGuard;
-
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
@@ -23,6 +21,7 @@ use zksync_types::{
     AccountTreeId, Address, L1BatchNumber, L1ChainId, L2ChainId, MiniblockNumber, StorageKey, H256,
     SYSTEM_CONTEXT_ADDRESS, U256, U64, VIRTUIAL_BLOCK_UPGRADE_INFO_POSITION,
 };
+use zksync_utils::h256_to_u256;
 use zksync_web3_decl::{
     error::Web3Error,
     types::{Filter, Log},
@@ -560,7 +559,7 @@ struct InstalledFilter {
 
 impl InstalledFilter {
     pub fn new(filter: TypedFilter) -> Self {
-        let guard = FILTER_METRICS.metrics_count[&FilterType::from(&filter)].inc_guard(1);
+        let guard = FILTER_METRICS.filter_count[&FilterType::from(&filter)].inc_guard(1);
         Self {
             filter,
             _guard: guard,
@@ -586,7 +585,7 @@ impl Drop for InstalledFilter {
     fn drop(&mut self) {
         let filter_type = FilterType::from(&self.filter);
 
-        FILTER_METRICS.filter_count[&filter_type].observe(self.request_count);
+        FILTER_METRICS.request_count[&filter_type].observe(self.request_count);
         FILTER_METRICS.filter_lifetime[&filter_type].observe(self.created_at.elapsed());
     }
 }

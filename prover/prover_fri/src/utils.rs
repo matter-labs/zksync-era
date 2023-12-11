@@ -1,33 +1,35 @@
 #![cfg_attr(not(feature = "gpu"), allow(unused_imports))]
 
-use std::sync::Arc;
-use std::time::Instant;
-use zksync_prover_fri_types::circuit_definitions::boojum::config::ProvingCSConfig;
-use zksync_prover_fri_types::circuit_definitions::boojum::cs::implementations::reference_cs::CSReferenceAssembly;
+use std::{sync::Arc, time::Instant};
 
 use tokio::sync::Mutex;
 use zkevm_test_harness::prover_utils::{verify_base_layer_proof, verify_recursion_layer_proof};
 use zksync_dal::StorageProcessor;
 use zksync_object_store::ObjectStore;
-use zksync_prover_fri_types::circuit_definitions::boojum::algebraic_props::round_function::AbsorptionModeOverwrite;
-use zksync_prover_fri_types::circuit_definitions::boojum::algebraic_props::sponge::GoldilocksPoseidon2Sponge;
-use zksync_prover_fri_types::circuit_definitions::boojum::cs::implementations::pow::NoPow;
-use zksync_prover_fri_types::circuit_definitions::boojum::cs::implementations::proof::Proof;
-use zksync_prover_fri_types::circuit_definitions::boojum::cs::implementations::verifier::VerificationKey;
-use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::{
-    GoldilocksExt2, GoldilocksField,
-};
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::{
-    ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
-};
-use zksync_prover_fri_types::queue::FixedSizeQueue;
 use zksync_prover_fri_types::{
+    circuit_definitions::{
+        boojum::{
+            algebraic_props::{
+                round_function::AbsorptionModeOverwrite, sponge::GoldilocksPoseidon2Sponge,
+            },
+            config::ProvingCSConfig,
+            cs::implementations::{
+                pow::NoPow, proof::Proof, reference_cs::CSReferenceAssembly,
+                verifier::VerificationKey,
+            },
+            field::goldilocks::{GoldilocksExt2, GoldilocksField},
+        },
+        circuit_definitions::recursion_layer::{
+            ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
+        },
+    },
+    queue::FixedSizeQueue,
     CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
 };
 use zksync_prover_fri_utils::get_base_layer_circuit_id_for_recursive_layer;
+use zksync_types::{basic_fri_types::CircuitIdRoundTuple, proofs::AggregationRound, L1BatchNumber};
 
 use crate::metrics::METRICS;
-use zksync_types::{basic_fri_types::CircuitIdRoundTuple, proofs::AggregationRound, L1BatchNumber};
 
 pub type F = GoldilocksField;
 pub type H = GoldilocksPoseidon2Sponge<AbsorptionModeOverwrite>;

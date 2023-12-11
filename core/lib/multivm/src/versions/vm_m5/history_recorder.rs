@@ -3,17 +3,16 @@ use std::{
     hash::{BuildHasherDefault, Hash, Hasher},
 };
 
-use crate::vm_m5::storage::{Storage, StoragePtr};
-
 use zk_evm_1_3_1::{
     aux_structures::Timestamp,
     reference_impls::event_sink::ApplicationData,
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::{self},
 };
-
 use zksync_types::{StorageKey, U256};
 use zksync_utils::{h256_to_u256, u256_to_h256};
+
+use crate::vm_m5::storage::{Storage, StoragePtr};
 
 pub type AppDataFrameManagerWithHistory<T> = FrameManagerWithHistory<ApplicationData<T>>;
 pub type MemoryWithHistory = HistoryRecorder<MemoryWrapper>;

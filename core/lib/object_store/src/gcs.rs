@@ -1,20 +1,22 @@
 //! GCS-based [`ObjectStore`] implementation.
 
+use std::{fmt, future::Future, time::Duration};
+
 use async_trait::async_trait;
 use google_cloud_auth::{credentials::CredentialsFile, error::Error};
 use google_cloud_storage::{
     client::{Client, ClientConfig},
-    http::objects::{
-        delete::DeleteObjectRequest,
-        download::Range,
-        get::GetObjectRequest,
-        upload::{Media, UploadObjectRequest, UploadType},
+    http::{
+        objects::{
+            delete::DeleteObjectRequest,
+            download::Range,
+            get::GetObjectRequest,
+            upload::{Media, UploadObjectRequest, UploadType},
+        },
+        Error as HttpError,
     },
-    http::Error as HttpError,
 };
 use http::StatusCode;
-
-use std::{fmt, future::Future, time::Duration};
 
 use crate::{
     metrics::GCS_METRICS,

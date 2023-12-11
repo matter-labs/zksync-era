@@ -1,12 +1,8 @@
-// Built-in uses
 use std::collections::HashMap;
 
-// External uses
 use bigdecimal::BigDecimal;
 use jsonrpc_core::{BoxFuture, Result};
 use jsonrpc_derive::rpc;
-
-// Workspace uses
 use zksync_types::{
     api::{
         BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
@@ -18,9 +14,10 @@ use zksync_types::{
 };
 use zksync_web3_decl::types::{Filter, Log, Token};
 
-// Local uses
-use crate::web3::namespaces::ZksNamespace;
-use crate::{l1_gas_price::L1GasPriceProvider, web3::backend_jsonrpc::error::into_jsrpc_error};
+use crate::{
+    l1_gas_price::L1GasPriceProvider,
+    web3::{backend_jsonrpc::error::into_jsrpc_error, namespaces::ZksNamespace},
+};
 
 #[rpc]
 pub trait ZksNamespaceT {

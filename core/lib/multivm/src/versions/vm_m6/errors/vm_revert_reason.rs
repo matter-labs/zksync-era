@@ -1,5 +1,7 @@
-use std::convert::TryFrom;
-use std::fmt::{Debug, Display};
+use std::{
+    convert::TryFrom,
+    fmt::{Debug, Display},
+};
 
 use zksync_types::U256;
 

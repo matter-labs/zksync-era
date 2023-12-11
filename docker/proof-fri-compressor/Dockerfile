@@ -19,7 +19,7 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN cargo build --release
+RUN cargo build --release --bin zksync_proof_fri_compressor
 
 FROM debian:bookworm-slim
 

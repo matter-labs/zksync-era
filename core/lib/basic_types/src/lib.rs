@@ -2,24 +2,24 @@
 //!
 //! Most of them are just re-exported from the `web3` crate.
 
-#[macro_use]
-mod macros;
-
-pub mod basic_fri_types;
-pub mod network;
+use std::{
+    convert::{Infallible, TryFrom, TryInto},
+    fmt,
+    num::ParseIntError,
+    ops::{Add, Deref, DerefMut, Sub},
+    str::FromStr,
+};
 
 use serde::{de, Deserialize, Deserializer, Serialize};
-use std::convert::{Infallible, TryFrom, TryInto};
-use std::fmt;
-use std::num::ParseIntError;
-use std::ops::{Add, Deref, DerefMut, Sub};
-use std::str::FromStr;
-
-pub use web3;
-pub use web3::ethabi;
-pub use web3::types::{
-    Address, Bytes, Log, TransactionRequest, H128, H160, H2048, H256, U128, U256, U64,
+pub use web3::{
+    self, ethabi,
+    types::{Address, Bytes, Log, TransactionRequest, H128, H160, H2048, H256, U128, U256, U64},
 };
+
+#[macro_use]
+mod macros;
+pub mod basic_fri_types;
+pub mod network;
 
 /// Account place in the global state tree is uniquely identified by its address.
 /// Binary this type is represented by 160 bit big-endian representation of account address.
@@ -222,8 +222,9 @@ impl Default for PriorityOpId {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::from_str;
+
+    use super::*;
 
     #[test]
     fn test_from_str_valid_decimal() {

@@ -7,7 +7,6 @@ use sqlx::{
     types::chrono::{DateTime, NaiveDateTime, Utc},
 };
 use thiserror::Error;
-
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     api,

@@ -20,8 +20,7 @@ jobs:
 
       - name: Start services
         run: |
-          docker-compose -f docker-compose-runner.yml pull
-          docker-compose -f docker-compose-runner.yml up --build -d zk
+          ci_localnet_up
           ci_run sccache --start-server
 
       - name: Setup db

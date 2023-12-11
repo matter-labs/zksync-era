@@ -1,8 +1,7 @@
-use anyhow::Context as _;
-use tokio::sync::watch;
-
 use std::time::Duration;
 
+use anyhow::Context as _;
+use tokio::sync::watch;
 use zksync_dal::{blocks_dal::ConsensusBlockFields, StorageProcessor};
 use zksync_types::{
     api::en::SyncBlock, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId,

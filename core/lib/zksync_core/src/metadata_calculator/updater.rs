@@ -1,11 +1,10 @@
 //! Tree updater trait and its implementations.
 
+use std::{ops, time::Instant};
+
 use anyhow::Context as _;
 use futures::{future, FutureExt};
 use tokio::sync::watch;
-
-use std::{ops, time::Instant};
-
 use zksync_commitment_utils::{bootloader_initial_content_commitment, events_queue_commitment};
 use zksync_config::configs::database::MerkleTreeMode;
 use zksync_dal::{ConnectionPool, StorageProcessor};
@@ -104,7 +103,6 @@ impl TreeUpdater {
     async fn process_multiple_batches(
         &mut self,
         storage: &mut StorageProcessor<'_>,
-        prover_storage: &mut StorageProcessor<'_>,
         l1_batch_numbers: ops::RangeInclusive<u32>,
     ) -> L1BatchNumber {
         let start = Instant::now();
@@ -185,32 +183,6 @@ impl TreeUpdater {
             // right away without having to implement dedicated code.
 
             if let Some(object_key) = &object_key {
-                let protocol_version_id = storage
-                    .blocks_dal()
-                    .get_batch_protocol_version_id(l1_batch_number)
-                    .await
-                    .unwrap();
-                if let Some(id) = protocol_version_id {
-                    if !prover_storage
-                        .protocol_versions_dal()
-                        .prover_protocol_version_exists(id)
-                        .await
-                    {
-                        let protocol_version = storage
-                            .protocol_versions_dal()
-                            .get_protocol_version(id)
-                            .await
-                            .unwrap();
-                        prover_storage
-                            .protocol_versions_dal()
-                            .save_prover_protocol_version(protocol_version)
-                            .await;
-                    }
-                }
-                prover_storage
-                    .witness_generator_dal()
-                    .save_witness_inputs(l1_batch_number, object_key, protocol_version_id)
-                    .await;
                 storage
                     .basic_witness_input_producer_dal()
                     .create_basic_witness_input_producer_job(l1_batch_number)
@@ -283,7 +255,6 @@ impl TreeUpdater {
     async fn step(
         &mut self,
         mut storage: StorageProcessor<'_>,
-        mut prover_storage: StorageProcessor<'_>,
         next_l1_batch_to_seal: &mut L1BatchNumber,
     ) {
         let last_sealed_l1_batch = storage
@@ -302,7 +273,7 @@ impl TreeUpdater {
         } else {
             tracing::info!("Updating Merkle tree with L1 batches #{l1_batch_numbers:?}");
             *next_l1_batch_to_seal = self
-                .process_multiple_batches(&mut storage, &mut prover_storage, l1_batch_numbers)
+                .process_multiple_batches(&mut storage, l1_batch_numbers)
                 .await;
         }
     }
@@ -312,7 +283,6 @@ impl TreeUpdater {
         mut self,
         delayer: Delayer,
         pool: &ConnectionPool,
-        prover_pool: &ConnectionPool,
         mut stop_receiver: watch::Receiver<bool>,
         health_updater: HealthUpdater,
     ) -> anyhow::Result<()> {
@@ -387,14 +357,9 @@ impl TreeUpdater {
                 .access_storage_tagged("metadata_calculator")
                 .await
                 .unwrap();
-            let prover_storage = prover_pool
-                .access_storage_tagged("metadata_calculator")
-                .await
-                .unwrap();
 
             let snapshot = *next_l1_batch_to_seal;
-            self.step(storage, prover_storage, &mut next_l1_batch_to_seal)
-                .await;
+            self.step(storage, &mut next_l1_batch_to_seal).await;
             let delay = if snapshot == *next_l1_batch_to_seal {
                 tracing::trace!(
                     "Metadata calculator (next L1 batch: #{next_l1_batch_to_seal}) \

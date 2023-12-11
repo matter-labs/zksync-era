@@ -1,14 +1,14 @@
+use std::{env, time::Duration};
+
 use anyhow::Context;
 use serde::Deserialize;
-use std::{env, time::Duration};
 use url::Url;
-
 use zksync_basic_types::{Address, L1ChainId, L2ChainId, MiniblockNumber};
 use zksync_core::api_server::{
-    tx_sender::TxSenderConfig, web3::state::InternalApiConfig, web3::Namespace,
+    tx_sender::TxSenderConfig,
+    web3::{state::InternalApiConfig, Namespace},
 };
 use zksync_types::api::BridgeAddresses;
-
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},

@@ -1,8 +1,7 @@
-use async_trait::async_trait;
-use futures::future;
-
 use std::{collections::HashMap, convert::TryInto, iter::FromIterator, time::Duration};
 
+use async_trait::async_trait;
+use futures::future;
 use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::ConnectionPool;

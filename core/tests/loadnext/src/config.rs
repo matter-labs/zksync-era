@@ -1,12 +1,9 @@
+use std::{path::PathBuf, time::Duration};
+
 use serde::Deserialize;
 use tokio::sync::Semaphore;
-
-use std::path::PathBuf;
-use std::time::Duration;
-
 use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
-use zksync_types::network::Network;
-use zksync_types::{Address, L2ChainId, H160};
+use zksync_types::{network::Network, Address, L2ChainId, H160};
 
 use crate::fs_utils::read_tokens;
 
@@ -315,9 +312,9 @@ impl TransactionWeights {
 impl Default for TransactionWeights {
     fn default() -> Self {
         Self {
-            deposit: 0.1,
+            deposit: 0.05,
             withdrawal: 0.5,
-            l1_transactions: 0.1,
+            l1_transactions: 0.05,
             l2_transactions: 1.0,
         }
     }
