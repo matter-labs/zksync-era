@@ -42,20 +42,20 @@ pub struct SnapshotStorageLogsChunkMetadata {
     pub filepath: String,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotStorageLogsStorageKey {
     pub l1_batch_number: L1BatchNumber,
     pub chunk_id: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotStorageLogsChunk {
     pub storage_logs: Vec<SnapshotStorageLog>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotStorageLog {
     pub key: StorageKey,
@@ -64,13 +64,13 @@ pub struct SnapshotStorageLog {
     pub enumeration_index: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotFactoryDependencies {
     pub factory_deps: Vec<SnapshotFactoryDependency>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotFactoryDependency {
     pub bytecode: Bytes,
