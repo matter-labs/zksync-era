@@ -97,14 +97,7 @@ pub(crate) async fn create_l1_batch(
     l1_batch_number: L1BatchNumber,
     logs_for_initial_writes: &[StorageLog],
 ) {
-    let mut header = L1BatchHeader::new(
-        l1_batch_number,
-        0,
-        Address::default(),
-        Default::default(),
-        Default::default(),
-    );
-    header.is_finished = true;
+    let header = L1BatchHeader::new(l1_batch_number, 0, Default::default(), Default::default());
     conn.blocks_dal()
         .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
         .await

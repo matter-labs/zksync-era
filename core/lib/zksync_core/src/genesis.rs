@@ -261,7 +261,7 @@ async fn insert_system_contracts(
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn create_genesis_l1_batch(
     storage: &mut StorageProcessor<'_>,
-    first_validator_address: Address,
+    _first_validator_address: Address, // FIXME: store in genesis miniblock
     chain_id: L2ChainId,
     protocol_version: ProtocolVersionId,
     base_system_contracts: &BaseSystemContracts,
@@ -278,14 +278,12 @@ pub(crate) async fn create_genesis_l1_batch(
         tx: None,
     };
 
-    let mut genesis_l1_batch_header = L1BatchHeader::new(
+    let genesis_l1_batch_header = L1BatchHeader::new(
         L1BatchNumber(0),
         0,
-        first_validator_address,
         base_system_contracts.hashes(),
         ProtocolVersionId::latest(),
     );
-    genesis_l1_batch_header.is_finished = true;
 
     let genesis_miniblock_header = MiniblockHeader {
         number: MiniblockNumber(0),

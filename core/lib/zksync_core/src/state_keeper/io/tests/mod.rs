@@ -406,7 +406,6 @@ async fn test_miniblock_and_l1_batch_processing(
         .unwrap()
         .unwrap();
     assert_eq!(l1_batch_header.l2_tx_count, 1);
-    assert!(l1_batch_header.is_finished);
 }
 
 #[tokio::test]

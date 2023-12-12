@@ -479,14 +479,12 @@ pub(super) async fn extend_db_state(
     let base_system_contracts = BaseSystemContracts::load_from_disk();
     for (idx, batch_logs) in (next_l1_batch..).zip(new_logs) {
         let batch_number = L1BatchNumber(idx);
-        let mut header = L1BatchHeader::new(
+        let header = L1BatchHeader::new(
             batch_number,
             0,
-            Address::default(),
             base_system_contracts.hashes(),
             Default::default(),
         );
-        header.is_finished = true;
 
         // Assumes that L1 batch consists of only one miniblock.
         let miniblock_number = MiniblockNumber(idx);
@@ -497,7 +495,7 @@ pub(super) async fn extend_db_state(
                 .finalize(ProtocolVersionId::latest()),
             l1_tx_count: header.l1_tx_count,
             l2_tx_count: header.l2_tx_count,
-            base_fee_per_gas: header.base_fee_per_gas,
+            base_fee_per_gas: 1,
             l1_gas_price: 0,
             l2_fair_gas_price: 0,
             base_system_contracts_hashes: base_system_contracts.hashes(),

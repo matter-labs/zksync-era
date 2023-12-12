@@ -27,18 +27,13 @@ pub enum StorageL1BatchConvertError {
 pub struct StorageL1BatchHeader {
     pub number: i64,
     pub timestamp: i64,
-    pub is_finished: bool,
     pub l1_tx_count: i32,
     pub l2_tx_count: i32,
-    pub fee_account_address: Vec<u8>,
     pub l2_to_l1_logs: Vec<Vec<u8>>,
     pub l2_to_l1_messages: Vec<Vec<u8>>,
     pub bloom: Vec<u8>,
     pub priority_ops_onchain_data: Vec<Vec<u8>>,
     pub used_contract_hashes: serde_json::Value,
-    pub base_fee_per_gas: BigDecimal,
-    pub l1_gas_price: i64,
-    pub l2_fair_gas_price: i64,
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
     pub protocol_version: Option<i32>,
@@ -65,9 +60,7 @@ impl From<StorageL1BatchHeader> for L1BatchHeader {
 
         L1BatchHeader {
             number: L1BatchNumber(l1_batch.number as u32),
-            is_finished: l1_batch.is_finished,
             timestamp: l1_batch.timestamp as u64,
-            fee_account_address: Address::from_slice(&l1_batch.fee_account_address),
             priority_ops_onchain_data,
             l1_tx_count: l1_batch.l1_tx_count as u16,
             l2_tx_count: l1_batch.l2_tx_count as u16,
@@ -77,16 +70,10 @@ impl From<StorageL1BatchHeader> for L1BatchHeader {
             bloom: H2048::from_slice(&l1_batch.bloom),
             used_contract_hashes: serde_json::from_value(l1_batch.used_contract_hashes)
                 .expect("invalid value for used_contract_hashes in the DB"),
-            base_fee_per_gas: l1_batch
-                .base_fee_per_gas
-                .to_u64()
-                .expect("base_fee_per_gas should fit in u64"),
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 l1_batch.bootloader_code_hash,
                 l1_batch.default_aa_code_hash,
             ),
-            l1_gas_price: l1_batch.l1_gas_price as u64,
-            l2_fair_gas_price: l1_batch.l2_fair_gas_price as u64,
             system_logs: system_logs.into_iter().map(SystemL2ToL1Log).collect(),
             protocol_version: l1_batch
                 .protocol_version
@@ -123,10 +110,8 @@ fn convert_base_system_contracts_hashes(
 pub struct StorageL1Batch {
     pub number: i64,
     pub timestamp: i64,
-    pub is_finished: bool,
     pub l1_tx_count: i32,
     pub l2_tx_count: i32,
-    pub fee_account_address: Vec<u8>,
     pub bloom: Vec<u8>,
     pub l2_to_l1_logs: Vec<Vec<u8>>,
     pub priority_ops_onchain_data: Vec<Vec<u8>>,
@@ -158,10 +143,6 @@ pub struct StorageL1Batch {
 
     pub used_contract_hashes: serde_json::Value,
 
-    pub base_fee_per_gas: BigDecimal,
-    pub l1_gas_price: i64,
-    pub l2_fair_gas_price: i64,
-
     pub system_logs: Vec<Vec<u8>>,
     pub compressed_state_diffs: Option<Vec<u8>>,
 
@@ -184,9 +165,7 @@ impl From<StorageL1Batch> for L1BatchHeader {
 
         L1BatchHeader {
             number: L1BatchNumber(l1_batch.number as u32),
-            is_finished: l1_batch.is_finished,
             timestamp: l1_batch.timestamp as u64,
-            fee_account_address: Address::from_slice(&l1_batch.fee_account_address),
             priority_ops_onchain_data,
             l1_tx_count: l1_batch.l1_tx_count as u16,
             l2_tx_count: l1_batch.l2_tx_count as u16,
@@ -196,16 +175,10 @@ impl From<StorageL1Batch> for L1BatchHeader {
             bloom: H2048::from_slice(&l1_batch.bloom),
             used_contract_hashes: serde_json::from_value(l1_batch.used_contract_hashes)
                 .expect("invalid value for used_contract_hashes in the DB"),
-            base_fee_per_gas: l1_batch
-                .base_fee_per_gas
-                .to_u64()
-                .expect("base_fee_per_gas should fit in u64"),
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 l1_batch.bootloader_code_hash,
                 l1_batch.default_aa_code_hash,
             ),
-            l1_gas_price: l1_batch.l1_gas_price as u64,
-            l2_fair_gas_price: l1_batch.l2_fair_gas_price as u64,
             system_logs: system_logs.into_iter().map(SystemL2ToL1Log).collect(),
             protocol_version: l1_batch
                 .protocol_version

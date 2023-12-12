@@ -118,9 +118,7 @@ impl UpdatesManager {
 
         let l1_batch = L1BatchHeader {
             number: l1_batch_env.number,
-            is_finished: true,
             timestamp: l1_batch_env.timestamp,
-            fee_account_address: l1_batch_env.fee_account,
             priority_ops_onchain_data: self.l1_batch.priority_ops_onchain_data.clone(),
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
@@ -128,9 +126,6 @@ impl UpdatesManager {
             l2_to_l1_messages,
             bloom: Default::default(),
             used_contract_hashes: finished_batch.final_execution_state.used_contract_hashes,
-            base_fee_per_gas: l1_batch_env.base_fee(),
-            l1_gas_price: self.l1_gas_price(),
-            l2_fair_gas_price: self.fair_l2_gas_price(),
             base_system_contracts_hashes: self.base_system_contract_hashes(),
             protocol_version: Some(self.protocol_version()),
             system_logs: finished_batch.final_execution_state.system_logs,

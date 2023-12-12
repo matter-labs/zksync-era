@@ -10,7 +10,7 @@ use crate::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     priority_op_onchain_data::PriorityOpOnchainData,
     web3::signing::keccak256,
-    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction,
+    AccountTreeId, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction,
 };
 
 /// Represents a successfully deployed smart contract.
@@ -34,12 +34,8 @@ impl DeployedContract {
 pub struct L1BatchHeader {
     /// Numeric ID of the block. Starts from 1, 0 block is considered genesis block and has no transactions.
     pub number: L1BatchNumber,
-    /// Whether block is sealed or not (doesn't correspond to committing/verifying it on the L1).
-    pub is_finished: bool,
     /// Timestamp when block was first created.
     pub timestamp: u64,
-    /// Address of the fee account that was used when block was created
-    pub fee_account_address: Address,
     /// Total number of processed priority operations in the block
     pub l1_tx_count: u16,
     /// Total number of processed txs that was requested offchain
@@ -54,12 +50,6 @@ pub struct L1BatchHeader {
     pub bloom: H2048,
     /// Hashes of contracts used this block
     pub used_contract_hashes: Vec<U256>,
-    /// The EIP1559 base_fee used in this block.
-    pub base_fee_per_gas: u64,
-    /// The assumed L1 gas price within the block.
-    pub l1_gas_price: u64,
-    /// The L2 gas price that the operator agrees on.
-    pub l2_fair_gas_price: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     /// System logs are those emitted as part of the Vm execution.
     pub system_logs: Vec<SystemL2ToL1Log>,
@@ -99,15 +89,12 @@ impl L1BatchHeader {
     pub fn new(
         number: L1BatchNumber,
         timestamp: u64,
-        fee_account_address: Address,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version: ProtocolVersionId,
     ) -> L1BatchHeader {
         Self {
             number,
-            is_finished: false,
             timestamp,
-            fee_account_address,
             l1_tx_count: 0,
             l2_tx_count: 0,
             priority_ops_onchain_data: vec![],
@@ -115,9 +102,6 @@ impl L1BatchHeader {
             l2_to_l1_messages: vec![],
             bloom: H2048::default(),
             used_contract_hashes: vec![],
-            base_fee_per_gas: 0,
-            l1_gas_price: 0,
-            l2_fair_gas_price: 0,
             base_system_contracts_hashes,
             system_logs: vec![],
             protocol_version: Some(protocol_version),

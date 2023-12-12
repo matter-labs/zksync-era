@@ -147,14 +147,12 @@ impl Tester {
     }
 
     pub(super) async fn insert_sealed_batch(&self, pool: &ConnectionPool, number: u32) {
-        let mut batch_header = L1BatchHeader::new(
+        let batch_header = L1BatchHeader::new(
             L1BatchNumber(number),
             self.current_timestamp,
-            Address::default(),
             self.base_system_contracts.hashes(),
             Default::default(),
         );
-        batch_header.is_finished = true;
 
         let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
         storage

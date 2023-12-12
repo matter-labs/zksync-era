@@ -38,7 +38,6 @@ static DUMMY_OPERATION: Lazy<AggregatedOperation> = Lazy::new(|| {
             header: L1BatchHeader::new(
                 L1BatchNumber(1),
                 1,
-                Address::default(),
                 BaseSystemContractsHashes::default(),
                 ProtocolVersionId::latest(),
             ),
@@ -873,14 +872,12 @@ async fn insert_genesis_protocol_version(tester: &EthSenderTester) {
 }
 
 async fn insert_l1_batch(tester: &EthSenderTester, number: L1BatchNumber) -> L1BatchHeader {
-    let mut header = L1BatchHeader::new(
+    let header = L1BatchHeader::new(
         number,
         0,
-        Address::zero(),
         BaseSystemContractsHashes::default(),
         Default::default(),
     );
-    header.is_finished = true;
 
     // Save L1 batch to the database
     tester

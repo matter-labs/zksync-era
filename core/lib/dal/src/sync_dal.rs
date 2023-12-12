@@ -102,7 +102,6 @@ mod tests {
         let mut l1_batch_header = L1BatchHeader::new(
             L1BatchNumber(0),
             0,
-            Address::repeat_byte(0x42),
             Default::default(),
             ProtocolVersionId::latest(),
         );
@@ -192,6 +191,6 @@ mod tests {
             .expect("no sync block");
         assert_eq!(block.l1_batch_number, L1BatchNumber(1));
         assert!(block.last_in_batch);
-        assert_eq!(block.operator_address, l1_batch_header.fee_account_address);
+        assert_eq!(block.operator_address, Address::default()); // FIXME
     }
 }

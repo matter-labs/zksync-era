@@ -66,14 +66,6 @@ impl UpdatesManager {
         self.base_system_contract_hashes
     }
 
-    pub(crate) fn l1_gas_price(&self) -> u64 {
-        self.l1_gas_price
-    }
-
-    pub(crate) fn fair_l2_gas_price(&self) -> u64 {
-        self.fair_l2_gas_price
-    }
-
     pub(crate) fn seal_miniblock_command(
         &self,
         l1_batch_number: L1BatchNumber,

@@ -290,7 +290,6 @@ async fn test_duplicate_insert_prover_jobs() {
         0,
         Default::default(),
         Default::default(),
-        Default::default(),
     );
     storage
         .blocks_dal()
@@ -351,7 +350,6 @@ async fn test_requeue_prover_jobs() {
     let header = L1BatchHeader::new(
         L1BatchNumber(block_number),
         0,
-        Default::default(),
         Default::default(),
         ProtocolVersionId::latest(),
     );
