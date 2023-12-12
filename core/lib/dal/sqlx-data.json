@@ -13,6 +13,24 @@
     },
     "query": "UPDATE proof_generation_details SET status=$1, updated_at = now() WHERE l1_batch_number = $2"
   },
+  "002a901f2802beb48e4d15437fba9a04885a5e4f8f17089a09f31edfd7b3d0bb": {
+    "describe": {
+      "columns": [
+        {
+          "name": "number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT number FROM miniblocks WHERE consensus IS NOT NULL ORDER BY number DESC LIMIT 1"
+  },
   "00bd80fd83aff559d8d9232c2e98a12a1dd2c8f31792cd915e2cf11f28e583b7": {
     "describe": {
       "columns": [
@@ -709,6 +727,24 @@
       }
     },
     "query": "SELECT l1_batch_number, factory_deps_filepath, storage_logs_filepaths FROM snapshots WHERE l1_batch_number = $1"
+  },
+  "166dcd8d504ba3f52a9e44a05305ed00954ab9b5302be4bb5ab05dfd2272afca": {
+    "describe": {
+      "columns": [
+        {
+          "name": "state!",
+          "ordinal": 0,
+          "type_info": "Jsonb"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT state as \"state!\" FROM consensus_replica_state WHERE fake_key"
   },
   "16bca6f4258ff3db90a26a8550c5fc35e666fb698960486528fceba3e452fd62": {
     "describe": {
@@ -10486,6 +10522,18 @@
     },
     "query": "UPDATE basic_witness_input_producer_jobs SET status = $1, attempts = attempts + 1, updated_at = now(), processing_started_at = now() WHERE l1_batch_number = ( SELECT l1_batch_number FROM basic_witness_input_producer_jobs WHERE status = $2 OR (status = $1 AND processing_started_at < now() - $4::interval) OR (status = $3 AND attempts < $5) ORDER BY l1_batch_number ASC LIMIT 1 FOR UPDATE SKIP LOCKED ) RETURNING basic_witness_input_producer_jobs.l1_batch_number"
   },
+  "e577743852337c926e1566c46f4cbab5e6ab1409921fa8e25c9dfa7dfa03daae": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Jsonb"
+        ]
+      }
+    },
+    "query": "INSERT INTO consensus_replica_state(fake_key,state) VALUES(true,$1) ON CONFLICT (fake_key) DO UPDATE SET state = excluded.state"
+  },
   "e626aa2efb6ba875a12f2b4e37b0ba8052810e73fa5e2d3280f747f7b89b956f": {
     "describe": {
       "columns": [],
@@ -10512,6 +10560,26 @@
       }
     },
     "query": "UPDATE eth_txs SET gas_used = $1, confirmed_eth_tx_history_id = $2 WHERE id = $3"
+  },
+  "e8629da5d4269a565f1043969d29df2ccfbebafdce96d58c601860f30d61b4a0": {
+    "describe": {
+      "columns": [
+        {
+          "name": "count!",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        null
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT COUNT(*) as \"count!\"  FROM miniblocks WHERE number = $1 AND consensus IS NOT NULL"
   },
   "e8988deed66ad9d10be89e89966082aeb920c5dc91eb5fad16bd0d3118708c2e": {
     "describe": {

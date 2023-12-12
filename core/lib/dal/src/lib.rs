@@ -7,8 +7,8 @@ pub use crate::connection::ConnectionPool;
 use crate::{
     accounts_dal::AccountsDal, basic_witness_input_producer_dal::BasicWitnessInputProducerDal,
     blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal, connection::holder::ConnectionHolder,
-    contract_verification_dal::ContractVerificationDal, eth_sender_dal::EthSenderDal,
-    events_dal::EventsDal, events_web3_dal::EventsWeb3Dal,
+    consensus_dal::ConsensusDal, contract_verification_dal::ContractVerificationDal,
+    eth_sender_dal::EthSenderDal, events_dal::EventsDal, events_web3_dal::EventsWeb3Dal,
     fri_gpu_prover_queue_dal::FriGpuProverQueueDal,
     fri_proof_compressor_dal::FriProofCompressorDal,
     fri_protocol_versions_dal::FriProtocolVersionsDal, fri_prover_dal::FriProverDal,
@@ -31,6 +31,7 @@ pub mod basic_witness_input_producer_dal;
 pub mod blocks_dal;
 pub mod blocks_web3_dal;
 pub mod connection;
+pub mod consensus_dal;
 pub mod contract_verification_dal;
 pub mod eth_sender_dal;
 pub mod events_dal;
@@ -143,6 +144,10 @@ impl<'a> StorageProcessor<'a> {
 
     pub fn blocks_web3_dal(&mut self) -> BlocksWeb3Dal<'_, 'a> {
         BlocksWeb3Dal { storage: self }
+    }
+
+    pub fn consensus_dal(&mut self) -> ConsensusDal<'_, 'a> {
+        ConsensusDal { storage: self }
     }
 
     pub fn eth_sender_dal(&mut self) -> EthSenderDal<'_, 'a> {

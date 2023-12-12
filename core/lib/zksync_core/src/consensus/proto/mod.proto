@@ -10,6 +10,8 @@ message Transaction {
 }
 
 message Payload {
+  // zksync-era ProtocolVersionId
+  optional uint32 protocol_version = 9; // required; u16
   optional bytes hash = 1; // required; H256
   optional uint32 l1_batch_number = 2; // required
   optional uint64 timestamp = 3; // required; seconds since UNIX epoch

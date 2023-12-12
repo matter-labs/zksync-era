@@ -9,7 +9,7 @@ use crate::ProtocolVersionId;
 
 /// Protobuf-encoded consensus-related L2 block (= miniblock) fields.
 /// See `zksync_dal::models::storage_sync::ConsensusBlockFields`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(transparent)]
 pub struct ConsensusBlockFields(pub zksync_basic_types::Bytes);
 
