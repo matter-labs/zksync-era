@@ -9,7 +9,7 @@ use zksync_consensus_executor::testonly::FullValidatorConfig;
 use zksync_consensus_roles::validator::{self, FinalBlock};
 use zksync_consensus_storage::{InMemoryStorage, WriteBlockStore};
 use zksync_dal::{blocks_dal::ConsensusBlockFields, ConnectionPool, StorageProcessor};
-use zksync_types::{api::en::SyncBlock, Address, L1BatchNumber, MiniblockNumber, H256};
+use zksync_types::{api::en::SyncBlock, L1BatchNumber, MiniblockNumber, H256};
 
 use super::*;
 use crate::{
@@ -18,7 +18,7 @@ use crate::{
         sync_action::SyncAction,
         tests::{
             mock_l1_batch_hash_computation, run_state_keeper_with_multiple_l1_batches,
-            run_state_keeper_with_multiple_miniblocks, StateKeeperHandles,
+            run_state_keeper_with_multiple_miniblocks, StateKeeperHandles, OPERATOR_ADDRESS,
         },
         ActionQueue,
     },
@@ -30,7 +30,7 @@ const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50 * CLOCK_SP
 async fn load_sync_block(storage: &mut StorageProcessor<'_>, number: u32) -> SyncBlock {
     storage
         .sync_dal()
-        .sync_block(MiniblockNumber(number), Address::default(), true)
+        .sync_block(MiniblockNumber(number), OPERATOR_ADDRESS, true)
         .await
         .unwrap()
         .unwrap_or_else(|| panic!("no sync block #{number}"))
@@ -42,7 +42,9 @@ pub(super) async fn load_final_block(
     number: u32,
 ) -> FinalBlock {
     let sync_block = load_sync_block(storage, number).await;
-    consensus::sync_block_to_consensus_block(sync_block).unwrap()
+    consensus::sync_block_to_consensus_block(sync_block)
+        .with_context(|| format!("block {number}"))
+        .unwrap()
 }
 
 fn convert_sync_blocks(sync_blocks: Vec<SyncBlock>) -> Vec<FinalBlock> {
@@ -88,6 +90,7 @@ pub(super) async fn add_consensus_fields(
             parent: prev_block_hash,
             justification,
         };
+        tracing::info!("set_miniblock_consensus_fields({number},{consensus:?})");
         storage
             .blocks_dal()
             .set_miniblock_consensus_fields(MiniblockNumber(number), &consensus)

@@ -26,6 +26,7 @@ use crate::{
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
+pub const OPERATOR_ADDRESS: Address = Address::repeat_byte(1);
 
 fn open_l1_batch(number: u32, timestamp: u64, first_miniblock_number: u32) -> SyncAction {
     SyncAction::OpenBatch {
@@ -33,7 +34,7 @@ fn open_l1_batch(number: u32, timestamp: u64, first_miniblock_number: u32) -> Sy
         timestamp,
         l1_gas_price: 2,
         l2_fair_gas_price: 3,
-        operator_address: Default::default(),
+        operator_address: OPERATOR_ADDRESS,
         protocol_version: ProtocolVersionId::latest(),
         first_miniblock_info: (MiniblockNumber(first_miniblock_number), 1),
     }
@@ -64,7 +65,7 @@ impl StateKeeperHandles {
             actions,
             sync_state.clone(),
             Box::<MockMainNodeClient>::default(),
-            Address::repeat_byte(1),
+            OPERATOR_ADDRESS,
             u32::MAX,
             L2ChainId::default(),
         )
@@ -239,7 +240,7 @@ async fn external_io_with_multiple_miniblocks() {
 
         let sync_block = storage
             .sync_dal()
-            .sync_block(MiniblockNumber(number), Address::repeat_byte(1), true)
+            .sync_block(MiniblockNumber(number), OPERATOR_ADDRESS, true)
             .await
             .unwrap()
             .unwrap_or_else(|| panic!("Sync block #{} is not persisted", number));
