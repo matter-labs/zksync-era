@@ -107,7 +107,7 @@ export async function isolatedExternalNode() {
                 break;
             }
         } catch (err) {
-            await utils.sleep(1);
+            await utils.sleep(0.1);
             const { stdout: status } = await utils.exec(
                 `docker container inspect ${instanceName} --format={{.State.Status}}`
             );
@@ -117,6 +117,7 @@ export async function isolatedExternalNode() {
             }
         }
     }
+    console.log(`EN instance ready after ${new Date().getTime() - startTime.getTime()}ms`)
     return new IsolatedExternalNode(enProcess);
 }
 async function create_genesis(cmd: string) {
