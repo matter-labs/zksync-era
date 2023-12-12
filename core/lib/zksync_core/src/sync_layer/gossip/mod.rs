@@ -4,10 +4,11 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_concurrency::{ctx, scope};
+use zksync_concurrency::{ctx, error::Wrap as _, scope};
 use zksync_consensus_executor::{Executor, ExecutorConfig};
 use zksync_consensus_roles::node;
 use zksync_dal::ConnectionPool;
+use zksync_types::Address;
 
 use self::{buffered::Buffered, storage::PostgresBlockStorage};
 use super::{fetcher::FetcherCursor, sync_action::ActionQueueSender};
@@ -27,6 +28,7 @@ pub async fn run_gossip_fetcher(
     executor_config: ExecutorConfig,
     node_key: node::SecretKey,
     mut stop_receiver: watch::Receiver<bool>,
+    operator_address: Address,
 ) -> anyhow::Result<()> {
     scope::run!(&ctx::root(), |ctx, s| async {
         s.spawn_bg(run_gossip_fetcher_inner(
@@ -35,6 +37,7 @@ pub async fn run_gossip_fetcher(
             actions,
             executor_config,
             node_key,
+            operator_address,
         ));
         if stop_receiver.changed().await.is_err() {
             tracing::warn!(
@@ -53,6 +56,7 @@ async fn run_gossip_fetcher_inner(
     actions: ActionQueueSender,
     executor_config: ExecutorConfig,
     node_key: node::SecretKey,
+    operator_address: Address,
 ) -> anyhow::Result<()> {
     tracing::info!(
         "Starting gossip fetcher with {executor_config:?} and node key {:?}",
@@ -63,12 +67,21 @@ async fn run_gossip_fetcher_inner(
         .access_storage_tagged("sync_layer")
         .await
         .context("Failed acquiring Postgres connection for cursor")?;
-    let cursor = FetcherCursor::new(&mut storage).await?;
+    let cursor = FetcherCursor::new(&mut storage)
+        .await
+        .context("FetcherCursor::new()")?;
     drop(storage);
 
-    let store =
-        PostgresBlockStorage::new(ctx, pool, actions, cursor, &executor_config.genesis_block)
-            .await?;
+    let store = PostgresBlockStorage::new(
+        ctx,
+        pool,
+        actions,
+        cursor,
+        &executor_config.genesis_block,
+        operator_address,
+    )
+    .await
+    .wrap("PostgresBlockStorage::new()")?;
     let buffered = Arc::new(Buffered::new(store));
     let store = buffered.inner();
 

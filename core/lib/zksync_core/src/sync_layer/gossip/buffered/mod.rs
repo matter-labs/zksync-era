@@ -9,8 +9,8 @@ use zksync_concurrency::{
     ctx, scope,
     sync::{self, watch, Mutex},
 };
-use zksync_consensus_roles::validator::{BlockNumber, FinalBlock};
-use zksync_consensus_storage::{BlockStore, StorageError, StorageResult, WriteBlockStore};
+use zksync_consensus_roles::validator::{BlockNumber, FinalBlock, Payload};
+use zksync_consensus_storage::{BlockStore, WriteBlockStore};
 
 use super::{
     metrics::{BlockResponseKind, METRICS},
@@ -38,7 +38,7 @@ pub(super) trait ContiguousBlockStore: BlockStore {
     ///
     /// - with the next block (i.e., one immediately after [`BlockStore::head_block()`])
     /// - sequentially (i.e., multiple blocks cannot be scheduled at once)
-    async fn schedule_next_block(&self, ctx: &ctx::Ctx, block: &FinalBlock) -> StorageResult<()>;
+    async fn schedule_next_block(&self, ctx: &ctx::Ctx, block: &FinalBlock) -> ctx::Result<()>;
 }
 
 /// In-memory buffer or [`FinalBlock`]s received from peers, but not executed and persisted locally yet.
@@ -207,7 +207,7 @@ impl<T: ContiguousBlockStore> Buffered<T> {
 
     /// Schedules blocks in the underlying store as they are pushed to this store.
     #[tracing::instrument(level = "trace", skip_all, err)]
-    async fn schedule_blocks(&self, ctx: &ctx::Ctx) -> StorageResult<()> {
+    async fn schedule_blocks(&self, ctx: &ctx::Ctx) -> ctx::Result<()> {
         let mut blocks_subscriber = self.block_writes_sender.subscribe();
 
         let mut next_scheduled_block_number = {
@@ -248,7 +248,7 @@ impl<T: ContiguousBlockStore> Buffered<T> {
 
     /// Runs background tasks for this store. This method **must** be spawned as a background task
     /// which should be running as long at the [`Buffered`] is in use; otherwise, it will function incorrectly.
-    pub async fn run_background_tasks(&self, ctx: &ctx::Ctx) -> StorageResult<()> {
+    pub async fn run_background_tasks(&self, ctx: &ctx::Ctx) -> ctx::Result<()> {
         scope::run!(ctx, |ctx, s| {
             s.spawn(async {
                 self.listen_to_updates(ctx).await;
@@ -262,7 +262,7 @@ impl<T: ContiguousBlockStore> Buffered<T> {
 
 #[async_trait]
 impl<T: ContiguousBlockStore> BlockStore for Buffered<T> {
-    async fn head_block(&self, ctx: &ctx::Ctx) -> StorageResult<FinalBlock> {
+    async fn head_block(&self, ctx: &ctx::Ctx) -> ctx::Result<FinalBlock> {
         let buffered_head_block = sync::lock(ctx, &self.buffer).await?.head_block();
         if let Some(block) = buffered_head_block {
             return Ok(block);
@@ -270,22 +270,18 @@ impl<T: ContiguousBlockStore> BlockStore for Buffered<T> {
         self.inner.head_block(ctx).await
     }
 
-    async fn first_block(&self, ctx: &ctx::Ctx) -> StorageResult<FinalBlock> {
+    async fn first_block(&self, ctx: &ctx::Ctx) -> ctx::Result<FinalBlock> {
         // First block is always situated in the underlying store
         self.inner.first_block(ctx).await
     }
 
-    async fn last_contiguous_block_number(&self, ctx: &ctx::Ctx) -> StorageResult<BlockNumber> {
+    async fn last_contiguous_block_number(&self, ctx: &ctx::Ctx) -> ctx::Result<BlockNumber> {
         Ok(sync::lock(ctx, &self.buffer)
             .await?
             .last_contiguous_block_number())
     }
 
-    async fn block(
-        &self,
-        ctx: &ctx::Ctx,
-        number: BlockNumber,
-    ) -> StorageResult<Option<FinalBlock>> {
+    async fn block(&self, ctx: &ctx::Ctx, number: BlockNumber) -> ctx::Result<Option<FinalBlock>> {
         let started_at = Instant::now();
         {
             let buffer = sync::lock(ctx, &self.buffer).await?;
@@ -305,7 +301,7 @@ impl<T: ContiguousBlockStore> BlockStore for Buffered<T> {
         &self,
         ctx: &ctx::Ctx,
         range: ops::Range<BlockNumber>,
-    ) -> StorageResult<Vec<BlockNumber>> {
+    ) -> ctx::Result<Vec<BlockNumber>> {
         // By design, the underlying store has no missing blocks.
         Ok(sync::lock(ctx, &self.buffer)
             .await?
@@ -319,16 +315,32 @@ impl<T: ContiguousBlockStore> BlockStore for Buffered<T> {
 
 #[async_trait]
 impl<T: ContiguousBlockStore> WriteBlockStore for Buffered<T> {
-    async fn put_block(&self, ctx: &ctx::Ctx, block: &FinalBlock) -> StorageResult<()> {
+    /// Verify that `payload` is a correct proposal for the block `block_number`.
+    async fn verify_payload(
+        &self,
+        _ctx: &ctx::Ctx,
+        _block_number: BlockNumber,
+        _payload: &Payload,
+    ) -> ctx::Result<()> {
+        // This is storage for non-validator nodes (aka full nodes),
+        // so verify_payload() won't be called.
+        // Still, it probably would be better to either
+        // * move verify_payload() to BlockStore, so that Buffered can just forward the call
+        // * create another separate trait for verify_payload.
+        // It will be clear what needs to be done when we implement multi-validator consensus for
+        // zksync-era.
+        unimplemented!()
+    }
+
+    async fn put_block(&self, ctx: &ctx::Ctx, block: &FinalBlock) -> ctx::Result<()> {
         let buffer_block_latency = METRICS.buffer_block_latency.start();
         {
             let mut buffer = sync::lock(ctx, &self.buffer).await?;
             let block_number = block.header.number;
             if block_number <= buffer.store_block_number {
-                let err = anyhow::anyhow!(
+                return Err(anyhow::anyhow!(
                     "Cannot replace a block #{block_number} since it is already present in the underlying storage",
-                );
-                return Err(StorageError::Database(err));
+                ).into());
             }
             buffer.put_block(block.clone());
         }

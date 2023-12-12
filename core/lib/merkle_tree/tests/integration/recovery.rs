@@ -33,7 +33,7 @@ fn recovery_basics() {
     assert_eq!(recovery.last_processed_key(), Some(greatest_key));
     assert_eq!(recovery.root_hash(), *expected_hash);
 
-    let tree = recovery.finalize();
+    let tree = MerkleTree::new(recovery.finalize());
     tree.verify_consistency(recovered_version, true).unwrap();
 }
 
@@ -65,7 +65,7 @@ fn test_recovery_in_chunks(mut db: impl PruneDatabase, kind: RecoveryKind, chunk
     assert_eq!(recovery.last_processed_key(), Some(greatest_key));
     assert_eq!(recovery.root_hash(), *expected_hash);
 
-    let mut tree = recovery.finalize();
+    let mut tree = MerkleTree::new(recovery.finalize());
     tree.verify_consistency(recovered_version, true).unwrap();
     // Check that new tree versions can be built and function as expected.
     test_tree_after_recovery(&mut tree, recovered_version, *expected_hash);

@@ -46,7 +46,7 @@ fn basic_workflow() {
 
     let (metadata, expected_root_hash) = {
         let db = RocksDB::new(temp_dir.as_ref());
-        let mut tree = ZkSyncTree::new_lightweight(db);
+        let mut tree = ZkSyncTree::new_lightweight(db.into());
         let metadata = tree.process_l1_batch(&logs);
         tree.save();
         tree.verify_consistency(L1BatchNumber(0));
@@ -74,7 +74,7 @@ fn basic_workflow() {
     );
 
     let db = RocksDB::new(temp_dir.as_ref());
-    let tree = ZkSyncTree::new_lightweight(db);
+    let tree = ZkSyncTree::new_lightweight(db.into());
     tree.verify_consistency(L1BatchNumber(0));
     assert_eq!(tree.root_hash(), expected_root_hash);
     assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(1));
@@ -88,7 +88,7 @@ fn basic_workflow_multiblock() {
 
     let expected_root_hash = {
         let db = RocksDB::new(temp_dir.as_ref());
-        let mut tree = ZkSyncTree::new_lightweight(db);
+        let mut tree = ZkSyncTree::new_lightweight(db.into());
         tree.use_dedicated_thread_pool(2);
         for block in blocks {
             tree.process_l1_batch(block);
@@ -106,7 +106,7 @@ fn basic_workflow_multiblock() {
     );
 
     let db = RocksDB::new(temp_dir.as_ref());
-    let tree = ZkSyncTree::new_lightweight(db);
+    let tree = ZkSyncTree::new_lightweight(db.into());
     assert_eq!(tree.root_hash(), expected_root_hash);
     assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(12));
 }
@@ -115,7 +115,7 @@ fn basic_workflow_multiblock() {
 fn filtering_out_no_op_writes() {
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let db = RocksDB::new(temp_dir.as_ref());
-    let mut tree = ZkSyncTree::new(db);
+    let mut tree = ZkSyncTree::new(db.into());
     let mut logs = gen_storage_logs();
     let root_hash = tree.process_l1_batch(&logs).root_hash;
     tree.save();
@@ -180,7 +180,7 @@ fn revert_blocks() {
 
     let mirror_logs = logs.clone();
     let tree_metadata: Vec<_> = {
-        let mut tree = ZkSyncTree::new_lightweight(storage);
+        let mut tree = ZkSyncTree::new_lightweight(storage.into());
         let metadata = logs.chunks(block_size).map(|chunk| {
             let metadata = tree.process_l1_batch(chunk);
             tree.save();
@@ -212,7 +212,7 @@ fn revert_blocks() {
     // Revert the last block.
     let storage = RocksDB::new(temp_dir.as_ref());
     {
-        let mut tree = ZkSyncTree::new_lightweight(storage);
+        let mut tree = ZkSyncTree::new_lightweight(storage.into());
         assert_eq!(tree.root_hash(), tree_metadata.last().unwrap().root_hash);
         tree.revert_logs(L1BatchNumber(3));
         assert_eq!(tree.root_hash(), tree_metadata[3].root_hash);
@@ -222,7 +222,7 @@ fn revert_blocks() {
     // Revert two more blocks.
     let storage = RocksDB::new(temp_dir.as_ref());
     {
-        let mut tree = ZkSyncTree::new_lightweight(storage);
+        let mut tree = ZkSyncTree::new_lightweight(storage.into());
         tree.revert_logs(L1BatchNumber(1));
         assert_eq!(tree.root_hash(), tree_metadata[1].root_hash);
         tree.save();
@@ -231,7 +231,7 @@ fn revert_blocks() {
     // Revert two more blocks second time; the result should be the same
     let storage = RocksDB::new(temp_dir.as_ref());
     {
-        let mut tree = ZkSyncTree::new_lightweight(storage);
+        let mut tree = ZkSyncTree::new_lightweight(storage.into());
         tree.revert_logs(L1BatchNumber(1));
         assert_eq!(tree.root_hash(), tree_metadata[1].root_hash);
         tree.save();
@@ -241,14 +241,14 @@ fn revert_blocks() {
     let storage = RocksDB::new(temp_dir.as_ref());
     {
         let storage_log = mirror_logs.get(3 * block_size).unwrap();
-        let mut tree = ZkSyncTree::new_lightweight(storage);
+        let mut tree = ZkSyncTree::new_lightweight(storage.into());
         tree.process_l1_batch(slice::from_ref(storage_log));
         tree.save();
     }
 
     // check saved block number
     let storage = RocksDB::new(temp_dir.as_ref());
-    let tree = ZkSyncTree::new_lightweight(storage);
+    let tree = ZkSyncTree::new_lightweight(storage.into());
     assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(3));
 }
 
@@ -257,7 +257,7 @@ fn reset_tree() {
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let storage = RocksDB::new(temp_dir.as_ref());
     let logs = gen_storage_logs();
-    let mut tree = ZkSyncTree::new_lightweight(storage);
+    let mut tree = ZkSyncTree::new_lightweight(storage.into());
     let empty_root_hash = tree.root_hash();
 
     logs.chunks(5).fold(empty_root_hash, |hash, chunk| {
@@ -279,14 +279,14 @@ fn read_logs() {
 
     let write_metadata = {
         let db = RocksDB::new(temp_dir.as_ref());
-        let mut tree = ZkSyncTree::new_lightweight(db);
+        let mut tree = ZkSyncTree::new_lightweight(db.into());
         let metadata = tree.process_l1_batch(&logs);
         tree.save();
         metadata
     };
 
     let db = RocksDB::new(temp_dir.as_ref());
-    let mut tree = ZkSyncTree::new_lightweight(db);
+    let mut tree = ZkSyncTree::new_lightweight(db.into());
     let read_logs: Vec<_> = logs
         .into_iter()
         .map(|instr| TreeInstruction::Read(instr.key()))
@@ -316,7 +316,7 @@ fn subtract_from_max_value(diff: u8) -> [u8; 32] {
 fn root_hash_compatibility() {
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let db = RocksDB::new(temp_dir.as_ref());
-    let mut tree = ZkSyncTree::new_lightweight(db);
+    let mut tree = ZkSyncTree::new_lightweight(db.into());
     assert_eq!(
         tree.root_hash(),
         H256([
@@ -373,7 +373,7 @@ fn root_hash_compatibility() {
 fn process_block_idempotency_check() {
     let temp_dir = TempDir::new().expect("failed to get temporary directory for RocksDB");
     let rocks_db = RocksDB::new(temp_dir.as_ref());
-    let mut tree = ZkSyncTree::new_lightweight(rocks_db);
+    let mut tree = ZkSyncTree::new_lightweight(rocks_db.into());
     let logs = gen_storage_logs();
     let tree_metadata = tree.process_l1_batch(&logs);
 
@@ -436,7 +436,7 @@ fn witness_workflow() {
     let (first_chunk, _) = logs.split_at(logs.len() / 2);
 
     let db = RocksDB::new(temp_dir.as_ref());
-    let mut tree = ZkSyncTree::new(db);
+    let mut tree = ZkSyncTree::new(db.into());
     let metadata = tree.process_l1_batch(first_chunk);
     let job = metadata.witness.unwrap();
     assert_eq!(job.next_enumeration_index(), 1);
@@ -466,7 +466,7 @@ fn witnesses_with_multiple_blocks() {
     let logs = gen_storage_logs();
 
     let db = RocksDB::new(temp_dir.as_ref());
-    let mut tree = ZkSyncTree::new(db);
+    let mut tree = ZkSyncTree::new(db.into());
     let empty_tree_hashes: Vec<_> = (0..256)
         .map(|i| Blake2Hasher.empty_subtree_hash(i))
         .collect();
