@@ -19,7 +19,8 @@ jobs:
 
       - name: Start services
         run: |
-          ci_localnet_up
+          mkdir -p ./volumes/postgres
+          docker compose up -d zk postgres
 
       - name: Lints
         run: |
