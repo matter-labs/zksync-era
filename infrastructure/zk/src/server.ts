@@ -76,8 +76,8 @@ export async function isolatedExternalNode() {
         if (envVar === 'DATABASE_URL') {
             envVarValue = dbUrl;
         }
-        envVarValue = envVarValue.replace('localhost', 'host');
-        envVarValue = envVarValue.replace('127.0.0.1', 'host');
+        envVarValue = envVarValue.replace('localhost', 'host.docker.internal');
+        envVarValue = envVarValue.replace('127.0.0.1', 'host.docker.internal');
         dockerEnv += ` --env "${envVar}=${envVarValue}" `;
     }
     const artifactsHostDirectory = path.join(process.env.ZKSYNC_HOME as string, 'artifacts');
