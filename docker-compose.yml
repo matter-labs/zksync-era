@@ -141,5 +141,6 @@ services:
       - "host:host-gateway"
     ports:
       - "3050:3050"
+      - "3081:3081"
     profiles:
       - runner
