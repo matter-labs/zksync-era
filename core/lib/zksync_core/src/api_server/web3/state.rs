@@ -1,8 +1,7 @@
-use lru::LruCache;
-use std::num::NonZeroUsize;
 use std::{
     convert::TryFrom,
     future::Future,
+    num::NonZeroUsize,
     sync::{
         atomic::{AtomicU32, Ordering},
         Arc,
@@ -10,6 +9,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use lru::LruCache;
 use tokio::sync::Mutex;
 use vise::GaugeGuard;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
