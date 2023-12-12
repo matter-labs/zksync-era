@@ -186,7 +186,7 @@ command
 
 command
     .command('isolated-binaries')
-    .description('run snapshots creator tests')
+    .description('run isolated binaries tests')
     .option('--bail')
     .action(async (cmd: Command) => {
         await isolatedBinaries(cmd.bail);
@@ -194,7 +194,7 @@ command
 
 command
     .command('snapshots-creator')
-    .description('run isolated binaries tests')
+    .description('run snapshots creator tests')
     .option('--bail')
     .action(async (cmd: Command) => {
         await snapshotsCreator(cmd.bail);
