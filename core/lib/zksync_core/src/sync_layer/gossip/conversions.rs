@@ -2,7 +2,7 @@
 use anyhow::Context as _;
 use zksync_consensus_roles::validator::FinalBlock;
 use zksync_dal::blocks_dal::ConsensusBlockFields;
-use zksync_types::{MiniblockNumber, ProtocolVersionId};
+use zksync_types::MiniblockNumber;
 
 use crate::{consensus, sync_layer::fetcher::FetchedBlock};
 
@@ -16,17 +16,11 @@ impl FetchedBlock {
         let payload = consensus::Payload::decode(&block.payload)
             .context("Failed deserializing block payload")?;
 
-        let protocol_version = block.justification.message.protocol_version;
-        let protocol_version =
-            u16::try_from(protocol_version.as_u32()).context("Invalid protocol version")?;
-        let protocol_version = ProtocolVersionId::try_from(protocol_version)
-            .with_context(|| format!("Unsupported protocol version: {protocol_version}"))?;
-
         Ok(Self {
             number: MiniblockNumber(number),
             l1_batch_number: payload.l1_batch_number,
             last_in_batch,
-            protocol_version,
+            protocol_version: payload.protocol_version,
             timestamp: payload.timestamp,
             reference_hash: Some(payload.hash),
             l1_gas_price: payload.l1_gas_price,

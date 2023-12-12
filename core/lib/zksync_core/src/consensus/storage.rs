@@ -25,6 +25,7 @@ pub(crate) fn sync_block_to_consensus_block(
 
     let payload: consensus::Payload = block.try_into()?;
     let payload = payload.encode();
+    anyhow::ensure!(payload.hash() == consensus.justification.message.proposal.payload);
     Ok(validator::FinalBlock {
         header: validator::BlockHeader {
             parent: consensus.parent,
