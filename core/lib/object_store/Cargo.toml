@@ -20,6 +20,8 @@ bincode = "1"
 google-cloud-storage = "0.15.0"
 google-cloud-auth = "0.13.0"
 http = "0.2.9"
+serde_json = "1.0"
+flate2 = "1.0.28"
 tokio = { version = "1.21.2", features = ["full"] }
 tracing = "0.1"
 

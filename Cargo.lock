@@ -6545,6 +6545,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "snapshots_creator"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "futures 0.3.28",
+ "prometheus_exporter",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "vise",
+ "vlog",
+ "zksync_config",
+ "zksync_core",
+ "zksync_dal",
+ "zksync_env_config",
+ "zksync_object_store",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "snark_wrapper"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/snark-wrapper.git?branch=main#52f9ef98a7e6c86b405dd0ec42291dacf6e2bcb4"
@@ -8846,10 +8868,13 @@ dependencies = [
  "envy",
  "futures 0.3.28",
  "prometheus_exporter",
+ "semver",
  "serde",
+ "serde_json",
  "tokio",
  "tracing",
  "url",
+ "vise",
  "vlog",
  "zksync_basic_types",
  "zksync_config",
@@ -8929,9 +8954,11 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bincode",
+ "flate2",
  "google-cloud-auth",
  "google-cloud-storage",
  "http",
+ "serde_json",
  "tempdir",
  "tokio",
  "tracing",
