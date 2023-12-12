@@ -139,5 +139,7 @@ services:
       - ./.env
     extra_hosts:
       - "host:host-gateway"
+    ports:
+      - "3050:3050"
     profiles:
       - runner
