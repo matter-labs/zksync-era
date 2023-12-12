@@ -69,13 +69,19 @@ async fn run_gossip_fetcher_inner(
         .context("Failed acquiring Postgres connection for cursor")?;
     let cursor = FetcherCursor::new(&mut storage)
         .await
-        .wrap("FetcherCursor::new()")?;
+        .context("FetcherCursor::new()")?;
     drop(storage);
 
-    let store =
-        PostgresBlockStorage::new(ctx, pool, actions, cursor, &executor_config.genesis_block)
-            .await
-            .wrap("PostgresBlockStorage::new()")?;
+    let store = PostgresBlockStorage::new(
+        ctx,
+        pool,
+        actions,
+        cursor,
+        &executor_config.genesis_block,
+        operator_address,
+    )
+    .await
+    .wrap("PostgresBlockStorage::new()")?;
     let buffered = Arc::new(Buffered::new(store));
     let store = buffered.inner();
 

@@ -274,8 +274,11 @@ impl BlockStore for PostgresBlockStorage {
         // ^ The number can get stale, but it's OK for our purposes
         Ok(
             Self::block(ctx, &mut storage, miniblock_number, self.operator_address)
-                .await?
-                .with_wrap(|| format!("Miniblock #{miniblock_number} disappeared from Postgres"))?,
+                .await
+                .wrap("Self::block()")?
+                .with_context(|| {
+                    format!("Miniblock #{miniblock_number} disappeared from Postgres")
+                })?,
         )
     }
 
@@ -287,8 +290,9 @@ impl BlockStore for PostgresBlockStorage {
             self.first_block_number,
             self.operator_address,
         )
-        .await?
-        .wrap("Genesis miniblock not present in Postgres")?)
+        .await
+        .wrap("Self::block()")?
+        .context("Genesis miniblock not present in Postgres")?)
     }
 
     async fn last_contiguous_block_number(&self, ctx: &ctx::Ctx) -> ctx::Result<BlockNumber> {

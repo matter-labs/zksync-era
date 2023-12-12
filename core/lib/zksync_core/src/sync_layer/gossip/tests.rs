@@ -464,7 +464,11 @@ async fn syncing_from_non_zero_block(first_block_number: u32) {
         if first_block_number < 2 {
             // L1 batch #1 will be sealed during the state keeper operation; we need to emulate
             // computing metadata for it.
-            s.spawn_bg(ctx.wait(mock_l1_batch_hash_computation(pool.clone(), 1)));
+            s.spawn_bg(async {
+                ctx.wait(mock_l1_batch_hash_computation(pool.clone(), 1))
+                    .await?;
+                Ok(())
+            });
         }
 
         s.spawn_bg(async {
@@ -480,12 +484,8 @@ async fn syncing_from_non_zero_block(first_block_number: u32) {
             .context("run_gossip_fetcher_inner()")
         });
 
-        ctx.wait(
-            state_keeper
-                .wait(|state| state.get_local_block() == MiniblockNumber(3))
-                .await,
-        )
-        .await?;
+        ctx.wait(state_keeper.wait(|state| state.get_local_block() == MiniblockNumber(3)))
+            .await?;
         Ok(())
     })
     .await
