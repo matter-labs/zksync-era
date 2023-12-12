@@ -265,11 +265,10 @@ jobs:
           ci_run zk
           ci_run zk init
 
-      # `sleep 30` because we need to wait until server started properly
       - name: Run server
         run: |
           ci_run zk server &>server.log &
-          ci_run sleep 30
+          ci_run bash -c "( tail -f -n +1 server.log & ) | grep -q \"Sealing miniblock\""
 
       - name: Run external node
         run: |
