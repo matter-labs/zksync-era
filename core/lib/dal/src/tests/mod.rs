@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
-    block::{miniblock_hash, L1BatchHeader, MiniblockHeader},
+    block::{L1BatchHeader, MiniblockHasher, MiniblockHeader},
     fee::{Fee, TransactionExecutionMetrics},
     helpers::unix_timestamp_ms,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
@@ -29,17 +29,19 @@ fn mock_tx_execution_metrics() -> TransactionExecutionMetrics {
 }
 
 pub(crate) fn create_miniblock_header(number: u32) -> MiniblockHeader {
+    let number = MiniblockNumber(number);
+    let protocol_version = ProtocolVersionId::default();
     MiniblockHeader {
-        number: MiniblockNumber(number),
+        number,
         timestamp: 0,
-        hash: miniblock_hash(MiniblockNumber(number), 0, H256::zero(), H256::zero()),
+        hash: MiniblockHasher::new(number, 0, H256::zero()).finalize(protocol_version),
         l1_tx_count: 0,
         l2_tx_count: 0,
         base_fee_per_gas: 100,
         l1_gas_price: 100,
         l2_fair_gas_price: 100,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
-        protocol_version: Some(ProtocolVersionId::default()),
+        protocol_version: Some(protocol_version),
         virtual_blocks: 1,
     }
 }

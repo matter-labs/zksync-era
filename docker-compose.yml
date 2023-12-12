@@ -118,11 +118,6 @@ services:
   # This is specific to runner
   zk:
     image: "matterlabs/zk-environment:latest2.0-lightweight"
-    depends_on:
-      - geth
-      - postgres
-      - beacon
-      - validator
     security_opt:
       - seccomp:unconfined
     command: tail -f /dev/null

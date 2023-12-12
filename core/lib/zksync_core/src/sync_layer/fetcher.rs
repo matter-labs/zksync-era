@@ -4,7 +4,8 @@ use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_dal::{blocks_dal::ConsensusBlockFields, StorageProcessor};
 use zksync_types::{
-    api::en::SyncBlock, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId,
+    api::en::SyncBlock, block::MiniblockHasher, Address, L1BatchNumber, MiniblockNumber,
+    ProtocolVersionId, H256,
 };
 use zksync_web3_decl::jsonrpsee::core::Error as RpcError;
 
@@ -27,6 +28,7 @@ pub(super) struct FetchedBlock {
     pub last_in_batch: bool,
     pub protocol_version: ProtocolVersionId,
     pub timestamp: u64,
+    pub reference_hash: Option<H256>,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
     pub virtual_blocks: u32,
@@ -35,8 +37,19 @@ pub(super) struct FetchedBlock {
     pub consensus: Option<ConsensusBlockFields>,
 }
 
+impl FetchedBlock {
+    fn compute_hash(&self, prev_miniblock_hash: H256) -> H256 {
+        let mut hasher = MiniblockHasher::new(self.number, self.timestamp, prev_miniblock_hash);
+        for tx in &self.transactions {
+            hasher.push_tx_hash(tx.hash());
+        }
+        hasher.finalize(self.protocol_version)
+    }
+}
+
 impl TryFrom<SyncBlock> for FetchedBlock {
     type Error = anyhow::Error;
+
     fn try_from(block: SyncBlock) -> anyhow::Result<Self> {
         Ok(Self {
             number: block.number,
@@ -44,6 +57,7 @@ impl TryFrom<SyncBlock> for FetchedBlock {
             last_in_batch: block.last_in_batch,
             protocol_version: block.protocol_version,
             timestamp: block.timestamp,
+            reference_hash: block.hash,
             l1_gas_price: block.l1_gas_price,
             l2_fair_gas_price: block.l2_fair_gas_price,
             virtual_blocks: block.virtual_blocks.unwrap_or(0),
@@ -66,6 +80,7 @@ impl TryFrom<SyncBlock> for FetchedBlock {
 pub struct FetcherCursor {
     // Fields are public for testing purposes.
     pub(super) next_miniblock: MiniblockNumber,
+    pub(super) prev_miniblock_hash: H256,
     pub(super) l1_batch: L1BatchNumber,
 }
 
@@ -94,6 +109,7 @@ impl FetcherCursor {
 
         // Miniblocks are always fully processed.
         let next_miniblock = last_miniblock_header.number + 1;
+        let prev_miniblock_hash = last_miniblock_header.hash;
         // Decide whether the next batch should be explicitly opened or not.
         let l1_batch = if was_new_batch_open {
             // No `OpenBatch` action needed.
@@ -105,12 +121,20 @@ impl FetcherCursor {
 
         Ok(Self {
             next_miniblock,
+            prev_miniblock_hash,
             l1_batch,
         })
     }
 
     pub(super) fn advance(&mut self, block: FetchedBlock) -> Vec<SyncAction> {
         assert_eq!(block.number, self.next_miniblock);
+        let local_block_hash = block.compute_hash(self.prev_miniblock_hash);
+        if let Some(reference_hash) = block.reference_hash {
+            assert_eq!(
+                local_block_hash, reference_hash,
+                "Mismatch between the locally computed and received miniblock hash for {block:?}"
+            );
+        }
 
         let mut new_actions = Vec::new();
         if block.l1_batch_number != self.l1_batch {
@@ -166,6 +190,7 @@ impl FetcherCursor {
             new_actions.push(SyncAction::SealMiniblock(block.consensus));
         }
         self.next_miniblock += 1;
+        self.prev_miniblock_hash = local_block_hash;
 
         new_actions
     }

@@ -18,3 +18,10 @@ mode="FileBacked"
 file_backed_base_path="artifacts"
 gcs_credential_file_path="/path/to/gcs_credentials.json"
 max_retries=5
+
+[snapshots_object_store]
+bucket_base_url="snapshots_base_url"
+mode="FileBacked"
+file_backed_base_path="artifacts"
+gcs_credential_file_path="/path/to/gcs_credentials.json"
+max_retries=5
