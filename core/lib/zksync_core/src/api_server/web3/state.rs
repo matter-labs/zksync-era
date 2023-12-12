@@ -652,27 +652,27 @@ mod tests {
         let filter3 = TypedFilter::PendingTransactions(Default::default());
 
         let idx1 = filters.add(filter1.clone());
-        let idx2 = filters.add(filter2.clone());
-        let idx3 = filters.add(filter3.clone());
+        let idx2 = filters.add(filter2);
+        let idx3 = filters.add(filter3);
 
         assert_eq!(filters.state.len(), 2);
-        assert_eq!(filters.state.contains(&idx1), false);
-        assert_eq!(filters.state.contains(&idx2), true);
-        assert_eq!(filters.state.contains(&idx3), true);
+        assert!(!filters.state.contains(&idx1));
+        assert!(filters.state.contains(&idx2));
+        assert!(filters.state.contains(&idx3));
 
         filters.get_and_update_stats(idx2);
 
-        let idx1 = filters.add(filter1.clone());
+        let idx1 = filters.add(filter1);
         assert_eq!(filters.state.len(), 2);
-        assert_eq!(filters.state.contains(&idx1), true);
-        assert_eq!(filters.state.contains(&idx2), true);
-        assert_eq!(filters.state.contains(&idx3), false);
+        assert!(filters.state.contains(&idx1));
+        assert!(filters.state.contains(&idx2));
+        assert!(!filters.state.contains(&idx3));
 
         filters.remove(idx1);
 
         assert_eq!(filters.state.len(), 1);
-        assert_eq!(filters.state.contains(&idx1), false);
-        assert_eq!(filters.state.contains(&idx2), true);
-        assert_eq!(filters.state.contains(&idx3), false);
+        assert!(!filters.state.contains(&idx1));
+        assert!(filters.state.contains(&idx2));
+        assert!(!filters.state.contains(&idx3));
     }
 }
