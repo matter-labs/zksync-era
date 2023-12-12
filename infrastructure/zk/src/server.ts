@@ -98,7 +98,7 @@ export async function isolatedExternalNode() {
         }
         try {
             const healthcheckPort = extNodeEnv['EN_HEALTHCHECK_PORT'];
-            const healthcheckUrl = `http://localhost:${healthcheckPort}/health`;
+            const healthcheckUrl = `http://127.0.0.1:${healthcheckPort}/health`;
             const response = await fetch(healthcheckUrl);
             const json = await response.json();
             console.log(json);
