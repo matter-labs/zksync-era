@@ -1,14 +1,14 @@
 import { BigNumberish } from '@ethersproject/bignumber';
 import { BytesLike, ethers } from 'ethers';
-import { ForceDeployUpgraderFactory as ForceDeployUpgraderFactoryL2 } from 'l2-zksync-contracts/typechain';
+import { ForceDeployUpgraderFactory as ForceDeployUpgraderFactoryL2 } from 'l2-contracts/typechain';
 import {
     DefaultUpgradeFactory as DefaultUpgradeFactoryL1,
     AdminFacetFactory,
     GovernanceFactory
-} from 'l1-zksync-contracts/typechain';
-import { FacetCut } from 'l1-zksync-contracts/src.ts/diamondCut';
+} from 'l1-contracts/typechain';
+import { FacetCut } from 'l1-contracts/src.ts/diamondCut';
 import { IZkSyncFactory } from '../pre-boojum/IZkSyncFactory';
-import { ComplexUpgrader__factory } from '../../../etc/system-contracts/typechain-types';
+import { ComplexUpgrader__factory } from 'system-contracts/typechain-types';
 import {
     getCommonDataFileName,
     getCryptoFileName,

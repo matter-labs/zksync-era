@@ -61,7 +61,7 @@ pub(crate) fn read_test_contract() -> Vec<u8> {
 
 pub(crate) fn get_bootloader(test: &str) -> SystemContractCode {
     let bootloader_code = read_zbin_bytecode(format!(
-        "etc/system-contracts/bootloader/tests/artifacts/{}.yul/{}.yul.zbin",
+        "contracts/system-contracts/bootloader/tests/artifacts/{}.yul/{}.yul.zbin",
         test, test
     ));
 
