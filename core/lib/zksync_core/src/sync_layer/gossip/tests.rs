@@ -9,9 +9,7 @@ use zksync_consensus_executor::testonly::FullValidatorConfig;
 use zksync_consensus_roles::validator::{self, FinalBlock};
 use zksync_consensus_storage::{InMemoryStorage, WriteBlockStore};
 use zksync_dal::{blocks_dal::ConsensusBlockFields, ConnectionPool, StorageProcessor};
-use zksync_types::{
-    api::en::SyncBlock, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
-};
+use zksync_types::{api::en::SyncBlock, Address, L1BatchNumber, MiniblockNumber, H256};
 
 use super::*;
 use crate::{
@@ -62,19 +60,12 @@ pub(super) async fn block_payload(
     consensus::Payload::try_from(sync_block).unwrap()
 }
 
-fn latest_protocol_version() -> validator::ProtocolVersion {
-    (ProtocolVersionId::latest() as u32)
-        .try_into()
-        .expect("latest protocol version is invalid")
-}
-
 /// Adds consensus information for the specified `count` of miniblocks, starting from the genesis.
 pub(super) async fn add_consensus_fields(
     storage: &mut StorageProcessor<'_>,
     validator_key: &validator::SecretKey,
     block_numbers: ops::Range<u32>,
 ) {
-    let protocol_version = latest_protocol_version();
     let mut prev_block_hash = validator::BlockHeaderHash::from_bytes([0; 32]);
     let validator_set = validator::ValidatorSet::new([validator_key.public()]).unwrap();
     for number in block_numbers {
@@ -85,7 +76,7 @@ pub(super) async fn add_consensus_fields(
             payload: payload.hash(),
         };
         let replica_commit = validator::ReplicaCommit {
-            protocol_version,
+            protocol_version: validator::ProtocolVersion::EARLIEST,
             view: validator::ViewNumber(number.into()),
             proposal: block_header,
         };
@@ -119,7 +110,7 @@ pub(super) fn create_genesis_block(
     };
     let validator_set = validator::ValidatorSet::new([validator_key.public()]).unwrap();
     let replica_commit = validator::ReplicaCommit {
-        protocol_version: latest_protocol_version(),
+        protocol_version: validator::ProtocolVersion::EARLIEST,
         view: validator::ViewNumber(number),
         proposal: block_header,
     };
@@ -188,13 +179,11 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
     let tx_hashes = run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
 
     let mut storage = pool.access_storage().await.unwrap();
-    let protocol_version = latest_protocol_version();
     let genesis_block_payload = block_payload(&mut storage, 0).await.encode();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
     let rng = &mut ctx.rng();
     let mut validator = FullValidatorConfig::for_single_validator(
         rng,
-        protocol_version,
         genesis_block_payload,
         validator::BlockNumber(0),
     );
@@ -323,13 +312,11 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
     let tx_hashes: Vec<_> = tx_hashes.iter().map(Vec::as_slice).collect();
 
     let mut storage = pool.access_storage().await.unwrap();
-    let protocol_version = latest_protocol_version();
     let genesis_block_payload = block_payload(&mut storage, 0).await.encode();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
     let rng = &mut ctx.rng();
     let mut validator = FullValidatorConfig::for_single_validator(
         rng,
-        protocol_version,
         genesis_block_payload,
         validator::BlockNumber(0),
     );
@@ -410,10 +397,8 @@ async fn syncing_from_non_zero_block(first_block_number: u32) {
         .encode();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
     let rng = &mut ctx.rng();
-    let protocol_version = latest_protocol_version();
     let mut validator = FullValidatorConfig::for_single_validator(
         rng,
-        protocol_version,
         genesis_block_payload.clone(),
         validator::BlockNumber(0),
     );

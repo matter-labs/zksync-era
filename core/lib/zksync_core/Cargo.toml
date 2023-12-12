@@ -40,12 +40,12 @@ vlog = { path = "../vlog" }
 
 multivm = { path = "../multivm" }
 # Consensus dependenices
-zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "b06ae4b144719d8ffef0067a4b54a266df0dff35" }
-zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "b06ae4b144719d8ffef0067a4b54a266df0dff35" }
-zksync_consensus_storage = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "b06ae4b144719d8ffef0067a4b54a266df0dff35" }
-zksync_consensus_executor = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "b06ae4b144719d8ffef0067a4b54a266df0dff35" }
-zksync_consensus_bft = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "b06ae4b144719d8ffef0067a4b54a266df0dff35" }
-zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "b06ae4b144719d8ffef0067a4b54a266df0dff35" }
+zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "c282f4d8ad57e81644b48bd8724eebb9966b73df" }
+zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "c282f4d8ad57e81644b48bd8724eebb9966b73df" }
+zksync_consensus_storage = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "c282f4d8ad57e81644b48bd8724eebb9966b73df" }
+zksync_consensus_executor = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "c282f4d8ad57e81644b48bd8724eebb9966b73df" }
+zksync_consensus_bft = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "c282f4d8ad57e81644b48bd8724eebb9966b73df" }
+zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "c282f4d8ad57e81644b48bd8724eebb9966b73df" }
 
 prost = "0.12.1"
 serde = { version = "1.0", features = ["derive"] }
@@ -99,4 +99,4 @@ tempfile = "3.0.2"
 test-casing = "0.1.2"
 
 [build-dependencies]
-zksync_protobuf_build = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "b06ae4b144719d8ffef0067a4b54a266df0dff35" }
+zksync_protobuf_build = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "c282f4d8ad57e81644b48bd8724eebb9966b73df" }

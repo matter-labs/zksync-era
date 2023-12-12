@@ -22,13 +22,6 @@ pub(crate) fn sync_block_to_consensus_block(
             .context("Missing consensus fields")?,
     )
     .context("ConsensusBlockFields::decode()")?;
-    let consensus_protocol_version = consensus.justification.message.protocol_version.as_u32();
-    let block_protocol_version = block.protocol_version as u32;
-    anyhow::ensure!(
-        consensus_protocol_version == block_protocol_version,
-        "Protocol version for justification ({consensus_protocol_version}) differs from \
-         SyncBlock.protocol_version={block_protocol_version}"
-    );
 
     let payload: consensus::Payload = block.try_into()?;
     let payload = payload.encode();
