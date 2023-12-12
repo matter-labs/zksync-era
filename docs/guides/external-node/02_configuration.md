@@ -2,8 +2,8 @@
 
 This document outlines various configuration options for the EN. Currently, the EN requires the definition of numerous
 environment variables. To streamline this process, we provide prepared configs for the zkSync Era - for both
-[mainnet](prepared_configs/mainnet-config.env) and [testnet](prepared_configs/testnet-sepolia-config.env). You can use these
-files as a starting point and modify only the necessary sections.
+[mainnet](prepared_configs/mainnet-config.env) and [testnet](prepared_configs/testnet-sepolia-config.env). You can use
+these files as a starting point and modify only the necessary sections.
 
 ## Database
 
