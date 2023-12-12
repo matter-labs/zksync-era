@@ -93,6 +93,7 @@ export async function isolatedExternalNode() {
     let startTime = new Date();
     while (true) {
         if (new Date().getTime() - startTime.getTime() > 600 * 1000) {
+            await utils.spawn(`docker logs ${instanceName}`);
             throw new Error('Timeout waiting for EN to start');
         }
         try {
