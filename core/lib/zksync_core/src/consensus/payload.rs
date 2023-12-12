@@ -1,11 +1,14 @@
 use anyhow::Context as _;
 use zksync_consensus_roles::validator;
 use zksync_protobuf::{required, ProtoFmt};
-use zksync_types::{api::en::SyncBlock, Address, L1BatchNumber, Transaction, H256};
+use zksync_types::{
+    api::en::SyncBlock, Address, L1BatchNumber, ProtocolVersionId, Transaction, H256,
+};
 
 /// L2 block (= miniblock) payload.
 #[derive(Debug, PartialEq)]
 pub(crate) struct Payload {
+    pub protocol_version: ProtocolVersionId,
     pub hash: H256,
     pub l1_batch_number: L1BatchNumber,
     pub timestamp: u64,
@@ -30,6 +33,9 @@ impl ProtoFmt for Payload {
         }
 
         Ok(Self {
+            protocol_version: required(&message.protocol_version)
+                .and_then(|x| Ok(ProtocolVersionId::try_from(u16::try_from(*x)?)?))
+                .context("protocol_version")?,
             hash: required(&message.hash)
                 .and_then(|bytes| Ok(<[u8; 32]>::try_from(bytes.as_slice())?.into()))
                 .context("hash")?,
@@ -49,6 +55,7 @@ impl ProtoFmt for Payload {
     }
     fn build(&self) -> Self::Proto {
         Self::Proto {
+            protocol_version: Some((self.protocol_version as u16).into()),
             hash: Some(self.hash.as_bytes().into()),
             l1_batch_number: Some(self.l1_batch_number.0),
             timestamp: Some(self.timestamp),
@@ -74,6 +81,7 @@ impl TryFrom<SyncBlock> for Payload {
 
     fn try_from(block: SyncBlock) -> anyhow::Result<Self> {
         Ok(Self {
+            protocol_version: block.protocol_version,
             hash: block.hash.unwrap_or_default(),
             l1_batch_number: block.l1_batch_number,
             timestamp: block.timestamp,

@@ -19,7 +19,7 @@ use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    block::{legacy_miniblock_hash, miniblock_hash, BlockGasCount, MiniblockExecutionData},
+    block::{BlockGasCount, MiniblockExecutionData, MiniblockHasher},
     commitment::{L1BatchMetaParameters, L1BatchMetadata},
     fee::Fee,
     l2::L2Tx,
@@ -29,11 +29,13 @@ use zksync_types::{
     StorageLogQuery, StorageLogQueryType, Timestamp, Transaction, H256, U256,
 };
 
-pub(crate) use self::tester::TestBatchExecutorBuilder;
+mod tester;
+
 use self::tester::{
     bootloader_tip_out_of_gas, pending_batch_data, random_tx, rejected_exec, successful_exec,
     successful_exec_with_metrics, TestScenario,
 };
+pub(crate) use self::tester::{MockBatchExecutorBuilder, TestBatchExecutorBuilder};
 use crate::{
     gas_tracker::l1_batch_base_cost,
     state_keeper::{
@@ -46,8 +48,6 @@ use crate::{
         updates::UpdatesManager,
     },
 };
-
-mod tester;
 
 pub(super) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
@@ -80,7 +80,7 @@ pub(super) fn default_l1_batch_env(
         first_l2_block: L2BlockEnv {
             number,
             timestamp,
-            prev_block_hash: legacy_miniblock_hash(MiniblockNumber(number - 1)),
+            prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(number - 1)),
             max_virtual_blocks_to_create: 1,
         },
     }
@@ -447,14 +447,16 @@ async fn pending_batch_is_applied() {
         MiniblockExecutionData {
             number: MiniblockNumber(1),
             timestamp: 1,
-            prev_block_hash: miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero()),
+            prev_block_hash: MiniblockHasher::new(MiniblockNumber(0), 0, H256::zero())
+                .finalize(ProtocolVersionId::latest()),
             virtual_blocks: 1,
             txs: vec![random_tx(1)],
         },
         MiniblockExecutionData {
             number: MiniblockNumber(2),
             timestamp: 2,
-            prev_block_hash: miniblock_hash(MiniblockNumber(1), 1, H256::zero(), H256::zero()),
+            prev_block_hash: MiniblockHasher::new(MiniblockNumber(1), 1, H256::zero())
+                .finalize(ProtocolVersionId::latest()),
             virtual_blocks: 1,
             txs: vec![random_tx(2)],
         },
@@ -532,7 +534,8 @@ async fn miniblock_timestamp_after_pending_batch() {
     let pending_batch = pending_batch_data(vec![MiniblockExecutionData {
         number: MiniblockNumber(1),
         timestamp: 1,
-        prev_block_hash: miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero()),
+        prev_block_hash: MiniblockHasher::new(MiniblockNumber(0), 0, H256::zero())
+            .finalize(ProtocolVersionId::latest()),
         virtual_blocks: 1,
         txs: vec![random_tx(1)],
     }]);

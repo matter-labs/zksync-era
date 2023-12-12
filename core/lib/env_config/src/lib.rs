@@ -23,6 +23,7 @@ pub mod object_store;
 mod proof_data_handler;
 mod prover;
 mod prover_group;
+mod snapshots_creator;
 mod utils;
 mod witness_generator;
 
