@@ -117,7 +117,7 @@ export async function isolatedExternalNode() {
             }
         }
     }
-    console.log(`EN instance ready after ${new Date().getTime() - startTime.getTime()}ms`)
+    console.log(`EN instance ready after ${new Date().getTime() - startTime.getTime()}ms`);
     return new IsolatedExternalNode(enProcess);
 }
 async function create_genesis(cmd: string) {
