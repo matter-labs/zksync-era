@@ -9896,6 +9896,24 @@
     },
     "query": "\n                SELECT COUNT(*) as \"count!\", circuit_type as \"circuit_type!\", status as \"status!\"\n                FROM prover_jobs\n                WHERE status <> 'skipped' and status <> 'successful' \n                GROUP BY circuit_type, status\n                "
   },
+  "cfeab91d8551e3bba086bc17534ac195a110a2c7f7f829b69e6519977a98267f": {
+    "describe": {
+      "columns": [
+        {
+          "name": "protocol_version",
+          "ordinal": 0,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
+        true
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT protocol_version FROM l1_batches ORDER BY number DESC LIMIT 1"
+  },
   "d0ff67e7c59684a0e4409726544cf850dbdbb36d038ebbc6a1c5bf0e76b0358c": {
     "describe": {
       "columns": [
