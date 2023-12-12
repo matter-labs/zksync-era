@@ -495,6 +495,7 @@ pub(super) async fn extend_db_state(
                 .finalize(ProtocolVersionId::latest()),
             l1_tx_count: header.l1_tx_count,
             l2_tx_count: header.l2_tx_count,
+            fee_account_address: Address::zero(),
             base_fee_per_gas: 1,
             l1_gas_price: 0,
             l2_fair_gas_price: 0,

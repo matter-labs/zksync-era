@@ -473,10 +473,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .await
             .unwrap()
             .blocks_web3_dal()
-            .get_block_details(
-                block_number,
-                self.state.tx_sender.0.sender_config.fee_account_addr,
-            )
+            .get_block_details(block_number)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err));
 

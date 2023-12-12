@@ -258,7 +258,7 @@ impl StateKeeperIO for ExternalIO {
             .get_miniblock_header(pending_miniblock_number)
             .await
             .unwrap()?;
-        let fee_account = Address::zero(); // FIXME: get from `pending_miniblock_header`
+        let fee_account = pending_miniblock_header.fee_account_address;
 
         if pending_miniblock_header.protocol_version.is_none() {
             // Fetch protocol version ID for pending miniblocks to know which VM to use to re-execute them.

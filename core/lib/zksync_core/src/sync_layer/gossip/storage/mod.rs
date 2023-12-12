@@ -12,7 +12,7 @@ use zksync_concurrency::{
 use zksync_consensus_roles::validator::{BlockNumber, FinalBlock};
 use zksync_consensus_storage::{BlockStore, StorageError, StorageResult};
 use zksync_dal::{blocks_dal::ConsensusBlockFields, ConnectionPool, StorageProcessor};
-use zksync_types::{api::en::SyncBlock, Address, MiniblockNumber};
+use zksync_types::{api::en::SyncBlock, MiniblockNumber};
 
 use super::{buffered::ContiguousBlockStore, conversions::sync_block_to_consensus_block};
 use crate::{
@@ -220,15 +220,10 @@ impl PostgresBlockStorage {
         storage: &mut StorageProcessor<'_>,
         number: MiniblockNumber,
     ) -> StorageResult<Option<SyncBlock>> {
-        let operator_address = Address::default(); // FIXME: where to get this address from?
-        ctx.wait(
-            storage
-                .sync_dal()
-                .sync_block(number, operator_address, true),
-        )
-        .await?
-        .with_context(|| format!("Failed getting miniblock #{number} from Postgres"))
-        .map_err(StorageError::Database)
+        ctx.wait(storage.sync_dal().sync_block(number, true))
+            .await?
+            .with_context(|| format!("Failed getting miniblock #{number} from Postgres"))
+            .map_err(StorageError::Database)
     }
 
     async fn block(

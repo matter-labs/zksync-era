@@ -261,7 +261,7 @@ async fn insert_system_contracts(
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn create_genesis_l1_batch(
     storage: &mut StorageProcessor<'_>,
-    _first_validator_address: Address, // FIXME: store in genesis miniblock
+    first_validator_address: Address,
     chain_id: L2ChainId,
     protocol_version: ProtocolVersionId,
     base_system_contracts: &BaseSystemContracts,
@@ -291,6 +291,7 @@ pub(crate) async fn create_genesis_l1_batch(
         hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
         l1_tx_count: 0,
         l2_tx_count: 0,
+        fee_account_address: first_validator_address,
         base_fee_per_gas: 0,
         l1_gas_price: 0,
         l2_fair_gas_price: 0,

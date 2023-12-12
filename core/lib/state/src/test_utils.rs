@@ -73,6 +73,7 @@ pub(crate) async fn create_miniblock(
         hash: H256::from_low_u64_be(u64::from(miniblock_number.0)),
         l1_tx_count: 0,
         l2_tx_count: 0,
+        fee_account_address: Address::default(),
         base_fee_per_gas: 0,
         l1_gas_price: 0,
         l2_fair_gas_price: 0,

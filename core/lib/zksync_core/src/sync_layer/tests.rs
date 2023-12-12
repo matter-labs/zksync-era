@@ -353,7 +353,7 @@ async fn external_io_with_multiple_miniblocks() {
 
         let sync_block = storage
             .sync_dal()
-            .sync_block(MiniblockNumber(number), Address::repeat_byte(1), true)
+            .sync_block(MiniblockNumber(number), true)
             .await
             .unwrap()
             .unwrap_or_else(|| panic!("Sync block #{} is not persisted", number));

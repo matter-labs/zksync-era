@@ -171,7 +171,7 @@ async fn ensuring_consensus_fields_for_genesis_block() {
     let mut storage = pool.access_storage().await.unwrap();
     let sync_block = storage
         .sync_dal()
-        .sync_block(MiniblockNumber(0), Address::default(), false)
+        .sync_block(MiniblockNumber(0), false)
         .await
         .unwrap()
         .expect("No genesis block");

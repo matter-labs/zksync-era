@@ -188,6 +188,7 @@ fn create_miniblock(number: u32) -> MiniblockHeader {
         hash: H256::from_low_u64_be(number.into()),
         l1_tx_count: 0,
         l2_tx_count: 0,
+        fee_account_address: Address::zero(),
         base_fee_per_gas: 100,
         l1_gas_price: 100,
         l2_fair_gas_price: 100,

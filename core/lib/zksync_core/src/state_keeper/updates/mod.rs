@@ -23,6 +23,7 @@ pub mod miniblock_updates;
 #[derive(Debug, Clone, PartialEq)]
 pub struct UpdatesManager {
     batch_timestamp: u64,
+    fee_account_address: Address,
     l1_gas_price: u64,
     fair_l2_gas_price: u64,
     base_fee_per_gas: u64,
@@ -41,6 +42,7 @@ impl UpdatesManager {
     ) -> Self {
         Self {
             batch_timestamp: l1_batch_env.timestamp,
+            fee_account_address: l1_batch_env.fee_account,
             l1_gas_price: l1_batch_env.l1_gas_price,
             fair_l2_gas_price: l1_batch_env.fair_l2_gas_price,
             base_fee_per_gas: l1_batch_env.base_fee(),
@@ -79,6 +81,7 @@ impl UpdatesManager {
             miniblock_number,
             miniblock: self.miniblock.clone(),
             first_tx_index: self.l1_batch.executed_transactions.len(),
+            fee_account_address: self.fee_account_address,
             l1_gas_price: self.l1_gas_price,
             fair_l2_gas_price: self.fair_l2_gas_price,
             base_fee_per_gas: self.base_fee_per_gas,
@@ -160,6 +163,7 @@ pub(crate) struct MiniblockSealCommand {
     pub miniblock_number: MiniblockNumber,
     pub miniblock: MiniblockUpdates,
     pub first_tx_index: usize,
+    pub fee_account_address: Address,
     pub l1_gas_price: u64,
     pub fair_l2_gas_price: u64,
     pub base_fee_per_gas: u64,

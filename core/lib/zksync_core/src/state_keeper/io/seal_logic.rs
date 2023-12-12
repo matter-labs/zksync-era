@@ -325,6 +325,7 @@ impl MiniblockSealCommand {
             hash: self.miniblock.get_miniblock_hash(),
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
+            fee_account_address: self.fee_account_address,
             base_fee_per_gas: self.base_fee_per_gas,
             l1_gas_price: self.l1_gas_price,
             l2_fair_gas_price: self.fair_l2_gas_price,

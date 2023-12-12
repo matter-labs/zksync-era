@@ -135,6 +135,7 @@ impl Tester {
                 hash: H256::default(),
                 l1_tx_count: 0,
                 l2_tx_count: 0,
+                fee_account_address: Address::zero(),
                 base_fee_per_gas,
                 l1_gas_price,
                 l2_fair_gas_price,

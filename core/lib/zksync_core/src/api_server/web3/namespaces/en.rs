@@ -40,11 +40,7 @@ impl<G: L1GasPriceProvider> EnNamespace<G> {
             .unwrap();
         storage
             .sync_dal()
-            .sync_block(
-                block_number,
-                self.state.tx_sender.0.sender_config.fee_account_addr,
-                include_transactions,
-            )
+            .sync_block(block_number, include_transactions)
             .await
             .map_err(|err| internal_error("en_syncL2Block", err))
     }

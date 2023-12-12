@@ -9,9 +9,7 @@ use zksync_consensus_executor::testonly::FullValidatorConfig;
 use zksync_consensus_roles::validator::{self, FinalBlock};
 use zksync_consensus_storage::{InMemoryStorage, WriteBlockStore};
 use zksync_dal::{blocks_dal::ConsensusBlockFields, ConnectionPool, StorageProcessor};
-use zksync_types::{
-    api::en::SyncBlock, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
-};
+use zksync_types::{api::en::SyncBlock, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256};
 
 use super::*;
 use crate::{
@@ -32,7 +30,7 @@ const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50 * CLOCK_SP
 async fn load_sync_block(storage: &mut StorageProcessor<'_>, number: u32) -> SyncBlock {
     storage
         .sync_dal()
-        .sync_block(MiniblockNumber(number), Address::default(), true)
+        .sync_block(MiniblockNumber(number), true)
         .await
         .unwrap()
         .unwrap_or_else(|| panic!("no sync block #{number}"))
