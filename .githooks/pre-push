@@ -12,9 +12,3 @@ if ! zk fmt --check; then
     echo "Please format the code via 'zk fmt', cannot push unformatted code"
     exit 1
 fi
-
-if ! zk db check-sqlx-data; then
-    echo -e "${RED}Push error!${NC}"
-    echo "Please update sqlx-data.json via 'zk db setup', cannot push invalid sqlx-data.json file"
-    exit 1
-fi
