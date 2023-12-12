@@ -1,7 +1,6 @@
 use std::{
     convert::TryFrom,
     future::Future,
-    num::NonZeroUsize,
     sync::{
         atomic::{AtomicU32, Ordering},
         Arc,
@@ -544,7 +543,10 @@ impl<E> RpcState<E> {
 
 /// Contains mapping from index to `Filter`x with optional location.
 #[derive(Debug)]
-pub(crate) struct Filters(LruCache<U256, InstalledFilter>);
+pub(crate) struct Filters {
+    state: LruCache<U256, InstalledFilter>,
+    max_cap: usize,
+}
 
 #[derive(Debug)]
 struct InstalledFilter {
@@ -590,27 +592,34 @@ impl Drop for InstalledFilter {
 
 impl Filters {
     /// Instantiates `Filters` with given max capacity.
-    pub fn new(_max_cap: usize) -> Self {
-        Self(LruCache::new(NonZeroUsize::new(usize::MAX).unwrap()))
+    pub fn new(max_cap: usize) -> Self {
+        Self {
+            state: LruCache::unbounded(),
+            max_cap,
+        }
     }
 
     /// Adds filter to the state and returns its key.
     pub fn add(&mut self, filter: TypedFilter) -> U256 {
         let idx = loop {
             let val = H256::random().to_fixed_bytes().into();
-            if !self.0.contains(&val) {
+            if !self.state.contains(&val) {
                 break val;
             }
         };
 
-        self.0.put(idx, InstalledFilter::new(filter));
+        self.state.push(idx, InstalledFilter::new(filter));
+
+        if self.state.len() > self.max_cap {
+            self.state.pop_lru();
+        }
 
         idx
     }
 
     /// Retrieves filter from the state.
     pub fn get_and_update_stats(&mut self, index: U256) -> Option<TypedFilter> {
-        let installed_filter = self.0.get_mut(&index)?;
+        let installed_filter = self.state.get_mut(&index)?;
 
         installed_filter.update_stats();
 
@@ -619,13 +628,13 @@ impl Filters {
 
     /// Updates filter in the state.
     pub fn update(&mut self, index: U256, new_filter: TypedFilter) {
-        if let Some(installed_filter) = self.0.get_mut(&index) {
+        if let Some(installed_filter) = self.state.get_mut(&index) {
             installed_filter.filter = new_filter;
         }
     }
 
     /// Removes filter from the map.
     pub fn remove(&mut self, index: U256) -> bool {
-        self.0.pop(&index).is_some()
+        self.state.pop(&index).is_some()
     }
 }
