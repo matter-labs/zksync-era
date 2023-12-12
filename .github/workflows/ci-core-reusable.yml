@@ -275,7 +275,7 @@ jobs:
           ci_run zk env ext-node-docker
           ci_run zk db setup
           ci_run zk external-node &>ext-node.log &
-          ci_run sleep 30
+          ci_run bash -c "( tail -f -n +1 ext-node.log & ) | grep -q \"New L1 batch\""
 
       # TODO(PLA-653): Restore bridge tests for EN.
       - name: Integration tests
@@ -293,13 +293,12 @@ jobs:
           ci_run zk env
           ci_run zk test i revert
           # Check that the rollback was performed on the EN
-          ci_run sleep 20
-          ci_run grep -q 'Rollback successfully completed' ext-node.log
+          ci_run timeout 20 bash -c "(tail -f -n +1 ext-node.log &) | grep -q 'Rollback successfully completed'"
           # Restart the EN
           ci_run zk server &>>server.log &
-          ci_run sleep 30
+          ci_run bash -c "( tail -f -n0 server.log & ) | grep -q \"Sealing miniblock\""
           ZKSYNC_ENV=ext-node-docker ci_run zk external-node &>>ext-node.log &
-          ci_run sleep 30
+          ci_run bash -c "( tail -f -n +1 ext-node.log & ) | grep -q \"New L1 batch\""
 
       - name: Run upgrade test
         run: |
