@@ -378,6 +378,26 @@
     },
     "query": "UPDATE l1_batches SET hash = $1, merkle_root_hash = $2, compressed_repeated_writes = $3, compressed_initial_writes = $4, l2_l1_compressed_messages = $5, l2_l1_merkle_root = $6, zkporter_is_available = $7, parent_hash = $8, rollup_last_leaf_index = $9, pass_through_data_hash = $10, meta_parameters_hash = $11, compressed_state_diffs = $12, updated_at = now() WHERE number = $13 AND hash IS NULL"
   },
+  "0a3c928a616b5ebc0b977bd773edcde721ca1c652ae2f8db41fb75cecdecb674": {
+    "describe": {
+      "columns": [
+        {
+          "name": "count",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        null
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT COUNT(*) FROM storage_logs WHERE miniblock_number = $1"
+  },
   "0cbbcd30fde109c4c44162f94b6ed9bab4e9db9948d03e584c2cab543449d298": {
     "describe": {
       "columns": [
@@ -3370,6 +3390,40 @@
     },
     "query": "SELECT id, contract_address, source_code, contract_name, zk_compiler_version, compiler_version, optimization_used, optimizer_mode, constructor_arguments, is_system FROM contract_verification_requests WHERE status = 'successful' ORDER BY id"
   },
+  "34d78a04a9aa834e1846083c991138cef1e81b57c874a27ec65de5793e5681cc": {
+    "describe": {
+      "columns": [
+        {
+          "name": "hashed_key",
+          "ordinal": 0,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "value",
+          "ordinal": 1,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "index",
+          "ordinal": 2,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Bytea",
+          "Bytea"
+        ]
+      }
+    },
+    "query": "SELECT storage_logs.hashed_key, storage_logs.value, initial_writes.index FROM storage_logs INNER JOIN initial_writes ON storage_logs.hashed_key = initial_writes.hashed_key WHERE storage_logs.miniblock_number = $1 AND storage_logs.hashed_key >= $2::bytea AND storage_logs.hashed_key <= $3::bytea ORDER BY storage_logs.hashed_key"
+  },
   "357347157ed8ff19d223c54533c3a85bd7e64a37514d657f8d49bd6eb5be1806": {
     "describe": {
       "columns": [
@@ -5670,26 +5724,6 @@
       }
     },
     "query": "UPDATE l1_batches SET hash = $1, merkle_root_hash = $2, commitment = $3, default_aa_code_hash = $4, compressed_repeated_writes = $5, compressed_initial_writes = $6, l2_l1_compressed_messages = $7, l2_l1_merkle_root = $8, zkporter_is_available = $9, bootloader_code_hash = $10, rollup_last_leaf_index = $11, aux_data_hash = $12, pass_through_data_hash = $13, meta_parameters_hash = $14, compressed_state_diffs = $15, updated_at = now() WHERE number = $16"
-  },
-  "780b30e56a3ecfb3daa5310168ac6cd9e94bd5f1d871e1eaf36fbfd463a5e7e0": {
-    "describe": {
-      "columns": [
-        {
-          "name": "address_and_key?",
-          "ordinal": 0,
-          "type_info": "ByteaArray"
-        }
-      ],
-      "nullable": [
-        null
-      ],
-      "parameters": {
-        "Left": [
-          "ByteaArray"
-        ]
-      }
-    },
-    "query": "SELECT (SELECT ARRAY[address,key] FROM storage_logs WHERE hashed_key = u.hashed_key ORDER BY miniblock_number, operation_number LIMIT 1) as \"address_and_key?\" FROM UNNEST($1::bytea[]) AS u(hashed_key)"
   },
   "78ba607e97bdf8b7c0b5e3cf87e10dc3b352a8552c2e94532b0f392af7dbe9cd": {
     "describe": {
@@ -9483,6 +9517,40 @@
       }
     },
     "query": "\n                UPDATE scheduler_witness_jobs_fri\n                SET status = 'in_progress', attempts = attempts + 1,\n                    updated_at = now(), processing_started_at = now(),\n                    picked_by = $2\n                WHERE l1_batch_number = (\n                    SELECT l1_batch_number\n                    FROM scheduler_witness_jobs_fri\n                    WHERE status = 'queued'\n                    AND protocol_version = ANY($1)\n                    ORDER BY l1_batch_number ASC\n                    LIMIT 1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n                RETURNING scheduler_witness_jobs_fri.*\n               "
+  },
+  "c289a50ec67dcab5a5c84ddfa17b924c1fefe151c887b3f08f54306f1bde47a2": {
+    "describe": {
+      "columns": [
+        {
+          "name": "hashed_key?",
+          "ordinal": 0,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "value?",
+          "ordinal": 1,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "index",
+          "ordinal": 2,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        null,
+        null,
+        true
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "ByteaArray",
+          "ByteaArray"
+        ]
+      }
+    },
+    "query": "WITH sl AS ( SELECT ( SELECT ARRAY[hashed_key, value] AS kv FROM storage_logs WHERE storage_logs.miniblock_number = $1 AND storage_logs.hashed_key >= u.start_key AND storage_logs.hashed_key <= u.end_key ORDER BY storage_logs.hashed_key LIMIT 1 ) FROM UNNEST($2::bytea[], $3::bytea[]) AS u(start_key, end_key) ) SELECT sl.kv[1] AS \"hashed_key?\", sl.kv[2] AS \"value?\", initial_writes.index FROM sl LEFT OUTER JOIN initial_writes ON initial_writes.hashed_key = sl.kv[1]"
   },
   "c2cf96a9eb6893c5ba7d9e5418d9f24084ccd87980cb6ee05de1b3bde5c654bd": {
     "describe": {

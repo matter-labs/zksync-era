@@ -1,12 +1,12 @@
-use std::{collections::HashMap, time::Instant};
+use std::{collections::HashMap, ops, time::Instant};
 
 use sqlx::{types::chrono::Utc, Row};
 use zksync_types::{
     get_code_key, AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, StorageLog,
-    FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256,
+    FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256, U256,
 };
 
-use crate::{instrument::InstrumentExt, StorageProcessor};
+use crate::{instrument::InstrumentExt, models::storage_log::StorageTreeEntry, StorageProcessor};
 
 #[derive(Debug)]
 pub struct StorageLogsDal<'a, 'c> {
@@ -414,39 +414,100 @@ impl StorageLogsDal<'_, '_> {
             .collect()
     }
 
-    /// Resolves hashed keys into storage keys ((address, key) tuples).
-    /// Panics if there is an unknown hashed key in the input.
-    pub async fn resolve_hashed_keys(&mut self, hashed_keys: &[H256]) -> Vec<StorageKey> {
-        let hashed_keys: Vec<_> = hashed_keys.iter().map(H256::as_bytes).collect();
-        sqlx::query!(
-            "SELECT \
-                (SELECT ARRAY[address,key] FROM storage_logs \
-                WHERE hashed_key = u.hashed_key \
-                ORDER BY miniblock_number, operation_number \
-                LIMIT 1) as \"address_and_key?\" \
-            FROM UNNEST($1::bytea[]) AS u(hashed_key)",
-            &hashed_keys as &[&[u8]],
-        )
-        .fetch_all(self.storage.conn())
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|row| {
-            let address_and_key = row.address_and_key.unwrap();
-            StorageKey::new(
-                AccountTreeId::new(Address::from_slice(&address_and_key[0])),
-                H256::from_slice(&address_and_key[1]),
-            )
-        })
-        .collect()
-    }
-
     pub async fn get_miniblock_storage_logs(
         &mut self,
         miniblock_number: MiniblockNumber,
     ) -> Vec<(H256, H256, u32)> {
         self.get_miniblock_storage_logs_from_table(miniblock_number, "storage_logs")
             .await
+    }
+
+    /// Counts the total number of storage logs in the specified miniblock,
+    // TODO(PLA-596): add storage log count to snapshot metadata instead?
+    pub async fn count_miniblock_storage_logs(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+    ) -> sqlx::Result<u64> {
+        let count = sqlx::query_scalar!(
+            "SELECT COUNT(*) FROM storage_logs WHERE miniblock_number = $1",
+            miniblock_number.0 as i32
+        )
+        .fetch_one(self.storage.conn())
+        .await?;
+        Ok(count.unwrap_or(0) as u64)
+    }
+
+    /// Gets a starting tree entry for each of the supplied `key_ranges` for the specified
+    /// `miniblock_number`. This method is used during Merkle tree recovery.
+    pub async fn get_chunk_starts_for_miniblock(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+        key_ranges: &[ops::RangeInclusive<H256>],
+    ) -> sqlx::Result<Vec<Option<StorageTreeEntry>>> {
+        let (start_keys, end_keys): (Vec<_>, Vec<_>) = key_ranges
+            .iter()
+            .map(|range| (range.start().as_bytes(), range.end().as_bytes()))
+            .unzip();
+        let rows = sqlx::query!(
+            "WITH sl AS ( \
+                SELECT ( \
+                    SELECT ARRAY[hashed_key, value] AS kv \
+                    FROM storage_logs \
+                    WHERE storage_logs.miniblock_number = $1 \
+                        AND storage_logs.hashed_key >= u.start_key \
+                        AND storage_logs.hashed_key <= u.end_key \
+                    ORDER BY storage_logs.hashed_key LIMIT 1 \
+                ) \
+                FROM UNNEST($2::bytea[], $3::bytea[]) AS u(start_key, end_key) \
+            ) \
+            SELECT sl.kv[1] AS \"hashed_key?\", sl.kv[2] AS \"value?\", initial_writes.index \
+            FROM sl \
+            LEFT OUTER JOIN initial_writes ON initial_writes.hashed_key = sl.kv[1]",
+            miniblock_number.0 as i64,
+            &start_keys as &[&[u8]],
+            &end_keys as &[&[u8]],
+        )
+        .fetch_all(self.storage.conn())
+        .await?;
+
+        let rows = rows.into_iter().map(|row| {
+            Some(StorageTreeEntry {
+                key: U256::from_little_endian(row.hashed_key.as_ref()?),
+                value: H256::from_slice(row.value.as_ref()?),
+                leaf_index: row.index? as u64,
+            })
+        });
+        Ok(rows.collect())
+    }
+
+    /// Fetches tree entries for the specified `miniblock_number` and `key_range`. This is used during
+    /// Merkle tree recovery.
+    pub async fn get_tree_entries_for_miniblock(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+        key_range: ops::RangeInclusive<H256>,
+    ) -> sqlx::Result<Vec<StorageTreeEntry>> {
+        let rows = sqlx::query!(
+            "SELECT storage_logs.hashed_key, storage_logs.value, initial_writes.index \
+            FROM storage_logs \
+            INNER JOIN initial_writes ON storage_logs.hashed_key = initial_writes.hashed_key \
+            WHERE storage_logs.miniblock_number = $1 \
+                AND storage_logs.hashed_key >= $2::bytea \
+                AND storage_logs.hashed_key <= $3::bytea \
+            ORDER BY storage_logs.hashed_key",
+            miniblock_number.0 as i64,
+            key_range.start().as_bytes(),
+            key_range.end().as_bytes()
+        )
+        .fetch_all(self.storage.conn())
+        .await?;
+
+        let rows = rows.into_iter().map(|row| StorageTreeEntry {
+            key: U256::from_little_endian(&row.hashed_key),
+            value: H256::from_slice(&row.value),
+            leaf_index: row.index as u64,
+        });
+        Ok(rows.collect())
     }
 
     pub async fn retain_storage_logs(
@@ -537,6 +598,12 @@ mod tests {
     use super::*;
     use crate::{tests::create_miniblock_header, ConnectionPool};
 
+    fn u256_to_h256_reversed(value: U256) -> H256 {
+        let mut bytes = [0_u8; 32];
+        value.to_little_endian(&mut bytes);
+        H256(bytes)
+    }
+
     async fn insert_miniblock(conn: &mut StorageProcessor<'_>, number: u32, logs: Vec<StorageLog>) {
         let mut header = L1BatchHeader::new(
             L1BatchNumber(number),
@@ -570,15 +637,6 @@ mod tests {
     async fn inserting_storage_logs() {
         let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
-
-        conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
-        conn.blocks_dal()
-            .delete_l1_batches(L1BatchNumber(0))
-            .await
-            .unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -663,15 +721,6 @@ mod tests {
     async fn getting_storage_logs_for_revert() {
         let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
-
-        conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
-        conn.blocks_dal()
-            .delete_l1_batches(L1BatchNumber(0))
-            .await
-            .unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -719,15 +768,6 @@ mod tests {
     async fn reverting_keys_without_initial_write() {
         let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
-
-        conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
-        conn.blocks_dal()
-            .delete_l1_batches(L1BatchNumber(0))
-            .await
-            .unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -786,6 +826,102 @@ mod tests {
                 3 => assert!(logs_for_revert[&hashed_key].is_none()),
                 _ => unreachable!("we only have 4 keys"),
             }
+        }
+    }
+
+    #[tokio::test]
+    async fn getting_starting_entries_in_chunks() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut conn = pool.access_storage().await.unwrap();
+        let sorted_hashed_keys = prepare_tree_entries(&mut conn, 100).await;
+
+        let key_ranges = [
+            H256::zero()..=H256::repeat_byte(0xff),
+            H256::repeat_byte(0x40)..=H256::repeat_byte(0x80),
+            H256::repeat_byte(0x50)..=H256::repeat_byte(0x60),
+            H256::repeat_byte(0x50)..=H256::repeat_byte(0x51),
+            H256::repeat_byte(0xb0)..=H256::repeat_byte(0xfe),
+            H256::repeat_byte(0x11)..=H256::repeat_byte(0x11),
+        ];
+
+        let chunk_starts = conn
+            .storage_logs_dal()
+            .get_chunk_starts_for_miniblock(MiniblockNumber(1), &key_ranges)
+            .await
+            .unwrap();
+
+        for (chunk_start, key_range) in chunk_starts.into_iter().zip(key_ranges) {
+            let expected_start_key = sorted_hashed_keys
+                .iter()
+                .find(|&key| key_range.contains(key));
+            if let Some(chunk_start) = chunk_start {
+                assert_eq!(
+                    u256_to_h256_reversed(chunk_start.key),
+                    *expected_start_key.unwrap()
+                );
+                assert_ne!(chunk_start.value, H256::zero());
+                assert_ne!(chunk_start.leaf_index, 0);
+            } else {
+                assert_eq!(expected_start_key, None);
+            }
+        }
+    }
+
+    async fn prepare_tree_entries(conn: &mut StorageProcessor<'_>, count: u8) -> Vec<H256> {
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .await;
+
+        let account = AccountTreeId::new(Address::repeat_byte(1));
+        let logs: Vec<_> = (0..count)
+            .map(|i| {
+                let key = StorageKey::new(account, H256::repeat_byte(i));
+                StorageLog::new_write_log(key, H256::repeat_byte(i))
+            })
+            .collect();
+        insert_miniblock(conn, 1, logs.clone()).await;
+
+        let mut initial_keys: Vec<_> = logs.iter().map(|log| log.key).collect();
+        initial_keys.sort_unstable();
+        conn.storage_logs_dedup_dal()
+            .insert_initial_writes(L1BatchNumber(1), &initial_keys)
+            .await;
+
+        let mut sorted_hashed_keys: Vec<_> = logs.iter().map(|log| log.key.hashed_key()).collect();
+        sorted_hashed_keys.sort_unstable();
+        sorted_hashed_keys
+    }
+
+    #[tokio::test]
+    async fn getting_tree_entries() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut conn = pool.access_storage().await.unwrap();
+        let sorted_hashed_keys = prepare_tree_entries(&mut conn, 10).await;
+
+        let key_range = H256::zero()..=H256::repeat_byte(0xff);
+        let tree_entries = conn
+            .storage_logs_dal()
+            .get_tree_entries_for_miniblock(MiniblockNumber(1), key_range)
+            .await
+            .unwrap();
+        assert_eq!(tree_entries.len(), 10);
+        assert_eq!(
+            tree_entries
+                .iter()
+                .map(|entry| u256_to_h256_reversed(entry.key))
+                .collect::<Vec<_>>(),
+            sorted_hashed_keys
+        );
+
+        let key_range = H256::repeat_byte(0x80)..=H256::repeat_byte(0xbf);
+        let tree_entries = conn
+            .storage_logs_dal()
+            .get_tree_entries_for_miniblock(MiniblockNumber(1), key_range.clone())
+            .await
+            .unwrap();
+        assert!(!tree_entries.is_empty() && tree_entries.len() < 10);
+        for entry in &tree_entries {
+            assert!(key_range.contains(&u256_to_h256_reversed(entry.key)));
         }
     }
 }
