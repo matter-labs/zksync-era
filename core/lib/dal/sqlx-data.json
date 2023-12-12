@@ -11603,6 +11603,19 @@
     },
     "query": "UPDATE miniblocks SET consensus = $2 WHERE number = $1"
   },
+  "fee1cb8992e07a35159c8055069ae9c3e1eaa0a2496d4978ab890eec0794d221": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Bytea",
+          "Bytea"
+        ]
+      }
+    },
+    "query": "UPDATE miniblocks SET fee_account_address = ( SELECT COALESCE(( SELECT l1_batches.fee_account_address FROM l1_batches WHERE l1_batches.number = miniblocks.l1_batch_number ), $2::bytea) ) WHERE fee_account_address = $1::bytea"
+  },
   "ff7ff36b86b0e8d1cd7280aa447baef172cb054ffe7e1d742c59bf09b4f414cb": {
     "describe": {
       "columns": [

@@ -388,6 +388,31 @@ impl BlocksDal<'_, '_> {
         .await?;
         Ok(())
     }
+
+    /// Ensures that `fee_account_address` is correctly set for all miniblocks.
+    pub async fn ensure_fee_account_address_for_miniblocks(
+        &mut self,
+        pending_fee_account_address: Address,
+    ) -> sqlx::Result<()> {
+        let default_address = Address::default();
+        sqlx::query!(
+            "UPDATE miniblocks SET fee_account_address = ( \
+                SELECT COALESCE(( \
+                    SELECT l1_batches.fee_account_address \
+                    FROM l1_batches \
+                    WHERE l1_batches.number = miniblocks.l1_batch_number \
+                ), $2::bytea) \
+            ) \
+            WHERE fee_account_address = $1::bytea",
+            default_address.as_bytes(),
+            pending_fee_account_address.as_bytes()
+        )
+        .execute(self.storage.conn())
+        .await?;
+
+        Ok(())
+    }
+
     /// Sets consensus-related fields for the specified miniblock.
     pub async fn set_miniblock_consensus_fields(
         &mut self,
@@ -1488,16 +1513,12 @@ mod tests {
     };
 
     use super::*;
-    use crate::ConnectionPool;
+    use crate::{tests::create_miniblock_header, ConnectionPool};
 
     #[tokio::test]
     async fn loading_l1_batch_header() {
         let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
-        conn.blocks_dal()
-            .delete_l1_batches(L1BatchNumber(0))
-            .await
-            .unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -1554,10 +1575,6 @@ mod tests {
     async fn getting_predicted_gas() {
         let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
-        conn.blocks_dal()
-            .delete_l1_batches(L1BatchNumber(0))
-            .await
-            .unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -1612,5 +1629,78 @@ mod tests {
                 .unwrap();
             assert_eq!(gas, 3 * expected_gas);
         }
+    }
+
+    #[tokio::test]
+    async fn ensuring_fee_account_address_for_miniblocks() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut conn = pool.access_storage().await.unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .await;
+
+        let l1_batch = L1BatchHeader::new(
+            L1BatchNumber(1),
+            100,
+            BaseSystemContractsHashes {
+                bootloader: H256::repeat_byte(1),
+                default_aa: H256::repeat_byte(42),
+            },
+            ProtocolVersionId::latest(),
+        );
+        let miniblock = MiniblockHeader {
+            fee_account_address: Address::default(),
+            ..create_miniblock_header(1)
+        };
+        conn.blocks_dal()
+            .insert_miniblock(&miniblock)
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .insert_l1_batch(&l1_batch, &[], BlockGasCount::default(), &[], &[])
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(1))
+            .await
+            .unwrap();
+
+        // Manually set `fee_account_address` for the inserted L1 batch.
+        sqlx::query(
+            "UPDATE l1_batches SET fee_account_address = '\\x4242424242424242424242424242424242424242'::bytea \
+             WHERE number = 1"
+        )
+        .execute(conn.conn())
+        .await
+        .unwrap();
+
+        let miniblock = MiniblockHeader {
+            fee_account_address: Address::default(),
+            ..create_miniblock_header(2)
+        };
+        conn.blocks_dal()
+            .insert_miniblock(&miniblock)
+            .await
+            .unwrap();
+
+        conn.blocks_dal()
+            .ensure_fee_account_address_for_miniblocks(Address::repeat_byte(0x23))
+            .await
+            .unwrap();
+
+        let first_miniblock_addr = conn
+            .blocks_dal()
+            .get_fee_address_for_miniblock(MiniblockNumber(1))
+            .await
+            .unwrap()
+            .expect("No fee address for block #1");
+        assert_eq!(first_miniblock_addr, Address::repeat_byte(0x42));
+        let second_miniblock_addr = conn
+            .blocks_dal()
+            .get_fee_address_for_miniblock(MiniblockNumber(2))
+            .await
+            .unwrap()
+            .expect("No fee address for block #2");
+        assert_eq!(second_miniblock_addr, Address::repeat_byte(0x23));
     }
 }
