@@ -68,8 +68,7 @@ export async function isolatedExternalNode() {
 
     const binaryPath = '/usr/bin/zksync_external_node';
     let dockerEnv = ` --env "INTEGRATION_TEST_NODE_BINARY_PATH=${binaryPath}" `;
-    const extNodeEnvName = process.env.IN_DOCKER ? 'ext-node-docker' : 'ext-node';
-    const extNodeEnv = env.getEnvVariables(extNodeEnvName);
+    const extNodeEnv = env.getEnvVariables('ext-node');
     const dbUrl = await db.setupIsolatedDatabase(instanceName);
     for (const envVar in extNodeEnv) {
         let envVarValue = extNodeEnv[envVar];
