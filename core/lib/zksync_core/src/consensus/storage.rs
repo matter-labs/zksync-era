@@ -24,13 +24,7 @@ pub(crate) fn sync_block_to_consensus_block(
     .context("ConsensusBlockFields::decode()")?;
 
     let payload: consensus::Payload = block.try_into()?;
-    tracing::info!("sync_block_to_consensus_block({number:?}): payload {payload:?})");
     let payload = payload.encode();
-    tracing::info!(
-        "sync_block_to_consensus_block({number:?}): want hash = {:?}, got {:?}",
-        consensus.justification.message.proposal.payload,
-        payload.hash()
-    );
     anyhow::ensure!(payload.hash() == consensus.justification.message.proposal.payload);
     Ok(validator::FinalBlock {
         header: validator::BlockHeader {

@@ -42,9 +42,7 @@ pub(super) async fn load_final_block(
     number: u32,
 ) -> FinalBlock {
     let sync_block = load_sync_block(storage, number).await;
-    consensus::sync_block_to_consensus_block(sync_block)
-        .with_context(|| format!("block {number}"))
-        .unwrap()
+    consensus::sync_block_to_consensus_block(sync_block).unwrap()
 }
 
 fn convert_sync_blocks(sync_blocks: Vec<SyncBlock>) -> Vec<FinalBlock> {
@@ -90,7 +88,6 @@ pub(super) async fn add_consensus_fields(
             parent: prev_block_hash,
             justification,
         };
-        tracing::info!("set_miniblock_consensus_fields({number},{consensus:?})");
         storage
             .blocks_dal()
             .set_miniblock_consensus_fields(MiniblockNumber(number), &consensus)
