@@ -38,7 +38,7 @@ jobs:
 
       - name: init
         run: |
-          docker-compose -f docker-compose-runner.yml up -d zk
+          docker compose up -d zk
 
       - name: run benchmarks on base branch
         shell: bash

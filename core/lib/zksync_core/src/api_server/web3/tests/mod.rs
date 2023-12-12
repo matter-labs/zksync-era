@@ -132,7 +132,7 @@ async fn spawn_server(
         .with_threads(1)
         .with_tx_sender(tx_sender, vm_barrier)
         .with_pub_sub_events(pub_sub_events_sender)
-        .enable_api_namespaces(Namespace::NON_DEBUG.to_vec())
+        .enable_api_namespaces(Namespace::DEFAULT.to_vec())
         .build(stop_receiver)
         .await
         .expect("Failed spawning JSON-RPC server");

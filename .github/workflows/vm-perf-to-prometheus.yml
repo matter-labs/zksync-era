@@ -28,7 +28,7 @@ jobs:
 
       - name: init
         run: |
-          docker-compose -f docker-compose-runner.yml up -d zk
+          docker compose up -d zk
           ci_run zk
           ci_run zk compiler system-contracts
 
