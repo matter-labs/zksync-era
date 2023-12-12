@@ -1,6 +1,6 @@
 use lru::LruCache;
+use std::num::NonZeroUsize;
 use std::{
-    collections::HashMap,
     convert::TryFrom,
     future::Future,
     sync::{
@@ -543,7 +543,7 @@ impl<E> RpcState<E> {
 }
 
 /// Contains mapping from index to `Filter`x with optional location.
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub(crate) struct Filters(LruCache<U256, InstalledFilter>);
 
 #[derive(Debug)]
@@ -590,8 +590,8 @@ impl Drop for InstalledFilter {
 
 impl Filters {
     /// Instantiates `Filters` with given max capacity.
-    pub fn new(max_cap: usize) -> Self {
-        Self(LruCache::new(max_cap.into()))
+    pub fn new(_max_cap: usize) -> Self {
+        Self(LruCache::new(NonZeroUsize::new(usize::MAX).unwrap()))
     }
 
     /// Adds filter to the state and returns its key.
@@ -603,7 +603,7 @@ impl Filters {
             }
         };
 
-        self.0.push(idx, InstalledFilter::new(filter));
+        self.0.put(idx, InstalledFilter::new(filter));
 
         idx
     }
