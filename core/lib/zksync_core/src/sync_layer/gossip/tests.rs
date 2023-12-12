@@ -230,6 +230,7 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
             actions_sender,
             external_node.node_config,
             external_node.node_key,
+            OPERATOR_ADDRESS,
         ));
 
         if delay_first_block {
@@ -365,6 +366,7 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
             actions_sender,
             external_node.node_config,
             external_node.node_key,
+            OPERATOR_ADDRESS,
         ));
 
         state_keeper
@@ -379,12 +381,12 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
     let mut storage = pool.access_storage().await.unwrap();
     for number in [1, 2, 3] {
         let block = load_final_block(&mut storage, number).await;
-        block.justification.verify(&validator_set, 1).unwrap();
+        block.validate(&validator_set, 1).unwrap();
     }
 }
 
 #[test_casing(2, [1, 2])]
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn syncing_from_non_zero_block(first_block_number: u32) {
     abort_on_panic();
     let pool = ConnectionPool::test_pool().await;
@@ -446,11 +448,15 @@ async fn syncing_from_non_zero_block(first_block_number: u32) {
         )
         .await?;
 
-        s.spawn_bg(validator.run(ctx));
+        s.spawn_bg(async { validator.run(ctx).await.context("validator.run()") });
+
         s.spawn_bg(async {
             for block in &delayed_blocks {
                 ctx.sleep(POLL_INTERVAL).await?;
-                validator_storage.put_block(ctx, block).await?;
+                validator_storage
+                    .put_block(ctx, block)
+                    .await
+                    .wrap("validator_stroage.put_block()")?;
             }
             Ok(())
         });
@@ -458,23 +464,28 @@ async fn syncing_from_non_zero_block(first_block_number: u32) {
         if first_block_number < 2 {
             // L1 batch #1 will be sealed during the state keeper operation; we need to emulate
             // computing metadata for it.
-            s.spawn_bg(async {
-                mock_l1_batch_hash_computation(pool.clone(), 1).await;
-                Ok(())
-            });
+            s.spawn_bg(ctx.wait(mock_l1_batch_hash_computation(pool.clone(), 1)));
         }
 
-        s.spawn_bg(run_gossip_fetcher_inner(
-            ctx,
-            pool.clone(),
-            actions_sender,
-            external_node.node_config,
-            external_node.node_key,
-        ));
+        s.spawn_bg(async {
+            run_gossip_fetcher_inner(
+                ctx,
+                pool.clone(),
+                actions_sender,
+                external_node.node_config,
+                external_node.node_key,
+                OPERATOR_ADDRESS,
+            )
+            .await
+            .context("run_gossip_fetcher_inner()")
+        });
 
-        state_keeper
-            .wait(|state| state.get_local_block() == MiniblockNumber(3))
-            .await;
+        ctx.wait(
+            state_keeper
+                .wait(|state| state.get_local_block() == MiniblockNumber(3))
+                .await,
+        )
+        .await?;
         Ok(())
     })
     .await

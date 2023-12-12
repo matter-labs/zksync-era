@@ -6,6 +6,7 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use zksync_concurrency::{
     ctx,
+    error::Wrap as _,
     sync::{self, watch, Mutex},
     time,
 };
@@ -74,6 +75,7 @@ pub(super) struct PostgresBlockStorage {
     actions: ActionQueueSender,
     block_sender: watch::Sender<BlockNumber>,
     cursor: Mutex<CursorWithCachedBlock>,
+    operator_address: Address,
 }
 
 impl PostgresBlockStorage {
@@ -84,9 +86,12 @@ impl PostgresBlockStorage {
         actions: ActionQueueSender,
         cursor: FetcherCursor,
         genesis_block: &FinalBlock,
+        operator_address: Address,
     ) -> ctx::Result<Self> {
         let mut storage = ctx.wait(pool.access_storage_tagged("sync_layer")).await??;
-        Self::ensure_genesis_block(ctx, &mut storage, genesis_block).await?;
+        Self::ensure_genesis_block(ctx, &mut storage, genesis_block, operator_address)
+            .await
+            .wrap("ensure_genesis_block()")?;
         drop(storage);
 
         let first_block_number = u32::try_from(genesis_block.header.number.0)
@@ -98,6 +103,7 @@ impl PostgresBlockStorage {
             first_block_number,
             actions,
             cursor,
+            operator_address,
         ))
     }
 
@@ -106,6 +112,7 @@ impl PostgresBlockStorage {
         first_block_number: MiniblockNumber,
         actions: ActionQueueSender,
         cursor: FetcherCursor,
+        operator_address: Address,
     ) -> Self {
         let current_block_number = cursor.next_miniblock.0.saturating_sub(1).into();
         Self {
@@ -114,6 +121,7 @@ impl PostgresBlockStorage {
             actions,
             block_sender: watch::channel(BlockNumber(current_block_number)).0,
             cursor: Mutex::new(cursor.into()),
+            operator_address,
         }
     }
 
@@ -121,10 +129,18 @@ impl PostgresBlockStorage {
         ctx: &ctx::Ctx,
         storage: &mut StorageProcessor<'_>,
         genesis_block: &FinalBlock,
+        operator_address: Address,
     ) -> ctx::Result<()> {
         let block_number = u32::try_from(genesis_block.header.number.0)
             .context("Block number overflow for genesis block")?;
-        let block = Self::sync_block(ctx, storage, MiniblockNumber(block_number)).await?;
+        let block = Self::sync_block(
+            ctx,
+            storage,
+            MiniblockNumber(block_number),
+            operator_address,
+        )
+        .await
+        .wrap("sync_block();")?;
         let block = block
             .with_context(|| {
                 format!("Genesis block #{block_number} (first block with consensus data) is not present in Postgres")
@@ -208,8 +224,8 @@ impl PostgresBlockStorage {
         ctx: &ctx::Ctx,
         storage: &mut StorageProcessor<'_>,
         number: MiniblockNumber,
+        operator_address: Address,
     ) -> ctx::Result<Option<SyncBlock>> {
-        let operator_address = Address::default(); // FIXME: where to get this address from?
         Ok(ctx
             .wait(
                 storage
@@ -224,8 +240,12 @@ impl PostgresBlockStorage {
         ctx: &ctx::Ctx,
         storage: &mut StorageProcessor<'_>,
         number: MiniblockNumber,
+        operator_address: Address,
     ) -> ctx::Result<Option<FinalBlock>> {
-        let Some(block) = Self::sync_block(ctx, storage, number).await? else {
+        let Some(block) = Self::sync_block(ctx, storage, number, operator_address)
+            .await
+            .wrap("Self::sync_block()")?
+        else {
             return Ok(None);
         };
         let block =
@@ -234,7 +254,7 @@ impl PostgresBlockStorage {
     }
 
     async fn sealed_miniblock_number(&self, ctx: &ctx::Ctx) -> ctx::Result<BlockNumber> {
-        let mut storage = self.storage(ctx).await?;
+        let mut storage = self.storage(ctx).await.wrap("storage()")?;
         let number = ctx
             .wait(storage.blocks_dal().get_sealed_miniblock_number())
             .await?
@@ -246,26 +266,35 @@ impl PostgresBlockStorage {
 #[async_trait]
 impl BlockStore for PostgresBlockStorage {
     async fn head_block(&self, ctx: &ctx::Ctx) -> ctx::Result<FinalBlock> {
-        let mut storage = self.storage(ctx).await?;
+        let mut storage = self.storage(ctx).await.wrap("storage()")?;
         let miniblock_number = ctx
             .wait(storage.blocks_dal().get_sealed_miniblock_number())
             .await?
             .context("Failed getting sealed miniblock number")?;
         // ^ The number can get stale, but it's OK for our purposes
-        Ok(Self::block(ctx, &mut storage, miniblock_number)
-            .await?
-            .with_context(|| format!("Miniblock #{miniblock_number} disappeared from Postgres"))?)
+        Ok(
+            Self::block(ctx, &mut storage, miniblock_number, self.operator_address)
+                .await?
+                .with_wrap(|| format!("Miniblock #{miniblock_number} disappeared from Postgres"))?,
+        )
     }
 
     async fn first_block(&self, ctx: &ctx::Ctx) -> ctx::Result<FinalBlock> {
-        let mut storage = self.storage(ctx).await?;
-        Ok(Self::block(ctx, &mut storage, self.first_block_number)
-            .await?
-            .context("Genesis miniblock not present in Postgres")?)
+        let mut storage = self.storage(ctx).await.wrap("storage()")?;
+        Ok(Self::block(
+            ctx,
+            &mut storage,
+            self.first_block_number,
+            self.operator_address,
+        )
+        .await?
+        .wrap("Genesis miniblock not present in Postgres")?)
     }
 
     async fn last_contiguous_block_number(&self, ctx: &ctx::Ctx) -> ctx::Result<BlockNumber> {
-        self.sealed_miniblock_number(ctx).await
+        self.sealed_miniblock_number(ctx)
+            .await
+            .wrap("sealed_miniblock_number()")
     }
 
     async fn block(&self, ctx: &ctx::Ctx, number: BlockNumber) -> ctx::Result<Option<FinalBlock>> {
@@ -276,8 +305,10 @@ impl BlockStore for PostgresBlockStorage {
         if number < self.first_block_number {
             return Ok(None);
         }
-        let mut storage = self.storage(ctx).await?;
-        Self::block(ctx, &mut storage, number).await
+        let mut storage = self.storage(ctx).await.wrap("storage()")?;
+        Self::block(ctx, &mut storage, number, self.operator_address)
+            .await
+            .wrap("Self::block()")
     }
 
     async fn missing_block_numbers(
@@ -290,7 +321,10 @@ impl BlockStore for PostgresBlockStorage {
         let numbers_before_first_block = (range.start.0..first_block_number).map(BlockNumber);
         output.extend(numbers_before_first_block);
 
-        let last_block_number = self.sealed_miniblock_number(ctx).await?;
+        let last_block_number = self
+            .sealed_miniblock_number(ctx)
+            .await
+            .wrap("sealed_miniblock_number()")?;
         let numbers_after_last_block = (last_block_number.next().0..range.end.0).map(BlockNumber);
         output.extend(numbers_after_last_block);
 
