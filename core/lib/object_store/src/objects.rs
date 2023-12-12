@@ -321,10 +321,13 @@ impl dyn ObjectStore + '_ {
 
 #[cfg(test)]
 mod tests {
+    use zksync_types::{
+        snapshots::{SnapshotFactoryDependency, SnapshotStorageLog},
+        AccountTreeId, StorageKey, H160, H256,
+    };
+
     use super::*;
     use crate::ObjectStoreFactory;
-    use zksync_types::snapshots::{SnapshotFactoryDependency, SnapshotStorageLog};
-    use zksync_types::{AccountTreeId, StorageKey, H160, H256};
 
     #[test]
     fn test_storage_logs_filesnames_generate_corretly() {
