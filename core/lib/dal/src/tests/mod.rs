@@ -37,6 +37,7 @@ pub(crate) fn create_miniblock_header(number: u32) -> MiniblockHeader {
         hash: MiniblockHasher::new(number, 0, H256::zero()).finalize(protocol_version),
         l1_tx_count: 0,
         l2_tx_count: 0,
+        fee_account_address: Address::default(),
         base_fee_per_gas: 100,
         l1_gas_price: 100,
         l2_fair_gas_price: 100,

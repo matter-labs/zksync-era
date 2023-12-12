@@ -1,4 +1,4 @@
-use zksync_types::{api::en::SyncBlock, Address, MiniblockNumber, Transaction};
+use zksync_types::{api::en::SyncBlock, MiniblockNumber, Transaction};
 
 use crate::{
     instrument::InstrumentExt,
@@ -17,15 +17,14 @@ impl SyncDal<'_, '_> {
     pub async fn sync_block(
         &mut self,
         block_number: MiniblockNumber,
-        current_operator_address: Address,
         include_transactions: bool,
     ) -> anyhow::Result<Option<SyncBlock>> {
         let latency = MethodLatency::new("sync_dal_sync_block");
         let storage_block_details = sqlx::query_as!(
             StorageSyncBlock,
             "SELECT miniblocks.number, \
-                COALESCE(miniblocks.l1_batch_number, (SELECT (max(number) + 1) FROM l1_batches)) as \"l1_batch_number!\", \
-                (SELECT max(m2.number) FROM miniblocks m2 WHERE miniblocks.l1_batch_number = m2.l1_batch_number) as \"last_batch_miniblock?\", \
+                COALESCE(miniblocks.l1_batch_number, (SELECT (MAX(number) + 1) FROM l1_batches)) AS \"l1_batch_number!\", \
+                (SELECT MAX(m2.number) FROM miniblocks m2 WHERE miniblocks.l1_batch_number = m2.l1_batch_number) AS \"last_batch_miniblock?\", \
                 miniblocks.timestamp, \
                 miniblocks.l1_gas_price, \
                 miniblocks.l2_fair_gas_price, \
@@ -34,10 +33,9 @@ impl SyncDal<'_, '_> {
                 miniblocks.virtual_blocks, \
                 miniblocks.hash, \
                 miniblocks.consensus, \
-                miniblocks.protocol_version as \"protocol_version!\", \
-                l1_batches.fee_account_address as \"fee_account_address?\" \
+                miniblocks.protocol_version AS \"protocol_version!\", \
+                miniblocks.fee_account_address AS \"fee_account_address!\" \
             FROM miniblocks \
-            LEFT JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number \
             WHERE miniblocks.number = $1",
             block_number.0 as i64
         )
@@ -65,8 +63,7 @@ impl SyncDal<'_, '_> {
             None
         };
 
-        let block =
-            storage_block_details.into_sync_block(current_operator_address, transactions)?;
+        let block = storage_block_details.into_sync_block(transactions)?;
         drop(latency);
         Ok(Some(block))
     }
@@ -75,9 +72,9 @@ impl SyncDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        block::{BlockGasCount, L1BatchHeader},
+        block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
         fee::TransactionExecutionMetrics,
-        L1BatchNumber, ProtocolVersion, ProtocolVersionId,
+        Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId,
     };
 
     use super::*;
@@ -114,16 +111,18 @@ mod tests {
             .await
             .unwrap();
 
-        let operator_address = Address::repeat_byte(1);
         assert!(conn
             .sync_dal()
-            .sync_block(MiniblockNumber(1), operator_address, false)
+            .sync_block(MiniblockNumber(1), false)
             .await
             .unwrap()
             .is_none());
 
         // Insert another block in the store.
-        let miniblock_header = create_miniblock_header(1);
+        let miniblock_header = MiniblockHeader {
+            fee_account_address: Address::repeat_byte(0x42),
+            ..create_miniblock_header(1)
+        };
         let tx = mock_l2_transaction();
         conn.transactions_dal()
             .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
@@ -142,7 +141,7 @@ mod tests {
 
         let block = conn
             .sync_dal()
-            .sync_block(MiniblockNumber(1), operator_address, false)
+            .sync_block(MiniblockNumber(1), false)
             .await
             .unwrap()
             .expect("no sync block");
@@ -160,12 +159,12 @@ mod tests {
         );
         assert_eq!(block.l1_gas_price, miniblock_header.l1_gas_price);
         assert_eq!(block.l2_fair_gas_price, miniblock_header.l2_fair_gas_price);
-        assert_eq!(block.operator_address, operator_address);
+        assert_eq!(block.operator_address, miniblock_header.fee_account_address);
         assert!(block.transactions.is_none());
 
         let block = conn
             .sync_dal()
-            .sync_block(MiniblockNumber(1), operator_address, true)
+            .sync_block(MiniblockNumber(1), true)
             .await
             .unwrap()
             .expect("no sync block");
@@ -185,12 +184,12 @@ mod tests {
 
         let block = conn
             .sync_dal()
-            .sync_block(MiniblockNumber(1), operator_address, true)
+            .sync_block(MiniblockNumber(1), true)
             .await
             .unwrap()
             .expect("no sync block");
         assert_eq!(block.l1_batch_number, L1BatchNumber(1));
         assert!(block.last_in_batch);
-        assert_eq!(block.operator_address, Address::default()); // FIXME
+        assert_eq!(block.operator_address, miniblock_header.fee_account_address);
     }
 }

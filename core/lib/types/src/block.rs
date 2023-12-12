@@ -1,7 +1,7 @@
 use std::{fmt, ops};
 
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{H2048, H256, U256};
+use zksync_basic_types::{Address, H2048, H256, U256};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_system_constants::SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER;
 use zksync_utils::concat_and_hash;
@@ -65,9 +65,9 @@ pub struct MiniblockHeader {
     pub hash: H256,
     pub l1_tx_count: u16,
     pub l2_tx_count: u16,
+    pub fee_account_address: Address,
     pub base_fee_per_gas: u64, // Min wei per gas that txs in this miniblock need to have.
-
-    pub l1_gas_price: u64, // L1 gas price assumed in the corresponding batch
+    pub l1_gas_price: u64,     // L1 gas price assumed in the corresponding batch
     pub l2_fair_gas_price: u64, // L2 gas price assumed in the corresponding batch
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub protocol_version: Option<ProtocolVersionId>,

@@ -37,15 +37,13 @@ impl BlocksDal<'_, '_> {
     }
 
     pub async fn get_sealed_l1_batch_number(&mut self) -> anyhow::Result<L1BatchNumber> {
-        let number = sqlx::query!(
-            "SELECT MAX(number) as \"number\" FROM l1_batches WHERE is_finished = TRUE"
-        )
-        .instrument("get_sealed_block_number")
-        .report_latency()
-        .fetch_one(self.storage.conn())
-        .await?
-        .number
-        .context("DAL invocation before genesis")?;
+        let number = sqlx::query!("SELECT MAX(number) as \"number\" FROM l1_batches")
+            .instrument("get_sealed_block_number")
+            .report_latency()
+            .fetch_one(self.storage.conn())
+            .await?
+            .number
+            .context("DAL invocation before genesis")?;
 
         Ok(L1BatchNumber(number as u32))
     }
@@ -361,15 +359,16 @@ impl BlocksDal<'_, '_> {
         sqlx::query!(
             "INSERT INTO miniblocks ( \
                 number, timestamp, hash, l1_tx_count, l2_tx_count, \
-                base_fee_per_gas, l1_gas_price, l2_fair_gas_price, gas_per_pubdata_limit, \
+                fee_account_address, base_fee_per_gas, l1_gas_price, l2_fair_gas_price, gas_per_pubdata_limit, \
                 bootloader_code_hash, default_aa_code_hash, protocol_version, \
                 virtual_blocks, created_at, updated_at \
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now(), now())",
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, now(), now())",
             miniblock_header.number.0 as i64,
             miniblock_header.timestamp as i64,
             miniblock_header.hash.as_bytes(),
             miniblock_header.l1_tx_count as i32,
             miniblock_header.l2_tx_count as i32,
+            miniblock_header.fee_account_address.as_bytes(),
             base_fee_per_gas,
             miniblock_header.l1_gas_price as i64,
             miniblock_header.l2_fair_gas_price as i64,
@@ -416,6 +415,7 @@ impl BlocksDal<'_, '_> {
         Ok(sqlx::query_as!(
             StorageMiniblockHeader,
             "SELECT number, timestamp, hash, l1_tx_count, l2_tx_count, \
+                fee_account_address AS \"fee_account_address!\", \
                 base_fee_per_gas, l1_gas_price, l2_fair_gas_price, \
                 bootloader_code_hash, default_aa_code_hash, protocol_version, \
                 virtual_blocks
@@ -435,6 +435,7 @@ impl BlocksDal<'_, '_> {
         Ok(sqlx::query_as!(
             StorageMiniblockHeader,
             "SELECT number, timestamp, hash, l1_tx_count, l2_tx_count, \
+                fee_account_address AS \"fee_account_address!\", \
                 base_fee_per_gas, l1_gas_price, l2_fair_gas_price, \
                 bootloader_code_hash, default_aa_code_hash, protocol_version, \
                 virtual_blocks
@@ -1417,17 +1418,21 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn get_fee_address_for_l1_batch(
+    pub async fn get_fee_address_for_miniblock(
         &mut self,
-        l1_batch_number: L1BatchNumber,
+        number: MiniblockNumber,
     ) -> sqlx::Result<Option<Address>> {
-        Ok(sqlx::query!(
-            "SELECT fee_account_address FROM l1_batches WHERE number = $1",
-            l1_batch_number.0 as u32
+        let Some(row) = sqlx::query!(
+            "SELECT fee_account_address FROM miniblocks WHERE number = $1",
+            number.0 as u32
         )
         .fetch_optional(self.storage.conn())
         .await?
-        .map(|row| Address::from_slice(&row.fee_account_address)))
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(Address::from_slice(&row.fee_account_address)))
     }
 
     pub async fn get_virtual_blocks_for_miniblock(

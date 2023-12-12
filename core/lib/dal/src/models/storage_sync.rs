@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_protobuf::{read_required, ProtoFmt};
-use zksync_types::{api::en, Address, L1BatchNumber, MiniblockNumber, Transaction, H160, H256};
+use zksync_types::{api::en, L1BatchNumber, MiniblockNumber, Transaction, H160, H256};
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub(crate) struct StorageSyncBlock {
@@ -16,7 +16,7 @@ pub(crate) struct StorageSyncBlock {
     pub l2_fair_gas_price: i64,
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
-    pub fee_account_address: Option<Vec<u8>>, // May be None if the block is not yet sealed
+    pub fee_account_address: Vec<u8>,
     pub protocol_version: i32,
     pub virtual_blocks: i64,
     pub hash: Vec<u8>,
@@ -34,7 +34,6 @@ fn parse_h160(bytes: &[u8]) -> anyhow::Result<H160> {
 impl StorageSyncBlock {
     pub(crate) fn into_sync_block(
         self,
-        current_operator_address: Address,
         transactions: Option<Vec<Transaction>>,
     ) -> anyhow::Result<en::SyncBlock> {
         Ok(en::SyncBlock {
@@ -67,10 +66,8 @@ impl StorageSyncBlock {
                 )
                 .context("default_aa_code_hash")?,
             },
-            operator_address: match self.fee_account_address {
-                Some(addr) => parse_h160(&addr).context("fee_account_address")?,
-                None => current_operator_address,
-            },
+            operator_address: parse_h160(&self.fee_account_address)
+                .context("fee_account_address")?,
             transactions,
             virtual_blocks: Some(self.virtual_blocks.try_into().context("virtual_blocks")?),
             hash: Some(parse_h256(&self.hash).context("hash")?),
