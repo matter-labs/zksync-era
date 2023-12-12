@@ -98,7 +98,8 @@ export async function isolatedExternalNode() {
         }
         try {
             const healthcheckPort = extNodeEnv['EN_HEALTHCHECK_PORT'];
-            const healthcheckUrl = `http://127.0.0.1:${healthcheckPort}/health`;
+            const instanceIp = process.env.IN_DOCKER ? 'host.docker.internal' : 'localhost';
+            const healthcheckUrl = `http://${instanceIp}:${healthcheckPort}/health`;
             const response = await fetch(healthcheckUrl);
             const json = await response.json();
             console.log(json);
