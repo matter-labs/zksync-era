@@ -1,8 +1,11 @@
 //! Stored objects.
 
-use std::io::Read;
+use std::io::{Read, Write};
 
+use anyhow::Context;
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
+use prost::Message;
+use zksync_protobuf::ProtoFmt;
 use zksync_types::{
     aggregated_operations::L1BatchProofForL1,
     proofs::{AggregationRound, PrepareBasicCircuitsJob},
@@ -76,13 +79,12 @@ impl StoredObject for SnapshotFactoryDependencies {
     type Key<'a> = L1BatchNumber;
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        format!("snapshot_l1_batch_{key}_factory_deps.json.gzip")
+        format!("snapshot_l1_batch_{key}_factory_deps.proto.gzip")
     }
 
-    //TODO use better language agnostic serialization format like protobuf
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        serde_json::to_writer(&mut encoder, self).map_err(BoxedError::from)?;
+        encoder.write_all(&(self.build().encode_to_vec()))?;
         encoder.finish().map_err(From::from)
     }
 
@@ -92,7 +94,12 @@ impl StoredObject for SnapshotFactoryDependencies {
         decoder
             .read_to_end(&mut decompressed_bytes)
             .map_err(BoxedError::from)?;
-        serde_json::from_slice(&decompressed_bytes).map_err(From::from)
+        let proto =
+            <SnapshotFactoryDependencies as ProtoFmt>::Proto::decode(&decompressed_bytes[..])
+                .context("decode SnapshotFactoryDependencies")?;
+        SnapshotFactoryDependencies::read(&proto)
+            .context("deserialization of Message to SnapshotFactoryDependencies")
+            .map_err(From::from)
     }
 }
 
@@ -102,15 +109,14 @@ impl StoredObject for SnapshotStorageLogsChunk {
 
     fn encode_key(key: Self::Key<'_>) -> String {
         format!(
-            "snapshot_l1_batch_{}_storage_logs_part_{:0>4}.json.gzip",
+            "snapshot_l1_batch_{}_storage_logs_part_{:0>4}.proto.gzip",
             key.l1_batch_number, key.chunk_id
         )
     }
 
-    //TODO use better language agnostic serialization format like protobuf
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        serde_json::to_writer(&mut encoder, self).map_err(BoxedError::from)?;
+        encoder.write_all(&(self.build().encode_to_vec()))?;
         encoder.finish().map_err(From::from)
     }
 
@@ -120,7 +126,11 @@ impl StoredObject for SnapshotStorageLogsChunk {
         decoder
             .read_to_end(&mut decompressed_bytes)
             .map_err(BoxedError::from)?;
-        serde_json::from_slice(&decompressed_bytes).map_err(From::from)
+        let proto = <SnapshotStorageLogsChunk as ProtoFmt>::Proto::decode(&decompressed_bytes[..])
+            .context("decode SnapshotStorageLogsChunk")?;
+        SnapshotStorageLogsChunk::read(&proto)
+            .context("deserialization of Message to SnapshotStorageLogsChunk")
+            .map_err(From::from)
     }
 }
 
