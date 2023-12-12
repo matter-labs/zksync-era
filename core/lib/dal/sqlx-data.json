@@ -2753,24 +2753,6 @@
     },
     "query": "UPDATE transactions\n                SET in_mempool = TRUE\n                FROM (\n                    SELECT hash FROM (\n                        SELECT hash\n                        FROM transactions\n                        WHERE miniblock_number IS NULL AND in_mempool = FALSE AND error IS NULL\n                            AND (is_priority = TRUE OR (max_fee_per_gas >= $2 and gas_per_pubdata_limit >= $3))\n                            AND tx_format != $4\n                        ORDER BY is_priority DESC, priority_op_id, received_at\n                        LIMIT $1\n                    ) as subquery1\n                    ORDER BY hash\n                ) as subquery2\n                WHERE transactions.hash = subquery2.hash\n                RETURNING transactions.*"
   },
-  "2cc57497090a97bcb453036f7b5e2139b590699aa1a2df4d6fd2b19e27e06251": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        false
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "SELECT l1_batch_number FROM proof_generation_details WHERE status <> 'generated' ORDER BY l1_batch_number ASC LIMIT 1"
-  },
   "2e3f116ca05ae70b7c83ac550302194c91f57b69902ff8e42140fde732ae5e6a": {
     "describe": {
       "columns": [],
@@ -4888,6 +4870,24 @@
       }
     },
     "query": "SELECT (SELECT l1_batch_number FROM miniblocks WHERE number = $1) as \"block_batch?\", (SELECT MAX(number) + 1 FROM l1_batches) as \"max_batch?\""
+  },
+  "5f29e71af038c974e2d83b908c5a2559ab8afbb169bc0ae9f881a6628dc087fd": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT l1_batch_number FROM proof_generation_details WHERE status NOT IN ('generated', 'skipped') ORDER BY l1_batch_number ASC LIMIT 1"
   },
   "5f40849646bb7436e29cda8fb87fece2a4dcb580644f45ecb82388dece04f222": {
     "describe": {
@@ -9931,6 +9931,24 @@
       }
     },
     "query": "\n                SELECT COUNT(*) as \"count!\", circuit_type as \"circuit_type!\", status as \"status!\"\n                FROM prover_jobs\n                WHERE status <> 'skipped' and status <> 'successful' \n                GROUP BY circuit_type, status\n                "
+  },
+  "cfeab91d8551e3bba086bc17534ac195a110a2c7f7f829b69e6519977a98267f": {
+    "describe": {
+      "columns": [
+        {
+          "name": "protocol_version",
+          "ordinal": 0,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
+        true
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT protocol_version FROM l1_batches ORDER BY number DESC LIMIT 1"
   },
   "d0ff67e7c59684a0e4409726544cf850dbdbb36d038ebbc6a1c5bf0e76b0358c": {
     "describe": {

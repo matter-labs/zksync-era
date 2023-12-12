@@ -2,8 +2,8 @@
 
 This document outlines various configuration options for the EN. Currently, the EN requires the definition of numerous
 environment variables. To streamline this process, we provide prepared configs for the zkSync Era - for both
-[mainnet](prepared_configs/mainnet-config.env) and [testnet](prepared_configs/testnet-config.env). You can use these
-files as a starting point and modify only the necessary sections.
+[mainnet](prepared_configs/mainnet-config.env) and [testnet](prepared_configs/testnet-sepolia-config.env). You can use
+these files as a starting point and modify only the necessary sections.
 
 ## Database
 
@@ -20,7 +20,7 @@ recommended to use an NVME SSD for RocksDB. RocksDB requires two variables to be
 ## L1 Web3 client
 
 EN requires a connection to an Ethereum node. The corresponding env variable is `EN_ETH_CLIENT_URL`. Make sure to set
-the URL corresponding to the correct L1 network (L1 mainnet for L2 mainnet and L1 goerli for L2 testnet).
+the URL corresponding to the correct L1 network (L1 mainnet for L2 mainnet and L1 sepolia for L2 testnet).
 
 Note: Currently, the EN makes 2 requests to the L1 per L1 batch, so the Web3 client usage for a synced node should not
 be high. However, during the synchronization phase the new batches would be persisted on the EN quickly, so make sure
