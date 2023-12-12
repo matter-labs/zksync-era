@@ -92,7 +92,7 @@ export async function isolatedExternalNode() {
 
     let startTime = new Date();
     while (true) {
-        if (new Date().getTime() - startTime.getTime() > 30 * 1000) {
+        if (new Date().getTime() - startTime.getTime() > 600 * 1000) {
             throw new Error('Timeout waiting for EN to start');
         }
         try {
