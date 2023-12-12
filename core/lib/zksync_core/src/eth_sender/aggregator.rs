@@ -259,10 +259,7 @@ impl Aggregator {
         }
         let proofs = match proof_loading_mode {
             ProofLoadingMode::OldProofFromDb => {
-                prover_storage
-                    .prover_dal()
-                    .get_final_proofs_for_blocks(batch_to_prove, batch_to_prove)
-                    .await
+                unreachable!("OldProofFromDb is not supported anymore")
             }
             ProofLoadingMode::FriProofFromGcs => {
                 load_wrapped_fri_proofs_for_range(batch_to_prove, batch_to_prove, blob_store).await

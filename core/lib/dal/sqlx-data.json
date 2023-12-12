@@ -3693,32 +3693,6 @@
     },
     "query": "INSERT INTO l1_batches (number, l1_tx_count, l2_tx_count, timestamp, is_finished, fee_account_address, l2_to_l1_logs, l2_to_l1_messages, bloom, priority_ops_onchain_data, predicted_commit_gas_cost, predicted_prove_gas_cost, predicted_execute_gas_cost, initial_bootloader_heap_content, used_contract_hashes, base_fee_per_gas, l1_gas_price, l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version, system_logs, storage_refunds, created_at, updated_at ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, now(), now())"
   },
-  "42762c079948860eb59ba807eb9ae5a53b94c93e6b5635471d0018dde1d4c9d9": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "merkel_tree_paths_blob_url",
-          "ordinal": 1,
-          "type_info": "Text"
-        }
-      ],
-      "nullable": [
-        false,
-        true
-      ],
-      "parameters": {
-        "Left": [
-          "Int8"
-        ]
-      }
-    },
-    "query": "SELECT l1_batch_number, merkel_tree_paths_blob_url FROM witness_inputs WHERE status = 'successful' AND merkel_tree_paths_blob_url is NOT NULL AND updated_at < NOW() - INTERVAL '30 days' LIMIT $1"
-  },
   "43b5082ff7673ee3a8e8f3fafa64667fac4f7f5c8bd26a21ead6b4ba0f8fd17b": {
     "describe": {
       "columns": [
@@ -4545,24 +4519,6 @@
       }
     },
     "query": "SELECT hashed_key, index FROM initial_writes WHERE l1_batch_number = $1 ORDER BY index"
-  },
-  "5a27a65fa105897b60a99c1e0015e4b8c93c45e0c448e77b03565db5c36695ed": {
-    "describe": {
-      "columns": [
-        {
-          "name": "max",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        null
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "SELECT MAX(l1_batch_number) FROM witness_inputs WHERE merkel_tree_paths_blob_url IS NOT NULL"
   },
   "5a2f35f3b0135ab88451ea141e97b1160ea1b4cf495b6700b5d178a43499e0d8": {
     "describe": {
@@ -8434,33 +8390,6 @@
     },
     "query": "SELECT l1_batch_number FROM initial_writes WHERE hashed_key = $1"
   },
-  "a9d96d6774af2637173d471f02995652cd4c131c05fdcb3d0e1644bcd1aa1809": {
-    "describe": {
-      "columns": [
-        {
-          "name": "proof",
-          "ordinal": 0,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "aggregation_result_coords",
-          "ordinal": 1,
-          "type_info": "Bytea"
-        }
-      ],
-      "nullable": [
-        true,
-        true
-      ],
-      "parameters": {
-        "Left": [
-          "Int8",
-          "Int8"
-        ]
-      }
-    },
-    "query": "SELECT prover_jobs.result as proof, scheduler_witness_jobs.aggregation_result_coords\n                FROM prover_jobs\n                INNER JOIN scheduler_witness_jobs\n                ON prover_jobs.l1_batch_number = scheduler_witness_jobs.l1_batch_number\n                WHERE prover_jobs.l1_batch_number >= $1 AND prover_jobs.l1_batch_number <= $2\n                AND prover_jobs.aggregation_round = 3\n                AND prover_jobs.status = 'successful'\n                "
-  },
   "aa279ce3351b30788711be6c65cb99cb14304ac38f8fed6d332237ffafc7c86b": {
     "describe": {
       "columns": [],
@@ -10017,26 +9946,6 @@
       }
     },
     "query": "SELECT COUNT(miniblocks.number) FROM miniblocks WHERE l1_batch_number IS NULL"
-  },
-  "dd330bc075a163974c59ec55ecfddd769d05801963b3e0e840e7f11e7bc6d3e9": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Int8"
-        ]
-      }
-    },
-    "query": "SELECT l1_batch_number FROM witness_inputs WHERE length(merkle_tree_paths) <> 0 ORDER BY l1_batch_number DESC LIMIT $1"
   },
   "dd8aa1c9d4dcea22c9a13cca5ae45e951cf963b0608046b88be40309d7379ec2": {
     "describe": {
