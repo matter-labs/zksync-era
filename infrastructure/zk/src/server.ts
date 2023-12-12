@@ -101,7 +101,7 @@ export async function isolatedExternalNode() {
             const healthcheckUrl = `http://localhost:${healthcheckPort}/health`;
             const response = await fetch(healthcheckUrl);
             const json = await response.json();
-            console.log(json)
+            console.log(json);
             if (json['status'] == 'ready') {
                 break;
             }
