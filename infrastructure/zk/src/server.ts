@@ -76,12 +76,12 @@ export async function isolatedExternalNode() {
         if (envVar === 'DATABASE_URL') {
             envVarValue = dbUrl;
         }
-        envVarValue = envVarValue.replace('localhost', 'host.docker.internal');
-        envVarValue = envVarValue.replace('127.0.0.1', 'host.docker.internal');
+        envVarValue = envVarValue.replace('localhost', 'host');
+        envVarValue = envVarValue.replace('127.0.0.1', 'host');
         dockerEnv += ` --env "${envVar}=${envVarValue}" `;
     }
     const artifactsHostDirectory = path.join(process.env.ZKSYNC_HOME as string, 'artifacts');
-    const dockerVolumes = ` -v ${artifactsHostDirectory}:/usr/src/zksync/artifacts -v /var/run/docker.sock:/var/run/docker.sock`;
+    const dockerVolumes = ` -v ${artifactsHostDirectory}:/usr/src/zksync/artifacts `;
     //http_port = 3060, ws_port = 3061, healthcheck_port = 3081, prometheus_port = 3322
     const publishedPorts = '-p 3060:3060 -p 3061:3061 -p 3081:3081 -p 3322:3322';
     const networkingFlags = '--add-host=host.docker.internal:host-gateway';
