@@ -109,7 +109,7 @@ impl ProofGenerationDal<'_, '_> {
         .ok_or(sqlx::Error::RowNotFound)
     }
 
-    pub async fn get_oldest_unprocessed_batch(&mut self) -> Option<L1BatchNumber> {
+    pub async fn get_oldest_unpicked_batch(&mut self) -> Option<L1BatchNumber> {
         let result: Option<L1BatchNumber> = sqlx::query!(
             "SELECT l1_batch_number \
              FROM proof_generation_details \
@@ -129,7 +129,7 @@ impl ProofGenerationDal<'_, '_> {
         let result: Option<L1BatchNumber> = sqlx::query!(
             "SELECT l1_batch_number \
              FROM proof_generation_details \
-             WHERE status <> 'generated' \
+             WHERE status NOT IN ('generated', 'skipped') \
              ORDER BY l1_batch_number ASC \
              LIMIT 1",
         )

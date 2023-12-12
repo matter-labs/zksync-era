@@ -10,7 +10,8 @@
         "api-test": "zk f jest -- api/web3.test.ts api/debug.test.ts",
         "contract-verification-test": "zk f jest -- api/contract-verification.test.ts",
         "build": "hardhat compile",
-        "build-yul": "hardhat run scripts/compile-yul.ts"
+        "build-yul": "hardhat run scripts/compile-yul.ts",
+        "snapshots-creator-test": "zk f jest -- api/snapshots-creator.test.ts"
     },
     "devDependencies": {
         "@matterlabs/hardhat-zksync-deploy": "^0.6.1",
