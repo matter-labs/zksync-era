@@ -76,7 +76,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/etc/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
-      
+
       # We need the CRS only for the fri compressor.
       - name: download CRS
         if: matrix.component == 'proof-fri-compressor'
