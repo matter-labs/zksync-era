@@ -638,3 +638,41 @@ impl Filters {
         self.state.pop(&index).is_some()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_filters_functionality() {
+        use super::*;
+
+        let mut filters = Filters::new(2);
+
+        let filter1 = TypedFilter::Events(Default::default(), Default::default());
+        let filter2 = TypedFilter::Blocks(Default::default());
+        let filter3 = TypedFilter::PendingTransactions(Default::default());
+
+        let idx1 = filters.add(filter1.clone());
+        let idx2 = filters.add(filter2.clone());
+        let idx3 = filters.add(filter3.clone());
+
+        assert_eq!(filters.state.len(), 2);
+        assert_eq!(filters.state.contains(&idx1), false);
+        assert_eq!(filters.state.contains(&idx2), true);
+        assert_eq!(filters.state.contains(&idx3), true);
+
+        filters.get_and_update_stats(idx2);
+
+        let idx1 = filters.add(filter1.clone());
+        assert_eq!(filters.state.len(), 2);
+        assert_eq!(filters.state.contains(&idx1), true);
+        assert_eq!(filters.state.contains(&idx2), true);
+        assert_eq!(filters.state.contains(&idx3), false);
+
+        filters.remove(idx1);
+
+        assert_eq!(filters.state.len(), 1);
+        assert_eq!(filters.state.contains(&idx1), false);
+        assert_eq!(filters.state.contains(&idx2), true);
+        assert_eq!(filters.state.contains(&idx3), false);
+    }
+}
