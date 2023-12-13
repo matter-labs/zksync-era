@@ -74,6 +74,7 @@ num = { version = "0.3.1", features = ["serde"] }
 bigdecimal = { version = "0.2.2", features = ["serde"] }
 reqwest = { version = "0.11", features = ["blocking", "json"] }
 hex = "0.4"
+lru = { version = "0.12.1", default-features = false }
 governor = "0.4.2"
 tower-http = { version = "0.4.1", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }

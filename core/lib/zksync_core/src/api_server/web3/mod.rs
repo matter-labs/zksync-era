@@ -292,9 +292,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         tokio::spawn(update_task);
 
         RpcState {
-            installed_filters: Arc::new(Mutex::new(Filters::new(
-                self.filters_limit.unwrap_or(usize::MAX),
-            ))),
+            installed_filters: Arc::new(Mutex::new(Filters::new(self.filters_limit))),
             connection_pool: self.pool,
             tx_sender: self.tx_sender.expect("TxSender is not provided"),
             sync_state: self.sync_state,
