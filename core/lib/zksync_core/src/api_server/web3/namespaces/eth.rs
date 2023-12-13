@@ -14,6 +14,7 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
     error::Web3Error,
+    jsonrpsee::core::SubscriptionResult,
     types::{Address, Block, Filter, FilterChanges, Log, U64},
 };
 
@@ -21,9 +22,8 @@ use crate::{
     api_server::{
         execution_sandbox::BlockArgs,
         web3::{
-            backend_jsonrpc::error::internal_error,
+            backend_jsonrpsee::{internal_error, resolve_block},
             metrics::{BlockCallObserver, API_METRICS},
-            resolve_block,
             state::RpcState,
             TypedFilter,
         },
@@ -882,6 +882,11 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         };
 
         Ok(res)
+    }
+
+    #[tracing::instrument(skip(self, _sub_type))]
+    pub async fn subscribe_impl(&self, _sub_type: String) -> SubscriptionResult {
+        todo!();
     }
 }
 

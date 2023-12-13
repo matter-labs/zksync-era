@@ -27,7 +27,7 @@ use zksync_web3_decl::{
 use crate::{
     api_server::{
         tree::TreeApiClient,
-        web3::{backend_jsonrpc::error::internal_error, metrics::API_METRICS, RpcState},
+        web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, RpcState},
     },
     l1_gas_price::L1GasPriceProvider,
 };

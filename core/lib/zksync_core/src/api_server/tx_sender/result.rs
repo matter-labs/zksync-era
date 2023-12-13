@@ -68,7 +68,7 @@ pub enum SubmitTxError {
     IntrinsicGas,
     /// Error returned from main node
     #[error("{0}")]
-    ProxyError(#[from] zksync_web3_decl::jsonrpsee::core::Error),
+    ProxyError(#[from] zksync_web3_decl::jsonrpsee::core::ClientError),
 }
 
 impl SubmitTxError {

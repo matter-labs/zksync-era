@@ -34,8 +34,9 @@ use crate::{
         tree::TreeApiHttpClient,
         tx_sender::TxSender,
         web3::{
-            backend_jsonrpc::error::internal_error, namespaces::eth::EVENT_TOPIC_NUMBER_LIMIT,
-            resolve_block, TypedFilter,
+            backend_jsonrpsee::{internal_error, resolve_block},
+            namespaces::eth::EVENT_TOPIC_NUMBER_LIMIT,
+            TypedFilter,
         },
     },
     sync_layer::SyncState,

@@ -1,4 +1,8 @@
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use jsonrpsee::{
+    core::{RpcResult, SubscriptionResult},
+    proc_macros::rpc,
+    types::SubscriptionId,
+};
 use zksync_types::{
     api::{BlockIdVariant, BlockNumber, Transaction, TransactionVariant},
     transaction_request::CallRequest,
@@ -6,8 +10,8 @@ use zksync_types::{
 };
 
 use crate::types::{
-    Block, Bytes, FeeHistory, Filter, FilterChanges, Index, Log, SyncState, TransactionReceipt,
-    U256, U64,
+    Block, Bytes, FeeHistory, Filter, FilterChanges, Index, Log, PubSubFilter, SyncState,
+    TransactionReceipt, U256, U64,
 };
 
 #[cfg_attr(
@@ -165,4 +169,21 @@ pub trait EthNamespace {
         newest_block: BlockNumber,
         reward_percentiles: Vec<f32>,
     ) -> RpcResult<FeeHistory>;
+}
+
+#[rpc(server, namespace = "eth")]
+pub trait EthPubSub {
+    #[subscription(name = "subscribe" => "subscription", unsubscribe = "unsubscribe", item = PubSubResult)]
+    async fn subscribe(&self, sub_type: String, filter: Option<PubSubFilter>)
+        -> SubscriptionResult;
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+#[non_exhaustive]
+pub struct EthSubscriptionIdProvider;
+
+impl jsonrpsee::core::traits::IdProvider for EthSubscriptionIdProvider {
+    fn next_id(&self) -> SubscriptionId<'static> {
+        format!("{:#x}", rand::random::<u128>()).into()
+    }
 }

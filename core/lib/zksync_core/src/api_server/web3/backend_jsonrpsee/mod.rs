@@ -2,17 +2,33 @@
 //! Consists mostly of boilerplate code implementing the `jsonrpsee` server traits for the corresponding
 //! namespace structures defined in `zksync_core`.
 
-use std::error::Error;
+use std::{error::Error, fmt};
 
+use zksync_dal::StorageProcessor;
+use zksync_types::{api, MiniblockNumber};
 use zksync_web3_decl::{
     error::Web3Error,
     jsonrpsee::types::{error::ErrorCode, ErrorObjectOwned},
 };
 
+use crate::api_server::web3::metrics::API_METRICS;
+
+pub mod batch_limiter_middleware;
 pub mod namespaces;
 
 pub fn from_std_error(e: impl Error) -> ErrorObjectOwned {
     ErrorObjectOwned::owned(ErrorCode::InternalError.code(), e.to_string(), Some(()))
+}
+
+pub async fn resolve_block(
+    connection: &mut StorageProcessor<'_>,
+    block: api::BlockId,
+    method_name: &'static str,
+) -> Result<MiniblockNumber, Web3Error> {
+    let result = connection.blocks_web3_dal().resolve_block_id(block).await;
+    result
+        .map_err(|err| internal_error(method_name, err))?
+        .ok_or(Web3Error::NoBlock)
 }
 
 pub fn into_jsrpc_error(err: Web3Error) -> ErrorObjectOwned {
@@ -43,4 +59,10 @@ pub fn into_jsrpc_error(err: Web3Error) -> ErrorObjectOwned {
             _ => None,
         },
     )
+}
+
+pub fn internal_error(method_name: &'static str, error: impl fmt::Display) -> Web3Error {
+    tracing::error!("Internal error in method {method_name}: {error}");
+    API_METRICS.web3_internal_errors[&method_name].inc();
+    Web3Error::InternalError
 }

@@ -3,23 +3,29 @@
 use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context as _;
-use jsonrpc_core::error::{Error, ErrorCode};
-use jsonrpc_pubsub::{typed, SubscriptionId};
 use tokio::{
     sync::{mpsc, watch, RwLock},
     task::JoinHandle,
     time::{interval, Duration},
 };
 use zksync_dal::ConnectionPool;
-use zksync_types::{MiniblockNumber, H128, H256};
-use zksync_web3_decl::types::{BlockHeader, Log, PubSubFilter, PubSubResult};
+use zksync_types::{MiniblockNumber, H256};
+use zksync_web3_decl::{
+    jsonrpsee::{
+        core::{server::SubscriptionMessage, SubscriptionResult},
+        types::{error::ErrorCode, SubscriptionId},
+        PendingSubscriptionSink, SubscriptionSink,
+    },
+    namespaces::EthPubSubServer,
+    types::{BlockHeader, Log, PubSubFilter, PubSubResult},
+};
 
 use super::{
     metrics::{SubscriptionType, PUB_SUB_METRICS},
     namespaces::eth::EVENT_TOPIC_NUMBER_LIMIT,
 };
 
-pub(super) type SubscriptionMap<T> = Arc<RwLock<HashMap<SubscriptionId, T>>>;
+pub(super) type SubscriptionMap<T> = Arc<RwLock<HashMap<SubscriptionId<'static>, T>>>;
 
 /// Events emitted by the subscription logic. Only used in WebSocket server tests so far.
 #[derive(Debug)]
@@ -49,10 +55,6 @@ impl<V: Clone> PubSubNotifier<V> {
             .context("get_sealed_miniblock_number()")
     }
 
-    async fn current_subscribers(&self) -> Vec<V> {
-        self.subscribers.read().await.values().cloned().collect()
-    }
-
     fn emit_event(&self, event: PubSubEvent) {
         if let Some(sender) = &self.events_sender {
             sender.send(event).ok();
@@ -60,7 +62,7 @@ impl<V: Clone> PubSubNotifier<V> {
     }
 }
 
-impl PubSubNotifier<typed::Sink<PubSubResult>> {
+impl PubSubNotifier<SubscriptionSink> {
     async fn notify_blocks(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut last_block_number = self.sealed_miniblock_number().await?;
         let mut timer = interval(self.polling_interval);
@@ -80,9 +82,21 @@ impl PubSubNotifier<typed::Sink<PubSubResult>> {
 
                 let notify_latency =
                     PUB_SUB_METRICS.notify_subscribers_latency[&SubscriptionType::Blocks].start();
-                for sink in self.current_subscribers().await {
+
+                let subscribers = self.subscribers.read().await;
+                let mut closed_subscriptions = vec![];
+
+                for sink in subscribers.values() {
                     for block in new_blocks.iter().cloned() {
-                        if sink.notify(Ok(PubSubResult::Header(block))).is_err() {
+                        if sink
+                            .send(
+                                SubscriptionMessage::from_json(&PubSubResult::Header(block))
+                                    .expect("PubSubResult always serializable to json;qed"),
+                            )
+                            .await
+                            .is_err()
+                        {
+                            closed_subscriptions.push(sink.subscription_id());
                             // Subscriber disconnected.
                             break;
                         }
@@ -90,6 +104,12 @@ impl PubSubNotifier<typed::Sink<PubSubResult>> {
                     }
                 }
                 notify_latency.observe();
+                drop(subscribers);
+                for closed_sub in closed_subscriptions.into_iter() {
+                    if self.subscribers.write().await.remove(&closed_sub).is_some() {
+                        PUB_SUB_METRICS.active_subscribers[&SubscriptionType::Blocks].dec_by(1);
+                    }
+                }
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(
                 SubscriptionType::Blocks,
@@ -131,9 +151,20 @@ impl PubSubNotifier<typed::Sink<PubSubResult>> {
                 let notify_latency =
                     PUB_SUB_METRICS.notify_subscribers_latency[&SubscriptionType::Txs].start();
 
-                for sink in self.current_subscribers().await {
+                let subscribers = self.subscribers.read().await;
+                let mut closed_subscriptions = vec![];
+
+                for sink in subscribers.values() {
                     for tx_hash in new_txs.iter().cloned() {
-                        if sink.notify(Ok(PubSubResult::TxHash(tx_hash))).is_err() {
+                        if sink
+                            .send(
+                                SubscriptionMessage::from_json(&PubSubResult::TxHash(tx_hash))
+                                    .expect("PubSubResult always serializable to json;qed"),
+                            )
+                            .await
+                            .is_err()
+                        {
+                            closed_subscriptions.push(sink.subscription_id());
                             // Subscriber disconnected.
                             break;
                         }
@@ -141,6 +172,13 @@ impl PubSubNotifier<typed::Sink<PubSubResult>> {
                     }
                 }
                 notify_latency.observe();
+
+                drop(subscribers);
+                for closed_sub in closed_subscriptions.into_iter() {
+                    if self.subscribers.write().await.remove(&closed_sub).is_some() {
+                        PUB_SUB_METRICS.active_subscribers[&SubscriptionType::Txs].dec_by(1);
+                    }
+                }
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(SubscriptionType::Txs));
         }
@@ -162,7 +200,7 @@ impl PubSubNotifier<typed::Sink<PubSubResult>> {
     }
 }
 
-impl PubSubNotifier<(typed::Sink<PubSubResult>, PubSubFilter)> {
+impl PubSubNotifier<(SubscriptionSink, PubSubFilter)> {
     async fn notify_logs(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut last_block_number = self.sealed_miniblock_number().await?;
         let mut timer = interval(self.polling_interval);
@@ -181,16 +219,32 @@ impl PubSubNotifier<(typed::Sink<PubSubResult>, PubSubFilter)> {
                 last_block_number = MiniblockNumber(last_log.block_number.unwrap().as_u32());
                 let notify_latency =
                     PUB_SUB_METRICS.notify_subscribers_latency[&SubscriptionType::Logs].start();
+                let subscribers = self.subscribers.read().await;
+                let mut closed_subscriptions = vec![];
 
-                for (sink, filter) in self.current_subscribers().await {
+                for (sink, filter) in subscribers.values() {
                     for log in &new_logs {
                         if filter.matches(log) {
-                            if sink.notify(Ok(PubSubResult::Log(log.clone()))).is_err() {
+                            if sink
+                                .send(
+                                    SubscriptionMessage::from_json(&PubSubResult::Log(log.clone()))
+                                        .expect("PubSubResult always serializable to json;qed"),
+                                )
+                                .await
+                                .is_err()
+                            {
+                                closed_subscriptions.push(sink.subscription_id());
                                 // Subscriber disconnected.
                                 break;
                             }
                             PUB_SUB_METRICS.notify[&SubscriptionType::Logs].inc();
                         }
+                    }
+                }
+                drop(subscribers);
+                for closed_sub in closed_subscriptions.into_iter() {
+                    if self.subscribers.write().await.remove(&closed_sub).is_some() {
+                        PUB_SUB_METRICS.active_subscribers[&SubscriptionType::Logs].dec_by(1);
                     }
                 }
                 notify_latency.observe();
@@ -217,9 +271,9 @@ impl PubSubNotifier<(typed::Sink<PubSubResult>, PubSubFilter)> {
 pub(super) struct EthSubscribe {
     // `jsonrpc` backend executes task subscription on a separate thread that has no tokio context.
     pub runtime_handle: tokio::runtime::Handle,
-    active_block_subs: SubscriptionMap<typed::Sink<PubSubResult>>,
-    active_tx_subs: SubscriptionMap<typed::Sink<PubSubResult>>,
-    active_log_subs: SubscriptionMap<(typed::Sink<PubSubResult>, PubSubFilter)>,
+    active_block_subs: SubscriptionMap<SubscriptionSink>,
+    active_tx_subs: SubscriptionMap<SubscriptionSink>,
+    active_log_subs: SubscriptionMap<(SubscriptionSink, PubSubFilter)>,
     events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
 }
 
@@ -238,83 +292,49 @@ impl EthSubscribe {
         self.events_sender = Some(sender);
     }
 
-    /// Assigns ID for the subscriber if the connection is open, returns error otherwise.
-    fn assign_id(
-        subscriber: typed::Subscriber<PubSubResult>,
-    ) -> Result<(typed::Sink<PubSubResult>, SubscriptionId), ()> {
-        let id = H128::random();
-        let sub_id = SubscriptionId::String(format!("0x{}", hex::encode(id.0)));
-        let sink = subscriber.assign_id(sub_id.clone())?;
-        Ok((sink, sub_id))
-    }
-
-    fn reject(subscriber: typed::Subscriber<PubSubResult>) {
-        subscriber
-            .reject(Error {
-                code: ErrorCode::InvalidParams,
-                message: "Rejecting subscription - invalid parameters provided.".into(),
-                data: None,
-            })
-            .unwrap();
-    }
-
-    #[tracing::instrument(skip(self, subscriber, params))]
+    #[tracing::instrument(skip(self, pending_sink))]
     pub async fn sub(
         &self,
-        subscriber: typed::Subscriber<PubSubResult>,
+        pending_sink: PendingSubscriptionSink,
         sub_type: String,
-        params: Option<serde_json::Value>,
+        params: Option<PubSubFilter>,
     ) {
         let sub_type = match sub_type.as_str() {
             "newHeads" => {
                 let mut block_subs = self.active_block_subs.write().await;
-                let Ok((sink, id)) = Self::assign_id(subscriber) else {
-                    return;
-                };
-                block_subs.insert(id, sink);
+                let sink = pending_sink.accept().await.unwrap();
+
+                block_subs.insert(sink.subscription_id(), sink);
                 Some(SubscriptionType::Blocks)
             }
             "newPendingTransactions" => {
                 let mut tx_subs = self.active_tx_subs.write().await;
-                let Ok((sink, id)) = Self::assign_id(subscriber) else {
-                    return;
-                };
-                tx_subs.insert(id, sink);
+                let sink = pending_sink.accept().await.unwrap();
+                tx_subs.insert(sink.subscription_id(), sink);
                 Some(SubscriptionType::Txs)
             }
             "logs" => {
-                let filter = params.map(serde_json::from_value).transpose();
-                match filter {
-                    Ok(filter) => {
-                        let filter: PubSubFilter = filter.unwrap_or_default();
-                        let topic_count = filter.topics.as_ref().map_or(0, Vec::len);
-                        if topic_count > EVENT_TOPIC_NUMBER_LIMIT {
-                            Self::reject(subscriber);
-                            None
-                        } else {
-                            let mut log_subs = self.active_log_subs.write().await;
-                            let Ok((sink, id)) = Self::assign_id(subscriber) else {
-                                return;
-                            };
-                            log_subs.insert(id, (sink, filter));
-                            Some(SubscriptionType::Logs)
-                        }
-                    }
-                    Err(_) => {
-                        Self::reject(subscriber);
-                        None
-                    }
+                let filter = params.unwrap_or_default();
+                let topic_count = filter.topics.as_ref().map_or(0, Vec::len);
+                if topic_count > EVENT_TOPIC_NUMBER_LIMIT {
+                    None
+                } else {
+                    let mut log_subs = self.active_log_subs.write().await;
+                    let sink = pending_sink.accept().await.unwrap();
+                    log_subs.insert(sink.subscription_id(), (sink, filter));
+                    Some(SubscriptionType::Logs)
                 }
             }
             "syncing" => {
-                let Ok((sink, _id)) = Self::assign_id(subscriber) else {
+                let Ok(sink) = pending_sink.accept().await else {
                     return;
                 };
-                let _ = sink.notify(Ok(PubSubResult::Syncing(false)));
+                let _ = sink
+                    .send(SubscriptionMessage::from_json(&PubSubResult::Syncing(false)).unwrap());
                 None
             }
             _ => {
-                Self::reject(subscriber);
+                pending_sink.reject(ErrorCode::ServerError(10)).await;
                 None
             }
         };
@@ -324,29 +344,6 @@ impl EthSubscribe {
             if let Some(sender) = &self.events_sender {
                 sender.send(PubSubEvent::Subscribed(sub_type)).ok();
             }
-        }
-    }
-
-    #[tracing::instrument(skip(self))]
-    pub async fn unsub(&self, id: SubscriptionId) -> Result<bool, Error> {
-        let removed = if self.active_block_subs.write().await.remove(&id).is_some() {
-            Some(SubscriptionType::Blocks)
-        } else if self.active_tx_subs.write().await.remove(&id).is_some() {
-            Some(SubscriptionType::Txs)
-        } else if self.active_log_subs.write().await.remove(&id).is_some() {
-            Some(SubscriptionType::Logs)
-        } else {
-            None
-        };
-        if let Some(sub_type) = removed {
-            PUB_SUB_METRICS.active_subscribers[&sub_type].dec_by(1);
-            Ok(true)
-        } else {
-            Err(Error {
-                code: ErrorCode::InvalidParams,
-                message: "Invalid subscription.".into(),
-                data: None,
-            })
         }
     }
 
@@ -386,5 +383,22 @@ impl EthSubscribe {
 
         notifier_tasks.push(notifier_task);
         notifier_tasks
+    }
+}
+
+#[async_trait::async_trait]
+impl EthPubSubServer for EthSubscribe {
+    async fn subscribe(
+        &self,
+        pending: PendingSubscriptionSink,
+        sub_type: String,
+        filter: Option<PubSubFilter>,
+    ) -> SubscriptionResult {
+        let self_ = self.clone();
+
+        self.runtime_handle
+            .spawn(async move { self_.sub(pending, sub_type, filter).await });
+
+        Ok(())
     }
 }
