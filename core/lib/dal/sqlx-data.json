@@ -2465,6 +2465,16 @@
     },
     "query": "SELECT l1_address, l2_address, name, symbol, decimals FROM tokens\n                 WHERE well_known = true\n                 ORDER BY symbol"
   },
+  "2b74fe78778ef82d788598e0c0bf8fd14095c1a9f61c2f10c43e25d7c224233f": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "UPDATE miniblocks SET fee_account_address = ( SELECT l1_batches.fee_account_address FROM l1_batches ORDER BY l1_batches.number DESC LIMIT 1 ) WHERE l1_batch_number IS NULL AND fee_account_address = '\\x0000000000000000000000000000000000000000'::bytea"
+  },
   "2b76ca7059810f691a2d7d053e7e62e06de13e7ddb7747e39335bb10c45534e9": {
     "describe": {
       "columns": [
@@ -6263,6 +6273,19 @@
       }
     },
     "query": "SELECT protocol_version FROM l1_batches WHERE number = $1"
+  },
+  "95bd2f729dd14c49591c5a10896d5c7033d89795ddf07328bb0fe6b6d9916fdf": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8"
+        ]
+      }
+    },
+    "query": "UPDATE miniblocks SET fee_account_address = l1_batches.fee_account_address FROM l1_batches WHERE l1_batches.number = miniblocks.l1_batch_number AND miniblocks.number BETWEEN $1 and $2 AND miniblocks.fee_account_address = '\\x0000000000000000000000000000000000000000'::bytea"
   },
   "96623dfb2cb9efa255a54d87d61f748aebaf4e75ee09c05d04535d8c97a95d88": {
     "describe": {
@@ -11602,19 +11625,6 @@
       }
     },
     "query": "UPDATE miniblocks SET consensus = $2 WHERE number = $1"
-  },
-  "fee1cb8992e07a35159c8055069ae9c3e1eaa0a2496d4978ab890eec0794d221": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Bytea",
-          "Bytea"
-        ]
-      }
-    },
-    "query": "UPDATE miniblocks SET fee_account_address = ( SELECT COALESCE(( SELECT l1_batches.fee_account_address FROM l1_batches WHERE l1_batches.number = miniblocks.l1_batch_number ), $2::bytea) ) WHERE fee_account_address = $1::bytea"
   },
   "ff7ff36b86b0e8d1cd7280aa447baef172cb054ffe7e1d742c59bf09b4f414cb": {
     "describe": {

@@ -7,9 +7,3 @@ ALTER TABLE miniblocks
 ALTER TABLE l1_batches
     ALTER COLUMN fee_account_address SET DEFAULT '\x0000000000000000000000000000000000000000'::bytea,
     ALTER COLUMN is_finished SET DEFAULT true;
-
-UPDATE miniblocks SET (fee_account_address) = (
-    SELECT l1_batches.fee_account_address
-    FROM l1_batches
-    WHERE l1_batches.number = miniblocks.l1_batch_number
-);
