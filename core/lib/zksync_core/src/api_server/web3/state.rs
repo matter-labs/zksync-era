@@ -543,10 +543,7 @@ impl<E> RpcState<E> {
 
 /// Contains mapping from index to `Filter`x with optional location.
 #[derive(Debug)]
-pub(crate) struct Filters {
-    state: LruCache<U256, InstalledFilter>,
-    max_cap: usize,
-}
+pub(crate) struct Filters(LruCache<U256, InstalledFilter>);
 
 #[derive(Debug)]
 struct InstalledFilter {
@@ -592,34 +589,33 @@ impl Drop for InstalledFilter {
 
 impl Filters {
     /// Instantiates `Filters` with given max capacity.
-    pub fn new(max_cap: usize) -> Self {
-        Self {
-            state: LruCache::unbounded(),
-            max_cap,
-        }
+    pub fn new(max_cap: Option<usize>) -> Self {
+        let state = match max_cap {
+            Some(max_cap) => {
+                LruCache::new(max_cap.try_into().expect("Filter capacity should not be 0"))
+            }
+            None => LruCache::unbounded(),
+        };
+        Self(state)
     }
 
     /// Adds filter to the state and returns its key.
     pub fn add(&mut self, filter: TypedFilter) -> U256 {
         let idx = loop {
             let val = H256::random().to_fixed_bytes().into();
-            if !self.state.contains(&val) {
+            if !self.0.contains(&val) {
                 break val;
             }
         };
 
-        self.state.push(idx, InstalledFilter::new(filter));
-
-        if self.state.len() > self.max_cap {
-            self.state.pop_lru();
-        }
+        self.0.push(idx, InstalledFilter::new(filter));
 
         idx
     }
 
     /// Retrieves filter from the state.
     pub fn get_and_update_stats(&mut self, index: U256) -> Option<TypedFilter> {
-        let installed_filter = self.state.get_mut(&index)?;
+        let installed_filter = self.0.get_mut(&index)?;
 
         installed_filter.update_stats();
 
@@ -628,14 +624,14 @@ impl Filters {
 
     /// Updates filter in the state.
     pub fn update(&mut self, index: U256, new_filter: TypedFilter) {
-        if let Some(installed_filter) = self.state.get_mut(&index) {
+        if let Some(installed_filter) = self.0.get_mut(&index) {
             installed_filter.filter = new_filter;
         }
     }
 
     /// Removes filter from the map.
     pub fn remove(&mut self, index: U256) -> bool {
-        self.state.pop(&index).is_some()
+        self.0.pop(&index).is_some()
     }
 }
 
@@ -645,7 +641,7 @@ mod tests {
     fn test_filters_functionality() {
         use super::*;
 
-        let mut filters = Filters::new(2);
+        let mut filters = Filters::new(Some(2));
 
         let filter1 = TypedFilter::Events(Default::default(), Default::default());
         let filter2 = TypedFilter::Blocks(Default::default());
@@ -655,24 +651,24 @@ mod tests {
         let idx2 = filters.add(filter2);
         let idx3 = filters.add(filter3);
 
-        assert_eq!(filters.state.len(), 2);
-        assert!(!filters.state.contains(&idx1));
-        assert!(filters.state.contains(&idx2));
-        assert!(filters.state.contains(&idx3));
+        assert_eq!(filters.0.len(), 2);
+        assert!(!filters.0.contains(&idx1));
+        assert!(filters.0.contains(&idx2));
+        assert!(filters.0.contains(&idx3));
 
         filters.get_and_update_stats(idx2);
 
         let idx1 = filters.add(filter1);
-        assert_eq!(filters.state.len(), 2);
-        assert!(filters.state.contains(&idx1));
-        assert!(filters.state.contains(&idx2));
-        assert!(!filters.state.contains(&idx3));
+        assert_eq!(filters.0.len(), 2);
+        assert!(filters.0.contains(&idx1));
+        assert!(filters.0.contains(&idx2));
+        assert!(!filters.0.contains(&idx3));
 
         filters.remove(idx1);
 
-        assert_eq!(filters.state.len(), 1);
-        assert!(!filters.state.contains(&idx1));
-        assert!(filters.state.contains(&idx2));
-        assert!(!filters.state.contains(&idx3));
+        assert_eq!(filters.0.len(), 1);
+        assert!(!filters.0.contains(&idx1));
+        assert!(filters.0.contains(&idx2));
+        assert!(!filters.0.contains(&idx3));
     }
 }
