@@ -637,15 +637,17 @@ impl Filters {
 
 #[cfg(test)]
 mod tests {
+    use chrono::NaiveDateTime;
+
     #[test]
     fn test_filters_functionality() {
         use super::*;
 
         let mut filters = Filters::new(Some(2));
 
-        let filter1 = TypedFilter::Events(Default::default(), Default::default());
-        let filter2 = TypedFilter::Blocks(Default::default());
-        let filter3 = TypedFilter::PendingTransactions(Default::default());
+        let filter1 = TypedFilter::Events(Filter::default(), MiniblockNumber::default());
+        let filter2 = TypedFilter::Blocks(MiniblockNumber::default());
+        let filter3 = TypedFilter::PendingTransactions(NaiveDateTime::default());
 
         let idx1 = filters.add(filter1.clone());
         let idx2 = filters.add(filter2);
