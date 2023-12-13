@@ -913,6 +913,19 @@
     },
     "query": "SELECT DISTINCT hashed_key FROM storage_logs WHERE miniblock_number BETWEEN $1 and $2"
   },
+  "1458a5eb95e0f932451ca1ee9434f52310ee3dce2c0a6690287fe37f125bfe60": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Bytea",
+          "Int8"
+        ]
+      }
+    },
+    "query": "UPDATE l1_batches SET fee_account_address = $1::bytea WHERE number = $2"
+  },
   "14815f61d37d274f9aea1125ca4d368fd8c45098b0017710c0ee18d23d994c15": {
     "describe": {
       "columns": [

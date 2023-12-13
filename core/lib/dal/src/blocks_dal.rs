@@ -1494,6 +1494,22 @@ impl BlocksDal<'_, '_> {
 
 /// These methods should only be used for tests.
 impl BlocksDal<'_, '_> {
+    /// Sets `fee_account_address` for an L1 batch.
+    pub async fn set_l1_batch_fee_address(
+        &mut self,
+        l1_batch: L1BatchNumber,
+        fee_account_address: Address,
+    ) -> sqlx::Result<()> {
+        sqlx::query!(
+            "UPDATE l1_batches SET fee_account_address = $1::bytea WHERE number = $2",
+            fee_account_address.as_bytes(),
+            l1_batch.0 as i64
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
+    }
+
     // The actual l1 batch hash is only set by the metadata calculator.
     pub async fn set_l1_batch_hash(
         &mut self,
@@ -1686,21 +1702,14 @@ mod tests {
         }
 
         // Manually set `fee_account_address` for the inserted L1 batches.
-        sqlx::query(
-            "UPDATE l1_batches SET fee_account_address = '\\x2323232323232323232323232323232323232323'::bytea \
-             WHERE number = 1"
-        )
-        .execute(conn.conn())
-        .await
-        .unwrap();
-
-        sqlx::query(
-            "UPDATE l1_batches SET fee_account_address = '\\x4242424242424242424242424242424242424242'::bytea \
-             WHERE number = 2"
-        )
-        .execute(conn.conn())
-        .await
-        .unwrap();
+        conn.blocks_dal()
+            .set_l1_batch_fee_address(L1BatchNumber(1), Address::repeat_byte(0x23))
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .set_l1_batch_fee_address(L1BatchNumber(2), Address::repeat_byte(0x42))
+            .await
+            .unwrap();
 
         // Add a pending miniblock.
         let miniblock = MiniblockHeader {
