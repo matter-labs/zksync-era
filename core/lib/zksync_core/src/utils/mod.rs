@@ -4,6 +4,9 @@ use std::future::Future;
 
 use async_trait::async_trait;
 
+#[cfg(test)]
+pub(crate) mod testonly;
+
 /// Fallible and async predicate for binary search.
 #[async_trait]
 pub(crate) trait BinarySearchPredicate: Send {

@@ -1,6 +1,6 @@
 use std::{
     convert::Infallible,
-    future::Future,
+    future::{self, Future},
     time::{Duration, Instant},
 };
 
@@ -97,13 +97,13 @@ impl ZkSyncStateKeeper {
         pool: ConnectionPool,
     ) -> impl Future<Output = anyhow::Result<()>> {
         let last_miniblock = self.io.current_miniblock_number() - 1;
-        fee_address_migration::migrate_miniblocks(
-            pool,
-            last_miniblock,
-            100_000,
-            Duration::from_secs(1),
-            self.stop_receiver.clone(),
-        )
+        let stop_receiver = self.stop_receiver.clone();
+        async move {
+            fee_address_migration::migrate_miniblocks(pool, last_miniblock, stop_receiver).await?;
+            future::pending::<()>().await;
+            // ^ Since this is run as a task, we don't want it to exit on success (this would shut down the node).
+            anyhow::Ok(())
+        }
     }
 
     pub async fn run(mut self) -> anyhow::Result<()> {
