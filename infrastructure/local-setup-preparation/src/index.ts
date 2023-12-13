@@ -44,6 +44,7 @@ async function depositWithRichAccounts() {
             // deposit method from wallet requires a running server
             contract.requestL2Transaction(
                 wallet.address,
+                0,
                 AMOUNT_TO_DEPOSIT,
                 '0x',
                 DEPOSIT_L2_GAS_LIMIT,
