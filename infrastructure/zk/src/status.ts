@@ -4,7 +4,7 @@ import { Pool } from 'pg';
 import { ethers } from 'ethers';
 import { assert } from 'console';
 
-// Postgres connection pool - must be intialized later - as the ENV variables are set later.
+// Postgres connection pool - must be initialized later - as the ENV variables are set later.
 let pool: Pool | null = null;
 
 const GETTER_ABI = [
@@ -15,12 +15,12 @@ const GETTER_ABI = [
 
 const VERIFIER_ABI = ['function verificationKeyHash() view returns (bytes32)'];
 
-export async function query(text: string, params?: any[]): Promise<any> {
+export async function query(text: string, params?: any[]){
     const res = await pool!.query(text, params);
     return res;
 }
 
-async function queryAndReturnRows(text: string, params?: any[]): Promise<any> {
+async function queryAndReturnRows(text: string, params?: any[]){
     const result = await query(text, params);
     return result.rows;
 }
