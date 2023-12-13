@@ -21,7 +21,7 @@ use zksync_types::{
 use zksync_utils::{address_to_h256, ratio_to_big_decimal_normalized};
 use zksync_web3_decl::{
     error::Web3Error,
-    types::{Address, Filter, Log, Token, H256},
+    types::{Address, Token, H256},
 };
 
 use crate::{
@@ -633,14 +633,6 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
 
         method_latency.observe();
         protocol_version
-    }
-
-    #[tracing::instrument(skip_all)]
-    pub async fn get_logs_with_virtual_blocks_impl(
-        &self,
-        filter: Filter,
-    ) -> Result<Vec<Log>, Web3Error> {
-        self.state.translate_get_logs(filter).await
     }
 
     #[tracing::instrument(skip_all)]
