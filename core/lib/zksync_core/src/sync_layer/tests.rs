@@ -6,19 +6,17 @@ use std::{
     time::{Duration, Instant},
 };
 
-use async_trait::async_trait;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::NetworkConfig;
-use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
-    api, block::MiniblockHasher, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
-    ProtocolVersionId, Transaction, H256,
+    Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256,
 };
 
 use super::{fetcher::FetcherCursor, sync_action::SyncAction, *};
 use crate::{
     api_server::web3::tests::spawn_http_server,
+    consensus::testonly::MockMainNodeClient,
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
         tests::{create_l1_batch_metadata, create_l2_transaction, TestBatchExecutorBuilder},
@@ -28,118 +26,7 @@ use crate::{
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
-
-#[derive(Debug, Default)]
-struct MockMainNodeClient {
-    prev_miniblock_hash: H256,
-    l2_blocks: Vec<api::en::SyncBlock>,
-}
-
-impl MockMainNodeClient {
-    /// `miniblock_count` doesn't include a fictive miniblock. Returns hashes of generated transactions.
-    fn push_l1_batch(&mut self, miniblock_count: u32) -> Vec<H256> {
-        let l1_batch_number = self
-            .l2_blocks
-            .last()
-            .map_or(L1BatchNumber(0), |block| block.l1_batch_number + 1);
-        let number_offset = self.l2_blocks.len() as u32;
-
-        let mut tx_hashes = vec![];
-        let l2_blocks = (0..=miniblock_count).map(|number| {
-            let is_fictive = number == miniblock_count;
-            let number = number + number_offset;
-            let mut hasher = MiniblockHasher::new(
-                MiniblockNumber(number),
-                number.into(),
-                self.prev_miniblock_hash,
-            );
-
-            let transactions = if is_fictive {
-                vec![]
-            } else {
-                let transaction = create_l2_transaction(10, 100);
-                tx_hashes.push(transaction.hash());
-                hasher.push_tx_hash(transaction.hash());
-                vec![transaction.into()]
-            };
-            let miniblock_hash = hasher.finalize(if number == 0 {
-                ProtocolVersionId::Version0 // The genesis block always uses the legacy hashing mode
-            } else {
-                ProtocolVersionId::latest()
-            });
-            self.prev_miniblock_hash = miniblock_hash;
-
-            api::en::SyncBlock {
-                number: MiniblockNumber(number),
-                l1_batch_number,
-                last_in_batch: is_fictive,
-                timestamp: number.into(),
-                l1_gas_price: 2,
-                l2_fair_gas_price: 3,
-                base_system_contracts_hashes: BaseSystemContractsHashes::default(),
-                operator_address: Address::repeat_byte(2),
-                transactions: Some(transactions),
-                virtual_blocks: Some(!is_fictive as u32),
-                hash: Some(miniblock_hash),
-                protocol_version: ProtocolVersionId::latest(),
-                consensus: None,
-            }
-        });
-
-        self.l2_blocks.extend(l2_blocks);
-        tx_hashes
-    }
-}
-
-#[async_trait]
-impl MainNodeClient for MockMainNodeClient {
-    async fn fetch_system_contract_by_hash(
-        &self,
-        _hash: H256,
-    ) -> anyhow::Result<SystemContractCode> {
-        anyhow::bail!("Not implemented");
-    }
-
-    async fn fetch_genesis_contract_bytecode(
-        &self,
-        _address: Address,
-    ) -> anyhow::Result<Option<Vec<u8>>> {
-        anyhow::bail!("Not implemented");
-    }
-
-    async fn fetch_protocol_version(
-        &self,
-        _protocol_version: ProtocolVersionId,
-    ) -> anyhow::Result<api::ProtocolVersion> {
-        anyhow::bail!("Not implemented");
-    }
-
-    async fn fetch_genesis_l1_batch_hash(&self) -> anyhow::Result<H256> {
-        anyhow::bail!("Not implemented");
-    }
-
-    async fn fetch_l2_block_number(&self) -> anyhow::Result<MiniblockNumber> {
-        if let Some(number) = self.l2_blocks.len().checked_sub(1) {
-            Ok(MiniblockNumber(number as u32))
-        } else {
-            anyhow::bail!("Not implemented");
-        }
-    }
-
-    async fn fetch_l2_block(
-        &self,
-        number: MiniblockNumber,
-        with_transactions: bool,
-    ) -> anyhow::Result<Option<api::en::SyncBlock>> {
-        let Some(mut block) = self.l2_blocks.get(number.0 as usize).cloned() else {
-            return Ok(None);
-        };
-        if !with_transactions {
-            block.transactions = None;
-        }
-        Ok(Some(block))
-    }
-}
+pub const OPERATOR_ADDRESS: Address = Address::repeat_byte(1);
 
 fn open_l1_batch(number: u32, timestamp: u64, first_miniblock_number: u32) -> SyncAction {
     SyncAction::OpenBatch {
@@ -147,7 +34,7 @@ fn open_l1_batch(number: u32, timestamp: u64, first_miniblock_number: u32) -> Sy
         timestamp,
         l1_gas_price: 2,
         l2_fair_gas_price: 3,
-        operator_address: Default::default(),
+        operator_address: OPERATOR_ADDRESS,
         protocol_version: ProtocolVersionId::latest(),
         first_miniblock_info: (MiniblockNumber(first_miniblock_number), 1),
     }
@@ -178,7 +65,7 @@ impl StateKeeperHandles {
             actions,
             sync_state.clone(),
             Box::<MockMainNodeClient>::default(),
-            Address::repeat_byte(1),
+            OPERATOR_ADDRESS,
             u32::MAX,
             L2ChainId::default(),
         )
@@ -353,7 +240,7 @@ async fn external_io_with_multiple_miniblocks() {
 
         let sync_block = storage
             .sync_dal()
-            .sync_block(MiniblockNumber(number), Address::repeat_byte(1), true)
+            .sync_block(MiniblockNumber(number), OPERATOR_ADDRESS, true)
             .await
             .unwrap()
             .unwrap_or_else(|| panic!("Sync block #{} is not persisted", number));
