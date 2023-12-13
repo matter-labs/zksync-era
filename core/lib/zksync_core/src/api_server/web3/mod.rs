@@ -300,7 +300,6 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
             sync_state: self.sync_state,
             api_config: self.config,
             last_sealed_miniblock,
-            logs_translator_enabled: self.logs_translator_enabled,
             tree_api: self
                 .tree_api_url
                 .map(|url| TreeApiHttpClient::new(url.as_str())),
