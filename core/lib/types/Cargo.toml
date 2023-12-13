@@ -10,8 +10,6 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 readme = "README.md"
 
-links = "zksync_types_proto"
-
 [dependencies]
 zksync_system_constants = { path = "../constants" }
 zksync_utils = { path = "../utils" }

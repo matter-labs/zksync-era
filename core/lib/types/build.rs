@@ -5,7 +5,7 @@ fn main() {
         proto_root: "zksync/types".into(),
         dependencies: vec![],
         protobuf_crate: "::zksync_protobuf".parse().unwrap(),
-        is_public: true,
+        is_public: false,
     }
     .generate()
     .expect("generate()");
