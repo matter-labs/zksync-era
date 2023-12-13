@@ -1,8 +1,6 @@
-FROM debian:bookworm-slim
+FROM matterlabs/zk-environment:latest2.0-lightweight
 
 WORKDIR /usr/src/zksync
-
-RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
 
 COPY etc/system-contracts/bootloader/build/artifacts/ etc/system-contracts/bootloader/build/artifacts/
 COPY etc/system-contracts/contracts/artifacts/ etc/system-contracts/contracts/artifacts/
