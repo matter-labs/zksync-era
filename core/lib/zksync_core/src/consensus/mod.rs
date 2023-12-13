@@ -3,9 +3,10 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, scope};
-use zksync_consensus_executor::{ConsensusConfig, Executor, ExecutorConfig};
+use zksync_consensus_executor::{ConsensusConfig, Executor, ExecutorConfig, GossipConfig};
 use zksync_consensus_roles::{node, validator};
 use zksync_dal::ConnectionPool;
+use zksync_protobuf::ProtoFmt;
 use zksync_types::Address;
 
 mod payload;
