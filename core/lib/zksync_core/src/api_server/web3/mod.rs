@@ -141,7 +141,6 @@ pub struct ApiBuilder<G> {
     vm_concurrency_limit: Option<usize>,
     polling_interval: Option<Duration>,
     namespaces: Option<Vec<Namespace>>,
-    logs_translator_enabled: bool,
     tree_api_url: Option<String>,
     pub_sub_events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
 }
@@ -166,7 +165,6 @@ impl<G> ApiBuilder<G> {
             polling_interval: None,
             namespaces: None,
             config,
-            logs_translator_enabled: false,
             tree_api_url: None,
             pub_sub_events_sender: None,
         }
@@ -257,12 +255,6 @@ impl<G> ApiBuilder<G> {
 
     pub fn enable_api_namespaces(mut self, namespaces: Vec<Namespace>) -> Self {
         self.namespaces = Some(namespaces);
-        self
-    }
-
-    pub fn enable_request_translator(mut self) -> Self {
-        tracing::info!("Logs request translator enabled");
-        self.logs_translator_enabled = true;
         self
     }
 
