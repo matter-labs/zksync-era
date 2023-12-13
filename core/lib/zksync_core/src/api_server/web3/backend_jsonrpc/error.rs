@@ -17,7 +17,6 @@ pub fn into_jsrpc_error(err: Web3Error) -> Error {
             | Web3Error::FilterNotFound
             | Web3Error::InvalidFeeParams(_)
             | Web3Error::LogsLimitExceeded(_, _, _)
-            | Web3Error::TooManyLogs(_)
             | Web3Error::InvalidFilterBlockHash => ErrorCode::InvalidParams,
             Web3Error::SubmitTransactionError(_, _) | Web3Error::SerializationError(_) => 3.into(),
             Web3Error::PubSubTimeout => 4.into(),

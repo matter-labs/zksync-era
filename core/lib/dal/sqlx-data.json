@@ -13,6 +13,24 @@
     },
     "query": "UPDATE proof_generation_details SET status=$1, updated_at = now() WHERE l1_batch_number = $2"
   },
+  "002a901f2802beb48e4d15437fba9a04885a5e4f8f17089a09f31edfd7b3d0bb": {
+    "describe": {
+      "columns": [
+        {
+          "name": "number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT number FROM miniblocks WHERE consensus IS NOT NULL ORDER BY number DESC LIMIT 1"
+  },
   "00bd80fd83aff559d8d9232c2e98a12a1dd2c8f31792cd915e2cf11f28e583b7": {
     "describe": {
       "columns": [
@@ -467,6 +485,26 @@
       }
     },
     "query": "UPDATE l1_batches SET hash = $1, merkle_root_hash = $2, compressed_repeated_writes = $3, compressed_initial_writes = $4, l2_l1_compressed_messages = $5, l2_l1_merkle_root = $6, zkporter_is_available = $7, parent_hash = $8, rollup_last_leaf_index = $9, pass_through_data_hash = $10, meta_parameters_hash = $11, compressed_state_diffs = $12, updated_at = now() WHERE number = $13 AND hash IS NULL"
+  },
+  "0a3c928a616b5ebc0b977bd773edcde721ca1c652ae2f8db41fb75cecdecb674": {
+    "describe": {
+      "columns": [
+        {
+          "name": "count",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        null
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT COUNT(*) FROM storage_logs WHERE miniblock_number = $1"
   },
   "0cbbcd30fde109c4c44162f94b6ed9bab4e9db9948d03e584c2cab543449d298": {
     "describe": {
@@ -995,6 +1033,24 @@
       }
     },
     "query": "SELECT l1_batch_number, factory_deps_filepath, storage_logs_filepaths FROM snapshots WHERE l1_batch_number = $1"
+  },
+  "166dcd8d504ba3f52a9e44a05305ed00954ab9b5302be4bb5ab05dfd2272afca": {
+    "describe": {
+      "columns": [
+        {
+          "name": "state!",
+          "ordinal": 0,
+          "type_info": "Jsonb"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT state as \"state!\" FROM consensus_replica_state WHERE fake_key"
   },
   "173da19a30bde9f034de97c1427f3166d9615d46cdaa30f1645a36f42926fa63": {
     "describe": {
@@ -3180,6 +3236,40 @@
     },
     "query": "SELECT id, contract_address, source_code, contract_name, zk_compiler_version, compiler_version, optimization_used, optimizer_mode, constructor_arguments, is_system FROM contract_verification_requests WHERE status = 'successful' ORDER BY id"
   },
+  "34d78a04a9aa834e1846083c991138cef1e81b57c874a27ec65de5793e5681cc": {
+    "describe": {
+      "columns": [
+        {
+          "name": "hashed_key",
+          "ordinal": 0,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "value",
+          "ordinal": 1,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "index",
+          "ordinal": 2,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Bytea",
+          "Bytea"
+        ]
+      }
+    },
+    "query": "SELECT storage_logs.hashed_key, storage_logs.value, initial_writes.index FROM storage_logs INNER JOIN initial_writes ON storage_logs.hashed_key = initial_writes.hashed_key WHERE storage_logs.miniblock_number = $1 AND storage_logs.hashed_key >= $2::bytea AND storage_logs.hashed_key <= $3::bytea ORDER BY storage_logs.hashed_key"
+  },
   "357347157ed8ff19d223c54533c3a85bd7e64a37514d657f8d49bd6eb5be1806": {
     "describe": {
       "columns": [
@@ -4298,27 +4388,6 @@
     },
     "query": "SELECT base_fee_per_gas FROM miniblocks WHERE number <= $1 ORDER BY number DESC LIMIT $2"
   },
-  "58ae859333cf7fadbb83d9cde66dee2abe18b4883f883e69130024d11a4a5cc6": {
-    "describe": {
-      "columns": [
-        {
-          "name": "number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Int8",
-          "Numeric"
-        ]
-      }
-    },
-    "query": "SELECT number FROM ( SELECT number, sum(virtual_blocks) OVER(ORDER BY number) AS virtual_block_sum FROM miniblocks WHERE l1_batch_number >= $1 ) AS vts WHERE virtual_block_sum <= $2 ORDER BY number DESC LIMIT 1"
-  },
   "5922fdf40632a6ffecfe824a3ba29bcf7b379aff5253db2739cc7be6145524e8": {
     "describe": {
       "columns": [
@@ -4407,27 +4476,6 @@
       }
     },
     "query": "SELECT MAX(l1_batch_number) FROM witness_inputs WHERE merkel_tree_paths_blob_url IS NOT NULL"
-  },
-  "5a31eab41a980cc82ad3609610d377a185ce38bd654ee93766c119aa6cae1040": {
-    "describe": {
-      "columns": [
-        {
-          "name": "number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Int8",
-          "Numeric"
-        ]
-      }
-    },
-    "query": "SELECT number FROM ( SELECT number, sum(virtual_blocks) OVER(ORDER BY number) AS virtual_block_sum FROM miniblocks WHERE l1_batch_number >= $1 ) AS vts WHERE virtual_block_sum >= $2 ORDER BY number LIMIT 1"
   },
   "5a5844af61cc685a414fcd3cad70900bdce8f48e905c105f8dd50dc52e0c6f14": {
     "describe": {
@@ -5302,26 +5350,6 @@
       }
     },
     "query": "UPDATE l1_batches SET hash = $1, merkle_root_hash = $2, commitment = $3, default_aa_code_hash = $4, compressed_repeated_writes = $5, compressed_initial_writes = $6, l2_l1_compressed_messages = $7, l2_l1_merkle_root = $8, zkporter_is_available = $9, bootloader_code_hash = $10, rollup_last_leaf_index = $11, aux_data_hash = $12, pass_through_data_hash = $13, meta_parameters_hash = $14, compressed_state_diffs = $15, updated_at = now() WHERE number = $16"
-  },
-  "780b30e56a3ecfb3daa5310168ac6cd9e94bd5f1d871e1eaf36fbfd463a5e7e0": {
-    "describe": {
-      "columns": [
-        {
-          "name": "address_and_key?",
-          "ordinal": 0,
-          "type_info": "ByteaArray"
-        }
-      ],
-      "nullable": [
-        null
-      ],
-      "parameters": {
-        "Left": [
-          "ByteaArray"
-        ]
-      }
-    },
-    "query": "SELECT (SELECT ARRAY[address,key] FROM storage_logs WHERE hashed_key = u.hashed_key ORDER BY miniblock_number, operation_number LIMIT 1) as \"address_and_key?\" FROM UNNEST($1::bytea[]) AS u(hashed_key)"
   },
   "78ba607e97bdf8b7c0b5e3cf87e10dc3b352a8552c2e94532b0f392af7dbe9cd": {
     "describe": {
@@ -8672,6 +8700,40 @@
     },
     "query": "\n                UPDATE scheduler_witness_jobs_fri\n                SET status = 'in_progress', attempts = attempts + 1,\n                    updated_at = now(), processing_started_at = now(),\n                    picked_by = $2\n                WHERE l1_batch_number = (\n                    SELECT l1_batch_number\n                    FROM scheduler_witness_jobs_fri\n                    WHERE status = 'queued'\n                    AND protocol_version = ANY($1)\n                    ORDER BY l1_batch_number ASC\n                    LIMIT 1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n                RETURNING scheduler_witness_jobs_fri.*\n               "
   },
+  "c289a50ec67dcab5a5c84ddfa17b924c1fefe151c887b3f08f54306f1bde47a2": {
+    "describe": {
+      "columns": [
+        {
+          "name": "hashed_key?",
+          "ordinal": 0,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "value?",
+          "ordinal": 1,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "index",
+          "ordinal": 2,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        null,
+        null,
+        true
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "ByteaArray",
+          "ByteaArray"
+        ]
+      }
+    },
+    "query": "WITH sl AS ( SELECT ( SELECT ARRAY[hashed_key, value] AS kv FROM storage_logs WHERE storage_logs.miniblock_number = $1 AND storage_logs.hashed_key >= u.start_key AND storage_logs.hashed_key <= u.end_key ORDER BY storage_logs.hashed_key LIMIT 1 ) FROM UNNEST($2::bytea[], $3::bytea[]) AS u(start_key, end_key) ) SELECT sl.kv[1] AS \"hashed_key?\", sl.kv[2] AS \"value?\", initial_writes.index FROM sl LEFT OUTER JOIN initial_writes ON initial_writes.hashed_key = sl.kv[1]"
+  },
   "c2cf96a9eb6893c5ba7d9e5418d9f24084ccd87980cb6ee05de1b3bde5c654bd": {
     "describe": {
       "columns": [],
@@ -10106,6 +10168,18 @@
     },
     "query": "UPDATE basic_witness_input_producer_jobs SET status = $1, attempts = attempts + 1, updated_at = now(), processing_started_at = now() WHERE l1_batch_number = ( SELECT l1_batch_number FROM basic_witness_input_producer_jobs WHERE status = $2 OR (status = $1 AND processing_started_at < now() - $4::interval) OR (status = $3 AND attempts < $5) ORDER BY l1_batch_number ASC LIMIT 1 FOR UPDATE SKIP LOCKED ) RETURNING basic_witness_input_producer_jobs.l1_batch_number"
   },
+  "e577743852337c926e1566c46f4cbab5e6ab1409921fa8e25c9dfa7dfa03daae": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Jsonb"
+        ]
+      }
+    },
+    "query": "INSERT INTO consensus_replica_state(fake_key,state) VALUES(true,$1) ON CONFLICT (fake_key) DO UPDATE SET state = excluded.state"
+  },
   "e626aa2efb6ba875a12f2b4e37b0ba8052810e73fa5e2d3280f747f7b89b956f": {
     "describe": {
       "columns": [],
@@ -10132,6 +10206,26 @@
       }
     },
     "query": "UPDATE eth_txs SET gas_used = $1, confirmed_eth_tx_history_id = $2 WHERE id = $3"
+  },
+  "e8629da5d4269a565f1043969d29df2ccfbebafdce96d58c601860f30d61b4a0": {
+    "describe": {
+      "columns": [
+        {
+          "name": "count!",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        null
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT COUNT(*) as \"count!\"  FROM miniblocks WHERE number = $1 AND consensus IS NOT NULL"
   },
   "e8988deed66ad9d10be89e89966082aeb920c5dc91eb5fad16bd0d3118708c2e": {
     "describe": {

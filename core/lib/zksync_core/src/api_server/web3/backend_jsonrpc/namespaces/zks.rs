@@ -12,7 +12,7 @@ use zksync_types::{
     transaction_request::CallRequest,
     Address, L1BatchNumber, MiniblockNumber, H256, U256, U64,
 };
-use zksync_web3_decl::types::{Filter, Log, Token};
+use zksync_web3_decl::types::Token;
 
 use crate::{
     l1_gas_price::L1GasPriceProvider,
@@ -105,9 +105,6 @@ pub trait ZksNamespaceT {
         &self,
         version_id: Option<u16>,
     ) -> BoxFuture<Result<Option<ProtocolVersion>>>;
-
-    #[rpc(name = "zks_getLogsWithVirtualBlocks")]
-    fn get_logs_with_virtual_blocks(&self, filter: Filter) -> BoxFuture<Result<Vec<Log>>>;
 
     #[rpc(name = "zks_getProof")]
     fn get_proof(
@@ -302,16 +299,6 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceT for ZksNamespa
     ) -> BoxFuture<Result<Option<ProtocolVersion>>> {
         let self_ = self.clone();
         Box::pin(async move { Ok(self_.get_protocol_version_impl(version_id).await) })
-    }
-
-    fn get_logs_with_virtual_blocks(&self, filter: Filter) -> BoxFuture<Result<Vec<Log>>> {
-        let self_ = self.clone();
-        Box::pin(async move {
-            self_
-                .get_logs_with_virtual_blocks_impl(filter)
-                .await
-                .map_err(into_jsrpc_error)
-        })
     }
 
     fn get_proof(
