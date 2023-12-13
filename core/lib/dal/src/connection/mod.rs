@@ -19,13 +19,13 @@ fn get_test_database_url() -> anyhow::Result<String> {
 }
 
 /// Builder for [`ConnectionPool`]s.
-pub struct ConnectionPoolBuilder<'a> {
-    database_url: &'a str,
+pub struct ConnectionPoolBuilder {
+    database_url: String,
     max_size: u32,
     statement_timeout: Option<Duration>,
 }
 
-impl<'a> fmt::Debug for ConnectionPoolBuilder<'a> {
+impl fmt::Debug for ConnectionPoolBuilder {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Database URL is potentially sensitive, thus we omit it.
         formatter
@@ -36,7 +36,7 @@ impl<'a> fmt::Debug for ConnectionPoolBuilder<'a> {
     }
 }
 
-impl<'a> ConnectionPoolBuilder<'a> {
+impl ConnectionPoolBuilder {
     /// Sets the statement timeout for the pool. See [Postgres docs] for semantics.
     /// If not specified, the statement timeout will not be set.
     ///
@@ -150,9 +150,9 @@ impl ConnectionPool {
     }
 
     /// Initializes a builder for connection pools.
-    pub fn builder(database_url: &str, max_pool_size: u32) -> ConnectionPoolBuilder<'_> {
+    pub fn builder(database_url: &str, max_pool_size: u32) -> ConnectionPoolBuilder {
         ConnectionPoolBuilder {
-            database_url,
+            database_url: database_url.to_string(),
             max_size: max_pool_size,
             statement_timeout: None,
         }
@@ -160,7 +160,7 @@ impl ConnectionPool {
 
     /// Initializes a builder for connection pools with a single connection. This is equivalent
     /// to calling `Self::builder(db_url, 1)`.
-    pub fn singleton(database_url: &str) -> ConnectionPoolBuilder<'_> {
+    pub fn singleton(database_url: &str) -> ConnectionPoolBuilder {
         Self::builder(database_url, 1)
     }
 
