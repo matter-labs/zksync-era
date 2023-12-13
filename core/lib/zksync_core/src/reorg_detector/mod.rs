@@ -1,4 +1,4 @@
-use std::{future::Future, time::Duration};
+use std::time::Duration;
 
 use tokio::sync::watch;
 use zksync_dal::ConnectionPool;
@@ -12,7 +12,10 @@ use zksync_web3_decl::{
     RpcResult,
 };
 
-use crate::metrics::{CheckerComponent, EN_METRICS};
+use crate::{
+    metrics::{CheckerComponent, EN_METRICS},
+    utils::binary_search_with,
+};
 
 const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
@@ -211,35 +214,6 @@ impl ReorgDetector {
                 return Ok(None);
             }
             tokio::time::sleep(SLEEP_INTERVAL).await;
-        }
-    }
-}
-
-async fn binary_search_with<F, Fut, E>(mut left: u32, mut right: u32, mut f: F) -> Result<u32, E>
-where
-    F: FnMut(u32) -> Fut,
-    Fut: Future<Output = Result<bool, E>>,
-{
-    while left + 1 < right {
-        let middle = (left + right) / 2;
-        if f(middle).await? {
-            left = middle;
-        } else {
-            right = middle;
-        }
-    }
-    Ok(left)
-}
-
-#[cfg(test)]
-mod tests {
-    /// Tests the binary search algorithm.
-    #[tokio::test]
-    async fn test_binary_search() {
-        for divergence_point in [1, 50, 51, 100] {
-            let mut f = |x| async move { Ok::<_, ()>(x < divergence_point) };
-            let result = super::binary_search_with(0, 100, &mut f).await;
-            assert_eq!(result, Ok(divergence_point - 1));
         }
     }
 }

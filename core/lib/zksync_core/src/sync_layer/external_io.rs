@@ -22,7 +22,8 @@ use crate::{
         extractors,
         io::{
             common::{l1_batch_params, load_pending_batch, poll_iters},
-            MiniblockParams, MiniblockSealerHandle, PendingBatchData, StateKeeperIO,
+            fee_address_migration, MiniblockParams, MiniblockSealerHandle, PendingBatchData,
+            StateKeeperIO,
         },
         metrics::KEEPER_METRICS,
         seal_criteria::IoSealCriteria,
@@ -80,6 +81,9 @@ impl ExternalIO {
             .get_sealed_miniblock_number()
             .await
             .unwrap();
+        // We must run the migration for pending miniblocks synchronously, since we use `fee_account_address`
+        // from a pending miniblock in `load_pending_batch()` implementation.
+        fee_address_migration::migrate_pending_miniblocks(&mut storage).await;
         drop(storage);
 
         tracing::info!(

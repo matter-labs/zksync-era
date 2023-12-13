@@ -28,7 +28,8 @@ use crate::{
         extractors,
         io::{
             common::{l1_batch_params, load_pending_batch, poll_iters},
-            MiniblockParams, MiniblockSealerHandle, PendingBatchData, StateKeeperIO,
+            fee_address_migration, MiniblockParams, MiniblockSealerHandle, PendingBatchData,
+            StateKeeperIO,
         },
         mempool_actor::l2_tx_filter,
         metrics::KEEPER_METRICS,
@@ -435,7 +436,7 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
             .get_sealed_miniblock_number()
             .await
             .unwrap();
-
+        fee_address_migration::migrate_pending_miniblocks(&mut storage).await;
         drop(storage);
 
         Self {

@@ -93,6 +93,7 @@ pub mod reorg_detector;
 pub mod state_keeper;
 pub mod sync_layer;
 pub mod temp_config_store;
+mod utils;
 
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(
@@ -753,7 +754,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         db_config,
         network_config,
         mempool_config,
-        state_keeper_pool,
+        state_keeper_pool.clone(),
         mempool.clone(),
         gas_adjuster.clone(),
         miniblock_sealer_handle,
@@ -761,6 +762,11 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         stop_receiver.clone(),
     )
     .await;
+
+    // FIXME: or is it better to have a separate connection for migration?
+    task_futures.push(tokio::spawn(
+        state_keeper.run_fee_address_migration(state_keeper_pool),
+    ));
     task_futures.push(tokio::spawn(state_keeper.run()));
 
     let mempool_fetcher_pool = pool_builder
