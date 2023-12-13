@@ -8,7 +8,7 @@ use tokio::{
 use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::clients::http::QueryClient;
 
-use crate::l1_gas_price::{BoundedGasAdjuster, GasAdjuster};
+use crate::l1_gas_price::GasAdjuster;
 
 /// Special struct for creating a singleton of `GasAdjuster`.
 /// This is needed only for running the server.
@@ -51,16 +51,6 @@ impl GasAdjusterSingleton {
             })
             .await;
         adjuster.clone()
-    }
-
-    pub async fn get_or_init_bounded(
-        &mut self,
-    ) -> anyhow::Result<Arc<BoundedGasAdjuster<GasAdjuster<QueryClient>>>> {
-        let adjuster = self.get_or_init().await.context("get_or_init()")?;
-        Ok(Arc::new(BoundedGasAdjuster::new(
-            self.gas_adjuster_config.max_l1_gas_price(),
-            adjuster,
-        )))
     }
 
     pub fn run_if_initialized(
