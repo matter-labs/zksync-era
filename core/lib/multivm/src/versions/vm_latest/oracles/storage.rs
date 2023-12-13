@@ -1,27 +1,29 @@
 use std::collections::HashMap;
 
-use crate::vm_latest::old_vm::history_recorder::{
-    AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
-    HistoryRecorder, StorageWrapper, VectorHistoryEvent, WithHistory,
-};
-use crate::vm_latest::old_vm::oracles::OracleWithHistory;
-
-use zk_evm_1_4_0::abstractions::RefundedAmounts;
-use zk_evm_1_4_0::zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES;
 use zk_evm_1_4_0::{
-    abstractions::{RefundType, Storage as VmStorageOracle},
+    abstractions::{RefundType, RefundedAmounts, Storage as VmStorageOracle},
     aux_structures::{LogQuery, Timestamp},
+    zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
-
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::utils::storage_key_for_eth_balance;
-use zksync_types::writes::compression::compress_with_best_strategy;
-use zksync_types::writes::{BYTES_PER_DERIVED_KEY, BYTES_PER_ENUMERATION_INDEX};
 use zksync_types::{
+    utils::storage_key_for_eth_balance,
+    writes::{
+        compression::compress_with_best_strategy, BYTES_PER_DERIVED_KEY,
+        BYTES_PER_ENUMERATION_INDEX,
+    },
     AccountTreeId, Address, StorageKey, StorageLogQuery, StorageLogQueryType, BOOTLOADER_ADDRESS,
     U256,
 };
 use zksync_utils::u256_to_h256;
+
+use crate::vm_latest::old_vm::{
+    history_recorder::{
+        AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
+        HistoryRecorder, StorageWrapper, VectorHistoryEvent, WithHistory,
+    },
+    oracles::OracleWithHistory,
+};
 
 // While the storage does not support different shards, it was decided to write the
 // code of the StorageOracle with the shard parameters in mind.
@@ -444,7 +446,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
 //   - The second time we publish it, we will use the 4/5 byte representation of this 8-byte instead of the 32
 //     bytes of the entire key.
 // For value compression, we use a metadata byte which holds the length of the value and the operation from the
-// previous state to the new state, and the compressed value. The maxiumum for this is 33 bytes.
+// previous state to the new state, and the compressed value. The maximum for this is 33 bytes.
 // Total bytes for initial writes then becomes 65 bytes and repeated writes becomes 38 bytes.
 fn get_pubdata_price_bytes(initial_value: U256, final_value: U256, is_initial: bool) -> u32 {
     // TODO (SMA-1702): take into account the content of the log query, i.e. values that contain mostly zeroes

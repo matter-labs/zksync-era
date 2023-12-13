@@ -1,29 +1,28 @@
 use std::collections::HashMap;
 
-use crate::vm_m5::storage::{Storage, StoragePtr};
-
-use crate::vm_m5::history_recorder::{
-    AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryRecorder, StorageWrapper,
-};
-use crate::vm_m5::vm_instance::MultiVMSubversion;
-
-use zk_evm_1_3_1::abstractions::RefundedAmounts;
-use zk_evm_1_3_1::zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES;
 use zk_evm_1_3_1::{
-    abstractions::{RefundType, Storage as VmStorageOracle},
+    abstractions::{RefundType, RefundedAmounts, Storage as VmStorageOracle},
     aux_structures::{LogQuery, Timestamp},
     reference_impls::event_sink::ApplicationData,
+    zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
-
-use crate::glue::GlueInto;
-use zksync_types::utils::storage_key_for_eth_balance;
 use zksync_types::{
-    AccountTreeId, Address, StorageKey, StorageLogQuery, StorageLogQueryType, BOOTLOADER_ADDRESS,
-    U256,
+    utils::storage_key_for_eth_balance, AccountTreeId, Address, StorageKey, StorageLogQuery,
+    StorageLogQueryType, BOOTLOADER_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
 
 use super::OracleWithHistory;
+use crate::{
+    glue::GlueInto,
+    vm_m5::{
+        history_recorder::{
+            AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryRecorder, StorageWrapper,
+        },
+        storage::{Storage, StoragePtr},
+        vm_instance::MultiVMSubversion,
+    },
+};
 
 // While the storage does not support different shards, it was decided to write the
 // code of the StorageOracle with the shard parameters in mind.

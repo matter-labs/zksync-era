@@ -1,4 +1,5 @@
 use std::fmt;
+
 use zksync_types::{web3::types::U64, MiniblockNumber};
 
 #[derive(Debug, Clone)]

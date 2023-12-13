@@ -1,15 +1,14 @@
 //! General-purpose state keeper metrics.
 
-use vise::{
-    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver,
-    Metrics,
-};
-
 use std::{
     sync::{Mutex, Weak},
     time::Duration,
 };
 
+use vise::{
+    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver,
+    Metrics,
+};
 use zksync_mempool::MempoolStore;
 
 use super::seal_criteria::SealResolution;
@@ -168,7 +167,6 @@ pub(super) enum L1BatchSealStage {
     FilterWrittenSlots,
     InsertInitialWrites,
     CommitL1Batch,
-    ExternalNodeStoreTransactions,
 }
 
 /// Buckets for positive integer, not-so-large values (e.g., initial writes count).
@@ -221,10 +219,6 @@ impl L1BatchMetrics {
             latency_per_unit: &self.sealed_entity_per_unit[&stage],
         }
     }
-
-    pub(crate) fn start_storing_on_en(&self) -> LatencyObserver<'_> {
-        self.sealed_time_stage[&L1BatchSealStage::ExternalNodeStoreTransactions].start()
-    }
 }
 
 #[vise::register]
@@ -241,6 +235,7 @@ pub(super) enum MiniblockQueueStage {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
 #[metrics(rename_all = "snake_case")]
 pub(super) enum MiniblockSealStage {
+    PreInsertTxs,
     InsertMiniblockHeader,
     MarkTransactionsInMiniblock,
     InsertStorageLogs,
@@ -253,6 +248,7 @@ pub(super) enum MiniblockSealStage {
     InsertEvents,
     ExtractL2ToL1Logs,
     InsertL2ToL1Logs,
+    InsertConsensus,
     CommitMiniblock,
 }
 

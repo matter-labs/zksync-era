@@ -3,15 +3,14 @@
 use std::{collections::HashMap, time::Duration};
 
 use async_trait::async_trait;
-
+use bigdecimal::FromPrimitive;
+use num::{rational::Ratio, BigUint};
+use tokio::sync::watch;
 use zksync_config::{configs::fetcher::TokenPriceSource, FetcherConfig};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{tokens::TokenPrice, Address};
 
 use super::error::{ApiFetchError, ErrorAnalyzer};
-use bigdecimal::FromPrimitive;
-use num::{rational::Ratio, BigUint};
-use tokio::sync::watch;
 
 pub mod coingecko;
 pub mod mock;

@@ -5,32 +5,31 @@
 
 #![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
 
+use std::{fmt, fmt::Debug};
+
 use fee::encoding_len;
 use serde::{Deserialize, Serialize};
-use std::{fmt, fmt::Debug};
 
 pub use crate::{Nonce, H256, U256, U64};
 
 pub type SerialId = u64;
 
-use crate::l2::TransactionType;
-use crate::protocol_version::ProtocolUpgradeTxCommonData;
 pub use event::{VmEvent, VmEventGroupKey};
 pub use l1::L1TxCommonData;
 pub use l2::L2TxCommonData;
 pub use protocol_version::{ProtocolUpgrade, ProtocolVersion, ProtocolVersionId};
 pub use storage::*;
-pub use tx::primitives::*;
-pub use tx::Execute;
+pub use tx::{primitives::*, Execute};
 pub use vm_version::VmVersion;
 pub use zk_evm::{
     aux_structures::{LogQuery, Timestamp},
     reference_impls::event_sink::EventMessage,
     zkevm_opcode_defs::FarCallOpcode,
 };
-
 pub use zkevm_test_harness;
 pub use zksync_basic_types::*;
+
+use crate::{l2::TransactionType, protocol_version::ProtocolUpgradeTxCommonData};
 
 pub mod aggregated_operations;
 pub mod block;
@@ -45,6 +44,7 @@ pub mod l2;
 pub mod l2_to_l1_log;
 pub mod priority_op_onchain_data;
 pub mod protocol_version;
+pub mod snapshots;
 pub mod storage;
 pub mod storage_writes_deduplicator;
 pub mod system_contracts;
@@ -61,8 +61,6 @@ pub mod transaction_request;
 pub mod utils;
 pub mod vk_transform;
 pub mod vm_version;
-
-mod proto;
 
 /// Denotes the first byte of the special zkSync's EIP-712-signed transaction.
 pub const EIP_712_TX_TYPE: u8 = 0x71;

@@ -8,9 +8,8 @@ use zksync_types::{
     Address,
 };
 
-use crate::data_fetchers::error::ApiFetchError;
-
 use super::FetcherImpl;
+use crate::data_fetchers::error::ApiFetchError;
 
 #[derive(Debug, Default, Clone)]
 pub struct MockPriceFetcher;

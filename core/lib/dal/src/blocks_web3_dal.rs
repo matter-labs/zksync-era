@@ -1,6 +1,5 @@
 use bigdecimal::BigDecimal;
 use sqlx::Row;
-
 use zksync_system_constants::EMPTY_UNCLES_HASH;
 use zksync_types::{
     api,
@@ -13,14 +12,17 @@ use zksync_types::{
 };
 use zksync_utils::bigdecimal_to_u256;
 
-use crate::models::{
-    storage_block::{
-        bind_block_where_sql_params, web3_block_number_to_sql, web3_block_where_sql,
-        StorageBlockDetails, StorageL1BatchDetails,
+use crate::{
+    instrument::InstrumentExt,
+    models::{
+        storage_block::{
+            bind_block_where_sql_params, web3_block_number_to_sql, web3_block_where_sql,
+            StorageBlockDetails, StorageL1BatchDetails,
+        },
+        storage_transaction::{extract_web3_transaction, web3_transaction_select_sql, CallTrace},
     },
-    storage_transaction::{extract_web3_transaction, web3_transaction_select_sql, CallTrace},
+    StorageProcessor,
 };
-use crate::{instrument::InstrumentExt, StorageProcessor};
 
 const BLOCK_GAS_LIMIT: u32 = system_params::VM_INITIAL_FRAME_ERGS;
 
@@ -161,15 +163,15 @@ impl BlocksWeb3Dal<'_, '_> {
         }))
     }
 
-    /// Returns hashes of blocks with numbers greater than `from_block` and the number of the last block.
-    pub async fn get_block_hashes_after(
+    /// Returns hashes of blocks with numbers starting from `from_block` and the number of the last block.
+    pub async fn get_block_hashes_since(
         &mut self,
         from_block: MiniblockNumber,
         limit: usize,
     ) -> sqlx::Result<(Vec<H256>, Option<MiniblockNumber>)> {
         let rows = sqlx::query!(
             "SELECT number, hash FROM miniblocks \
-            WHERE number > $1 \
+            WHERE number >= $1 \
             ORDER BY number ASC \
             LIMIT $2",
             from_block.0 as i64,
@@ -586,7 +588,7 @@ impl BlocksWeb3Dal<'_, '_> {
 mod tests {
     use zksync_contracts::BaseSystemContractsHashes;
     use zksync_types::{
-        block::{miniblock_hash, MiniblockHeader},
+        block::{MiniblockHasher, MiniblockHeader},
         MiniblockNumber, ProtocolVersion, ProtocolVersionId,
     };
 
@@ -611,16 +613,13 @@ mod tests {
         };
         conn.blocks_dal().insert_miniblock(&header).await.unwrap();
 
+        let block_hash = MiniblockHasher::new(MiniblockNumber(0), 0, H256::zero())
+            .finalize(ProtocolVersionId::latest());
         let block_ids = [
             api::BlockId::Number(api::BlockNumber::Earliest),
             api::BlockId::Number(api::BlockNumber::Latest),
             api::BlockId::Number(api::BlockNumber::Number(0.into())),
-            api::BlockId::Hash(miniblock_hash(
-                MiniblockNumber(0),
-                0,
-                H256::zero(),
-                H256::zero(),
-            )),
+            api::BlockId::Hash(block_hash),
         ];
         for block_id in block_ids {
             let block = conn
@@ -630,24 +629,18 @@ mod tests {
             let block = block.unwrap().unwrap();
             assert!(block.transactions.is_empty());
             assert_eq!(block.number, U64::zero());
-            assert_eq!(
-                block.hash,
-                miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero())
-            );
+            assert_eq!(block.hash, block_hash);
 
             let tx_count = conn.blocks_web3_dal().get_block_tx_count(block_id).await;
             assert_eq!(tx_count.unwrap(), Some((MiniblockNumber(0), 8.into())));
         }
 
+        let non_existing_block_hash = MiniblockHasher::new(MiniblockNumber(1), 1, H256::zero())
+            .finalize(ProtocolVersionId::latest());
         let non_existing_block_ids = [
             api::BlockId::Number(api::BlockNumber::Pending),
             api::BlockId::Number(api::BlockNumber::Number(1.into())),
-            api::BlockId::Hash(miniblock_hash(
-                MiniblockNumber(1),
-                1,
-                H256::zero(),
-                H256::zero(),
-            )),
+            api::BlockId::Hash(non_existing_block_hash),
         ];
         for block_id in non_existing_block_ids {
             let block = conn
@@ -749,14 +742,16 @@ mod tests {
             .await
             .unwrap();
 
-        let hash = miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero());
+        let hash = MiniblockHasher::new(MiniblockNumber(0), 0, H256::zero())
+            .finalize(ProtocolVersionId::latest());
         let miniblock_number = conn
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Hash(hash))
             .await;
         assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(0)));
 
-        let hash = miniblock_hash(MiniblockNumber(1), 1, H256::zero(), H256::zero());
+        let hash = MiniblockHasher::new(MiniblockNumber(1), 1, H256::zero())
+            .finalize(ProtocolVersionId::latest());
         let miniblock_number = conn
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Hash(hash))
@@ -776,7 +771,8 @@ mod tests {
         let mut header = MiniblockHeader {
             number: MiniblockNumber(0),
             timestamp: 0,
-            hash: miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero()),
+            hash: MiniblockHasher::new(MiniblockNumber(0), 0, H256::zero())
+                .finalize(ProtocolVersionId::latest()),
             l1_tx_count: 0,
             l2_tx_count: 0,
             base_fee_per_gas: 100,

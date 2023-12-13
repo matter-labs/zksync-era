@@ -1,5 +1,6 @@
-use anyhow::Context as _;
 use std::env;
+
+use anyhow::Context as _;
 use zksync_config::{DBConfig, PostgresConfig};
 
 use crate::{envy_load, FromEnv};

@@ -4,8 +4,10 @@ use tokio::sync::watch;
 use zksync_dal::ConnectionPool;
 use zksync_types::{L1BatchNumber, MiniblockNumber};
 use zksync_web3_decl::{
-    jsonrpsee::core::Error as RpcError,
-    jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
+    jsonrpsee::{
+        core::Error as RpcError,
+        http_client::{HttpClient, HttpClientBuilder},
+    },
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
     RpcResult,
 };

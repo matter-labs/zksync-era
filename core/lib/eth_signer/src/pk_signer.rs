@@ -1,11 +1,11 @@
 use secp256k1::SecretKey;
-
-use zksync_types::tx::primitives::PackedEthSignature;
-use zksync_types::{Address, EIP712TypedStructure, Eip712Domain, H256};
+use zksync_types::{
+    tx::primitives::PackedEthSignature, Address, EIP712TypedStructure, Eip712Domain, H256,
+};
 
 use crate::{
     raw_ethereum_tx::{Transaction, TransactionParameters},
-    {EthereumSigner, SignerError},
+    EthereumSigner, SignerError,
 };
 
 #[derive(Clone)]
@@ -86,10 +86,10 @@ impl EthereumSigner for PrivateKeySigner {
 
 #[cfg(test)]
 mod test {
-    use super::PrivateKeySigner;
-    use crate::raw_ethereum_tx::TransactionParameters;
-    use crate::EthereumSigner;
     use zksync_types::{H160, H256, U256, U64};
+
+    use super::PrivateKeySigner;
+    use crate::{raw_ethereum_tx::TransactionParameters, EthereumSigner};
 
     #[tokio::test]
     async fn test_generating_signed_raw_transaction() {

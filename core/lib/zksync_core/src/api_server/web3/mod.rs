@@ -1,16 +1,17 @@
+use std::{net::SocketAddr, sync::Arc, time::Duration};
+
 use anyhow::Context as _;
+use chrono::NaiveDateTime;
 use futures::future;
 use jsonrpc_core::MetaIoHandler;
 use jsonrpc_http_server::hyper;
 use jsonrpc_pubsub::PubSubHandler;
 use serde::Deserialize;
-use tokio::sync::{mpsc, oneshot, watch, Mutex};
+use tokio::{
+    sync::{mpsc, oneshot, watch, Mutex},
+    task::JoinHandle,
+};
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
-
-use chrono::NaiveDateTime;
-use std::{net::SocketAddr, sync::Arc, time::Duration};
-use tokio::task::JoinHandle;
-
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{api, MiniblockNumber};
@@ -22,11 +23,29 @@ use zksync_web3_decl::{
     },
     namespaces::{
         DebugNamespaceServer, EnNamespaceServer, EthNamespaceServer, NetNamespaceServer,
-        Web3NamespaceServer, ZksNamespaceServer,
+        SnapshotsNamespaceServer, Web3NamespaceServer, ZksNamespaceServer,
     },
     types::Filter,
 };
 
+use self::{
+    backend_jsonrpc::{
+        batch_limiter_middleware::{LimitMiddleware, Transport},
+        error::internal_error,
+        namespaces::{
+            debug::DebugNamespaceT, en::EnNamespaceT, eth::EthNamespaceT, net::NetNamespaceT,
+            web3::Web3NamespaceT, zks::ZksNamespaceT,
+        },
+        pub_sub::Web3PubSub,
+    },
+    metrics::API_METRICS,
+    namespaces::{
+        DebugNamespace, EnNamespace, EthNamespace, NetNamespace, SnapshotsNamespace, Web3Namespace,
+        ZksNamespace,
+    },
+    pubsub::{EthSubscribe, PubSubEvent},
+    state::{Filters, InternalApiConfig, RpcState, SealedMiniblockNumber},
+};
 use crate::{
     api_server::{
         execution_sandbox::VmConcurrencyBarrier, tree::TreeApiHttpClient, tx_sender::TxSender,
@@ -44,22 +63,6 @@ mod pubsub;
 pub mod state;
 #[cfg(test)]
 pub(crate) mod tests;
-
-use self::backend_jsonrpc::{
-    batch_limiter_middleware::{LimitMiddleware, Transport},
-    error::internal_error,
-    namespaces::{
-        debug::DebugNamespaceT, en::EnNamespaceT, eth::EthNamespaceT, net::NetNamespaceT,
-        web3::Web3NamespaceT, zks::ZksNamespaceT,
-    },
-    pub_sub::Web3PubSub,
-};
-use self::metrics::API_METRICS;
-use self::namespaces::{
-    DebugNamespace, EnNamespace, EthNamespace, NetNamespace, Web3Namespace, ZksNamespace,
-};
-use self::pubsub::{EthSubscribe, PubSubEvent};
-use self::state::{Filters, InternalApiConfig, RpcState, SealedMiniblockNumber};
 
 /// Timeout for graceful shutdown logic within API servers.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
@@ -97,20 +100,11 @@ pub enum Namespace {
     Zks,
     En,
     Pubsub,
+    Snapshots,
 }
 
 impl Namespace {
-    pub const ALL: &'static [Namespace] = &[
-        Namespace::Eth,
-        Namespace::Net,
-        Namespace::Web3,
-        Namespace::Debug,
-        Namespace::Zks,
-        Namespace::En,
-        Namespace::Pubsub,
-    ];
-
-    pub const NON_DEBUG: &'static [Namespace] = &[
+    pub const DEFAULT: &'static [Namespace] = &[
         Namespace::Eth,
         Namespace::Net,
         Namespace::Web3,
@@ -341,8 +335,12 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
                 .expect("Can't merge en namespace");
         }
         if namespaces.contains(&Namespace::Debug) {
-            rpc.merge(DebugNamespace::new(rpc_state).await.into_rpc())
+            rpc.merge(DebugNamespace::new(rpc_state.clone()).await.into_rpc())
                 .expect("Can't merge debug namespace");
+        }
+        if namespaces.contains(&Namespace::Snapshots) {
+            rpc.merge(SnapshotsNamespace::new(rpc_state).into_rpc())
+                .expect("Can't merge snapshots namespace");
         }
         rpc
     }
@@ -356,8 +354,10 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         }
 
         if self.namespaces.is_none() {
-            tracing::warn!("debug_ API namespace will be disabled by default in ApiBuilder");
-            self.namespaces = Some(Namespace::NON_DEBUG.to_vec());
+            tracing::warn!(
+                "debug_  and snapshots_ API namespace will be disabled by default in ApiBuilder"
+            );
+            self.namespaces = Some(Namespace::DEFAULT.to_vec());
         }
 
         if self

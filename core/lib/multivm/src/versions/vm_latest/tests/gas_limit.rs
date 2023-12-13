@@ -1,13 +1,13 @@
-use zksync_types::fee::Fee;
-use zksync_types::Execute;
+use zksync_types::{fee::Fee, Execute};
 
-use crate::vm_latest::constants::{
-    BOOTLOADER_HEAP_PAGE, TX_DESCRIPTION_OFFSET, TX_GAS_LIMIT_OFFSET,
+use crate::{
+    interface::{TxExecutionMode, VmInterface},
+    vm_latest::{
+        constants::{BOOTLOADER_HEAP_PAGE, TX_DESCRIPTION_OFFSET, TX_GAS_LIMIT_OFFSET},
+        tests::tester::VmTesterBuilder,
+        HistoryDisabled,
+    },
 };
-use crate::vm_latest::tests::tester::VmTesterBuilder;
-
-use crate::interface::{TxExecutionMode, VmInterface};
-use crate::vm_latest::HistoryDisabled;
 
 /// Checks that `TX_GAS_LIMIT_OFFSET` constant is correct.
 #[test]
