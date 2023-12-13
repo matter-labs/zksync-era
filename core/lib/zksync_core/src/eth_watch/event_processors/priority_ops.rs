@@ -89,6 +89,7 @@ impl<W: EthClient + Sync> EventProcessor<W> for PriorityOpsEventProcessor {
         APP_METRICS.processed_l1_txs[&TxStage::added_to_mempool()].inc();
         for new_op in new_ops {
             let eth_block = new_op.eth_block();
+            tracing::debug!("Adding new priority op to db: {:?}", new_op);
             storage
                 .transactions_dal()
                 .insert_transaction_l1(new_op, eth_block)
