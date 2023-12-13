@@ -24,6 +24,8 @@ use crate::{
 
 mod chunking;
 mod metrics;
+#[cfg(test)]
+mod tests;
 
 async fn maybe_enable_prometheus_metrics(
     stop_receiver: watch::Receiver<bool>,
