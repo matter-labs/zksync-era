@@ -3,7 +3,11 @@ use zksync_types::{Address, L1BatchNumber, H256};
 use super::L2BlockEnv;
 use crate::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
 
-/// Unique params for each block
+/// Unique params for each L1 batch.
+///
+/// Eventually, most of these parameters (`l1_gas_price`, `fair_l2_gas_price`, `fee_account`,
+/// `enforced_base_fee`) will be moved to [`L2BlockEnv`]. For now, the VM doesn't support changing
+/// them in the middle of execution; that's why these params are specified here.
 #[derive(Debug, Clone)]
 pub struct L1BatchEnv {
     // If previous batch hash is None, then this is the first batch
@@ -26,6 +30,7 @@ impl L1BatchEnv {
             derive_base_fee_and_gas_per_pubdata(self.l1_gas_price, self.fair_l2_gas_price);
         base_fee
     }
+
     pub(crate) fn block_gas_price_per_pubdata(&self) -> u64 {
         derive_base_fee_and_gas_per_pubdata(self.l1_gas_price, self.fair_l2_gas_price).1
     }
