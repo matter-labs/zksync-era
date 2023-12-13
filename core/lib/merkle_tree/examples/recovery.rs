@@ -8,8 +8,8 @@ use tempfile::TempDir;
 use tracing_subscriber::EnvFilter;
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
-    recovery::MerkleTreeRecovery, HashTree, Key, PatchSet, PruneDatabase, RocksDBWrapper,
-    TreeEntry, ValueHash,
+    recovery::MerkleTreeRecovery, HashTree, Key, MerkleTree, PatchSet, PruneDatabase,
+    RocksDBWrapper, TreeEntry, ValueHash,
 };
 use zksync_storage::{RocksDB, RocksDBOptions};
 
@@ -120,7 +120,7 @@ impl Cli {
             );
         }
 
-        let tree = recovery.finalize();
+        let tree = MerkleTree::new(recovery.finalize());
         tracing::info!(
             "Recovery finished in {:?}; verifying consistency...",
             recovery_started_at.elapsed()

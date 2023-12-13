@@ -13,7 +13,7 @@ use zksync_types::{
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
     namespaces::zks::ZksNamespaceServer,
-    types::{Filter, Log, Token},
+    types::Token,
 };
 
 use crate::{
@@ -150,12 +150,6 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceServer for ZksNa
         version_id: Option<u16>,
     ) -> RpcResult<Option<ProtocolVersion>> {
         Ok(self.get_protocol_version_impl(version_id).await)
-    }
-
-    async fn get_logs_with_virtual_blocks(&self, filter: Filter) -> RpcResult<Vec<Log>> {
-        self.get_logs_with_virtual_blocks_impl(filter)
-            .await
-            .map_err(into_jsrpc_error)
     }
 
     async fn get_proof(

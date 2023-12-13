@@ -114,15 +114,10 @@ services:
         target: /var/lib/postgresql/data
     environment:
       - POSTGRES_HOST_AUTH_METHOD=trust
-  
+
   # This is specific to runner
   zk:
     image: "matterlabs/zk-environment:latest2.0-lightweight"
-    depends_on:
-      - geth
-      - postgres
-      - beacon
-      - validator
     security_opt:
       - seccomp:unconfined
     command: tail -f /dev/null
@@ -130,6 +125,7 @@ services:
       - .:/usr/src/zksync
       - /usr/src/cache:/usr/src/cache
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./hardhat-nodejs:/root/.cache/hardhat-nodejs
     environment:
       - CACHE_DIR=/usr/src/cache
       - SCCACHE_CACHE_SIZE=50g

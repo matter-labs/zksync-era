@@ -16,18 +16,22 @@ async fn merkle_tree_api() {
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
     let api_addr = (Ipv4Addr::LOCALHOST, 0).into();
+
+    reset_db_state(&pool, 5).await;
+    let tree_reader = calculator.tree_reader();
+    let calculator_task = tokio::spawn(run_calculator(calculator, pool));
+
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let api_server = calculator
-        .tree_reader()
+    let api_server = tree_reader
+        .await
         .create_api_server(&api_addr, stop_receiver.clone())
         .unwrap();
     let local_addr = *api_server.local_addr();
     let api_server_task = tokio::spawn(api_server.run());
     let api_client = TreeApiHttpClient::new(&format!("http://{local_addr}"));
 
-    reset_db_state(&pool, 5).await;
     // Wait until the calculator processes initial L1 batches.
-    run_calculator(calculator, pool).await;
+    calculator_task.await.unwrap();
 
     // Query the API.
     let tree_info = api_client.get_info().await.unwrap();

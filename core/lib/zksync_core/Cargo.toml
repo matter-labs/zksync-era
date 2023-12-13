@@ -40,11 +40,12 @@ vlog = { path = "../vlog" }
 
 multivm = { path = "../multivm" }
 # Consensus dependenices
-zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "da015d4c94b19962bc11622b6cc256e214256555" }
-zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "da015d4c94b19962bc11622b6cc256e214256555" }
-zksync_consensus_storage = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "da015d4c94b19962bc11622b6cc256e214256555" }
-zksync_consensus_executor = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "da015d4c94b19962bc11622b6cc256e214256555" }
-zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "da015d4c94b19962bc11622b6cc256e214256555" }
+zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "49b1a98f80d0e9f74fdceadece4283e745c71599" }
+zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "49b1a98f80d0e9f74fdceadece4283e745c71599" }
+zksync_consensus_storage = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "49b1a98f80d0e9f74fdceadece4283e745c71599" }
+zksync_consensus_executor = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "49b1a98f80d0e9f74fdceadece4283e745c71599" }
+zksync_consensus_bft = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "49b1a98f80d0e9f74fdceadece4283e745c71599" }
+zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "49b1a98f80d0e9f74fdceadece4283e745c71599" }
 
 prost = "0.12.1"
 serde = { version = "1.0", features = ["derive"] }
@@ -73,6 +74,7 @@ num = { version = "0.3.1", features = ["serde"] }
 bigdecimal = { version = "0.2.2", features = ["serde"] }
 reqwest = { version = "0.11", features = ["blocking", "json"] }
 hex = "0.4"
+lru = { version = "0.12.1", default-features = false }
 governor = "0.4.2"
 tower-http = { version = "0.4.1", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }
@@ -98,4 +100,4 @@ tempfile = "3.0.2"
 test-casing = "0.1.2"
 
 [build-dependencies]
-zksync_protobuf_build = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "da015d4c94b19962bc11622b6cc256e214256555" }
+zksync_protobuf_build = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "49b1a98f80d0e9f74fdceadece4283e745c71599" }

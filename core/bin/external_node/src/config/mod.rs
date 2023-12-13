@@ -338,7 +338,7 @@ impl OptionalENConfig {
     pub fn api_namespaces(&self) -> Vec<Namespace> {
         self.api_namespaces
             .clone()
-            .unwrap_or_else(|| Namespace::NON_DEBUG.to_vec())
+            .unwrap_or_else(|| Namespace::DEFAULT.to_vec())
     }
 
     pub fn max_response_body_size(&self) -> usize {

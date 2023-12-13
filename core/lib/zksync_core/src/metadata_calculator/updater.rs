@@ -16,7 +16,7 @@ use zksync_types::{block::L1BatchHeader, writes::InitialStorageWrite, L1BatchNum
 use super::{
     helpers::{AsyncTree, Delayer, L1BatchWithLogs},
     metrics::{TreeUpdateStage, METRICS},
-    MetadataCalculator, MetadataCalculatorConfig,
+    MetadataCalculator,
 };
 
 #[derive(Debug)]
@@ -27,35 +27,16 @@ pub(super) struct TreeUpdater {
 }
 
 impl TreeUpdater {
-    pub async fn new(
-        mode: MerkleTreeMode,
-        config: &MetadataCalculatorConfig<'_>,
+    pub fn new(
+        tree: AsyncTree,
+        max_l1_batches_per_iter: usize,
         object_store: Option<Box<dyn ObjectStore>>,
     ) -> Self {
-        assert!(
-            config.max_l1_batches_per_iter > 0,
-            "Maximum L1 batches per iteration is misconfigured to be 0; please update it to positive value"
-        );
-
-        let db_path = config.db_path.into();
-        let tree = AsyncTree::new(
-            db_path,
-            mode,
-            config.multi_get_chunk_size,
-            config.block_cache_capacity,
-            config.memtable_capacity,
-            config.stalled_writes_timeout,
-        )
-        .await;
         Self {
             tree,
-            max_l1_batches_per_iter: config.max_l1_batches_per_iter,
+            max_l1_batches_per_iter,
             object_store,
         }
-    }
-
-    pub fn tree(&self) -> &AsyncTree {
-        &self.tree
     }
 
     async fn process_l1_batch(

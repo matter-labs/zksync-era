@@ -1,7 +1,10 @@
 //! This module applies updates to the ZkSyncTree, calculates metadata for sealed blocks, and
 //! stores them in the DB.
 
-use std::time::Duration;
+use std::{
+    future::{self, Future},
+    time::Duration,
+};
 
 use tokio::sync::watch;
 use zksync_config::configs::{
@@ -11,7 +14,7 @@ use zksync_config::configs::{
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_merkle_tree::domain::TreeMetadata;
-use zksync_object_store::ObjectStoreFactory;
+use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_types::{
     block::L1BatchHeader,
     commitment::{L1BatchCommitment, L1BatchMetadata},
@@ -20,7 +23,7 @@ use zksync_types::{
 
 pub(crate) use self::helpers::{AsyncTreeReader, L1BatchWithLogs, MerkleTreeInfo};
 use self::{
-    helpers::Delayer,
+    helpers::{create_db, Delayer, GenericAsyncTree},
     metrics::{TreeUpdateStage, METRICS},
     updater::TreeUpdater,
 };
@@ -28,6 +31,7 @@ use crate::gas_tracker::commit_gas_count_for_l1_batch;
 
 mod helpers;
 mod metrics;
+mod recovery;
 #[cfg(test)]
 pub(crate) mod tests;
 mod updater;
@@ -99,15 +103,22 @@ impl<'a> MetadataCalculatorConfig<'a> {
 
 #[derive(Debug)]
 pub struct MetadataCalculator {
-    updater: TreeUpdater,
+    tree: GenericAsyncTree,
+    tree_reader: watch::Sender<Option<AsyncTreeReader>>,
+    object_store: Option<Box<dyn ObjectStore>>,
     delayer: Delayer,
     health_updater: HealthUpdater,
+    max_l1_batches_per_iter: usize,
 }
 
 impl MetadataCalculator {
     /// Creates a calculator with the specified `config`.
     pub async fn new(config: &MetadataCalculatorConfig<'_>) -> Self {
         // TODO (SMA-1726): restore the tree from backup if appropriate
+        assert!(
+            config.max_l1_batches_per_iter > 0,
+            "Maximum L1 batches per iteration is misconfigured to be 0; please update it to positive value"
+        );
 
         let mode = config.mode.to_mode();
         let object_store = match config.mode {
@@ -117,13 +128,25 @@ impl MetadataCalculator {
             },
             MetadataCalculatorModeConfig::Lightweight => None,
         };
-        let updater = TreeUpdater::new(mode, config, object_store).await;
+
+        let db = create_db(
+            config.db_path.into(),
+            config.block_cache_capacity,
+            config.memtable_capacity,
+            config.stalled_writes_timeout,
+            config.multi_get_chunk_size,
+        )
+        .await;
+        let tree = GenericAsyncTree::new(db, mode).await;
 
         let (_, health_updater) = ReactiveHealthCheck::new("tree");
         Self {
-            updater,
+            tree,
+            tree_reader: watch::channel(None).0,
+            object_store,
             delayer: Delayer::new(config.delay_interval),
             health_updater,
+            max_l1_batches_per_iter: config.max_l1_batches_per_iter,
         }
     }
 
@@ -133,8 +156,19 @@ impl MetadataCalculator {
     }
 
     /// Returns a reference to the tree reader.
-    pub(crate) fn tree_reader(&self) -> AsyncTreeReader {
-        self.updater.tree().reader()
+    pub(crate) fn tree_reader(&self) -> impl Future<Output = AsyncTreeReader> {
+        let mut receiver = self.tree_reader.subscribe();
+        async move {
+            loop {
+                if let Some(reader) = receiver.borrow().clone() {
+                    break reader;
+                }
+                if receiver.changed().await.is_err() {
+                    tracing::info!("Tree dropped without getting ready; not resolving tree reader");
+                    future::pending::<()>().await;
+                }
+            }
+        }
     }
 
     pub async fn run(
@@ -142,7 +176,17 @@ impl MetadataCalculator {
         pool: ConnectionPool,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
-        self.updater
+        let tree = self
+            .tree
+            .ensure_ready(&pool, &stop_receiver, &self.health_updater)
+            .await?;
+        let Some(tree) = tree else {
+            return Ok(()); // recovery was aborted because a stop signal was received
+        };
+        self.tree_reader.send_replace(Some(tree.reader()));
+
+        let updater = TreeUpdater::new(tree, self.max_l1_batches_per_iter, self.object_store);
+        updater
             .loop_updating_tree(self.delayer, &pool, stop_receiver, self.health_updater)
             .await
     }

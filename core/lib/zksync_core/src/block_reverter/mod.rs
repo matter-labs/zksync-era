@@ -190,7 +190,7 @@ impl BlockReverter {
         storage_root_hash: H256,
     ) {
         let db = RocksDB::new(path);
-        let mut tree = ZkSyncTree::new_lightweight(db);
+        let mut tree = ZkSyncTree::new_lightweight(db.into());
 
         if tree.next_l1_batch_number() <= last_l1_batch_to_keep {
             tracing::info!("Tree is behind the L1 batch to revert to; skipping");

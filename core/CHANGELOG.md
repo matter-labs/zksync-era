@@ -1,5 +1,41 @@
 # Changelog
 
+## [18.8.0](https://github.com/matter-labs/zksync-era/compare/core-v18.7.0...core-v18.8.0) (2023-12-13)
+
+
+### Features
+
+* **api:** Sunset API translator ([#675](https://github.com/matter-labs/zksync-era/issues/675)) ([846fd33](https://github.com/matter-labs/zksync-era/commit/846fd33a74734520ae1bb57d8bc8abca71e16f25))
+* **core:** Merge bounded and unbounded gas adjuster ([#678](https://github.com/matter-labs/zksync-era/issues/678)) ([f3c3bf5](https://github.com/matter-labs/zksync-era/commit/f3c3bf53b3136b2fe8c17638c83fda3328fd6033))
+* **dal:** Make ConnectionPoolBuilder owned ([#676](https://github.com/matter-labs/zksync-era/issues/676)) ([1153c42](https://github.com/matter-labs/zksync-era/commit/1153c42f9d0e7cfe78da64d4508974e74afea4ee))
+* Implemented 1 validator consensus for the main node ([#554](https://github.com/matter-labs/zksync-era/issues/554)) ([9c59838](https://github.com/matter-labs/zksync-era/commit/9c5983858d9dd84de360e6a082369a06bb58e924))
+* **merkle tree:** Snapshot recovery in metadata calculator ([#607](https://github.com/matter-labs/zksync-era/issues/607)) ([f49418b](https://github.com/matter-labs/zksync-era/commit/f49418b24cdfa905e571568cb3393296c951e903))
+
+
+### Bug Fixes
+
+* dropping installed filters ([#670](https://github.com/matter-labs/zksync-era/issues/670)) ([985c737](https://github.com/matter-labs/zksync-era/commit/985c7375f6fa192b45473d8ba0b7dacb9314a482))
+
+## [18.7.0](https://github.com/matter-labs/zksync-era/compare/core-v18.6.1...core-v18.7.0) (2023-12-12)
+
+
+### Features
+
+* **contract-verifier:** Add zksolc v1.3.18 ([#654](https://github.com/matter-labs/zksync-era/issues/654)) ([77f91fe](https://github.com/matter-labs/zksync-era/commit/77f91fe253a0876e56de4aee47071fe249386fc7))
+* **en:** Check block hash correspondence ([#572](https://github.com/matter-labs/zksync-era/issues/572)) ([28f5642](https://github.com/matter-labs/zksync-era/commit/28f5642c35800997879bc549fca9e960c4516d21))
+* **en:** Remove `SyncBlock.root_hash` ([#633](https://github.com/matter-labs/zksync-era/issues/633)) ([d4cc6e5](https://github.com/matter-labs/zksync-era/commit/d4cc6e564642b4c49ef4a546cd1c86821327683c))
+* Snapshot Creator ([#498](https://github.com/matter-labs/zksync-era/issues/498)) ([270edee](https://github.com/matter-labs/zksync-era/commit/270edee34402ecbd1761bc1fca559ef2205f71e8))
+
+
+### Bug Fixes
+
+* Cursor not moving correctly after poll in `get_filter_changes` ([#546](https://github.com/matter-labs/zksync-era/issues/546)) ([ec5907b](https://github.com/matter-labs/zksync-era/commit/ec5907b70ff7d868a05b685a1641d96dc4fa9d69))
+* fix docs error ([#635](https://github.com/matter-labs/zksync-era/issues/635)) ([883c128](https://github.com/matter-labs/zksync-era/commit/883c1282f7771fb16a41d45391b74243021271e3))
+* follow up metrics fixes ([#648](https://github.com/matter-labs/zksync-era/issues/648)) ([a317c7a](https://github.com/matter-labs/zksync-era/commit/a317c7ab68219cb376d08c8d1ec210c63b3c269f))
+* Follow up metrics fixes vol.2 ([#656](https://github.com/matter-labs/zksync-era/issues/656)) ([5c1aea2](https://github.com/matter-labs/zksync-era/commit/5c1aea2a94d7eded26c3a4ae4973ff983c15e7fa))
+* **job-processor:** `max_attepts_reached` metric ([#626](https://github.com/matter-labs/zksync-era/issues/626)) ([dd9b308](https://github.com/matter-labs/zksync-era/commit/dd9b308be9b0a6e37aad75f6f54b98e30a2ae14e))
+* update google cloud dependencies that do not depend on rsa ([#622](https://github.com/matter-labs/zksync-era/issues/622)) ([8a8cad6](https://github.com/matter-labs/zksync-era/commit/8a8cad6ce62f2d34bb34adcd956f6920c08f94b8))
+
 ## [18.6.1](https://github.com/matter-labs/zksync-era/compare/core-v18.6.0...core-v18.6.1) (2023-12-06)
 
 
