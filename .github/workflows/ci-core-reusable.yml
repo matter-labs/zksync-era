@@ -95,7 +95,6 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
           ci_run git config --global --add safe.directory /usr/src/zksync/etc/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-
           ci_run zk
           ci_run zk init
 
@@ -108,12 +107,17 @@ jobs:
       - name: Perform loadtest
         run: ci_run zk run loadtest
 
-      - name: Show logs
+      - name: Show Server logs
         if: always()
         run: |
           ci_run cat server.log
+
+      - name: Show SCCache info
+        if: always()
+        run: |
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
+
   integration:
     runs-on: [matterlabs-ci-runner]
 
@@ -168,12 +172,10 @@ jobs:
           ci_run zk
           ci_run zk init
 
-
-      # `sleep 5` because we need to wait until server started properly
       - name: Run server
         run: |
           ci_run zk server &>server.log &
-          ci_run sleep 5
+          ci_run bash -c "( tail -f -n +1 server.log & ) | grep -q \"Sealing miniblock\""
 
       - name: Run contract verifier
         run: |
@@ -200,13 +202,29 @@ jobs:
           ci_run sleep 10
           ci_run zk test i upgrade
 
-      - name: Show logs
+      - name: Show Server logs
         if: always()
         run: |
           ci_run cat server.log
+
+      - name: Show Contract Verifier logs
+        if: always()
+        run: |
           ci_run cat contract_verifier.log
+
+      - name: Show Revert Test logs
+        if: always()
+        run: |
           ci_run cat core/tests/revert-test/revert.log
+
+      - name: Show Upgrade Test logs
+        if: always()
+        run: |
           ci_run cat core/tests/upgrade-test/upgrade.log
+
+      - name: Show SCCache info
+        if: always()
+        run: |
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
 
@@ -305,12 +323,28 @@ jobs:
           ci_run zk env docker
           CHECK_EN_URL="http://0.0.0.0:3060" ci_run zk test i upgrade
 
-      - name: Show logs
+      - name: Show Server logs
         if: always()
         run: |
           ci_run cat server.log
+
+      - name: Show External Node logs
+        if: always()
+        run: |
           ci_run cat ext-node.log
+
+      - name: Show Revert Test logs
+        if: always()
+        run: |
           ci_run cat core/tests/revert-test/revert.log
+
+      - name: Show Upgrade Test logs
+        if: always()
+        run: |
           ci_run cat core/tests/upgrade-test/upgrade.log
+
+      - name: Show SCCache info
+        if: always()
+        run: |
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
