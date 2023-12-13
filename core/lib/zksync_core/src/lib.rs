@@ -404,9 +404,9 @@ pub async fn initialize_components(
             let started_at = Instant::now();
             tracing::info!("Initializing HTTP API");
             let bounded_gas_adjuster = gas_adjuster
-                .get_or_init_bounded()
+                .get_or_init()
                 .await
-                .context("gas_adjuster.get_or_init_bounded()")?;
+                .context("gas_adjuster.get_or_init()")?;
             let server_handles = run_http_api(
                 &postgres_config,
                 &tx_sender_config,
@@ -444,9 +444,9 @@ pub async fn initialize_components(
             let started_at = Instant::now();
             tracing::info!("initializing WS API");
             let bounded_gas_adjuster = gas_adjuster
-                .get_or_init_bounded()
+                .get_or_init()
                 .await
-                .context("gas_adjuster.get_or_init_bounded()")?;
+                .context("gas_adjuster.get_or_init()")?;
             let server_handles = run_ws_api(
                 &postgres_config,
                 &tx_sender_config,
@@ -498,9 +498,9 @@ pub async fn initialize_components(
         let started_at = Instant::now();
         tracing::info!("initializing State Keeper");
         let bounded_gas_adjuster = gas_adjuster
-            .get_or_init_bounded()
+            .get_or_init()
             .await
-            .context("gas_adjuster.get_or_init_bounded()")?;
+            .context("gas_adjuster.get_or_init()")?;
         add_state_keeper_to_task_futures(
             &mut task_futures,
             &postgres_config,
