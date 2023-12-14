@@ -228,6 +228,8 @@ async fn init_tasks(
     let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
 
     let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
+    let fee_address_migration_handle =
+        task::spawn(state_keeper.run_fee_address_migration(connection_pool.clone()));
     let sk_handle = task::spawn(state_keeper.run());
     let fetcher_handle = tokio::spawn(fetcher.run());
     let gas_adjuster_handle = tokio::spawn(gas_adjuster.clone().run(stop_receiver.clone()));
@@ -316,12 +318,13 @@ async fn init_tasks(
     task_handles.extend(cache_update_handle);
     task_handles.extend([
         sk_handle,
+        fee_address_migration_handle,
         fetcher_handle,
         updater_handle,
         tree_handle,
         gas_adjuster_handle,
+        consistency_checker_handle,
     ]);
-    task_handles.push(consistency_checker_handle);
 
     Ok((task_handles, stop_sender, healthcheck_handle, stop_receiver))
 }
