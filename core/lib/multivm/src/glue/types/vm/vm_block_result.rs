@@ -8,7 +8,7 @@ use crate::{
     },
 };
 
-// Note: In version after vm VmVirtualBlocks the bootloader memory knowledge is encapsulated into the VM.
+// Note: In version after vm `VmVirtualBlocks` the bootloader memory knowledge is encapsulated into the VM.
 // But before it was a part of a public API.
 // Bootloader memory required only for producing witnesses,
 // and server doesn't need to generate witnesses for old blocks

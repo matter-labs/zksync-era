@@ -35,8 +35,8 @@ use crate::vm_m6::{
     OracleTools, VmInstance,
 };
 
-// TODO (SMA-1703): move these to config and make them programmatically generatable.
-// fill these values in the similar fasion as other overhead-related constants
+// TODO (SMA-1703): move these to config and make them programmatically generable.
+// fill these values in the similar fashion as other overhead-related constants
 pub const BLOCK_OVERHEAD_GAS: u32 = 1200000;
 pub const BLOCK_OVERHEAD_L1_GAS: u32 = 1000000;
 pub const BLOCK_OVERHEAD_PUBDATA: u32 = BLOCK_OVERHEAD_L1_GAS / L1_GAS_PER_PUBDATA_BYTE;
@@ -85,7 +85,7 @@ pub fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
 pub fn derive_base_fee_and_gas_per_pubdata(l1_gas_price: u64, fair_gas_price: u64) -> (u64, u64) {
     let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
 
-    // The baseFee is set in such a way that it is always possible for a transaction to
+    // The `baseFee` is set in such a way that it is always possible for a transaction to
     // publish enough public data while compensating us for it.
     let base_fee = std::cmp::max(
         fair_gas_price,
@@ -251,12 +251,12 @@ pub fn init_vm_with_gas_limit<S: Storage, H: HistoryMode>(
 }
 
 #[derive(Debug, Clone, Copy)]
-// The block.number/block.timestamp data are stored in the CONTEXT_SYSTEM_CONTRACT.
+// The `block.number` / `block.timestamp` data are stored in the `CONTEXT_SYSTEM_CONTRACT`.
 // The bootloader can support execution in two modes:
-// - "NewBlock" when the new block is created. It is enforced that the block.number is incremented by 1
+// - `NewBlock` when the new block is created. It is enforced that the block.number is incremented by 1
 //   and the timestamp is non-decreasing. Also, the L2->L1 message used to verify the correctness of the previous root hash is sent.
 //   This is the mode that should be used in the state keeper.
-// - "OverrideCurrent" when we need to provide custom block.number and block.timestamp. ONLY to be used in testing/ethCalls.
+// - `OverrideCurrent` when we need to provide custom `block.number` and `block.timestamp`. ONLY to be used in testing / `ethCalls`.
 pub enum BlockContextMode {
     NewBlock(DerivedBlockContext, U256),
     OverrideCurrent(DerivedBlockContext),
