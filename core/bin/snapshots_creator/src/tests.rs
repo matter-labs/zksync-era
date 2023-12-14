@@ -423,11 +423,5 @@ async fn recovery_workflow_with_varying_chunk_size() {
         .unwrap();
 
     let object_store = object_store_factory.create_store().await;
-    assert_storage_logs(
-        &mut conn,
-        &*object_store,
-        snapshot_l1_batch_number,
-        &expected_outputs,
-    )
-    .await;
+    assert_storage_logs(&*object_store, snapshot_l1_batch_number, &expected_outputs).await;
 }

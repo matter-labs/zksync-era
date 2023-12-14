@@ -6,7 +6,7 @@ use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
 use tokio::sync::{watch, Semaphore};
 use zksync_config::{configs::PrometheusConfig, PostgresConfig, SnapshotsCreatorConfig};
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_types::{
@@ -232,6 +232,47 @@ impl SnapshotCreator {
         Ok(output_filepath)
     }
 
+    /// Returns `None` iff the created snapshot would coincide with `latest_snapshot`.
+    async fn initialize_snapshot_progress(
+        config: &SnapshotsCreatorConfig,
+        min_chunk_count: u64,
+        latest_snapshot: Option<&SnapshotMetadata>,
+        conn: &mut StorageProcessor<'_>,
+    ) -> anyhow::Result<Option<SnapshotProgress>> {
+        // We subtract 1 so that after restore, EN node has at least one L1 batch to fetch
+        let sealed_l1_batch_number = conn.blocks_dal().get_sealed_l1_batch_number().await?;
+        assert_ne!(
+            sealed_l1_batch_number,
+            L1BatchNumber(0),
+            "Cannot create snapshot when only the genesis L1 batch is present in Postgres"
+        );
+        let l1_batch_number = sealed_l1_batch_number - 1;
+
+        let latest_snapshot_l1_batch_number =
+            latest_snapshot.map(|snapshot| snapshot.l1_batch_number);
+        if latest_snapshot_l1_batch_number == Some(l1_batch_number) {
+            tracing::info!(
+                "Snapshot at expected L1 batch #{l1_batch_number} is already created; exiting"
+            );
+            return Ok(None);
+        }
+
+        let distinct_storage_logs_keys_count = conn
+            .snapshots_creator_dal()
+            .get_distinct_storage_logs_keys_count(l1_batch_number)
+            .await?;
+        let chunk_size = config.storage_logs_chunk_size;
+        // We force the minimum number of chunks to avoid situations where only one chunk is created in tests.
+        let chunk_count =
+            ceil_div(distinct_storage_logs_keys_count, chunk_size).max(min_chunk_count);
+
+        tracing::info!(
+            "Selected storage logs chunking for L1 batch {l1_batch_number}: \
+            {chunk_count} chunks of expected size {chunk_size}"
+        );
+        Ok(Some(SnapshotProgress::new(l1_batch_number, chunk_count)))
+    }
+
     async fn run(self, config: SnapshotsCreatorConfig, min_chunk_count: u64) -> anyhow::Result<()> {
         let latency = METRICS.snapshot_generation_duration.start();
 
@@ -243,52 +284,31 @@ impl SnapshotCreator {
             .master_pool
             .access_storage_tagged("snapshots_creator")
             .await?;
-
         let latest_snapshot = master_conn
             .snapshots_dal()
             .get_newest_snapshot_metadata()
             .await?;
+        drop(master_conn);
+
         let pending_snapshot = latest_snapshot
             .as_ref()
             .filter(|snapshot| !snapshot.is_complete());
         let progress = if let Some(snapshot) = pending_snapshot {
             SnapshotProgress::from_existing_snapshot(snapshot, &*self.blob_store)?
         } else {
-            // We subtract 1 so that after restore, EN node has at least one L1 batch to fetch
-            let sealed_l1_batch_number = conn.blocks_dal().get_sealed_l1_batch_number().await?;
-            assert_ne!(
-                sealed_l1_batch_number,
-                L1BatchNumber(0),
-                "Cannot create snapshot when only the genesis L1 batch is present in Postgres"
-            );
-            let l1_batch_number = sealed_l1_batch_number - 1;
+            let progress = Self::initialize_snapshot_progress(
+                &config,
+                min_chunk_count,
+                latest_snapshot.as_ref(),
+                &mut conn,
+            )
+            .await?;
 
-            let latest_snapshot_l1_batch_number = latest_snapshot
-                .as_ref()
-                .map(|snapshot| snapshot.l1_batch_number);
-            if latest_snapshot_l1_batch_number == Some(l1_batch_number) {
-                tracing::info!(
-                    "Snapshot at expected L1 batch #{l1_batch_number} is already created; exiting"
-                );
-                return Ok(());
+            match progress {
+                Some(progress) => progress,
+                None => return Ok(()),
             }
-
-            let distinct_storage_logs_keys_count = conn
-                .snapshots_creator_dal()
-                .get_distinct_storage_logs_keys_count(l1_batch_number)
-                .await?;
-            let chunk_size = config.storage_logs_chunk_size;
-            // We force the minimum number of chunks to avoid situations where only one chunk is created in tests.
-            let chunk_count =
-                ceil_div(distinct_storage_logs_keys_count, chunk_size).max(min_chunk_count);
-
-            tracing::info!(
-                "Selected storage logs chunking for L1 batch {l1_batch_number}: \
-                {chunk_count} chunks of expected size {chunk_size}"
-            );
-            SnapshotProgress::new(l1_batch_number, chunk_count)
         };
-        drop(master_conn);
 
         let (_, last_miniblock_number_in_batch) = conn
             .blocks_dal()
@@ -399,7 +419,6 @@ async fn main() -> anyhow::Result<()> {
         .build()
         .await?;
 
-    let config = SnapshotsCreatorConfig::from_env().context("SnapshotsCreatorConfig::from_env")?;
     let creator = SnapshotCreator {
         blob_store,
         master_pool,
@@ -407,7 +426,7 @@ async fn main() -> anyhow::Result<()> {
         #[cfg(test)]
         event_listener: Box::new(()),
     };
-    creator.run(config, MIN_CHUNK_COUNT).await?;
+    creator.run(creator_config, MIN_CHUNK_COUNT).await?;
 
     tracing::info!("Finished running snapshot creator!");
     stop_sender.send(true).ok();
