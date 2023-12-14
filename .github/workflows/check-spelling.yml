@@ -23,3 +23,20 @@ jobs:
 
       - name: Run cargo-spellcheck
         run: cargo spellcheck --cfg=./spellcheck/era.cfg --code 1
+
+  docs-spellcheck:
+    runs-on: ubuntu-latest
+    strategy:
+        matrix:
+          node-version: [18.x]
+    steps:
+      - uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac # v4
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@8f152de45cc393bb48ce5d89d36b731f54556e65 # v4
+        with:
+            node-version: ${{ matrix.node-version }}
+      - name: Install cspell
+        run: npm install -g cspell
+      - name: cspell 
+        run: |
+          cspell docs/**/*.md --config=./spellcheck/cspell.json

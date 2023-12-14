@@ -5,7 +5,7 @@
 1. [L1 Contracts](./l1_smart_contracts.md)
 1. [zkEVM](./zk_evm/README.md)
    - [VM Overview](./zk_evm/vm_overview.md)
-   - [VM Specificiation](./zk_evm/vm_specification/README.md)
+   - [VM Specification](./zk_evm/vm_specification/README.md)
    - [Bootloader](./zk_evm/bootloader.md)
    - [System Contracts](./zk_evm/system_contracts.md)
    - [Precompiles](./zk_evm/precompiles.md)
