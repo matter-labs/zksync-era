@@ -352,10 +352,7 @@ decommitter
 Decommitter
 Decommitments
 Decommitment
-<<<<<<< HEAD
 decommitment
-=======
->>>>>>> c9e1f853 (feat: introduces cspell checker to CI, addresses spelling mistakes in docs/ directory)
 decommitments
 Decommit
 decommit
@@ -409,12 +406,9 @@ ashr
 noalias
 immediates
 prode
-<<<<<<< HEAD
 StorageBatchInfo
 CommitBatchInfo
 IExecutor
-=======
->>>>>>> c9e1f853 (feat: introduces cspell checker to CI, addresses spelling mistakes in docs/ directory)
 
 // Names
 Vyper
@@ -823,10 +817,7 @@ compactions
 M6
 compiler_common
 noop
-<<<<<<< HEAD
-=======
 tokenized
->>>>>>> c9e1f853 (feat: introduces cspell checker to CI, addresses spelling mistakes in docs/ directory)
 rustc
 sqlx
 zkevm
