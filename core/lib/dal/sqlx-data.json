@@ -358,20 +358,6 @@
     },
     "query": "INSERT INTO eth_txs_history (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at) VALUES ($1, 0, 0, $2, '\\x00', now(), now(), $3) RETURNING id"
   },
-  "07bb6aa5f4ffe0b753cca8ac92c65bd7618db908250e5bf9e835f54b1dd04755": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Int8",
-          "TextArray",
-          "Text"
-        ]
-      }
-    },
-    "query": "INSERT INTO snapshots (l1_batch_number, storage_logs_filepaths, factory_deps_filepath, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW())"
-  },
   "09768b376996b96add16a02d1a59231cb9b525cd5bd19d22a76149962d4c91c2": {
     "describe": {
       "columns": [],
@@ -695,38 +681,6 @@
       }
     },
     "query": "SELECT l1_address FROM tokens WHERE market_volume > $1"
-  },
-  "1658e6fce121904c1353e51663fc307b01e02bc412ee46ac17e0f5acacd0b5c4": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "factory_deps_filepath",
-          "ordinal": 1,
-          "type_info": "Text"
-        },
-        {
-          "name": "storage_logs_filepaths",
-          "ordinal": 2,
-          "type_info": "TextArray"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Int8"
-        ]
-      }
-    },
-    "query": "SELECT l1_batch_number, factory_deps_filepath, storage_logs_filepaths FROM snapshots WHERE l1_batch_number = $1"
   },
   "166dcd8d504ba3f52a9e44a05305ed00954ab9b5302be4bb5ab05dfd2272afca": {
     "describe": {
@@ -1098,6 +1052,44 @@
       }
     },
     "query": "DELETE FROM storage_logs WHERE miniblock_number > $1"
+  },
+  "18e79d285742498df1733aa7cb698f71fb66de588b82558f12df7f50478ba09c": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "storage_logs_chunk_count",
+          "ordinal": 1,
+          "type_info": "Int8"
+        },
+        {
+          "name": "factory_deps_filepath",
+          "ordinal": 2,
+          "type_info": "Text"
+        },
+        {
+          "name": "storage_logs_filepaths",
+          "ordinal": 3,
+          "type_info": "TextArray"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT l1_batch_number, storage_logs_chunk_count, factory_deps_filepath, storage_logs_filepaths FROM snapshots WHERE l1_batch_number = $1"
   },
   "191fb8c0549267b515aaa7acc199675be1ea113e9137195468bb8ce64a099ae8": {
     "describe": {
@@ -4515,6 +4507,20 @@
     },
     "query": "SELECT bytecode_hash, bytecode FROM factory_deps INNER JOIN miniblocks ON miniblocks.number = factory_deps.miniblock_number WHERE miniblocks.l1_batch_number = $1"
   },
+  "5574fcf4de1401eaca9901c2a7b70234e02ad2cae3456c986236ebf9a0caff71": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8",
+          "Text"
+        ]
+      }
+    },
+    "query": "INSERT INTO snapshots ( l1_batch_number, storage_logs_chunk_count, storage_logs_filepaths, factory_deps_filepath, created_at, updated_at ) VALUES ($1, $2, ARRAY[]::text[], $3, NOW(), NOW())"
+  },
   "55debba852ef32f3b5ba6ffcb745f7b59d6888a21cb8792f8f9027e3b164a245": {
     "describe": {
       "columns": [
@@ -7603,6 +7609,19 @@
     },
     "query": "DELETE FROM storage WHERE hashed_key = ANY($1)"
   },
+  "974cacecb574f0b0dc2a360986b8b9b88d10336b793ebc7387eac8b2d7a88044": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Text"
+        ]
+      }
+    },
+    "query": "UPDATE snapshots SET storage_logs_filepaths = storage_logs_filepaths || $2::text, updated_at = NOW() WHERE l1_batch_number = $1"
+  },
   "97d81c27885fda4390ebc9789c6169cb94a449f583f7819ec74286fb0d9f81d5": {
     "describe": {
       "columns": [
@@ -8477,6 +8496,42 @@
     },
     "query": "DELETE FROM basic_witness_input_producer_jobs"
   },
+  "a504be176fb07418afb0af16956fae00d56fa00ce02702cbfab90b7a419396b2": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "storage_logs_chunk_count",
+          "ordinal": 1,
+          "type_info": "Int8"
+        },
+        {
+          "name": "factory_deps_filepath",
+          "ordinal": 2,
+          "type_info": "Text"
+        },
+        {
+          "name": "storage_logs_filepaths",
+          "ordinal": 3,
+          "type_info": "TextArray"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT l1_batch_number, storage_logs_chunk_count, factory_deps_filepath, storage_logs_filepaths FROM snapshots ORDER BY l1_batch_number DESC LIMIT 1"
+  },
   "a5115658f3a53462a9570fd6676f1931604d1c17a9a2b5f1475519006aaf03ba": {
     "describe": {
       "columns": [],
@@ -9275,36 +9330,6 @@
       }
     },
     "query": "INSERT INTO prover_protocol_versions\n                    (id, timestamp, recursion_scheduler_level_vk_hash, recursion_node_level_vk_hash,\n                        recursion_leaf_level_vk_hash, recursion_circuits_set_vks_hash, verifier_address, created_at)\n                VALUES ($1, $2, $3, $4, $5, $6, $7, now())\n                "
-  },
-  "b707b6247c76a50bda3be8076aafb77de60cfc5a0cc61c7dd60e4330eabc28d7": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "factory_deps_filepath",
-          "ordinal": 1,
-          "type_info": "Text"
-        },
-        {
-          "name": "storage_logs_filepaths",
-          "ordinal": 2,
-          "type_info": "TextArray"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "SELECT l1_batch_number, factory_deps_filepath, storage_logs_filepaths FROM snapshots"
   },
   "b944df7af612ec911170a43be846eb2f6e27163b0d3983672de2b8d5d60af640": {
     "describe": {
@@ -10583,6 +10608,24 @@
       }
     },
     "query": "DELETE FROM transactions WHERE in_mempool = TRUE AND initiator_address = ANY($1)"
+  },
+  "e9517bcf2f0b01ffd82dc8c1d7da84b3759ef4739e0e89e509b16a43c61147fb": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT l1_batch_number FROM snapshots ORDER BY l1_batch_number"
   },
   "e9b03a0d79eb40a67eab9bdaac8447fc17922bea89bcc6a89eb8eadf147835fe": {
     "describe": {
