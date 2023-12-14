@@ -1,18 +1,17 @@
 //! Metrics for the JSON-RPC server.
 
-use vise::{
-    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LabeledFamily,
-    LatencyObserver, Metrics,
-};
-
 use std::{
     fmt,
     time::{Duration, Instant},
 };
 
+use vise::{
+    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LabeledFamily,
+    LatencyObserver, Metrics, Unit,
+};
 use zksync_types::api;
 
-use super::ApiTransport;
+use super::{ApiTransport, TypedFilter};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "scheme", rename_all = "UPPERCASE")]
@@ -195,3 +194,40 @@ pub(super) struct PubSubMetrics {
 
 #[vise::register]
 pub(super) static PUB_SUB_METRICS: vise::Global<PubSubMetrics> = vise::Global::new();
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+#[metrics(label = "type", rename_all = "snake_case")]
+pub(super) enum FilterType {
+    Events,
+    Blocks,
+    PendingTransactions,
+}
+
+impl From<&TypedFilter> for FilterType {
+    fn from(value: &TypedFilter) -> Self {
+        match value {
+            TypedFilter::Events(_, _) => FilterType::Events,
+            TypedFilter::Blocks(_) => FilterType::Blocks,
+            TypedFilter::PendingTransactions(_) => FilterType::PendingTransactions,
+        }
+    }
+}
+
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "api_web3_filter")]
+pub(super) struct FilterMetrics {
+    /// Number of currently active filters grouped by the filter type
+    pub filter_count: Family<FilterType, Gauge>,
+    /// Time in seconds between consecutive requests to the filter grouped by the filter type
+    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
+    pub request_frequency: Family<FilterType, Histogram<Duration>>,
+    /// Lifetime of a filter in seconds grouped by the filter type
+    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
+    pub filter_lifetime: Family<FilterType, Histogram<Duration>>,
+    /// Number of requests to the filter grouped by the filter type
+    #[metrics(buckets = Buckets::exponential(1.0..=1048576.0, 2.0))]
+    pub request_count: Family<FilterType, Histogram<usize>>,
+}
+
+#[vise::register]
+pub(super) static FILTER_METRICS: vise::Global<FilterMetrics> = vise::Global::new();

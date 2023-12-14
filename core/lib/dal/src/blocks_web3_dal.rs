@@ -1,6 +1,5 @@
 use bigdecimal::BigDecimal;
 use sqlx::Row;
-
 use zksync_system_constants::EMPTY_UNCLES_HASH;
 use zksync_types::{
     api,
@@ -13,14 +12,17 @@ use zksync_types::{
 };
 use zksync_utils::bigdecimal_to_u256;
 
-use crate::models::{
-    storage_block::{
-        bind_block_where_sql_params, web3_block_number_to_sql, web3_block_where_sql,
-        StorageBlockDetails, StorageL1BatchDetails,
+use crate::{
+    instrument::InstrumentExt,
+    models::{
+        storage_block::{
+            bind_block_where_sql_params, web3_block_number_to_sql, web3_block_where_sql,
+            StorageBlockDetails, StorageL1BatchDetails,
+        },
+        storage_transaction::{extract_web3_transaction, web3_transaction_select_sql, CallTrace},
     },
-    storage_transaction::{extract_web3_transaction, web3_transaction_select_sql, CallTrace},
+    StorageProcessor,
 };
-use crate::{instrument::InstrumentExt, StorageProcessor};
 
 const BLOCK_GAS_LIMIT: u32 = system_params::VM_INITIAL_FRAME_ERGS;
 
@@ -161,15 +163,15 @@ impl BlocksWeb3Dal<'_, '_> {
         }))
     }
 
-    /// Returns hashes of blocks with numbers greater than `from_block` and the number of the last block.
-    pub async fn get_block_hashes_after(
+    /// Returns hashes of blocks with numbers starting from `from_block` and the number of the last block.
+    pub async fn get_block_hashes_since(
         &mut self,
         from_block: MiniblockNumber,
         limit: usize,
     ) -> sqlx::Result<(Vec<H256>, Option<MiniblockNumber>)> {
         let rows = sqlx::query!(
             "SELECT number, hash FROM miniblocks \
-            WHERE number > $1 \
+            WHERE number >= $1 \
             ORDER BY number ASC \
             LIMIT $2",
             from_block.0 as i64,
@@ -497,96 +499,12 @@ impl BlocksWeb3Dal<'_, '_> {
             Ok(l1_batch_details.map(api::L1BatchDetails::from))
         }
     }
-
-    pub async fn get_miniblock_for_virtual_block_from(
-        &mut self,
-        migration_start_l1_batch_number: u64,
-        from_virtual_block_number: u64,
-    ) -> sqlx::Result<Option<u32>> {
-        // Since virtual blocks are numerated from `migration_start_l1_batch_number` number and not from 0
-        // we have to subtract (migration_start_l1_batch_number - 1) from the `from` virtual block
-        // to find miniblock using query below
-        let virtual_block_offset = from_virtual_block_number - migration_start_l1_batch_number + 1;
-
-        // In the query below `virtual_block_sum` is actually latest virtual block number, created within this miniblock
-        // and that can be calculated as sum of all virtual blocks counts, created in previous miniblocks.
-        // It is considered that all logs are created in the last virtual block of this miniblock,
-        // that's why we are interested in funding it.
-        // The goal of this query is to find the first miniblock, which contains given virtual block.
-        let record = sqlx::query!(
-            "SELECT number \
-            FROM ( \
-                SELECT number, sum(virtual_blocks) OVER(ORDER BY number) AS virtual_block_sum \
-                FROM miniblocks \
-                WHERE l1_batch_number >= $1 \
-            ) AS vts \
-            WHERE virtual_block_sum >= $2 \
-            ORDER BY number LIMIT 1",
-            migration_start_l1_batch_number as i64,
-            virtual_block_offset as i64
-        )
-        .instrument("get_miniblock_for_virtual_block_from")
-        .with_arg(
-            "migration_start_l1_batch_number",
-            &migration_start_l1_batch_number,
-        )
-        .report_latency()
-        .fetch_optional(self.storage.conn())
-        .await?;
-
-        let result = record.map(|row| row.number as u32);
-
-        Ok(result)
-    }
-
-    pub async fn get_miniblock_for_virtual_block_to(
-        &mut self,
-        migration_start_l1_batch_number: u64,
-        to_virtual_block_number: u64,
-    ) -> sqlx::Result<Option<u32>> {
-        // Since virtual blocks are numerated from `migration_start_l1_batch_number` number and not from 0
-        // we have to subtract (migration_start_l1_batch_number - 1) from the `to` virtual block
-        // to find miniblock using query below
-        let virtual_block_offset = to_virtual_block_number - migration_start_l1_batch_number + 1;
-
-        // In the query below `virtual_block_sum` is actually latest virtual block number, created within this miniblock
-        // and that can be calculated as sum of all virtual blocks counts, created in previous miniblocks.
-        // It is considered that all logs are created in the last virtual block of this miniblock,
-        // that's why we are interested in funding it.
-        // The goal of this query is to find the last miniblock, that contains logs all logs(in the last virtual block),
-        // created before or in a given virtual block.
-        let record = sqlx::query!(
-            "SELECT number \
-            FROM ( \
-                SELECT number, sum(virtual_blocks) OVER(ORDER BY number) AS virtual_block_sum \
-                FROM miniblocks \
-                WHERE l1_batch_number >= $1 \
-            ) AS vts \
-            WHERE virtual_block_sum <= $2 \
-            ORDER BY number DESC LIMIT 1",
-            migration_start_l1_batch_number as i64,
-            virtual_block_offset as i64
-        )
-        .instrument("get_miniblock_for_virtual_block_to")
-        .with_arg(
-            "migration_start_l1_batch_number",
-            &migration_start_l1_batch_number,
-        )
-        .report_latency()
-        .fetch_optional(self.storage.conn())
-        .await?;
-
-        let result = record.map(|row| row.number as u32);
-
-        Ok(result)
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use zksync_contracts::BaseSystemContractsHashes;
     use zksync_types::{
-        block::{miniblock_hash, MiniblockHeader},
+        block::{MiniblockHasher, MiniblockHeader},
         MiniblockNumber, ProtocolVersion, ProtocolVersionId,
     };
 
@@ -611,16 +529,13 @@ mod tests {
         };
         conn.blocks_dal().insert_miniblock(&header).await.unwrap();
 
+        let block_hash = MiniblockHasher::new(MiniblockNumber(0), 0, H256::zero())
+            .finalize(ProtocolVersionId::latest());
         let block_ids = [
             api::BlockId::Number(api::BlockNumber::Earliest),
             api::BlockId::Number(api::BlockNumber::Latest),
             api::BlockId::Number(api::BlockNumber::Number(0.into())),
-            api::BlockId::Hash(miniblock_hash(
-                MiniblockNumber(0),
-                0,
-                H256::zero(),
-                H256::zero(),
-            )),
+            api::BlockId::Hash(block_hash),
         ];
         for block_id in block_ids {
             let block = conn
@@ -630,24 +545,18 @@ mod tests {
             let block = block.unwrap().unwrap();
             assert!(block.transactions.is_empty());
             assert_eq!(block.number, U64::zero());
-            assert_eq!(
-                block.hash,
-                miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero())
-            );
+            assert_eq!(block.hash, block_hash);
 
             let tx_count = conn.blocks_web3_dal().get_block_tx_count(block_id).await;
             assert_eq!(tx_count.unwrap(), Some((MiniblockNumber(0), 8.into())));
         }
 
+        let non_existing_block_hash = MiniblockHasher::new(MiniblockNumber(1), 1, H256::zero())
+            .finalize(ProtocolVersionId::latest());
         let non_existing_block_ids = [
             api::BlockId::Number(api::BlockNumber::Pending),
             api::BlockId::Number(api::BlockNumber::Number(1.into())),
-            api::BlockId::Hash(miniblock_hash(
-                MiniblockNumber(1),
-                1,
-                H256::zero(),
-                H256::zero(),
-            )),
+            api::BlockId::Hash(non_existing_block_hash),
         ];
         for block_id in non_existing_block_ids {
             let block = conn
@@ -749,107 +658,20 @@ mod tests {
             .await
             .unwrap();
 
-        let hash = miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero());
+        let hash = MiniblockHasher::new(MiniblockNumber(0), 0, H256::zero())
+            .finalize(ProtocolVersionId::latest());
         let miniblock_number = conn
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Hash(hash))
             .await;
         assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(0)));
 
-        let hash = miniblock_hash(MiniblockNumber(1), 1, H256::zero(), H256::zero());
+        let hash = MiniblockHasher::new(MiniblockNumber(1), 1, H256::zero())
+            .finalize(ProtocolVersionId::latest());
         let miniblock_number = conn
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Hash(hash))
             .await;
         assert_eq!(miniblock_number.unwrap(), None);
-    }
-
-    #[tokio::test]
-    async fn getting_miniblocks_for_virtual_block() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
-
-        conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
-
-        let mut header = MiniblockHeader {
-            number: MiniblockNumber(0),
-            timestamp: 0,
-            hash: miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero()),
-            l1_tx_count: 0,
-            l2_tx_count: 0,
-            base_fee_per_gas: 100,
-            l1_gas_price: 100,
-            l2_fair_gas_price: 100,
-            base_system_contracts_hashes: BaseSystemContractsHashes::default(),
-            protocol_version: Some(ProtocolVersionId::default()),
-            virtual_blocks: 0,
-        };
-        conn.blocks_dal().insert_miniblock(&header).await.unwrap();
-        conn.blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(0))
-            .await
-            .unwrap();
-
-        header.number = MiniblockNumber(1);
-        conn.blocks_dal().insert_miniblock(&header).await.unwrap();
-        conn.blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(1))
-            .await
-            .unwrap();
-
-        for i in 2..=100 {
-            header.number = MiniblockNumber(i);
-            header.virtual_blocks = 5;
-
-            conn.blocks_dal().insert_miniblock(&header).await.unwrap();
-            conn.blocks_dal()
-                .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(i))
-                .await
-                .unwrap();
-        }
-
-        let virtual_block_ranges = [
-            (2, 4),
-            (20, 24),
-            (11, 15),
-            (1, 10),
-            (88, 99),
-            (1, 100),
-            (1000000, 10000000),
-        ];
-        let expected_miniblock_ranges = [
-            (Some(2), Some(1)),
-            (Some(5), Some(5)),
-            (Some(4), Some(4)),
-            (Some(2), Some(3)),
-            (Some(19), Some(20)),
-            (Some(2), Some(21)),
-            (None, Some(100)),
-        ];
-
-        let inputs_with_expected_values =
-            IntoIterator::into_iter(virtual_block_ranges).zip(expected_miniblock_ranges);
-        for (
-            (virtual_block_start, virtual_block_end),
-            (expected_miniblock_from, expected_miniblock_to),
-        ) in inputs_with_expected_values
-        {
-            // migration_start_l1_batch_number = 1
-            let miniblock_from = conn
-                .blocks_web3_dal()
-                .get_miniblock_for_virtual_block_from(1, virtual_block_start)
-                .await
-                .unwrap();
-            assert_eq!(miniblock_from, expected_miniblock_from);
-
-            let miniblock_to = conn
-                .blocks_web3_dal()
-                .get_miniblock_for_virtual_block_to(1, virtual_block_end)
-                .await
-                .unwrap();
-            assert_eq!(miniblock_to, expected_miniblock_to);
-        }
     }
 }

@@ -1,6 +1,9 @@
-use crate::glue::{GlueFrom, GlueInto};
-use crate::interface::{ExecutionResult, Refunds, TxRevertReason, VmExecutionResultAndLogs};
 use zksync_types::tx::tx_execution_info::TxExecutionStatus;
+
+use crate::{
+    glue::{GlueFrom, GlueInto},
+    interface::{ExecutionResult, Refunds, TxRevertReason, VmExecutionResultAndLogs},
+};
 
 impl GlueFrom<crate::vm_m5::vm_instance::VmTxExecutionResult> for VmExecutionResultAndLogs {
     fn glue_from(value: crate::vm_m5::vm_instance::VmTxExecutionResult) -> Self {

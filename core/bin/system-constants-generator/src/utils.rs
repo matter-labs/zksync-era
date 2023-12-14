@@ -1,23 +1,24 @@
-use once_cell::sync::Lazy;
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
-use multivm::interface::{
-    dyn_tracers::vm_1_4_0::DynTracer, tracer::VmExecutionStopReason, L1BatchEnv, L2BlockEnv,
-    SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
+use multivm::{
+    interface::{
+        dyn_tracers::vm_1_4_0::DynTracer, tracer::VmExecutionStopReason, L1BatchEnv, L2BlockEnv,
+        SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
+    },
+    vm_latest::{
+        constants::{BLOCK_GAS_LIMIT, BOOTLOADER_HEAP_PAGE},
+        BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, Vm, VmTracer,
+        ZkSyncVmState,
+    },
 };
-use multivm::vm_latest::{
-    constants::{BLOCK_GAS_LIMIT, BOOTLOADER_HEAP_PAGE},
-    BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, Vm, VmTracer,
-    ZkSyncVmState,
-};
+use once_cell::sync::Lazy;
 use zksync_contracts::{
     load_sys_contract, read_bootloader_code, read_sys_contract_bytecode, read_zbin_bytecode,
     BaseSystemContracts, ContractLanguage, SystemContractCode,
 };
 use zksync_state::{InMemoryStorage, StorageView, WriteStorage};
 use zksync_types::{
-    block::legacy_miniblock_hash, ethabi::Token, fee::Fee, l1::L1Tx, l2::L2Tx,
+    block::MiniblockHasher, ethabi::Token, fee::Fee, l1::L1Tx, l2::L2Tx,
     utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute, L1BatchNumber,
     L1TxCommonData, L2ChainId, MiniblockNumber, Nonce, ProtocolVersionId, StorageKey, Timestamp,
     Transaction, BOOTLOADER_ADDRESS, H256, SYSTEM_CONTEXT_ADDRESS,
@@ -180,7 +181,7 @@ fn default_l1_batch() -> L1BatchEnv {
         first_l2_block: L2BlockEnv {
             number: 1,
             timestamp: 100,
-            prev_block_hash: legacy_miniblock_hash(MiniblockNumber(0)),
+            prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
             max_virtual_blocks_to_create: 100,
         },
     }

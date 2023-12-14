@@ -1,16 +1,4 @@
-use std::fmt;
-use std::fmt::Display;
-use std::{collections::HashSet, marker::PhantomData};
-
-use crate::vm_m6::{
-    errors::VmRevertReasonParsingResult,
-    history_recorder::HistoryMode,
-    memory::SimpleMemory,
-    oracles::tracer::{
-        utils::{computational_gas_price, print_debug_if_needed, VmHook},
-        ExecutionEndTracer, PendingRefundTracer, PubdataSpentTracer,
-    },
-};
+use std::{collections::HashSet, fmt, fmt::Display, marker::PhantomData};
 
 use zk_evm_1_3_1::{
     abstractions::{
@@ -18,20 +6,29 @@ use zk_evm_1_3_1::{
     },
     zkevm_opcode_defs::{ContextOpcode, FarCallABI, LogOpcode, Opcode},
 };
-
-use crate::vm_m6::oracles::tracer::{utils::get_calldata_page_via_abi, StorageInvocationTracer};
-use crate::vm_m6::storage::{Storage, StoragePtr};
 use zksync_system_constants::{
     ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS,
     KECCAK256_PRECOMPILE_ADDRESS, L2_ETH_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS,
     SYSTEM_CONTEXT_ADDRESS,
 };
-
 use zksync_types::{
     get_code_key, web3::signing::keccak256, AccountTreeId, Address, StorageKey, H256, U256,
 };
 use zksync_utils::{
     be_bytes_to_safe_address, h256_to_account_address, u256_to_account_address, u256_to_h256,
+};
+
+use crate::vm_m6::{
+    errors::VmRevertReasonParsingResult,
+    history_recorder::HistoryMode,
+    memory::SimpleMemory,
+    oracles::tracer::{
+        utils::{
+            computational_gas_price, get_calldata_page_via_abi, print_debug_if_needed, VmHook,
+        },
+        ExecutionEndTracer, PendingRefundTracer, PubdataSpentTracer, StorageInvocationTracer,
+    },
+    storage::{Storage, StoragePtr},
 };
 
 #[derive(Debug, Clone, Eq, PartialEq, Copy)]
@@ -238,7 +235,7 @@ impl<S: Storage, H: HistoryMode> ValidationTracer<S, H> {
             return true;
         }
 
-        // The pair of MSG_VALUE_SIMULATOR_ADDRESS & L2_ETH_TOKEN_ADDRESS simulates the behavior of transfering ETH
+        // The pair of MSG_VALUE_SIMULATOR_ADDRESS & L2_ETH_TOKEN_ADDRESS simulates the behavior of transferring ETH
         // that is safe for the DDoS protection rules.
         if valid_eth_token_call(address, msg_sender) {
             return true;

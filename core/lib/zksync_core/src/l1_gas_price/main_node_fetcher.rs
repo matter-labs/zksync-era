@@ -7,7 +7,6 @@ use std::{
 };
 
 use tokio::sync::watch::Receiver;
-
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::ZksNamespaceClient,

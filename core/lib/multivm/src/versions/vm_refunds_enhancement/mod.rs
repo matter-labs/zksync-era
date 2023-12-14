@@ -1,30 +1,27 @@
-pub use old_vm::{
-    history_recorder::{HistoryDisabled, HistoryEnabled, HistoryMode},
-    memory::SimpleMemory,
+pub use self::{
+    bootloader_state::BootloaderState,
+    old_vm::{
+        history_recorder::{
+            AppDataFrameManagerWithHistory, HistoryDisabled, HistoryEnabled, HistoryMode,
+        },
+        memory::SimpleMemory,
+    },
+    oracles::storage::StorageOracle,
+    tracers::{
+        dispatcher::TracerDispatcher,
+        traits::{ToTracerPointer, TracerPointer, VmTracer},
+    },
+    types::internals::ZkSyncVmState,
+    utils::transaction_encoding::TransactionVmExt,
+    vm::Vm,
 };
 
-pub use oracles::storage::StorageOracle;
-
-pub use tracers::dispatcher::TracerDispatcher;
-pub use tracers::traits::{TracerPointer, VmTracer};
-
-pub use utils::transaction_encoding::TransactionVmExt;
-
-pub use bootloader_state::BootloaderState;
-pub use types::internals::ZkSyncVmState;
-
-pub use vm::Vm;
-
 mod bootloader_state;
+pub mod constants;
 mod implementation;
 mod old_vm;
 mod oracles;
 pub(crate) mod tracers;
 mod types;
-mod vm;
-
-pub mod constants;
 pub mod utils;
-
-// #[cfg(test)]
-// mod tests;
+mod vm;

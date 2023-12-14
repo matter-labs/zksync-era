@@ -7,15 +7,15 @@ use std::{
 use anyhow::Context as _;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
 use sqlx::Row;
-
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    block::{BlockGasCount, ConsensusBlockFields, L1BatchHeader, MiniblockHeader},
+    block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
     commitment::{L1BatchMetadata, L1BatchWithMetadata},
     Address, L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256,
     MAX_GAS_PER_PUBDATA_BYTE, U256,
 };
 
+pub use crate::models::storage_sync::ConsensusBlockFields;
 use crate::{
     instrument::InstrumentExt,
     models::storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageMiniblockHeader},
@@ -34,75 +34,6 @@ impl BlocksDal<'_, '_> {
             .await?
             .count;
         Ok(count == 0)
-    }
-
-    pub async fn get_miniblock_hashes_from_date(
-        &mut self,
-        timestamp: u64,
-        limit: u32,
-        version: ProtocolVersionId,
-    ) -> sqlx::Result<Vec<(MiniblockNumber, H256)>> {
-        let number = sqlx::query!(
-            "SELECT number from miniblocks where timestamp > $1 ORDER BY number ASC LIMIT 1",
-            timestamp as i64
-        )
-        .fetch_one(self.storage.conn())
-        .await?
-        .number;
-        self.storage
-            .blocks_dal()
-            .get_miniblocks_since_block(number, limit, version)
-            .await
-    }
-
-    pub async fn get_last_miniblocks_for_version(
-        &mut self,
-        limit: u32,
-        version: ProtocolVersionId,
-    ) -> sqlx::Result<Vec<(MiniblockNumber, H256)>> {
-        let minibloks = sqlx::query!(
-            "SELECT number, hash FROM miniblocks WHERE protocol_version = $1 ORDER BY number DESC LIMIT $2",
-            version as i32,
-            limit as i32
-        )
-            .fetch_all(self.storage.conn())
-            .await?
-            .iter()
-            .map(|block| {
-                (
-                    MiniblockNumber(block.number as u32),
-                    H256::from_slice(&block.hash),
-                )
-            })
-            .collect();
-
-        Ok(minibloks)
-    }
-
-    pub async fn get_miniblocks_since_block(
-        &mut self,
-        number: i64,
-        limit: u32,
-        version: ProtocolVersionId,
-    ) -> sqlx::Result<Vec<(MiniblockNumber, H256)>> {
-        let minibloks = sqlx::query!(
-            "SELECT number, hash FROM miniblocks WHERE number >= $1 and protocol_version = $2 ORDER BY number LIMIT $3",
-            number,
-            version as i32,
-            limit as i32
-        )
-        .fetch_all(self.storage.conn())
-        .await?
-        .iter()
-        .map(|block| {
-            (
-                MiniblockNumber(block.number as u32),
-                H256::from_slice(&block.hash),
-            )
-        })
-        .collect();
-
-        Ok(minibloks)
     }
 
     pub async fn get_sealed_l1_batch_number(&mut self) -> anyhow::Result<L1BatchNumber> {
@@ -466,6 +397,29 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
+    /// Fetches the number of the last miniblock with consensus fields set.
+    /// Miniblocks with Consensus fields set constitute a prefix of sealed miniblocks,
+    /// so it is enough to traverse the miniblocks in descending order to find the last
+    /// with consensus fields.
+    ///
+    /// If better efficiency is needed we can add an index on "miniblocks without consensus fields".
+    pub async fn get_last_miniblock_number_with_consensus_fields(
+        &mut self,
+    ) -> anyhow::Result<Option<MiniblockNumber>> {
+        let Some(row) = sqlx::query!("SELECT number FROM miniblocks WHERE consensus IS NOT NULL ORDER BY number DESC LIMIT 1")
+            .fetch_optional(self.storage.conn())
+            .await? else { return Ok(None) };
+        Ok(Some(MiniblockNumber(row.number.try_into()?)))
+    }
+
+    /// Checks whether the specified miniblock has consensus field set.
+    pub async fn has_consensus_fields(&mut self, number: MiniblockNumber) -> sqlx::Result<bool> {
+        Ok(sqlx::query!("SELECT COUNT(*) as \"count!\"  FROM miniblocks WHERE number = $1 AND consensus IS NOT NULL", number.0 as i64)
+            .fetch_one(self.storage.conn())
+            .await?
+            .count > 0)
+    }
+
     /// Sets consensus-related fields for the specified miniblock.
     pub async fn set_miniblock_consensus_fields(
         &mut self,
@@ -475,7 +429,7 @@ impl BlocksDal<'_, '_> {
         let result = sqlx::query!(
             "UPDATE miniblocks SET consensus = $2 WHERE number = $1",
             miniblock_number.0 as i64,
-            serde_json::to_value(consensus).unwrap(),
+            zksync_protobuf::serde::serialize(consensus, serde_json::value::Serializer).unwrap(),
         )
         .execute(self.storage.conn())
         .await?;
@@ -484,30 +438,6 @@ impl BlocksDal<'_, '_> {
             result.rows_affected() == 1,
             "Miniblock #{miniblock_number} is not present in Postgres"
         );
-        Ok(())
-    }
-
-    pub async fn update_hashes(
-        &mut self,
-        number_and_hashes: &[(MiniblockNumber, H256)],
-    ) -> sqlx::Result<()> {
-        let mut numbers = vec![];
-        let mut hashes = vec![];
-        for (number, hash) in number_and_hashes {
-            numbers.push(number.0 as i64);
-            hashes.push(hash.as_bytes().to_vec());
-        }
-
-        sqlx::query!(
-            "UPDATE miniblocks SET hash = u.hash   \
-            FROM UNNEST($1::bigint[], $2::bytea[]) AS u(number, hash) \
-            WHERE miniblocks.number = u.number
-        ",
-            &numbers,
-            &hashes
-        )
-        .execute(self.storage.conn())
-        .await?;
         Ok(())
     }
 

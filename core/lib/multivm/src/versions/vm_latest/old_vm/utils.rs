@@ -1,21 +1,18 @@
-use crate::vm_latest::old_vm::memory::SimpleMemory;
-
-use crate::vm_latest::types::internals::ZkSyncVmState;
-use crate::vm_latest::HistoryMode;
-
-use zk_evm_1_4_0::zkevm_opcode_defs::decoding::{
-    AllowedPcOrImm, EncodingModeProduction, VmEncodingMode,
-};
-use zk_evm_1_4_0::zkevm_opcode_defs::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER;
 use zk_evm_1_4_0::{
     aux_structures::{MemoryPage, Timestamp},
     vm_state::PrimitiveValue,
-    zkevm_opcode_defs::FatPointer,
+    zkevm_opcode_defs::{
+        decoding::{AllowedPcOrImm, EncodingModeProduction, VmEncodingMode},
+        FatPointer, RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
+    },
 };
 use zksync_state::WriteStorage;
 use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
-
 use zksync_types::{Address, U256};
+
+use crate::vm_latest::{
+    old_vm::memory::SimpleMemory, types::internals::ZkSyncVmState, HistoryMode,
+};
 
 #[derive(Debug, Clone)]
 pub(crate) enum VmExecutionResult {

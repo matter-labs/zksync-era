@@ -1,15 +1,23 @@
 //! Stored objects.
 
-use zksync_types::aggregated_operations::L1BatchProofForL1;
+use std::io::Read;
+
+use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use zksync_types::{
+    aggregated_operations::L1BatchProofForL1,
     proofs::{AggregationRound, PrepareBasicCircuitsJob},
+    snapshots::{
+        SnapshotFactoryDependencies, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
+    },
     storage::witness_block_state::WitnessBlockState,
     zkevm_test_harness::{
         abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
         bellman::bn256::Bn256,
         encodings::{recursion_request::RecursionRequest, QueueSimulator},
-        witness::full_block_artifact::{BlockBasicCircuits, BlockBasicCircuitsPublicInputs},
-        witness::oracle::VmWitnessOracle,
+        witness::{
+            full_block_artifact::{BlockBasicCircuits, BlockBasicCircuitsPublicInputs},
+            oracle::VmWitnessOracle,
+        },
         LeafAggregationOutputDataWitness, NodeAggregationOutputDataWitness,
         SchedulerCircuitInstanceWitness,
     },
@@ -61,6 +69,59 @@ macro_rules! serialize_using_bincode {
             $crate::bincode::deserialize(&bytes).map_err(std::convert::From::from)
         }
     };
+}
+
+impl StoredObject for SnapshotFactoryDependencies {
+    const BUCKET: Bucket = Bucket::StorageSnapshot;
+    type Key<'a> = L1BatchNumber;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!("snapshot_l1_batch_{key}_factory_deps.json.gzip")
+    }
+
+    //TODO use better language agnostic serialization format like protobuf
+    fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        serde_json::to_writer(&mut encoder, self).map_err(BoxedError::from)?;
+        encoder.finish().map_err(From::from)
+    }
+
+    fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
+        let mut decoder = GzDecoder::new(&bytes[..]);
+        let mut decompressed_bytes = Vec::new();
+        decoder
+            .read_to_end(&mut decompressed_bytes)
+            .map_err(BoxedError::from)?;
+        serde_json::from_slice(&decompressed_bytes).map_err(From::from)
+    }
+}
+
+impl StoredObject for SnapshotStorageLogsChunk {
+    const BUCKET: Bucket = Bucket::StorageSnapshot;
+    type Key<'a> = SnapshotStorageLogsStorageKey;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!(
+            "snapshot_l1_batch_{}_storage_logs_part_{:0>4}.json.gzip",
+            key.l1_batch_number, key.chunk_id
+        )
+    }
+
+    //TODO use better language agnostic serialization format like protobuf
+    fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        serde_json::to_writer(&mut encoder, self).map_err(BoxedError::from)?;
+        encoder.finish().map_err(From::from)
+    }
+
+    fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
+        let mut decoder = GzDecoder::new(&bytes[..]);
+        let mut decompressed_bytes = Vec::new();
+        decoder
+            .read_to_end(&mut decompressed_bytes)
+            .map_err(BoxedError::from)?;
+        serde_json::from_slice(&decompressed_bytes).map_err(From::from)
+    }
 }
 
 impl StoredObject for WitnessBlockState {
@@ -241,5 +302,42 @@ impl dyn ObjectStore + '_ {
         let bytes = value.serialize().map_err(ObjectStoreError::Serialization)?;
         self.put_raw(V::BUCKET, &key, bytes).await?;
         Ok(key)
+    }
+
+    pub fn get_storage_prefix<V: StoredObject>(&self) -> String {
+        self.storage_prefix_raw(V::BUCKET)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_storage_logs_filesnames_generate_corretly() {
+        let filename1 = SnapshotStorageLogsChunk::encode_key(SnapshotStorageLogsStorageKey {
+            l1_batch_number: L1BatchNumber(42),
+            chunk_id: 97,
+        });
+        let filename2 = SnapshotStorageLogsChunk::encode_key(SnapshotStorageLogsStorageKey {
+            l1_batch_number: L1BatchNumber(3),
+            chunk_id: 531,
+        });
+        let filename3 = SnapshotStorageLogsChunk::encode_key(SnapshotStorageLogsStorageKey {
+            l1_batch_number: L1BatchNumber(567),
+            chunk_id: 5,
+        });
+        assert_eq!(
+            "snapshot_l1_batch_42_storage_logs_part_0097.json.gzip",
+            filename1
+        );
+        assert_eq!(
+            "snapshot_l1_batch_3_storage_logs_part_0531.json.gzip",
+            filename2
+        );
+        assert_eq!(
+            "snapshot_l1_batch_567_storage_logs_part_0005.json.gzip",
+            filename3
+        );
     }
 }

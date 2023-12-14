@@ -1,27 +1,25 @@
 //! Shared functionality.
 
-use once_cell::sync::Lazy;
-
 use std::collections::HashMap;
 
+use once_cell::sync::Lazy;
 use zksync_crypto::hasher::{blake2::Blake2Hasher, Hasher};
-use zksync_merkle_tree::{HashTree, TreeInstruction};
+use zksync_merkle_tree::{HashTree, TreeEntry, TreeInstruction};
 use zksync_types::{AccountTreeId, Address, StorageKey, H256, U256};
 
-pub fn generate_key_value_pairs(indexes: impl Iterator<Item = u64>) -> Vec<(U256, H256)> {
+pub fn generate_key_value_pairs(indexes: impl Iterator<Item = u64>) -> Vec<TreeEntry> {
     let address: Address = "4b3af74f66ab1f0da3f2e4ec7a3cb99baf1af7b2".parse().unwrap();
     let kvs = indexes.map(|idx| {
         let key = H256::from_low_u64_be(idx);
         let key = StorageKey::new(AccountTreeId::new(address), key);
-        (key.hashed_key_u256(), H256::from_low_u64_be(idx + 1))
+        let value = H256::from_low_u64_be(idx + 1);
+        TreeEntry::new(key.hashed_key_u256(), idx + 1, value)
     });
     kvs.collect()
 }
 
-pub fn compute_tree_hash(kvs: impl Iterator<Item = (U256, H256)>) -> H256 {
-    let kvs_with_indices = kvs
-        .enumerate()
-        .map(|(i, (key, value))| (key, value, i as u64 + 1));
+pub fn compute_tree_hash(kvs: impl Iterator<Item = TreeEntry>) -> H256 {
+    let kvs_with_indices = kvs.map(|entry| (entry.key, entry.value, entry.leaf_index));
     compute_tree_hash_with_indices(kvs_with_indices)
 }
 
@@ -70,17 +68,18 @@ fn compute_tree_hash_with_indices(kvs: impl Iterator<Item = (U256, H256, u64)>) 
 }
 
 // Computing the expected hash takes some time in the debug mode, so we memoize it.
-pub static KVS_AND_HASH: Lazy<(Vec<(U256, H256)>, H256)> = Lazy::new(|| {
-    let kvs = generate_key_value_pairs(0..100);
-    let expected_hash = compute_tree_hash(kvs.iter().copied());
-    (kvs, expected_hash)
+pub static ENTRIES_AND_HASH: Lazy<(Vec<TreeEntry>, H256)> = Lazy::new(|| {
+    let entries = generate_key_value_pairs(0..100);
+    let expected_hash = compute_tree_hash(entries.iter().copied());
+    (entries, expected_hash)
 });
 
-pub fn convert_to_writes(kvs: &[(U256, H256)]) -> Vec<(U256, TreeInstruction)> {
-    let kvs = kvs
+pub fn convert_to_writes(entries: &[TreeEntry]) -> Vec<TreeInstruction> {
+    entries
         .iter()
-        .map(|&(key, hash)| (key, TreeInstruction::Write(hash)));
-    kvs.collect()
+        .copied()
+        .map(TreeInstruction::Write)
+        .collect()
 }
 
 /// Emulates leaf index assignment in a real Merkle tree.
@@ -88,22 +87,22 @@ pub fn convert_to_writes(kvs: &[(U256, H256)]) -> Vec<(U256, TreeInstruction)> {
 pub struct TreeMap(HashMap<U256, (H256, u64)>);
 
 impl TreeMap {
-    pub fn new(initial_entries: &[(U256, H256)]) -> Self {
+    pub fn new(initial_entries: &[TreeEntry]) -> Self {
         let map = initial_entries
             .iter()
-            .enumerate()
-            .map(|(i, (key, value))| (*key, (*value, i as u64 + 1)))
+            .map(|entry| (entry.key, (entry.value, entry.leaf_index)))
             .collect();
         Self(map)
     }
 
-    pub fn extend(&mut self, kvs: &[(U256, H256)]) {
-        for &(key, new_value) in kvs {
-            if let Some((value, _)) = self.0.get_mut(&key) {
-                *value = new_value;
+    pub fn extend(&mut self, kvs: &[TreeEntry]) {
+        for &new_entry in kvs {
+            if let Some((value, leaf_index)) = self.0.get_mut(&new_entry.key) {
+                assert_eq!(*leaf_index, new_entry.leaf_index); // sanity check
+                *value = new_entry.value;
             } else {
-                let leaf_index = self.0.len() as u64 + 1;
-                self.0.insert(key, (new_value, leaf_index));
+                self.0
+                    .insert(new_entry.key, (new_entry.value, new_entry.leaf_index));
             }
         }
     }
@@ -112,7 +111,7 @@ impl TreeMap {
         let entries = self
             .0
             .iter()
-            .map(|(key, (value, idx))| (*key, *value, *idx));
+            .map(|(key, (value, leaf_index))| (*key, *value, *leaf_index));
         compute_tree_hash_with_indices(entries)
     }
 }

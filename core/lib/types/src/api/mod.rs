@@ -1,20 +1,21 @@
 use chrono::{DateTime, Utc};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use strum::Display;
-
 use zksync_basic_types::{
     web3::types::{Bytes, H160, H256, H64, U256, U64},
     L1BatchNumber,
 };
 use zksync_contracts::BaseSystemContractsHashes;
 
-use crate::protocol_version::L1VerifierConfig;
 pub use crate::transaction_request::{
     Eip712Meta, SerializationTransactionError, TransactionRequest,
 };
-use crate::vm_trace::{Call, CallType};
-use crate::web3::types::{AccessList, Index, H2048};
-use crate::{Address, MiniblockNumber, ProtocolVersionId};
+use crate::{
+    protocol_version::L1VerifierConfig,
+    vm_trace::{Call, CallType},
+    web3::types::{AccessList, Index, H2048},
+    Address, MiniblockNumber, ProtocolVersionId,
+};
 
 pub mod en;
 
@@ -89,7 +90,7 @@ impl<'de> Deserialize<'de> for BlockNumber {
     }
 }
 
-/// Block unified identifier in terms of ZKSync
+/// Block unified identifier in terms of zkSync
 ///
 /// This is an utility structure that cannot be (de)serialized, it has to be created manually.
 /// The reason is because Web3 API provides multiple methods for referring block either by hash or number,
@@ -271,7 +272,7 @@ pub struct Block<TX> {
     /// Hash of the uncles
     #[serde(rename = "sha3Uncles")]
     pub uncles_hash: H256,
-    /// Miner/author's address
+    /// Miner / author's address
     #[serde(rename = "miner", default, deserialize_with = "null_to_default")]
     pub author: H160,
     /// State root hash
@@ -463,7 +464,7 @@ pub struct Transaction {
     pub from: Option<Address>,
     /// Recipient (None when contract creation)
     pub to: Option<Address>,
-    /// Transfered value
+    /// Transferred value
     pub value: U256,
     /// Gas Price
     #[serde(rename = "gasPrice")]
@@ -548,7 +549,7 @@ pub struct TransactionDetails {
 #[derive(Debug, Clone)]
 pub struct GetLogsFilter {
     pub from_block: MiniblockNumber,
-    pub to_block: Option<BlockNumber>,
+    pub to_block: MiniblockNumber,
     pub addresses: Vec<Address>,
     pub topics: Vec<(u32, Vec<H256>)>,
 }

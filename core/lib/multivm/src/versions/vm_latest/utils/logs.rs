@@ -2,8 +2,11 @@ use zksync_state::WriteStorage;
 use zksync_types::{l2_to_l1_log::L2ToL1Log, Timestamp, VmEvent};
 
 use crate::{
-    interface::L1BatchEnv, vm_latest::old_vm::events::merge_events,
-    vm_latest::old_vm::history_recorder::HistoryMode, vm_latest::types::internals::ZkSyncVmState,
+    interface::L1BatchEnv,
+    vm_latest::{
+        old_vm::{events::merge_events, history_recorder::HistoryMode},
+        types::internals::ZkSyncVmState,
+    },
 };
 
 pub(crate) fn collect_events_and_l1_system_logs_after_timestamp<S: WriteStorage, H: HistoryMode>(

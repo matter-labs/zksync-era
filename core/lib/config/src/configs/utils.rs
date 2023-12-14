@@ -1,6 +1,6 @@
-use serde::Deserialize;
-
 use std::{env, time::Duration};
+
+use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct PrometheusConfig {

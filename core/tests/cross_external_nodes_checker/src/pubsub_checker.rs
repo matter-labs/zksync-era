@@ -1,14 +1,10 @@
-use crate::{
-    config::CheckerConfig,
-    divergence::{Divergence, DivergenceDetails},
-    helpers::{compare_json, ExponentialBackoff},
-};
-use anyhow::Context as _;
 use std::{
     collections::HashMap,
     sync::Arc,
     time::{Duration, Instant},
 };
+
+use anyhow::Context as _;
 use tokio::{
     select, spawn,
     sync::{watch::Receiver, Mutex as TokioMutex},
@@ -26,6 +22,12 @@ use zksync_web3_decl::{
         ws_client::{WsClient, WsClientBuilder},
     },
     types::{BlockHeader, PubSubResult},
+};
+
+use crate::{
+    config::CheckerConfig,
+    divergence::{Divergence, DivergenceDetails},
+    helpers::{compare_json, ExponentialBackoff},
 };
 
 const MAX_RETRIES: u32 = 6;

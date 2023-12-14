@@ -31,6 +31,8 @@ jobs:
             # We don't want to be rebuilding and redeploying all the Docker images when eg. only document have changed
             prover:
               - prover/**
+              - core/lib/**
+              - '!core/lib/zksync_core/**'
             core:
               - core/**
             all:
@@ -84,17 +86,6 @@ jobs:
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-
-  build-gar-prover:
-    name: Build GAR prover
-    needs: [setup, build-push-core-images, build-push-prover-images]
-    uses: ./.github/workflows/build-gar-reusable.yml
-    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
-    with:
-      setup_keys_id: bccc7de
-      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
-      push_asia: false
-      push_europe: false
 
   build-gar-prover-fri-gpu:
     name: Build GAR prover FRI GPU

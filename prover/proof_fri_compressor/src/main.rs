@@ -1,11 +1,9 @@
+use std::{env, time::Duration};
+
 use anyhow::Context as _;
-use std::env;
-use structopt::StructOpt;
-use tokio::{sync::oneshot, sync::watch};
-
-use std::time::Duration;
-
 use prometheus_exporter::PrometheusExporterConfig;
+use structopt::StructOpt;
+use tokio::sync::{oneshot, watch};
 use zksync_config::configs::{FriProofCompressorConfig, PostgresConfig};
 use zksync_dal::ConnectionPool;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
@@ -16,6 +14,7 @@ use zksync_utils::wait_for_tasks::wait_for_tasks;
 use crate::compressor::ProofCompressor;
 
 mod compressor;
+mod metrics;
 
 #[derive(Debug, StructOpt)]
 #[structopt(

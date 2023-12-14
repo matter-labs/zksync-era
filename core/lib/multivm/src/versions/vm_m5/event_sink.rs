@@ -1,5 +1,5 @@
-use crate::vm_m5::{oracles::OracleWithHistory, utils::collect_log_queries_after_timestamp};
 use std::collections::HashMap;
+
 use zk_evm_1_3_1::{
     abstractions::EventSink,
     aux_structures::{LogQuery, Timestamp},
@@ -9,7 +9,10 @@ use zk_evm_1_3_1::{
     },
 };
 
-use crate::vm_m5::history_recorder::AppDataFrameManagerWithHistory;
+use crate::vm_m5::{
+    history_recorder::AppDataFrameManagerWithHistory, oracles::OracleWithHistory,
+    utils::collect_log_queries_after_timestamp,
+};
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct InMemoryEventSink {

@@ -1,14 +1,16 @@
+use std::{collections::HashMap, str::FromStr, time::Duration};
+
 use sqlx::Row;
-use std::collections::HashMap;
-use std::str::FromStr;
-use std::time::Duration;
 use strum::{Display, EnumString};
+use zksync_types::{
+    proofs::{JobCountStatistics, StuckJobs},
+    L1BatchNumber,
+};
 
-use zksync_types::proofs::{JobCountStatistics, StuckJobs};
-use zksync_types::L1BatchNumber;
-
-use crate::time_utils::{duration_to_naive_time, pg_interval_from_duration};
-use crate::StorageProcessor;
+use crate::{
+    time_utils::{duration_to_naive_time, pg_interval_from_duration},
+    StorageProcessor,
+};
 
 #[derive(Debug)]
 pub struct FriProofCompressorDal<'a, 'c> {
@@ -204,6 +206,22 @@ impl FriProofCompressorDal<'_, '_> {
             failed: results.remove("failed").unwrap_or(0i64) as usize,
             successful: results.remove("successful").unwrap_or(0i64) as usize,
         }
+    }
+
+    pub async fn get_oldest_not_compressed_batch(&mut self) -> Option<L1BatchNumber> {
+        let result: Option<L1BatchNumber> = sqlx::query!(
+            "SELECT l1_batch_number \
+            FROM proof_compression_jobs_fri \
+            WHERE status <> 'successful' \
+            ORDER BY l1_batch_number ASC \
+            LIMIT 1",
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| L1BatchNumber(row.l1_batch_number as u32));
+
+        result
     }
 
     pub async fn requeue_stuck_jobs(

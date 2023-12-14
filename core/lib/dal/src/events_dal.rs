@@ -1,13 +1,13 @@
-use sqlx::types::chrono::Utc;
-
 use std::fmt;
 
-use crate::{models::storage_event::StorageL2ToL1Log, SqlxError, StorageProcessor};
+use sqlx::types::chrono::Utc;
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     tx::IncludedTxLocation,
     MiniblockNumber, VmEvent, H256,
 };
+
+use crate::{models::storage_event::StorageL2ToL1Log, SqlxError, StorageProcessor};
 
 /// Wrapper around an optional event topic allowing to hex-format it for `COPY` instructions.
 #[derive(Debug)]
@@ -196,9 +196,10 @@ impl EventsDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    use zksync_types::{Address, L1BatchNumber, ProtocolVersion};
+
     use super::*;
     use crate::{tests::create_miniblock_header, ConnectionPool};
-    use zksync_types::{Address, L1BatchNumber, ProtocolVersion};
 
     fn create_vm_event(index: u8, topic_count: u8) -> VmEvent {
         assert!(topic_count <= 4);

@@ -1,8 +1,7 @@
-use crate::proof_data_handler::request_processor::RequestProcessor;
-use anyhow::Context as _;
-use axum::extract::Path;
-use axum::{routing::post, Json, Router};
 use std::net::SocketAddr;
+
+use anyhow::Context as _;
+use axum::{extract::Path, routing::post, Json, Router};
 use tokio::sync::watch;
 use zksync_config::{
     configs::{proof_data_handler::ProtocolVersionLoadingMode, ProofDataHandlerConfig},
@@ -15,6 +14,8 @@ use zksync_types::{
     prover_server_api::{ProofGenerationDataRequest, SubmitProofRequest},
     H256,
 };
+
+use crate::proof_data_handler::request_processor::RequestProcessor;
 
 mod request_processor;
 

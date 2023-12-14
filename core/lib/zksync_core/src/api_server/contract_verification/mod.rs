@@ -1,21 +1,17 @@
 use std::{net::SocketAddr, time::Duration};
 
 use actix_cors::Cors;
-use actix_web::{
-    dev::Server,
-    {web, App, HttpResponse, HttpServer},
-};
+use actix_web::{dev::Server, web, App, HttpResponse, HttpServer};
 use tokio::{sync::watch, task::JoinHandle};
-
 use zksync_config::configs::api::ContractVerificationApiConfig;
 use zksync_dal::connection::ConnectionPool;
 use zksync_utils::panic_notify::{spawn_panic_handler, ThreadPanicNotify};
 
+use self::api_decl::RestApi;
+
 mod api_decl;
 mod api_impl;
 mod metrics;
-
-use self::api_decl::RestApi;
 
 fn start_server(api: RestApi, bind_to: SocketAddr, threads: usize) -> Server {
     HttpServer::new(move || {

@@ -6,6 +6,7 @@ members = [
     "core/bin/external_node",
     "core/bin/merkle_tree_consistency_checker",
     "core/bin/rocksdb_util",
+    "core/bin/snapshots_creator",
     "core/bin/storage_logs_dedup_migration",
     "core/bin/system-constants-generator",
     "core/bin/verification_key_generator_and_server",
