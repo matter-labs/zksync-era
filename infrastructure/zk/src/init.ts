@@ -56,6 +56,7 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     await announced('Deploying L1 contracts', contract.redeployL1(governorPrivateKeyArgs));
     await announced('Initializing validator', contract.initializeValidator(governorPrivateKeyArgs));
     await announced('Initialize L1 allow list', contract.initializeL1AllowList(governorPrivateKeyArgs));
+    // THE FIRST DEPOSIT IS HERE
     await announced(
         'Deploying L2 contracts',
         contract.deployL2(
@@ -66,15 +67,15 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     );
 
     if (deployerL2ContractInput.includeL2WETH) {
-        await announced('Initializing L2 WETH token', contract.initializeWethToken(governorPrivateKeyArgs));
+        // await announced('Initializing L2 WETH token', contract.initializeWethToken(governorPrivateKeyArgs));
     }
-    await announced(
-        'Initializing governance',
-        contract.initializeGovernance([
-            ...governorPrivateKeyArgs,
-            !deployerL2ContractInput.includeL2WETH ? ['--skip-weth-bridge'] : []
-        ])
-    );
+    // await announced(
+    //     'Initializing governance',
+    //     contract.initializeGovernance([
+    //         ...governorPrivateKeyArgs,
+    //         !deployerL2ContractInput.includeL2WETH ? ['--skip-weth-bridge'] : []
+    //     ])
+    // );
 }
 
 // A smaller version of `init` that "resets" the localhost environment, for which `init` was already called before.
