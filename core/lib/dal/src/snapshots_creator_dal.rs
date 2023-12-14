@@ -98,7 +98,7 @@ impl SnapshotsCreatorDal<'_, '_> {
         Ok(rows
             .into_iter()
             .map(|row| SnapshotFactoryDependency {
-                bytecode: row.bytecode,
+                bytecode: row.bytecode.into(),
             })
             .collect())
     }

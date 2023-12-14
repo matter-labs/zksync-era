@@ -6,6 +6,7 @@ use rand::{thread_rng, Rng};
 use zksync_dal::StorageProcessor;
 use zksync_types::{
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
+    snapshots::{SnapshotFactoryDependency, SnapshotStorageLog},
     AccountTreeId, Address, ProtocolVersion, StorageKey, StorageLog, H256,
 };
 
@@ -33,8 +34,8 @@ fn gen_factory_deps(rng: &mut impl Rng, count: usize) -> HashMap<H256, Vec<u8>> 
 
 #[derive(Debug, Default)]
 struct ExpectedOutputs {
-    deps: HashSet<Vec<u8>>,
-    storage_logs: HashSet<(StorageKey, H256)>,
+    deps: HashSet<SnapshotFactoryDependency>,
+    storage_logs: HashSet<SnapshotStorageLog>,
 }
 
 async fn create_miniblock(
@@ -117,8 +118,30 @@ async fn prepare_postgres(
         create_l1_batch(conn, L1BatchNumber(block_number), &logs).await;
 
         if block_number + 1 < block_count {
-            outputs.deps.extend(factory_deps.into_values());
-            let logs = logs.into_iter().map(|log| (log.key, log.value));
+            let factory_deps =
+                factory_deps
+                    .into_values()
+                    .map(|bytecode| SnapshotFactoryDependency {
+                        bytecode: bytecode.into(),
+                    });
+            outputs.deps.extend(factory_deps);
+
+            let hashed_keys: Vec<_> = logs.iter().map(|log| log.key.hashed_key()).collect();
+            let expected_l1_batches_and_indices = conn
+                .storage_logs_dal()
+                .get_l1_batches_and_indices_for_initial_writes(&hashed_keys)
+                .await;
+
+            let logs = logs.into_iter().map(|log| {
+                let (l1_batch_number_of_initial_write, enumeration_index) =
+                    expected_l1_batches_and_indices[&log.key.hashed_key()];
+                SnapshotStorageLog {
+                    key: log.key,
+                    value: log.value,
+                    l1_batch_number_of_initial_write,
+                    enumeration_index,
+                }
+            });
             outputs.storage_logs.extend(logs);
         }
     }
@@ -184,7 +207,7 @@ async fn persisting_snapshot_factory_deps() {
     let object_store = object_store_factory.create_store().await;
     let SnapshotFactoryDependencies { factory_deps } =
         object_store.get(snapshot_l1_batch_number).await.unwrap();
-    let actual_deps: HashSet<_> = factory_deps.into_iter().map(|dep| dep.bytecode).collect();
+    let actual_deps: HashSet<_> = factory_deps.into_iter().collect();
     assert_eq!(actual_deps, expected_outputs.deps);
 }
 
@@ -206,38 +229,13 @@ async fn persisting_snapshot_logs() {
 
     let object_store = object_store_factory.create_store().await;
     let mut actual_logs = HashSet::new();
-    let mut actual_l1_batches_and_indices = HashMap::new();
     for chunk_id in 0..MIN_CHUNK_COUNT {
         let key = SnapshotStorageLogsStorageKey {
             l1_batch_number: snapshot_l1_batch_number,
             chunk_id,
         };
         let chunk: SnapshotStorageLogsChunk = object_store.get(key).await.unwrap();
-
-        let l1_batches_and_indices_for_chunk = chunk.storage_logs.iter().map(|log| {
-            let value = (log.l1_batch_number_of_initial_write, log.enumeration_index);
-            (log.key.hashed_key(), value)
-        });
-        actual_l1_batches_and_indices.extend(l1_batches_and_indices_for_chunk);
-
-        let logs = chunk
-            .storage_logs
-            .into_iter()
-            .map(|log| (log.key, log.value));
-        actual_logs.extend(logs);
+        actual_logs.extend(chunk.storage_logs.into_iter());
     }
     assert_eq!(actual_logs, expected_outputs.storage_logs);
-
-    let hashed_keys: Vec<_> = actual_logs
-        .into_iter()
-        .map(|(key, _)| key.hashed_key())
-        .collect();
-    let expected_l1_batches_and_indices = conn
-        .storage_logs_dal()
-        .get_l1_batches_and_indices_for_initial_writes(&hashed_keys)
-        .await;
-    assert_eq!(
-        actual_l1_batches_and_indices,
-        expected_l1_batches_and_indices
-    );
 }
