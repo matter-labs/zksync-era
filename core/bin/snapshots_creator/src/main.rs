@@ -48,111 +48,7 @@ async fn maybe_enable_prometheus_metrics(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)] // FIXME
-async fn process_storage_logs_single_chunk(
-    blob_store: &dyn ObjectStore,
-    master_pool: &ConnectionPool,
-    pool: &ConnectionPool,
-    semaphore: &Semaphore,
-    miniblock_number: MiniblockNumber,
-    l1_batch_number: L1BatchNumber,
-    chunk_id: u64,
-    chunk_count: u64,
-    #[cfg(test)] event_listener: &dyn HandleEvent,
-) -> anyhow::Result<()> {
-    let _permit = semaphore.acquire().await?;
-    #[cfg(test)]
-    if event_listener.on_chunk_started().should_exit() {
-        return Ok(());
-    }
-
-    let hashed_keys_range = get_chunk_hashed_keys_range(chunk_id, chunk_count);
-    let mut conn = pool.access_storage_tagged("snapshots_creator").await?;
-
-    let latency =
-        METRICS.storage_logs_processing_duration[&StorageChunkStage::LoadFromPostgres].start();
-    let logs = conn
-        .snapshots_creator_dal()
-        .get_storage_logs_chunk(miniblock_number, hashed_keys_range)
-        .await
-        .context("Error fetching storage logs count")?;
-    drop(conn);
-    let latency = latency.observe();
-    tracing::info!(
-        "Loaded chunk {chunk_id} ({} logs) from Postgres in {latency:?}",
-        logs.len()
-    );
-
-    let latency = METRICS.storage_logs_processing_duration[&StorageChunkStage::SaveToGcs].start();
-    let storage_logs_chunk = SnapshotStorageLogsChunk { storage_logs: logs };
-    let key = SnapshotStorageLogsStorageKey {
-        l1_batch_number,
-        chunk_id,
-    };
-    let filename = blob_store
-        .put(key, &storage_logs_chunk)
-        .await
-        .context("Error storing storage logs chunk in blob store")?;
-    let output_filepath_prefix = blob_store.get_storage_prefix::<SnapshotStorageLogsChunk>();
-    let output_filepath = format!("{output_filepath_prefix}/{filename}");
-    let latency = latency.observe();
-
-    let mut master_conn = master_pool
-        .access_storage_tagged("snapshots_creator")
-        .await?;
-    master_conn
-        .snapshots_dal()
-        .add_storage_logs_filepath_for_snapshot(l1_batch_number, &output_filepath)
-        .await?;
-
-    #[cfg(test)]
-    event_listener.on_chunk_saved();
-
-    let tasks_left = METRICS.storage_logs_chunks_left_to_process.dec_by(1) - 1;
-    tracing::info!(
-        "Saved chunk {chunk_id} (overall progress {}/{chunk_count}) in {latency:?} to location: {output_filepath}",
-        chunk_count - tasks_left as u64
-    );
-    Ok(())
-}
-
-async fn process_factory_deps(
-    blob_store: &dyn ObjectStore,
-    pool: &ConnectionPool,
-    miniblock_number: MiniblockNumber,
-    l1_batch_number: L1BatchNumber,
-) -> anyhow::Result<String> {
-    let mut conn = pool.access_storage_tagged("snapshots_creator").await?;
-
-    tracing::info!("Loading factory deps from Postgres...");
-    let latency =
-        METRICS.factory_deps_processing_duration[&FactoryDepsStage::LoadFromPostgres].start();
-    let factory_deps = conn
-        .snapshots_creator_dal()
-        .get_all_factory_deps(miniblock_number)
-        .await?;
-    drop(conn);
-    let latency = latency.observe();
-    tracing::info!("Loaded {} factory deps in {latency:?}", factory_deps.len());
-
-    tracing::info!("Saving factory deps to GCS...");
-    let latency = METRICS.factory_deps_processing_duration[&FactoryDepsStage::SaveToGcs].start();
-    let factory_deps = SnapshotFactoryDependencies { factory_deps };
-    let filename = blob_store
-        .put(l1_batch_number, &factory_deps)
-        .await
-        .context("Error storing factory deps in blob store")?;
-    let output_filepath_prefix = blob_store.get_storage_prefix::<SnapshotFactoryDependencies>();
-    let output_filepath = format!("{output_filepath_prefix}/{filename}");
-    let latency = latency.observe();
-    tracing::info!(
-        "Saved {} factory deps in {latency:?} to location: {output_filepath}",
-        factory_deps.factory_deps.len()
-    );
-
-    Ok(output_filepath)
-}
-
+/// Encapsulates progress of creating a particular storage snapshot.
 #[derive(Debug)]
 struct SnapshotProgress {
     l1_batch_number: L1BatchNumber,
@@ -211,137 +107,250 @@ impl SnapshotProgress {
     }
 }
 
-async fn run(
-    config: SnapshotsCreatorConfig,
+/// Creator of a single storage snapshot.
+#[derive(Debug)]
+struct SnapshotCreator {
     blob_store: Box<dyn ObjectStore>,
-    replica_pool: ConnectionPool,
     master_pool: ConnectionPool,
-    min_chunk_count: u64,
-    #[cfg(test)] event_listener: &dyn HandleEvent,
-) -> anyhow::Result<()> {
-    let latency = METRICS.snapshot_generation_duration.start();
+    replica_pool: ConnectionPool,
+    #[cfg(test)]
+    event_listener: Box<dyn HandleEvent>,
+}
 
-    let mut conn = replica_pool
-        .access_storage_tagged("snapshots_creator")
-        .await?;
-    let mut master_conn = master_pool
-        .access_storage_tagged("snapshots_creator")
-        .await?;
-
-    let latest_snapshot = master_conn
-        .snapshots_dal()
-        .get_newest_snapshot_metadata()
-        .await?;
-    let pending_snapshot = latest_snapshot
-        .as_ref()
-        .filter(|snapshot| !snapshot.is_complete());
-    let progress = if let Some(snapshot) = pending_snapshot {
-        SnapshotProgress::from_existing_snapshot(snapshot, &*blob_store)?
-    } else {
-        // We subtract 1 so that after restore, EN node has at least one L1 batch to fetch
-        let sealed_l1_batch_number = conn.blocks_dal().get_sealed_l1_batch_number().await?;
-        assert_ne!(
-            sealed_l1_batch_number,
-            L1BatchNumber(0),
-            "Cannot create snapshot when only the genesis L1 batch is present in Postgres"
-        );
-        let l1_batch_number = sealed_l1_batch_number - 1;
-
-        let latest_snapshot_l1_batch_number = latest_snapshot
-            .as_ref()
-            .map(|snapshot| snapshot.l1_batch_number);
-        if latest_snapshot_l1_batch_number == Some(l1_batch_number) {
-            tracing::info!(
-                "Snapshot at expected L1 batch #{l1_batch_number} is already created; exiting"
-            );
+impl SnapshotCreator {
+    async fn process_storage_logs_single_chunk(
+        &self,
+        semaphore: &Semaphore,
+        miniblock_number: MiniblockNumber,
+        l1_batch_number: L1BatchNumber,
+        chunk_id: u64,
+        chunk_count: u64,
+    ) -> anyhow::Result<()> {
+        let _permit = semaphore.acquire().await?;
+        #[cfg(test)]
+        if self.event_listener.on_chunk_started().should_exit() {
             return Ok(());
         }
 
-        let distinct_storage_logs_keys_count = conn
-            .snapshots_creator_dal()
-            .get_distinct_storage_logs_keys_count(l1_batch_number)
+        let hashed_keys_range = get_chunk_hashed_keys_range(chunk_id, chunk_count);
+        let mut conn = self
+            .replica_pool
+            .access_storage_tagged("snapshots_creator")
             .await?;
-        let chunk_size = config.storage_logs_chunk_size;
-        // We force the minimum number of chunks to avoid situations where only one chunk is created in tests.
-        let chunk_count =
-            ceil_div(distinct_storage_logs_keys_count, chunk_size).max(min_chunk_count);
 
+        let latency =
+            METRICS.storage_logs_processing_duration[&StorageChunkStage::LoadFromPostgres].start();
+        let logs = conn
+            .snapshots_creator_dal()
+            .get_storage_logs_chunk(miniblock_number, hashed_keys_range)
+            .await
+            .context("Error fetching storage logs count")?;
+        drop(conn);
+        let latency = latency.observe();
         tracing::info!(
-            "Selected storage logs chunking for L1 batch {l1_batch_number}: \
-            {chunk_count} chunks of expected size {chunk_size}"
+            "Loaded chunk {chunk_id} ({} logs) from Postgres in {latency:?}",
+            logs.len()
         );
-        SnapshotProgress::new(l1_batch_number, chunk_count)
-    };
-    drop(master_conn);
 
-    let (_, last_miniblock_number_in_batch) = conn
-        .blocks_dal()
-        .get_miniblock_range_of_l1_batch(progress.l1_batch_number)
-        .await?
-        .context("Error fetching last miniblock number")?;
-    drop(conn);
+        let latency =
+            METRICS.storage_logs_processing_duration[&StorageChunkStage::SaveToGcs].start();
+        let storage_logs_chunk = SnapshotStorageLogsChunk { storage_logs: logs };
+        let key = SnapshotStorageLogsStorageKey {
+            l1_batch_number,
+            chunk_id,
+        };
+        let filename = self
+            .blob_store
+            .put(key, &storage_logs_chunk)
+            .await
+            .context("Error storing storage logs chunk in blob store")?;
+        let output_filepath_prefix = self
+            .blob_store
+            .get_storage_prefix::<SnapshotStorageLogsChunk>();
+        let output_filepath = format!("{output_filepath_prefix}/{filename}");
+        let latency = latency.observe();
 
-    METRICS.storage_logs_chunks_count.set(progress.chunk_count);
-    tracing::info!(
-        "Creating snapshot for storage logs up to miniblock {last_miniblock_number_in_batch}, \
-        L1 batch {}",
-        progress.l1_batch_number
-    );
-
-    if progress.needs_persisting_factory_deps {
-        let factory_deps_output_file = process_factory_deps(
-            &*blob_store,
-            &replica_pool,
-            last_miniblock_number_in_batch,
-            progress.l1_batch_number,
-        )
-        .await?;
-
-        let mut master_conn = master_pool
+        let mut master_conn = self
+            .master_pool
             .access_storage_tagged("snapshots_creator")
             .await?;
         master_conn
             .snapshots_dal()
-            .add_snapshot(
-                progress.l1_batch_number,
-                progress.chunk_count,
-                &factory_deps_output_file,
-            )
+            .add_storage_logs_filepath_for_snapshot(l1_batch_number, &output_filepath)
             .await?;
+        #[cfg(test)]
+        self.event_listener.on_chunk_saved();
+
+        let tasks_left = METRICS.storage_logs_chunks_left_to_process.dec_by(1) - 1;
+        tracing::info!(
+            "Saved chunk {chunk_id} (overall progress {}/{chunk_count}) in {latency:?} to location: {output_filepath}",
+            chunk_count - tasks_left as u64
+        );
+        Ok(())
     }
 
-    METRICS
-        .storage_logs_chunks_left_to_process
-        .set(progress.remaining_chunk_ids.len());
-    let semaphore = Semaphore::new(config.concurrent_queries_count as usize);
-    let tasks = progress.remaining_chunk_ids.into_iter().map(|chunk_id| {
-        process_storage_logs_single_chunk(
-            &*blob_store,
-            &master_pool,
-            &replica_pool,
-            &semaphore,
-            last_miniblock_number_in_batch,
-            progress.l1_batch_number,
-            chunk_id,
-            progress.chunk_count,
-            #[cfg(test)]
-            event_listener,
-        )
-    });
-    futures::future::try_join_all(tasks).await?;
+    async fn process_factory_deps(
+        &self,
+        miniblock_number: MiniblockNumber,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<String> {
+        let mut conn = self
+            .replica_pool
+            .access_storage_tagged("snapshots_creator")
+            .await?;
 
-    METRICS
-        .snapshot_l1_batch
-        .set(progress.l1_batch_number.0.into());
+        tracing::info!("Loading factory deps from Postgres...");
+        let latency =
+            METRICS.factory_deps_processing_duration[&FactoryDepsStage::LoadFromPostgres].start();
+        let factory_deps = conn
+            .snapshots_creator_dal()
+            .get_all_factory_deps(miniblock_number)
+            .await?;
+        drop(conn);
+        let latency = latency.observe();
+        tracing::info!("Loaded {} factory deps in {latency:?}", factory_deps.len());
 
-    let elapsed = latency.observe();
-    tracing::info!("snapshot_generation_duration: {elapsed:?}");
-    tracing::info!("snapshot_l1_batch: {}", METRICS.snapshot_l1_batch.get());
-    tracing::info!(
-        "storage_logs_chunks_count: {}",
-        METRICS.storage_logs_chunks_count.get()
-    );
-    Ok(())
+        tracing::info!("Saving factory deps to GCS...");
+        let latency =
+            METRICS.factory_deps_processing_duration[&FactoryDepsStage::SaveToGcs].start();
+        let factory_deps = SnapshotFactoryDependencies { factory_deps };
+        let filename = self
+            .blob_store
+            .put(l1_batch_number, &factory_deps)
+            .await
+            .context("Error storing factory deps in blob store")?;
+        let output_filepath_prefix = self
+            .blob_store
+            .get_storage_prefix::<SnapshotFactoryDependencies>();
+        let output_filepath = format!("{output_filepath_prefix}/{filename}");
+        let latency = latency.observe();
+        tracing::info!(
+            "Saved {} factory deps in {latency:?} to location: {output_filepath}",
+            factory_deps.factory_deps.len()
+        );
+
+        Ok(output_filepath)
+    }
+
+    async fn run(self, config: SnapshotsCreatorConfig, min_chunk_count: u64) -> anyhow::Result<()> {
+        let latency = METRICS.snapshot_generation_duration.start();
+
+        let mut conn = self
+            .replica_pool
+            .access_storage_tagged("snapshots_creator")
+            .await?;
+        let mut master_conn = self
+            .master_pool
+            .access_storage_tagged("snapshots_creator")
+            .await?;
+
+        let latest_snapshot = master_conn
+            .snapshots_dal()
+            .get_newest_snapshot_metadata()
+            .await?;
+        let pending_snapshot = latest_snapshot
+            .as_ref()
+            .filter(|snapshot| !snapshot.is_complete());
+        let progress = if let Some(snapshot) = pending_snapshot {
+            SnapshotProgress::from_existing_snapshot(snapshot, &*self.blob_store)?
+        } else {
+            // We subtract 1 so that after restore, EN node has at least one L1 batch to fetch
+            let sealed_l1_batch_number = conn.blocks_dal().get_sealed_l1_batch_number().await?;
+            assert_ne!(
+                sealed_l1_batch_number,
+                L1BatchNumber(0),
+                "Cannot create snapshot when only the genesis L1 batch is present in Postgres"
+            );
+            let l1_batch_number = sealed_l1_batch_number - 1;
+
+            let latest_snapshot_l1_batch_number = latest_snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.l1_batch_number);
+            if latest_snapshot_l1_batch_number == Some(l1_batch_number) {
+                tracing::info!(
+                    "Snapshot at expected L1 batch #{l1_batch_number} is already created; exiting"
+                );
+                return Ok(());
+            }
+
+            let distinct_storage_logs_keys_count = conn
+                .snapshots_creator_dal()
+                .get_distinct_storage_logs_keys_count(l1_batch_number)
+                .await?;
+            let chunk_size = config.storage_logs_chunk_size;
+            // We force the minimum number of chunks to avoid situations where only one chunk is created in tests.
+            let chunk_count =
+                ceil_div(distinct_storage_logs_keys_count, chunk_size).max(min_chunk_count);
+
+            tracing::info!(
+                "Selected storage logs chunking for L1 batch {l1_batch_number}: \
+                {chunk_count} chunks of expected size {chunk_size}"
+            );
+            SnapshotProgress::new(l1_batch_number, chunk_count)
+        };
+        drop(master_conn);
+
+        let (_, last_miniblock_number_in_batch) = conn
+            .blocks_dal()
+            .get_miniblock_range_of_l1_batch(progress.l1_batch_number)
+            .await?
+            .context("Error fetching last miniblock number")?;
+        drop(conn);
+
+        METRICS.storage_logs_chunks_count.set(progress.chunk_count);
+        tracing::info!(
+            "Creating snapshot for storage logs up to miniblock {last_miniblock_number_in_batch}, \
+            L1 batch {}",
+            progress.l1_batch_number
+        );
+
+        if progress.needs_persisting_factory_deps {
+            let factory_deps_output_file = self
+                .process_factory_deps(last_miniblock_number_in_batch, progress.l1_batch_number)
+                .await?;
+
+            let mut master_conn = self
+                .master_pool
+                .access_storage_tagged("snapshots_creator")
+                .await?;
+            master_conn
+                .snapshots_dal()
+                .add_snapshot(
+                    progress.l1_batch_number,
+                    progress.chunk_count,
+                    &factory_deps_output_file,
+                )
+                .await?;
+        }
+
+        METRICS
+            .storage_logs_chunks_left_to_process
+            .set(progress.remaining_chunk_ids.len());
+        let semaphore = Semaphore::new(config.concurrent_queries_count as usize);
+        let tasks = progress.remaining_chunk_ids.into_iter().map(|chunk_id| {
+            self.process_storage_logs_single_chunk(
+                &semaphore,
+                last_miniblock_number_in_batch,
+                progress.l1_batch_number,
+                chunk_id,
+                progress.chunk_count,
+            )
+        });
+        futures::future::try_join_all(tasks).await?;
+
+        METRICS
+            .snapshot_l1_batch
+            .set(progress.l1_batch_number.0.into());
+
+        let elapsed = latency.observe();
+        tracing::info!("snapshot_generation_duration: {elapsed:?}");
+        tracing::info!("snapshot_l1_batch: {}", METRICS.snapshot_l1_batch.get());
+        tracing::info!(
+            "storage_logs_chunks_count: {}",
+            METRICS.storage_logs_chunks_count.get()
+        );
+        Ok(())
+    }
 }
 
 /// Minimum number of storage log chunks to produce.
@@ -391,16 +400,14 @@ async fn main() -> anyhow::Result<()> {
         .await?;
 
     let config = SnapshotsCreatorConfig::from_env().context("SnapshotsCreatorConfig::from_env")?;
-    run(
-        config,
+    let creator = SnapshotCreator {
         blob_store,
-        replica_pool,
         master_pool,
-        MIN_CHUNK_COUNT,
+        replica_pool,
         #[cfg(test)]
-        &(),
-    )
-    .await?;
+        event_listener: Box::new(()),
+    };
+    creator.run(config, MIN_CHUNK_COUNT).await?;
 
     tracing::info!("Finished running snapshot creator!");
     stop_sender.send(true).ok();
