@@ -1,5 +1,7 @@
 //! Lower-level tests for the snapshot creator component.
 
+// FIXME: test snapshot creator recovery
+
 use std::collections::{HashMap, HashSet};
 
 use rand::{thread_rng, Rng};
