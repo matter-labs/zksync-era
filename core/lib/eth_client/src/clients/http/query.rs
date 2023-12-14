@@ -100,8 +100,8 @@ impl EthInterface for QueryClient {
         let mut history = Vec::with_capacity(block_count);
         let from_block = upto_block.saturating_sub(block_count);
 
-        // Here we are requesting fee_history from blocks
-        // (from_block; upto_block] in chunks of size MAX_REQUEST_CHUNK
+        // Here we are requesting `fee_history` from blocks
+        // `(from_block; upto_block)` in chunks of size `MAX_REQUEST_CHUNK`
         // starting from the oldest block.
         for chunk_start in (from_block..=upto_block).step_by(MAX_REQUEST_CHUNK) {
             let chunk_end = (chunk_start + MAX_REQUEST_CHUNK).min(upto_block);
