@@ -18,6 +18,8 @@ use zksync_types::{
 };
 use zksync_utils::ceil_div;
 
+#[cfg(test)]
+use crate::tests::HandleEvent;
 use crate::{
     chunking::get_chunk_hashed_keys_range,
     metrics::{FactoryDepsStage, StorageChunkStage, METRICS},
@@ -55,10 +57,16 @@ async fn process_storage_logs_single_chunk(
     miniblock_number: MiniblockNumber,
     l1_batch_number: L1BatchNumber,
     chunk_id: u64,
-    chunks_count: u64,
+    chunk_count: u64,
+    #[cfg(test)] event_listener: &dyn HandleEvent,
 ) -> anyhow::Result<()> {
     let _permit = semaphore.acquire().await?;
-    let hashed_keys_range = get_chunk_hashed_keys_range(chunk_id, chunks_count);
+    #[cfg(test)]
+    if event_listener.on_chunk_started().should_exit() {
+        return Ok(());
+    }
+
+    let hashed_keys_range = get_chunk_hashed_keys_range(chunk_id, chunk_count);
     let mut conn = pool.access_storage_tagged("snapshots_creator").await?;
 
     let latency =
@@ -97,10 +105,13 @@ async fn process_storage_logs_single_chunk(
         .add_storage_logs_filepath_for_snapshot(l1_batch_number, &output_filepath)
         .await?;
 
+    #[cfg(test)]
+    event_listener.on_chunk_saved();
+
     let tasks_left = METRICS.storage_logs_chunks_left_to_process.dec_by(1) - 1;
     tracing::info!(
-        "Saved chunk {chunk_id} (overall progress {}/{chunks_count}) in {latency:?} to location: {output_filepath}",
-        chunks_count - tasks_left as u64
+        "Saved chunk {chunk_id} (overall progress {}/{chunk_count}) in {latency:?} to location: {output_filepath}",
+        chunk_count - tasks_left as u64
     );
     Ok(())
 }
@@ -166,8 +177,12 @@ impl SnapshotProgress {
     ) -> anyhow::Result<Self> {
         let output_filepath_prefix = blob_store.get_storage_prefix::<SnapshotStorageLogsChunk>();
         let existing_chunk_ids = snapshot.storage_logs_filepaths.iter().map(|path| {
+            // FIXME: this parsing looks unnecessarily fragile
             let object_key = path
                 .strip_prefix(&output_filepath_prefix)
+                .with_context(|| format!("Path `{path}` has unexpected prefix"))?;
+            let object_key = object_key
+                .strip_prefix('/')
                 .with_context(|| format!("Path `{path}` has unexpected prefix"))?;
             let object_key = object_key
                 .parse::<SnapshotStorageLogsStorageKey>()
@@ -197,13 +212,14 @@ impl SnapshotProgress {
 }
 
 async fn run(
+    config: SnapshotsCreatorConfig,
     blob_store: Box<dyn ObjectStore>,
     replica_pool: ConnectionPool,
     master_pool: ConnectionPool,
     min_chunk_count: u64,
+    #[cfg(test)] event_listener: &dyn HandleEvent,
 ) -> anyhow::Result<()> {
     let latency = METRICS.snapshot_generation_duration.start();
-    let config = SnapshotsCreatorConfig::from_env().context("SnapshotsCreatorConfig::from_env")?;
 
     let mut conn = replica_pool
         .access_storage_tagged("snapshots_creator")
@@ -308,6 +324,8 @@ async fn run(
             progress.l1_batch_number,
             chunk_id,
             progress.chunk_count,
+            #[cfg(test)]
+            event_listener,
         )
     });
     futures::future::try_join_all(tasks).await?;
@@ -372,7 +390,18 @@ async fn main() -> anyhow::Result<()> {
         .build()
         .await?;
 
-    run(blob_store, replica_pool, master_pool, MIN_CHUNK_COUNT).await?;
+    let config = SnapshotsCreatorConfig::from_env().context("SnapshotsCreatorConfig::from_env")?;
+    run(
+        config,
+        blob_store,
+        replica_pool,
+        master_pool,
+        MIN_CHUNK_COUNT,
+        #[cfg(test)]
+        &(),
+    )
+    .await?;
+
     tracing::info!("Finished running snapshot creator!");
     stop_sender.send(true).ok();
     Ok(())
