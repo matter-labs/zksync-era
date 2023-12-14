@@ -126,7 +126,7 @@ async fn prepare_postgres(
 }
 
 #[tokio::test]
-async fn basic_workflow() {
+async fn persisting_snapshot_metadata() {
     let pool = ConnectionPool::test_pool().await;
     let mut rng = thread_rng();
     let object_store_factory = ObjectStoreFactory::mock();
@@ -134,14 +134,13 @@ async fn basic_workflow() {
 
     // Insert some data to Postgres.
     let mut conn = pool.access_storage().await.unwrap();
-    let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
-    drop(conn);
+    prepare_postgres(&mut rng, &mut conn, 10).await;
 
-    run(object_store, pool.clone(), pool.clone()).await.unwrap();
+    run(object_store, pool.clone(), pool.clone(), MIN_CHUNK_COUNT)
+        .await
+        .unwrap();
 
     // Check snapshot metadata in Postgres.
-    let mut conn = pool.access_storage().await.unwrap();
-
     let snapshots = conn.snapshots_dal().get_all_snapshots().await.unwrap();
     assert_eq!(snapshots.snapshots_l1_batch_numbers.len(), 1);
     let snapshot_l1_batch_number = snapshots.snapshots_l1_batch_numbers[0];
@@ -154,29 +153,61 @@ async fn basic_workflow() {
         .unwrap()
         .expect("No snapshot metadata");
     assert_eq!(snapshot_metadata.l1_batch_number, snapshot_l1_batch_number);
-
-    // Check persisted factory deps.
-    let object_store = object_store_factory.create_store().await;
-    let factory_depth_path = &snapshot_metadata.factory_deps_filepath;
-    let factory_depth_path = factory_depth_path
-        .strip_prefix("storage_logs_snapshots/")
-        .unwrap();
-    assert!(factory_depth_path.ends_with(".json.gzip"));
-    let SnapshotFactoryDependencies { factory_deps } =
-        object_store.get(snapshot_l1_batch_number).await.unwrap();
-    let actual_deps: HashSet<_> = factory_deps.into_iter().map(|dep| dep.bytecode).collect();
-    assert_eq!(actual_deps, expected_outputs.deps);
-
-    // Check persisted storage logs.
+    let factory_deps_path = &snapshot_metadata.factory_deps_filepath;
+    assert!(factory_deps_path.ends_with(".json.gzip"));
+    assert_eq!(
+        snapshot_metadata.storage_logs_filepaths.len(),
+        MIN_CHUNK_COUNT as usize
+    );
     for path in &snapshot_metadata.storage_logs_filepaths {
         let path = path.strip_prefix("storage_logs_snapshots/").unwrap();
         assert!(path.ends_with(".json.gzip"));
     }
+}
 
+#[tokio::test]
+async fn persisting_snapshot_factory_deps() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut rng = thread_rng();
+    let object_store_factory = ObjectStoreFactory::mock();
+    let object_store = object_store_factory.create_store().await;
+
+    // Insert some data to Postgres.
+    let mut conn = pool.access_storage().await.unwrap();
+    let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
+
+    run(object_store, pool.clone(), pool.clone(), MIN_CHUNK_COUNT)
+        .await
+        .unwrap();
+    let snapshot_l1_batch_number = L1BatchNumber(8);
+
+    let object_store = object_store_factory.create_store().await;
+    let SnapshotFactoryDependencies { factory_deps } =
+        object_store.get(snapshot_l1_batch_number).await.unwrap();
+    let actual_deps: HashSet<_> = factory_deps.into_iter().map(|dep| dep.bytecode).collect();
+    assert_eq!(actual_deps, expected_outputs.deps);
+}
+
+#[tokio::test]
+async fn persisting_snapshot_logs() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut rng = thread_rng();
+    let object_store_factory = ObjectStoreFactory::mock();
+    let object_store = object_store_factory.create_store().await;
+
+    // Insert some data to Postgres.
+    let mut conn = pool.access_storage().await.unwrap();
+    let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
+
+    run(object_store, pool.clone(), pool.clone(), MIN_CHUNK_COUNT)
+        .await
+        .unwrap();
+    let snapshot_l1_batch_number = L1BatchNumber(8);
+
+    let object_store = object_store_factory.create_store().await;
     let mut actual_logs = HashSet::new();
     let mut actual_l1_batches_and_indices = HashMap::new();
-    for chunk_id in 0..snapshot_metadata.storage_logs_filepaths.len() {
-        let chunk_id = chunk_id as u64;
+    for chunk_id in 0..MIN_CHUNK_COUNT {
         let key = SnapshotStorageLogsStorageKey {
             l1_batch_number: snapshot_l1_batch_number,
             chunk_id,

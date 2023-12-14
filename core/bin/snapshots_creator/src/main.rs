@@ -1,7 +1,5 @@
 //! Snapshot creator utility. Intended to run on a schedule, with each run creating a new snapshot.
 
-use std::cmp::max;
-
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
 use tokio::sync::{watch, Semaphore};
@@ -54,12 +52,7 @@ async fn process_storage_logs_single_chunk(
     chunk_id: u64,
     chunks_count: u64,
 ) -> anyhow::Result<String> {
-    let latency =
-        METRICS.storage_logs_processing_duration[&StorageChunkStage::AcquirePermit].start();
     let _permit = semaphore.acquire().await?;
-    let latency = latency.observe();
-    tracing::info!("Acquire permit for chunk {chunk_id} in {latency:?}");
-
     let hashed_keys_range = get_chunk_hashed_keys_range(chunk_id, chunks_count);
     let mut conn = pool.access_storage_tagged("snapshots_creator").await?;
 
@@ -93,7 +86,7 @@ async fn process_storage_logs_single_chunk(
 
     let tasks_left = METRICS.storage_logs_chunks_left_to_process.dec_by(1) - 1;
     tracing::info!(
-        "Saved chunk {chunk_id} to {output_filepath} in {latency:?}; overall progress {}/{chunks_count}",
+        "Saved chunk {chunk_id} (overall progress {}/{chunks_count}) in {latency:?} to location: {output_filepath}",
         chunks_count - tasks_left
     );
     Ok(output_filepath)
@@ -129,7 +122,7 @@ async fn process_factory_deps(
     let output_filepath = format!("{output_filepath_prefix}/{filename}");
     let latency = latency.observe();
     tracing::info!(
-        "Saved {} factory deps to {output_filepath} in {latency:?}",
+        "Saved {} factory deps in {latency:?} to location: {output_filepath}",
         factory_deps.factory_deps.len()
     );
 
@@ -140,6 +133,7 @@ async fn run(
     blob_store: Box<dyn ObjectStore>,
     replica_pool: ConnectionPool,
     master_pool: ConnectionPool,
+    min_chunk_count: u64,
 ) -> anyhow::Result<()> {
     let latency = METRICS.snapshot_generation_duration.start();
     let config = SnapshotsCreatorConfig::from_env().context("SnapshotsCreatorConfig::from_env")?;
@@ -182,8 +176,8 @@ async fn run(
     drop(conn);
 
     let chunk_size = config.storage_logs_chunk_size;
-    // we force at least 10 chunks to avoid situations where only one chunk is created in tests
-    let chunks_count = max(10, ceil_div(distinct_storage_logs_keys_count, chunk_size));
+    // We force the minimum number of chunks to avoid situations where only one chunk is created in tests.
+    let chunks_count = ceil_div(distinct_storage_logs_keys_count, chunk_size).max(min_chunk_count);
 
     METRICS.storage_logs_chunks_count.set(chunks_count);
 
@@ -247,6 +241,9 @@ async fn run(
     Ok(())
 }
 
+/// Minimum number of storage log chunks to produce.
+const MIN_CHUNK_COUNT: u64 = 10;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -290,7 +287,7 @@ async fn main() -> anyhow::Result<()> {
         .build()
         .await?;
 
-    run(blob_store, replica_pool, master_pool).await?;
+    run(blob_store, replica_pool, master_pool, MIN_CHUNK_COUNT).await?;
     tracing::info!("Finished running snapshot creator!");
     stop_sender.send(true).ok();
     Ok(())

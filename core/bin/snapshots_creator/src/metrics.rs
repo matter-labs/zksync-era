@@ -14,7 +14,6 @@ pub(crate) enum FactoryDepsStage {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
 pub(crate) enum StorageChunkStage {
-    AcquirePermit,
     LoadFromPostgres,
     SaveToGcs,
 }

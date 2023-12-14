@@ -57,6 +57,10 @@ mod tests {
                 .iter()
                 .map(|chunk| h256_to_u256(*chunk.end()) - h256_to_u256(*chunk.start()) + 1)
                 .collect();
+
+            // Check that chunk sizes are roughly equal. Due to how chunks are constructed, the sizes
+            // of all chunks except for the last one are the same, and the last chunk size may be slightly smaller;
+            // the difference in sizes is lesser than the number of chunks.
             let min_chunk_size = chunk_sizes.iter().copied().min().unwrap();
             let max_chunk_size = chunk_sizes.iter().copied().max().unwrap();
             assert!(max_chunk_size - min_chunk_size < U256::from(chunks_count));
