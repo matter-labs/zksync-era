@@ -46,9 +46,14 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
     await announced('Building contracts', contract.build());
+
+    if (testTokens.deploy) {
+      await announced('Deploying localhost ERC20 tokens', run.deployERC20('dev', '', '', '', testTokens.args));
+    }
+
     if (nativeERC20) {
-        // TODO: Deploy and set native ERC20 token.
-        await announced('Setting up native L2 ERC20 token', run.deployERC20('new', 'lambdacoin', 'LBC', '18'));
+      // TODO: Deploy and set native ERC20 token.
+      await announced('Setting up native L2 ERC20 token', run.deployERC20('new', 'lambdacoin', 'LBC', '18'));
     }
     await announced('Deploying L1 verifier', contract.deployVerifier([]));
     await announced('Reloading env', env.reload());
