@@ -30,7 +30,7 @@ jobs:
         matrix:
           node-version: [18.x]
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac # v4
         with:
           submodules: "recursive"
       - name: Use Node.js ${{ matrix.node-version }}
@@ -44,7 +44,11 @@ jobs:
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
 
-      - name: Run zk cspell
+      - name: Start services
+        run: |
+          docker compose up -d zk
+
+      - name: Run cspell
         run: |
           ci_run zk
           ci_run zk cspell
