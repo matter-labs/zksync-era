@@ -198,6 +198,7 @@ pub(super) fn create_execution_result(
             computational_gas_used: 0,
             total_log_queries,
             pubdata_published: 0,
+            estimated_circuits_used: 0,
         },
         refunds: Refunds::default(),
     }

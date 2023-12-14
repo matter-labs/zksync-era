@@ -1,3 +1,4 @@
+use bigdecimal::{BigDecimal, ToPrimitive};
 use zk_evm_1_4_0::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
@@ -71,6 +72,13 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             .map(|x| (x.get_refunds(), x.pubdata_published()))
             .unwrap_or_default();
 
+        // Ceil and convert to usize.
+        let estimated_circuits_used = (tx_tracer.estimated_circuits_used.clone()
+            + BigDecimal::from(1u8) / BigDecimal::from(2u8))
+        .round(0)
+        .to_usize()
+        .expect("estimated_circuits_used must fix into usize");
+
         let statistics = self.get_statistics(
             timestamp_initial,
             cycles_initial,
@@ -80,6 +88,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             spent_pubdata_counter_before,
             pubdata_published,
             logs.total_log_queries_count,
+            estimated_circuits_used,
         );
         let result = tx_tracer.result_tracer.into_result();
 

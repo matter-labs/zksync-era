@@ -26,6 +26,7 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult> for crate::interface::Fi
                     computational_gas_used: value.full_result.gas_used,
                     gas_used: value.full_result.gas_used,
                     pubdata_published: 0,
+                    estimated_circuits_used: 0,
                 },
                 refunds: Refunds::default(),
             },
@@ -63,6 +64,7 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult> for crate::interface::Fi
                     computational_gas_used: value.full_result.computational_gas_used,
                     gas_used: value.full_result.gas_used,
                     pubdata_published: 0,
+                    estimated_circuits_used: 0,
                 },
                 refunds: Refunds::default(),
             },
@@ -106,6 +108,7 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult> for crate::interface:
                     computational_gas_used: value.full_result.computational_gas_used,
                     gas_used: value.full_result.gas_used,
                     pubdata_published: 0,
+                    estimated_circuits_used: 0,
                 },
                 refunds: Refunds::default(),
             },
@@ -165,6 +168,7 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult>
                 computational_gas_used: value.full_result.computational_gas_used,
                 gas_used: value.full_result.gas_used,
                 pubdata_published: 0,
+                estimated_circuits_used: 0,
             },
             refunds: Refunds::default(),
         }
@@ -195,6 +199,7 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult>
                 computational_gas_used: 0,
                 gas_used: value.full_result.gas_used,
                 pubdata_published: 0,
+                estimated_circuits_used: 0,
             },
             refunds: Refunds::default(),
         }
@@ -236,6 +241,7 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult>
                 computational_gas_used: value.full_result.computational_gas_used,
                 gas_used: value.full_result.gas_used,
                 pubdata_published: 0,
+                estimated_circuits_used: 0,
             },
             refunds: Refunds::default(),
         }

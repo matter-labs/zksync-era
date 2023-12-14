@@ -4226,6 +4226,7 @@ name = "multivm"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bigdecimal",
  "ethabi",
  "hex",
  "itertools",

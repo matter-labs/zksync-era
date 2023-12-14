@@ -3,18 +3,24 @@ use std::{
     marker::PhantomData,
 };
 
+use bigdecimal::{BigDecimal, Zero};
 use zk_evm_1_4_0::{
     tracing::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
     },
     vm_state::VmLocalState,
     witness_trace::DummyTracer,
-    zkevm_opcode_defs::{decoding::EncodingModeProduction, Opcode, RetOpcode},
+    zkevm_opcode_defs::{decoding::EncodingModeProduction, LogOpcode, Opcode, RetOpcode},
 };
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::Timestamp;
+use zksync_system_constants::{
+    ECRECOVER_PRECOMPILE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
+};
+use zksync_types::{AccountTreeId, StorageKey, Timestamp};
+use zksync_utils::u256_to_h256;
 
 use super::PubdataTracer;
+use crate::vm_m5::storage::Storage;
 use crate::{
     interface::{
         tracer::{TracerExecutionStopReason, VmExecutionStopReason},
@@ -62,6 +68,9 @@ pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     pub(crate) pubdata_tracer: Option<PubdataTracer<S>>,
     pub(crate) dispatcher: TracerDispatcher<S, H>,
     ret_from_the_bootloader: Option<RetOpcode>,
+    //
+    pub(crate) estimated_circuits_used: BigDecimal,
+
     storage: StoragePtr<S>,
     _phantom: PhantomData<H>,
 }
@@ -88,6 +97,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             dispatcher,
             pubdata_tracer,
             ret_from_the_bootloader: None,
+            estimated_circuits_used: BigDecimal::zero(),
             storage,
             _phantom: PhantomData,
         }
@@ -137,6 +147,64 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             ));
         }
         TracerExecutionStatus::Continue
+    }
+
+    fn circuits_used_by_opcode(
+        &mut self,
+        state: &VmLocalStateData<'_>,
+        data: &BeforeExecutionData,
+    ) -> BigDecimal {
+        match data.opcode.variant.opcode {
+            Opcode::Invalid(_)
+            | Opcode::Nop(_)
+            | Opcode::Add(_)
+            | Opcode::Sub(_)
+            | Opcode::Mul(_)
+            | Opcode::Div(_)
+            | Opcode::Jump(_)
+            | Opcode::Binop(_)
+            | Opcode::Shift(_)
+            | Opcode::Ptr(_)
+            | Opcode::NearCall(_)
+            | Opcode::Context(_)
+            | Opcode::Ret(_) => {
+                todo!(); // const
+            }
+            Opcode::Log(LogOpcode::StorageRead) => todo!(), // const
+            Opcode::Log(LogOpcode::StorageWrite) => {
+                let storage_key = StorageKey::new(
+                    AccountTreeId::new(state.vm_local_state.callstack.current.this_address),
+                    u256_to_h256(data.src0_value.value),
+                );
+
+                let first_write = !self
+                    .storage
+                    .borrow()
+                    .get_modified_storage_keys()
+                    .contains_key(&storage_key);
+                if first_write {
+                    if self.storage.borrow_mut().is_write_initial(&storage_key) {
+                        todo!() // const
+                    } else {
+                        todo!() // const
+                    }
+                } else {
+                    todo!() // const
+                }
+            }
+            Opcode::Log(LogOpcode::ToL1Message) => todo!(), // const
+            Opcode::Log(LogOpcode::Event) => todo!(),       // const
+            Opcode::Log(LogOpcode::PrecompileCall) => {
+                match state.vm_local_state.callstack.current.this_address {
+                    a if a == KECCAK256_PRECOMPILE_ADDRESS => todo!(), // const
+                    a if a == SHA256_PRECOMPILE_ADDRESS => todo!(),    // const
+                    a if a == ECRECOVER_PRECOMPILE_ADDRESS => todo!(), // const
+                    _ => todo!(),                                      // const
+                }
+            }
+            Opcode::FarCall(_) => todo!(), // const
+            Opcode::UMA(_) => todo!(),     // const
+        }
     }
 }
 
@@ -220,6 +288,8 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
 
         self.gas_spent_on_bytecodes_and_long_messages +=
             gas_spent_on_bytecodes_and_long_messages_this_opcode(&state, &data);
+
+        // self.estimated_circuits_used += self.circuits_used_by_opcode(&state, &data);
 
         dispatch_tracers!(self.before_execution(state, data, memory, self.storage.clone()));
     }
