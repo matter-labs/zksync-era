@@ -280,8 +280,6 @@ async fn persisting_snapshot_factory_deps() {
     let mut rng = thread_rng();
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
-
-    // Insert some data to Postgres.
     let mut conn = pool.access_storage().await.unwrap();
     let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
 
@@ -304,8 +302,6 @@ async fn persisting_snapshot_logs() {
     let mut rng = thread_rng();
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
-
-    // Insert some data to Postgres.
     let mut conn = pool.access_storage().await.unwrap();
     let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
 
@@ -342,8 +338,6 @@ async fn recovery_workflow() {
     let mut rng = thread_rng();
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
-
-    // Insert some data to Postgres.
     let mut conn = pool.access_storage().await.unwrap();
     let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
 
@@ -392,4 +386,48 @@ async fn recovery_workflow() {
 
     let object_store = object_store_factory.create_store().await;
     assert_storage_logs(&*object_store, snapshot_l1_batch_number, &expected_outputs).await;
+}
+
+#[tokio::test]
+async fn recovery_workflow_with_varying_chunk_size() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut rng = thread_rng();
+    let object_store_factory = ObjectStoreFactory::mock();
+    let object_store = object_store_factory.create_store().await;
+    let mut conn = pool.access_storage().await.unwrap();
+    let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
+
+    SnapshotCreator::for_tests(object_store, pool.clone())
+        .stop_after_chunk_count(2)
+        .run(SEQUENTIAL_TEST_CONFIG, MIN_CHUNK_COUNT)
+        .await
+        .unwrap();
+
+    let snapshot_l1_batch_number = L1BatchNumber(8);
+    let snapshot_metadata = conn
+        .snapshots_dal()
+        .get_snapshot_metadata(snapshot_l1_batch_number)
+        .await
+        .unwrap()
+        .expect("No snapshot metadata");
+    assert_eq!(snapshot_metadata.storage_logs_filepaths.len(), 2);
+
+    let config_with_other_size = SnapshotsCreatorConfig {
+        storage_logs_chunk_size: 1, // << should be ignored
+        ..SEQUENTIAL_TEST_CONFIG
+    };
+    let object_store = object_store_factory.create_store().await;
+    SnapshotCreator::for_tests(object_store, pool.clone())
+        .run(config_with_other_size, MIN_CHUNK_COUNT)
+        .await
+        .unwrap();
+
+    let object_store = object_store_factory.create_store().await;
+    assert_storage_logs(
+        &mut conn,
+        &*object_store,
+        snapshot_l1_batch_number,
+        &expected_outputs,
+    )
+    .await;
 }
