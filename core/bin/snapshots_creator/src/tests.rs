@@ -8,10 +8,15 @@ use std::{
 
 use rand::{thread_rng, Rng};
 use zksync_dal::StorageProcessor;
+use zksync_object_store::ObjectStore;
 use zksync_types::{
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
-    snapshots::{SnapshotFactoryDependency, SnapshotStorageLog},
-    AccountTreeId, Address, ProtocolVersion, StorageKey, StorageLog, H256,
+    snapshots::{
+        SnapshotFactoryDependencies, SnapshotFactoryDependency, SnapshotStorageLog,
+        SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
+    },
+    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersion, StorageKey,
+    StorageLog, H256,
 };
 
 use super::*;
