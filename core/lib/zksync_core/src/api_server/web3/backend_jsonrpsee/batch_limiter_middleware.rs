@@ -9,7 +9,7 @@ use governor::{
 use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 use zksync_web3_decl::jsonrpsee::{
     server::middleware::rpc::{layer::ResponseFuture, RpcServiceT},
-    types::{ErrorObject, Request},
+    types::{error::ErrorCode, ErrorObject, Request},
     MethodResponse,
 };
 
@@ -69,7 +69,14 @@ where
 
                 let rp = MethodResponse::error(
                     request.id,
-                    ErrorObject::borrowed(429, "Too many requests", None),
+                    ErrorObject::borrowed(
+                        ErrorCode::ServerError(
+                            reqwest::StatusCode::TOO_MANY_REQUESTS.as_u16().into(),
+                        )
+                        .code(),
+                        "Too many requests",
+                        None,
+                    ),
                 );
                 return ResponseFuture::ready(rp);
             }
