@@ -101,7 +101,10 @@ impl StoredObject for SnapshotStorageLogsChunk {
     type Key<'a> = SnapshotStorageLogsStorageKey;
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        key.to_string()
+        format!(
+            "snapshot_l1_batch_{}_storage_logs_part_{:0>4}.json.gzip",
+            key.l1_batch_number, key.chunk_id
+        )
     }
 
     //TODO use better language agnostic serialization format like protobuf
