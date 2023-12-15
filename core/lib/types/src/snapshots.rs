@@ -12,19 +12,17 @@ pub struct AllSnapshots {
     pub snapshots_l1_batch_numbers: Vec<L1BatchNumber>,
 }
 
-// used in dal to fetch certain snapshot data
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+/// Storage snapshot metadata. Used in DAL to fetch certain snapshot data.
+#[derive(Debug, Clone)]
 pub struct SnapshotMetadata {
     pub l1_batch_number: L1BatchNumber,
-    pub storage_logs_chunk_count: u64,
     pub factory_deps_filepath: String,
-    pub storage_logs_filepaths: Vec<String>,
+    pub storage_logs_filepaths: Vec<Option<String>>,
 }
 
 impl SnapshotMetadata {
     pub fn is_complete(&self) -> bool {
-        self.storage_logs_filepaths.len() as u64 == self.storage_logs_chunk_count
+        self.storage_logs_filepaths.iter().all(Option::is_some)
     }
 }
 

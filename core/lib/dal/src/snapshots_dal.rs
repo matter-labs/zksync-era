@@ -5,6 +5,27 @@ use zksync_types::{
 
 use crate::{instrument::InstrumentExt, StorageProcessor};
 
+#[derive(Debug, sqlx::FromRow)]
+struct StorageSnapshotMetadata {
+    l1_batch_number: i64,
+    storage_logs_filepaths: Vec<String>,
+    factory_deps_filepath: String,
+}
+
+impl From<StorageSnapshotMetadata> for SnapshotMetadata {
+    fn from(row: StorageSnapshotMetadata) -> Self {
+        Self {
+            l1_batch_number: L1BatchNumber(row.l1_batch_number as u32),
+            storage_logs_filepaths: row
+                .storage_logs_filepaths
+                .into_iter()
+                .map(|path| (!path.is_empty()).then_some(path))
+                .collect(),
+            factory_deps_filepath: row.factory_deps_filepath,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct SnapshotsDal<'a, 'c> {
     pub(crate) storage: &'a mut StorageProcessor<'c>,
@@ -19,12 +40,12 @@ impl SnapshotsDal<'_, '_> {
     ) -> sqlx::Result<()> {
         sqlx::query!(
             "INSERT INTO snapshots ( \
-                l1_batch_number, storage_logs_chunk_count, storage_logs_filepaths, factory_deps_filepath, \
+                l1_batch_number, storage_logs_filepaths, factory_deps_filepath, \
                 created_at, updated_at \
             ) \
-            VALUES ($1, $2, ARRAY[]::text[], $3, NOW(), NOW())",
+            VALUES ($1, array_fill(''::text, ARRAY[$2::integer]), $3, NOW(), NOW())",
             l1_batch_number.0 as i32,
-            storage_logs_chunk_count as i64,
+            storage_logs_chunk_count as i32,
             factory_deps_filepaths,
         )
         .instrument("add_snapshot")
@@ -37,14 +58,16 @@ impl SnapshotsDal<'_, '_> {
     pub async fn add_storage_logs_filepath_for_snapshot(
         &mut self,
         l1_batch_number: L1BatchNumber,
+        chunk_id: u64,
         storage_logs_filepath: &str,
     ) -> sqlx::Result<()> {
         sqlx::query!(
             "UPDATE snapshots SET \
-                storage_logs_filepaths = storage_logs_filepaths || $2::text, \
+                storage_logs_filepaths[$2] = $3, \
                 updated_at = NOW() \
             WHERE l1_batch_number = $1",
             l1_batch_number.0 as i32,
+            chunk_id as i32 + 1,
             storage_logs_filepath,
         )
         .execute(self.storage.conn())
@@ -70,8 +93,9 @@ impl SnapshotsDal<'_, '_> {
     }
 
     pub async fn get_newest_snapshot_metadata(&mut self) -> sqlx::Result<Option<SnapshotMetadata>> {
-        let row = sqlx::query!(
-            "SELECT l1_batch_number, storage_logs_chunk_count, factory_deps_filepath, storage_logs_filepaths \
+        let row = sqlx::query_as!(
+            StorageSnapshotMetadata,
+            "SELECT l1_batch_number, factory_deps_filepath, storage_logs_filepaths \
             FROM snapshots \
             ORDER BY l1_batch_number DESC LIMIT 1"
         )
@@ -80,20 +104,16 @@ impl SnapshotsDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await?;
 
-        Ok(row.map(|row| SnapshotMetadata {
-            l1_batch_number: L1BatchNumber(row.l1_batch_number as u32),
-            storage_logs_chunk_count: row.storage_logs_chunk_count as u64,
-            factory_deps_filepath: row.factory_deps_filepath,
-            storage_logs_filepaths: row.storage_logs_filepaths,
-        }))
+        Ok(row.map(Into::into))
     }
 
     pub async fn get_snapshot_metadata(
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> sqlx::Result<Option<SnapshotMetadata>> {
-        let row = sqlx::query!(
-            "SELECT l1_batch_number, storage_logs_chunk_count, factory_deps_filepath, storage_logs_filepaths \
+        let row = sqlx::query_as!(
+            StorageSnapshotMetadata,
+            "SELECT l1_batch_number, factory_deps_filepath, storage_logs_filepaths \
             FROM snapshots \
             WHERE l1_batch_number = $1",
             l1_batch_number.0 as i32
@@ -103,12 +123,7 @@ impl SnapshotsDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await?;
 
-        Ok(row.map(|row| SnapshotMetadata {
-            l1_batch_number: L1BatchNumber(row.l1_batch_number as u32),
-            storage_logs_chunk_count: row.storage_logs_chunk_count as u64,
-            factory_deps_filepath: row.factory_deps_filepath,
-            storage_logs_filepaths: row.storage_logs_filepaths,
-        }))
+        Ok(row.map(Into::into))
     }
 }
 
@@ -124,7 +139,7 @@ mod tests {
         let mut conn = pool.access_storage().await.unwrap();
         let mut dal = conn.snapshots_dal();
         let l1_batch_number = L1BatchNumber(100);
-        dal.add_snapshot(l1_batch_number, 100, "gs:///bucket/factory_deps.bin")
+        dal.add_snapshot(l1_batch_number, 2, "gs:///bucket/factory_deps.bin")
             .await
             .expect("Failed to add snapshot");
 
@@ -149,16 +164,14 @@ mod tests {
         let mut conn = pool.access_storage().await.unwrap();
         let mut dal = conn.snapshots_dal();
         let l1_batch_number = L1BatchNumber(100);
-        dal.add_snapshot(l1_batch_number, 100, "gs:///bucket/factory_deps.bin")
+        dal.add_snapshot(l1_batch_number, 2, "gs:///bucket/factory_deps.bin")
             .await
             .expect("Failed to add snapshot");
 
         let storage_log_filepaths = ["gs:///bucket/test_file1.bin", "gs:///bucket/test_file2.bin"];
-        for storage_log_filepath in storage_log_filepaths {
-            dal.add_storage_logs_filepath_for_snapshot(l1_batch_number, storage_log_filepath)
-                .await
-                .unwrap();
-        }
+        dal.add_storage_logs_filepath_for_snapshot(l1_batch_number, 1, storage_log_filepaths[1])
+            .await
+            .unwrap();
 
         let files = dal
             .get_snapshot_metadata(l1_batch_number)
@@ -166,7 +179,27 @@ mod tests {
             .expect("Failed to retrieve snapshot")
             .unwrap()
             .storage_logs_filepaths;
-        assert!(files.contains(&"gs:///bucket/test_file1.bin".to_string()));
-        assert!(files.contains(&"gs:///bucket/test_file2.bin".to_string()));
+        assert_eq!(
+            files,
+            [None, Some("gs:///bucket/test_file2.bin".to_string())]
+        );
+
+        dal.add_storage_logs_filepath_for_snapshot(l1_batch_number, 0, storage_log_filepaths[0])
+            .await
+            .unwrap();
+
+        let files = dal
+            .get_snapshot_metadata(l1_batch_number)
+            .await
+            .expect("Failed to retrieve snapshot")
+            .unwrap()
+            .storage_logs_filepaths;
+        assert_eq!(
+            files,
+            [
+                Some("gs:///bucket/test_file1.bin".to_string()),
+                Some("gs:///bucket/test_file2.bin".to_string())
+            ]
+        );
     }
 }
