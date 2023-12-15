@@ -1,0 +1,3 @@
+# These CODEOWNERS are used to automatically assign reviewers when a PR is created internally in the LambdaClass/zksync-era fork.
+# Note: This should be removed before merging into the main branch of matter-labs/zksync-era.
+*       @mationorato @jrchatruc @ilitteri @juanbono @IAvecilla
