@@ -555,10 +555,6 @@ pub async fn initialize_components(
             .build()
             .await
             .context("failed to build eth_sender_pool")?;
-        let eth_sender_prover_pool = ConnectionPool::singleton(postgres_config.prover_url()?)
-            .build()
-            .await
-            .context("failed to build eth_sender_prover_pool")?;
 
         let eth_sender = configs
             .eth_sender_config
@@ -580,7 +576,6 @@ pub async fn initialize_components(
         );
         task_futures.push(tokio::spawn(eth_tx_aggregator_actor.run(
             eth_sender_pool,
-            eth_sender_prover_pool,
             eth_client,
             stop_receiver.clone(),
         )));
