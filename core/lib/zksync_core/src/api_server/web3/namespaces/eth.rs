@@ -220,10 +220,6 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     pub async fn get_logs_impl(&self, mut filter: Filter) -> Result<Vec<Log>, Web3Error> {
         const METHOD_NAME: &str = "get_logs";
 
-        if self.state.logs_translator_enabled {
-            return self.state.translate_get_logs(filter).await;
-        }
-
         let method_latency = API_METRICS.start_call(METHOD_NAME);
         self.state.resolve_filter_block_hash(&mut filter).await?;
         let (from_block, to_block) = self.state.resolve_filter_block_range(&filter).await?;
