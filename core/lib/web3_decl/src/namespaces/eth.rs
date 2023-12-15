@@ -1,7 +1,6 @@
 use jsonrpsee::{
     core::{RpcResult, SubscriptionResult},
     proc_macros::rpc,
-    types::SubscriptionId,
 };
 use zksync_types::{
     api::{BlockIdVariant, BlockNumber, Transaction, TransactionVariant},
@@ -176,14 +175,4 @@ pub trait EthPubSub {
     #[subscription(name = "subscribe" => "subscription", unsubscribe = "unsubscribe", item = PubSubResult)]
     async fn subscribe(&self, sub_type: String, filter: Option<PubSubFilter>)
         -> SubscriptionResult;
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-#[non_exhaustive]
-pub struct EthSubscriptionIdProvider;
-
-impl jsonrpsee::core::traits::IdProvider for EthSubscriptionIdProvider {
-    fn next_id(&self) -> SubscriptionId<'static> {
-        format!("{:#x}", rand::random::<u128>()).into()
-    }
 }

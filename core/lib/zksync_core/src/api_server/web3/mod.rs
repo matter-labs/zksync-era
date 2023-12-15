@@ -19,9 +19,8 @@ use zksync_web3_decl::{
         RpcModule,
     },
     namespaces::{
-        eth::EthSubscriptionIdProvider, DebugNamespaceServer, EnNamespaceServer,
-        EthNamespaceServer, EthPubSubServer, NetNamespaceServer, SnapshotsNamespaceServer,
-        Web3NamespaceServer, ZksNamespaceServer,
+        DebugNamespaceServer, EnNamespaceServer, EthNamespaceServer, EthPubSubServer,
+        NetNamespaceServer, SnapshotsNamespaceServer, Web3NamespaceServer, ZksNamespaceServer,
     },
     types::Filter,
 };
@@ -33,7 +32,7 @@ use self::{
         DebugNamespace, EnNamespace, EthNamespace, NetNamespace, SnapshotsNamespace, Web3Namespace,
         ZksNamespace,
     },
-    pubsub::{EthSubscribe, PubSubEvent},
+    pubsub::{EthSubscribe, EthSubscriptionIdProvider, PubSubEvent},
     state::{Filters, InternalApiConfig, RpcState, SealedMiniblockNumber},
 };
 use crate::{

@@ -9,10 +9,11 @@ use tokio::{
     time::{interval, Duration},
 };
 use zksync_dal::ConnectionPool;
-use zksync_types::{MiniblockNumber, H256};
+use zksync_types::{MiniblockNumber, H128, H256};
 use zksync_web3_decl::{
     jsonrpsee::{
         core::{server::SubscriptionMessage, SubscriptionResult},
+        server::IdProvider,
         types::{error::ErrorCode, SubscriptionId},
         PendingSubscriptionSink, SubscriptionSink,
     },
@@ -24,6 +25,17 @@ use super::{
     metrics::{SubscriptionType, PUB_SUB_METRICS},
     namespaces::eth::EVENT_TOPIC_NUMBER_LIMIT,
 };
+
+#[derive(Debug, Clone, Copy, Default)]
+#[non_exhaustive]
+pub struct EthSubscriptionIdProvider;
+
+impl IdProvider for EthSubscriptionIdProvider {
+    fn next_id(&self) -> SubscriptionId<'static> {
+        let id = H128::random();
+        format!("0x{}", hex::encode(id.0)).into()
+    }
+}
 
 pub(super) type SubscriptionMap<T> = Arc<RwLock<HashMap<SubscriptionId<'static>, T>>>;
 

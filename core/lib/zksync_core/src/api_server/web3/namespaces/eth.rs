@@ -14,7 +14,6 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
     error::Web3Error,
-    jsonrpsee::core::SubscriptionResult,
     types::{Address, Block, Filter, FilterChanges, Log, U64},
 };
 
@@ -878,11 +877,6 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         };
 
         Ok(res)
-    }
-
-    #[tracing::instrument(skip(self, _sub_type))]
-    pub async fn subscribe_impl(&self, _sub_type: String) -> SubscriptionResult {
-        todo!();
     }
 }
 
