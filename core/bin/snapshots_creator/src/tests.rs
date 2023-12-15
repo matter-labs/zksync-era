@@ -269,7 +269,11 @@ async fn persisting_snapshot_metadata() {
         MIN_CHUNK_COUNT as usize
     );
     for path in &snapshot_metadata.storage_logs_filepaths {
-        let path = path.strip_prefix("storage_logs_snapshots/").unwrap();
+        let path = path
+            .as_ref()
+            .unwrap()
+            .strip_prefix("storage_logs_snapshots/")
+            .unwrap();
         assert!(path.ends_with(".json.gzip"));
     }
 }
@@ -354,7 +358,10 @@ async fn recovery_workflow() {
         .await
         .unwrap()
         .expect("No snapshot metadata");
-    assert!(snapshot_metadata.storage_logs_filepaths.is_empty());
+    assert!(snapshot_metadata
+        .storage_logs_filepaths
+        .iter()
+        .all(Option::is_none));
 
     let object_store = object_store_factory.create_store().await;
     let SnapshotFactoryDependencies { factory_deps } =
@@ -375,7 +382,14 @@ async fn recovery_workflow() {
         .await
         .unwrap()
         .expect("No snapshot metadata");
-    assert_eq!(snapshot_metadata.storage_logs_filepaths.len(), 2);
+    assert_eq!(
+        snapshot_metadata
+            .storage_logs_filepaths
+            .iter()
+            .flatten()
+            .count(),
+        2
+    );
 
     // Process the remaining chunks.
     let object_store = object_store_factory.create_store().await;
@@ -410,7 +424,14 @@ async fn recovery_workflow_with_varying_chunk_size() {
         .await
         .unwrap()
         .expect("No snapshot metadata");
-    assert_eq!(snapshot_metadata.storage_logs_filepaths.len(), 2);
+    assert_eq!(
+        snapshot_metadata
+            .storage_logs_filepaths
+            .iter()
+            .flatten()
+            .count(),
+        2
+    );
 
     let config_with_other_size = SnapshotsCreatorConfig {
         storage_logs_chunk_size: 1, // << should be ignored

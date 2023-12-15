@@ -15,12 +15,17 @@ pub struct AllSnapshots {
 /// Storage snapshot metadata. Used in DAL to fetch certain snapshot data.
 #[derive(Debug, Clone)]
 pub struct SnapshotMetadata {
+    /// L1 batch for the snapshot. The data in the snapshot captures node storage at the end of this batch.
     pub l1_batch_number: L1BatchNumber,
+    /// Path to the factory dependencies blob.
     pub factory_deps_filepath: String,
+    /// Paths to the storage log blobs. Ordered by the chunk ID. If a certain chunk is not produced yet,
+    /// the corresponding path is `None`.
     pub storage_logs_filepaths: Vec<Option<String>>,
 }
 
 impl SnapshotMetadata {
+    /// Checks whether a snapshot is complete (contains all information to restore from).
     pub fn is_complete(&self) -> bool {
         self.storage_logs_filepaths.iter().all(Option::is_some)
     }

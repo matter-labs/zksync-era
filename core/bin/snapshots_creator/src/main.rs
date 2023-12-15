@@ -1,7 +1,5 @@
 //! Snapshot creator utility. Intended to run on a schedule, with each run creating a new snapshot.
 
-use std::collections::HashSet;
-
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
 use tokio::sync::{watch, Semaphore};
@@ -67,43 +65,20 @@ impl SnapshotProgress {
         }
     }
 
-    fn from_existing_snapshot(
-        snapshot: &SnapshotMetadata,
-        blob_store: &dyn ObjectStore,
-    ) -> anyhow::Result<Self> {
-        let output_filepath_prefix = blob_store.get_storage_prefix::<SnapshotStorageLogsChunk>();
-        let existing_chunk_ids = snapshot.storage_logs_filepaths.iter().map(|path| {
-            // FIXME: this parsing looks unnecessarily fragile
-            let object_key = path
-                .strip_prefix(&output_filepath_prefix)
-                .with_context(|| format!("Path `{path}` has unexpected prefix"))?;
-            let object_key = object_key
-                .strip_prefix('/')
-                .with_context(|| format!("Path `{path}` has unexpected prefix"))?;
-            let object_key = object_key
-                .parse::<SnapshotStorageLogsStorageKey>()
-                .with_context(|| format!("Object key `{object_key}` cannot be parsed"))?;
-            anyhow::ensure!(
-                object_key.l1_batch_number == snapshot.l1_batch_number,
-                "Mismatch"
-            );
-            anyhow::Ok(object_key.chunk_id)
-        });
-        let existing_chunk_ids: anyhow::Result<HashSet<_>> = existing_chunk_ids.collect();
-        let existing_chunk_ids = existing_chunk_ids?;
-
-        let all_chunk_ids = (0..snapshot.storage_logs_chunk_count).collect::<HashSet<_>>();
-        let remaining_chunk_ids = all_chunk_ids
-            .difference(&existing_chunk_ids)
-            .copied()
+    fn from_existing_snapshot(snapshot: &SnapshotMetadata) -> Self {
+        let remaining_chunk_ids = snapshot
+            .storage_logs_filepaths
+            .iter()
+            .enumerate()
+            .filter_map(|(chunk_id, path)| path.is_none().then_some(chunk_id as u64))
             .collect();
 
-        Ok(Self {
+        Self {
             l1_batch_number: snapshot.l1_batch_number,
             needs_persisting_factory_deps: false,
-            chunk_count: snapshot.storage_logs_chunk_count,
+            chunk_count: snapshot.storage_logs_filepaths.len() as u64,
             remaining_chunk_ids,
-        })
+        }
     }
 }
 
@@ -176,7 +151,7 @@ impl SnapshotCreator {
             .await?;
         master_conn
             .snapshots_dal()
-            .add_storage_logs_filepath_for_snapshot(l1_batch_number, &output_filepath)
+            .add_storage_logs_filepath_for_snapshot(l1_batch_number, chunk_id, &output_filepath)
             .await?;
         #[cfg(test)]
         self.event_listener.on_chunk_saved();
@@ -294,7 +269,7 @@ impl SnapshotCreator {
             .as_ref()
             .filter(|snapshot| !snapshot.is_complete());
         let progress = if let Some(snapshot) = pending_snapshot {
-            SnapshotProgress::from_existing_snapshot(snapshot, &*self.blob_store)?
+            SnapshotProgress::from_existing_snapshot(snapshot)
         } else {
             let progress = Self::initialize_snapshot_progress(
                 &config,
