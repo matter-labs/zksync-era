@@ -697,8 +697,8 @@ impl StorageLogsDal<'_, '_> {
     pub async fn vacuum_storage_logs(&mut self) {
         sqlx::query!(
             r#"
-VACUUM storage_logs
-"#
+            VACUUM storage_logs
+            "#
         )
         .execute(self.storage.conn())
         .await

@@ -11,13 +11,13 @@ impl ConsensusDal<'_, '_> {
     pub async fn replica_state(&mut self) -> anyhow::Result<Option<ReplicaState>> {
         let Some(row) = sqlx::query!(
             r#"
-SELECT
-    state AS "state!"
-FROM
-    consensus_replica_state
-WHERE
-    fake_key
-"#
+            SELECT
+                state AS "state!"
+            FROM
+                consensus_replica_state
+            WHERE
+                fake_key
+            "#
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -32,15 +32,15 @@ WHERE
             zksync_protobuf::serde::serialize(state, serde_json::value::Serializer).unwrap();
         sqlx::query!(
             r#"
-INSERT INTO
-    consensus_replica_state (fake_key, state)
-VALUES
-    (TRUE, $1)
-ON CONFLICT (fake_key) DO
-UPDATE
-SET
-    state = excluded.state
-"#,
+            INSERT INTO
+                consensus_replica_state (fake_key, state)
+            VALUES
+                (TRUE, $1)
+            ON CONFLICT (fake_key) DO
+            UPDATE
+            SET
+                state = excluded.state
+            "#,
             state
         )
         .execute(self.storage.conn())

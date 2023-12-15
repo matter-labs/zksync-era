@@ -320,15 +320,15 @@ impl ProtocolVersionsDal<'_, '_> {
     pub async fn last_used_version_id(&mut self) -> Option<ProtocolVersionId> {
         let id = sqlx::query!(
             r#"
-SELECT
-    protocol_version
-FROM
-    l1_batches
-ORDER BY
-    number DESC
-LIMIT
-    1
-"#
+            SELECT
+                protocol_version
+            FROM
+                l1_batches
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#
         )
         .fetch_optional(self.storage.conn())
         .await

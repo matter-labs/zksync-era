@@ -607,17 +607,17 @@ impl BlocksDal<'_, '_> {
     ) -> anyhow::Result<Option<MiniblockNumber>> {
         let Some(row) = sqlx::query!(
             r#"
-SELECT
-    number
-FROM
-    miniblocks
-WHERE
-    consensus IS NOT NULL
-ORDER BY
-    number DESC
-LIMIT
-    1
-"#
+            SELECT
+                number
+            FROM
+                miniblocks
+            WHERE
+                consensus IS NOT NULL
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -631,14 +631,14 @@ LIMIT
     pub async fn has_consensus_fields(&mut self, number: MiniblockNumber) -> sqlx::Result<bool> {
         Ok(sqlx::query!(
             r#"
-SELECT
-    COUNT(*) AS "count!"
-FROM
-    miniblocks
-WHERE
-    number = $1
-    AND consensus IS NOT NULL
-"#,
+            SELECT
+                COUNT(*) AS "count!"
+            FROM
+                miniblocks
+            WHERE
+                number = $1
+                AND consensus IS NOT NULL
+            "#,
             number.0 as i64
         )
         .fetch_one(self.storage.conn())
@@ -1340,57 +1340,57 @@ WHERE
                 sqlx::query_as!(
                     StorageL1Batch,
                     r#"
-                SELECT
-                    number,
-                    timestamp,
-                    is_finished,
-                    l1_tx_count,
-                    l2_tx_count,
-                    fee_account_address,
-                    bloom,
-                    priority_ops_onchain_data,
-                    hash,
-                    parent_hash,
-                    commitment,
-                    compressed_write_logs,
-                    compressed_contracts,
-                    eth_prove_tx_id,
-                    eth_commit_tx_id,
-                    eth_execute_tx_id,
-                    merkle_root_hash,
-                    l2_to_l1_logs,
-                    l2_to_l1_messages,
-                    used_contract_hashes,
-                    compressed_initial_writes,
-                    compressed_repeated_writes,
-                    l2_l1_compressed_messages,
-                    l2_l1_merkle_root,
-                    l1_gas_price,
-                    l2_fair_gas_price,
-                    rollup_last_leaf_index,
-                    zkporter_is_available,
-                    bootloader_code_hash,
-                    default_aa_code_hash,
-                    base_fee_per_gas,
-                    aux_data_hash,
-                    pass_through_data_hash,
-                    meta_parameters_hash,
-                    protocol_version,
-                    compressed_state_diffs,
-                    system_logs,
-                    events_queue_commitment,
-                    bootloader_initial_content_commitment
-                FROM
-                    l1_batches
-                    LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
-                WHERE
-                    eth_prove_tx_id IS NOT NULL
-                    AND eth_execute_tx_id IS NULL
-                ORDER BY
-                    number
-                LIMIT
-                    $1
-                "#,
+                    SELECT
+                        number,
+                        timestamp,
+                        is_finished,
+                        l1_tx_count,
+                        l2_tx_count,
+                        fee_account_address,
+                        bloom,
+                        priority_ops_onchain_data,
+                        hash,
+                        parent_hash,
+                        commitment,
+                        compressed_write_logs,
+                        compressed_contracts,
+                        eth_prove_tx_id,
+                        eth_commit_tx_id,
+                        eth_execute_tx_id,
+                        merkle_root_hash,
+                        l2_to_l1_logs,
+                        l2_to_l1_messages,
+                        used_contract_hashes,
+                        compressed_initial_writes,
+                        compressed_repeated_writes,
+                        l2_l1_compressed_messages,
+                        l2_l1_merkle_root,
+                        l1_gas_price,
+                        l2_fair_gas_price,
+                        rollup_last_leaf_index,
+                        zkporter_is_available,
+                        bootloader_code_hash,
+                        default_aa_code_hash,
+                        base_fee_per_gas,
+                        aux_data_hash,
+                        pass_through_data_hash,
+                        meta_parameters_hash,
+                        protocol_version,
+                        compressed_state_diffs,
+                        system_logs,
+                        events_queue_commitment,
+                        bootloader_initial_content_commitment
+                    FROM
+                        l1_batches
+                        LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+                    WHERE
+                        eth_prove_tx_id IS NOT NULL
+                        AND eth_execute_tx_id IS NULL
+                    ORDER BY
+                        number
+                    LIMIT
+                        $1
+                    "#,
                     limit as i32,
                 )
                 .instrument("get_ready_for_execute_l1_batches/no_max_timestamp")

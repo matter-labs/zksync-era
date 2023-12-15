@@ -75,12 +75,14 @@ function formatRustStringQuery(query: string) {
 function formatOneLineQuery(line: string): string {
     const isRawString = line.includes('sqlx::query!(r');
     const queryStart = isRawString ? line.indexOf('r#"') : line.indexOf('"');
+    const baseIndent = line.search(/\S/) + 4;
     const prefix = line.slice(0, queryStart);
     line = line.slice(queryStart);
     const queryEnd = isRawString ? line.indexOf('"#') + 2 : line.slice(1).search(/(^|[^\\])"/) + 3;
     const suffix = line.slice(queryEnd);
     const query = line.slice(0, queryEnd);
-    const formattedQuery = formatRustStringQuery(query);
+    let formattedQuery = formatRustStringQuery(query);
+    formattedQuery = addIndent(formattedQuery, baseIndent);
 
     return prefix + '\n' + formattedQuery + '\n' + suffix;
 }
