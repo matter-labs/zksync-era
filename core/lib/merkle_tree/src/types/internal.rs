@@ -4,10 +4,9 @@
 
 use std::{fmt, num::NonZeroU64};
 
-use zksync_types::{H256, U256};
-
 use crate::{
     hasher::{HashTree, InternalNodeCache},
+    types::{Key, TreeEntry, ValueHash},
     utils::SmallMap,
 };
 
@@ -86,6 +85,15 @@ pub struct Manifest {
 }
 
 impl Manifest {
+    /// Returns the version of the tree that is currently being recovered.
+    pub fn recovered_version(&self) -> Option<u64> {
+        if self.tags.as_ref()?.is_recovering {
+            Some(self.version_count.checked_sub(1)?)
+        } else {
+            None
+        }
+    }
+
     #[cfg(test)]
     pub(crate) fn new(version_count: u64, hasher: &dyn HashTree) -> Self {
         Self {
@@ -323,11 +331,6 @@ impl fmt::Display for NodeKey {
     }
 }
 
-/// Key stored in the tree.
-pub type Key = U256;
-/// Hashed value stored in the tree.
-pub type ValueHash = H256;
-
 /// Leaf node of the tree.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
@@ -338,12 +341,17 @@ pub struct LeafNode {
 }
 
 impl LeafNode {
-    pub(crate) fn new(full_key: Key, value_hash: ValueHash, leaf_index: u64) -> Self {
+    pub(crate) fn new(entry: TreeEntry) -> Self {
         Self {
-            full_key,
-            value_hash,
-            leaf_index,
+            full_key: entry.key,
+            value_hash: entry.value,
+            leaf_index: entry.leaf_index,
         }
+    }
+
+    pub(crate) fn update_from(&mut self, entry: TreeEntry) {
+        self.value_hash = entry.value;
+        self.leaf_index = entry.leaf_index;
     }
 }
 
@@ -555,6 +563,8 @@ impl StaleNodeKey {
 
 #[cfg(test)]
 mod tests {
+    use zksync_types::U256;
+
     use super::*;
 
     // `U256` uses little-endian `u64` ordering; i.e., this is

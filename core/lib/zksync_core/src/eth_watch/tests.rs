@@ -1,17 +1,13 @@
-use std::collections::HashMap;
-use std::convert::TryInto;
-use std::sync::Arc;
+use std::{collections::HashMap, convert::TryInto, sync::Arc};
 
 use tokio::sync::RwLock;
-
 use zksync_contracts::{governance_contract, state_transition_chain_contract};
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_types::protocol_version::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData};
-use zksync_types::web3::types::{Address, BlockNumber};
 use zksync_types::{
     ethabi::{encode, Hash, Token},
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
-    web3::types::Log,
+    protocol_version::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
+    web3::types::{Address, BlockNumber, Log},
     Execute, L1TxCommonData, PriorityOpId, ProtocolUpgrade, ProtocolVersion, ProtocolVersionId,
     Transaction, H256, U256,
 };

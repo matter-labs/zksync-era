@@ -1,14 +1,15 @@
 use std::convert::{TryFrom, TryInto};
+
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolUpgradeTx, ProtocolVersion, VerifierParams},
     Address, ProtocolVersionId, H256,
 };
 
-use crate::models::storage_protocol_version::{
-    protocol_version_from_storage, StorageProtocolVersion,
+use crate::{
+    models::storage_protocol_version::{protocol_version_from_storage, StorageProtocolVersion},
+    StorageProcessor,
 };
-use crate::StorageProcessor;
 
 #[derive(Debug)]
 pub struct ProtocolVersionsDal<'a, 'c> {
@@ -256,6 +257,17 @@ impl ProtocolVersionsDal<'_, '_> {
             .await
             .unwrap()?
             .max?;
+        Some((id as u16).try_into().unwrap())
+    }
+
+    pub async fn last_used_version_id(&mut self) -> Option<ProtocolVersionId> {
+        let id =
+            sqlx::query!(r#"SELECT protocol_version FROM l1_batches ORDER BY number DESC LIMIT 1"#)
+                .fetch_optional(self.storage.conn())
+                .await
+                .unwrap()?
+                .protocol_version?;
+
         Some((id as u16).try_into().unwrap())
     }
 

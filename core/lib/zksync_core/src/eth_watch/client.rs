@@ -5,7 +5,7 @@ use zksync_types::{
     vk_transform::l1_vk_commitment,
     web3::{
         self,
-        types::{BlockNumber, FilterBuilder, Log},
+        types::{BlockId, BlockNumber, FilterBuilder, Log},
     },
     Address, H256,
 };
@@ -228,7 +228,7 @@ impl<E: EthInterface + Send + Sync + 'static> EthClient for EthHttpQueryClient<E
             Ok(latest_block_number.saturating_sub(confirmations))
         } else {
             self.client
-                .block("finalized".to_string(), "watch")
+                .block(BlockId::Number(BlockNumber::Finalized), "watch")
                 .await
                 .map_err(Into::into)
                 .map(|res| {

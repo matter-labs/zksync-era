@@ -19,8 +19,8 @@ jobs:
 
       - name: Start services
         run: |
-          docker-compose -f docker-compose-runner.yml pull
-          docker-compose -f docker-compose-runner.yml up --build -d zk
+          mkdir -p ./volumes/postgres
+          docker compose up -d zk postgres
 
       - name: Lints
         run: |

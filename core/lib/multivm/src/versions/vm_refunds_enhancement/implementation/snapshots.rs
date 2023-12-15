@@ -1,13 +1,14 @@
-use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
-
 use std::time::Duration;
 
-use crate::vm_latest::HistoryEnabled;
+use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 use zk_evm_1_3_3::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
-use crate::vm_refunds_enhancement::{
-    old_vm::oracles::OracleWithHistory, types::internals::VmSnapshot, vm::Vm,
+use crate::{
+    vm_latest::HistoryEnabled,
+    vm_refunds_enhancement::{
+        old_vm::oracles::OracleWithHistory, types::internals::VmSnapshot, vm::Vm,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]

@@ -1,7 +1,10 @@
-use anyhow::Context as _;
-use std::fmt::{Display, Formatter};
-use std::time::Duration;
+use std::{
+    fmt::{Display, Formatter},
+    time::Duration,
+};
 
+use anyhow::Context as _;
+use sqlx::postgres::types::PgInterval;
 use zksync_types::{
     contract_verification_api::{
         DeployContractCalldata, VerificationIncomingRequest, VerificationInfo, VerificationRequest,
@@ -10,10 +13,7 @@ use zksync_types::{
     get_code_key, Address, CONTRACT_DEPLOYER_ADDRESS, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH,
 };
 
-use sqlx::postgres::types::PgInterval;
-
-use crate::models::storage_verification_request::StorageVerificationRequest;
-use crate::StorageProcessor;
+use crate::{models::storage_verification_request::StorageVerificationRequest, StorageProcessor};
 
 #[derive(Debug)]
 pub struct ContractVerificationDal<'a, 'c> {
@@ -91,7 +91,7 @@ impl ContractVerificationDal<'_, '_> {
     /// Returns the next verification request for processing.
     /// Considering the situation where processing of some request
     /// can be interrupted (panic, pod restart, etc..),
-    /// `processing_timeout` parameter is added to avoid stucking of requests.
+    /// `processing_timeout` parameter is added to avoid stuck requests.
     pub async fn get_next_queued_verification_request(
         &mut self,
         processing_timeout: Duration,

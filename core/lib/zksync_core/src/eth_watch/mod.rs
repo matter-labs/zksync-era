@@ -4,10 +4,9 @@
 //! Poll interval is configured using the `ETH_POLL_INTERVAL` constant.
 //! Number of confirmations is configured using the `CONFIRMATIONS_FOR_ETH_EVENT` environment variable.
 
-use tokio::{sync::watch, task::JoinHandle};
-
 use std::time::Duration;
 
+use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::ETHWatchConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::EthInterface;
@@ -16,12 +15,6 @@ use zksync_types::{
     ethabi::Contract, web3::types::BlockNumber as Web3BlockNumber, Address, PriorityOpId,
     ProtocolVersionId,
 };
-
-mod client;
-mod event_processors;
-mod metrics;
-#[cfg(test)]
-mod tests;
 
 use self::{
     client::{Error, EthClient, EthHttpQueryClient, RETRY_LIMIT},
@@ -32,6 +25,12 @@ use self::{
     },
     metrics::{PollStage, METRICS},
 };
+
+mod client;
+mod event_processors;
+mod metrics;
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug)]
 struct EthWatchState {

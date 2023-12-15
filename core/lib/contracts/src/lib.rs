@@ -3,17 +3,18 @@
 //! Careful: some of the methods are reading the contracts based on the ZKSYNC_HOME environment variable.
 
 #![allow(clippy::derive_partial_eq_without_eq)]
+
+use std::{
+    fs::{self, File},
+    path::{Path, PathBuf},
+};
+
 use ethabi::{
     ethereum_types::{H256, U256},
     Contract, Function,
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use std::{
-    fs::{self, File},
-    path::{Path, PathBuf},
-};
-
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
 
 pub mod test_contracts;
@@ -212,7 +213,7 @@ pub struct SystemContractsRepo {
 }
 
 impl SystemContractsRepo {
-    /// Returns the default system contracts repo with directory based on the ZKSYNC_HOME environment variable.
+    /// Returns the default system contracts repository with directory based on the ZKSYNC_HOME environment variable.
     pub fn from_env() -> Self {
         let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
         let zksync_home = PathBuf::from(zksync_home);
@@ -354,7 +355,7 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
-    /// BaseSystemContracts with playground bootloader - used for handling 'eth_calls'.
+    /// BaseSystemContracts with playground bootloader - used for handling eth_calls.
     pub fn playground() -> Self {
         let bootloader_bytecode = read_playground_batch_bootloader_bytecode();
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
@@ -382,7 +383,7 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
-    /// BaseSystemContracts with playground bootloader - used for handling 'eth_calls'.
+    /// BaseSystemContracts with playground bootloader - used for handling eth_calls.
     pub fn estimate_gas() -> Self {
         let bootloader_bytecode = read_bootloader_code("fee_estimate");
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)

@@ -1,7 +1,6 @@
-use serde::{Deserialize, Serialize};
-
 use std::mem;
 
+use serde::{Deserialize, Serialize};
 use zk_evm::aux_structures::{LogQuery, Timestamp};
 use zksync_basic_types::AccountTreeId;
 use zksync_utils::u256_to_h256;

@@ -1,4 +1,4 @@
-//! # Multivm Tracing
+//! # MultiVM Tracing
 //!
 //! The MultiVM tracing module enables support for Tracers in different versions of virtual machines.
 //!
@@ -7,7 +7,7 @@
 //! Different VM versions may have distinct requirements and types for Tracers. To accommodate these differences,
 //! this module defines one primary trait:
 //!
-//! - `MultivmTracer<S, H>`: This trait represents a tracer that can be converted into a tracer for
+//! - `MultiVMTracer<S, H>`: This trait represents a tracer that can be converted into a tracer for
 //! a specific VM version.
 //!
 //! Specific traits for each VM version, which support Custom Tracers:
@@ -19,23 +19,24 @@
 //! into a form compatible with the vm_virtual_blocks version.
 //! It defines a method `vm_virtual_blocks` for obtaining a boxed tracer.
 //!
-//! For `MultivmTracer` to be implemented, the Tracer must implement all N currently
+//! For `MultiVMTracer` to be implemented, the Tracer must implement all N currently
 //! existing sub-traits.
 //!
 //! ## Adding a new VM version
 //!
-//! To add support for one more VM version to MultivmTracer, one needs to:
+//! To add support for one more VM version to MultiVMTracer, one needs to:
 //! - Create a new trait performing conversion to the specified VM tracer, e.g., `Into<VmVersion>Tracer`.
-//! - Add this trait as a trait bound to the `MultivmTracer`.
-//! - Add this trait as a trait bound for `T` in `MultivmTracer` implementation.
-//! — Implement the trait for `T` with a bound to `VmTracer` for a specific version.
-//!
-use crate::HistoryMode;
+//! - Add this trait as a trait bound to the `MultiVMTracer`.
+//! - Add this trait as a trait bound for `T` in `MultiVMTracer` implementation.
+//! - Implement the trait for `T` with a bound to `VmTracer` for a specific version.
+
 use zksync_state::WriteStorage;
 
-pub type MultiVmTracerPointer<S, H> = Box<dyn MultivmTracer<S, H>>;
+use crate::HistoryMode;
 
-pub trait MultivmTracer<S: WriteStorage, H: HistoryMode>:
+pub type MultiVmTracerPointer<S, H> = Box<dyn MultiVMTracer<S, H>>;
+
+pub trait MultiVMTracer<S: WriteStorage, H: HistoryMode>:
     IntoLatestTracer<S, H> + IntoVmVirtualBlocksTracer<S, H> + IntoVmRefundsEnhancementTracer<S, H>
 {
     fn into_tracer_pointer(self) -> MultiVmTracerPointer<S, H>
@@ -102,7 +103,7 @@ where
     }
 }
 
-impl<S, H, T> MultivmTracer<S, H> for T
+impl<S, H, T> MultiVMTracer<S, H> for T
 where
     S: WriteStorage,
     H: HistoryMode,

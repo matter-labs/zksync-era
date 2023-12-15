@@ -7,15 +7,15 @@ use std::{
 use anyhow::Context as _;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
 use sqlx::Row;
-
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    block::{BlockGasCount, ConsensusBlockFields, L1BatchHeader, MiniblockHeader},
+    block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
     commitment::{L1BatchMetadata, L1BatchWithMetadata},
     Address, L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256,
     MAX_GAS_PER_PUBDATA_BYTE, U256,
 };
 
+pub use crate::models::storage_sync::ConsensusBlockFields;
 use crate::{
     instrument::InstrumentExt,
     models::storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageMiniblockHeader},
@@ -396,6 +396,30 @@ impl BlocksDal<'_, '_> {
         .await?;
         Ok(())
     }
+
+    /// Fetches the number of the last miniblock with consensus fields set.
+    /// Miniblocks with Consensus fields set constitute a prefix of sealed miniblocks,
+    /// so it is enough to traverse the miniblocks in descending order to find the last
+    /// with consensus fields.
+    ///
+    /// If better efficiency is needed we can add an index on "miniblocks without consensus fields".
+    pub async fn get_last_miniblock_number_with_consensus_fields(
+        &mut self,
+    ) -> anyhow::Result<Option<MiniblockNumber>> {
+        let Some(row) = sqlx::query!("SELECT number FROM miniblocks WHERE consensus IS NOT NULL ORDER BY number DESC LIMIT 1")
+            .fetch_optional(self.storage.conn())
+            .await? else { return Ok(None) };
+        Ok(Some(MiniblockNumber(row.number.try_into()?)))
+    }
+
+    /// Checks whether the specified miniblock has consensus field set.
+    pub async fn has_consensus_fields(&mut self, number: MiniblockNumber) -> sqlx::Result<bool> {
+        Ok(sqlx::query!("SELECT COUNT(*) as \"count!\"  FROM miniblocks WHERE number = $1 AND consensus IS NOT NULL", number.0 as i64)
+            .fetch_one(self.storage.conn())
+            .await?
+            .count > 0)
+    }
+
     /// Sets consensus-related fields for the specified miniblock.
     pub async fn set_miniblock_consensus_fields(
         &mut self,
@@ -405,7 +429,7 @@ impl BlocksDal<'_, '_> {
         let result = sqlx::query!(
             "UPDATE miniblocks SET consensus = $2 WHERE number = $1",
             miniblock_number.0 as i64,
-            serde_json::to_value(consensus).unwrap(),
+            zksync_protobuf::serde::serialize(consensus, serde_json::value::Serializer).unwrap(),
         )
         .execute(self.storage.conn())
         .await?;
@@ -1264,64 +1288,6 @@ impl BlocksDal<'_, '_> {
         .unwrap_or(0);
 
         Ok(count != 0)
-    }
-
-    pub async fn get_last_l1_batch_number_with_witness_inputs(
-        &mut self,
-    ) -> sqlx::Result<L1BatchNumber> {
-        let row = sqlx::query!(
-            "SELECT MAX(l1_batch_number) FROM witness_inputs \
-            WHERE merkel_tree_paths_blob_url IS NOT NULL",
-        )
-        .fetch_one(self.storage.conn())
-        .await?;
-
-        Ok(row
-            .max
-            .map(|l1_batch_number| L1BatchNumber(l1_batch_number as u32))
-            .unwrap_or_default())
-    }
-
-    pub async fn get_l1_batches_with_blobs_in_db(
-        &mut self,
-        limit: u8,
-    ) -> sqlx::Result<Vec<L1BatchNumber>> {
-        let rows = sqlx::query!(
-            "SELECT l1_batch_number FROM witness_inputs \
-            WHERE length(merkle_tree_paths) <> 0 \
-            ORDER BY l1_batch_number DESC \
-            LIMIT $1",
-            limit as i32
-        )
-        .fetch_all(self.storage.conn())
-        .await?;
-
-        Ok(rows
-            .into_iter()
-            .map(|row| L1BatchNumber(row.l1_batch_number as u32))
-            .collect())
-    }
-
-    pub async fn get_merkle_tree_paths_blob_urls_to_be_cleaned(
-        &mut self,
-        limit: u8,
-    ) -> Result<Vec<(i64, String)>, sqlx::Error> {
-        let rows = sqlx::query!(
-            "SELECT l1_batch_number, merkel_tree_paths_blob_url \
-            FROM witness_inputs \
-            WHERE status = 'successful' \
-                AND merkel_tree_paths_blob_url is NOT NULL \
-                AND updated_at < NOW() - INTERVAL '30 days' \
-            LIMIT $1",
-            limit as i32
-        )
-        .fetch_all(self.storage.conn())
-        .await?;
-
-        Ok(rows
-            .into_iter()
-            .map(|row| (row.l1_batch_number, row.merkel_tree_paths_blob_url.unwrap()))
-            .collect())
     }
 
     // methods used for measuring Eth tx stage transition latencies

@@ -1,10 +1,11 @@
+use std::{
+    convert::Infallible,
+    time::{Duration, Instant},
+};
+
 use anyhow::Context as _;
-use tokio::sync::watch;
-
-use std::convert::Infallible;
-use std::time::{Duration, Instant};
-
 use multivm::interface::{Halt, L1BatchEnv, SystemEnv};
+use tokio::sync::watch;
 use zksync_types::{
     block::MiniblockExecutionData, l2::TransactionType, protocol_version::ProtocolUpgradeTx,
     storage_writes_deduplicator::StorageWritesDeduplicator, Transaction,

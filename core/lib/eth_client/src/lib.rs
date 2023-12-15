@@ -1,9 +1,5 @@
 #![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
 
-pub mod clients;
-pub mod types;
-
-use crate::types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult};
 use async_trait::async_trait;
 use zksync_types::{
     web3::{
@@ -20,8 +16,13 @@ use zksync_types::{
     L1ChainId,
 };
 
+use crate::types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult};
+
+pub mod clients;
+pub mod types;
+
 /// Common Web3 interface, as seen by the core applications.
-/// Encapsulates the raw Web3 interction, providing a high-level interface.
+/// Encapsulates the raw Web3 interaction, providing a high-level interface.
 ///
 /// ## Trait contents
 ///
@@ -34,7 +35,7 @@ use zksync_types::{
 ///
 /// Most of the trait methods support the `component` parameter. This parameter is used to
 /// describe the caller of the method. It may be useful to find the component that makes an
-/// unnecessary high amount of Web3 calls. Implementations are advices to count invocations
+/// unnecessary high amount of Web3 calls. Implementations are advice to count invocations
 /// per component and expose them to Prometheus.
 #[async_trait]
 pub trait EthInterface: Sync + Send {
@@ -131,7 +132,7 @@ pub trait EthInterface: Sync + Send {
     /// Returns the block header for the specified block number or hash.
     async fn block(
         &self,
-        block_id: String,
+        block_id: BlockId,
         component: &'static str,
     ) -> Result<Option<Block<H256>>, Error>;
 }
@@ -139,7 +140,7 @@ pub trait EthInterface: Sync + Send {
 /// An extension of `EthInterface` trait, which is used to perform queries that are bound to
 /// a certain contract and account.
 ///
-/// THe example use cases for this trait would be:
+/// The example use cases for this trait would be:
 /// - An operator that sends transactions and interacts with zkSync contract.
 /// - A wallet implementation in the SDK that is tied to a user's account.
 ///
@@ -149,10 +150,10 @@ pub trait EthInterface: Sync + Send {
 /// implementation that invokes `contract` / `contract_addr` / `sender_account` methods.
 #[async_trait]
 pub trait BoundEthInterface: EthInterface {
-    /// ABI of the contract that is used by the implementor.
+    /// ABI of the contract that is used by the implementer.
     fn contract(&self) -> &ethabi::Contract;
 
-    /// Address of the contract that is used by the implementor.
+    /// Address of the contract that is used by the implementer.
     fn contract_addr(&self) -> H160;
 
     /// Chain ID of the L1 network the client is *configured* to connected to.

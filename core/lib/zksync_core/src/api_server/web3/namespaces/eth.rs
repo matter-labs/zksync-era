@@ -220,10 +220,6 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     pub async fn get_logs_impl(&self, mut filter: Filter) -> Result<Vec<Log>, Web3Error> {
         const METHOD_NAME: &str = "get_logs";
 
-        if self.state.logs_translator_enabled {
-            return self.state.translate_get_logs(filter).await;
-        }
-
         let method_latency = API_METRICS.start_call(METHOD_NAME);
         self.state.resolve_filter_block_hash(&mut filter).await?;
         let (from_block, to_block) = self.state.resolve_filter_block_range(&filter).await?;
@@ -564,7 +560,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .installed_filters
             .lock()
             .await
-            .add(TypedFilter::Blocks(last_block_number));
+            .add(TypedFilter::Blocks(last_block_number + 1));
         method_latency.observe();
         Ok(idx)
     }
@@ -773,14 +769,19 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
                 let (block_hashes, last_block_number) = conn
                     .blocks_web3_dal()
-                    .get_block_hashes_after(*from_block, self.state.api_config.req_entities_limit)
+                    .get_block_hashes_since(*from_block, self.state.api_config.req_entities_limit)
                     .await
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
-                *from_block = last_block_number.unwrap_or(*from_block);
+
+                *from_block = match last_block_number {
+                    Some(last_block_number) => last_block_number + 1,
+                    None => *from_block,
+                };
+
                 FilterChanges::Hashes(block_hashes)
             }
 
-            TypedFilter::PendingTransactions(from_timestamp) => {
+            TypedFilter::PendingTransactions(from_timestamp_excluded) => {
                 let mut conn = self
                     .state
                     .connection_pool
@@ -790,12 +791,14 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                 let (tx_hashes, last_timestamp) = conn
                     .transactions_web3_dal()
                     .get_pending_txs_hashes_after(
-                        *from_timestamp,
+                        *from_timestamp_excluded,
                         Some(self.state.api_config.req_entities_limit),
                     )
                     .await
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
-                *from_timestamp = last_timestamp.unwrap_or(*from_timestamp);
+
+                *from_timestamp_excluded = last_timestamp.unwrap_or(*from_timestamp_excluded);
+
                 FilterChanges::Hashes(tx_hashes)
             }
 
@@ -816,16 +819,26 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                 } else {
                     vec![]
                 };
-                let get_logs_filter = GetLogsFilter {
-                    from_block: *from_block,
-                    to_block: filter.to_block,
-                    addresses,
-                    topics,
-                };
-                let to_block = self
+
+                let mut to_block = self
                     .state
                     .resolve_filter_block_number(filter.to_block)
                     .await?;
+
+                if matches!(filter.to_block, Some(BlockNumber::Number(_))) {
+                    to_block = to_block.min(
+                        self.state
+                            .resolve_filter_block_number(Some(BlockNumber::Latest))
+                            .await?,
+                    );
+                }
+
+                let get_logs_filter = GetLogsFilter {
+                    from_block: *from_block,
+                    to_block,
+                    addresses,
+                    topics,
+                };
 
                 let mut storage = self
                     .state
@@ -859,11 +872,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     .get_logs(get_logs_filter, i32::MAX as usize)
                     .await
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
-                *from_block = logs
-                    .last()
-                    .map(|log| MiniblockNumber(log.block_number.unwrap().as_u32()))
-                    .unwrap_or(*from_block);
-                // FIXME: why is `from_block` not updated?
+                *from_block = to_block + 1;
                 FilterChanges::Logs(logs)
             }
         };

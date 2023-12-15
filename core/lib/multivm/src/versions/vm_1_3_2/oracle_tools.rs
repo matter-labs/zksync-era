@@ -1,18 +1,21 @@
 use std::fmt::Debug;
 
-use crate::vm_1_3_2::event_sink::InMemoryEventSink;
-use crate::vm_1_3_2::history_recorder::HistoryMode;
-use crate::vm_1_3_2::memory::SimpleMemory;
-use crate::vm_1_3_2::oracles::{
-    decommitter::DecommitterOracle, precompile::PrecompilesProcessorWithHistory,
-    storage::StorageOracle,
-};
 use zk_evm_1_3_3::witness_trace::DummyTracer;
 use zksync_state::{StoragePtr, WriteStorage};
 
+use crate::vm_1_3_2::{
+    event_sink::InMemoryEventSink,
+    history_recorder::HistoryMode,
+    memory::SimpleMemory,
+    oracles::{
+        decommitter::DecommitterOracle, precompile::PrecompilesProcessorWithHistory,
+        storage::StorageOracle,
+    },
+};
+
 /// zkEVM requires a bunch of objects implementing given traits to work.
 /// For example: Storage, Memory, PrecompilerProcessor etc
-/// (you can find all these traites in zk_evm crate -> src/abstractions/mod.rs)
+/// (you can find all these traits in zk_evm crate -> src/abstractions/mod.rs)
 /// For each of these traits, we have a local implementation (for example StorageOracle)
 /// that also support additional features (like rollbacks & history).
 /// The OracleTools struct, holds all these things together in one place.

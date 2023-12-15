@@ -1,15 +1,20 @@
-use crate::glue::GlueInto;
-use crate::vm_m6::history_recorder::HistoryMode;
-use crate::vm_m6::oracles::storage::storage_key_of_log;
-use crate::vm_m6::storage::Storage;
-use crate::vm_m6::utils::collect_storage_log_queries_after_timestamp;
-use crate::vm_m6::VmInstance;
 use std::collections::HashMap;
+
 use zk_evm_1_3_1::aux_structures::Timestamp;
-use zksync_types::event::{extract_long_l2_to_l1_messages, extract_published_bytecodes};
-use zksync_types::zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries;
-use zksync_types::{StorageKey, PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS};
+use zksync_types::{
+    event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
+    zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
+    StorageKey, PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS,
+};
 use zksync_utils::bytecode::bytecode_len_in_bytes;
+
+use crate::{
+    glue::GlueInto,
+    vm_m6::{
+        history_recorder::HistoryMode, oracles::storage::storage_key_of_log, storage::Storage,
+        utils::collect_storage_log_queries_after_timestamp, VmInstance,
+    },
+};
 
 impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
     pub fn pubdata_published(&self, from_timestamp: Timestamp) -> u32 {

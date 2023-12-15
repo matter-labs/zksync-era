@@ -2,10 +2,9 @@
 
 use std::time::{Duration, Instant};
 
-use crate::{error::ClientError, EthNamespaceClient};
-use zksync_types::l2::L2Tx;
 use zksync_types::{
     api::{BlockNumber, TransactionReceipt},
+    l2::L2Tx,
     Bytes, L2ChainId, H256,
 };
 
@@ -15,6 +14,7 @@ pub use self::{
     transfer::{create_transfer_calldata, TransferBuilder},
     withdraw::WithdrawBuilder,
 };
+use crate::{error::ClientError, EthNamespaceClient};
 
 mod deploy_contract;
 mod execute_contract;

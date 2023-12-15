@@ -1,5 +1,16 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
+pub use zk_evm_1_3_1;
+pub use zksync_types::vm_trace::VmExecutionTrace;
+
+pub use self::{
+    errors::TxRevertReason,
+    oracle_tools::OracleTools,
+    oracles::storage::StorageOracle,
+    vm::Vm,
+    vm_instance::{VmBlockResult, VmExecutionResult},
+};
+
 mod bootloader_state;
 pub mod errors;
 pub mod event_sink;
@@ -12,23 +23,13 @@ mod pubdata_utils;
 mod refunds;
 pub mod storage;
 pub mod test_utils;
-pub mod transaction_data;
-pub mod utils;
-pub mod vm_instance;
-pub mod vm_with_bootloader;
-
 #[cfg(test)]
 mod tests;
+pub mod transaction_data;
+pub mod utils;
 mod vm;
-
-pub use errors::TxRevertReason;
-pub use oracle_tools::OracleTools;
-pub use oracles::storage::StorageOracle;
-pub use vm::Vm;
-pub use vm_instance::VmBlockResult;
-pub use vm_instance::VmExecutionResult;
-pub use zk_evm_1_3_1;
-pub use zksync_types::vm_trace::VmExecutionTrace;
+pub mod vm_instance;
+pub mod vm_with_bootloader;
 
 pub type Word = zksync_types::U256;
 

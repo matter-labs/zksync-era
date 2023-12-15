@@ -1,8 +1,7 @@
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
 use structopt::StructOpt;
-use tokio::{sync::oneshot, sync::watch};
-
+use tokio::sync::{oneshot, watch};
 use zksync_config::configs::{
     AlertsConfig, CircuitSynthesizerConfig, ObjectStoreConfig, PostgresConfig, ProverGroupConfig,
 };
@@ -16,6 +15,7 @@ use zksync_verification_key_server::get_cached_commitments;
 use crate::circuit_synthesizer::CircuitSynthesizer;
 
 mod circuit_synthesizer;
+mod metrics;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "TODO", about = "TODO")]

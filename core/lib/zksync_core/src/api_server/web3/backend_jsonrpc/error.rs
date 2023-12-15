@@ -1,7 +1,7 @@
+use std::fmt;
+
 use jsonrpc_core::{Error, ErrorCode};
 use zksync_web3_decl::error::Web3Error;
-
-use std::fmt;
 
 use crate::api_server::web3::metrics::API_METRICS;
 
@@ -17,7 +17,6 @@ pub fn into_jsrpc_error(err: Web3Error) -> Error {
             | Web3Error::FilterNotFound
             | Web3Error::InvalidFeeParams(_)
             | Web3Error::LogsLimitExceeded(_, _, _)
-            | Web3Error::TooManyLogs(_)
             | Web3Error::InvalidFilterBlockHash => ErrorCode::InvalidParams,
             Web3Error::SubmitTransactionError(_, _) | Web3Error::SerializationError(_) => 3.into(),
             Web3Error::PubSubTimeout => 4.into(),
