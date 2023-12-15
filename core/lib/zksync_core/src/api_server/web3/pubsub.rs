@@ -329,8 +329,9 @@ impl EthSubscribe {
                 let Ok(sink) = pending_sink.accept().await else {
                     return;
                 };
-                let _ = sink
-                    .send(SubscriptionMessage::from_json(&PubSubResult::Syncing(false)).unwrap());
+                sink.send(SubscriptionMessage::from_json(&PubSubResult::Syncing(false)).unwrap())
+                    .await
+                    .ok();
                 None
             }
             _ => {

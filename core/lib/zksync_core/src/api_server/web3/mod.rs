@@ -434,7 +434,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         let (local_addr_sender, local_addr) = oneshot::channel();
         let server_task = tokio::task::spawn_blocking(move || {
             let res = runtime.block_on(async move {
-                let ret = Self::run_jsonrpsee_server(
+                Self::run_jsonrpsee_server(
                     rpc,
                     transport,
                     stop_receiver,
@@ -445,8 +445,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
                     response_body_size_limit,
                     websocket_requests_per_minute_limit,
                 )
-                .await;
-                ret
+                .await
             });
             runtime.shutdown_timeout(GRACEFUL_SHUTDOWN_TIMEOUT);
             res

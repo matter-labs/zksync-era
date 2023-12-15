@@ -17,7 +17,7 @@ use zksync_types::{
     L1BatchNumber, ProtocolVersionId, VmEvent, H256, U64,
 };
 use zksync_web3_decl::{
-    jsonrpsee::{core::Error as RpcError, http_client::HttpClient, types::error::ErrorCode},
+    jsonrpsee::{core::ClientError as RpcError, http_client::HttpClient, types::error::ErrorCode},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
     types::FilterChanges,
 };
@@ -123,7 +123,7 @@ async fn spawn_server(
 
     let server_builder = match transport {
         ApiTransportLabel::Http => ApiBuilder::jsonrpsee_backend(api_config, pool).http(0),
-        ApiTransportLabel::Ws => ApiBuilder::jsonrpc_backend(api_config, pool)
+        ApiTransportLabel::Ws => ApiBuilder::jsonrpsee_backend(api_config, pool)
             .ws(0)
             .with_polling_interval(POLL_INTERVAL)
             .with_subscriptions_limit(100),
