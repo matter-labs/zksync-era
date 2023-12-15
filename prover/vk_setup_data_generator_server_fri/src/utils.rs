@@ -94,8 +94,7 @@ pub fn get_basic_circuits(
     let test_artifact = read_witness_artifact(&path).context("read_withess_artifact()")?;
     let (base_layer_circuit, _, _, _) = get_circuits(test_artifact, cycle_limit, geometry);
     Ok(base_layer_circuit
-        .into_flattened_set()
-        .into_iter()
+        .into_flat_iterator()
         .dedup_by(|a, b| a.numeric_circuit_type() == b.numeric_circuit_type())
         .collect())
 }

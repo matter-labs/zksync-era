@@ -111,9 +111,8 @@ pub async fn save_base_prover_input_artifacts(
     object_store: &dyn ObjectStore,
     aggregation_round: AggregationRound,
 ) -> Vec<(u8, String)> {
-    let circuits = circuits.into_flattened_set();
-    let mut ids_and_urls = Vec::with_capacity(circuits.len());
-    for (sequence_number, circuit) in circuits.into_iter().enumerate() {
+    let mut ids_and_urls = vec![];
+    for (sequence_number, circuit) in circuits.into_flat_iterator().enumerate() {
         let circuit_id = circuit.numeric_circuit_type();
         let circuit_key = FriCircuitKey {
             block_number,
