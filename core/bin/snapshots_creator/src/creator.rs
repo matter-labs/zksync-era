@@ -25,7 +25,8 @@ use crate::{
 #[derive(Debug)]
 struct SnapshotProgress {
     l1_batch_number: L1BatchNumber,
-    needs_persisting_factory_deps: bool,
+    /// `true` if the snapshot is new (i.e., its progress is not recovered from Postgres).
+    is_new_snapshot: bool,
     chunk_count: u64,
     remaining_chunk_ids: Vec<u64>,
 }
@@ -34,7 +35,7 @@ impl SnapshotProgress {
     fn new(l1_batch_number: L1BatchNumber, chunk_count: u64) -> Self {
         Self {
             l1_batch_number,
-            needs_persisting_factory_deps: true,
+            is_new_snapshot: true,
             chunk_count,
             remaining_chunk_ids: (0..chunk_count).collect(),
         }
@@ -50,7 +51,7 @@ impl SnapshotProgress {
 
         Self {
             l1_batch_number: snapshot.l1_batch_number,
-            needs_persisting_factory_deps: false,
+            is_new_snapshot: false,
             chunk_count: snapshot.storage_logs_filepaths.len() as u64,
             remaining_chunk_ids,
         }
@@ -278,7 +279,7 @@ impl SnapshotCreator {
             progress.l1_batch_number
         );
 
-        if progress.needs_persisting_factory_deps {
+        if progress.is_new_snapshot {
             let factory_deps_output_file = self
                 .process_factory_deps(last_miniblock_number_in_batch, progress.l1_batch_number)
                 .await?;
