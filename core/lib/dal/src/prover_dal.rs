@@ -7,13 +7,9 @@ use std::{
 
 use sqlx::Error;
 use zksync_types::{
-    aggregated_operations::L1BatchProofForL1,
     proofs::{
         AggregationRound, JobCountStatistics, JobExtendedStatistics, ProverJobInfo,
         ProverJobMetadata,
-    },
-    zkevm_test_harness::{
-        abstract_zksync_circuit::concrete_circuits::ZkSyncProof, bellman::bn256::Bn256,
     },
     L1BatchNumber, ProtocolVersionId,
 };
@@ -259,48 +255,6 @@ impl ProverDal<'_, '_> {
                 .unwrap()
                 .into_iter()
                 .map(|row| StuckProverJobs{id: row.id as u64, status: row.status, attempts: row.attempts as u64})
-                .collect()
-        }
-    }
-
-    // For each block in the provided range it returns a tuple:
-    // (aggregation_coords; scheduler_proof)
-    pub async fn get_final_proofs_for_blocks(
-        &mut self,
-        from_block: L1BatchNumber,
-        to_block: L1BatchNumber,
-    ) -> Vec<L1BatchProofForL1> {
-        {
-            sqlx::query!(
-                "SELECT prover_jobs.result as proof, scheduler_witness_jobs.aggregation_result_coords
-                FROM prover_jobs
-                INNER JOIN scheduler_witness_jobs
-                ON prover_jobs.l1_batch_number = scheduler_witness_jobs.l1_batch_number
-                WHERE prover_jobs.l1_batch_number >= $1 AND prover_jobs.l1_batch_number <= $2
-                AND prover_jobs.aggregation_round = 3
-                AND prover_jobs.status = 'successful'
-                ",
-                from_block.0 as i32,
-                to_block.0 as i32
-            )
-                .fetch_all(self.storage.conn())
-                .await
-                .unwrap()
-                .into_iter()
-                .map(|row| {
-                    let deserialized_proof = bincode::deserialize::<ZkSyncProof<Bn256>>(
-                        &row.proof
-                            .expect("prove_job with `successful` status has no result"),
-                    ).expect("cannot deserialize proof");
-                    let deserialized_aggregation_result_coords = bincode::deserialize::<[[u8; 32]; 4]>(
-                        &row.aggregation_result_coords
-                            .expect("scheduler_witness_job with `successful` status has no aggregation_result_coords"),
-                    ).expect("cannot deserialize proof");
-                    L1BatchProofForL1 {
-                        aggregation_result_coords: deserialized_aggregation_result_coords,
-                        scheduler_proof: ZkSyncProof::into_proof(deserialized_proof),
-                    }
-                })
                 .collect()
         }
     }
