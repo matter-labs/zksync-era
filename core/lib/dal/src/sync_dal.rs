@@ -23,22 +23,42 @@ impl SyncDal<'_, '_> {
         let latency = MethodLatency::new("sync_dal_sync_block");
         let storage_block_details = sqlx::query_as!(
             StorageSyncBlock,
-            "SELECT miniblocks.number, \
-                COALESCE(miniblocks.l1_batch_number, (SELECT (max(number) + 1) FROM l1_batches)) as \"l1_batch_number!\", \
-                (SELECT max(m2.number) FROM miniblocks m2 WHERE miniblocks.l1_batch_number = m2.l1_batch_number) as \"last_batch_miniblock?\", \
-                miniblocks.timestamp, \
-                miniblocks.l1_gas_price, \
-                miniblocks.l2_fair_gas_price, \
-                miniblocks.bootloader_code_hash, \
-                miniblocks.default_aa_code_hash, \
-                miniblocks.virtual_blocks, \
-                miniblocks.hash, \
-                miniblocks.consensus, \
-                miniblocks.protocol_version as \"protocol_version!\", \
-                l1_batches.fee_account_address as \"fee_account_address?\" \
-            FROM miniblocks \
-            LEFT JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number \
-            WHERE miniblocks.number = $1",
+            r#"
+            SELECT
+                miniblocks.number,
+                COALESCE(
+                    miniblocks.l1_batch_number,
+                    (
+                        SELECT
+                            (MAX(number) + 1)
+                        FROM
+                            l1_batches
+                    )
+                ) AS "l1_batch_number!",
+                (
+                    SELECT
+                        MAX(m2.number)
+                    FROM
+                        miniblocks m2
+                    WHERE
+                        miniblocks.l1_batch_number = m2.l1_batch_number
+                ) AS "last_batch_miniblock?",
+                miniblocks.timestamp,
+                miniblocks.l1_gas_price,
+                miniblocks.l2_fair_gas_price,
+                miniblocks.bootloader_code_hash,
+                miniblocks.default_aa_code_hash,
+                miniblocks.virtual_blocks,
+                miniblocks.hash,
+                miniblocks.consensus,
+                miniblocks.protocol_version AS "protocol_version!",
+                l1_batches.fee_account_address AS "fee_account_address?"
+            FROM
+                miniblocks
+                LEFT JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number
+            WHERE
+                miniblocks.number = $1
+            "#,
             block_number.0 as i64
         )
         .instrument("sync_dal_sync_block.block")
@@ -52,7 +72,16 @@ impl SyncDal<'_, '_> {
         let transactions = if include_transactions {
             let transactions = sqlx::query_as!(
                 StorageTransaction,
-                r#"SELECT * FROM transactions WHERE miniblock_number = $1 ORDER BY index_in_block"#,
+                r#"
+                SELECT
+                    *
+                FROM
+                    transactions
+                WHERE
+                    miniblock_number = $1
+                ORDER BY
+                    index_in_block
+                "#,
                 block_number.0 as i64
             )
             .instrument("sync_dal_sync_block.transactions")

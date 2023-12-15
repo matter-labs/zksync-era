@@ -60,16 +60,18 @@ impl StorageLogsDedupDal<'_, '_> {
             .collect();
 
         sqlx::query!(
-            "INSERT INTO \
-                 initial_writes (hashed_key, INDEX, l1_batch_number, created_at, updated_at) \
-             SELECT \
-                 u.hashed_key, \
-                 u.index, \
-                 $3, \
-                 NOW(), \
-                 NOW() \
-             FROM \
-                 UNNEST($1::bytea[], $2::BIGINT[]) AS u (hashed_key, INDEX)",
+            r#"
+            INSERT INTO
+                initial_writes (hashed_key, INDEX, l1_batch_number, created_at, updated_at)
+            SELECT
+                u.hashed_key,
+                u.index,
+                $3,
+                NOW(),
+                NOW()
+            FROM
+                UNNEST($1::bytea[], $2::BIGINT[]) AS u (hashed_key, INDEX)
+            "#,
             &hashed_keys,
             &indices,
             l1_batch_number.0 as i64,
@@ -84,13 +86,15 @@ impl StorageLogsDedupDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
     ) -> HashSet<StorageKey> {
         sqlx::query!(
-            "SELECT \
-                 address, \
-                 key \
-             FROM \
-                 protective_reads \
-             WHERE \
-                 l1_batch_number = $1",
+            r#"
+            SELECT
+                address,
+                key
+            FROM
+                protective_reads
+            WHERE
+                l1_batch_number = $1
+            "#,
             l1_batch_number.0 as i64
         )
         .fetch_all(self.storage.conn())
@@ -108,10 +112,12 @@ impl StorageLogsDedupDal<'_, '_> {
 
     pub async fn max_enumeration_index(&mut self) -> Option<u64> {
         sqlx::query!(
-            "SELECT \
-                 MAX(INDEX) AS \"max?\" \
-             FROM \
-                 initial_writes",
+            r#"
+            SELECT
+                MAX(INDEX) AS "max?"
+            FROM
+                initial_writes
+            "#,
         )
         .fetch_one(self.storage.conn())
         .await
@@ -125,15 +131,17 @@ impl StorageLogsDedupDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
     ) -> Vec<(H256, u64)> {
         sqlx::query!(
-            "SELECT \
-                 hashed_key, \
-                 INDEX \
-             FROM \
-                 initial_writes \
-             WHERE \
-                 l1_batch_number = $1 \
-             ORDER BY \
-                 INDEX",
+            r#"
+            SELECT
+                hashed_key,
+                INDEX
+            FROM
+                initial_writes
+            WHERE
+                l1_batch_number = $1
+            ORDER BY
+                INDEX
+            "#,
             l1_batch_number.0 as i64
         )
         .fetch_all(self.storage.conn())
@@ -146,12 +154,14 @@ impl StorageLogsDedupDal<'_, '_> {
 
     pub async fn get_enumeration_index_for_key(&mut self, key: StorageKey) -> Option<u64> {
         sqlx::query!(
-            "SELECT \
-                 INDEX \
-             FROM \
-                 initial_writes \
-             WHERE \
-                 hashed_key = $1",
+            r#"
+            SELECT
+                INDEX
+            FROM
+                initial_writes
+            WHERE
+                hashed_key = $1
+            "#,
             key.hashed_key().0.to_vec()
         )
         .fetch_optional(self.storage.conn())
@@ -164,12 +174,14 @@ impl StorageLogsDedupDal<'_, '_> {
     pub async fn filter_written_slots(&mut self, hashed_keys: &[H256]) -> HashSet<H256> {
         let hashed_keys: Vec<_> = hashed_keys.iter().map(H256::as_bytes).collect();
         sqlx::query!(
-            "SELECT \
-                 hashed_key \
-             FROM \
-                 initial_writes \
-             WHERE \
-                 hashed_key = ANY ($1)",
+            r#"
+            SELECT
+                hashed_key
+            FROM
+                initial_writes
+            WHERE
+                hashed_key = ANY ($1)
+            "#,
             &hashed_keys as &[&[u8]],
         )
         .fetch_all(self.storage.conn())

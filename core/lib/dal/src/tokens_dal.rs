@@ -63,15 +63,17 @@ impl TokensDal<'_, '_> {
     ) {
         {
             sqlx::query!(
-                "UPDATE tokens \
-                 SET \
-                     token_list_name = $2, \
-                     token_list_symbol = $3, \
-                     token_list_decimals = $4, \
-                     well_known = TRUE, \
-                     updated_at = NOW() \
-                 WHERE \
-                     l1_address = $1",
+                r#"
+                UPDATE tokens
+                SET
+                    token_list_name = $2,
+                    token_list_symbol = $3,
+                    token_list_decimals = $4,
+                    well_known = TRUE,
+                    updated_at = NOW()
+                WHERE
+                    l1_address = $1
+                "#,
                 l1_address.as_bytes(),
                 metadata.name,
                 metadata.symbol,
@@ -86,13 +88,15 @@ impl TokensDal<'_, '_> {
     pub async fn get_well_known_token_addresses(&mut self) -> Vec<(Address, Address)> {
         {
             let records = sqlx::query!(
-                "SELECT \
-                     l1_address, \
-                     l2_address \
-                 FROM \
-                     tokens \
-                 WHERE \
-                     well_known = TRUE"
+                r#"
+                SELECT
+                    l1_address,
+                    l2_address
+                FROM
+                    tokens
+                WHERE
+                    well_known = TRUE
+                "#
             )
             .fetch_all(self.storage.conn())
             .await
@@ -113,10 +117,12 @@ impl TokensDal<'_, '_> {
     pub async fn get_all_l2_token_addresses(&mut self) -> Vec<Address> {
         {
             let records = sqlx::query!(
-                "SELECT \
-                     l2_address \
-                 FROM \
-                     tokens"
+                r#"
+                SELECT
+                    l2_address
+                FROM
+                    tokens
+                "#
             )
             .fetch_all(self.storage.conn())
             .await
@@ -132,12 +138,14 @@ impl TokensDal<'_, '_> {
     pub async fn get_unknown_l1_token_addresses(&mut self) -> Vec<Address> {
         {
             let records = sqlx::query!(
-                "SELECT \
-                     l1_address \
-                 FROM \
-                     tokens \
-                 WHERE \
-                     well_known = FALSE"
+                r#"
+                SELECT
+                    l1_address
+                FROM
+                    tokens
+                WHERE
+                    well_known = FALSE
+                "#
             )
             .fetch_all(self.storage.conn())
             .await
@@ -154,12 +162,14 @@ impl TokensDal<'_, '_> {
         {
             let min_volume = ratio_to_big_decimal(min_volume, STORED_USD_PRICE_PRECISION);
             let records = sqlx::query!(
-                "SELECT \
-                     l1_address \
-                 FROM \
-                     tokens \
-                 WHERE \
-                     market_volume > $1",
+                r#"
+                SELECT
+                    l1_address
+                FROM
+                    tokens
+                WHERE
+                    market_volume > $1
+                "#,
                 min_volume
             )
             .fetch_all(self.storage.conn())
@@ -176,13 +186,15 @@ impl TokensDal<'_, '_> {
     pub async fn set_l1_token_price(&mut self, l1_address: &Address, price: TokenPrice) {
         {
             sqlx::query!(
-                "UPDATE tokens \
-                 SET \
-                     usd_price = $2, \
-                     usd_price_updated_at = $3, \
-                     updated_at = NOW() \
-                 WHERE \
-                     l1_address = $1",
+                r#"
+                UPDATE tokens
+                SET
+                    usd_price = $2,
+                    usd_price_updated_at = $3,
+                    updated_at = NOW()
+                WHERE
+                    l1_address = $1
+                "#,
                 l1_address.as_bytes(),
                 ratio_to_big_decimal(&price.usd_price, STORED_USD_PRICE_PRECISION),
                 price.last_updated.naive_utc(),
@@ -196,27 +208,29 @@ impl TokensDal<'_, '_> {
     pub async fn rollback_tokens(&mut self, block_number: MiniblockNumber) {
         {
             sqlx::query!(
-                "DELETE FROM tokens \
-                 WHERE \
-                     l2_address IN ( \
-                         SELECT \
-                             SUBSTRING(key, 12, 20) \
-                         FROM \
-                             storage_logs \
-                         WHERE \
-                             storage_logs.address = $1 \
-                             AND miniblock_number > $2 \
-                             AND NOT EXISTS ( \
-                                 SELECT \
-                                     1 \
-                                 FROM \
-                                     storage_logs AS s \
-                                 WHERE \
-                                     s.hashed_key = storage_logs.hashed_key \
-                                     AND (s.miniblock_number, s.operation_number) >= (storage_logs.miniblock_number, storage_logs.operation_number) \
-                                     AND s.value = $3 \
-                             ) \
-                     )",
+                r#"
+                DELETE FROM tokens
+                WHERE
+                    l2_address IN (
+                        SELECT
+                            SUBSTRING(key, 12, 20)
+                        FROM
+                            storage_logs
+                        WHERE
+                            storage_logs.address = $1
+                            AND miniblock_number > $2
+                            AND NOT EXISTS (
+                                SELECT
+                                    1
+                                FROM
+                                    storage_logs AS s
+                                WHERE
+                                    s.hashed_key = storage_logs.hashed_key
+                                    AND (s.miniblock_number, s.operation_number) >= (storage_logs.miniblock_number, storage_logs.operation_number)
+                                    AND s.value = $3
+                            )
+                    )
+                "#,
                 ACCOUNT_CODE_STORAGE_ADDRESS.as_bytes(),
                 block_number.0 as i64,
                 FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes()

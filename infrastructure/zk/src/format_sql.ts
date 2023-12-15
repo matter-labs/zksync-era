@@ -53,18 +53,7 @@ function extractQueryFromRustString(query: string): string {
 }
 
 function embedTextInsideRustString(query: string) {
-    query = query.replace(/"/g, '\\"');
-    const formattedLines = query.split('\n');
-    for (let i = 0; i < formattedLines.length; i++) {
-        let currentLine = '';
-        currentLine += i === 0 ? '"' : ' ';
-        currentLine += formattedLines[i];
-        currentLine += i !== formattedLines.length - 1 ? ' \\' : '';
-        currentLine += i === formattedLines.length - 1 ? '"' : '';
-
-        formattedLines[i] = currentLine;
-    }
-    return formattedLines.join('\n');
+    return 'r#"\n' + query + '\n"#';
 }
 
 function addIndent(query: string, indent: number) {
@@ -85,26 +74,15 @@ function formatRustStringQuery(query: string) {
 
 function formatOneLineQuery(line: string): string {
     const isRawString = line.includes('sqlx::query!(r');
-    const baseIndent = line.search(/\S/) + 4;
     const queryStart = isRawString ? line.indexOf('r#"') : line.indexOf('"');
     const prefix = line.slice(0, queryStart);
     line = line.slice(queryStart);
     const queryEnd = isRawString ? line.indexOf('"#') + 2 : line.slice(1).search(/(^|[^\\])"/) + 3;
     const suffix = line.slice(queryEnd);
     const query = line.slice(0, queryEnd);
+    const formattedQuery = formatRustStringQuery(query);
 
-    let formattedQuery = formatRustStringQuery(query);
-    const stillOneLine = formattedQuery.split('\n').length === 1;
-    if (!stillOneLine) {
-        formattedQuery = addIndent(formattedQuery, baseIndent);
-    }
-    return (
-        prefix +
-        (stillOneLine ? '' : '\n') +
-        formattedQuery +
-        (stillOneLine ? '' : '\n' + ' '.repeat(baseIndent)) +
-        suffix
-    );
+    return prefix + '\n' + formattedQuery + '\n' + suffix;
 }
 async function formatFile(filePath: string, check: boolean) {
     const content = await fs.promises.readFile(filePath, { encoding: 'utf-8' });

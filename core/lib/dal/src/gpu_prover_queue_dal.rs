@@ -20,37 +20,39 @@ impl GpuProverQueueDal<'_, '_> {
         {
             let processing_timeout = pg_interval_from_duration(processing_timeout);
             let result: Option<SocketAddress> = sqlx::query!(
-                "UPDATE gpu_prover_queue \
-                 SET \
-                     instance_status = 'reserved', \
-                     updated_at = NOW(), \
-                     processing_started_at = NOW() \
-                 WHERE \
-                     id IN ( \
-                         SELECT \
-                             id \
-                         FROM \
-                             gpu_prover_queue \
-                         WHERE \
-                             specialized_prover_group_id = $2 \
-                             AND region = $3 \
-                             AND zone = $4 \
-                             AND ( \
-                                 instance_status = 'available' \
-                                 OR ( \
-                                     instance_status = 'reserved' \
-                                     AND processing_started_at < NOW() - $1::INTERVAL \
-                                 ) \
-                             ) \
-                         ORDER BY \
-                             updated_at ASC \
-                         LIMIT \
-                             1 \
-                         FOR UPDATE \
-                             SKIP LOCKED \
-                     ) \
-                 RETURNING \
-                     gpu_prover_queue.*",
+                r#"
+                UPDATE gpu_prover_queue
+                SET
+                    instance_status = 'reserved',
+                    updated_at = NOW(),
+                    processing_started_at = NOW()
+                WHERE
+                    id IN (
+                        SELECT
+                            id
+                        FROM
+                            gpu_prover_queue
+                        WHERE
+                            specialized_prover_group_id = $2
+                            AND region = $3
+                            AND zone = $4
+                            AND (
+                                instance_status = 'available'
+                                OR (
+                                    instance_status = 'reserved'
+                                    AND processing_started_at < NOW() - $1::INTERVAL
+                                )
+                            )
+                        ORDER BY
+                            updated_at ASC
+                        LIMIT
+                            1
+                        FOR UPDATE
+                            SKIP LOCKED
+                    )
+                RETURNING
+                    gpu_prover_queue.*
+                "#,
                 &processing_timeout,
                 specialized_prover_group_id as i16,
                 region,
@@ -79,33 +81,35 @@ impl GpuProverQueueDal<'_, '_> {
     ) {
         {
             sqlx::query!(
-                    "INSERT INTO \
-                         gpu_prover_queue ( \
-                             instance_host, \
-                             instance_port, \
-                             queue_capacity, \
-                             queue_free_slots, \
-                             instance_status, \
-                             specialized_prover_group_id, \
-                             region, \
-                             zone, \
-                             num_gpu, \
-                             created_at, \
-                             updated_at \
-                         ) \
-                     VALUES \
-                         (CAST($1::TEXT AS inet), $2, $3, $3, 'available', $4, $5, $6, $7, NOW(), NOW()) \
-                     ON CONFLICT (instance_host, instance_port, region, zone) DO \
-                     UPDATE \
-                     SET \
-                         instance_status = 'available', \
-                         queue_capacity = $3, \
-                         queue_free_slots = $3, \
-                         specialized_prover_group_id = $4, \
-                         region = $5, \
-                         zone = $6, \
-                         num_gpu = $7, \
-                         updated_at = NOW()",
+                    r#"
+                    INSERT INTO
+                        gpu_prover_queue (
+                            instance_host,
+                            instance_port,
+                            queue_capacity,
+                            queue_free_slots,
+                            instance_status,
+                            specialized_prover_group_id,
+                            region,
+                            zone,
+                            num_gpu,
+                            created_at,
+                            updated_at
+                        )
+                    VALUES
+                        (CAST($1::TEXT AS inet), $2, $3, $3, 'available', $4, $5, $6, $7, NOW(), NOW())
+                    ON CONFLICT (instance_host, instance_port, region, zone) DO
+                    UPDATE
+                    SET
+                        instance_status = 'available',
+                        queue_capacity = $3,
+                        queue_free_slots = $3,
+                        specialized_prover_group_id = $4,
+                        region = $5,
+                        zone = $6,
+                        num_gpu = $7,
+                        updated_at = NOW()
+                    "#,
                     format!("{}",address.host),
                 address.port as i32,
                 queue_capacity as i32,
@@ -129,16 +133,18 @@ impl GpuProverQueueDal<'_, '_> {
     ) {
         {
             sqlx::query!(
-                "UPDATE gpu_prover_queue \
-                 SET \
-                     instance_status = $1, \
-                     updated_at = NOW(), \
-                     queue_free_slots = $4 \
-                 WHERE \
-                     instance_host = $2::TEXT::inet \
-                     AND instance_port = $3 \
-                     AND region = $5 \
-                     AND zone = $6",
+                r#"
+                UPDATE gpu_prover_queue
+                SET
+                    instance_status = $1,
+                    updated_at = NOW(),
+                    queue_free_slots = $4
+                WHERE
+                    instance_host = $2::TEXT::inet
+                    AND instance_port = $3
+                    AND region = $5
+                    AND zone = $6
+                "#,
                 format!("{:?}", status).to_lowercase(),
                 format!("{}", address.host),
                 address.port as i32,
@@ -161,17 +167,19 @@ impl GpuProverQueueDal<'_, '_> {
     ) {
         {
             sqlx::query!(
-                "UPDATE gpu_prover_queue \
-                 SET \
-                     instance_status = 'available', \
-                     updated_at = NOW(), \
-                     queue_free_slots = $3 \
-                 WHERE \
-                     instance_host = $1::TEXT::inet \
-                     AND instance_port = $2 \
-                     AND instance_status = 'full' \
-                     AND region = $4 \
-                     AND zone = $5",
+                r#"
+                UPDATE gpu_prover_queue
+                SET
+                    instance_status = 'available',
+                    updated_at = NOW(),
+                    queue_free_slots = $3
+                WHERE
+                    instance_host = $1::TEXT::inet
+                    AND instance_port = $2
+                    AND instance_status = 'full'
+                    AND region = $4
+                    AND zone = $5
+                "#,
                 format!("{}", address.host),
                 address.port as i32,
                 queue_free_slots as i32,
@@ -187,15 +195,17 @@ impl GpuProverQueueDal<'_, '_> {
     pub async fn get_prover_gpu_count_per_region_zone(&mut self) -> HashMap<(String, String), u64> {
         {
             sqlx::query!(
-                "SELECT \
-                     region, \
-                     zone, \
-                     SUM(num_gpu) AS total_gpus \
-                 FROM \
-                     gpu_prover_queue \
-                 GROUP BY \
-                     region, \
-                     zone",
+                r#"
+                SELECT
+                    region,
+                    zone,
+                    SUM(num_gpu) AS total_gpus
+                FROM
+                    gpu_prover_queue
+                GROUP BY
+                    region,
+                    zone
+                "#,
             )
             .fetch_all(self.storage.conn())
             .await

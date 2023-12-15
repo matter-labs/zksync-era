@@ -30,43 +30,45 @@ impl TransactionsWeb3Dal<'_, '_> {
     ) -> Result<Option<api::TransactionReceipt>, SqlxError> {
         {
             let receipt = sqlx::query!(
-                "WITH \
-                     sl AS ( \
-                         SELECT \
-                             * \
-                         FROM \
-                             storage_logs \
-                         WHERE \
-                             storage_logs.address = $1 \
-                             AND storage_logs.tx_hash = $2 \
-                         ORDER BY \
-                             storage_logs.miniblock_number DESC, \
-                             storage_logs.operation_number DESC \
-                         LIMIT \
-                             1 \
-                     ) \
-                 SELECT \
-                     transactions.hash AS tx_hash, \
-                     transactions.index_in_block AS index_in_block, \
-                     transactions.l1_batch_tx_index AS l1_batch_tx_index, \
-                     transactions.miniblock_number AS block_number, \
-                     transactions.error AS error, \
-                     transactions.effective_gas_price AS effective_gas_price, \
-                     transactions.initiator_address AS initiator_address, \
-                     transactions.data -> 'to' AS \"transfer_to?\", \
-                     transactions.data -> 'contractAddress' AS \"execute_contract_address?\", \
-                     transactions.tx_format AS \"tx_format?\", \
-                     transactions.refunded_gas AS refunded_gas, \
-                     transactions.gas_limit AS gas_limit, \
-                     miniblocks.hash AS \"block_hash?\", \
-                     miniblocks.l1_batch_number AS \"l1_batch_number?\", \
-                     sl.key AS \"contract_address?\" \
-                 FROM \
-                     transactions \
-                     LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number \
-                     LEFT JOIN sl ON sl.value != $3 \
-                 WHERE \
-                     transactions.hash = $2",
+                r#"
+                WITH
+                    sl AS (
+                        SELECT
+                            *
+                        FROM
+                            storage_logs
+                        WHERE
+                            storage_logs.address = $1
+                            AND storage_logs.tx_hash = $2
+                        ORDER BY
+                            storage_logs.miniblock_number DESC,
+                            storage_logs.operation_number DESC
+                        LIMIT
+                            1
+                    )
+                SELECT
+                    transactions.hash AS tx_hash,
+                    transactions.index_in_block AS index_in_block,
+                    transactions.l1_batch_tx_index AS l1_batch_tx_index,
+                    transactions.miniblock_number AS block_number,
+                    transactions.error AS error,
+                    transactions.effective_gas_price AS effective_gas_price,
+                    transactions.initiator_address AS initiator_address,
+                    transactions.data -> 'to' AS "transfer_to?",
+                    transactions.data -> 'contractAddress' AS "execute_contract_address?",
+                    transactions.tx_format AS "tx_format?",
+                    transactions.refunded_gas AS refunded_gas,
+                    transactions.gas_limit AS gas_limit,
+                    miniblocks.hash AS "block_hash?",
+                    miniblocks.l1_batch_number AS "l1_batch_number?",
+                    sl.key AS "contract_address?"
+                FROM
+                    transactions
+                    LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
+                    LEFT JOIN sl ON sl.value != $3
+                WHERE
+                    transactions.hash = $2
+                "#,
                 ACCOUNT_CODE_STORAGE_ADDRESS.as_bytes(),
                 hash.as_bytes(),
                 FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes()
@@ -134,27 +136,29 @@ impl TransactionsWeb3Dal<'_, '_> {
                 Some(mut receipt) => {
                     let logs: Vec<_> = sqlx::query_as!(
                         StorageWeb3Log,
-                        "SELECT \
-                             address, \
-                             topic1, \
-                             topic2, \
-                             topic3, \
-                             topic4, \
-                             value, \
-                             NULL::bytea AS \"block_hash\", \
-                             NULL::BIGINT AS \"l1_batch_number?\", \
-                             miniblock_number, \
-                             tx_hash, \
-                             tx_index_in_block, \
-                             event_index_in_block, \
-                             event_index_in_tx \
-                         FROM \
-                             events \
-                         WHERE \
-                             tx_hash = $1 \
-                         ORDER BY \
-                             miniblock_number ASC, \
-                             event_index_in_block ASC",
+                        r#"
+                        SELECT
+                            address,
+                            topic1,
+                            topic2,
+                            topic3,
+                            topic4,
+                            value,
+                            NULL::bytea AS "block_hash",
+                            NULL::BIGINT AS "l1_batch_number?",
+                            miniblock_number,
+                            tx_hash,
+                            tx_index_in_block,
+                            event_index_in_block,
+                            event_index_in_tx
+                        FROM
+                            events
+                        WHERE
+                            tx_hash = $1
+                        ORDER BY
+                            miniblock_number ASC,
+                            event_index_in_block ASC
+                        "#,
                         hash.as_bytes()
                     )
                     .instrument("get_transaction_receipt_events")
@@ -240,37 +244,39 @@ impl TransactionsWeb3Dal<'_, '_> {
         {
             let storage_tx_details: Option<StorageTransactionDetails> = sqlx::query_as!(
                 StorageTransactionDetails,
-                "SELECT \
-                     transactions.is_priority, \
-                     transactions.initiator_address, \
-                     transactions.gas_limit, \
-                     transactions.gas_per_pubdata_limit, \
-                     transactions.received_at, \
-                     transactions.miniblock_number, \
-                     transactions.error, \
-                     transactions.effective_gas_price, \
-                     transactions.refunded_gas, \
-                     commit_tx.tx_hash AS \"eth_commit_tx_hash?\", \
-                     prove_tx.tx_hash AS \"eth_prove_tx_hash?\", \
-                     execute_tx.tx_hash AS \"eth_execute_tx_hash?\" \
-                 FROM \
-                     transactions \
-                     LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number \
-                     LEFT JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number \
-                     LEFT JOIN eth_txs_history AS commit_tx ON ( \
-                         l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id \
-                         AND commit_tx.confirmed_at IS NOT NULL \
-                     ) \
-                     LEFT JOIN eth_txs_history AS prove_tx ON ( \
-                         l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id \
-                         AND prove_tx.confirmed_at IS NOT NULL \
-                     ) \
-                     LEFT JOIN eth_txs_history AS execute_tx ON ( \
-                         l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id \
-                         AND execute_tx.confirmed_at IS NOT NULL \
-                     ) \
-                 WHERE \
-                     transactions.hash = $1",
+                r#"
+                SELECT
+                    transactions.is_priority,
+                    transactions.initiator_address,
+                    transactions.gas_limit,
+                    transactions.gas_per_pubdata_limit,
+                    transactions.received_at,
+                    transactions.miniblock_number,
+                    transactions.error,
+                    transactions.effective_gas_price,
+                    transactions.refunded_gas,
+                    commit_tx.tx_hash AS "eth_commit_tx_hash?",
+                    prove_tx.tx_hash AS "eth_prove_tx_hash?",
+                    execute_tx.tx_hash AS "eth_execute_tx_hash?"
+                FROM
+                    transactions
+                    LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
+                    LEFT JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number
+                    LEFT JOIN eth_txs_history AS commit_tx ON (
+                        l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id
+                        AND commit_tx.confirmed_at IS NOT NULL
+                    )
+                    LEFT JOIN eth_txs_history AS prove_tx ON (
+                        l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id
+                        AND prove_tx.confirmed_at IS NOT NULL
+                    )
+                    LEFT JOIN eth_txs_history AS execute_tx ON (
+                        l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
+                        AND execute_tx.confirmed_at IS NOT NULL
+                    )
+                WHERE
+                    transactions.hash = $1
+                "#,
                 hash.as_bytes()
             )
             .instrument("get_transaction_details")
@@ -291,18 +297,20 @@ impl TransactionsWeb3Dal<'_, '_> {
         limit: Option<usize>,
     ) -> Result<(Vec<H256>, Option<NaiveDateTime>), SqlxError> {
         let records = sqlx::query!(
-            "SELECT \
-                 transactions.hash, \
-                 transactions.received_at \
-             FROM \
-                 transactions \
-                 LEFT JOIN miniblocks ON miniblocks.number = miniblock_number \
-             WHERE \
-                 received_at > $1 \
-             ORDER BY \
-                 received_at ASC \
-             LIMIT \
-                 $2",
+            r#"
+            SELECT
+                transactions.hash,
+                transactions.received_at
+            FROM
+                transactions
+                LEFT JOIN miniblocks ON miniblocks.number = miniblock_number
+            WHERE
+                received_at > $1
+            ORDER BY
+                received_at ASC
+            LIMIT
+                $2
+            "#,
             from_timestamp,
             limit.map(|limit| limit as i64)
         )
@@ -340,20 +348,22 @@ impl TransactionsWeb3Dal<'_, '_> {
         // Query is fast because we have an index on (`initiator_address`, `nonce`)
         // and it cannot return more than `max_nonce_ahead` nonces.
         let non_rejected_nonces: Vec<u64> = sqlx::query!(
-            "SELECT \
-                 nonce AS \"nonce!\" \
-             FROM \
-                 transactions \
-             WHERE \
-                 initiator_address = $1 \
-                 AND nonce >= $2 \
-                 AND is_priority = FALSE \
-                 AND ( \
-                     miniblock_number IS NOT NULL \
-                     OR error IS NULL \
-                 ) \
-             ORDER BY \
-                 nonce",
+            r#"
+            SELECT
+                nonce AS "nonce!"
+            FROM
+                transactions
+            WHERE
+                initiator_address = $1
+                AND nonce >= $2
+                AND is_priority = FALSE
+                AND (
+                    miniblock_number IS NOT NULL
+                    OR error IS NULL
+                )
+            ORDER BY
+                nonce
+            "#,
             initiator_address.as_bytes(),
             latest_nonce as i64
         )
@@ -384,14 +394,16 @@ impl TransactionsWeb3Dal<'_, '_> {
     ) -> Result<Vec<Transaction>, SqlxError> {
         let rows = sqlx::query_as!(
             StorageTransaction,
-            "SELECT \
-                 * \
-             FROM \
-                 transactions \
-             WHERE \
-                 miniblock_number = $1 \
-             ORDER BY \
-                 index_in_block",
+            r#"
+            SELECT
+                *
+            FROM
+                transactions
+            WHERE
+                miniblock_number = $1
+            ORDER BY
+                index_in_block
+            "#,
             miniblock.0 as i64
         )
         .fetch_all(self.storage.conn())
