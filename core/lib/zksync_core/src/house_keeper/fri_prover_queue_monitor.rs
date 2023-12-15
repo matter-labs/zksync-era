@@ -105,6 +105,7 @@ impl PeriodicJob for FriProverStatsReporter {
                     .0 as f64
             }
         };
+        // if there is no such batch in database, we use sealed batch number as a result
         metrics::gauge!("fri_prover.oldest_unpicked_batch", oldest_unpicked_batch);
 
         if let Some(l1_batch_number) = db_conn
