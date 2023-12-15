@@ -78,13 +78,12 @@ impl TokensDal<'_, '_> {
         }
     }
 
-    pub async fn get_well_known_token_addresses(&mut self) -> Vec<(Address, Address)> {
+    pub(crate) async fn get_well_known_token_addresses(&mut self) -> Vec<(Address, Address)> {
         {
-            let records =
-                sqlx::query!("SELECT l1_address, l2_address FROM tokens WHERE well_known = true")
-                    .fetch_all(self.storage.conn())
-                    .await
-                    .unwrap();
+            let records = sqlx::query!("SELECT l1_address, l2_address FROM tokens")
+                .fetch_all(self.storage.conn())
+                .await
+                .unwrap();
             let addresses: Vec<(Address, Address)> = records
                 .into_iter()
                 .map(|record| {

@@ -9234,30 +9234,6 @@
     },
     "query": "\n                INSERT INTO transactions\n                (\n                    hash,\n                    is_priority,\n                    initiator_address,\n\n                    gas_limit,\n                    max_fee_per_gas,\n                    gas_per_pubdata_limit,\n\n                    data,\n                    priority_op_id,\n                    full_fee,\n                    layer_2_tip_fee,\n                    contract_address,\n                    l1_block_number,\n                    value,\n\n                    paymaster,\n                    paymaster_input,\n                    tx_format,\n\n                    l1_tx_mint,\n                    l1_tx_refund_recipient,\n\n                    received_at,\n                    created_at,\n                    updated_at\n                )\n                VALUES\n                    (\n                        $1, TRUE, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,\n                        $13, $14, $15, $16, $17, $18, now(), now()\n                    )\n                ON CONFLICT (hash) DO NOTHING\n                "
   },
-  "b4da918ee3b36b56d95c8834edebe65eb48ebb8270fa1e6ccf73ad354fd71134": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_address",
-          "ordinal": 0,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "l2_address",
-          "ordinal": 1,
-          "type_info": "Bytea"
-        }
-      ],
-      "nullable": [
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "SELECT l1_address, l2_address FROM tokens WHERE well_known = true"
-  },
   "b6f9874059c57e5e59f3021936437e9ff71a68065dfc19c295d806d7a9aafc93": {
     "describe": {
       "columns": [],
@@ -9347,6 +9323,30 @@
       }
     },
     "query": "UPDATE proof_compression_jobs_fri SET status = $1, attempts = attempts + 1, updated_at = now(), processing_started_at = now(), picked_by = $3 WHERE l1_batch_number = ( SELECT l1_batch_number FROM proof_compression_jobs_fri WHERE status = $2 ORDER BY l1_batch_number ASC LIMIT 1 FOR UPDATE SKIP LOCKED ) RETURNING proof_compression_jobs_fri.l1_batch_number"
+  },
+  "bc6169afcc4b6c2c48ed19ffda36d9d3975cd4a57a24d56c522bb70ad893d92f": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_address",
+          "ordinal": 0,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "l2_address",
+          "ordinal": 1,
+          "type_info": "Bytea"
+        }
+      ],
+      "nullable": [
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT l1_address, l2_address FROM tokens"
   },
   "be824de76050461afe29dfd229e524bdf113eab3ca24208782c200531db1c940": {
     "describe": {
