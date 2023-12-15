@@ -48,6 +48,10 @@ impl SnapshotBasics {
         assert!(chunk_ids.iter().all(|&id| id < Self::CHUNK_COUNT));
         Self { chunk_ids }
     }
+
+    fn is_complete_snapshot(&self) -> bool {
+        self.chunk_ids == HashSet::from_iter(0..Self::CHUNK_COUNT)
+    }
 }
 
 #[async_trait]
@@ -70,13 +74,24 @@ impl HttpTest for SnapshotBasics {
         }
 
         let all_snapshots = client.get_all_snapshots().await?;
-        assert_eq!(all_snapshots.snapshots_l1_batch_numbers, [L1BatchNumber(1)]);
+        if self.is_complete_snapshot() {
+            assert_eq!(all_snapshots.snapshots_l1_batch_numbers, [L1BatchNumber(1)]);
+            assert_eq!(all_snapshots.incomplete_snapshots_l1_batch_numbers, []);
+        } else {
+            assert_eq!(all_snapshots.snapshots_l1_batch_numbers, []);
+            assert_eq!(
+                all_snapshots.incomplete_snapshots_l1_batch_numbers,
+                [L1BatchNumber(1)]
+            );
+        }
+
         let snapshot_header = client
             .get_snapshot_by_l1_batch_number(L1BatchNumber(1))
             .await?
             .context("no snapshot for L1 batch #1")?;
         assert_eq!(snapshot_header.l1_batch_number, L1BatchNumber(1));
         assert_eq!(snapshot_header.miniblock_number, MiniblockNumber(1));
+        assert_eq!(snapshot_header.is_complete, self.is_complete_snapshot());
         assert_eq!(
             snapshot_header.factory_deps_filepath,
             "file:///factory_deps"

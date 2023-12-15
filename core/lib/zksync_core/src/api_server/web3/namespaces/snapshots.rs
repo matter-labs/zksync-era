@@ -70,6 +70,7 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
         };
 
         let snapshot_files = snapshot_metadata.storage_logs_filepaths;
+        let is_complete = snapshot_files.iter().all(Option::is_some);
         let chunks = snapshot_files
             .into_iter()
             .enumerate()
@@ -103,6 +104,7 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
         Ok(Some(SnapshotHeader {
             l1_batch_number: snapshot_metadata.l1_batch_number,
             miniblock_number,
+            is_complete,
             last_l1_batch_with_metadata: l1_batch_with_metadata,
             storage_logs_chunks: chunks,
             factory_deps_filepath: snapshot_metadata.factory_deps_filepath,

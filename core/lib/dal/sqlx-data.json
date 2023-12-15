@@ -623,6 +623,30 @@
     },
     "query": "\n                SELECT COUNT(*) as \"count!\", status as \"status!\"\n                FROM prover_jobs\n                GROUP BY status\n                "
   },
+  "117757bfbe10fd36a171bd4511210b0a5a4b150156c13b89e44484dbe2c8e4a0": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "is_pending!",
+          "ordinal": 1,
+          "type_info": "Bool"
+        }
+      ],
+      "nullable": [
+        false,
+        null
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT l1_batch_number, ''::text = ANY(storage_logs_filepaths) AS \"is_pending!\" FROM snapshots ORDER BY l1_batch_number DESC"
+  },
   "13e5f6a2a73eaa979229611ffdbed86d6e5e1bad0c645d39b56fdc47f5c17971": {
     "describe": {
       "columns": [
@@ -10583,24 +10607,6 @@
       }
     },
     "query": "DELETE FROM transactions WHERE in_mempool = TRUE AND initiator_address = ANY($1)"
-  },
-  "e9517bcf2f0b01ffd82dc8c1d7da84b3759ef4739e0e89e509b16a43c61147fb": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        false
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "SELECT l1_batch_number FROM snapshots ORDER BY l1_batch_number"
   },
   "e9b03a0d79eb40a67eab9bdaac8447fc17922bea89bcc6a89eb8eadf147835fe": {
     "describe": {

@@ -3,10 +3,17 @@ use zksync_basic_types::{L1BatchNumber, MiniblockNumber};
 
 use crate::{commitment::L1BatchWithMetadata, Bytes, StorageKey, StorageValue};
 
+/// Information about all snapshots persisted by the node.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AllSnapshots {
+    /// L1 batch numbers for complete snapshots. Ordered by descending number (i.e., 0th element
+    /// corresponds to the newest snapshot).
     pub snapshots_l1_batch_numbers: Vec<L1BatchNumber>,
+    /// Same as `snapshots_l1_batch_numbers`, but for incomplete snapshots (ones in which some
+    /// storage log chunks may be missing).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub incomplete_snapshots_l1_batch_numbers: Vec<L1BatchNumber>,
 }
 
 /// Storage snapshot metadata. Used in DAL to fetch certain snapshot data.
@@ -28,13 +35,15 @@ impl SnapshotMetadata {
     }
 }
 
-//contains all data not contained in factory_deps/storage_logs files to perform restore process
+/// Snapshot data returned by using JSON-RPC API.
+/// Contains all data not contained in factory deps / storage logs files to perform restore process.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotHeader {
     pub l1_batch_number: L1BatchNumber,
     pub miniblock_number: MiniblockNumber,
-    //ordered by chunk ids
+    pub is_complete: bool,
+    /// Ordered by chunk IDs.
     pub storage_logs_chunks: Vec<SnapshotStorageLogsChunkMetadata>,
     pub factory_deps_filepath: String,
     pub last_l1_batch_with_metadata: L1BatchWithMetadata,

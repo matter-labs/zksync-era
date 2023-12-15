@@ -1,4 +1,13 @@
 //! Snapshot creator utility. Intended to run on a schedule, with each run creating a new snapshot.
+//!
+//! # Assumptions
+//!
+//! The snapshot creator is fault-tolerant; if it stops in the middle of creating a snapshot,
+//! this snapshot will be continued from roughly the same point after the restart. If this is
+//! undesired, remove the `snapshots` table record corresponding to the pending snapshot.
+//!
+//! It is assumed that the snapshot creator is run as a singleton process (no more than 1 instance
+//! at a time).
 
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;

@@ -77,18 +77,31 @@ impl SnapshotsDal<'_, '_> {
     }
 
     pub async fn get_all_snapshots(&mut self) -> sqlx::Result<AllSnapshots> {
-        let records =
-            sqlx::query!("SELECT l1_batch_number FROM snapshots ORDER BY l1_batch_number")
-                .instrument("get_all_snapshots")
-                .report_latency()
-                .fetch_all(self.storage.conn())
-                .await?
-                .into_iter()
-                .map(|row| L1BatchNumber(row.l1_batch_number as u32))
-                .collect();
+        let rows = sqlx::query!(
+            "SELECT l1_batch_number, ''::text = ANY(storage_logs_filepaths) AS \"is_pending!\" \
+            FROM snapshots \
+            ORDER BY l1_batch_number DESC"
+        )
+        .instrument("get_all_snapshots")
+        .report_latency()
+        .fetch_all(self.storage.conn())
+        .await?;
+
+        // Normally, there should be no more than 1 pending snapshot, so we preallocate `Vec`s accordingly.
+        let mut snapshots_l1_batch_numbers = Vec::with_capacity(rows.len());
+        let mut pending_snapshots_l1_batch_numbers = vec![];
+        for row in rows {
+            let l1_batch_number = L1BatchNumber(row.l1_batch_number as u32);
+            if row.is_pending {
+                pending_snapshots_l1_batch_numbers.push(l1_batch_number);
+            } else {
+                snapshots_l1_batch_numbers.push(l1_batch_number);
+            }
+        }
 
         Ok(AllSnapshots {
-            snapshots_l1_batch_numbers: records,
+            snapshots_l1_batch_numbers,
+            incomplete_snapshots_l1_batch_numbers: pending_snapshots_l1_batch_numbers,
         })
     }
 
@@ -147,8 +160,28 @@ mod tests {
             .get_all_snapshots()
             .await
             .expect("Failed to retrieve snapshots");
-        assert_eq!(1, snapshots.snapshots_l1_batch_numbers.len());
-        assert_eq!(snapshots.snapshots_l1_batch_numbers[0], l1_batch_number);
+        assert_eq!(snapshots.snapshots_l1_batch_numbers, []);
+        assert_eq!(
+            snapshots.incomplete_snapshots_l1_batch_numbers,
+            [l1_batch_number]
+        );
+
+        for i in 0..2 {
+            dal.add_storage_logs_filepath_for_snapshot(
+                l1_batch_number,
+                i,
+                "gs:///bucket/chunk.bin",
+            )
+            .await
+            .unwrap();
+        }
+
+        let snapshots = dal
+            .get_all_snapshots()
+            .await
+            .expect("Failed to retrieve snapshots");
+        assert_eq!(snapshots.snapshots_l1_batch_numbers, [l1_batch_number]);
+        assert_eq!(snapshots.incomplete_snapshots_l1_batch_numbers, []);
 
         let snapshot_metadata = dal
             .get_snapshot_metadata(l1_batch_number)
