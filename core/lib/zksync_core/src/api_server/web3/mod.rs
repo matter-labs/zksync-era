@@ -566,7 +566,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
     }
 }
 
-async fn _resolve_block(
+async fn resolve_block(
     connection: &mut StorageProcessor<'_>,
     block: api::BlockId,
     method_name: &'static str,

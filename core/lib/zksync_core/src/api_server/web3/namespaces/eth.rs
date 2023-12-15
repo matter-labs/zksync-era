@@ -21,8 +21,9 @@ use crate::{
     api_server::{
         execution_sandbox::BlockArgs,
         web3::{
-            backend_jsonrpsee::{internal_error, resolve_block},
+            backend_jsonrpsee::internal_error,
             metrics::{BlockCallObserver, API_METRICS},
+            resolve_block,
             state::RpcState,
             TypedFilter,
         },

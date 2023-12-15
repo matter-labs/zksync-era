@@ -4,8 +4,6 @@
 
 use std::{error::Error, fmt};
 
-use zksync_dal::StorageProcessor;
-use zksync_types::{api, MiniblockNumber};
 use zksync_web3_decl::{
     error::Web3Error,
     jsonrpsee::types::{error::ErrorCode, ErrorObjectOwned},
@@ -18,17 +16,6 @@ pub mod namespaces;
 
 pub fn from_std_error(e: impl Error) -> ErrorObjectOwned {
     ErrorObjectOwned::owned(ErrorCode::InternalError.code(), e.to_string(), Some(()))
-}
-
-pub async fn resolve_block(
-    connection: &mut StorageProcessor<'_>,
-    block: api::BlockId,
-    method_name: &'static str,
-) -> Result<MiniblockNumber, Web3Error> {
-    let result = connection.blocks_web3_dal().resolve_block_id(block).await;
-    result
-        .map_err(|err| internal_error(method_name, err))?
-        .ok_or(Web3Error::NoBlock)
 }
 
 pub fn into_jsrpc_error(err: Web3Error) -> ErrorObjectOwned {
