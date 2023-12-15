@@ -58,47 +58,54 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
             .access_storage_tagged("api")
             .await
             .map_err(|err| internal_error(method_name, err))?;
-        let mut snapshots_dal = storage_processor.snapshots_dal();
-        let snapshot_metadata = snapshots_dal
+        let snapshot_metadata = storage_processor
+            .snapshots_dal()
             .get_snapshot_metadata(l1_batch_number)
             .await
             .map_err(|err| internal_error(method_name, err))?;
-        if let Some(snapshot_metadata) = snapshot_metadata {
-            let snapshot_files = snapshot_metadata.storage_logs_filepaths;
-            let chunks = snapshot_files
-                .into_iter()
-                .enumerate()
-                .filter_map(|(chunk_id, filepath)| {
-                    Some(SnapshotStorageLogsChunkMetadata {
-                        chunk_id: chunk_id as u64,
-                        filepath: filepath?,
-                    })
+
+        let Some(snapshot_metadata) = snapshot_metadata else {
+            method_latency.observe();
+            return Ok(None);
+        };
+
+        let snapshot_files = snapshot_metadata.storage_logs_filepaths;
+        let chunks = snapshot_files
+            .into_iter()
+            .enumerate()
+            .filter_map(|(chunk_id, filepath)| {
+                Some(SnapshotStorageLogsChunkMetadata {
+                    chunk_id: chunk_id as u64,
+                    filepath: filepath?,
                 })
-                .collect();
-            let l1_batch_with_metadata = storage_processor
-                .blocks_dal()
-                .get_l1_batch_metadata(l1_batch_number)
-                .await
-                .map_err(|err| internal_error(method_name, err))?
-                .unwrap();
-            let miniblock_number = storage_processor
-                .blocks_dal()
-                .get_miniblock_range_of_l1_batch(l1_batch_number)
-                .await
-                .map_err(|err| internal_error(method_name, err))?
-                .unwrap()
-                .1;
-            method_latency.observe();
-            Ok(Some(SnapshotHeader {
-                l1_batch_number: snapshot_metadata.l1_batch_number,
-                miniblock_number,
-                last_l1_batch_with_metadata: l1_batch_with_metadata,
-                storage_logs_chunks: chunks,
-                factory_deps_filepath: snapshot_metadata.factory_deps_filepath,
-            }))
-        } else {
-            method_latency.observe();
-            Ok(None)
-        }
+            })
+            .collect();
+        let l1_batch_with_metadata = storage_processor
+            .blocks_dal()
+            .get_l1_batch_metadata(l1_batch_number)
+            .await
+            .map_err(|err| internal_error(method_name, err))?
+            .ok_or_else(|| {
+                let err = format!("missing metadata for L1 batch #{l1_batch_number}");
+                internal_error(method_name, err)
+            })?;
+        let (_, miniblock_number) = storage_processor
+            .blocks_dal()
+            .get_miniblock_range_of_l1_batch(l1_batch_number)
+            .await
+            .map_err(|err| internal_error(method_name, err))?
+            .ok_or_else(|| {
+                let err = format!("missing miniblocks for L1 batch #{l1_batch_number}");
+                internal_error(method_name, err)
+            })?;
+
+        method_latency.observe();
+        Ok(Some(SnapshotHeader {
+            l1_batch_number: snapshot_metadata.l1_batch_number,
+            miniblock_number,
+            last_l1_batch_with_metadata: l1_batch_with_metadata,
+            storage_logs_chunks: chunks,
+            factory_deps_filepath: snapshot_metadata.factory_deps_filepath,
+        }))
     }
 }
