@@ -102,7 +102,7 @@ jobs:
       # `sleep 30` because we need to wait until server added all the tokens
       - name: Run server
         run: |
-          ci_run zk server --uring --components api,tree,eth,data_fetcher,state_keeper,housekeeper &>server.log &
+          ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper &>server.log &
           ci_run sleep 30
 
       - name: Perform loadtest
