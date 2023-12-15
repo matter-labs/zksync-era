@@ -46,6 +46,7 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
         response
     }
 
+    // FIXME: test
     pub async fn get_snapshot_by_l1_batch_number_impl(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -64,13 +65,15 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
             .await
             .map_err(|err| internal_error(method_name, err))?;
         if let Some(snapshot_metadata) = snapshot_metadata {
-            let snapshot_files = snapshot_metadata.storage_logs_filepaths.clone();
+            let snapshot_files = snapshot_metadata.storage_logs_filepaths;
             let chunks = snapshot_files
-                .iter()
+                .into_iter()
                 .enumerate()
-                .map(|(chunk_id, filepath)| SnapshotStorageLogsChunkMetadata {
-                    chunk_id: chunk_id as u64,
-                    filepath: filepath.clone(),
+                .filter_map(|(chunk_id, filepath)| {
+                    Some(SnapshotStorageLogsChunkMetadata {
+                        chunk_id: chunk_id as u64,
+                        filepath: filepath?,
+                    })
                 })
                 .collect();
             let l1_batch_with_metadata = storage_processor
