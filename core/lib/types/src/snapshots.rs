@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{L1BatchNumber, MiniblockNumber};
 
-use crate::{commitment::L1BatchWithMetadata, StorageKey, StorageValue};
+use crate::{commitment::L1BatchWithMetadata, Bytes, StorageKey, StorageValue};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -51,7 +51,7 @@ pub struct SnapshotStorageLogsChunk {
     pub storage_logs: Vec<SnapshotStorageLog>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotStorageLog {
     pub key: StorageKey,
@@ -66,8 +66,8 @@ pub struct SnapshotFactoryDependencies {
     pub factory_deps: Vec<SnapshotFactoryDependency>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotFactoryDependency {
-    pub bytecode: Vec<u8>,
+    pub bytecode: Bytes,
 }
