@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 // use std::time::Instant;
-use zksync_contracts::diamond_init_contract;
+use zksync_contracts::state_transition_chain_contract;
 use zksync_dal::StorageProcessor;
 use zksync_types::{web3::types::Log, ProtocolUpgrade, H256};
 
@@ -19,7 +19,7 @@ pub struct SetChainIDEventProcessor {
 impl SetChainIDEventProcessor {
     pub fn new() -> Self {
         Self {
-            set_chain_id_signature: diamond_init_contract()
+            set_chain_id_signature: state_transition_chain_contract()
                 .event("SetChainIdUpgrade")
                 .expect("SetChainIdUpgrade event is missing in abi")
                 .signature(),

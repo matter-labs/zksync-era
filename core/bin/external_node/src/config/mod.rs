@@ -22,6 +22,7 @@ const BYTES_IN_MEGABYTE: usize = 1_024 * 1_024;
 /// This part of the external node config is fetched directly from the main node.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct RemoteENConfig {
+    pub bridgehub_proxy_addr: Address,
     pub diamond_proxy_addr: Address,
     pub l1_erc20_bridge_proxy_addr: Address,
     pub l2_erc20_bridge_addr: Address,
@@ -44,6 +45,10 @@ impl RemoteENConfig {
             .get_testnet_paymaster()
             .await
             .context("Failed to fetch paymaster")?;
+        let bridgehub_proxy_addr = client
+            .get_bridgehub_contract()
+            .await
+            .context("Failed to fetch L1 bridgehub contract address")?;
         let diamond_proxy_addr = client
             .get_main_contract()
             .await
@@ -74,6 +79,7 @@ impl RemoteENConfig {
             .expect("Block is known to exist");
 
         Ok(Self {
+            bridgehub_proxy_addr,
             diamond_proxy_addr,
             l2_testnet_paymaster_addr,
             l1_erc20_bridge_proxy_addr: bridges.l1_erc20_default_bridge,
@@ -502,6 +508,7 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
                 l1_weth_bridge: config.remote.l1_weth_bridge_proxy_addr,
                 l2_weth_bridge: config.remote.l2_weth_bridge_addr,
             },
+            bridgehub_proxy_addr: config.remote.bridgehub_proxy_addr,
             diamond_proxy_addr: config.remote.diamond_proxy_addr,
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: config.optional.req_entities_limit,
