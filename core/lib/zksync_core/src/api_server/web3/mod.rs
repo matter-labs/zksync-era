@@ -432,20 +432,17 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         // Start the server in a separate tokio runtime from a dedicated thread.
         let (local_addr_sender, local_addr) = oneshot::channel();
         let server_task = tokio::task::spawn_blocking(move || {
-            let res = runtime.block_on(async move {
-                Self::run_jsonrpsee_server(
-                    rpc,
-                    transport,
-                    stop_receiver,
-                    local_addr_sender,
-                    health_updater,
-                    vm_barrier,
-                    batch_request_config,
-                    response_body_size_limit,
-                    websocket_requests_per_minute_limit,
-                )
-                .await
-            });
+            let res = runtime.block_on(Self::run_jsonrpsee_server(
+                rpc,
+                transport,
+                stop_receiver,
+                local_addr_sender,
+                health_updater,
+                vm_barrier,
+                batch_request_config,
+                response_body_size_limit,
+                websocket_requests_per_minute_limit,
+            ));
             runtime.shutdown_timeout(GRACEFUL_SHUTDOWN_TIMEOUT);
             res
         });
@@ -521,11 +518,11 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
                 .with_context(|| format!("Failed building {transport_str} JSON-RPC server"))?;
             (server.local_addr(), server.start(rpc))
         } else {
-            let server_builder = ServerBuilder::default().ws_only().set_rpc_middleware(
-                RpcServiceBuilder::new().layer_fn(move |a| {
+            let server_builder = ServerBuilder::default()
+                .max_connections(5_000)
+                .set_rpc_middleware(RpcServiceBuilder::new().layer_fn(move |a| {
                     LimitMiddleware::new(a, websocket_requests_per_minute_limit)
-                }),
-            );
+                }));
             let server = server_builder
                 .set_batch_request_config(batch_request_config)
                 .set_http_middleware(middleware)
