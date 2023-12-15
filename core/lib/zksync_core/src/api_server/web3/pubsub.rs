@@ -14,7 +14,7 @@ use zksync_web3_decl::{
     jsonrpsee::{
         core::{server::SubscriptionMessage, SubscriptionResult},
         server::IdProvider,
-        types::{error::ErrorCode, SubscriptionId},
+        types::{error::ErrorCode, ErrorObject, SubscriptionId},
         PendingSubscriptionSink, SubscriptionSink,
     },
     namespaces::EthPubSubServer,
@@ -304,6 +304,15 @@ impl EthSubscribe {
         self.events_sender = Some(sender);
     }
 
+    async fn reject(sink: PendingSubscriptionSink) {
+        sink.reject(ErrorObject::borrowed(
+            ErrorCode::InvalidParams.code(),
+            "Rejecting subscription - invalid parameters provided.",
+            None,
+        ))
+        .await;
+    }
+
     #[tracing::instrument(skip(self, pending_sink))]
     pub async fn sub(
         &self,
@@ -329,6 +338,7 @@ impl EthSubscribe {
                 let filter = params.unwrap_or_default();
                 let topic_count = filter.topics.as_ref().map_or(0, Vec::len);
                 if topic_count > EVENT_TOPIC_NUMBER_LIMIT {
+                    Self::reject(pending_sink).await;
                     None
                 } else {
                     let mut log_subs = self.active_log_subs.write().await;
@@ -347,7 +357,7 @@ impl EthSubscribe {
                 None
             }
             _ => {
-                pending_sink.reject(ErrorCode::ServerError(10)).await;
+                Self::reject(pending_sink).await;
                 None
             }
         };
