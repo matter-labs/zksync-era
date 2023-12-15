@@ -16,7 +16,6 @@ pub(crate) enum InitStage {
     EthWatcher,
     EthTxAggregator,
     EthTxManager,
-    DataFetcher,
     Tree,
     BasicWitnessInputProducer,
 }
@@ -31,7 +30,6 @@ impl fmt::Display for InitStage {
             Self::EthWatcher => formatter.write_str("eth_watcher"),
             Self::EthTxAggregator => formatter.write_str("eth_tx_aggregator"),
             Self::EthTxManager => formatter.write_str("eth_tx_manager"),
-            Self::DataFetcher => formatter.write_str("data_fetchers"),
             Self::Tree => formatter.write_str("tree"),
             Self::BasicWitnessInputProducer => formatter.write_str("basic_witness_input_producer"),
         }
