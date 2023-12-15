@@ -90,13 +90,22 @@ impl PeriodicJob for FriProverStatsReporter {
 
         let mut db_conn = self.db_connection_pool.access_storage().await.unwrap();
 
-        if let Some(l1_batch_number) = db_conn
+        let oldest_unpicked_batch = match db_conn
             .proof_generation_dal()
             .get_oldest_unpicked_batch()
             .await
         {
-            metrics::gauge!("fri_prover.oldest_unpicked_batch", l1_batch_number.0 as f64)
-        }
+            Some(l1_batch_number) => l1_batch_number.0 as f64,
+            None => {
+                db_conn
+                    .blocks_dal()
+                    .get_sealed_l1_batch_number()
+                    .await
+                    .unwrap()
+                    .0 as f64
+            }
+        };
+        metrics::gauge!("fri_prover.oldest_unpicked_batch", oldest_unpicked_batch);
 
         if let Some(l1_batch_number) = db_conn
             .proof_generation_dal()
