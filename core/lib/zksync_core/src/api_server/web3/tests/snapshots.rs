@@ -1,0 +1,110 @@
+//! Tests for the `snapshots` Web3 namespace.
+
+use std::collections::HashSet;
+
+use zksync_types::block::{BlockGasCount, L1BatchHeader};
+use zksync_web3_decl::namespaces::SnapshotsNamespaceClient;
+
+use super::*;
+use crate::state_keeper::tests::create_l1_batch_metadata;
+
+async fn seal_l1_batch(
+    storage: &mut StorageProcessor<'_>,
+    number: L1BatchNumber,
+) -> anyhow::Result<()> {
+    let header = L1BatchHeader::new(
+        number,
+        number.0.into(),
+        Address::repeat_byte(1),
+        BaseSystemContractsHashes::default(),
+        ProtocolVersionId::latest(),
+    );
+    storage
+        .blocks_dal()
+        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
+        .await?;
+    storage
+        .blocks_dal()
+        .mark_miniblocks_as_executed_in_l1_batch(number)
+        .await?;
+    let metadata = create_l1_batch_metadata(number.0);
+    storage
+        .blocks_dal()
+        .save_l1_batch_metadata(number, &metadata, H256::zero(), false)
+        .await?;
+    Ok(())
+}
+
+#[derive(Debug)]
+struct SnapshotBasics {
+    chunk_ids: HashSet<u64>,
+}
+
+impl SnapshotBasics {
+    const CHUNK_COUNT: u64 = 5;
+
+    fn new(chunk_ids: impl IntoIterator<Item = u64>) -> Self {
+        let chunk_ids: HashSet<_> = chunk_ids.into_iter().collect();
+        assert!(chunk_ids.iter().all(|&id| id < Self::CHUNK_COUNT));
+        Self { chunk_ids }
+    }
+}
+
+#[async_trait]
+impl HttpTest for SnapshotBasics {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+        let mut storage = pool.access_storage().await.unwrap();
+        store_miniblock(&mut storage).await?;
+        seal_l1_batch(&mut storage, L1BatchNumber(1)).await?;
+        storage
+            .snapshots_dal()
+            .add_snapshot(L1BatchNumber(1), Self::CHUNK_COUNT, "file:///factory_deps")
+            .await?;
+
+        for &chunk_id in &self.chunk_ids {
+            let path = format!("file:///storage_logs/chunk{chunk_id}");
+            storage
+                .snapshots_dal()
+                .add_storage_logs_filepath_for_snapshot(L1BatchNumber(1), chunk_id, &path)
+                .await?;
+        }
+
+        let all_snapshots = client.get_all_snapshots().await?;
+        assert_eq!(all_snapshots.snapshots_l1_batch_numbers, [L1BatchNumber(1)]);
+        let snapshot_header = client
+            .get_snapshot_by_l1_batch_number(L1BatchNumber(1))
+            .await?
+            .context("no snapshot for L1 batch #1")?;
+        assert_eq!(snapshot_header.l1_batch_number, L1BatchNumber(1));
+        assert_eq!(snapshot_header.miniblock_number, MiniblockNumber(1));
+        assert_eq!(
+            snapshot_header.factory_deps_filepath,
+            "file:///factory_deps"
+        );
+
+        assert_eq!(
+            snapshot_header.storage_logs_chunks.len(),
+            self.chunk_ids.len()
+        );
+        for chunk in &snapshot_header.storage_logs_chunks {
+            assert!(self.chunk_ids.contains(&chunk.chunk_id));
+            assert!(chunk.filepath.starts_with("file:///storage_logs/"));
+        }
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn snapshot_without_chunks() {
+    test_http_server(SnapshotBasics::new([])).await;
+}
+
+#[tokio::test]
+async fn snapshot_with_some_chunks() {
+    test_http_server(SnapshotBasics::new([0, 2, 4])).await;
+}
+
+#[tokio::test]
+async fn snapshot_with_all_chunks() {
+    test_http_server(SnapshotBasics::new(0..SnapshotBasics::CHUNK_COUNT)).await;
+}

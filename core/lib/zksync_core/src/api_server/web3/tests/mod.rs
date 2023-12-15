@@ -29,6 +29,7 @@ use crate::{
     state_keeper::tests::create_l2_transaction,
 };
 
+mod snapshots;
 mod ws;
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
@@ -121,6 +122,9 @@ async fn spawn_server(
     .await;
     let (pub_sub_events_sender, pub_sub_events_receiver) = mpsc::unbounded_channel();
 
+    let mut namespaces = Namespace::DEFAULT.to_vec();
+    namespaces.push(Namespace::Snapshots);
+
     let server_builder = match transport {
         ApiTransportLabel::Http => ApiBuilder::jsonrpsee_backend(api_config, pool).http(0),
         ApiTransportLabel::Ws => ApiBuilder::jsonrpc_backend(api_config, pool)
@@ -132,7 +136,7 @@ async fn spawn_server(
         .with_threads(1)
         .with_tx_sender(tx_sender, vm_barrier)
         .with_pub_sub_events(pub_sub_events_sender)
-        .enable_api_namespaces(Namespace::DEFAULT.to_vec())
+        .enable_api_namespaces(namespaces)
         .build(stop_receiver)
         .await
         .expect("Failed spawning JSON-RPC server");
@@ -197,8 +201,9 @@ fn create_miniblock(number: u32) -> MiniblockHeader {
     }
 }
 
-async fn store_block(pool: &ConnectionPool) -> anyhow::Result<(MiniblockHeader, H256)> {
-    let mut storage = pool.access_storage().await?;
+async fn store_miniblock(
+    storage: &mut StorageProcessor<'_>,
+) -> anyhow::Result<(MiniblockHeader, H256)> {
     let new_tx = create_l2_transaction(1, 2);
     let new_tx_hash = new_tx.hash();
     let tx_submission_result = storage
@@ -305,7 +310,8 @@ impl HttpTest for BasicFilterChanges {
         let block_filter_id = client.new_block_filter().await?;
         let tx_filter_id = client.new_pending_transaction_filter().await?;
 
-        let (new_miniblock, new_tx_hash) = store_block(pool).await?;
+        let (new_miniblock, new_tx_hash) =
+            store_miniblock(&mut pool.access_storage().await?).await?;
 
         let block_filter_changes = client.get_filter_changes(block_filter_id).await?;
         assert_matches!(

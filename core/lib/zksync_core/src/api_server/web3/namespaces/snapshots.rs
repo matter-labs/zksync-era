@@ -46,7 +46,6 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
         response
     }
 
-    // FIXME: test
     pub async fn get_snapshot_by_l1_batch_number_impl(
         &self,
         l1_batch_number: L1BatchNumber,
