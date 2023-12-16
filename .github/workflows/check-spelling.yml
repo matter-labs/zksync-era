@@ -12,19 +12,6 @@ env:
 
 jobs:
   spellcheck:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Install cargo-spellcheck
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-spellcheck
-
-      - uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac # v4
-
-      - name: Run cargo-spellcheck
-        run: cargo spellcheck --cfg=./spellcheck/era.cfg --code 1
-
-  docs-spellcheck:
     runs-on: [matterlabs-ci-runner]
     strategy:
         matrix:
@@ -38,6 +25,11 @@ jobs:
         with:
             node-version: ${{ matrix.node-version }}
 
+      - name: Install cargo-spellcheck
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-spellcheck
+
       - name: Setup environment
         run: |
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
@@ -48,7 +40,8 @@ jobs:
         run: |
           docker compose up -d zk
 
-      - name: Run cspell
+      - name: Run spell checks
         run: |
           ci_run zk
-          ci_run zk cspell
+          ci_run zk spellcheck --use-cspell
+          ci_run zk spellcheck --use-cargo
