@@ -13,6 +13,8 @@ use zksync_web3_decl::jsonrpsee::{
     MethodResponse,
 };
 
+use crate::api_server::web3::metrics::API_METRICS;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "transport", rename_all = "snake_case")]
 pub(crate) enum Transport {
@@ -41,6 +43,8 @@ pub struct LimitMiddleware<S> {
 
 impl<S> LimitMiddleware<S> {
     pub(crate) fn new(inner: S, requests_per_minute_limit: Option<u32>) -> Self {
+        API_METRICS.ws_open_sessions.inc_by(1);
+
         Self {
             inner,
             rate_limiter: requests_per_minute_limit.map(|limit| {
@@ -50,6 +54,12 @@ impl<S> LimitMiddleware<S> {
             }),
             transport: Transport::Ws,
         }
+    }
+}
+
+impl<S> Drop for LimitMiddleware<S> {
+    fn drop(&mut self) {
+        API_METRICS.ws_open_sessions.dec_by(1);
     }
 }
 

@@ -518,12 +518,11 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
                 .with_context(|| format!("Failed building {transport_str} JSON-RPC server"))?;
             (server.local_addr(), server.start(rpc))
         } else {
-            let server_builder = ServerBuilder::default()
+            let server = ServerBuilder::default()
                 .max_connections(5_000)
                 .set_rpc_middleware(RpcServiceBuilder::new().layer_fn(move |a| {
                     LimitMiddleware::new(a, websocket_requests_per_minute_limit)
-                }));
-            let server = server_builder
+                }))
                 .set_batch_request_config(batch_request_config)
                 .set_http_middleware(middleware)
                 .set_id_provider(EthSubscriptionIdProvider::default())
