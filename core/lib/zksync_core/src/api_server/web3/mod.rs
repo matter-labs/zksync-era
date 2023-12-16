@@ -506,27 +506,28 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
             .layer(in_flight_requests)
             .option_layer(cors);
 
+        // Settings shared by HTTP and WS servers.
+        let server_builder = ServerBuilder::default()
+            .max_connections(5_000)
+            .set_http_middleware(middleware)
+            .max_response_body_size(response_body_size_limit)
+            .set_batch_request_config(batch_request_config);
+
         let (local_addr, server_handle) = if is_http {
-            let server_builder = ServerBuilder::default().http_only().max_connections(5_000);
+            // HTTP-specific settings
             let server = server_builder
-                .set_batch_request_config(batch_request_config)
-                .set_http_middleware(middleware)
-                .set_id_provider(EthSubscriptionIdProvider::default())
-                .max_response_body_size(response_body_size_limit)
+                .http_only()
                 .build(addr)
                 .await
                 .with_context(|| format!("Failed building {transport_str} JSON-RPC server"))?;
             (server.local_addr(), server.start(rpc))
         } else {
-            let server = ServerBuilder::default()
-                .max_connections(5_000)
+            // WS specific settings
+            let server = server_builder
                 .set_rpc_middleware(RpcServiceBuilder::new().layer_fn(move |a| {
                     LimitMiddleware::new(a, websocket_requests_per_minute_limit)
                 }))
-                .set_batch_request_config(batch_request_config)
-                .set_http_middleware(middleware)
                 .set_id_provider(EthSubscriptionIdProvider::default())
-                .max_response_body_size(response_body_size_limit)
                 .build(addr)
                 .await
                 .with_context(|| format!("Failed building {transport_str} JSON-RPC server"))?;
