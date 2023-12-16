@@ -12,7 +12,7 @@ env:
 
 jobs:
   spellcheck:
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [ubuntu-latest]
     strategy:
         matrix:
           node-version: [18.x]
