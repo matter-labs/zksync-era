@@ -77,6 +77,8 @@ impl JobProcessor for WitnessVectorGenerator {
     type Job = ProverJob;
     type JobId = u32;
     type JobArtifacts = WitnessVectorArtifacts;
+
+    const POLLING_INTERVAL_MS: u64 = 15000;
     const SERVICE_NAME: &'static str = "WitnessVectorGenerator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
