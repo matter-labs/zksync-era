@@ -180,7 +180,7 @@ impl JobProcessor for WitnessVectorGenerator {
                 sleep(self.config.prover_instance_poll_time()).await;
             }
         }
-        tracing::trace!(
+        tracing::warn!(
             "Not able to get any free prover instance for sending witness vector for job: {job_id}"
         );
         Ok(())
@@ -232,7 +232,7 @@ async fn handle_send_result(
         }
 
         Err(err) => {
-            tracing::trace!(
+            tracing::warn!(
                 "Failed sending assembly to address: {address:?}, socket not reachable \
                  reason: {err}"
             );
