@@ -21,7 +21,6 @@ jsonrpsee = { version = "0.21.0", default-features = false, features = [
 ] }
 chrono = "0.4"
 zksync_types = { path = "../../lib/types" }
-rand = "0.8"
 
 [features]
 default = ["server", "client"]

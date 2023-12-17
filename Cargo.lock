@@ -8953,7 +8953,6 @@ dependencies = [
  "chrono",
  "itertools",
  "jsonrpsee",
- "rand 0.8.5",
  "rlp",
  "serde",
  "serde_json",
