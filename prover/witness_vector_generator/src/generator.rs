@@ -147,12 +147,20 @@ impl JobProcessor for WitnessVectorGenerator {
                 .await;
 
             if let Some(address) = prover {
+                tracing::info!(
+                    "Prover found after {} seconds. Sending data...",
+                    now.elapsed().as_secs()
+                );
                 let result = send_assembly(job_id, &serialized, &address);
                 handle_send_result(&result, job_id, &address, &self.pool, self.zone.clone()).await;
 
                 if result.is_ok() {
                     METRICS.prover_waiting_time[&circuit_type].observe(now.elapsed());
                     METRICS.prover_attempts_count[&circuit_type].observe(attempts as usize);
+                    tracing::info!(
+                        "Sent data to prover after {} seconds",
+                        now.elapsed().as_secs()
+                    );
                     return Ok(());
                 }
 
@@ -164,6 +172,11 @@ impl JobProcessor for WitnessVectorGenerator {
                 );
                 attempts += 1;
             } else {
+                tracing::warn!(
+                    "Could not find available prover. Time elapsed: {} seconds; Will sleep for: {} seconds",
+                    now.elapsed().as_secs(),
+                    self.config.prover_instance_poll_time().as_secs(),
+                );
                 sleep(self.config.prover_instance_poll_time()).await;
             }
         }

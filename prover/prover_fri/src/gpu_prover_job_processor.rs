@@ -195,10 +195,20 @@ pub mod gpu_prover {
         const SERVICE_NAME: &'static str = "FriGpuProver";
 
         async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
+            let now = Instant::now();
+            tracing::info!(
+                "Trying to get a new job. Waiting for Witness Vector Generator to provide assembly"
+            );
             let mut queue = self.witness_vector_queue.lock().await;
             let is_full = queue.is_full();
             match queue.remove() {
-                Err(_) => Ok(None),
+                Err(_) => {
+                    tracing::warn!(
+                        "No vector received after {} seconds. Assuming no jobs",
+                        now.elapsed().as_secs(),
+                    );
+                    Ok(None)
+                }
                 Ok(item) => {
                     if is_full {
                         self.prover_connection_pool
@@ -213,7 +223,8 @@ pub mod gpu_prover {
                             .await;
                     }
                     tracing::info!(
-                        "Started GPU proving for job: {:?}",
+                        "Vector received after {} seconds. Starting GPU proving for job: {:?}",
+                        now.elapsed().as_secs(),
                         item.witness_vector_artifacts.prover_job.job_id
                     );
                     Ok(Some((
