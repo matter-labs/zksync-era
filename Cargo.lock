@@ -8473,7 +8473,6 @@ dependencies = [
  "once_cell",
  "prometheus_exporter",
  "prost",
- "rand 0.8.5",
  "reqwest",
  "serde",
  "serde_json",
