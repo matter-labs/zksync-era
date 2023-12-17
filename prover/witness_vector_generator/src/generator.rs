@@ -181,7 +181,7 @@ impl JobProcessor for WitnessVectorGenerator {
             }
         }
         tracing::warn!(
-            "Not able to get any free prover instance for sending witness vector for job: {job_id}"
+            "Not able to get any free prover instance for sending witness vector for job: {job_id} after {} seconds", now.elapsed()
         );
         Ok(())
     }
