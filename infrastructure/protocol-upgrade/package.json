@@ -15,15 +15,15 @@
     "tabtab": "^3.0.2"
   },
   "devDependencies": {
-    "@matterlabs/hardhat-zksync-solc": "^0.3.15",
+    "@matterlabs/hardhat-zksync-solc": "^1.0.3",
     "@types/deep-extend": "^0.4.31",
     "@types/node": "^14.6.1",
     "@types/node-fetch": "^2.5.7",
     "@types/tabtab": "^3.0.1",
     "hardhat": "=2.16.0",
-    "typescript": "^4.3.5",
-    "l2-zksync-contracts": "link:../../contracts/zksync",
     "l1-zksync-contracts": "link:../../contracts/ethereum",
+    "l2-zksync-contracts": "link:../../contracts/zksync",
+    "typescript": "^4.3.5",
     "zksync-web3": "^0.15.5"
   },
   "scripts": {
