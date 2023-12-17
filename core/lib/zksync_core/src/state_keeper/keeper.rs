@@ -8,7 +8,7 @@ use multivm::interface::{Halt, L1BatchEnv, SystemEnv};
 use tokio::sync::watch;
 use zksync_types::{
     block::MiniblockExecutionData, l2::TransactionType, protocol_version::ProtocolUpgradeTx,
-    storage_writes_deduplicator::StorageWritesDeduplicator, Transaction,
+    storage_writes_deduplicator::StorageWritesDeduplicator, L1BatchNumber, Transaction,
 };
 
 use super::{
@@ -21,7 +21,6 @@ use super::{
     updates::UpdatesManager,
 };
 use crate::gas_tracker::gas_count_from_writes;
-use crate::genesis;
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.
@@ -150,28 +149,27 @@ impl ZkSyncStateKeeper {
 
         let previous_batch_protocol_version =
             self.io.load_previous_batch_version_id().await.unwrap();
-        let genesis_batch_protocol_version = self.io.load_genesis_batch_version_id().await.unwrap();
-        let version_changed_or_genesis = (protocol_version != previous_batch_protocol_version)
-            || (previous_batch_protocol_version == genesis_batch_protocol_version);
+        let version_changed_or_first_batch = (protocol_version != previous_batch_protocol_version)
+            || (l1_batch_env.number == L1BatchNumber(1));
 
-        let mut protocol_upgrade_tx = if pending_miniblocks.is_empty() && version_changed_or_genesis
-        {
-            self.io.load_upgrade_tx(protocol_version).await
-        } else if !pending_miniblocks.is_empty() && version_changed_or_genesis {
-            // Sanity check: if `txs_to_reexecute` is not empty and upgrade tx is present for this block
-            // then it must be the first one in `txs_to_reexecute`.
-            if self.io.load_upgrade_tx(protocol_version).await.is_some() {
-                let first_tx_to_reexecute = &pending_miniblocks[0].txs[0];
-                assert_eq!(
-                    first_tx_to_reexecute.tx_format(),
-                    TransactionType::ProtocolUpgradeTransaction
-                )
-            }
+        let mut protocol_upgrade_tx =
+            if pending_miniblocks.is_empty() && version_changed_or_first_batch {
+                self.io.load_upgrade_tx(protocol_version).await
+            } else if !pending_miniblocks.is_empty() && version_changed_or_first_batch {
+                // Sanity check: if `txs_to_reexecute` is not empty and upgrade tx is present for this block
+                // then it must be the first one in `txs_to_reexecute`.
+                if self.io.load_upgrade_tx(protocol_version).await.is_some() {
+                    let first_tx_to_reexecute = &pending_miniblocks[0].txs[0];
+                    assert_eq!(
+                        first_tx_to_reexecute.tx_format(),
+                        TransactionType::ProtocolUpgradeTransaction
+                    )
+                }
 
-            None
-        } else {
-            None
-        };
+                None
+            } else {
+                None
+            };
 
         let mut batch_executor = self
             .batch_executor_base
@@ -230,9 +228,11 @@ impl ZkSyncStateKeeper {
                 .init_batch(l1_batch_env.clone(), system_env.clone())
                 .await;
 
-            let version_changed = system_env.version != sealed_batch_protocol_version;
+            let version_changed_or_first_batch = (system_env.version
+                != sealed_batch_protocol_version)
+                || (l1_batch_env.number == L1BatchNumber(1));
 
-            protocol_upgrade_tx = if version_changed {
+            protocol_upgrade_tx = if version_changed_or_first_batch {
                 self.io.load_upgrade_tx(system_env.version).await
             } else {
                 None
