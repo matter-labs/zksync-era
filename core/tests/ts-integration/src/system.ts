@@ -62,11 +62,7 @@ export async function deployOnAnyLocalAddress(
 
     const stateTransitionChainContract = await l2Provider.getMainContractAddress();
 
-    const stateTransitionChain = new ethers.Contract(
-        stateTransitionChainContract,
-        utils.STATE_TRANSITION_CHAIN_ABI,
-        govWallet
-    );
+    const stateTransitionChain = new ethers.Contract(stateTransitionChainContract, utils.ZKSYNC_MAIN_ABI, govWallet);
     const governanceContractAddr = await stateTransitionChain.getGovernor();
 
     // Encode data for the upgrade call

@@ -9,11 +9,7 @@ import { spawn as _spawn } from 'child_process';
 import * as zksync from 'zksync-web3';
 import * as ethers from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
-import {
-    L1ERC20BridgeFactory,
-    TransparentUpgradeableProxyFactory,
-    AllowListFactory
-} from 'l1-zksync-contracts/typechain';
+import { L1ERC20BridgeFactory, TransparentUpgradeableProxyFactory } from 'l1-zksync-contracts/typechain';
 import { sleep } from 'zk/build/utils';
 import { BigNumberish } from 'ethers';
 
@@ -42,19 +38,11 @@ describe('Tests for the custom bridge behavior', () => {
             value: balance.div(2)
         });
         await transferTx.wait();
-
-        let allowList = new AllowListFactory(alice._signerL1());
-        let allowListContract = await allowList.deploy(alice.address);
-        await allowListContract.deployTransaction.wait(2);
-
         // load the l1bridge contract
         let l1bridgeFactory = new L1ERC20BridgeFactory(alice._signerL1());
         const gasPrice = await scaledGasPrice(alice);
 
-        let l1Bridge = await l1bridgeFactory.deploy(
-            process.env.CONTRACTS_BRIDGEHUB_PROXY_ADDR!,
-            allowListContract.address
-        );
+        let l1Bridge = await l1bridgeFactory.deploy(process.env.CONTRACTS_BRIDGEHUB_PROXY_ADDR!, 0);
         await l1Bridge.deployTransaction.wait(2);
         let l1BridgeProxyFactory = new TransparentUpgradeableProxyFactory(alice._signerL1());
         let l1BridgeProxy = await l1BridgeProxyFactory.deploy(l1Bridge.address, bob.address, '0x');
@@ -70,9 +58,6 @@ describe('Tests for the custom bridge behavior', () => {
         let command2 = `${baseCommandL1} initialize-erc20-bridge-chain ${args}`;
         await spawn(command2);
         await sleep(2);
-
-        const setAccessModeTx = await allowListContract.setAccessMode(l1BridgeProxy.address, 2);
-        await setAccessModeTx.wait();
 
         let l1bridge2 = new L1ERC20BridgeFactory(alice._signerL1()).attach(l1BridgeProxy.address);
 

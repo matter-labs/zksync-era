@@ -79,7 +79,11 @@ async function initHyperchain() {
     // PLA:681
     if (isLocalhost) {
         env.modify('ETH_CLIENT_WEB3_URL', 'http://geth:8545', 'etc/env/l1-inits/.init.env');
-        env.modify('DATABASE_URL', 'postgres://postgres:notsecurepassword@postgres:5432/zksync_local',  'etc/env/l1-inits/.init.env');
+        env.modify(
+            'DATABASE_URL',
+            'postgres://postgres:notsecurepassword@postgres:5432/zksync_local',
+            'etc/env/l1-inits/.init.env'
+        );
     }
 
     env.mergeInitToEnv();
@@ -268,7 +272,7 @@ async function setHyperchainMetadata() {
         l1Rpc = 'http://localhost:8545';
         l1Id = 9;
         databaseUrl = 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local';
-        wrapEnvModify('DATABASE_URL', databaseUrl);
+        env.modify('DATABASE_URL', databaseUrl, 'etc/env/l1-inits/.init.env');
 
         const richWalletsRaw = await fetch(
             'https://raw.githubusercontent.com/matter-labs/local-setup/main/rich-wallets.json'
