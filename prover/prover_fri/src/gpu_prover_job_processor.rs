@@ -201,6 +201,7 @@ pub mod gpu_prover {
             );
             let mut queue = self.witness_vector_queue.lock().await;
             let is_full = queue.is_full();
+            let queue_size = queue.size();
             match queue.remove() {
                 Err(_) => {
                     tracing::warn!(
@@ -210,6 +211,7 @@ pub mod gpu_prover {
                     Ok(None)
                 }
                 Ok(item) => {
+                    tracing::info!("Queue is full: {is_full}. Queue size pre-pop: {queue_size}");
                     if is_full {
                         self.prover_connection_pool
                             .access_storage()
