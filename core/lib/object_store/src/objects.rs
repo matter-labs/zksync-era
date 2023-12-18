@@ -84,7 +84,8 @@ impl StoredObject for SnapshotFactoryDependencies {
 
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        encoder.write_all(&(self.build().encode_to_vec()))?;
+        let encoded_bytes = self.build().encode_to_vec();
+        encoder.write_all(&encoded_bytes)?;
         encoder.finish().map_err(From::from)
     }
 
@@ -94,10 +95,7 @@ impl StoredObject for SnapshotFactoryDependencies {
         decoder
             .read_to_end(&mut decompressed_bytes)
             .map_err(BoxedError::from)?;
-        let proto =
-            <SnapshotFactoryDependencies as ProtoFmt>::Proto::decode(&decompressed_bytes[..])
-                .context("decode SnapshotFactoryDependencies")?;
-        SnapshotFactoryDependencies::read(&proto)
+        decode(&decompressed_bytes[..])
             .context("deserialization of Message to SnapshotFactoryDependencies")
             .map_err(From::from)
     }
