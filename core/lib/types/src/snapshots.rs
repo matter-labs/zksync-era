@@ -176,6 +176,10 @@ impl ProtoFmt for SnapshotStorageLogsChunk {
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct AppliedSnapshotStatus {
     pub l1_batch_number: L1BatchNumber,
+    pub l1_batch_root_hash: Vec<u8>,
+    pub miniblock_number: MiniblockNumber,
+    pub miniblock_root_hash: Vec<u8>,
     pub is_finished: bool,
     pub last_finished_chunk_id: Option<u64>,
+    pub total_chunk_count: u64,
 }

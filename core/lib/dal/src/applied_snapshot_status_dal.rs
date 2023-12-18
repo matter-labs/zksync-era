@@ -1,4 +1,4 @@
-use zksync_types::{snapshots::AppliedSnapshotStatus, L1BatchNumber};
+use zksync_types::{snapshots::AppliedSnapshotStatus, L1BatchNumber, MiniblockNumber};
 
 use crate::StorageProcessor;
 
@@ -11,49 +11,83 @@ impl AppliedSnapshotStatusDal<'_, '_> {
     pub async fn set_applied_snapshot_status(
         &mut self,
         status: &AppliedSnapshotStatus,
-    ) -> Result<(), sqlx::Error> {
+    ) -> sqlx::Result<()> {
         sqlx::query!(
             r#"
-            INSERT INTO applied_snapshot_status(l1_batch_number, is_finished, last_finished_chunk_id)
-            VALUES ($1, $2, $3)
-            ON CONFLICT
-                (l1_batch_number)
-                DO UPDATE
-                SET l1_batch_number        = excluded.l1_batch_number,
-                    is_finished            = excluded.is_finished,
-                    last_finished_chunk_id = excluded.last_finished_chunk_id
+            INSERT INTO
+                snapshot_recovery (
+                    l1_batch_number,
+                    l1_batch_root_hash,
+                    miniblock_number,
+                    miniblock_root_hash,
+                    is_finished,
+                    last_finished_chunk_id,
+                    total_chunk_count,
+                    updated_at,
+                    created_at
+                )
+            VALUES
+                ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+            ON CONFLICT (l1_batch_number) DO
+            UPDATE
+            SET
+                l1_batch_number = excluded.l1_batch_number,
+                l1_batch_root_hash = excluded.l1_batch_root_hash,
+                miniblock_number = excluded.miniblock_number,
+                miniblock_root_hash = excluded.miniblock_root_hash,
+                is_finished = excluded.is_finished,
+                last_finished_chunk_id = excluded.last_finished_chunk_id,
+                total_chunk_count = excluded.total_chunk_count,
+                updated_at = excluded.updated_at
             "#,
             status.l1_batch_number.0 as i64,
+            status.l1_batch_root_hash,
+            status.miniblock_number.0 as i64,
+            status.miniblock_root_hash,
             status.is_finished,
-            status.last_finished_chunk_id.map(|v| v as i32)
+            status.last_finished_chunk_id.map(|v| v as i32),
+            status.total_chunk_count as i64,
         )
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
+        .execute(self.storage.conn())
+        .await?;
         Ok(())
     }
 
     pub async fn get_applied_snapshot_status(
         &mut self,
-    ) -> Result<Option<AppliedSnapshotStatus>, sqlx::Error> {
+    ) -> sqlx::Result<Option<AppliedSnapshotStatus>> {
         let record = sqlx::query!(
-            "SELECT l1_batch_number, is_finished, last_finished_chunk_id \
-            FROM applied_snapshot_status",
+            r#"
+            SELECT
+                l1_batch_number,
+                l1_batch_root_hash,
+                miniblock_number,
+                miniblock_root_hash,
+                is_finished,
+                last_finished_chunk_id,
+                total_chunk_count
+            FROM
+                snapshot_recovery
+            "#,
         )
         .fetch_optional(self.storage.conn())
         .await?;
 
         Ok(record.map(|r| AppliedSnapshotStatus {
             l1_batch_number: L1BatchNumber(r.l1_batch_number as u32),
+            l1_batch_root_hash: r.l1_batch_root_hash,
+            miniblock_number: MiniblockNumber(r.miniblock_number as u32),
+            miniblock_root_hash: r.miniblock_root_hash,
             is_finished: r.is_finished,
             last_finished_chunk_id: r.last_finished_chunk_id.map(|v| v as u64),
+            total_chunk_count: r.total_chunk_count as u64,
         }))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::{snapshots::AppliedSnapshotStatus, L1BatchNumber};
+    use zksync_types::{snapshots::AppliedSnapshotStatus, L1BatchNumber, MiniblockNumber};
 
     use crate::ConnectionPool;
 
@@ -69,8 +103,12 @@ mod tests {
         assert_eq!(None, empty_status);
         let status = AppliedSnapshotStatus {
             l1_batch_number: L1BatchNumber(123),
+            l1_batch_root_hash: vec![1, 52, 68, 123, 255],
+            miniblock_number: MiniblockNumber(234),
+            miniblock_root_hash: vec![31, 95, 12, 3, 71],
             is_finished: false,
             last_finished_chunk_id: None,
+            total_chunk_count: 345,
         };
         applied_status_dal
             .set_applied_snapshot_status(&status)
@@ -84,8 +122,12 @@ mod tests {
 
         let updated_status = AppliedSnapshotStatus {
             l1_batch_number: L1BatchNumber(123),
+            l1_batch_root_hash: vec![155, 161, 85, 8, 19],
+            miniblock_number: MiniblockNumber(234),
+            miniblock_root_hash: vec![82, 18, 61, 63, 90],
             is_finished: true,
             last_finished_chunk_id: Some(2345),
+            total_chunk_count: 345,
         };
         applied_status_dal
             .set_applied_snapshot_status(&updated_status)
