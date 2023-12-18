@@ -5,7 +5,7 @@ use std::io::{Read, Write};
 use anyhow::Context;
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use prost::Message;
-use zksync_protobuf::ProtoFmt;
+use zksync_protobuf::{decode, ProtoFmt};
 use zksync_types::{
     aggregated_operations::L1BatchProofForL1,
     proofs::{AggregationRound, PrepareBasicCircuitsJob},
@@ -116,7 +116,8 @@ impl StoredObject for SnapshotStorageLogsChunk {
 
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        encoder.write_all(&(self.build().encode_to_vec()))?;
+        let encoded_bytes = self.build().encode_to_vec();
+        encoder.write_all(&encoded_bytes)?;
         encoder.finish().map_err(From::from)
     }
 
@@ -126,9 +127,7 @@ impl StoredObject for SnapshotStorageLogsChunk {
         decoder
             .read_to_end(&mut decompressed_bytes)
             .map_err(BoxedError::from)?;
-        let proto = <SnapshotStorageLogsChunk as ProtoFmt>::Proto::decode(&decompressed_bytes[..])
-            .context("decode SnapshotStorageLogsChunk")?;
-        SnapshotStorageLogsChunk::read(&proto)
+        decode(&decompressed_bytes[..])
             .context("deserialization of Message to SnapshotStorageLogsChunk")
             .map_err(From::from)
     }

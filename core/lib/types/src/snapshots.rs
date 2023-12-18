@@ -56,7 +56,6 @@ pub struct SnapshotStorageLogsChunk {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[serde(rename_all = "camelCase")]
 pub struct SnapshotStorageLog {
     pub key: StorageKey,
     pub value: StorageValue,
@@ -65,13 +64,11 @@ pub struct SnapshotStorageLog {
 }
 
 #[derive(Debug, PartialEq)]
-#[serde(rename_all = "camelCase")]
 pub struct SnapshotFactoryDependencies {
     pub factory_deps: Vec<SnapshotFactoryDependency>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[serde(rename_all = "camelCase")]
 pub struct SnapshotFactoryDependency {
     pub bytecode: Bytes,
 }
