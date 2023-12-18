@@ -523,9 +523,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     .await
                     .map_err(|err| internal_error(METHOD_NAME, err))
                 {
-                    if main_node_receipt.status == Some(0.into())
-                        && main_node_receipt.block_number.is_none()
-                    {
+                    if main_node_receipt.status == 0.into() {
                         // Transaction was rejected in state-keeper.
                         receipt = Ok(Some(main_node_receipt));
                     }

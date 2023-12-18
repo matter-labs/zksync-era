@@ -78,11 +78,7 @@ impl TransactionsWeb3Dal<'_, '_> {
             .fetch_optional(self.storage.conn())
             .await?
             .map(|db_row| {
-                let status = if db_row.error.is_none() {
-                    U64::from(0)
-                } else {
-                    U64::from(1)
-                };
+                let status = db_row.error.map(|_| U64::zero()).unwrap_or_else(U64::one);
 
                 let tx_type = db_row.tx_format.map(U64::from).unwrap_or_default();
                 let transaction_index = db_row.index_in_block.map(U64::from).unwrap_or_default();
