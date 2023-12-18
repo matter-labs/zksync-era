@@ -212,7 +212,7 @@ pub struct TransactionReceipt {
     pub block_hash: H256,
     /// Number of the miniblock this transaction was included within.
     #[serde(rename = "blockNumber")]
-    pub block_number: Option<U64>,
+    pub block_number: U64,
     /// Index of transaction in l1 batch
     #[serde(rename = "l1BatchTxIndex")]
     pub l1_batch_tx_index: Option<Index>,
@@ -246,7 +246,7 @@ pub struct TransactionReceipt {
     #[serde(rename = "l2ToL1Logs")]
     pub l2_to_l1_logs: Vec<L2ToL1Log>,
     /// Status: either 1 (success) or 0 (failure).
-    pub status: Option<U64>,
+    pub status: U64,
     /// State root.
     pub root: H256,
     /// Logs bloom

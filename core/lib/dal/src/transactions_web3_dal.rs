@@ -50,7 +50,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                     transactions.hash AS tx_hash,
                     transactions.index_in_block AS index_in_block,
                     transactions.l1_batch_tx_index AS l1_batch_tx_index,
-                    transactions.miniblock_number AS block_number,
+                    transactions.miniblock_number AS "block_number!",
                     transactions.error AS error,
                     transactions.effective_gas_price AS effective_gas_price,
                     transactions.initiator_address AS initiator_address,
@@ -78,12 +78,12 @@ impl TransactionsWeb3Dal<'_, '_> {
             .fetch_optional(self.storage.conn())
             .await?
             .map(|db_row| {
-                let status = match (db_row.block_number, db_row.error) {
-                    (_, Some(_)) => Some(U64::from(0)),
-                    (Some(_), None) => Some(U64::from(1)),
-                    // tx not executed yet
-                    _ => None,
+                let status = if db_row.error.is_none() {
+                    U64::from(0)
+                } else {
+                    U64::from(1)
                 };
+
                 let tx_type = db_row.tx_format.map(U64::from).unwrap_or_default();
                 let transaction_index = db_row.index_in_block.map(U64::from).unwrap_or_default();
 
@@ -92,7 +92,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                     transaction_hash: H256::from_slice(&db_row.tx_hash),
                     transaction_index,
                     block_hash,
-                    block_number: db_row.block_number.map(U64::from),
+                    block_number: db_row.block_number.into(),
                     l1_batch_tx_index: db_row.l1_batch_tx_index.map(U64::from),
                     l1_batch_number: db_row.l1_batch_number.map(U64::from),
                     from: H160::from_slice(&db_row.initiator_address),
