@@ -209,7 +209,7 @@ pub struct TransactionReceipt {
     pub transaction_index: Index,
     /// Hash of the block this transaction was included within.
     #[serde(rename = "blockHash")]
-    pub block_hash: Option<H256>,
+    pub block_hash: H256,
     /// Number of the miniblock this transaction was included within.
     #[serde(rename = "blockNumber")]
     pub block_number: Option<U64>,
@@ -248,7 +248,7 @@ pub struct TransactionReceipt {
     /// Status: either 1 (success) or 0 (failure).
     pub status: Option<U64>,
     /// State root.
-    pub root: Option<H256>,
+    pub root: H256,
     /// Logs bloom
     #[serde(rename = "logsBloom")]
     pub logs_bloom: H2048,
