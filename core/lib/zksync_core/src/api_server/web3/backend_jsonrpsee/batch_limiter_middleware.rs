@@ -1,4 +1,4 @@
-use std::{num::NonZeroU32, sync::Arc};
+use std::num::NonZeroU32;
 
 use governor::{
     clock::DefaultClock,
@@ -6,7 +6,9 @@ use governor::{
     state::{InMemoryState, NotKeyed},
     Quota, RateLimiter,
 };
-use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
+use vise::{
+    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, GaugeGuard, Histogram, Metrics,
+};
 use zksync_web3_decl::jsonrpsee::{
     server::middleware::rpc::{layer::ResponseFuture, RpcServiceT},
     types::{error::ErrorCode, ErrorObject, Request},
@@ -35,31 +37,29 @@ struct LimitMiddlewareMetrics {
 
 #[vise::register]
 static METRICS: vise::Global<LimitMiddlewareMetrics> = vise::Global::new();
-pub struct LimitMiddleware<S> {
+
+/// A ratelimiting middleware.
+///
+/// `jsonrpsee` will allocate the instance of this struct once per session.
+pub(crate) struct LimitMiddleware<S> {
     inner: S,
-    rate_limiter: Option<Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock, NoOpMiddleware>>>,
+    rate_limiter: Option<RateLimiter<NotKeyed, InMemoryState, DefaultClock, NoOpMiddleware>>,
     transport: Transport,
+    __guard: GaugeGuard,
 }
 
 impl<S> LimitMiddleware<S> {
     pub(crate) fn new(inner: S, requests_per_minute_limit: Option<u32>) -> Self {
-        API_METRICS.ws_open_sessions.inc_by(1);
-
         Self {
             inner,
             rate_limiter: requests_per_minute_limit.map(|limit| {
-                Arc::new(RateLimiter::direct(Quota::per_minute(
+                RateLimiter::direct(Quota::per_minute(
                     NonZeroU32::new(limit).expect("requests per minute must be > 0; qed"),
-                )))
+                ))
             }),
             transport: Transport::Ws,
+            __guard: API_METRICS.ws_open_sessions.inc_guard(1),
         }
-    }
-}
-
-impl<S> Drop for LimitMiddleware<S> {
-    fn drop(&mut self) {
-        API_METRICS.ws_open_sessions.dec_by(1);
     }
 }
 
@@ -70,7 +70,7 @@ where
     type Future = ResponseFuture<S::Future>;
 
     fn call(&self, request: Request<'a>) -> Self::Future {
-        if let Some(ref rate_limiter) = self.rate_limiter {
+        if let Some(rate_limiter) = &self.rate_limiter {
             let num_requests = NonZeroU32::MIN; // 1 request, no batches possible
 
             // Note: if required, we can extract data on rate limiting from the error.

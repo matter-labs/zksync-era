@@ -26,8 +26,9 @@ use super::{
     namespaces::eth::EVENT_TOPIC_NUMBER_LIMIT,
 };
 
-#[derive(Debug, Clone, Copy, Default)]
-#[non_exhaustive]
+const SUBSCRIPTION_SINK_SEND_TIMEOUT: Duration = Duration::from_secs(1);
+
+#[derive(Debug, Clone, Copy)]
 pub struct EthSubscriptionIdProvider;
 
 impl IdProvider for EthSubscriptionIdProvider {
@@ -101,9 +102,10 @@ impl PubSubNotifier<SubscriptionSink> {
                 for sink in subscribers.values() {
                     for block in new_blocks.iter().cloned() {
                         if sink
-                            .send(
+                            .send_timeout(
                                 SubscriptionMessage::from_json(&PubSubResult::Header(block))
                                     .expect("PubSubResult always serializable to json;qed"),
+                                SUBSCRIPTION_SINK_SEND_TIMEOUT,
                             )
                             .await
                             .is_err()
@@ -117,8 +119,10 @@ impl PubSubNotifier<SubscriptionSink> {
                 }
                 notify_latency.observe();
                 drop(subscribers);
-                for closed_sub in closed_subscriptions.into_iter() {
-                    if self.subscribers.write().await.remove(&closed_sub).is_some() {
+
+                let mut subscribers_write = self.subscribers.write().await;
+                for closed_sub in closed_subscriptions {
+                    if subscribers_write.remove(&closed_sub).is_some() {
                         PUB_SUB_METRICS.active_subscribers[&SubscriptionType::Blocks].dec_by(1);
                     }
                 }
@@ -169,9 +173,10 @@ impl PubSubNotifier<SubscriptionSink> {
                 for sink in subscribers.values() {
                     for tx_hash in new_txs.iter().cloned() {
                         if sink
-                            .send(
+                            .send_timeout(
                                 SubscriptionMessage::from_json(&PubSubResult::TxHash(tx_hash))
                                     .expect("PubSubResult always serializable to json;qed"),
+                                SUBSCRIPTION_SINK_SEND_TIMEOUT,
                             )
                             .await
                             .is_err()
@@ -184,10 +189,11 @@ impl PubSubNotifier<SubscriptionSink> {
                     }
                 }
                 notify_latency.observe();
-
                 drop(subscribers);
-                for closed_sub in closed_subscriptions.into_iter() {
-                    if self.subscribers.write().await.remove(&closed_sub).is_some() {
+
+                let mut subscribers_write = self.subscribers.write().await;
+                for closed_sub in closed_subscriptions {
+                    if subscribers_write.remove(&closed_sub).is_some() {
                         PUB_SUB_METRICS.active_subscribers[&SubscriptionType::Txs].dec_by(1);
                     }
                 }
@@ -238,9 +244,10 @@ impl PubSubNotifier<(SubscriptionSink, PubSubFilter)> {
                     for log in &new_logs {
                         if filter.matches(log) {
                             if sink
-                                .send(
+                                .send_timeout(
                                     SubscriptionMessage::from_json(&PubSubResult::Log(log.clone()))
                                         .expect("PubSubResult always serializable to json;qed"),
+                                    SUBSCRIPTION_SINK_SEND_TIMEOUT,
                                 )
                                 .await
                                 .is_err()
@@ -254,8 +261,10 @@ impl PubSubNotifier<(SubscriptionSink, PubSubFilter)> {
                     }
                 }
                 drop(subscribers);
-                for closed_sub in closed_subscriptions.into_iter() {
-                    if self.subscribers.write().await.remove(&closed_sub).is_some() {
+
+                let mut subscribers_write = self.subscribers.write().await;
+                for closed_sub in closed_subscriptions {
+                    if subscribers_write.remove(&closed_sub).is_some() {
                         PUB_SUB_METRICS.active_subscribers[&SubscriptionType::Logs].dec_by(1);
                     }
                 }
@@ -281,8 +290,6 @@ impl PubSubNotifier<(SubscriptionSink, PubSubFilter)> {
 /// Subscription support for Web3 APIs.
 #[derive(Debug, Clone)]
 pub(super) struct EthSubscribe {
-    // `jsonrpc` backend executes task subscription on a separate thread that has no tokio context.
-    pub runtime_handle: tokio::runtime::Handle,
     active_block_subs: SubscriptionMap<SubscriptionSink>,
     active_tx_subs: SubscriptionMap<SubscriptionSink>,
     active_log_subs: SubscriptionMap<(SubscriptionSink, PubSubFilter)>,
@@ -290,9 +297,8 @@ pub(super) struct EthSubscribe {
 }
 
 impl EthSubscribe {
-    pub fn new(runtime_handle: tokio::runtime::Handle) -> Self {
+    pub fn new() -> Self {
         Self {
-            runtime_handle,
             active_block_subs: SubscriptionMap::default(),
             active_tx_subs: SubscriptionMap::default(),
             active_log_subs: SubscriptionMap::default(),
@@ -351,9 +357,12 @@ impl EthSubscribe {
                 let Ok(sink) = pending_sink.accept().await else {
                     return;
                 };
-                sink.send(SubscriptionMessage::from_json(&PubSubResult::Syncing(false)).unwrap())
-                    .await
-                    .ok();
+                sink.send_timeout(
+                    SubscriptionMessage::from_json(&PubSubResult::Syncing(false)).unwrap(),
+                    SUBSCRIPTION_SINK_SEND_TIMEOUT,
+                )
+                .await
+                .ok();
                 None
             }
             _ => {
@@ -417,10 +426,7 @@ impl EthPubSubServer for EthSubscribe {
         sub_type: String,
         filter: Option<PubSubFilter>,
     ) -> SubscriptionResult {
-        let self_ = self.clone();
-
-        self.runtime_handle
-            .spawn(async move { self_.sub(pending, sub_type, filter).await });
+        self.sub(pending, sub_type, filter).await;
 
         Ok(())
     }

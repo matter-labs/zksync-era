@@ -411,7 +411,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
                 .unwrap()
                 .contains(&Namespace::Pubsub)
         {
-            let mut pub_sub = EthSubscribe::new(runtime.handle().clone());
+            let mut pub_sub = EthSubscribe::new();
             if let Some(sender) = self.pub_sub_events_sender.take() {
                 pub_sub.set_events_sender(sender);
             }
@@ -527,7 +527,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
                 .set_rpc_middleware(RpcServiceBuilder::new().layer_fn(move |a| {
                     LimitMiddleware::new(a, websocket_requests_per_minute_limit)
                 }))
-                .set_id_provider(EthSubscriptionIdProvider::default())
+                .set_id_provider(EthSubscriptionIdProvider)
                 .build(addr)
                 .await
                 .with_context(|| format!("Failed building {transport_str} JSON-RPC server"))?;
