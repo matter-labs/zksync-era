@@ -144,9 +144,7 @@ impl PubSubNotifier<MeteredSink> {
 
                 let mut subscribers_write = self.subscribers.write().await;
                 for closed_sub in closed_subscriptions {
-                    if subscribers_write.remove(&closed_sub).is_some() {
-                        PUB_SUB_METRICS.active_subscribers[&SubscriptionType::Blocks].dec_by(1);
-                    }
+                    subscribers_write.remove(&closed_sub);
                 }
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(
@@ -216,9 +214,7 @@ impl PubSubNotifier<MeteredSink> {
 
                 let mut subscribers_write = self.subscribers.write().await;
                 for closed_sub in closed_subscriptions {
-                    if subscribers_write.remove(&closed_sub).is_some() {
-                        PUB_SUB_METRICS.active_subscribers[&SubscriptionType::Txs].dec_by(1);
-                    }
+                    subscribers_write.remove(&closed_sub);
                 }
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(SubscriptionType::Txs));
@@ -288,9 +284,7 @@ impl PubSubNotifier<(MeteredSink, PubSubFilter)> {
 
                 let mut subscribers_write = self.subscribers.write().await;
                 for closed_sub in closed_subscriptions {
-                    if subscribers_write.remove(&closed_sub).is_some() {
-                        PUB_SUB_METRICS.active_subscribers[&SubscriptionType::Logs].dec_by(1);
-                    }
+                    subscribers_write.remove(&closed_sub);
                 }
                 notify_latency.observe();
             }
@@ -405,7 +399,6 @@ impl EthSubscribe {
         };
 
         if let Some(sub_type) = sub_type {
-            PUB_SUB_METRICS.active_subscribers[&sub_type].inc_by(1);
             if let Some(sender) = &self.events_sender {
                 sender.send(PubSubEvent::Subscribed(sub_type)).ok();
             }
