@@ -33,7 +33,7 @@ async function initSetup(initArgs: InitArgs = DEFAULT_ARGS) {
         await announced('Setting up containers', up());
     }
     if (!skipSubmodulesCheckout) {
-        // await announced('Checkout submodules', submoduleUpdate());
+        await announced('Checkout submodules', submoduleUpdate());
     }
 
     await announced('Compiling JS packages', run.yarn());
@@ -74,15 +74,15 @@ export async function initBridgehubStateTransition(initArgs: InitArgs = DEFAULT_
 export async function initHyperchain(initArgs: InitArgs = DEFAULT_ARGS) {
     const { governorPrivateKeyArgs, deployerL2ContractInput } = initArgs;
 
-    // await announced('Building L1 L2 contracts', contract.build());
+    await announced('Building L1 L2 contracts', contract.build());
 
-    // // we initialise with genesis chainId
-    // await announced('Drop postgres db', db.drop());
-    // await announced('Setup postgres db', db.setup());
-    // await announced('Clean rocksdb', clean(`db/${process.env.ZKSYNC_ENV!}`));
-    // await announced('Clean backups', clean(`backups/${process.env.ZKSYNC_ENV!}`));
+    // we initialise with genesis chainId
+    await announced('Drop postgres db', db.drop());
+    await announced('Setup postgres db', db.setup());
+    await announced('Clean rocksdb', clean(`db/${process.env.ZKSYNC_ENV!}`));
+    await announced('Clean backups', clean(`backups/${process.env.ZKSYNC_ENV!}`));
 
-    // await announced('Running server genesis setup', server.genesisFromSources());
+    await announced('Running server genesis setup', server.genesisFromSources());
 
     await announced('Registering Hyperchain', contract.registerHyperchain([]));
     await announced('Reloading env', env.reload());
