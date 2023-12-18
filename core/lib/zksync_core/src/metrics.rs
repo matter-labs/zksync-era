@@ -59,7 +59,6 @@ pub(crate) enum BlockStage {
     Sealed,
     Tree,
     MetadataCalculated,
-    MerkleProofCalculated,
     L1 {
         l1_stage: BlockL1Stage,
         tx_type: AggregatedActionType,
@@ -72,7 +71,6 @@ impl fmt::Display for BlockStage {
             Self::Sealed => formatter.write_str("sealed"),
             Self::Tree => formatter.write_str("tree"),
             Self::MetadataCalculated => formatter.write_str("metadata_calculated"),
-            Self::MerkleProofCalculated => formatter.write_str("merkle_proof_calculated"),
             Self::L1 { l1_stage, tx_type } => {
                 let l1_stage = match l1_stage {
                     BlockL1Stage::Saved => "save", // not "saved" for backward compatibility

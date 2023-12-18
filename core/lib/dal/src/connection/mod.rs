@@ -19,23 +19,24 @@ fn get_test_database_url() -> anyhow::Result<String> {
 }
 
 /// Builder for [`ConnectionPool`]s.
-pub struct ConnectionPoolBuilder<'a> {
-    database_url: &'a str,
+pub struct ConnectionPoolBuilder {
+    database_url: String,
     max_size: u32,
     statement_timeout: Option<Duration>,
 }
 
-impl<'a> fmt::Debug for ConnectionPoolBuilder<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl fmt::Debug for ConnectionPoolBuilder {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Database URL is potentially sensitive, thus we omit it.
-        f.debug_struct("ConnectionPoolBuilder")
+        formatter
+            .debug_struct("ConnectionPoolBuilder")
             .field("max_size", &self.max_size)
             .field("statement_timeout", &self.statement_timeout)
             .finish()
     }
 }
 
-impl<'a> ConnectionPoolBuilder<'a> {
+impl ConnectionPoolBuilder {
     /// Sets the statement timeout for the pool. See [Postgres docs] for semantics.
     /// If not specified, the statement timeout will not be set.
     ///
@@ -66,7 +67,10 @@ impl<'a> ConnectionPoolBuilder<'a> {
             max_connections = self.max_size,
             statement_timeout = self.statement_timeout
         );
-        Ok(ConnectionPool(pool))
+        Ok(ConnectionPool {
+            inner: pool,
+            max_size: self.max_size,
+        })
     }
 }
 
@@ -81,7 +85,9 @@ impl<'a> ConnectionPoolBuilder<'a> {
 pub(super) async fn create_test_db() -> anyhow::Result<url::Url> {
     use rand::Rng as _;
     use sqlx::{Connection as _, Executor as _};
+
     const PREFIX: &str = "test-";
+
     let db_url = get_test_database_url().unwrap();
     let mut db_url = url::Url::parse(&db_url)
         .with_context(|| format!("{} is not a valid database address", db_url))?;
@@ -115,11 +121,17 @@ pub(super) async fn create_test_db() -> anyhow::Result<url::Url> {
 }
 
 #[derive(Clone)]
-pub struct ConnectionPool(pub(crate) PgPool);
+pub struct ConnectionPool {
+    pub(crate) inner: PgPool,
+    max_size: u32,
+}
 
 impl fmt::Debug for ConnectionPool {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_tuple("ConnectionPool").finish()
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ConnectionPool")
+            .field("max_size", &self.max_size)
+            .finish_non_exhaustive()
     }
 }
 
@@ -138,9 +150,9 @@ impl ConnectionPool {
     }
 
     /// Initializes a builder for connection pools.
-    pub fn builder(database_url: &str, max_pool_size: u32) -> ConnectionPoolBuilder<'_> {
+    pub fn builder(database_url: &str, max_pool_size: u32) -> ConnectionPoolBuilder {
         ConnectionPoolBuilder {
-            database_url,
+            database_url: database_url.to_string(),
             max_size: max_pool_size,
             statement_timeout: None,
         }
@@ -148,8 +160,15 @@ impl ConnectionPool {
 
     /// Initializes a builder for connection pools with a single connection. This is equivalent
     /// to calling `Self::builder(db_url, 1)`.
-    pub fn singleton(database_url: &str) -> ConnectionPoolBuilder<'_> {
+    pub fn singleton(database_url: &str) -> ConnectionPoolBuilder {
         Self::builder(database_url, 1)
+    }
+
+    /// Returns the maximum number of connections in this pool specified during its creation.
+    /// This number may be distinct from the current number of connections in the pool (including
+    /// idle ones).
+    pub fn max_size(&self) -> u32 {
+        self.max_size
     }
 
     /// Creates a `StorageProcessor` entity over a recoverable connection.
@@ -198,10 +217,12 @@ impl ConnectionPool {
 
         let mut retry_count = 0;
         while retry_count < DB_CONNECTION_RETRIES {
-            CONNECTION_METRICS.pool_size.observe(self.0.size() as usize);
-            CONNECTION_METRICS.pool_idle.observe(self.0.num_idle());
+            CONNECTION_METRICS
+                .pool_size
+                .observe(self.inner.size() as usize);
+            CONNECTION_METRICS.pool_idle.observe(self.inner.num_idle());
 
-            let connection = self.0.acquire().await;
+            let connection = self.inner.acquire().await;
             let connection_err = match connection {
                 Ok(connection) => return Ok(connection),
                 Err(err) => {
@@ -218,7 +239,7 @@ impl ConnectionPool {
         }
 
         // Attempting to get the pooled connection for the last time
-        match self.0.acquire().await {
+        match self.inner.acquire().await {
             Ok(conn) => Ok(conn),
             Err(err) => {
                 Self::report_connection_error(&err);

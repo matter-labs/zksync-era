@@ -141,7 +141,6 @@ pub struct ApiBuilder<G> {
     vm_concurrency_limit: Option<usize>,
     polling_interval: Option<Duration>,
     namespaces: Option<Vec<Namespace>>,
-    logs_translator_enabled: bool,
     tree_api_url: Option<String>,
     pub_sub_events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
 }
@@ -166,7 +165,6 @@ impl<G> ApiBuilder<G> {
             polling_interval: None,
             namespaces: None,
             config,
-            logs_translator_enabled: false,
             tree_api_url: None,
             pub_sub_events_sender: None,
         }
@@ -260,12 +258,6 @@ impl<G> ApiBuilder<G> {
         self
     }
 
-    pub fn enable_request_translator(mut self) -> Self {
-        tracing::info!("Logs request translator enabled");
-        self.logs_translator_enabled = true;
-        self
-    }
-
     pub fn with_tree_api(mut self, tree_api_url: Option<String>) -> Self {
         self.tree_api_url = tree_api_url;
         self
@@ -292,15 +284,12 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         tokio::spawn(update_task);
 
         RpcState {
-            installed_filters: Arc::new(Mutex::new(Filters::new(
-                self.filters_limit.unwrap_or(usize::MAX),
-            ))),
+            installed_filters: Arc::new(Mutex::new(Filters::new(self.filters_limit))),
             connection_pool: self.pool,
             tx_sender: self.tx_sender.expect("TxSender is not provided"),
             sync_state: self.sync_state,
             api_config: self.config,
             last_sealed_miniblock,
-            logs_translator_enabled: self.logs_translator_enabled,
             tree_api: self
                 .tree_api_url
                 .map(|url| TreeApiHttpClient::new(url.as_str())),

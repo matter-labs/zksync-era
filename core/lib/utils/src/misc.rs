@@ -26,7 +26,7 @@ pub fn expand_memory_contents(packed: &[(usize, U256)], memory_size_bytes: usize
         value.to_big_endian(&mut result[(offset * 32)..(offset + 1) * 32]);
     }
 
-    result.to_vec()
+    result
 }
 
 #[cfg(test)]

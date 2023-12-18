@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { formatSqlxQueries } from './format_sql';
 import * as utils from './utils';
 
 const EXTENSIONS = ['ts', 'md', 'sol', 'js'];
@@ -49,6 +50,12 @@ export async function rustfmt(check: boolean = false) {
     await utils.spawn(command);
 }
 
+export async function runAllRustFormatters(check: boolean = false) {
+    // we need to run those two steps one by one as they operate on the same set of files
+    await formatSqlxQueries(check);
+    await rustfmt(check);
+}
+
 const ARGS = [...EXTENSIONS, 'rust', 'contracts'];
 
 export const command = new Command('fmt')
@@ -59,7 +66,7 @@ export const command = new Command('fmt')
         if (extension) {
             switch (extension) {
                 case 'rust':
-                    await rustfmt(cmd.check);
+                    await runAllRustFormatters(cmd.check);
                     break;
                 case 'contracts':
                     await prettierContracts(cmd.check);
@@ -71,7 +78,7 @@ export const command = new Command('fmt')
         } else {
             // Run all the checks concurrently.
             const promises = EXTENSIONS.map((ext) => prettier(ext, cmd.check));
-            promises.push(rustfmt(cmd.check));
+            promises.push(runAllRustFormatters(cmd.check));
             promises.push(prettierContracts(cmd.check));
             await Promise.all(promises);
         }
@@ -95,5 +102,5 @@ command
     .command('rustfmt')
     .option('--check')
     .action(async (cmd: Command) => {
-        await rustfmt(cmd.check);
+        await runAllRustFormatters(cmd.check);
     });

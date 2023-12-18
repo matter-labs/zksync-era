@@ -85,6 +85,15 @@ pub struct Manifest {
 }
 
 impl Manifest {
+    /// Returns the version of the tree that is currently being recovered.
+    pub fn recovered_version(&self) -> Option<u64> {
+        if self.tags.as_ref()?.is_recovering {
+            Some(self.version_count.checked_sub(1)?)
+        } else {
+            None
+        }
+    }
+
     #[cfg(test)]
     pub(crate) fn new(version_count: u64, hasher: &dyn HashTree) -> Self {
         Self {

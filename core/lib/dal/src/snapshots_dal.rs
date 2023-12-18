@@ -18,8 +18,18 @@ impl SnapshotsDal<'_, '_> {
         factory_deps_filepaths: &str,
     ) -> Result<(), sqlx::Error> {
         sqlx::query!(
-            "INSERT INTO snapshots (l1_batch_number, storage_logs_filepaths, factory_deps_filepath, created_at, updated_at) \
-             VALUES ($1, $2, $3, NOW(), NOW())",
+            r#"
+            INSERT INTO
+                snapshots (
+                    l1_batch_number,
+                    storage_logs_filepaths,
+                    factory_deps_filepath,
+                    created_at,
+                    updated_at
+                )
+            VALUES
+                ($1, $2, $3, NOW(), NOW())
+            "#,
             l1_batch_number.0 as i32,
             storage_logs_filepaths,
             factory_deps_filepaths,
@@ -33,7 +43,14 @@ impl SnapshotsDal<'_, '_> {
 
     pub async fn get_all_snapshots(&mut self) -> Result<AllSnapshots, sqlx::Error> {
         let records: Vec<L1BatchNumber> = sqlx::query!(
-            "SELECT l1_batch_number, factory_deps_filepath, storage_logs_filepaths FROM snapshots"
+            r#"
+            SELECT
+                l1_batch_number,
+                factory_deps_filepath,
+                storage_logs_filepaths
+            FROM
+                snapshots
+            "#
         )
         .instrument("get_all_snapshots")
         .report_latency()
@@ -52,7 +69,16 @@ impl SnapshotsDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
     ) -> Result<Option<SnapshotMetadata>, sqlx::Error> {
         let record: Option<SnapshotMetadata> = sqlx::query!(
-            "SELECT l1_batch_number, factory_deps_filepath, storage_logs_filepaths FROM snapshots WHERE l1_batch_number = $1",
+            r#"
+            SELECT
+                l1_batch_number,
+                factory_deps_filepath,
+                storage_logs_filepaths
+            FROM
+                snapshots
+            WHERE
+                l1_batch_number = $1
+            "#,
             l1_batch_number.0 as i32
         )
         .instrument("get_snapshot_metadata")

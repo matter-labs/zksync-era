@@ -29,11 +29,13 @@ use zksync_types::{
     StorageLogQuery, StorageLogQueryType, Timestamp, Transaction, H256, U256,
 };
 
-pub(crate) use self::tester::TestBatchExecutorBuilder;
+mod tester;
+
 use self::tester::{
     bootloader_tip_out_of_gas, pending_batch_data, random_tx, rejected_exec, successful_exec,
     successful_exec_with_metrics, TestScenario,
 };
+pub(crate) use self::tester::{MockBatchExecutorBuilder, TestBatchExecutorBuilder};
 use crate::{
     gas_tracker::l1_batch_base_cost,
     state_keeper::{
@@ -46,8 +48,6 @@ use crate::{
         updates::UpdatesManager,
     },
 };
-
-mod tester;
 
 pub(super) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
