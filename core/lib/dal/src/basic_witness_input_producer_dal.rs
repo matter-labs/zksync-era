@@ -51,10 +51,13 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
     ) -> sqlx::Result<()> {
         sqlx::query!(
-            "INSERT INTO basic_witness_input_producer_jobs \
-                (l1_batch_number, status, created_at, updated_at) \
-            VALUES ($1, $2, now(), now()) \
-            ON CONFLICT (l1_batch_number) DO NOTHING",
+            r#"
+            INSERT INTO
+                basic_witness_input_producer_jobs (l1_batch_number, status, created_at, updated_at)
+            VALUES
+                ($1, $2, NOW(), NOW())
+            ON CONFLICT (l1_batch_number) DO NOTHING
+            "#,
             l1_batch_number.0 as i64,
             BasicWitnessInputProducerJobStatus::Queued as BasicWitnessInputProducerJobStatus,
         )
@@ -70,23 +73,39 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         &mut self,
     ) -> sqlx::Result<Option<L1BatchNumber>> {
         let l1_batch_number = sqlx::query!(
-            "UPDATE basic_witness_input_producer_jobs \
-            SET status = $1, \
-                attempts = attempts + 1, \
-                updated_at = now(), \
-                processing_started_at = now() \
-            WHERE l1_batch_number = ( \
-                SELECT l1_batch_number \
-                FROM basic_witness_input_producer_jobs \
-                WHERE status = $2 OR \
-                    (status = $1 AND processing_started_at < now() - $4::interval) OR \
-                    (status = $3 AND attempts < $5) \
-                ORDER BY l1_batch_number ASC \
-                LIMIT 1 \
-                FOR UPDATE \
-                SKIP LOCKED \
-            ) \
-            RETURNING basic_witness_input_producer_jobs.l1_batch_number",
+            r#"
+            UPDATE basic_witness_input_producer_jobs
+            SET
+                status = $1,
+                attempts = attempts + 1,
+                updated_at = NOW(),
+                processing_started_at = NOW()
+            WHERE
+                l1_batch_number = (
+                    SELECT
+                        l1_batch_number
+                    FROM
+                        basic_witness_input_producer_jobs
+                    WHERE
+                        status = $2
+                        OR (
+                            status = $1
+                            AND processing_started_at < NOW() - $4::INTERVAL
+                        )
+                        OR (
+                            status = $3
+                            AND attempts < $5
+                        )
+                    ORDER BY
+                        l1_batch_number ASC
+                    LIMIT
+                        1
+                    FOR UPDATE
+                        SKIP LOCKED
+                )
+            RETURNING
+                basic_witness_input_producer_jobs.l1_batch_number
+            "#,
             BasicWitnessInputProducerJobStatus::InProgress as BasicWitnessInputProducerJobStatus,
             BasicWitnessInputProducerJobStatus::Queued as BasicWitnessInputProducerJobStatus,
             BasicWitnessInputProducerJobStatus::Failed as BasicWitnessInputProducerJobStatus,
@@ -107,8 +126,14 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
     ) -> sqlx::Result<Option<u32>> {
         let attempts = sqlx::query!(
-            "SELECT attempts FROM basic_witness_input_producer_jobs \
-            WHERE l1_batch_number = $1",
+            r#"
+            SELECT
+                attempts
+            FROM
+                basic_witness_input_producer_jobs
+            WHERE
+                l1_batch_number = $1
+            "#,
             l1_batch_number.0 as i64,
         )
         .fetch_optional(self.storage.conn())
@@ -125,12 +150,16 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         object_path: &str,
     ) -> sqlx::Result<()> {
         sqlx::query!(
-            "UPDATE basic_witness_input_producer_jobs \
-            SET status = $1, \
-                updated_at = now(), \
-                time_taken = $3, \
-                input_blob_url = $4 \
-            WHERE l1_batch_number = $2",
+            r#"
+            UPDATE basic_witness_input_producer_jobs
+            SET
+                status = $1,
+                updated_at = NOW(),
+                time_taken = $3,
+                input_blob_url = $4
+            WHERE
+                l1_batch_number = $2
+            "#,
             BasicWitnessInputProducerJobStatus::Successful as BasicWitnessInputProducerJobStatus,
             l1_batch_number.0 as i64,
             duration_to_naive_time(started_at.elapsed()),
@@ -151,13 +180,19 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         error: String,
     ) -> sqlx::Result<Option<u32>> {
         let attempts = sqlx::query!(
-            "UPDATE basic_witness_input_producer_jobs \
-            SET status = $1, \
-                updated_at = now(), \
-                time_taken = $3, \
-                error = $4 \
-            WHERE l1_batch_number = $2 AND status != $5 \
-            RETURNING basic_witness_input_producer_jobs.attempts",
+            r#"
+            UPDATE basic_witness_input_producer_jobs
+            SET
+                status = $1,
+                updated_at = NOW(),
+                time_taken = $3,
+                error = $4
+            WHERE
+                l1_batch_number = $2
+                AND status != $5
+            RETURNING
+                basic_witness_input_producer_jobs.attempts
+            "#,
             BasicWitnessInputProducerJobStatus::Failed as BasicWitnessInputProducerJobStatus,
             l1_batch_number.0 as i64,
             duration_to_naive_time(started_at.elapsed()),
@@ -177,9 +212,13 @@ impl BasicWitnessInputProducerDal<'_, '_> {
 /// These functions should only be used for tests.
 impl BasicWitnessInputProducerDal<'_, '_> {
     pub async fn delete_all_jobs(&mut self) -> sqlx::Result<()> {
-        sqlx::query!("DELETE FROM basic_witness_input_producer_jobs")
-            .execute(self.storage.conn())
-            .await?;
+        sqlx::query!(
+            r#"
+            DELETE FROM basic_witness_input_producer_jobs
+            "#
+        )
+        .execute(self.storage.conn())
+        .await?;
         Ok(())
     }
 }
