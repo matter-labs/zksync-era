@@ -50,7 +50,6 @@ pub struct SnapshotStorageLogsStorageKey {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-#[serde(rename_all = "camelCase")]
 pub struct SnapshotStorageLogsChunk {
     pub storage_logs: Vec<SnapshotStorageLog>,
 }
@@ -77,12 +76,12 @@ impl ProtoFmt for SnapshotFactoryDependency {
     type Proto = crate::proto::SnapshotFactoryDependency;
     fn read(r: &Self::Proto) -> anyhow::Result<Self> {
         Ok(Self {
-            bytecode: required(&r.bytecode).context("bytecode")?.clone(),
+            bytecode: Bytes(required(&r.bytecode).context("bytecode")?.clone()),
         })
     }
     fn build(&self) -> Self::Proto {
         Self::Proto {
-            bytecode: Some(self.bytecode.as_slice().into()),
+            bytecode: Some(self.bytecode.0.as_slice().into()),
         }
     }
 }
