@@ -623,30 +623,6 @@
     },
     "query": "\n                SELECT COUNT(*) as \"count!\", status as \"status!\"\n                FROM prover_jobs\n                GROUP BY status\n                "
   },
-  "117757bfbe10fd36a171bd4511210b0a5a4b150156c13b89e44484dbe2c8e4a0": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "is_pending!",
-          "ordinal": 1,
-          "type_info": "Bool"
-        }
-      ],
-      "nullable": [
-        false,
-        null
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "SELECT l1_batch_number, ''::text = ANY(storage_logs_filepaths) AS \"is_pending!\" FROM snapshots ORDER BY l1_batch_number DESC"
-  },
   "13e5f6a2a73eaa979229611ffdbed86d6e5e1bad0c645d39b56fdc47f5c17971": {
     "describe": {
       "columns": [
@@ -5679,6 +5655,24 @@
       }
     },
     "query": "INSERT INTO factory_deps (bytecode_hash, bytecode, miniblock_number, created_at, updated_at) SELECT u.bytecode_hash, u.bytecode, $3, now(), now() FROM UNNEST($1::bytea[], $2::bytea[]) AS u(bytecode_hash, bytecode) ON CONFLICT (bytecode_hash) DO NOTHING"
+  },
+  "71e3b3d51b286ed3712848e7f03428461ab546fe7a005a5327f6a2fcacd7ff16": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT l1_batch_number FROM snapshots WHERE NOT (''::text = ANY(storage_logs_filepaths)) ORDER BY l1_batch_number DESC"
   },
   "741b13b0a4769a30186c650a4a1b24855806a27ccd8d5a50594741842dde44ec": {
     "describe": {

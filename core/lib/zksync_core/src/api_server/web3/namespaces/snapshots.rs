@@ -39,7 +39,7 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
             .map_err(|err| internal_error(method_name, err))?;
         let mut snapshots_dal = storage_processor.snapshots_dal();
         let response = snapshots_dal
-            .get_all_snapshots()
+            .get_all_complete_snapshots()
             .await
             .map_err(|err| internal_error(method_name, err));
         method_latency.observe();
@@ -71,6 +71,12 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
 
         let snapshot_files = snapshot_metadata.storage_logs_filepaths;
         let is_complete = snapshot_files.iter().all(Option::is_some);
+        if !is_complete {
+            // We don't return incomplete snapshots via API.
+            method_latency.observe();
+            return Ok(None);
+        }
+
         let chunks = snapshot_files
             .into_iter()
             .enumerate()
@@ -104,7 +110,6 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
         Ok(Some(SnapshotHeader {
             l1_batch_number: snapshot_metadata.l1_batch_number,
             miniblock_number,
-            is_complete,
             last_l1_batch_with_metadata: l1_batch_with_metadata,
             storage_logs_chunks: chunks,
             factory_deps_filepath: snapshot_metadata.factory_deps_filepath,

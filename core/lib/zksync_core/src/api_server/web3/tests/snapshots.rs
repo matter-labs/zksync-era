@@ -76,22 +76,22 @@ impl HttpTest for SnapshotBasics {
         let all_snapshots = client.get_all_snapshots().await?;
         if self.is_complete_snapshot() {
             assert_eq!(all_snapshots.snapshots_l1_batch_numbers, [L1BatchNumber(1)]);
-            assert_eq!(all_snapshots.incomplete_snapshots_l1_batch_numbers, []);
         } else {
             assert_eq!(all_snapshots.snapshots_l1_batch_numbers, []);
-            assert_eq!(
-                all_snapshots.incomplete_snapshots_l1_batch_numbers,
-                [L1BatchNumber(1)]
-            );
         }
 
         let snapshot_header = client
             .get_snapshot_by_l1_batch_number(L1BatchNumber(1))
-            .await?
-            .context("no snapshot for L1 batch #1")?;
+            .await?;
+        let snapshot_header = if self.is_complete_snapshot() {
+            snapshot_header.context("no snapshot for L1 batch #1")?
+        } else {
+            assert!(snapshot_header.is_none());
+            return Ok(());
+        };
+
         assert_eq!(snapshot_header.l1_batch_number, L1BatchNumber(1));
         assert_eq!(snapshot_header.miniblock_number, MiniblockNumber(1));
-        assert_eq!(snapshot_header.is_complete, self.is_complete_snapshot());
         assert_eq!(
             snapshot_header.factory_deps_filepath,
             "file:///factory_deps"

@@ -255,7 +255,11 @@ async fn persisting_snapshot_metadata() {
         .unwrap();
 
     // Check snapshot metadata in Postgres.
-    let snapshots = conn.snapshots_dal().get_all_snapshots().await.unwrap();
+    let snapshots = conn
+        .snapshots_dal()
+        .get_all_complete_snapshots()
+        .await
+        .unwrap();
     assert_eq!(snapshots.snapshots_l1_batch_numbers.len(), 1);
     let snapshot_l1_batch_number = snapshots.snapshots_l1_batch_numbers[0];
     assert_eq!(snapshot_l1_batch_number, L1BatchNumber(8));

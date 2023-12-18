@@ -10,10 +10,6 @@ pub struct AllSnapshots {
     /// L1 batch numbers for complete snapshots. Ordered by descending number (i.e., 0th element
     /// corresponds to the newest snapshot).
     pub snapshots_l1_batch_numbers: Vec<L1BatchNumber>,
-    /// Same as `snapshots_l1_batch_numbers`, but for incomplete snapshots (ones in which some
-    /// storage log chunks may be missing).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub incomplete_snapshots_l1_batch_numbers: Vec<L1BatchNumber>,
 }
 
 /// Storage snapshot metadata. Used in DAL to fetch certain snapshot data.
@@ -42,7 +38,6 @@ impl SnapshotMetadata {
 pub struct SnapshotHeader {
     pub l1_batch_number: L1BatchNumber,
     pub miniblock_number: MiniblockNumber,
-    pub is_complete: bool,
     /// Ordered by chunk IDs.
     pub storage_logs_chunks: Vec<SnapshotStorageLogsChunkMetadata>,
     pub factory_deps_filepath: String,
