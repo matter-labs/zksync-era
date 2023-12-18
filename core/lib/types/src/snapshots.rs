@@ -74,6 +74,7 @@ pub struct SnapshotFactoryDependency {
 
 impl ProtoFmt for SnapshotFactoryDependency {
     type Proto = crate::proto::SnapshotFactoryDependency;
+
     fn read(r: &Self::Proto) -> anyhow::Result<Self> {
         Ok(Self {
             bytecode: Bytes(required(&r.bytecode).context("bytecode")?.clone()),
@@ -88,6 +89,7 @@ impl ProtoFmt for SnapshotFactoryDependency {
 
 impl ProtoFmt for SnapshotFactoryDependencies {
     type Proto = crate::proto::SnapshotFactoryDependencies;
+
     fn read(r: &Self::Proto) -> anyhow::Result<Self> {
         let mut factory_deps = Vec::with_capacity(r.factory_deps.len());
         for (i, factory_dep) in r.factory_deps.iter().enumerate() {
