@@ -130,10 +130,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                     let mut skip_transfer = String::new();
 
                     if skip_transfer_event {
-                        skip_transfer = format!(
-                            "AND NOT (address = ${:#X} AND topic1 = ${:#X})",
-                            L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_HASH
-                        );
+                        skip_transfer = String::from("AND NOT (address = $2 AND topic1 = $3)");
                     }
 
                     let query = format!(
@@ -144,18 +141,28 @@ impl TransactionsWeb3Dal<'_, '_> {
                             miniblock_number, tx_hash, tx_index_in_block,
                             event_index_in_block, event_index_in_tx
                         FROM events
-                        WHERE tx_hash = {:?} {}
+                        WHERE tx_hash = $1 {}
                         ORDER BY miniblock_number ASC, event_index_in_block ASC
                         "#,
-                        hash.as_bytes(),
                         &skip_transfer
                     );
 
-                    let logs: Vec<_> = sqlx::query_as::<_, StorageWeb3Log>(query.as_str())
+                    let mut query = sqlx::query_as(query.as_str());
+
+                    query = query.bind(hash.as_bytes());
+
+                    if skip_transfer_event {
+                        query = query.bind(L2_ETH_TOKEN_ADDRESS.as_bytes());
+                        query = query.bind(TRANSFER_EVENT_HASH.as_bytes());
+                    }
+
+                    let logs: Vec<StorageWeb3Log> = query
                         .instrument("get_transaction_receipt_events")
                         .with_arg("hash", &hash)
                         .fetch_all(self.storage.conn())
-                        .await?
+                        .await?;
+
+                    let logs = logs
                         .into_iter()
                         .map(|storage_log| {
                             let mut log = api::Log::from(storage_log);

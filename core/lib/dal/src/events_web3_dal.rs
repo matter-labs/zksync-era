@@ -48,6 +48,12 @@ impl EventsWeb3Dal<'_, '_> {
                 let topics: Vec<_> = topics.iter().map(H256::as_bytes).collect();
                 query = query.bind(topics);
             }
+
+            if skip_transfer_event {
+                query = query.bind(L2_ETH_TOKEN_ADDRESS.as_bytes());
+                query = query.bind(TRANSFER_EVENT_HASH.as_bytes());
+            }
+
             query = query.bind(offset as i32);
             let log = query
                 .instrument("get_log_block_number")
@@ -102,6 +108,12 @@ impl EventsWeb3Dal<'_, '_> {
                 let topics: Vec<_> = topics.iter().map(H256::as_bytes).collect();
                 query = query.bind(topics);
             }
+
+            if skip_transfer_event {
+                query = query.bind(L2_ETH_TOKEN_ADDRESS.as_bytes());
+                query = query.bind(TRANSFER_EVENT_HASH.as_bytes());
+            }
+
             query = query.bind(limit as i32);
 
             let db_logs: Vec<StorageWeb3Log> = query
@@ -138,9 +150,11 @@ impl EventsWeb3Dal<'_, '_> {
 
         if skip_transfer_event {
             where_sql += &format!(
-                "AND NOT (address = {:#X} AND topic1 = {:#X})",
-                L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_HASH,
+                "AND NOT (address = ${} AND topic1 = ${})",
+                arg_index,
+                arg_index + 1
             );
+            arg_index += 2;
         }
 
         (where_sql, arg_index)
@@ -154,10 +168,7 @@ impl EventsWeb3Dal<'_, '_> {
         {
             let mut skip_transfer = String::new();
             if skip_transfer_event {
-                skip_transfer = format!(
-                    "AND NOT (address = {:#X} AND topic1 = {:#X})",
-                    L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_HASH
-                );
+                skip_transfer = String::from("AND NOT (address = $2 AND topic1 = $3)");
             }
 
             let query = format!(
@@ -168,7 +179,7 @@ impl EventsWeb3Dal<'_, '_> {
                         miniblock_number, tx_hash, tx_index_in_block,
                         event_index_in_block, event_index_in_tx
                     FROM events
-                    WHERE miniblock_number > {} {}
+                    WHERE miniblock_number > $1 {}
                     ORDER BY miniblock_number ASC, event_index_in_block ASC
                 )
                 SELECT miniblocks.hash as "block_hash?",
@@ -179,13 +190,18 @@ impl EventsWeb3Dal<'_, '_> {
                 INNER JOIN miniblocks ON events_select.miniblock_number = miniblocks.number
                 ORDER BY miniblock_number ASC, event_index_in_block ASC
                 "#,
-                from_block.0 as i64, &skip_transfer
+                &skip_transfer
             );
 
             // fixme: does it work that way?
-            let db_logs: Vec<StorageWeb3Log> = sqlx::query_as(query.as_str())
-                .fetch_all(self.storage.conn())
-                .await?;
+            let mut query = sqlx::query_as(query.as_str());
+            query = query.bind(from_block.0 as i64);
+            if skip_transfer_event {
+                query = query.bind(L2_ETH_TOKEN_ADDRESS.as_bytes());
+                query = query.bind(TRANSFER_EVENT_HASH.as_bytes());
+            }
+
+            let db_logs: Vec<StorageWeb3Log> = query.fetch_all(self.storage.conn()).await?;
             let logs = db_logs.into_iter().map(Into::into).collect();
             Ok(logs)
         }
@@ -216,7 +232,7 @@ mod tests {
 
         // todo: try with different params
         let (actual_sql, actual_arg_index) =
-            events_web3_dal.build_get_logs_where_clause(&filter, false);
+            events_web3_dal.build_get_logs_where_clause(&filter, true);
 
         assert_eq!(actual_sql, expected_sql);
         assert_eq!(actual_arg_index, expected_arg_index);

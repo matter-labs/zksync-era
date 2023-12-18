@@ -163,6 +163,11 @@ async fn test_http_server(test: impl HttpTest) {
     let server_handles = spawn_http_server(&network_config, pool.clone(), stop_receiver).await;
     server_handles.wait_until_ready().await;
 
+    // panic!(
+    //     "AND NOT (address = {:#X} AND topic1 = {:#X})",
+    //     L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_HASH
+    // );
+
     let client = <HttpClient>::builder()
         .build(format!("http://{}/", server_handles.local_addr))
         .unwrap();

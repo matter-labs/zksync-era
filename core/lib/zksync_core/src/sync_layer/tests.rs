@@ -170,7 +170,7 @@ async fn external_io_basics() {
 
     let tx_receipt = storage
         .transactions_web3_dal()
-        .get_transaction_receipt(tx_hash)
+        .get_transaction_receipt(tx_hash, true)
         .await
         .unwrap()
         .expect("Transaction not persisted");
