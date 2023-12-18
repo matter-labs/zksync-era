@@ -328,7 +328,7 @@ async fn processing_events_when_sealing_miniblock() {
 
     let logs = conn
         .events_web3_dal()
-        .get_all_logs(miniblock_number - 1)
+        .get_all_logs(miniblock_number - 1, true)
         .await
         .unwrap();
 

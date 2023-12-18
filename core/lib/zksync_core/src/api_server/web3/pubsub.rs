@@ -206,7 +206,7 @@ impl PubSubNotifier<(typed::Sink<PubSubResult>, PubSubFilter)> {
             .await
             .context("access_storage_tagged")?
             .events_web3_dal()
-            .get_all_logs(last_block_number)
+            .get_all_logs(last_block_number, true)
             .await
             .context("events_web3_dal().get_all_logs()")
     }

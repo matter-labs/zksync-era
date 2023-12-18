@@ -254,7 +254,7 @@ mod tests {
 
         let logs = conn
             .events_web3_dal()
-            .get_all_logs(MiniblockNumber(0))
+            .get_all_logs(MiniblockNumber(0), true)
             .await
             .unwrap();
         assert_eq!(logs.len(), 5);

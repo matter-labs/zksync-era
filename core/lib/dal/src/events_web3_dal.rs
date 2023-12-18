@@ -1,4 +1,5 @@
 use sqlx::Row;
+use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_HASH};
 use zksync_types::{
     api::{GetLogsFilter, Log},
     Address, MiniblockNumber, H256,
@@ -20,9 +21,11 @@ impl EventsWeb3Dal<'_, '_> {
         &mut self,
         filter: &GetLogsFilter,
         offset: usize,
+        skip_transfer_event: bool,
     ) -> Result<Option<MiniblockNumber>, SqlxError> {
         {
-            let (where_sql, arg_index) = self.build_get_logs_where_clause(filter);
+            let (where_sql, arg_index) =
+                self.build_get_logs_where_clause(filter, skip_transfer_event);
 
             let query = format!(
                 r#"
@@ -64,9 +67,11 @@ impl EventsWeb3Dal<'_, '_> {
         &mut self,
         filter: GetLogsFilter,
         limit: usize,
+        skip_transfer_event: bool,
     ) -> Result<Vec<Log>, SqlxError> {
         {
-            let (where_sql, arg_index) = self.build_get_logs_where_clause(&filter);
+            let (where_sql, arg_index) =
+                self.build_get_logs_where_clause(&filter, skip_transfer_event);
 
             let query = format!(
                 r#"
@@ -111,7 +116,11 @@ impl EventsWeb3Dal<'_, '_> {
         }
     }
 
-    fn build_get_logs_where_clause(&self, filter: &GetLogsFilter) -> (String, u8) {
+    fn build_get_logs_where_clause(
+        &self,
+        filter: &GetLogsFilter,
+        skip_transfer_event: bool,
+    ) -> (String, u8) {
         let mut arg_index = 1;
 
         let mut where_sql = format!("(miniblock_number >= {})", filter.from_block.0 as i64);
@@ -127,16 +136,31 @@ impl EventsWeb3Dal<'_, '_> {
             arg_index += 1;
         }
 
+        if skip_transfer_event {
+            where_sql += &format!(
+                "AND NOT (address = {:#X} AND topic1 = {:#X})",
+                L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_HASH,
+            );
+        }
+
         (where_sql, arg_index)
     }
 
     pub async fn get_all_logs(
         &mut self,
         from_block: MiniblockNumber,
+        skip_transfer_event: bool,
     ) -> Result<Vec<Log>, SqlxError> {
         {
-            let db_logs: Vec<StorageWeb3Log> = sqlx::query_as!(
-                StorageWeb3Log,
+            let mut skip_transfer = String::new();
+            if skip_transfer_event {
+                skip_transfer = format!(
+                    "AND NOT (address = {:#X} AND topic1 = {:#X})",
+                    L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_HASH
+                );
+            }
+
+            let query = format!(
                 r#"
                 WITH events_select AS (
                     SELECT
@@ -144,7 +168,7 @@ impl EventsWeb3Dal<'_, '_> {
                         miniblock_number, tx_hash, tx_index_in_block,
                         event_index_in_block, event_index_in_tx
                     FROM events
-                    WHERE miniblock_number > $1
+                    WHERE miniblock_number > {} {}
                     ORDER BY miniblock_number ASC, event_index_in_block ASC
                 )
                 SELECT miniblocks.hash as "block_hash?",
@@ -155,8 +179,11 @@ impl EventsWeb3Dal<'_, '_> {
                 INNER JOIN miniblocks ON events_select.miniblock_number = miniblocks.number
                 ORDER BY miniblock_number ASC, event_index_in_block ASC
                 "#,
-                from_block.0 as i64
-            )
+                from_block.0 as i64, &skip_transfer
+            );
+
+            // fixme: does it work that way?
+            let db_logs: Vec<StorageWeb3Log> = sqlx::query_as(query.as_str())
                 .fetch_all(self.storage.conn())
                 .await?;
             let logs = db_logs.into_iter().map(Into::into).collect();
@@ -187,7 +214,9 @@ mod tests {
         let expected_sql = "(miniblock_number >= 100) AND (miniblock_number <= 200) AND (address = ANY($1)) AND (topic0 = ANY($2))";
         let expected_arg_index = 3;
 
-        let (actual_sql, actual_arg_index) = events_web3_dal.build_get_logs_where_clause(&filter);
+        // todo: try with different params
+        let (actual_sql, actual_arg_index) =
+            events_web3_dal.build_get_logs_where_clause(&filter, false);
 
         assert_eq!(actual_sql, expected_sql);
         assert_eq!(actual_arg_index, expected_arg_index);

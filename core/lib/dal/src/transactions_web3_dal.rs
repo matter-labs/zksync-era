@@ -1,15 +1,16 @@
 use sqlx::types::chrono::NaiveDateTime;
+use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_HASH};
 use zksync_types::{
     api, Address, L2ChainId, MiniblockNumber, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256, U256, U64,
 };
 use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
 
+use crate::models::storage_event::StorageWeb3Log;
 use crate::{
     instrument::InstrumentExt,
     models::{
         storage_block::{bind_block_where_sql_params, web3_block_where_sql},
-        storage_event::StorageWeb3Log,
         storage_transaction::{
             extract_web3_transaction, web3_transaction_select_sql, StorageTransaction,
             StorageTransactionDetails,
@@ -27,6 +28,7 @@ impl TransactionsWeb3Dal<'_, '_> {
     pub async fn get_transaction_receipt(
         &mut self,
         hash: H256,
+        skip_transfer_event: bool,
     ) -> Result<Option<api::TransactionReceipt>, SqlxError> {
         {
             let receipt = sqlx::query!(
@@ -125,8 +127,16 @@ impl TransactionsWeb3Dal<'_, '_> {
             });
             match receipt {
                 Some(mut receipt) => {
-                    let logs: Vec<_> = sqlx::query_as!(
-                        StorageWeb3Log,
+                    let mut skip_transfer = String::new();
+
+                    if skip_transfer_event {
+                        skip_transfer = format!(
+                            "AND NOT (address = ${:#X} AND topic1 = ${:#X})",
+                            L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_HASH
+                        );
+                    }
+
+                    let query = format!(
                         r#"
                         SELECT
                             address, topic1, topic2, topic3, topic4, value,
@@ -134,23 +144,26 @@ impl TransactionsWeb3Dal<'_, '_> {
                             miniblock_number, tx_hash, tx_index_in_block,
                             event_index_in_block, event_index_in_tx
                         FROM events
-                        WHERE tx_hash = $1
+                        WHERE tx_hash = {:?} {}
                         ORDER BY miniblock_number ASC, event_index_in_block ASC
                         "#,
-                        hash.as_bytes()
-                    )
-                    .instrument("get_transaction_receipt_events")
-                    .with_arg("hash", &hash)
-                    .fetch_all(self.storage.conn())
-                    .await?
-                    .into_iter()
-                    .map(|storage_log| {
-                        let mut log = api::Log::from(storage_log);
-                        log.block_hash = receipt.block_hash;
-                        log.l1_batch_number = receipt.l1_batch_number;
-                        log
-                    })
-                    .collect();
+                        hash.as_bytes(),
+                        &skip_transfer
+                    );
+
+                    let logs: Vec<_> = sqlx::query_as::<_, StorageWeb3Log>(query.as_str())
+                        .instrument("get_transaction_receipt_events")
+                        .with_arg("hash", &hash)
+                        .fetch_all(self.storage.conn())
+                        .await?
+                        .into_iter()
+                        .map(|storage_log| {
+                            let mut log = api::Log::from(storage_log);
+                            log.block_hash = receipt.block_hash;
+                            log.l1_batch_number = receipt.l1_batch_number;
+                            log
+                        })
+                        .collect();
 
                     receipt.logs = logs;
 

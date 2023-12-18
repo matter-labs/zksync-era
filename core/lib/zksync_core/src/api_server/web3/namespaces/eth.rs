@@ -504,7 +504,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .await
             .unwrap()
             .transactions_web3_dal()
-            .get_transaction_receipt(hash)
+            .get_transaction_receipt(hash, true)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err));
 
@@ -855,6 +855,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                         .get_log_block_number(
                             &get_logs_filter,
                             self.state.api_config.req_entities_limit,
+                            true,
                         )
                         .await
                         .map_err(|err| internal_error(METHOD_NAME, err))?
@@ -869,7 +870,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 
                 let logs = storage
                     .events_web3_dal()
-                    .get_logs(get_logs_filter, i32::MAX as usize)
+                    .get_logs(get_logs_filter, i32::MAX as usize, true)
                     .await
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
                 *from_block = to_block + 1;
