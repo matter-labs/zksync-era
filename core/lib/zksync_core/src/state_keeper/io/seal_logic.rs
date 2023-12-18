@@ -8,7 +8,7 @@ use std::{
 
 use itertools::Itertools;
 use multivm::interface::{FinishedL1Batch, L1BatchEnv};
-use zksync_dal::{blocks_dal::ConsensusBlockFields, StorageProcessor};
+use zksync_dal::StorageProcessor;
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
     block::{unpack_block_info, L1BatchHeader, MiniblockHeader},
@@ -50,7 +50,6 @@ impl UpdatesManager {
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,
         l2_erc20_bridge_addr: Address,
-        consensus: Option<ConsensusBlockFields>,
     ) {
         let started_at = Instant::now();
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::VmFinalization);
@@ -64,7 +63,6 @@ impl UpdatesManager {
             l1_batch_env.number,
             current_miniblock_number,
             l2_erc20_bridge_addr,
-            consensus,
             false, // fictive miniblocks don't have txs, so it's fine to pass `false` here.
         );
         miniblock_command.seal_inner(&mut transaction, true).await;
@@ -435,18 +433,6 @@ impl MiniblockSealCommand {
             .save_user_l2_to_l1_logs(miniblock_number, &user_l2_to_l1_logs)
             .await;
         progress.observe(user_l2_to_l1_log_count);
-
-        let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::InsertConsensus, is_fictive);
-        // We want to add miniblock consensus fields atomically with the miniblock data so that we
-        // don't need to deal with corner cases (e.g., a miniblock w/o consensus fields).
-        if let Some(consensus) = &self.consensus {
-            transaction
-                .blocks_dal()
-                .set_miniblock_consensus_fields(self.miniblock_number, consensus)
-                .await
-                .unwrap();
-        }
-        progress.observe(None);
 
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::CommitMiniblock, is_fictive);
         let current_l2_virtual_block_info = transaction

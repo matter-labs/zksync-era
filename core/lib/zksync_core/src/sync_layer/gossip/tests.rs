@@ -127,7 +127,7 @@ pub(super) fn create_genesis_block(
 
 pub(super) async fn assert_first_block_actions(actions: &mut ActionQueue) -> Vec<SyncAction> {
     let mut received_actions = vec![];
-    while !matches!(received_actions.last(), Some(SyncAction::SealMiniblock(_))) {
+    while !matches!(received_actions.last(), Some(SyncAction::SealMiniblock)) {
         received_actions.push(actions.recv_action().await);
     }
     assert_matches!(
@@ -144,7 +144,7 @@ pub(super) async fn assert_first_block_actions(actions: &mut ActionQueue) -> Vec
             SyncAction::Tx(_),
             SyncAction::Tx(_),
             SyncAction::Tx(_),
-            SyncAction::SealMiniblock(_),
+            SyncAction::SealMiniblock,
         ]
     );
     received_actions
@@ -152,7 +152,7 @@ pub(super) async fn assert_first_block_actions(actions: &mut ActionQueue) -> Vec
 
 pub(super) async fn assert_second_block_actions(actions: &mut ActionQueue) -> Vec<SyncAction> {
     let mut received_actions = vec![];
-    while !matches!(received_actions.last(), Some(SyncAction::SealMiniblock(_))) {
+    while !matches!(received_actions.last(), Some(SyncAction::SealMiniblock)) {
         received_actions.push(actions.recv_action().await);
     }
     assert_matches!(
@@ -166,7 +166,7 @@ pub(super) async fn assert_second_block_actions(actions: &mut ActionQueue) -> Ve
             SyncAction::Tx(_),
             SyncAction::Tx(_),
             SyncAction::Tx(_),
-            SyncAction::SealMiniblock(_),
+            SyncAction::SealMiniblock,
         ]
     );
     received_actions

@@ -207,17 +207,14 @@ impl StateKeeperHandle {
             let tx = create_l2_transaction(self.fee_per_gas, self.gas_per_pubdata);
             actions.push(SyncAction::Tx(Box::new(tx.into())));
         }
-        actions.push(SyncAction::SealMiniblock(None));
+        actions.push(SyncAction::SealMiniblock);
         self.actions_sender.push_actions(actions).await;
     }
 
     pub async fn seal_batch(&mut self) {
         // Each batch ends with an empty block (aka fictive block).
         let mut actions = vec![self.open_block()];
-        actions.push(SyncAction::SealBatch {
-            virtual_blocks: 0,
-            consensus: None,
-        });
+        actions.push(SyncAction::SealBatch { virtual_blocks: 0 });
         self.actions_sender.push_actions(actions).await;
         self.batch_sealed = true;
     }

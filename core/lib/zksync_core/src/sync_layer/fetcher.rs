@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_dal::{blocks_dal::ConsensusBlockFields, StorageProcessor};
+use zksync_dal::StorageProcessor;
 use zksync_types::{
     api::en::SyncBlock, block::MiniblockHasher, Address, L1BatchNumber, MiniblockNumber,
     ProtocolVersionId, H256,
@@ -34,7 +34,6 @@ pub(super) struct FetchedBlock {
     pub virtual_blocks: u32,
     pub operator_address: Address,
     pub transactions: Vec<zksync_types::Transaction>,
-    pub consensus: Option<ConsensusBlockFields>,
 }
 
 impl FetchedBlock {
@@ -65,12 +64,6 @@ impl TryFrom<SyncBlock> for FetchedBlock {
             transactions: block
                 .transactions
                 .context("Transactions are always requested")?,
-            consensus: block
-                .consensus
-                .as_ref()
-                .map(ConsensusBlockFields::decode)
-                .transpose()
-                .context("ConsensusBlockFields::decode()")?,
         })
     }
 }
@@ -184,10 +177,9 @@ impl FetcherCursor {
             new_actions.push(SyncAction::SealBatch {
                 // `block.virtual_blocks` can be `None` only for old VM versions where it's not used, so it's fine to provide any number.
                 virtual_blocks: block.virtual_blocks,
-                consensus: block.consensus,
             });
         } else {
-            new_actions.push(SyncAction::SealMiniblock(block.consensus));
+            new_actions.push(SyncAction::SealMiniblock);
         }
         self.next_miniblock += 1;
         self.prev_miniblock_hash = local_block_hash;

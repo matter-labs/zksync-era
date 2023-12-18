@@ -8,7 +8,6 @@ use zksync_consensus_roles::{node, validator};
 use zksync_dal::ConnectionPool;
 use zksync_types::Address;
 
-mod payload;
 mod proto;
 mod storage;
 
