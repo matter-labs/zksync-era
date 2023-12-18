@@ -211,12 +211,23 @@ impl SignedBlockStore {
     pub async fn new(
         ctx: &ctx::Ctx,
         pool: ConnectionPool,
-        genesis: &validator::FinalBlock,
+        genesis: validator::BlockNumber,
+        validator_key: &validator::SecretKey,
         operator_address: Address,
     ) -> anyhow::Result<Self> {
         // Ensure that genesis block has consensus field set in postgres.
         let head = {
             let mut storage = storage(ctx, &pool).await.wrap("storage()")?;
+            let payload = storage
+                .fetch_payload(ctx, genesis, operator_address)
+                .await
+                .wrap("fetch_payload(<genesis>)")?
+                .wrap("genesis block missing")?;
+            let genesis = zksync_consensus_bft::testonly::make_genesis(
+                &[validator_key.clone()],
+                payload,
+                genesis,
+            );
             storage
                 .put_block(ctx, genesis, operator_address)
                 .await

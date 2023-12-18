@@ -8,6 +8,7 @@ use zksync_core::api_server::{
     tx_sender::TxSenderConfig,
     web3::{state::InternalApiConfig, Namespace},
 };
+use zksync_core::{consensus, sync_layer};
 use zksync_types::api::BridgeAddresses;
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
@@ -415,6 +416,7 @@ pub struct ExternalNodeConfig {
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
     pub remote: RemoteENConfig,
+    pub consensus: Option<sync_layer::GossipConfig>,
 }
 
 impl ExternalNodeConfig {
@@ -428,6 +430,10 @@ impl ExternalNodeConfig {
         let optional = envy::prefixed("EN_")
             .from_env::<OptionalENConfig>()
             .context("could not load external node config")?;
+
+        let consensus = envy::prefixed("EN_")
+            .from_env::<Option<gossip::Config>>()
+            .context("cound not load consensus config")?;
 
         let client = HttpClientBuilder::default()
             .build(required.main_node_url()?)

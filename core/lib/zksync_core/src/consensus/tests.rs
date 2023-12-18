@@ -1,5 +1,5 @@
 use zksync_concurrency::{ctx, scope};
-use zksync_consensus_executor::testonly::FullValidatorConfig;
+use zksync_consensus_executor::testonly;
 use zksync_consensus_roles::validator;
 use zksync_dal::ConnectionPool;
 use zksync_types::Address;
@@ -37,7 +37,7 @@ async fn test_backfill() {
                 .context("fetch_payload(<genesis>)")?
                 .context("genesis block missing")?
         };
-        let cfg = FullValidatorConfig::for_single_validator(
+        let cfg = testonly::Validator::for_single_validator(
             &mut ctx.rng(),
             genesis_payload.encode(),
             GENESIS_BLOCK,

@@ -5,7 +5,7 @@ use std::ops;
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use zksync_concurrency::{ctx, scope, testonly::abort_on_panic, time};
-use zksync_consensus_executor::testonly::FullValidatorConfig;
+use zksync_consensus_executor::testonly;
 use zksync_consensus_roles::validator::{self, FinalBlock};
 use zksync_consensus_storage::{InMemoryStorage, WriteBlockStore};
 use zksync_dal::{blocks_dal::ConsensusBlockFields, ConnectionPool, StorageProcessor};
@@ -182,7 +182,7 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
     let genesis_block_payload = block_payload(&mut storage, 0).await.encode();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
     let rng = &mut ctx.rng();
-    let mut validator = FullValidatorConfig::for_single_validator(
+    let mut validator = testonly::Validator::for_single_validator(
         rng,
         genesis_block_payload,
         validator::BlockNumber(0),
@@ -224,14 +224,14 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
         // with payloads that cannot be parsed by the external node.
 
         s.spawn_bg(validator.run(ctx));
-        s.spawn_bg(run_gossip_fetcher_inner(
-            ctx,
-            pool.clone(),
-            actions_sender,
-            external_node.node_config,
-            external_node.node_key,
-            OPERATOR_ADDRESS,
-        ));
+        s.spawn_bg(
+            FetcherConfig {
+                executor: external_node.node_config,
+                node_key: external_node.node_key,
+                operator_address: OPERATOR_ADDRESS,
+            }
+            .run_inner(ctx, pool.clone(), actions_sender),
+        );
 
         if delay_first_block {
             ctx.sleep(POLL_INTERVAL).await?;
@@ -360,15 +360,14 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
             mock_l1_batch_hash_computation(pool.clone(), 1).await;
             Ok(())
         });
-        s.spawn_bg(run_gossip_fetcher_inner(
-            ctx,
-            pool.clone(),
-            actions_sender,
-            external_node.node_config,
-            external_node.node_key,
-            OPERATOR_ADDRESS,
-        ));
-
+        s.spawn_bg(
+            FetcherConfig {
+                executor: external_node.node_config,
+                node_key: external_node.node_key,
+                operator_address: OPERATOR_ADDRESS,
+            }
+            .run_inner(ctx, pool.clone(), actions_sender),
+        );
         state_keeper
             .wait(|state| state.get_local_block() == MiniblockNumber(3))
             .await;
@@ -471,18 +470,14 @@ async fn syncing_from_non_zero_block(first_block_number: u32) {
             });
         }
 
-        s.spawn_bg(async {
-            run_gossip_fetcher_inner(
-                ctx,
-                pool.clone(),
-                actions_sender,
-                external_node.node_config,
-                external_node.node_key,
-                OPERATOR_ADDRESS,
-            )
-            .await
-            .context("run_gossip_fetcher_inner()")
-        });
+        s.spawn_bg(
+            FetcherConfig {
+                executor: external_node.node_config,
+                node_key: external_node.node_key,
+                operator_address: OPERATOR_ADDRESS,
+            }
+            .run_inner(ctx, pool.clone(), actions_sender),
+        );
 
         ctx.wait(state_keeper.wait(|state| state.get_local_block() == MiniblockNumber(3)))
             .await?;
