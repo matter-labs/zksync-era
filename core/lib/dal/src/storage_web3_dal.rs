@@ -60,11 +60,18 @@ impl StorageWeb3Dal<'_, '_> {
 
             sqlx::query!(
                 r#"
-                SELECT value
-                FROM storage_logs
-                WHERE storage_logs.hashed_key = $1 AND storage_logs.miniblock_number <= $2
-                ORDER BY storage_logs.miniblock_number DESC, storage_logs.operation_number DESC
-                LIMIT 1
+                SELECT
+                    value
+                FROM
+                    storage_logs
+                WHERE
+                    storage_logs.hashed_key = $1
+                    AND storage_logs.miniblock_number <= $2
+                ORDER BY
+                    storage_logs.miniblock_number DESC,
+                    storage_logs.operation_number DESC
+                LIMIT
+                    1
                 "#,
                 hashed_key.as_bytes(),
                 block_number.0 as i64
@@ -90,9 +97,23 @@ impl StorageWeb3Dal<'_, '_> {
         miniblock_number: MiniblockNumber,
     ) -> Result<ResolvedL1BatchForMiniblock, SqlxError> {
         let row = sqlx::query!(
-            "SELECT \
-                (SELECT l1_batch_number FROM miniblocks WHERE number = $1) as \"block_batch?\", \
-                (SELECT MAX(number) + 1 FROM l1_batches) as \"max_batch?\"",
+            r#"
+            SELECT
+                (
+                    SELECT
+                        l1_batch_number
+                    FROM
+                        miniblocks
+                    WHERE
+                        number = $1
+                ) AS "block_batch?",
+                (
+                    SELECT
+                        MAX(number) + 1
+                    FROM
+                        l1_batches
+                ) AS "max_batch?"
+            "#,
             miniblock_number.0 as i64
         )
         .fetch_one(self.storage.conn())
@@ -110,7 +131,14 @@ impl StorageWeb3Dal<'_, '_> {
     ) -> Result<Option<L1BatchNumber>, SqlxError> {
         let hashed_key = key.hashed_key();
         let row = sqlx::query!(
-            "SELECT l1_batch_number FROM initial_writes WHERE hashed_key = $1",
+            r#"
+            SELECT
+                l1_batch_number
+            FROM
+                initial_writes
+            WHERE
+                hashed_key = $1
+            "#,
             hashed_key.as_bytes(),
         )
         .instrument("get_l1_batch_number_for_initial_write")
@@ -129,7 +157,14 @@ impl StorageWeb3Dal<'_, '_> {
         miniblock_numbers: ops::RangeInclusive<MiniblockNumber>,
     ) -> Vec<H256> {
         sqlx::query!(
-            "SELECT DISTINCT hashed_key FROM storage_logs WHERE miniblock_number BETWEEN $1 and $2",
+            r#"
+            SELECT DISTINCT
+                hashed_key
+            FROM
+                storage_logs
+            WHERE
+                miniblock_number BETWEEN $1 AND $2
+            "#,
             miniblock_numbers.start().0 as i64,
             miniblock_numbers.end().0 as i64
         )
@@ -151,19 +186,28 @@ impl StorageWeb3Dal<'_, '_> {
         let hashed_key = get_code_key(&address).hashed_key();
         {
             sqlx::query!(
-                "
-                    SELECT bytecode FROM (
-                        SELECT * FROM storage_logs
+                r#"
+                SELECT
+                    bytecode
+                FROM
+                    (
+                        SELECT
+                            *
+                        FROM
+                            storage_logs
                         WHERE
-                            storage_logs.hashed_key = $1 AND
-                            storage_logs.miniblock_number <= $2
+                            storage_logs.hashed_key = $1
+                            AND storage_logs.miniblock_number <= $2
                         ORDER BY
-                            storage_logs.miniblock_number DESC, storage_logs.operation_number DESC
-                        LIMIT 1
+                            storage_logs.miniblock_number DESC,
+                            storage_logs.operation_number DESC
+                        LIMIT
+                            1
                     ) t
                     JOIN factory_deps ON value = factory_deps.bytecode_hash
-                    WHERE value != $3
-                ",
+                WHERE
+                    value != $3
+                "#,
                 hashed_key.as_bytes(),
                 block_number.0 as i64,
                 FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
@@ -183,7 +227,15 @@ impl StorageWeb3Dal<'_, '_> {
     ) -> Result<Option<Vec<u8>>, SqlxError> {
         {
             sqlx::query!(
-                "SELECT bytecode FROM factory_deps WHERE bytecode_hash = $1 AND miniblock_number <= $2",
+                r#"
+                SELECT
+                    bytecode
+                FROM
+                    factory_deps
+                WHERE
+                    bytecode_hash = $1
+                    AND miniblock_number <= $2
+                "#,
                 hash.as_bytes(),
                 block_number.0 as i64
             )
