@@ -392,6 +392,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
             .unwrap_or(u32::MAX);
 
         let websocket_requests_per_minute_limit = self.websocket_requests_per_minute_limit;
+        let subscriptions_limit = self.subscriptions_limit;
 
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
@@ -441,6 +442,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
                 vm_barrier,
                 batch_request_config,
                 response_body_size_limit,
+                subscriptions_limit,
                 websocket_requests_per_minute_limit,
             ));
             runtime.shutdown_timeout(GRACEFUL_SHUTDOWN_TIMEOUT);
@@ -476,6 +478,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         vm_barrier: VmConcurrencyBarrier,
         batch_request_config: BatchRequestConfig,
         response_body_size_limit: u32,
+        subscriptions_limit: Option<usize>,
         websocket_requests_per_minute_limit: Option<NonZeroU32>,
     ) -> anyhow::Result<()> {
         let (transport_str, is_http, addr) = match transport {
@@ -528,6 +531,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
                     LimitMiddleware::new(a, websocket_requests_per_minute_limit)
                 }))
                 .set_id_provider(EthSubscriptionIdProvider)
+                .max_connections(subscriptions_limit.unwrap_or(5_000) as u32)
                 .build(addr)
                 .await
                 .with_context(|| format!("Failed building {transport_str} JSON-RPC server"))?;

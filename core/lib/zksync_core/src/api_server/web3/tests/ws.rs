@@ -1,7 +1,7 @@
 //! WS-related tests.
 
 use async_trait::async_trait;
-use jsonrpsee::core::ClientError;
+use jsonrpsee::core::{client::ClientT, params::BatchRequestBuilder, ClientError};
 use reqwest::StatusCode;
 use tokio::sync::watch;
 use zksync_config::configs::chain::NetworkConfig;
@@ -485,9 +485,9 @@ impl WsTest for RateLimiting {
         _pool: &ConnectionPool,
         _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
-        let _ = client.chain_id().await.unwrap();
-        let _ = client.chain_id().await.unwrap();
-        let _ = client.chain_id().await.unwrap();
+        client.chain_id().await.unwrap();
+        client.chain_id().await.unwrap();
+        client.chain_id().await.unwrap();
         let expected_err = client.chain_id().await.unwrap_err();
 
         if let ClientError::Call(error) = expected_err {
@@ -505,4 +505,36 @@ impl WsTest for RateLimiting {
 #[tokio::test]
 async fn rate_limiting() {
     test_ws_server(RateLimiting, Some(NonZeroU32::new(3).unwrap())).await;
+}
+
+#[derive(Debug)]
+struct BatchGetsRateLimited;
+
+#[async_trait]
+impl WsTest for BatchGetsRateLimited {
+    async fn test(
+        &self,
+        client: &WsClient,
+        _pool: &ConnectionPool,
+        _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+    ) -> anyhow::Result<()> {
+        client.chain_id().await.unwrap();
+        client.chain_id().await.unwrap();
+
+        let mut batch = BatchRequestBuilder::new();
+        batch.insert("eth_chainId", rpc_params![]).unwrap();
+        batch.insert("eth_chainId", rpc_params![]).unwrap();
+
+        let expected_err = client.batch_request::<String>(batch).await.unwrap_err();
+
+        if let ClientError::Call(error) = expected_err {
+            assert_eq!(error.code() as u16, StatusCode::TOO_MANY_REQUESTS.as_u16());
+            assert_eq!(error.message(), "Too many requests");
+            assert!(error.data().is_none());
+        } else {
+            panic!("Unexpected error returned: {expected_err}");
+        }
+
+        Ok(())
+    }
 }

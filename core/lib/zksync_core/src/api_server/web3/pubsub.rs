@@ -59,7 +59,7 @@ struct PubSubNotifier<V> {
 
 struct MeteredSink {
     sink: SubscriptionSink,
-    __guard: GaugeGuard,
+    _guard: GaugeGuard,
 }
 
 impl AsRef<SubscriptionSink> for MeteredSink {
@@ -72,7 +72,7 @@ impl MeteredSink {
     fn new(sink: SubscriptionSink, sub_type: SubscriptionType) -> Self {
         Self {
             sink,
-            __guard: PUB_SUB_METRICS.active_subscribers[&sub_type].inc_guard(1),
+            _guard: PUB_SUB_METRICS.active_subscribers[&sub_type].inc_guard(1),
         }
     }
 }
