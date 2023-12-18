@@ -38,7 +38,7 @@ struct LimitMiddlewareMetrics {
 #[vise::register]
 static METRICS: vise::Global<LimitMiddlewareMetrics> = vise::Global::new();
 
-/// A ratelimiting middleware.
+/// A rate-limiting middleware.
 ///
 /// `jsonrpsee` will allocate the instance of this struct once per session.
 pub(crate) struct LimitMiddleware<S> {
