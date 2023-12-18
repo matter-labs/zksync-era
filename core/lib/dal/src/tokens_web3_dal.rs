@@ -15,7 +15,6 @@ impl TokensWeb3Dal<'_, '_> {
         {
             let records = sqlx::query!(
                 "SELECT l1_address, l2_address, name, symbol, decimals FROM tokens
-                 WHERE well_known = true
                  ORDER BY symbol"
             )
             .fetch_all(self.storage.conn())

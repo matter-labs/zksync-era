@@ -2441,48 +2441,6 @@
     },
     "query": "\n                UPDATE node_aggregation_witness_jobs_fri\n                SET status = 'queued', updated_at = now(), processing_started_at = now()\n                WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)\n                OR (status = 'failed' AND attempts < $2)\n                RETURNING id, status, attempts\n                "
   },
-  "2b22e7d15adf069c8e68954059b83f71a71350f3325b4280840c4be7e54a319f": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_address",
-          "ordinal": 0,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "l2_address",
-          "ordinal": 1,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "name",
-          "ordinal": 2,
-          "type_info": "Varchar"
-        },
-        {
-          "name": "symbol",
-          "ordinal": 3,
-          "type_info": "Varchar"
-        },
-        {
-          "name": "decimals",
-          "ordinal": 4,
-          "type_info": "Int4"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "SELECT l1_address, l2_address, name, symbol, decimals FROM tokens\n                 WHERE well_known = true\n                 ORDER BY symbol"
-  },
   "2b76ca7059810f691a2d7d053e7e62e06de13e7ddb7747e39335bb10c45534e9": {
     "describe": {
       "columns": [
@@ -11897,6 +11855,48 @@
       }
     },
     "query": "SELECT * FROM eth_txs WHERE id = $1"
+  },
+  "fa987acb35ada2a11117a47b35a86e3b051f82cf1f498fb59e3201518c258287": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_address",
+          "ordinal": 0,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "l2_address",
+          "ordinal": 1,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "name",
+          "ordinal": 2,
+          "type_info": "Varchar"
+        },
+        {
+          "name": "symbol",
+          "ordinal": 3,
+          "type_info": "Varchar"
+        },
+        {
+          "name": "decimals",
+          "ordinal": 4,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT l1_address, l2_address, name, symbol, decimals FROM tokens\n                 ORDER BY symbol"
   },
   "fcca1961f34082f7186de607b922fd608166c5af98031e4dcc8a056b89696dbe": {
     "describe": {
