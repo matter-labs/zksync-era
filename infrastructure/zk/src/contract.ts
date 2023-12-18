@@ -79,19 +79,19 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean, inc
     // In the localhost setup scenario we don't have the workspace,
     // so we have to `--cwd` into the required directory.
     const baseCommandL2 = isLocalSetup ? `yarn --cwd /contracts/zksync` : `yarn l2-contracts`;
-    // const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
+    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
 
     // Skip compilation for local setup, since we already copied artifacts into the container.
     await utils.spawn(`${baseCommandL2} build`);
 
-    // await utils.spawn(`${baseCommandL1} initialize-bridges ${args.join(' ')} | tee deployL2.log`);
+    await utils.spawn(`${baseCommandL1} initialize-bridges ${args.join(' ')} | tee deployL2.log`);
 
     if (includePaymaster) {
-        // await utils.spawn(`${baseCommandL2} deploy-testnet-paymaster ${args.join(' ')} | tee -a deployL2.log`);
+        await utils.spawn(`${baseCommandL2} deploy-testnet-paymaster ${args.join(' ')} | tee -a deployL2.log`);
     }
 
     if (includeWETH) {
-        // await utils.spawn(`${baseCommandL2} deploy-l2-weth ${args.join(' ')} | tee -a deployL2.log`);
+        await utils.spawn(`${baseCommandL2} deploy-l2-weth ${args.join(' ')} | tee -a deployL2.log`);
     }
 
     await utils.spawn(`${baseCommandL2} deploy-force-deploy-upgrader ${args.join(' ')} | tee -a deployL2.log`);
@@ -107,7 +107,7 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean, inc
     updateContractsEnv(l2DeployLog, l2DeploymentEnvVars);
 
     if (includeWETH) {
-        // await utils.spawn(`${baseCommandL1} initialize-weth-bridges ${args.join(' ')} | tee -a deployL1.log`);
+        await utils.spawn(`${baseCommandL1} initialize-weth-bridges ${args.join(' ')} | tee -a deployL1.log`);
     }
 
     const l1DeployLog = fs.readFileSync('deployL1.log').toString();
