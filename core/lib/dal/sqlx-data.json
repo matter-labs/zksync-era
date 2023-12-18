@@ -1494,24 +1494,6 @@
     },
     "query": "\n            SELECT\n                *\n            FROM\n                transactions\n            WHERE\n                miniblock_number IS NOT NULL\n                AND l1_batch_number IS NULL\n            ORDER BY\n                miniblock_number,\n                index_in_block\n            "
   },
-  "16a8aa59507a5cd8754ec8df1c622ce737ed2bd33952d152048a8dc37b74728a": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Int8",
-          "Bytea",
-          "Int8",
-          "Bytea",
-          "Bool",
-          "Int4",
-          "Int4"
-        ]
-      }
-    },
-    "query": "\n            INSERT INTO\n                snapshot_recovery (\n                    l1_batch_number,\n                    l1_batch_root_hash,\n                    miniblock_number,\n                    miniblock_root_hash,\n                    is_finished,\n                    last_finished_chunk_id,\n                    total_chunks_count,\n                    updated_at,\n                    created_at\n                )\n            VALUES\n                ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())\n            ON CONFLICT (l1_batch_number) DO\n            UPDATE\n            SET\n                l1_batch_number = excluded.l1_batch_number,\n                l1_batch_root_hash = excluded.l1_batch_root_hash,\n                miniblock_number = excluded.miniblock_number,\n                miniblock_root_hash = excluded.miniblock_root_hash,\n                is_finished = excluded.is_finished,\n                last_finished_chunk_id = excluded.last_finished_chunk_id,\n                total_chunks_count = excluded.total_chunks_count,\n                updated_at = excluded.updated_at\n            "
-  },
   "1766c0a21ba5918dd08f4babd8dbfdf10fb1cb43781219586c169fb976204331": {
     "describe": {
       "columns": [
@@ -2916,60 +2898,6 @@
       }
     },
     "query": "\n            SELECT\n                id\n            FROM\n                prover_jobs_fri\n            WHERE\n                l1_batch_number = $1\n                AND circuit_id = $2\n                AND aggregation_round = $3\n                AND depth = $4\n                AND status = 'successful'\n            ORDER BY\n                sequence_number ASC;\n            "
-  },
-  "2b971ec1441a95be31d51067a847599d6b555fb7264e82aec65ddc1763cead6f": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "l1_batch_root_hash",
-          "ordinal": 1,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "miniblock_number",
-          "ordinal": 2,
-          "type_info": "Int8"
-        },
-        {
-          "name": "miniblock_root_hash",
-          "ordinal": 3,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "is_finished",
-          "ordinal": 4,
-          "type_info": "Bool"
-        },
-        {
-          "name": "last_finished_chunk_id",
-          "ordinal": 5,
-          "type_info": "Int4"
-        },
-        {
-          "name": "total_chunks_count",
-          "ordinal": 6,
-          "type_info": "Int4"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        true,
-        false
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "\n            SELECT\n                l1_batch_number,\n                l1_batch_root_hash,\n                miniblock_number,\n                miniblock_root_hash,\n                is_finished,\n                last_finished_chunk_id,\n                total_chunks_count\n            FROM\n                snapshot_recovery\n            "
   },
   "2c827c1c3cfa3552b90d4746c5df45d57f1f8b2558fdb374bf02e84d3c825a23": {
     "describe": {
@@ -6186,6 +6114,24 @@
     },
     "query": "\n            SELECT\n                number,\n                timestamp,\n                hash,\n                l1_tx_count,\n                l2_tx_count,\n                base_fee_per_gas,\n                l1_gas_price,\n                l2_fair_gas_price,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                protocol_version,\n                virtual_blocks\n            FROM\n                miniblocks\n            ORDER BY\n                number DESC\n            LIMIT\n                1\n            "
   },
+  "6d61c01d557bd2dad5875df1dd10feacbbdd943271eb222e90d0ae1a3111a1a1": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Bytea",
+          "Int8",
+          "Bytea",
+          "Bool",
+          "Int4",
+          "Int4"
+        ]
+      }
+    },
+    "query": "\n            INSERT INTO\n                snapshot_recovery (\n                    l1_batch_number,\n                    l1_batch_root_hash,\n                    miniblock_number,\n                    miniblock_root_hash,\n                    is_finished,\n                    last_finished_chunk_id,\n                    total_chunk_count,\n                    updated_at,\n                    created_at\n                )\n            VALUES\n                ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())\n            ON CONFLICT (l1_batch_number) DO\n            UPDATE\n            SET\n                l1_batch_number = excluded.l1_batch_number,\n                l1_batch_root_hash = excluded.l1_batch_root_hash,\n                miniblock_number = excluded.miniblock_number,\n                miniblock_root_hash = excluded.miniblock_root_hash,\n                is_finished = excluded.is_finished,\n                last_finished_chunk_id = excluded.last_finished_chunk_id,\n                total_chunk_count = excluded.total_chunk_count,\n                updated_at = excluded.updated_at\n            "
+  },
   "6f6f60e7139fc789ca420d8610985a918e90b4e7087a98356ab19e22783c88cd": {
     "describe": {
       "columns": [
@@ -9163,6 +9109,60 @@
       }
     },
     "query": "\n                UPDATE transactions\n                SET\n                    l1_batch_number = $3,\n                    l1_batch_tx_index = data_table.l1_batch_tx_index,\n                    updated_at = NOW()\n                FROM\n                    (\n                        SELECT\n                            UNNEST($1::INT[]) AS l1_batch_tx_index,\n                            UNNEST($2::bytea[]) AS hash\n                    ) AS data_table\n                WHERE\n                    transactions.hash = data_table.hash\n                "
+  },
+  "baadc25c920f9f9de78920064d00db47b541f53f14f88f1477165cd60929c1d5": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "l1_batch_root_hash",
+          "ordinal": 1,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "miniblock_number",
+          "ordinal": 2,
+          "type_info": "Int8"
+        },
+        {
+          "name": "miniblock_root_hash",
+          "ordinal": 3,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "is_finished",
+          "ordinal": 4,
+          "type_info": "Bool"
+        },
+        {
+          "name": "last_finished_chunk_id",
+          "ordinal": 5,
+          "type_info": "Int4"
+        },
+        {
+          "name": "total_chunk_count",
+          "ordinal": 6,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "\n            SELECT\n                l1_batch_number,\n                l1_batch_root_hash,\n                miniblock_number,\n                miniblock_root_hash,\n                is_finished,\n                last_finished_chunk_id,\n                total_chunk_count\n            FROM\n                snapshot_recovery\n            "
   },
   "bd51c9d93b103292f5acbdb266ba4b4e2af48907fa9321064ddb24ac02ab17cd": {
     "describe": {
