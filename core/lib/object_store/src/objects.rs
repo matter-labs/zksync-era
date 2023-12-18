@@ -322,7 +322,7 @@ impl dyn ObjectStore + '_ {
 mod tests {
     use zksync_types::{
         snapshots::{SnapshotFactoryDependency, SnapshotStorageLog},
-        AccountTreeId, StorageKey, H160, H256,
+        AccountTreeId, Bytes, StorageKey, H160, H256,
     };
 
     use super::*;
@@ -391,10 +391,10 @@ mod tests {
         let factory_deps = SnapshotFactoryDependencies {
             factory_deps: vec![
                 SnapshotFactoryDependency {
-                    bytecode: vec![1, 51, 101, 201, 255],
+                    bytecode: Bytes(vec![1, 51, 101, 201, 255]),
                 },
                 SnapshotFactoryDependency {
-                    bytecode: vec![2, 52, 102, 202, 255],
+                    bytecode: Bytes(vec![2, 52, 102, 202, 255]),
                 },
             ],
         };
