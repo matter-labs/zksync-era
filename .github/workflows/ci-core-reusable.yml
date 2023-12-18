@@ -84,10 +84,14 @@ jobs:
           echo IN_DOCKER=1 >> .env
           echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
 
+      - name: Start services
+        run: |
+          ci_localnet_up
+          ci_run sccache --start-server
 
       - name: Get yarn cache directory path
         id: yarn-cache-dir-path
-        run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
+        run: echo "dir=$(ci_run yarn cache dir)" >> $GITHUB_OUTPUT
 
       - uses: actions/cache@v3
         id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
@@ -96,11 +100,6 @@ jobs:
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
           restore-keys: |
             ${{ runner.os }}-yarn-
-
-      - name: Start services
-        run: |
-          ci_localnet_up
-          ci_run sccache --start-server
 
       - name: Init
         run: |
@@ -143,9 +142,14 @@ jobs:
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
           echo ZKSYNC_DEBUG_LOGS=true >> .env
 
+      - name: Start services
+        run: |
+          ci_localnet_up
+          ci_run sccache --start-server
+
       - name: Get yarn cache directory path
         id: yarn-cache-dir-path
-        run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
+        run: echo "dir=$(ci_run yarn cache dir)" >> $GITHUB_OUTPUT
 
       - uses: actions/cache@v3
         id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
@@ -178,11 +182,6 @@ jobs:
           wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-v1.3.13
           mv zkvyper-linux-amd64-musl-v1.3.13 $(pwd)/etc/zkvyper-bin/v1.3.13/zkvyper
           chmod +x $(pwd)/etc/zkvyper-bin/v1.3.13/zkvyper
-
-      - name: Start services
-        run: |
-          ci_localnet_up
-          ci_run sccache --start-server
 
       - name: Init
         run: |
