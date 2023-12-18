@@ -193,9 +193,10 @@ impl EventsWeb3Dal<'_, '_> {
                 &skip_transfer
             );
 
-            // fixme: does it work that way?
             let mut query = sqlx::query_as(query.as_str());
+
             query = query.bind(from_block.0 as i64);
+
             if skip_transfer_event {
                 query = query.bind(L2_ETH_TOKEN_ADDRESS.as_bytes());
                 query = query.bind(TRANSFER_EVENT_HASH.as_bytes());
