@@ -89,6 +89,7 @@ tracing = "0.1.26"
 zksync_test_account = { path = "../test_account" }
 
 assert_matches = "1.5"
+jsonrpsee = "0.21.0"
 tempfile = "3.0.2"
 test-casing = "0.1.2"
 
