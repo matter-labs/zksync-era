@@ -6,11 +6,11 @@ use zksync_types::{
 };
 use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
 
-use crate::models::storage_event::StorageWeb3Log;
 use crate::{
     instrument::InstrumentExt,
     models::{
         storage_block::{bind_block_where_sql_params, web3_block_where_sql},
+        storage_event::StorageWeb3Log,
         storage_transaction::{
             extract_web3_transaction, web3_transaction_select_sql, StorageTransaction,
             StorageTransactionDetails,
