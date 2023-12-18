@@ -1184,12 +1184,12 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
             .with_filter_limit(api_config.web3_json_rpc.filters_limit())
             .with_subscriptions_limit(api_config.web3_json_rpc.subscriptions_limit())
             .with_batch_request_size_limit(api_config.web3_json_rpc.max_batch_request_size())
-            .with_response_body_size_limit(api_config.web3_json_rpc.max_response_body_size())
             .with_websocket_requests_per_minute_limit(
                 api_config
                     .web3_json_rpc
                     .websocket_requests_per_minute_limit(),
             )
+            .with_response_body_size_limit(api_config.web3_json_rpc.max_response_body_size())
             .with_polling_interval(api_config.web3_json_rpc.pubsub_interval())
             .with_threads(api_config.web3_json_rpc.ws_server_threads())
             .with_tree_api(api_config.web3_json_rpc.tree_api_url())
