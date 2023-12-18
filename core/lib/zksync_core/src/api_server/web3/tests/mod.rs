@@ -12,6 +12,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
 use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
+use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
 use zksync_types::{
     block::MiniblockHeader, fee::TransactionExecutionMetrics, tx::IncludedTxLocation, Address,
     L1BatchNumber, ProtocolVersionId, VmEvent, H256, U64,
@@ -264,7 +265,29 @@ async fn store_events(
             indexed_topics: vec![H256::repeat_byte(42), H256::repeat_byte(111)],
             value: (start_idx + 3).to_le_bytes().to_vec(),
         },
+        // ETH Transfer event with matching both address and topic
+        VmEvent {
+            location: (L1BatchNumber(1), start_idx + 4),
+            address: L2_ETH_TOKEN_ADDRESS,
+            indexed_topics: vec![TRANSFER_EVENT_TOPIC],
+            value: (start_idx + 4).to_le_bytes().to_vec(),
+        },
+        // ETH Transfer event with only topic matching
+        VmEvent {
+            location: (L1BatchNumber(1), start_idx + 5),
+            address: Address::repeat_byte(12),
+            indexed_topics: vec![TRANSFER_EVENT_TOPIC],
+            value: (start_idx + 5).to_le_bytes().to_vec(),
+        },
+        // ETH Transfer event with only address matching
+        VmEvent {
+            location: (L1BatchNumber(1), start_idx + 6),
+            address: L2_ETH_TOKEN_ADDRESS,
+            indexed_topics: vec![H256::repeat_byte(25)],
+            value: (start_idx + 6).to_le_bytes().to_vec(),
+        },
     ];
+
     storage
         .events_dal()
         .save_events(
@@ -369,7 +392,14 @@ impl HttpTest for LogFilterChanges {
         let mut storage = pool.access_storage().await?;
         let (_, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
-        let events: Vec<_> = events.iter().collect();
+        let events: Vec<_> = events
+            .iter()
+            .filter(|event| {
+                !(event.address == L2_ETH_TOKEN_ADDRESS
+                    && !event.indexed_topics.is_empty()
+                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
+            })
+            .collect();
 
         let all_logs = client.get_filter_changes(all_logs_filter_id).await?;
         let FilterChanges::Logs(all_logs) = all_logs else {
@@ -429,7 +459,14 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         let mut storage = pool.access_storage().await?;
         let (_, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
-        let events: Vec<_> = events.iter().collect();
+        let events: Vec<_> = events
+            .iter()
+            .filter(|event| {
+                !(event.address == L2_ETH_TOKEN_ADDRESS
+                    && !event.indexed_topics.is_empty()
+                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
+            })
+            .collect();
 
         let lower_bound_logs = client.get_filter_changes(lower_bound_filter_id).await?;
         assert_matches!(
@@ -454,7 +491,14 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
-        let new_events: Vec<_> = new_events.iter().collect();
+        let new_events: Vec<_> = new_events
+            .iter()
+            .filter(|event| {
+                !(event.address == L2_ETH_TOKEN_ADDRESS
+                    && !event.indexed_topics.is_empty()
+                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
+            })
+            .collect();
 
         let lower_bound_logs = client.get_filter_changes(lower_bound_filter_id).await?;
         let FilterChanges::Logs(lower_bound_logs) = lower_bound_logs else {
@@ -472,7 +516,14 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 3, 8).await?;
         drop(storage);
-        let new_events: Vec<_> = new_events.iter().collect();
+        let new_events: Vec<_> = new_events
+            .iter()
+            .filter(|event| {
+                !(event.address == L2_ETH_TOKEN_ADDRESS
+                    && !event.indexed_topics.is_empty()
+                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
+            })
+            .collect();
 
         let bounded_logs = client.get_filter_changes(bounded_filter_id).await?;
         let FilterChanges::Hashes(bounded_logs) = bounded_logs else {

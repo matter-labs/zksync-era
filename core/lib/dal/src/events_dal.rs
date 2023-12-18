@@ -196,6 +196,7 @@ impl EventsDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
     use zksync_types::{Address, L1BatchNumber, ProtocolVersion};
 
     use super::*;
@@ -244,9 +245,25 @@ mod tests {
             create_vm_event(3, 3),
             create_vm_event(4, 4),
         ];
+
+        let third_location = IncludedTxLocation {
+            tx_hash: H256([3; 32]),
+            tx_index_in_miniblock: 2,
+            tx_initiator_address: Address::default(),
+        };
+
+        // ETH Transfer event, that should be filtered out
+        let third_events = vec![VmEvent {
+            location: (L1BatchNumber(1), 5),
+            address: L2_ETH_TOKEN_ADDRESS,
+            indexed_topics: vec![TRANSFER_EVENT_TOPIC],
+            value: vec![5],
+        }];
+
         let all_events = vec![
             (first_location, first_events.iter().collect()),
             (second_location, second_events.iter().collect()),
+            (third_location, third_events.iter().collect()),
         ];
         conn.events_dal()
             .save_events(MiniblockNumber(1), &all_events)
@@ -274,6 +291,13 @@ mod tests {
             assert_eq!(log.data.0, [i]);
             assert_eq!(log.topics, *expected_topics);
         }
+
+        let logs = conn
+            .events_web3_dal()
+            .get_all_logs(MiniblockNumber(0), false)
+            .await
+            .unwrap();
+        assert_eq!(logs.len(), 6);
     }
 
     fn create_l2_to_l1_log(tx_number_in_block: u16, index: u8) -> UserL2ToL1Log {

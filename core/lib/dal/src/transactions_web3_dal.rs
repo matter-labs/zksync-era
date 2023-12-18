@@ -137,7 +137,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                         r#"
                         SELECT
                             address, topic1, topic2, topic3, topic4, value,
-                            Null::bytea as "block_hash", Null::bigint as "l1_batch_number?",
+                            Null::bytea as "block_hash", Null::bigint as "l1_batch_number",
                             miniblock_number, tx_hash, tx_index_in_block,
                             event_index_in_block, event_index_in_tx
                         FROM events

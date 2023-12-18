@@ -253,12 +253,23 @@ impl WsTest for LogSubscriptions {
         let mut storage = pool.access_storage().await?;
         let (tx_location, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
-        let events: Vec<_> = events.iter().collect();
+        let events: Vec<_> = events
+            .iter()
+            .filter(|event| {
+                !(event.address == L2_ETH_TOKEN_ADDRESS
+                    && !event.indexed_topics.is_empty()
+                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
+            })
+            .collect();
 
-        let all_logs = collect_logs(&mut all_logs_subscription, 4).await?;
+        let all_logs = collect_logs(&mut all_logs_subscription, 6).await?;
         for (i, log) in all_logs.iter().enumerate() {
             assert_eq!(log.transaction_index, Some(0.into()));
-            assert_eq!(log.log_index, Some(i.into()));
+            if i < 4 {
+                assert_eq!(log.log_index, Some(i.into()));
+            } else {
+                assert_eq!(log.log_index, Some((i + 1).into()));
+            }
             assert_eq!(log.transaction_hash, Some(tx_location.tx_hash));
             assert_eq!(log.block_number, Some(1.into()));
         }
@@ -326,18 +337,32 @@ impl WsTest for LogSubscriptionsWithNewBlock {
         let mut storage = pool.access_storage().await?;
         let (_, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
-        let events: Vec<_> = events.iter().collect();
+        let events: Vec<_> = events
+            .iter()
+            .filter(|event| {
+                !(event.address == L2_ETH_TOKEN_ADDRESS
+                    && !event.indexed_topics.is_empty()
+                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
+            })
+            .collect();
 
-        let all_logs = collect_logs(&mut all_logs_subscription, 4).await?;
+        let all_logs = collect_logs(&mut all_logs_subscription, 6).await?;
         assert_logs_match(&all_logs, &events);
 
         // Create a new block and wait for the pub-sub notifier to run.
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
-        let new_events: Vec<_> = new_events.iter().collect();
+        let new_events: Vec<_> = new_events
+            .iter()
+            .filter(|event| {
+                !(event.address == L2_ETH_TOKEN_ADDRESS
+                    && !event.indexed_topics.is_empty()
+                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
+            })
+            .collect();
 
-        let all_new_logs = collect_logs(&mut all_logs_subscription, 4).await?;
+        let all_new_logs = collect_logs(&mut all_logs_subscription, 6).await?;
         assert_logs_match(&all_new_logs, &new_events);
 
         let address_logs = collect_logs(&mut address_subscription, 4).await?;
@@ -375,15 +400,29 @@ impl WsTest for LogSubscriptionsWithManyBlocks {
         let mut storage = pool.access_storage().await?;
         let mut transaction = storage.start_transaction().await?;
         let (_, events) = store_events(&mut transaction, 1, 0).await?;
-        let events: Vec<_> = events.iter().collect();
+        let events: Vec<_> = events
+            .iter()
+            .filter(|event| {
+                !(event.address == L2_ETH_TOKEN_ADDRESS
+                    && !event.indexed_topics.is_empty()
+                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
+            })
+            .collect();
         let (_, new_events) = store_events(&mut transaction, 2, 4).await?;
-        let new_events: Vec<_> = new_events.iter().collect();
+        let new_events: Vec<_> = new_events
+            .iter()
+            .filter(|event| {
+                !(event.address == L2_ETH_TOKEN_ADDRESS
+                    && !event.indexed_topics.is_empty()
+                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
+            })
+            .collect();
         transaction.commit().await?;
         drop(storage);
 
-        let all_logs = collect_logs(&mut all_logs_subscription, 4).await?;
+        let all_logs = collect_logs(&mut all_logs_subscription, 6).await?;
         assert_logs_match(&all_logs, &events);
-        let all_new_logs = collect_logs(&mut all_logs_subscription, 4).await?;
+        let all_new_logs = collect_logs(&mut all_logs_subscription, 6).await?;
         assert_logs_match(&all_new_logs, &new_events);
 
         let address_logs = collect_logs(&mut address_subscription, 4).await?;
@@ -440,9 +479,16 @@ impl WsTest for LogSubscriptionsWithDelay {
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
-        let new_events: Vec<_> = new_events.iter().collect();
+        let new_events: Vec<_> = new_events
+            .iter()
+            .filter(|event| {
+                !(event.address == L2_ETH_TOKEN_ADDRESS
+                    && !event.indexed_topics.is_empty()
+                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
+            })
+            .collect();
 
-        let all_logs = collect_logs(&mut all_logs_subscription, 4).await?;
+        let all_logs = collect_logs(&mut all_logs_subscription, 6).await?;
         assert_logs_match(&all_logs, &new_events);
         let address_and_topic_logs = collect_logs(&mut address_and_topic_subscription, 1).await?;
         assert_logs_match(&address_and_topic_logs, &[new_events[3]]);
