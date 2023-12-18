@@ -1,5 +1,5 @@
 use sqlx::Row;
-use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_HASH};
+use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
 use zksync_types::{
     api::{GetLogsFilter, Log},
     Address, MiniblockNumber, H256,
@@ -51,7 +51,7 @@ impl EventsWeb3Dal<'_, '_> {
 
             if skip_transfer_event {
                 query = query.bind(L2_ETH_TOKEN_ADDRESS.as_bytes());
-                query = query.bind(TRANSFER_EVENT_HASH.as_bytes());
+                query = query.bind(TRANSFER_EVENT_TOPIC.as_bytes());
             }
 
             query = query.bind(offset as i32);
@@ -111,7 +111,7 @@ impl EventsWeb3Dal<'_, '_> {
 
             if skip_transfer_event {
                 query = query.bind(L2_ETH_TOKEN_ADDRESS.as_bytes());
-                query = query.bind(TRANSFER_EVENT_HASH.as_bytes());
+                query = query.bind(TRANSFER_EVENT_TOPIC.as_bytes());
             }
 
             query = query.bind(limit as i32);
@@ -150,7 +150,7 @@ impl EventsWeb3Dal<'_, '_> {
 
         if skip_transfer_event {
             where_sql += &format!(
-                "AND NOT (address = ${} AND topic1 = ${})",
+                " AND NOT (address = ${} AND topic1 = ${})",
                 arg_index,
                 arg_index + 1
             );
@@ -182,10 +182,10 @@ impl EventsWeb3Dal<'_, '_> {
                     WHERE miniblock_number > $1 {}
                     ORDER BY miniblock_number ASC, event_index_in_block ASC
                 )
-                SELECT miniblocks.hash as "block_hash?",
-                    address as "address!", topic1 as "topic1!", topic2 as "topic2!", topic3 as "topic3!", topic4 as "topic4!", value as "value!",
-                    miniblock_number as "miniblock_number!", miniblocks.l1_batch_number as "l1_batch_number?", tx_hash as "tx_hash!",
-                    tx_index_in_block as "tx_index_in_block!", event_index_in_block as "event_index_in_block!", event_index_in_tx as "event_index_in_tx!"
+                SELECT miniblocks.hash as "block_hash",
+                    address as "address", topic1 as "topic1", topic2 as "topic2", topic3 as "topic3", topic4 as "topic4", value as "value",
+                    miniblock_number as "miniblock_number", miniblocks.l1_batch_number as "l1_batch_number", tx_hash as "tx_hash",
+                    tx_index_in_block as "tx_index_in_block", event_index_in_block as "event_index_in_block", event_index_in_tx as "event_index_in_tx"
                 FROM events_select
                 INNER JOIN miniblocks ON events_select.miniblock_number = miniblocks.number
                 ORDER BY miniblock_number ASC, event_index_in_block ASC
@@ -199,11 +199,13 @@ impl EventsWeb3Dal<'_, '_> {
 
             if skip_transfer_event {
                 query = query.bind(L2_ETH_TOKEN_ADDRESS.as_bytes());
-                query = query.bind(TRANSFER_EVENT_HASH.as_bytes());
+                query = query.bind(TRANSFER_EVENT_TOPIC.as_bytes());
             }
 
             let db_logs: Vec<StorageWeb3Log> = query.fetch_all(self.storage.conn()).await?;
+
             let logs = db_logs.into_iter().map(Into::into).collect();
+
             Ok(logs)
         }
     }
@@ -233,9 +235,17 @@ mod tests {
 
         // todo: try with different params
         let (actual_sql, actual_arg_index) =
-            events_web3_dal.build_get_logs_where_clause(&filter, true);
+            events_web3_dal.build_get_logs_where_clause(&filter, false);
 
         assert_eq!(actual_sql, expected_sql);
         assert_eq!(actual_arg_index, expected_arg_index);
+
+        let (actual_sql, actual_arg_index) =
+            events_web3_dal.build_get_logs_where_clause(&filter, true);
+
+        let expected_sql = "(miniblock_number >= 100) AND (miniblock_number <= 200) AND (address = ANY($1)) AND (topic0 = ANY($2)) AND NOT (address = $3 AND topic1 = $4)";
+
+        assert_eq!(actual_sql, expected_sql);
+        assert_eq!(actual_arg_index, expected_arg_index + 2);
     }
 }

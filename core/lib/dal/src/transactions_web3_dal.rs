@@ -1,5 +1,5 @@
 use sqlx::types::chrono::NaiveDateTime;
-use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_HASH};
+use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
 use zksync_types::{
     api, Address, L2ChainId, MiniblockNumber, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256, U256, U64,
@@ -153,7 +153,7 @@ impl TransactionsWeb3Dal<'_, '_> {
 
                     if skip_transfer_event {
                         query = query.bind(L2_ETH_TOKEN_ADDRESS.as_bytes());
-                        query = query.bind(TRANSFER_EVENT_HASH.as_bytes());
+                        query = query.bind(TRANSFER_EVENT_TOPIC.as_bytes());
                     }
 
                     let logs: Vec<StorageWeb3Log> = query
