@@ -1,5 +1,5 @@
 use zksync_concurrency::{ctx, scope};
-use zksync_consensus_executor::testonly;
+use zksync_consensus_executor::testonly::ValidatorNode;
 use zksync_consensus_roles::validator;
 use zksync_dal::ConnectionPool;
 use zksync_types::Address;
@@ -28,28 +28,14 @@ async fn test_backfill() {
         sk.push_random_blocks(rng, 10).await;
         sk.sync(ctx, &pool).await.context("sk.sync(<1st phase>)")?;
 
-        // Prepare genesis block for consensus.
-        let genesis_payload = {
-            let mut storage = storage::storage(ctx, &pool).await.context("storage()")?;
-            storage
-                .fetch_payload(ctx, GENESIS_BLOCK, OPERATOR_ADDRESS)
-                .await
-                .context("fetch_payload(<genesis>)")?
-                .context("genesis block missing")?
-        };
-        let cfg = testonly::Validator::for_single_validator(
-            &mut ctx.rng(),
-            genesis_payload.encode(),
-            GENESIS_BLOCK,
-        );
-        let validators = cfg.node_config.validators.clone();
+        let cfg = ValidatorNode::for_single_validator(&mut ctx.rng());
+        let validators = cfg.node.validators.clone();
 
         // Start consensus actor and wait for it to catch up.
         let cfg = Config {
-            executor: cfg.node_config,
-            consensus: cfg.consensus_config,
-            node_key: cfg.node_key,
-            validator_key: cfg.validator_key,
+            executor: cfg.node,
+            validator: cfg.validator,
+            genesis_block_number: GENESIS_BLOCK,
             operator_address: OPERATOR_ADDRESS,
         };
         s.spawn_bg(cfg.run(ctx, pool.clone()));

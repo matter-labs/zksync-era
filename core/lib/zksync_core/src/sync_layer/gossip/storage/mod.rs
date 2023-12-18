@@ -10,9 +10,9 @@ use zksync_concurrency::{
     sync::{self, watch, Mutex},
     time,
 };
-use zksync_consensus_roles::validator::{BlockNumber, FinalBlock};
+use zksync_consensus_roles::validator;
 use zksync_consensus_storage::BlockStore;
-use zksync_dal::{blocks_dal::ConsensusBlockFields, ConnectionPool, StorageProcessor};
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{api::en::SyncBlock, Address, MiniblockNumber};
 
 #[cfg(test)]
@@ -20,7 +20,6 @@ mod tests;
 
 use super::buffered::ContiguousBlockStore;
 use crate::{
-    consensus,
     consensus::sync_block_to_consensus_block,
     sync_layer::{
         fetcher::{FetchedBlock, FetcherCursor},
@@ -73,7 +72,7 @@ pub(super) struct PostgresBlockStorage {
     pool: ConnectionPool,
     first_block_number: MiniblockNumber,
     actions: ActionQueueSender,
-    block_sender: watch::Sender<BlockNumber>,
+    block_sender: watch::Sender<validator::BlockNumber>,
     cursor: Mutex<CursorWithCachedBlock>,
     operator_address: Address,
 }
@@ -85,22 +84,27 @@ impl PostgresBlockStorage {
         pool: ConnectionPool,
         actions: ActionQueueSender,
         cursor: FetcherCursor,
-        genesis_block: &FinalBlock,
+        genesis_block: validator::BlockNumber,
         operator_address: Address,
     ) -> ctx::Result<Self> {
-        let mut storage = ctx.wait(pool.access_storage_tagged("sync_layer")).await??;
-        Self::ensure_genesis_block(ctx, &mut storage, genesis_block, operator_address)
-            .await
-            .wrap("ensure_genesis_block()")?;
-        drop(storage);
-
-        let first_block_number = u32::try_from(genesis_block.header.number.0)
-            .context("Block number overflow for genesis block")?;
-        let first_block_number = MiniblockNumber(first_block_number);
-
+        let genesis_block =
+            u32::try_from(genesis_block.0).context("Block number overflow for genesis block")?;
+        let genesis_block = MiniblockNumber(genesis_block);
+        {
+            let mut storage = ctx.wait(pool.access_storage_tagged("sync_layer")).await??;
+            if !ctx
+                .wait(storage.blocks_dal().has_consensus_fields(genesis_block))
+                .await?
+                .context("has_consensus_fields()")?
+            {
+                return Err(
+                    anyhow::anyhow!("genesis block doesn't have consensus fields set").into(),
+                );
+            }
+        }
         Ok(Self::new_unchecked(
             pool,
-            first_block_number,
+            genesis_block,
             actions,
             cursor,
             operator_address,
@@ -119,73 +123,10 @@ impl PostgresBlockStorage {
             pool,
             first_block_number,
             actions,
-            block_sender: watch::channel(BlockNumber(current_block_number)).0,
+            block_sender: watch::channel(validator::BlockNumber(current_block_number)).0,
             cursor: Mutex::new(cursor.into()),
             operator_address,
         }
-    }
-
-    async fn ensure_genesis_block(
-        ctx: &ctx::Ctx,
-        storage: &mut StorageProcessor<'_>,
-        genesis_block: &FinalBlock,
-        operator_address: Address,
-    ) -> ctx::Result<()> {
-        let block_number = u32::try_from(genesis_block.header.number.0)
-            .context("Block number overflow for genesis block")?;
-        let block = Self::sync_block(
-            ctx,
-            storage,
-            MiniblockNumber(block_number),
-            operator_address,
-        )
-        .await
-        .wrap("sync_block();")?;
-        let block = block
-            .with_context(|| {
-                format!("Genesis block #{block_number} (first block with consensus data) is not present in Postgres")
-            })?;
-        let actual_consensus_fields = block.consensus.clone();
-
-        // Some of the following checks are duplicated in `Executor` initialization, but it's necessary
-        // to run them if the genesis consensus block is not present locally.
-        let expected_payload = consensus::Payload::decode(&genesis_block.payload)
-            .context("Cannot decode genesis block payload")?;
-        let actual_payload: consensus::Payload = block.try_into()?;
-        if actual_payload != expected_payload {
-            return Err(anyhow::anyhow!(
-                "Genesis block payload from Postgres {actual_payload:?} does not match the configured one \
-                 {expected_payload:?}"
-            ).into());
-        }
-
-        let expected_consensus_fields = ConsensusBlockFields {
-            parent: genesis_block.header.parent,
-            justification: genesis_block.justification.clone(),
-        };
-        if let Some(actual_consensus_fields) = &actual_consensus_fields {
-            let actual_consensus_fields = ConsensusBlockFields::decode(actual_consensus_fields)
-                .context("ConsensusBlockFields::decode()")?;
-            // While justifications may differ among nodes for an arbitrary block, we assume that
-            // the genesis block has a hardcoded justification.
-            if actual_consensus_fields != expected_consensus_fields {
-                return Err(anyhow::anyhow!(
-                    "Genesis block consensus fields in Postgres {actual_consensus_fields:?} do not match \
-                     the configured ones {expected_consensus_fields:?}"
-                ).into());
-            }
-        } else {
-            tracing::info!(
-                "Postgres doesn't have consensus fields for genesis block; saving {expected_consensus_fields:?}"
-            );
-            ctx.wait(storage.blocks_dal().set_miniblock_consensus_fields(
-                MiniblockNumber(block_number),
-                &expected_consensus_fields,
-            ))
-            .await?
-            .context("Failed saving consensus fields for genesis block")?;
-        }
-        Ok(())
     }
 
     /// Runs background tasks for this store. This method **must** be spawned as a background task
@@ -241,7 +182,7 @@ impl PostgresBlockStorage {
         storage: &mut StorageProcessor<'_>,
         number: MiniblockNumber,
         operator_address: Address,
-    ) -> ctx::Result<Option<FinalBlock>> {
+    ) -> ctx::Result<Option<validator::FinalBlock>> {
         let Some(block) = Self::sync_block(ctx, storage, number, operator_address)
             .await
             .wrap("Self::sync_block()")?
@@ -253,19 +194,19 @@ impl PostgresBlockStorage {
         Ok(Some(block))
     }
 
-    async fn sealed_miniblock_number(&self, ctx: &ctx::Ctx) -> ctx::Result<BlockNumber> {
+    async fn sealed_miniblock_number(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::BlockNumber> {
         let mut storage = self.storage(ctx).await.wrap("storage()")?;
         let number = ctx
             .wait(storage.blocks_dal().get_sealed_miniblock_number())
             .await?
             .context("Failed getting sealed miniblock number")?;
-        Ok(BlockNumber(number.0.into()))
+        Ok(validator::BlockNumber(number.0.into()))
     }
 }
 
 #[async_trait]
 impl BlockStore for PostgresBlockStorage {
-    async fn head_block(&self, ctx: &ctx::Ctx) -> ctx::Result<FinalBlock> {
+    async fn head_block(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::FinalBlock> {
         let mut storage = self.storage(ctx).await.wrap("storage()")?;
         let miniblock_number = ctx
             .wait(storage.blocks_dal().get_sealed_miniblock_number())
@@ -282,7 +223,7 @@ impl BlockStore for PostgresBlockStorage {
         )
     }
 
-    async fn first_block(&self, ctx: &ctx::Ctx) -> ctx::Result<FinalBlock> {
+    async fn first_block(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::FinalBlock> {
         let mut storage = self.storage(ctx).await.wrap("storage()")?;
         Ok(Self::block(
             ctx,
@@ -295,13 +236,20 @@ impl BlockStore for PostgresBlockStorage {
         .context("Genesis miniblock not present in Postgres")?)
     }
 
-    async fn last_contiguous_block_number(&self, ctx: &ctx::Ctx) -> ctx::Result<BlockNumber> {
+    async fn last_contiguous_block_number(
+        &self,
+        ctx: &ctx::Ctx,
+    ) -> ctx::Result<validator::BlockNumber> {
         self.sealed_miniblock_number(ctx)
             .await
             .wrap("sealed_miniblock_number()")
     }
 
-    async fn block(&self, ctx: &ctx::Ctx, number: BlockNumber) -> ctx::Result<Option<FinalBlock>> {
+    async fn block(
+        &self,
+        ctx: &ctx::Ctx,
+        number: validator::BlockNumber,
+    ) -> ctx::Result<Option<validator::FinalBlock>> {
         let Ok(number) = u32::try_from(number.0) else {
             return Ok(None);
         };
@@ -318,32 +266,38 @@ impl BlockStore for PostgresBlockStorage {
     async fn missing_block_numbers(
         &self,
         ctx: &ctx::Ctx,
-        range: ops::Range<BlockNumber>,
-    ) -> ctx::Result<Vec<BlockNumber>> {
+        range: ops::Range<validator::BlockNumber>,
+    ) -> ctx::Result<Vec<validator::BlockNumber>> {
         let mut output = vec![];
         let first_block_number = u64::from(self.first_block_number.0);
-        let numbers_before_first_block = (range.start.0..first_block_number).map(BlockNumber);
+        let numbers_before_first_block =
+            (range.start.0..first_block_number).map(validator::BlockNumber);
         output.extend(numbers_before_first_block);
 
         let last_block_number = self
             .sealed_miniblock_number(ctx)
             .await
             .wrap("sealed_miniblock_number()")?;
-        let numbers_after_last_block = (last_block_number.next().0..range.end.0).map(BlockNumber);
+        let numbers_after_last_block =
+            (last_block_number.next().0..range.end.0).map(validator::BlockNumber);
         output.extend(numbers_after_last_block);
 
         // By design, no blocks are missing in the `first_block_number..=last_block_number` range.
         Ok(output)
     }
 
-    fn subscribe_to_block_writes(&self) -> watch::Receiver<BlockNumber> {
+    fn subscribe_to_block_writes(&self) -> watch::Receiver<validator::BlockNumber> {
         self.block_sender.subscribe()
     }
 }
 
 #[async_trait]
 impl ContiguousBlockStore for PostgresBlockStorage {
-    async fn schedule_next_block(&self, ctx: &ctx::Ctx, block: &FinalBlock) -> ctx::Result<()> {
+    async fn schedule_next_block(
+        &self,
+        ctx: &ctx::Ctx,
+        block: &validator::FinalBlock,
+    ) -> ctx::Result<()> {
         // last_in_batch` is always set to `false` by this call; it is properly set by `CursorWithCachedBlock`.
         let fetched_block =
             FetchedBlock::from_gossip_block(block, false).context("from_gossip_block()")?;

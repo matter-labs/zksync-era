@@ -58,3 +58,7 @@ exclude = []
 [profile.perf]
 inherits = "release"
 debug = true
+
+[replace]
+"https://github.com/matter-labs/era-zkevm_test_harness.git#zkevm_test_harness@1.3.3" = { git = 'file:///home/gprusak/github/era-zkevm_test_harness', branch = "v1.3.3" }
+"https://github.com/matter-labs/era-zkevm_test_harness.git#zkevm_test_harness@1.4.0" = { git = 'file:///home/gprusak/github/era-zkevm_test_harness', branch = "v1.4.0" }

@@ -222,14 +222,14 @@ impl SignedBlockStore {
                 .fetch_payload(ctx, genesis, operator_address)
                 .await
                 .wrap("fetch_payload(<genesis>)")?
-                .wrap("genesis block missing")?;
-            let genesis = zksync_consensus_bft::testonly::make_genesis(
+                .context("genesis block missing")?;
+            let (genesis, _) = zksync_consensus_bft::testonly::make_genesis(
                 &[validator_key.clone()],
-                payload,
+                payload.encode(),
                 genesis,
             );
             storage
-                .put_block(ctx, genesis, operator_address)
+                .put_block(ctx, &genesis, operator_address)
                 .await
                 .wrap("put_block()")?;
 
@@ -242,7 +242,7 @@ impl SignedBlockStore {
                 .wrap("find_head_number()")?
         };
         Ok(Self {
-            genesis: genesis.header.number,
+            genesis,
             head: sync::watch::channel(head).0,
             pool,
             operator_address,

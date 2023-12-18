@@ -1,11 +1,12 @@
 //! Tests for consensus adapters for EN synchronization logic.
+#![allow(unreachable_code, unused_variables)]
 
 use std::ops;
 
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use zksync_concurrency::{ctx, scope, testonly::abort_on_panic, time};
-use zksync_consensus_executor::testonly;
+use zksync_consensus_executor::testonly::ValidatorNode;
 use zksync_consensus_roles::validator::{self, FinalBlock};
 use zksync_consensus_storage::{InMemoryStorage, WriteBlockStore};
 use zksync_dal::{blocks_dal::ConsensusBlockFields, ConnectionPool, StorageProcessor};
@@ -182,22 +183,18 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
     let genesis_block_payload = block_payload(&mut storage, 0).await.encode();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
     let rng = &mut ctx.rng();
-    let mut validator = testonly::Validator::for_single_validator(
-        rng,
-        genesis_block_payload,
-        validator::BlockNumber(0),
-    );
-    let validator_set = validator.node_config.validators.clone();
+    let mut validator = ValidatorNode::for_single_validator(rng);
+    let validator_set = validator.node.validators.clone();
     let external_node = validator.connect_full_node(rng);
 
-    let genesis_block = validator.node_config.genesis_block.clone();
-    add_consensus_fields(&mut storage, &validator.validator_key, 0..3).await;
+    add_consensus_fields(&mut storage, &validator.validator.key, 0..3).await;
     let blocks = convert_sync_blocks(reset_storage(storage).await);
     let [first_block, second_block] = blocks.as_slice() else {
         unreachable!("Unexpected blocks in storage: {blocks:?}");
     };
     tracing::trace!("Node storage reset");
 
+    let genesis_block: validator::FinalBlock = todo!();
     let validator_storage = Arc::new(InMemoryStorage::new(genesis_block));
     if !delay_first_block {
         validator_storage.put_block(ctx, first_block).await.unwrap();
@@ -213,24 +210,22 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
     let (keeper_actions_sender, keeper_actions) = ActionQueue::new();
     let state_keeper = StateKeeperHandles::new(pool.clone(), keeper_actions, &[&tx_hashes]).await;
     scope::run!(ctx, |ctx, s| async {
-        let validator = Executor::new(
-            ctx,
-            validator.node_config,
-            validator.node_key,
-            validator_storage.clone(),
-        )
-        .await?;
+        let validator = executor::Executor {
+            config: validator.node,
+            storage: validator_storage.clone(),
+            validator: None,
+        };
         // ^ We intentionally do not run consensus on the validator node, since it'll produce blocks
         // with payloads that cannot be parsed by the external node.
 
         s.spawn_bg(validator.run(ctx));
         s.spawn_bg(
             FetcherConfig {
-                executor: external_node.node_config,
-                node_key: external_node.node_key,
+                executor: external_node,
+                genesis_block_number: todo!(),
                 operator_address: OPERATOR_ADDRESS,
             }
-            .run_inner(ctx, pool.clone(), actions_sender),
+            .run(ctx, pool.clone(), actions_sender),
         );
 
         if delay_first_block {
@@ -316,22 +311,17 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
     let genesis_block_payload = block_payload(&mut storage, 0).await.encode();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
     let rng = &mut ctx.rng();
-    let mut validator = FullValidatorConfig::for_single_validator(
-        rng,
-        genesis_block_payload,
-        validator::BlockNumber(0),
-    );
-    let validator_set = validator.node_config.validators.clone();
+    let mut validator = ValidatorNode::for_single_validator(rng);
+    let validator_set = validator.node.validators.clone();
     let external_node = validator.connect_full_node(rng);
 
-    let genesis_block = validator.node_config.genesis_block.clone();
-    add_consensus_fields(&mut storage, &validator.validator_key, 0..4).await;
+    add_consensus_fields(&mut storage, &validator.validator.key, 0..4).await;
     let blocks = convert_sync_blocks(reset_storage(storage).await);
     assert_eq!(blocks.len(), 3); // 2 real + 1 fictive blocks
     tracing::trace!("Node storage reset");
     let (initial_blocks, delayed_blocks) = blocks.split_at(initial_block_count);
 
-    let validator_storage = Arc::new(InMemoryStorage::new(genesis_block));
+    let validator_storage = Arc::new(InMemoryStorage::new(todo!()));
     for block in initial_blocks {
         validator_storage.put_block(ctx, block).await.unwrap();
     }
@@ -339,13 +329,11 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
     let (actions_sender, actions) = ActionQueue::new();
     let state_keeper = StateKeeperHandles::new(pool.clone(), actions, &tx_hashes).await;
     scope::run!(ctx, |ctx, s| async {
-        let validator = Executor::new(
-            ctx,
-            validator.node_config,
-            validator.node_key,
-            validator_storage.clone(),
-        )
-        .await?;
+        let validator = executor::Executor {
+            config: validator.node,
+            storage: validator_storage.clone(),
+            validator: None,
+        };
 
         s.spawn_bg(validator.run(ctx));
         s.spawn_bg(async {
@@ -362,11 +350,11 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
         });
         s.spawn_bg(
             FetcherConfig {
-                executor: external_node.node_config,
-                node_key: external_node.node_key,
+                executor: external_node,
+                genesis_block_number: todo!(),
                 operator_address: OPERATOR_ADDRESS,
             }
-            .run_inner(ctx, pool.clone(), actions_sender),
+            .run(ctx, pool.clone(), actions_sender),
         );
         state_keeper
             .wait(|state| state.get_local_block() == MiniblockNumber(3))
@@ -398,24 +386,19 @@ async fn syncing_from_non_zero_block(first_block_number: u32) {
         .encode();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
     let rng = &mut ctx.rng();
-    let mut validator = FullValidatorConfig::for_single_validator(
-        rng,
-        genesis_block_payload.clone(),
-        validator::BlockNumber(0),
-    );
+    let mut validator = ValidatorNode::for_single_validator(rng);
     // Override the genesis block since it has an incorrect block number.
     let genesis_block = create_genesis_block(
-        &validator.validator_key,
+        &validator.validator.key,
         first_block_number.into(),
         genesis_block_payload,
     );
-    validator.node_config.genesis_block = genesis_block.clone();
-    let validator_set = validator.node_config.validators.clone();
+    let validator_set = validator.node.validators.clone();
     let external_node = validator.connect_full_node(rng);
 
     add_consensus_fields(
         &mut storage,
-        &validator.validator_key,
+        &validator.validator.key,
         first_block_number..4,
     )
     .await;
@@ -439,13 +422,11 @@ async fn syncing_from_non_zero_block(first_block_number: u32) {
     let (actions_sender, actions) = ActionQueue::new();
     let state_keeper = StateKeeperHandles::new(pool.clone(), actions, tx_hashes).await;
     scope::run!(ctx, |ctx, s| async {
-        let validator = Executor::new(
-            ctx,
-            validator.node_config,
-            validator.node_key,
-            validator_storage.clone(),
-        )
-        .await?;
+        let validator = executor::Executor {
+            config: validator.node,
+            storage: validator_storage.clone(),
+            validator: None,
+        };
 
         s.spawn_bg(async { validator.run(ctx).await.context("validator.run()") });
 
@@ -472,11 +453,11 @@ async fn syncing_from_non_zero_block(first_block_number: u32) {
 
         s.spawn_bg(
             FetcherConfig {
-                executor: external_node.node_config,
-                node_key: external_node.node_key,
+                executor: external_node,
+                genesis_block_number: todo!(),
                 operator_address: OPERATOR_ADDRESS,
             }
-            .run_inner(ctx, pool.clone(), actions_sender),
+            .run(ctx, pool.clone(), actions_sender),
         );
 
         ctx.wait(state_keeper.wait(|state| state.get_local_block() == MiniblockNumber(3)))

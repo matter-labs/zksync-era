@@ -3,6 +3,7 @@
 use rand::{thread_rng, Rng};
 use zksync_concurrency::{scope, testonly::abort_on_panic};
 use zksync_consensus_roles::validator;
+use zksync_consensus_roles::validator::BlockNumber;
 use zksync_types::L2ChainId;
 
 use super::*;
@@ -171,7 +172,7 @@ async fn ensuring_consensus_fields_for_genesis_block() {
         pool.clone(),
         actions_sender,
         cursor,
-        &genesis_block,
+        genesis_block.header.number,
         OPERATOR_ADDRESS,
     )
     .await
@@ -197,7 +198,7 @@ async fn ensuring_consensus_fields_for_genesis_block() {
         pool.clone(),
         actions_sender,
         cursor,
-        &genesis_block,
+        genesis_block.header.number,
         OPERATOR_ADDRESS,
     )
     .await
@@ -214,7 +215,7 @@ async fn ensuring_consensus_fields_for_genesis_block() {
         pool,
         actions_sender,
         other_cursor,
-        &other_genesis_block,
+        other_genesis_block.header.number,
         OPERATOR_ADDRESS,
     )
     .await
@@ -245,7 +246,7 @@ async fn genesis_block_payload_mismatch() {
         pool.clone(),
         actions_sender,
         cursor,
-        &genesis_block,
+        genesis_block.header.number,
         OPERATOR_ADDRESS,
     )
     .await
@@ -261,7 +262,7 @@ async fn genesis_block_payload_mismatch() {
         pool.clone(),
         actions_sender,
         other_cursor,
-        &genesis_block,
+        genesis_block.header.number,
         OPERATOR_ADDRESS,
     )
     .await
@@ -293,7 +294,7 @@ async fn missing_genesis_block() {
         pool,
         actions_sender,
         cursor,
-        &genesis_block,
+        genesis_block.header.number,
         OPERATOR_ADDRESS,
     )
     .await
@@ -321,7 +322,7 @@ async fn using_non_zero_genesis_block() {
         pool,
         actions_sender,
         cursor,
-        &genesis_block,
+        genesis_block.header.number,
         OPERATOR_ADDRESS,
     )
     .await

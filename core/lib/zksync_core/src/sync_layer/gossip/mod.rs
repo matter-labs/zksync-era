@@ -3,10 +3,9 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use tokio::sync::watch;
 use zksync_concurrency::{ctx, error::Wrap as _, scope};
-use zksync_consensus_executor::Executor;
-use zksync_consensus_roles::node;
+use zksync_consensus_executor as executor;
+use zksync_consensus_roles::validator;
 use zksync_dal::ConnectionPool;
 use zksync_types::Address;
 
@@ -23,8 +22,8 @@ mod tests;
 mod utils;
 
 pub struct FetcherConfig {
-    executor: ExecutorConfig,
-    node_key: node::SecretKey,
+    executor: executor::Config,
+    genesis_block_number: validator::BlockNumber,
     operator_address: Address,
 }
 
@@ -32,8 +31,8 @@ impl TryFrom<consensus::SerdeConfig> for FetcherConfig {
     type Error = anyhow::Error;
     fn try_from(cfg: consensus::SerdeConfig) -> anyhow::Result<Self> {
         Ok(Self {
-            executor: cfg.executor(),
-            node_key: cfg.node_key,
+            executor: cfg.executor()?,
+            genesis_block_number: validator::BlockNumber(cfg.genesis_block_number),
             operator_address: cfg
                 .operator_address
                 .context("operator_address is required")?,
@@ -44,26 +43,7 @@ impl TryFrom<consensus::SerdeConfig> for FetcherConfig {
 impl FetcherConfig {
     /// Starts fetching L2 blocks using peer-to-peer gossip network.
     pub async fn run(
-        mut self,
-        pool: ConnectionPool,
-        actions: ActionQueueSender,
-        mut stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
-        scope::run!(&ctx::root(), |ctx, s| async {
-            s.spawn_bg(self.run_inner(ctx, pool, actions));
-            if stop_receiver.changed().await.is_err() {
-                tracing::warn!(
-                    "Stop signal sender for gossip fetcher was dropped without sending a signal"
-                );
-            }
-            tracing::info!("Stop signal received, gossip fetcher is shutting down");
-            Ok(())
-        })
-        .await
-    }
-
-    async fn run_inner(
-        mut self,
+        self,
         ctx: &ctx::Ctx,
         pool: ConnectionPool,
         actions: ActionQueueSender,
@@ -71,7 +51,7 @@ impl FetcherConfig {
         tracing::info!(
             "Starting gossip fetcher with {:?} and node key {:?}",
             self.executor,
-            self.node_key.public(),
+            self.executor.node_key.public(),
         );
 
         let mut storage = pool
@@ -88,7 +68,7 @@ impl FetcherConfig {
             pool,
             actions,
             cursor,
-            &self.executor.genesis_block,
+            self.genesis_block_number,
             self.operator_address,
         )
         .await
@@ -97,9 +77,11 @@ impl FetcherConfig {
         let store = buffered.inner();
 
         scope::run!(ctx, |ctx, s| async {
-            let executor = Executor::new(ctx, self.executor, self.node_key, buffered.clone())
-                .await
-                .context("Node executor misconfiguration")?;
+            let executor = executor::Executor {
+                config: self.executor,
+                storage: buffered.clone(),
+                validator: None,
+            };
             s.spawn_bg(async {
                 store
                     .run_background_tasks(ctx)
