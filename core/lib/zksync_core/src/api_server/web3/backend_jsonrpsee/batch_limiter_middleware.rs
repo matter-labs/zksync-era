@@ -49,14 +49,11 @@ pub(crate) struct LimitMiddleware<S> {
 }
 
 impl<S> LimitMiddleware<S> {
-    pub(crate) fn new(inner: S, requests_per_minute_limit: Option<u32>) -> Self {
+    pub(crate) fn new(inner: S, requests_per_minute_limit: Option<NonZeroU32>) -> Self {
         Self {
             inner,
-            rate_limiter: requests_per_minute_limit.map(|limit| {
-                RateLimiter::direct(Quota::per_minute(
-                    NonZeroU32::new(limit).expect("requests per minute must be > 0; qed"),
-                ))
-            }),
+            rate_limiter: requests_per_minute_limit
+                .map(|limit| RateLimiter::direct(Quota::per_minute(limit))),
             transport: Transport::Ws,
             __guard: API_METRICS.ws_open_sessions.inc_guard(1),
         }

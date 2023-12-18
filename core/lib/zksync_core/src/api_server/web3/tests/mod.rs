@@ -96,7 +96,7 @@ async fn spawn_ws_server(
     network_config: &NetworkConfig,
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
-    websocket_requests_per_minute_limit: Option<u32>,
+    websocket_requests_per_minute_limit: Option<NonZeroU32>,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
     spawn_server(
         ApiTransportLabel::Ws,
@@ -113,7 +113,7 @@ async fn spawn_server(
     network_config: &NetworkConfig,
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
-    websocket_requests_per_minute_limit: Option<u32>,
+    websocket_requests_per_minute_limit: Option<NonZeroU32>,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = Web3JsonRpcConfig::for_tests();

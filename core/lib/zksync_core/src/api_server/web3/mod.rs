@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, sync::Arc, time::Duration};
+use std::{net::SocketAddr, num::NonZeroU32, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use chrono::NaiveDateTime;
@@ -116,7 +116,7 @@ pub struct ApiBuilder<G> {
     subscriptions_limit: Option<usize>,
     batch_request_size_limit: Option<usize>,
     response_body_size_limit: Option<usize>,
-    websocket_requests_per_minute_limit: Option<u32>,
+    websocket_requests_per_minute_limit: Option<NonZeroU32>,
     sync_state: Option<SyncState>,
     threads: Option<usize>,
     vm_concurrency_limit: Option<usize>,
@@ -200,7 +200,7 @@ impl<G> ApiBuilder<G> {
 
     pub fn with_websocket_requests_per_minute_limit(
         mut self,
-        websocket_requests_per_minute_limit: u32,
+        websocket_requests_per_minute_limit: NonZeroU32,
     ) -> Self {
         self.websocket_requests_per_minute_limit = Some(websocket_requests_per_minute_limit);
         self
@@ -476,7 +476,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         vm_barrier: VmConcurrencyBarrier,
         batch_request_config: BatchRequestConfig,
         response_body_size_limit: u32,
-        websocket_requests_per_minute_limit: Option<u32>,
+        websocket_requests_per_minute_limit: Option<NonZeroU32>,
     ) -> anyhow::Result<()> {
         let (transport_str, is_http, addr) = match transport {
             ApiTransport::Http(addr) => ("HTTP", true, addr),

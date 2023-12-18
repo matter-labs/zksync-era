@@ -74,7 +74,10 @@ trait WsTest {
     ) -> anyhow::Result<()>;
 }
 
-async fn test_ws_server(test: impl WsTest, websocket_requests_per_minute_limit: Option<u32>) {
+async fn test_ws_server(
+    test: impl WsTest,
+    websocket_requests_per_minute_limit: Option<NonZeroU32>,
+) {
     let pool = ConnectionPool::test_pool().await;
     let network_config = NetworkConfig::for_tests();
     let mut storage = pool.access_storage().await.unwrap();
@@ -501,5 +504,5 @@ impl WsTest for RateLimiting {
 
 #[tokio::test]
 async fn rate_limiting() {
-    test_ws_server(RateLimiting, Some(3)).await;
+    test_ws_server(RateLimiting, Some(NonZeroU32::new(3).unwrap())).await;
 }
