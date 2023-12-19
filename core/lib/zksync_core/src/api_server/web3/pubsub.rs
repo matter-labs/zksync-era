@@ -48,7 +48,7 @@ pub(super) enum PubSubEvent {
 /// Manager of notifications for a certain type of subscriptions.
 #[derive(Debug)]
 struct PubSubNotifier {
-    sender: broadcast::Sender<PubSubResult>,
+    sender: broadcast::Sender<Vec<PubSubResult>>,
     connection_pool: ConnectionPool,
     polling_interval: Duration,
     events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
@@ -91,11 +91,13 @@ impl PubSubNotifier {
             if let Some(last_block) = new_blocks.last() {
                 last_block_number = MiniblockNumber(last_block.number.unwrap().as_u32());
 
-                for new_block in new_blocks {
-                    // Errors only on 0 receivers, but we want to go on
-                    // if we have 0 subscribers so ignore the error.
-                    self.sender.send(PubSubResult::Header(new_block)).ok();
-                }
+                let new_blocks = new_blocks
+                    .into_iter()
+                    .map(|b| PubSubResult::Header(b))
+                    .collect();
+                // Errors only on 0 receivers, but we want to go on
+                // if we have 0 subscribers so ignore the error.
+                self.sender.send(new_blocks).ok();
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(
                 SubscriptionType::Blocks,
@@ -137,11 +139,13 @@ impl PubSubNotifier {
             if let Some(new_last_time) = new_last_time {
                 last_time = new_last_time;
 
-                for new_tx in new_txs {
-                    // Errors only on 0 receivers, but we want to go on
-                    // if we have 0 subscribers so ignore the error.
-                    self.sender.send(PubSubResult::TxHash(new_tx)).ok();
-                }
+                let new_txs = new_txs
+                    .into_iter()
+                    .map(|tx| PubSubResult::TxHash(tx))
+                    .collect();
+                // Errors only on 0 receivers, but we want to go on
+                // if we have 0 subscribers so ignore the error.
+                self.sender.send(new_txs).ok();
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(SubscriptionType::Txs));
         }
@@ -181,11 +185,14 @@ impl PubSubNotifier {
             if let Some(last_log) = new_logs.last() {
                 last_block_number = MiniblockNumber(last_log.block_number.unwrap().as_u32());
 
-                for new_log in new_logs {
-                    // Errors only on 0 receivers, but we want to go on
-                    // if we have 0 subscribers so ignore the error.
-                    self.sender.send(PubSubResult::Log(new_log)).ok();
-                }
+                let new_logs = new_logs
+                    .into_iter()
+                    .map(|log| PubSubResult::Log(log))
+                    .collect();
+
+                // Errors only on 0 receivers, but we want to go on
+                // if we have 0 subscribers so ignore the error.
+                self.sender.send(new_logs).ok();
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(SubscriptionType::Logs));
         }
@@ -206,9 +213,9 @@ impl PubSubNotifier {
 
 /// Subscription support for Web3 APIs.
 pub(super) struct EthSubscribe {
-    blocks: broadcast::Sender<PubSubResult>,
-    transactions: broadcast::Sender<PubSubResult>,
-    logs: broadcast::Sender<PubSubResult>,
+    blocks: broadcast::Sender<Vec<PubSubResult>>,
+    transactions: broadcast::Sender<Vec<PubSubResult>>,
+    logs: broadcast::Sender<Vec<PubSubResult>>,
     events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
 }
 
@@ -242,7 +249,7 @@ impl EthSubscribe {
     async fn subscriber(
         sink: SubscriptionSink,
         subscription_type: SubscriptionType,
-        mut b: broadcast::Receiver<PubSubResult>,
+        mut b: broadcast::Receiver<Vec<PubSubResult>>,
         filter: Option<PubSubFilter>,
     ) -> Result<(), anyhow::Error> {
         let _guard = PUB_SUB_METRICS.active_subscribers[&subscription_type].inc_guard(1);
@@ -251,25 +258,27 @@ impl EthSubscribe {
 
         loop {
             tokio::select! {
-                new_item = b.recv() => {
-                    let new_item = new_item?;
-                    if let PubSubResult::Log(log) = &new_item {
-                        if let Some(filter) = &filter {
-                            if !filter.matches(log) {
-                                continue;
+                new_items = b.recv() => {
+                    let new_items = new_items?;
+                    for item in new_items {
+                        if let PubSubResult::Log(log) = &item {
+                            if let Some(filter) = &filter {
+                                if !filter.matches(log) {
+                                    continue;
+                                }
                             }
                         }
+
+                        sink
+                            .send_timeout(
+                                SubscriptionMessage::from_json(&item)
+                                .expect("PubSubResult always serializable to json;qed"),
+                                SUBSCRIPTION_SINK_SEND_TIMEOUT,
+                            )
+                            .await?;
+
+                        PUB_SUB_METRICS.notify[&subscription_type].inc();
                     }
-
-                    sink
-                        .send_timeout(
-                            SubscriptionMessage::from_json(&new_item)
-                            .expect("PubSubResult always serializable to json;qed"),
-                            SUBSCRIPTION_SINK_SEND_TIMEOUT,
-                        )
-                        .await?;
-
-                    PUB_SUB_METRICS.notify[&subscription_type].inc();
                 }
                 _ = &mut closed => {
                     break
