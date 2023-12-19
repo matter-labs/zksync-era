@@ -22,7 +22,7 @@ impl ConsensusDal<'_, '_> {
         Ok(Some(zksync_protobuf::serde::deserialize(row.state)?))
     }
 
-    pub async fn put_replica_state(&mut self, state: &ReplicaState) -> sqlx::Result<()> {
+    pub async fn set_replica_state(&mut self, state: &ReplicaState) -> sqlx::Result<()> {
         let state =
             zksync_protobuf::serde::serialize(state, serde_json::value::Serializer).unwrap();
         sqlx::query!("INSERT INTO consensus_replica_state(fake_key,state) VALUES(true,$1) ON CONFLICT (fake_key) DO UPDATE SET state = excluded.state", state)
@@ -37,47 +37,54 @@ impl ConsensusDal<'_, '_> {
     /// with consensus fields.
     ///
     /// If better efficiency is needed we can add an index on "miniblocks without consensus fields".
-    pub async fn get_last_miniblock_with_consensus_fields(
-        &mut self,
-    ) -> anyhow::Result<Option<MiniblockNumber>> {
-        let Some(row) = sqlx::query!("SELECT number FROM miniblocks WHERE consensus IS NOT NULL ORDER BY number DESC LIMIT 1")
+    pub async fn get_last_block_number(&mut self) -> anyhow::Result<Option<validator::BlockNumber>> {
+        let Some(row) = sqlx::query!("SELECT number FROM miniblocks_consensus ORDER BY number DESC LIMIT 1")
             .fetch_optional(self.storage.conn())
             .await? else { return Ok(None) };
-        Ok(Some(MiniblockNumber(row.number.try_into()?)))
+        Ok(Some(validator::BlockNumber(row.number.try_into()?)))
+    }
+
+    pub async fn get_first_block_number(&mut self) -> anyhow::Result<Option<validator::BlockNumber>> {
+        let Some(row) = sqlx::query!("SELECT number FROM miniblocks_consensus ORDER BY number ASC LIMIT 1")
+            .fetch_optional(self.storage.conn())
+            .await? else { return Ok(None) };
+        Ok(Some(validator::BlockNumber(row.number.try_into()?)))
     }
 
     /// Checks whether the specified miniblock has consensus field set.
-    pub async fn has_consensus_fields(&mut self, number: MiniblockNumber) -> sqlx::Result<bool> {
+    /*pub async fn has_consensus_fields(&mut self, number: MiniblockNumber) -> sqlx::Result<bool> {
         Ok(sqlx::query!("SELECT COUNT(*) as \"count!\"  FROM miniblocks WHERE number = $1 AND consensus IS NOT NULL", number.0 as i64)
             .fetch_one(self.storage.conn())
             .await?
             .count > 0)
+    }*/
+
+    pub async fn block_payload(&mut self, block_number: validator::BlockNumber, operator_address: Address) -> anyhow::Result<Option<Payload>> {
+        let block_number = MiniblockNumber(block_number.0.try_into()?);
+        let Some(block) = self.storage.sync_dal().sync_block_inner(block_number).await? else { return Ok(None) };
+        let transactions = self.storage.sync_dal().sync_block_transactions(block_number).await?;
+        Ok(block.into_payload(operator_address,transactions))
     }
 
     /// Sets consensus-related fields for the specified miniblock.
-    pub async fn set_consensus_fields(
-        &mut self,
-        block: &validator::FinalBlock,
-    ) -> anyhow::Result<()> {
+    pub async fn insert_quorum_ceritificate(&mut self, qc: &validator::CommitQC) -> anyhow::Result<()> {
+        let txn = self.storage.start_transaction().await?;
+        if let Some(head) = self.get_last_block_number().await? {
+            anyhow::ensure!(head.next()==block.header.number,"expected a next block after the current head block");
+            // TODO: compare parent hash.
+        }
+        let want_payload = self.block_payload(block.header.number).await?
+            .context("corresponding miniblock is missing")?;
+        anyhow::ensure!(got_payload==want_payload,"consensus block payload doesn't match the miniblock");
         let result = sqlx::query!(
-            "UPDATE miniblocks SET consensus = $2 WHERE number = $1",
+            "INSERT INTO miniblocks_consensus (number, fields) VALUES ($1, $2)",
             block.header.number.0 as i64,
-            zksync_protobuf::serde::serialize(
-                &ConsensusBlockFields {
-                    parent: block.header.parent,
-                    justification: block.justification.clone(),
-                },
-                serde_json::value::Serializer
-            )
+            zksync_protobuf::serde::serialize(&block.justification, serde_json::value::Serializer),
             .unwrap(),
         )
-        .execute(self.storage.conn())
-        .await?;
-        anyhow::ensure!(
-            result.rows_affected() == 1,
-            "Miniblock #{} is not present in Postgres",
-            block.header.number.0,
-        );
+            .execute(self.storage.conn())
+            .await?;
+        txn.commit().await?;
         Ok(())
     }
 }
@@ -102,7 +109,7 @@ mod tests {
         let rng = &mut rand::thread_rng();
         for _ in 0..10 {
             let want: ReplicaState = rng.gen();
-            conn.consensus_dal().put_replica_state(&want).await.unwrap();
+            conn.consensus_dal().set_replica_state(&want).await.unwrap();
             assert_eq!(
                 Some(want),
                 conn.consensus_dal().replica_state().await.unwrap()
