@@ -42,7 +42,15 @@ impl TokensWeb3Dal<'_, '_> {
         {
             let storage_price = sqlx::query_as!(
                 StorageTokenPrice,
-                "SELECT usd_price, usd_price_updated_at FROM tokens WHERE l2_address = $1",
+                r#"
+                SELECT
+                    usd_price,
+                    usd_price_updated_at
+                FROM
+                    tokens
+                WHERE
+                    l2_address = $1
+                "#,
                 l2_address.as_bytes(),
             )
             .fetch_optional(self.storage.conn())

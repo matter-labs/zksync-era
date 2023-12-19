@@ -20,7 +20,8 @@
         "node-fetch": "^2.6.1",
         "pg": "^8.11.3",
         "tabtab": "^3.0.2",
-        "zksync-web3": "^0.15.5"
+        "zksync-web3": "^0.15.5",
+        "protobufjs": "^7.2.5"
     },
     "devDependencies": {
         "@matterlabs/hardhat-zksync-solc": "^0.3.15",
