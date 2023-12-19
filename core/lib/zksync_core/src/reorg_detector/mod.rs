@@ -1,9 +1,10 @@
-use std::{future::Future, time::Duration};
+use std::{fmt, future::Future, time::Duration};
 
 use anyhow::Context as _;
+use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::ConnectionPool;
-use zksync_types::{L1BatchNumber, MiniblockNumber};
+use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::{
     jsonrpsee::{
         core::Error as RpcError,
@@ -14,7 +15,8 @@ use zksync_web3_decl::{
 
 use crate::metrics::{CheckerComponent, EN_METRICS};
 
-const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug, thiserror::Error)]
 enum HashMatchError {
@@ -34,6 +36,52 @@ fn is_transient_err(err: &RpcError) -> bool {
     matches!(err, RpcError::Transport(_) | RpcError::RequestTimeout)
 }
 
+#[async_trait]
+trait MainNodeClient: fmt::Debug + Send + Sync {
+    async fn miniblock_hash(&self, number: MiniblockNumber) -> Result<Option<H256>, RpcError>;
+
+    async fn l1_batch_root_hash(&self, number: L1BatchNumber) -> Result<Option<H256>, RpcError>;
+}
+
+#[async_trait]
+impl MainNodeClient for HttpClient {
+    async fn miniblock_hash(&self, number: MiniblockNumber) -> Result<Option<H256>, RpcError> {
+        Ok(self
+            .get_block_by_number(number.0.into(), false)
+            .await?
+            .map(|block| block.hash))
+    }
+
+    async fn l1_batch_root_hash(&self, number: L1BatchNumber) -> Result<Option<H256>, RpcError> {
+        Ok(self
+            .get_l1_batch_details(number)
+            .await?
+            .and_then(|batch| batch.base.root_hash))
+    }
+}
+
+trait UpdateCorrectBlock: fmt::Debug + Send + Sync {
+    fn update_correct_block(
+        &mut self,
+        last_correct_miniblock: MiniblockNumber,
+        last_correct_l1_batch: L1BatchNumber,
+    );
+}
+
+/// Default implementation of [`UpdateCorrectBlock`] that reports values as metrics.
+impl UpdateCorrectBlock for () {
+    fn update_correct_block(
+        &mut self,
+        last_correct_miniblock: MiniblockNumber,
+        last_correct_l1_batch: L1BatchNumber,
+    ) {
+        EN_METRICS.last_correct_batch[&CheckerComponent::ReorgDetector]
+            .set(last_correct_miniblock.0.into());
+        EN_METRICS.last_correct_miniblock[&CheckerComponent::ReorgDetector]
+            .set(last_correct_l1_batch.0.into());
+    }
+}
+
 /// This is a component that is responsible for detecting the batch re-orgs.
 /// Batch re-org is a rare event of manual intervention, when the node operator
 /// decides to revert some of the not yet finalized batches for some reason
@@ -50,20 +98,26 @@ fn is_transient_err(err: &RpcError) -> bool {
 /// and is special-cased in the `zksync_external_node` crate.
 #[derive(Debug)]
 pub struct ReorgDetector {
-    client: HttpClient,
+    client: Box<dyn MainNodeClient>,
+    block_updater: Box<dyn UpdateCorrectBlock>,
     pool: ConnectionPool,
-    should_stop: watch::Receiver<bool>,
+    stop_receiver: watch::Receiver<bool>,
+    sleep_interval: Duration,
 }
 
 impl ReorgDetector {
-    pub fn new(url: &str, pool: ConnectionPool, should_stop: watch::Receiver<bool>) -> Self {
+    const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
+
+    pub fn new(url: &str, pool: ConnectionPool, stop_receiver: watch::Receiver<bool>) -> Self {
         let client = HttpClientBuilder::default()
             .build(url)
             .expect("Failed to create HTTP client");
         Self {
-            client,
+            client: Box::new(client),
+            block_updater: Box::new(()),
             pool,
-            should_stop,
+            stop_receiver,
+            sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
         }
     }
 
@@ -83,18 +137,14 @@ impl ReorgDetector {
             .hash;
         drop(storage);
 
-        let Some(header) = self
-            .client
-            .get_block_by_number(miniblock_number.0.into(), false)
-            .await?
-        else {
+        let Some(remote_hash) = self.client.miniblock_hash(miniblock_number).await? else {
             // Due to reorg, locally we may be ahead of the main node.
             // Lack of the hash on the main node is treated as a hash match,
             // We need to wait for our knowledge of main node to catch up.
             return Ok(true);
         };
 
-        Ok(header.hash == local_hash)
+        Ok(remote_hash == local_hash)
     }
 
     /// Compares root hashes of the latest local batch and of the same batch from the main node.
@@ -112,18 +162,13 @@ impl ReorgDetector {
             })?;
         drop(storage);
 
-        let Some(hash) = self
-            .client
-            .get_l1_batch_details(l1_batch_number)
-            .await?
-            .and_then(|batch| batch.base.root_hash)
-        else {
+        let Some(remote_hash) = self.client.l1_batch_root_hash(l1_batch_number).await? else {
             // Due to reorg, locally we may be ahead of the main node.
             // Lack of the root hash on the main node is treated as a hash match,
             // We need to wait for our knowledge of main node to catch up.
             return Ok(true);
         };
-        Ok(hash == local_hash)
+        Ok(remote_hash == local_hash)
     }
 
     /// Localizes a re-org: performs binary search to determine the last non-diverged block.
@@ -147,7 +192,7 @@ impl ReorgDetector {
                 Err(HashMatchError::Rpc(err)) if is_transient_err(&err) => {
                     tracing::warn!("Following transport error occurred: {err}");
                     tracing::info!("Trying again after a delay");
-                    tokio::time::sleep(SLEEP_INTERVAL).await;
+                    tokio::time::sleep(self.sleep_interval).await;
                 }
                 Err(HashMatchError::Rpc(err)) => return Err(err.into()),
                 Err(HashMatchError::Internal(err)) => return Err(err),
@@ -157,7 +202,7 @@ impl ReorgDetector {
 
     async fn run_inner(&mut self) -> Result<Option<L1BatchNumber>, HashMatchError> {
         loop {
-            let should_stop = *self.should_stop.borrow();
+            let should_stop = *self.stop_receiver.borrow();
 
             let mut storage = self.pool.access_storage().await?;
             let sealed_l1_batch_number = storage
@@ -181,13 +226,11 @@ impl ReorgDetector {
             // hash mismatch at the same block height is detected, be it miniblocks or batches.
             //
             // In other cases either there is only a height mismatch which means that one of
-            // the nodes needs to do catching up, howver it is not certain that there is actually
+            // the nodes needs to do catching up; however, it is not certain that there is actually
             // a reorg taking place.
             if root_hashes_match && miniblock_hashes_match {
-                EN_METRICS.last_correct_batch[&CheckerComponent::ReorgDetector]
-                    .set(sealed_l1_batch_number.0.into());
-                EN_METRICS.last_correct_miniblock[&CheckerComponent::ReorgDetector]
-                    .set(sealed_miniblock_number.0.into());
+                self.block_updater
+                    .update_correct_block(sealed_miniblock_number, sealed_l1_batch_number);
             } else {
                 if !root_hashes_match {
                     tracing::warn!(
@@ -214,7 +257,7 @@ impl ReorgDetector {
                 tracing::info!("Shutting down reorg detector");
                 return Ok(None);
             }
-            tokio::time::sleep(SLEEP_INTERVAL).await;
+            tokio::time::sleep(self.sleep_interval).await;
         }
     }
 }
@@ -233,17 +276,4 @@ where
         }
     }
     Ok(left)
-}
-
-#[cfg(test)]
-mod tests {
-    /// Tests the binary search algorithm.
-    #[tokio::test]
-    async fn test_binary_search() {
-        for divergence_point in [1, 50, 51, 100] {
-            let mut f = |x| async move { Ok::<_, ()>(x < divergence_point) };
-            let result = super::binary_search_with(0, 100, &mut f).await;
-            assert_eq!(result, Ok(divergence_point - 1));
-        }
-    }
 }
