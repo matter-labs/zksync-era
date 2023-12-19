@@ -9,7 +9,6 @@ use tokio::{
     time::{interval, Duration},
 };
 use tokio_stream::wrappers::BroadcastStream;
-use vise::GaugeGuard;
 use zksync_dal::ConnectionPool;
 use zksync_types::{MiniblockNumber, H128, H256};
 use zksync_web3_decl::{
@@ -17,7 +16,7 @@ use zksync_web3_decl::{
         core::{server::SubscriptionMessage, SubscriptionResult},
         server::IdProvider,
         types::{error::ErrorCode, ErrorObject, SubscriptionId},
-        PendingSubscriptionSink, SubscriptionSink,
+        PendingSubscriptionSink,
     },
     namespaces::EthPubSubServer,
     types::{BlockHeader, Log, PubSubFilter, PubSubResult},
@@ -55,17 +54,6 @@ struct PubSubNotifier<V> {
     connection_pool: ConnectionPool,
     polling_interval: Duration,
     events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
-}
-
-struct MeteredSink {
-    sink: SubscriptionSink,
-    _guard: GaugeGuard,
-}
-
-impl AsRef<SubscriptionSink> for MeteredSink {
-    fn as_ref(&self) -> &SubscriptionSink {
-        &self.sink
-    }
 }
 
 impl<V> PubSubNotifier<V> {
