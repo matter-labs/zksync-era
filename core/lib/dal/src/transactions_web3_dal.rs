@@ -50,7 +50,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                     transactions.hash AS tx_hash,
                     transactions.index_in_block AS index_in_block,
                     transactions.l1_batch_tx_index AS l1_batch_tx_index,
-                    transactions.miniblock_number AS block_number,
+                    transactions.miniblock_number AS "block_number!",
                     transactions.error AS error,
                     transactions.effective_gas_price AS effective_gas_price,
                     transactions.initiator_address AS initiator_address,
@@ -59,12 +59,12 @@ impl TransactionsWeb3Dal<'_, '_> {
                     transactions.tx_format AS "tx_format?",
                     transactions.refunded_gas AS refunded_gas,
                     transactions.gas_limit AS gas_limit,
-                    miniblocks.hash AS "block_hash?",
+                    miniblocks.hash AS "block_hash",
                     miniblocks.l1_batch_number AS "l1_batch_number?",
                     sl.key AS "contract_address?"
                 FROM
                     transactions
-                    LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
+                    JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
                     LEFT JOIN sl ON sl.value != $3
                 WHERE
                     transactions.hash = $2
@@ -78,21 +78,17 @@ impl TransactionsWeb3Dal<'_, '_> {
             .fetch_optional(self.storage.conn())
             .await?
             .map(|db_row| {
-                let status = match (db_row.block_number, db_row.error) {
-                    (_, Some(_)) => Some(U64::from(0)),
-                    (Some(_), None) => Some(U64::from(1)),
-                    // tx not executed yet
-                    _ => None,
-                };
+                let status = db_row.error.map(|_| U64::zero()).unwrap_or_else(U64::one);
+
                 let tx_type = db_row.tx_format.map(U64::from).unwrap_or_default();
                 let transaction_index = db_row.index_in_block.map(U64::from).unwrap_or_default();
 
-                let block_hash = db_row.block_hash.map(|bytes| H256::from_slice(&bytes));
+                let block_hash = H256::from_slice(&db_row.block_hash);
                 api::TransactionReceipt {
                     transaction_hash: H256::from_slice(&db_row.tx_hash),
                     transaction_index,
                     block_hash,
-                    block_number: db_row.block_number.map(U64::from),
+                    block_number: db_row.block_number.into(),
                     l1_batch_tx_index: db_row.l1_batch_tx_index.map(U64::from),
                     l1_batch_number: db_row.l1_batch_number.map(U64::from),
                     from: H160::from_slice(&db_row.initiator_address),
@@ -168,7 +164,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                     .into_iter()
                     .map(|storage_log| {
                         let mut log = api::Log::from(storage_log);
-                        log.block_hash = receipt.block_hash;
+                        log.block_hash = Some(receipt.block_hash);
                         log.l1_batch_number = receipt.l1_batch_number;
                         log
                     })
@@ -181,7 +177,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                         .into_iter()
                         .map(|storage_l2_to_l1_log| {
                             let mut l2_to_l1_log = api::L2ToL1Log::from(storage_l2_to_l1_log);
-                            l2_to_l1_log.block_hash = receipt.block_hash;
+                            l2_to_l1_log.block_hash = Some(receipt.block_hash);
                             l2_to_l1_log.l1_batch_number = receipt.l1_batch_number;
                             l2_to_l1_log
                         })

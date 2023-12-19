@@ -1,5 +1,25 @@
 # Changelog
 
+## [18.9.0](https://github.com/matter-labs/zksync-era/compare/core-v18.8.0...core-v18.9.0) (2023-12-19)
+
+
+### Features
+
+* Add ecadd and ecmul to the list of precompiles upon genesis ([#669](https://github.com/matter-labs/zksync-era/issues/669)) ([0be35b8](https://github.com/matter-labs/zksync-era/commit/0be35b82fc63e88b6d709b644e437194f7559483))
+* **api:** Do not return receipt if tx was not included to the batch ([#706](https://github.com/matter-labs/zksync-era/issues/706)) ([625d632](https://github.com/matter-labs/zksync-era/commit/625d632934ac63ad7479de50d65f83e6f144c7dd))
+* proto serialization/deserialization of snapshots creator objects ([#667](https://github.com/matter-labs/zksync-era/issues/667)) ([9f096a4](https://github.com/matter-labs/zksync-era/commit/9f096a4dd362fbd74a35fa1e9af4f111f69f4317))
+* zk fmt sqlx-queries ([#533](https://github.com/matter-labs/zksync-era/issues/533)) ([6982343](https://github.com/matter-labs/zksync-era/commit/69823439675411b3239ef0a24c6bfe4d3610161b))
+
+
+### Bug Fixes
+
+* **en:** Downgrade miniblock hash equality assertion to warning ([#695](https://github.com/matter-labs/zksync-era/issues/695)) ([2ef3ec8](https://github.com/matter-labs/zksync-era/commit/2ef3ec804573ba4bbf8f44f19a3b5616b297c796))
+
+
+### Performance Improvements
+
+* remove unnecessary to_vec ([#702](https://github.com/matter-labs/zksync-era/issues/702)) ([c55a658](https://github.com/matter-labs/zksync-era/commit/c55a6582eae3af7f92cdeceb4e50b81701665f96))
+
 ## [18.8.0](https://github.com/matter-labs/zksync-era/compare/core-v18.7.0...core-v18.8.0) (2023-12-13)
 
 
