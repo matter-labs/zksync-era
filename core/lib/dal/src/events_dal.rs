@@ -1,6 +1,7 @@
 use std::fmt;
 
 use sqlx::types::chrono::Utc;
+use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     tx::IncludedTxLocation,
@@ -54,6 +55,7 @@ impl EventsDal<'_, '_> {
         let mut buffer = String::new();
         let now = Utc::now().naive_utc().to_string();
         let mut event_index_in_block = 0_u32;
+
         for (tx_location, events) in all_block_events {
             let IncludedTxLocation {
                 tx_hash,
@@ -61,13 +63,26 @@ impl EventsDal<'_, '_> {
                 tx_initiator_address,
             } = tx_location;
 
-            for (event_index_in_tx, event) in events.iter().enumerate() {
+            let mut new_event_index_in_tx = 0_u32;
+
+            for (_, event) in events
+                .iter()
+                .filter(|event| {
+                    event.address != L2_ETH_TOKEN_ADDRESS
+                        || event.indexed_topics.is_empty()
+                        || event.indexed_topics[0] != TRANSFER_EVENT_TOPIC
+                })
+                .enumerate()
+            {
                 write_str!(
                     &mut buffer,
                     r"{block_number}|\\x{tx_hash:x}|{tx_index_in_miniblock}|\\x{address:x}|",
                     address = event.address
                 );
-                write_str!(&mut buffer, "{event_index_in_block}|{event_index_in_tx}|");
+                write_str!(
+                    &mut buffer,
+                    "{event_index_in_block}|{new_event_index_in_tx}|"
+                );
                 write_str!(
                     &mut buffer,
                     r"\\x{topic0:x}|\\x{topic1:x}|\\x{topic2:x}|\\x{topic3:x}|",
@@ -81,7 +96,42 @@ impl EventsDal<'_, '_> {
                     r"\\x{value}|\\x{tx_initiator_address:x}|{now}|{now}",
                     value = hex::encode(&event.value)
                 );
+                new_event_index_in_tx += 1;
+                event_index_in_block += 1;
+            }
 
+            for (_, event) in events
+                .iter()
+                .filter(|event| {
+                    !(event.address != L2_ETH_TOKEN_ADDRESS
+                        || event.indexed_topics.is_empty()
+                        || event.indexed_topics[0] != TRANSFER_EVENT_TOPIC)
+                })
+                .enumerate()
+            {
+                write_str!(
+                    &mut buffer,
+                    r"{block_number}|\\x{tx_hash:x}|{tx_index_in_miniblock}|\\x{address:x}|",
+                    address = event.address
+                );
+                write_str!(
+                    &mut buffer,
+                    "{event_index_in_block}|{new_event_index_in_tx}|"
+                );
+                write_str!(
+                    &mut buffer,
+                    r"\\x{topic0:x}|\\x{topic1:x}|\\x{topic2:x}|\\x{topic3:x}|",
+                    topic0 = EventTopic(event.indexed_topics.get(0)),
+                    topic1 = EventTopic(event.indexed_topics.get(1)),
+                    topic2 = EventTopic(event.indexed_topics.get(2)),
+                    topic3 = EventTopic(event.indexed_topics.get(3))
+                );
+                writeln_str!(
+                    &mut buffer,
+                    r"\\x{value}|\\x{tx_initiator_address:x}|{now}|{now}",
+                    value = hex::encode(&event.value)
+                );
+                new_event_index_in_tx += 1;
                 event_index_in_block += 1;
             }
         }
