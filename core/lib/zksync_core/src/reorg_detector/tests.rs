@@ -1,6 +1,9 @@
 //! Tests for the reorg detector component.
 
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
@@ -72,15 +75,35 @@ async fn test_binary_search() {
 
 type ResponsesMap<K> = HashMap<K, H256>;
 
+#[derive(Debug, Clone, Copy)]
+enum RpcErrorKind {
+    Transient,
+    Fatal,
+}
+
+impl From<RpcErrorKind> for RpcError {
+    fn from(kind: RpcErrorKind) -> Self {
+        match kind {
+            RpcErrorKind::Transient => Self::RequestTimeout,
+            RpcErrorKind::Fatal => Self::HttpNotImplemented,
+        }
+    }
+}
+
 #[derive(Debug, Default)]
-struct MockMaiNodeClient {
+struct MockMainNodeClient {
     miniblock_responses: ResponsesMap<MiniblockNumber>,
     l1_batch_responses: ResponsesMap<L1BatchNumber>,
+    error_kind: Arc<Mutex<Option<RpcErrorKind>>>,
 }
 
 #[async_trait]
-impl MainNodeClient for MockMaiNodeClient {
+impl MainNodeClient for MockMainNodeClient {
     async fn miniblock_hash(&self, number: MiniblockNumber) -> Result<Option<H256>, RpcError> {
+        if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
+            return Err(error_kind.into());
+        }
+
         if let Some(response) = self.miniblock_responses.get(&number) {
             Ok(Some(*response))
         } else {
@@ -89,6 +112,10 @@ impl MainNodeClient for MockMaiNodeClient {
     }
 
     async fn l1_batch_root_hash(&self, number: L1BatchNumber) -> Result<Option<H256>, RpcError> {
+        if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
+            return Err(error_kind.into());
+        }
+
         if let Some(response) = self.l1_batch_responses.get(&number) {
             Ok(Some(*response))
         } else {
@@ -108,15 +135,16 @@ impl UpdateCorrectBlock for mpsc::UnboundedSender<(MiniblockNumber, L1BatchNumbe
     }
 }
 
+#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn normal_reorg_function() {
+async fn normal_reorg_function(with_transient_errors: bool) {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
         .await
         .unwrap();
 
-    let mut client = MockMaiNodeClient::default();
+    let mut client = MockMainNodeClient::default();
     let miniblock_and_l1_batch_hashes = (1_u32..=10).map(|number| {
         let miniblock_hash = H256::from_low_u64_be(number.into());
         client
@@ -129,6 +157,16 @@ async fn normal_reorg_function() {
         (number, miniblock_hash, l1_batch_hash)
     });
     let miniblock_and_l1_batch_hashes: Vec<_> = miniblock_and_l1_batch_hashes.collect();
+
+    if with_transient_errors {
+        *client.error_kind.lock().unwrap() = Some(RpcErrorKind::Transient);
+        // "Fix" the client after a certain delay.
+        let error_kind = Arc::clone(&client.error_kind);
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            *error_kind.lock().unwrap() = None;
+        });
+    }
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (block_update_sender, mut block_update_receiver) =
@@ -164,6 +202,28 @@ async fn normal_reorg_function() {
 }
 
 #[tokio::test]
+async fn handling_fatal_rpc_error() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.access_storage().await.unwrap();
+    ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+        .await
+        .unwrap();
+
+    let client = MockMainNodeClient::default();
+    *client.error_kind.lock().unwrap() = Some(RpcErrorKind::Fatal);
+
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let detector = ReorgDetector {
+        client: Box::new(client),
+        block_updater: Box::new(()),
+        pool: pool.clone(),
+        stop_receiver,
+        sleep_interval: Duration::from_millis(10),
+    };
+    detector.run().await.unwrap_err();
+}
+
+#[tokio::test]
 async fn detecting_reorg_by_batch_hash() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
@@ -172,7 +232,7 @@ async fn detecting_reorg_by_batch_hash() {
         .unwrap();
 
     let (_stop_sender, stop_receiver) = watch::channel(false);
-    let mut client = MockMaiNodeClient::default();
+    let mut client = MockMainNodeClient::default();
     let miniblock_hash = H256::from_low_u64_be(23);
     client
         .miniblock_responses
@@ -216,7 +276,7 @@ async fn detecting_reorg_by_miniblock_hash() {
         .unwrap();
 
     let (_stop_sender, stop_receiver) = watch::channel(false);
-    let mut client = MockMaiNodeClient::default();
+    let mut client = MockMainNodeClient::default();
     let miniblock_hash = H256::from_low_u64_be(23);
     client
         .miniblock_responses
@@ -278,7 +338,7 @@ async fn detecting_deep_reorg(
         .await
         .unwrap();
 
-    let mut client = MockMaiNodeClient::default();
+    let mut client = MockMainNodeClient::default();
     let miniblock_and_l1_batch_hashes = (1_u32..=10).map(|number| {
         let mut miniblock_hash = H256::from_low_u64_be(number.into());
         client
@@ -337,5 +397,3 @@ async fn detecting_deep_reorg(
         Some(L1BatchNumber(last_correct_batch))
     );
 }
-
-// FIXME: test transient and non-transient errors
