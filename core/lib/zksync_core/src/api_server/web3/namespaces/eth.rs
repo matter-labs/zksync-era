@@ -217,7 +217,11 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     }
 
     #[tracing::instrument(skip(self, filter))]
-    pub async fn get_logs_impl(&self, mut filter: Filter) -> Result<Vec<Log>, Web3Error> {
+    pub async fn get_logs_impl(
+        &self,
+        mut filter: Filter,
+        skip_transfer_event: bool,
+    ) -> Result<Vec<Log>, Web3Error> {
         const METHOD_NAME: &str = "get_logs";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
@@ -226,7 +230,10 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 
         filter.to_block = Some(BlockNumber::Number(to_block.0.into()));
         let changes = self
-            .filter_changes(&mut TypedFilter::Events(filter, from_block))
+            .filter_changes(
+                &mut TypedFilter::Events(filter, from_block),
+                skip_transfer_event,
+            )
             .await?;
         method_latency.observe();
         Ok(match changes {
@@ -235,7 +242,11 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         })
     }
 
-    pub async fn get_filter_logs_impl(&self, idx: U256) -> Result<FilterChanges, Web3Error> {
+    pub async fn get_filter_logs_impl(
+        &self,
+        idx: U256,
+        skip_transfer_event: bool,
+    ) -> Result<FilterChanges, Web3Error> {
         const METHOD_NAME: &str = "get_filter_logs";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
@@ -256,7 +267,10 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .resolve_filter_block_number(filter.from_block)
             .await?;
         let logs = self
-            .filter_changes(&mut TypedFilter::Events(filter, from_block))
+            .filter_changes(
+                &mut TypedFilter::Events(filter, from_block),
+                skip_transfer_event,
+            )
             .await?;
 
         // We are not updating the filter, since that is the purpose of `get_filter_changes` method,
@@ -493,6 +507,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     pub async fn get_transaction_receipt_impl(
         &self,
         hash: H256,
+        skip_transfer_event: bool,
     ) -> Result<Option<TransactionReceipt>, Web3Error> {
         const METHOD_NAME: &str = "get_transaction_receipt";
 
@@ -504,7 +519,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .await
             .unwrap()
             .transactions_web3_dal()
-            .get_transaction_receipt(hash, true)
+            .get_transaction_receipt(hash, skip_transfer_event)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err));
 
@@ -606,7 +621,11 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn get_filter_changes_impl(&self, idx: U256) -> Result<FilterChanges, Web3Error> {
+    pub async fn get_filter_changes_impl(
+        &self,
+        idx: U256,
+        skip_transfer_event: bool,
+    ) -> Result<FilterChanges, Web3Error> {
         const METHOD_NAME: &str = "get_filter_changes";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
@@ -618,7 +637,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .get_and_update_stats(idx)
             .ok_or(Web3Error::FilterNotFound)?;
 
-        let result = match self.filter_changes(&mut filter).await {
+        let result = match self.filter_changes(&mut filter, skip_transfer_event).await {
             Ok(changes) => {
                 self.state
                     .installed_filters
@@ -756,6 +775,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     async fn filter_changes(
         &self,
         typed_filter: &mut TypedFilter,
+        skip_transfer_event: bool,
     ) -> Result<FilterChanges, Web3Error> {
         const METHOD_NAME: &str = "filter_changes";
 
@@ -855,7 +875,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                         .get_log_block_number(
                             &get_logs_filter,
                             self.state.api_config.req_entities_limit,
-                            true,
+                            skip_transfer_event,
                         )
                         .await
                         .map_err(|err| internal_error(METHOD_NAME, err))?
@@ -870,7 +890,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 
                 let logs = storage
                     .events_web3_dal()
-                    .get_logs(get_logs_filter, i32::MAX as usize, true)
+                    .get_logs(get_logs_filter, i32::MAX as usize, skip_transfer_event)
                     .await
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
                 *from_block = to_block + 1;
