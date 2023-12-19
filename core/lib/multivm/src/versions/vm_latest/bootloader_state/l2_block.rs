@@ -22,7 +22,7 @@ pub(crate) struct BootloaderL2Block {
     // Number of the first l2 block tx in l1 batch
     pub(crate) first_tx_index: usize,
     pub(crate) max_virtual_blocks_to_create: u32,
-    pub(super) txs: Vec<BootloaderTx>,
+    pub(crate) txs: Vec<BootloaderTx>,
 }
 
 impl BootloaderL2Block {

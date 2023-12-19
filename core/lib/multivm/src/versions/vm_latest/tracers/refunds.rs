@@ -11,7 +11,7 @@ use zksync_system_constants::{PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS}
 use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
     l2_to_l1_log::L2ToL1Log,
-    L1BatchNumber, U256,
+    L1BatchNumber, H256, U256,
 };
 use zksync_utils::{bytecode::bytecode_len_in_bytes, ceil_div_u256, u256_to_h256};
 
@@ -101,6 +101,7 @@ impl<S> RefundsTracer<S> {
         tx_gas_limit: u32,
         current_ergs_per_pubdata_byte: u32,
         pubdata_published: u32,
+        tx_hash: H256,
     ) -> u32 {
         let total_gas_spent = tx_gas_limit - bootloader_refund;
 
@@ -143,6 +144,15 @@ impl<S> RefundsTracer<S> {
             );
             U256::zero()
         });
+
+        tracing::trace!(
+            "Fee benchmark for transaction with hash {}",
+            hex::encode(tx_hash.as_bytes())
+        );
+        tracing::trace!("Gas Limit: {}", tx_gas_limit);
+        tracing::trace!("Gas spent on computation: {}", gas_spent_on_computation);
+        tracing::trace!("Gas spent on pubdata: {}", gas_spent_on_pubdata);
+        tracing::trace!("Pubdata published: {}", pubdata_published);
 
         ceil_div_u256(refund_eth, effective_gas_price.into()).as_u32()
     }
@@ -255,6 +265,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
                 tx_gas_limit,
                 current_ergs_per_pubdata_byte,
                 pubdata_published,
+                bootloader_state.last_l2_block().txs.last().unwrap().hash,
             );
 
             if tx_body_refund < bootloader_refund {

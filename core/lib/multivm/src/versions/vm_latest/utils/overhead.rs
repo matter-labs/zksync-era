@@ -24,7 +24,7 @@ pub fn derive_overhead(
     }
 }
 
-const TX_SLOT_OVERHEAD: usize = 80_000;
+const TX_SLOT_OVERHEAD: usize = 60000;
 const TX_MEMORY_BYTE_OVERHEAD: usize = 10;
 
 fn derive_overhead_l2_tx(encoded_len: usize) -> u32 {
