@@ -265,11 +265,7 @@ impl WsTest for LogSubscriptions {
         let all_logs = collect_logs(&mut all_logs_subscription, 6).await?;
         for (i, log) in all_logs.iter().enumerate() {
             assert_eq!(log.transaction_index, Some(0.into()));
-            if i < 4 {
-                assert_eq!(log.log_index, Some(i.into()));
-            } else {
-                assert_eq!(log.log_index, Some((i + 1).into()));
-            }
+            assert_eq!(log.log_index, Some(i.into()));
             assert_eq!(log.transaction_hash, Some(tx_location.tx_hash));
             assert_eq!(log.block_number, Some(1.into()));
         }
