@@ -25,6 +25,13 @@ mod tests;
 enum HashMatchError {
     #[error("RPC error calling main node")]
     Rpc(#[from] RpcError),
+    #[error(
+        "Unrecoverable error: the earliest L1 batch #{0} in the local DB \
+        has mismatched hash with the main node. Make sure you're connected to the right network; \
+        if you've recovered from a snapshot, re-check snapshot authenticity. \
+        Using an earlier snapshot could help."
+    )]
+    EarliestHashMismatch(L1BatchNumber),
     #[error("Internal error")]
     Internal(#[from] anyhow::Error),
 }
@@ -211,8 +218,8 @@ impl ReorgDetector {
                     tracing::info!("Trying again after a delay");
                     tokio::time::sleep(self.sleep_interval).await;
                 }
-                Err(HashMatchError::Rpc(err)) => return Err(err.into()),
                 Err(HashMatchError::Internal(err)) => return Err(err),
+                Err(err) => return Err(err.into()),
             }
         }
     }
@@ -229,13 +236,9 @@ impl ReorgDetector {
             "Checking root hash match for earliest L1 batch #{earliest_l1_batch_number}"
         );
         if !self.root_hashes_match(earliest_l1_batch_number).await? {
-            let err = anyhow::anyhow!(
-                "Unrecoverable error: the earliest L1 batch #{earliest_l1_batch_number} in the local DB \
-                 has mismatched hash with the main node. Make sure you're connected to the right network; \
-                 if you've recovered from a snapshot, re-check snapshot authenticity. \
-                 Using an earlier snapshot could help."
-            );
-            return Err(err.into());
+            return Err(HashMatchError::EarliestHashMismatch(
+                earliest_l1_batch_number,
+            ));
         }
 
         loop {
