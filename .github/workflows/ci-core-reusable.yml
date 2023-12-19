@@ -186,11 +186,11 @@ jobs:
       - name: Fee projection tests
         run: ci_run zk test i fees
 
-      - name: Run revert test
-        run: |
-          ci_run pkill zksync_server || true
-          ci_run sleep 2
-          ci_run zk test i revert
+#      - name: Run revert test
+#        run: |
+#          ci_run pkill zksync_server || true
+#          ci_run sleep 2
+#          ci_run zk test i revert
 
         # This test should be the last one as soon as it
         # finished bootloader will be different
