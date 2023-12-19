@@ -13,7 +13,10 @@ use zksync_web3_decl::{
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
-use crate::metrics::{CheckerComponent, EN_METRICS};
+use crate::{
+    metrics::{CheckerComponent, EN_METRICS},
+    utils::wait_for_l1_batch_with_metadata,
+};
 
 #[cfg(test)]
 mod tests;
@@ -144,6 +147,12 @@ impl ReorgDetector {
             return Ok(true);
         };
 
+        if remote_hash != local_hash {
+            tracing::warn!(
+                "Reorg detected: local hash {local_hash:?} doesn't match the hash from \
+                main node {remote_hash:?} (miniblock #{miniblock_number})"
+            );
+        }
         Ok(remote_hash == local_hash)
     }
 
@@ -168,17 +177,25 @@ impl ReorgDetector {
             // We need to wait for our knowledge of main node to catch up.
             return Ok(true);
         };
+
+        if remote_hash != local_hash {
+            tracing::warn!(
+                "Reorg detected: local root hash {local_hash:?} doesn't match the state hash from \
+                main node {remote_hash:?} (L1 batch #{l1_batch_number})"
+            );
+        }
         Ok(remote_hash == local_hash)
     }
 
     /// Localizes a re-org: performs binary search to determine the last non-diverged block.
     async fn detect_reorg(
         &self,
+        known_valid_l1_batch: L1BatchNumber,
         diverged_l1_batch: L1BatchNumber,
     ) -> Result<L1BatchNumber, HashMatchError> {
         // TODO (BFT-176, BFT-181): We have to look through the whole history, since batch status updater may mark
         //   a block as executed even if the state diverges for it.
-        binary_search_with(1, diverged_l1_batch.0, |number| {
+        binary_search_with(known_valid_l1_batch.0, diverged_l1_batch.0, |number| {
             self.root_hashes_match(L1BatchNumber(number))
         })
         .await
@@ -201,14 +218,36 @@ impl ReorgDetector {
     }
 
     async fn run_inner(&mut self) -> Result<Option<L1BatchNumber>, HashMatchError> {
+        let earliest_l1_batch_number =
+            wait_for_l1_batch_with_metadata(&self.pool, self.sleep_interval, &self.stop_receiver)
+                .await?;
+
+        let Some(earliest_l1_batch_number) = earliest_l1_batch_number else {
+            return Ok(None); // stop signal received
+        };
+        tracing::debug!(
+            "Checking root hash match for earliest L1 batch #{earliest_l1_batch_number}"
+        );
+        if !self.root_hashes_match(earliest_l1_batch_number).await? {
+            let err = anyhow::anyhow!(
+                "Unrecoverable error: the earliest L1 batch #{earliest_l1_batch_number} in the local DB \
+                 has mismatched hash with the main node. Make sure you're connected to the right network; \
+                 if you've recovered from a snapshot, re-check snapshot authenticity. \
+                 Using an earlier snapshot could help."
+            );
+            return Err(err.into());
+        }
+
         loop {
             let should_stop = *self.stop_receiver.borrow();
 
+            // At this point, we are guaranteed to have L1 batches and miniblocks in the storage.
             let mut storage = self.pool.access_storage().await?;
             let sealed_l1_batch_number = storage
                 .blocks_dal()
                 .get_last_l1_batch_number_with_metadata()
-                .await?;
+                .await?
+                .context("L1 batches table unexpectedly emptied")?;
             let sealed_miniblock_number =
                 storage.blocks_dal().get_sealed_miniblock_number().await?;
             drop(storage);
@@ -232,21 +271,16 @@ impl ReorgDetector {
                 self.block_updater
                     .update_correct_block(sealed_miniblock_number, sealed_l1_batch_number);
             } else {
-                if !root_hashes_match {
-                    tracing::warn!(
-                        "Reorg detected: last state hash doesn't match the state hash from \
-                        main node (L1 batch #{sealed_l1_batch_number})"
-                    );
-                }
-                if !miniblock_hashes_match {
-                    tracing::warn!(
-                        "Reorg detected: last state hash doesn't match the state hash from \
-                        main node (MiniblockNumber #{sealed_miniblock_number})"
-                    );
-                }
-                tracing::info!("Searching for the first diverged batch");
+                let diverged_l1_batch_number = if root_hashes_match {
+                    sealed_l1_batch_number + 1 // Non-sealed L1 batch has diverged
+                } else {
+                    sealed_l1_batch_number
+                };
 
-                let last_correct_l1_batch = self.detect_reorg(sealed_l1_batch_number).await?;
+                tracing::info!("Searching for the first diverged L1 batch");
+                let last_correct_l1_batch = self
+                    .detect_reorg(earliest_l1_batch_number, diverged_l1_batch_number)
+                    .await?;
                 tracing::info!(
                     "Reorg localized: last correct L1 batch is #{last_correct_l1_batch}"
                 );
@@ -269,6 +303,8 @@ where
 {
     while left + 1 < right {
         let middle = (left + right) / 2;
+        assert!(middle < right); // middle <= (right - 2 + right) / 2 = right - 1
+
         if f(middle).await? {
             left = middle;
         } else {

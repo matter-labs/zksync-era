@@ -397,3 +397,27 @@ async fn detecting_deep_reorg(
         Some(L1BatchNumber(last_correct_batch))
     );
 }
+
+#[tokio::test]
+async fn stopping_reorg_detector_while_waiting_for_l1_batch() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.access_storage().await.unwrap();
+    assert!(storage.blocks_dal().is_genesis_needed().await.unwrap());
+    drop(storage);
+
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let detector = ReorgDetector {
+        client: Box::<MockMainNodeClient>::default(),
+        block_updater: Box::new(()),
+        pool,
+        stop_receiver,
+        sleep_interval: Duration::from_millis(10),
+    };
+    let detector_task = tokio::spawn(detector.run());
+
+    stop_sender.send_replace(true);
+
+    let task_result = detector_task.await.unwrap();
+    let last_correct_l1_batch = task_result.unwrap();
+    assert_eq!(last_correct_l1_batch, None);
+}
