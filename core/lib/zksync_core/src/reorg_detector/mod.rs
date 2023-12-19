@@ -1,5 +1,6 @@
 use std::{future::Future, time::Duration};
 
+use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_dal::ConnectionPool;
 use zksync_types::{L1BatchNumber, MiniblockNumber};
@@ -9,12 +10,29 @@ use zksync_web3_decl::{
         http_client::{HttpClient, HttpClientBuilder},
     },
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
-    RpcResult,
 };
 
 use crate::metrics::{CheckerComponent, EN_METRICS};
 
 const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
+
+#[derive(Debug, thiserror::Error)]
+enum HashMatchError {
+    #[error("RPC error calling main node")]
+    Rpc(#[from] RpcError),
+    #[error("Internal error")]
+    Internal(#[from] anyhow::Error),
+}
+
+impl From<zksync_dal::SqlxError> for HashMatchError {
+    fn from(err: zksync_dal::SqlxError) -> Self {
+        Self::Internal(err.into())
+    }
+}
+
+fn is_transient_err(err: &RpcError) -> bool {
+    matches!(err, RpcError::Transport(_) | RpcError::RequestTimeout)
+}
 
 /// This is a component that is responsible for detecting the batch re-orgs.
 /// Batch re-org is a rare event of manual intervention, when the node operator
@@ -50,29 +68,25 @@ impl ReorgDetector {
     }
 
     /// Compares hashes of the given local miniblock and the same miniblock from main node.
-    async fn miniblock_hashes_match(&self, miniblock_number: MiniblockNumber) -> RpcResult<bool> {
-        let local_hash = self
-            .pool
-            .access_storage()
-            .await
-            .unwrap()
+    async fn miniblock_hashes_match(
+        &self,
+        miniblock_number: MiniblockNumber,
+    ) -> Result<bool, HashMatchError> {
+        let mut storage = self.pool.access_storage().await?;
+        let local_hash = storage
             .blocks_dal()
             .get_miniblock_header(miniblock_number)
-            .await
-            .unwrap()
-            .unwrap_or_else(|| {
-                panic!(
-                    "Header does not exist for local miniblock #{}",
-                    miniblock_number
-                )
-            })
+            .await?
+            .with_context(|| {
+                format!("Header does not exist for local miniblock #{miniblock_number}")
+            })?
             .hash;
+        drop(storage);
 
-        let Some(hash) = self
+        let Some(header) = self
             .client
             .get_block_by_number(miniblock_number.0.into(), false)
             .await?
-            .map(|header| header.hash)
         else {
             // Due to reorg, locally we may be ahead of the main node.
             // Lack of the hash on the main node is treated as a hash match,
@@ -80,32 +94,29 @@ impl ReorgDetector {
             return Ok(true);
         };
 
-        Ok(hash == local_hash)
+        Ok(header.hash == local_hash)
     }
 
     /// Compares root hashes of the latest local batch and of the same batch from the main node.
-    async fn root_hashes_match(&self, l1_batch_number: L1BatchNumber) -> RpcResult<bool> {
-        // Unwrapping is fine since the caller always checks that these root hashes exist.
-        let local_hash = self
-            .pool
-            .access_storage()
-            .await
-            .unwrap()
+    async fn root_hashes_match(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<bool, HashMatchError> {
+        let mut storage = self.pool.access_storage().await?;
+        let local_hash = storage
             .blocks_dal()
             .get_l1_batch_state_root(l1_batch_number)
-            .await
-            .unwrap()
-            .unwrap_or_else(|| {
-                panic!(
-                    "Root hash does not exist for local batch #{}",
-                    l1_batch_number
-                )
-            });
+            .await?
+            .with_context(|| {
+                format!("Root hash does not exist for local batch #{l1_batch_number}")
+            })?;
+        drop(storage);
+
         let Some(hash) = self
             .client
             .get_l1_batch_details(l1_batch_number)
             .await?
-            .and_then(|b| b.base.root_hash)
+            .and_then(|batch| batch.base.root_hash)
         else {
             // Due to reorg, locally we may be ahead of the main node.
             // Lack of the root hash on the main node is treated as a hash match,
@@ -116,9 +127,12 @@ impl ReorgDetector {
     }
 
     /// Localizes a re-org: performs binary search to determine the last non-diverged block.
-    async fn detect_reorg(&self, diverged_l1_batch: L1BatchNumber) -> RpcResult<L1BatchNumber> {
+    async fn detect_reorg(
+        &self,
+        diverged_l1_batch: L1BatchNumber,
+    ) -> Result<L1BatchNumber, HashMatchError> {
         // TODO (BFT-176, BFT-181): We have to look through the whole history, since batch status updater may mark
-        // a block as executed even if the state diverges for it.
+        //   a block as executed even if the state diverges for it.
         binary_search_with(1, diverged_l1_batch.0, |number| {
             self.root_hashes_match(L1BatchNumber(number))
         })
@@ -126,49 +140,37 @@ impl ReorgDetector {
         .map(L1BatchNumber)
     }
 
-    pub async fn run(mut self) -> Option<L1BatchNumber> {
+    pub async fn run(mut self) -> anyhow::Result<Option<L1BatchNumber>> {
         loop {
             match self.run_inner().await {
-                Ok(l1_batch_number) => return l1_batch_number,
-                Err(err @ RpcError::Transport(_) | err @ RpcError::RequestTimeout) => {
+                Ok(l1_batch_number) => return Ok(l1_batch_number),
+                Err(HashMatchError::Rpc(err)) if is_transient_err(&err) => {
                     tracing::warn!("Following transport error occurred: {err}");
                     tracing::info!("Trying again after a delay");
                     tokio::time::sleep(SLEEP_INTERVAL).await;
                 }
-                Err(err) => {
-                    panic!("Unexpected error in the reorg detector: {}", err);
-                }
+                Err(HashMatchError::Rpc(err)) => return Err(err.into()),
+                Err(HashMatchError::Internal(err)) => return Err(err),
             }
         }
     }
 
-    async fn run_inner(&mut self) -> RpcResult<Option<L1BatchNumber>> {
+    async fn run_inner(&mut self) -> Result<Option<L1BatchNumber>, HashMatchError> {
         loop {
             let should_stop = *self.should_stop.borrow();
 
-            let sealed_l1_batch_number = self
-                .pool
-                .access_storage()
-                .await
-                .unwrap()
+            let mut storage = self.pool.access_storage().await?;
+            let sealed_l1_batch_number = storage
                 .blocks_dal()
                 .get_last_l1_batch_number_with_metadata()
-                .await
-                .unwrap();
-
-            let sealed_miniblock_number = self
-                .pool
-                .access_storage()
-                .await
-                .unwrap()
-                .blocks_dal()
-                .get_sealed_miniblock_number()
-                .await
-                .unwrap();
+                .await?;
+            let sealed_miniblock_number =
+                storage.blocks_dal().get_sealed_miniblock_number().await?;
+            drop(storage);
 
             tracing::trace!(
                 "Checking for reorgs - L1 batch #{sealed_l1_batch_number}, \
-                miniblock number #{sealed_miniblock_number}"
+                 miniblock number #{sealed_miniblock_number}"
             );
 
             let root_hashes_match = self.root_hashes_match(sealed_l1_batch_number).await?;
@@ -200,12 +202,14 @@ impl ReorgDetector {
                     );
                 }
                 tracing::info!("Searching for the first diverged batch");
+
                 let last_correct_l1_batch = self.detect_reorg(sealed_l1_batch_number).await?;
                 tracing::info!(
                     "Reorg localized: last correct L1 batch is #{last_correct_l1_batch}"
                 );
                 return Ok(Some(last_correct_l1_batch));
             }
+
             if should_stop {
                 tracing::info!("Shutting down reorg detector");
                 return Ok(None);
