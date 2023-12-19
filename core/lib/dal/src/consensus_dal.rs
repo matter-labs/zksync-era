@@ -1,5 +1,5 @@
 use zksync_consensus_storage::ReplicaState;
-
+use anyhow::Context as _;
 pub use crate::models::storage_sync::Payload;
 use crate::StorageProcessor;
 use zksync_consensus_roles::validator;
@@ -67,21 +67,23 @@ impl ConsensusDal<'_, '_> {
     }
 
     /// Sets consensus-related fields for the specified miniblock.
-    pub async fn insert_ceritificate(&mut self, cert: &validator::CommitQC) -> anyhow::Result<()> {
-        let txn = self.storage.start_transaction().await?;
-        if let Some(head) = self.last_certificate().await? {
-            anyhow::ensure!(head.header().next()==cert.header().number,"expected certificate for a block after the current head block");
-            anyhow::ensure!(head.header().hash()==cert.header().parent,"parent block mismatch");
+    pub async fn insert_certificate(&mut self, cert: &validator::CommitQC, operator_address: Address) -> anyhow::Result<()> {
+        let header = &cert.message.proposal;
+        let mut txn = self.storage.start_transaction().await?;
+        if let Some(last) = txn.consensus_dal().last_certificate().await? {
+            let last = &last.message.proposal;
+            anyhow::ensure!(last.number.next()==header.number,"expected certificate for a block after the current head block");
+            anyhow::ensure!(last.hash()==header.parent,"parent block mismatch");
         }
-        let want_payload = self.block_payload(cert.header().number).await?
+        let want_payload = txn.consensus_dal().block_payload(cert.message.proposal.number,operator_address).await?
             .context("corresponding miniblock is missing")?;
-        anyhow::ensure!(cert.header().payload==want_payload.encode().hash(),"consensus block payload doesn't match the miniblock");
-        let result = sqlx::query!(
+        anyhow::ensure!(header.payload==want_payload.encode().hash(),"consensus block payload doesn't match the miniblock");
+        sqlx::query!(
             "INSERT INTO miniblocks_consensus (number, certificate) VALUES ($1, $2)",
-            cert.header().number.0 as i64,
-            zksync_protobuf::serde::serialize(&cert, serde_json::value::Serializer).unwrap(),
+            header.number.0 as i64,
+            zksync_protobuf::serde::serialize(cert, serde_json::value::Serializer).unwrap(),
         )
-            .execute(self.storage.conn())
+            .execute(txn.conn())
             .await?;
         txn.commit().await?;
         Ok(())

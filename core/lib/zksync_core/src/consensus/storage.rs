@@ -6,193 +6,63 @@ use zksync_concurrency::{ctx, error::Wrap as _, sync, time};
 use zksync_consensus_bft::PayloadSource;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::{BlockStore, ReplicaState, ReplicaStateStore, WriteBlockStore};
-use zksync_dal::{blocks_dal::ConsensusBlockFields, ConnectionPool};
-use zksync_types::{api::en::SyncBlock, Address, MiniblockNumber};
+use zksync_dal::{consensus_dal::Payload, ConnectionPool};
+use zksync_types::{Address};
 
 use crate::consensus;
 
-pub(crate) fn sync_block_to_consensus_block(
-    block: SyncBlock,
-) -> anyhow::Result<validator::FinalBlock> {
-    let number = validator::BlockNumber(block.number.0.into());
-    let consensus = ConsensusBlockFields::decode(
-        block
-            .consensus
-            .as_ref()
-            .context("Missing consensus fields")?,
-    )
-    .context("ConsensusBlockFields::decode()")?;
-
-    let payload: consensus::Payload = block.try_into()?;
-    let payload = payload.encode();
-    anyhow::ensure!(payload.hash() == consensus.justification.message.proposal.payload);
-    Ok(validator::FinalBlock {
-        header: validator::BlockHeader {
-            parent: consensus.parent,
-            number,
-            payload: payload.hash(),
-        },
-        payload,
-        justification: consensus.justification,
-    })
-}
-
 /// Context-aware `zksync_dal::StorageProcessor` wrapper.
-pub(super) struct StorageProcessor<'a>(zksync_dal::StorageProcessor<'a>);
+pub(super) struct CtxStorage<'a>(zksync_dal::StorageProcessor<'a>);
 
-pub(super) async fn storage<'a>(
-    ctx: &ctx::Ctx,
-    pool: &'a ConnectionPool,
-) -> ctx::Result<StorageProcessor<'a>> {
-    Ok(StorageProcessor(
-        ctx.wait(pool.access_storage_tagged("sync_layer")).await??,
-    ))
-}
+impl<'a> CtxStorage<'a> {
+    pub async fn access(ctx: &ctx::Ctx, pool: &'a ConnectionPool) -> ctx::Result<Self> {
+        Ok(Self(ctx.wait(pool.access_storage_tagged("consensus")).await??))
+    }
 
-impl<'a> StorageProcessor<'a> {
     pub async fn start_transaction<'b, 'c: 'b>(
         &'c mut self,
         ctx: &ctx::Ctx,
-    ) -> ctx::Result<StorageProcessor<'b>> {
-        Ok(StorageProcessor(
+    ) -> ctx::Result<CtxStorage<'b>> {
+        Ok(CtxStorage(
             ctx.wait(self.0.start_transaction())
                 .await?
                 .context("sqlx")?,
         ))
     }
 
+    pub async fn last_miniblock_number(&mut self, ctx: &ctx::Ctx) -> ctx::Result<validator::BlockNumber> {
+        let number = ctx
+            .wait(self.0.blocks_dal().get_sealed_miniblock_number())
+            .await??;
+        Ok(validator::BlockNumber(number.0.into()))
+    }
+
     pub async fn commit(self, ctx: &ctx::Ctx) -> ctx::Result<()> {
         Ok(ctx.wait(self.0.commit()).await?.context("sqlx")?)
     }
 
-    async fn fetch_sync_block(
-        &mut self,
-        ctx: &ctx::Ctx,
-        number: validator::BlockNumber,
-        operator_address: Address,
-    ) -> ctx::Result<Option<SyncBlock>> {
-        let number = MiniblockNumber(number.0.try_into().context("MiniblockNumber")?);
-        Ok(ctx
-            .wait(self.0.sync_dal().sync_block(number, operator_address, true))
-            .await?
-            .context("sync_block()")?)
+    pub async fn payload(&mut self, ctx: &ctx::Ctx, number: validator::BlockNumber, operator_address: Address) -> ctx::Result<Option<Payload>> {
+        Ok(ctx.wait(self.0.consensus_dal().block_payload(number, operator_address, true)).await??)
     }
 
-    pub async fn fetch_block(
-        &mut self,
-        ctx: &ctx::Ctx,
-        number: validator::BlockNumber,
-        operator_address: Address,
-    ) -> ctx::Result<Option<validator::FinalBlock>> {
-        let Some(block) = self.fetch_sync_block(ctx, number, operator_address).await? else {
-            return Ok(None);
-        };
-        if block.consensus.is_none() {
-            return Ok(None);
-        }
-        Ok(Some(
-            sync_block_to_consensus_block(block).context("sync_block_to_consensus_block()")?,
-        ))
+    pub async fn certificate(&mut self, ctx: &ctx::Ctx, number: validator::BlockNumber) -> ctx::Result<Option<validator::CommitQC>> {
+        Ok(ctx.wait(self.0.consensus_dal().certificate(number)).await??)
     }
 
-    pub async fn fetch_payload(
-        &mut self,
-        ctx: &ctx::Ctx,
-        block_number: validator::BlockNumber,
-        operator_address: Address,
-    ) -> ctx::Result<Option<consensus::Payload>> {
-        let Some(sync_block) = self
-            .fetch_sync_block(ctx, block_number, operator_address)
-            .await?
-        else {
-            return Ok(None);
-        };
-        Ok(Some(sync_block.try_into()?))
+    pub async fn first_certificate(&mut self, ctx: &ctx::Ctx) -> ctx::Result<Option<validator::CommitQC>> {
+        Ok(ctx.wait(self.0.consensus_dal().first_certificate()).await??)
+    }
+    
+    pub async fn last_certificate(&mut self, ctx: &ctx::Ctx) -> ctx::Result<Option<validator::CommitQC>> {
+        Ok(ctx.wait(self.0.consensus_dal().last_certificate()).await??)
     }
 
-    pub async fn put_block(
-        &mut self,
-        ctx: &ctx::Ctx,
-        block: &validator::FinalBlock,
-        operator_address: Address,
-    ) -> ctx::Result<()> {
-        let n = MiniblockNumber(
-            block
-                .header
-                .number
-                .0
-                .try_into()
-                .context("MiniblockNumber")?,
-        );
-        let mut txn = self
-            .start_transaction(ctx)
-            .await
-            .wrap("start_transaction()")?;
-
-        // We require the block to be already stored in Postgres when we set the consensus field.
-        let sync_block = txn
-            .fetch_sync_block(ctx, block.header.number, operator_address)
-            .await?
-            .context("unknown block")?;
-        let want = &ConsensusBlockFields {
-            parent: block.header.parent,
-            justification: block.justification.clone(),
-        };
-
-        // If consensus field is already set, just validate the stored value but don't override it.
-        if sync_block.consensus.is_some() {
-            sync_block_to_consensus_block(sync_block)
-                .context("an invalid block found in storage")?;
-            return Ok(());
-        }
-
-        // Verify that the payload matches the storage.
-        let want_payload: consensus::Payload = sync_block.try_into()?;
-        if want_payload.encode() != block.payload {
-            let got_payload = consensus::Payload::decode(&block.payload)?;
-            return Err(anyhow::anyhow!(
-                "payload mismatch: got {got_payload:?}, want {want_payload:?}"
-            )
-            .into());
-        }
-
-        ctx.wait(txn.0.blocks_dal().set_miniblock_consensus_fields(n, want))
-            .await?
-            .context("set_miniblock_consensus_fields()")?;
-        txn.commit(ctx).await.wrap("commit()")?;
-        Ok(())
+    pub async fn replica_state(&mut self, ctx: &ctx::Ctx) -> ctx::Result<ReplicaState> {
+        Ok(ctx.wait(self.0.consensus_dal().replica_state()).await??)
     }
 
-    pub async fn find_head_number(
-        &mut self,
-        ctx: &ctx::Ctx,
-    ) -> ctx::Result<validator::BlockNumber> {
-        let head = ctx
-            .wait(
-                self.0
-                    .blocks_dal()
-                    .get_last_miniblock_number_with_consensus_fields(),
-            )
-            .await?
-            .context("get_last_miniblock_number_with_consensus_fields()")?
-            .context("head not found")?;
-        Ok(validator::BlockNumber(head.0.into()))
-    }
-
-    pub async fn find_head_forward(
-        &mut self,
-        ctx: &ctx::Ctx,
-        start_at: validator::BlockNumber,
-    ) -> ctx::Result<validator::BlockNumber> {
-        let mut head = MiniblockNumber(start_at.0.try_into().context("MiniblockNumber")?);
-        while ctx
-            .wait(self.0.blocks_dal().has_consensus_fields(head + 1))
-            .await?
-            .context("has_consensus_fields()")?
-        {
-            head += 1;
-        }
-        Ok(validator::BlockNumber(head.0.into()))
+    pub async fn set_replica_state(&mut self, ctx: &ctx::Ctx, state: &ReplicaState) -> ctx::Result<()> {
+        Ok(ctx.wait(self.0.consensus_dal().set_replica_state(state)).await??)
     }
 }
 
@@ -200,8 +70,9 @@ impl<'a> StorageProcessor<'a> {
 /// considers blocks as stored <=> they have consensus field set.
 #[derive(Debug)]
 pub(super) struct SignedBlockStore {
-    genesis: validator::BlockNumber,
-    head: sync::watch::Sender<validator::BlockNumber>,
+    first: validator::BlockNumber,
+    last_send: sync::Mutex<sync::watch::Sender<validator::BlockNumber>>,
+    last_recv: sync::watch::Receiver<validator::BlockNumber>,
     pool: ConnectionPool,
     operator_address: Address,
 }
@@ -211,42 +82,43 @@ impl SignedBlockStore {
     pub async fn new(
         ctx: &ctx::Ctx,
         pool: ConnectionPool,
-        genesis: validator::BlockNumber,
-        validator_key: &validator::SecretKey,
+        validator_key: Option<&validator::SecretKey>,
         operator_address: Address,
     ) -> anyhow::Result<Self> {
-        // Ensure that genesis block has consensus field set in postgres.
-        let head = {
-            let mut storage = storage(ctx, &pool).await.wrap("storage()")?;
-            let payload = storage
-                .fetch_payload(ctx, genesis, operator_address)
-                .await
-                .wrap("fetch_payload(<genesis>)")?
-                .context("genesis block missing")?;
-            let (genesis, _) = zksync_consensus_bft::testonly::make_genesis(
-                &[validator_key.clone()],
-                payload.encode(),
-                genesis,
-            );
-            storage
-                .put_block(ctx, &genesis, operator_address)
-                .await
-                .wrap("put_block()")?;
-
-            // Find the last miniblock with consensus field set (aka head).
-            // We assume here that all blocks in range (genesis,head) also have consensus field set.
-            // WARNING: genesis should NEVER be moved to an earlier block.
-            storage
-                .find_head_number(ctx)
-                .await
-                .wrap("find_head_number()")?
+        let (first,last) = {
+            // Ensure that genesis block has consensus field set in postgres.
+            let mut storage = CtxStorage::access(ctx, &pool).await.wrap("access()")?;
+            let first = match storage.first_certificate(ctx).await.context("first_certificate()")? {
+                Some(first) => first,  
+                None => {
+                    let Some(validator_key) = validator_key else {
+                        anyhow::bail!("genesis not found in storage, and validator key was no provided therefore so we cannot sign genesis");
+                    };
+                    let number = storage.last_miniblock_number(ctx).await.context("last_miniblock_number()")?; 
+                    let payload = storage.payload(ctx,number,operator_address).await.context("payload()")?;
+                    let (genesis,_) = zksync_consensus_bft::testonly::make_genesis(&[validator_key.clone()],payload.encode(),number);
+                    storage.insert_certificate(ctx,&genesis.justification).await?;
+                    genesis.justification
+                }
+            };
+            let last = storage.last_certificate(ctx).await.context("last_certificate()")?
+                .context("genesis block disappeared from db")?;
+            (first.message.proposal.number,last.message.proposal.number)
         };
+        let (last_send,last_recv) = sync::watch::channel(last);
         Ok(Self {
-            genesis,
-            head: sync::watch::channel(head).0,
+            first,
+            last_send,
+            last_recv,
             pool,
             operator_address,
         })
+    }
+
+    async fn wait_for_previous_blocks(&self, ctx: &ctx::Ctx, block_number: validator::BlockNumber) -> ctx::Result<()> {
+        anyhow::ensure!(block_number>=self.first,"block before genesis");
+        sync::wait_for(&mut self.last_recv.clone(), |last|last.next()>=block_number).await?;
+        Ok(())
     }
 }
 
@@ -259,12 +131,13 @@ impl WriteBlockStore for SignedBlockStore {
         block_number: validator::BlockNumber,
         payload: &validator::Payload,
     ) -> ctx::Result<()> {
-        let storage = &mut storage(ctx, &self.pool).await.wrap("storage()")?;
-        let want = storage
-            .fetch_payload(ctx, block_number, self.operator_address)
-            .await
-            .wrap("fetch_payload()")?
-            .context("unknown block")?;
+        self.wait_for_previous_blocks(ctx,block_number).await?;
+        let last_send = sync::lock_owned(ctx, &self.last_send).await?;
+        if last_send.borrow().next()!=block_number {
+            return Err(anyhow::anyhow!("block already finalized").into());
+        }
+        let storage = &mut CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
+        let want = storage.payload(ctx,block_number,self.operator_address).await.wrap("payload()")?.context("miniblock not available")?;
         let got = consensus::Payload::decode(payload).context("consensus::Payload::decode()")?;
         if got != want {
             return Err(anyhow::anyhow!("unexpected payload: got {got:?} want {want:?}").into());
@@ -274,76 +147,40 @@ impl WriteBlockStore for SignedBlockStore {
 
     /// Puts a block into this storage.
     async fn put_block(&self, ctx: &ctx::Ctx, block: &validator::FinalBlock) -> ctx::Result<()> {
-        let storage = &mut storage(ctx, &self.pool).await.wrap("storage()")?;
-
-        // Currently main node is the only validator, so it should be the only one creating new
-        // blocks. To ensure that no gaps in the blocks are created we check here that we always
-        // insert the next block after the current head block.
-        let head = *self.head.borrow();
-        let head = storage
-            .find_head_forward(ctx, head)
-            .await
-            .wrap("find_head_forward()")?;
-        if block.header.number != head.next() {
-            return Err(anyhow::anyhow!(
-                "expected block with number {}, got {}",
-                head.next(),
-                block.header.number
-            )
-            .into());
-        }
-
-        storage
-            .put_block(ctx, block, self.operator_address)
-            .await
-            .wrap("put_block()")
+        self.wait_for_previous_blocks(ctx,block.header().number).await?;
+        let last_send = sync::lock_owned(ctx, &self.last_send).await?;
+        // Early exit if block has been already inserted.
+        if *last_send.borrow()>=block.header().number { return Ok(()); }
+        // Insert certificate and update `last`.
+        let storage = &mut CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
+        storage.insert_certificate(ctx,&block.justification).await.wrap("insert_certificate()")?;
+        last_send.send_replace(block.header().number);
     }
 }
 
 #[async_trait::async_trait]
 impl BlockStore for SignedBlockStore {
     async fn head_block(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::FinalBlock> {
-        let head = self.last_contiguous_block_number(ctx).await?;
-        Ok(self.block(ctx, head).await?.context("head block missing")?)
+        Ok(self.block(ctx,*self.last_recv.borrow()).await?.context("head disappeared from db")?)
     }
 
     async fn first_block(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::FinalBlock> {
-        Ok(self
-            .block(ctx, self.genesis)
-            .await?
-            .context("Genesis miniblock not present in Postgres")?)
+        Ok(self.block(ctx,self.first).await?.context("genesis disappeared from db")?)
     }
 
-    async fn last_contiguous_block_number(
-        &self,
-        ctx: &ctx::Ctx,
-    ) -> ctx::Result<validator::BlockNumber> {
-        let storage = &mut storage(ctx, &self.pool).await.wrap("storage()")?;
-        let head = *self.head.borrow();
-        storage
-            .find_head_forward(ctx, head)
-            .await
-            .wrap("find_head_forward()")
+    async fn last_contiguous_block_number(&self,ctx: &ctx::Ctx) -> ctx::Result<validator::BlockNumber> {
+        Ok(*self.last_recv.borrow())
     }
 
-    async fn block(
-        &self,
-        ctx: &ctx::Ctx,
-        number: validator::BlockNumber,
-    ) -> ctx::Result<Option<validator::FinalBlock>> {
-        let storage = &mut storage(ctx, &self.pool).await.wrap("storage()")?;
-        storage
-            .fetch_block(ctx, number, self.operator_address)
-            .await
-            .wrap("fetch_block()")
+    async fn block(&self, ctx: &ctx::Ctx, number: validator::BlockNumber) -> ctx::Result<Option<validator::FinalBlock>> {
+        let storage = &mut CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
+        let Some(justification) = storage.certificate(ctx,number).await.wrap("certificate()")? else { return Ok(None) };
+        let payload = storage.payload(ctx,number,self.operator_address).await.wrap("payload()")?.context("miniblock disappeared from storage")?;
+        Ok(Some(validator::FinalBlock{payload,justification}))
     }
 
-    async fn missing_block_numbers(
-        &self,
-        ctx: &ctx::Ctx,
-        range: ops::Range<validator::BlockNumber>,
-    ) -> ctx::Result<Vec<validator::BlockNumber>> {
-        let last = self.last_contiguous_block_number(ctx).await?;
+    async fn missing_block_numbers(&self, ctx: &ctx::Ctx, range: ops::Range<validator::BlockNumber>) -> ctx::Result<Vec<validator::BlockNumber>> {
+        let last = *self.last_recv.borrow();
         let mut output = vec![];
         output.extend((range.start.0..self.genesis.0).map(validator::BlockNumber));
         output.extend((last.next().0..range.end.0).map(validator::BlockNumber));
@@ -351,80 +188,34 @@ impl BlockStore for SignedBlockStore {
     }
 
     fn subscribe_to_block_writes(&self) -> sync::watch::Receiver<validator::BlockNumber> {
-        self.head.subscribe()
+        self.last_recv.clone()
     }
 }
 
 #[async_trait::async_trait]
 impl ReplicaStateStore for SignedBlockStore {
     async fn replica_state(&self, ctx: &ctx::Ctx) -> ctx::Result<Option<ReplicaState>> {
-        let storage = &mut storage(ctx, &self.pool).await.wrap("storage")?;
-        Ok(ctx
-            .wait(storage.0.consensus_dal().replica_state())
-            .await?
-            .context("replica_state()")?)
+        let storage = &mut CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
+        storage.replica_state(ctx).await
     }
 
-    async fn put_replica_state(
-        &self,
-        ctx: &ctx::Ctx,
-        replica_state: &ReplicaState,
-    ) -> ctx::Result<()> {
-        let storage = &mut storage(ctx, &self.pool).await.wrap("storage")?;
-        Ok(ctx
-            .wait(storage.0.consensus_dal().put_replica_state(replica_state))
-            .await?
-            .context("put_replica_state()")?)
+    async fn put_replica_state(&self, ctx: &ctx::Ctx, replica_state: &ReplicaState) -> ctx::Result<()> {
+        let storage = &mut CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
+        storage.set_replica_state(ctx,replica_state).await
     }
 }
 
 #[async_trait::async_trait]
 impl PayloadSource for SignedBlockStore {
-    async fn propose(
-        &self,
-        ctx: &ctx::Ctx,
-        block_number: validator::BlockNumber,
-    ) -> ctx::Result<validator::Payload> {
+    async fn propose(&self,ctx: &ctx::Ctx, block_number: validator::BlockNumber) -> ctx::Result<validator::Payload> {
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
+        self.wait_for_previous_blocks(ctx,block_number).await?;
         loop {
-            let storage = &mut storage(ctx, &self.pool).await.wrap("storage()")?;
-            if let Some(payload) = storage
-                .fetch_payload(ctx, block_number, self.operator_address)
-                .await
-                .wrap("fetch_payload()")?
-            {
+            let storage = &mut CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
+            if let Some(payload) = storage.payload(ctx, block_number, self.operator_address).await.wrap("payload()")? {
                 return Ok(payload.encode());
             }
             ctx.sleep(POLL_INTERVAL).await?;
-        }
-    }
-}
-
-impl SignedBlockStore {
-    pub async fn run_background_tasks(&self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
-        const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
-        let mut head = *self.head.borrow();
-        let res: ctx::Result<()> = async {
-            loop {
-                let storage = &mut storage(ctx, &self.pool).await.wrap("storage()")?;
-                head = storage
-                    .find_head_forward(ctx, head)
-                    .await
-                    .wrap("find_head_forward()")?;
-                self.head.send_if_modified(|x| {
-                    if *x >= head {
-                        return false;
-                    }
-                    *x = head;
-                    true
-                });
-                ctx.sleep(POLL_INTERVAL).await?;
-            }
-        }
-        .await;
-        match res.err().unwrap() {
-            ctx::Error::Canceled(_) => Ok(()),
-            ctx::Error::Internal(err) => Err(err),
         }
     }
 }

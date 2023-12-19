@@ -2,6 +2,7 @@
 use anyhow::Context as _;
 use zksync_consensus_roles::validator::FinalBlock;
 use zksync_types::MiniblockNumber;
+use zksync_dal::{consensus_dal::Payload};
 
 use crate::{consensus, sync_layer::fetcher::FetchedBlock};
 
@@ -12,7 +13,7 @@ impl FetchedBlock {
     ) -> anyhow::Result<Self> {
         let number = u32::try_from(block.header.number.0)
             .context("Integer overflow converting block number")?;
-        let payload = consensus::Payload::decode(&block.payload)
+        let payload = Payload::decode(&block.payload)
             .context("Failed deserializing block payload")?;
 
         Ok(Self {

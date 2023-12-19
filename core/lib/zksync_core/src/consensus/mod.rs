@@ -5,18 +5,15 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, scope};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::{node, validator};
-use zksync_dal::ConnectionPool;
+use zksync_dal::{consensus_dal::Payload,ConnectionPool};
 use zksync_types::Address;
 
-mod proto;
 mod storage;
 
 #[cfg(test)]
 pub(crate) mod testonly;
 #[cfg(test)]
 mod tests;
-
-pub(crate) use self::{payload::Payload, storage::sync_block_to_consensus_block};
 
 use serde::de::Error;
 use std::collections::{HashMap, HashSet};

@@ -9,7 +9,7 @@ use zksync_concurrency::{ctx, scope, testonly::abort_on_panic, time};
 use zksync_consensus_executor::testonly::ValidatorNode;
 use zksync_consensus_roles::validator::{self, FinalBlock};
 use zksync_consensus_storage::{InMemoryStorage, WriteBlockStore};
-use zksync_dal::{blocks_dal::ConsensusBlockFields, ConnectionPool, StorageProcessor};
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{api::en::SyncBlock, L1BatchNumber, MiniblockNumber, H256};
 
 use super::*;

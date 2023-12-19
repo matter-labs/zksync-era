@@ -140,27 +140,6 @@ impl SyncBlock {
             transactions,
         }
     }
-
-    pub fn into_final_block(
-        mut self,
-        current_operator_address: Address,
-        transactions: Vec<Transaction>,
-    ) -> Option<validator::FinalBlock> {
-        let consensus = self.consensus.take()?;
-        let number = validator::BlockNumber(self.number.0.into());
-        let payload = self
-            .into_payload(current_operator_address, transactions)
-            .encode();
-        Some(validator::FinalBlock {
-            header: validator::BlockHeader {
-                parent: consensus.parent,
-                number,
-                payload: payload.hash(),
-            },
-            payload,
-            justification: consensus.justification,
-        })
-    }
 }
 
 /// L2 block (= miniblock) payload.

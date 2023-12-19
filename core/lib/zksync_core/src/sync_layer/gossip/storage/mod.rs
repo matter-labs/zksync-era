@@ -1,9 +1,8 @@
 //! Storage implementation based on DAL.
-
 use std::ops;
 
+use crate::consensus;
 use anyhow::Context as _;
-use async_trait::async_trait;
 use zksync_concurrency::{
     ctx,
     error::Wrap as _,
@@ -20,7 +19,6 @@ mod tests;
 
 use super::buffered::ContiguousBlockStore;
 use crate::{
-    consensus::sync_block_to_consensus_block,
     sync_layer::{
         fetcher::{FetchedBlock, FetcherCursor},
         sync_action::{ActionQueueSender, SyncAction},
@@ -69,14 +67,12 @@ impl CursorWithCachedBlock {
 /// is shared with JSON-RPC-based syncing.
 #[derive(Debug)]
 pub(super) struct PostgresBlockStorage {
-    pool: ConnectionPool,
-    first_block_number: MiniblockNumber,
+    inner: consensus::storage::SignedBlockStorage,
     actions: ActionQueueSender,
-    block_sender: watch::Sender<validator::BlockNumber>,
     cursor: Mutex<CursorWithCachedBlock>,
-    operator_address: Address,
 }
 
+/*
 impl PostgresBlockStorage {
     /// Creates a new storage handle. `pool` should have multiple connections to work efficiently.
     pub async fn new(
@@ -202,9 +198,9 @@ impl PostgresBlockStorage {
             .context("Failed getting sealed miniblock number")?;
         Ok(validator::BlockNumber(number.0.into()))
     }
-}
+}*/
 
-#[async_trait]
+#[async_trait::async_trait]
 impl BlockStore for PostgresBlockStorage {
     async fn head_block(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::FinalBlock> {
         let mut storage = self.storage(ctx).await.wrap("storage()")?;
@@ -291,7 +287,7 @@ impl BlockStore for PostgresBlockStorage {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl ContiguousBlockStore for PostgresBlockStorage {
     async fn schedule_next_block(
         &self,
@@ -299,8 +295,7 @@ impl ContiguousBlockStore for PostgresBlockStorage {
         block: &validator::FinalBlock,
     ) -> ctx::Result<()> {
         // last_in_batch` is always set to `false` by this call; it is properly set by `CursorWithCachedBlock`.
-        let fetched_block =
-            FetchedBlock::from_gossip_block(block, false).context("from_gossip_block()")?;
+        let fetched_block = FetchedBlock::from_gossip_block(block, false).context("from_gossip_block()")?;
         let actions = sync::lock(ctx, &self.cursor).await?.advance(fetched_block);
         for actions_chunk in actions {
             // We don't wrap this in `ctx.wait()` because `PostgresBlockStorage` will get broken

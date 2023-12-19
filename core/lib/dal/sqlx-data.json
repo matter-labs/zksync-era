@@ -13,24 +13,6 @@
     },
     "query": "UPDATE proof_generation_details SET status=$1, updated_at = now() WHERE l1_batch_number = $2"
   },
-  "002a901f2802beb48e4d15437fba9a04885a5e4f8f17089a09f31edfd7b3d0bb": {
-    "describe": {
-      "columns": [
-        {
-          "name": "number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        false
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "SELECT number FROM miniblocks WHERE consensus IS NOT NULL ORDER BY number DESC LIMIT 1"
-  },
   "00bd80fd83aff559d8d9232c2e98a12a1dd2c8f31792cd915e2cf11f28e583b7": {
     "describe": {
       "columns": [
@@ -395,6 +377,24 @@
       }
     },
     "query": "UPDATE l1_batches SET hash = $1, merkle_root_hash = $2, compressed_repeated_writes = $3, compressed_initial_writes = $4, l2_l1_compressed_messages = $5, l2_l1_merkle_root = $6, zkporter_is_available = $7, parent_hash = $8, rollup_last_leaf_index = $9, pass_through_data_hash = $10, meta_parameters_hash = $11, compressed_state_diffs = $12, updated_at = now() WHERE number = $13 AND hash IS NULL"
+  },
+  "0a33f2b50c14df138289d97517e76e3b4dfeb415fce768cca1cf658085f20030": {
+    "describe": {
+      "columns": [
+        {
+          "name": "certificate",
+          "ordinal": 0,
+          "type_info": "Jsonb"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT certificate FROM miniblocks_consensus ORDER BY number DESC LIMIT 1"
   },
   "0a3c928a616b5ebc0b977bd773edcde721ca1c652ae2f8db41fb75cecdecb674": {
     "describe": {
@@ -3538,6 +3538,26 @@
     },
     "query": "SELECT * FROM protocol_versions ORDER BY id DESC LIMIT 1"
   },
+  "35c1680e872a6223f8adcb1703656076cd1c7efad73db685888911303851d6bd": {
+    "describe": {
+      "columns": [
+        {
+          "name": "certificate",
+          "ordinal": 0,
+          "type_info": "Jsonb"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT certificate FROM miniblocks_consensus WHERE number = $1"
+  },
   "37e4a0eea7b72bd3b75c26e003f3fa62039d9b614f0f2fa3d61e8c5e95f002fd": {
     "describe": {
       "columns": [
@@ -3555,6 +3575,24 @@
       }
     },
     "query": "SELECT MAX(index) as \"max?\" FROM initial_writes"
+  },
+  "384d514517cecc729bf2a62d2cacaba25c29392096b778d5b573796afb1f9ecd": {
+    "describe": {
+      "columns": [
+        {
+          "name": "certificate",
+          "ordinal": 0,
+          "type_info": "Jsonb"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT certificate FROM miniblocks_consensus ORDER BY number ASC LIMIT 1"
   },
   "394bbd64939d47fda4e1545e2752b208901e872b7234a5c3af456bdf429a6074": {
     "describe": {
@@ -10555,26 +10593,6 @@
     },
     "query": "UPDATE eth_txs SET gas_used = $1, confirmed_eth_tx_history_id = $2 WHERE id = $3"
   },
-  "e8629da5d4269a565f1043969d29df2ccfbebafdce96d58c601860f30d61b4a0": {
-    "describe": {
-      "columns": [
-        {
-          "name": "count!",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        null
-      ],
-      "parameters": {
-        "Left": [
-          "Int8"
-        ]
-      }
-    },
-    "query": "SELECT COUNT(*) as \"count!\"  FROM miniblocks WHERE number = $1 AND consensus IS NOT NULL"
-  },
   "e8988deed66ad9d10be89e89966082aeb920c5dc91eb5fad16bd0d3118708c2e": {
     "describe": {
       "columns": [
@@ -11515,6 +11533,19 @@
     },
     "query": "UPDATE proof_compression_jobs_fri SET status = 'queued', updated_at = now(), processing_started_at = now() WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2) OR (status = 'failed' AND attempts < $2) RETURNING l1_batch_number, status, attempts"
   },
+  "f46b08f2ad20e5a2b45a374fb53c4a898c8e9bcd67104c93440a6a21c7db2ffd": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Jsonb"
+        ]
+      }
+    },
+    "query": "INSERT INTO miniblocks_consensus (number, certificate) VALUES ($1, $2)"
+  },
   "f5e3c4b23fa0d0686b400b64c42cf78b2219f0cbcf1c9240b77e4132513e36ef": {
     "describe": {
       "columns": [
@@ -11933,19 +11964,6 @@
       }
     },
     "query": "SELECT * FROM eth_txs WHERE id = $1"
-  },
-  "fcca1961f34082f7186de607b922fd608166c5af98031e4dcc8a056b89696dbe": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Int8",
-          "Jsonb"
-        ]
-      }
-    },
-    "query": "UPDATE miniblocks SET consensus = $2 WHERE number = $1"
   },
   "ff7ff36b86b0e8d1cd7280aa447baef172cb054ffe7e1d742c59bf09b4f414cb": {
     "describe": {
