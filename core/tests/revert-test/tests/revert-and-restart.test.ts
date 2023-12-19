@@ -184,7 +184,9 @@ describe('Block reverting test', function () {
             amount: depositAmount,
             to: alice.address
         });
+        console.log('here1');
         let receipt = await depositHandle.waitFinalize();
+        console.log('here2');
         expect(receipt.status).to.be.eql(1);
 
         const balanceAfter = await alice.getBalance();
