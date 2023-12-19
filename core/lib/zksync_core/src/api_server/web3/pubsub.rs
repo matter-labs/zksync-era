@@ -1,13 +1,14 @@
 //! (Largely) backend-agnostic logic for dealing with Web3 subscriptions.
 
-use std::{collections::HashMap, sync::Arc};
-
 use anyhow::Context as _;
+use bigdecimal::Zero;
+use futures::{FutureExt, StreamExt};
 use tokio::{
-    sync::{mpsc, watch, RwLock},
+    sync::{broadcast, mpsc, watch},
     task::JoinHandle,
     time::{interval, Duration},
 };
+use tokio_stream::wrappers::BroadcastStream;
 use vise::GaugeGuard;
 use zksync_dal::ConnectionPool;
 use zksync_types::{MiniblockNumber, H128, H256};
@@ -27,6 +28,7 @@ use super::{
     namespaces::eth::EVENT_TOPIC_NUMBER_LIMIT,
 };
 
+const BROADCAST_CHANNEL_CAPACITY: usize = 1024;
 const SUBSCRIPTION_SINK_SEND_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Clone, Copy)]
@@ -39,8 +41,6 @@ impl IdProvider for EthSubscriptionIdProvider {
     }
 }
 
-pub(super) type SubscriptionMap<T> = Arc<RwLock<HashMap<SubscriptionId<'static>, T>>>;
-
 /// Events emitted by the subscription logic. Only used in WebSocket server tests so far.
 #[derive(Debug)]
 pub(super) enum PubSubEvent {
@@ -51,7 +51,7 @@ pub(super) enum PubSubEvent {
 /// Manager of notifications for a certain type of subscriptions.
 #[derive(Debug)]
 struct PubSubNotifier<V> {
-    subscribers: SubscriptionMap<V>,
+    sender: broadcast::Sender<V>,
     connection_pool: ConnectionPool,
     polling_interval: Duration,
     events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
@@ -65,15 +65,6 @@ struct MeteredSink {
 impl AsRef<SubscriptionSink> for MeteredSink {
     fn as_ref(&self) -> &SubscriptionSink {
         &self.sink
-    }
-}
-
-impl MeteredSink {
-    fn new(sink: SubscriptionSink, sub_type: SubscriptionType) -> Self {
-        Self {
-            sink,
-            _guard: PUB_SUB_METRICS.active_subscribers[&sub_type].inc_guard(1),
-        }
     }
 }
 
@@ -96,7 +87,7 @@ impl<V> PubSubNotifier<V> {
     }
 }
 
-impl PubSubNotifier<MeteredSink> {
+impl PubSubNotifier<BlockHeader> {
     async fn notify_blocks(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut last_block_number = self.sealed_miniblock_number().await?;
         let mut timer = interval(self.polling_interval);
@@ -114,37 +105,12 @@ impl PubSubNotifier<MeteredSink> {
             if let Some(last_block) = new_blocks.last() {
                 last_block_number = MiniblockNumber(last_block.number.unwrap().as_u32());
 
-                let notify_latency =
-                    PUB_SUB_METRICS.notify_subscribers_latency[&SubscriptionType::Blocks].start();
-
-                let subscribers = self.subscribers.read().await;
-                let mut closed_subscriptions = vec![];
-
-                for msink in subscribers.values() {
-                    for block in new_blocks.iter().cloned() {
-                        if msink
-                            .sink
-                            .send_timeout(
-                                SubscriptionMessage::from_json(&PubSubResult::Header(block))
-                                    .expect("PubSubResult always serializable to json;qed"),
-                                SUBSCRIPTION_SINK_SEND_TIMEOUT,
-                            )
-                            .await
-                            .is_err()
-                        {
-                            closed_subscriptions.push(msink.sink.subscription_id());
-                            // Subscriber disconnected.
-                            break;
-                        }
-                        PUB_SUB_METRICS.notify[&SubscriptionType::Blocks].inc();
+                for new_block in new_blocks {
+                    if !self.sender.receiver_count().is_zero() {
+                        // Errors only on 0 receivers, but we want to go on
+                        // if we have 0 subscribers so ignore the error.
+                        self.sender.send(new_block).ok();
                     }
-                }
-                notify_latency.observe();
-                drop(subscribers);
-
-                let mut subscribers_write = self.subscribers.write().await;
-                for closed_sub in closed_subscriptions {
-                    subscribers_write.remove(&closed_sub);
                 }
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(
@@ -167,7 +133,9 @@ impl PubSubNotifier<MeteredSink> {
             .await
             .with_context(|| format!("get_block_headers_after({last_block_number})"))
     }
+}
 
+impl PubSubNotifier<H256> {
     async fn notify_txs(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut last_time = chrono::Utc::now().naive_utc();
         let mut timer = interval(self.polling_interval);
@@ -184,37 +152,13 @@ impl PubSubNotifier<MeteredSink> {
 
             if let Some(new_last_time) = new_last_time {
                 last_time = new_last_time;
-                let notify_latency =
-                    PUB_SUB_METRICS.notify_subscribers_latency[&SubscriptionType::Txs].start();
 
-                let subscribers = self.subscribers.read().await;
-                let mut closed_subscriptions = vec![];
-
-                for msink in subscribers.values() {
-                    for tx_hash in new_txs.iter().cloned() {
-                        if msink
-                            .sink
-                            .send_timeout(
-                                SubscriptionMessage::from_json(&PubSubResult::TxHash(tx_hash))
-                                    .expect("PubSubResult always serializable to json;qed"),
-                                SUBSCRIPTION_SINK_SEND_TIMEOUT,
-                            )
-                            .await
-                            .is_err()
-                        {
-                            closed_subscriptions.push(msink.sink.subscription_id());
-                            // Subscriber disconnected.
-                            break;
-                        }
-                        PUB_SUB_METRICS.notify[&SubscriptionType::Txs].inc();
+                for new_tx in new_txs {
+                    if !self.sender.receiver_count().is_zero() {
+                        // Errors only on 0 receivers, but we want to go on
+                        // if we have 0 subscribers so ignore the error.
+                        self.sender.send(new_tx).ok();
                     }
-                }
-                notify_latency.observe();
-                drop(subscribers);
-
-                let mut subscribers_write = self.subscribers.write().await;
-                for closed_sub in closed_subscriptions {
-                    subscribers_write.remove(&closed_sub);
                 }
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(SubscriptionType::Txs));
@@ -237,7 +181,7 @@ impl PubSubNotifier<MeteredSink> {
     }
 }
 
-impl PubSubNotifier<(MeteredSink, PubSubFilter)> {
+impl PubSubNotifier<Log> {
     async fn notify_logs(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut last_block_number = self.sealed_miniblock_number().await?;
         let mut timer = interval(self.polling_interval);
@@ -254,39 +198,14 @@ impl PubSubNotifier<(MeteredSink, PubSubFilter)> {
 
             if let Some(last_log) = new_logs.last() {
                 last_block_number = MiniblockNumber(last_log.block_number.unwrap().as_u32());
-                let notify_latency =
-                    PUB_SUB_METRICS.notify_subscribers_latency[&SubscriptionType::Logs].start();
-                let subscribers = self.subscribers.read().await;
-                let mut closed_subscriptions = vec![];
 
-                for (msink, filter) in subscribers.values() {
-                    for log in &new_logs {
-                        if filter.matches(log) {
-                            if msink
-                                .sink
-                                .send_timeout(
-                                    SubscriptionMessage::from_json(&PubSubResult::Log(log.clone()))
-                                        .expect("PubSubResult always serializable to json;qed"),
-                                    SUBSCRIPTION_SINK_SEND_TIMEOUT,
-                                )
-                                .await
-                                .is_err()
-                            {
-                                closed_subscriptions.push(msink.sink.subscription_id());
-                                // Subscriber disconnected.
-                                break;
-                            }
-                            PUB_SUB_METRICS.notify[&SubscriptionType::Logs].inc();
-                        }
+                if !self.sender.receiver_count().is_zero() {
+                    for new_log in new_logs {
+                        // Errors only on 0 receivers, but we want to go on
+                        // if we have 0 subscribers so ignore the error.
+                        let _ = self.sender.send(new_log);
                     }
                 }
-                drop(subscribers);
-
-                let mut subscribers_write = self.subscribers.write().await;
-                for closed_sub in closed_subscriptions {
-                    subscribers_write.remove(&closed_sub);
-                }
-                notify_latency.observe();
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(SubscriptionType::Logs));
         }
@@ -307,18 +226,22 @@ impl PubSubNotifier<(MeteredSink, PubSubFilter)> {
 
 /// Subscription support for Web3 APIs.
 pub(super) struct EthSubscribe {
-    active_block_subs: SubscriptionMap<MeteredSink>,
-    active_tx_subs: SubscriptionMap<MeteredSink>,
-    active_log_subs: SubscriptionMap<(MeteredSink, PubSubFilter)>,
+    blocks: broadcast::Sender<BlockHeader>,
+    transactions: broadcast::Sender<H256>,
+    logs: broadcast::Sender<Log>,
     events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
 }
 
 impl EthSubscribe {
     pub fn new() -> Self {
+        let (blocks, _rx_blocks) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
+        let (transactions, _rx_) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
+        let (logs, _rx_logs) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
+
         Self {
-            active_block_subs: SubscriptionMap::default(),
-            active_tx_subs: SubscriptionMap::default(),
-            active_log_subs: SubscriptionMap::default(),
+            blocks,
+            transactions,
+            logs,
             events_sender: None,
         }
     }
@@ -336,6 +259,104 @@ impl EthSubscribe {
         .await;
     }
 
+    async fn heads_subscriber(
+        pending_sink: PendingSubscriptionSink,
+        b: broadcast::Receiver<BlockHeader>,
+    ) {
+        let _guard = PUB_SUB_METRICS.active_subscribers[&SubscriptionType::Blocks].inc_guard(1);
+        let sink = pending_sink.accept().await.unwrap();
+        let closed = sink.closed().fuse();
+        let mut b = BroadcastStream::new(b);
+        tokio::pin!(closed);
+
+        loop {
+            tokio::select! {
+                new_log = b.next() => {
+                    if let Some(Ok(new_log)) = new_log {
+                        sink.send_timeout(
+                            SubscriptionMessage::from_json(&PubSubResult::Header(new_log))
+                            .expect("PubSubResult always serializable to json; qed"),
+                            SUBSCRIPTION_SINK_SEND_TIMEOUT,
+                        )
+                            .await.ok();
+                        } else {
+                            break
+                    }
+                }
+                _ = &mut closed => {
+                    break
+                }
+            }
+        }
+    }
+
+    async fn transactions_subscriber(
+        pending_sink: PendingSubscriptionSink,
+        b: broadcast::Receiver<H256>,
+    ) {
+        PUB_SUB_METRICS.active_subscribers[&SubscriptionType::Txs].inc_guard(1);
+        let sink = pending_sink.accept().await.unwrap();
+        let closed = sink.closed().fuse();
+        let mut b = BroadcastStream::new(b);
+        tokio::pin!(closed);
+
+        loop {
+            tokio::select! {
+                new_log = b.next() => {
+                    if let Some(Ok(new_log)) = new_log {
+                        sink.send_timeout(
+                            SubscriptionMessage::from_json(&PubSubResult::TxHash(new_log))
+                            .expect("PubSubResult always serializable to json; qed"),
+                            SUBSCRIPTION_SINK_SEND_TIMEOUT,
+                        )
+                            .await.ok();
+                        } else {
+                            break
+                    }
+                }
+                _ = &mut closed => {
+                    break
+                }
+            }
+        }
+    }
+
+    async fn logs_subscriber(
+        pending_sink: PendingSubscriptionSink,
+        b: broadcast::Receiver<Log>,
+        filter: PubSubFilter,
+    ) {
+        let _guard = PUB_SUB_METRICS.active_subscribers[&SubscriptionType::Logs].inc_guard(1);
+        let sink = pending_sink.accept().await.unwrap();
+        let closed = sink.closed().fuse();
+        let mut b = BroadcastStream::new(b);
+        tokio::pin!(closed);
+
+        loop {
+            tokio::select! {
+                new_log = b.next() => {
+                    let new_log = new_log.unwrap().unwrap();
+                    if filter.matches(&new_log) {
+                        if sink
+                            .send_timeout(
+                                SubscriptionMessage::from_json(&PubSubResult::Log(new_log))
+                                .expect("PubSubResult always serializable to json;qed"),
+                                SUBSCRIPTION_SINK_SEND_TIMEOUT,
+                            )
+                                .await
+                                .is_err() {
+                                    break
+                        }
+                        PUB_SUB_METRICS.notify[&SubscriptionType::Logs].inc();
+                    }
+                }
+                _ = &mut closed => {
+                    break
+                }
+            }
+        }
+    }
+
     #[tracing::instrument(skip(self, pending_sink))]
     pub async fn sub(
         &self,
@@ -345,37 +366,28 @@ impl EthSubscribe {
     ) {
         let sub_type = match sub_type.as_str() {
             "newHeads" => {
-                let mut block_subs = self.active_block_subs.write().await;
-                let sink = pending_sink.accept().await.unwrap();
+                let blocks_rx = self.blocks.subscribe();
 
-                block_subs.insert(
-                    sink.subscription_id(),
-                    MeteredSink::new(sink, SubscriptionType::Blocks),
-                );
+                tokio::spawn(Self::heads_subscriber(pending_sink, blocks_rx));
+
                 Some(SubscriptionType::Blocks)
             }
             "newPendingTransactions" => {
-                let mut tx_subs = self.active_tx_subs.write().await;
-                let sink = pending_sink.accept().await.unwrap();
-                tx_subs.insert(
-                    sink.subscription_id(),
-                    MeteredSink::new(sink, SubscriptionType::Txs),
-                );
+                let transactions_rx = self.transactions.subscribe();
+
+                tokio::spawn(Self::transactions_subscriber(pending_sink, transactions_rx));
                 Some(SubscriptionType::Txs)
             }
             "logs" => {
+                let logs_rx = self.logs.subscribe();
                 let filter = params.unwrap_or_default();
                 let topic_count = filter.topics.as_ref().map_or(0, Vec::len);
+
                 if topic_count > EVENT_TOPIC_NUMBER_LIMIT {
                     Self::reject(pending_sink).await;
                     None
                 } else {
-                    let mut log_subs = self.active_log_subs.write().await;
-                    let sink = pending_sink.accept().await.unwrap();
-                    log_subs.insert(
-                        sink.subscription_id(),
-                        (MeteredSink::new(sink, SubscriptionType::Logs), filter),
-                    );
+                    tokio::spawn(Self::logs_subscriber(pending_sink, logs_rx, filter));
                     Some(SubscriptionType::Logs)
                 }
             }
@@ -384,12 +396,13 @@ impl EthSubscribe {
                     return;
                 };
 
-                sink.send_timeout(
-                    SubscriptionMessage::from_json(&PubSubResult::Syncing(false)).unwrap(),
-                    SUBSCRIPTION_SINK_SEND_TIMEOUT,
-                )
-                .await
-                .ok();
+                tokio::spawn(async move {
+                    sink.send_timeout(
+                        SubscriptionMessage::from_json(&PubSubResult::Syncing(false)).unwrap(),
+                        SUBSCRIPTION_SINK_SEND_TIMEOUT,
+                    )
+                    .await
+                });
                 None
             }
             _ => {
@@ -413,8 +426,9 @@ impl EthSubscribe {
         stop_receiver: watch::Receiver<bool>,
     ) -> Vec<JoinHandle<anyhow::Result<()>>> {
         let mut notifier_tasks = Vec::with_capacity(3);
+
         let notifier = PubSubNotifier {
-            subscribers: self.active_block_subs.clone(),
+            sender: self.blocks.clone(),
             connection_pool: connection_pool.clone(),
             polling_interval,
             events_sender: self.events_sender.clone(),
@@ -423,7 +437,7 @@ impl EthSubscribe {
         notifier_tasks.push(notifier_task);
 
         let notifier = PubSubNotifier {
-            subscribers: self.active_tx_subs.clone(),
+            sender: self.transactions.clone(),
             connection_pool: connection_pool.clone(),
             polling_interval,
             events_sender: self.events_sender.clone(),
@@ -432,7 +446,7 @@ impl EthSubscribe {
         notifier_tasks.push(notifier_task);
 
         let notifier = PubSubNotifier {
-            subscribers: self.active_log_subs.clone(),
+            sender: self.logs.clone(),
             connection_pool,
             polling_interval,
             events_sender: self.events_sender.clone(),
