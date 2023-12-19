@@ -233,7 +233,6 @@ mod tests {
         let expected_sql = "(miniblock_number >= 100) AND (miniblock_number <= 200) AND (address = ANY($1)) AND (topic0 = ANY($2))";
         let expected_arg_index = 3;
 
-        // todo: try with different params
         let (actual_sql, actual_arg_index) =
             events_web3_dal.build_get_logs_where_clause(&filter, false);
 

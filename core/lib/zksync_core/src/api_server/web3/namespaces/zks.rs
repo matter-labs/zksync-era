@@ -279,7 +279,6 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
 
         // Position of l1 log in L1 batch relative to logs with identical data
         let l1_log_relative_position = if let Some(l2_log_position) = l2_log_position {
-            // fixme: do we need to have it true here?
             let logs = storage
                 .events_web3_dal()
                 .get_logs(
