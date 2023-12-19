@@ -45,7 +45,7 @@ pub(crate) struct LimitMiddleware<S> {
     inner: S,
     rate_limiter: Option<RateLimiter<NotKeyed, InMemoryState, DefaultClock, NoOpMiddleware>>,
     transport: Transport,
-    __guard: GaugeGuard,
+    _guard: GaugeGuard,
 }
 
 impl<S> LimitMiddleware<S> {
@@ -55,7 +55,7 @@ impl<S> LimitMiddleware<S> {
             rate_limiter: requests_per_minute_limit
                 .map(|limit| RateLimiter::direct(Quota::per_minute(limit))),
             transport: Transport::Ws,
-            __guard: API_METRICS.ws_open_sessions.inc_guard(1),
+            _guard: API_METRICS.ws_open_sessions.inc_guard(1),
         }
     }
 }
