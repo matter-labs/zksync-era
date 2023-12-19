@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_protobuf::{read_required, required, ProtoFmt};
+use zksync_protobuf::{required, ProtoFmt};
 use zksync_types::{
     api::en, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction, H160, H256,
 };
@@ -22,7 +22,6 @@ pub(crate) struct StorageSyncBlock {
     pub protocol_version: i32,
     pub virtual_blocks: i64,
     pub hash: Vec<u8>,
-    pub consensus: Option<serde_json::Value>,
 }
 
 fn parse_h256(bytes: &[u8]) -> anyhow::Result<H256> {
@@ -45,7 +44,6 @@ pub(crate) struct SyncBlock {
     pub virtual_blocks: u32,
     pub hash: H256,
     pub protocol_version: ProtocolVersionId,
-    pub consensus: Option<ConsensusBlockFields>,
 }
 
 impl TryFrom<StorageSyncBlock> for SyncBlock {
@@ -96,11 +94,6 @@ impl TryFrom<StorageSyncBlock> for SyncBlock {
                 .context("protocol_version")?
                 .try_into()
                 .context("protocol_version")?,
-            consensus: block
-                .consensus
-                .map(zksync_protobuf::serde::deserialize)
-                .transpose()
-                .context("consensus")?,
         })
     }
 }
@@ -144,7 +137,7 @@ impl SyncBlock {
             l2_fair_gas_price: self.l2_fair_gas_price,
             virtual_blocks: self.virtual_blocks,
             operator_address: self.fee_account_address.unwrap_or(current_operator_address),
-            transactions: transactions,
+            transactions,
         }
     }
 
@@ -167,33 +160,6 @@ impl SyncBlock {
             payload,
             justification: consensus.justification,
         })
-    }
-}
-
-/// Consensus-related L2 block (= miniblock) fields.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct ConsensusBlockFields {
-    /// Hash of the previous consensus block.
-    pub parent: validator::BlockHeaderHash,
-    /// Quorum certificate for the block.
-    pub justification: validator::CommitQC,
-}
-
-impl ProtoFmt for ConsensusBlockFields {
-    type Proto = crate::models::proto::ConsensusBlockFields;
-
-    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
-        Ok(Self {
-            parent: read_required(&r.parent).context("parent")?,
-            justification: read_required(&r.justification).context("justification")?,
-        })
-    }
-
-    fn build(&self) -> Self::Proto {
-        Self::Proto {
-            parent: Some(self.parent.build()),
-            justification: Some(self.justification.build()),
-        }
     }
 }
 
@@ -275,24 +241,5 @@ impl Payload {
 
     pub fn encode(&self) -> validator::Payload {
         validator::Payload(zksync_protobuf::encode(self))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use rand::Rng;
-    use zksync_consensus_roles::validator;
-
-    use super::ConsensusBlockFields;
-
-    #[tokio::test]
-    async fn encode_decode() {
-        let rng = &mut rand::thread_rng();
-        let block = rng.gen::<validator::FinalBlock>();
-        let _want = ConsensusBlockFields {
-            parent: block.header.parent,
-            justification: block.justification,
-        };
-        todo!();
     }
 }

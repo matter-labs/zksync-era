@@ -2,13 +2,6 @@ syntax = "proto3";
 
 package zksync.dal;
 
-import "zksync/roles/validator.proto";
-
-message ConsensusBlockFields {
-  optional roles.validator.BlockHeaderHash parent = 1;
-  optional roles.validator.CommitQC justification = 2;
-}
-
 message Transaction {
   // Default derive(serde::Serialize) encoding of the zksync_types::Transaction.
   // TODO(gprusak): it is neither efficient, unique, nor suitable for version control.

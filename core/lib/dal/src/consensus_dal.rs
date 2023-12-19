@@ -1,9 +1,9 @@
 use zksync_consensus_storage::ReplicaState;
 
-use crate::models::storage_sync::ConsensusBlockFields;
+pub use crate::models::storage_sync::Payload;
 use crate::StorageProcessor;
 use zksync_consensus_roles::validator;
-use zksync_types::MiniblockNumber;
+use zksync_types::{Address,MiniblockNumber};
 
 #[derive(Debug)]
 pub struct ConsensusDal<'a, 'c> {
@@ -37,50 +37,49 @@ impl ConsensusDal<'_, '_> {
     /// with consensus fields.
     ///
     /// If better efficiency is needed we can add an index on "miniblocks without consensus fields".
-    pub async fn get_last_block_number(&mut self) -> anyhow::Result<Option<validator::BlockNumber>> {
-        let Some(row) = sqlx::query!("SELECT number FROM miniblocks_consensus ORDER BY number DESC LIMIT 1")
+    pub async fn last_certificate(&mut self) -> anyhow::Result<Option<validator::CommitQC>> {
+        let Some(row) = sqlx::query!("SELECT certificate FROM miniblocks_consensus ORDER BY number DESC LIMIT 1")
             .fetch_optional(self.storage.conn())
             .await? else { return Ok(None) };
-        Ok(Some(validator::BlockNumber(row.number.try_into()?)))
+        Ok(Some(zksync_protobuf::serde::deserialize(row.certificate)?))
     }
 
-    pub async fn get_first_block_number(&mut self) -> anyhow::Result<Option<validator::BlockNumber>> {
-        let Some(row) = sqlx::query!("SELECT number FROM miniblocks_consensus ORDER BY number ASC LIMIT 1")
+    pub async fn first_certificate(&mut self) -> anyhow::Result<Option<validator::CommitQC>> {
+        let Some(row) = sqlx::query!("SELECT certificate FROM miniblocks_consensus ORDER BY number ASC LIMIT 1")
             .fetch_optional(self.storage.conn())
             .await? else { return Ok(None) };
-        Ok(Some(validator::BlockNumber(row.number.try_into()?)))
+        Ok(Some(zksync_protobuf::serde::deserialize(row.certificate)?))
     }
 
-    /// Checks whether the specified miniblock has consensus field set.
-    /*pub async fn has_consensus_fields(&mut self, number: MiniblockNumber) -> sqlx::Result<bool> {
-        Ok(sqlx::query!("SELECT COUNT(*) as \"count!\"  FROM miniblocks WHERE number = $1 AND consensus IS NOT NULL", number.0 as i64)
-            .fetch_one(self.storage.conn())
+    pub async fn certificate(&mut self, block_number: validator::BlockNumber) -> anyhow::Result<Option<validator::CommitQC>> {
+        let Some(row) = sqlx::query!("SELECT certificate FROM miniblocks_consensus WHERE number = $1",i64::try_from(block_number.0)?)
+            .fetch_optional(self.storage.conn())
             .await?
-            .count > 0)
-    }*/
-
+        else { return Ok(None) };
+        Ok(Some(zksync_protobuf::serde::deserialize(row.certificate)?))
+    }
+    
     pub async fn block_payload(&mut self, block_number: validator::BlockNumber, operator_address: Address) -> anyhow::Result<Option<Payload>> {
         let block_number = MiniblockNumber(block_number.0.try_into()?);
         let Some(block) = self.storage.sync_dal().sync_block_inner(block_number).await? else { return Ok(None) };
         let transactions = self.storage.sync_dal().sync_block_transactions(block_number).await?;
-        Ok(block.into_payload(operator_address,transactions))
+        Ok(Some(block.into_payload(operator_address,transactions)))
     }
 
     /// Sets consensus-related fields for the specified miniblock.
-    pub async fn insert_quorum_ceritificate(&mut self, qc: &validator::CommitQC) -> anyhow::Result<()> {
+    pub async fn insert_ceritificate(&mut self, cert: &validator::CommitQC) -> anyhow::Result<()> {
         let txn = self.storage.start_transaction().await?;
-        if let Some(head) = self.get_last_block_number().await? {
-            anyhow::ensure!(head.next()==block.header.number,"expected a next block after the current head block");
-            // TODO: compare parent hash.
+        if let Some(head) = self.last_certificate().await? {
+            anyhow::ensure!(head.header().next()==cert.header().number,"expected certificate for a block after the current head block");
+            anyhow::ensure!(head.header().hash()==cert.header().parent,"parent block mismatch");
         }
-        let want_payload = self.block_payload(block.header.number).await?
+        let want_payload = self.block_payload(cert.header().number).await?
             .context("corresponding miniblock is missing")?;
-        anyhow::ensure!(got_payload==want_payload,"consensus block payload doesn't match the miniblock");
+        anyhow::ensure!(cert.header().payload==want_payload.encode().hash(),"consensus block payload doesn't match the miniblock");
         let result = sqlx::query!(
-            "INSERT INTO miniblocks_consensus (number, fields) VALUES ($1, $2)",
-            block.header.number.0 as i64,
-            zksync_protobuf::serde::serialize(&block.justification, serde_json::value::Serializer),
-            .unwrap(),
+            "INSERT INTO miniblocks_consensus (number, certificate) VALUES ($1, $2)",
+            cert.header().number.0 as i64,
+            zksync_protobuf::serde::serialize(&cert, serde_json::value::Serializer).unwrap(),
         )
             .execute(self.storage.conn())
             .await?;
