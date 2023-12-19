@@ -14,8 +14,18 @@ impl TokensWeb3Dal<'_, '_> {
     pub async fn get_well_known_tokens(&mut self) -> Result<Vec<TokenInfo>, SqlxError> {
         {
             let records = sqlx::query!(
-                "SELECT l1_address, l2_address, name, symbol, decimals FROM tokens
-                 ORDER BY symbol"
+                r#"
+                SELECT
+                    l1_address,
+                    l2_address,
+                    NAME,
+                    symbol,
+                    decimals
+                FROM
+                    tokens
+                ORDER BY
+                    symbol
+                "#
             )
             .fetch_all(self.storage.conn())
             .await?;

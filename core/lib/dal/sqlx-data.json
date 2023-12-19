@@ -7056,30 +7056,6 @@
     },
     "query": "\n            INSERT INTO\n                consensus_replica_state (fake_key, state)\n            VALUES\n                (TRUE, $1)\n            ON CONFLICT (fake_key) DO\n            UPDATE\n            SET\n                state = excluded.state\n            "
   },
-  "78720a210af2364dbf0e6213ae1b9263dbe6655fcce708998ca871d22cc41df0": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_address",
-          "ordinal": 0,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "l2_address",
-          "ordinal": 1,
-          "type_info": "Bytea"
-        }
-      ],
-      "nullable": [
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "\n                SELECT\n                    l1_address,\n                    l2_address\n                FROM\n                    tokens\n                WHERE\n                    well_known = TRUE\n                "
-  },
   "78978c19282961c5b3dc06352b41caa4cca66d6ad74b2cd1a34ea5f7bc1e6909": {
     "describe": {
       "columns": [
@@ -8712,6 +8688,48 @@
     },
     "query": "\n            UPDATE prover_jobs_fri\n            SET\n                status = 'sent_to_server',\n                updated_at = NOW()\n            WHERE\n                l1_batch_number = $1\n            "
   },
+  "af74cb82724bdf9fa4f716cf2ee07a011c3ad3f13a2ed37c4bcce515786fc867": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_address",
+          "ordinal": 0,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "l2_address",
+          "ordinal": 1,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "name",
+          "ordinal": 2,
+          "type_info": "Varchar"
+        },
+        {
+          "name": "symbol",
+          "ordinal": 3,
+          "type_info": "Varchar"
+        },
+        {
+          "name": "decimals",
+          "ordinal": 4,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "\n                SELECT\n                    l1_address,\n                    l2_address,\n                    NAME,\n                    symbol,\n                    decimals\n                FROM\n                    tokens\n                ORDER BY\n                    symbol\n                "
+  },
   "afc24bd1407dba82cd3dc9e7ee71ac4ab2d73bda6022700aeb0a630a2563a4b4": {
     "describe": {
       "columns": [],
@@ -9544,6 +9562,30 @@
       }
     },
     "query": "\n                    INSERT INTO\n                        prover_jobs_fri (\n                            l1_batch_number,\n                            circuit_id,\n                            circuit_blob_url,\n                            aggregation_round,\n                            sequence_number,\n                            depth,\n                            is_node_final_proof,\n                            protocol_version,\n                            status,\n                            created_at,\n                            updated_at\n                        )\n                    VALUES\n                        ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW())\n                    ON CONFLICT (l1_batch_number, aggregation_round, circuit_id, depth, sequence_number) DO\n                    UPDATE\n                    SET\n                        updated_at = NOW()\n                    "
+  },
+  "c4ea7812861a283448095acbb1164420a25eef488de2b67e91ed39657667bd4a": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_address",
+          "ordinal": 0,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "l2_address",
+          "ordinal": 1,
+          "type_info": "Bytea"
+        }
+      ],
+      "nullable": [
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "\n                SELECT\n                    l1_address,\n                    l2_address\n                FROM\n                    tokens\n                "
   },
   "c5656667e5610ffb33e7b977ac92b7c4d79cbd404e0267794ec203df0cbb169d": {
     "describe": {
@@ -11591,48 +11633,6 @@
       }
     },
     "query": "\n                UPDATE prover_jobs\n                SET\n                    status = 'queued',\n                    updated_at = NOW(),\n                    processing_started_at = NOW()\n                WHERE\n                    (\n                        status = 'in_progress'\n                        AND processing_started_at <= NOW() - $1::INTERVAL\n                        AND attempts < $2\n                    )\n                    OR (\n                        status = 'in_gpu_proof'\n                        AND processing_started_at <= NOW() - $1::INTERVAL\n                        AND attempts < $2\n                    )\n                    OR (\n                        status = 'failed'\n                        AND attempts < $2\n                    )\n                RETURNING\n                    id,\n                    status,\n                    attempts\n                "
-  },
-  "f39372e37160df4897f62a800694867ed765dcb9dc60754df9df8700d4244bfb": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_address",
-          "ordinal": 0,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "l2_address",
-          "ordinal": 1,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "name",
-          "ordinal": 2,
-          "type_info": "Varchar"
-        },
-        {
-          "name": "symbol",
-          "ordinal": 3,
-          "type_info": "Varchar"
-        },
-        {
-          "name": "decimals",
-          "ordinal": 4,
-          "type_info": "Int4"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "\n                SELECT\n                    l1_address,\n                    l2_address,\n                    NAME,\n                    symbol,\n                    decimals\n                FROM\n                    tokens\n                WHERE\n                    well_known = TRUE\n                ORDER BY\n                    symbol\n                "
   },
   "f4362a61ab05af3d71a3232d2f017db60405a887f9f7fa0ca60aa7fc879ce630": {
     "describe": {
