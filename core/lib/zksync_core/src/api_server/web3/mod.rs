@@ -296,7 +296,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         }
     }
 
-    async fn build_rpc_module(mut self) -> RpcModule<()> {
+    async fn build_rpc_module(mut self, is_legacy_api: bool) -> RpcModule<()> {
         let namespaces = self.namespaces.take().unwrap();
         let zksync_network_id = self.config.l2_chain_id;
         let rpc_state = self.build_rpc_state();
@@ -304,7 +304,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         // Collect all the methods into a single RPC module.
         let mut rpc = RpcModule::new(());
         if namespaces.contains(&Namespace::Eth) {
-            rpc.merge(EthNamespace::new(rpc_state.clone()).into_rpc())
+            rpc.merge(EthNamespace::new(rpc_state.clone(), !is_legacy_api).into_rpc())
                 .expect("Can't merge eth namespace");
         }
         if namespaces.contains(&Namespace::Net) {
@@ -381,7 +381,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
                 self.build_jsonrpc_ws(addr, stop_receiver).await
             }
             (ApiBackend::Jsonrpsee, Some(transport)) => {
-                self.build_jsonrpsee(transport, stop_receiver).await
+                self.build_jsonrpsee(transport, stop_receiver, true).await
             }
             (_, None) => anyhow::bail!("ApiTransport is not specified"),
         }
@@ -474,8 +474,11 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         }
     }
 
-    async fn extend_jsonrpc_methods<T, S>(mut self, io: &mut MetaIoHandler<T, S>)
-    where
+    async fn extend_jsonrpc_methods<T, S>(
+        mut self,
+        io: &mut MetaIoHandler<T, S>,
+        is_legacy_api: bool,
+    ) where
         T: jsonrpc_core::Metadata,
         S: jsonrpc_core::Middleware<T>,
     {
@@ -483,7 +486,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         let namespaces = self.namespaces.take().unwrap();
         let rpc_state = self.build_rpc_state();
         if namespaces.contains(&Namespace::Eth) {
-            io.extend_with(EthNamespace::new(rpc_state.clone()).to_delegate());
+            io.extend_with(EthNamespace::new(rpc_state.clone(), is_legacy_api).to_delegate());
         }
         if namespaces.contains(&Namespace::Zks) {
             io.extend_with(ZksNamespace::new(rpc_state.clone()).to_delegate());
@@ -619,6 +622,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         mut self,
         transport: ApiTransport,
         stop_receiver: watch::Receiver<bool>,
+        is_legacy_api: bool,
     ) -> anyhow::Result<ApiServerHandles> {
         if matches!(transport, ApiTransport::WebSocket(_)) {
             // TODO (SMA-1588): Implement `eth_subscribe` method for `jsonrpsee`.
@@ -654,7 +658,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
             .with_context(|| {
                 format!("Failed creating Tokio runtime for {health_check_name} jsonrpsee server")
             })?;
-        let rpc = self.build_rpc_module().await;
+        let rpc = self.build_rpc_module(is_legacy_api).await;
 
         // Start the server in a separate tokio runtime from a dedicated thread.
         let (local_addr_sender, local_addr) = oneshot::channel();

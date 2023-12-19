@@ -24,10 +24,14 @@ pub struct ApiConfig {
 pub struct Web3JsonRpcConfig {
     /// Port to which the HTTP RPC server is listening.
     pub http_port: u16,
+    /// Legacy port to which the HTTP RPC server is listening.
+    pub legacy_http_port: Option<u16>,
     /// URL to access HTTP RPC server.
     pub http_url: String,
     /// Port to which the WebSocket RPC server is listening.
     pub ws_port: u16,
+    /// Legacy port to which the WebSocket RPC server is listening.
+    pub legacy_ws_port: Option<u16>,
     /// URL to access WebSocket RPC server.
     pub ws_url: String,
     /// Max possible limit of entities to be requested once.

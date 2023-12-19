@@ -61,19 +61,17 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> EthNamespaceServer for EthNa
     }
 
     async fn get_logs(&self, filter: Filter) -> RpcResult<Vec<Log>> {
-        self.get_logs_impl(filter, true)
-            .await
-            .map_err(into_jsrpc_error)
+        self.get_logs_impl(filter).await.map_err(into_jsrpc_error)
     }
 
     async fn get_filter_logs(&self, filter_index: U256) -> RpcResult<FilterChanges> {
-        self.get_filter_logs_impl(filter_index, true)
+        self.get_filter_logs_impl(filter_index)
             .await
             .map_err(into_jsrpc_error)
     }
 
     async fn get_filter_changes(&self, filter_index: U256) -> RpcResult<FilterChanges> {
-        self.get_filter_changes_impl(filter_index, true)
+        self.get_filter_changes_impl(filter_index)
             .await
             .map_err(into_jsrpc_error)
     }
@@ -180,7 +178,7 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> EthNamespaceServer for EthNa
     }
 
     async fn get_transaction_receipt(&self, hash: H256) -> RpcResult<Option<TransactionReceipt>> {
-        self.get_transaction_receipt_impl(hash, true)
+        self.get_transaction_receipt_impl(hash)
             .await
             .map_err(into_jsrpc_error)
     }

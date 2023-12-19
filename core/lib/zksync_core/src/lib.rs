@@ -415,6 +415,44 @@ pub async fn initialize_components(
                 bounded_gas_adjuster.clone(),
                 state_keeper_config.save_call_traces,
                 storage_caches.clone().unwrap(),
+                false,
+            )
+            .await
+            .context("run_http_api")?;
+
+            task_futures.extend(server_handles.tasks);
+            healthchecks.push(Box::new(server_handles.health_check));
+            let elapsed = started_at.elapsed();
+            APP_METRICS.init_latency[&InitStage::HttpApi].set(elapsed);
+            tracing::info!(
+                "Initialized HTTP API on {:?} in {elapsed:?}",
+                server_handles.local_addr
+            );
+
+            storage_caches = Some(
+                build_storage_caches(configs, &replica_connection_pool, &mut task_futures)
+                    .context("build_storage_caches()")?,
+            );
+
+            let started_at = Instant::now();
+            tracing::info!("Initializing HTTP API");
+            let bounded_gas_adjuster = gas_adjuster
+                .get_or_init()
+                .await
+                .context("gas_adjuster.get_or_init()")?;
+            let server_handles = run_http_api(
+                &postgres_config,
+                &tx_sender_config,
+                &state_keeper_config,
+                &internal_api_config,
+                &api_config,
+                connection_pool.clone(),
+                replica_connection_pool.clone(),
+                stop_receiver.clone(),
+                bounded_gas_adjuster.clone(),
+                state_keeper_config.save_call_traces,
+                storage_caches.clone().unwrap(),
+                true,
             )
             .await
             .context("run_http_api")?;
@@ -453,6 +491,7 @@ pub async fn initialize_components(
                 replica_connection_pool.clone(),
                 stop_receiver.clone(),
                 storage_caches,
+                false,
             )
             .await
             .context("run_ws_api")?;
@@ -1109,6 +1148,7 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     gas_adjuster: Arc<G>,
     with_debug_namespace: bool,
     storage_caches: PostgresStorageCaches,
+    is_legacy: bool,
 ) -> anyhow::Result<ApiServerHandles> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
@@ -1132,9 +1172,15 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
         .await
         .context("failed to build last_miniblock_pool")?;
 
+    let port = if is_legacy {
+        api_config.web3_json_rpc.http_port
+    } else {
+        api_config.web3_json_rpc.legacy_http_port
+    };
+
     let api_builder =
         web3::ApiBuilder::jsonrpsee_backend(internal_api.clone(), replica_connection_pool)
-            .http(api_config.web3_json_rpc.http_port)
+            .http(port)
             .with_last_miniblock_pool(last_miniblock_pool)
             .with_filter_limit(api_config.web3_json_rpc.filters_limit())
             .with_threads(api_config.web3_json_rpc.http_server_threads())
@@ -1158,6 +1204,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     replica_connection_pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
     storage_caches: PostgresStorageCaches,
+    is_legacy: bool,
 ) -> anyhow::Result<ApiServerHandles> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
@@ -1177,9 +1224,15 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     let mut namespaces = Namespace::DEFAULT.to_vec();
     namespaces.push(Namespace::Snapshots);
 
+    let port = if is_legacy {
+        api_config.web3_json_rpc.ws_port
+    } else {
+        api_config.web3_json_rpc.legacy_ws_port
+    };
+
     let api_builder =
         web3::ApiBuilder::jsonrpc_backend(internal_api.clone(), replica_connection_pool)
-            .ws(api_config.web3_json_rpc.ws_port)
+            .ws(port)
             .with_last_miniblock_pool(last_miniblock_pool)
             .with_filter_limit(api_config.web3_json_rpc.filters_limit())
             .with_subscriptions_limit(api_config.web3_json_rpc.subscriptions_limit())
