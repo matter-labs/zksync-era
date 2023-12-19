@@ -91,10 +91,7 @@ impl PubSubNotifier {
             if let Some(last_block) = new_blocks.last() {
                 last_block_number = MiniblockNumber(last_block.number.unwrap().as_u32());
 
-                let new_blocks = new_blocks
-                    .into_iter()
-                    .map(|b| PubSubResult::Header(b))
-                    .collect();
+                let new_blocks = new_blocks.into_iter().map(PubSubResult::Header).collect();
                 // Errors only on 0 receivers, but we want to go on
                 // if we have 0 subscribers so ignore the error.
                 self.sender.send(new_blocks).ok();
@@ -139,10 +136,7 @@ impl PubSubNotifier {
             if let Some(new_last_time) = new_last_time {
                 last_time = new_last_time;
 
-                let new_txs = new_txs
-                    .into_iter()
-                    .map(|tx| PubSubResult::TxHash(tx))
-                    .collect();
+                let new_txs = new_txs.into_iter().map(PubSubResult::TxHash).collect();
                 // Errors only on 0 receivers, but we want to go on
                 // if we have 0 subscribers so ignore the error.
                 self.sender.send(new_txs).ok();
@@ -185,10 +179,7 @@ impl PubSubNotifier {
             if let Some(last_log) = new_logs.last() {
                 last_block_number = MiniblockNumber(last_log.block_number.unwrap().as_u32());
 
-                let new_logs = new_logs
-                    .into_iter()
-                    .map(|log| PubSubResult::Log(log))
-                    .collect();
+                let new_logs = new_logs.into_iter().map(PubSubResult::Log).collect();
 
                 // Errors only on 0 receivers, but we want to go on
                 // if we have 0 subscribers so ignore the error.
