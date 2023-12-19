@@ -508,29 +508,6 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .await
             .map_err(|err| internal_error(METHOD_NAME, err));
 
-        if let Some(proxy) = &self.state.tx_sender.0.proxy {
-            // We're running an external node
-            if matches!(receipt, Ok(None)) {
-                // If the transaction is not in the db, query main node.
-                // Because it might be the case that it got rejected in state keeper
-                // and won't be synced back to us, but we still want to return a receipt.
-                // We want to only forward these kinds of receipts because otherwise
-                // clients will assume that the transaction they got the receipt for
-                // was already processed on the EN (when it was not),
-                // and will think that the state has already been updated on the EN (when it was not).
-                if let Ok(Some(main_node_receipt)) = proxy
-                    .request_tx_receipt(hash)
-                    .await
-                    .map_err(|err| internal_error(METHOD_NAME, err))
-                {
-                    if main_node_receipt.status == 0.into() {
-                        // Transaction was rejected in state-keeper.
-                        receipt = Ok(Some(main_node_receipt));
-                    }
-                }
-            }
-        }
-
         method_latency.observe();
         receipt
     }
