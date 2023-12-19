@@ -1,14 +1,12 @@
 //! (Largely) backend-agnostic logic for dealing with Web3 subscriptions.
 
 use anyhow::Context as _;
-use bigdecimal::Zero;
-use futures::{FutureExt, StreamExt};
+use futures::FutureExt;
 use tokio::{
     sync::{broadcast, mpsc, watch},
     task::JoinHandle,
     time::{interval, Duration},
 };
-use tokio_stream::wrappers::BroadcastStream;
 use zksync_dal::ConnectionPool;
 use zksync_types::{MiniblockNumber, H128, H256};
 use zksync_web3_decl::{
@@ -16,7 +14,7 @@ use zksync_web3_decl::{
         core::{server::SubscriptionMessage, SubscriptionResult},
         server::IdProvider,
         types::{error::ErrorCode, ErrorObject, SubscriptionId},
-        PendingSubscriptionSink,
+        PendingSubscriptionSink, SubscriptionSink,
     },
     namespaces::EthPubSubServer,
     types::{BlockHeader, Log, PubSubFilter, PubSubResult},
@@ -49,14 +47,14 @@ pub(super) enum PubSubEvent {
 
 /// Manager of notifications for a certain type of subscriptions.
 #[derive(Debug)]
-struct PubSubNotifier<V> {
-    sender: broadcast::Sender<V>,
+struct PubSubNotifier {
+    sender: broadcast::Sender<PubSubResult>,
     connection_pool: ConnectionPool,
     polling_interval: Duration,
     events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
 }
 
-impl<V> PubSubNotifier<V> {
+impl PubSubNotifier {
     async fn sealed_miniblock_number(&self) -> anyhow::Result<MiniblockNumber> {
         self.connection_pool
             .access_storage_tagged("api")
@@ -75,7 +73,7 @@ impl<V> PubSubNotifier<V> {
     }
 }
 
-impl PubSubNotifier<BlockHeader> {
+impl PubSubNotifier {
     async fn notify_blocks(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut last_block_number = self.sealed_miniblock_number().await?;
         let mut timer = interval(self.polling_interval);
@@ -94,11 +92,9 @@ impl PubSubNotifier<BlockHeader> {
                 last_block_number = MiniblockNumber(last_block.number.unwrap().as_u32());
 
                 for new_block in new_blocks {
-                    if !self.sender.receiver_count().is_zero() {
-                        // Errors only on 0 receivers, but we want to go on
-                        // if we have 0 subscribers so ignore the error.
-                        self.sender.send(new_block).ok();
-                    }
+                    // Errors only on 0 receivers, but we want to go on
+                    // if we have 0 subscribers so ignore the error.
+                    self.sender.send(PubSubResult::Header(new_block)).ok();
                 }
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(
@@ -123,7 +119,7 @@ impl PubSubNotifier<BlockHeader> {
     }
 }
 
-impl PubSubNotifier<H256> {
+impl PubSubNotifier {
     async fn notify_txs(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut last_time = chrono::Utc::now().naive_utc();
         let mut timer = interval(self.polling_interval);
@@ -142,11 +138,9 @@ impl PubSubNotifier<H256> {
                 last_time = new_last_time;
 
                 for new_tx in new_txs {
-                    if !self.sender.receiver_count().is_zero() {
-                        // Errors only on 0 receivers, but we want to go on
-                        // if we have 0 subscribers so ignore the error.
-                        self.sender.send(new_tx).ok();
-                    }
+                    // Errors only on 0 receivers, but we want to go on
+                    // if we have 0 subscribers so ignore the error.
+                    self.sender.send(PubSubResult::TxHash(new_tx)).ok();
                 }
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(SubscriptionType::Txs));
@@ -169,7 +163,7 @@ impl PubSubNotifier<H256> {
     }
 }
 
-impl PubSubNotifier<Log> {
+impl PubSubNotifier {
     async fn notify_logs(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut last_block_number = self.sealed_miniblock_number().await?;
         let mut timer = interval(self.polling_interval);
@@ -187,12 +181,10 @@ impl PubSubNotifier<Log> {
             if let Some(last_log) = new_logs.last() {
                 last_block_number = MiniblockNumber(last_log.block_number.unwrap().as_u32());
 
-                if !self.sender.receiver_count().is_zero() {
-                    for new_log in new_logs {
-                        // Errors only on 0 receivers, but we want to go on
-                        // if we have 0 subscribers so ignore the error.
-                        let _ = self.sender.send(new_log);
-                    }
+                for new_log in new_logs {
+                    // Errors only on 0 receivers, but we want to go on
+                    // if we have 0 subscribers so ignore the error.
+                    self.sender.send(PubSubResult::Log(new_log)).ok();
                 }
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(SubscriptionType::Logs));
@@ -214,17 +206,17 @@ impl PubSubNotifier<Log> {
 
 /// Subscription support for Web3 APIs.
 pub(super) struct EthSubscribe {
-    blocks: broadcast::Sender<BlockHeader>,
-    transactions: broadcast::Sender<H256>,
-    logs: broadcast::Sender<Log>,
+    blocks: broadcast::Sender<PubSubResult>,
+    transactions: broadcast::Sender<PubSubResult>,
+    logs: broadcast::Sender<PubSubResult>,
     events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
 }
 
 impl EthSubscribe {
     pub fn new() -> Self {
-        let (blocks, _rx_blocks) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
-        let (transactions, _rx_) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
-        let (logs, _rx_logs) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
+        let (blocks, _) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
+        let (transactions, _) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
+        let (logs, _) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
 
         Self {
             blocks,
@@ -247,102 +239,45 @@ impl EthSubscribe {
         .await;
     }
 
-    async fn heads_subscriber(
-        pending_sink: PendingSubscriptionSink,
-        b: broadcast::Receiver<BlockHeader>,
-    ) {
-        let _guard = PUB_SUB_METRICS.active_subscribers[&SubscriptionType::Blocks].inc_guard(1);
-        let sink = pending_sink.accept().await.unwrap();
+    async fn subscriber(
+        sink: SubscriptionSink,
+        subscription_type: SubscriptionType,
+        mut b: broadcast::Receiver<PubSubResult>,
+        filter: Option<PubSubFilter>,
+    ) -> Result<(), anyhow::Error> {
+        let _guard = PUB_SUB_METRICS.active_subscribers[&subscription_type].inc_guard(1);
         let closed = sink.closed().fuse();
-        let mut b = BroadcastStream::new(b);
         tokio::pin!(closed);
 
         loop {
             tokio::select! {
-                new_log = b.next() => {
-                    if let Some(Ok(new_log)) = new_log {
-                        sink.send_timeout(
-                            SubscriptionMessage::from_json(&PubSubResult::Header(new_log))
-                            .expect("PubSubResult always serializable to json; qed"),
-                            SUBSCRIPTION_SINK_SEND_TIMEOUT,
-                        )
-                            .await.ok();
-                        } else {
-                            break
-                    }
-                }
-                _ = &mut closed => {
-                    break
-                }
-            }
-        }
-    }
-
-    async fn transactions_subscriber(
-        pending_sink: PendingSubscriptionSink,
-        b: broadcast::Receiver<H256>,
-    ) {
-        PUB_SUB_METRICS.active_subscribers[&SubscriptionType::Txs].inc_guard(1);
-        let sink = pending_sink.accept().await.unwrap();
-        let closed = sink.closed().fuse();
-        let mut b = BroadcastStream::new(b);
-        tokio::pin!(closed);
-
-        loop {
-            tokio::select! {
-                new_log = b.next() => {
-                    if let Some(Ok(new_log)) = new_log {
-                        sink.send_timeout(
-                            SubscriptionMessage::from_json(&PubSubResult::TxHash(new_log))
-                            .expect("PubSubResult always serializable to json; qed"),
-                            SUBSCRIPTION_SINK_SEND_TIMEOUT,
-                        )
-                            .await.ok();
-                        } else {
-                            break
-                    }
-                }
-                _ = &mut closed => {
-                    break
-                }
-            }
-        }
-    }
-
-    async fn logs_subscriber(
-        pending_sink: PendingSubscriptionSink,
-        b: broadcast::Receiver<Log>,
-        filter: PubSubFilter,
-    ) {
-        let _guard = PUB_SUB_METRICS.active_subscribers[&SubscriptionType::Logs].inc_guard(1);
-        let sink = pending_sink.accept().await.unwrap();
-        let closed = sink.closed().fuse();
-        let mut b = BroadcastStream::new(b);
-        tokio::pin!(closed);
-
-        loop {
-            tokio::select! {
-                new_log = b.next() => {
-                    let new_log = new_log.unwrap().unwrap();
-                    if filter.matches(&new_log) {
-                        if sink
-                            .send_timeout(
-                                SubscriptionMessage::from_json(&PubSubResult::Log(new_log))
-                                .expect("PubSubResult always serializable to json;qed"),
-                                SUBSCRIPTION_SINK_SEND_TIMEOUT,
-                            )
-                                .await
-                                .is_err() {
-                                    break
+                new_item = b.recv() => {
+                    let new_item = new_item?;
+                    if let PubSubResult::Log(log) = &new_item {
+                        if let Some(filter) = &filter {
+                            if !filter.matches(log) {
+                                continue;
+                            }
                         }
-                        PUB_SUB_METRICS.notify[&SubscriptionType::Logs].inc();
                     }
+
+                    sink
+                        .send_timeout(
+                            SubscriptionMessage::from_json(&new_item)
+                            .expect("PubSubResult always serializable to json;qed"),
+                            SUBSCRIPTION_SINK_SEND_TIMEOUT,
+                        )
+                        .await?;
+
+                    PUB_SUB_METRICS.notify[&subscription_type].inc();
                 }
                 _ = &mut closed => {
                     break
                 }
             }
         }
+
+        Ok(())
     }
 
     #[tracing::instrument(skip(self, pending_sink))]
@@ -356,14 +291,30 @@ impl EthSubscribe {
             "newHeads" => {
                 let blocks_rx = self.blocks.subscribe();
 
-                tokio::spawn(Self::heads_subscriber(pending_sink, blocks_rx));
+                let Ok(sink) = pending_sink.accept().await else {
+                    return;
+                };
+                tokio::spawn(Self::subscriber(
+                    sink,
+                    SubscriptionType::Blocks,
+                    blocks_rx,
+                    None,
+                ));
 
                 Some(SubscriptionType::Blocks)
             }
             "newPendingTransactions" => {
                 let transactions_rx = self.transactions.subscribe();
 
-                tokio::spawn(Self::transactions_subscriber(pending_sink, transactions_rx));
+                let Ok(sink) = pending_sink.accept().await else {
+                    return;
+                };
+                tokio::spawn(Self::subscriber(
+                    sink,
+                    SubscriptionType::Txs,
+                    transactions_rx,
+                    None,
+                ));
                 Some(SubscriptionType::Txs)
             }
             "logs" => {
@@ -375,7 +326,15 @@ impl EthSubscribe {
                     Self::reject(pending_sink).await;
                     None
                 } else {
-                    tokio::spawn(Self::logs_subscriber(pending_sink, logs_rx, filter));
+                    let Ok(sink) = pending_sink.accept().await else {
+                        return;
+                    };
+                    tokio::spawn(Self::subscriber(
+                        sink,
+                        SubscriptionType::Logs,
+                        logs_rx,
+                        Some(filter),
+                    ));
                     Some(SubscriptionType::Logs)
                 }
             }

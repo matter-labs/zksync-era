@@ -56,7 +56,6 @@ ctrlc = { version = "3.1", features = ["termination"] }
 rand = "0.8"
 
 tokio = { version = "1", features = ["time"] }
-tokio-stream = { version = "0.1", features = ["sync"] }
 futures = { version = "0.3", features = ["compat"] }
 chrono = { version = "0.4", features = ["serde"] }
 anyhow = "1.0"
