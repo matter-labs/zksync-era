@@ -471,7 +471,7 @@ impl Executor {
                 .commit_timeout(COMMIT_TIMEOUT)
                 .wait_for_commit()
                 .await?;
-            if result.status == Some(U64::zero()) {
+            if result.status == U64::zero() {
                 return Err(anyhow::format_err!("Transfer failed"));
             }
         }
