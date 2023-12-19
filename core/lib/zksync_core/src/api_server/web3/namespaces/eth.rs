@@ -497,7 +497,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         const METHOD_NAME: &str = "get_transaction_receipt";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let mut receipt = self
+        let receipt = self
             .state
             .connection_pool
             .access_storage_tagged("api")
