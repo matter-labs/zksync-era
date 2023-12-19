@@ -40,9 +40,13 @@ impl FriProofCompressorDal<'_, '_> {
         fri_proof_blob_url: &str,
     ) {
         sqlx::query!(
-                "INSERT INTO proof_compression_jobs_fri(l1_batch_number, fri_proof_blob_url, status, created_at, updated_at) \
-                 VALUES ($1, $2, $3, now(), now()) \
-                 ON CONFLICT (l1_batch_number) DO NOTHING",
+                r#"
+                INSERT INTO
+                    proof_compression_jobs_fri (l1_batch_number, fri_proof_blob_url, status, created_at, updated_at)
+                VALUES
+                    ($1, $2, $3, NOW(), NOW())
+                ON CONFLICT (l1_batch_number) DO NOTHING
+                "#,
                 block_number.0 as i64,
                 fri_proof_blob_url,
             ProofCompressionJobStatus::Queued.to_string(),
@@ -54,15 +58,19 @@ impl FriProofCompressorDal<'_, '_> {
 
     pub async fn skip_proof_compression_job(&mut self, block_number: L1BatchNumber) {
         sqlx::query!(
-                "INSERT INTO proof_compression_jobs_fri(l1_batch_number, status, created_at, updated_at) \
-                 VALUES ($1, $2, now(), now()) \
-                 ON CONFLICT (l1_batch_number) DO NOTHING",
-                block_number.0 as i64,
+            r#"
+            INSERT INTO
+                proof_compression_jobs_fri (l1_batch_number, status, created_at, updated_at)
+            VALUES
+                ($1, $2, NOW(), NOW())
+            ON CONFLICT (l1_batch_number) DO NOTHING
+            "#,
+            block_number.0 as i64,
             ProofCompressionJobStatus::Skipped.to_string(),
-            )
-            .fetch_optional(self.storage.conn())
-            .await
-            .unwrap();
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap();
     }
 
     pub async fn get_next_proof_compression_job(
@@ -70,20 +78,32 @@ impl FriProofCompressorDal<'_, '_> {
         picked_by: &str,
     ) -> Option<L1BatchNumber> {
         sqlx::query!(
-            "UPDATE proof_compression_jobs_fri \
-                SET status = $1, attempts = attempts + 1, \
-                    updated_at = now(), processing_started_at = now(), \
-                    picked_by = $3 \
-                WHERE l1_batch_number = ( \
-                    SELECT l1_batch_number \
-                    FROM proof_compression_jobs_fri \
-                    WHERE status = $2 \
-                    ORDER BY l1_batch_number ASC \
-                    LIMIT 1 \
-                    FOR UPDATE \
-                    SKIP LOCKED \
-                ) \
-                RETURNING proof_compression_jobs_fri.l1_batch_number",
+            r#"
+            UPDATE proof_compression_jobs_fri
+            SET
+                status = $1,
+                attempts = attempts + 1,
+                updated_at = NOW(),
+                processing_started_at = NOW(),
+                picked_by = $3
+            WHERE
+                l1_batch_number = (
+                    SELECT
+                        l1_batch_number
+                    FROM
+                        proof_compression_jobs_fri
+                    WHERE
+                        status = $2
+                    ORDER BY
+                        l1_batch_number ASC
+                    LIMIT
+                        1
+                    FOR UPDATE
+                        SKIP LOCKED
+                )
+            RETURNING
+                proof_compression_jobs_fri.l1_batch_number
+            "#,
             ProofCompressionJobStatus::InProgress.to_string(),
             ProofCompressionJobStatus::Queued.to_string(),
             picked_by,
@@ -99,8 +119,14 @@ impl FriProofCompressorDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
     ) -> sqlx::Result<Option<u32>> {
         let attempts = sqlx::query!(
-            "SELECT attempts FROM proof_compression_jobs_fri \
-            WHERE l1_batch_number = $1",
+            r#"
+            SELECT
+                attempts
+            FROM
+                proof_compression_jobs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
             l1_batch_number.0 as i64,
         )
         .fetch_optional(self.storage.conn())
@@ -117,9 +143,16 @@ impl FriProofCompressorDal<'_, '_> {
         l1_proof_blob_url: &str,
     ) {
         sqlx::query!(
-            "UPDATE proof_compression_jobs_fri \
-             SET status = $1, updated_at = now(), time_taken = $2, l1_proof_blob_url = $3\
-             WHERE l1_batch_number = $4",
+            r#"
+            UPDATE proof_compression_jobs_fri
+            SET
+                status = $1,
+                updated_at = NOW(),
+                time_taken = $2,
+                l1_proof_blob_url = $3
+            WHERE
+                l1_batch_number = $4
+            "#,
             ProofCompressionJobStatus::Successful.to_string(),
             duration_to_naive_time(time_taken),
             l1_proof_blob_url,
@@ -136,9 +169,15 @@ impl FriProofCompressorDal<'_, '_> {
         block_number: L1BatchNumber,
     ) {
         sqlx::query!(
-            "UPDATE proof_compression_jobs_fri \
-            SET status =$1, error= $2, updated_at = now() \
-            WHERE l1_batch_number = $3",
+            r#"
+            UPDATE proof_compression_jobs_fri
+            SET
+                status = $1,
+                error = $2,
+                updated_at = NOW()
+            WHERE
+                l1_batch_number = $3
+            "#,
             ProofCompressionJobStatus::Failed.to_string(),
             error,
             block_number.0 as i64
@@ -152,13 +191,23 @@ impl FriProofCompressorDal<'_, '_> {
         &mut self,
     ) -> Option<(L1BatchNumber, ProofCompressionJobStatus)> {
         let row = sqlx::query!(
-            "SELECT l1_batch_number, status \
-            FROM proof_compression_jobs_fri
-            WHERE l1_batch_number = ( \
-                SELECT MIN(l1_batch_number) \
-                FROM proof_compression_jobs_fri \
-                WHERE status = $1 OR status = $2
-            )",
+            r#"
+            SELECT
+                l1_batch_number,
+                status
+            FROM
+                proof_compression_jobs_fri
+            WHERE
+                l1_batch_number = (
+                    SELECT
+                        MIN(l1_batch_number)
+                    FROM
+                        proof_compression_jobs_fri
+                    WHERE
+                        status = $1
+                        OR status = $2
+                )
+            "#,
             ProofCompressionJobStatus::Successful.to_string(),
             ProofCompressionJobStatus::Skipped.to_string()
         )
@@ -176,9 +225,14 @@ impl FriProofCompressorDal<'_, '_> {
 
     pub async fn mark_proof_sent_to_server(&mut self, block_number: L1BatchNumber) {
         sqlx::query!(
-            "UPDATE proof_compression_jobs_fri \
-            SET status = $1, updated_at = now() \
-            WHERE l1_batch_number = $2",
+            r#"
+            UPDATE proof_compression_jobs_fri
+            SET
+                status = $1,
+                updated_at = NOW()
+            WHERE
+                l1_batch_number = $2
+            "#,
             ProofCompressionJobStatus::SentToServer.to_string(),
             block_number.0 as i64
         )
@@ -210,11 +264,18 @@ impl FriProofCompressorDal<'_, '_> {
 
     pub async fn get_oldest_not_compressed_batch(&mut self) -> Option<L1BatchNumber> {
         let result: Option<L1BatchNumber> = sqlx::query!(
-            "SELECT l1_batch_number \
-            FROM proof_compression_jobs_fri \
-            WHERE status <> 'successful' \
-            ORDER BY l1_batch_number ASC \
-            LIMIT 1",
+            r#"
+            SELECT
+                l1_batch_number
+            FROM
+                proof_compression_jobs_fri
+            WHERE
+                status <> 'successful'
+            ORDER BY
+                l1_batch_number ASC
+            LIMIT
+                1
+            "#,
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -232,20 +293,40 @@ impl FriProofCompressorDal<'_, '_> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         {
             sqlx::query!(
-                "UPDATE proof_compression_jobs_fri \
-                SET status = 'queued', updated_at = now(), processing_started_at = now() \
-                WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2) \
-                OR (status = 'failed' AND attempts < $2) \
-                RETURNING l1_batch_number, status, attempts",
+                r#"
+                UPDATE proof_compression_jobs_fri
+                SET
+                    status = 'queued',
+                    updated_at = NOW(),
+                    processing_started_at = NOW()
+                WHERE
+                    (
+                        status = 'in_progress'
+                        AND processing_started_at <= NOW() - $1::INTERVAL
+                        AND attempts < $2
+                    )
+                    OR (
+                        status = 'failed'
+                        AND attempts < $2
+                    )
+                RETURNING
+                    l1_batch_number,
+                    status,
+                    attempts
+                "#,
                 &processing_timeout,
                 max_attempts as i32,
             )
-                .fetch_all(self.storage.conn())
-                .await
-                .unwrap()
-                .into_iter()
-                .map(|row| StuckJobs { id: row.l1_batch_number as u64, status: row.status, attempts: row.attempts as u64 })
-                .collect()
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| StuckJobs {
+                id: row.l1_batch_number as u64,
+                status: row.status,
+                attempts: row.attempts as u64,
+            })
+            .collect()
         }
     }
 }

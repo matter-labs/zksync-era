@@ -1,5 +1,4 @@
 use sqlx::Row;
-use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
 use zksync_types::{
     api::{GetLogsFilter, Log},
     Address, MiniblockNumber, H256,
@@ -73,7 +72,6 @@ impl EventsWeb3Dal<'_, '_> {
         &mut self,
         filter: GetLogsFilter,
         limit: usize,
-        skip_transfer_event: bool,
     ) -> Result<Vec<Log>, SqlxError> {
         {
             let (where_sql, arg_index) =
