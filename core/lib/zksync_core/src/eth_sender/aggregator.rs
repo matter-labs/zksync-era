@@ -91,7 +91,6 @@ impl Aggregator {
     pub async fn get_next_ready_operation(
         &mut self,
         storage: &mut StorageProcessor<'_>,
-        prover_storage: &mut StorageProcessor<'_>,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version_id: ProtocolVersionId,
         l1_verifier_config: L1VerifierConfig,
@@ -113,7 +112,6 @@ impl Aggregator {
         } else if let Some(op) = self
             .get_proof_operation(
                 storage,
-                prover_storage,
                 *self.config.aggregated_proof_sizes.iter().max().unwrap(),
                 last_sealed_l1_batch_number,
                 l1_verifier_config,
@@ -223,7 +221,6 @@ impl Aggregator {
 
     async fn load_real_proof_operation(
         storage: &mut StorageProcessor<'_>,
-        prover_storage: &mut StorageProcessor<'_>,
         l1_verifier_config: L1VerifierConfig,
         proof_loading_mode: &ProofLoadingMode,
         blob_store: &dyn ObjectStore,
@@ -259,10 +256,7 @@ impl Aggregator {
         }
         let proofs = match proof_loading_mode {
             ProofLoadingMode::OldProofFromDb => {
-                prover_storage
-                    .prover_dal()
-                    .get_final_proofs_for_blocks(batch_to_prove, batch_to_prove)
-                    .await
+                unreachable!("OldProofFromDb is not supported anymore")
             }
             ProofLoadingMode::FriProofFromGcs => {
                 load_wrapped_fri_proofs_for_range(batch_to_prove, batch_to_prove, blob_store).await
@@ -338,7 +332,6 @@ impl Aggregator {
     async fn get_proof_operation(
         &mut self,
         storage: &mut StorageProcessor<'_>,
-        prover_storage: &mut StorageProcessor<'_>,
         limit: usize,
         last_sealed_l1_batch: L1BatchNumber,
         l1_verifier_config: L1VerifierConfig,
@@ -347,7 +340,6 @@ impl Aggregator {
             ProofSendingMode::OnlyRealProofs => {
                 Self::load_real_proof_operation(
                     storage,
-                    prover_storage,
                     l1_verifier_config,
                     &self.config.proof_loading_mode,
                     &*self.blob_store,
@@ -373,7 +365,6 @@ impl Aggregator {
                 // if there is a sampled proof then send it, otherwise check for skipped ones.
                 if let Some(op) = Self::load_real_proof_operation(
                     storage,
-                    prover_storage,
                     l1_verifier_config,
                     &self.config.proof_loading_mode,
                     &*self.blob_store,
