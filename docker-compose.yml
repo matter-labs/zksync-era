@@ -60,7 +60,7 @@ services:
       geth-genesis:
         condition: service_completed_successfully
   beacon:
-    image: "gcr.io/prysmaticlabs/prysm/beacon-chain:latest"
+    image: "gcr.io/prysmaticlabs/prysm/beacon-chain:HEAD-c6801d"
     command:
       - --datadir=/consensus/beacon/
       - --min-sync-peers=0
@@ -91,7 +91,7 @@ services:
       create-beacon-chain-genesis:
         condition: service_completed_successfully
   validator:
-    image: "gcr.io/prysmaticlabs/prysm/validator:latest"
+    image: "gcr.io/prysmaticlabs/prysm/validator:HEAD-c6801d"
     command:
       - --beacon-rpc-provider=beacon:4000
       - --datadir=/consensus/validatordata
