@@ -37,6 +37,7 @@ Cargo.lock
 !/etc/env/ext-node.toml
 !/etc/env/ext-node-docker.toml
 /etc/tokens/localhost.json
+/etc/tokens/native_erc20.json
 /etc/zksolc-bin/*
 /etc/zkvyper-bin/*
 /etc/solc-bin/*

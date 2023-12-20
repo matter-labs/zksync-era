@@ -49,8 +49,9 @@ export async function deployERC20(
         const WETH = getTokens(destinationFile).find((token) => token.symbol === 'WETH')!;
         env.modify('CONTRACTS_L1_WETH_TOKEN_ADDR', `CONTRACTS_L1_WETH_TOKEN_ADDR=${WETH.address}`);
     } else if (command == 'new') {
+        let destinationFile = 'native_erc20';
         await utils.spawn(
-            `yarn --silent --cwd contracts/ethereum deploy-erc20 add --token-name ${name} --symbol ${symbol} --decimals ${decimals}`
+            `yarn --silent --cwd contracts/ethereum deploy-erc20 add --token-name ${name} --symbol ${symbol} --decimals ${decimals} > ./etc/tokens/${destinationFile}.json`
         );
     }
 }
