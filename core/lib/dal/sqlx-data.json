@@ -1059,6 +1059,19 @@
     },
     "query": "\n            UPDATE basic_witness_input_producer_jobs\n            SET\n                status = $1,\n                updated_at = NOW(),\n                time_taken = $3,\n                error = $4\n            WHERE\n                l1_batch_number = $2\n                AND status != $5\n            RETURNING\n                basic_witness_input_producer_jobs.attempts\n            "
   },
+  "08737d11b3e5067a2468013ec6e5d95fc47eb6bedc32f4d824aac9b2b6f96faf": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8"
+        ]
+      }
+    },
+    "query": "\n            UPDATE miniblocks\n            SET\n                fee_account_address = l1_batches.fee_account_address\n            FROM\n                l1_batches\n            WHERE\n                l1_batches.number = miniblocks.l1_batch_number\n                AND miniblocks.number BETWEEN $1 AND $2\n                AND miniblocks.fee_account_address = '\\x0000000000000000000000000000000000000000'::bytea\n            "
+  },
   "08e59ed8e2fd1a74e19d8bf0d131e4ee6682a89fb86f3b715a240805d44e6d87": {
     "describe": {
       "columns": [],
@@ -2923,16 +2936,6 @@
       }
     },
     "query": "\n            SELECT\n                bytecode_hash\n            FROM\n                factory_deps\n            WHERE\n                miniblock_number > $1\n            "
-  },
-  "2532a8617823b170a24d1614c66175f8b667e3b38bdaca60863f1ce6ecc5ca65": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "\n            UPDATE miniblocks\n            SET\n                fee_account_address = (\n                    SELECT\n                        l1_batches.fee_account_address\n                    FROM\n                        l1_batches\n                    ORDER BY\n                        l1_batches.number DESC\n                    LIMIT\n                        1\n                )\n            WHERE\n                l1_batch_number IS NULL\n                AND fee_account_address = 'x0000000000000000000000000000000000000000'::bytea\n            "
   },
   "25da6bb0199e9899be4b7050ec96e04b1c15b017cd8336b47dd307327f1894ce": {
     "describe": {
@@ -9665,6 +9668,16 @@
     },
     "query": "\n                    INSERT INTO\n                        prover_jobs_fri (\n                            l1_batch_number,\n                            circuit_id,\n                            circuit_blob_url,\n                            aggregation_round,\n                            sequence_number,\n                            depth,\n                            is_node_final_proof,\n                            protocol_version,\n                            status,\n                            created_at,\n                            updated_at\n                        )\n                    VALUES\n                        ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW())\n                    ON CONFLICT (l1_batch_number, aggregation_round, circuit_id, depth, sequence_number) DO\n                    UPDATE\n                    SET\n                        updated_at = NOW()\n                    "
   },
+  "c4426ae84862e720673485e3b59c116162becce06841476128f864b6028129df": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "\n            UPDATE miniblocks\n            SET\n                fee_account_address = (\n                    SELECT\n                        l1_batches.fee_account_address\n                    FROM\n                        l1_batches\n                    ORDER BY\n                        l1_batches.number DESC\n                    LIMIT\n                        1\n                )\n            WHERE\n                l1_batch_number IS NULL\n                AND fee_account_address = '\\x0000000000000000000000000000000000000000'::bytea\n            "
+  },
   "c5656667e5610ffb33e7b977ac92b7c4d79cbd404e0267794ec203df0cbb169d": {
     "describe": {
       "columns": [
@@ -11114,19 +11127,6 @@
       }
     },
     "query": "\n            UPDATE prover_jobs_fri\n            SET\n                status = 'successful',\n                updated_at = NOW(),\n                time_taken = $1,\n                proof_blob_url = $2\n            WHERE\n                id = $3\n            RETURNING\n                prover_jobs_fri.id,\n                prover_jobs_fri.l1_batch_number,\n                prover_jobs_fri.circuit_id,\n                prover_jobs_fri.aggregation_round,\n                prover_jobs_fri.sequence_number,\n                prover_jobs_fri.depth,\n                prover_jobs_fri.is_node_final_proof\n            "
-  },
-  "ecd925393f2c6b5722ec5f126afa428c6c4b5ce38b38db2dedf9b374269de7ff": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Int8",
-          "Int8"
-        ]
-      }
-    },
-    "query": "\n            UPDATE miniblocks\n            SET\n                fee_account_address = l1_batches.fee_account_address\n            FROM\n                l1_batches\n            WHERE\n                l1_batches.number = miniblocks.l1_batch_number\n                AND miniblocks.number BETWEEN $1 AND $2\n                AND miniblocks.fee_account_address = 'x0000000000000000000000000000000000000000'::bytea\n            "
   },
   "edc61e1285bf6d3837acc67af4f15aaade450980719933089824eb8c494d64a4": {
     "describe": {
