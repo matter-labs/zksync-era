@@ -5,9 +5,8 @@ pub use sqlx::{types::BigDecimal, Error as SqlxError};
 
 pub use crate::connection::ConnectionPool;
 use crate::{
-    accounts_dal::AccountsDal, applied_snapshot_status_dal::AppliedSnapshotStatusDal,
-    basic_witness_input_producer_dal::BasicWitnessInputProducerDal, blocks_dal::BlocksDal,
-    blocks_web3_dal::BlocksWeb3Dal, connection::holder::ConnectionHolder,
+    accounts_dal::AccountsDal, basic_witness_input_producer_dal::BasicWitnessInputProducerDal,
+    blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal, connection::holder::ConnectionHolder,
     consensus_dal::ConsensusDal, contract_verification_dal::ContractVerificationDal,
     eth_sender_dal::EthSenderDal, events_dal::EventsDal, events_web3_dal::EventsWeb3Dal,
     fri_gpu_prover_queue_dal::FriGpuProverQueueDal,
@@ -17,8 +16,8 @@ use crate::{
     fri_witness_generator_dal::FriWitnessGeneratorDal, gpu_prover_queue_dal::GpuProverQueueDal,
     proof_generation_dal::ProofGenerationDal, protocol_versions_dal::ProtocolVersionsDal,
     protocol_versions_web3_dal::ProtocolVersionsWeb3Dal, prover_dal::ProverDal,
-    snapshots_creator_dal::SnapshotsCreatorDal, snapshots_dal::SnapshotsDal,
-    storage_dal::StorageDal, storage_logs_dal::StorageLogsDal,
+    snapshot_recovery_dal::SnapshotRecoveryDal, snapshots_creator_dal::SnapshotsCreatorDal,
+    snapshots_dal::SnapshotsDal, storage_dal::StorageDal, storage_logs_dal::StorageLogsDal,
     storage_logs_dedup_dal::StorageLogsDedupDal, storage_web3_dal::StorageWeb3Dal,
     sync_dal::SyncDal, system_dal::SystemDal, tokens_dal::TokensDal,
     tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
@@ -28,7 +27,6 @@ use crate::{
 #[macro_use]
 mod macro_utils;
 pub mod accounts_dal;
-pub mod applied_snapshot_status_dal;
 pub mod basic_witness_input_producer_dal;
 pub mod blocks_dal;
 pub mod blocks_web3_dal;
@@ -53,6 +51,7 @@ pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
 pub mod protocol_versions_web3_dal;
 pub mod prover_dal;
+pub mod snapshot_recovery_dal;
 pub mod snapshots_creator_dal;
 pub mod snapshots_dal;
 pub mod storage_dal;
@@ -254,7 +253,7 @@ impl<'a> StorageProcessor<'a> {
         SnapshotsCreatorDal { storage: self }
     }
 
-    pub fn applied_snapshot_status_dal(&mut self) -> AppliedSnapshotStatusDal<'_, 'a> {
-        AppliedSnapshotStatusDal { storage: self }
+    pub fn snapshot_recovery_dal(&mut self) -> SnapshotRecoveryDal<'_, 'a> {
+        SnapshotRecoveryDal { storage: self }
     }
 }
