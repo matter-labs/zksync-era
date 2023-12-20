@@ -66,7 +66,7 @@ async fn seal_l1_batch(storage: &mut StorageProcessor<'_>, number: u32, hash: H2
 
 /// Tests the binary search algorithm.
 #[tokio::test]
-async fn test_binary_search() {
+async fn binary_search_with_simple_predicate() {
     for divergence_point in [1, 50, 51, 100] {
         let mut f = |x| async move { Ok::<_, ()>(x < divergence_point) };
         let result = binary_search_with(0, 100, &mut f).await;
@@ -93,8 +93,8 @@ impl From<RpcErrorKind> for RpcError {
 
 #[derive(Debug, Default)]
 struct MockMainNodeClient {
-    miniblock_responses: ResponsesMap<MiniblockNumber>,
-    l1_batch_responses: ResponsesMap<L1BatchNumber>,
+    miniblock_hash_responses: ResponsesMap<MiniblockNumber>,
+    l1_batch_root_hash_responses: ResponsesMap<L1BatchNumber>,
     error_kind: Arc<Mutex<Option<RpcErrorKind>>>,
 }
 
@@ -105,7 +105,7 @@ impl MainNodeClient for MockMainNodeClient {
             return Err(error_kind.into());
         }
 
-        if let Some(response) = self.miniblock_responses.get(&number) {
+        if let Some(response) = self.miniblock_hash_responses.get(&number) {
             Ok(Some(*response))
         } else {
             Ok(None)
@@ -117,7 +117,7 @@ impl MainNodeClient for MockMainNodeClient {
             return Err(error_kind.into());
         }
 
-        if let Some(response) = self.l1_batch_responses.get(&number) {
+        if let Some(response) = self.l1_batch_root_hash_responses.get(&number) {
             Ok(Some(*response))
         } else {
             Ok(None)
@@ -163,11 +163,11 @@ async fn normal_reorg_function(snapshot_recovery: bool, with_transient_errors: b
     let miniblock_and_l1_batch_hashes = l1_batch_numbers.map(|number| {
         let miniblock_hash = H256::from_low_u64_be(number.into());
         client
-            .miniblock_responses
+            .miniblock_hash_responses
             .insert(MiniblockNumber(number), miniblock_hash);
         let l1_batch_hash = H256::repeat_byte(number as u8);
         client
-            .l1_batch_responses
+            .l1_batch_root_hash_responses
             .insert(L1BatchNumber(number), l1_batch_hash);
         (number, miniblock_hash, l1_batch_hash)
     });
@@ -217,7 +217,7 @@ async fn normal_reorg_function(snapshot_recovery: bool, with_transient_errors: b
 }
 
 #[tokio::test]
-async fn handling_fatal_rpc_error() {
+async fn detector_stops_on_fatal_rpc_error() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
@@ -235,11 +235,12 @@ async fn handling_fatal_rpc_error() {
         stop_receiver,
         sleep_interval: Duration::from_millis(10),
     };
+    // Check that the detector stops when a fatal RPC error is encountered.
     detector.run().await.unwrap_err();
 }
 
 #[tokio::test]
-async fn detecting_reorg_by_batch_hash() {
+async fn reorg_is_detected_on_batch_hash_mismatch() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
@@ -250,16 +251,16 @@ async fn detecting_reorg_by_batch_hash() {
     let mut client = MockMainNodeClient::default();
     let miniblock_hash = H256::from_low_u64_be(23);
     client
-        .miniblock_responses
+        .miniblock_hash_responses
         .insert(MiniblockNumber(1), miniblock_hash);
     client
-        .l1_batch_responses
+        .l1_batch_root_hash_responses
         .insert(L1BatchNumber(1), H256::repeat_byte(1));
     client
-        .miniblock_responses
+        .miniblock_hash_responses
         .insert(MiniblockNumber(2), miniblock_hash);
     client
-        .l1_batch_responses
+        .l1_batch_root_hash_responses
         .insert(L1BatchNumber(2), H256::repeat_byte(2));
 
     let detector = ReorgDetector {
@@ -283,7 +284,7 @@ async fn detecting_reorg_by_batch_hash() {
 }
 
 #[tokio::test]
-async fn detecting_reorg_by_miniblock_hash() {
+async fn reorg_is_detected_on_miniblock_hash_mismatch() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
@@ -294,16 +295,16 @@ async fn detecting_reorg_by_miniblock_hash() {
     let mut client = MockMainNodeClient::default();
     let miniblock_hash = H256::from_low_u64_be(23);
     client
-        .miniblock_responses
+        .miniblock_hash_responses
         .insert(MiniblockNumber(1), miniblock_hash);
     client
-        .l1_batch_responses
+        .l1_batch_root_hash_responses
         .insert(L1BatchNumber(1), H256::repeat_byte(1));
     client
-        .miniblock_responses
+        .miniblock_hash_responses
         .insert(MiniblockNumber(2), miniblock_hash);
     client
-        .miniblock_responses
+        .miniblock_hash_responses
         .insert(MiniblockNumber(3), miniblock_hash);
 
     let detector = ReorgDetector {
@@ -341,7 +342,7 @@ impl StorageUpdateStrategy {
 
 #[test_casing(16, Product(([false, true], [2, 3, 5, 8], StorageUpdateStrategy::ALL)))]
 #[tokio::test]
-async fn detecting_deep_reorg(
+async fn reorg_is_detected_on_historic_batch_hash_mismatch(
     snapshot_recovery: bool,
     last_correct_batch: u32,
     storage_update_strategy: StorageUpdateStrategy,
@@ -367,11 +368,11 @@ async fn detecting_deep_reorg(
     let miniblock_and_l1_batch_hashes = l1_batch_numbers.clone().map(|number| {
         let mut miniblock_hash = H256::from_low_u64_be(number.into());
         client
-            .miniblock_responses
+            .miniblock_hash_responses
             .insert(MiniblockNumber(number), miniblock_hash);
         let mut l1_batch_hash = H256::repeat_byte(number as u8);
         client
-            .l1_batch_responses
+            .l1_batch_root_hash_responses
             .insert(L1BatchNumber(number), l1_batch_hash);
 
         if number > last_correct_batch {
@@ -448,7 +449,7 @@ async fn stopping_reorg_detector_while_waiting_for_l1_batch() {
 }
 
 #[tokio::test]
-async fn earliest_batch_hash_mismatch() {
+async fn detector_errors_on_earliest_batch_hash_mismatch() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     let genesis_root_hash =
@@ -459,7 +460,7 @@ async fn earliest_batch_hash_mismatch() {
 
     let mut client = MockMainNodeClient::default();
     client
-        .l1_batch_responses
+        .l1_batch_root_hash_responses
         .insert(L1BatchNumber(0), H256::zero());
 
     let (_stop_sender, stop_receiver) = watch::channel(false);
@@ -476,11 +477,11 @@ async fn earliest_batch_hash_mismatch() {
 }
 
 #[tokio::test]
-async fn earliest_batch_hash_mismatch_with_snapshot_recovery() {
+async fn detector_errors_on_earliest_batch_hash_mismatch_with_snapshot_recovery() {
     let pool = ConnectionPool::test_pool().await;
     let mut client = MockMainNodeClient::default();
     client
-        .l1_batch_responses
+        .l1_batch_root_hash_responses
         .insert(L1BatchNumber(3), H256::zero());
 
     let (_stop_sender, stop_receiver) = watch::channel(false);

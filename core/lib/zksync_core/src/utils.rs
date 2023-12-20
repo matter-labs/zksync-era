@@ -27,6 +27,8 @@ pub(crate) async fn wait_for_l1_batch(
         if let Some(number) = sealed_l1_batch_number {
             return Ok(Some(number));
         }
+        tracing::debug!("No L1 batches are present in DB; trying again in {poll_interval:?}");
+
         // We don't check the result: if a stop signal is received, we'll return at the start
         // of the next iteration.
         tokio::time::timeout(poll_interval, stop_receiver.changed())
@@ -59,6 +61,9 @@ pub(crate) async fn wait_for_l1_batch_with_metadata(
         if let Some(number) = sealed_l1_batch_number {
             return Ok(Some(number));
         }
+        tracing::debug!(
+            "No L1 batches with metadata are present in DB; trying again in {poll_interval:?}"
+        );
         tokio::time::timeout(poll_interval, stop_receiver.changed())
             .await
             .ok();
