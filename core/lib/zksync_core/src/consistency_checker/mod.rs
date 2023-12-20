@@ -2,6 +2,7 @@ use std::{fmt, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::ConnectionPool;
 use zksync_types::{
@@ -52,32 +53,47 @@ impl L1Client for Web3<Http> {
     }
 }
 
-#[derive(Debug)]
-pub struct ConsistencyChecker {
-    // ABI of the zkSync contract
-    contract: ethabi::Contract,
-    // How many past batches to check when starting
-    max_batches_to_recheck: u32,
-    l1_client: Box<dyn L1Client>,
-    db: ConnectionPool,
+trait UpdateCheckedBatch: fmt::Debug + Send + Sync {
+    fn update_checked_batch(&mut self, last_checked_batch: L1BatchNumber);
 }
 
-const SLEEP_DELAY: Duration = Duration::from_secs(5);
+/// Default [`UpdateCheckedBatch`] implementation that reports the batch number as a metric.
+impl UpdateCheckedBatch for () {
+    fn update_checked_batch(&mut self, last_checked_batch: L1BatchNumber) {
+        EN_METRICS.last_correct_batch[&CheckerComponent::ConsistencyChecker]
+            .set(last_checked_batch.0.into());
+    }
+}
+
+#[derive(Debug)]
+pub struct ConsistencyChecker {
+    /// ABI of the zkSync contract
+    contract: ethabi::Contract,
+    /// How many past batches to check when starting
+    max_batches_to_recheck: u32,
+    sleep_interval: Duration,
+    l1_client: Box<dyn L1Client>,
+    l1_batch_updater: Box<dyn UpdateCheckedBatch>,
+    pool: ConnectionPool,
+}
 
 impl ConsistencyChecker {
-    pub fn new(web3_url: &str, max_batches_to_recheck: u32, db: ConnectionPool) -> Self {
+    const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
+
+    pub fn new(web3_url: &str, max_batches_to_recheck: u32, pool: ConnectionPool) -> Self {
         let web3 = Web3::new(Http::new(web3_url).unwrap());
-        let contract = zksync_contracts::zksync_contract();
         Self {
-            l1_client: Box::new(web3),
-            contract,
+            contract: zksync_contracts::zksync_contract(),
             max_batches_to_recheck,
-            db,
+            sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
+            l1_client: Box::new(web3),
+            l1_batch_updater: Box::new(()),
+            pool,
         }
     }
 
     async fn check_commitments(&self, batch_number: L1BatchNumber) -> Result<bool, CheckError> {
-        let mut storage = self.db.access_storage().await?;
+        let mut storage = self.pool.access_storage().await?;
 
         let storage_l1_batch = storage
             .blocks_dal()
@@ -193,7 +209,7 @@ impl ConsistencyChecker {
 
     async fn last_committed_batch(&self) -> anyhow::Result<L1BatchNumber> {
         Ok(self
-            .db
+            .pool
             .access_storage()
             .await?
             .blocks_dal()
@@ -202,10 +218,7 @@ impl ConsistencyChecker {
             .unwrap_or(L1BatchNumber(0))) // FIXME: not always valid
     }
 
-    pub async fn run(
-        self,
-        stop_receiver: tokio::sync::watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
+    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut batch_number: L1BatchNumber = self
             .last_committed_batch()
             .await?
@@ -226,7 +239,7 @@ impl ConsistencyChecker {
             }
 
             let batch_with_metadata = self
-                .db
+                .pool
                 .access_storage()
                 .await?
                 .blocks_dal()
@@ -245,15 +258,14 @@ impl ConsistencyChecker {
             // OR the batch might be processed by the external node's tree but not yet committed.
             // We need both.
             if !batch_has_metadata || self.last_committed_batch().await? < batch_number {
-                tokio::time::sleep(SLEEP_DELAY).await;
+                tokio::time::sleep(self.sleep_interval).await;
                 continue;
             }
 
             match self.check_commitments(batch_number).await {
                 Ok(true) => {
                     tracing::info!("L1 batch #{batch_number} is consistent with L1");
-                    EN_METRICS.last_correct_batch[&CheckerComponent::ConsistencyChecker]
-                        .set(batch_number.0.into());
+                    self.l1_batch_updater.update_checked_batch(batch_number);
                     batch_number += 1;
                 }
                 Ok(false) => {
@@ -261,7 +273,7 @@ impl ConsistencyChecker {
                 }
                 Err(CheckError::Web3(err)) => {
                     tracing::warn!("Error accessing L1; will retry after a delay: {err}");
-                    tokio::time::sleep(SLEEP_DELAY).await;
+                    tokio::time::sleep(self.sleep_interval).await;
                 }
                 Err(CheckError::Internal(err)) => {
                     let context =

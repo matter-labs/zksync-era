@@ -1,10 +1,106 @@
 //! Tests for the consistency checker component.
 
-// FIXME: test checker workflow
+use std::collections::HashMap;
 
 use assert_matches::assert_matches;
+use tokio::sync::mpsc;
+use zksync_contracts::BaseSystemContractsHashes;
+use zksync_types::{
+    aggregated_operations::AggregatedActionType,
+    block::{BlockGasCount, L1BatchHeader},
+    commitment::L1BatchWithMetadata,
+    Address, L2ChainId, ProtocolVersionId,
+};
 
 use super::*;
+use crate::{
+    genesis::{ensure_genesis_state, GenesisParams},
+    state_keeper::tests::create_l1_batch_metadata,
+};
+
+fn create_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
+    let mut header = L1BatchHeader::new(
+        L1BatchNumber(number),
+        number.into(),
+        Address::default(),
+        BaseSystemContractsHashes::default(),
+        ProtocolVersionId::latest(),
+    );
+    header.is_finished = true;
+
+    L1BatchWithMetadata {
+        header,
+        metadata: create_l1_batch_metadata(number),
+        factory_deps: vec![],
+    }
+}
+
+#[derive(Debug, Default)]
+struct MockL1Client {
+    transaction_status_responses: HashMap<H256, U64>,
+    transaction_input_data_responses: HashMap<H256, Vec<u8>>,
+}
+
+impl MockL1Client {
+    fn build_commit_tx_input_data(batches: &[L1BatchWithMetadata]) -> Vec<u8> {
+        let commit_tokens = batches.iter().map(L1BatchWithMetadata::l1_commit_data);
+        let commit_tokens = ethabi::Token::Array(commit_tokens.collect());
+
+        let mut encoded = vec![];
+        encoded.extend_from_slice(b"fake"); // Fake Solidity function selector (not checked for now)
+                                            // Mock an additional arg used in real `commitBlocks` / `commitBatches`. In real transactions,
+                                            // it's taken from the L1 batch previous to batches[0], but since this arg is not checked,
+                                            // it's OK to use batches[0].
+        let prev_header_tokens = batches[0].l1_header_data();
+        encoded.extend_from_slice(&ethabi::encode(&[prev_header_tokens, commit_tokens]));
+        encoded
+    }
+}
+
+#[async_trait]
+impl L1Client for MockL1Client {
+    async fn transaction_status(&self, tx_hash: H256) -> Result<Option<U64>, web3::Error> {
+        if let Some(response) = self.transaction_status_responses.get(&tx_hash) {
+            return Ok(Some(*response));
+        }
+        Ok(None)
+    }
+
+    async fn transaction_input_data(&self, tx_hash: H256) -> Result<Option<Vec<u8>>, web3::Error> {
+        if let Some(response) = self.transaction_input_data_responses.get(&tx_hash) {
+            return Ok(Some(response.clone()));
+        }
+        Ok(None)
+    }
+}
+
+impl UpdateCheckedBatch for mpsc::UnboundedSender<L1BatchNumber> {
+    fn update_checked_batch(&mut self, last_checked_batch: L1BatchNumber) {
+        self.send(last_checked_batch).ok();
+    }
+}
+
+#[test]
+fn build_commit_tx_input_data_is_correct() {
+    let contract = zksync_contracts::zksync_contract();
+    let commit_function = contract.function("commitBatches").unwrap();
+    let batches = vec![
+        create_l1_batch_with_metadata(1),
+        create_l1_batch_with_metadata(2),
+    ];
+
+    let commit_tx_input_data = MockL1Client::build_commit_tx_input_data(&batches);
+
+    for batch in &batches {
+        let commit_data = ConsistencyChecker::extract_commit_data(
+            &commit_tx_input_data,
+            commit_function,
+            batch.header.number,
+        )
+        .unwrap();
+        assert_eq!(commit_data, batch.l1_commit_data());
+    }
+}
 
 #[test]
 fn extracting_commit_data_for_boojum_batch() {
@@ -86,3 +182,85 @@ fn extracting_commit_data_for_pre_boojum_batch() {
         ethabi::Token::Tuple(tuple) if tuple[0] == ethabi::Token::Uint(200_000.into())
     );
 }
+
+#[tokio::test]
+async fn normal_checker_function() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.access_storage().await.unwrap();
+    ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+        .await
+        .unwrap();
+
+    let l1_batches: Vec<_> = (1..=10).map(create_l1_batch_with_metadata).collect();
+    let commit_tx_hash = H256::random();
+    // TODO: test w/ several transactions
+    let commit_tx_input_data = MockL1Client::build_commit_tx_input_data(&l1_batches);
+
+    let mut client = MockL1Client::default();
+    client
+        .transaction_status_responses
+        .insert(commit_tx_hash, 1.into());
+    client
+        .transaction_input_data_responses
+        .insert(commit_tx_hash, commit_tx_input_data);
+    let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
+    let checker = ConsistencyChecker {
+        contract: zksync_contracts::zksync_contract(),
+        max_batches_to_recheck: 100,
+        sleep_interval: Duration::from_millis(10),
+        l1_client: Box::new(client),
+        l1_batch_updater: Box::new(l1_batch_updates_sender),
+        pool: pool.clone(),
+    };
+
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let checker_task = tokio::spawn(checker.run(stop_receiver));
+
+    // Add new batches to the storage.
+    for l1_batch in &l1_batches {
+        storage
+            .blocks_dal()
+            .insert_l1_batch(&l1_batch.header, &[], BlockGasCount::default(), &[], &[])
+            .await
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(15)).await;
+
+        storage
+            .blocks_dal()
+            .save_l1_batch_metadata(
+                l1_batch.header.number,
+                &l1_batch.metadata,
+                H256::default(),
+                false,
+            )
+            .await
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(7)).await;
+
+        // TODO: test other orderings of metadata / commit tx insertion.
+        storage
+            .eth_sender_dal()
+            .insert_bogus_confirmed_eth_tx(
+                l1_batch.header.number,
+                AggregatedActionType::Commit,
+                commit_tx_hash,
+                chrono::Utc::now(),
+            )
+            .await
+            .unwrap();
+    }
+
+    // Wait until all batches are checked.
+    loop {
+        let checked_batch = l1_batch_updates_receiver.recv().await.unwrap();
+        if checked_batch == l1_batches.last().unwrap().header.number {
+            break;
+        }
+    }
+
+    // Send the stop signal to the checker and wait for it to stop.
+    stop_sender.send_replace(true);
+    checker_task.await.unwrap().unwrap();
+}
+
+// FIXME: test (missing / wrong) (tx status / data)
