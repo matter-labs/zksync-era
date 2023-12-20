@@ -18,7 +18,6 @@ zksync_dal = { path = "../../lib/dal" }
 zksync_env_config = { path = "../../lib/env_config" }
 zksync_utils = { path = "../../lib/utils" }
 zksync_types = { path = "../../lib/types" }
-zksync_core = { path = "../../lib/zksync_core" }
 zksync_object_store = { path = "../../lib/object_store" }
 vlog = { path = "../../lib/vlog" }
 
@@ -26,5 +25,6 @@ anyhow = "1.0"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 futures = "0.3"
-serde = { version = "1.0.189", features = ["derive"] }
-serde_json = "1.0"
+
+[dev-dependencies]
+rand = "0.8"

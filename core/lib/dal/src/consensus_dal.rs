@@ -9,10 +9,18 @@ pub struct ConsensusDal<'a, 'c> {
 
 impl ConsensusDal<'_, '_> {
     pub async fn replica_state(&mut self) -> anyhow::Result<Option<ReplicaState>> {
-        let Some(row) =
-            sqlx::query!("SELECT state as \"state!\" FROM consensus_replica_state WHERE fake_key")
-                .fetch_optional(self.storage.conn())
-                .await?
+        let Some(row) = sqlx::query!(
+            r#"
+            SELECT
+                state AS "state!"
+            FROM
+                consensus_replica_state
+            WHERE
+                fake_key
+            "#
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
         else {
             return Ok(None);
         };
@@ -22,9 +30,21 @@ impl ConsensusDal<'_, '_> {
     pub async fn put_replica_state(&mut self, state: &ReplicaState) -> sqlx::Result<()> {
         let state =
             zksync_protobuf::serde::serialize(state, serde_json::value::Serializer).unwrap();
-        sqlx::query!("INSERT INTO consensus_replica_state(fake_key,state) VALUES(true,$1) ON CONFLICT (fake_key) DO UPDATE SET state = excluded.state", state)
-            .execute(self.storage.conn())
-            .await?;
+        sqlx::query!(
+            r#"
+            INSERT INTO
+                consensus_replica_state (fake_key, state)
+            VALUES
+                (TRUE, $1)
+            ON CONFLICT (fake_key) DO
+            UPDATE
+            SET
+                state = excluded.state
+            "#,
+            state
+        )
+        .execute(self.storage.conn())
+        .await?;
         Ok(())
     }
 }

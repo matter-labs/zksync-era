@@ -36,13 +36,6 @@ impl L1BatchMetricsReporter {
                     .unwrap(),
                 BlockStage::MetadataCalculated,
             ),
-            (
-                conn.blocks_dal()
-                    .get_last_l1_batch_number_with_witness_inputs()
-                    .await
-                    .unwrap(),
-                BlockStage::MerkleProofCalculated,
-            ),
         ];
 
         let eth_stats = conn.eth_sender_dal().get_eth_l1_batches().await.unwrap();
