@@ -4,7 +4,6 @@
 mod debug;
 mod en;
 pub(crate) mod eth;
-mod eth2;
 mod net;
 mod snapshots;
 mod web3;

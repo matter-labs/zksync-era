@@ -231,10 +231,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 
         filter.to_block = Some(BlockNumber::Number(to_block.0.into()));
         let changes = self
-            .filter_changes(
-                &mut TypedFilter::Events(filter, from_block),
-                self.skip_transfer_event,
-            )
+            .filter_changes(&mut TypedFilter::Events(filter, from_block))
             .await?;
         method_latency.observe();
         Ok(match changes {
@@ -264,10 +261,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .resolve_filter_block_number(filter.from_block)
             .await?;
         let logs = self
-            .filter_changes(
-                &mut TypedFilter::Events(filter, from_block),
-                self.skip_transfer_event,
-            )
+            .filter_changes(&mut TypedFilter::Events(filter, from_block))
             .await?;
 
         // We are not updating the filter, since that is the purpose of `get_filter_changes` method,
@@ -629,10 +623,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .get_and_update_stats(idx)
             .ok_or(Web3Error::FilterNotFound)?;
 
-        let result = match self
-            .filter_changes(&mut filter, self.skip_transfer_event)
-            .await
-        {
+        let result = match self.filter_changes(&mut filter).await {
             Ok(changes) => {
                 self.state
                     .installed_filters

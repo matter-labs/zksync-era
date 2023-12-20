@@ -337,6 +337,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
     pub async fn build(
         mut self,
         stop_receiver: watch::Receiver<bool>,
+        is_legacy: bool,
     ) -> anyhow::Result<ApiServerHandles> {
         if self.filters_limit.is_none() {
             tracing::warn!("Filters limit is not set - unlimited filters are allowed");
@@ -375,13 +376,15 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
 
         match (self.backend, self.transport.take()) {
             (ApiBackend::Jsonrpc, Some(ApiTransport::Http(addr))) => {
-                self.build_jsonrpc_http(addr, stop_receiver).await
+                self.build_jsonrpc_http(addr, stop_receiver, is_legacy)
+                    .await
             }
             (ApiBackend::Jsonrpc, Some(ApiTransport::WebSocket(addr))) => {
-                self.build_jsonrpc_ws(addr, stop_receiver).await
+                self.build_jsonrpc_ws(addr, stop_receiver, is_legacy).await
             }
             (ApiBackend::Jsonrpsee, Some(transport)) => {
-                self.build_jsonrpsee(transport, stop_receiver, true).await
+                self.build_jsonrpsee(transport, stop_receiver, is_legacy)
+                    .await
             }
             (_, None) => anyhow::bail!("ApiTransport is not specified"),
         }
@@ -391,6 +394,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         mut self,
         addr: SocketAddr,
         mut stop_receiver: watch::Receiver<bool>,
+        is_legacy: bool,
     ) -> anyhow::Result<ApiServerHandles> {
         if self.batch_request_size_limit.is_some() {
             tracing::info!("`batch_request_size_limit` is not supported for HTTP `jsonrpc` backend, this value is ignored");
@@ -410,7 +414,8 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
             .build()
             .context("Failed creating Tokio runtime for `jsonrpc` API backend")?;
         let mut io_handler: MetaIoHandler<()> = MetaIoHandler::default();
-        self.extend_jsonrpc_methods(&mut io_handler).await;
+        self.extend_jsonrpc_methods(&mut io_handler, is_legacy)
+            .await;
 
         let (local_addr_sender, local_addr) = oneshot::channel();
         let server_task = tokio::task::spawn_blocking(move || {
@@ -510,6 +515,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         mut self,
         addr: SocketAddr,
         mut stop_receiver: watch::Receiver<bool>,
+        is_legacy: bool,
     ) -> anyhow::Result<ApiServerHandles> {
         if self.response_body_size_limit.is_some() {
             tracing::info!("`response_body_size_limit` is not supported for `jsonrpc` backend, this value is ignored");
@@ -555,7 +561,8 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
             ));
             io_handler.extend_with(pub_sub.to_delegate());
         }
-        self.extend_jsonrpc_methods(&mut io_handler).await;
+        self.extend_jsonrpc_methods(&mut io_handler, is_legacy)
+            .await;
 
         let (local_addr_sender, local_addr) = oneshot::channel();
         let server_task = tokio::task::spawn_blocking(move || {

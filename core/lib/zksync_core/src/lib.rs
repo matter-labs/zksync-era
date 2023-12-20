@@ -455,14 +455,14 @@ pub async fn initialize_components(
                 true,
             )
             .await
-            .context("run_http_api")?;
+            .context("run_legacy_http_api")?;
 
             task_futures.extend(server_handles.tasks);
             healthchecks.push(Box::new(server_handles.health_check));
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::HttpApi].set(elapsed);
             tracing::info!(
-                "Initialized HTTP API on {:?} in {elapsed:?}",
+                "Initialized Legacy HTTP API on {:?} in {elapsed:?}",
                 server_handles.local_addr
             );
         }
@@ -490,7 +490,7 @@ pub async fn initialize_components(
                 connection_pool.clone(),
                 replica_connection_pool.clone(),
                 stop_receiver.clone(),
-                storage_caches,
+                storage_caches.clone(),
                 false,
             )
             .await
@@ -502,6 +502,37 @@ pub async fn initialize_components(
             APP_METRICS.init_latency[&InitStage::WsApi].set(elapsed);
             tracing::info!(
                 "initialized WS API on {:?} in {elapsed:?}",
+                server_handles.local_addr
+            );
+
+            let started_at = Instant::now();
+            tracing::info!("initializing WS API");
+            let bounded_gas_adjuster = gas_adjuster
+                .get_or_init()
+                .await
+                .context("gas_adjuster.get_or_init()")?;
+            let server_handles = run_ws_api(
+                &postgres_config,
+                &tx_sender_config,
+                &state_keeper_config,
+                &internal_api_config,
+                &api_config,
+                bounded_gas_adjuster.clone(),
+                connection_pool.clone(),
+                replica_connection_pool.clone(),
+                stop_receiver.clone(),
+                storage_caches.clone(),
+                true,
+            )
+            .await
+            .context("run_ws_api")?;
+
+            task_futures.extend(server_handles.tasks);
+            healthchecks.push(Box::new(server_handles.health_check));
+            let elapsed = started_at.elapsed();
+            APP_METRICS.init_latency[&InitStage::WsApi].set(elapsed);
+            tracing::info!(
+                "initialized Legacy WS API on {:?} in {elapsed:?}",
                 server_handles.local_addr
             );
         }
@@ -1189,7 +1220,7 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
             .with_response_body_size_limit(api_config.web3_json_rpc.max_response_body_size())
             .with_tx_sender(tx_sender, vm_barrier)
             .enable_api_namespaces(namespaces);
-    api_builder.build(stop_receiver).await
+    api_builder.build(stop_receiver, is_legacy).await
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1249,7 +1280,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
             .with_tx_sender(tx_sender, vm_barrier)
             .enable_api_namespaces(namespaces);
 
-    api_builder.build(stop_receiver.clone()).await
+    api_builder.build(stop_receiver.clone(), is_legacy).await
 }
 
 async fn circuit_breakers_for_components(

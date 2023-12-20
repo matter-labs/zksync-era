@@ -249,19 +249,14 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> EthNamespaceT for EthNamespa
 
     fn get_logs(&self, filter: Filter) -> BoxFuture<Result<Vec<Log>>> {
         let self_ = self.clone();
-        Box::pin(async move {
-            self_
-                .get_logs_impl(filter, true)
-                .await
-                .map_err(into_jsrpc_error)
-        })
+        Box::pin(async move { self_.get_logs_impl(filter).await.map_err(into_jsrpc_error) })
     }
 
     fn get_filter_logs(&self, filter_index: U256) -> BoxFuture<Result<FilterChanges>> {
         let self_ = self.clone();
         Box::pin(async move {
             self_
-                .get_filter_logs_impl(filter_index, true)
+                .get_filter_logs_impl(filter_index)
                 .await
                 .map_err(into_jsrpc_error)
         })
@@ -271,7 +266,7 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> EthNamespaceT for EthNamespa
         let self_ = self.clone();
         Box::pin(async move {
             self_
-                .get_filter_changes_impl(filter_index, true)
+                .get_filter_changes_impl(filter_index)
                 .await
                 .map_err(into_jsrpc_error)
         })
@@ -430,7 +425,7 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> EthNamespaceT for EthNamespa
         let self_ = self.clone();
         Box::pin(async move {
             self_
-                .get_transaction_receipt_impl(hash, true)
+                .get_transaction_receipt_impl(hash)
                 .await
                 .map_err(into_jsrpc_error)
         })
