@@ -1,6 +1,6 @@
-//! Tests for the metadata calculator component lifecycle.
+//! Tests for the metadata calculator component life cycle.
 
-// TODO (PLA-708): test full recovery lifecycle
+// TODO (PLA-708): test full recovery life cycle
 
 use std::{future::Future, ops, panic, path::Path, time::Duration};
 

@@ -9,7 +9,7 @@ use zksync_types::L1BatchNumber;
 /// Repeatedly polls the DB until there is an L1 batch. We may not have such a batch initially
 /// if the DB is recovered from an application-level snapshot.
 ///
-/// Returns the number of rhe *earliest* L1 batch, or `None` if the stop signal is received.
+/// Returns the number of the *earliest* L1 batch, or `None` if the stop signal is received.
 pub(crate) async fn wait_for_l1_batch(
     pool: &ConnectionPool,
     poll_interval: Duration,
@@ -38,7 +38,7 @@ pub(crate) async fn wait_for_l1_batch(
 /// Repeatedly polls the DB until there is an L1 batch with metadata. We may not have such a batch initially
 /// if the DB is recovered from an application-level snapshot.
 ///
-/// Returns the number of rhe *earliest* L1 batch with metadata, or `None` if the stop signal is received.
+/// Returns the number of the *earliest* L1 batch with metadata, or `None` if the stop signal is received.
 pub(crate) async fn wait_for_l1_batch_with_metadata(
     pool: &ConnectionPool,
     poll_interval: Duration,
