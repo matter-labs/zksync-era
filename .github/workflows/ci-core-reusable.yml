@@ -186,11 +186,11 @@ jobs:
       - name: Fee projection tests
         run: ci_run zk test i fees
 
-#      - name: Run revert test
-#        run: |
-#          ci_run pkill zksync_server || true
-#          ci_run sleep 2
-#          ci_run zk test i revert
+      - name: Run revert test
+        run: |
+          ci_run pkill zksync_server || true
+          ci_run sleep 2
+          ci_run zk test i revert
 
         # This test should be the last one as soon as it
         # finished bootloader will be different
@@ -205,7 +205,7 @@ jobs:
         run: |
           ci_run cat server.log
           ci_run cat contract_verifier.log
-          # ci_run cat core/tests/revert-test/revert.log
+          ci_run cat core/tests/revert-test/revert.log
           ci_run cat core/tests/upgrade-test/upgrade.log
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
@@ -285,22 +285,22 @@ jobs:
       - name: Run Cross EN Checker
         run: ci_run zk run cross-en-checker
 
-#      - name: Run revert test
-#        run: |
-#          ci_run zk env
-#          ci_run zk env docker
-#          ci_run pkill zksync_server || true
-#          ci_run sleep 2
-#          ci_run zk env
-#          ci_run zk test i revert
-#          # Check that the rollback was performed on the EN
-#          ci_run sleep 20
-#          ci_run grep -q 'Rollback successfully completed' ext-node.log
-#          # Restart the EN
-#          ci_run zk server &>>server.log &
-#          ci_run sleep 30
-#          ZKSYNC_ENV=ext-node-docker ci_run zk external-node &>>ext-node.log &
-#          ci_run sleep 30
+      - name: Run revert test
+        run: |
+          ci_run zk env
+          ci_run zk env docker
+          ci_run pkill zksync_server || true
+          ci_run sleep 2
+          ci_run zk env
+          ci_run zk test i revert
+          # Check that the rollback was performed on the EN
+          ci_run sleep 20
+          ci_run grep -q 'Rollback successfully completed' ext-node.log
+          # Restart the EN
+          ci_run zk server &>>server.log &
+          ci_run sleep 30
+          ZKSYNC_ENV=ext-node-docker ci_run zk external-node &>>ext-node.log &
+          ci_run sleep 30
 
       - name: Run upgrade test
         run: |
@@ -312,7 +312,7 @@ jobs:
         run: |
           ci_run cat server.log
           ci_run cat ext-node.log
-          # ci_run cat core/tests/revert-test/revert.log
+          ci_run cat core/tests/revert-test/revert.log
           ci_run cat core/tests/upgrade-test/upgrade.log
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
