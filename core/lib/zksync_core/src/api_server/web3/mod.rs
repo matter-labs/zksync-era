@@ -536,7 +536,6 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
                     LimitMiddleware::new(a, websocket_requests_per_minute_limit)
                 }))
                 .set_id_provider(EthSubscriptionIdProvider)
-                .max_connections(subscriptions_limit.unwrap_or(5_000) as u32)
                 .build(addr)
                 .await
                 .context("Failed building WS JSON-RPC server")?;
