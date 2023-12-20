@@ -73,7 +73,14 @@ impl StorageLogsDal<'_, '_> {
         logs: &[(H256, Vec<StorageLog>)],
     ) {
         let operation_number = sqlx::query!(
-            "SELECT MAX(operation_number) as \"max?\" FROM storage_logs WHERE miniblock_number = $1",
+            r#"
+            SELECT
+                MAX(operation_number) AS "max?"
+            FROM
+                storage_logs
+            WHERE
+                miniblock_number = $1
+            "#,
             block_number.0 as i64
         )
         .fetch_one(self.storage.conn())
@@ -129,7 +136,11 @@ impl StorageLogsDal<'_, '_> {
 
         let stage_start = Instant::now();
         sqlx::query!(
-            "DELETE FROM storage WHERE hashed_key = ANY($1)",
+            r#"
+            DELETE FROM storage
+            WHERE
+                hashed_key = ANY ($1)
+            "#,
             &keys_to_delete as &[&[u8]],
         )
         .execute(self.storage.conn())
@@ -143,9 +154,15 @@ impl StorageLogsDal<'_, '_> {
 
         let stage_start = Instant::now();
         sqlx::query!(
-            "UPDATE storage SET value = u.value \
-            FROM UNNEST($1::bytea[], $2::bytea[]) AS u(key, value) \
-            WHERE u.key = hashed_key",
+            r#"
+            UPDATE storage
+            SET
+                value = u.value
+            FROM
+                UNNEST($1::bytea[], $2::bytea[]) AS u (key, value)
+            WHERE
+                u.key = hashed_key
+            "#,
             &keys_to_update as &[&[u8]],
             &values_to_update as &[&[u8]],
         )
@@ -165,8 +182,19 @@ impl StorageLogsDal<'_, '_> {
         miniblock_number: MiniblockNumber,
     ) -> Vec<H256> {
         sqlx::query!(
-            "SELECT DISTINCT ON (hashed_key) hashed_key FROM \
-            (SELECT * FROM storage_logs WHERE miniblock_number > $1) inn",
+            r#"
+            SELECT DISTINCT
+                ON (hashed_key) hashed_key
+            FROM
+                (
+                    SELECT
+                        *
+                    FROM
+                        storage_logs
+                    WHERE
+                        miniblock_number > $1
+                ) inn
+            "#,
             miniblock_number.0 as i64
         )
         .fetch_all(self.storage.conn())
@@ -180,7 +208,11 @@ impl StorageLogsDal<'_, '_> {
     /// Removes all storage logs with a miniblock number strictly greater than the specified `block_number`.
     pub async fn rollback_storage_logs(&mut self, block_number: MiniblockNumber) {
         sqlx::query!(
-            "DELETE FROM storage_logs WHERE miniblock_number > $1",
+            r#"
+            DELETE FROM storage_logs
+            WHERE
+                miniblock_number > $1
+            "#,
             block_number.0 as i64
         )
         .execute(self.storage.conn())
@@ -191,14 +223,26 @@ impl StorageLogsDal<'_, '_> {
     pub async fn is_contract_deployed_at_address(&mut self, address: Address) -> bool {
         let hashed_key = get_code_key(&address).hashed_key();
         let row = sqlx::query!(
-            "SELECT COUNT(*) as \"count!\" \
-            FROM (\
-                SELECT * FROM storage_logs \
-                WHERE storage_logs.hashed_key = $1 \
-                ORDER BY storage_logs.miniblock_number DESC, storage_logs.operation_number DESC \
-                LIMIT 1\
-            ) sl \
-            WHERE sl.value != $2",
+            r#"
+            SELECT
+                COUNT(*) AS "count!"
+            FROM
+                (
+                    SELECT
+                        *
+                    FROM
+                        storage_logs
+                    WHERE
+                        storage_logs.hashed_key = $1
+                    ORDER BY
+                        storage_logs.miniblock_number DESC,
+                        storage_logs.operation_number DESC
+                    LIMIT
+                        1
+                ) sl
+            WHERE
+                sl.value != $2
+            "#,
             hashed_key.as_bytes(),
             FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
         )
@@ -216,12 +260,33 @@ impl StorageLogsDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
     ) -> HashMap<StorageKey, H256> {
         let rows = sqlx::query!(
-            "SELECT address, key, value \
-            FROM storage_logs \
-            WHERE miniblock_number BETWEEN \
-                (SELECT MIN(number) FROM miniblocks WHERE l1_batch_number = $1) \
-                AND (SELECT MAX(number) FROM miniblocks WHERE l1_batch_number = $1) \
-            ORDER BY miniblock_number, operation_number",
+            r#"
+            SELECT
+                address,
+                key,
+                value
+            FROM
+                storage_logs
+            WHERE
+                miniblock_number BETWEEN (
+                    SELECT
+                        MIN(number)
+                    FROM
+                        miniblocks
+                    WHERE
+                        l1_batch_number = $1
+                ) AND (
+                    SELECT
+                        MAX(number)
+                    FROM
+                        miniblocks
+                    WHERE
+                        l1_batch_number = $1
+                )
+            ORDER BY
+                miniblock_number,
+                operation_number
+            "#,
             l1_batch_number.0 as i64
         )
         .fetch_all(self.storage.conn())
@@ -333,8 +398,16 @@ impl StorageLogsDal<'_, '_> {
 
         let hashed_keys: Vec<_> = hashed_keys.iter().map(H256::as_bytes).collect();
         let rows = sqlx::query!(
-            "SELECT hashed_key, l1_batch_number, index FROM initial_writes \
-            WHERE hashed_key = ANY($1::bytea[])",
+            r#"
+            SELECT
+                hashed_key,
+                l1_batch_number,
+                INDEX
+            FROM
+                initial_writes
+            WHERE
+                hashed_key = ANY ($1::bytea[])
+            "#,
             &hashed_keys as &[&[u8]],
         )
         .instrument("get_l1_batches_and_indices_for_initial_writes")
@@ -393,11 +466,26 @@ impl StorageLogsDal<'_, '_> {
         let hashed_keys: Vec<_> = hashed_keys.iter().map(H256::as_bytes).collect();
 
         let rows = sqlx::query!(
-            "SELECT u.hashed_key as \"hashed_key!\", \
-                (SELECT value FROM storage_logs \
-                WHERE hashed_key = u.hashed_key AND miniblock_number <= $2 \
-                ORDER BY miniblock_number DESC, operation_number DESC LIMIT 1) as \"value?\" \
-            FROM UNNEST($1::bytea[]) AS u(hashed_key)",
+            r#"
+            SELECT
+                u.hashed_key AS "hashed_key!",
+                (
+                    SELECT
+                        value
+                    FROM
+                        storage_logs
+                    WHERE
+                        hashed_key = u.hashed_key
+                        AND miniblock_number <= $2
+                    ORDER BY
+                        miniblock_number DESC,
+                        operation_number DESC
+                    LIMIT
+                        1
+                ) AS "value?"
+            FROM
+                UNNEST($1::bytea[]) AS u (hashed_key)
+            "#,
             &hashed_keys as &[&[u8]],
             miniblock_number.0 as i64
         )
@@ -449,20 +537,35 @@ impl StorageLogsDal<'_, '_> {
             .map(|range| (range.start().as_bytes(), range.end().as_bytes()))
             .unzip();
         let rows = sqlx::query!(
-            "WITH sl AS ( \
-                SELECT ( \
-                    SELECT ARRAY[hashed_key, value] AS kv \
-                    FROM storage_logs \
-                    WHERE storage_logs.miniblock_number = $1 \
-                        AND storage_logs.hashed_key >= u.start_key \
-                        AND storage_logs.hashed_key <= u.end_key \
-                    ORDER BY storage_logs.hashed_key LIMIT 1 \
-                ) \
-                FROM UNNEST($2::bytea[], $3::bytea[]) AS u(start_key, end_key) \
-            ) \
-            SELECT sl.kv[1] AS \"hashed_key?\", sl.kv[2] AS \"value?\", initial_writes.index \
-            FROM sl \
-            LEFT OUTER JOIN initial_writes ON initial_writes.hashed_key = sl.kv[1]",
+            r#"
+            WITH
+                sl AS (
+                    SELECT
+                        (
+                            SELECT
+                                ARRAY[hashed_key, value] AS kv
+                            FROM
+                                storage_logs
+                            WHERE
+                                storage_logs.miniblock_number = $1
+                                AND storage_logs.hashed_key >= u.start_key
+                                AND storage_logs.hashed_key <= u.end_key
+                            ORDER BY
+                                storage_logs.hashed_key
+                            LIMIT
+                                1
+                        )
+                    FROM
+                        UNNEST($2::bytea[], $3::bytea[]) AS u (start_key, end_key)
+                )
+            SELECT
+                sl.kv[1] AS "hashed_key?",
+                sl.kv[2] AS "value?",
+                initial_writes.index
+            FROM
+                sl
+                LEFT OUTER JOIN initial_writes ON initial_writes.hashed_key = sl.kv[1]
+            "#,
             miniblock_number.0 as i64,
             &start_keys as &[&[u8]],
             &end_keys as &[&[u8]],
@@ -488,13 +591,21 @@ impl StorageLogsDal<'_, '_> {
         key_range: ops::RangeInclusive<H256>,
     ) -> sqlx::Result<Vec<StorageTreeEntry>> {
         let rows = sqlx::query!(
-            "SELECT storage_logs.hashed_key, storage_logs.value, initial_writes.index \
-            FROM storage_logs \
-            INNER JOIN initial_writes ON storage_logs.hashed_key = initial_writes.hashed_key \
-            WHERE storage_logs.miniblock_number = $1 \
-                AND storage_logs.hashed_key >= $2::bytea \
-                AND storage_logs.hashed_key <= $3::bytea \
-            ORDER BY storage_logs.hashed_key",
+            r#"
+            SELECT
+                storage_logs.hashed_key,
+                storage_logs.value,
+                initial_writes.index
+            FROM
+                storage_logs
+                INNER JOIN initial_writes ON storage_logs.hashed_key = initial_writes.hashed_key
+            WHERE
+                storage_logs.miniblock_number = $1
+                AND storage_logs.hashed_key >= $2::bytea
+                AND storage_logs.hashed_key <= $3::bytea
+            ORDER BY
+                storage_logs.hashed_key
+            "#,
             miniblock_number.0 as i64,
             key_range.start().as_bytes(),
             key_range.end().as_bytes()
@@ -516,8 +627,12 @@ impl StorageLogsDal<'_, '_> {
         operation_numbers: &[i32],
     ) {
         sqlx::query!(
-            "DELETE FROM storage_logs \
-            WHERE miniblock_number = $1 AND operation_number != ALL($2)",
+            r#"
+            DELETE FROM storage_logs
+            WHERE
+                miniblock_number = $1
+                AND operation_number != ALL ($2)
+            "#,
             miniblock_number.0 as i64,
             &operation_numbers
         )
@@ -580,10 +695,14 @@ impl StorageLogsDal<'_, '_> {
     /// Vacuums `storage_logs` table.
     /// Shouldn't be used in production.
     pub async fn vacuum_storage_logs(&mut self) {
-        sqlx::query!("VACUUM storage_logs")
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
+        sqlx::query!(
+            r#"
+            VACUUM storage_logs
+            "#
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
     }
 }
 

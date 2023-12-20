@@ -174,7 +174,7 @@ async fn external_io_basics() {
         .await
         .unwrap()
         .expect("Transaction not persisted");
-    assert_eq!(tx_receipt.block_number, Some(1.into()));
+    assert_eq!(tx_receipt.block_number, 1.into());
     assert_eq!(tx_receipt.transaction_index, 0.into());
 }
 

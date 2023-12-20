@@ -1,8 +1,11 @@
 //! Stored objects.
 
-use std::io::Read;
+use std::io::{Read, Write};
 
+use anyhow::Context;
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
+use prost::Message;
+use zksync_protobuf::{decode, ProtoFmt};
 use zksync_types::{
     aggregated_operations::L1BatchProofForL1,
     proofs::{AggregationRound, PrepareBasicCircuitsJob},
@@ -76,13 +79,13 @@ impl StoredObject for SnapshotFactoryDependencies {
     type Key<'a> = L1BatchNumber;
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        format!("snapshot_l1_batch_{key}_factory_deps.json.gzip")
+        format!("snapshot_l1_batch_{key}_factory_deps.proto.gzip")
     }
 
-    //TODO use better language agnostic serialization format like protobuf
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        serde_json::to_writer(&mut encoder, self).map_err(BoxedError::from)?;
+        let encoded_bytes = self.build().encode_to_vec();
+        encoder.write_all(&encoded_bytes)?;
         encoder.finish().map_err(From::from)
     }
 
@@ -92,7 +95,9 @@ impl StoredObject for SnapshotFactoryDependencies {
         decoder
             .read_to_end(&mut decompressed_bytes)
             .map_err(BoxedError::from)?;
-        serde_json::from_slice(&decompressed_bytes).map_err(From::from)
+        decode(&decompressed_bytes[..])
+            .context("deserialization of Message to SnapshotFactoryDependencies")
+            .map_err(From::from)
     }
 }
 
@@ -102,15 +107,15 @@ impl StoredObject for SnapshotStorageLogsChunk {
 
     fn encode_key(key: Self::Key<'_>) -> String {
         format!(
-            "snapshot_l1_batch_{}_storage_logs_part_{:0>4}.json.gzip",
+            "snapshot_l1_batch_{}_storage_logs_part_{:0>4}.proto.gzip",
             key.l1_batch_number, key.chunk_id
         )
     }
 
-    //TODO use better language agnostic serialization format like protobuf
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        serde_json::to_writer(&mut encoder, self).map_err(BoxedError::from)?;
+        let encoded_bytes = self.build().encode_to_vec();
+        encoder.write_all(&encoded_bytes)?;
         encoder.finish().map_err(From::from)
     }
 
@@ -120,7 +125,9 @@ impl StoredObject for SnapshotStorageLogsChunk {
         decoder
             .read_to_end(&mut decompressed_bytes)
             .map_err(BoxedError::from)?;
-        serde_json::from_slice(&decompressed_bytes).map_err(From::from)
+        decode(&decompressed_bytes[..])
+            .context("deserialization of Message to SnapshotStorageLogsChunk")
+            .map_err(From::from)
     }
 }
 
@@ -311,7 +318,13 @@ impl dyn ObjectStore + '_ {
 
 #[cfg(test)]
 mod tests {
+    use zksync_types::{
+        snapshots::{SnapshotFactoryDependency, SnapshotStorageLog},
+        AccountTreeId, Bytes, StorageKey, H160, H256,
+    };
+
     use super::*;
+    use crate::ObjectStoreFactory;
 
     #[test]
     fn test_storage_logs_filesnames_generate_corretly() {
@@ -328,16 +341,63 @@ mod tests {
             chunk_id: 5,
         });
         assert_eq!(
-            "snapshot_l1_batch_42_storage_logs_part_0097.json.gzip",
+            "snapshot_l1_batch_42_storage_logs_part_0097.proto.gzip",
             filename1
         );
         assert_eq!(
-            "snapshot_l1_batch_3_storage_logs_part_0531.json.gzip",
+            "snapshot_l1_batch_3_storage_logs_part_0531.proto.gzip",
             filename2
         );
         assert_eq!(
-            "snapshot_l1_batch_567_storage_logs_part_0005.json.gzip",
+            "snapshot_l1_batch_567_storage_logs_part_0005.proto.gzip",
             filename3
         );
+    }
+
+    #[tokio::test]
+    async fn test_storage_logs_can_be_serialized_and_deserialized() {
+        let store = ObjectStoreFactory::mock().create_store().await;
+        let key = SnapshotStorageLogsStorageKey {
+            l1_batch_number: L1BatchNumber(567),
+            chunk_id: 5,
+        };
+        let storage_logs = SnapshotStorageLogsChunk {
+            storage_logs: vec![
+                SnapshotStorageLog {
+                    key: StorageKey::new(AccountTreeId::new(H160::random()), H256::random()),
+                    value: H256::random(),
+                    l1_batch_number_of_initial_write: L1BatchNumber(123),
+                    enumeration_index: 234,
+                },
+                SnapshotStorageLog {
+                    key: StorageKey::new(AccountTreeId::new(H160::random()), H256::random()),
+                    value: H256::random(),
+                    l1_batch_number_of_initial_write: L1BatchNumber(345),
+                    enumeration_index: 456,
+                },
+            ],
+        };
+        store.put(key, &storage_logs).await.unwrap();
+        let reconstructed_storage_logs = store.get(key).await.unwrap();
+        assert_eq!(storage_logs, reconstructed_storage_logs);
+    }
+
+    #[tokio::test]
+    async fn test_factory_deps_can_be_serialized_and_deserialized() {
+        let store = ObjectStoreFactory::mock().create_store().await;
+        let key = L1BatchNumber(123);
+        let factory_deps = SnapshotFactoryDependencies {
+            factory_deps: vec![
+                SnapshotFactoryDependency {
+                    bytecode: Bytes(vec![1, 51, 101, 201, 255]),
+                },
+                SnapshotFactoryDependency {
+                    bytecode: Bytes(vec![2, 52, 102, 202, 255]),
+                },
+            ],
+        };
+        store.put(key, &factory_deps).await.unwrap();
+        let reconstructed_factory_deps = store.get(key).await.unwrap();
+        assert_eq!(factory_deps, reconstructed_factory_deps);
     }
 }
