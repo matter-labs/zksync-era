@@ -3966,6 +3966,24 @@
     },
     "query": "\n            SELECT\n                eth_txs_history.id,\n                eth_txs_history.eth_tx_id,\n                eth_txs_history.tx_hash,\n                eth_txs_history.base_fee_per_gas,\n                eth_txs_history.priority_fee_per_gas,\n                eth_txs_history.signed_raw_tx,\n                eth_txs.nonce\n            FROM\n                eth_txs_history\n                JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id\n            WHERE\n                eth_txs_history.sent_at_block IS NULL\n                AND eth_txs.confirmed_eth_tx_history_id IS NULL\n            ORDER BY\n                eth_txs_history.id DESC\n            "
   },
+  "43c7e352d09f69de1a182196aea4de79b67833f17d252b5b0e8e00cd6e75b5c1": {
+    "describe": {
+      "columns": [
+        {
+          "name": "number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        null
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "\n            SELECT\n                MIN(number) AS \"number\"\n            FROM\n                l1_batches\n            "
+  },
   "45b5825c82d33c9494ceef0fdc77675b89128d56559b8c89465844a914f5245e": {
     "describe": {
       "columns": [
