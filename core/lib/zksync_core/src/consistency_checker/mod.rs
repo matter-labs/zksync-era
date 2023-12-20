@@ -1,14 +1,18 @@
-use std::time::Duration;
+use std::{fmt, time::Duration};
 
 use anyhow::Context as _;
+use async_trait::async_trait;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::ConnectionPool;
 use zksync_types::{
     web3::{self, ethabi, transports::Http, types::TransactionId, Web3},
-    L1BatchNumber,
+    L1BatchNumber, H256, U64,
 };
 
 use crate::metrics::{CheckerComponent, EN_METRICS};
+
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug, thiserror::Error)]
 enum CheckError {
@@ -24,13 +28,37 @@ impl From<zksync_dal::SqlxError> for CheckError {
     }
 }
 
+#[async_trait]
+trait L1Client: fmt::Debug + Send + Sync {
+    async fn transaction_status(&self, tx_hash: H256) -> Result<Option<U64>, web3::Error>;
+
+    /// **NB.** Must include the 4-byte Solidity method selector.
+    async fn transaction_input_data(&self, tx_hash: H256) -> Result<Option<Vec<u8>>, web3::Error>;
+}
+
+#[async_trait]
+impl L1Client for Web3<Http> {
+    async fn transaction_status(&self, tx_hash: H256) -> Result<Option<U64>, web3::Error> {
+        Ok(self
+            .eth()
+            .transaction_receipt(tx_hash)
+            .await?
+            .and_then(|receipt| receipt.status))
+    }
+
+    async fn transaction_input_data(&self, tx_hash: H256) -> Result<Option<Vec<u8>>, web3::Error> {
+        let transaction = self.eth().transaction(TransactionId::Hash(tx_hash)).await?;
+        Ok(transaction.map(|tx| tx.input.0))
+    }
+}
+
 #[derive(Debug)]
 pub struct ConsistencyChecker {
     // ABI of the zkSync contract
     contract: ethabi::Contract,
     // How many past batches to check when starting
     max_batches_to_recheck: u32,
-    web3: Web3<Http>,
+    l1_client: Box<dyn L1Client>,
     db: ConnectionPool,
 }
 
@@ -41,7 +69,7 @@ impl ConsistencyChecker {
         let web3 = Web3::new(Http::new(web3_url).unwrap());
         let contract = zksync_contracts::zksync_contract();
         Self {
-            web3,
+            l1_client: Box::new(web3),
             contract,
             max_batches_to_recheck,
             db,
@@ -56,12 +84,10 @@ impl ConsistencyChecker {
             .get_storage_l1_batch(batch_number)
             .await?
             .with_context(|| format!("L1 batch #{batch_number} not found in the database"))?;
-
         let commit_tx_id = storage_l1_batch
             .eth_commit_tx_id
             .with_context(|| format!("Commit tx not found for L1 batch #{batch_number}"))?
             as u32;
-
         let block_metadata = storage
             .blocks_dal()
             .get_l1_batch_with_metadata(storage_l1_batch)
@@ -69,7 +95,6 @@ impl ConsistencyChecker {
             .with_context(|| {
                 format!("Metadata for L1 batch #{batch_number} not found in the database")
             })?;
-
         let commit_tx_hash = storage
             .eth_sender_dal()
             .get_confirmed_tx_hash_by_eth_tx_id(commit_tx_id)
@@ -77,29 +102,27 @@ impl ConsistencyChecker {
             .with_context(|| {
                 format!("Commit tx hash not found in the database for tx id {commit_tx_id}")
             })?;
+        drop(storage);
 
         tracing::info!("Checking commit tx {commit_tx_hash} for L1 batch #{batch_number}");
 
-        // We can't get tx calldata from db because it can be fake.
-        let commit_tx = self
-            .web3
-            .eth()
-            .transaction(TransactionId::Hash(commit_tx_hash))
-            .await?
-            .with_context(|| format!("Commit for tx {commit_tx_hash:?} not found on L1"))?;
-
         let commit_tx_status = self
-            .web3
-            .eth()
-            .transaction_receipt(commit_tx_hash)
+            .l1_client
+            .transaction_status(commit_tx_hash)
             .await?
-            .with_context(|| format!("Receipt for tx {commit_tx_hash:?} not found on L1"))?
-            .status;
-
-        if commit_tx_status != Some(1.into()) {
+            .with_context(|| format!("Receipt for tx {commit_tx_hash:?} not found on L1"))?;
+        if commit_tx_status != 1.into() {
             let err = anyhow::anyhow!("Main node gave us a failed commit tx");
             return Err(err.into());
         }
+
+        // We can't get tx calldata from db because it can be fake.
+        let commit_tx_input_data = self
+            .l1_client
+            .transaction_input_data(commit_tx_hash)
+            .await?
+            .with_context(|| format!("Commit for tx {commit_tx_hash:?} not found on L1"))?;
+        // FIXME: shouldn't the receiving contract and selector be checked as well?
 
         let is_pre_boojum = block_metadata
             .header
@@ -113,12 +136,23 @@ impl ConsistencyChecker {
                 .context("L1 contract does not have `commitBatches` function")?
         };
 
+        let commitment =
+            Self::extract_commit_data(&commit_tx_input_data, commit_function, batch_number)
+                .with_context(|| {
+                    format!("Failed extracting commit data for transaction {commit_tx_hash:?}")
+                })?;
+        Ok(commitment == block_metadata.l1_commit_data())
+    }
+
+    fn extract_commit_data(
+        commit_tx_input_data: &[u8],
+        commit_function: &ethabi::Function,
+        batch_number: L1BatchNumber,
+    ) -> anyhow::Result<ethabi::Token> {
         let mut commit_input_tokens = commit_function
-            .decode_input(&commit_tx.input.0[4..])
-            .with_context(|| {
-                format!("Failed decoding L1 commit function for transaction {commit_tx_hash:?}")
-            })?;
-        let commitments = commit_input_tokens
+            .decode_input(&commit_tx_input_data[4..])
+            .with_context(|| format!("Failed decoding calldata for L1 commit function"))?;
+        let mut commitments = commit_input_tokens
             .pop()
             .context("Unexpected signature for L1 commit function")?
             .into_array()
@@ -126,12 +160,11 @@ impl ConsistencyChecker {
 
         // Commit transactions usually publish multiple commitments at once, so we need to find
         // the one that corresponds to the batch we're checking.
-        let first_batch_commitment = commitments.first().with_context(|| {
-            format!("L1 batch commitment in transaction {commit_tx_hash:?} is empty")
-        })?;
+        let first_batch_commitment = commitments
+            .first()
+            .with_context(|| format!("L1 batch commitment is empty"))?;
         let ethabi::Token::Tuple(first_batch_commitment) = first_batch_commitment else {
-            let err = anyhow::anyhow!("Unexpected signature for L1 commit function");
-            return Err(err.into());
+            anyhow::bail!("Unexpected signature for L1 commit function");
         };
         let first_batch_number = first_batch_commitment
             .first()
@@ -146,16 +179,16 @@ impl ConsistencyChecker {
 
         let commitment = (batch_number.0 as usize)
             .checked_sub(first_batch_number)
-            .and_then(|offset| commitments.get(offset));
-        let commitment = commitment.with_context(|| {
+            .and_then(|offset| {
+                (offset < commitments.len()).then(|| commitments.swap_remove(offset))
+            });
+        commitment.with_context(|| {
             let actual_range = first_batch_number..(first_batch_number + commitments.len());
             format!(
-                "Malformed commitment data in transaction {commit_tx_hash:?}; it should prove L1 batch #{batch_number}, \
+                "Malformed commitment data; it should prove L1 batch #{batch_number}, \
                  but it actually proves batches #{actual_range:?}"
             )
-        })?;
-
-        Ok(*commitment == block_metadata.l1_commit_data())
+        })
     }
 
     async fn last_committed_batch(&self) -> anyhow::Result<L1BatchNumber> {
@@ -200,6 +233,7 @@ impl ConsistencyChecker {
                 .get_l1_batch_metadata(batch_number)
                 .await?;
             let batch_has_metadata = batch_with_metadata.map_or(false, |batch| {
+                // FIXME: how does this work for pre-Boojum batches?
                 batch
                     .metadata
                     .bootloader_initial_content_commitment
