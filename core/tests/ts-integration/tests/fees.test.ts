@@ -193,7 +193,7 @@ async function setInternalL1GasPrice(provider: zksync.Provider, newPrice?: strin
     let command = 'zk server --components api,tree,eth,data_fetcher,state_keeper';
     command = `DATABASE_MERKLE_TREE_MODE=full ${command}`;
     if (newPrice) {
-        command = `ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_L1_GAS_PRICE=${newPrice} ${command}`;
+        command = `CHAIN_STATE_KEEPER_TRANSACTION_SLOTS=1 ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_L1_GAS_PRICE=${newPrice} ${command}`;
     }
     const zkSyncServer = utils.background(command, 'ignore');
 
