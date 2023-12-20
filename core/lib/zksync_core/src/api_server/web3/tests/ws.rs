@@ -72,12 +72,13 @@ trait WsTest {
         pool: &ConnectionPool,
         pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()>;
+
+    fn websocket_requests_per_minute_limit(&self) -> Option<NonZeroU32> {
+        None
+    }
 }
 
-async fn test_ws_server(
-    test: impl WsTest,
-    websocket_requests_per_minute_limit: Option<NonZeroU32>,
-) {
+async fn test_ws_server(test: impl WsTest) {
     let pool = ConnectionPool::test_pool().await;
     let network_config = NetworkConfig::for_tests();
     let mut storage = pool.access_storage().await.unwrap();
@@ -97,7 +98,7 @@ async fn test_ws_server(
         &network_config,
         pool.clone(),
         stop_receiver,
-        websocket_requests_per_minute_limit,
+        test.websocket_requests_per_minute_limit(),
     )
     .await;
     server_handles.wait_until_ready().await;
@@ -140,7 +141,7 @@ impl WsTest for WsServerCanStart {
 
 #[tokio::test]
 async fn ws_server_can_start() {
-    test_ws_server(WsServerCanStart, None).await;
+    test_ws_server(WsServerCanStart).await;
 }
 
 #[derive(Debug)]
@@ -192,7 +193,7 @@ impl WsTest for BasicSubscriptions {
 
 #[tokio::test]
 async fn basic_subscriptions() {
-    test_ws_server(BasicSubscriptions, None).await;
+    test_ws_server(BasicSubscriptions).await;
 }
 
 #[derive(Debug)]
@@ -313,7 +314,7 @@ async fn collect_logs(
 
 #[tokio::test]
 async fn log_subscriptions() {
-    test_ws_server(LogSubscriptions, None).await;
+    test_ws_server(LogSubscriptions).await;
 }
 
 #[derive(Debug)]
@@ -361,7 +362,7 @@ impl WsTest for LogSubscriptionsWithNewBlock {
 
 #[tokio::test]
 async fn log_subscriptions_with_new_block() {
-    test_ws_server(LogSubscriptionsWithNewBlock, None).await;
+    test_ws_server(LogSubscriptionsWithNewBlock).await;
 }
 
 #[derive(Debug)]
@@ -407,7 +408,7 @@ impl WsTest for LogSubscriptionsWithManyBlocks {
 
 #[tokio::test]
 async fn log_subscriptions_with_many_new_blocks_at_once() {
-    test_ws_server(LogSubscriptionsWithManyBlocks, None).await;
+    test_ws_server(LogSubscriptionsWithManyBlocks).await;
 }
 
 #[derive(Debug)]
@@ -471,7 +472,7 @@ impl WsTest for LogSubscriptionsWithDelay {
 
 #[tokio::test]
 async fn log_subscriptions_with_delay() {
-    test_ws_server(LogSubscriptionsWithDelay, None).await;
+    test_ws_server(LogSubscriptionsWithDelay).await;
 }
 
 #[derive(Debug)]
@@ -500,11 +501,15 @@ impl WsTest for RateLimiting {
 
         Ok(())
     }
+
+    fn websocket_requests_per_minute_limit(&self) -> Option<NonZeroU32> {
+        Some(NonZeroU32::new(3).unwrap())
+    }
 }
 
 #[tokio::test]
 async fn rate_limiting() {
-    test_ws_server(RateLimiting, Some(NonZeroU32::new(3).unwrap())).await;
+    test_ws_server(RateLimiting).await;
 }
 
 #[derive(Debug)]
@@ -525,16 +530,28 @@ impl WsTest for BatchGetsRateLimited {
         batch.insert("eth_chainId", rpc_params![]).unwrap();
         batch.insert("eth_chainId", rpc_params![]).unwrap();
 
-        let expected_err = client.batch_request::<String>(batch).await.unwrap_err();
+        let mut expected_err = client
+            .batch_request::<String>(batch)
+            .await
+            .unwrap()
+            .into_ok()
+            .unwrap_err();
 
-        if let ClientError::Call(error) = expected_err {
-            assert_eq!(error.code() as u16, StatusCode::TOO_MANY_REQUESTS.as_u16());
-            assert_eq!(error.message(), "Too many requests");
-            assert!(error.data().is_none());
-        } else {
-            panic!("Unexpected error returned: {expected_err}");
-        }
+        let error = expected_err.next().unwrap();
+
+        assert_eq!(error.code() as u16, StatusCode::TOO_MANY_REQUESTS.as_u16());
+        assert_eq!(error.message(), "Too many requests");
+        assert!(error.data().is_none());
 
         Ok(())
     }
+
+    fn websocket_requests_per_minute_limit(&self) -> Option<NonZeroU32> {
+        Some(NonZeroU32::new(3).unwrap())
+    }
+}
+
+#[tokio::test]
+async fn batch_rate_limiting() {
+    test_ws_server(BatchGetsRateLimited).await;
 }

@@ -511,7 +511,12 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
 
         // Settings shared by HTTP and WS servers.
         let server_builder = ServerBuilder::default()
-            .max_connections(5_000)
+            .max_connections(
+                !is_http
+                    .then_some(subscriptions_limit)
+                    .flatten()
+                    .unwrap_or(5_000) as u32,
+            )
             .set_http_middleware(middleware)
             .max_response_body_size(response_body_size_limit)
             .set_batch_request_config(batch_request_config);
@@ -522,7 +527,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
                 .http_only()
                 .build(addr)
                 .await
-                .with_context(|| format!("Failed building {transport_str} JSON-RPC server"))?;
+                .context("Failed building HTTP JSON-RPC server")?;
             (server.local_addr(), server.start(rpc))
         } else {
             // WS specific settings
@@ -534,7 +539,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
                 .max_connections(subscriptions_limit.unwrap_or(5_000) as u32)
                 .build(addr)
                 .await
-                .with_context(|| format!("Failed building {transport_str} JSON-RPC server"))?;
+                .context("Failed building WS JSON-RPC server")?;
             (server.local_addr(), server.start(rpc))
         };
         let local_addr = local_addr.with_context(|| {

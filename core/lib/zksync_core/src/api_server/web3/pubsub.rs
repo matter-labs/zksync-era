@@ -14,7 +14,7 @@ use zksync_web3_decl::{
         core::{server::SubscriptionMessage, SubscriptionResult},
         server::IdProvider,
         types::{error::ErrorCode, ErrorObject, SubscriptionId},
-        PendingSubscriptionSink, SubscriptionSink,
+        PendingSubscriptionSink, SendTimeoutError, SubscriptionSink,
     },
     namespaces::EthPubSubServer,
     types::{BlockHeader, Log, PubSubFilter, PubSubResult},
@@ -237,12 +237,12 @@ impl EthSubscribe {
         .await;
     }
 
-    async fn subscriber(
+    async fn run_subscriber(
         sink: SubscriptionSink,
         subscription_type: SubscriptionType,
         mut b: broadcast::Receiver<Vec<PubSubResult>>,
         filter: Option<PubSubFilter>,
-    ) -> Result<(), anyhow::Error> {
+    ) {
         let _guard = PUB_SUB_METRICS.active_subscribers[&subscription_type].inc_guard(1);
         let closed = sink.closed().fuse();
         tokio::pin!(closed);
@@ -250,31 +250,44 @@ impl EthSubscribe {
         loop {
             tokio::select! {
                 new_items = b.recv() => {
-                    let new_items = new_items?;
-                    for item in new_items {
-                        if let PubSubResult::Log(log) = &item {
-                            if let Some(filter) = &filter {
-                                if !filter.matches(log) {
-                                    continue;
-                                }
-                            }
-                        }
-
-                        sink
-                            .send_timeout(
-                                SubscriptionMessage::from_json(&item)
-                                .expect("PubSubResult always serializable to json;qed"),
-                                SUBSCRIPTION_SINK_SEND_TIMEOUT,
-                            )
-                            .await?;
-
-                        PUB_SUB_METRICS.notify[&subscription_type].inc();
-                    }
+                    let Ok(new_items) = new_items else { return };
+                    if Self::handle_new_items(
+                        &sink,
+                        subscription_type,
+                        new_items,
+                        filter.as_ref()
+                    ).await.is_err() { return };
                 }
                 _ = &mut closed => {
                     break
                 }
             }
+        }
+    }
+
+    async fn handle_new_items(
+        sink: &SubscriptionSink,
+        subscription_type: SubscriptionType,
+        new_items: Vec<PubSubResult>,
+        filter: Option<&PubSubFilter>,
+    ) -> Result<(), SendTimeoutError> {
+        for item in new_items {
+            if let PubSubResult::Log(log) = &item {
+                if let Some(filter) = &filter {
+                    if !filter.matches(log) {
+                        continue;
+                    }
+                }
+            }
+
+            sink.send_timeout(
+                SubscriptionMessage::from_json(&item)
+                    .expect("PubSubResult always serializable to json;qed"),
+                SUBSCRIPTION_SINK_SEND_TIMEOUT,
+            )
+            .await?;
+
+            PUB_SUB_METRICS.notify[&subscription_type].inc();
         }
 
         Ok(())
@@ -294,7 +307,7 @@ impl EthSubscribe {
                 let Ok(sink) = pending_sink.accept().await else {
                     return;
                 };
-                tokio::spawn(Self::subscriber(
+                tokio::spawn(Self::run_subscriber(
                     sink,
                     SubscriptionType::Blocks,
                     blocks_rx,
@@ -309,7 +322,7 @@ impl EthSubscribe {
                 let Ok(sink) = pending_sink.accept().await else {
                     return;
                 };
-                tokio::spawn(Self::subscriber(
+                tokio::spawn(Self::run_subscriber(
                     sink,
                     SubscriptionType::Txs,
                     transactions_rx,
@@ -329,7 +342,7 @@ impl EthSubscribe {
                     let Ok(sink) = pending_sink.accept().await else {
                         return;
                     };
-                    tokio::spawn(Self::subscriber(
+                    tokio::spawn(Self::run_subscriber(
                         sink,
                         SubscriptionType::Logs,
                         logs_rx,
