@@ -57,7 +57,7 @@ jobs:
         run: |
           ci_run git config --global --add safe.directory /usr/src/zksync
           ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
-          ci_run git config --global --add safe.directory /usr/src/zksync/etc/system-contracts
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
           ci_run zk
