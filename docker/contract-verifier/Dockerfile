@@ -59,8 +59,8 @@ RUN mkdir -p /etc/vyper-bin/0.3.10 \
     && chmod +x /etc/vyper-bin/0.3.10/vyper
 
 COPY --from=builder /usr/src/zksync/target/release/zksync_contract_verifier /usr/bin/
-COPY etc/system-contracts/bootloader/build/artifacts/ /etc/system-contracts/bootloader/build/artifacts/
-COPY etc/system-contracts/artifacts-zk /etc/system-contracts/artifacts-zk
+COPY contracts/system-contracts/bootloader/build/artifacts/ /contracts/system-contracts/bootloader/build/artifacts/
+COPY contracts/system-contracts/artifacts-zk /contracts/system-contracts/artifacts-zk
 
 # CMD tail -f /dev/null
 ENTRYPOINT ["zksync_contract_verifier"]

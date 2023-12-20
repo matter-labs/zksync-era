@@ -9,11 +9,7 @@ import { spawn as _spawn } from 'child_process';
 import * as zksync from 'zksync-web3';
 import * as ethers from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
-import {
-    L1ERC20BridgeFactory,
-    TransparentUpgradeableProxyFactory,
-    AllowListFactory
-} from 'l1-zksync-contracts/typechain';
+import { L1ERC20BridgeFactory, TransparentUpgradeableProxyFactory, AllowListFactory } from 'l1-contracts/typechain';
 import { sleep } from 'zk/build/utils';
 
 describe('Tests for the custom bridge behavior', () => {
@@ -59,7 +55,9 @@ describe('Tests for the custom bridge behavior', () => {
         await l1BridgeProxy.deployTransaction.wait(2);
 
         const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
-        const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `cd $ZKSYNC_HOME && yarn l1-contracts`;
+        const baseCommandL1 = isLocalSetup
+            ? `yarn --cwd /contracts/l1-contracts`
+            : `cd $ZKSYNC_HOME && yarn l1-contracts`;
         let args = `--private-key ${alice.privateKey} --erc20-bridge ${l1BridgeProxy.address}`;
         let command = `${baseCommandL1} initialize-bridges ${args}`;
         await spawn(command);
