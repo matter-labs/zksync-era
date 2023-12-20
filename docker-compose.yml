@@ -1,7 +1,7 @@
 version: '3.2'
 services:
   create-beacon-chain-genesis:
-    image: "gcr.io/prysmaticlabs/prysm/cmd/prysmctl:latest"
+    image: "gcr.io/prysmaticlabs/prysm/cmd/prysmctl:HEAD-c6801d"
     command:
       - testnet
       - generate-genesis
