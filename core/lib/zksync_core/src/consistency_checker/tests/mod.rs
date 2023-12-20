@@ -3,8 +3,10 @@
 use std::collections::HashMap;
 
 use assert_matches::assert_matches;
+use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_dal::StorageProcessor;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader},
@@ -183,8 +185,116 @@ fn extracting_commit_data_for_pre_boojum_batch() {
     );
 }
 
+#[derive(Debug)]
+enum SaveAction<'a> {
+    InsertBatch(&'a L1BatchWithMetadata),
+    SaveMetadata(&'a L1BatchWithMetadata),
+    InsertCommitTx(L1BatchNumber),
+}
+
+impl SaveAction<'_> {
+    async fn apply(
+        self,
+        storage: &mut StorageProcessor<'_>,
+        commit_tx_hash_by_l1_batch: &HashMap<L1BatchNumber, H256>,
+    ) {
+        match self {
+            Self::InsertBatch(l1_batch) => {
+                storage
+                    .blocks_dal()
+                    .insert_l1_batch(&l1_batch.header, &[], BlockGasCount::default(), &[], &[])
+                    .await
+                    .unwrap();
+            }
+            Self::SaveMetadata(l1_batch) => {
+                storage
+                    .blocks_dal()
+                    .save_l1_batch_metadata(
+                        l1_batch.header.number,
+                        &l1_batch.metadata,
+                        H256::default(),
+                        false,
+                    )
+                    .await
+                    .unwrap();
+            }
+            Self::InsertCommitTx(l1_batch_number) => {
+                let commit_tx_hash = commit_tx_hash_by_l1_batch[&l1_batch_number];
+                storage
+                    .eth_sender_dal()
+                    .insert_bogus_confirmed_eth_tx(
+                        l1_batch_number,
+                        AggregatedActionType::Commit,
+                        commit_tx_hash,
+                        chrono::Utc::now(),
+                    )
+                    .await
+                    .unwrap();
+            }
+        }
+    }
+}
+
+type SaveActionMapper = fn(&[L1BatchWithMetadata]) -> Vec<SaveAction<'_>>;
+
+/// Various strategies to persist L1 batches in the DB. Strings are added for debugging failed test cases.
+const SAVE_ACTION_MAPPERS: [(&str, SaveActionMapper); 4] = [
+    ("sequential_metadata_first", |l1_batches| {
+        l1_batches
+            .iter()
+            .flat_map(|batch| {
+                [
+                    SaveAction::InsertBatch(batch),
+                    SaveAction::SaveMetadata(batch),
+                    SaveAction::InsertCommitTx(batch.header.number),
+                ]
+            })
+            .collect()
+    }),
+    ("sequential_commit_txs_first", |l1_batches| {
+        l1_batches
+            .iter()
+            .flat_map(|batch| {
+                [
+                    SaveAction::InsertBatch(batch),
+                    SaveAction::InsertCommitTx(batch.header.number),
+                    SaveAction::SaveMetadata(batch),
+                ]
+            })
+            .collect()
+    }),
+    ("all_metadata_first", |l1_batches| {
+        let commit_tx_actions = l1_batches
+            .iter()
+            .map(|batch| SaveAction::InsertCommitTx(batch.header.number));
+        l1_batches
+            .iter()
+            .map(SaveAction::InsertBatch)
+            .chain(l1_batches.iter().map(SaveAction::SaveMetadata))
+            .chain(commit_tx_actions)
+            .collect()
+    }),
+    ("all_commit_txs_first", |l1_batches| {
+        let commit_tx_actions = l1_batches
+            .iter()
+            .map(|batch| SaveAction::InsertCommitTx(batch.header.number));
+        l1_batches
+            .iter()
+            .map(SaveAction::InsertBatch)
+            .chain(commit_tx_actions)
+            .chain(l1_batches.iter().map(SaveAction::SaveMetadata))
+            .collect()
+    }),
+];
+
+#[test_casing(12, Product(([10, 3, 1], SAVE_ACTION_MAPPERS)))]
 #[tokio::test]
-async fn normal_checker_function() {
+async fn normal_checker_function(
+    batches_per_transaction: usize,
+    (mapper_name, save_actions_mapper): (&'static str, SaveActionMapper),
+) {
+    println!("Using save_actions_mapper={mapper_name}");
+
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
@@ -192,17 +302,31 @@ async fn normal_checker_function() {
         .unwrap();
 
     let l1_batches: Vec<_> = (1..=10).map(create_l1_batch_with_metadata).collect();
-    let commit_tx_hash = H256::random();
-    // TODO: test w/ several transactions
-    let commit_tx_input_data = MockL1Client::build_commit_tx_input_data(&l1_batches);
+    let mut commit_tx_hash_by_l1_batch = HashMap::with_capacity(l1_batches.len());
+    let commit_transactions: Vec<_> = l1_batches
+        .chunks(batches_per_transaction)
+        .map(|l1_batches| {
+            let tx_hash = H256::random();
+            commit_tx_hash_by_l1_batch.extend(
+                l1_batches
+                    .iter()
+                    .map(|batch| (batch.header.number, tx_hash)),
+            );
+            let input_data = MockL1Client::build_commit_tx_input_data(l1_batches);
+            (tx_hash, input_data)
+        })
+        .collect();
 
     let mut client = MockL1Client::default();
-    client
-        .transaction_status_responses
-        .insert(commit_tx_hash, 1.into());
-    client
-        .transaction_input_data_responses
-        .insert(commit_tx_hash, commit_tx_input_data);
+    for (tx_hash, input_data) in &commit_transactions {
+        client
+            .transaction_status_responses
+            .insert(*tx_hash, 1.into());
+        client
+            .transaction_input_data_responses
+            .insert(*tx_hash, input_data.clone());
+    }
+
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         contract: zksync_contracts::zksync_contract(),
@@ -217,37 +341,11 @@ async fn normal_checker_function() {
     let checker_task = tokio::spawn(checker.run(stop_receiver));
 
     // Add new batches to the storage.
-    for l1_batch in &l1_batches {
-        storage
-            .blocks_dal()
-            .insert_l1_batch(&l1_batch.header, &[], BlockGasCount::default(), &[], &[])
-            .await
-            .unwrap();
-        tokio::time::sleep(Duration::from_millis(15)).await;
-
-        storage
-            .blocks_dal()
-            .save_l1_batch_metadata(
-                l1_batch.header.number,
-                &l1_batch.metadata,
-                H256::default(),
-                false,
-            )
-            .await
-            .unwrap();
+    for save_action in save_actions_mapper(&l1_batches) {
+        save_action
+            .apply(&mut storage, &commit_tx_hash_by_l1_batch)
+            .await;
         tokio::time::sleep(Duration::from_millis(7)).await;
-
-        // TODO: test other orderings of metadata / commit tx insertion.
-        storage
-            .eth_sender_dal()
-            .insert_bogus_confirmed_eth_tx(
-                l1_batch.header.number,
-                AggregatedActionType::Commit,
-                commit_tx_hash,
-                chrono::Utc::now(),
-            )
-            .await
-            .unwrap();
     }
 
     // Wait until all batches are checked.
