@@ -69,6 +69,12 @@ pub(crate) struct SnapshotCreator {
 }
 
 impl SnapshotCreator {
+    async fn connect_to_replica(&self) -> anyhow::Result<StorageProcessor<'_>> {
+        self.replica_pool
+            .access_storage_tagged("snapshots_creator")
+            .await
+    }
+
     async fn process_storage_logs_single_chunk(
         &self,
         semaphore: &Semaphore,
@@ -84,10 +90,7 @@ impl SnapshotCreator {
         }
 
         let hashed_keys_range = get_chunk_hashed_keys_range(chunk_id, chunk_count);
-        let mut conn = self
-            .replica_pool
-            .access_storage_tagged("snapshots_creator")
-            .await?;
+        let mut conn = self.connect_to_replica().await?;
 
         let latency =
             METRICS.storage_logs_processing_duration[&StorageChunkStage::LoadFromPostgres].start();
@@ -145,10 +148,7 @@ impl SnapshotCreator {
         miniblock_number: MiniblockNumber,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<String> {
-        let mut conn = self
-            .replica_pool
-            .access_storage_tagged("snapshots_creator")
-            .await?;
+        let mut conn = self.connect_to_replica().await?;
 
         tracing::info!("Loading factory deps from Postgres...");
         let latency =
@@ -183,7 +183,7 @@ impl SnapshotCreator {
         Ok(output_filepath)
     }
 
-    /// Returns `None` if the created snapshot would coincide with `latest_snapshot`.
+    /// Returns `Ok(None)` if the created snapshot would coincide with `latest_snapshot`.
     async fn initialize_snapshot_progress(
         config: &SnapshotsCreatorConfig,
         min_chunk_count: u64,
@@ -224,17 +224,12 @@ impl SnapshotCreator {
         Ok(Some(SnapshotProgress::new(l1_batch_number, chunk_count)))
     }
 
-    pub async fn run(
-        self,
-        config: SnapshotsCreatorConfig,
+    /// Returns `Ok(None)` if a snapshot should not be created / resumed.
+    async fn load_or_initialize_snapshot_progress(
+        &self,
+        config: &SnapshotsCreatorConfig,
         min_chunk_count: u64,
-    ) -> anyhow::Result<()> {
-        let latency = METRICS.snapshot_generation_duration.start();
-
-        let mut conn = self
-            .replica_pool
-            .access_storage_tagged("snapshots_creator")
-            .await?;
+    ) -> anyhow::Result<Option<SnapshotProgress>> {
         let mut master_conn = self
             .master_pool
             .access_storage_tagged("snapshots_creator")
@@ -248,23 +243,34 @@ impl SnapshotCreator {
         let pending_snapshot = latest_snapshot
             .as_ref()
             .filter(|snapshot| !snapshot.is_complete());
-        let progress = if let Some(snapshot) = pending_snapshot {
-            SnapshotProgress::from_existing_snapshot(snapshot)
+        if let Some(snapshot) = pending_snapshot {
+            Ok(Some(SnapshotProgress::from_existing_snapshot(snapshot)))
         } else {
-            let progress = Self::initialize_snapshot_progress(
-                &config,
+            Self::initialize_snapshot_progress(
+                config,
                 min_chunk_count,
                 latest_snapshot.as_ref(),
-                &mut conn,
+                &mut self.connect_to_replica().await?,
             )
-            .await?;
+            .await
+        }
+    }
 
-            match progress {
-                Some(progress) => progress,
-                None => return Ok(()),
-            }
+    pub async fn run(
+        self,
+        config: SnapshotsCreatorConfig,
+        min_chunk_count: u64,
+    ) -> anyhow::Result<()> {
+        let latency = METRICS.snapshot_generation_duration.start();
+
+        let Some(progress) = self
+            .load_or_initialize_snapshot_progress(&config, min_chunk_count)
+            .await?
+        else {
+            return Ok(()); // No snapshot creation is necessary
         };
 
+        let mut conn = self.connect_to_replica().await?;
         let (_, last_miniblock_number_in_batch) = conn
             .blocks_dal()
             .get_miniblock_range_of_l1_batch(progress.l1_batch_number)
