@@ -190,7 +190,7 @@ async function setInternalL1GasPrice(provider: zksync.Provider, newPrice?: strin
     } catch (_) {}
 
     // Run server in background.
-    let command = 'zk server --components api,tree,eth,data_fetcher,state_keeper';
+    let command = 'zk server --components api,tree,eth,state_keeper';
     command = `DATABASE_MERKLE_TREE_MODE=full ${command}`;
     if (newPrice) {
         command = `ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_L1_GAS_PRICE=${newPrice} ${command}`;

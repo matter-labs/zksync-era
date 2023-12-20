@@ -23,8 +23,6 @@ impl TokensWeb3Dal<'_, '_> {
                     decimals
                 FROM
                     tokens
-                WHERE
-                    well_known = TRUE
                 ORDER BY
                     symbol
                 "#

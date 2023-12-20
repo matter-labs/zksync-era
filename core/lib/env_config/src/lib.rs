@@ -11,7 +11,6 @@ mod database;
 mod eth_client;
 mod eth_sender;
 mod eth_watch;
-mod fetcher;
 mod fri_proof_compressor;
 mod fri_prover;
 mod fri_prover_gateway;

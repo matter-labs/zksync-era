@@ -11,7 +11,7 @@ use zksync_config::{
         ProofDataHandlerConfig, ProverGroupConfig, WitnessGeneratorConfig,
     },
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
-    FetcherConfig, GasAdjusterConfig, ObjectStoreConfig, PostgresConfig, ProverConfigs,
+    GasAdjusterConfig, ObjectStoreConfig, PostgresConfig, ProverConfigs,
 };
 
 // TODO (QIT-22): This structure is going to be removed when components will be respnsible for their own configs.
@@ -43,7 +43,6 @@ pub struct TempConfigStore {
     pub eth_client_config: Option<ETHClientConfig>,
     pub eth_sender_config: Option<ETHSenderConfig>,
     pub eth_watch_config: Option<ETHWatchConfig>,
-    pub fetcher_config: Option<FetcherConfig>,
     pub gas_adjuster_config: Option<GasAdjusterConfig>,
     pub prover_configs: Option<ProverConfigs>,
     pub object_store_config: Option<ObjectStoreConfig>,
