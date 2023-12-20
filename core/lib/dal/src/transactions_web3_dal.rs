@@ -171,7 +171,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                         .into_iter()
                         .map(|storage_log| {
                             let mut log = api::Log::from(storage_log);
-                            log.block_hash = receipt.block_hash;
+                            log.block_hash = Some(receipt.block_hash);
                             log.l1_batch_number = receipt.l1_batch_number;
                             log
                         })

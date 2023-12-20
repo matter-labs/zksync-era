@@ -491,7 +491,7 @@ async fn fetcher_with_real_server() {
     let network_config = NetworkConfig::for_tests();
     let (stop_sender, stop_receiver) = watch::channel(false);
     let server_handles =
-        spawn_http_server(&network_config, pool.clone(), stop_receiver.clone()).await;
+        spawn_http_server(&network_config, pool.clone(), stop_receiver.clone(), false).await;
     server_handles.wait_until_ready().await;
     let server_addr = &server_handles.local_addr;
 

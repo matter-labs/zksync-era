@@ -57,8 +57,10 @@ mod tests {
         ApiConfig {
             web3_json_rpc: Web3JsonRpcConfig {
                 http_port: 3050,
+                legacy_http_port: 3052,
                 http_url: "http://127.0.0.1:3050".into(),
                 ws_port: 3051,
+                legacy_ws_port: 3053,
                 ws_url: "ws://127.0.0.1:3051".into(),
                 req_entities_limit: Some(10000),
                 filters_limit: Some(10000),
@@ -109,8 +111,10 @@ mod tests {
         let mut lock = MUTEX.lock();
         let config = r#"
             API_WEB3_JSON_RPC_HTTP_PORT="3050"
+            API_WEB3_JSON_RPC_LEGACY_HTTP_PORT="3052"
             API_WEB3_JSON_RPC_HTTP_URL="http://127.0.0.1:3050"
             API_WEB3_JSON_RPC_WS_PORT="3051"
+            API_WEB3_JSON_RPC_LEGACY_WS_PORT="3053"
             API_WEB3_JSON_RPC_WS_URL="ws://127.0.0.1:3051"
             API_WEB3_JSON_RPC_REQ_ENTITIES_LIMIT=10000
             API_WEB3_JSON_RPC_FILTERS_LIMIT=10000

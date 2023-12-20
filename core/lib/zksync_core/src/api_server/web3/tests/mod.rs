@@ -44,6 +44,36 @@ impl L1GasPriceProvider for MockL1GasPriceProvider {
     }
 }
 
+#[tokio::test]
+async fn http_server_basics() {
+    test_http_server(HttpServerBasics, false).await;
+}
+
+#[tokio::test]
+async fn basic_filter_changes() {
+    test_http_server(BasicFilterChanges, false).await;
+}
+
+#[tokio::test]
+async fn log_filter_changes() {
+    test_http_server(LogFilterChanges, false).await;
+}
+
+#[tokio::test]
+async fn legacy_log_filter_changes() {
+    test_http_server(LogFilterChanges, true).await;
+}
+
+#[tokio::test]
+async fn log_filter_changes_with_block_boundaries() {
+    test_http_server(LogFilterChangesWithBlockBoundaries, false).await;
+}
+
+#[tokio::test]
+async fn legacy_log_filter_changes_with_block_boundaries() {
+    test_http_server(LogFilterChangesWithBlockBoundaries, true).await;
+}
+
 impl ApiServerHandles {
     /// Waits until the server health check reports the ready state.
     pub(crate) async fn wait_until_ready(&self) {
@@ -81,18 +111,79 @@ pub(crate) async fn spawn_http_server(
     network_config: &NetworkConfig,
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
+    is_legacy: bool,
 ) -> ApiServerHandles {
-    spawn_server(ApiTransportLabel::Http, network_config, pool, stop_receiver)
-        .await
-        .0
+    spawn_server(
+        ApiTransportLabel::Http,
+        network_config,
+        pool,
+        stop_receiver,
+        is_legacy,
+    )
+    .await
+    .0
+}
+
+fn get_expected_events(mut events: Vec<&VmEvent>, is_legacy: bool) -> Vec<&VmEvent> {
+    if is_legacy {
+        // move all the filtered events of ETH Transfer in the end of the vector
+        let mut count = events
+            .iter()
+            .filter(|event| {
+                event.address == L2_ETH_TOKEN_ADDRESS
+                    && !event.indexed_topics.is_empty()
+                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC
+            })
+            .count();
+
+        let len = events.len();
+
+        for i in 0..len {
+            if events[i].address == L2_ETH_TOKEN_ADDRESS
+                && !events[i].indexed_topics.is_empty()
+                && events[i].indexed_topics[0] == TRANSFER_EVENT_TOPIC
+            {
+                let event = events[i];
+
+                for j in i..(len - 1) {
+                    events[j] = events[j + 1]
+                }
+
+                events[len - 1] = event;
+                count -= 1;
+            }
+            if count == 0 {
+                break;
+            }
+        }
+        events
+    } else {
+        // filter out all the ETH Transfer
+        events
+            .into_iter()
+            .filter(|event| {
+                !(event.address == L2_ETH_TOKEN_ADDRESS
+                    && !event.indexed_topics.is_empty()
+                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
+            })
+            .collect()
+    }
 }
 
 async fn spawn_ws_server(
     network_config: &NetworkConfig,
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
+    is_legacy: bool,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
-    spawn_server(ApiTransportLabel::Ws, network_config, pool, stop_receiver).await
+    spawn_server(
+        ApiTransportLabel::Ws,
+        network_config,
+        pool,
+        stop_receiver,
+        is_legacy,
+    )
+    .await
 }
 
 async fn spawn_server(
@@ -100,6 +191,7 @@ async fn spawn_server(
     network_config: &NetworkConfig,
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
+    is_legacy: bool,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = Web3JsonRpcConfig::for_tests();
@@ -134,7 +226,7 @@ async fn spawn_server(
         .with_tx_sender(tx_sender, vm_barrier)
         .with_pub_sub_events(pub_sub_events_sender)
         .enable_api_namespaces(Namespace::DEFAULT.to_vec())
-        .build(stop_receiver)
+        .build(stop_receiver, is_legacy)
         .await
         .expect("Failed spawning JSON-RPC server");
     (server_handles, pub_sub_events_receiver)
@@ -142,10 +234,15 @@ async fn spawn_server(
 
 #[async_trait]
 trait HttpTest {
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()>;
+    async fn test(
+        &self,
+        client: &HttpClient,
+        pool: &ConnectionPool,
+        is_legacy: bool,
+    ) -> anyhow::Result<()>;
 }
 
-async fn test_http_server(test: impl HttpTest) {
+async fn test_http_server(test: impl HttpTest, is_legacy: bool) {
     let pool = ConnectionPool::test_pool().await;
     let network_config = NetworkConfig::for_tests();
     let mut storage = pool.access_storage().await.unwrap();
@@ -161,18 +258,14 @@ async fn test_http_server(test: impl HttpTest) {
     drop(storage);
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let server_handles = spawn_http_server(&network_config, pool.clone(), stop_receiver).await;
+    let server_handles =
+        spawn_http_server(&network_config, pool.clone(), stop_receiver, is_legacy).await;
     server_handles.wait_until_ready().await;
-
-    // panic!(
-    //     "AND NOT (address = {:#X} AND topic1 = {:#X})",
-    //     L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_HASH
-    // );
 
     let client = <HttpClient>::builder()
         .build(format!("http://{}/", server_handles.local_addr))
         .unwrap();
-    test.test(&client, &pool).await.unwrap();
+    test.test(&client, &pool, is_legacy).await.unwrap();
 
     stop_sender.send_replace(true);
     server_handles.shutdown().await;
@@ -303,7 +396,12 @@ struct HttpServerBasics;
 
 #[async_trait]
 impl HttpTest for HttpServerBasics {
-    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &HttpClient,
+        _pool: &ConnectionPool,
+        _is_legacy: bool,
+    ) -> anyhow::Result<()> {
         let block_number = client.get_block_number().await?;
         assert_eq!(block_number, U64::from(0));
 
@@ -319,17 +417,17 @@ impl HttpTest for HttpServerBasics {
     }
 }
 
-#[tokio::test]
-async fn http_server_basics() {
-    test_http_server(HttpServerBasics).await;
-}
-
 #[derive(Debug)]
 struct BasicFilterChanges;
 
 #[async_trait]
 impl HttpTest for BasicFilterChanges {
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &HttpClient,
+        pool: &ConnectionPool,
+        _is_legacy: bool,
+    ) -> anyhow::Result<()> {
         let block_filter_id = client.new_block_filter().await?;
         let tx_filter_id = client.new_pending_transaction_filter().await?;
 
@@ -366,17 +464,17 @@ impl HttpTest for BasicFilterChanges {
     }
 }
 
-#[tokio::test]
-async fn basic_filter_changes() {
-    test_http_server(BasicFilterChanges).await;
-}
-
 #[derive(Debug)]
 struct LogFilterChanges;
 
 #[async_trait]
 impl HttpTest for LogFilterChanges {
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &HttpClient,
+        pool: &ConnectionPool,
+        is_legacy: bool,
+    ) -> anyhow::Result<()> {
         let all_logs_filter_id = client.new_filter(Filter::default()).await?;
         let address_filter = Filter {
             address: Some(Address::repeat_byte(23).into()),
@@ -392,14 +490,8 @@ impl HttpTest for LogFilterChanges {
         let mut storage = pool.access_storage().await?;
         let (_, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
-        let events: Vec<_> = events
-            .iter()
-            .filter(|event| {
-                !(event.address == L2_ETH_TOKEN_ADDRESS
-                    && !event.indexed_topics.is_empty()
-                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
-            })
-            .collect();
+
+        let events: Vec<_> = get_expected_events(events.iter().collect(), is_legacy);
 
         let all_logs = client.get_filter_changes(all_logs_filter_id).await?;
         let FilterChanges::Logs(all_logs) = all_logs else {
@@ -428,17 +520,17 @@ impl HttpTest for LogFilterChanges {
     }
 }
 
-#[tokio::test]
-async fn log_filter_changes() {
-    test_http_server(LogFilterChanges).await;
-}
-
 #[derive(Debug)]
 struct LogFilterChangesWithBlockBoundaries;
 
 #[async_trait]
 impl HttpTest for LogFilterChangesWithBlockBoundaries {
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &HttpClient,
+        pool: &ConnectionPool,
+        is_legacy: bool,
+    ) -> anyhow::Result<()> {
         let lower_bound_filter = Filter {
             from_block: Some(api::BlockNumber::Number(2.into())),
             ..Filter::default()
@@ -459,14 +551,7 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         let mut storage = pool.access_storage().await?;
         let (_, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
-        let events: Vec<_> = events
-            .iter()
-            .filter(|event| {
-                !(event.address == L2_ETH_TOKEN_ADDRESS
-                    && !event.indexed_topics.is_empty()
-                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
-            })
-            .collect();
+        let events: Vec<_> = get_expected_events(events.iter().collect(), is_legacy);
 
         let lower_bound_logs = client.get_filter_changes(lower_bound_filter_id).await?;
         assert_matches!(
@@ -491,14 +576,7 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
-        let new_events: Vec<_> = new_events
-            .iter()
-            .filter(|event| {
-                !(event.address == L2_ETH_TOKEN_ADDRESS
-                    && !event.indexed_topics.is_empty()
-                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
-            })
-            .collect();
+        let new_events: Vec<_> = get_expected_events(new_events.iter().collect(), is_legacy);
 
         let lower_bound_logs = client.get_filter_changes(lower_bound_filter_id).await?;
         let FilterChanges::Logs(lower_bound_logs) = lower_bound_logs else {
@@ -516,14 +594,8 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 3, 8).await?;
         drop(storage);
-        let new_events: Vec<_> = new_events
-            .iter()
-            .filter(|event| {
-                !(event.address == L2_ETH_TOKEN_ADDRESS
-                    && !event.indexed_topics.is_empty()
-                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
-            })
-            .collect();
+
+        let new_events: Vec<_> = get_expected_events(new_events.iter().collect(), is_legacy);
 
         let bounded_logs = client.get_filter_changes(bounded_filter_id).await?;
         let FilterChanges::Hashes(bounded_logs) = bounded_logs else {
@@ -544,9 +616,4 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         assert_logs_match(&lower_bound_logs, &new_events);
         Ok(())
     }
-}
-
-#[tokio::test]
-async fn log_filter_changes_with_block_boundaries() {
-    test_http_server(LogFilterChangesWithBlockBoundaries).await;
 }
