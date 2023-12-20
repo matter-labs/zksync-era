@@ -35,7 +35,7 @@ fn parse_h160(bytes: &[u8]) -> anyhow::Result<H160> {
 pub(crate) struct SyncBlock {
     pub number: MiniblockNumber,
     pub l1_batch_number: L1BatchNumber,
-    pub last_batch_miniblock: Option<MiniblockNumber>,
+    pub last_in_batch: bool,
     pub timestamp: u64,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
@@ -57,11 +57,7 @@ impl TryFrom<StorageSyncBlock> for SyncBlock {
                     .try_into()
                     .context("l1_batch_number")?,
             ),
-            last_batch_miniblock: block
-                .last_batch_miniblock
-                .map(|n| anyhow::Ok(MiniblockNumber(n.try_into()?)))
-                .transpose()
-                .context("last_batch_miniblock")?,
+            last_in_batch: block.last_batch_miniblock == Some(block.number),
             timestamp: block.timestamp.try_into().context("timestamp")?,
             l1_gas_price: block.l1_gas_price.try_into().context("l1_gas_price")?,
             l2_fair_gas_price: block
@@ -107,10 +103,7 @@ impl SyncBlock {
         en::SyncBlock {
             number: self.number,
             l1_batch_number: self.l1_batch_number,
-            last_in_batch: self
-                .last_batch_miniblock
-                .map(|n| n == self.number)
-                .unwrap_or(false),
+            last_in_batch: self.last_in_batch,
             timestamp: self.timestamp,
             l1_gas_price: self.l1_gas_price,
             l2_fair_gas_price: self.l2_fair_gas_price,
@@ -138,6 +131,7 @@ impl SyncBlock {
             virtual_blocks: self.virtual_blocks,
             operator_address: self.fee_account_address.unwrap_or(current_operator_address),
             transactions,
+            last_in_batch: self.last_in_batch,
         }
     }
 }
@@ -154,6 +148,7 @@ pub struct Payload {
     pub virtual_blocks: u32,
     pub operator_address: Address,
     pub transactions: Vec<Transaction>,
+    pub last_in_batch: bool,
 }
 
 impl ProtoFmt for Payload {
@@ -188,6 +183,7 @@ impl ProtoFmt for Payload {
                 .and_then(|a| parse_h160(a))
                 .context("operator_address")?,
             transactions,
+            last_in_batch: *required(&message.last_in_batch).context("last_in_batch")?,
         })
     }
     fn build(&self) -> Self::Proto {
@@ -209,6 +205,7 @@ impl ProtoFmt for Payload {
                     json: Some(serde_json::to_string(t).unwrap()),
                 })
                 .collect(),
+            last_in_batch: Some(self.last_in_batch),
         }
     }
 }

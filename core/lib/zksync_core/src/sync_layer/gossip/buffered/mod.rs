@@ -20,27 +20,6 @@ use super::{
 #[cfg(test)]
 mod tests;
 
-/// [`BlockStore`] variation that upholds additional invariants as to how blocks are processed.
-///
-/// The invariants are as follows:
-///
-/// - Stored blocks always have contiguous numbers; there are no gaps.
-/// - Blocks can be scheduled to be added using [`Self::schedule_next_block()`] only. New blocks do not
-///   appear in the store otherwise.
-#[async_trait]
-pub(super) trait ContiguousBlockStore: BlockStore {
-    /// Schedules a block to be added to the store. Unlike [`WriteBlockStore::put_block()`],
-    /// there is no expectation that the block is added to the store *immediately*. It's
-    /// expected that it will be added to the store eventually, which will be signaled via
-    /// a subscriber returned from [`BlockStore::subscribe_to_block_writes()`].
-    ///
-    /// [`Buffered`] guarantees that this method will only ever be called:
-    ///
-    /// - with the next block (i.e., one immediately after [`BlockStore::head_block()`])
-    /// - sequentially (i.e., multiple blocks cannot be scheduled at once)
-    async fn schedule_next_block(&self, ctx: &ctx::Ctx, block: &FinalBlock) -> ctx::Result<()>;
-}
-
 /// In-memory buffer or [`FinalBlock`]s received from peers, but not executed and persisted locally yet.
 ///
 /// Unlike with executed / persisted blocks, there may be gaps between blocks in the buffer.
@@ -103,7 +82,7 @@ impl BlockBuffer {
     }
 
     fn put_block(&mut self, block: FinalBlock) {
-        let block_number = block.header.number;
+        let block_number = block.header().number;
         assert!(block_number > self.store_block_number);
         // ^ Must be checked previously
         self.blocks.insert(block_number, block);
@@ -118,6 +97,39 @@ impl BlockBuffer {
 pub(super) enum BufferedStorageEvent {
     /// Update was received from the underlying storage.
     UpdateReceived(BlockNumber),
+}
+
+struct Buffer {
+    last: sync::watch::Sender<BlockNumber>,
+    last_continuous: sync::watch::Sender<BlockNumber>,
+    last_inner: BlockNumber,
+    blocks: HashMap<BlockNumber,FinalBlock>,
+}
+
+impl Buffer {
+    pub fn new(last_inner: BlockNumber) -> Self {
+        Self {
+            last: last_inner,
+            last_continuous: last_inner,
+            last_inner,
+        }
+    }
+
+    pub fn push(&mut self, block: FinalBlock) {
+        let number = block.header().number;
+        if self.last_inner > number { return }
+        self.last = std::cmp::max(self.last,number.next());
+        self.blocks.insert(number,block);
+        while self.blocks.contains_key(self.last_continuous.next()) {
+            self.last_continuous = self.last_continuous.next();
+        }
+    }
+
+    pub fn pop(&mut self) -> Option<FinalBlock> {
+        let block = self.blocks.remove(self.first)?;
+        self.begin = self.begin.next();
+        Some(block)
+    }
 }
 
 /// [`BlockStore`] with an in-memory buffer for pending blocks.
@@ -137,135 +149,47 @@ pub(super) enum BufferedStorageEvent {
 /// we do this in another background task. Removing blocks from the buffer ensures that it doesn't
 /// grow infinitely; it also allows to track syncing progress via metrics.
 #[derive(Debug)]
-pub(super) struct Buffered<T> {
-    inner: T,
-    inner_subscriber: watch::Receiver<BlockNumber>,
-    block_writes_sender: watch::Sender<BlockNumber>,
-    buffer: Mutex<BlockBuffer>,
-    #[cfg(test)]
-    events_sender: channel::UnboundedSender<BufferedStorageEvent>,
+pub(super) struct Buffered {
+    inner: Arc<dyn WriteBlockStore + BlockStore>,
+    buffer: Mutex<Buffer>,
+    head_send: watch::Sender<BlockNumber>,
 }
 
-impl<T: ContiguousBlockStore> Buffered<T> {
+impl Buffered {
     /// Creates a new buffered storage. The buffer is initially empty.
-    pub fn new(store: T) -> Self {
-        let inner_subscriber = store.subscribe_to_block_writes();
-        let store_block_number = *inner_subscriber.borrow();
-        tracing::debug!(
-            store_block_number = store_block_number.0,
-            "Initialized buffer storage"
-        );
+    pub async fn new(ctx: &ctx::Ctx, inner: Arc<dyn WriteBlockStore + BlockStore>) -> ctx::Result<Self> {
+        let head = inner.first_block_number(ctx).await?,
         Self {
-            inner: store,
-            inner_subscriber,
-            block_writes_sender: watch::channel(store_block_number).0,
-            buffer: Mutex::new(BlockBuffer::new(store_block_number)),
-            #[cfg(test)]
-            events_sender: channel::unbounded().0,
+            head: inner.block(ctx,head).await?,
+            buffer: Buffer::new(head),
+            head_send: watch::channel(head).0,
+            inner,
         }
     }
-
-    #[cfg(test)]
-    fn set_events_sender(&mut self, sender: channel::UnboundedSender<BufferedStorageEvent>) {
-        self.events_sender = sender;
-    }
-
-    pub(super) fn inner(&self) -> &T {
-        &self.inner
-    }
-
-    #[cfg(test)]
-    async fn buffer_len(&self) -> usize {
-        self.buffer.lock().await.blocks.len()
-    }
-
-    /// Listens to the updates in the underlying storage.
-    #[tracing::instrument(level = "trace", skip_all)]
-    async fn listen_to_updates(&self, ctx: &ctx::Ctx) {
-        let mut subscriber = self.inner_subscriber.clone();
-        loop {
-            let store_block_number = {
-                let Ok(number) = sync::changed(ctx, &mut subscriber).await else {
-                    return; // Do not propagate cancellation errors
-                };
-                *number
-            };
-            tracing::debug!(
-                store_block_number = store_block_number.0,
-                "Underlying block number updated"
-            );
-
-            let Ok(mut buffer) = sync::lock(ctx, &self.buffer).await else {
-                return; // Do not propagate cancellation errors
-            };
-            buffer.set_store_block(store_block_number);
-            #[cfg(test)]
-            self.events_sender
-                .send(BufferedStorageEvent::UpdateReceived(store_block_number));
-        }
-    }
-
+    
     /// Schedules blocks in the underlying store as they are pushed to this store.
-    #[tracing::instrument(level = "trace", skip_all, err)]
-    async fn schedule_blocks(&self, ctx: &ctx::Ctx) -> ctx::Result<()> {
-        let mut blocks_subscriber = self.block_writes_sender.subscribe();
-
-        let mut next_scheduled_block_number = {
-            let Ok(buffer) = sync::lock(ctx, &self.buffer).await else {
-                return Ok(()); // Do not propagate cancellation errors
-            };
-            buffer.store_block_number.next()
-        };
+    async fn run_background_tasks(&self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
+        let buffer = &mut self.buffer.subscribe();
         loop {
-            loop {
-                let block = match self.buffered_block(ctx, next_scheduled_block_number).await {
-                    Err(ctx::Canceled) => return Ok(()), // Do not propagate cancellation errors
-                    Ok(None) => break,
-                    Ok(Some(block)) => block,
+            let block = sync::wait_for(ctx, buffer, |b| b.begin < b.continuous_end).await?.first().unwrap();
+            if let Err(err) = self.inner.put_block(ctx,&block).await {
+                return match err {
+                    ctx::Error::Internal(err) => Err(err),
+                    ctx::Error::Canceled(_) => Ok(()),
                 };
-                self.inner.schedule_next_block(ctx, &block).await?;
-                next_scheduled_block_number = next_scheduled_block_number.next();
             }
-            // Wait until some more blocks are pushed into the buffer.
-            let Ok(number) = sync::changed(ctx, &mut blocks_subscriber).await else {
-                return Ok(()); // Do not propagate cancellation errors
-            };
-            tracing::debug!(block_number = number.0, "Received new block");
         }
-    }
-
-    async fn buffered_block(
-        &self,
-        ctx: &ctx::Ctx,
-        number: BlockNumber,
-    ) -> ctx::OrCanceled<Option<FinalBlock>> {
-        Ok(sync::lock(ctx, &self.buffer)
-            .await?
-            .blocks
-            .get(&number)
-            .cloned())
-    }
-
-    /// Runs background tasks for this store. This method **must** be spawned as a background task
-    /// which should be running as long at the [`Buffered`] is in use; otherwise, it will function incorrectly.
-    pub async fn run_background_tasks(&self, ctx: &ctx::Ctx) -> ctx::Result<()> {
-        scope::run!(ctx, |ctx, s| {
-            s.spawn(async {
-                self.listen_to_updates(ctx).await;
-                Ok(())
-            });
-            self.schedule_blocks(ctx)
-        })
-        .await
     }
 }
 
 #[async_trait]
-impl<T: ContiguousBlockStore> BlockStore for Buffered<T> {
+impl<T: WriteBlockStore> BlockStore for Buffered<T> {
     async fn head_block(&self, ctx: &ctx::Ctx) -> ctx::Result<FinalBlock> {
-        let buffered_head_block = sync::lock(ctx, &self.buffer).await?.head_block();
-        if let Some(block) = buffered_head_block {
-            return Ok(block);
+        { 
+            let buffer = self.buffer.lock.unwrap();
+            if Some(block) = buffer.blocks.get(*buffer.head.borrow()) {
+                return Ok(block.clone());
+            }
         }
         self.inner.head_block(ctx).await
     }
@@ -276,25 +200,14 @@ impl<T: ContiguousBlockStore> BlockStore for Buffered<T> {
     }
 
     async fn last_contiguous_block_number(&self, ctx: &ctx::Ctx) -> ctx::Result<BlockNumber> {
-        Ok(sync::lock(ctx, &self.buffer)
-            .await?
-            .last_contiguous_block_number())
+        Ok(self.buffer.borrow().continuous_end.prev())
     }
 
     async fn block(&self, ctx: &ctx::Ctx, number: BlockNumber) -> ctx::Result<Option<FinalBlock>> {
-        let started_at = Instant::now();
-        {
-            let buffer = sync::lock(ctx, &self.buffer).await?;
-            if number > buffer.store_block_number {
-                let block = buffer.blocks.get(&number).cloned();
-                METRICS.get_block_latency[&BlockResponseKind::InMemory]
-                    .observe(started_at.elapsed());
-                return Ok(block);
-            }
+        if let Some(block) = self.buffer.borrow().blocks.get(&number) {
+            return Ok(Some(block.clone()));
         }
-        let block = self.inner.block(ctx, number).await?;
-        METRICS.get_block_latency[&BlockResponseKind::Persisted].observe(started_at.elapsed());
-        Ok(block)
+        self.inner.block(ctx,number).await
     }
 
     async fn missing_block_numbers(
@@ -309,43 +222,23 @@ impl<T: ContiguousBlockStore> BlockStore for Buffered<T> {
     }
 
     fn subscribe_to_block_writes(&self) -> watch::Receiver<BlockNumber> {
-        self.block_writes_sender.subscribe()
+        self.head_send.subscribe()
     }
 }
 
 #[async_trait]
-impl<T: ContiguousBlockStore> WriteBlockStore for Buffered<T> {
-    /// Verify that `payload` is a correct proposal for the block `block_number`.
-    async fn verify_payload(
-        &self,
-        _ctx: &ctx::Ctx,
-        _block_number: BlockNumber,
-        _payload: &Payload,
-    ) -> ctx::Result<()> {
-        // This is storage for non-validator nodes (aka full nodes),
-        // so verify_payload() won't be called.
-        // Still, it probably would be better to either
-        // * move verify_payload() to BlockStore, so that Buffered can just forward the call
-        // * create another separate trait for verify_payload.
-        // It will be clear what needs to be done when we implement multi-validator consensus for
-        // zksync-era.
-        unimplemented!()
+impl<T: WriteBlockStore> WriteBlockStore for Buffered<T> {
+    async fn verify_payload(&self, ctx: &ctx::Ctx, block_number: validator::BlockNumber, payload: &validator::Payload) -> ctx::Result<()> {
+        self.inner.verify_payload(ctx,block_number,payload).await
     }
 
     async fn put_block(&self, ctx: &ctx::Ctx, block: &FinalBlock) -> ctx::Result<()> {
-        let buffer_block_latency = METRICS.buffer_block_latency.start();
-        {
-            let mut buffer = sync::lock(ctx, &self.buffer).await?;
-            let block_number = block.header.number;
-            if block_number <= buffer.store_block_number {
-                return Err(anyhow::anyhow!(
-                    "Cannot replace a block #{block_number} since it is already present in the underlying storage",
-                ).into());
-            }
-            buffer.put_block(block.clone());
+        let head = self.head.lock().unwrap();
+        self.buffer.send_modify(|b| b.push(block.clone());
+        if block.header().number > head.header().number {
+            head = block.clone();
+            self.head_send.send_replace(head.header().number);
         }
-        self.block_writes_sender.send_replace(block.header.number);
-        buffer_block_latency.observe();
         Ok(())
     }
 }

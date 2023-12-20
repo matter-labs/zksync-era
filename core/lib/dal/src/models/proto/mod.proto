@@ -20,4 +20,5 @@ message Payload {
   optional uint32 virtual_blocks = 6; // required
   optional bytes operator_address = 7; // required; H160
   repeated Transaction transactions = 8;
+  optional bool last_in_batch = 10; // required
 }

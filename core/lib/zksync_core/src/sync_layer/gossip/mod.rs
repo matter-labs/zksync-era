@@ -14,7 +14,6 @@ use super::{fetcher::FetcherCursor, sync_action::ActionQueueSender};
 use crate::consensus;
 
 mod buffered;
-mod conversions;
 mod metrics;
 mod storage;
 #[cfg(test)]
@@ -54,21 +53,10 @@ impl FetcherConfig {
             self.executor.node_key.public(),
         );
 
-        let mut storage = pool
-            .access_storage_tagged("sync_layer")
-            .await
-            .context("Failed acquiring Postgres connection for cursor")?;
-        let cursor = FetcherCursor::new(&mut storage)
-            .await
-            .context("FetcherCursor::new()")?;
-        drop(storage);
-
         let store = PostgresBlockStorage::new(
             ctx,
             pool,
             actions,
-            cursor,
-            self.genesis_block_number,
             self.operator_address,
         )
         .await
@@ -83,18 +71,11 @@ impl FetcherConfig {
                 validator: None,
             };
             s.spawn_bg(async {
-                store
-                    .run_background_tasks(ctx)
-                    .await
-                    .context("`PostgresBlockStorage` background tasks failed")
-            });
-            s.spawn_bg(async {
                 buffered
                     .run_background_tasks(ctx)
                     .await
                     .context("`Buffered` storage background tasks failed")
             });
-
             executor.run(ctx).await.context("Node executor terminated")
         })
         .await
