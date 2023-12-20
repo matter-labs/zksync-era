@@ -76,7 +76,7 @@ describe('Block reverting test', function () {
         process.env.DATABASE_MERKLE_TREE_MODE = 'full';
 
         // Run server in background.
-        const components = 'api,tree,eth,data_fetcher,state_keeper';
+        const components = 'api,tree,eth,state_keeper';
         utils.background(`zk server --components ${components}`, [null, logs, logs]);
         // Server may need some time to recompile if it's a cold run, so wait for it.
         let iter = 0;
@@ -172,7 +172,7 @@ describe('Block reverting test', function () {
         process.env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = '1';
 
         // Run server.
-        utils.background('zk server --components api,tree,eth,data_fetcher,state_keeper', [null, logs, logs]);
+        utils.background('zk server --components api,tree,eth,state_keeper', [null, logs, logs]);
         await utils.sleep(10);
 
         const balanceBefore = await alice.getBalance();
@@ -184,7 +184,9 @@ describe('Block reverting test', function () {
             amount: depositAmount,
             to: alice.address
         });
+        console.log('here1');
         let receipt = await depositHandle.waitFinalize();
+        console.log('here2');
         expect(receipt.status).to.be.eql(1);
 
         const balanceAfter = await alice.getBalance();
@@ -200,7 +202,7 @@ describe('Block reverting test', function () {
         await killServerAndWaitForShutdown(tester);
 
         // Run again.
-        utils.background(`zk server --components=api,tree,eth,data_fetcher,state_keeper`, [null, logs, logs]);
+        utils.background(`zk server --components=api,tree,eth,state_keeper`, [null, logs, logs]);
         await utils.sleep(10);
 
         // Trying to send a transaction from the same address again

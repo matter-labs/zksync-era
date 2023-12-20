@@ -279,9 +279,9 @@ describe('web3 API compatibility tests', () => {
         let newTxHash: string | null = null;
         // We can't use `once` as there may be other pending txs sent together with our one.
         wsProvider.on('pending', async (txHash) => {
-            const receipt = await alice.provider.getTransactionReceipt(txHash);
+            const tx = await alice.provider.getTransaction(txHash);
             // We're waiting for the exact transaction to appear.
-            if (!receipt || receipt.to != uniqueRecipient) {
+            if (!tx || tx.to != uniqueRecipient) {
                 // Not the transaction we're looking for.
                 return;
             }
