@@ -104,18 +104,23 @@ describe('Tests for the mempool behavior', () => {
         const fund = gasLimit.mul(gasPrice).mul(13).div(10);
         await alice.sendTransaction({ to: poorBob.address, value: fund }).then((tx) => tx.wait());
 
+        // delayedTx should pass API checks (if not then error will be thrown on the next lime)
+        // but should be rejected by the state-keeper (checked later).
         const delayedTx = await poorBob.sendTransaction({
             to: poorBob.address,
             nonce: nonce + 1
         });
-        // delayedTx passed API checks (since we got the response) but should be rejected by the state-keeper.
-        const rejection = expect(delayedTx).toBeReverted();
 
         await expect(poorBob.sendTransaction({ to: poorBob.address, nonce })).toBeAccepted();
-        await rejection;
 
-        // Now check that there is only one executed transaction for the account.
-        await expect(poorBob.getTransactionCount()).resolves.toEqual(1);
+        // We don't have a good check that tx was indeed rejected.
+        // Most that we can do is to ensure that tx wasn't mined for some time.
+        const attempts = 5;
+        for (let i = 0; i < attempts; ++i) {
+            const receipt = await alice.provider.getTransactionReceipt(delayedTx.hash);
+            expect(receipt).toBeNull();
+            await zksync.utils.sleep(1000);
+        }
     });
 
     afterAll(async () => {

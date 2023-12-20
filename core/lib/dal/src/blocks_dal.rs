@@ -29,16 +29,30 @@ pub struct BlocksDal<'a, 'c> {
 
 impl BlocksDal<'_, '_> {
     pub async fn is_genesis_needed(&mut self) -> sqlx::Result<bool> {
-        let count = sqlx::query!("SELECT COUNT(*) as \"count!\" FROM l1_batches")
-            .fetch_one(self.storage.conn())
-            .await?
-            .count;
+        let count = sqlx::query!(
+            r#"
+            SELECT
+                COUNT(*) AS "count!"
+            FROM
+                l1_batches
+            "#
+        )
+        .fetch_one(self.storage.conn())
+        .await?
+        .count;
         Ok(count == 0)
     }
 
     pub async fn get_sealed_l1_batch_number(&mut self) -> anyhow::Result<L1BatchNumber> {
         let number = sqlx::query!(
-            "SELECT MAX(number) as \"number\" FROM l1_batches WHERE is_finished = TRUE"
+            r#"
+            SELECT
+                MAX(number) AS "number"
+            FROM
+                l1_batches
+            WHERE
+                is_finished = TRUE
+            "#
         )
         .instrument("get_sealed_block_number")
         .report_latency()
@@ -51,27 +65,42 @@ impl BlocksDal<'_, '_> {
     }
 
     pub async fn get_sealed_miniblock_number(&mut self) -> sqlx::Result<MiniblockNumber> {
-        let number: i64 = sqlx::query!("SELECT MAX(number) as \"number\" FROM miniblocks")
-            .instrument("get_sealed_miniblock_number")
-            .report_latency()
-            .fetch_one(self.storage.conn())
-            .await?
-            .number
-            .unwrap_or(0);
+        let number: i64 = sqlx::query!(
+            r#"
+            SELECT
+                MAX(number) AS "number"
+            FROM
+                miniblocks
+            "#
+        )
+        .instrument("get_sealed_miniblock_number")
+        .report_latency()
+        .fetch_one(self.storage.conn())
+        .await?
+        .number
+        .unwrap_or(0);
         Ok(MiniblockNumber(number as u32))
     }
 
     pub async fn get_last_l1_batch_number_with_metadata(
         &mut self,
     ) -> anyhow::Result<L1BatchNumber> {
-        let number: i64 =
-            sqlx::query!("SELECT MAX(number) as \"number\" FROM l1_batches WHERE hash IS NOT NULL")
-                .instrument("get_last_block_number_with_metadata")
-                .report_latency()
-                .fetch_one(self.storage.conn())
-                .await?
-                .number
-                .context("DAL invocation before genesis")?;
+        let number: i64 = sqlx::query!(
+            r#"
+            SELECT
+                MAX(number) AS "number"
+            FROM
+                l1_batches
+            WHERE
+                hash IS NOT NULL
+            "#
+        )
+        .instrument("get_last_block_number_with_metadata")
+        .report_latency()
+        .fetch_one(self.storage.conn())
+        .await?
+        .number
+        .context("DAL invocation before genesis")?;
         Ok(L1BatchNumber(number as u32))
     }
 
@@ -81,16 +110,34 @@ impl BlocksDal<'_, '_> {
     ) -> sqlx::Result<Vec<L1BatchHeader>> {
         let l1_batches = sqlx::query_as!(
             StorageL1BatchHeader,
-            "SELECT number, l1_tx_count, l2_tx_count, \
-                timestamp, is_finished, fee_account_address, l2_to_l1_logs, l2_to_l1_messages, \
-                bloom, priority_ops_onchain_data, \
-                used_contract_hashes, base_fee_per_gas, l1_gas_price, \
-                l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version, \
-                system_logs, compressed_state_diffs \
-            FROM l1_batches \
-            WHERE eth_commit_tx_id = $1 \
-                OR eth_prove_tx_id = $1 \
-                OR eth_execute_tx_id = $1",
+            r#"
+            SELECT
+                number,
+                l1_tx_count,
+                l2_tx_count,
+                timestamp,
+                is_finished,
+                fee_account_address,
+                l2_to_l1_logs,
+                l2_to_l1_messages,
+                bloom,
+                priority_ops_onchain_data,
+                used_contract_hashes,
+                base_fee_per_gas,
+                l1_gas_price,
+                l2_fair_gas_price,
+                bootloader_code_hash,
+                default_aa_code_hash,
+                protocol_version,
+                system_logs,
+                compressed_state_diffs
+            FROM
+                l1_batches
+            WHERE
+                eth_commit_tx_id = $1
+                OR eth_prove_tx_id = $1
+                OR eth_execute_tx_id = $1
+            "#,
             eth_tx_id as i32
         )
         .instrument("get_l1_batches_for_eth_tx_id")
@@ -107,19 +154,53 @@ impl BlocksDal<'_, '_> {
     ) -> sqlx::Result<Option<StorageL1Batch>> {
         sqlx::query_as!(
             StorageL1Batch,
-            "SELECT number, timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, \
-                bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, \
-                compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, \
-                merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, \
-                used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, \
-                l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, \
-                rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
-                default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
-                meta_parameters_hash, protocol_version, system_logs, compressed_state_diffs, \
-                events_queue_commitment, bootloader_initial_content_commitment \
-            FROM l1_batches \
-            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
-            WHERE number = $1",
+            r#"
+            SELECT
+                number,
+                timestamp,
+                is_finished,
+                l1_tx_count,
+                l2_tx_count,
+                fee_account_address,
+                bloom,
+                priority_ops_onchain_data,
+                hash,
+                parent_hash,
+                commitment,
+                compressed_write_logs,
+                compressed_contracts,
+                eth_prove_tx_id,
+                eth_commit_tx_id,
+                eth_execute_tx_id,
+                merkle_root_hash,
+                l2_to_l1_logs,
+                l2_to_l1_messages,
+                used_contract_hashes,
+                compressed_initial_writes,
+                compressed_repeated_writes,
+                l2_l1_compressed_messages,
+                l2_l1_merkle_root,
+                l1_gas_price,
+                l2_fair_gas_price,
+                rollup_last_leaf_index,
+                zkporter_is_available,
+                bootloader_code_hash,
+                default_aa_code_hash,
+                base_fee_per_gas,
+                aux_data_hash,
+                pass_through_data_hash,
+                meta_parameters_hash,
+                protocol_version,
+                system_logs,
+                compressed_state_diffs,
+                events_queue_commitment,
+                bootloader_initial_content_commitment
+            FROM
+                l1_batches
+                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+            WHERE
+                number = $1
+            "#,
             number.0 as i64
         )
         .instrument("get_storage_l1_batch")
@@ -134,14 +215,32 @@ impl BlocksDal<'_, '_> {
     ) -> sqlx::Result<Option<L1BatchHeader>> {
         Ok(sqlx::query_as!(
             StorageL1BatchHeader,
-            "SELECT number, l1_tx_count, l2_tx_count, \
-                timestamp, is_finished, fee_account_address, l2_to_l1_logs, l2_to_l1_messages, \
-                bloom, priority_ops_onchain_data, \
-                used_contract_hashes, base_fee_per_gas, l1_gas_price, \
-                l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version, \
-                compressed_state_diffs, system_logs \
-            FROM l1_batches \
-            WHERE number = $1",
+            r#"
+            SELECT
+                number,
+                l1_tx_count,
+                l2_tx_count,
+                timestamp,
+                is_finished,
+                fee_account_address,
+                l2_to_l1_logs,
+                l2_to_l1_messages,
+                bloom,
+                priority_ops_onchain_data,
+                used_contract_hashes,
+                base_fee_per_gas,
+                l1_gas_price,
+                l2_fair_gas_price,
+                bootloader_code_hash,
+                default_aa_code_hash,
+                protocol_version,
+                compressed_state_diffs,
+                system_logs
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
             number.0 as i64
         )
         .instrument("get_l1_batch_header")
@@ -157,7 +256,14 @@ impl BlocksDal<'_, '_> {
         number: L1BatchNumber,
     ) -> anyhow::Result<Option<Vec<(usize, U256)>>> {
         let Some(row) = sqlx::query!(
-            "SELECT initial_bootloader_heap_content FROM l1_batches WHERE number = $1",
+            r#"
+            SELECT
+                initial_bootloader_heap_content
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
             number.0 as i64
         )
         .instrument("get_initial_bootloader_heap")
@@ -179,7 +285,14 @@ impl BlocksDal<'_, '_> {
         number: L1BatchNumber,
     ) -> anyhow::Result<Option<Vec<u32>>> {
         let Some(row) = sqlx::query!(
-            "SELECT storage_refunds FROM l1_batches WHERE number = $1",
+            r#"
+            SELECT
+                storage_refunds
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
             number.0 as i64
         )
         .instrument("get_storage_refunds")
@@ -203,7 +316,14 @@ impl BlocksDal<'_, '_> {
         number: L1BatchNumber,
     ) -> anyhow::Result<Option<Vec<LogQuery>>> {
         let Some(row) = sqlx::query!(
-            "SELECT serialized_events_queue FROM events_queue WHERE l1_batch_number = $1",
+            r#"
+            SELECT
+                serialized_events_queue
+            FROM
+                events_queue
+            WHERE
+                l1_batch_number = $1
+            "#,
             number.0 as i64
         )
         .instrument("get_events_queue")
@@ -229,9 +349,14 @@ impl BlocksDal<'_, '_> {
         match aggregation_type {
             AggregatedActionType::Commit => {
                 sqlx::query!(
-                    "UPDATE l1_batches \
-                    SET eth_commit_tx_id = $1, updated_at = now() \
-                    WHERE number BETWEEN $2 AND $3",
+                    r#"
+                    UPDATE l1_batches
+                    SET
+                        eth_commit_tx_id = $1,
+                        updated_at = NOW()
+                    WHERE
+                        number BETWEEN $2 AND $3
+                    "#,
                     eth_tx_id as i32,
                     number_range.start().0 as i64,
                     number_range.end().0 as i64
@@ -241,9 +366,14 @@ impl BlocksDal<'_, '_> {
             }
             AggregatedActionType::PublishProofOnchain => {
                 sqlx::query!(
-                    "UPDATE l1_batches \
-                    SET eth_prove_tx_id = $1, updated_at = now() \
-                    WHERE number BETWEEN $2 AND $3",
+                    r#"
+                    UPDATE l1_batches
+                    SET
+                        eth_prove_tx_id = $1,
+                        updated_at = NOW()
+                    WHERE
+                        number BETWEEN $2 AND $3
+                    "#,
                     eth_tx_id as i32,
                     number_range.start().0 as i64,
                     number_range.end().0 as i64
@@ -253,9 +383,14 @@ impl BlocksDal<'_, '_> {
             }
             AggregatedActionType::Execute => {
                 sqlx::query!(
-                    "UPDATE l1_batches \
-                    SET eth_execute_tx_id = $1, updated_at = now() \
-                    WHERE number BETWEEN $2 AND $3",
+                    r#"
+                    UPDATE l1_batches
+                    SET
+                        eth_execute_tx_id = $1,
+                        updated_at = NOW()
+                    WHERE
+                        number BETWEEN $2 AND $3
+                    "#,
                     eth_tx_id as i32,
                     number_range.start().0 as i64,
                     number_range.end().0 as i64
@@ -305,15 +440,64 @@ impl BlocksDal<'_, '_> {
 
         let mut transaction = self.storage.start_transaction().await?;
         sqlx::query!(
-            "INSERT INTO l1_batches (\
-                number, l1_tx_count, l2_tx_count, \
-                timestamp, is_finished, fee_account_address, l2_to_l1_logs, l2_to_l1_messages, \
-                bloom, priority_ops_onchain_data, \
-                predicted_commit_gas_cost, predicted_prove_gas_cost, predicted_execute_gas_cost, \
-                initial_bootloader_heap_content, used_contract_hashes, base_fee_per_gas, \
-                l1_gas_price, l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version, system_logs, \
-                storage_refunds, created_at, updated_at \
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, now(), now())",
+            r#"
+            INSERT INTO
+                l1_batches (
+                    number,
+                    l1_tx_count,
+                    l2_tx_count,
+                    timestamp,
+                    is_finished,
+                    fee_account_address,
+                    l2_to_l1_logs,
+                    l2_to_l1_messages,
+                    bloom,
+                    priority_ops_onchain_data,
+                    predicted_commit_gas_cost,
+                    predicted_prove_gas_cost,
+                    predicted_execute_gas_cost,
+                    initial_bootloader_heap_content,
+                    used_contract_hashes,
+                    base_fee_per_gas,
+                    l1_gas_price,
+                    l2_fair_gas_price,
+                    bootloader_code_hash,
+                    default_aa_code_hash,
+                    protocol_version,
+                    system_logs,
+                    storage_refunds,
+                    created_at,
+                    updated_at
+                )
+            VALUES
+                (
+                    $1,
+                    $2,
+                    $3,
+                    $4,
+                    $5,
+                    $6,
+                    $7,
+                    $8,
+                    $9,
+                    $10,
+                    $11,
+                    $12,
+                    $13,
+                    $14,
+                    $15,
+                    $16,
+                    $17,
+                    $18,
+                    $19,
+                    $20,
+                    $21,
+                    $22,
+                    $23,
+                    NOW(),
+                    NOW()
+                )
+            "#,
             header.number.0 as i64,
             header.l1_tx_count as i32,
             header.l2_tx_count as i32,
@@ -332,14 +516,8 @@ impl BlocksDal<'_, '_> {
             base_fee_per_gas,
             header.l1_gas_price as i64,
             header.l2_fair_gas_price as i64,
-            header
-                .base_system_contracts_hashes
-                .bootloader
-                .as_bytes(),
-            header
-                .base_system_contracts_hashes
-                .default_aa
-                .as_bytes(),
+            header.base_system_contracts_hashes.bootloader.as_bytes(),
+            header.base_system_contracts_hashes.default_aa.as_bytes(),
             header.protocol_version.map(|v| v as i32),
             &system_logs,
             &storage_refunds,
@@ -348,7 +526,12 @@ impl BlocksDal<'_, '_> {
         .await?;
 
         sqlx::query!(
-            "INSERT INTO events_queue (l1_batch_number, serialized_events_queue) VALUES ($1, $2)",
+            r#"
+            INSERT INTO
+                events_queue (l1_batch_number, serialized_events_queue)
+            VALUES
+                ($1, $2)
+            "#,
             header.number.0 as i64,
             events_queue
         )
@@ -366,12 +549,28 @@ impl BlocksDal<'_, '_> {
         let base_fee_per_gas = BigDecimal::from_u64(miniblock_header.base_fee_per_gas)
             .context("base_fee_per_gas should fit in u64")?;
         sqlx::query!(
-            "INSERT INTO miniblocks ( \
-                number, timestamp, hash, l1_tx_count, l2_tx_count, \
-                base_fee_per_gas, l1_gas_price, l2_fair_gas_price, gas_per_pubdata_limit, \
-                bootloader_code_hash, default_aa_code_hash, protocol_version, \
-                virtual_blocks, created_at, updated_at \
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now(), now())",
+            r#"
+            INSERT INTO
+                miniblocks (
+                    number,
+                    timestamp,
+                    hash,
+                    l1_tx_count,
+                    l2_tx_count,
+                    base_fee_per_gas,
+                    l1_gas_price,
+                    l2_fair_gas_price,
+                    gas_per_pubdata_limit,
+                    bootloader_code_hash,
+                    default_aa_code_hash,
+                    protocol_version,
+                    virtual_blocks,
+                    created_at,
+                    updated_at
+                )
+            VALUES
+                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())
+            "#,
             miniblock_header.number.0 as i64,
             miniblock_header.timestamp as i64,
             miniblock_header.hash.as_bytes(),
@@ -406,18 +605,46 @@ impl BlocksDal<'_, '_> {
     pub async fn get_last_miniblock_number_with_consensus_fields(
         &mut self,
     ) -> anyhow::Result<Option<MiniblockNumber>> {
-        let Some(row) = sqlx::query!("SELECT number FROM miniblocks WHERE consensus IS NOT NULL ORDER BY number DESC LIMIT 1")
-            .fetch_optional(self.storage.conn())
-            .await? else { return Ok(None) };
+        let Some(row) = sqlx::query!(
+            r#"
+            SELECT
+                number
+            FROM
+                miniblocks
+            WHERE
+                consensus IS NOT NULL
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
+        else {
+            return Ok(None);
+        };
         Ok(Some(MiniblockNumber(row.number.try_into()?)))
     }
 
     /// Checks whether the specified miniblock has consensus field set.
     pub async fn has_consensus_fields(&mut self, number: MiniblockNumber) -> sqlx::Result<bool> {
-        Ok(sqlx::query!("SELECT COUNT(*) as \"count!\"  FROM miniblocks WHERE number = $1 AND consensus IS NOT NULL", number.0 as i64)
-            .fetch_one(self.storage.conn())
-            .await?
-            .count > 0)
+        Ok(sqlx::query!(
+            r#"
+            SELECT
+                COUNT(*) AS "count!"
+            FROM
+                miniblocks
+            WHERE
+                number = $1
+                AND consensus IS NOT NULL
+            "#,
+            number.0 as i64
+        )
+        .fetch_one(self.storage.conn())
+        .await?
+        .count
+            > 0)
     }
 
     /// Sets consensus-related fields for the specified miniblock.
@@ -427,7 +654,13 @@ impl BlocksDal<'_, '_> {
         consensus: &ConsensusBlockFields,
     ) -> anyhow::Result<()> {
         let result = sqlx::query!(
-            "UPDATE miniblocks SET consensus = $2 WHERE number = $1",
+            r#"
+            UPDATE miniblocks
+            SET
+                consensus = $2
+            WHERE
+                number = $1
+            "#,
             miniblock_number.0 as i64,
             zksync_protobuf::serde::serialize(consensus, serde_json::value::Serializer).unwrap(),
         )
@@ -446,13 +679,27 @@ impl BlocksDal<'_, '_> {
     ) -> sqlx::Result<Option<MiniblockHeader>> {
         Ok(sqlx::query_as!(
             StorageMiniblockHeader,
-            "SELECT number, timestamp, hash, l1_tx_count, l2_tx_count, \
-                base_fee_per_gas, l1_gas_price, l2_fair_gas_price, \
-                bootloader_code_hash, default_aa_code_hash, protocol_version, \
+            r#"
+            SELECT
+                number,
+                timestamp,
+                hash,
+                l1_tx_count,
+                l2_tx_count,
+                base_fee_per_gas,
+                l1_gas_price,
+                l2_fair_gas_price,
+                bootloader_code_hash,
+                default_aa_code_hash,
+                protocol_version,
                 virtual_blocks
-            FROM miniblocks \
-            ORDER BY number DESC \
-            LIMIT 1",
+            FROM
+                miniblocks
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#,
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -465,12 +712,25 @@ impl BlocksDal<'_, '_> {
     ) -> sqlx::Result<Option<MiniblockHeader>> {
         Ok(sqlx::query_as!(
             StorageMiniblockHeader,
-            "SELECT number, timestamp, hash, l1_tx_count, l2_tx_count, \
-                base_fee_per_gas, l1_gas_price, l2_fair_gas_price, \
-                bootloader_code_hash, default_aa_code_hash, protocol_version, \
+            r#"
+            SELECT
+                number,
+                timestamp,
+                hash,
+                l1_tx_count,
+                l2_tx_count,
+                base_fee_per_gas,
+                l1_gas_price,
+                l2_fair_gas_price,
+                bootloader_code_hash,
+                default_aa_code_hash,
+                protocol_version,
                 virtual_blocks
-            FROM miniblocks \
-            WHERE number = $1",
+            FROM
+                miniblocks
+            WHERE
+                number = $1
+            "#,
             miniblock_number.0 as i64,
         )
         .fetch_optional(self.storage.conn())
@@ -483,9 +743,13 @@ impl BlocksDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
     ) -> sqlx::Result<()> {
         sqlx::query!(
-            "UPDATE miniblocks \
-            SET l1_batch_number = $1 \
-            WHERE l1_batch_number IS NULL",
+            r#"
+            UPDATE miniblocks
+            SET
+                l1_batch_number = $1
+            WHERE
+                l1_batch_number IS NULL
+            "#,
             l1_batch_number.0 as i32,
         )
         .execute(self.storage.conn())
@@ -498,14 +762,28 @@ impl BlocksDal<'_, '_> {
         metadata: &L1BatchMetadata,
     ) -> sqlx::Result<()> {
         sqlx::query!(
-            "UPDATE l1_batches \
-            SET hash = $1, merkle_root_hash = $2, commitment = $3, default_aa_code_hash = $4, \
-                compressed_repeated_writes = $5, compressed_initial_writes = $6, \
-                l2_l1_compressed_messages = $7, l2_l1_merkle_root = $8, \
-                zkporter_is_available = $9, bootloader_code_hash = $10, rollup_last_leaf_index = $11, \
-                aux_data_hash = $12, pass_through_data_hash = $13, meta_parameters_hash = $14, \
-                compressed_state_diffs = $15, updated_at = now() \
-            WHERE number = $16",
+            r#"
+            UPDATE l1_batches
+            SET
+                hash = $1,
+                merkle_root_hash = $2,
+                commitment = $3,
+                default_aa_code_hash = $4,
+                compressed_repeated_writes = $5,
+                compressed_initial_writes = $6,
+                l2_l1_compressed_messages = $7,
+                l2_l1_merkle_root = $8,
+                zkporter_is_available = $9,
+                bootloader_code_hash = $10,
+                rollup_last_leaf_index = $11,
+                aux_data_hash = $12,
+                pass_through_data_hash = $13,
+                meta_parameters_hash = $14,
+                compressed_state_diffs = $15,
+                updated_at = NOW()
+            WHERE
+                number = $16
+            "#,
             metadata.root_hash.as_bytes(),
             metadata.merkle_root_hash.as_bytes(),
             metadata.commitment.as_bytes(),
@@ -538,14 +816,26 @@ impl BlocksDal<'_, '_> {
         let mut transaction = self.storage.start_transaction().await?;
 
         let update_result = sqlx::query!(
-            "UPDATE l1_batches \
-            SET hash = $1, merkle_root_hash = $2, \
-                compressed_repeated_writes = $3, compressed_initial_writes = $4, \
-                l2_l1_compressed_messages = $5, l2_l1_merkle_root = $6, \
-                zkporter_is_available = $7, parent_hash = $8, rollup_last_leaf_index = $9, \
-                pass_through_data_hash = $10, meta_parameters_hash = $11, \
-                compressed_state_diffs = $12, updated_at = now() \
-            WHERE number = $13 AND hash IS NULL",
+            r#"
+            UPDATE l1_batches
+            SET
+                hash = $1,
+                merkle_root_hash = $2,
+                compressed_repeated_writes = $3,
+                compressed_initial_writes = $4,
+                l2_l1_compressed_messages = $5,
+                l2_l1_merkle_root = $6,
+                zkporter_is_available = $7,
+                parent_hash = $8,
+                rollup_last_leaf_index = $9,
+                pass_through_data_hash = $10,
+                meta_parameters_hash = $11,
+                compressed_state_diffs = $12,
+                updated_at = NOW()
+            WHERE
+                number = $13
+                AND hash IS NULL
+            "#,
             metadata.root_hash.as_bytes(),
             metadata.merkle_root_hash.as_bytes(),
             metadata.repeated_writes_compressed,
@@ -569,9 +859,13 @@ impl BlocksDal<'_, '_> {
         if metadata.events_queue_commitment.is_some() || is_pre_boojum {
             // Save `commitment`, `aux_data_hash`, `events_queue_commitment`, `bootloader_initial_content_commitment`.
             sqlx::query!(
-                "INSERT INTO commitments (l1_batch_number, events_queue_commitment, bootloader_initial_content_commitment) \
-                VALUES ($1, $2, $3) \
-                ON CONFLICT (l1_batch_number) DO NOTHING",
+                r#"
+                INSERT INTO
+                    commitments (l1_batch_number, events_queue_commitment, bootloader_initial_content_commitment)
+                VALUES
+                    ($1, $2, $3)
+                ON CONFLICT (l1_batch_number) DO NOTHING
+                "#,
                 number.0 as i64,
                 metadata.events_queue_commitment.map(|h| h.0.to_vec()),
                 metadata
@@ -585,9 +879,15 @@ impl BlocksDal<'_, '_> {
             .await?;
 
             sqlx::query!(
-                "UPDATE l1_batches \
-                SET commitment = $2, aux_data_hash = $3, updated_at = now() \
-                WHERE number = $1",
+                r#"
+                UPDATE l1_batches
+                SET
+                    commitment = $2,
+                    aux_data_hash = $3,
+                    updated_at = NOW()
+                WHERE
+                    number = $1
+                "#,
                 number.0 as i64,
                 metadata.commitment.as_bytes(),
                 metadata.aux_data_hash.as_bytes(),
@@ -613,10 +913,18 @@ impl BlocksDal<'_, '_> {
 
             // block was already processed. Verify that existing hashes match
             let matched: i64 = sqlx::query!(
-                "SELECT COUNT(*) as \"count!\" \
-                FROM l1_batches \
-                WHERE number = $1 AND hash = $2 AND merkle_root_hash = $3 \
-                   AND parent_hash = $4 AND l2_l1_merkle_root = $5",
+                r#"
+                SELECT
+                    COUNT(*) AS "count!"
+                FROM
+                    l1_batches
+                WHERE
+                    number = $1
+                    AND hash = $2
+                    AND merkle_root_hash = $3
+                    AND parent_hash = $4
+                    AND l2_l1_merkle_root = $5
+                "#,
                 number.0 as i64,
                 metadata.root_hash.as_bytes(),
                 metadata.merkle_root_hash.as_bytes(),
@@ -648,21 +956,59 @@ impl BlocksDal<'_, '_> {
         // We can get 0 block for the first transaction
         let block = sqlx::query_as!(
             StorageL1Batch,
-            "SELECT number, timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, \
-                bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, \
-                compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, \
-                merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, \
-                used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, \
-                l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, \
-                rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
-                default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
-                meta_parameters_hash, protocol_version, compressed_state_diffs, \
-                system_logs, events_queue_commitment, bootloader_initial_content_commitment
-            FROM l1_batches \
-            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
-            WHERE number = 0 OR eth_commit_tx_id IS NOT NULL AND commitment IS NOT NULL \
-            ORDER BY number DESC \
-            LIMIT 1",
+            r#"
+            SELECT
+                number,
+                timestamp,
+                is_finished,
+                l1_tx_count,
+                l2_tx_count,
+                fee_account_address,
+                bloom,
+                priority_ops_onchain_data,
+                hash,
+                parent_hash,
+                commitment,
+                compressed_write_logs,
+                compressed_contracts,
+                eth_prove_tx_id,
+                eth_commit_tx_id,
+                eth_execute_tx_id,
+                merkle_root_hash,
+                l2_to_l1_logs,
+                l2_to_l1_messages,
+                used_contract_hashes,
+                compressed_initial_writes,
+                compressed_repeated_writes,
+                l2_l1_compressed_messages,
+                l2_l1_merkle_root,
+                l1_gas_price,
+                l2_fair_gas_price,
+                rollup_last_leaf_index,
+                zkporter_is_available,
+                bootloader_code_hash,
+                default_aa_code_hash,
+                base_fee_per_gas,
+                aux_data_hash,
+                pass_through_data_hash,
+                meta_parameters_hash,
+                protocol_version,
+                compressed_state_diffs,
+                system_logs,
+                events_queue_commitment,
+                bootloader_initial_content_commitment
+            FROM
+                l1_batches
+                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+            WHERE
+                number = 0
+                OR eth_commit_tx_id IS NOT NULL
+                AND commitment IS NOT NULL
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#,
         )
         .instrument("get_last_committed_to_eth_l1_batch")
         .fetch_one(self.storage.conn())
@@ -682,11 +1028,19 @@ impl BlocksDal<'_, '_> {
         &mut self,
     ) -> Result<Option<L1BatchNumber>, sqlx::Error> {
         Ok(sqlx::query!(
-            "SELECT number FROM l1_batches \
-            LEFT JOIN eth_txs_history AS commit_tx \
-                ON (l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id) \
-            WHERE commit_tx.confirmed_at IS NOT NULL \
-            ORDER BY number DESC LIMIT 1"
+            r#"
+            SELECT
+                number
+            FROM
+                l1_batches
+                LEFT JOIN eth_txs_history AS commit_tx ON (l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id)
+            WHERE
+                commit_tx.confirmed_at IS NOT NULL
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -696,9 +1050,14 @@ impl BlocksDal<'_, '_> {
     /// Returns the number of the last L1 batch for which an Ethereum prove tx exists in the database.
     pub async fn get_last_l1_batch_with_prove_tx(&mut self) -> sqlx::Result<L1BatchNumber> {
         let row = sqlx::query!(
-            "SELECT COALESCE(MAX(number), 0) AS \"number!\" \
-            FROM l1_batches \
-            WHERE eth_prove_tx_id IS NOT NULL"
+            r#"
+            SELECT
+                COALESCE(MAX(number), 0) AS "number!"
+            FROM
+                l1_batches
+            WHERE
+                eth_prove_tx_id IS NOT NULL
+            "#
         )
         .fetch_one(self.storage.conn())
         .await?;
@@ -711,8 +1070,14 @@ impl BlocksDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
     ) -> sqlx::Result<Option<u64>> {
         let row = sqlx::query!(
-            "SELECT eth_commit_tx_id FROM l1_batches \
-            WHERE number = $1",
+            r#"
+            SELECT
+                eth_commit_tx_id
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
             l1_batch_number.0 as i64
         )
         .fetch_optional(self.storage.conn())
@@ -726,11 +1091,19 @@ impl BlocksDal<'_, '_> {
         &mut self,
     ) -> sqlx::Result<Option<L1BatchNumber>> {
         Ok(sqlx::query!(
-            "SELECT number FROM l1_batches \
-            LEFT JOIN eth_txs_history AS prove_tx \
-                ON (l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id) \
-            WHERE prove_tx.confirmed_at IS NOT NULL \
-            ORDER BY number DESC LIMIT 1"
+            r#"
+            SELECT
+                number
+            FROM
+                l1_batches
+                LEFT JOIN eth_txs_history AS prove_tx ON (l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id)
+            WHERE
+                prove_tx.confirmed_at IS NOT NULL
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -742,11 +1115,19 @@ impl BlocksDal<'_, '_> {
         &mut self,
     ) -> sqlx::Result<Option<L1BatchNumber>> {
         Ok(sqlx::query!(
-            "SELECT number FROM l1_batches \
-            LEFT JOIN eth_txs_history as execute_tx \
-                ON (l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id) \
-            WHERE execute_tx.confirmed_at IS NOT NULL \
-            ORDER BY number DESC LIMIT 1"
+            r#"
+            SELECT
+                number
+            FROM
+                l1_batches
+                LEFT JOIN eth_txs_history AS execute_tx ON (l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id)
+            WHERE
+                execute_tx.confirmed_at IS NOT NULL
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -760,20 +1141,58 @@ impl BlocksDal<'_, '_> {
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
         let raw_batches = sqlx::query_as!(
             StorageL1Batch,
-            "SELECT number, timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, \
-                bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, \
-                compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, \
-                merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, \
-                used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, \
-                l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, \
-                rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
-                default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
-                meta_parameters_hash, protocol_version, compressed_state_diffs, \
-                system_logs, events_queue_commitment, bootloader_initial_content_commitment \
-            FROM l1_batches \
-            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
-            WHERE eth_commit_tx_id IS NOT NULL AND eth_prove_tx_id IS NULL \
-            ORDER BY number LIMIT $1",
+            r#"
+            SELECT
+                number,
+                timestamp,
+                is_finished,
+                l1_tx_count,
+                l2_tx_count,
+                fee_account_address,
+                bloom,
+                priority_ops_onchain_data,
+                hash,
+                parent_hash,
+                commitment,
+                compressed_write_logs,
+                compressed_contracts,
+                eth_prove_tx_id,
+                eth_commit_tx_id,
+                eth_execute_tx_id,
+                merkle_root_hash,
+                l2_to_l1_logs,
+                l2_to_l1_messages,
+                used_contract_hashes,
+                compressed_initial_writes,
+                compressed_repeated_writes,
+                l2_l1_compressed_messages,
+                l2_l1_merkle_root,
+                l1_gas_price,
+                l2_fair_gas_price,
+                rollup_last_leaf_index,
+                zkporter_is_available,
+                bootloader_code_hash,
+                default_aa_code_hash,
+                base_fee_per_gas,
+                aux_data_hash,
+                pass_through_data_hash,
+                meta_parameters_hash,
+                protocol_version,
+                compressed_state_diffs,
+                system_logs,
+                events_queue_commitment,
+                bootloader_initial_content_commitment
+            FROM
+                l1_batches
+                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+            WHERE
+                eth_commit_tx_id IS NOT NULL
+                AND eth_prove_tx_id IS NULL
+            ORDER BY
+                number
+            LIMIT
+                $1
+            "#,
             limit as i32
         )
         .instrument("get_ready_for_dummy_proof_l1_batches")
@@ -807,7 +1226,13 @@ impl BlocksDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
     ) -> sqlx::Result<()> {
         sqlx::query!(
-            "UPDATE l1_batches SET skip_proof = TRUE WHERE number = $1",
+            r#"
+            UPDATE l1_batches
+            SET
+                skip_proof = TRUE
+            WHERE
+                number = $1
+            "#,
             l1_batch_number.0 as i64
         )
         .execute(self.storage.conn())
@@ -828,26 +1253,70 @@ impl BlocksDal<'_, '_> {
         // is used to avoid having gaps in the list of blocks to send dummy proofs for.
         let raw_batches = sqlx::query_as!(
             StorageL1Batch,
-            "SELECT number, timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, \
-                bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, \
-                compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, \
-                merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, \
-                used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, \
-                l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, \
-                rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
-                default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
-                meta_parameters_hash, system_logs, compressed_state_diffs, protocol_version, \
-                events_queue_commitment, bootloader_initial_content_commitment \
-            FROM \
-            (SELECT l1_batches.*, row_number() OVER (ORDER BY number ASC) AS row_number \
-                FROM l1_batches \
-                WHERE eth_commit_tx_id IS NOT NULL \
-                    AND l1_batches.skip_proof = TRUE \
-                    AND l1_batches.number > $1 \
-                ORDER BY number LIMIT $2\
-            ) inn \
-            LEFT JOIN commitments ON commitments.l1_batch_number = inn.number \
-            WHERE number - row_number = $1",
+            r#"
+            SELECT
+                number,
+                timestamp,
+                is_finished,
+                l1_tx_count,
+                l2_tx_count,
+                fee_account_address,
+                bloom,
+                priority_ops_onchain_data,
+                hash,
+                parent_hash,
+                commitment,
+                compressed_write_logs,
+                compressed_contracts,
+                eth_prove_tx_id,
+                eth_commit_tx_id,
+                eth_execute_tx_id,
+                merkle_root_hash,
+                l2_to_l1_logs,
+                l2_to_l1_messages,
+                used_contract_hashes,
+                compressed_initial_writes,
+                compressed_repeated_writes,
+                l2_l1_compressed_messages,
+                l2_l1_merkle_root,
+                l1_gas_price,
+                l2_fair_gas_price,
+                rollup_last_leaf_index,
+                zkporter_is_available,
+                bootloader_code_hash,
+                default_aa_code_hash,
+                base_fee_per_gas,
+                aux_data_hash,
+                pass_through_data_hash,
+                meta_parameters_hash,
+                system_logs,
+                compressed_state_diffs,
+                protocol_version,
+                events_queue_commitment,
+                bootloader_initial_content_commitment
+            FROM
+                (
+                    SELECT
+                        l1_batches.*,
+                        ROW_NUMBER() OVER (
+                            ORDER BY
+                                number ASC
+                        ) AS ROW_NUMBER
+                    FROM
+                        l1_batches
+                    WHERE
+                        eth_commit_tx_id IS NOT NULL
+                        AND l1_batches.skip_proof = TRUE
+                        AND l1_batches.number > $1
+                    ORDER BY
+                        number
+                    LIMIT
+                        $2
+                ) inn
+                LEFT JOIN commitments ON commitments.l1_batch_number = inn.number
+            WHERE
+                number - ROW_NUMBER = $1
+            "#,
             last_proved_block_number.0 as i32,
             limit as i32
         )
@@ -867,28 +1336,68 @@ impl BlocksDal<'_, '_> {
         max_l1_batch_timestamp_millis: Option<u64>,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
         let raw_batches = match max_l1_batch_timestamp_millis {
-            None => sqlx::query_as!(
-                StorageL1Batch,
-                "SELECT number, timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, \
-                    bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, \
-                    compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, \
-                    merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, \
-                    used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, \
-                    l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, \
-                    rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
-                    default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
-                    meta_parameters_hash, protocol_version, compressed_state_diffs, \
-                    system_logs, events_queue_commitment, bootloader_initial_content_commitment \
-                FROM l1_batches \
-                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
-                WHERE eth_prove_tx_id IS NOT NULL AND eth_execute_tx_id IS NULL \
-                ORDER BY number LIMIT $1",
-                limit as i32,
-            )
-            .instrument("get_ready_for_execute_l1_batches/no_max_timestamp")
-            .with_arg("limit", &limit)
-            .fetch_all(self.storage.conn())
-            .await?,
+            None => {
+                sqlx::query_as!(
+                    StorageL1Batch,
+                    r#"
+                    SELECT
+                        number,
+                        timestamp,
+                        is_finished,
+                        l1_tx_count,
+                        l2_tx_count,
+                        fee_account_address,
+                        bloom,
+                        priority_ops_onchain_data,
+                        hash,
+                        parent_hash,
+                        commitment,
+                        compressed_write_logs,
+                        compressed_contracts,
+                        eth_prove_tx_id,
+                        eth_commit_tx_id,
+                        eth_execute_tx_id,
+                        merkle_root_hash,
+                        l2_to_l1_logs,
+                        l2_to_l1_messages,
+                        used_contract_hashes,
+                        compressed_initial_writes,
+                        compressed_repeated_writes,
+                        l2_l1_compressed_messages,
+                        l2_l1_merkle_root,
+                        l1_gas_price,
+                        l2_fair_gas_price,
+                        rollup_last_leaf_index,
+                        zkporter_is_available,
+                        bootloader_code_hash,
+                        default_aa_code_hash,
+                        base_fee_per_gas,
+                        aux_data_hash,
+                        pass_through_data_hash,
+                        meta_parameters_hash,
+                        protocol_version,
+                        compressed_state_diffs,
+                        system_logs,
+                        events_queue_commitment,
+                        bootloader_initial_content_commitment
+                    FROM
+                        l1_batches
+                        LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+                    WHERE
+                        eth_prove_tx_id IS NOT NULL
+                        AND eth_execute_tx_id IS NULL
+                    ORDER BY
+                        number
+                    LIMIT
+                        $1
+                    "#,
+                    limit as i32,
+                )
+                .instrument("get_ready_for_execute_l1_batches/no_max_timestamp")
+                .with_arg("limit", &limit)
+                .fetch_all(self.storage.conn())
+                .await?
+            }
 
             Some(max_l1_batch_timestamp_millis) => {
                 // Do not lose the precision here, otherwise we can skip some L1 batches.
@@ -913,9 +1422,19 @@ impl BlocksDal<'_, '_> {
         // We need to find the first L1 batch that is supposed to be executed.
         // Here we ignore the time delay, so we just take the first L1 batch that is ready for execution.
         let row = sqlx::query!(
-            "SELECT number FROM l1_batches \
-            WHERE eth_prove_tx_id IS NOT NULL AND eth_execute_tx_id IS NULL \
-            ORDER BY number LIMIT 1"
+            r#"
+            SELECT
+                number
+            FROM
+                l1_batches
+            WHERE
+                eth_prove_tx_id IS NOT NULL
+                AND eth_execute_tx_id IS NULL
+            ORDER BY
+                number
+            LIMIT
+                1
+            "#
         )
         .fetch_optional(self.storage.conn())
         .await?;
@@ -930,13 +1449,23 @@ impl BlocksDal<'_, '_> {
 
         // Find the last L1 batch that is ready for execution.
         let row = sqlx::query!(
-            "SELECT max(l1_batches.number) FROM l1_batches \
-            JOIN eth_txs ON (l1_batches.eth_commit_tx_id = eth_txs.id) \
-            JOIN eth_txs_history AS commit_tx ON (eth_txs.confirmed_eth_tx_history_id = commit_tx.id) \
-            WHERE commit_tx.confirmed_at IS NOT NULL \
-                AND eth_prove_tx_id IS NOT NULL \
-                AND eth_execute_tx_id IS NULL \
-                AND EXTRACT(epoch FROM commit_tx.confirmed_at) < $1",
+            r#"
+            SELECT
+                MAX(l1_batches.number)
+            FROM
+                l1_batches
+                JOIN eth_txs ON (l1_batches.eth_commit_tx_id = eth_txs.id)
+                JOIN eth_txs_history AS commit_tx ON (eth_txs.confirmed_eth_tx_history_id = commit_tx.id)
+            WHERE
+                commit_tx.confirmed_at IS NOT NULL
+                AND eth_prove_tx_id IS NOT NULL
+                AND eth_execute_tx_id IS NULL
+                AND EXTRACT(
+                    epoch
+                    FROM
+                        commit_tx.confirmed_at
+                ) < $1
+            "#,
             max_l1_batch_timestamp_seconds_bd,
         )
         .fetch_one(self.storage.conn())
@@ -948,26 +1477,66 @@ impl BlocksDal<'_, '_> {
             assert!(max_ready_to_send_block >= expected_started_point);
             sqlx::query_as!(
                 StorageL1Batch,
-                "SELECT number, timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, \
-                    bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, \
-                    compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, \
-                    merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, \
-                    used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, \
-                    l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, \
-                    rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
-                    default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
-                    meta_parameters_hash, protocol_version, compressed_state_diffs, \
-                    system_logs, events_queue_commitment, bootloader_initial_content_commitment \
-                FROM l1_batches \
-                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
-                WHERE number BETWEEN $1 AND $2 \
-                ORDER BY number LIMIT $3",
+                r#"
+                SELECT
+                    number,
+                    timestamp,
+                    is_finished,
+                    l1_tx_count,
+                    l2_tx_count,
+                    fee_account_address,
+                    bloom,
+                    priority_ops_onchain_data,
+                    hash,
+                    parent_hash,
+                    commitment,
+                    compressed_write_logs,
+                    compressed_contracts,
+                    eth_prove_tx_id,
+                    eth_commit_tx_id,
+                    eth_execute_tx_id,
+                    merkle_root_hash,
+                    l2_to_l1_logs,
+                    l2_to_l1_messages,
+                    used_contract_hashes,
+                    compressed_initial_writes,
+                    compressed_repeated_writes,
+                    l2_l1_compressed_messages,
+                    l2_l1_merkle_root,
+                    l1_gas_price,
+                    l2_fair_gas_price,
+                    rollup_last_leaf_index,
+                    zkporter_is_available,
+                    bootloader_code_hash,
+                    default_aa_code_hash,
+                    base_fee_per_gas,
+                    aux_data_hash,
+                    pass_through_data_hash,
+                    meta_parameters_hash,
+                    protocol_version,
+                    compressed_state_diffs,
+                    system_logs,
+                    events_queue_commitment,
+                    bootloader_initial_content_commitment
+                FROM
+                    l1_batches
+                    LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+                WHERE
+                    number BETWEEN $1 AND $2
+                ORDER BY
+                    number
+                LIMIT
+                    $3
+                "#,
                 expected_started_point as i32,
                 max_ready_to_send_block,
                 limit as i32,
             )
             .instrument("get_ready_for_execute_l1_batches")
-            .with_arg("numbers", &(expected_started_point..=max_ready_to_send_block))
+            .with_arg(
+                "numbers",
+                &(expected_started_point..=max_ready_to_send_block),
+            )
             .with_arg("limit", &limit)
             .fetch_all(self.storage.conn())
             .await?
@@ -985,37 +1554,78 @@ impl BlocksDal<'_, '_> {
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
         let raw_batches = sqlx::query_as!(
             StorageL1Batch,
-            "SELECT number, l1_batches.timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, \
-                bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, \
-                compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, \
-                merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, \
-                used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, \
-                l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, \
-                rollup_last_leaf_index, zkporter_is_available, l1_batches.bootloader_code_hash, \
-                l1_batches.default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
-                meta_parameters_hash, protocol_version, compressed_state_diffs, \
-                system_logs, events_queue_commitment, bootloader_initial_content_commitment \
-            FROM l1_batches \
-            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
-            JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version \
-            WHERE eth_commit_tx_id IS NULL \
-                AND number != 0 \
-                AND protocol_versions.bootloader_code_hash = $1 AND protocol_versions.default_account_code_hash = $2 \
-                AND commitment IS NOT NULL \
-                AND (protocol_versions.id = $3 OR protocol_versions.upgrade_tx_hash IS NULL) \
-            ORDER BY number LIMIT $4",
+            r#"
+            SELECT
+                number,
+                l1_batches.timestamp,
+                is_finished,
+                l1_tx_count,
+                l2_tx_count,
+                fee_account_address,
+                bloom,
+                priority_ops_onchain_data,
+                hash,
+                parent_hash,
+                commitment,
+                compressed_write_logs,
+                compressed_contracts,
+                eth_prove_tx_id,
+                eth_commit_tx_id,
+                eth_execute_tx_id,
+                merkle_root_hash,
+                l2_to_l1_logs,
+                l2_to_l1_messages,
+                used_contract_hashes,
+                compressed_initial_writes,
+                compressed_repeated_writes,
+                l2_l1_compressed_messages,
+                l2_l1_merkle_root,
+                l1_gas_price,
+                l2_fair_gas_price,
+                rollup_last_leaf_index,
+                zkporter_is_available,
+                l1_batches.bootloader_code_hash,
+                l1_batches.default_aa_code_hash,
+                base_fee_per_gas,
+                aux_data_hash,
+                pass_through_data_hash,
+                meta_parameters_hash,
+                protocol_version,
+                compressed_state_diffs,
+                system_logs,
+                events_queue_commitment,
+                bootloader_initial_content_commitment
+            FROM
+                l1_batches
+                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+                JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version
+            WHERE
+                eth_commit_tx_id IS NULL
+                AND number != 0
+                AND protocol_versions.bootloader_code_hash = $1
+                AND protocol_versions.default_account_code_hash = $2
+                AND commitment IS NOT NULL
+                AND (
+                    protocol_versions.id = $3
+                    OR protocol_versions.upgrade_tx_hash IS NULL
+                )
+            ORDER BY
+                number
+            LIMIT
+                $4
+            "#,
             bootloader_hash.as_bytes(),
             default_aa_hash.as_bytes(),
             protocol_version_id as i32,
             limit as i64,
         )
-            .instrument("get_ready_for_commit_l1_batches")
-            .with_arg("limit", &limit)
-            .with_arg("bootloader_hash", &bootloader_hash)
-            .with_arg("default_aa_hash", &default_aa_hash)
-            .with_arg("protocol_version_id", &protocol_version_id)
-            .fetch_all(self.storage.conn())
-            .await?;
+        .instrument("get_ready_for_commit_l1_batches")
+        .with_arg("limit", &limit)
+        .with_arg("bootloader_hash", &bootloader_hash)
+        .with_arg("default_aa_hash", &default_aa_hash)
+        .with_arg("protocol_version_id", &protocol_version_id)
+        .fetch_all(self.storage.conn())
+        .await?;
 
         self.map_l1_batches(raw_batches)
             .await
@@ -1031,26 +1641,68 @@ impl BlocksDal<'_, '_> {
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
         let raw_batches = sqlx::query_as!(
             StorageL1Batch,
-            "SELECT number, l1_batches.timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, \
-                bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, \
-                compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, \
-                merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, \
-                used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, \
-                l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, \
-                rollup_last_leaf_index, zkporter_is_available, l1_batches.bootloader_code_hash, \
-                l1_batches.default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
-                meta_parameters_hash, protocol_version, compressed_state_diffs, \
-                system_logs, events_queue_commitment, bootloader_initial_content_commitment \
-            FROM l1_batches \
-            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
-            JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version \
-            WHERE eth_commit_tx_id IS NULL \
-                AND number != 0 \
-                AND protocol_versions.bootloader_code_hash = $1 AND protocol_versions.default_account_code_hash = $2 \
-                AND commitment IS NOT NULL \
-                AND (protocol_versions.id = $3 OR protocol_versions.upgrade_tx_hash IS NULL) \
-                AND events_queue_commitment IS NOT NULL AND bootloader_initial_content_commitment IS NOT NULL \
-            ORDER BY number LIMIT $4",
+            r#"
+            SELECT
+                number,
+                l1_batches.timestamp,
+                is_finished,
+                l1_tx_count,
+                l2_tx_count,
+                fee_account_address,
+                bloom,
+                priority_ops_onchain_data,
+                hash,
+                parent_hash,
+                commitment,
+                compressed_write_logs,
+                compressed_contracts,
+                eth_prove_tx_id,
+                eth_commit_tx_id,
+                eth_execute_tx_id,
+                merkle_root_hash,
+                l2_to_l1_logs,
+                l2_to_l1_messages,
+                used_contract_hashes,
+                compressed_initial_writes,
+                compressed_repeated_writes,
+                l2_l1_compressed_messages,
+                l2_l1_merkle_root,
+                l1_gas_price,
+                l2_fair_gas_price,
+                rollup_last_leaf_index,
+                zkporter_is_available,
+                l1_batches.bootloader_code_hash,
+                l1_batches.default_aa_code_hash,
+                base_fee_per_gas,
+                aux_data_hash,
+                pass_through_data_hash,
+                meta_parameters_hash,
+                protocol_version,
+                compressed_state_diffs,
+                system_logs,
+                events_queue_commitment,
+                bootloader_initial_content_commitment
+            FROM
+                l1_batches
+                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+                JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version
+            WHERE
+                eth_commit_tx_id IS NULL
+                AND number != 0
+                AND protocol_versions.bootloader_code_hash = $1
+                AND protocol_versions.default_account_code_hash = $2
+                AND commitment IS NOT NULL
+                AND (
+                    protocol_versions.id = $3
+                    OR protocol_versions.upgrade_tx_hash IS NULL
+                )
+                AND events_queue_commitment IS NOT NULL
+                AND bootloader_initial_content_commitment IS NOT NULL
+            ORDER BY
+                number
+            LIMIT
+                $4
+            "#,
             bootloader_hash.as_bytes(),
             default_aa_hash.as_bytes(),
             protocol_version_id as i32,
@@ -1074,7 +1726,14 @@ impl BlocksDal<'_, '_> {
         number: L1BatchNumber,
     ) -> sqlx::Result<Option<H256>> {
         Ok(sqlx::query!(
-            "SELECT hash FROM l1_batches WHERE number = $1",
+            r#"
+            SELECT
+                hash
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
             number.0 as i64
         )
         .fetch_optional(self.storage.conn())
@@ -1088,7 +1747,15 @@ impl BlocksDal<'_, '_> {
         number: L1BatchNumber,
     ) -> Result<Option<(H256, u64)>, sqlx::Error> {
         let Some(row) = sqlx::query!(
-            "SELECT timestamp, hash FROM l1_batches WHERE number = $1",
+            r#"
+            SELECT
+                timestamp,
+                hash
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
             number.0 as i64
         )
         .fetch_optional(self.storage.conn())
@@ -1105,15 +1772,34 @@ impl BlocksDal<'_, '_> {
     pub async fn get_newest_l1_batch_header(&mut self) -> sqlx::Result<L1BatchHeader> {
         let last_l1_batch = sqlx::query_as!(
             StorageL1BatchHeader,
-            "SELECT number, l1_tx_count, l2_tx_count, \
-                timestamp, is_finished, fee_account_address, l2_to_l1_logs, l2_to_l1_messages, \
-                bloom, priority_ops_onchain_data, \
-                used_contract_hashes, base_fee_per_gas, l1_gas_price, \
-                l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version, \
-                compressed_state_diffs, system_logs \
-            FROM l1_batches \
-            ORDER BY number DESC \
-            LIMIT 1"
+            r#"
+            SELECT
+                number,
+                l1_tx_count,
+                l2_tx_count,
+                timestamp,
+                is_finished,
+                fee_account_address,
+                l2_to_l1_logs,
+                l2_to_l1_messages,
+                bloom,
+                priority_ops_onchain_data,
+                used_contract_hashes,
+                base_fee_per_gas,
+                l1_gas_price,
+                l2_fair_gas_price,
+                bootloader_code_hash,
+                default_aa_code_hash,
+                protocol_version,
+                compressed_state_diffs,
+                system_logs
+            FROM
+                l1_batches
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#
         )
         .instrument("get_newest_l1_batch_header")
         .fetch_one(self.storage.conn())
@@ -1163,9 +1849,16 @@ impl BlocksDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
     ) -> sqlx::Result<HashMap<H256, Vec<u8>>> {
         Ok(sqlx::query!(
-            "SELECT bytecode_hash, bytecode FROM factory_deps \
-            INNER JOIN miniblocks ON miniblocks.number = factory_deps.miniblock_number \
-            WHERE miniblocks.l1_batch_number = $1",
+            r#"
+            SELECT
+                bytecode_hash,
+                bytecode
+            FROM
+                factory_deps
+                INNER JOIN miniblocks ON miniblocks.number = factory_deps.miniblock_number
+            WHERE
+                miniblocks.l1_batch_number = $1
+            "#,
             l1_batch_number.0 as i64
         )
         .fetch_all(self.storage.conn())
@@ -1188,9 +1881,16 @@ impl BlocksDal<'_, '_> {
         last_batch_to_keep: Option<L1BatchNumber>,
     ) -> sqlx::Result<()> {
         let block_number = last_batch_to_keep.map_or(-1, |number| number.0 as i64);
-        sqlx::query!("DELETE FROM l1_batches WHERE number > $1", block_number)
-            .execute(self.storage.conn())
-            .await?;
+        sqlx::query!(
+            r#"
+            DELETE FROM l1_batches
+            WHERE
+                number > $1
+            "#,
+            block_number
+        )
+        .execute(self.storage.conn())
+        .await?;
         Ok(())
     }
 
@@ -1208,9 +1908,16 @@ impl BlocksDal<'_, '_> {
         last_miniblock_to_keep: Option<MiniblockNumber>,
     ) -> sqlx::Result<()> {
         let block_number = last_miniblock_to_keep.map_or(-1, |number| number.0 as i64);
-        sqlx::query!("DELETE FROM miniblocks WHERE number > $1", block_number)
-            .execute(self.storage.conn())
-            .await?;
+        sqlx::query!(
+            r#"
+            DELETE FROM miniblocks
+            WHERE
+                number > $1
+            "#,
+            block_number
+        )
+        .execute(self.storage.conn())
+        .await?;
         Ok(())
     }
 
@@ -1246,9 +1953,14 @@ impl BlocksDal<'_, '_> {
         predicted_gas_cost: u32,
     ) -> sqlx::Result<()> {
         sqlx::query!(
-            "UPDATE l1_batches \
-            SET predicted_commit_gas_cost = $2, updated_at = now() \
-            WHERE number = $1",
+            r#"
+            UPDATE l1_batches
+            SET
+                predicted_commit_gas_cost = $2,
+                updated_at = NOW()
+            WHERE
+                number = $1
+            "#,
             number.0 as i64,
             predicted_gas_cost as i64
         )
@@ -1262,9 +1974,15 @@ impl BlocksDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
     ) -> sqlx::Result<Option<(MiniblockNumber, MiniblockNumber)>> {
         let row = sqlx::query!(
-            "SELECT MIN(miniblocks.number) as \"min?\", MAX(miniblocks.number) as \"max?\" \
-            FROM miniblocks \
-            WHERE l1_batch_number = $1",
+            r#"
+            SELECT
+                MIN(miniblocks.number) AS "min?",
+                MAX(miniblocks.number) AS "max?"
+            FROM
+                miniblocks
+            WHERE
+                l1_batch_number = $1
+            "#,
             l1_batch_number.0 as i64
         )
         .fetch_one(self.storage.conn())
@@ -1290,71 +2008,23 @@ impl BlocksDal<'_, '_> {
         Ok(count != 0)
     }
 
-    pub async fn get_last_l1_batch_number_with_witness_inputs(
-        &mut self,
-    ) -> sqlx::Result<L1BatchNumber> {
-        let row = sqlx::query!(
-            "SELECT MAX(l1_batch_number) FROM witness_inputs \
-            WHERE merkel_tree_paths_blob_url IS NOT NULL",
-        )
-        .fetch_one(self.storage.conn())
-        .await?;
-
-        Ok(row
-            .max
-            .map(|l1_batch_number| L1BatchNumber(l1_batch_number as u32))
-            .unwrap_or_default())
-    }
-
-    pub async fn get_l1_batches_with_blobs_in_db(
-        &mut self,
-        limit: u8,
-    ) -> sqlx::Result<Vec<L1BatchNumber>> {
-        let rows = sqlx::query!(
-            "SELECT l1_batch_number FROM witness_inputs \
-            WHERE length(merkle_tree_paths) <> 0 \
-            ORDER BY l1_batch_number DESC \
-            LIMIT $1",
-            limit as i32
-        )
-        .fetch_all(self.storage.conn())
-        .await?;
-
-        Ok(rows
-            .into_iter()
-            .map(|row| L1BatchNumber(row.l1_batch_number as u32))
-            .collect())
-    }
-
-    pub async fn get_merkle_tree_paths_blob_urls_to_be_cleaned(
-        &mut self,
-        limit: u8,
-    ) -> Result<Vec<(i64, String)>, sqlx::Error> {
-        let rows = sqlx::query!(
-            "SELECT l1_batch_number, merkel_tree_paths_blob_url \
-            FROM witness_inputs \
-            WHERE status = 'successful' \
-                AND merkel_tree_paths_blob_url is NOT NULL \
-                AND updated_at < NOW() - INTERVAL '30 days' \
-            LIMIT $1",
-            limit as i32
-        )
-        .fetch_all(self.storage.conn())
-        .await?;
-
-        Ok(rows
-            .into_iter()
-            .map(|row| (row.l1_batch_number, row.merkel_tree_paths_blob_url.unwrap()))
-            .collect())
-    }
-
     // methods used for measuring Eth tx stage transition latencies
     // and emitting metrics base on these measured data
     pub async fn oldest_uncommitted_batch_timestamp(&mut self) -> sqlx::Result<Option<u64>> {
         Ok(sqlx::query!(
-            "SELECT timestamp FROM l1_batches \
-            WHERE eth_commit_tx_id IS NULL AND number > 0 \
-            ORDER BY number LIMIT 1",
+            r#"
+            SELECT
+                timestamp
+            FROM
+                l1_batches
+            WHERE
+                eth_commit_tx_id IS NULL
+                AND number > 0
+            ORDER BY
+                number
+            LIMIT
+                1
+            "#,
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -1363,9 +2033,19 @@ impl BlocksDal<'_, '_> {
 
     pub async fn oldest_unproved_batch_timestamp(&mut self) -> sqlx::Result<Option<u64>> {
         Ok(sqlx::query!(
-            "SELECT timestamp FROM l1_batches \
-            WHERE eth_prove_tx_id IS NULL AND number > 0 \
-            ORDER BY number LIMIT 1",
+            r#"
+            SELECT
+                timestamp
+            FROM
+                l1_batches
+            WHERE
+                eth_prove_tx_id IS NULL
+                AND number > 0
+            ORDER BY
+                number
+            LIMIT
+                1
+            "#,
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -1374,9 +2054,19 @@ impl BlocksDal<'_, '_> {
 
     pub async fn oldest_unexecuted_batch_timestamp(&mut self) -> Result<Option<u64>, sqlx::Error> {
         Ok(sqlx::query!(
-            "SELECT timestamp FROM l1_batches \
-            WHERE eth_execute_tx_id IS NULL AND number > 0 \
-            ORDER BY number LIMIT 1",
+            r#"
+            SELECT
+                timestamp
+            FROM
+                l1_batches
+            WHERE
+                eth_execute_tx_id IS NULL
+                AND number > 0
+            ORDER BY
+                number
+            LIMIT
+                1
+            "#,
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -1388,7 +2078,14 @@ impl BlocksDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<ProtocolVersionId>> {
         let Some(row) = sqlx::query!(
-            "SELECT protocol_version FROM l1_batches WHERE number = $1",
+            r#"
+            SELECT
+                protocol_version
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
             l1_batch_number.0 as i64
         )
         .fetch_optional(self.storage.conn())
@@ -1407,7 +2104,14 @@ impl BlocksDal<'_, '_> {
         miniblock_number: MiniblockNumber,
     ) -> anyhow::Result<Option<ProtocolVersionId>> {
         let Some(row) = sqlx::query!(
-            "SELECT protocol_version FROM miniblocks WHERE number = $1",
+            r#"
+            SELECT
+                protocol_version
+            FROM
+                miniblocks
+            WHERE
+                number = $1
+            "#,
             miniblock_number.0 as i64
         )
         .fetch_optional(self.storage.conn())
@@ -1426,7 +2130,14 @@ impl BlocksDal<'_, '_> {
         miniblock_number: MiniblockNumber,
     ) -> sqlx::Result<Option<u64>> {
         Ok(sqlx::query!(
-            "SELECT timestamp FROM miniblocks WHERE number = $1",
+            r#"
+            SELECT
+                timestamp
+            FROM
+                miniblocks
+            WHERE
+                number = $1
+            "#,
             miniblock_number.0 as i64,
         )
         .fetch_optional(self.storage.conn())
@@ -1439,8 +2150,13 @@ impl BlocksDal<'_, '_> {
         id: ProtocolVersionId,
     ) -> sqlx::Result<()> {
         sqlx::query!(
-            "UPDATE miniblocks SET protocol_version = $1 \
-            WHERE l1_batch_number IS NULL",
+            r#"
+            UPDATE miniblocks
+            SET
+                protocol_version = $1
+            WHERE
+                l1_batch_number IS NULL
+            "#,
             id as i32,
         )
         .execute(self.storage.conn())
@@ -1453,7 +2169,14 @@ impl BlocksDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
     ) -> sqlx::Result<Option<Address>> {
         Ok(sqlx::query!(
-            "SELECT fee_account_address FROM l1_batches WHERE number = $1",
+            r#"
+            SELECT
+                fee_account_address
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
             l1_batch_number.0 as u32
         )
         .fetch_optional(self.storage.conn())
@@ -1466,7 +2189,14 @@ impl BlocksDal<'_, '_> {
         miniblock_number: MiniblockNumber,
     ) -> sqlx::Result<Option<u32>> {
         Ok(sqlx::query!(
-            "SELECT virtual_blocks FROM miniblocks WHERE number = $1",
+            r#"
+            SELECT
+                virtual_blocks
+            FROM
+                miniblocks
+            WHERE
+                number = $1
+            "#,
             miniblock_number.0 as u32
         )
         .fetch_optional(self.storage.conn())
@@ -1484,7 +2214,13 @@ impl BlocksDal<'_, '_> {
         hash: H256,
     ) -> sqlx::Result<()> {
         sqlx::query!(
-            "UPDATE l1_batches SET hash = $1 WHERE number = $2",
+            r#"
+            UPDATE l1_batches
+            SET
+                hash = $1
+            WHERE
+                number = $2
+            "#,
             hash.as_bytes(),
             batch_num.0 as i64
         )

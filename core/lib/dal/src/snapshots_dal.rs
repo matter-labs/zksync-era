@@ -39,11 +39,18 @@ impl SnapshotsDal<'_, '_> {
         factory_deps_filepaths: &str,
     ) -> sqlx::Result<()> {
         sqlx::query!(
-            "INSERT INTO snapshots ( \
-                l1_batch_number, storage_logs_filepaths, factory_deps_filepath, \
-                created_at, updated_at \
-            ) \
-            VALUES ($1, array_fill(''::text, ARRAY[$2::integer]), $3, NOW(), NOW())",
+            r#"
+            INSERT INTO
+                snapshots (
+                    l1_batch_number,
+                    storage_logs_filepaths,
+                    factory_deps_filepath,
+                    created_at,
+                    updated_at
+                )
+            VALUES
+                ($1, ARRAY_FILL(''::TEXT, ARRAY[$2::INTEGER]), $3, NOW(), NOW())
+            "#,
             l1_batch_number.0 as i32,
             storage_logs_chunk_count as i32,
             factory_deps_filepaths,
@@ -62,10 +69,14 @@ impl SnapshotsDal<'_, '_> {
         storage_logs_filepath: &str,
     ) -> sqlx::Result<()> {
         sqlx::query!(
-            "UPDATE snapshots SET \
-                storage_logs_filepaths[$2] = $3, \
-                updated_at = NOW() \
-            WHERE l1_batch_number = $1",
+            r#"
+            UPDATE snapshots
+            SET
+                storage_logs_filepaths[$2] = $3,
+                updated_at = NOW()
+            WHERE
+                l1_batch_number = $1
+            "#,
             l1_batch_number.0 as i32,
             chunk_id as i32 + 1,
             storage_logs_filepath,
@@ -78,10 +89,16 @@ impl SnapshotsDal<'_, '_> {
 
     pub async fn get_all_complete_snapshots(&mut self) -> sqlx::Result<AllSnapshots> {
         let rows = sqlx::query!(
-            "SELECT l1_batch_number \
-            FROM snapshots \
-            WHERE NOT (''::text = ANY(storage_logs_filepaths)) \
-            ORDER BY l1_batch_number DESC"
+            r#"
+            SELECT
+                l1_batch_number
+            FROM
+                snapshots
+            WHERE
+                NOT (''::TEXT = ANY (storage_logs_filepaths))
+            ORDER BY
+                l1_batch_number DESC
+            "#
         )
         .instrument("get_all_complete_snapshots")
         .report_latency()
@@ -101,9 +118,18 @@ impl SnapshotsDal<'_, '_> {
     pub async fn get_newest_snapshot_metadata(&mut self) -> sqlx::Result<Option<SnapshotMetadata>> {
         let row = sqlx::query_as!(
             StorageSnapshotMetadata,
-            "SELECT l1_batch_number, factory_deps_filepath, storage_logs_filepaths \
-            FROM snapshots \
-            ORDER BY l1_batch_number DESC LIMIT 1"
+            r#"
+            SELECT
+                l1_batch_number,
+                factory_deps_filepath,
+                storage_logs_filepaths
+            FROM
+                snapshots
+            ORDER BY
+                l1_batch_number DESC
+            LIMIT
+                1
+            "#
         )
         .instrument("get_newest_snapshot_metadata")
         .report_latency()
@@ -119,9 +145,16 @@ impl SnapshotsDal<'_, '_> {
     ) -> sqlx::Result<Option<SnapshotMetadata>> {
         let row = sqlx::query_as!(
             StorageSnapshotMetadata,
-            "SELECT l1_batch_number, factory_deps_filepath, storage_logs_filepaths \
-            FROM snapshots \
-            WHERE l1_batch_number = $1",
+            r#"
+            SELECT
+                l1_batch_number,
+                factory_deps_filepath,
+                storage_logs_filepaths
+            FROM
+                snapshots
+            WHERE
+                l1_batch_number = $1
+            "#,
             l1_batch_number.0 as i32
         )
         .instrument("get_snapshot_metadata")

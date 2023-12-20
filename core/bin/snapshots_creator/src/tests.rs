@@ -272,7 +272,7 @@ async fn persisting_snapshot_metadata() {
         .expect("No snapshot metadata");
     assert_eq!(snapshot_metadata.l1_batch_number, snapshot_l1_batch_number);
     let factory_deps_path = &snapshot_metadata.factory_deps_filepath;
-    assert!(factory_deps_path.ends_with(".json.gzip"));
+    assert!(factory_deps_path.ends_with(".proto.gzip"));
     assert_eq!(
         snapshot_metadata.storage_logs_filepaths.len(),
         MIN_CHUNK_COUNT as usize
@@ -283,7 +283,7 @@ async fn persisting_snapshot_metadata() {
             .unwrap()
             .strip_prefix("storage_logs_snapshots/")
             .unwrap();
-        assert!(path.ends_with(".json.gzip"));
+        assert!(path.ends_with(".proto.gzip"));
     }
 }
 

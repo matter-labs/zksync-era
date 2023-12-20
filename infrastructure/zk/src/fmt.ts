@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import * as utils from './utils';
+import { formatSqlxQueries } from './format_sql';
 
 const EXTENSIONS = ['ts', 'md', 'sol', 'js'];
 const CONFIG_PATH = 'etc/prettier-config';
@@ -61,6 +62,12 @@ export async function rustfmt(check: boolean = false) {
     await utils.spawn(command);
 }
 
+export async function runAllRustFormatters(check: boolean = false) {
+    // we need to run those two steps one by one as they operate on the same set of files
+    await formatSqlxQueries(check);
+    await rustfmt(check);
+}
+
 const ARGS = [...EXTENSIONS, 'rust', 'l1-contracts', 'l2-contracts', 'system-contracts'];
 
 export const command = new Command('fmt')
@@ -71,7 +78,7 @@ export const command = new Command('fmt')
         if (extension) {
             switch (extension) {
                 case 'rust':
-                    await rustfmt(cmd.check);
+                    await runAllRustFormatters(cmd.check);
                     break;
                 case 'l1-contracts':
                     await prettierL1Contracts(cmd.check);
@@ -89,7 +96,7 @@ export const command = new Command('fmt')
         } else {
             // Run all the checks concurrently.
             const promises = EXTENSIONS.map((ext) => prettier(ext, cmd.check));
-            promises.push(rustfmt(cmd.check));
+            promises.push(runAllRustFormatters(cmd.check));
             promises.push(prettierL1Contracts(cmd.check));
             promises.push(prettierL2Contracts(cmd.check));
             promises.push(prettierSystemContracts(cmd.check));
@@ -115,5 +122,5 @@ command
     .command('rustfmt')
     .option('--check')
     .action(async (cmd: Command) => {
-        await rustfmt(cmd.check);
+        await runAllRustFormatters(cmd.check);
     });
