@@ -223,7 +223,10 @@ fn update_l1_system_constants(intrinsic_gas_constants: &IntrinsicSystemGasConsta
 
 fn update_l2_system_constants(intrinsic_gas_constants: &IntrinsicSystemGasConstants) {
     let l2_system_config = generate_l2_contracts_system_config(intrinsic_gas_constants);
-    save_file("etc/system-contracts/SystemConfig.json", l2_system_config);
+    save_file(
+        "contracts/system-contracts/SystemConfig.json",
+        l2_system_config,
+    );
 }
 
 fn main() {

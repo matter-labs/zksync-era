@@ -2,8 +2,10 @@ import fs from 'fs';
 import { BytesLike } from 'ethers';
 
 export const DEFAULT_UPGRADE_PATH = process.env.ZKSYNC_HOME + '/etc/upgrades';
-export const DEFAULT_L2CONTRACTS_FOR_UPGRADE_PATH = process.env.ZKSYNC_HOME + '/contracts/zksync/contracts/upgrades';
-export const DEFAULT_L1CONTRACTS_FOR_UPGRADE_PATH = process.env.ZKSYNC_HOME + '/contracts/ethereum/contracts/upgrades';
+export const DEFAULT_L2CONTRACTS_FOR_UPGRADE_PATH =
+    process.env.ZKSYNC_HOME + '/contracts/l2-contracts/contracts/upgrades';
+export const DEFAULT_L1CONTRACTS_FOR_UPGRADE_PATH =
+    process.env.ZKSYNC_HOME + '/contracts/l1-contracts/contracts/upgrades';
 
 export function getTimestampInSeconds() {
     return Math.floor(Date.now() / 1000);

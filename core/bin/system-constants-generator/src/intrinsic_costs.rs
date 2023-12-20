@@ -1,6 +1,6 @@
 //!
 //! The script that returns the L2 gas price constants is that calculates the constants currently used by the
-//! bootloader as well as L1 smart contracts. It should be used to edit the config file located in the etc/system-contracts/SystemConfig.json
+//! bootloader as well as L1 smart contracts. It should be used to edit the config file located in the contracts/system-contracts/SystemConfig.json
 //! as well as contracts/SystemConfig.json
 //!
 
