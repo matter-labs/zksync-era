@@ -44,7 +44,7 @@ impl<G> Clone for EthNamespace<G> {
     fn clone(&self) -> Self {
         Self {
             state: self.state.clone(),
-            skip_transfer_event: self.skip_transfer_event.clone(),
+            skip_transfer_event: self.skip_transfer_event,
         }
     }
 }
