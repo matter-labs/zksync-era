@@ -18,6 +18,7 @@ use super::{
     metrics::{TreeUpdateStage, METRICS},
     MetadataCalculator,
 };
+use crate::utils::wait_for_l1_batch;
 
 #[derive(Debug)]
 pub(super) struct TreeUpdater {
@@ -267,13 +268,22 @@ impl TreeUpdater {
         mut stop_receiver: watch::Receiver<bool>,
         health_updater: HealthUpdater,
     ) -> anyhow::Result<()> {
-        // FIXME: wait until there's an L1 batch in storage?
+        let Some(earliest_l1_batch) =
+            wait_for_l1_batch(pool, delayer.delay_interval(), &mut stop_receiver).await?
+        else {
+            return Ok(()); // Stop signal received
+        };
         let mut storage = pool.access_storage_tagged("metadata_calculator").await?;
 
         // Ensure genesis creation
         let tree = &mut self.tree;
         if tree.is_empty() {
-            let logs = L1BatchWithLogs::new(&mut storage, L1BatchNumber(0))
+            assert_eq!(
+                earliest_l1_batch,
+                L1BatchNumber(0),
+                "Non-zero earliest L1 batch is not supported without previous tree recovery"
+            );
+            let logs = L1BatchWithLogs::new(&mut storage, earliest_l1_batch)
                 .await
                 .context("Missing storage logs for the genesis L1 batch")?;
             tree.process_l1_batch(logs.storage_logs).await;

@@ -225,12 +225,15 @@ impl ReorgDetector {
     }
 
     async fn run_inner(&mut self) -> Result<Option<L1BatchNumber>, HashMatchError> {
-        let earliest_l1_batch_number =
-            wait_for_l1_batch_with_metadata(&self.pool, self.sleep_interval, &self.stop_receiver)
-                .await?;
+        let earliest_l1_batch_number = wait_for_l1_batch_with_metadata(
+            &self.pool,
+            self.sleep_interval,
+            &mut self.stop_receiver,
+        )
+        .await?;
 
         let Some(earliest_l1_batch_number) = earliest_l1_batch_number else {
-            return Ok(None); // stop signal received
+            return Ok(None); // Stop signal received
         };
         tracing::debug!(
             "Checking root hash match for earliest L1 batch #{earliest_l1_batch_number}"
