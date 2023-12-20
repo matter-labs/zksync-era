@@ -7209,11 +7209,13 @@ dependencies = [
  "google-cloud-auth",
  "google-cloud-storage",
  "http",
+ "prost",
  "serde_json",
  "tokio",
  "tracing",
  "vise",
  "zksync_config",
+ "zksync_protobuf",
  "zksync_types",
 ]
 
@@ -7485,6 +7487,7 @@ dependencies = [
  "num_enum",
  "once_cell",
  "parity-crypto",
+ "prost",
  "rlp",
  "serde",
  "serde_json",

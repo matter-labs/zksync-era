@@ -295,7 +295,7 @@ async fn init_tasks(
             .enable_api_namespaces(config.optional.api_namespaces())
             .build(stop_receiver.clone(), true)
             .await
-            .context("Failed initializing HTTP JSON-RPC server")?;
+            .context("Failed initializing legacy HTTP JSON-RPC server")?;
 
     let ws_server_handles =
         ApiBuilder::jsonrpc_backend(config.clone().into(), connection_pool.clone())
@@ -327,7 +327,7 @@ async fn init_tasks(
             .enable_api_namespaces(config.optional.api_namespaces())
             .build(stop_receiver.clone(), true)
             .await
-            .context("Failed initializing WS JSON-RPC server")?;
+            .context("Failed initializing legacy WS JSON-RPC server")?;
 
     healthchecks.push(Box::new(ws_server_handles.health_check));
     healthchecks.push(Box::new(http_server_handles.health_check));
