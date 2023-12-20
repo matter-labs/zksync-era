@@ -51,9 +51,9 @@ RUN cd /infrastructure/zk && yarn && yarn build && cd /
 # Build `local-setup-preparation` tool
 RUN cd /infrastructure/local-setup-preparation && yarn && cd /
 # Build L1 contracts package (contracts themselves should be already built)
-RUN cd /contracts/ethereum && yarn && cd /
+RUN cd /contracts/l1-contracts && yarn && cd /
 # Same for L2 contracts
-RUN cd /contracts/zksync && yarn && cd /
+RUN cd /contracts/l2-contracts && yarn && cd /
 
 # setup entrypoint script
 COPY ./docker/local-node/entrypoint.sh /usr/bin/
