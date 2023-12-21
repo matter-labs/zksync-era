@@ -325,11 +325,10 @@ impl EthSubscribe {
     ) {
         let sub_type = match sub_type.as_str() {
             "newHeads" => {
-                let blocks_rx = self.blocks.subscribe();
-
                 let Ok(sink) = pending_sink.accept().await else {
                     return;
                 };
+                let blocks_rx = self.blocks.subscribe();
                 tokio::spawn(Self::run_subscriber(
                     sink,
                     SubscriptionType::Blocks,
@@ -340,11 +339,10 @@ impl EthSubscribe {
                 Some(SubscriptionType::Blocks)
             }
             "newPendingTransactions" => {
-                let transactions_rx = self.transactions.subscribe();
-
                 let Ok(sink) = pending_sink.accept().await else {
                     return;
                 };
+                let transactions_rx = self.transactions.subscribe();
                 tokio::spawn(Self::run_subscriber(
                     sink,
                     SubscriptionType::Txs,
@@ -354,7 +352,6 @@ impl EthSubscribe {
                 Some(SubscriptionType::Txs)
             }
             "logs" => {
-                let logs_rx = self.logs.subscribe();
                 let filter = params.unwrap_or_default();
                 let topic_count = filter.topics.as_ref().map_or(0, Vec::len);
 
@@ -365,6 +362,7 @@ impl EthSubscribe {
                     let Ok(sink) = pending_sink.accept().await else {
                         return;
                     };
+                    let logs_rx = self.logs.subscribe();
                     tokio::spawn(Self::run_subscriber(
                         sink,
                         SubscriptionType::Logs,
@@ -450,7 +448,6 @@ impl EthPubSubServer for EthSubscribe {
         filter: Option<PubSubFilter>,
     ) -> SubscriptionResult {
         self.sub(pending, sub_type, filter).await;
-
         Ok(())
     }
 }
