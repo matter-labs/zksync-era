@@ -22,7 +22,7 @@ export async function deployERC20(
             destinationFile = args[args.indexOf('--envFile') + 1];
             args.splice(args.indexOf('--envFile'), 2);
         }
-        await utils.spawn(`yarn --silent --cwd contracts/l1-contracts deploy-erc20 add-multi '
+        await utils.spawn(`yarn --silent --cwd era-contracts-lambda/l1-contracts deploy-erc20 add-multi '
             [
                 { "name": "DAI",  "symbol": "DAI",  "decimals": 18 },
                 { "name": "wBTC", "symbol": "wBTC", "decimals":  8, "implementation": "RevertTransferERC20" },
@@ -45,7 +45,7 @@ export async function deployERC20(
         env.modify('CONTRACTS_L1_WETH_TOKEN_ADDR', `CONTRACTS_L1_WETH_TOKEN_ADDR=${WETH.address}`);
     } else if (command == 'new') {
         await utils.spawn(
-            `yarn --silent --cwd contracts/l1-contracts deploy-erc20 add --token-name ${name} --symbol ${symbol} --decimals ${decimals}`
+            `yarn --silent --cwd era-contracts-lambda/l1-contracts deploy-erc20 add --token-name ${name} --symbol ${symbol} --decimals ${decimals}`
         );
     }
 }
@@ -105,11 +105,11 @@ export async function loadtest(...args: string[]) {
 export async function readVariable(address: string, contractName: string, variableName: string, file?: string) {
     if (file === undefined)
         await utils.spawn(
-            `yarn --silent --cwd contracts/l1-contracts read-variable read ${address} ${contractName} ${variableName}`
+            `yarn --silent --era-cwd-lambda contracts/l1-contracts read-variable read ${address} ${contractName} ${variableName}`
         );
     else
         await utils.spawn(
-            `yarn --silent --cwd contracts/l1-contracts read-variable read ${address} ${contractName} ${variableName} -f ${file}`
+            `yarn --silent --cwd era-contracts-lambda/l1-contracts read-variable read ${address} ${contractName} ${variableName} -f ${file}`
         );
 }
 
@@ -186,7 +186,7 @@ command
     .command('read-variable <address> <contractName> <variableName>')
     .option(
         '-f --file <file>',
-        'file with contract source code(default $ZKSYNC_HOME/contracts/contracts/${contractName}.sol)'
+        'file with contract source code(default $ZKSYNC_HOME/era-contracts-lambda/contracts/${contractName}.sol)'
     )
     .description('Read value of contract variable')
     .action(async (address: string, contractName: string, variableName: string, cmd: Command) => {

@@ -26,19 +26,19 @@ pub enum ContractLanguage {
 }
 
 const GOVERNANCE_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/governance/IGovernance.sol/IGovernance.json";
+    "era-contracts-lambda/l1-contracts/artifacts/cache/solpp-generated-contracts/governance/IGovernance.sol/IGovernance.json";
 const ZKSYNC_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/interfaces/IZkSync.sol/IZkSync.json";
+    "era-contracts-lambda/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/interfaces/IZkSync.sol/IZkSync.json";
 const MULTICALL3_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/dev-contracts/Multicall3.sol/Multicall3.json";
+    "era-contracts-lambda/l1-contracts/artifacts/cache/solpp-generated-contracts/dev-contracts/Multicall3.sol/Multicall3.json";
 const VERIFIER_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/Verifier.sol/Verifier.json";
+    "era-contracts-lambda/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/Verifier.sol/Verifier.json";
 const IERC20_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/common/interfaces/IERC20.sol/IERC20.json";
+    "era-contracts-lambda/l1-contracts/artifacts/cache/solpp-generated-contracts/common/interfaces/IERC20.sol/IERC20.json";
 const FAIL_ON_RECEIVE_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/dev-contracts/FailOnReceive.sol/FailOnReceive.json";
+    "era-contracts-lambda/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/dev-contracts/FailOnReceive.sol/FailOnReceive.json";
 const L2_BRIDGE_CONTRACT_FILE: &str =
-    "contracts/l2-contracts/artifacts-zk/cache-zk/solpp-generated-contracts/bridge/interfaces/IL2Bridge.sol/IL2Bridge.json";
+    "era-contracts-lambda/l2-contracts/artifacts-zk/cache-zk/solpp-generated-contracts/bridge/interfaces/IL2Bridge.sol/IL2Bridge.json";
 const LOADNEXT_CONTRACT_FILE: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/LoadnextContract.json";
 const LOADNEXT_SIMPLE_CONTRACT_FILE: &str =
@@ -70,7 +70,7 @@ pub fn load_contract<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Contract {
 
 pub fn load_sys_contract(contract_name: &str) -> Contract {
     load_contract(format!(
-        "contracts/system-contracts/artifacts-zk/cache-zk/solpp-generated-contracts/{0}.sol/{0}.json",
+        "era-contracts-lambda/system-contracts/artifacts-zk/cache-zk/solpp-generated-contracts/{0}.sol/{0}.json",
         contract_name
     ))
 }
@@ -200,7 +200,7 @@ impl SystemContractsRepo {
         let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
         let zksync_home = PathBuf::from(zksync_home);
         SystemContractsRepo {
-            root: zksync_home.join("contracts/system-contracts"),
+            root: zksync_home.join("era-contracts-lambda/system-contracts"),
         }
     }
     pub fn read_sys_contract_bytecode(
@@ -224,7 +224,7 @@ impl SystemContractsRepo {
 
 pub fn read_bootloader_code(bootloader_type: &str) -> Vec<u8> {
     read_zbin_bytecode(format!(
-        "contracts/system-contracts/bootloader/build/artifacts/{}.yul/{}.yul.zbin",
+        "era-contracts-lambda/system-contracts/bootloader/build/artifacts/{}.yul/{}.yul.zbin",
         bootloader_type, bootloader_type
     ))
 }

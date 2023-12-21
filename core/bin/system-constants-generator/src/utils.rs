@@ -164,7 +164,7 @@ pub(super) fn get_l1_txs(number_of_txs: usize) -> (Vec<Transaction>, Vec<Transac
 
 fn read_bootloader_test_code(test: &str) -> Vec<u8> {
     read_zbin_bytecode(format!(
-        "contracts/system-contracts/bootloader/tests/artifacts/{}.yul/{}.yul.zbin",
+        "era-contracts-lambda/system-contracts/bootloader/tests/artifacts/{}.yul/{}.yul.zbin",
         test, test
     ))
 }

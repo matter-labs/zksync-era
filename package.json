@@ -6,9 +6,9 @@
   "workspaces": {
     "packages": [
       "contracts",
-      "contracts/l1-contracts",
-      "contracts/l2-contracts",
-      "contracts/system-contracts",
+      "era-contracts-lambda/l1-contracts",
+      "era-contracts-lambda/l2-contracts",
+      "era-contracts-lambda/system-contracts",
       "etc/contracts-test-data",
       "etc/ERC20",
       "infrastructure/zk",

@@ -218,13 +218,13 @@ fn update_rust_system_constants(intrinsic_gas_constants: &IntrinsicSystemGasCons
 
 fn update_l1_system_constants(intrinsic_gas_constants: &IntrinsicSystemGasConstants) {
     let l1_system_config = generate_l1_contracts_system_config(intrinsic_gas_constants);
-    save_file("contracts/SystemConfig.json", l1_system_config);
+    save_file("era-contracts-lambda/SystemConfig.json", l1_system_config);
 }
 
 fn update_l2_system_constants(intrinsic_gas_constants: &IntrinsicSystemGasConstants) {
     let l2_system_config = generate_l2_contracts_system_config(intrinsic_gas_constants);
     save_file(
-        "contracts/system-contracts/SystemConfig.json",
+        "era-contracts-lambda/system-contracts/SystemConfig.json",
         l2_system_config,
     );
 }
