@@ -307,12 +307,23 @@ jobs:
           ci_run zk env docker
           CHECK_EN_URL="http://0.0.0.0:3060" ci_run zk test i upgrade
 
-      - name: Show logs
-        if: always()
+      - name: Show Server logs
         run: |
           ci_run cat server.log
+
+      - name: Show EN logs
+        run: |
           ci_run cat ext-node.log
+
+      - name: Show Revert Test logs
+        run: |
           ci_run cat core/tests/revert-test/revert.log
+
+      - name: Show Upgrade Test logs
+        run: |
           ci_run cat core/tests/upgrade-test/upgrade.log
+
+      - name: Show SCCache stats and logs
+        run: |
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
