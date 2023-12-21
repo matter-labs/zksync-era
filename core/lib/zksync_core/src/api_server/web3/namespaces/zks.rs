@@ -21,13 +21,13 @@ use zksync_types::{
 use zksync_utils::{address_to_h256, ratio_to_big_decimal_normalized};
 use zksync_web3_decl::{
     error::Web3Error,
-    types::{Address, Token, H256},
+    types::{Address, H256},
 };
 
 use crate::{
     api_server::{
         tree::TreeApiClient,
-        web3::{backend_jsonrpc::error::internal_error, metrics::API_METRICS, RpcState},
+        web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, RpcState},
     },
     l1_gas_price::L1GasPriceProvider,
 };
@@ -139,41 +139,6 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
     #[tracing::instrument(skip(self))]
     pub fn l1_chain_id_impl(&self) -> U64 {
         U64::from(*self.state.api_config.l1_chain_id)
-    }
-
-    #[tracing::instrument(skip(self))]
-    pub async fn get_confirmed_tokens_impl(
-        &self,
-        from: u32,
-        limit: u8,
-    ) -> Result<Vec<Token>, Web3Error> {
-        const METHOD_NAME: &str = "get_confirmed_tokens";
-
-        let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let tokens = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap()
-            .tokens_web3_dal()
-            .get_well_known_tokens()
-            .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?
-            .into_iter()
-            .skip(from as usize)
-            .take(limit.into())
-            .map(|token_info| Token {
-                l1_address: token_info.l1_address,
-                l2_address: token_info.l2_address,
-                name: token_info.metadata.name,
-                symbol: token_info.metadata.symbol,
-                decimals: token_info.metadata.decimals,
-            })
-            .collect();
-
-        method_latency.observe();
-        Ok(tokens)
     }
 
     #[tracing::instrument(skip(self))]

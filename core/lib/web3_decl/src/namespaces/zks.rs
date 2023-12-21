@@ -12,8 +12,6 @@ use zksync_types::{
     Address, L1BatchNumber, MiniblockNumber, H256, U256, U64,
 };
 
-use crate::types::Token;
-
 #[cfg_attr(
     all(feature = "client", feature = "server"),
     rpc(server, client, namespace = "zks")
@@ -45,8 +43,6 @@ pub trait ZksNamespace {
     #[method(name = "L1ChainId")]
     async fn l1_chain_id(&self) -> RpcResult<U64>;
 
-    #[method(name = "getConfirmedTokens")]
-    async fn get_confirmed_tokens(&self, from: u32, limit: u8) -> RpcResult<Vec<Token>>;
     #[method(name = "getTokenPrice")]
     async fn get_token_price(&self, token_address: Address) -> RpcResult<BigDecimal>;
 

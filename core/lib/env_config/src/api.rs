@@ -48,6 +48,8 @@ impl FromEnv for MerkleTreeApiConfig {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU32;
+
     use super::*;
     use crate::test_utils::{hash, EnvMutex};
 
@@ -86,7 +88,7 @@ mod tests {
                 fee_history_limit: Some(100),
                 max_batch_request_size: Some(200),
                 max_response_body_size_mb: Some(10),
-                websocket_requests_per_minute_limit: Some(10),
+                websocket_requests_per_minute_limit: Some(NonZeroU32::new(10).unwrap()),
                 tree_api_url: None,
             },
             contract_verification: ContractVerificationApiConfig {
