@@ -489,7 +489,7 @@ async function startServer() {
     const results: any = await enquirer.prompt(questions);
 
     let components: string[] = [];
-    const defaultChoices = ['http_api', 'eth', 'data_fetcher', 'state_keeper', 'housekeeper', 'tree_lightweight'];
+    const defaultChoices = ['http_api', 'eth', 'state_keeper', 'housekeeper', 'tree_lightweight'];
 
     if (results.start === NO) {
         return;

@@ -445,13 +445,11 @@ impl AccountLifespan {
             .get_transaction_receipt(tx_hash)
             .await?;
 
-        let receipt = if response.as_ref().and_then(|r| r.block_number).is_some() {
-            response.unwrap()
-        } else {
+        let Some(receipt) = response else {
             return Ok(None);
         };
 
-        let block_number = receipt.block_number.unwrap();
+        let block_number = receipt.block_number;
 
         let response = self
             .wallet
