@@ -16,7 +16,6 @@ COPY --from=prover contracts/system-contracts/artifacts-zk /contracts/system-con
 COPY --from=prover contracts/l1-contracts/artifacts/ /contracts/l1-contracts/artifacts/
 COPY --from=prover contracts/l2-contracts/artifacts-zk/ /contracts/l2-contracts/artifacts-zk/
 COPY --from=prover core/bin/verification_key_generator_and_server/data/ /core/bin/verification_key_generator_and_server/data/
-
 COPY --from=prover /usr/bin/zksync_prover /usr/bin/
 
 ENTRYPOINT ["zksync_prover"]
