@@ -1,5 +1,6 @@
 use sqlx::Row;
 use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
+use zksync_types::api::APIMode;
 use zksync_types::{
     api::{GetLogsFilter, Log},
     Address, MiniblockNumber, H256,
@@ -21,11 +22,10 @@ impl EventsWeb3Dal<'_, '_> {
         &mut self,
         filter: &GetLogsFilter,
         offset: usize,
-        skip_transfer_event: bool,
+        api_mode: APIMode,
     ) -> Result<Option<MiniblockNumber>, SqlxError> {
         {
-            let (where_sql, arg_index) =
-                self.build_get_logs_where_clause(filter, skip_transfer_event);
+            let (where_sql, arg_index) = self.build_get_logs_where_clause(filter, api_mode);
 
             let query = format!(
                 r#"
@@ -49,7 +49,7 @@ impl EventsWeb3Dal<'_, '_> {
                 query = query.bind(topics);
             }
 
-            if skip_transfer_event {
+            if api_mode == APIMode::Modern {
                 query = query.bind(L2_ETH_TOKEN_ADDRESS.as_bytes());
                 query = query.bind(TRANSFER_EVENT_TOPIC.as_bytes());
             }
@@ -73,11 +73,10 @@ impl EventsWeb3Dal<'_, '_> {
         &mut self,
         filter: GetLogsFilter,
         limit: usize,
-        skip_transfer_event: bool,
+        api_mode: APIMode,
     ) -> Result<Vec<Log>, SqlxError> {
         {
-            let (where_sql, arg_index) =
-                self.build_get_logs_where_clause(&filter, skip_transfer_event);
+            let (where_sql, arg_index) = self.build_get_logs_where_clause(&filter, api_mode);
 
             let query = format!(
                 r#"
@@ -109,7 +108,7 @@ impl EventsWeb3Dal<'_, '_> {
                 query = query.bind(topics);
             }
 
-            if skip_transfer_event {
+            if api_mode == APIMode::Modern {
                 query = query.bind(L2_ETH_TOKEN_ADDRESS.as_bytes());
                 query = query.bind(TRANSFER_EVENT_TOPIC.as_bytes());
             }
@@ -131,7 +130,7 @@ impl EventsWeb3Dal<'_, '_> {
     fn build_get_logs_where_clause(
         &self,
         filter: &GetLogsFilter,
-        skip_transfer_event: bool,
+        api_mode: APIMode,
     ) -> (String, u8) {
         let mut arg_index = 1;
 
@@ -148,7 +147,7 @@ impl EventsWeb3Dal<'_, '_> {
             arg_index += 1;
         }
 
-        if skip_transfer_event {
+        if api_mode == APIMode::Modern {
             where_sql += &format!(
                 " AND NOT (address = ${} AND topic1 = ${})",
                 arg_index,
@@ -163,11 +162,11 @@ impl EventsWeb3Dal<'_, '_> {
     pub async fn get_all_logs(
         &mut self,
         from_block: MiniblockNumber,
-        skip_transfer_event: bool,
+        api_mode: APIMode,
     ) -> Result<Vec<Log>, SqlxError> {
         {
             let mut skip_transfer = String::new();
-            if skip_transfer_event {
+            if api_mode == APIMode::Modern {
                 skip_transfer = String::from("AND NOT (address = $2 AND topic1 = $3)");
             }
 
@@ -197,7 +196,7 @@ impl EventsWeb3Dal<'_, '_> {
 
             query = query.bind(from_block.0 as i64);
 
-            if skip_transfer_event {
+            if api_mode == APIMode::Modern {
                 query = query.bind(L2_ETH_TOKEN_ADDRESS.as_bytes());
                 query = query.bind(TRANSFER_EVENT_TOPIC.as_bytes());
             }
@@ -234,13 +233,13 @@ mod tests {
         let expected_arg_index = 3;
 
         let (actual_sql, actual_arg_index) =
-            events_web3_dal.build_get_logs_where_clause(&filter, false);
+            events_web3_dal.build_get_logs_where_clause(&filter, APIMode::Legacy);
 
         assert_eq!(actual_sql, expected_sql);
         assert_eq!(actual_arg_index, expected_arg_index);
 
         let (actual_sql, actual_arg_index) =
-            events_web3_dal.build_get_logs_where_clause(&filter, true);
+            events_web3_dal.build_get_logs_where_clause(&filter, APIMode::Modern);
 
         let expected_sql = "(miniblock_number >= 100) AND (miniblock_number <= 200) AND (address = ANY($1)) AND (topic0 = ANY($2)) AND NOT (address = $3 AND topic1 = $4)";
 

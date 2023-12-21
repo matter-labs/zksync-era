@@ -20,32 +20,32 @@ use crate::api_server::web3::metrics::SubscriptionType;
 
 #[tokio::test]
 async fn ws_server_can_start() {
-    test_ws_server(WsServerCanStart, false).await;
+    test_ws_server(WsServerCanStart, APIMode::Modern).await;
 }
 
 #[tokio::test]
 async fn basic_subscriptions() {
-    test_ws_server(BasicSubscriptions, false).await;
+    test_ws_server(BasicSubscriptions, APIMode::Modern).await;
 }
 
 #[tokio::test]
 async fn log_subscriptions() {
-    test_ws_server(LogSubscriptions, false).await;
+    test_ws_server(LogSubscriptions, APIMode::Modern).await;
 }
 
 #[tokio::test]
 async fn log_subscriptions_with_new_block() {
-    test_ws_server(LogSubscriptionsWithNewBlock, false).await;
+    test_ws_server(LogSubscriptionsWithNewBlock, APIMode::Legacy).await;
 }
 
 #[tokio::test]
 async fn log_subscriptions_with_many_new_blocks_at_once() {
-    test_ws_server(LogSubscriptionsWithManyBlocks, false).await;
+    test_ws_server(LogSubscriptionsWithManyBlocks, APIMode::Modern).await;
 }
 
 #[tokio::test]
 async fn log_subscriptions_with_delay() {
-    test_ws_server(LogSubscriptionsWithDelay, false).await;
+    test_ws_server(LogSubscriptionsWithDelay, APIMode::Modern).await;
 }
 
 #[allow(clippy::needless_pass_by_ref_mut)] // false positive
@@ -102,7 +102,7 @@ trait WsTest {
     ) -> anyhow::Result<()>;
 }
 
-async fn test_ws_server(test: impl WsTest, is_legacy: bool) {
+async fn test_ws_server(test: impl WsTest, api_mode: APIMode) {
     let pool = ConnectionPool::test_pool().await;
     let network_config = NetworkConfig::for_tests();
     let mut storage = pool.access_storage().await.unwrap();
@@ -119,7 +119,7 @@ async fn test_ws_server(test: impl WsTest, is_legacy: bool) {
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (server_handles, pub_sub_events) =
-        spawn_ws_server(&network_config, pool.clone(), stop_receiver, is_legacy).await;
+        spawn_ws_server(&network_config, pool.clone(), stop_receiver, api_mode).await;
     server_handles.wait_until_ready().await;
 
     let client = WsClientBuilder::default()

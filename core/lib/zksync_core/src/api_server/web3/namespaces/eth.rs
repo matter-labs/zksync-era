@@ -1,3 +1,4 @@
+use zksync_types::api::APIMode;
 use zksync_types::{
     api::{
         BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
@@ -37,24 +38,21 @@ pub const PROTOCOL_VERSION: &str = "zks/1";
 #[derive(Debug)]
 pub struct EthNamespace<G> {
     state: RpcState<G>,
-    skip_transfer_event: bool,
+    api_mode: APIMode,
 }
 
 impl<G> Clone for EthNamespace<G> {
     fn clone(&self) -> Self {
         Self {
             state: self.state.clone(),
-            skip_transfer_event: self.skip_transfer_event,
+            api_mode: self.api_mode,
         }
     }
 }
 
 impl<G: L1GasPriceProvider> EthNamespace<G> {
-    pub fn new(state: RpcState<G>, skip_transfer_event: bool) -> Self {
-        Self {
-            state,
-            skip_transfer_event,
-        }
+    pub fn new(state: RpcState<G>, api_mode: APIMode) -> Self {
+        Self { state, api_mode }
     }
 
     #[tracing::instrument(skip(self))]
@@ -509,7 +507,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .await
             .unwrap()
             .transactions_web3_dal()
-            .get_transaction_receipt(hash, self.skip_transfer_event)
+            .get_transaction_receipt(hash, self.api_mode)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err));
 
@@ -835,7 +833,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                         .get_log_block_number(
                             &get_logs_filter,
                             self.state.api_config.req_entities_limit,
-                            self.skip_transfer_event,
+                            self.api_mode,
                         )
                         .await
                         .map_err(|err| internal_error(METHOD_NAME, err))?
@@ -850,7 +848,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 
                 let logs = storage
                     .events_web3_dal()
-                    .get_logs(get_logs_filter, i32::MAX as usize, self.skip_transfer_event)
+                    .get_logs(get_logs_filter, i32::MAX as usize, self.api_mode)
                     .await
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
                 *from_block = to_block + 1;

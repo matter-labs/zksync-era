@@ -19,6 +19,14 @@ use crate::{
 
 pub mod en;
 
+/// Enum for choosing API mode
+#[derive(Copy, Clone, Debug, PartialEq, Display, Default)]
+pub enum APIMode {
+    #[default]
+    Modern,
+    Legacy,
+}
+
 /// Block Number
 #[derive(Copy, Clone, Debug, PartialEq, Display)]
 pub enum BlockNumber {

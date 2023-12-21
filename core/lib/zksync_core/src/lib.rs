@@ -34,6 +34,7 @@ use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_utils::periodic_job::PeriodicJob;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
+use zksync_types::api::APIMode;
 use zksync_types::{
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
@@ -1158,7 +1159,7 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     gas_adjuster: Arc<G>,
     with_debug_namespace: bool,
     storage_caches: PostgresStorageCaches,
-    is_legacy: bool,
+    api_mode: APIMode,
 ) -> anyhow::Result<ApiServerHandles> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
@@ -1182,10 +1183,9 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
         .await
         .context("failed to build last_miniblock_pool")?;
 
-    let port = if is_legacy {
-        api_config.web3_json_rpc.http_port
-    } else {
-        api_config.web3_json_rpc.legacy_http_port
+    let port = match api_mode {
+        APIMode::Modern => api_config.web3_json_rpc.http_port,
+        APIMode::Legacy => api_config.web3_json_rpc.legacy_http_port,
     };
 
     let api_builder =
@@ -1199,7 +1199,7 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
             .with_response_body_size_limit(api_config.web3_json_rpc.max_response_body_size())
             .with_tx_sender(tx_sender, vm_barrier)
             .enable_api_namespaces(namespaces);
-    api_builder.build(stop_receiver, is_legacy).await
+    api_builder.build(stop_receiver, api_mode).await
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1214,7 +1214,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     replica_connection_pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
     storage_caches: PostgresStorageCaches,
-    is_legacy: bool,
+    api_mode: APIMode,
 ) -> anyhow::Result<ApiServerHandles> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
@@ -1234,10 +1234,9 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     let mut namespaces = Namespace::DEFAULT.to_vec();
     namespaces.push(Namespace::Snapshots);
 
-    let port = if is_legacy {
-        api_config.web3_json_rpc.ws_port
-    } else {
-        api_config.web3_json_rpc.legacy_ws_port
+    let port = match api_mode {
+        APIMode::Modern => api_config.web3_json_rpc.ws_port,
+        APIMode::Legacy => api_config.web3_json_rpc.legacy_ws_port,
     };
 
     let api_builder =
@@ -1259,7 +1258,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
             .with_tx_sender(tx_sender, vm_barrier)
             .enable_api_namespaces(namespaces);
 
-    api_builder.build(stop_receiver.clone(), is_legacy).await
+    api_builder.build(stop_receiver.clone(), api_mode).await
 }
 
 async fn circuit_breakers_for_components(

@@ -11,6 +11,7 @@ use zksync_config::configs::{
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
 use zksync_health_check::CheckHealth;
+use zksync_protobuf::build::prost_reflect::prost_types::Api;
 use zksync_state::PostgresStorageCaches;
 use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
 use zksync_types::{
@@ -46,32 +47,32 @@ impl L1GasPriceProvider for MockL1GasPriceProvider {
 
 #[tokio::test]
 async fn http_server_basics() {
-    test_http_server(HttpServerBasics, false).await;
+    test_http_server(HttpServerBasics, APIMode::Modern).await;
 }
 
 #[tokio::test]
 async fn basic_filter_changes() {
-    test_http_server(BasicFilterChanges, false).await;
+    test_http_server(BasicFilterChanges, APIMode::Modern).await;
 }
 
 #[tokio::test]
 async fn log_filter_changes() {
-    test_http_server(LogFilterChanges, false).await;
+    test_http_server(LogFilterChanges, APIMode::Legacy).await;
 }
 
 #[tokio::test]
 async fn legacy_log_filter_changes() {
-    test_http_server(LogFilterChanges, true).await;
+    test_http_server(LogFilterChanges, APIMode::Legacy).await;
 }
 
 #[tokio::test]
 async fn log_filter_changes_with_block_boundaries() {
-    test_http_server(LogFilterChangesWithBlockBoundaries, false).await;
+    test_http_server(LogFilterChangesWithBlockBoundaries, APIMode::Modern).await;
 }
 
 #[tokio::test]
 async fn legacy_log_filter_changes_with_block_boundaries() {
-    test_http_server(LogFilterChangesWithBlockBoundaries, true).await;
+    test_http_server(LogFilterChangesWithBlockBoundaries, APIMode::Legacy).await;
 }
 
 impl ApiServerHandles {
@@ -111,62 +112,65 @@ pub(crate) async fn spawn_http_server(
     network_config: &NetworkConfig,
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
-    is_legacy: bool,
+    api_mode: APIMode,
 ) -> ApiServerHandles {
     spawn_server(
         ApiTransportLabel::Http,
         network_config,
         pool,
         stop_receiver,
-        is_legacy,
+        api_mode,
     )
     .await
     .0
 }
 
-fn get_expected_events(mut events: Vec<&VmEvent>, is_legacy: bool) -> Vec<&VmEvent> {
-    if is_legacy {
-        // move all the filtered events of ETH Transfer in the end of the vector
-        let mut count = events
-            .iter()
-            .filter(|event| {
-                event.address == L2_ETH_TOKEN_ADDRESS
-                    && !event.indexed_topics.is_empty()
-                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC
-            })
-            .count();
+fn get_expected_events(mut events: Vec<&VmEvent>, api_mode: APIMode) -> Vec<&VmEvent> {
+    match api_mode {
+        APIMode::Legacy => {
+            // move all the filtered events of ETH Transfer in the end of the vector
+            let mut count = events
+                .iter()
+                .filter(|event| {
+                    event.address == L2_ETH_TOKEN_ADDRESS
+                        && !event.indexed_topics.is_empty()
+                        && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC
+                })
+                .count();
 
-        let len = events.len();
+            let len = events.len();
 
-        for i in 0..len {
-            if events[i].address == L2_ETH_TOKEN_ADDRESS
-                && !events[i].indexed_topics.is_empty()
-                && events[i].indexed_topics[0] == TRANSFER_EVENT_TOPIC
-            {
-                let event = events[i];
+            for i in 0..len {
+                if events[i].address == L2_ETH_TOKEN_ADDRESS
+                    && !events[i].indexed_topics.is_empty()
+                    && events[i].indexed_topics[0] == TRANSFER_EVENT_TOPIC
+                {
+                    let event = events[i];
 
-                for j in i..(len - 1) {
-                    events[j] = events[j + 1]
+                    for j in i..(len - 1) {
+                        events[j] = events[j + 1]
+                    }
+
+                    events[len - 1] = event;
+                    count -= 1;
                 }
-
-                events[len - 1] = event;
-                count -= 1;
+                if count == 0 {
+                    break;
+                }
             }
-            if count == 0 {
-                break;
-            }
+            events
         }
-        events
-    } else {
-        // filter out all the ETH Transfer
-        events
-            .into_iter()
-            .filter(|event| {
-                !(event.address == L2_ETH_TOKEN_ADDRESS
-                    && !event.indexed_topics.is_empty()
-                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
-            })
-            .collect()
+        APIMode::Modern => {
+            // filter out all the ETH Transfer
+            events
+                .into_iter()
+                .filter(|event| {
+                    !(event.address == L2_ETH_TOKEN_ADDRESS
+                        && !event.indexed_topics.is_empty()
+                        && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
+                })
+                .collect()
+        }
     }
 }
 
@@ -174,14 +178,14 @@ async fn spawn_ws_server(
     network_config: &NetworkConfig,
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
-    is_legacy: bool,
+    api_mode: APIMode,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
     spawn_server(
         ApiTransportLabel::Ws,
         network_config,
         pool,
         stop_receiver,
-        is_legacy,
+        api_mode,
     )
     .await
 }
@@ -191,7 +195,7 @@ async fn spawn_server(
     network_config: &NetworkConfig,
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
-    is_legacy: bool,
+    api_mode: APIMode,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = Web3JsonRpcConfig::for_tests();
@@ -226,7 +230,7 @@ async fn spawn_server(
         .with_tx_sender(tx_sender, vm_barrier)
         .with_pub_sub_events(pub_sub_events_sender)
         .enable_api_namespaces(Namespace::DEFAULT.to_vec())
-        .build(stop_receiver, is_legacy)
+        .build(stop_receiver, api_mode)
         .await
         .expect("Failed spawning JSON-RPC server");
     (server_handles, pub_sub_events_receiver)
@@ -238,11 +242,11 @@ trait HttpTest {
         &self,
         client: &HttpClient,
         pool: &ConnectionPool,
-        is_legacy: bool,
+        api_mode: APIMode,
     ) -> anyhow::Result<()>;
 }
 
-async fn test_http_server(test: impl HttpTest, is_legacy: bool) {
+async fn test_http_server(test: impl HttpTest, api_mode: APIMode) {
     let pool = ConnectionPool::test_pool().await;
     let network_config = NetworkConfig::for_tests();
     let mut storage = pool.access_storage().await.unwrap();
@@ -259,13 +263,13 @@ async fn test_http_server(test: impl HttpTest, is_legacy: bool) {
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let server_handles =
-        spawn_http_server(&network_config, pool.clone(), stop_receiver, is_legacy).await;
+        spawn_http_server(&network_config, pool.clone(), stop_receiver, api_mode).await;
     server_handles.wait_until_ready().await;
 
     let client = <HttpClient>::builder()
         .build(format!("http://{}/", server_handles.local_addr))
         .unwrap();
-    test.test(&client, &pool, is_legacy).await.unwrap();
+    test.test(&client, &pool, api_mode).await.unwrap();
 
     stop_sender.send_replace(true);
     server_handles.shutdown().await;
@@ -400,7 +404,7 @@ impl HttpTest for HttpServerBasics {
         &self,
         client: &HttpClient,
         _pool: &ConnectionPool,
-        _is_legacy: bool,
+        _api_mode: APIMode,
     ) -> anyhow::Result<()> {
         let block_number = client.get_block_number().await?;
         assert_eq!(block_number, U64::from(0));
@@ -426,7 +430,7 @@ impl HttpTest for BasicFilterChanges {
         &self,
         client: &HttpClient,
         pool: &ConnectionPool,
-        _is_legacy: bool,
+        _api_mode: APIMode,
     ) -> anyhow::Result<()> {
         let block_filter_id = client.new_block_filter().await?;
         let tx_filter_id = client.new_pending_transaction_filter().await?;
@@ -473,7 +477,7 @@ impl HttpTest for LogFilterChanges {
         &self,
         client: &HttpClient,
         pool: &ConnectionPool,
-        is_legacy: bool,
+        api_mode: APIMode,
     ) -> anyhow::Result<()> {
         let all_logs_filter_id = client.new_filter(Filter::default()).await?;
         let address_filter = Filter {
@@ -491,7 +495,7 @@ impl HttpTest for LogFilterChanges {
         let (_, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
 
-        let events: Vec<_> = get_expected_events(events.iter().collect(), is_legacy);
+        let events: Vec<_> = get_expected_events(events.iter().collect(), api_mode);
 
         let all_logs = client.get_filter_changes(all_logs_filter_id).await?;
         let FilterChanges::Logs(all_logs) = all_logs else {
@@ -529,7 +533,7 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         &self,
         client: &HttpClient,
         pool: &ConnectionPool,
-        is_legacy: bool,
+        api_mode: APIMode,
     ) -> anyhow::Result<()> {
         let lower_bound_filter = Filter {
             from_block: Some(api::BlockNumber::Number(2.into())),
@@ -551,7 +555,7 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         let mut storage = pool.access_storage().await?;
         let (_, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
-        let events: Vec<_> = get_expected_events(events.iter().collect(), is_legacy);
+        let events: Vec<_> = get_expected_events(events.iter().collect(), api_mode);
 
         let lower_bound_logs = client.get_filter_changes(lower_bound_filter_id).await?;
         assert_matches!(
@@ -576,7 +580,7 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
-        let new_events: Vec<_> = get_expected_events(new_events.iter().collect(), is_legacy);
+        let new_events: Vec<_> = get_expected_events(new_events.iter().collect(), api_mode);
 
         let lower_bound_logs = client.get_filter_changes(lower_bound_filter_id).await?;
         let FilterChanges::Logs(lower_bound_logs) = lower_bound_logs else {
@@ -595,7 +599,7 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         let (_, new_events) = store_events(&mut storage, 3, 8).await?;
         drop(storage);
 
-        let new_events: Vec<_> = get_expected_events(new_events.iter().collect(), is_legacy);
+        let new_events: Vec<_> = get_expected_events(new_events.iter().collect(), api_mode);
 
         let bounded_logs = client.get_filter_changes(bounded_filter_id).await?;
         let FilterChanges::Hashes(bounded_logs) = bounded_logs else {
