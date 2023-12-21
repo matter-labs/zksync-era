@@ -5612,18 +5612,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rocksdb_util"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap 4.4.6",
- "tempfile",
- "zksync_config",
- "zksync_env_config",
- "zksync_storage",
-]
-
-[[package]]
 name = "route-recognizer"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
