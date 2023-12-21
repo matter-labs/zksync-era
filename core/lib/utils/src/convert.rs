@@ -1,12 +1,12 @@
 use std::convert::TryInto;
 
+use bigdecimal::BigDecimal;
 use num::{
     bigint::ToBigInt,
     rational::Ratio,
     traits::{sign::Signed, Pow},
     BigUint,
 };
-use sqlx::types::BigDecimal;
 use zksync_basic_types::{Address, H256, U256};
 
 pub fn u256_to_big_decimal(value: U256) -> BigDecimal {
