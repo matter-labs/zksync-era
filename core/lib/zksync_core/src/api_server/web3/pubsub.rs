@@ -240,29 +240,50 @@ impl EthSubscribe {
     async fn run_subscriber(
         sink: SubscriptionSink,
         subscription_type: SubscriptionType,
-        mut b: broadcast::Receiver<Vec<PubSubResult>>,
+        mut receiver: broadcast::Receiver<Vec<PubSubResult>>,
         filter: Option<PubSubFilter>,
     ) {
         let _guard = PUB_SUB_METRICS.active_subscribers[&subscription_type].inc_guard(1);
+        let lifetime_latency = PUB_SUB_METRICS.subscriber_lifetime[&subscription_type].start();
         let closed = sink.closed().fuse();
         tokio::pin!(closed);
 
         loop {
             tokio::select! {
-                new_items = b.recv() => {
-                    let Ok(new_items) = new_items else { return };
-                    if Self::handle_new_items(
+                new_items_result = receiver.recv() => {
+                    let new_items = match new_items_result {
+                        Ok(items) => items,
+                        Err(broadcast::error::RecvError::Closed) => {
+                            // The broadcast channel has closed because the notifier task is shut down.
+                            // This is fine; we should just stop this task.
+                            break;
+                        }
+                        Err(broadcast::error::RecvError::Lagged(message_count)) => {
+                            PUB_SUB_METRICS
+                                .skipped_broadcast_messages[&subscription_type]
+                                .observe(message_count);
+                            break;
+                        }
+                    };
+
+                    let handle_result = Self::handle_new_items(
                         &sink,
                         subscription_type,
                         new_items,
                         filter.as_ref()
-                    ).await.is_err() { return };
+                    )
+                    .await;
+                    if handle_result.is_err() {
+                        PUB_SUB_METRICS.subscriber_send_timeouts[&subscription_type].inc();
+                        break;
+                    }
                 }
                 _ = &mut closed => {
-                    break
+                    break;
                 }
             }
         }
+        lifetime_latency.observe();
     }
 
     async fn handle_new_items(
@@ -271,6 +292,7 @@ impl EthSubscribe {
         new_items: Vec<PubSubResult>,
         filter: Option<&PubSubFilter>,
     ) -> Result<(), SendTimeoutError> {
+        let notify_latency = PUB_SUB_METRICS.notify_subscribers_latency[&subscription_type].start();
         for item in new_items {
             if let PubSubResult::Log(log) = &item {
                 if let Some(filter) = &filter {
@@ -290,6 +312,7 @@ impl EthSubscribe {
             PUB_SUB_METRICS.notify[&subscription_type].inc();
         }
 
+        notify_latency.observe();
         Ok(())
     }
 

@@ -184,12 +184,24 @@ pub(super) enum SubscriptionType {
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "api_web3_pubsub")]
 pub(super) struct PubSubMetrics {
+    /// Latency to load new events from Postgres before broadcasting them to subscribers.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub db_poll_latency: Family<SubscriptionType, Histogram<Duration>>,
+    /// Latency to send an atomic batch of events to a single subscriber.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub notify_subscribers_latency: Family<SubscriptionType, Histogram<Duration>>,
+    /// Total number of events sent to all subscribers of a certain type.
     pub notify: Family<SubscriptionType, Counter>,
+    /// Number of currently active subscribers split by the subscription type.
     pub active_subscribers: Family<SubscriptionType, Gauge>,
+    /// Lifetime of a subscriber of a certain type.
+    #[metrics(buckets = Buckets::LATENCIES)]
+    pub subscriber_lifetime: Family<SubscriptionType, Histogram<Duration>>,
+    /// Number of skipped broadcast messages.
+    #[metrics(buckets = Buckets::exponential(1.0..=128.0, 2.0))]
+    pub skipped_broadcast_messages: Family<SubscriptionType, Histogram<u64>>,
+    /// Number of subscribers dropped because of a send timeout.
+    pub subscriber_send_timeouts: Family<SubscriptionType, Counter>,
 }
 
 #[vise::register]
