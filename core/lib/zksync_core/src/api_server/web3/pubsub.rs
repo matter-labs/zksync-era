@@ -86,9 +86,9 @@ impl PubSubNotifier {
             timer.tick().await;
 
             let db_latency = PUB_SUB_METRICS.db_poll_latency[&SubscriptionType::Blocks].start();
-            eprintln!("new blocks");
+            eprintln!("{} new blocks", chrono::Utc::now());
             let new_blocks = self.new_blocks(last_block_number).await?;
-            eprintln!("new blocks end");
+            eprintln!("{} new blocks end", chrono::Utc::now());
             db_latency.observe();
 
             if let Some(last_block) = new_blocks.last() {
@@ -133,7 +133,9 @@ impl PubSubNotifier {
             timer.tick().await;
 
             let db_latency = PUB_SUB_METRICS.db_poll_latency[&SubscriptionType::Txs].start();
+            eprintln!("{} txs", chrono::Utc::now());
             let (new_txs, new_last_time) = self.new_txs(last_time).await?;
+            eprintln!("{} txs end", chrono::Utc::now());
             db_latency.observe();
 
             if let Some(new_last_time) = new_last_time {
