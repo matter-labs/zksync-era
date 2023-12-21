@@ -5501,7 +5501,7 @@ dependencies = [
 [[package]]
 name = "rescue_poseidon"
 version = "0.4.1"
-source = "git+https://github.com/matter-labs/rescue-poseidon.git?branch=poseidon2#c4a788471710bdb7aa0f59e8756b45ef93cdd2b2"
+source = "git+https://github.com/matter-labs/rescue-poseidon.git?branch=poseidon2#2e5e8afb152adc326fcf776a71ad3735fa7f3186"
 dependencies = [
  "addchain",
  "arrayvec 0.7.4",
