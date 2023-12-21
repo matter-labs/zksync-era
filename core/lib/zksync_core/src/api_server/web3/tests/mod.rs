@@ -62,9 +62,9 @@ impl ApiServerHandles {
 
     pub(crate) async fn shutdown(self) {
         let stop_server = async {
-            tracing::error!("tasks len {}", self.tasks.len());
+            eprintln!("tasks len {}", self.tasks.len());
             for task in self.tasks {
-                tracing::error!("{task:?}");
+                eprintln!("{task:?}");
                 // FIXME(PLA-481): avoid these errors (by spawning notifier tasks on server runtime?)
                 if let Err(err) = task.await.expect("Server panicked") {
                     let err = err.root_cause().to_string();
