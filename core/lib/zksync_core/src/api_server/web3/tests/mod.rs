@@ -64,7 +64,7 @@ impl ApiServerHandles {
         let stop_server = async {
             eprintln!("tasks len {}", self.tasks.len());
             for task in self.tasks {
-                eprintln!("{task:?}");
+                eprintln!("{} {task:?}", chrono::Utc::now());
                 // FIXME(PLA-481): avoid these errors (by spawning notifier tasks on server runtime?)
                 if let Err(err) = task.await.expect("Server panicked") {
                     let err = err.root_cause().to_string();

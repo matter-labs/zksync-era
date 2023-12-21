@@ -80,7 +80,7 @@ impl PubSubNotifier {
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, pubsub_block_notifier is shutting down");
-                eprintln!("notify blocks exiting");
+                eprintln!("{} notify blocks exiting", chrono::Utc::now());
                 break;
             }
             timer.tick().await;
@@ -128,6 +128,7 @@ impl PubSubNotifier {
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, pubsub_tx_notifier is shutting down");
+                eprintln!("{} notify txs exiting", chrono::Utc::now());
                 break;
             }
             timer.tick().await;
@@ -173,6 +174,7 @@ impl PubSubNotifier {
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, pubsub_logs_notifier is shutting down");
+                eprintln!("{} notify logs exiting", chrono::Utc::now());
                 break;
             }
             timer.tick().await;
