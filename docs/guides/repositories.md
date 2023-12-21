@@ -34,25 +34,25 @@
 | [era-zkevm_test_harness](https://github.com/matter-labs/era-zkevm_test_harness) | Tests that compare the two implementation of the zkEVM - the non-circuit one (zk_evm) and the circuit one (sync_vm) |
 | [era-zkevm_tester](https://github.com/matter-labs/era-zkevm_tester)             | Assembly runner for zkEVM testing                                                                                   |
 | [era-boojum](https://github.com/matter-labs/era-boojum)                         | New proving system library - containing gadgets and gates                                                           |
-| [era-shivini](https://github.com/matter-labs/era-shivini)                       | Cuda / GPU implementation for the new proving system                                                               |
-| [era-zkevm_circuits](https://github.com/matter-labs/era-zkevm_circuits)         | Circuits for the new proving system                                                                                |
+| [era-shivini](https://github.com/matter-labs/era-shivini)                       | Cuda / GPU implementation for the new proving system                                                                |
+| [era-zkevm_circuits](https://github.com/matter-labs/era-zkevm_circuits)         | Circuits for the new proving system                                                                                 |
 | [franklin-crypto](https://github.com/matter-labs/franklin-crypto)               | Gadget library for the Plonk / plookup                                                                              |
-| [rescue-poseidon](https://github.com/matter-labs/rescue-poseidon)               | Library with hash functions used by the crypto                                                                     |
-| [snark-wrapper](https://github.com/matter-labs/snark-wrapper)                   | Circuit to wrap the final FRI proof into snark for improved efficiency                                             |
+| [rescue-poseidon](https://github.com/matter-labs/rescue-poseidon)               | Library with hash functions used by the crypto repositories                                                         |
+| [snark-wrapper](https://github.com/matter-labs/snark-wrapper)                   | Circuit to wrap the final FRI proof into snark for improved efficiency                                              |
 
 #### Old proving system
 
 | Public repository                                                             | Description                                                         |
 | ----------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | [era-bellman-cuda](https://github.com/matter-labs/era-bellman-cuda)           | Cuda implementations for cryptographic functions used by the prover |
-| [era-heavy-ops-service](https://github.com/matter-labs/era-heavy-ops-service) | Main circuit prover that requires GPU to run                      |
+| [era-heavy-ops-service](https://github.com/matter-labs/era-heavy-ops-service) | Main circuit prover that requires GPU to run                        |
 | [era-cicruit_testing](https://github.com/matter-labs/era-circuit_testing)     | ??                                                                  |
 
 ### Tools & contract developers
 
 | Public repository                                               | Description                                                                   |
 | --------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| [era-test-node](https://github.com/matter-labs/era-test-node)   | In memory node for development and smart contract debugging                  |
+| [era-test-node](https://github.com/matter-labs/era-test-node)   | In memory node for development and smart contract debugging                   |
 | [local-setup](https://github.com/matter-labs/local-setup)       | Docker-based zk server (together with L1), that can be used for local testing |
 | [zksync-cli](https://github.com/matter-labs/zksync-cli)         | Command line tool to interact with zksync                                     |
 | [block-explorer](https://github.com/matter-labs/block-explorer) | Online blockchain browser for viewing and analyzing zkSync chain              |
