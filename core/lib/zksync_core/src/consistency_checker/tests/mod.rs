@@ -1,6 +1,6 @@
 //! Tests for the consistency checker component.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, slice};
 
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
@@ -20,6 +20,7 @@ use crate::{
     state_keeper::tests::create_l1_batch_metadata,
 };
 
+/// **NB.** For tests to run correctly, the returned value must be deterministic.
 fn create_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
     let mut header = L1BatchHeader::new(
         L1BatchNumber(number),
@@ -49,13 +50,25 @@ impl MockL1Client {
         let commit_tokens = ethabi::Token::Array(commit_tokens.collect());
 
         let mut encoded = vec![];
-        encoded.extend_from_slice(b"fake"); // Fake Solidity function selector (not checked for now)
-                                            // Mock an additional arg used in real `commitBlocks` / `commitBatches`. In real transactions,
-                                            // it's taken from the L1 batch previous to batches[0], but since this arg is not checked,
-                                            // it's OK to use batches[0].
+        // Fake Solidity function selector (not checked for now)
+        encoded.extend_from_slice(b"fake");
+        // Mock an additional arg used in real `commitBlocks` / `commitBatches`. In real transactions,
+        // it's taken from the L1 batch previous to batches[0], but since this arg is not checked,
+        // it's OK to use batches[0].
         let prev_header_tokens = batches[0].l1_header_data();
         encoded.extend_from_slice(&ethabi::encode(&[prev_header_tokens, commit_tokens]));
         encoded
+    }
+
+    fn into_checker(self, pool: ConnectionPool) -> ConsistencyChecker {
+        ConsistencyChecker {
+            contract: zksync_contracts::zksync_contract(),
+            max_batches_to_recheck: 100,
+            sleep_interval: Duration::from_millis(10),
+            l1_client: Box::new(self),
+            l1_batch_updater: Box::new(()),
+            pool,
+        }
     }
 }
 
@@ -329,12 +342,8 @@ async fn normal_checker_function(
 
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
-        contract: zksync_contracts::zksync_contract(),
-        max_batches_to_recheck: 100,
-        sleep_interval: Duration::from_millis(10),
-        l1_client: Box::new(client),
         l1_batch_updater: Box::new(l1_batch_updates_sender),
-        pool: pool.clone(),
+        ..client.into_checker(pool.clone())
     };
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -361,4 +370,122 @@ async fn normal_checker_function(
     checker_task.await.unwrap().unwrap();
 }
 
-// FIXME: test (missing / wrong) (tx status / data)
+#[derive(Debug)]
+enum IncorrectDataKind {
+    MissingStatus,
+    MismatchedStatus,
+    MissingCommitData,
+    BogusCommitDataFormat,
+    MismatchedCommitDataTimestamp,
+    CommitDataForAnotherBatch,
+    CommitDataForPreBoojum,
+}
+
+impl IncorrectDataKind {
+    const ALL: [Self; 7] = [
+        Self::MissingStatus,
+        Self::MismatchedStatus,
+        Self::MissingCommitData,
+        Self::BogusCommitDataFormat,
+        Self::MismatchedCommitDataTimestamp,
+        Self::CommitDataForAnotherBatch,
+        Self::CommitDataForPreBoojum,
+    ];
+
+    fn apply(self, client: &mut MockL1Client, commit_tx_hash: H256) {
+        match self {
+            Self::MissingStatus => {
+                client.transaction_status_responses.remove(&commit_tx_hash);
+            }
+            Self::MismatchedStatus => {
+                client
+                    .transaction_status_responses
+                    .insert(commit_tx_hash, 0.into());
+            }
+
+            Self::MissingCommitData => {
+                client
+                    .transaction_input_data_responses
+                    .remove(&commit_tx_hash);
+            }
+            Self::BogusCommitDataFormat => {
+                let mut bogus_tx_input_data = b"test".to_vec(); // Preserve the function selector
+                bogus_tx_input_data
+                    .extend_from_slice(&ethabi::encode(&[ethabi::Token::Bool(true)]));
+                client
+                    .transaction_input_data_responses
+                    .insert(commit_tx_hash, bogus_tx_input_data);
+            }
+            Self::MismatchedCommitDataTimestamp => {
+                let mut l1_batch = create_l1_batch_with_metadata(1);
+                l1_batch.header.timestamp += 1;
+                let bogus_tx_input_data =
+                    MockL1Client::build_commit_tx_input_data(slice::from_ref(&l1_batch));
+                client
+                    .transaction_input_data_responses
+                    .insert(commit_tx_hash, bogus_tx_input_data);
+            }
+            Self::CommitDataForAnotherBatch => {
+                let l1_batch = create_l1_batch_with_metadata(100);
+                let bogus_tx_input_data =
+                    MockL1Client::build_commit_tx_input_data(slice::from_ref(&l1_batch));
+                client
+                    .transaction_input_data_responses
+                    .insert(commit_tx_hash, bogus_tx_input_data);
+            }
+            Self::CommitDataForPreBoojum => {
+                let mut l1_batch = create_l1_batch_with_metadata(1);
+                l1_batch.header.protocol_version = Some(ProtocolVersionId::Version0);
+                let bogus_tx_input_data =
+                    MockL1Client::build_commit_tx_input_data(slice::from_ref(&l1_batch));
+                client
+                    .transaction_input_data_responses
+                    .insert(commit_tx_hash, bogus_tx_input_data);
+            }
+        }
+    }
+}
+
+#[test_casing(7, IncorrectDataKind::ALL)]
+#[tokio::test]
+async fn checker_detects_incorrect_tx_data(kind: IncorrectDataKind) {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.access_storage().await.unwrap();
+    ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+        .await
+        .unwrap();
+
+    let l1_batch = create_l1_batch_with_metadata(1);
+    let commit_tx_hash = H256::repeat_byte(1);
+    let commit_tx_input_data = MockL1Client::build_commit_tx_input_data(slice::from_ref(&l1_batch));
+    let commit_tx_hash_by_l1_batch = HashMap::from([(L1BatchNumber(1), commit_tx_hash)]);
+    let save_actions = [
+        SaveAction::InsertBatch(&l1_batch),
+        SaveAction::SaveMetadata(&l1_batch),
+        SaveAction::InsertCommitTx(L1BatchNumber(1)),
+    ];
+    for save_action in save_actions {
+        save_action
+            .apply(&mut storage, &commit_tx_hash_by_l1_batch)
+            .await;
+    }
+    drop(storage);
+
+    let mut client = MockL1Client::default();
+    // Insert the correct data into the client so that it can be mutated more concisely.
+    client
+        .transaction_status_responses
+        .insert(commit_tx_hash, 1.into());
+    client
+        .transaction_input_data_responses
+        .insert(commit_tx_hash, commit_tx_input_data);
+    kind.apply(&mut client, commit_tx_hash);
+
+    let checker = client.into_checker(pool);
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    // The checker must stop with an error.
+    tokio::time::timeout(Duration::from_secs(30), checker.run(stop_receiver))
+        .await
+        .expect("Timed out waiting for checker to stop")
+        .unwrap_err();
+}
