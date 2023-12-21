@@ -41,6 +41,5 @@ COPY contracts/zksync/artifacts-zk/ /contracts/zksync/artifacts-zk/
 COPY etc/tokens/ /etc/tokens/
 COPY etc/ERC20/ /etc/ERC20/
 COPY etc/multivm_bootloaders/ /etc/multivm_bootloaders/
-COPY core/bin/verification_key_generator_and_server/data/ /core/bin/verification_key_generator_and_server/data/
 
 ENTRYPOINT ["zksync_server"]

@@ -22,7 +22,6 @@ zksync_mempool=debug,\
 loadnext=info,\
 vm=info,\
 block_sizes_test=info,\
-zksync_verification_key_generator_and_server=info,\
 zksync_object_store=info,\
 setup_key_generator_and_server=info,\
 zksync_circuit_synthesizer=info,\

@@ -15,7 +15,6 @@ COPY --from=prover etc/system-contracts/bootloader/build/artifacts/ /etc/system-
 COPY --from=prover etc/system-contracts/artifacts-zk /etc/system-contracts/artifacts-zk
 COPY --from=prover contracts/ethereum/artifacts/ /contracts/ethereum/artifacts/
 COPY --from=prover contracts/zksync/artifacts-zk/ /contracts/zksync/artifacts-zk/
-COPY --from=prover core/bin/verification_key_generator_and_server/data/ /core/bin/verification_key_generator_and_server/data/
 COPY --from=prover /usr/bin/zksync_prover /usr/bin/
 
 ENTRYPOINT ["zksync_prover"]

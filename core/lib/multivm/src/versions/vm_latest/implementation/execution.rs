@@ -73,7 +73,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             .unwrap_or_default();
 
         // Ceil and convert to usize.
-        let estimated_circuits_used = (tx_tracer.estimated_circuits_used.clone()
+        let estimated_circuits_used = (tx_tracer.circuits_tracer.estimated_circuits_used.clone()
             + BigDecimal::from(1u8) / BigDecimal::from(2u8))
         .round(0)
         .to_usize()
