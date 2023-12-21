@@ -21,6 +21,7 @@ zksync_prover_fri_utils = { path = "../prover_fri_utils" }
 vlog = { path = "../../core/lib/vlog" }
 prometheus_exporter = { path = "../../core/lib/prometheus_exporter" }
 zksync_prover_utils = { path = "../../core/lib/prover_utils" }
+zksync_verification_key_generator_and_server = { path = "../../core/bin/verification_key_generator_and_server" }
 
 zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.3" }
 

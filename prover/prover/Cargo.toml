@@ -23,6 +23,7 @@ zksync_eth_client = { path = "../../core/lib/eth_client" }
 zksync_types = { path = "../../core/lib/types" }
 prometheus_exporter = { path = "../../core/lib/prometheus_exporter" }
 vlog = { path = "../../core/lib/vlog" }
+zksync_verification_key_generator_and_server = { path = "../../core/bin/verification_key_generator_and_server" }
 zksync_object_store = { path = "../../core/lib/object_store" }
 
 setup_key_generator_and_server = { path = "../setup_key_generator_and_server" }
