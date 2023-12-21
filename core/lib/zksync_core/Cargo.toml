@@ -28,6 +28,7 @@ zksync_circuit_breaker = { path = "../circuit_breaker" }
 zksync_storage = { path = "../storage" }
 zksync_merkle_tree = { path = "../merkle_tree" }
 zksync_mini_merkle_tree = { path = "../mini_merkle_tree" }
+zksync_verification_key_generator_and_server = { path = "../../bin/verification_key_generator_and_server" }
 prometheus_exporter = { path = "../prometheus_exporter" }
 zksync_web3_decl = { path = "../web3_decl", default-features = false, features = [
     "server",

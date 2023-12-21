@@ -33,6 +33,7 @@ use crate::{l2::TransactionType, protocol_version::ProtocolUpgradeTxCommonData};
 
 pub mod aggregated_operations;
 pub mod block;
+pub mod circuit;
 pub mod commitment;
 pub mod contract_verification_api;
 pub mod contracts;

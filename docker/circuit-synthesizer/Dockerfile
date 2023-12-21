@@ -23,6 +23,7 @@ FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y curl openssl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
 
+COPY core/bin/verification_key_generator_and_server/data/ /core/bin/verification_key_generator_and_server/data/
 COPY --from=builder /usr/src/zksync/target/release/zksync_circuit_synthesizer /usr/bin/
 
 ENTRYPOINT ["zksync_circuit_synthesizer"]

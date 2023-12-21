@@ -56,6 +56,8 @@ COPY contracts/l1-contracts/artifacts/ /contracts/l1-contracts/artifacts/
 COPY contracts/l2-contracts/artifacts-zk/ /contracts/l2-contracts/artifacts-zk/
 COPY setup_2\^26.key /etc/
 
+COPY core/bin/verification_key_generator_and_server/data/ /core/bin/verification_key_generator_and_server/data/
+
 COPY --from=builder /usr/src/zksync/target/release/zksync_prover /usr/bin/
 
 ENTRYPOINT ["zksync_prover"]
