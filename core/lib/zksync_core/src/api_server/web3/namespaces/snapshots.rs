@@ -5,9 +5,7 @@ use zksync_types::{
 use zksync_web3_decl::error::Web3Error;
 
 use crate::{
-    api_server::web3::{
-        backend_jsonrpc::error::internal_error, metrics::API_METRICS, state::RpcState,
-    },
+    api_server::web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, state::RpcState},
     l1_gas_price::L1GasPriceProvider,
 };
 

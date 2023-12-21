@@ -24,7 +24,7 @@ use crate::{
         execution_sandbox::BlockArgs,
         tree::TreeApiHttpClient,
         tx_sender::TxSender,
-        web3::{backend_jsonrpc::error::internal_error, resolve_block, TypedFilter},
+        web3::{backend_jsonrpsee::internal_error, resolve_block, TypedFilter},
     },
     sync_layer::SyncState,
 };
