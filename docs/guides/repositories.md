@@ -52,7 +52,7 @@
 
 | Public repository                                               | Description                                                                   |
 | --------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| [era-test-node](https://github.com/matter-labs/era-test-node)   | In memory node for development and smart contract debugging.                  |
+| [era-test-node](https://github.com/matter-labs/era-test-node)   | In memory node for development and smart contract debugging                  |
 | [local-setup](https://github.com/matter-labs/local-setup)       | Docker-based zk server (together with L1), that can be used for local testing |
 | [zksync-cli](https://github.com/matter-labs/zksync-cli)         | Command line tool to interact with zksync                                     |
 | [block-explorer](https://github.com/matter-labs/block-explorer) | Online blockchain browser for viewing and analyzing zkSync chain              |
