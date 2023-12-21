@@ -70,6 +70,7 @@ impl ApiServerHandles {
                     let err = err.root_cause().to_string();
                     assert!(err.contains("Tokio 1.x context was found"));
                 }
+                eprintln!("{} completed waiting", chrono::Utc::now());
             }
         };
         tokio::time::timeout(TEST_TIMEOUT, stop_server)
