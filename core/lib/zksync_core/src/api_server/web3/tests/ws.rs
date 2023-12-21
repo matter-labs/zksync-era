@@ -36,18 +36,38 @@ async fn log_subscriptions() {
 }
 
 #[tokio::test]
+async fn legacy_log_subscriptions() {
+    test_ws_server(LogSubscriptions, APIMode::Legacy).await;
+}
+
+#[tokio::test]
 async fn log_subscriptions_with_new_block() {
     test_ws_server(LogSubscriptionsWithNewBlock, APIMode::Modern).await;
 }
 
 #[tokio::test]
+async fn legacy_log_subscriptions_with_new_block() {
+    test_ws_server(LogSubscriptionsWithNewBlock, APIMode::Legacy).await;
+}
+
+#[tokio::test]
 async fn log_subscriptions_with_many_new_blocks_at_once() {
+    test_ws_server(LogSubscriptionsWithManyBlocks, APIMode::Modern).await;
+}
+
+#[tokio::test]
+async fn legacy_log_subscriptions_with_many_new_blocks_at_once() {
     test_ws_server(LogSubscriptionsWithManyBlocks, APIMode::Legacy).await;
 }
 
 #[tokio::test]
 async fn log_subscriptions_with_delay() {
     test_ws_server(LogSubscriptionsWithDelay, APIMode::Modern).await;
+}
+
+#[tokio::test]
+async fn legacy_log_subscriptions_with_delay() {
+    test_ws_server(LogSubscriptionsWithDelay, APIMode::Legacy).await;
 }
 
 #[tokio::test]
@@ -303,7 +323,9 @@ impl WsTest for LogSubscriptions {
         drop(storage);
         let events: Vec<_> = get_expected_events(events.iter().collect(), api_mode);
 
-        let all_logs = collect_logs(&mut all_logs_subscription, 4).await?;
+        let expected_count = if api_mode == APIMode::Modern { 6 } else { 7 };
+
+        let all_logs = collect_logs(&mut all_logs_subscription, expected_count).await?;
         for (i, log) in all_logs.iter().enumerate() {
             assert_eq!(log.transaction_index, Some(0.into()));
             assert_eq!(log.log_index, Some(i.into()));
@@ -372,7 +394,8 @@ impl WsTest for LogSubscriptionsWithNewBlock {
         drop(storage);
         let events: Vec<_> = get_expected_events(events.iter().collect(), api_mode);
 
-        let all_logs = collect_logs(&mut all_logs_subscription, 4).await?;
+        let expected_count = if api_mode == APIMode::Modern { 6 } else { 7 };
+        let all_logs = collect_logs(&mut all_logs_subscription, expected_count).await?;
         assert_logs_match(&all_logs, &events);
 
         // Create a new block and wait for the pub-sub notifier to run.
@@ -381,7 +404,7 @@ impl WsTest for LogSubscriptionsWithNewBlock {
         drop(storage);
         let new_events: Vec<_> = get_expected_events(new_events.iter().collect(), api_mode);
 
-        let all_new_logs = collect_logs(&mut all_logs_subscription, 4).await?;
+        let all_new_logs = collect_logs(&mut all_logs_subscription, expected_count).await?;
         assert_logs_match(&all_new_logs, &new_events);
 
         let address_logs = collect_logs(&mut address_subscription, 4).await?;
@@ -421,9 +444,11 @@ impl WsTest for LogSubscriptionsWithManyBlocks {
         transaction.commit().await?;
         drop(storage);
 
-        let all_logs = collect_logs(&mut all_logs_subscription, 4).await?;
+        let expected_count = if api_mode == APIMode::Modern { 6 } else { 7 };
+
+        let all_logs = collect_logs(&mut all_logs_subscription, expected_count).await?;
         assert_logs_match(&all_logs, &events);
-        let all_new_logs = collect_logs(&mut all_logs_subscription, 4).await?;
+        let all_new_logs = collect_logs(&mut all_logs_subscription, expected_count).await?;
         assert_logs_match(&all_new_logs, &new_events);
 
         let address_logs = collect_logs(&mut address_subscription, 4).await?;
@@ -478,7 +503,9 @@ impl WsTest for LogSubscriptionsWithDelay {
         drop(storage);
         let new_events: Vec<_> = get_expected_events(new_events.iter().collect(), api_mode);
 
-        let all_logs = collect_logs(&mut all_logs_subscription, 4).await?;
+        let expected_count = if api_mode == APIMode::Modern { 6 } else { 7 };
+
+        let all_logs = collect_logs(&mut all_logs_subscription, expected_count).await?;
         assert_logs_match(&all_logs, &new_events);
         let address_and_topic_logs = collect_logs(&mut address_and_topic_subscription, 1).await?;
         assert_logs_match(&address_and_topic_logs, &[new_events[3]]);
