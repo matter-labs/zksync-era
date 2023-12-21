@@ -8,7 +8,7 @@
 | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [zksync-era](https://github.com/matter-labs/zksync-era)               | zk server logic, including the APIs and database accesses                                                                                                               |
 | [zksync-wallet-vue](https://github.com/matter-labs/zksync-wallet-vue) | Wallet frontend                                                                                                                                                         |
-| [era-contracts](https://github.com/matter-labs/era-contracts)         | L1 & L2 contracts, that are used to manage bridges and communication between L1 & L2.P rivileged contracts that are running on L2 (like Bootloader or ContractDeployer) |
+| [era-contracts](https://github.com/matter-labs/era-contracts)         | L1 & L2 contracts, that are used to manage bridges and communication between L1 & L2. Privileged contracts that are running on L2 (like Bootloader or ContractDeployer) |
 
 ### Compiler
 
