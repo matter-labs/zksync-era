@@ -411,7 +411,7 @@ pub async fn initialize_components(
                 bounded_gas_adjuster.clone(),
                 state_keeper_config.save_call_traces,
                 storage_caches.clone().unwrap(),
-                false,
+                APIMode::Modern,
             )
             .await
             .context("run_http_api")?;
@@ -448,7 +448,7 @@ pub async fn initialize_components(
                 bounded_gas_adjuster.clone(),
                 state_keeper_config.save_call_traces,
                 storage_caches.clone().unwrap(),
-                true,
+                APIMode::Legacy,
             )
             .await
             .context("run_legacy_http_api")?;
@@ -487,7 +487,7 @@ pub async fn initialize_components(
                 replica_connection_pool.clone(),
                 stop_receiver.clone(),
                 storage_caches.clone(),
-                false,
+                APIMode::Modern,
             )
             .await
             .context("run_ws_api")?;
@@ -518,7 +518,7 @@ pub async fn initialize_components(
                 replica_connection_pool.clone(),
                 stop_receiver.clone(),
                 storage_caches.clone(),
-                true,
+                APIMode::Legacy,
             )
             .await
             .context("run_ws_api")?;
@@ -1240,7 +1240,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     };
 
     let api_builder =
-        web3::ApiBuilder::jsonrpc_backend(internal_api.clone(), replica_connection_pool)
+        web3::ApiBuilder::jsonrpsee_backend(internal_api.clone(), replica_connection_pool)
             .ws(port)
             .with_last_miniblock_pool(last_miniblock_pool)
             .with_filter_limit(api_config.web3_json_rpc.filters_limit())

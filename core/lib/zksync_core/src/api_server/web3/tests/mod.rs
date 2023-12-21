@@ -11,7 +11,6 @@ use zksync_config::configs::{
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
 use zksync_health_check::CheckHealth;
-use zksync_protobuf::build::prost_reflect::prost_types::Api;
 use zksync_state::PostgresStorageCaches;
 use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
 use zksync_types::{

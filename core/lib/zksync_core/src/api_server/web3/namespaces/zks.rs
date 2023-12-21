@@ -3,6 +3,7 @@ use std::{collections::HashMap, convert::TryInto};
 use bigdecimal::{BigDecimal, Zero};
 use zksync_dal::StorageProcessor;
 use zksync_mini_merkle_tree::MiniMerkleTree;
+use zksync_types::api::APIMode;
 use zksync_types::{
     api::{
         BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof, Proof,
@@ -35,19 +36,21 @@ use crate::{
 #[derive(Debug)]
 pub struct ZksNamespace<G> {
     pub state: RpcState<G>,
+    api_mode: APIMode,
 }
 
 impl<G> Clone for ZksNamespace<G> {
     fn clone(&self) -> Self {
         Self {
             state: self.state.clone(),
+            api_mode: self.api_mode,
         }
     }
 }
 
 impl<G: L1GasPriceProvider> ZksNamespace<G> {
-    pub fn new(state: RpcState<G>) -> Self {
-        Self { state }
+    pub fn new(state: RpcState<G>, api_mode: APIMode) -> Self {
+        Self { state, api_mode }
     }
 
     #[tracing::instrument(skip(self, request))]
@@ -254,7 +257,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
                         topics: vec![(2, vec![address_to_h256(&sender)]), (3, vec![msg])],
                     },
                     self.state.api_config.req_entities_limit,
-                    true,
+                    self.api_mode,
                 )
                 .await
                 .map_err(|err| internal_error(METHOD_NAME, err))?;

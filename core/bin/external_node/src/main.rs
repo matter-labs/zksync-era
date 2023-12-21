@@ -35,6 +35,7 @@ use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
+use zksync_types::api::APIMode;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 mod config;
@@ -279,12 +280,12 @@ async fn init_tasks(
             .with_tx_sender(tx_sender.clone(), vm_barrier.clone())
             .with_sync_state(sync_state.clone())
             .enable_api_namespaces(config.optional.api_namespaces())
-            .build(stop_receiver.clone(), false)
+            .build(stop_receiver.clone(), APIMode::Modern)
             .await
             .context("Failed initializing HTTP JSON-RPC server")?;
 
     let legacy_http_server_handles =
-        ApiBuilder::jsonrpc_backend(config.clone().into(), connection_pool.clone())
+        ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
             .http(config.required.http_port)
             .with_filter_limit(config.optional.filters_limit)
             .with_batch_request_size_limit(config.optional.max_batch_request_size)
@@ -293,7 +294,7 @@ async fn init_tasks(
             .with_tx_sender(tx_sender.clone(), vm_barrier.clone())
             .with_sync_state(sync_state.clone())
             .enable_api_namespaces(config.optional.api_namespaces())
-            .build(stop_receiver.clone(), true)
+            .build(stop_receiver.clone(), APIMode::Legacy)
             .await
             .context("Failed initializing legacy HTTP JSON-RPC server")?;
 
@@ -309,12 +310,12 @@ async fn init_tasks(
             .with_tx_sender(tx_sender.clone(), vm_barrier.clone())
             .with_sync_state(sync_state.clone())
             .enable_api_namespaces(config.optional.api_namespaces())
-            .build(stop_receiver.clone(), false)
+            .build(stop_receiver.clone(), APIMode::Modern)
             .await
             .context("Failed initializing WS JSON-RPC server")?;
 
     let legacy_ws_server_handles =
-        ApiBuilder::jsonrpc_backend(config.clone().into(), connection_pool.clone())
+        ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
             .ws(config.required.ws_port)
             .with_filter_limit(config.optional.filters_limit)
             .with_subscriptions_limit(config.optional.subscriptions_limit)
@@ -325,7 +326,7 @@ async fn init_tasks(
             .with_tx_sender(tx_sender, vm_barrier)
             .with_sync_state(sync_state)
             .enable_api_namespaces(config.optional.api_namespaces())
-            .build(stop_receiver.clone(), true)
+            .build(stop_receiver.clone(), APIMode::Legacy)
             .await
             .context("Failed initializing legacy WS JSON-RPC server")?;
 

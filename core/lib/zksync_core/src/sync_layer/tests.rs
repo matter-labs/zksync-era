@@ -9,6 +9,7 @@ use std::{
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::NetworkConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_types::api::APIMode;
 use zksync_types::{
     Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256,
 };
@@ -170,7 +171,7 @@ async fn external_io_basics() {
 
     let tx_receipt = storage
         .transactions_web3_dal()
-        .get_transaction_receipt(tx_hash, true)
+        .get_transaction_receipt(tx_hash, APIMode::Modern)
         .await
         .unwrap()
         .expect("Transaction not persisted");
@@ -490,8 +491,13 @@ async fn fetcher_with_real_server() {
     // Start the API server.
     let network_config = NetworkConfig::for_tests();
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let server_handles =
-        spawn_http_server(&network_config, pool.clone(), stop_receiver.clone(), false).await;
+    let server_handles = spawn_http_server(
+        &network_config,
+        pool.clone(),
+        stop_receiver.clone(),
+        APIMode::Modern,
+    )
+    .await;
     server_handles.wait_until_ready().await;
     let server_addr = &server_handles.local_addr;
 

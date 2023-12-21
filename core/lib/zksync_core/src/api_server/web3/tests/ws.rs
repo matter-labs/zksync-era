@@ -20,6 +20,46 @@ use zksync_web3_decl::{
 use super::*;
 use crate::api_server::web3::metrics::SubscriptionType;
 
+#[tokio::test]
+async fn ws_server_can_start() {
+    test_ws_server(WsServerCanStart, APIMode::Modern).await;
+}
+
+#[tokio::test]
+async fn basic_subscriptions() {
+    test_ws_server(BasicSubscriptions, APIMode::Modern).await;
+}
+
+#[tokio::test]
+async fn log_subscriptions() {
+    test_ws_server(LogSubscriptions, APIMode::Modern).await;
+}
+
+#[tokio::test]
+async fn log_subscriptions_with_new_block() {
+    test_ws_server(LogSubscriptionsWithNewBlock, APIMode::Modern).await;
+}
+
+#[tokio::test]
+async fn log_subscriptions_with_many_new_blocks_at_once() {
+    test_ws_server(LogSubscriptionsWithManyBlocks, APIMode::Modern).await;
+}
+
+#[tokio::test]
+async fn log_subscriptions_with_delay() {
+    test_ws_server(LogSubscriptionsWithDelay, APIMode::Modern).await;
+}
+
+#[tokio::test]
+async fn rate_limiting() {
+    test_ws_server(RateLimiting, APIMode::Modern).await;
+}
+
+#[tokio::test]
+async fn batch_rate_limiting() {
+    test_ws_server(BatchGetsRateLimited, APIMode::Modern).await;
+}
+
 #[allow(clippy::needless_pass_by_ref_mut)] // false positive
 async fn wait_for_subscription(
     events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
@@ -78,7 +118,7 @@ trait WsTest {
     }
 }
 
-async fn test_ws_server(test: impl WsTest) {
+async fn test_ws_server(test: impl WsTest, api_mode: APIMode) {
     let pool = ConnectionPool::test_pool().await;
     let network_config = NetworkConfig::for_tests();
     let mut storage = pool.access_storage().await.unwrap();
@@ -99,6 +139,7 @@ async fn test_ws_server(test: impl WsTest) {
         pool.clone(),
         stop_receiver,
         test.websocket_requests_per_minute_limit(),
+        api_mode,
     )
     .await;
     server_handles.wait_until_ready().await;
@@ -137,11 +178,6 @@ impl WsTest for WsServerCanStart {
         assert!(genesis_l1_batch.base.root_hash.is_some());
         Ok(())
     }
-}
-
-#[tokio::test]
-async fn ws_server_can_start() {
-    test_ws_server(WsServerCanStart).await;
 }
 
 #[derive(Debug)]
@@ -189,11 +225,6 @@ impl WsTest for BasicSubscriptions {
         blocks_subscription.unsubscribe().await?;
         Ok(())
     }
-}
-
-#[tokio::test]
-async fn basic_subscriptions() {
-    test_ws_server(BasicSubscriptions).await;
 }
 
 #[derive(Debug)]
@@ -312,11 +343,6 @@ async fn collect_logs(
     Ok(logs)
 }
 
-#[tokio::test]
-async fn log_subscriptions() {
-    test_ws_server(LogSubscriptions).await;
-}
-
 #[derive(Debug)]
 struct LogSubscriptionsWithNewBlock;
 
@@ -360,11 +386,6 @@ impl WsTest for LogSubscriptionsWithNewBlock {
     }
 }
 
-#[tokio::test]
-async fn log_subscriptions_with_new_block() {
-    test_ws_server(LogSubscriptionsWithNewBlock).await;
-}
-
 #[derive(Debug)]
 struct LogSubscriptionsWithManyBlocks;
 
@@ -404,11 +425,6 @@ impl WsTest for LogSubscriptionsWithManyBlocks {
         );
         Ok(())
     }
-}
-
-#[tokio::test]
-async fn log_subscriptions_with_many_new_blocks_at_once() {
-    test_ws_server(LogSubscriptionsWithManyBlocks).await;
 }
 
 #[derive(Debug)]
@@ -470,11 +486,6 @@ impl WsTest for LogSubscriptionsWithDelay {
     }
 }
 
-#[tokio::test]
-async fn log_subscriptions_with_delay() {
-    test_ws_server(LogSubscriptionsWithDelay).await;
-}
-
 #[derive(Debug)]
 struct RateLimiting;
 
@@ -505,11 +516,6 @@ impl WsTest for RateLimiting {
     fn websocket_requests_per_minute_limit(&self) -> Option<NonZeroU32> {
         Some(NonZeroU32::new(3).unwrap())
     }
-}
-
-#[tokio::test]
-async fn rate_limiting() {
-    test_ws_server(RateLimiting).await;
 }
 
 #[derive(Debug)]
@@ -549,9 +555,4 @@ impl WsTest for BatchGetsRateLimited {
     fn websocket_requests_per_minute_limit(&self) -> Option<NonZeroU32> {
         Some(NonZeroU32::new(3).unwrap())
     }
-}
-
-#[tokio::test]
-async fn batch_rate_limiting() {
-    test_ws_server(BatchGetsRateLimited).await;
 }
