@@ -91,7 +91,7 @@ pub mod gpu_socket_listener {
                     .context("could not accept connection")?
                     .0;
                 tracing::info!(
-                    "Received new witness vector generator connection, waited for {}.",
+                    "Received new witness vector generator connection, waited for {:?}.",
                     now.elapsed()
                 );
 
@@ -111,7 +111,7 @@ pub mod gpu_socket_listener {
                 .context("Failed reading from stream")?;
             let file_size_in_gb = assembly.len() / (1024 * 1024 * 1024);
             tracing::info!(
-                "Read file of size: {}GB from stream after {}",
+                "Read file of size: {}GB from stream after {:?}",
                 file_size_in_gb,
                 started_at.elapsed()
             );
@@ -121,14 +121,17 @@ pub mod gpu_socket_listener {
 
             let witness_vector = bincode::deserialize::<WitnessVectorArtifacts>(&assembly)
                 .context("Failed deserializing witness vector")?;
-            tracing::info!("Deserialized witness vector after {}", started_at.elapsed());
+            tracing::info!(
+                "Deserialized witness vector after {:?}",
+                started_at.elapsed()
+            );
             let assembly = generate_assembly_for_repeated_proving(
                 witness_vector.prover_job.circuit_wrapper.clone(),
                 witness_vector.prover_job.job_id,
                 witness_vector.prover_job.setup_data_key.circuit_id,
             )
             .context("generate_assembly_for_repeated_proving()")?;
-            tracing::info!("Generated assembly after {}", started_at.elapsed());
+            tracing::info!("Generated assembly after {:?}", started_at.elapsed());
             let gpu_prover_job = GpuProverJob {
                 witness_vector_artifacts: witness_vector,
                 assembly,
@@ -141,7 +144,7 @@ pub mod gpu_socket_listener {
                 .add(gpu_prover_job)
                 .map_err(|err| anyhow::anyhow!("Failed saving witness vector to queue: {err}"))?;
             tracing::info!(
-                "Added witness vector to queue after {}",
+                "Added witness vector to queue after {:?}",
                 started_at.elapsed()
             );
             let status = if queue.capacity() == queue.size() {
@@ -158,7 +161,7 @@ pub mod gpu_socket_listener {
                 .update_prover_instance_status(self.address.clone(), status, self.zone.clone())
                 .await;
             tracing::info!(
-                "Marked prover as {:?} after {}",
+                "Marked prover as {:?} after {:?}",
                 status,
                 started_at.elapsed()
             );
