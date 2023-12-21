@@ -73,6 +73,7 @@ impl ApiServerHandles {
                 eprintln!("{} completed waiting", chrono::Utc::now());
             }
         };
+        eprintln!("{} stopping", chrono::Utc::now());
         tokio::time::timeout(TEST_TIMEOUT, stop_server)
             .await
             .unwrap();
