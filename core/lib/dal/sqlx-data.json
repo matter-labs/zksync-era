@@ -8688,48 +8688,6 @@
     },
     "query": "\n            UPDATE prover_jobs_fri\n            SET\n                status = 'sent_to_server',\n                updated_at = NOW()\n            WHERE\n                l1_batch_number = $1\n            "
   },
-  "af74cb82724bdf9fa4f716cf2ee07a011c3ad3f13a2ed37c4bcce515786fc867": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_address",
-          "ordinal": 0,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "l2_address",
-          "ordinal": 1,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "name",
-          "ordinal": 2,
-          "type_info": "Varchar"
-        },
-        {
-          "name": "symbol",
-          "ordinal": 3,
-          "type_info": "Varchar"
-        },
-        {
-          "name": "decimals",
-          "ordinal": 4,
-          "type_info": "Int4"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "\n                SELECT\n                    l1_address,\n                    l2_address,\n                    NAME,\n                    symbol,\n                    decimals\n                FROM\n                    tokens\n                ORDER BY\n                    symbol\n                "
-  },
   "afc24bd1407dba82cd3dc9e7ee71ac4ab2d73bda6022700aeb0a630a2563a4b4": {
     "describe": {
       "columns": [],

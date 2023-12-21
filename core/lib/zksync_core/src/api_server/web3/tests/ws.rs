@@ -1,6 +1,8 @@
 //! WS-related tests.
 
 use async_trait::async_trait;
+use jsonrpsee::core::{client::ClientT, params::BatchRequestBuilder, ClientError};
+use reqwest::StatusCode;
 use tokio::sync::watch;
 use zksync_config::configs::chain::NetworkConfig;
 use zksync_dal::ConnectionPool;
@@ -17,36 +19,6 @@ use zksync_web3_decl::{
 
 use super::*;
 use crate::api_server::web3::metrics::SubscriptionType;
-
-#[tokio::test]
-async fn ws_server_can_start() {
-    test_ws_server(WsServerCanStart, APIMode::Modern).await;
-}
-
-#[tokio::test]
-async fn basic_subscriptions() {
-    test_ws_server(BasicSubscriptions, APIMode::Modern).await;
-}
-
-#[tokio::test]
-async fn log_subscriptions() {
-    test_ws_server(LogSubscriptions, APIMode::Modern).await;
-}
-
-#[tokio::test]
-async fn log_subscriptions_with_new_block() {
-    test_ws_server(LogSubscriptionsWithNewBlock, APIMode::Legacy).await;
-}
-
-#[tokio::test]
-async fn log_subscriptions_with_many_new_blocks_at_once() {
-    test_ws_server(LogSubscriptionsWithManyBlocks, APIMode::Modern).await;
-}
-
-#[tokio::test]
-async fn log_subscriptions_with_delay() {
-    test_ws_server(LogSubscriptionsWithDelay, APIMode::Modern).await;
-}
 
 #[allow(clippy::needless_pass_by_ref_mut)] // false positive
 async fn wait_for_subscription(
@@ -100,9 +72,13 @@ trait WsTest {
         pool: &ConnectionPool,
         pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()>;
+
+    fn websocket_requests_per_minute_limit(&self) -> Option<NonZeroU32> {
+        None
+    }
 }
 
-async fn test_ws_server(test: impl WsTest, api_mode: APIMode) {
+async fn test_ws_server(test: impl WsTest) {
     let pool = ConnectionPool::test_pool().await;
     let network_config = NetworkConfig::for_tests();
     let mut storage = pool.access_storage().await.unwrap();
@@ -118,8 +94,13 @@ async fn test_ws_server(test: impl WsTest, api_mode: APIMode) {
     drop(storage);
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let (server_handles, pub_sub_events) =
-        spawn_ws_server(&network_config, pool.clone(), stop_receiver, api_mode).await;
+    let (server_handles, pub_sub_events) = spawn_ws_server(
+        &network_config,
+        pool.clone(),
+        stop_receiver,
+        test.websocket_requests_per_minute_limit(),
+    )
+    .await;
     server_handles.wait_until_ready().await;
 
     let client = WsClientBuilder::default()
@@ -156,6 +137,11 @@ impl WsTest for WsServerCanStart {
         assert!(genesis_l1_batch.base.root_hash.is_some());
         Ok(())
     }
+}
+
+#[tokio::test]
+async fn ws_server_can_start() {
+    test_ws_server(WsServerCanStart).await;
 }
 
 #[derive(Debug)]
@@ -203,6 +189,11 @@ impl WsTest for BasicSubscriptions {
         blocks_subscription.unsubscribe().await?;
         Ok(())
     }
+}
+
+#[tokio::test]
+async fn basic_subscriptions() {
+    test_ws_server(BasicSubscriptions).await;
 }
 
 #[derive(Debug)]
@@ -273,16 +264,9 @@ impl WsTest for LogSubscriptions {
         let mut storage = pool.access_storage().await?;
         let (tx_location, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
-        let events: Vec<_> = events
-            .iter()
-            .filter(|event| {
-                !(event.address == L2_ETH_TOKEN_ADDRESS
-                    && !event.indexed_topics.is_empty()
-                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
-            })
-            .collect();
+        let events: Vec<_> = events.iter().collect();
 
-        let all_logs = collect_logs(&mut all_logs_subscription, 6).await?;
+        let all_logs = collect_logs(&mut all_logs_subscription, 4).await?;
         for (i, log) in all_logs.iter().enumerate() {
             assert_eq!(log.transaction_index, Some(0.into()));
             assert_eq!(log.log_index, Some(i.into()));
@@ -328,6 +312,11 @@ async fn collect_logs(
     Ok(logs)
 }
 
+#[tokio::test]
+async fn log_subscriptions() {
+    test_ws_server(LogSubscriptions).await;
+}
+
 #[derive(Debug)]
 struct LogSubscriptionsWithNewBlock;
 
@@ -348,32 +337,18 @@ impl WsTest for LogSubscriptionsWithNewBlock {
         let mut storage = pool.access_storage().await?;
         let (_, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
-        let events: Vec<_> = events
-            .iter()
-            .filter(|event| {
-                !(event.address == L2_ETH_TOKEN_ADDRESS
-                    && !event.indexed_topics.is_empty()
-                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
-            })
-            .collect();
+        let events: Vec<_> = events.iter().collect();
 
-        let all_logs = collect_logs(&mut all_logs_subscription, 6).await?;
+        let all_logs = collect_logs(&mut all_logs_subscription, 4).await?;
         assert_logs_match(&all_logs, &events);
 
         // Create a new block and wait for the pub-sub notifier to run.
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
-        let new_events: Vec<_> = new_events
-            .iter()
-            .filter(|event| {
-                !(event.address == L2_ETH_TOKEN_ADDRESS
-                    && !event.indexed_topics.is_empty()
-                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
-            })
-            .collect();
+        let new_events: Vec<_> = new_events.iter().collect();
 
-        let all_new_logs = collect_logs(&mut all_logs_subscription, 6).await?;
+        let all_new_logs = collect_logs(&mut all_logs_subscription, 4).await?;
         assert_logs_match(&all_new_logs, &new_events);
 
         let address_logs = collect_logs(&mut address_subscription, 4).await?;
@@ -383,6 +358,11 @@ impl WsTest for LogSubscriptionsWithNewBlock {
         );
         Ok(())
     }
+}
+
+#[tokio::test]
+async fn log_subscriptions_with_new_block() {
+    test_ws_server(LogSubscriptionsWithNewBlock).await;
 }
 
 #[derive(Debug)]
@@ -406,29 +386,15 @@ impl WsTest for LogSubscriptionsWithManyBlocks {
         let mut storage = pool.access_storage().await?;
         let mut transaction = storage.start_transaction().await?;
         let (_, events) = store_events(&mut transaction, 1, 0).await?;
-        let events: Vec<_> = events
-            .iter()
-            .filter(|event| {
-                !(event.address == L2_ETH_TOKEN_ADDRESS
-                    && !event.indexed_topics.is_empty()
-                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
-            })
-            .collect();
+        let events: Vec<_> = events.iter().collect();
         let (_, new_events) = store_events(&mut transaction, 2, 4).await?;
-        let new_events: Vec<_> = new_events
-            .iter()
-            .filter(|event| {
-                !(event.address == L2_ETH_TOKEN_ADDRESS
-                    && !event.indexed_topics.is_empty()
-                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
-            })
-            .collect();
+        let new_events: Vec<_> = new_events.iter().collect();
         transaction.commit().await?;
         drop(storage);
 
-        let all_logs = collect_logs(&mut all_logs_subscription, 6).await?;
+        let all_logs = collect_logs(&mut all_logs_subscription, 4).await?;
         assert_logs_match(&all_logs, &events);
-        let all_new_logs = collect_logs(&mut all_logs_subscription, 6).await?;
+        let all_new_logs = collect_logs(&mut all_logs_subscription, 4).await?;
         assert_logs_match(&all_new_logs, &new_events);
 
         let address_logs = collect_logs(&mut address_subscription, 4).await?;
@@ -438,6 +404,11 @@ impl WsTest for LogSubscriptionsWithManyBlocks {
         );
         Ok(())
     }
+}
+
+#[tokio::test]
+async fn log_subscriptions_with_many_new_blocks_at_once() {
+    test_ws_server(LogSubscriptionsWithManyBlocks).await;
 }
 
 #[derive(Debug)]
@@ -480,16 +451,9 @@ impl WsTest for LogSubscriptionsWithDelay {
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
-        let new_events: Vec<_> = new_events
-            .iter()
-            .filter(|event| {
-                !(event.address == L2_ETH_TOKEN_ADDRESS
-                    && !event.indexed_topics.is_empty()
-                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
-            })
-            .collect();
+        let new_events: Vec<_> = new_events.iter().collect();
 
-        let all_logs = collect_logs(&mut all_logs_subscription, 6).await?;
+        let all_logs = collect_logs(&mut all_logs_subscription, 4).await?;
         assert_logs_match(&all_logs, &new_events);
         let address_and_topic_logs = collect_logs(&mut address_and_topic_subscription, 1).await?;
         assert_logs_match(&address_and_topic_logs, &[new_events[3]]);
@@ -504,4 +468,90 @@ impl WsTest for LogSubscriptionsWithDelay {
         assert_logs_match(&address_and_topic_logs, &[&new_events[3]]);
         Ok(())
     }
+}
+
+#[tokio::test]
+async fn log_subscriptions_with_delay() {
+    test_ws_server(LogSubscriptionsWithDelay).await;
+}
+
+#[derive(Debug)]
+struct RateLimiting;
+
+#[async_trait]
+impl WsTest for RateLimiting {
+    async fn test(
+        &self,
+        client: &WsClient,
+        _pool: &ConnectionPool,
+        _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+    ) -> anyhow::Result<()> {
+        client.chain_id().await.unwrap();
+        client.chain_id().await.unwrap();
+        client.chain_id().await.unwrap();
+        let expected_err = client.chain_id().await.unwrap_err();
+
+        if let ClientError::Call(error) = expected_err {
+            assert_eq!(error.code() as u16, StatusCode::TOO_MANY_REQUESTS.as_u16());
+            assert_eq!(error.message(), "Too many requests");
+            assert!(error.data().is_none());
+        } else {
+            panic!("Unexpected error returned: {expected_err}");
+        }
+
+        Ok(())
+    }
+
+    fn websocket_requests_per_minute_limit(&self) -> Option<NonZeroU32> {
+        Some(NonZeroU32::new(3).unwrap())
+    }
+}
+
+#[tokio::test]
+async fn rate_limiting() {
+    test_ws_server(RateLimiting).await;
+}
+
+#[derive(Debug)]
+struct BatchGetsRateLimited;
+
+#[async_trait]
+impl WsTest for BatchGetsRateLimited {
+    async fn test(
+        &self,
+        client: &WsClient,
+        _pool: &ConnectionPool,
+        _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+    ) -> anyhow::Result<()> {
+        client.chain_id().await.unwrap();
+        client.chain_id().await.unwrap();
+
+        let mut batch = BatchRequestBuilder::new();
+        batch.insert("eth_chainId", rpc_params![]).unwrap();
+        batch.insert("eth_chainId", rpc_params![]).unwrap();
+
+        let mut expected_err = client
+            .batch_request::<String>(batch)
+            .await
+            .unwrap()
+            .into_ok()
+            .unwrap_err();
+
+        let error = expected_err.next().unwrap();
+
+        assert_eq!(error.code() as u16, StatusCode::TOO_MANY_REQUESTS.as_u16());
+        assert_eq!(error.message(), "Too many requests");
+        assert!(error.data().is_none());
+
+        Ok(())
+    }
+
+    fn websocket_requests_per_minute_limit(&self) -> Option<NonZeroU32> {
+        Some(NonZeroU32::new(3).unwrap())
+    }
+}
+
+#[tokio::test]
+async fn batch_rate_limiting() {
+    test_ws_server(BatchGetsRateLimited).await;
 }
