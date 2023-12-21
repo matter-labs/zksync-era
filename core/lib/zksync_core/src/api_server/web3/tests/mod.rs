@@ -76,7 +76,7 @@ impl ApiServerHandles {
         eprintln!("{} stopping", chrono::Utc::now());
         tokio::time::timeout(TEST_TIMEOUT, stop_server)
             .await
-            .expect(format!("panicking at {}", chrono::Utc::now()));
+            .expect(format!("panicking at {}", chrono::Utc::now()).as_str());
     }
 }
 
