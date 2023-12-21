@@ -34,11 +34,11 @@
 | [era-zkevm_test_harness](https://github.com/matter-labs/era-zkevm_test_harness) | Tests that compare the two implementation of the zkEVM - the non-circuit one (zk_evm) and the circuit one (sync_vm) |
 | [era-zkevm_tester](https://github.com/matter-labs/era-zkevm_tester)             | Assembly runner for zkEVM testing                                                                                   |
 | [era-boojum](https://github.com/matter-labs/era-boojum)                         | New proving system library - containing gadgets and gates                                                           |
-| [era-shivini](https://github.com/matter-labs/era-shivini)                       | Cuda / GPU implementation for the new proving system.                                                               |
-| [era-zkevm_circuits](https://github.com/matter-labs/era-zkevm_circuits)         | Circuits for the new proving system.                                                                                |
+| [era-shivini](https://github.com/matter-labs/era-shivini)                       | Cuda / GPU implementation for the new proving system                                                               |
+| [era-zkevm_circuits](https://github.com/matter-labs/era-zkevm_circuits)         | Circuits for the new proving system                                                                                |
 | [franklin-crypto](https://github.com/matter-labs/franklin-crypto)               | Gadget library for the Plonk / plookup                                                                              |
-| [rescue-poseidon](https://github.com/matter-labs/rescue-poseidon)               | Library with hash functions used by the crypto.                                                                     |
-| [snark-wrapper](https://github.com/matter-labs/snark-wrapper)                   | Circuit to wrap the final FRI proof into snark for improved efficiency.                                             |
+| [rescue-poseidon](https://github.com/matter-labs/rescue-poseidon)               | Library with hash functions used by the crypto                                                                     |
+| [snark-wrapper](https://github.com/matter-labs/snark-wrapper)                   | Circuit to wrap the final FRI proof into snark for improved efficiency                                             |
 
 #### Old proving system
 
