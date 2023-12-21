@@ -34,7 +34,7 @@ on:
       CUDA_ARCH:
         description: "CUDA Arch to build"
         type: string
-        default: "89"
+        default: "60;70;75;89"
         required: false
 
 jobs:

@@ -105,7 +105,7 @@ async function _build(image: string, tagList: string[], dockerOrg: string) {
     }
     if (image === 'prover-gpu-fri') {
         const cudaArch = process.env.CUDA_ARCH;
-        buildArgs += `--build-arg CUDA_ARCH=${cudaArch}`;
+        buildArgs += `--build-arg CUDA_ARCH='${cudaArch}'`;
     }
 
     // HACK
