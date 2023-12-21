@@ -425,7 +425,7 @@ impl ContractVerificationDal<'_, '_> {
                 NOW(),
                 NOW()
             FROM
-                UNNEST($1::TEXT[]) AS u (VERSION)
+                UNNEST($1::TEXT []) AS u (VERSION)
             ON CONFLICT (VERSION, compiler) DO NOTHING
             "#,
             &versions,
