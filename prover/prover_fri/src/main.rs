@@ -123,7 +123,7 @@ async fn main() -> anyhow::Result<()> {
     // There are 2 threads using the connection pool:
     // 1. The prover thread, which is used to update the prover job status.
     // 2. The socket listener thread, which is used to update the prover instance status.
-    const MAX_POOL_SIZE_FOR_PROVER: i32 = 2;
+    const MAX_POOL_SIZE_FOR_PROVER: u32 = 2;
 
     let pool = ConnectionPool::builder(postgres_config.prover_url()?, MAX_POOL_SIZE_FOR_PROVER)
         .build()
