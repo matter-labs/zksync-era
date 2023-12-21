@@ -1,8 +1,7 @@
 use sqlx::Row;
 use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
-use zksync_types::api::APIMode;
 use zksync_types::{
-    api::{GetLogsFilter, Log},
+    api::{APIMode, GetLogsFilter, Log},
     Address, MiniblockNumber, H256,
 };
 

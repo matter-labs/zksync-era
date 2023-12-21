@@ -8,8 +8,7 @@ use tokio::{
     time::{interval, Duration},
 };
 use zksync_dal::ConnectionPool;
-use zksync_types::api::APIMode;
-use zksync_types::{MiniblockNumber, H128, H256};
+use zksync_types::{api::APIMode, MiniblockNumber, H128, H256};
 use zksync_web3_decl::{
     jsonrpsee::{
         core::{server::SubscriptionMessage, SubscriptionResult},

@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_types::api::APIMode;
 use zksync_types::{
+    api::APIMode,
     block::{L1BatchHeader, MiniblockHasher, MiniblockHeader},
     fee::{Fee, TransactionExecutionMetrics},
     helpers::unix_timestamp_ms,

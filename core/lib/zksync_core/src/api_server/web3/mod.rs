@@ -11,8 +11,7 @@ use tokio::{
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_types::api::APIMode;
-use zksync_types::{api, MiniblockNumber};
+use zksync_types::{api, api::APIMode, MiniblockNumber};
 use zksync_web3_decl::{
     error::Web3Error,
     jsonrpsee::{

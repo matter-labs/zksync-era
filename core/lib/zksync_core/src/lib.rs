@@ -34,8 +34,8 @@ use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_utils::periodic_job::PeriodicJob;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
-use zksync_types::api::APIMode;
 use zksync_types::{
+    api::APIMode,
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
     L2ChainId, PackedEthSignature, ProtocolVersionId,

@@ -9,9 +9,9 @@ use std::{
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::NetworkConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_types::api::APIMode;
 use zksync_types::{
-    Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256,
+    api::APIMode, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId,
+    Transaction, H256,
 };
 
 use super::{fetcher::FetcherCursor, sync_action::SyncAction, *};

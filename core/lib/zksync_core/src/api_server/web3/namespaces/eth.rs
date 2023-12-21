@@ -1,8 +1,7 @@
-use zksync_types::api::APIMode;
 use zksync_types::{
     api::{
-        BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
-        TransactionVariant,
+        APIMode, BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId,
+        TransactionReceipt, TransactionVariant,
     },
     l2::{L2Tx, TransactionType},
     transaction_request::CallRequest,
