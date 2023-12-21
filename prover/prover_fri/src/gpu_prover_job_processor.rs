@@ -210,7 +210,7 @@ pub mod gpu_prover {
             );
             match queue.remove() {
                 Err(_) => {
-                    tracing::warn!("No assembly available in queue after {}.", now.elapsed());
+                    tracing::warn!("No assembly available in queue after {:?}.", now.elapsed());
                     Ok(None)
                 }
                 Ok(item) => {
@@ -227,7 +227,7 @@ pub mod gpu_prover {
                             .await;
                     }
                     tracing::info!(
-                        "Assembly received after {}. Starting GPU proving for job: {:?}",
+                        "Assembly received after {:?}. Starting GPU proving for job: {:?}",
                         now.elapsed(),
                         item.witness_vector_artifacts.prover_job.job_id
                     );
