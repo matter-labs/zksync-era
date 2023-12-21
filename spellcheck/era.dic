@@ -279,6 +279,9 @@ blake2
 AR16MT
 Preimages
 EN's
+StorageBatchInfo
+CommitBatchInfo
+IExecutor
 
 // Names
 Vyper
