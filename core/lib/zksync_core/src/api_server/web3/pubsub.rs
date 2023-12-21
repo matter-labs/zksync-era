@@ -90,17 +90,20 @@ impl PubSubNotifier {
 
             if let Some(last_block) = new_blocks.last() {
                 last_block_number = MiniblockNumber(last_block.number.unwrap().as_u32());
-
                 let new_blocks = new_blocks.into_iter().map(PubSubResult::Header).collect();
-                // Errors only on 0 receivers, but we want to go on
-                // if we have 0 subscribers so ignore the error.
-                self.sender.send(new_blocks).ok();
+                self.send_pub_sub_results(new_blocks, SubscriptionType::Blocks);
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(
                 SubscriptionType::Blocks,
             ));
         }
         Ok(())
+    }
+
+    fn send_pub_sub_results(&self, results: Vec<PubSubResult>, sub_type: SubscriptionType) {
+        // Errors only on 0 receivers, but we want to go on if we have 0 subscribers so ignore the error.
+        self.sender.send(results).ok();
+        PUB_SUB_METRICS.broadcast_channel_len[&sub_type].set(self.sender.len());
     }
 
     async fn new_blocks(
@@ -116,9 +119,7 @@ impl PubSubNotifier {
             .await
             .with_context(|| format!("get_block_headers_after({last_block_number})"))
     }
-}
 
-impl PubSubNotifier {
     async fn notify_txs(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut last_time = chrono::Utc::now().naive_utc();
         let mut timer = interval(self.polling_interval);
@@ -135,11 +136,8 @@ impl PubSubNotifier {
 
             if let Some(new_last_time) = new_last_time {
                 last_time = new_last_time;
-
                 let new_txs = new_txs.into_iter().map(PubSubResult::TxHash).collect();
-                // Errors only on 0 receivers, but we want to go on
-                // if we have 0 subscribers so ignore the error.
-                self.sender.send(new_txs).ok();
+                self.send_pub_sub_results(new_txs, SubscriptionType::Txs);
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(SubscriptionType::Txs));
         }
@@ -159,9 +157,7 @@ impl PubSubNotifier {
             .await
             .context("get_pending_txs_hashes_after()")
     }
-}
 
-impl PubSubNotifier {
     async fn notify_logs(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut last_block_number = self.sealed_miniblock_number().await?;
         let mut timer = interval(self.polling_interval);
@@ -178,12 +174,8 @@ impl PubSubNotifier {
 
             if let Some(last_log) = new_logs.last() {
                 last_block_number = MiniblockNumber(last_log.block_number.unwrap().as_u32());
-
                 let new_logs = new_logs.into_iter().map(PubSubResult::Log).collect();
-
-                // Errors only on 0 receivers, but we want to go on
-                // if we have 0 subscribers so ignore the error.
-                self.sender.send(new_logs).ok();
+                self.send_pub_sub_results(new_logs, SubscriptionType::Logs);
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(SubscriptionType::Logs));
         }
