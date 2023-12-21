@@ -21,8 +21,8 @@ codegen = { git = "https://github.com/matter-labs/solidity_plonk_verifier.git", 
 zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.3" }
 zk_evm_1_4_0 = { git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.4.0", package = "zk_evm" }
 zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", tag = "v1.3.3-rc2" }
-zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "49b1a98f80d0e9f74fdceadece4283e745c71599" }
-zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "49b1a98f80d0e9f74fdceadece4283e745c71599" }
+zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "84cdd9e45fd84bc1fac0b394c899ae33aef91afa" }
+zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "84cdd9e45fd84bc1fac0b394c899ae33aef91afa" }
 
 anyhow = "1.0.75"
 chrono = { version = "0.4", features = ["serde"] }
@@ -53,4 +53,4 @@ tokio = { version = "1", features = ["rt", "macros"] }
 serde_with = { version = "1", features = ["hex"] }
 
 [build-dependencies]
-zksync_protobuf_build = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "49b1a98f80d0e9f74fdceadece4283e745c71599" }
+zksync_protobuf_build = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "84cdd9e45fd84bc1fac0b394c899ae33aef91afa" }
