@@ -4,50 +4,55 @@
 
 ### Core components
 
-| Public repository                                                     | Description                                               |
-| --------------------------------------------------------------------- | --------------------------------------------------------- |
-| [zksync-era](https://github.com/matter-labs/zksync-era)               | zk server logic, including the APIs and database accesses |
-| [zksync-wallet-vue](https://github.com/matter-labs/zksync-wallet-vue) | Wallet frontend                                           |
-
-### Contracts
-
-| Public repository                                                           | Description                                                                           |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| [era-contracts](https://github.com/matter-labs/era-contracts)               | L1 & L2 contracts, that are used to manage bridges and communication between L1 & L2. |
-| [era-system-contracts](https://github.com/matter-labs/era-system-contracts) | Privileged contracts that are running on L2 (like Bootloader oc ContractDeployer)     |
-| [v2-testnet-contracts](https://github.com/matter-labs/v2-testnet-contracts) |                                                                                       |
+| Public repository                                                     | Description                                                                                                                                                             |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [zksync-era](https://github.com/matter-labs/zksync-era)               | zk server logic, including the APIs and database accesses                                                                                                               |
+| [zksync-wallet-vue](https://github.com/matter-labs/zksync-wallet-vue) | Wallet frontend                                                                                                                                                         |
+| [era-contracts](https://github.com/matter-labs/era-contracts)         | L1 & L2 contracts, that are used to manage bridges and communication between L1 & L2. Privileged contracts that are running on L2 (like Bootloader or ContractDeployer) |
 
 ### Compiler
 
-| Internal repository                                                           | Public repository                                                                     | Description                                                         |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| [compiler-tester](https://github.com/matter-labs/compiler-tester)             | [era-compiler-tester](https://github.com/matter-labs/era-compiler-tester)             | Integration testing framework for running executable tests on zkEVM |
-| [compiler-tests](https://github.com/matter-labs/compiler-tests)               | [era-compiler-tests](https://github.com/matter-labs/era-compiler-tests)               | Collection of executable tests for zkEVM                            |
-| [compiler-llvm](https://github.com/matter-labs/compiler-llvm)                 | [era-compiler-llvm](https://github.com/matter-labs/compiler-llvm)                     | zkEVM fork of the LLVM framework                                    |
-| [compiler-solidity](https://github.com/matter-labs/compiler-solidity)         | [era-compiler-solidity](https://github.com/matter-labs/era-compiler-solidity)         | Solidity Yul/EVMLA compiler front end                               |
-| [compiler-vyper](https://github.com/matter-labs/compiler-vyper)               | [era-compiler-vyper](https://github.com/matter-labs/era-compiler-vyper)               | Vyper LLL compiler front end                                        |
-| [compiler-llvm-context](https://github.com/matter-labs/compiler-llvm-context) | [era-compiler-llvm-context](https://github.com/matter-labs/era-compiler-llvm-context) | LLVM IR generator logic shared by multiple front ends               |
-| [compiler-common](https://github.com/matter-labs/compiler-common)             | [era-compiler-common](https://github.com/matter-labs/era-compiler-common)             | Common compiler constants                                           |
-|                                                                               | [era-compiler-llvm-builder](https://github.com/matter-labs/era-compiler-llvm-builder) | Tool for building our fork of the LLVM framework                    |
+| Public repository                                                                     | Description                                                         |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| [era-compiler-tester](https://github.com/matter-labs/era-compiler-tester)             | Integration testing framework for running executable tests on zkEVM |
+| [era-compiler-tests](https://github.com/matter-labs/era-compiler-tests)               | Collection of executable tests for zkEVM                            |
+| [era-compiler-llvm](https://github.com/matter-labs/compiler-llvm)                     | zkEVM fork of the LLVM framework                                    |
+| [era-compiler-solidity](https://github.com/matter-labs/era-compiler-solidity)         | Solidity Yul/EVMLA compiler front end                               |
+| [era-compiler-vyper](https://github.com/matter-labs/era-compiler-vyper)               | Vyper LLL compiler front end                                        |
+| [era-compiler-llvm-context](https://github.com/matter-labs/era-compiler-llvm-context) | LLVM IR generator logic shared by multiple front ends               |
+| [era-compiler-common](https://github.com/matter-labs/era-compiler-common)             | Common compiler constants                                           |
+| [era-compiler-llvm-builder](https://github.com/matter-labs/era-compiler-llvm-builder) | Tool for building our fork of the LLVM framework                    |
 
-### zkEVM
+### zkEVM / crypto
 
-| Internal repository                                                     | Public repository                                                               | Description                                                                                                         |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| [zkevm_opcode_defs](https://github.com/matter-labs/zkevm_opcode_defs)   | [era-zkevm_opcode_defs](https://github.com/matter-labs/era-zkevm_opcode_defs)   | Opcode definitions for zkEVM - main dependency for many other repos                                                 |
-| [zk_evm](https://github.com/matter-labs/zk_evm)                         | [era-zk_evm](https://github.com/matter-labs/era-zk_evm)                         | EVM implementation in pure rust, without circuits                                                                   |
-| [sync_vm](https://github.com/matter-labs/sync_evm)                      | [era-sync_vm](https://github.com/matter-labs/era-sync_vm)                       | EVM implementation using circuits                                                                                   |
-| [zkEVM-assembly](https://github.com/matter-labs/zkEVM-assembly)         | [era-zkEVM-assembly](https://github.com/matter-labs/era-zkEVM-assembly)         | Code for parsing zkEVM assembly                                                                                     |
-| [zkevm_test_harness](https://github.com/matter-labs/zkevm_test_harness) | [era-zkevm_test_harness](https://github.com/matter-labs/era-zkevm_test_harness) | Tests that compare the two implementation of the zkEVM - the non-circuit one (zk_evm) and the circuit one (sync_vm) |
-| [circuit_testing](https://github.com/matter-labs/circuit_testing)       | [era-cicruit_testing](https://github.com/matter-labs/era-circuit_testing)       | ??                                                                                                                  |
-| [heavy-ops-service](https://github.com/matter-labs/heavy-ops-service)   | [era-heavy-ops-service](https://github.com/matter-labs/era-heavy-ops-service)   | Main circuit prover, that requires GPU to run.                                                                      |
-| [bellman-cuda](https://github.com/matter-labs/bellman-cuda)             | [era-bellman-cuda](https://github.com/matter-labs/era-bellman-cuda)             | Cuda implementations for cryptographic functions used by the prover                                                 |
-| [zkevm_tester](https://github.com/matter-labs/zkevm_tester)             | [era-zkevm_tester](https://github.com/matter-labs/era-zkevm_tester)             | Assembly runner for zkEVM testing                                                                                   |
+| Public repository                                                               | Description                                                                                                         |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| [era-zkevm_opcode_defs](https://github.com/matter-labs/era-zkevm_opcode_defs)   | Opcode definitions for zkEVM - main dependency for many other repos                                                 |
+| [era-zk_evm](https://github.com/matter-labs/era-zk_evm)                         | EVM implementation in pure rust, without circuits                                                                   |
+| [era-sync_vm](https://github.com/matter-labs/era-sync_vm)                       | EVM implementation using circuits                                                                                   |
+| [era-zkEVM-assembly](https://github.com/matter-labs/era-zkEVM-assembly)         | Code for parsing zkEVM assembly                                                                                     |
+| [era-zkevm_test_harness](https://github.com/matter-labs/era-zkevm_test_harness) | Tests that compare the two implementation of the zkEVM - the non-circuit one (zk_evm) and the circuit one (sync_vm) |
+| [era-zkevm_tester](https://github.com/matter-labs/era-zkevm_tester)             | Assembly runner for zkEVM testing                                                                                   |
+| [era-boojum](https://github.com/matter-labs/era-boojum)                         | New proving system library - containing gadgets and gates                                                           |
+| [era-shivini](https://github.com/matter-labs/era-shivini)                       | Cuda / GPU implementation for the new proving system                                                                |
+| [era-zkevm_circuits](https://github.com/matter-labs/era-zkevm_circuits)         | Circuits for the new proving system                                                                                 |
+| [franklin-crypto](https://github.com/matter-labs/franklin-crypto)               | Gadget library for the Plonk / plookup                                                                              |
+| [rescue-poseidon](https://github.com/matter-labs/rescue-poseidon)               | Library with hash functions used by the crypto repositories                                                         |
+| [snark-wrapper](https://github.com/matter-labs/snark-wrapper)                   | Circuit to wrap the final FRI proof into snark for improved efficiency                                              |
+
+#### Old proving system
+
+| Public repository                                                             | Description                                                         |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| [era-bellman-cuda](https://github.com/matter-labs/era-bellman-cuda)           | Cuda implementations for cryptographic functions used by the prover |
+| [era-heavy-ops-service](https://github.com/matter-labs/era-heavy-ops-service) | Main circuit prover that requires GPU to run                        |
+| [era-cicruit_testing](https://github.com/matter-labs/era-circuit_testing)     | ??                                                                  |
 
 ### Tools & contract developers
 
 | Public repository                                               | Description                                                                   |
 | --------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| [era-test-node](https://github.com/matter-labs/era-test-node)   | In memory node for development and smart contract debugging                   |
 | [local-setup](https://github.com/matter-labs/local-setup)       | Docker-based zk server (together with L1), that can be used for local testing |
 | [zksync-cli](https://github.com/matter-labs/zksync-cli)         | Command line tool to interact with zksync                                     |
 | [block-explorer](https://github.com/matter-labs/block-explorer) | Online blockchain browser for viewing and analyzing zkSync chain              |
