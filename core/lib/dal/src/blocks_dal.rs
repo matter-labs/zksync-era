@@ -2177,7 +2177,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            l1_batch_number.0 as u32
+            l1_batch_number.0 as i32
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -2197,7 +2197,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            miniblock_number.0 as u32
+            miniblock_number.0 as i32
         )
         .fetch_optional(self.storage.conn())
         .await?

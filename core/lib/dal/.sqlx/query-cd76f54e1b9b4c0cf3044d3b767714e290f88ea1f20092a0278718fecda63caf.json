@@ -1,0 +1,125 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                UPDATE prover_jobs\n                SET\n                    status = 'in_progress',\n                    attempts = attempts + 1,\n                    updated_at = NOW(),\n                    processing_started_at = NOW()\n                WHERE\n                    id = (\n                        SELECT\n                            id\n                        FROM\n                            prover_jobs\n                        WHERE\n                            circuit_type = ANY ($1)\n                            AND status = 'queued'\n                            AND protocol_version = ANY ($2)\n                        ORDER BY\n                            aggregation_round DESC,\n                            l1_batch_number ASC,\n                            id ASC\n                        LIMIT\n                            1\n                        FOR UPDATE\n                            SKIP LOCKED\n                    )\n                RETURNING\n                    prover_jobs.*\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "circuit_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "prover_input",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 4,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "error",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "processing_started_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 8,
+        "name": "updated_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 9,
+        "name": "time_taken",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 10,
+        "name": "aggregation_round",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "result",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 12,
+        "name": "sequence_number",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 13,
+        "name": "attempts",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 14,
+        "name": "circuit_input_blob_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "proccesed_by",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "is_blob_cleaned",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 17,
+        "name": "protocol_version",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "Int4Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "cd76f54e1b9b4c0cf3044d3b767714e290f88ea1f20092a0278718fecda63caf"
+}

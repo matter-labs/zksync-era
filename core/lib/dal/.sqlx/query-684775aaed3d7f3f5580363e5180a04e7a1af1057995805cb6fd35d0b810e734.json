@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                UPDATE gpu_prover_queue\n                SET\n                    instance_status = $1,\n                    updated_at = NOW(),\n                    queue_free_slots = $4\n                WHERE\n                    instance_host = $2::TEXT::inet\n                    AND instance_port = $3\n                    AND region = $5\n                    AND zone = $6\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int4",
+        "Int4",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "684775aaed3d7f3f5580363e5180a04e7a1af1057995805cb6fd35d0b810e734"
+}

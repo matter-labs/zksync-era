@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT\n                    id,\n                    circuit_input_blob_url\n                FROM\n                    prover_jobs\n                WHERE\n                    status = 'successful'\n                    AND circuit_input_blob_url IS NOT NULL\n                    AND updated_at < NOW() - INTERVAL '30 days'\n                LIMIT\n                    $1;\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "circuit_input_blob_url",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "3263423b6097fac01eadd978b826b831321c10f91b87cea38dc8a7377da9385e"
+}

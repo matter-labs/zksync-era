@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                UPDATE prover_jobs\n                SET\n                    status = $1,\n                    updated_at = NOW()\n                WHERE\n                    id = $2\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0587fadb4f7a014caddf9e540cd2a1ece830de8777d945d48bd9c796fefb3253"
+}
