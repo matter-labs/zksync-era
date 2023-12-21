@@ -8,8 +8,6 @@ use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::{
     ECRECOVER_PRECOMPILE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
 };
-use zksync_types::{AccountTreeId, StorageKey};
-use zksync_utils::u256_to_h256;
 
 use super::circuits_capacity::*;
 use crate::{
@@ -27,6 +25,8 @@ use crate::{
 pub(crate) struct CircuitsTracer<S> {
     pub(crate) estimated_circuits_used: f32,
     last_decommitment_history_entry_checked: Option<usize>,
+    last_hot_writes_history_entry_checked: Option<usize>,
+    last_hot_reads_history_entry_checked: Option<usize>,
     _phantom_data: PhantomData<S>,
 }
 
@@ -35,6 +35,8 @@ impl<S: WriteStorage> CircuitsTracer<S> {
         Self {
             estimated_circuits_used: 0.0,
             last_decommitment_history_entry_checked: None,
+            last_hot_writes_history_entry_checked: None,
+            last_hot_reads_history_entry_checked: None,
             _phantom_data: Default::default(),
         }
     }
@@ -59,24 +61,8 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
             | Opcode::Shift(_)
             | Opcode::Ptr(_) => RICH_ADDRESSING_OPCODE_FRACTION,
             Opcode::Context(_) | Opcode::Ret(_) | Opcode::NearCall(_) => AVERAGE_OPCODE_FRACTION,
-            Opcode::Log(LogOpcode::StorageRead) => STORAGE_READ_FRACTION,
-            Opcode::Log(LogOpcode::StorageWrite) => {
-                COLD_STORAGE_WRITE_FRACTION
-                // let storage_key = StorageKey::new(
-                //     AccountTreeId::new(state.vm_local_state.callstack.current.this_address),
-                //     u256_to_h256(data.src0_value.value),
-                // );
-                //
-                // let first_write = !storage
-                //     .borrow()
-                //     .modified_storage_keys()
-                //     .contains_key(&storage_key);
-                // if first_write {
-                //     COLD_STORAGE_WRITE_FRACTION
-                // } else {
-                //     HOT_STORAGE_WRITE_FRACTION
-                // }
-            }
+            Opcode::Log(LogOpcode::StorageRead) => STORAGE_READ_BASE_FRACTION,
+            Opcode::Log(LogOpcode::StorageWrite) => STORAGE_WRITE_BASE_FRACTION,
             Opcode::Log(LogOpcode::ToL1Message) | Opcode::Log(LogOpcode::Event) => {
                 EVENT_OR_L1_MESSAGE_FRACTION
             }
@@ -119,6 +105,10 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
                 .history()
                 .len(),
         );
+
+        self.last_hot_writes_history_entry_checked = Some(state.storage.hot_writes.history().len());
+
+        self.last_hot_reads_history_entry_checked = Some(state.storage.hot_reads.history().len());
     }
 
     fn finish_cycle(
@@ -126,6 +116,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
         state: &mut ZkSyncVmState<S, H>,
         _bootloader_state: &mut BootloaderState,
     ) -> TracerExecutionStatus {
+        // Trace decommitments.
         let last_decommitment_history_entry_checked = self
             .last_decommitment_history_entry_checked
             .expect("Value must be set during init");
@@ -150,6 +141,40 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
                 (decommitter_cycles_used as f32) * CODE_DECOMMITTER_CYCLE_FRACTION;
         }
         self.last_decommitment_history_entry_checked = Some(history.len());
+
+        // Process storage writes
+        let last_writes_history_entry_checked = self
+            .last_hot_writes_history_entry_checked
+            .expect("Value must be set during init");
+        let history = state.storage.hot_writes.history();
+        for (_, history_event) in &history[last_writes_history_entry_checked..] {
+            // We assume that only insertions may happen during a single VM inspection.
+            assert!(history_event.value.is_some());
+
+            self.estimated_circuits_used += 2.0 * STORAGE_APPLICATION_CYCLE_FRACTION;
+        }
+        self.last_hot_writes_history_entry_checked = Some(history.len());
+
+        // Process storage reads
+        let last_reads_history_entry_checked = self
+            .last_hot_reads_history_entry_checked
+            .expect("Value must be set during init");
+        let history = state.storage.hot_reads.history();
+        for (_, history_event) in &history[last_reads_history_entry_checked..] {
+            // We assume that only insertions may happen during a single VM inspection.
+            assert!(history_event.value.is_some());
+
+            // If the slot was already written to, then we already take 2 cycles into account.
+            if !state
+                .storage
+                .hot_writes
+                .inner()
+                .contains_key(&history_event.key)
+            {
+                self.estimated_circuits_used += STORAGE_APPLICATION_CYCLE_FRACTION;
+            }
+        }
+        self.last_hot_reads_history_entry_checked = Some(history.len());
 
         TracerExecutionStatus::Continue
     }

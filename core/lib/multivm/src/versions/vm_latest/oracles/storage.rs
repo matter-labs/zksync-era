@@ -59,6 +59,10 @@ pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
 
     // Storage refunds that oracle has returned in `estimate_refunds_for_write`.
     pub(crate) returned_refunds: HistoryRecorder<Vec<u32>, H>,
+
+    //
+    pub(crate) hot_writes: HistoryRecorder<HashMap<StorageKey, ()>, HistoryEnabled>,
+    pub(crate) hot_reads: HistoryRecorder<HashMap<StorageKey, ()>, HistoryEnabled>,
 }
 
 impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
@@ -69,6 +73,8 @@ impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
         self.paid_changes.rollback_to_timestamp(timestamp);
         self.initial_values.rollback_to_timestamp(timestamp);
         self.returned_refunds.rollback_to_timestamp(timestamp);
+        self.hot_writes.rollback_to_timestamp(timestamp);
+        self.hot_reads.rollback_to_timestamp(timestamp);
     }
 }
 
@@ -81,6 +87,8 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             paid_changes: Default::default(),
             initial_values: Default::default(),
             returned_refunds: Default::default(),
+            hot_writes: Default::default(),
+            hot_reads: Default::default(),
         }
     }
 
@@ -91,6 +99,8 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         self.paid_changes.delete_history();
         self.initial_values.delete_history();
         self.returned_refunds.delete_history();
+        self.hot_writes.delete_history();
+        self.hot_reads.delete_history();
     }
 
     fn is_storage_key_free(&self, key: &StorageKey) -> bool {
@@ -108,8 +118,12 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         }
     }
 
-    pub fn read_value(&mut self, mut query: LogQuery) -> LogQuery {
+    fn read_value(&mut self, mut query: LogQuery) -> LogQuery {
         let key = triplet_to_storage_key(query.shard_id, query.address, query.key);
+
+        if !self.hot_reads.inner().contains_key(&key) {
+            self.hot_reads.insert(key, (), query.timestamp);
+        }
         let current_value = self.storage.read_from_storage(&key);
 
         query.read_value = current_value;
@@ -127,8 +141,11 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         query
     }
 
-    pub fn write_value(&mut self, query: LogQuery) -> LogQuery {
+    fn write_value(&mut self, query: LogQuery) -> LogQuery {
         let key = triplet_to_storage_key(query.shard_id, query.address, query.key);
+        if !self.hot_writes.inner().contains_key(&key) {
+            self.hot_writes.insert(key, (), query.timestamp);
+        }
         let current_value =
             self.storage
                 .write_to_storage(key, query.written_value, query.timestamp);
