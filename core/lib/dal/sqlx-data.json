@@ -4349,6 +4349,54 @@
     },
     "query": "\n            UPDATE leaf_aggregation_witness_jobs_fri\n            SET\n                status = 'successful',\n                updated_at = NOW(),\n                time_taken = $1\n            WHERE\n                id = $2\n            "
   },
+  "47c2f23d9209d155f3f32fd21ef7931a02fe5ffaf2c4dc2f1e7a48c0e932c060": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "l1_batch_root_hash",
+          "ordinal": 1,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "miniblock_number",
+          "ordinal": 2,
+          "type_info": "Int8"
+        },
+        {
+          "name": "miniblock_root_hash",
+          "ordinal": 3,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "last_finished_chunk_id",
+          "ordinal": 4,
+          "type_info": "Int4"
+        },
+        {
+          "name": "total_chunk_count",
+          "ordinal": 5,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "\n            SELECT\n                l1_batch_number,\n                l1_batch_root_hash,\n                miniblock_number,\n                miniblock_root_hash,\n                last_finished_chunk_id,\n                total_chunk_count\n            FROM\n                snapshot_recovery\n            "
+  },
   "481d3cdb6c9a90843b240dba84377cb8f1340b483faedbbc2b71055aa5451cae": {
     "describe": {
       "columns": [
@@ -10420,6 +10468,23 @@
       }
     },
     "query": "\n            SELECT\n                attempts\n            FROM\n                prover_jobs_fri\n            WHERE\n                id = $1\n            "
+  },
+  "df3b08549a11729fb475341b8f38f8af02aa297d85a2695c5f448ed14b2d7386": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Bytea",
+          "Int8",
+          "Bytea",
+          "Int4",
+          "Int4"
+        ]
+      }
+    },
+    "query": "\n            INSERT INTO\n                snapshot_recovery (\n                    l1_batch_number,\n                    l1_batch_root_hash,\n                    miniblock_number,\n                    miniblock_root_hash,\n                    last_finished_chunk_id,\n                    total_chunk_count,\n                    updated_at,\n                    created_at\n                )\n            VALUES\n                ($1, $2, $3, $4, $5, $6, NOW(), NOW())\n            ON CONFLICT (l1_batch_number) DO\n            UPDATE\n            SET\n                l1_batch_number = excluded.l1_batch_number,\n                l1_batch_root_hash = excluded.l1_batch_root_hash,\n                miniblock_number = excluded.miniblock_number,\n                miniblock_root_hash = excluded.miniblock_root_hash,\n                last_finished_chunk_id = excluded.last_finished_chunk_id,\n                total_chunk_count = excluded.total_chunk_count,\n                updated_at = excluded.updated_at\n            "
   },
   "e073cfdc7a00559994ce04eca15f35d55901fb1e6805f23413ea43e3637540a0": {
     "describe": {
