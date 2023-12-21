@@ -62,7 +62,7 @@ pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     pub(crate) pubdata_tracer: Option<PubdataTracer<S>>,
     pub(crate) dispatcher: TracerDispatcher<S, H>,
     ret_from_the_bootloader: Option<RetOpcode>,
-    //
+    // This tracer tracks what opcodes were executed and calculates how much circuits will be generated.
     pub(crate) circuits_tracer: CircuitsTracer<S>,
 
     storage: StoragePtr<S>,
