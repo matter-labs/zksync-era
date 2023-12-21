@@ -1,3 +1,7 @@
+//! Tests for the metadata calculator component life cycle.
+
+// TODO (PLA-708): test full recovery life cycle
+
 use std::{future::Future, ops, panic, path::Path, time::Duration};
 
 use assert_matches::assert_matches;

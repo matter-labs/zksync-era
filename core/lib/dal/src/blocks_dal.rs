@@ -82,10 +82,28 @@ impl BlocksDal<'_, '_> {
         Ok(MiniblockNumber(number as u32))
     }
 
+    /// Returns the number of the earliest L1 batch present in the DB, or `None` if there are no L1 batches.
+    pub async fn get_earliest_l1_batch_number(&mut self) -> sqlx::Result<Option<L1BatchNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                MIN(number) AS "number"
+            FROM
+                l1_batches
+            "#
+        )
+        .instrument("get_earliest_l1_batch_number")
+        .report_latency()
+        .fetch_one(self.storage.conn())
+        .await?;
+
+        Ok(row.number.map(|num| L1BatchNumber(num as u32)))
+    }
+
     pub async fn get_last_l1_batch_number_with_metadata(
         &mut self,
-    ) -> anyhow::Result<L1BatchNumber> {
-        let number: i64 = sqlx::query!(
+    ) -> sqlx::Result<Option<L1BatchNumber>> {
+        let row = sqlx::query!(
             r#"
             SELECT
                 MAX(number) AS "number"
@@ -98,10 +116,32 @@ impl BlocksDal<'_, '_> {
         .instrument("get_last_block_number_with_metadata")
         .report_latency()
         .fetch_one(self.storage.conn())
-        .await?
-        .number
-        .context("DAL invocation before genesis")?;
-        Ok(L1BatchNumber(number as u32))
+        .await?;
+
+        Ok(row.number.map(|num| L1BatchNumber(num as u32)))
+    }
+
+    /// Returns the number of the earliest L1 batch with metadata (= state hash) present in the DB,
+    /// or `None` if there are no such L1 batches.
+    pub async fn get_earliest_l1_batch_number_with_metadata(
+        &mut self,
+    ) -> sqlx::Result<Option<L1BatchNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                MIN(number) AS "number"
+            FROM
+                l1_batches
+            WHERE
+                hash IS NOT NULL
+            "#
+        )
+        .instrument("get_earliest_l1_batch_number_with_metadata")
+        .report_latency()
+        .fetch_one(self.storage.conn())
+        .await?;
+
+        Ok(row.number.map(|num| L1BatchNumber(num as u32)))
     }
 
     pub async fn get_l1_batches_for_eth_tx_id(
