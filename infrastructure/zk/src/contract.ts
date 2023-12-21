@@ -143,7 +143,8 @@ export async function deployL1(args: any[]) {
         'CONTRACTS_L1_WETH_BRIDGE_IMPL_ADDR',
         'CONTRACTS_L1_WETH_BRIDGE_PROXY_ADDR',
         'CONTRACTS_L1_ALLOW_LIST_ADDR',
-        'CONTRACTS_L1_MULTICALL3_ADDR'
+        'CONTRACTS_L1_MULTICALL3_ADDR',
+        'VALIDIUM_MODE'
     ];
     const updatedContracts = updateContractsEnv(deployLog, envVars);
 
@@ -152,8 +153,12 @@ export async function deployL1(args: any[]) {
     fs.writeFileSync('deployed_contracts.log', updatedContracts);
 }
 
-export async function redeployL1(args: any[]) {
-    await deployL1(args);
+export async function redeployL1(args: any[], validiumMode: boolean) {
+    if (validiumMode) {
+        await deployL1([...args, '--validium-mode']);
+    } else {
+        await deployL1(args);
+    }
     await verifyL1Contracts();
 }
 
