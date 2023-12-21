@@ -42,7 +42,7 @@ async fn log_subscriptions_with_new_block() {
 
 #[tokio::test]
 async fn log_subscriptions_with_many_new_blocks_at_once() {
-    test_ws_server(LogSubscriptionsWithManyBlocks, APIMode::Modern).await;
+    test_ws_server(LogSubscriptionsWithManyBlocks, APIMode::Legacy).await;
 }
 
 #[tokio::test]
@@ -111,6 +111,7 @@ trait WsTest {
         client: &WsClient,
         pool: &ConnectionPool,
         pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+        api_mode: APIMode,
     ) -> anyhow::Result<()>;
 
     fn websocket_requests_per_minute_limit(&self) -> Option<NonZeroU32> {
@@ -148,7 +149,9 @@ async fn test_ws_server(test: impl WsTest, api_mode: APIMode) {
         .build(format!("ws://{}", server_handles.local_addr))
         .await
         .unwrap();
-    test.test(&client, &pool, pub_sub_events).await.unwrap();
+    test.test(&client, &pool, pub_sub_events, api_mode)
+        .await
+        .unwrap();
 
     stop_sender.send_replace(true);
     server_handles.shutdown().await;
@@ -164,6 +167,7 @@ impl WsTest for WsServerCanStart {
         client: &WsClient,
         _pool: &ConnectionPool,
         _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+        _api_mode: APIMode,
     ) -> anyhow::Result<()> {
         let block_number = client.get_block_number().await?;
         assert_eq!(block_number, U64::from(0));
@@ -190,6 +194,7 @@ impl WsTest for BasicSubscriptions {
         client: &WsClient,
         pool: &ConnectionPool,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+        _api_mode: APIMode,
     ) -> anyhow::Result<()> {
         // Wait for the notifiers to get initialized so that they don't skip notifications
         // for the created subscriptions.
@@ -285,6 +290,7 @@ impl WsTest for LogSubscriptions {
         client: &WsClient,
         pool: &ConnectionPool,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+        api_mode: APIMode,
     ) -> anyhow::Result<()> {
         let Subscriptions {
             mut all_logs_subscription,
@@ -295,7 +301,7 @@ impl WsTest for LogSubscriptions {
         let mut storage = pool.access_storage().await?;
         let (tx_location, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
-        let events: Vec<_> = events.iter().collect();
+        let events: Vec<_> = get_expected_events(events.iter().collect(), api_mode);
 
         let all_logs = collect_logs(&mut all_logs_subscription, 4).await?;
         for (i, log) in all_logs.iter().enumerate() {
@@ -353,6 +359,7 @@ impl WsTest for LogSubscriptionsWithNewBlock {
         client: &WsClient,
         pool: &ConnectionPool,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+        api_mode: APIMode,
     ) -> anyhow::Result<()> {
         let Subscriptions {
             mut all_logs_subscription,
@@ -363,7 +370,7 @@ impl WsTest for LogSubscriptionsWithNewBlock {
         let mut storage = pool.access_storage().await?;
         let (_, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
-        let events: Vec<_> = events.iter().collect();
+        let events: Vec<_> = get_expected_events(events.iter().collect(), api_mode);
 
         let all_logs = collect_logs(&mut all_logs_subscription, 4).await?;
         assert_logs_match(&all_logs, &events);
@@ -372,7 +379,7 @@ impl WsTest for LogSubscriptionsWithNewBlock {
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
-        let new_events: Vec<_> = new_events.iter().collect();
+        let new_events: Vec<_> = get_expected_events(new_events.iter().collect(), api_mode);
 
         let all_new_logs = collect_logs(&mut all_logs_subscription, 4).await?;
         assert_logs_match(&all_new_logs, &new_events);
@@ -396,6 +403,7 @@ impl WsTest for LogSubscriptionsWithManyBlocks {
         client: &WsClient,
         pool: &ConnectionPool,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+        api_mode: APIMode,
     ) -> anyhow::Result<()> {
         let Subscriptions {
             mut all_logs_subscription,
@@ -407,9 +415,9 @@ impl WsTest for LogSubscriptionsWithManyBlocks {
         let mut storage = pool.access_storage().await?;
         let mut transaction = storage.start_transaction().await?;
         let (_, events) = store_events(&mut transaction, 1, 0).await?;
-        let events: Vec<_> = events.iter().collect();
+        let events: Vec<_> = get_expected_events(events.iter().collect(), api_mode);
         let (_, new_events) = store_events(&mut transaction, 2, 4).await?;
-        let new_events: Vec<_> = new_events.iter().collect();
+        let new_events: Vec<_> = get_expected_events(new_events.iter().collect(), api_mode);
         transaction.commit().await?;
         drop(storage);
 
@@ -437,6 +445,7 @@ impl WsTest for LogSubscriptionsWithDelay {
         client: &WsClient,
         pool: &ConnectionPool,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+        api_mode: APIMode,
     ) -> anyhow::Result<()> {
         // Store a miniblock w/o subscriptions being present.
         let mut storage = pool.access_storage().await?;
@@ -467,7 +476,7 @@ impl WsTest for LogSubscriptionsWithDelay {
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
-        let new_events: Vec<_> = new_events.iter().collect();
+        let new_events: Vec<_> = get_expected_events(new_events.iter().collect(), api_mode);
 
         let all_logs = collect_logs(&mut all_logs_subscription, 4).await?;
         assert_logs_match(&all_logs, &new_events);
@@ -478,6 +487,8 @@ impl WsTest for LogSubscriptionsWithDelay {
         all_logs_subscription.unsubscribe().await?;
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 3, 8).await?;
+        let new_events = get_expected_events(new_events.iter().collect(), api_mode);
+
         drop(storage);
 
         let address_and_topic_logs = collect_logs(&mut address_and_topic_subscription, 1).await?;
@@ -496,6 +507,7 @@ impl WsTest for RateLimiting {
         client: &WsClient,
         _pool: &ConnectionPool,
         _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+        _api_mode: APIMode,
     ) -> anyhow::Result<()> {
         client.chain_id().await.unwrap();
         client.chain_id().await.unwrap();
@@ -528,6 +540,7 @@ impl WsTest for BatchGetsRateLimited {
         client: &WsClient,
         _pool: &ConnectionPool,
         _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+        _api_mode: APIMode,
     ) -> anyhow::Result<()> {
         client.chain_id().await.unwrap();
         client.chain_id().await.unwrap();

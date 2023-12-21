@@ -132,13 +132,8 @@ impl TransactionsWeb3Dal<'_, '_> {
             });
             match receipt {
                 Some(mut receipt) => {
-                    let mut skip_transfer = String::new();
-
-                    if api_mode == APIMode::Modern {
-                        skip_transfer = String::from("AND NOT (address = $2 AND topic1 = $3)");
-                    }
-
-                    let query = format!(
+                    let mut db_logs: Vec<StorageWeb3Log> = sqlx::query_as!(
+                        StorageWeb3Log,
                         r#"
                         SELECT
                             address, topic1, topic2, topic3, topic4, value,
@@ -146,28 +141,46 @@ impl TransactionsWeb3Dal<'_, '_> {
                             miniblock_number, tx_hash, tx_index_in_block,
                             event_index_in_block, event_index_in_tx
                         FROM events
-                        WHERE tx_hash = $1 {}
+                        WHERE tx_hash = $1
                         ORDER BY miniblock_number ASC, event_index_in_block ASC
                         "#,
-                        &skip_transfer
-                    );
-
-                    let mut query = sqlx::query_as(query.as_str());
-
-                    query = query.bind(hash.as_bytes());
+                        hash.as_bytes()
+                    )
+                    .instrument("get_transaction_receipt_events")
+                    .with_arg("hash", &hash)
+                    .fetch_all(self.storage.conn())
+                    .await?;
 
                     if api_mode == APIMode::Modern {
-                        query = query.bind(L2_ETH_TOKEN_ADDRESS.as_bytes());
-                        query = query.bind(TRANSFER_EVENT_TOPIC.as_bytes());
+                        db_logs.retain(|log| {
+                            log.address != L2_ETH_TOKEN_ADDRESS.as_bytes()
+                                || log.topic1 != TRANSFER_EVENT_TOPIC.as_bytes()
+                        });
+
+                        if !db_logs.is_empty() {
+                            let mut new_event_index_in_block = 0;
+                            let mut new_event_index_in_tx = 0;
+                            let mut current_block = db_logs[0].miniblock_number;
+                            let mut current_tx_hash = db_logs[0].tx_hash.clone();
+
+                            for i in 0..db_logs.len() {
+                                if db_logs[i].miniblock_number != current_block {
+                                    current_block = db_logs[i].miniblock_number;
+                                    new_event_index_in_block = 0;
+                                }
+                                if db_logs[i].tx_hash != current_tx_hash {
+                                    current_tx_hash = db_logs[i].tx_hash.clone();
+                                    new_event_index_in_tx = 0;
+                                }
+                                db_logs[i].event_index_in_block = new_event_index_in_block;
+                                db_logs[i].event_index_in_tx = new_event_index_in_tx;
+                                new_event_index_in_block += 1;
+                                new_event_index_in_tx += 1;
+                            }
+                        }
                     }
 
-                    let logs: Vec<StorageWeb3Log> = query
-                        .instrument("get_transaction_receipt_events")
-                        .with_arg("hash", &hash)
-                        .fetch_all(self.storage.conn())
-                        .await?;
-
-                    let logs = logs
+                    let logs = db_logs
                         .into_iter()
                         .map(|storage_log| {
                             let mut log = api::Log::from(storage_log);

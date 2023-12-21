@@ -75,7 +75,7 @@ impl EventsWeb3Dal<'_, '_> {
         api_mode: APIMode,
     ) -> Result<Vec<Log>, SqlxError> {
         {
-            let (where_sql, arg_index) = self.build_get_logs_where_clause(&filter, api_mode);
+            let (where_sql, arg_index) = self.build_get_logs_where_clause(&filter, APIMode::Legacy);
 
             let query = format!(
                 r#"
@@ -107,20 +107,45 @@ impl EventsWeb3Dal<'_, '_> {
                 query = query.bind(topics);
             }
 
-            if api_mode == APIMode::Modern {
-                query = query.bind(L2_ETH_TOKEN_ADDRESS.as_bytes());
-                query = query.bind(TRANSFER_EVENT_TOPIC.as_bytes());
-            }
-
             query = query.bind(limit as i32);
 
-            let db_logs: Vec<StorageWeb3Log> = query
+            let mut db_logs: Vec<StorageWeb3Log> = query
                 .instrument("get_logs")
                 .report_latency()
                 .with_arg("filter", &filter)
                 .with_arg("limit", &limit)
                 .fetch_all(self.storage.conn())
                 .await?;
+
+            if api_mode == APIMode::Modern {
+                db_logs.retain(|log| {
+                    log.address != L2_ETH_TOKEN_ADDRESS.as_bytes()
+                        || log.topic1 != TRANSFER_EVENT_TOPIC.as_bytes()
+                });
+
+                if !db_logs.is_empty() {
+                    let mut new_event_index_in_block = 0;
+                    let mut new_event_index_in_tx = 0;
+                    let mut current_block = db_logs[0].miniblock_number;
+                    let mut current_tx_hash = db_logs[0].tx_hash.clone();
+
+                    for i in 0..db_logs.len() {
+                        if db_logs[i].miniblock_number != current_block {
+                            current_block = db_logs[i].miniblock_number;
+                            new_event_index_in_block = 0;
+                        }
+                        if db_logs[i].tx_hash != current_tx_hash {
+                            current_tx_hash = db_logs[i].tx_hash.clone();
+                            new_event_index_in_tx = 0;
+                        }
+                        db_logs[i].event_index_in_block = new_event_index_in_block;
+                        db_logs[i].event_index_in_tx = new_event_index_in_tx;
+                        new_event_index_in_block += 1;
+                        new_event_index_in_tx += 1;
+                    }
+                }
+            }
+
             let logs = db_logs.into_iter().map(Into::into).collect();
             Ok(logs)
         }
@@ -164,43 +189,85 @@ impl EventsWeb3Dal<'_, '_> {
         api_mode: APIMode,
     ) -> Result<Vec<Log>, SqlxError> {
         {
-            let mut skip_transfer = String::new();
-            if api_mode == APIMode::Modern {
-                skip_transfer = String::from("AND NOT (address = $2 AND topic1 = $3)");
-            }
-
-            let query = format!(
+            let mut db_logs: Vec<StorageWeb3Log> = sqlx::query_as!(
+                StorageWeb3Log,
                 r#"
-                WITH events_select AS (
-                    SELECT
-                        address, topic1, topic2, topic3, topic4, value,
-                        miniblock_number, tx_hash, tx_index_in_block,
-                        event_index_in_block, event_index_in_tx
-                    FROM events
-                    WHERE miniblock_number > $1 {}
-                    ORDER BY miniblock_number ASC, event_index_in_block ASC
-                )
-                SELECT miniblocks.hash as "block_hash",
-                    address as "address", topic1 as "topic1", topic2 as "topic2", topic3 as "topic3", topic4 as "topic4", value as "value",
-                    miniblock_number as "miniblock_number", miniblocks.l1_batch_number as "l1_batch_number", tx_hash as "tx_hash",
-                    tx_index_in_block as "tx_index_in_block", event_index_in_block as "event_index_in_block", event_index_in_tx as "event_index_in_tx"
-                FROM events_select
-                INNER JOIN miniblocks ON events_select.miniblock_number = miniblocks.number
-                ORDER BY miniblock_number ASC, event_index_in_block ASC
+                WITH
+                    events_select AS (
+                        SELECT
+                            address,
+                            topic1,
+                            topic2,
+                            topic3,
+                            topic4,
+                            value,
+                            miniblock_number,
+                            tx_hash,
+                            tx_index_in_block,
+                            event_index_in_block,
+                            event_index_in_tx
+                        FROM
+                            events
+                        WHERE
+                            miniblock_number > $1
+                        ORDER BY
+                            miniblock_number ASC,
+                            event_index_in_block ASC
+                    )
+                SELECT
+                    miniblocks.hash AS "block_hash?",
+                    address AS "address!",
+                    topic1 AS "topic1!",
+                    topic2 AS "topic2!",
+                    topic3 AS "topic3!",
+                    topic4 AS "topic4!",
+                    value AS "value!",
+                    miniblock_number AS "miniblock_number!",
+                    miniblocks.l1_batch_number AS "l1_batch_number?",
+                    tx_hash AS "tx_hash!",
+                    tx_index_in_block AS "tx_index_in_block!",
+                    event_index_in_block AS "event_index_in_block!",
+                    event_index_in_tx AS "event_index_in_tx!"
+                FROM
+                    events_select
+                    INNER JOIN miniblocks ON events_select.miniblock_number = miniblocks.number
+                ORDER BY
+                    miniblock_number ASC,
+                    event_index_in_block ASC
                 "#,
-                &skip_transfer
-            );
-
-            let mut query = sqlx::query_as(query.as_str());
-
-            query = query.bind(from_block.0 as i64);
+                from_block.0 as i64
+            )
+            .fetch_all(self.storage.conn())
+            .await?;
 
             if api_mode == APIMode::Modern {
-                query = query.bind(L2_ETH_TOKEN_ADDRESS.as_bytes());
-                query = query.bind(TRANSFER_EVENT_TOPIC.as_bytes());
-            }
+                db_logs.retain(|log| {
+                    log.address != L2_ETH_TOKEN_ADDRESS.as_bytes()
+                        || log.topic1 != TRANSFER_EVENT_TOPIC.as_bytes()
+                });
 
-            let db_logs: Vec<StorageWeb3Log> = query.fetch_all(self.storage.conn()).await?;
+                if !db_logs.is_empty() {
+                    let mut new_event_index_in_block = 0;
+                    let mut new_event_index_in_tx = 0;
+                    let mut current_block = db_logs[0].miniblock_number;
+                    let mut current_tx_hash = db_logs[0].tx_hash.clone();
+
+                    for i in 0..db_logs.len() {
+                        if db_logs[i].miniblock_number != current_block {
+                            current_block = db_logs[i].miniblock_number;
+                            new_event_index_in_block = 0;
+                        }
+                        if db_logs[i].tx_hash != current_tx_hash {
+                            current_tx_hash = db_logs[i].tx_hash.clone();
+                            new_event_index_in_tx = 0;
+                        }
+                        db_logs[i].event_index_in_block = new_event_index_in_block;
+                        db_logs[i].event_index_in_tx = new_event_index_in_tx;
+                        new_event_index_in_block += 1;
+                        new_event_index_in_tx += 1;
+                    }
+                }
+            }
 
             let logs = db_logs.into_iter().map(Into::into).collect();
 

@@ -9951,6 +9951,98 @@
     },
     "query": "\n            SELECT\n                number\n            FROM\n                l1_batches\n                LEFT JOIN eth_txs_history AS execute_tx ON (l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id)\n            WHERE\n                execute_tx.confirmed_at IS NOT NULL\n            ORDER BY\n                number DESC\n            LIMIT\n                1\n            "
   },
+  "d70cfc158e31dd2d5c942d24f81fd17f833fb15b58b0110c7cc566946db98e76": {
+    "describe": {
+      "columns": [
+        {
+          "name": "block_hash?",
+          "ordinal": 0,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "address!",
+          "ordinal": 1,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "topic1!",
+          "ordinal": 2,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "topic2!",
+          "ordinal": 3,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "topic3!",
+          "ordinal": 4,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "topic4!",
+          "ordinal": 5,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "value!",
+          "ordinal": 6,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "miniblock_number!",
+          "ordinal": 7,
+          "type_info": "Int8"
+        },
+        {
+          "name": "l1_batch_number?",
+          "ordinal": 8,
+          "type_info": "Int8"
+        },
+        {
+          "name": "tx_hash!",
+          "ordinal": 9,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "tx_index_in_block!",
+          "ordinal": 10,
+          "type_info": "Int4"
+        },
+        {
+          "name": "event_index_in_block!",
+          "ordinal": 11,
+          "type_info": "Int4"
+        },
+        {
+          "name": "event_index_in_tx!",
+          "ordinal": 12,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "\n                WITH\n                    events_select AS (\n                        SELECT\n                            address,\n                            topic1,\n                            topic2,\n                            topic3,\n                            topic4,\n                            value,\n                            miniblock_number,\n                            tx_hash,\n                            tx_index_in_block,\n                            event_index_in_block,\n                            event_index_in_tx\n                        FROM\n                            events\n                        WHERE\n                            miniblock_number > $1\n                        ORDER BY\n                            miniblock_number ASC,\n                            event_index_in_block ASC\n                    )\n                SELECT\n                    miniblocks.hash AS \"block_hash?\",\n                    address AS \"address!\",\n                    topic1 AS \"topic1!\",\n                    topic2 AS \"topic2!\",\n                    topic3 AS \"topic3!\",\n                    topic4 AS \"topic4!\",\n                    value AS \"value!\",\n                    miniblock_number AS \"miniblock_number!\",\n                    miniblocks.l1_batch_number AS \"l1_batch_number?\",\n                    tx_hash AS \"tx_hash!\",\n                    tx_index_in_block AS \"tx_index_in_block!\",\n                    event_index_in_block AS \"event_index_in_block!\",\n                    event_index_in_tx AS \"event_index_in_tx!\"\n                FROM\n                    events_select\n                    INNER JOIN miniblocks ON events_select.miniblock_number = miniblocks.number\n                ORDER BY\n                    miniblock_number ASC,\n                    event_index_in_block ASC\n                "
+  },
   "d712707e47e143c52330ea6e0513d2839f0f928c06b8020eecec38e895f99b42": {
     "describe": {
       "columns": [
@@ -11304,6 +11396,98 @@
       }
     },
     "query": "\n            WITH\n                sl AS (\n                    SELECT\n                        (\n                            SELECT\n                                ARRAY[hashed_key, value] AS kv\n                            FROM\n                                storage_logs\n                            WHERE\n                                storage_logs.miniblock_number = $1\n                                AND storage_logs.hashed_key >= u.start_key\n                                AND storage_logs.hashed_key <= u.end_key\n                            ORDER BY\n                                storage_logs.hashed_key\n                            LIMIT\n                                1\n                        )\n                    FROM\n                        UNNEST($2::bytea[], $3::bytea[]) AS u (start_key, end_key)\n                )\n            SELECT\n                sl.kv[1] AS \"hashed_key?\",\n                sl.kv[2] AS \"value?\",\n                initial_writes.index\n            FROM\n                sl\n                LEFT OUTER JOIN initial_writes ON initial_writes.hashed_key = sl.kv[1]\n            "
+  },
+  "f0964e9b521d0f0590a3068d04c5d12f79c07c84163c504442abded60fdb48d3": {
+    "describe": {
+      "columns": [
+        {
+          "name": "address",
+          "ordinal": 0,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "topic1",
+          "ordinal": 1,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "topic2",
+          "ordinal": 2,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "topic3",
+          "ordinal": 3,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "topic4",
+          "ordinal": 4,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "value",
+          "ordinal": 5,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "block_hash",
+          "ordinal": 6,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "l1_batch_number",
+          "ordinal": 7,
+          "type_info": "Int8"
+        },
+        {
+          "name": "miniblock_number",
+          "ordinal": 8,
+          "type_info": "Int8"
+        },
+        {
+          "name": "tx_hash",
+          "ordinal": 9,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "tx_index_in_block",
+          "ordinal": 10,
+          "type_info": "Int4"
+        },
+        {
+          "name": "event_index_in_block",
+          "ordinal": 11,
+          "type_info": "Int4"
+        },
+        {
+          "name": "event_index_in_tx",
+          "ordinal": 12,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        null,
+        null,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Bytea"
+        ]
+      }
+    },
+    "query": "\n                        SELECT\n                            address, topic1, topic2, topic3, topic4, value,\n                            Null::bytea as \"block_hash\", Null::bigint as \"l1_batch_number\",\n                            miniblock_number, tx_hash, tx_index_in_block,\n                            event_index_in_block, event_index_in_tx\n                        FROM events\n                        WHERE tx_hash = $1\n                        ORDER BY miniblock_number ASC, event_index_in_block ASC\n                        "
   },
   "f1478830e5f95cbcd0da01d3457cbb9cb8da439c7ab28fa865f53908621dc4c5": {
     "describe": {

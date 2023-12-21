@@ -125,41 +125,9 @@ pub(crate) async fn spawn_http_server(
     .0
 }
 
-fn get_expected_events(mut events: Vec<&VmEvent>, api_mode: APIMode) -> Vec<&VmEvent> {
+fn get_expected_events(events: Vec<&VmEvent>, api_mode: APIMode) -> Vec<&VmEvent> {
     match api_mode {
-        APIMode::Legacy => {
-            // move all the filtered events of ETH Transfer in the end of the vector
-            let mut count = events
-                .iter()
-                .filter(|event| {
-                    event.address == L2_ETH_TOKEN_ADDRESS
-                        && !event.indexed_topics.is_empty()
-                        && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC
-                })
-                .count();
-
-            let len = events.len();
-
-            for i in 0..len {
-                if events[i].address == L2_ETH_TOKEN_ADDRESS
-                    && !events[i].indexed_topics.is_empty()
-                    && events[i].indexed_topics[0] == TRANSFER_EVENT_TOPIC
-                {
-                    let event = events[i];
-
-                    for j in i..(len - 1) {
-                        events[j] = events[j + 1]
-                    }
-
-                    events[len - 1] = event;
-                    count -= 1;
-                }
-                if count == 0 {
-                    break;
-                }
-            }
-            events
-        }
+        APIMode::Legacy => events,
         APIMode::Modern => {
             // filter out all the ETH Transfer
             events
