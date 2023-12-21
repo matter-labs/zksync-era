@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 
-use bigdecimal::{BigDecimal, Zero};
 use zk_evm_1_4_0::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{LogOpcode, Opcode, UMAOpcode},
@@ -49,70 +48,6 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
         _memory: &SimpleMemory<H>,
         _storage: StoragePtr<S>,
     ) {
-        // let used = match data.opcode.variant.opcode {
-        //     Opcode::Nop(_)
-        //     | Opcode::Add(_)
-        //     | Opcode::Sub(_)
-        //     | Opcode::Mul(_)
-        //     | Opcode::Div(_)
-        //     | Opcode::Jump(_)
-        //     | Opcode::Binop(_)
-        //     | Opcode::Shift(_)
-        //     | Opcode::Ptr(_) => RICH_ADDRESSING_OPCODE_FRACTION.clone(),
-        //     Opcode::Context(_) | Opcode::Ret(_) | Opcode::NearCall(_) => {
-        //         AVERAGE_OPCODE_FRACTION.clone()
-        //     }
-        //     Opcode::Log(LogOpcode::StorageRead) => STORAGE_READ_FRACTION.clone(),
-        //     Opcode::Log(LogOpcode::StorageWrite) => {
-        //            COLD_STORAGE_WRITE_FRACTION.clone()
-        //         // let storage_key = StorageKey::new(
-        //         //     AccountTreeId::new(state.vm_local_state.callstack.current.this_address),
-        //         //     u256_to_h256(data.src0_value.value),
-        //         // );
-        //         //
-        //         // let first_write = !storage
-        //         //     .borrow()
-        //         //     .modified_storage_keys()
-        //         //     .contains_key(&storage_key);
-        //         // if first_write {
-        //         //     COLD_STORAGE_WRITE_FRACTION.clone()
-        //         // } else {
-        //         //     HOT_STORAGE_WRITE_FRACTION.clone()
-        //         // }
-        //     }
-        //     Opcode::Log(LogOpcode::ToL1Message) | Opcode::Log(LogOpcode::Event) => {
-        //         EVENT_OR_L1_MESSAGE_FRACTION.clone()
-        //     }
-        //     Opcode::Log(LogOpcode::PrecompileCall) => {
-        //         match state.vm_local_state.callstack.current.this_address {
-        //             a if a == KECCAK256_PRECOMPILE_ADDRESS => {
-        //                 let precompile_interpreted = data.src0_value.value.0[3];
-        //                 PRECOMPILE_CALL_COMMON_FRACTION.clone()
-        //                     + BigDecimal::from(precompile_interpreted)
-        //                         * KECCAK256_CYCLE_FRACTION.clone()
-        //             }
-        //             a if a == SHA256_PRECOMPILE_ADDRESS => {
-        //                 let precompile_interpreted = data.src0_value.value.0[3];
-        //                 PRECOMPILE_CALL_COMMON_FRACTION.clone()
-        //                     + BigDecimal::from(precompile_interpreted)
-        //                         * SHA256_CYCLE_FRACTION.clone()
-        //             }
-        //             a if a == ECRECOVER_PRECOMPILE_ADDRESS => {
-        //                 PRECOMPILE_CALL_COMMON_FRACTION.clone() + ECRECOVER_CYCLE_FRACTION.clone()
-        //             }
-        //             _ => PRECOMPILE_CALL_COMMON_FRACTION.clone(),
-        //         }
-        //     }
-        //     Opcode::FarCall(_) => FAR_CALL_FRACTION.clone(),
-        //     Opcode::UMA(UMAOpcode::AuxHeapWrite | UMAOpcode::HeapWrite) => {
-        //         UMA_WRITE_FRACTION.clone()
-        //     }
-        //     Opcode::UMA(
-        //         UMAOpcode::AuxHeapRead | UMAOpcode::HeapRead | UMAOpcode::FatPointerRead,
-        //     ) => UMA_READ_FRACTION.clone(),
-        //     Opcode::Invalid(_) => unreachable!(), // invalid opcodes are never executed
-        // };
-
         let used = match data.opcode.variant.opcode {
             Opcode::Nop(_)
             | Opcode::Add(_)
@@ -122,13 +57,11 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
             | Opcode::Jump(_)
             | Opcode::Binop(_)
             | Opcode::Shift(_)
-            | Opcode::Ptr(_) => RICH_ADDRESSING_OPCODE_FRACTION_F32,
-            Opcode::Context(_) | Opcode::Ret(_) | Opcode::NearCall(_) => {
-                AVERAGE_OPCODE_FRACTION_F32
-            }
-            Opcode::Log(LogOpcode::StorageRead) => STORAGE_READ_FRACTION_F32,
+            | Opcode::Ptr(_) => RICH_ADDRESSING_OPCODE_FRACTION,
+            Opcode::Context(_) | Opcode::Ret(_) | Opcode::NearCall(_) => AVERAGE_OPCODE_FRACTION,
+            Opcode::Log(LogOpcode::StorageRead) => STORAGE_READ_FRACTION,
             Opcode::Log(LogOpcode::StorageWrite) => {
-                COLD_STORAGE_WRITE_FRACTION_F32
+                COLD_STORAGE_WRITE_FRACTION
                 // let storage_key = StorageKey::new(
                 //     AccountTreeId::new(state.vm_local_state.callstack.current.this_address),
                 //     u256_to_h256(data.src0_value.value),
@@ -139,37 +72,37 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
                 //     .modified_storage_keys()
                 //     .contains_key(&storage_key);
                 // if first_write {
-                //     COLD_STORAGE_WRITE_FRACTION_F32
+                //     COLD_STORAGE_WRITE_FRACTION
                 // } else {
-                //     HOT_STORAGE_WRITE_FRACTION_F32
+                //     HOT_STORAGE_WRITE_FRACTION
                 // }
             }
             Opcode::Log(LogOpcode::ToL1Message) | Opcode::Log(LogOpcode::Event) => {
-                EVENT_OR_L1_MESSAGE_FRACTION_F32
+                EVENT_OR_L1_MESSAGE_FRACTION
             }
             Opcode::Log(LogOpcode::PrecompileCall) => {
                 match state.vm_local_state.callstack.current.this_address {
                     a if a == KECCAK256_PRECOMPILE_ADDRESS => {
                         let precompile_interpreted = data.src0_value.value.0[3] as f32;
-                        PRECOMPILE_CALL_COMMON_FRACTION_F32
-                            + precompile_interpreted * KECCAK256_CYCLE_FRACTION_F32
+                        PRECOMPILE_CALL_COMMON_FRACTION
+                            + precompile_interpreted * KECCAK256_CYCLE_FRACTION
                     }
                     a if a == SHA256_PRECOMPILE_ADDRESS => {
                         let precompile_interpreted = data.src0_value.value.0[3] as f32;
-                        PRECOMPILE_CALL_COMMON_FRACTION_F32
-                            + precompile_interpreted * SHA256_CYCLE_FRACTION_F32
+                        PRECOMPILE_CALL_COMMON_FRACTION
+                            + precompile_interpreted * SHA256_CYCLE_FRACTION
                     }
                     a if a == ECRECOVER_PRECOMPILE_ADDRESS => {
-                        PRECOMPILE_CALL_COMMON_FRACTION_F32 + ECRECOVER_CYCLE_FRACTION_F32
+                        PRECOMPILE_CALL_COMMON_FRACTION + ECRECOVER_CYCLE_FRACTION
                     }
-                    _ => PRECOMPILE_CALL_COMMON_FRACTION_F32,
+                    _ => PRECOMPILE_CALL_COMMON_FRACTION,
                 }
             }
-            Opcode::FarCall(_) => FAR_CALL_FRACTION_F32,
-            Opcode::UMA(UMAOpcode::AuxHeapWrite | UMAOpcode::HeapWrite) => UMA_WRITE_FRACTION_F32,
+            Opcode::FarCall(_) => FAR_CALL_FRACTION,
+            Opcode::UMA(UMAOpcode::AuxHeapWrite | UMAOpcode::HeapWrite) => UMA_WRITE_FRACTION,
             Opcode::UMA(
                 UMAOpcode::AuxHeapRead | UMAOpcode::HeapRead | UMAOpcode::FatPointerRead,
-            ) => UMA_READ_FRACTION_F32,
+            ) => UMA_READ_FRACTION,
             Opcode::Invalid(_) => unreachable!(), // invalid opcodes are never executed
         };
 
@@ -213,11 +146,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
 
             // Each cycle of `CodeDecommitter` processes 64 bits.
             let decommitter_cycles_used = bytecode_len / 4;
-            // self.estimated_circuits_used += BigDecimal::from(decommitter_cycles_used as u64)
-            //     * CODE_DECOMMITTER_CYCLE_FRACTION.clone();
-
             self.estimated_circuits_used +=
-                (decommitter_cycles_used as f32) * CODE_DECOMMITTER_CYCLE_FRACTION_F32;
+                (decommitter_cycles_used as f32) * CODE_DECOMMITTER_CYCLE_FRACTION;
         }
         self.last_decommitment_history_entry_checked = Some(history.len());
 
