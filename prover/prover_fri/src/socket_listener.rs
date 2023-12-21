@@ -90,9 +90,9 @@ pub mod gpu_socket_listener {
                     .await
                     .context("could not accept connection")?
                     .0;
-                tracing::trace!(
-                    "Received new assembly send connection, waited for {}ms.",
-                    now.elapsed().as_millis()
+                tracing::info!(
+                    "Received new witness vector generator connection, waited for {:?}.",
+                    now.elapsed()
                 );
 
                 self.handle_incoming_file(stream)
@@ -110,10 +110,10 @@ pub mod gpu_socket_listener {
                 .await
                 .context("Failed reading from stream")?;
             let file_size_in_gb = assembly.len() / (1024 * 1024 * 1024);
-            tracing::trace!(
-                "Read file of size: {}GB from stream took: {} seconds",
+            tracing::info!(
+                "Read file of size: {}GB from stream after {:?}",
                 file_size_in_gb,
-                started_at.elapsed().as_secs()
+                started_at.elapsed()
             );
 
             METRICS.witness_vector_blob_time[&(file_size_in_gb as u64)]
@@ -121,12 +121,17 @@ pub mod gpu_socket_listener {
 
             let witness_vector = bincode::deserialize::<WitnessVectorArtifacts>(&assembly)
                 .context("Failed deserializing witness vector")?;
+            tracing::info!(
+                "Deserialized witness vector after {:?}",
+                started_at.elapsed()
+            );
             let assembly = generate_assembly_for_repeated_proving(
                 witness_vector.prover_job.circuit_wrapper.clone(),
                 witness_vector.prover_job.job_id,
                 witness_vector.prover_job.setup_data_key.circuit_id,
             )
             .context("generate_assembly_for_repeated_proving()")?;
+            tracing::info!("Generated assembly after {:?}", started_at.elapsed());
             let gpu_prover_job = GpuProverJob {
                 witness_vector_artifacts: witness_vector,
                 assembly,
@@ -138,6 +143,10 @@ pub mod gpu_socket_listener {
             queue
                 .add(gpu_prover_job)
                 .map_err(|err| anyhow::anyhow!("Failed saving witness vector to queue: {err}"))?;
+            tracing::info!(
+                "Added witness vector to queue after {:?}",
+                started_at.elapsed()
+            );
             let status = if queue.capacity() == queue.size() {
                 GpuProverInstanceStatus::Full
             } else {
@@ -151,6 +160,11 @@ pub mod gpu_socket_listener {
                 .fri_gpu_prover_queue_dal()
                 .update_prover_instance_status(self.address.clone(), status, self.zone.clone())
                 .await;
+            tracing::info!(
+                "Marked prover as {:?} after {:?}",
+                status,
+                started_at.elapsed()
+            );
             Ok(())
         }
     }

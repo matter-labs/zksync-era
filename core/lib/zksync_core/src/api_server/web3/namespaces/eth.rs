@@ -21,7 +21,7 @@ use crate::{
     api_server::{
         execution_sandbox::BlockArgs,
         web3::{
-            backend_jsonrpc::error::internal_error,
+            backend_jsonrpsee::internal_error,
             metrics::{BlockCallObserver, API_METRICS},
             resolve_block,
             state::RpcState,
@@ -219,10 +219,6 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     #[tracing::instrument(skip(self, filter))]
     pub async fn get_logs_impl(&self, mut filter: Filter) -> Result<Vec<Log>, Web3Error> {
         const METHOD_NAME: &str = "get_logs";
-
-        if self.state.logs_translator_enabled {
-            return self.state.translate_get_logs(filter).await;
-        }
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
         self.state.resolve_filter_block_hash(&mut filter).await?;
@@ -501,7 +497,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         const METHOD_NAME: &str = "get_transaction_receipt";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let mut receipt = self
+        let receipt = self
             .state
             .connection_pool
             .access_storage_tagged("api")
@@ -511,31 +507,6 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .get_transaction_receipt(hash)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err));
-
-        if let Some(proxy) = &self.state.tx_sender.0.proxy {
-            // We're running an external node
-            if matches!(receipt, Ok(None)) {
-                // If the transaction is not in the db, query main node.
-                // Because it might be the case that it got rejected in state keeper
-                // and won't be synced back to us, but we still want to return a receipt.
-                // We want to only forward these kinds of receipts because otherwise
-                // clients will assume that the transaction they got the receipt for
-                // was already processed on the EN (when it was not),
-                // and will think that the state has already been updated on the EN (when it was not).
-                if let Ok(Some(main_node_receipt)) = proxy
-                    .request_tx_receipt(hash)
-                    .await
-                    .map_err(|err| internal_error(METHOD_NAME, err))
-                {
-                    if main_node_receipt.status == Some(0.into())
-                        && main_node_receipt.block_number.is_none()
-                    {
-                        // Transaction was rejected in state-keeper.
-                        receipt = Ok(Some(main_node_receipt));
-                    }
-                }
-            }
-        }
 
         method_latency.observe();
         receipt

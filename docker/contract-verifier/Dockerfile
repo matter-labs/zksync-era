@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y curl libpq5 ca-certificates wget python
 
 # install zksolc 1.3.x
 RUN skip_versions="v1.3.12 v1.3.15" && \
-    for VERSION in $(seq -f "v1.3.%g" 0 17); do \
+    for VERSION in $(seq -f "v1.3.%g" 0 18); do \
     if echo " $skip_versions " | grep -q -w " $VERSION "; then \
     continue; \
     fi; \
@@ -59,8 +59,8 @@ RUN mkdir -p /etc/vyper-bin/0.3.10 \
     && chmod +x /etc/vyper-bin/0.3.10/vyper
 
 COPY --from=builder /usr/src/zksync/target/release/zksync_contract_verifier /usr/bin/
-COPY etc/system-contracts/bootloader/build/artifacts/ /etc/system-contracts/bootloader/build/artifacts/
-COPY etc/system-contracts/artifacts-zk /etc/system-contracts/artifacts-zk
+COPY contracts/system-contracts/bootloader/build/artifacts/ /contracts/system-contracts/bootloader/build/artifacts/
+COPY contracts/system-contracts/artifacts-zk /contracts/system-contracts/artifacts-zk
 
 # CMD tail -f /dev/null
 ENTRYPOINT ["zksync_contract_verifier"]

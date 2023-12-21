@@ -150,12 +150,20 @@ impl JobProcessor for WitnessVectorGenerator {
                 .await;
 
             if let Some(address) = prover {
+                tracing::info!(
+                    "Found prover after {:?}. Sending witness vector job...",
+                    now.elapsed()
+                );
                 let result = send_assembly(job_id, &serialized, &address);
                 handle_send_result(&result, job_id, &address, &self.pool, self.zone.clone()).await;
 
                 if result.is_ok() {
                     METRICS.prover_waiting_time[&circuit_type].observe(now.elapsed());
                     METRICS.prover_attempts_count[&circuit_type].observe(attempts as usize);
+                    tracing::info!(
+                        "Sent witness vector job to prover after {:?}",
+                        now.elapsed()
+                    );
                     return Ok(());
                 }
 
@@ -167,11 +175,16 @@ impl JobProcessor for WitnessVectorGenerator {
                 );
                 attempts += 1;
             } else {
+                tracing::warn!(
+                    "Could not find available prover. Time elapsed: {:?}. Will sleep for {:?}",
+                    now.elapsed(),
+                    self.config.prover_instance_poll_time()
+                );
                 sleep(self.config.prover_instance_poll_time()).await;
             }
         }
-        tracing::trace!(
-            "Not able to get any free prover instance for sending witness vector for job: {job_id}"
+        tracing::warn!(
+            "Not able to get any free prover instance for sending witness vector for job: {job_id} after {:?}", now.elapsed()
         );
         Ok(())
     }
@@ -222,7 +235,7 @@ async fn handle_send_result(
         }
 
         Err(err) => {
-            tracing::trace!(
+            tracing::warn!(
                 "Failed sending assembly to address: {address:?}, socket not reachable \
                  reason: {err}"
             );

@@ -93,7 +93,11 @@ impl EventsDal<'_, '_> {
     /// Removes events with a block number strictly greater than the specified `block_number`.
     pub async fn rollback_events(&mut self, block_number: MiniblockNumber) {
         sqlx::query!(
-            "DELETE FROM events WHERE miniblock_number > $1",
+            r#"
+            DELETE FROM events
+            WHERE
+                miniblock_number > $1
+            "#,
             block_number.0 as i64
         )
         .execute(self.storage.conn())
@@ -166,7 +170,11 @@ impl EventsDal<'_, '_> {
     /// Removes all L2-to-L1 logs with a miniblock number strictly greater than the specified `block_number`.
     pub async fn rollback_l2_to_l1_logs(&mut self, block_number: MiniblockNumber) {
         sqlx::query!(
-            "DELETE FROM l2_to_l1_logs WHERE miniblock_number > $1",
+            r#"
+            DELETE FROM l2_to_l1_logs
+            WHERE
+                miniblock_number > $1
+            "#,
             block_number.0 as i64
         )
         .execute(self.storage.conn())
@@ -180,13 +188,28 @@ impl EventsDal<'_, '_> {
     ) -> Result<Vec<StorageL2ToL1Log>, SqlxError> {
         sqlx::query_as!(
             StorageL2ToL1Log,
-            "SELECT \
-                miniblock_number, log_index_in_miniblock, log_index_in_tx, tx_hash, \
-                Null::bytea as \"block_hash\", Null::bigint as \"l1_batch_number?\", \
-                shard_id, is_service, tx_index_in_miniblock, tx_index_in_l1_batch, sender, key, value \
-            FROM l2_to_l1_logs \
-            WHERE tx_hash = $1 \
-            ORDER BY log_index_in_tx ASC",
+            r#"
+            SELECT
+                miniblock_number,
+                log_index_in_miniblock,
+                log_index_in_tx,
+                tx_hash,
+                NULL::bytea AS "block_hash",
+                NULL::BIGINT AS "l1_batch_number?",
+                shard_id,
+                is_service,
+                tx_index_in_miniblock,
+                tx_index_in_l1_batch,
+                sender,
+                key,
+                value
+            FROM
+                l2_to_l1_logs
+            WHERE
+                tx_hash = $1
+            ORDER BY
+                log_index_in_tx ASC
+            "#,
             tx_hash.as_bytes()
         )
         .fetch_all(self.storage.conn())

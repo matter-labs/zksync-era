@@ -770,3 +770,35 @@ impl StateKeeperIO for TestIO {
         None
     }
 }
+
+/// `L1BatchExecutorBuilder` which doesn't check anything at all.
+/// Accepts all transactions.
+#[derive(Debug)]
+pub(crate) struct MockBatchExecutorBuilder;
+
+#[async_trait]
+impl L1BatchExecutorBuilder for MockBatchExecutorBuilder {
+    async fn init_batch(
+        &mut self,
+        _l1batch_params: L1BatchEnv,
+        _system_env: SystemEnv,
+    ) -> BatchExecutorHandle {
+        let (send, recv) = tokio::sync::mpsc::channel(1);
+        let handle = tokio::task::spawn(async {
+            let mut recv = recv;
+            while let Some(cmd) = recv.recv().await {
+                match cmd {
+                    Command::ExecuteTx(_, resp) => resp.send(successful_exec()).unwrap(),
+                    Command::StartNextMiniblock(_, resp) => resp.send(()).unwrap(),
+                    Command::RollbackLastTx(_) => panic!("unexpected rollback"),
+                    Command::FinishBatch(resp) => {
+                        // Blanket result, it doesn't really matter.
+                        resp.send((default_vm_block_result(), None)).unwrap();
+                        return;
+                    }
+                }
+            }
+        });
+        BatchExecutorHandle::from_raw(handle, send)
+    }
+}

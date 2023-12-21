@@ -21,7 +21,7 @@ use zksync_system_constants::{
 };
 use zksync_types::{
     api,
-    block::{legacy_miniblock_hash, pack_block_info, unpack_block_info},
+    block::{pack_block_info, unpack_block_info, MiniblockHasher},
     get_nonce_key,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     AccountTreeId, L1BatchNumber, MiniblockNumber, Nonce, ProtocolVersionId, StorageKey,
@@ -107,7 +107,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
         L2BlockEnv {
             number: 1,
             timestamp: 0,
-            prev_block_hash: legacy_miniblock_hash(MiniblockNumber(0)),
+            prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
             max_virtual_blocks_to_create: 1,
         }
     } else {

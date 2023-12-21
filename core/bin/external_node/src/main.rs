@@ -1,8 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
-use anyhow::Context;
+use anyhow::Context as _;
 use clap::Parser;
-use futures::{future::FusedFuture, FutureExt};
+use futures::{future::FusedFuture, FutureExt as _};
+use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task, time::sleep};
 use zksync_basic_types::{Address, L2ChainId};
@@ -37,6 +38,10 @@ use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 mod config;
+mod metrics;
+
+const RELEASE_MANIFEST: &str =
+    std::include_str!("../../../../.github/release-please/manifest.json");
 
 use crate::config::ExternalNodeConfig;
 
@@ -99,6 +104,14 @@ async fn init_tasks(
     HealthCheckHandle,
     watch::Receiver<bool>,
 )> {
+    let release_manifest: serde_json::Value = serde_json::from_str(RELEASE_MANIFEST)
+        .expect("release manifest is a valid json document; qed");
+    let release_manifest_version = release_manifest["core"].as_str().expect(
+        "a release-please manifest with \"core\" version field was specified at build time; qed.",
+    );
+
+    let version = semver::Version::parse(release_manifest_version)
+        .expect("version in manifest is a correct semver format; qed");
     let main_node_url = config
         .required
         .main_node_url()
@@ -117,6 +130,23 @@ async fn init_tasks(
         config.optional.miniblock_seal_queue_capacity,
     );
     task_handles.push(tokio::spawn(miniblock_sealer.run()));
+    let pool = connection_pool.clone();
+    task_handles.push(tokio::spawn(async move {
+        loop {
+            let protocol_version = pool
+                .access_storage()
+                .await
+                .unwrap()
+                .protocol_versions_dal()
+                .last_used_version_id()
+                .await
+                .map(|version| version as u16);
+
+            EN_METRICS.version[&(format!("{}", version), protocol_version)].set(1);
+
+            tokio::time::sleep(Duration::from_secs(10)).await;
+        }
+    }));
 
     let state_keeper = build_state_keeper(
         action_queue,
@@ -240,7 +270,7 @@ async fn init_tasks(
     };
 
     let http_server_handles =
-        ApiBuilder::jsonrpc_backend(config.clone().into(), connection_pool.clone())
+        ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
             .http(config.required.http_port)
             .with_filter_limit(config.optional.filters_limit)
             .with_batch_request_size_limit(config.optional.max_batch_request_size)
@@ -254,7 +284,7 @@ async fn init_tasks(
             .context("Failed initializing HTTP JSON-RPC server")?;
 
     let ws_server_handles =
-        ApiBuilder::jsonrpc_backend(config.clone().into(), connection_pool.clone())
+        ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
             .ws(config.required.ws_port)
             .with_filter_limit(config.optional.filters_limit)
             .with_subscriptions_limit(config.optional.subscriptions_limit)
@@ -413,23 +443,20 @@ async fn main() -> anyhow::Result<()> {
 
     let reorg_detector = ReorgDetector::new(&main_node_url, connection_pool.clone(), stop_receiver);
     let mut reorg_detector_handle = tokio::spawn(reorg_detector.run()).fuse();
+    let mut reorg_detector_result = None;
 
     let particular_crypto_alerts = None;
     let graceful_shutdown = None::<futures::future::Ready<()>>;
     let tasks_allowed_to_finish = false;
-    let mut reorg_detector_last_correct_batch = None;
 
     tokio::select! {
         _ = wait_for_tasks(task_handles, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
         _ = sigint_receiver => {
             tracing::info!("Stop signal received, shutting down");
         },
-        last_correct_batch = &mut reorg_detector_handle => {
-            if let Ok(last_correct_batch) = last_correct_batch {
-                reorg_detector_last_correct_batch = last_correct_batch;
-            } else {
-                tracing::error!("Reorg detector actor failed");
-            }
+        result = &mut reorg_detector_handle => {
+            tracing::info!("Reorg detector terminated, shutting down");
+            reorg_detector_result = Some(result);
         }
     };
 
@@ -438,13 +465,23 @@ async fn main() -> anyhow::Result<()> {
     shutdown_components(stop_sender, health_check_handle).await;
 
     if !reorg_detector_handle.is_terminated() {
-        if let Ok(Some(last_correct_batch)) = reorg_detector_handle.await {
-            reorg_detector_last_correct_batch = Some(last_correct_batch);
-        }
+        reorg_detector_result = Some(reorg_detector_handle.await);
     }
+    let reorg_detector_last_correct_batch = reorg_detector_result.and_then(|result| match result {
+        Ok(Ok(last_correct_batch)) => last_correct_batch,
+        Ok(Err(err)) => {
+            tracing::error!("Reorg detector failed: {err}");
+            None
+        }
+        Err(err) => {
+            tracing::error!("Reorg detector panicked: {err}");
+            None
+        }
+    });
 
     if let Some(last_correct_batch) = reorg_detector_last_correct_batch {
-        tracing::info!("Performing rollback to block {}", last_correct_batch);
+        tracing::info!("Performing rollback to L1 batch #{last_correct_batch}");
+
         let reverter = BlockReverter::new(
             config.required.state_cache_path,
             config.required.merkle_tree_path,

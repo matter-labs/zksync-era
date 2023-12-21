@@ -217,7 +217,7 @@ impl From<&TypedFilter> for FilterType {
 #[metrics(prefix = "api_web3_filter")]
 pub(super) struct FilterMetrics {
     /// Number of currently active filters grouped by the filter type
-    pub metrics_count: Family<FilterType, Gauge>,
+    pub filter_count: Family<FilterType, Gauge>,
     /// Time in seconds between consecutive requests to the filter grouped by the filter type
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
     pub request_frequency: Family<FilterType, Histogram<Duration>>,
@@ -226,7 +226,7 @@ pub(super) struct FilterMetrics {
     pub filter_lifetime: Family<FilterType, Histogram<Duration>>,
     /// Number of requests to the filter grouped by the filter type
     #[metrics(buckets = Buckets::exponential(1.0..=1048576.0, 2.0))]
-    pub filter_count: Family<FilterType, Histogram<usize>>,
+    pub request_count: Family<FilterType, Histogram<usize>>,
 }
 
 #[vise::register]

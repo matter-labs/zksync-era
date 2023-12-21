@@ -19,7 +19,6 @@ const CONFIG_FILES = [
     'prover.toml',
     'rust.toml',
     'private.toml',
-    'fetcher.toml',
     'witness_generator.toml',
     'circuit_synthesizer.toml',
     'prover_group.toml',

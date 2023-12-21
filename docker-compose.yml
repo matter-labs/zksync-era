@@ -1,7 +1,7 @@
 version: '3.2'
 services:
   create-beacon-chain-genesis:
-    image: "gcr.io/prysmaticlabs/prysm/cmd/prysmctl:latest"
+    image: "gcr.io/prysmaticlabs/prysm/cmd/prysmctl:HEAD-c6801d"
     command:
       - testnet
       - generate-genesis
@@ -60,7 +60,7 @@ services:
       geth-genesis:
         condition: service_completed_successfully
   beacon:
-    image: "gcr.io/prylabs-dev/prysm/beacon-chain:v4.1.1"
+    image: "gcr.io/prysmaticlabs/prysm/beacon-chain:HEAD-c6801d"
     command:
       - --datadir=/consensus/beacon/
       - --min-sync-peers=0
@@ -91,7 +91,7 @@ services:
       create-beacon-chain-genesis:
         condition: service_completed_successfully
   validator:
-    image: "gcr.io/prylabs-dev/prysm/validator:v4.1.1"
+    image: "gcr.io/prysmaticlabs/prysm/validator:HEAD-c6801d"
     command:
       - --beacon-rpc-provider=beacon:4000
       - --datadir=/consensus/validatordata
@@ -118,11 +118,6 @@ services:
   # This is specific to runner
   zk:
     image: "matterlabs/zk-environment:latest2.0-lightweight"
-    depends_on:
-      - geth
-      - postgres
-      - beacon
-      - validator
     security_opt:
       - seccomp:unconfined
     command: tail -f /dev/null
