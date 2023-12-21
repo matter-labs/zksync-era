@@ -1,8 +1,8 @@
 use std::{sync::Arc, time::Duration};
 
-use anyhow::Context;
+use anyhow::Context as _;
 use clap::Parser;
-use futures::{future::FusedFuture, FutureExt};
+use futures::{future::FusedFuture, FutureExt as _};
 use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task, time::sleep};
@@ -443,23 +443,20 @@ async fn main() -> anyhow::Result<()> {
 
     let reorg_detector = ReorgDetector::new(&main_node_url, connection_pool.clone(), stop_receiver);
     let mut reorg_detector_handle = tokio::spawn(reorg_detector.run()).fuse();
+    let mut reorg_detector_result = None;
 
     let particular_crypto_alerts = None;
     let graceful_shutdown = None::<futures::future::Ready<()>>;
     let tasks_allowed_to_finish = false;
-    let mut reorg_detector_last_correct_batch = None;
 
     tokio::select! {
         _ = wait_for_tasks(task_handles, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
         _ = sigint_receiver => {
             tracing::info!("Stop signal received, shutting down");
         },
-        last_correct_batch = &mut reorg_detector_handle => {
-            if let Ok(last_correct_batch) = last_correct_batch {
-                reorg_detector_last_correct_batch = last_correct_batch;
-            } else {
-                tracing::error!("Reorg detector actor failed");
-            }
+        result = &mut reorg_detector_handle => {
+            tracing::info!("Reorg detector terminated, shutting down");
+            reorg_detector_result = Some(result);
         }
     };
 
@@ -468,13 +465,23 @@ async fn main() -> anyhow::Result<()> {
     shutdown_components(stop_sender, health_check_handle).await;
 
     if !reorg_detector_handle.is_terminated() {
-        if let Ok(Some(last_correct_batch)) = reorg_detector_handle.await {
-            reorg_detector_last_correct_batch = Some(last_correct_batch);
-        }
+        reorg_detector_result = Some(reorg_detector_handle.await);
     }
+    let reorg_detector_last_correct_batch = reorg_detector_result.and_then(|result| match result {
+        Ok(Ok(last_correct_batch)) => last_correct_batch,
+        Ok(Err(err)) => {
+            tracing::error!("Reorg detector failed: {err}");
+            None
+        }
+        Err(err) => {
+            tracing::error!("Reorg detector panicked: {err}");
+            None
+        }
+    });
 
     if let Some(last_correct_batch) = reorg_detector_last_correct_batch {
-        tracing::info!("Performing rollback to block {}", last_correct_batch);
+        tracing::info!("Performing rollback to L1 batch #{last_correct_batch}");
+
         let reverter = BlockReverter::new(
             config.required.state_cache_path,
             config.required.merkle_tree_path,

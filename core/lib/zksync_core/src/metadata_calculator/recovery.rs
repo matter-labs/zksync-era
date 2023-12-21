@@ -422,7 +422,7 @@ impl AsyncTreeRecovery {
 }
 
 async fn snapshot_l1_batch(_pool: &ConnectionPool) -> anyhow::Result<Option<L1BatchNumber>> {
-    Ok(None) // FIXME: implement real logic
+    Ok(None) // FIXME (PLA-708): implement real logic
 }
 
 #[cfg(test)]

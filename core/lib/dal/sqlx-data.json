@@ -4072,6 +4072,24 @@
     },
     "query": "\n            SELECT\n                eth_txs_history.id,\n                eth_txs_history.eth_tx_id,\n                eth_txs_history.tx_hash,\n                eth_txs_history.base_fee_per_gas,\n                eth_txs_history.priority_fee_per_gas,\n                eth_txs_history.signed_raw_tx,\n                eth_txs.nonce\n            FROM\n                eth_txs_history\n                JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id\n            WHERE\n                eth_txs_history.sent_at_block IS NULL\n                AND eth_txs.confirmed_eth_tx_history_id IS NULL\n            ORDER BY\n                eth_txs_history.id DESC\n            "
   },
+  "43c7e352d09f69de1a182196aea4de79b67833f17d252b5b0e8e00cd6e75b5c1": {
+    "describe": {
+      "columns": [
+        {
+          "name": "number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        null
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "\n            SELECT\n                MIN(number) AS \"number\"\n            FROM\n                l1_batches\n            "
+  },
   "45b5825c82d33c9494ceef0fdc77675b89128d56559b8c89465844a914f5245e": {
     "describe": {
       "columns": [
@@ -11985,6 +12003,24 @@
       }
     },
     "query": "\n            SELECT\n                number,\n                l1_tx_count,\n                l2_tx_count,\n                timestamp,\n                is_finished,\n                fee_account_address,\n                l2_to_l1_logs,\n                l2_to_l1_messages,\n                bloom,\n                priority_ops_onchain_data,\n                used_contract_hashes,\n                base_fee_per_gas,\n                l1_gas_price,\n                l2_fair_gas_price,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                protocol_version,\n                system_logs,\n                compressed_state_diffs\n            FROM\n                l1_batches\n            WHERE\n                eth_commit_tx_id = $1\n                OR eth_prove_tx_id = $1\n                OR eth_execute_tx_id = $1\n            "
+  },
+  "f91790ae5cc4b087bf942ba52dd63a1e89945f8d5e0f4da42ecf6313c4f5967e": {
+    "describe": {
+      "columns": [
+        {
+          "name": "number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        null
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "\n            SELECT\n                MIN(number) AS \"number\"\n            FROM\n                l1_batches\n            WHERE\n                hash IS NOT NULL\n            "
   },
   "f922c0718c9dda2f285f09cbabad425bac8ed3d2780c60c9b63afbcea131f9a0": {
     "describe": {
