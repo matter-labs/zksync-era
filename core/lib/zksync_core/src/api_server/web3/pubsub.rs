@@ -80,12 +80,15 @@ impl PubSubNotifier {
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, pubsub_block_notifier is shutting down");
+                eprintln!("notify blocks exiting");
                 break;
             }
             timer.tick().await;
 
             let db_latency = PUB_SUB_METRICS.db_poll_latency[&SubscriptionType::Blocks].start();
+            eprintln!("new blocks");
             let new_blocks = self.new_blocks(last_block_number).await?;
+            eprintln!("new blocks end");
             db_latency.observe();
 
             if let Some(last_block) = new_blocks.last() {
