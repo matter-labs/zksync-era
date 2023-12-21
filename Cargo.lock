@@ -1380,6 +1380,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "compile-fmt"
+version = "0.1.0"
+source = "git+https://github.com/slowli/compile-fmt.git?rev=c6a41c846c9a6f70cdba4b44c9f3922242ffcf12#c6a41c846c9a6f70cdba4b44c9f3922242ffcf12"
+
+[[package]]
 name = "concurrent-queue"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4002,7 +4007,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1)",
  "zk_evm 1.3.1",
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zk_evm 1.4.0",
@@ -4943,7 +4948,7 @@ dependencies = [
  "metrics",
  "metrics-exporter-prometheus",
  "tokio",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1)",
  "vise-exporter",
 ]
 
@@ -6341,7 +6346,7 @@ dependencies = [
  "rand 0.8.5",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1)",
  "vlog",
  "zksync_config",
  "zksync_dal",
@@ -7466,26 +7471,49 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "vise"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1#1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1"
+dependencies = [
+ "compile-fmt",
+ "elsa",
+ "linkme",
+ "once_cell",
+ "prometheus-client",
+ "vise-macros 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1)",
+]
+
+[[package]]
+name = "vise"
+version = "0.1.0"
 source = "git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae#dd05139b76ab0843443ab3ff730174942c825dae"
 dependencies = [
  "elsa",
  "linkme",
  "once_cell",
  "prometheus-client",
- "vise-macros",
+ "vise-macros 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae)",
 ]
 
 [[package]]
 name = "vise-exporter"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae#dd05139b76ab0843443ab3ff730174942c825dae"
+source = "git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1#1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1"
 dependencies = [
  "hyper",
  "metrics-exporter-prometheus",
  "once_cell",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1)",
+]
+
+[[package]]
+name = "vise-macros"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1#1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1"
+dependencies = [
+ "proc-macro2 1.0.69",
+ "quote 1.0.33",
+ "syn 2.0.38",
 ]
 
 [[package]]
@@ -8245,7 +8273,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae)",
 ]
 
 [[package]]
@@ -8268,7 +8296,7 @@ dependencies = [
  "rand 0.8.5",
  "thiserror",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae)",
  "zksync_concurrency",
  "zksync_consensus_crypto",
  "zksync_consensus_network",
@@ -8305,7 +8333,7 @@ dependencies = [
  "prost",
  "rand 0.8.5",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae)",
  "zksync_concurrency",
  "zksync_consensus_bft",
  "zksync_consensus_crypto",
@@ -8333,7 +8361,7 @@ dependencies = [
  "snow",
  "thiserror",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae)",
  "zksync_concurrency",
  "zksync_consensus_crypto",
  "zksync_consensus_roles",
@@ -8485,7 +8513,7 @@ dependencies = [
  "tower",
  "tower-http",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1)",
  "vlog",
  "zksync_circuit_breaker",
  "zksync_commitment_utils",
@@ -8555,7 +8583,7 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1)",
  "zksync_consensus_roles",
  "zksync_consensus_storage",
  "zksync_contracts",
@@ -8590,7 +8618,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1)",
  "zksync_config",
  "zksync_contracts",
  "zksync_eth_signer",
@@ -8634,7 +8662,7 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1)",
  "vlog",
  "zksync_basic_types",
  "zksync_config",
@@ -8689,7 +8717,7 @@ dependencies = [
  "thiserror",
  "tracing",
  "tracing-subscriber",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1)",
  "zksync_crypto",
  "zksync_storage",
  "zksync_system_constants",
@@ -8723,7 +8751,7 @@ dependencies = [
  "tempdir",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1)",
  "zksync_config",
  "zksync_protobuf",
  "zksync_types",
@@ -8790,7 +8818,7 @@ dependencies = [
  "async-trait",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1)",
  "zksync_utils",
 ]
 
@@ -8824,7 +8852,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1)",
  "zksync_dal",
  "zksync_storage",
  "zksync_types",
@@ -8840,7 +8868,7 @@ dependencies = [
  "rocksdb",
  "tempfile",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1)",
 ]
 
 [[package]]
