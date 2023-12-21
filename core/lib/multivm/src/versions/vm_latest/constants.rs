@@ -103,7 +103,8 @@ pub const VM_HOOK_POSITION: u32 = RESULT_SUCCESS_FIRST_SLOT - 1;
 pub const VM_HOOK_PARAMS_COUNT: u32 = 2;
 pub const VM_HOOK_PARAMS_START_POSITION: u32 = VM_HOOK_POSITION - VM_HOOK_PARAMS_COUNT;
 
-pub(crate) const MAX_MEM_SIZE_BYTES: u32 = 16777216; // 2^24
+// This number must be divisible by 32
+pub(crate) const MAX_MEM_SIZE_BYTES: u32 = 24000000; // 2^24
 
 /// Arbitrary space in memory closer to the end of the page
 pub const RESULT_SUCCESS_FIRST_SLOT: u32 =
