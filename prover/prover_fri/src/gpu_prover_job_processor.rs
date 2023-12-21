@@ -198,10 +198,21 @@ pub mod gpu_prover {
         const SERVICE_NAME: &'static str = "FriGpuProver";
 
         async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
+            let now = Instant::now();
+            tracing::info!("Attempting to get new job from assembly queue.");
             let mut queue = self.witness_vector_queue.lock().await;
             let is_full = queue.is_full();
+            tracing::info!(
+                "Queue has {} items with max capacity {}. Queue is_full = {}.",
+                queue.size(),
+                queue.capacity(),
+                is_full
+            );
             match queue.remove() {
-                Err(_) => Ok(None),
+                Err(_) => {
+                    tracing::warn!("No assembly available in queue after {:?}.", now.elapsed());
+                    Ok(None)
+                }
                 Ok(item) => {
                     if is_full {
                         self.prover_connection_pool
@@ -216,7 +227,8 @@ pub mod gpu_prover {
                             .await;
                     }
                     tracing::info!(
-                        "Started GPU proving for job: {:?}",
+                        "Assembly received after {:?}. Starting GPU proving for job: {:?}",
+                        now.elapsed(),
                         item.witness_vector_artifacts.prover_job.job_id
                     );
                     Ok(Some((
