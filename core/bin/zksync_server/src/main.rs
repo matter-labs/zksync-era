@@ -15,7 +15,7 @@ use zksync_config::{
         ProofDataHandlerConfig, ProverGroupConfig, WitnessGeneratorConfig,
     },
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
-    FetcherConfig, GasAdjusterConfig, ObjectStoreConfig, PostgresConfig, ProverConfigs,
+    GasAdjusterConfig, ObjectStoreConfig, PostgresConfig, ProverConfigs,
 };
 use zksync_core::{
     genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
@@ -41,7 +41,7 @@ struct Cli {
     /// Comma-separated list of components to launch.
     #[arg(
         long,
-        default_value = "api,tree,eth,data_fetcher,state_keeper,housekeeper,basic_witness_input_producer"
+        default_value = "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer"
     )]
     components: ComponentsToRun,
 }
@@ -118,7 +118,6 @@ async fn main() -> anyhow::Result<()> {
         eth_client_config: ETHClientConfig::from_env().ok(),
         eth_sender_config: ETHSenderConfig::from_env().ok(),
         eth_watch_config: ETHWatchConfig::from_env().ok(),
-        fetcher_config: FetcherConfig::from_env().ok(),
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
         prover_configs: ProverConfigs::from_env().ok(),
         object_store_config: ObjectStoreConfig::from_env().ok(),

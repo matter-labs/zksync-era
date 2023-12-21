@@ -50,7 +50,6 @@ use crate::{
         web3::{state::InternalApiConfig, ApiServerHandles, Namespace},
     },
     basic_witness_input_producer::BasicWitnessInputProducer,
-    data_fetchers::run_data_fetchers,
     eth_sender::{Aggregator, EthTxAggregator, EthTxManager},
     eth_watch::start_eth_watch,
     house_keeper::{
@@ -79,7 +78,6 @@ pub mod basic_witness_input_producer;
 pub mod block_reverter;
 mod consensus;
 pub mod consistency_checker;
-pub mod data_fetchers;
 pub mod eth_sender;
 pub mod eth_watch;
 pub mod gas_tracker;
@@ -228,8 +226,6 @@ pub enum Component {
     EthTxAggregator,
     /// Manager for eth tx.
     EthTxManager,
-    /// Data fetchers: list fetcher, volume fetcher, price fetcher.
-    DataFetcher,
     /// State keeper.
     StateKeeper,
     /// Produces input for basic witness generator and uploads it as bin encoded file (blob) to GCS.
@@ -263,7 +259,6 @@ impl FromStr for Components {
             }
             "tree_backup" => Ok(Components(vec![Component::TreeBackup])),
             "tree_api" => Ok(Components(vec![Component::TreeApi])),
-            "data_fetcher" => Ok(Components(vec![Component::DataFetcher])),
             "state_keeper" => Ok(Components(vec![Component::StateKeeper])),
             "housekeeper" => Ok(Components(vec![Component::Housekeeper])),
             "basic_witness_input_producer" => {
@@ -612,22 +607,6 @@ pub async fn initialize_components(
         let elapsed = started_at.elapsed();
         APP_METRICS.init_latency[&InitStage::EthTxManager].set(elapsed);
         tracing::info!("initialized ETH-TxManager in {elapsed:?}");
-    }
-
-    if components.contains(&Component::DataFetcher) {
-        let started_at = Instant::now();
-        let fetcher_config = configs.fetcher_config.clone().context("fetcher_config")?;
-        let eth_network = configs.network_config.clone().context("network_config")?;
-        tracing::info!("initializing data fetchers");
-        task_futures.extend(run_data_fetchers(
-            &fetcher_config,
-            eth_network.network,
-            connection_pool.clone(),
-            stop_receiver.clone(),
-        ));
-        let elapsed = started_at.elapsed();
-        APP_METRICS.init_latency[&InitStage::DataFetcher].set(elapsed);
-        tracing::info!("initialized data fetchers in {elapsed:?}");
     }
 
     add_trees_to_task_futures(
@@ -1179,7 +1158,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     namespaces.push(Namespace::Snapshots);
 
     let api_builder =
-        web3::ApiBuilder::jsonrpc_backend(internal_api.clone(), replica_connection_pool)
+        web3::ApiBuilder::jsonrpsee_backend(internal_api.clone(), replica_connection_pool)
             .ws(api_config.web3_json_rpc.ws_port)
             .with_last_miniblock_pool(last_miniblock_pool)
             .with_filter_limit(api_config.web3_json_rpc.filters_limit())

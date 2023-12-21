@@ -1,14 +1,14 @@
 import { BigNumberish } from '@ethersproject/bignumber';
 import { BytesLike, ethers } from 'ethers';
-import { ForceDeployUpgraderFactory as ForceDeployUpgraderFactoryL2 } from 'l2-zksync-contracts/typechain';
+import { ForceDeployUpgraderFactory as ForceDeployUpgraderFactoryL2 } from 'l2-contracts/typechain';
 import {
     DefaultUpgradeFactory as DefaultUpgradeFactoryL1,
     AdminFacetFactory,
     GovernanceFactory
-} from 'l1-zksync-contracts/typechain';
-import { FacetCut } from 'l1-zksync-contracts/src.ts/diamondCut';
+} from 'l1-contracts/typechain';
+import { FacetCut } from 'l1-contracts/src.ts/diamondCut';
 import { IZkSyncFactory } from '../pre-boojum/IZkSyncFactory';
-import { ComplexUpgrader__factory } from '../../../etc/system-contracts/typechain-types';
+import { ComplexUpgraderFactory } from 'system-contracts/typechain';
 import {
     getCommonDataFileName,
     getCryptoFileName,
@@ -150,7 +150,7 @@ export function forceDeploymentCalldata(forcedDeployments: ForceDeployment[]): B
 }
 
 export function prepareCallDataForComplexUpgrader(calldata: BytesLike, to: string): BytesLike {
-    const upgrader = new ComplexUpgrader__factory();
+    const upgrader = new ComplexUpgraderFactory();
     let finalCalldata = upgrader.interface.encodeFunctionData('upgrade', [to, calldata]);
     return finalCalldata;
 }

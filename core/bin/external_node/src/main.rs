@@ -270,7 +270,7 @@ async fn init_tasks(
     };
 
     let http_server_handles =
-        ApiBuilder::jsonrpc_backend(config.clone().into(), connection_pool.clone())
+        ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
             .http(config.required.http_port)
             .with_filter_limit(config.optional.filters_limit)
             .with_batch_request_size_limit(config.optional.max_batch_request_size)
@@ -284,7 +284,7 @@ async fn init_tasks(
             .context("Failed initializing HTTP JSON-RPC server")?;
 
     let ws_server_handles =
-        ApiBuilder::jsonrpc_backend(config.clone().into(), connection_pool.clone())
+        ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
             .ws(config.required.ws_port)
             .with_filter_limit(config.optional.filters_limit)
             .with_subscriptions_limit(config.optional.subscriptions_limit)
