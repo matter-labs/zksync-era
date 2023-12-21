@@ -1,8 +1,10 @@
-use bigdecimal::{BigDecimal, Zero};
 use std::marker::PhantomData;
-use zk_evm_1_4_0::zkevm_opcode_defs::{LogOpcode, Opcode, UMAOpcode};
 
-use zk_evm_1_4_0::tracing::{BeforeExecutionData, VmLocalStateData};
+use bigdecimal::{BigDecimal, Zero};
+use zk_evm_1_4_0::{
+    tracing::{BeforeExecutionData, VmLocalStateData},
+    zkevm_opcode_defs::{LogOpcode, Opcode, UMAOpcode},
+};
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::{
     ECRECOVER_PRECOMPILE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
