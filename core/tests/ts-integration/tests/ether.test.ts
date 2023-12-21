@@ -240,7 +240,7 @@ describe('ETH token checks', () => {
 
     test.only('Costs do not depend on the gasLimit', async () => {
         if (!testMaster.isLocalHost()) {
-            // This test relies on stable pubdata price & so it is better to invoke it 
+            // This test relies on stable pubdata price & so it is better to invoke it
             // on localhost only.
             return;
         }
@@ -251,12 +251,12 @@ describe('ETH token checks', () => {
         // while(maxAttempts > 0) {
         const tx1 = await alice.sendTransaction({
             to: Wallet.createRandom().address,
-            value: amount,
+            value: amount
         });
         const tx2 = await alice.sendTransaction({
             to: Wallet.createRandom().address,
             value: amount,
-            gasLimit: tx1.gasLimit.mul(30),
+            gasLimit: tx1.gasLimit.mul(30)
         });
         const tx3 = await alice.sendTransaction({
             to: Wallet.createRandom().address,
