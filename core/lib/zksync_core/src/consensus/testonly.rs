@@ -11,14 +11,12 @@ use zksync_types::{
 
 use crate::{
     genesis::{ensure_genesis_state, GenesisParams},
-    state_keeper::{
-        tests::{create_l1_batch_metadata, create_l2_transaction, MockBatchExecutorBuilder},
-        MiniblockSealer, ZkSyncStateKeeper,
-    },
+    state_keeper::{tests::MockBatchExecutorBuilder, MiniblockSealer, ZkSyncStateKeeper},
     sync_layer::{
         sync_action::{ActionQueue, ActionQueueSender, SyncAction},
         ExternalIO, MainNodeClient, SyncState,
     },
+    utils::testonly::{create_l1_batch_metadata, create_l2_transaction},
 };
 
 #[derive(Debug, Default)]

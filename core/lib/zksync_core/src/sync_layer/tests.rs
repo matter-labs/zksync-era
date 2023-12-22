@@ -18,10 +18,8 @@ use crate::{
     api_server::web3::tests::spawn_http_server,
     consensus::testonly::MockMainNodeClient,
     genesis::{ensure_genesis_state, GenesisParams},
-    state_keeper::{
-        tests::{create_l1_batch_metadata, create_l2_transaction, TestBatchExecutorBuilder},
-        MiniblockSealer, ZkSyncStateKeeper,
-    },
+    state_keeper::{tests::TestBatchExecutorBuilder, MiniblockSealer, ZkSyncStateKeeper},
+    utils::testonly::{create_l1_batch_metadata, create_l2_transaction},
 };
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);

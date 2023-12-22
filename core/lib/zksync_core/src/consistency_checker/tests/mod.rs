@@ -5,34 +5,22 @@ use std::{collections::HashMap, slice};
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
-use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::StorageProcessor;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
-    block::{BlockGasCount, L1BatchHeader},
-    commitment::L1BatchWithMetadata,
-    Address, L2ChainId, ProtocolVersion, ProtocolVersionId,
+    aggregated_operations::AggregatedActionType, block::BlockGasCount,
+    commitment::L1BatchWithMetadata, L2ChainId, ProtocolVersion, ProtocolVersionId,
 };
 
 use super::*;
 use crate::{
     genesis::{ensure_genesis_state, GenesisParams},
-    state_keeper::tests::create_l1_batch_metadata,
+    utils::testonly::{create_l1_batch, create_l1_batch_metadata},
 };
 
 /// **NB.** For tests to run correctly, the returned value must be deterministic (i.e., depend only on `number`).
 fn create_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
-    let mut header = L1BatchHeader::new(
-        L1BatchNumber(number),
-        number.into(),
-        Address::default(),
-        BaseSystemContractsHashes::default(),
-        ProtocolVersionId::latest(),
-    );
-    header.is_finished = true;
-
     L1BatchWithMetadata {
-        header,
+        header: create_l1_batch(number),
         metadata: create_l1_batch_metadata(number),
         factory_deps: vec![],
     }
