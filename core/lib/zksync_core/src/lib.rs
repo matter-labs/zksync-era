@@ -218,7 +218,6 @@ pub enum Component {
     Tree,
     // TODO(BFT-273): Remove `TreeLightweight` component as obsolete
     TreeLightweight,
-    TreeBackup,
     /// Merkle tree API.
     TreeApi,
     EthWatcher,
@@ -257,7 +256,6 @@ impl FromStr for Components {
             "tree_lightweight" | "tree_lightweight_new" => {
                 Ok(Components(vec![Component::TreeLightweight]))
             }
-            "tree_backup" => Ok(Components(vec![Component::TreeBackup])),
             "tree_api" => Ok(Components(vec![Component::TreeApi])),
             "state_keeper" => Ok(Components(vec![Component::StateKeeper])),
             "housekeeper" => Ok(Components(vec![Component::Housekeeper])),
@@ -756,10 +754,6 @@ async fn add_trees_to_task_futures(
     store_factory: &ObjectStoreFactory,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
-    if components.contains(&Component::TreeBackup) {
-        anyhow::bail!("Tree backup mode is disabled");
-    }
-
     let db_config = configs.db_config.clone().context("db_config")?;
     let operation_config = configs
         .operations_manager_config
