@@ -65,7 +65,7 @@ pub struct MultiVMBaseSystemContracts {
     pub(crate) post_virtual_blocks_finish_upgrade_fix: BaseSystemContracts,
     /// Contracts to be used for post-boojum protocol versions.
     pub(crate) post_boojum: BaseSystemContracts,
-    /// Contracts to be used after the allowlist removal upgrade
+    /// Contracts to be used after the allow-list removal upgrade
     pub(crate) post_allowlist_removal: BaseSystemContracts,
 }
 
