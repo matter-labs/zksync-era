@@ -8,7 +8,7 @@ import fs from 'fs';
 import { TransactionResponse } from 'zksync-web3/build/src/types';
 import { BytesLike } from '@ethersproject/bytes';
 
-const L1_CONTRACTS_FOLDER = `${process.env.ZKSYNC_HOME}/contracts/l1-contracts/artifacts/cache/solpp-generated-contracts`;
+const L1_CONTRACTS_FOLDER = `${process.env.ZKSYNC_HOME}/era-contracts-lambda/l1-contracts/artifacts/cache/solpp-generated-contracts`;
 const L1_DEFAULT_UPGRADE_ABI = new ethers.utils.Interface(
     require(`${L1_CONTRACTS_FOLDER}/upgrades/DefaultUpgrade.sol/DefaultUpgrade.json`).abi
 );
