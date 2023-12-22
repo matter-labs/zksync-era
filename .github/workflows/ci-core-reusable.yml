@@ -108,10 +108,11 @@ jobs:
       - name: Perform loadtest
         run: ci_run zk run loadtest
 
-      - name: Show logs
-        if: always()
+      - name: Show server.log logs
+        run: ci_run cat server.log || true
+
+      - name: Show sccache logs
         run: |
-          ci_run cat server.log
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
   integration:
@@ -200,13 +201,20 @@ jobs:
           ci_run sleep 10
           ci_run zk test i upgrade
 
-      - name: Show logs
-        if: always()
+      - name: Show server.log logs
+        run: ci_run cat server.log || true
+
+      - name: Show contract_verifier.log logs
+        run: ci_run cat contract_verifier.log || true
+
+      - name: Show revert.log logs
+        run: ci_run cat core/tests/revert-test/revert.log || true
+
+      - name: Show upgrade.log logs
+        run: ci_run cat core/tests/upgrade-test/upgrade.log || true
+
+      - name: Show sccache logs
         run: |
-          ci_run cat server.log
-          ci_run cat contract_verifier.log
-          ci_run cat core/tests/revert-test/revert.log
-          ci_run cat core/tests/upgrade-test/upgrade.log
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
 
@@ -307,12 +315,19 @@ jobs:
           ci_run zk env docker
           CHECK_EN_URL="http://0.0.0.0:3060" ci_run zk test i upgrade
 
-      - name: Show logs
-        if: always()
+      - name: Show server.log logs
+        run: ci_run cat server.log || true
+
+      - name: Show contract_verifier.log logs
+        run: ci_run cat ext-node.log || true
+
+      - name: Show revert.log logs
+        run: ci_run cat core/tests/revert-test/revert.log || true
+
+      - name: Show upgrade.log logs
+        run: ci_run cat core/tests/upgrade-test/upgrade.log || true
+
+      - name: Show sccache logs
         run: |
-          ci_run cat server.log
-          ci_run cat ext-node.log
-          ci_run cat core/tests/revert-test/revert.log
-          ci_run cat core/tests/upgrade-test/upgrade.log
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
