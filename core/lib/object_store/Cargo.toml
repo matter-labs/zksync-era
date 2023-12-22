@@ -10,10 +10,10 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "dd05139b76ab0843443ab3ff730174942c825dae" }
+vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
 zksync_config = { path = "../config" }
 zksync_types = { path = "../types" }
-zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "49b1a98f80d0e9f74fdceadece4283e745c71599" }
+zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "84cdd9e45fd84bc1fac0b394c899ae33aef91afa" }
 
 anyhow = "1.0"
 async-trait = "0.1"

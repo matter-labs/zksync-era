@@ -216,7 +216,6 @@ pub enum Component {
     ContractVerificationApi,
     /// Metadata calculator.
     Tree,
-    TreeBackup,
     /// Merkle tree API.
     TreeApi,
     EthWatcher,
@@ -252,7 +251,6 @@ impl FromStr for Components {
             "ws_api" => Ok(Components(vec![Component::WsApi])),
             "contract_verification_api" => Ok(Components(vec![Component::ContractVerificationApi])),
             "tree" => Ok(Components(vec![Component::Tree])),
-            "tree_backup" => Ok(Components(vec![Component::TreeBackup])),
             "tree_api" => Ok(Components(vec![Component::TreeApi])),
             "state_keeper" => Ok(Components(vec![Component::StateKeeper])),
             "housekeeper" => Ok(Components(vec![Component::Housekeeper])),
@@ -751,10 +749,6 @@ async fn add_trees_to_task_futures(
     store_factory: &ObjectStoreFactory,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
-    if components.contains(&Component::TreeBackup) {
-        anyhow::bail!("Tree backup mode is disabled");
-    }
-
     if !components.contains(&Component::Tree) {
         anyhow::ensure!(
             !components.contains(&Component::TreeApi),

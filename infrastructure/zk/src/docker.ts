@@ -101,7 +101,11 @@ async function _build(image: string, tagList: string[], dockerOrg: string) {
     let buildArgs = '';
     if (image === 'prover-v2') {
         const eraBellmanCudaRelease = process.env.ERA_BELLMAN_CUDA_RELEASE;
-        buildArgs = `--build-arg ERA_BELLMAN_CUDA_RELEASE=${eraBellmanCudaRelease}`;
+        buildArgs += `--build-arg ERA_BELLMAN_CUDA_RELEASE=${eraBellmanCudaRelease}`;
+    }
+    if (image === 'prover-gpu-fri') {
+        const cudaArch = process.env.CUDA_ARCH;
+        buildArgs += `--build-arg CUDA_ARCH='${cudaArch}'`;
     }
 
     // HACK

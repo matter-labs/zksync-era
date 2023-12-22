@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{AccountTreeId, L1BatchNumber, MiniblockNumber};
+use zksync_basic_types::{AccountTreeId, L1BatchNumber, MiniblockNumber, H256};
 use zksync_protobuf::{required, ProtoFmt};
 
 use crate::{commitment::L1BatchWithMetadata, Bytes, StorageKey, StorageValue};
@@ -171,4 +171,14 @@ impl ProtoFmt for SnapshotStorageLogsChunk {
                 .collect(),
         }
     }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct SnapshotRecoveryStatus {
+    pub l1_batch_number: L1BatchNumber,
+    pub l1_batch_root_hash: H256,
+    pub miniblock_number: MiniblockNumber,
+    pub miniblock_root_hash: H256,
+    pub last_finished_chunk_id: Option<u64>,
+    pub total_chunk_count: u64,
 }

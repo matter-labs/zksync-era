@@ -56,8 +56,6 @@ async fn genesis_creation() {
     assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(1));
 }
 
-// TODO (SMA-1726): Restore tests for tree backup mode
-
 #[tokio::test]
 async fn basic_workflow() {
     let pool = ConnectionPool::test_pool().await;
