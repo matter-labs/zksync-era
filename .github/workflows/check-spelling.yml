@@ -37,7 +37,7 @@ jobs:
 
       - name: Build zk
         run: |
-          ci_run
+          ci_run zk
 
       - name: Run spellcheck
         run: |
