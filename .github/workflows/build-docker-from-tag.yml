@@ -70,20 +70,11 @@ jobs:
       image_tag: ${{ needs.setup.outputs.image_tag }}
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
+      CUDA_ARCH: "60;70;75;89"
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
-  build-gar-prover:
-    name: Build GAR prover
-    needs: [setup, build-push-prover-images]
-    uses: ./.github/workflows/build-gar-reusable.yml
-    if: contains(github.ref_name, 'prover')
-    with:
-      setup_keys_id: bccc7de
-      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
-      push_asia: true
-      push_europe: true
 
   build-gar-prover-fri-gpu:
     name: Build GAR prover FRI GPU

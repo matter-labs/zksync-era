@@ -31,6 +31,11 @@ on:
         type: boolean
         default: false
         required: false
+      CUDA_ARCH:
+        description: "CUDA Arch to build"
+        type: string
+        default: "89"
+        required: false
 
 jobs:
   build-images:
@@ -40,6 +45,7 @@ jobs:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
       RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
       ERA_BELLMAN_CUDA_RELEASE: ${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}
+      CUDA_ARCH: ${{ inputs.CUDA_ARCH }}
     runs-on: [matterlabs-ci-runner]
     strategy:
       matrix:
@@ -73,10 +79,10 @@ jobs:
       - name: init
         run: |
           ci_run git config --global --add safe.directory /usr/src/zksync
-          ci_run git config --global --add safe.directory /usr/src/zksync/etc/system-contracts
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
-      
+
       # We need the CRS only for the fri compressor.
       - name: download CRS
         if: matrix.component == 'proof-fri-compressor'
@@ -163,7 +169,7 @@ jobs:
             ci_run echo [workspace] > Cargo.toml
             ci_run echo members = [\"prover/${underscored_name}\"] >> Cargo.toml
             ci_run cp prover/Cargo.lock Cargo.lock
-            PASSED_ENV_VARS="ERA_BELLMAN_CUDA_RELEASE"  \
+            PASSED_ENV_VARS="ERA_BELLMAN_CUDA_RELEASE,CUDA_ARCH" \
             ci_run zk docker $DOCKER_ACTION $COMPONENT
           else
             ci_run zk docker $DOCKER_ACTION $COMPONENT

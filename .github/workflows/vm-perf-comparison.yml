@@ -48,7 +48,7 @@ jobs:
           ci_run cargo bench --package vm-benchmark --bench iai | tee base-iai
 
       - name: checkout PR
-        run: git checkout --force FETCH_HEAD
+        run: git checkout --force FETCH_HEAD --recurse-submodules
 
       - name: run benchmarks on PR
         shell: bash

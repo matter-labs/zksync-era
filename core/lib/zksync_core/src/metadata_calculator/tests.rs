@@ -1,3 +1,7 @@
+//! Tests for the metadata calculator component life cycle.
+
+// TODO (PLA-708): test full recovery life cycle
+
 use std::{future::Future, ops, panic, path::Path, time::Duration};
 
 use assert_matches::assert_matches;
@@ -19,7 +23,8 @@ use zksync_types::{
 use zksync_utils::u32_to_h256;
 
 use super::{
-    L1BatchWithLogs, MetadataCalculator, MetadataCalculatorConfig, MetadataCalculatorModeConfig,
+    GenericAsyncTree, L1BatchWithLogs, MetadataCalculator, MetadataCalculatorConfig,
+    MetadataCalculatorModeConfig,
 };
 use crate::genesis::{ensure_genesis_state, GenesisParams};
 
@@ -44,13 +49,12 @@ async fn genesis_creation() {
     let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
     run_calculator(calculator, pool.clone()).await;
     let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
-    assert_eq!(
-        calculator.updater.tree().next_l1_batch_number(),
-        L1BatchNumber(1)
-    );
-}
 
-// TODO (SMA-1726): Restore tests for tree backup mode
+    let GenericAsyncTree::Ready(tree) = &calculator.tree else {
+        panic!("Unexpected tree state: {:?}", calculator.tree);
+    };
+    assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(1));
+}
 
 #[tokio::test]
 async fn basic_workflow() {
@@ -74,10 +78,10 @@ async fn basic_workflow() {
     assert!(merkle_paths.iter().all(|log| log.is_write));
 
     let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
-    assert_eq!(
-        calculator.updater.tree().next_l1_batch_number(),
-        L1BatchNumber(2)
-    );
+    let GenericAsyncTree::Ready(tree) = &calculator.tree else {
+        panic!("Unexpected tree state: {:?}", calculator.tree);
+    };
+    assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(2));
 }
 
 async fn expected_tree_hash(pool: &ConnectionPool) -> H256 {

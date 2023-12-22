@@ -20,7 +20,7 @@ use crate::{
         },
         tx_sender::ApiContracts,
         web3::{
-            backend_jsonrpc::error::internal_error,
+            backend_jsonrpsee::internal_error,
             metrics::API_METRICS,
             resolve_block,
             state::{RpcState, SealedMiniblockNumber},

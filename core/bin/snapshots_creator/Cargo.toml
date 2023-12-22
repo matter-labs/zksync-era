@@ -11,14 +11,13 @@ categories = ["cryptography"]
 publish = false # We don't want to publish our binaries.
 
 [dependencies]
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "dd05139b76ab0843443ab3ff730174942c825dae" }
+vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
 prometheus_exporter = { path = "../../lib/prometheus_exporter" }
 zksync_config = { path = "../../lib/config" }
 zksync_dal = { path = "../../lib/dal" }
 zksync_env_config = { path = "../../lib/env_config" }
 zksync_utils = { path = "../../lib/utils" }
 zksync_types = { path = "../../lib/types" }
-zksync_core = { path = "../../lib/zksync_core" }
 zksync_object_store = { path = "../../lib/object_store" }
 vlog = { path = "../../lib/vlog" }
 
@@ -26,5 +25,6 @@ anyhow = "1.0"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 futures = "0.3"
-serde = { version = "1.0.189", features = ["derive"] }
-serde_json = "1.0"
+
+[dev-dependencies]
+rand = "0.8"
