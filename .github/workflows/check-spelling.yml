@@ -35,7 +35,10 @@ jobs:
         run: |
           docker compose up -d zk
 
-      - name: Run cspell
+      - name: Build zk
         run: |
-          ci_run zk
+          ci_run
+
+      - name: Run spellcheck
+        run: |
           ci_run zk spellcheck
