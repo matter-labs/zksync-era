@@ -65,11 +65,15 @@ impl ApiServerHandles {
             eprintln!("tasks len {}", self.tasks.len());
             for task in self.tasks {
                 eprintln!("{} {task:?}", chrono::Utc::now());
-                // FIXME(PLA-481): avoid these errors (by spawning notifier tasks on server runtime?)
-                if let Err(err) = task.await.expect("Server panicked") {
-                    let err = err.root_cause().to_string();
-                    assert!(err.contains("Tokio 1.x context was found"));
-                }
+                let task_result = task.await.unwrap_or_else(|err| {
+                    if err.is_cancelled() {
+                        Ok(())
+                    } else {
+                        panic!("Server panicked: {err:?}");
+                    }
+                });
+                task_result.expect("Server task returned an error");
+
                 eprintln!("{} completed waiting", chrono::Utc::now());
             }
         };

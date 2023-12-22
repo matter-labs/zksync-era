@@ -421,6 +421,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
                 .context("Polling interval is not set")?;
 
             tasks.extend(pub_sub.spawn_notifiers(
+                runtime.handle(),
                 self.pool.clone(),
                 polling_interval,
                 stop_receiver.clone(),

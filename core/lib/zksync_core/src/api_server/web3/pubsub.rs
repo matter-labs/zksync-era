@@ -110,10 +110,14 @@ impl PubSubNotifier {
         &self,
         last_block_number: MiniblockNumber,
     ) -> anyhow::Result<Vec<BlockHeader>> {
-        self.connection_pool
+        eprintln!("{} new blocks conn", chrono::Utc::now());
+        let mut storage = self
+            .connection_pool
             .access_storage_tagged("api")
             .await
-            .context("access_storage_tagged")?
+            .context("access_storage_tagged")?;
+        eprintln!("{} new blocks conn end", chrono::Utc::now());
+        storage
             .blocks_web3_dal()
             .get_block_headers_after(last_block_number)
             .await
@@ -156,10 +160,14 @@ impl PubSubNotifier {
         &self,
         last_time: chrono::NaiveDateTime,
     ) -> anyhow::Result<(Vec<H256>, Option<chrono::NaiveDateTime>)> {
-        self.connection_pool
+        eprintln!("{} tx conn", chrono::Utc::now());
+        let mut storage = self
+            .connection_pool
             .access_storage_tagged("api")
             .await
-            .context("access_storage_tagged")?
+            .context("access_storage_tagged")?;
+        eprintln!("{} tx conn end", chrono::Utc::now());
+        storage
             .transactions_web3_dal()
             .get_pending_txs_hashes_after(last_time, None)
             .await
@@ -388,6 +396,7 @@ impl EthSubscribe {
     /// Spawns notifier tasks. This should be called once per instance.
     pub fn spawn_notifiers(
         &self,
+        handle: &tokio::runtime::Handle,
         connection_pool: ConnectionPool,
         polling_interval: Duration,
         stop_receiver: watch::Receiver<bool>,
@@ -400,7 +409,7 @@ impl EthSubscribe {
             polling_interval,
             events_sender: self.events_sender.clone(),
         };
-        let notifier_task = tokio::spawn(notifier.notify_blocks(stop_receiver.clone()));
+        let notifier_task = handle.spawn(notifier.notify_blocks(stop_receiver.clone()));
         notifier_tasks.push(notifier_task);
 
         let notifier = PubSubNotifier {
@@ -409,7 +418,7 @@ impl EthSubscribe {
             polling_interval,
             events_sender: self.events_sender.clone(),
         };
-        let notifier_task = tokio::spawn(notifier.notify_txs(stop_receiver.clone()));
+        let notifier_task = handle.spawn(notifier.notify_txs(stop_receiver.clone()));
         notifier_tasks.push(notifier_task);
 
         let notifier = PubSubNotifier {
@@ -418,7 +427,7 @@ impl EthSubscribe {
             polling_interval,
             events_sender: self.events_sender.clone(),
         };
-        let notifier_task = tokio::spawn(notifier.notify_logs(stop_receiver));
+        let notifier_task = handle.spawn(notifier.notify_logs(stop_receiver));
 
         notifier_tasks.push(notifier_task);
         notifier_tasks
