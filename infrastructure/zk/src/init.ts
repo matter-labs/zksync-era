@@ -51,6 +51,11 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
         await announced('Deploying localhost ERC20 tokens', run.deployERC20('dev', '', '', '', testTokens.args));
     }
 
+    if (nativeERC20) {
+        // TODO: Deploy and set native ERC20 token.
+        await announced('Setting up native L2 ERC20 token', run.deployERC20('new', 'lambdacoin', 'LBC', '18'));
+    }
+
     await utils.spawn('yarn l1-contracts build');
     await announced('Deploying L1 verifier', contract.deployVerifier([]));
     await announced('Reloading env', env.reload());
@@ -59,10 +64,12 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     await announced('Initializing validator', contract.initializeValidator(governorPrivateKeyArgs));
     await announced('Initialize L1 allow list', contract.initializeL1AllowList(governorPrivateKeyArgs));
 
+    await announced('Reloading env', env.reload());
+
     if (nativeERC20) {
-        // TODO: Deploy and set native ERC20 token.
-        await announced('Setting up native L2 ERC20 token', run.deployERC20('new', 'lambdacoin', 'LBC', '18'));
-    }
+        await announced('Approving Proxy Contract for deployer deposits', run.approve());
+    }   
+
     await announced(
         'Deploying L2 contracts',
         contract.deployL2(
