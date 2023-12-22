@@ -11,7 +11,7 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader},
     commitment::L1BatchWithMetadata,
-    Address, L2ChainId, ProtocolVersionId,
+    Address, L2ChainId, ProtocolVersion, ProtocolVersionId,
 };
 
 use super::*;
@@ -20,7 +20,7 @@ use crate::{
     state_keeper::tests::create_l1_batch_metadata,
 };
 
-/// **NB.** For tests to run correctly, the returned value must be deterministic.
+/// **NB.** For tests to run correctly, the returned value must be deterministic (i.e., depend only on `number`).
 fn create_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
     let mut header = L1BatchHeader::new(
         L1BatchNumber(number),
@@ -198,7 +198,7 @@ fn extracting_commit_data_for_pre_boojum_batch() {
     );
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 enum SaveAction<'a> {
     InsertBatch(&'a L1BatchWithMetadata),
     SaveMetadata(&'a L1BatchWithMetadata),
@@ -370,7 +370,67 @@ async fn normal_checker_function(
     checker_task.await.unwrap().unwrap();
 }
 
-#[derive(Debug)]
+#[test_casing(2, [false, true])]
+#[tokio::test]
+async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.access_storage().await.unwrap();
+    storage
+        .protocol_versions_dal()
+        .save_protocol_version_with_tx(ProtocolVersion::default())
+        .await;
+
+    let l1_batch = create_l1_batch_with_metadata(99);
+    let commit_tx_hash = H256::repeat_byte(1);
+    let commit_tx_input_data = MockL1Client::build_commit_tx_input_data(slice::from_ref(&l1_batch));
+    let mut client = MockL1Client::default();
+    client
+        .transaction_status_responses
+        .insert(commit_tx_hash, 1.into());
+    client
+        .transaction_input_data_responses
+        .insert(commit_tx_hash, commit_tx_input_data);
+    let save_actions = [
+        SaveAction::InsertBatch(&l1_batch),
+        SaveAction::SaveMetadata(&l1_batch),
+        SaveAction::InsertCommitTx(l1_batch.header.number),
+    ];
+    let commit_tx_hash_by_l1_batch = HashMap::from([(l1_batch.header.number, commit_tx_hash)]);
+
+    if !delay_batch_insertion {
+        for &save_action in &save_actions {
+            save_action
+                .apply(&mut storage, &commit_tx_hash_by_l1_batch)
+                .await;
+        }
+    }
+
+    let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
+    let checker = ConsistencyChecker {
+        l1_batch_updater: Box::new(l1_batch_updates_sender),
+        ..client.into_checker(pool.clone())
+    };
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let checker_task = tokio::spawn(checker.run(stop_receiver));
+
+    if delay_batch_insertion {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        for &save_action in &save_actions {
+            save_action
+                .apply(&mut storage, &commit_tx_hash_by_l1_batch)
+                .await;
+        }
+    }
+
+    // Wait until the batch is checked.
+    let checked_batch = l1_batch_updates_receiver.recv().await.unwrap();
+    assert_eq!(checked_batch, l1_batch.header.number);
+
+    stop_sender.send_replace(true);
+    checker_task.await.unwrap().unwrap();
+}
+
+#[derive(Debug, Clone, Copy)]
 enum IncorrectDataKind {
     MissingStatus,
     MismatchedStatus,
@@ -446,23 +506,31 @@ impl IncorrectDataKind {
     }
 }
 
-#[test_casing(7, IncorrectDataKind::ALL)]
+#[test_casing(7, Product((IncorrectDataKind::ALL, [false])))]
+// ^ `snapshot_recovery = true` is tested below; we don't want to run it with all incorrect data kinds
 #[tokio::test]
-async fn checker_detects_incorrect_tx_data(kind: IncorrectDataKind) {
+async fn checker_detects_incorrect_tx_data(kind: IncorrectDataKind, snapshot_recovery: bool) {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
-        .await
-        .unwrap();
+    if snapshot_recovery {
+        storage
+            .protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .await;
+    } else {
+        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+            .await
+            .unwrap();
+    }
 
-    let l1_batch = create_l1_batch_with_metadata(1);
+    let l1_batch = create_l1_batch_with_metadata(if snapshot_recovery { 99 } else { 1 });
     let commit_tx_hash = H256::repeat_byte(1);
     let commit_tx_input_data = MockL1Client::build_commit_tx_input_data(slice::from_ref(&l1_batch));
-    let commit_tx_hash_by_l1_batch = HashMap::from([(L1BatchNumber(1), commit_tx_hash)]);
+    let commit_tx_hash_by_l1_batch = HashMap::from([(l1_batch.header.number, commit_tx_hash)]);
     let save_actions = [
         SaveAction::InsertBatch(&l1_batch),
         SaveAction::SaveMetadata(&l1_batch),
-        SaveAction::InsertCommitTx(L1BatchNumber(1)),
+        SaveAction::InsertCommitTx(l1_batch.header.number),
     ];
     for save_action in save_actions {
         save_action
@@ -488,4 +556,9 @@ async fn checker_detects_incorrect_tx_data(kind: IncorrectDataKind) {
         .await
         .expect("Timed out waiting for checker to stop")
         .unwrap_err();
+}
+
+#[tokio::test]
+async fn checker_detects_incorrect_tx_data_after_snapshot_recovery() {
+    checker_detects_incorrect_tx_data(IncorrectDataKind::CommitDataForAnotherBatch, true).await;
 }

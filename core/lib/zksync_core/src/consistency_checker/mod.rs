@@ -10,7 +10,10 @@ use zksync_types::{
     L1BatchNumber, H256, U64,
 };
 
-use crate::metrics::{CheckerComponent, EN_METRICS};
+use crate::{
+    metrics::{CheckerComponent, EN_METRICS},
+    utils::wait_for_l1_batch_with_metadata,
+};
 
 #[cfg(test)]
 mod tests;
@@ -207,31 +210,44 @@ impl ConsistencyChecker {
         })
     }
 
-    async fn last_committed_batch(&self) -> anyhow::Result<L1BatchNumber> {
+    async fn last_committed_batch(&self) -> anyhow::Result<Option<L1BatchNumber>> {
         Ok(self
             .pool
             .access_storage()
             .await?
             .blocks_dal()
             .get_number_of_last_l1_batch_committed_on_eth()
-            .await?
-            .unwrap_or(L1BatchNumber(0))) // FIXME: not always valid
+            .await?)
     }
 
-    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let mut batch_number: L1BatchNumber = self
+    pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        // It doesn't make sense to start the checker until we have at least one L1 batch with metadata.
+        let earliest_l1_batch_number =
+            wait_for_l1_batch_with_metadata(&self.pool, self.sleep_interval, &mut stop_receiver)
+                .await?;
+
+        let Some(earliest_l1_batch_number) = earliest_l1_batch_number else {
+            return Ok(()); // Stop signal received
+        };
+
+        let last_committed_batch = self
             .last_committed_batch()
             .await?
+            .unwrap_or(earliest_l1_batch_number);
+        let first_batch_to_check: L1BatchNumber = last_committed_batch
             .0
             .saturating_sub(self.max_batches_to_recheck)
-            .max(1) // FIXME: not always valid
             .into();
-
+        // We shouldn't check batches not present in the storage, and skip the genesis batch since
+        // it's not committed on L1.
+        let first_batch_to_check = first_batch_to_check
+            .max(earliest_l1_batch_number)
+            .max(L1BatchNumber(1));
         tracing::info!(
-            "Starting consistency checker from L1 batch #{}",
-            batch_number.0
+            "Last committed L1 batch is #{last_committed_batch}; starting checks from L1 batch #{first_batch_to_check}"
         );
 
+        let mut batch_number = first_batch_to_check;
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, consistency_checker is shutting down");
@@ -257,7 +273,7 @@ impl ConsistencyChecker {
             // The batch might be already committed but not yet processed by the external node's tree
             // OR the batch might be processed by the external node's tree but not yet committed.
             // We need both.
-            if !batch_has_metadata || self.last_committed_batch().await? < batch_number {
+            if !batch_has_metadata || self.last_committed_batch().await? < Some(batch_number) {
                 tokio::time::sleep(self.sleep_interval).await;
                 continue;
             }
