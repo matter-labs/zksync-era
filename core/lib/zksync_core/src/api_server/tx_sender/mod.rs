@@ -65,6 +65,8 @@ pub struct MultiVMBaseSystemContracts {
     pub(crate) post_virtual_blocks_finish_upgrade_fix: BaseSystemContracts,
     /// Contracts to be used for post-boojum protocol versions.
     pub(crate) post_boojum: BaseSystemContracts,
+    /// Contracts to be used after the allowlist removal upgrade
+    pub(crate) post_allowlist_removal: BaseSystemContracts,
 }
 
 impl MultiVMBaseSystemContracts {
@@ -88,9 +90,10 @@ impl MultiVMBaseSystemContracts {
             | ProtocolVersionId::Version15
             | ProtocolVersionId::Version16
             | ProtocolVersionId::Version17 => self.post_virtual_blocks_finish_upgrade_fix,
-            ProtocolVersionId::Version18
-            | ProtocolVersionId::Version19
-            | ProtocolVersionId::Version20 => self.post_boojum,
+            ProtocolVersionId::Version18 => self.post_boojum,
+            ProtocolVersionId::Version19 | ProtocolVersionId::Version20 => {
+                self.post_allowlist_removal
+            }
         }
     }
 }
@@ -121,6 +124,7 @@ impl ApiContracts {
                 post_virtual_blocks_finish_upgrade_fix:
                     BaseSystemContracts::estimate_gas_post_virtual_blocks_finish_upgrade_fix(),
                 post_boojum: BaseSystemContracts::estimate_gas_post_boojum(),
+                post_allowlist_removal: BaseSystemContracts::estimate_gas_post_allowlist_removal(),
             },
             eth_call: MultiVMBaseSystemContracts {
                 pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
@@ -128,6 +132,7 @@ impl ApiContracts {
                 post_virtual_blocks_finish_upgrade_fix:
                     BaseSystemContracts::playground_post_virtual_blocks_finish_upgrade_fix(),
                 post_boojum: BaseSystemContracts::playground_post_boojum(),
+                post_allowlist_removal: BaseSystemContracts::playground_post_allowlist_removal(),
             },
         }
     }
