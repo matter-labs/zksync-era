@@ -31,7 +31,6 @@ EXPOSE 3030
 COPY --from=builder /usr/src/zksync/target/release/zksync_server /usr/bin
 COPY --from=builder /usr/src/zksync/target/release/block_reverter /usr/bin
 COPY --from=builder /usr/src/zksync/target/release/merkle_tree_consistency_checker /usr/bin
-COPY --from=builder /usr/src/zksync/target/release/rocksdb_util /usr/bin
 COPY contracts/system-contracts/bootloader/build/artifacts/ /contracts/system-contracts/bootloader/build/artifacts/
 COPY contracts/system-contracts/contracts/artifacts/ /contracts/system-contracts/contracts/artifacts/
 COPY contracts/system-contracts/contracts/precompiles/artifacts/ /contracts/system-contracts/contracts/precompiles/artifacts/
