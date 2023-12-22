@@ -60,8 +60,9 @@ pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
     // Storage refunds that oracle has returned in `estimate_refunds_for_write`.
     pub(crate) returned_refunds: HistoryRecorder<Vec<u32>, H>,
 
-    //
+    // Keeps track of storage keys that were written to.
     pub(crate) hot_writes: HistoryRecorder<HashMap<StorageKey, ()>, HistoryEnabled>,
+    // Keeps track of storage keys that were read.
     pub(crate) hot_reads: HistoryRecorder<HashMap<StorageKey, ()>, HistoryEnabled>,
 }
 
