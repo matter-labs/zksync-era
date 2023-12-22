@@ -90,8 +90,7 @@ return [len(dictionary), dictionary.keys(order=index asc), encoded_data]
 
 ## System Contract Compression Verification & Publishing
 
-The
-[Bytecode Compressor](https://github.com/matter-labs/era-system-contracts/blob/main/contracts/BytecodeCompressor.sol)
+The [Bytecode Compressor](https://github.com/matter-labs/era-system-contracts/blob/main/contracts/Compressor.sol)
 contract performs validation on the compressed bytecode generated on the server side. At the current moment, publishing
 bytecode to L1 may only be called by the bootloader but in the future anyone will be able to publish compressed bytecode
 with no change to the underlying algorithm.
