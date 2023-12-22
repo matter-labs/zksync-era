@@ -216,8 +216,6 @@ pub enum Component {
     ContractVerificationApi,
     /// Metadata calculator.
     Tree,
-    // TODO(BFT-273): Remove `TreeLightweight` component as obsolete
-    TreeLightweight,
     /// Merkle tree API.
     TreeApi,
     EthWatcher,
@@ -252,10 +250,7 @@ impl FromStr for Components {
             "http_api" => Ok(Components(vec![Component::HttpApi])),
             "ws_api" => Ok(Components(vec![Component::WsApi])),
             "contract_verification_api" => Ok(Components(vec![Component::ContractVerificationApi])),
-            "tree" | "tree_new" => Ok(Components(vec![Component::Tree])),
-            "tree_lightweight" | "tree_lightweight_new" => {
-                Ok(Components(vec![Component::TreeLightweight]))
-            }
+            "tree" => Ok(Components(vec![Component::Tree])),
             "tree_api" => Ok(Components(vec![Component::TreeApi])),
             "state_keeper" => Ok(Components(vec![Component::StateKeeper])),
             "housekeeper" => Ok(Components(vec![Component::Housekeeper])),
@@ -754,6 +749,14 @@ async fn add_trees_to_task_futures(
     store_factory: &ObjectStoreFactory,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
+    if !components.contains(&Component::Tree) {
+        anyhow::ensure!(
+            !components.contains(&Component::TreeApi),
+            "Merkle tree API cannot be started without a tree component"
+        );
+        return Ok(());
+    }
+
     let db_config = configs.db_config.clone().context("db_config")?;
     let operation_config = configs
         .operations_manager_config
@@ -769,28 +772,11 @@ async fn add_trees_to_task_futures(
         .contains(&Component::TreeApi)
         .then_some(&api_config);
 
-    let has_tree_component = components.contains(&Component::Tree);
-    let has_lightweight_component = components.contains(&Component::TreeLightweight);
-    let mode = match (has_tree_component, has_lightweight_component) {
-        (true, true) => anyhow::bail!(
-            "Cannot start a node with a Merkle tree in both full and lightweight modes. \
-             Since the storage layout is mode-independent, choose either of modes and run \
-             the node with it."
-        ),
-        (false, true) => MetadataCalculatorModeConfig::Lightweight,
-        (true, false) => match db_config.merkle_tree.mode {
-            MerkleTreeMode::Lightweight => MetadataCalculatorModeConfig::Lightweight,
-            MerkleTreeMode::Full => MetadataCalculatorModeConfig::Full {
-                store_factory: Some(store_factory),
-            },
+    let mode = match db_config.merkle_tree.mode {
+        MerkleTreeMode::Lightweight => MetadataCalculatorModeConfig::Lightweight,
+        MerkleTreeMode::Full => MetadataCalculatorModeConfig::Full {
+            store_factory: Some(store_factory),
         },
-        (false, false) => {
-            anyhow::ensure!(
-                !components.contains(&Component::TreeApi),
-                "Merkle tree API cannot be started without a tree component"
-            );
-            return Ok(());
-        }
     };
 
     run_tree(
