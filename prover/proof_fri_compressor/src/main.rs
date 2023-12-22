@@ -48,13 +48,10 @@ async fn main() -> anyhow::Result<()> {
     let opt = Opt::from_args();
     let config = FriProofCompressorConfig::from_env().context("FriProofCompressorConfig")?;
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let pool = ConnectionPool::builder(
-        postgres_config.prover_url()?,
-        postgres_config.max_connections()?,
-    )
-    .build()
-    .await
-    .context("failed to build a connection pool")?;
+    let pool = ConnectionPool::singleton(postgres_config.prover_url()?)
+        .build()
+        .await
+        .context("failed to build a connection pool")?;
     let object_store_config =
         ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;
     let blob_store = ObjectStoreFactory::new(object_store_config.0)

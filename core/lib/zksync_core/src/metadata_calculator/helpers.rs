@@ -333,6 +333,10 @@ impl Delayer {
         }
     }
 
+    pub fn delay_interval(&self) -> Duration {
+        self.delay_interval
+    }
+
     #[cfg_attr(not(test), allow(unused))] // `tree` is only used in test mode
     pub fn wait(&self, tree: &AsyncTree) -> impl Future<Output = ()> {
         #[cfg(test)]

@@ -184,9 +184,16 @@ describe('Block reverting test', function () {
             amount: depositAmount,
             to: alice.address
         });
-        console.log('here1');
-        let receipt = await depositHandle.waitFinalize();
-        console.log('here2');
+        const l1TxResponse = await alice._providerL1().getTransaction(depositHandle.hash);
+        // ethers doesn't work well with block reversions, so wait for the receipt before calling `.waitFinalize()`.
+        const l2Tx = await alice._providerL2().getL2TransactionFromPriorityOp(l1TxResponse);
+        let receipt = null;
+        do {
+            receipt = await tester.syncWallet.provider.getTransactionReceipt(l2Tx.hash);
+            await utils.sleep(1);
+        } while (receipt == null);
+
+        await depositHandle.waitFinalize();
         expect(receipt.status).to.be.eql(1);
 
         const balanceAfter = await alice.getBalance();
@@ -221,7 +228,13 @@ async function checkedRandomTransfer(sender: zkweb3.Wallet, amount: BigNumber) {
         to: receiver.address,
         value: amount
     });
-    const txReceipt = await transferHandle.wait();
+
+    // ethers doesn't work well with block reversions, so we poll for the receipt manually.
+    let txReceipt = null;
+    do {
+        txReceipt = await sender.provider.getTransactionReceipt(transferHandle.hash);
+        await utils.sleep(1);
+    } while (txReceipt == null);
 
     const senderBalance = await sender.getBalance();
     const receiverBalance = await receiver.getBalance();

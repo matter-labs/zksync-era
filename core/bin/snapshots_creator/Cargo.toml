@@ -11,7 +11,7 @@ categories = ["cryptography"]
 publish = false # We don't want to publish our binaries.
 
 [dependencies]
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "dd05139b76ab0843443ab3ff730174942c825dae" }
+vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
 prometheus_exporter = { path = "../../lib/prometheus_exporter" }
 zksync_config = { path = "../../lib/config" }
 zksync_dal = { path = "../../lib/dal" }
