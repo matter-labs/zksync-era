@@ -46,7 +46,6 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     await announced('Running server genesis setup', server.genesisFromSources());
     await announced('Deploying L1 contracts', contract.redeployL1(governorPrivateKeyArgs));
     await announced('Initializing validator', contract.initializeValidator(governorPrivateKeyArgs));
-    await announced('Initialize L1 allow list', contract.initializeL1AllowList(governorPrivateKeyArgs));
     await announced(
         'Deploying L2 contracts',
         contract.deployL2(
