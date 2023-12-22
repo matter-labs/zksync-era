@@ -169,7 +169,6 @@ command
     .description('redeploy contracts')
     .action(redeployL1);
 command.command('deploy [deploy-opts...]').allowUnknownOption(true).description('deploy contracts').action(deployL1);
-command.command('build').description('build contracts').action(build);
 command.command('initialize-validator').description('initialize validator').action(initializeValidator);
 command
     .command('initialize-l1-allow-list-contract')

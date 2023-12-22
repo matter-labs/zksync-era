@@ -56,7 +56,7 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
         await announced('Setting up native L2 ERC20 token', run.deployERC20('new', 'lambdacoin', 'LBC', '18'));
     }
 
-    await utils.spawn('yarn l1-contracts build');
+    await announced('Building contracts', contract.build());
     await announced('Deploying L1 verifier', contract.deployVerifier([]));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
