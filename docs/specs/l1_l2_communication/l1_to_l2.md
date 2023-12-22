@@ -87,7 +87,7 @@ been complete.
 The upgrade transactions are processed just like with priority transactions, with only the following differences:
 
 - We can have only one upgrade transaction per batch & this transaction must be the first transaction in the batch.
-- The system contracts upgrade transaction is not appended to `priorityOperationsRollingHash` and doesn’t increment
+- The system contracts upgrade transaction is not appended to `priorityOperationsRollingHash` and doesn't increment
   `numberOfPriorityTransactions`. Instead, its hash is calculated via a system L2→L1 log _before_ it gets executed.
   Note, that it is an important property. More on it [below](#security-considerations).
 
