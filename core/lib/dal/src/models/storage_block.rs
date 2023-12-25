@@ -50,6 +50,7 @@ pub struct StorageL1BatchHeader {
     // will be exactly 7 (or 8 in the event of a protocol upgrade) system logs.
     pub system_logs: Vec<Vec<u8>>,
     pub compressed_state_diffs: Option<Vec<u8>>,
+    pub pubdata_input: Option<Vec<u8>>,
 }
 
 impl From<StorageL1BatchHeader> for L1BatchHeader {
@@ -91,6 +92,7 @@ impl From<StorageL1BatchHeader> for L1BatchHeader {
             protocol_version: l1_batch
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
+            pubdata_input: l1_batch.pubdata_input,
         }
     }
 }
@@ -169,6 +171,7 @@ pub struct StorageL1Batch {
 
     pub events_queue_commitment: Option<Vec<u8>>,
     pub bootloader_initial_content_commitment: Option<Vec<u8>>,
+    pub pubdata_input: Option<Vec<u8>>,
 }
 
 impl From<StorageL1Batch> for L1BatchHeader {
@@ -210,6 +213,7 @@ impl From<StorageL1Batch> for L1BatchHeader {
             protocol_version: l1_batch
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
+            pubdata_input: l1_batch.pubdata_input,
         }
     }
 }

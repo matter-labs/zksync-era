@@ -65,6 +65,7 @@ pub struct L1BatchHeader {
     pub system_logs: Vec<SystemL2ToL1Log>,
     /// Version of protocol used for the L1 batch.
     pub protocol_version: Option<ProtocolVersionId>,
+    pub pubdata_input: Option<Vec<u8>>,
 }
 
 /// Holder for the miniblock metadata that is not available from transactions themselves.
@@ -122,6 +123,7 @@ impl L1BatchHeader {
             base_system_contracts_hashes,
             system_logs: vec![],
             protocol_version: Some(protocol_version),
+            pubdata_input: Some(vec![]),
         }
     }
 
