@@ -209,7 +209,7 @@ impl L1BatchWithMetadata {
                         .to_vec(),
                 ),
                 Token::Bytes(self.metadata.l2_l1_messages_compressed.clone()),
-                Token::Bytes(self.header.pubdata_input.clone().unwrap()[32..]),
+                Token::Bytes(self.header.pubdata_input[32..].clone().unwrap()),
             ])
         }
     }
