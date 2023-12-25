@@ -13,7 +13,7 @@ pub use types::{
     inputs::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode},
     outputs::{
         BootloaderMemory, CurrentExecutionState, ExecutionResult, FinishedL1Batch, L2Block,
-        PubdataInput, Refunds, VmExecutionResultAndLogs, VmExecutionStatistics, VmMemoryMetrics,
+        Refunds, VmExecutionResultAndLogs, VmExecutionStatistics, VmMemoryMetrics,
     },
     tracer,
 };

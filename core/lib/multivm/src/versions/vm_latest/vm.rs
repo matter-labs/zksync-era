@@ -149,7 +149,12 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             block_tip_execution_result: result,
             final_execution_state: execution_state,
             final_bootloader_memory: Some(bootloader_memory),
-            pubdata_input: Some(self.bootloader_state.get_pubdata_information().clone()),
+            pubdata_input: Some(
+                self.bootloader_state
+                    .get_pubdata_information()
+                    .clone()
+                    .build_pubdata(false),
+            ),
         }
     }
 }

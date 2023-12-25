@@ -5,15 +5,15 @@ use zksync_types::{
 
 /// Struct based on which the pubdata blob is formed
 #[derive(Debug, Clone, Default)]
-pub struct PubdataInput {
-    pub user_logs: Vec<L1MessengerL2ToL1Log>,
-    pub l2_to_l1_messages: Vec<Vec<u8>>,
-    pub published_bytecodes: Vec<Vec<u8>>,
-    pub state_diffs: Vec<StateDiffRecord>,
+pub(crate) struct PubdataInput {
+    pub(crate) user_logs: Vec<L1MessengerL2ToL1Log>,
+    pub(crate) l2_to_l1_messages: Vec<Vec<u8>>,
+    pub(crate) published_bytecodes: Vec<Vec<u8>>,
+    pub(crate) state_diffs: Vec<StateDiffRecord>,
 }
 
 impl PubdataInput {
-    pub fn build_pubdata(self, with_uncompressed_state_diffs: bool) -> Vec<u8> {
+    pub(crate) fn build_pubdata(self, with_uncompressed_state_diffs: bool) -> Vec<u8> {
         let mut l1_messenger_pubdata = vec![];
 
         let PubdataInput {
@@ -59,19 +59,6 @@ impl PubdataInput {
         }
 
         l1_messenger_pubdata
-        // ABI-encoding the final pubdata
-        // let l1_messenger_abi_encoded_pubdata =
-        //     ethabi::encode(&[ethabi::Token::Bytes(l1_messenger_pubdata)]);
-
-        // assert!(
-        //     l1_messenger_abi_encoded_pubdata.len() % 32 == 0,
-        //     "abi encoded bytes array length should be divisible by 32"
-        // );
-
-        // l1_messenger_abi_encoded_pubdata.to_vec()
-        // Need to skip first word as it represents array offset
-        // while bootloader expects only [len || data]
-        // l1_messenger_abi_encoded_pubdata[32..].to_vec()
     }
 }
 
