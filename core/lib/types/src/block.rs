@@ -122,7 +122,7 @@ impl L1BatchHeader {
             base_system_contracts_hashes,
             system_logs: vec![],
             protocol_version: Some(protocol_version),
-            pubdata_input: None,
+            pubdata_input: Some(vec![]),
         }
     }
 
