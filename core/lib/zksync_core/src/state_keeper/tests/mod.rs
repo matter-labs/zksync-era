@@ -8,8 +8,9 @@ use std::{
 
 use multivm::{
     interface::{
-        CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, Refunds,
-        SystemEnv, TxExecutionMode, VmExecutionResultAndLogs, VmExecutionStatistics,
+        CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
+        PubdataInput, Refunds, SystemEnv, TxExecutionMode, VmExecutionResultAndLogs,
+        VmExecutionStatistics,
     },
     vm_latest::{constants::BLOCK_GAS_LIMIT, VmExecutionLogs},
 };

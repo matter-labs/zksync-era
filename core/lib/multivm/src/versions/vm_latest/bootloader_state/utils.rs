@@ -126,6 +126,7 @@ pub(crate) fn apply_pubdata_to_memory(
     let pubdata =
         ethabi::encode(&[ethabi::Token::Bytes(pubdata_information.build_pubdata())])[32..].to_vec();
 
+    dbg!(hex::encode(pubdata.clone()));
     assert!(
         pubdata.len() / 32 <= OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS - 2,
         "The encoded pubdata is too big"
