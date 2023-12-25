@@ -3,7 +3,7 @@ use zksync_utils::{bytecode::CompressedBytecodeInfo, bytes_to_be_words, h256_to_
 
 use super::tx::BootloaderTx;
 use crate::{
-    interface::{BootloaderMemory, TxExecutionMode},
+    interface::{types::outputs::PubdataInput, BootloaderMemory, TxExecutionMode},
     vm_latest::{
         bootloader_state::l2_block::BootloaderL2Block,
         constants::{
@@ -13,7 +13,6 @@ use crate::{
             TX_DESCRIPTION_OFFSET, TX_OPERATOR_L2_BLOCK_INFO_OFFSET,
             TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO, TX_OVERHEAD_OFFSET, TX_TRUSTED_GAS_LIMIT_OFFSET,
         },
-        types::internals::pubdata::PubdataInput,
     },
 };
 

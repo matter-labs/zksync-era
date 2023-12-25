@@ -6,15 +6,15 @@ use zksync_types::{
 
 /// Struct based on which the pubdata blob is formed
 #[derive(Debug, Clone, Default)]
-pub(crate) struct PubdataInput {
-    pub(crate) user_logs: Vec<L1MessengerL2ToL1Log>,
-    pub(crate) l2_to_l1_messages: Vec<Vec<u8>>,
-    pub(crate) published_bytecodes: Vec<Vec<u8>>,
-    pub(crate) state_diffs: Vec<StateDiffRecord>,
+pub struct PubdataInput {
+    pub user_logs: Vec<L1MessengerL2ToL1Log>,
+    pub l2_to_l1_messages: Vec<Vec<u8>>,
+    pub published_bytecodes: Vec<Vec<u8>>,
+    pub state_diffs: Vec<StateDiffRecord>,
 }
 
 impl PubdataInput {
-    pub(crate) fn build_pubdata(self) -> Vec<u8> {
+    pub fn build_pubdata(self) -> Vec<u8> {
         let mut l1_messenger_pubdata = vec![];
 
         let PubdataInput {
