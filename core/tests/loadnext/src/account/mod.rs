@@ -59,7 +59,7 @@ pub struct AccountLifespan {
     contract_execution_params: LoadnextContractExecutionParams,
     /// Pool of account addresses, used to generate commands.
     addresses: AddressPool,
-    /// Successful transactions, required for requesting api
+    /// Successful transactions, required for requesting API
     successfully_sent_txs: Arc<RwLock<Vec<H256>>>,
     /// L1 ERC-20 token used in the test.
     main_l1_token: Address,

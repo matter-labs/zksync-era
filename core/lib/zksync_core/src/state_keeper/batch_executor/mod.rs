@@ -5,7 +5,7 @@ use tokio::{
     task::JoinHandle,
 };
 
-use multivm::{vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata, MultivmTracer};
+use multivm::{vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata, MultiVMTracer};
 use std::{fmt, sync::Arc};
 
 use multivm::{

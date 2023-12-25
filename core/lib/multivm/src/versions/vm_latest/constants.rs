@@ -61,7 +61,7 @@ pub const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET: usize =
 /// One of "worst case" scenarios for the number of state diffs in a batch is when 120kb of pubdata is spent
 /// on repeated writes, that are all zeroed out. In this case, the number of diffs is 120k / 5 = 24k. This means that they will have
 /// accommodate 6528000 bytes of calldata for the uncompressed state diffs. Adding 120k on top leaves us with
-/// roughly 6650000 bytes needed for calldata. 207813 slots are needed to accomodate this amount of data.
+/// roughly 6650000 bytes needed for calldata. 207813 slots are needed to accommodate this amount of data.
 /// We round up to 208000 slots just in case.
 ///
 /// In theory though much more calldata could be used (if for instance 1 byte is used for enum index). It is the responsibility of the
@@ -95,10 +95,10 @@ pub const BLOCK_OVERHEAD_L1_GAS: u32 = 800000;
 pub const BLOCK_OVERHEAD_PUBDATA: u32 = BLOCK_OVERHEAD_L1_GAS / L1_GAS_PER_PUBDATA_BYTE;
 
 /// VM Hooks are used for communication between bootloader and tracers.
-/// The 'type'/'opcode' is put into VM_HOOK_POSITION slot,
+/// The 'type' / 'opcode' is put into VM_HOOK_POSITION slot,
 /// and VM_HOOKS_PARAMS_COUNT parameters (each 32 bytes) are put in the slots before.
 /// So the layout looks like this:
-/// [param 0][param 1][vmhook opcode]
+/// `[param 0][param 1][vmhook opcode]`
 pub const VM_HOOK_POSITION: u32 = RESULT_SUCCESS_FIRST_SLOT - 1;
 pub const VM_HOOK_PARAMS_COUNT: u32 = 2;
 pub const VM_HOOK_PARAMS_START_POSITION: u32 = VM_HOOK_POSITION - VM_HOOK_PARAMS_COUNT;

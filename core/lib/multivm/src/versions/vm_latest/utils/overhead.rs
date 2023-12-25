@@ -12,7 +12,7 @@ pub fn derive_overhead(
     l1_gas_price: u64,
     base_fee: u64,
     encoded_len: usize,
-    coeficients: OverheadCoeficients,
+    coefficients: OverheadCoefficients,
 ) -> u32 {
     let base_fee = U256::from(base_fee);
 
@@ -38,18 +38,18 @@ pub fn derive_overhead(
     .unwrap()
 }
 
-/// Contains the coeficients with which the overhead for transactions will be calculated.
-/// All of the coeficients should be <= 1. There are here to provide a certain "discount" for normal transactions
+/// Contains the coefficients with which the overhead for transactions will be calculated.
+/// All of the coefficients should be <= 1. There are here to provide a certain "discount" for normal transactions
 /// at the risk of malicious transactions that may close the block prematurely.
-/// IMPORTANT: to perform correct computations, `MAX_TX_ERGS_LIMIT / coeficients.ergs_limit_overhead_coeficient` MUST
+/// IMPORTANT: to perform correct computations, `MAX_TX_ERGS_LIMIT / coefficients.ergs_limit_overhead_coeficient` MUST
 /// result in an integer number
 #[derive(Debug, Clone, Copy)]
-pub struct OverheadCoeficients {
+pub struct OverheadCoefficients {
     slot_overhead_coeficient: f64,
     bootloader_memory_overhead_coeficient: f64,
 }
 
-impl OverheadCoeficients {
+impl OverheadCoefficients {
     // This method ensures that the parameters keep the required invariants
     fn new_checked(
         slot_overhead_coeficient: f64,
@@ -63,11 +63,11 @@ impl OverheadCoeficients {
 
     // L1->L2 do not receive any discounts
     fn new_l1() -> Self {
-        OverheadCoeficients::new_checked(1.0, 1.)
+        OverheadCoefficients::new_checked(1.0, 1.)
     }
 
     fn new_l2() -> Self {
-        OverheadCoeficients::new_checked(
+        OverheadCoefficients::new_checked(
             1.0,
             1.0,
             // // For L2 transactions we allow a certain default discount with regard to the number of ergs.
@@ -78,7 +78,7 @@ impl OverheadCoeficients {
         )
     }
 
-    /// Return the coeficients for the given transaction type
+    /// Return the coefficients for the given transaction type
     pub fn from_tx_type(tx_type: u8) -> Self {
         if is_l1_tx_type(tx_type) {
             Self::new_l1()
@@ -94,9 +94,9 @@ pub(crate) fn get_amortized_overhead(
     l1_gas_price: u64,
     base_fee: u64,
     encoded_len: usize,
-    coeficients: OverheadCoeficients,
+    coefficients: OverheadCoefficients,
 ) -> u32 {
-    derive_overhead(l1_gas_price, base_fee, encoded_len, coeficients)
+    derive_overhead(l1_gas_price, base_fee, encoded_len, coefficients)
 }
 
 // todo: maybe remove this function

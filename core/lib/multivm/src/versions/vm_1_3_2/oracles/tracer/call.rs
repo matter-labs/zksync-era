@@ -94,7 +94,7 @@ impl<H: HistoryMode> Tracer for CallTracer<H> {
 }
 
 impl<H: HistoryMode> CallTracer<H> {
-    /// We use parent gas for propery calculation of gas used in the trace.
+    /// We use parent gas for property calculation of gas used in the trace.
     /// This method updates parent gas for the current call.
     fn update_parent_gas(&mut self, state: &VmLocalStateData<'_>, current_call: &mut Call) {
         let current = state.vm_local_state.callstack.current;

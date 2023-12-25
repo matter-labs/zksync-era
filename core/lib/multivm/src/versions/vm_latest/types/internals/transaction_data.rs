@@ -12,7 +12,7 @@ use zksync_utils::address_to_h256;
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
 
 use crate::vm_latest::constants::{L1_TX_TYPE, PRIORITY_TX_MAX_GAS_LIMIT};
-use crate::vm_latest::utils::overhead::{get_amortized_overhead, OverheadCoeficients};
+use crate::vm_latest::utils::overhead::{get_amortized_overhead, OverheadCoefficients};
 
 /// This structure represents the data that is used by
 /// the Bootloader to describe the transaction.
@@ -199,30 +199,13 @@ impl TransactionData {
             self.reserved_dynamic.len() as u64,
         );
 
-        // let (l1_gas_price, base_fee) = if is_l1_tx_type(self.tx_type) {
-        //     // todo: please move this constant outside
-        //     const LEGACY_PRIORITY_OP_GAS_LIMIT: u64 = 72_000_000;
-
-        //     let l1_gas_price = self.reserved[2].as_u64();
-        //     if l1_gas_price == 0 {
-        //         // It is assumed that l1GasPrice is 0 for legacy L1->L2 transactions.
-        //         // We could in theory duplicate the previous logic for such transactions, but
-        //         // in order to avoid maintaining big edge cases, the approach of considering whatever overhead is required to get the
-        //         // maximal gaslimit is used.
-
-        //         return self
-        //             .gas_limit
-        //             .saturating_sub(LEGACY_PRIORITY_OP_GAS_LIMIT.into())
-        //             .as_u32();
-        //     }
-
-        //     (l1_gas_price, self.max_fee_per_gas.as_u64())
-        // } else {
-        //     (batch_l1_gas_price, batch_base_fee)
-        // };
-
-        let coeficients = OverheadCoeficients::from_tx_type(self.tx_type);
-        get_amortized_overhead(batch_l1_gas_price, batch_base_fee, encoded_len, coeficients)
+        let coefficients = OverheadCoefficients::from_tx_type(self.tx_type);
+        get_amortized_overhead(
+            batch_l1_gas_price,
+            batch_base_fee,
+            encoded_len,
+            coefficients,
+        )
     }
 
     pub(crate) fn trusted_ergs_limit(&self, _block_gas_price_per_pubdata: u64) -> U256 {

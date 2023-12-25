@@ -19,7 +19,7 @@ impl RestApi {
         }
     }
 
-    /// Creates an actix-web `Scope`, which can be mounted to the Http server.
+    /// Creates an actix-web `Scope`, which can be mounted to the HTTP server.
     pub fn into_scope(self) -> actix_web::Scope {
         web::scope("")
             .app_data(web::Data::new(self))

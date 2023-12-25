@@ -139,23 +139,9 @@ impl BatchStatusUpdater {
             .unwrap()
             .number;
 
-        // We don't want to change the internal state until we actually persist the changes.
         let mut last_committed_l1_batch = self.last_committed_l1_batch;
         let mut last_proven_l1_batch = self.last_proven_l1_batch;
         let mut last_executed_l1_batch = self.last_executed_l1_batch;
-
-        assert!(
-            last_executed_l1_batch <= last_proven_l1_batch,
-            "Incorrect local state: executed batch must be proven"
-        );
-        assert!(
-            last_proven_l1_batch <= last_committed_l1_batch,
-            "Incorrect local state: proven batch must be committed"
-        );
-        assert!(
-            last_committed_l1_batch <= last_sealed_batch,
-            "Incorrect local state: unkonwn batch marked as committed"
-        );
 
         let mut batch = last_executed_l1_batch.next();
         // In this loop we try to progress on the batch statuses, utilizing the same request to the node to potentially
@@ -281,15 +267,21 @@ impl BatchStatusUpdater {
     }
 
     /// Inserts the provided status changes into the database.
-    /// This method is not transactional, so it can save only a part of the changes, which is fine:
-    /// after the restart the updater will continue from the last saved state.
-    ///
     /// The status changes are applied to the database by inserting bogus confirmed transactions (with
     /// some fields missing/substituted) only to satisfy API needs; this component doesn't expect the updated
     /// tables to be ever accessed by the `eth_sender` module.
     async fn apply_status_changes(&mut self, changes: StatusChanges) {
         let total_latency = EN_METRICS.batch_status_updater_loop_iteration.start();
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
+        let mut connection = self.pool.access_storage_tagged("sync_layer").await.unwrap();
+
+        let mut transaction = connection.start_transaction().await.unwrap();
+
+        let last_sealed_batch = transaction
+            .blocks_dal()
+            .get_newest_l1_batch_header()
+            .await
+            .unwrap()
+            .number;
 
         for change in changes.commit.into_iter() {
             tracing::info!(
@@ -298,7 +290,13 @@ impl BatchStatusUpdater {
                 change.l1_tx_hash,
                 change.happened_at
             );
-            storage
+
+            assert!(
+                change.number <= last_sealed_batch,
+                "Incorrect update state: unknown batch marked as committed"
+            );
+
+            transaction
                 .eth_sender_dal()
                 .insert_bogus_confirmed_eth_tx(
                     change.number,
@@ -317,7 +315,13 @@ impl BatchStatusUpdater {
                 change.l1_tx_hash,
                 change.happened_at
             );
-            storage
+
+            assert!(
+                change.number <= self.last_committed_l1_batch,
+                "Incorrect update state: proven batch must be committed"
+            );
+
+            transaction
                 .eth_sender_dal()
                 .insert_bogus_confirmed_eth_tx(
                     change.number,
@@ -337,7 +341,12 @@ impl BatchStatusUpdater {
                 change.happened_at
             );
 
-            storage
+            assert!(
+                change.number <= self.last_proven_l1_batch,
+                "Incorrect update state: executed batch must be proven"
+            );
+
+            transaction
                 .eth_sender_dal()
                 .insert_bogus_confirmed_eth_tx(
                     change.number,
@@ -349,6 +358,8 @@ impl BatchStatusUpdater {
                 .unwrap();
             self.last_executed_l1_batch = change.number;
         }
+
+        transaction.commit().await.unwrap();
 
         total_latency.observe();
     }

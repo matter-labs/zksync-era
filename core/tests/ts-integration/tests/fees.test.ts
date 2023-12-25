@@ -36,11 +36,11 @@ const L1_GAS_PRICES_TO_TEST = process.env.CI
           25_000_000_000, // 25 gwei
           50_000_000_000, // 50 gwei
           100_000_000_000, // 100 gwei
-          200_000_000_000, // 200 gwei
-        //   400_000_000_000, // 400 gwei
-        //   800_000_000_000, // 800 gwei
-        //   1_000_000_000_000, // 1000 gwei
-        //   2_000_000_000_000 // 2000 gwei
+          200_000_000_000 // 200 gwei
+          //   400_000_000_000, // 400 gwei
+          //   800_000_000_000, // 800 gwei
+          //   1_000_000_000_000, // 1000 gwei
+          //   2_000_000_000_000 // 2000 gwei
       ];
 
 testFees('Test fees', () => {
@@ -88,15 +88,17 @@ testFees('Test fees', () => {
 
         await (
             await alice.sendTransaction({
-                data: aliceErc20.interface.encodeFunctionData('transfer', [
-                    receiver,
-                    BigNumber.from(1)
-                ]),
+                data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, BigNumber.from(1)]),
                 to: tokenDetails.l2Address
             })
         ).wait();
 
-        let reports = ['ETH transfer (to new):\n\n', 'ETH transfer (to old):\n\n', 'ERC20 transfer (to new):\n\n', 'ERC20 transfer (to old):\n\n'];
+        let reports = [
+            'ETH transfer (to new):\n\n',
+            'ETH transfer (to old):\n\n',
+            'ERC20 transfer (to new):\n\n',
+            'ERC20 transfer (to old):\n\n'
+        ];
         for (const gasPrice of L1_GAS_PRICES_TO_TEST) {
             reports = await appendResults(
                 alice,
@@ -119,10 +121,7 @@ testFees('Test fees', () => {
                         to: tokenDetails.l2Address
                     },
                     {
-                        data: aliceErc20.interface.encodeFunctionData('transfer', [
-                            receiver,
-                            BigNumber.from(1)
-                        ]),
+                        data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, BigNumber.from(1)]),
                         to: tokenDetails.l2Address
                     }
                 ],

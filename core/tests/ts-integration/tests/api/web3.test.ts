@@ -866,7 +866,6 @@ describe('web3 API compatibility tests', () => {
             maxPriorityFeePerGas: gasPrice
         };
 
-
         const signedEip1559TxReq = await alice.signTransaction(eip1559TxReq);
         tx_handle = await alice.provider.sendTransaction(signedEip1559TxReq);
         await tx_handle.wait();
