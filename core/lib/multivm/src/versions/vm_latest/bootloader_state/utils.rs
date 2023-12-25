@@ -1,4 +1,4 @@
-use zksync_types::U256;
+use zksync_types::{ethabi, U256};
 use zksync_utils::{bytecode::CompressedBytecodeInfo, bytes_to_be_words, h256_to_u256};
 
 use super::tx::BootloaderTx;
@@ -123,7 +123,8 @@ pub(crate) fn apply_pubdata_to_memory(
     // - The other slot is for the 0x20 offset for the calldata.
     let l1_messenger_pubdata_start_slot = OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET + 2;
 
-    let pubdata = pubdata_information.build_pubdata();
+    let pubdata =
+        ethabi::encode(&[ethabi::Token::Bytes(pubdata_information.build_pubdata())])[32..].to_vec();
 
     assert!(
         pubdata.len() / 32 <= OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS - 2,
