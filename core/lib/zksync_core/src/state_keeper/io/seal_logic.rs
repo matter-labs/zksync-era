@@ -136,7 +136,7 @@ impl UpdatesManager {
             system_logs: finished_batch.final_execution_state.system_logs,
             pubdata_input: finished_batch
                 .pubdata_input
-                .map(|input| input.build_pubdata()),
+                .map(|input| input.build_pubdata(false)),
         };
 
         let events_queue = finished_batch

@@ -182,7 +182,6 @@ impl L1BatchWithMetadata {
                 ),
             ])
         } else {
-            dbg!(hex::encode(self.header.pubdata_input.clone().unwrap()));
             Token::Tuple(vec![
                 Token::Uint(U256::from(self.header.number.0)),
                 Token::Uint(U256::from(self.header.timestamp)),
