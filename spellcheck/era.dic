@@ -157,6 +157,8 @@ namespaces
 StateDiffRecord
 BYTES_PER_ENUMERATION_INDEX
 derived_key
+prefill
+reorg
 
 // zkSync-related words
 matterlabs
@@ -261,7 +263,9 @@ blockchains
 sidechain
 sidechains
 tokenomics
+validator
 validator's
+validator
 CHAINID
 PREVRANDAO
 ECDSA
@@ -274,6 +278,7 @@ versa
 blake2
 AR16MT
 Preimages
+EN's
 
 // Names
 Vyper

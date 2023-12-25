@@ -1,18 +1,19 @@
-use multivm::interface::{ExecutionResult, VmExecutionMode, VmInterface};
-use multivm::MultiVMTracer;
 use std::collections::HashSet;
 
-use multivm::tracers::{
-    validator::{ValidationError, ValidationTracer, ValidationTracerParams},
-    StorageInvocations,
+use multivm::{
+    interface::{ExecutionResult, VmExecutionMode, VmInterface},
+    tracers::{
+        validator::{ValidationError, ValidationTracer, ValidationTracerParams},
+        StorageInvocations,
+    },
+    vm_latest::HistoryDisabled,
+    MultiVMTracer,
 };
-use multivm::vm_latest::HistoryDisabled;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{l2::L2Tx, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS, U256};
 
-use super::adjust_pubdata_price_for_tx;
 use super::{
-    apply,
+    adjust_pubdata_price_for_tx, apply,
     vm_metrics::{SandboxStage, EXECUTION_METRICS, SANDBOX_METRICS},
     BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
 };

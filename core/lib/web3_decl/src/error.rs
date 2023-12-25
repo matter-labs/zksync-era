@@ -35,8 +35,6 @@ pub enum Web3Error {
     LogsLimitExceeded(usize, u32, u32),
     #[error("invalid filter: if blockHash is supplied fromBlock and toBlock must not be")]
     InvalidFilterBlockHash,
-    #[error("Query returned more than {0} results. Try smaller range of blocks")]
-    TooManyLogs(usize),
     #[error("Tree API is not available")]
     TreeApiUnavailable,
 }

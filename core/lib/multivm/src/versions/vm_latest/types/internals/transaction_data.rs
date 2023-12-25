@@ -1,18 +1,20 @@
 use std::convert::TryInto;
-use zksync_types::ethabi::{encode, Address, Token};
-use zksync_types::fee::{encoding_len, Fee};
-use zksync_types::l1::is_l1_tx_type;
-use zksync_types::l2::L2Tx;
-use zksync_types::transaction_request::{PaymasterParams, TransactionRequest};
-use zksync_types::{
-    l2::TransactionType, Bytes, Execute, ExecuteTransactionCommon, L2ChainId, L2TxCommonData,
-    Nonce, Transaction, H256, U256,
-};
-use zksync_utils::address_to_h256;
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
 
-use crate::vm_latest::constants::{L1_TX_TYPE, PRIORITY_TX_MAX_GAS_LIMIT};
-use crate::vm_latest::utils::overhead::{get_amortized_overhead, OverheadCoefficients};
+use zksync_types::{
+    ethabi::{encode, Address, Token},
+    fee::{encoding_len, Fee},
+    l1::is_l1_tx_type,
+    l2::{L2Tx, TransactionType},
+    transaction_request::{PaymasterParams, TransactionRequest},
+    Bytes, Execute, ExecuteTransactionCommon, L2ChainId, L2TxCommonData, Nonce, Transaction, H256,
+    U256,
+};
+use zksync_utils::{address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
+
+use crate::vm_latest::{
+    constants::{L1_TX_TYPE, PRIORITY_TX_MAX_GAS_LIMIT},
+    utils::overhead::{get_amortized_overhead, OverheadCoefficients},
+};
 
 /// This structure represents the data that is used by
 /// the Bootloader to describe the transaction.
@@ -296,8 +298,9 @@ impl TryInto<L2Tx> for TransactionData {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use zksync_types::fee::encoding_len;
+
+    use super::*;
 
     #[test]
     fn test_consistency_with_encoding_length() {

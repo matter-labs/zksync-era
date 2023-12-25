@@ -5,16 +5,15 @@
 //!
 //! These "extensions" are required to provide more zkSync-specific information while remaining Web3-compilant.
 
-use itertools::unfold;
-use rlp::Rlp;
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-
 use core::{
     convert::{TryFrom, TryInto},
     fmt,
     marker::PhantomData,
 };
 
+use itertools::unfold;
+use rlp::Rlp;
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 pub use zksync_types::{
     api::{Block, BlockNumber, Log, TransactionReceipt, TransactionRequest},
     vm_trace::{ContractSourceDebugInfo, VmDebugTrace, VmExecutionStep},
@@ -26,17 +25,6 @@ pub use zksync_types::{
         },
     },
 };
-
-/// Token in the zkSync network
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Token {
-    pub l1_address: Address,
-    pub l2_address: Address,
-    pub name: String,
-    pub symbol: String,
-    pub decimals: u8,
-}
 
 /// Helper structure used to parse deserialized `Ethereum` transaction.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -350,8 +338,9 @@ pub enum PubSubResult {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use zksync_types::api::{BlockId, BlockIdVariant};
+
+    use super::*;
 
     #[test]
     fn get_block_number_serde() {

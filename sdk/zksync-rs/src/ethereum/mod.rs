@@ -1,32 +1,34 @@
 //! Utilities for the on-chain operations, such as `Deposit` and `FullExit`.
 
-use core::{convert::TryFrom, time::Duration};
+use std::{
+    convert::TryFrom,
+    time::{Duration, Instant},
+};
+
 use serde_json::{Map, Value};
-use std::time::Instant;
+use zksync_eth_client::{
+    clients::http::SigningClient, types::Error, BoundEthInterface, EthInterface,
+};
+use zksync_eth_signer::EthereumSigner;
 use zksync_types::{
     api::BridgeAddresses,
+    l1::L1Tx,
+    network::Network,
     web3::{
         contract::{tokens::Tokenize, Options},
         ethabi,
         transports::Http,
         types::{TransactionReceipt, H160, H256, U256},
     },
-    L1ChainId, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
+    Address, L1ChainId, L1TxCommonData, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
 use zksync_web3_decl::namespaces::{EthNamespaceClient, ZksNamespaceClient};
 
-use zksync_eth_client::{
-    clients::http::SigningClient, types::Error, BoundEthInterface, EthInterface,
-};
-use zksync_eth_signer::EthereumSigner;
-use zksync_types::network::Network;
-use zksync_types::{l1::L1Tx, Address, L1TxCommonData};
-
-use crate::web3::ethabi::Bytes;
 use crate::{
     error::ClientError,
     operations::SyncTransactionHandle,
     utils::{is_token_eth, load_contract},
+    web3::ethabi::Bytes,
 };
 
 const IERC20_INTERFACE: &str = include_str!("../abi/IERC20.json");

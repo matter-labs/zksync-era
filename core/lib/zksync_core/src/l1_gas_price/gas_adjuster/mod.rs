@@ -1,23 +1,22 @@
 //! This module determines the fees to pay in txs containing blocks submitted to the L1.
 
-use tokio::sync::watch;
-use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
-
 use std::{
     collections::VecDeque,
     sync::{Arc, RwLock},
 };
 
+use tokio::sync::watch;
 use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::{types::Error, EthInterface};
-
-pub mod bounded_gas_adjuster;
-mod metrics;
-#[cfg(test)]
-mod tests;
+use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 
 use self::metrics::METRICS;
 use super::{L1GasPriceProvider, L1TxParamsProvider};
+use crate::state_keeper::metrics::KEEPER_METRICS;
+
+mod metrics;
+#[cfg(test)]
+mod tests;
 
 /// This component keeps track of the median base_fee from the last `max_base_fee_samples` blocks.
 /// It is used to adjust the base_fee of transactions sent to L1.
@@ -82,6 +81,19 @@ impl<E: EthInterface> GasAdjuster<E> {
         Ok(())
     }
 
+    fn bound_gas_price(&self, gas_price: u64) -> u64 {
+        let max_l1_gas_price = self.config.max_l1_gas_price();
+        if gas_price > max_l1_gas_price {
+            tracing::warn!(
+                "Effective gas price is too high: {gas_price}, using max allowed: {}",
+                max_l1_gas_price
+            );
+            KEEPER_METRICS.gas_price_too_high.inc();
+            return max_l1_gas_price;
+        }
+        gas_price
+    }
+
     pub async fn run(self: Arc<Self>, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         loop {
             if *stop_receiver.borrow() {
@@ -109,7 +121,11 @@ impl<E: EthInterface> L1GasPriceProvider for GasAdjuster<E> {
 
         let effective_gas_price = self.get_base_fee(0) + self.get_priority_fee();
 
-        (self.config.internal_l1_pricing_multiplier * effective_gas_price as f64) as u64
+        let calculated_price =
+            (self.config.internal_l1_pricing_multiplier * effective_gas_price as f64) as u64;
+
+        // Bound the price if it's too high.
+        self.bound_gas_price(calculated_price)
     }
 
     fn estimate_effective_pubdata_price(&self) -> u64 {

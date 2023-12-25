@@ -1,5 +1,5 @@
-use zksync_types::ethabi;
 use zksync_types::{
+    ethabi,
     event::L1MessengerL2ToL1Log,
     writes::{compress_state_diffs, StateDiffRecord},
 };

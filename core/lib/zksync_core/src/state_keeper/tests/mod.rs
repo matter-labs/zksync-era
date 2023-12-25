@@ -1,5 +1,3 @@
-use once_cell::sync::Lazy;
-
 use std::{
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -8,17 +6,20 @@ use std::{
     time::Instant,
 };
 
-use multivm::interface::{
-    CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, Refunds,
-    SystemEnv, TxExecutionMode, VmExecutionResultAndLogs, VmExecutionStatistics,
+use multivm::{
+    interface::{
+        CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, Refunds,
+        SystemEnv, TxExecutionMode, VmExecutionResultAndLogs, VmExecutionStatistics,
+    },
+    vm_latest::{constants::BLOCK_GAS_LIMIT, VmExecutionLogs},
 };
-use multivm::vm_latest::{constants::BLOCK_GAS_LIMIT, VmExecutionLogs};
+use once_cell::sync::Lazy;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    block::{legacy_miniblock_hash, miniblock_hash, BlockGasCount, MiniblockExecutionData},
+    block::{BlockGasCount, MiniblockExecutionData, MiniblockHasher},
     commitment::{L1BatchMetaParameters, L1BatchMetadata},
     fee::Fee,
     l2::L2Tx,
@@ -30,20 +31,22 @@ use zksync_types::{
 
 mod tester;
 
-pub(crate) use self::tester::TestBatchExecutorBuilder;
 use self::tester::{
     bootloader_tip_out_of_gas, pending_batch_data, random_tx, rejected_exec, successful_exec,
     successful_exec_with_metrics, TestScenario,
 };
-use crate::gas_tracker::l1_batch_base_cost;
-use crate::state_keeper::{
-    keeper::POLL_WAIT_DURATION,
-    seal_criteria::{
-        criteria::{GasCriterion, SlotsCriterion},
-        ConditionalSealer,
+pub(crate) use self::tester::{MockBatchExecutorBuilder, TestBatchExecutorBuilder};
+use crate::{
+    gas_tracker::l1_batch_base_cost,
+    state_keeper::{
+        keeper::POLL_WAIT_DURATION,
+        seal_criteria::{
+            criteria::{GasCriterion, SlotsCriterion},
+            ConditionalSealer,
+        },
+        types::ExecutionMetricsForCriteria,
+        updates::UpdatesManager,
     },
-    types::ExecutionMetricsForCriteria,
-    updates::UpdatesManager,
 };
 
 pub(super) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
@@ -77,7 +80,7 @@ pub(super) fn default_l1_batch_env(
         first_l2_block: L2BlockEnv {
             number,
             timestamp,
-            prev_block_hash: legacy_miniblock_hash(MiniblockNumber(number - 1)),
+            prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(number - 1)),
             max_virtual_blocks_to_create: 1,
         },
         fair_pubdata_price: 17,
@@ -445,14 +448,16 @@ async fn pending_batch_is_applied() {
         MiniblockExecutionData {
             number: MiniblockNumber(1),
             timestamp: 1,
-            prev_block_hash: miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero()),
+            prev_block_hash: MiniblockHasher::new(MiniblockNumber(0), 0, H256::zero())
+                .finalize(ProtocolVersionId::latest()),
             virtual_blocks: 1,
             txs: vec![random_tx(1)],
         },
         MiniblockExecutionData {
             number: MiniblockNumber(2),
             timestamp: 2,
-            prev_block_hash: miniblock_hash(MiniblockNumber(1), 1, H256::zero(), H256::zero()),
+            prev_block_hash: MiniblockHasher::new(MiniblockNumber(1), 1, H256::zero())
+                .finalize(ProtocolVersionId::latest()),
             virtual_blocks: 1,
             txs: vec![random_tx(2)],
         },
@@ -530,7 +535,8 @@ async fn miniblock_timestamp_after_pending_batch() {
     let pending_batch = pending_batch_data(vec![MiniblockExecutionData {
         number: MiniblockNumber(1),
         timestamp: 1,
-        prev_block_hash: miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero()),
+        prev_block_hash: MiniblockHasher::new(MiniblockNumber(0), 0, H256::zero())
+            .finalize(ProtocolVersionId::latest()),
         virtual_blocks: 1,
         txs: vec![random_tx(1)],
     }]);

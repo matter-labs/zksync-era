@@ -1,0 +1,30 @@
+[package]
+name = "snapshots_creator"
+version = "0.1.0"
+edition = "2021"
+authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
+homepage = "https://zksync.io/"
+repository = "https://github.com/matter-labs/zksync-era"
+license = "MIT OR Apache-2.0"
+keywords = ["blockchain", "zksync"]
+categories = ["cryptography"]
+publish = false # We don't want to publish our binaries.
+
+[dependencies]
+vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
+prometheus_exporter = { path = "../../lib/prometheus_exporter" }
+zksync_config = { path = "../../lib/config" }
+zksync_dal = { path = "../../lib/dal" }
+zksync_env_config = { path = "../../lib/env_config" }
+zksync_utils = { path = "../../lib/utils" }
+zksync_types = { path = "../../lib/types" }
+zksync_object_store = { path = "../../lib/object_store" }
+vlog = { path = "../../lib/vlog" }
+
+anyhow = "1.0"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+futures = "0.3"
+
+[dev-dependencies]
+rand = "0.8"

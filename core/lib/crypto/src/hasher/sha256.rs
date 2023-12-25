@@ -1,7 +1,7 @@
 use sha2::{Digest, Sha256};
+use zksync_basic_types::H256;
 
 use crate::hasher::Hasher;
-use zksync_basic_types::H256;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Sha256Hasher;

@@ -1,5 +1,4 @@
 use anyhow::Context as _;
-
 use zksync_dal::StorageProcessor;
 use zksync_types::{
     block::DeployedContract, protocol_version::L1VerifierConfig,

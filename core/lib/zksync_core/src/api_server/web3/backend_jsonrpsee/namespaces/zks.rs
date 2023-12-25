@@ -1,7 +1,6 @@
-use bigdecimal::BigDecimal;
-
 use std::collections::HashMap;
 
+use bigdecimal::BigDecimal;
 use zksync_types::{
     api::{
         BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
@@ -14,7 +13,6 @@ use zksync_types::{
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
     namespaces::zks::ZksNamespaceServer,
-    types::{Filter, Log, Token},
 };
 
 use crate::{
@@ -48,12 +46,6 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceServer for ZksNa
 
     async fn l1_chain_id(&self) -> RpcResult<U64> {
         Ok(self.l1_chain_id_impl())
-    }
-
-    async fn get_confirmed_tokens(&self, from: u32, limit: u8) -> RpcResult<Vec<Token>> {
-        self.get_confirmed_tokens_impl(from, limit)
-            .await
-            .map_err(into_jsrpc_error)
     }
 
     async fn get_token_price(&self, token_address: Address) -> RpcResult<BigDecimal> {
@@ -151,12 +143,6 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceServer for ZksNa
         version_id: Option<u16>,
     ) -> RpcResult<Option<ProtocolVersion>> {
         Ok(self.get_protocol_version_impl(version_id).await)
-    }
-
-    async fn get_logs_with_virtual_blocks(&self, filter: Filter) -> RpcResult<Vec<Log>> {
-        self.get_logs_with_virtual_blocks_impl(filter)
-            .await
-            .map_err(into_jsrpc_error)
     }
 
     async fn get_proof(

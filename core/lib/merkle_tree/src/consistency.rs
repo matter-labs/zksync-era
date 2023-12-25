@@ -1,8 +1,8 @@
 //! Consistency verification for the Merkle tree.
 
-use rayon::prelude::*;
-
 use std::sync::atomic::{AtomicU64, Ordering};
+
+use rayon::prelude::*;
 
 use crate::{
     errors::DeserializeError,
@@ -267,17 +267,17 @@ impl AtomicBitSet {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU64;
+
     use assert_matches::assert_matches;
     use rayon::ThreadPoolBuilder;
-
-    use std::num::NonZeroU64;
+    use zksync_types::{H256, U256};
 
     use super::*;
     use crate::{
         types::{InternalNode, TreeEntry},
         PatchSet,
     };
-    use zksync_types::{H256, U256};
 
     const FIRST_KEY: Key = U256([0, 0, 0, 0x_dead_beef_0000_0000]);
     const SECOND_KEY: Key = U256([0, 0, 0, 0x_dead_beef_0100_0000]);

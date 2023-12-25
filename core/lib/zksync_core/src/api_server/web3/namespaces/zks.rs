@@ -2,7 +2,6 @@ use std::{collections::HashMap, convert::TryInto};
 
 use bigdecimal::{BigDecimal, Zero};
 use zksync_dal::StorageProcessor;
-
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
     api::{
@@ -22,14 +21,16 @@ use zksync_types::{
 use zksync_utils::{address_to_h256, ratio_to_big_decimal_normalized};
 use zksync_web3_decl::{
     error::Web3Error,
-    types::{Address, Filter, Log, Token, H256},
+    types::{Address, H256},
 };
 
-use crate::api_server::{
-    tree::TreeApiClient,
-    web3::{backend_jsonrpc::error::internal_error, metrics::API_METRICS, RpcState},
+use crate::{
+    api_server::{
+        tree::TreeApiClient,
+        web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, RpcState},
+    },
+    l1_gas_price::L1GasPriceProvider,
 };
-use crate::l1_gas_price::L1GasPriceProvider;
 
 #[derive(Debug)]
 pub struct ZksNamespace<G> {
@@ -141,41 +142,6 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn get_confirmed_tokens_impl(
-        &self,
-        from: u32,
-        limit: u8,
-    ) -> Result<Vec<Token>, Web3Error> {
-        const METHOD_NAME: &str = "get_confirmed_tokens";
-
-        let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let tokens = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap()
-            .tokens_web3_dal()
-            .get_well_known_tokens()
-            .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?
-            .into_iter()
-            .skip(from as usize)
-            .take(limit.into())
-            .map(|token_info| Token {
-                l1_address: token_info.l1_address,
-                l2_address: token_info.l2_address,
-                name: token_info.metadata.name,
-                symbol: token_info.metadata.symbol,
-                decimals: token_info.metadata.decimals,
-            })
-            .collect();
-
-        method_latency.observe();
-        Ok(tokens)
-    }
-
-    #[tracing::instrument(skip(self))]
     pub async fn get_token_price_impl(&self, l2_token: Address) -> Result<BigDecimal, Web3Error> {
         const METHOD_NAME: &str = "get_token_price";
 
@@ -283,7 +249,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
                 .get_logs(
                     GetLogsFilter {
                         from_block: first_miniblock_of_l1_batch,
-                        to_block: Some(block_number.0.into()),
+                        to_block: block_number,
                         addresses: vec![L1_MESSENGER_ADDRESS],
                         topics: vec![(2, vec![address_to_h256(&sender)]), (3, vec![msg])],
                     },
@@ -632,14 +598,6 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
 
         method_latency.observe();
         protocol_version
-    }
-
-    #[tracing::instrument(skip_all)]
-    pub async fn get_logs_with_virtual_blocks_impl(
-        &self,
-        filter: Filter,
-    ) -> Result<Vec<Log>, Web3Error> {
-        self.state.translate_get_logs(filter).await
     }
 
     #[tracing::instrument(skip_all)]

@@ -22,7 +22,8 @@ jobs:
       - name: Start services
         run: |
           docker-compose -f ${RUNNER_COMPOSE_FILE} pull
-          docker-compose -f ${RUNNER_COMPOSE_FILE} up --build -d zk
+          mkdir -p ./volumes/postgres
+          docker-compose -f ${RUNNER_COMPOSE_FILE} up --build -d zk postgres
           ci_run sccache --start-server
 
       - name: Init
@@ -55,7 +56,8 @@ jobs:
       - name: Start services
         run: |
           docker-compose -f ${RUNNER_COMPOSE_FILE} pull
-          docker-compose -f ${RUNNER_COMPOSE_FILE} up --build -d zk
+          mkdir -p ./volumes/postgres
+          docker-compose -f ${RUNNER_COMPOSE_FILE} up --build -d zk postgres
           ci_run sccache --start-server
 
       - name: Init

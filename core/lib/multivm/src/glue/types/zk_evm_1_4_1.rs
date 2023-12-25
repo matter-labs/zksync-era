@@ -1,13 +1,10 @@
+use zk_evm_1_4_1::{
+    aux_structures::{LogQuery as LogQuery_1_4_1, Timestamp as Timestamp_1_4_1},
+    zkevm_opcode_defs::FarCallOpcode as FarCallOpcode_1_4_1,
+};
+use zksync_types::{FarCallOpcode, LogQuery, Timestamp};
+
 use crate::glue::{GlueFrom, GlueInto};
-
-use zksync_types::FarCallOpcode;
-use zksync_types::LogQuery;
-use zksync_types::Timestamp;
-
-use zk_evm_1_4_1::aux_structures::Timestamp as Timestamp_1_4_1;
-use zk_evm_1_4_1::zkevm_opcode_defs::FarCallOpcode as FarCallOpcode_1_4_1;
-
-use zk_evm_1_4_1::aux_structures::LogQuery as LogQuery_1_4_1;
 
 impl GlueFrom<FarCallOpcode_1_4_1> for FarCallOpcode {
     fn glue_from(value: FarCallOpcode_1_4_1) -> Self {

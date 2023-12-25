@@ -1,5 +1,3 @@
-use async_trait::async_trait;
-
 use std::{
     cmp,
     collections::HashMap,
@@ -7,12 +5,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
+use async_trait::async_trait;
 use multivm::{
     interface::{FinishedL1Batch, L1BatchEnv, SystemEnv},
-    vm_latest::utils::fee::get_operator_gas_price,
+    vm_latest::utils::fee::{derive_base_fee_and_gas_per_pubdata, get_operator_gas_price},
 };
-
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
@@ -285,6 +282,8 @@ where
             self.current_l1_batch_number,
             self.current_miniblock_number,
             self.l2_erc20_bridge_addr,
+            None,
+            false,
         );
         self.miniblock_sealer_handle.submit(command).await;
         self.current_miniblock_number += 1;
@@ -334,6 +333,7 @@ where
                 l1_batch_env,
                 finished_batch,
                 self.l2_erc20_bridge_addr,
+                None,
             )
             .await;
         self.current_miniblock_number += 1; // Due to fictive miniblock being sealed.
@@ -534,7 +534,6 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
 #[cfg(test)]
 mod tests {
     use tokio::time::timeout_at;
-
     use zksync_utils::time::seconds_since_epoch;
 
     use super::*;

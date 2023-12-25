@@ -1,27 +1,29 @@
 use std::marker::PhantomData;
+
 use zk_evm_1_4_1::{
     tracing::{AfterDecodingData, BeforeExecutionData, VmLocalStateData},
     vm_state::{ErrorFlags, VmLocalState},
     zkevm_opcode_defs::FatPointer,
 };
 use zksync_state::{StoragePtr, WriteStorage};
-
-use crate::interface::{
-    tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_4_1::DynTracer,
-    types::tracer::TracerExecutionStopReason, ExecutionResult, Halt, TxRevertReason,
-    VmExecutionMode, VmRevertReason,
-};
 use zksync_types::U256;
 
-use crate::vm_latest::{
-    constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT},
-    old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
-    tracers::{
-        traits::VmTracer,
-        utils::{get_vm_hook_params, read_pointer, VmHook},
+use crate::{
+    interface::{
+        tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_4_1::DynTracer,
+        types::tracer::TracerExecutionStopReason, ExecutionResult, Halt, TxRevertReason,
+        VmExecutionMode, VmRevertReason,
     },
-    types::internals::ZkSyncVmState,
-    BootloaderState, HistoryMode, SimpleMemory,
+    vm_latest::{
+        constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT},
+        old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
+        tracers::{
+            traits::VmTracer,
+            utils::{get_vm_hook_params, read_pointer, VmHook},
+        },
+        types::internals::ZkSyncVmState,
+        BootloaderState, HistoryMode, SimpleMemory,
+    },
 };
 
 #[derive(Debug, Clone)]

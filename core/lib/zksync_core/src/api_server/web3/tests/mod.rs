@@ -1,9 +1,8 @@
+use std::{sync::Arc, time::Instant};
+
 use assert_matches::assert_matches;
 use async_trait::async_trait;
 use tokio::sync::watch;
-
-use std::{sync::Arc, time::Instant};
-
 use zksync_config::configs::{
     api::Web3JsonRpcConfig,
     chain::{NetworkConfig, StateKeeperConfig},
@@ -18,12 +17,10 @@ use zksync_types::{
     L1BatchNumber, ProtocolVersionId, VmEvent, H256, U64,
 };
 use zksync_web3_decl::{
-    jsonrpsee::{core::Error as RpcError, http_client::HttpClient, types::error::ErrorCode},
+    jsonrpsee::{core::ClientError as RpcError, http_client::HttpClient, types::error::ErrorCode},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
     types::FilterChanges,
 };
-
-mod ws;
 
 use super::{metrics::ApiTransportLabel, *};
 use crate::{
@@ -31,6 +28,8 @@ use crate::{
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::tests::create_l2_transaction,
 };
+
+mod ws;
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
@@ -86,17 +85,31 @@ pub(crate) async fn spawn_http_server(
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
 ) -> ApiServerHandles {
-    spawn_server(ApiTransportLabel::Http, network_config, pool, stop_receiver)
-        .await
-        .0
+    spawn_server(
+        ApiTransportLabel::Http,
+        network_config,
+        pool,
+        stop_receiver,
+        None,
+    )
+    .await
+    .0
 }
 
 async fn spawn_ws_server(
     network_config: &NetworkConfig,
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
+    websocket_requests_per_minute_limit: Option<NonZeroU32>,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
-    spawn_server(ApiTransportLabel::Ws, network_config, pool, stop_receiver).await
+    spawn_server(
+        ApiTransportLabel::Ws,
+        network_config,
+        pool,
+        stop_receiver,
+        websocket_requests_per_minute_limit,
+    )
+    .await
 }
 
 async fn spawn_server(
@@ -104,6 +117,7 @@ async fn spawn_server(
     network_config: &NetworkConfig,
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
+    websocket_requests_per_minute_limit: Option<NonZeroU32>,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = Web3JsonRpcConfig::for_tests();
@@ -128,16 +142,23 @@ async fn spawn_server(
 
     let server_builder = match transport {
         ApiTransportLabel::Http => ApiBuilder::jsonrpsee_backend(api_config, pool).http(0),
-        ApiTransportLabel::Ws => ApiBuilder::jsonrpc_backend(api_config, pool)
-            .ws(0)
-            .with_polling_interval(POLL_INTERVAL)
-            .with_subscriptions_limit(100),
+        ApiTransportLabel::Ws => {
+            let mut builder = ApiBuilder::jsonrpsee_backend(api_config, pool)
+                .ws(0)
+                .with_subscriptions_limit(100);
+            if let Some(websocket_requests_per_minute_limit) = websocket_requests_per_minute_limit {
+                builder = builder
+                    .with_websocket_requests_per_minute_limit(websocket_requests_per_minute_limit);
+            }
+            builder
+        }
     };
     let server_handles = server_builder
         .with_threads(1)
+        .with_polling_interval(POLL_INTERVAL)
         .with_tx_sender(tx_sender, vm_barrier)
         .with_pub_sub_events(pub_sub_events_sender)
-        .enable_api_namespaces(Namespace::NON_DEBUG.to_vec())
+        .enable_api_namespaces(Namespace::DEFAULT.to_vec())
         .build(stop_receiver)
         .await
         .expect("Failed spawning JSON-RPC server");
@@ -391,10 +412,10 @@ impl HttpTest for LogFilterChanges {
         assert_logs_match(&topics_logs, &[events[1], events[3]]);
 
         let new_all_logs = client.get_filter_changes(all_logs_filter_id).await?;
-        let FilterChanges::Logs(new_all_logs) = new_all_logs else {
+        let FilterChanges::Hashes(new_all_logs) = new_all_logs else {
             panic!("Unexpected getFilterChanges output: {:?}", new_all_logs);
         };
-        assert_eq!(new_all_logs, all_logs); // FIXME(#546): update test after behavior is fixed
+        assert!(new_all_logs.is_empty());
         Ok(())
     }
 }
@@ -463,11 +484,10 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         };
         assert_logs_match(&lower_bound_logs, &new_events);
 
-        // FIXME(#546): update test after behavior is fixed
         let new_upper_bound_logs = client.get_filter_changes(upper_bound_filter_id).await?;
-        assert_eq!(new_upper_bound_logs, FilterChanges::Logs(upper_bound_logs));
+        assert_matches!(new_upper_bound_logs, FilterChanges::Hashes(hashes) if hashes.is_empty());
         let new_bounded_logs = client.get_filter_changes(bounded_filter_id).await?;
-        assert_eq!(new_bounded_logs, FilterChanges::Logs(bounded_logs));
+        assert_matches!(new_bounded_logs, FilterChanges::Hashes(hashes) if hashes.is_empty());
 
         // Add miniblock #3. It should not be picked up by the bounded and upper bound filters,
         // and should be picked up by the lower bound filter.
@@ -477,27 +497,22 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         let new_events: Vec<_> = new_events.iter().collect();
 
         let bounded_logs = client.get_filter_changes(bounded_filter_id).await?;
-        let FilterChanges::Logs(bounded_logs) = bounded_logs else {
+        let FilterChanges::Hashes(bounded_logs) = bounded_logs else {
             panic!("Unexpected getFilterChanges output: {:?}", bounded_logs);
         };
-        assert!(bounded_logs
-            .iter()
-            .all(|log| log.block_number.unwrap() < 3.into()));
+        assert!(bounded_logs.is_empty());
 
         let upper_bound_logs = client.get_filter_changes(upper_bound_filter_id).await?;
-        let FilterChanges::Logs(upper_bound_logs) = upper_bound_logs else {
+        let FilterChanges::Hashes(upper_bound_logs) = upper_bound_logs else {
             panic!("Unexpected getFilterChanges output: {:?}", upper_bound_logs);
         };
-        assert!(upper_bound_logs
-            .iter()
-            .all(|log| log.block_number.unwrap() < 3.into()));
+        assert!(upper_bound_logs.is_empty());
 
         let lower_bound_logs = client.get_filter_changes(lower_bound_filter_id).await?;
         let FilterChanges::Logs(lower_bound_logs) = lower_bound_logs else {
             panic!("Unexpected getFilterChanges output: {:?}", lower_bound_logs);
         };
-        let start_idx = lower_bound_logs.len() - 4;
-        assert_logs_match(&lower_bound_logs[start_idx..], &new_events);
+        assert_logs_match(&lower_bound_logs, &new_events);
         Ok(())
     }
 }

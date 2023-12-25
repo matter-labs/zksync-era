@@ -1,18 +1,14 @@
 //! Helper module to submit transactions into the zkSync Network.
 
-// External uses
+use std::{cmp, num::NonZeroU32, sync::Arc, time::Instant};
+
 use governor::{
     clock::MonotonicClock,
     middleware::NoOpMiddleware,
     state::{InMemoryState, NotKeyed},
     Quota, RateLimiter,
 };
-
-// Built-in uses
-use std::{cmp, num::NonZeroU32, sync::Arc, time::Instant};
-
 // Workspace uses
-
 use multivm::vm_latest::{
     constants::{BLOCK_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK},
     utils::{
@@ -21,7 +17,6 @@ use multivm::vm_latest::{
     },
 };
 use multivm::{interface::VmExecutionResultAndLogs, vm_latest::utils::fee::get_operator_gas_price};
-
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
@@ -29,16 +24,15 @@ use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     fee::{Fee, TransactionExecutionMetrics},
     get_code_key, get_intrinsic_constants,
-    l2::error::TxCheckError::TxDuplication,
-    l2::L2Tx,
+    l2::{error::TxCheckError::TxDuplication, L2Tx},
     utils::storage_key_for_eth_balance,
     AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, Nonce, PackedEthSignature,
     ProtocolVersionId, Transaction, H160, H256, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT,
     MAX_NEW_FACTORY_DEPS, U256,
 };
-
 use zksync_utils::h256_to_u256;
 
+use self::proxy::TxProxy;
 // Local uses
 use crate::api_server::{
     execution_sandbox::{
@@ -46,7 +40,7 @@ use crate::api_server::{
         get_pubdata_for_factory_deps, BlockArgs, SubmitTxStage, TxExecutionArgs, TxSharedArgs,
         VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
     },
-    tx_sender::result::ApiCallResult,
+    tx_sender::result::{ApiCallResult, SubmitTxError},
 };
 use crate::{
     l1_gas_price::L1GasPriceProvider,
@@ -56,8 +50,6 @@ use crate::{
 
 mod proxy;
 mod result;
-
-pub(super) use self::{proxy::TxProxy, result::SubmitTxError};
 
 /// Type alias for the rate limiter implementation.
 type TxSenderRateLimiter =

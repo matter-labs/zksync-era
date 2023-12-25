@@ -1,20 +1,14 @@
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::runtime::Handle;
+use std::{sync::Arc, time::Duration};
 
+use multivm::vm_latest::utils::fee::{
+    derive_base_fee_and_gas_per_pubdata, get_operator_gas_price, get_operator_pubdata_price,
+};
+use tokio::runtime::Handle;
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
 use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
 use zksync_types::{api, AccountTreeId, L2ChainId, MiniblockNumber, U256};
 use zksync_utils::bytecode::{compress_bytecode, hash_bytecode};
-
-// Note: keep the modules private, and instead re-export functions that make public interface.
-mod apply;
-mod error;
-mod execute;
-mod tracers;
-mod validate;
-mod vm_metrics;
 
 use self::vm_metrics::SandboxStage;
 pub(super) use self::{
@@ -24,9 +18,14 @@ pub(super) use self::{
     vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
 };
 use super::tx_sender::MultiVMBaseSystemContracts;
-use multivm::vm_latest::utils::fee::{
-    derive_base_fee_and_gas_per_pubdata, get_operator_gas_price, get_operator_pubdata_price,
-};
+
+// Note: keep the modules private, and instead re-export functions that make public interface.
+mod apply;
+mod error;
+mod execute;
+mod tracers;
+mod validate;
+mod vm_metrics;
 
 /// Permit to invoke VM code.
 ///

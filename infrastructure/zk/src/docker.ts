@@ -17,7 +17,8 @@ const IMAGES = [
     'prover-gpu-fri',
     'witness-vector-generator',
     'prover-fri-gateway',
-    'proof-fri-compressor'
+    'proof-fri-compressor',
+    'snapshots-creator'
 ];
 const UNIX_TIMESTAMP = Date.now();
 
@@ -78,7 +79,8 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
         'prover-gpu-fri',
         'witness-vector-generator',
         'prover-fri-gateway',
-        'proof-fri-compressor'
+        'proof-fri-compressor',
+        'snapshots-creator'
     ].includes(image)
         ? ['latest', 'latest2.0', `2.0-${imageTagSha}`, `${imageTagSha}`, `2.0-${imageTagShaTS}`, `${imageTagShaTS}`]
         : [`latest2.0`, 'latest'];
@@ -99,7 +101,11 @@ async function _build(image: string, tagList: string[], dockerOrg: string) {
     let buildArgs = '';
     if (image === 'prover-v2') {
         const eraBellmanCudaRelease = process.env.ERA_BELLMAN_CUDA_RELEASE;
-        buildArgs = `--build-arg ERA_BELLMAN_CUDA_RELEASE=${eraBellmanCudaRelease}`;
+        buildArgs += `--build-arg ERA_BELLMAN_CUDA_RELEASE=${eraBellmanCudaRelease}`;
+    }
+    if (image === 'prover-gpu-fri') {
+        const cudaArch = process.env.CUDA_ARCH;
+        buildArgs += `--build-arg CUDA_ARCH='${cudaArch}'`;
     }
 
     // HACK
@@ -151,11 +157,11 @@ export async function push(image: string, cmd: Command) {
 }
 
 export async function restart(container: string) {
-    await utils.spawn(`docker-compose restart ${container}`);
+    await utils.spawn(`docker compose restart ${container}`);
 }
 
 export async function pull() {
-    await utils.spawn('docker-compose pull');
+    await utils.spawn('docker compose pull');
 }
 
 export const command = new Command('docker').description('docker management');

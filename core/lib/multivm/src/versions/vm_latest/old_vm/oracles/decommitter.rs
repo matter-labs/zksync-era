@@ -1,24 +1,19 @@
-use std::collections::HashMap;
-use std::fmt::Debug;
+use std::{collections::HashMap, fmt::Debug};
 
+use zk_evm_1_4_1::{
+    abstractions::{DecommittmentProcessor, Memory, MemoryType},
+    aux_structures::{
+        DecommittmentQuery, MemoryIndex, MemoryLocation, MemoryPage, MemoryQuery, Timestamp,
+    },
+};
+use zksync_state::{ReadStorage, StoragePtr};
+use zksync_types::U256;
+use zksync_utils::{bytecode::bytecode_len_in_words, bytes_to_be_words, u256_to_h256};
+
+use super::OracleWithHistory;
 use crate::vm_latest::old_vm::history_recorder::{
     HistoryEnabled, HistoryMode, HistoryRecorder, WithHistory,
 };
-
-use zk_evm_1_4_1::abstractions::MemoryType;
-use zk_evm_1_4_1::aux_structures::Timestamp;
-use zk_evm_1_4_1::{
-    abstractions::{DecommittmentProcessor, Memory},
-    aux_structures::{DecommittmentQuery, MemoryIndex, MemoryLocation, MemoryPage, MemoryQuery},
-};
-
-use zksync_state::{ReadStorage, StoragePtr};
-use zksync_types::U256;
-use zksync_utils::bytecode::bytecode_len_in_words;
-use zksync_utils::{bytes_to_be_words, u256_to_h256};
-
-use super::OracleWithHistory;
-
 /// The main job of the DecommiterOracle is to implement the DecommittmentProcessor trait - that is
 /// used by the VM to 'load' bytecodes into memory.
 #[derive(Debug)]

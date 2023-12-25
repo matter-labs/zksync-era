@@ -201,14 +201,6 @@ describe('web3 API compatibility tests', () => {
         });
     });
 
-    test('Should test various token methods', async () => {
-        const tokens = await alice.provider.getConfirmedTokens();
-        expect(tokens).not.toHaveLength(0); // Should not be an empty array.
-
-        const price = await alice.provider.getTokenPrice(l2Token);
-        expect(+price!).toEqual(expect.any(Number));
-    });
-
     test('Should check transactions from API / Legacy tx', async () => {
         const LEGACY_TX_TYPE = 0;
         const legacyTx = await alice.sendTransaction({
@@ -279,9 +271,9 @@ describe('web3 API compatibility tests', () => {
         let newTxHash: string | null = null;
         // We can't use `once` as there may be other pending txs sent together with our one.
         wsProvider.on('pending', async (txHash) => {
-            const receipt = await alice.provider.getTransactionReceipt(txHash);
+            const tx = await alice.provider.getTransaction(txHash);
             // We're waiting for the exact transaction to appear.
-            if (!receipt || receipt.to != uniqueRecipient) {
+            if (!tx || tx.to != uniqueRecipient) {
                 // Not the transaction we're looking for.
                 return;
             }
@@ -782,30 +774,6 @@ describe('web3 API compatibility tests', () => {
             latestProtocolVersion.version_id
         ]);
         expect(exactProtocolVersion).toMatchObject(expectedProtocolVersion);
-    });
-
-    test('Should check zks_getLogsWithVirtualBlocks endpoint', async () => {
-        let logs;
-        logs = await alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x0', toBlock: '0x0' }]);
-        expect(logs).toEqual([]);
-
-        logs = await alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x1', toBlock: '0x2' }]);
-        expect(logs.length > 0).toEqual(true);
-
-        logs = await alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x2', toBlock: '0x1' }]);
-        expect(logs).toEqual([]);
-
-        logs = await alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x3', toBlock: '0x3' }]);
-        expect(logs.length > 0).toEqual(true);
-
-        await expect(
-            alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x100000000', toBlock: '0x100000000' }]) // 2^32
-        ).toBeRejected();
-        await expect(
-            alice.provider.send('zks_getLogsWithVirtualBlocks', [
-                { fromBlock: '0x10000000000000000', toBlock: '0x10000000000000000' } // 2^64
-            ])
-        ).toBeRejected();
     });
 
     test('Should check transaction signature', async () => {

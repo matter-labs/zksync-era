@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use bigdecimal::BigDecimal;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
-
 use zksync_types::{
     api::{
         BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
@@ -12,8 +11,6 @@ use zksync_types::{
     transaction_request::CallRequest,
     Address, L1BatchNumber, MiniblockNumber, H256, U256, U64,
 };
-
-use crate::types::{Filter, Log, Token};
 
 #[cfg_attr(
     all(feature = "client", feature = "server"),
@@ -46,8 +43,6 @@ pub trait ZksNamespace {
     #[method(name = "L1ChainId")]
     async fn l1_chain_id(&self) -> RpcResult<U64>;
 
-    #[method(name = "getConfirmedTokens")]
-    async fn get_confirmed_tokens(&self, from: u32, limit: u8) -> RpcResult<Vec<Token>>;
     #[method(name = "getTokenPrice")]
     async fn get_token_price(&self, token_address: Address) -> RpcResult<BigDecimal>;
 
@@ -107,9 +102,6 @@ pub trait ZksNamespace {
         &self,
         version_id: Option<u16>,
     ) -> RpcResult<Option<ProtocolVersion>>;
-
-    #[method(name = "getLogsWithVirtualBlocks")]
-    async fn get_logs_with_virtual_blocks(&self, filter: Filter) -> RpcResult<Vec<Log>>;
 
     #[method(name = "getProof")]
     async fn get_proof(

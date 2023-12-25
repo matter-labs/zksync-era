@@ -5,7 +5,6 @@ use zk_evm_1_3_3::{
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::{self},
 };
-
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{StorageKey, U256};
 use zksync_utils::{h256_to_u256, u256_to_h256};
@@ -438,7 +437,7 @@ impl<T, H: HistoryMode> HistoryRecorder<FramedStack<T>, H> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct AppDataFrameManagerWithHistory<T, H: HistoryMode> {
+pub struct AppDataFrameManagerWithHistory<T, H: HistoryMode> {
     forward: HistoryRecorder<FramedStack<T>, H>,
     rollback: HistoryRecorder<FramedStack<T>, H>,
 }
@@ -771,10 +770,13 @@ impl<S: WriteStorage, H: HistoryMode> HistoryRecorder<StorageWrapper<S>, H> {
 
 #[cfg(test)]
 mod tests {
-    use crate::vm_refunds_enhancement::old_vm::history_recorder::{HistoryRecorder, MemoryWrapper};
-    use crate::vm_refunds_enhancement::HistoryDisabled;
     use zk_evm_1_3_3::{aux_structures::Timestamp, vm_state::PrimitiveValue};
     use zksync_types::U256;
+
+    use crate::vm_refunds_enhancement::{
+        old_vm::history_recorder::{HistoryRecorder, MemoryWrapper},
+        HistoryDisabled,
+    };
 
     #[test]
     fn memory_equality() {

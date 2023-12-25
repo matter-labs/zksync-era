@@ -6,15 +6,14 @@
 //! required for the rollup to execute L1 batches, it's needed for the proof generation and the Ethereum
 //! transactions, thus the calculations are done separately and asynchronously.
 
-use serde::{Deserialize, Serialize};
-use zksync_utils::u256_to_h256;
-
 use std::{collections::HashMap, convert::TryFrom};
 
+use serde::{Deserialize, Serialize};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::{
     L2_TO_L1_LOGS_TREE_ROOT_KEY, STATE_DIFF_HASH_KEY, ZKPORTER_IS_AVAILABLE,
 };
+use zksync_utils::u256_to_h256;
 
 use crate::{
     block::L1BatchHeader,
@@ -672,12 +671,15 @@ mod tests {
     use serde::{Deserialize, Serialize};
     use serde_with::serde_as;
 
-    use crate::commitment::{
-        L1BatchAuxiliaryOutput, L1BatchCommitment, L1BatchMetaParameters, L1BatchPassThroughData,
+    use crate::{
+        commitment::{
+            L1BatchAuxiliaryOutput, L1BatchCommitment, L1BatchMetaParameters,
+            L1BatchPassThroughData,
+        },
+        l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
+        writes::{InitialStorageWrite, RepeatedStorageWrite},
+        H256, U256,
     };
-    use crate::l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log};
-    use crate::writes::{InitialStorageWrite, RepeatedStorageWrite};
-    use crate::{H256, U256};
 
     #[serde_as]
     #[derive(Debug, Serialize, Deserialize)]

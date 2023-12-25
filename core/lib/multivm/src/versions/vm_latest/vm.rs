@@ -1,22 +1,26 @@
-use crate::glue::GlueInto;
-use crate::HistoryMode;
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log};
-use zksync_types::{event::extract_l2tol1logs_from_l1_messenger, Transaction};
+use zksync_types::{
+    event::extract_l2tol1logs_from_l1_messenger,
+    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    Transaction,
+};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
-use crate::vm_latest::old_vm::events::merge_events;
-use crate::vm_latest::old_vm::history_recorder::HistoryEnabled;
-
-use crate::interface::{
-    BootloaderMemory, CurrentExecutionState, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
-    VmExecutionResultAndLogs, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+use crate::{
+    glue::GlueInto,
+    interface::{
+        BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, L1BatchEnv, L2BlockEnv,
+        SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+        VmInterfaceHistoryEnabled, VmMemoryMetrics,
+    },
+    vm_latest::{
+        bootloader_state::BootloaderState,
+        old_vm::{events::merge_events, history_recorder::HistoryEnabled},
+        tracers::dispatcher::TracerDispatcher,
+        types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState},
+    },
+    HistoryMode,
 };
-use crate::interface::{BytecodeCompressionError, VmInterface};
-use crate::vm_latest::bootloader_state::BootloaderState;
-use crate::vm_latest::tracers::dispatcher::TracerDispatcher;
-
-use crate::vm_latest::types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState};
 
 /// Main entry point for Virtual Machine integration.
 /// The instance should process only one l1 batch

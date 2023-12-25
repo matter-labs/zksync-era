@@ -1,15 +1,16 @@
-use multivm::vm_latest::{
-    constants::BLOCK_GAS_LIMIT,
-    utils::fee::{get_operator_gas_price, get_operator_pubdata_price},
+use std::sync::Arc;
+
+use multivm::{
+    interface::ExecutionResult,
+    vm_latest::{
+        constants::BLOCK_GAS_LIMIT,
+        utils::fee::{get_operator_gas_price, get_operator_pubdata_price},
+    },
 };
 use once_cell::sync::OnceCell;
-use std::sync::Arc;
-use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
-
-use multivm::interface::ExecutionResult;
-
 use zksync_dal::ConnectionPool;
 use zksync_state::PostgresStorageCaches;
+use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
     l2::L2Tx,
@@ -19,19 +20,21 @@ use zksync_types::{
 };
 use zksync_web3_decl::error::Web3Error;
 
-use crate::api_server::{
-    execution_sandbox::{
-        execute_tx_eth_call, ApiTracer, BlockArgs, TxSharedArgs, VmConcurrencyLimiter,
+use crate::{
+    api_server::{
+        execution_sandbox::{
+            execute_tx_eth_call, ApiTracer, BlockArgs, TxSharedArgs, VmConcurrencyLimiter,
+        },
+        tx_sender::ApiContracts,
+        web3::{
+            backend_jsonrpsee::internal_error,
+            metrics::API_METRICS,
+            resolve_block,
+            state::{RpcState, SealedMiniblockNumber},
+        },
     },
-    tx_sender::ApiContracts,
-    web3::{
-        backend_jsonrpc::error::internal_error,
-        metrics::API_METRICS,
-        resolve_block,
-        state::{RpcState, SealedMiniblockNumber},
-    },
+    l1_gas_price::L1GasPriceProvider,
 };
-use crate::l1_gas_price::L1GasPriceProvider;
 
 #[derive(Debug, Clone)]
 pub struct DebugNamespace {

@@ -1,10 +1,9 @@
-use tokio::sync::watch;
-
 use std::{sync::Arc, time::Duration};
 
 use multivm::vm_latest::utils::fee::{
     derive_base_fee_and_gas_per_pubdata, get_operator_gas_price, get_operator_pubdata_price,
 };
+use tokio::sync::watch;
 use zksync_config::configs::chain::MempoolConfig;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;

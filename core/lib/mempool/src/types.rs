@@ -1,8 +1,6 @@
-use std::cmp::Ordering;
-use std::collections::HashMap;
-use zksync_types::fee::Fee;
-use zksync_types::l2::L2Tx;
-use zksync_types::{Address, Nonce, Transaction, U256};
+use std::{cmp::Ordering, collections::HashMap};
+
+use zksync_types::{fee::Fee, l2::L2Tx, Address, Nonce, Transaction, U256};
 
 /// Pending mempool transactions of account
 #[derive(Debug)]

@@ -10,5 +10,3 @@ pub mod gpu_prover_queue_monitor;
 pub mod prover_job_retry_manager;
 pub mod prover_queue_monitor;
 pub mod waiting_to_queued_fri_witness_job_mover;
-pub mod waiting_to_queued_witness_job_mover;
-pub mod witness_generator_queue_monitor;

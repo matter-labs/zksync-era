@@ -1,15 +1,14 @@
 use std::cell::RefCell;
 
 use anyhow::Context as _;
+use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
 use prometheus_exporter::PrometheusExporterConfig;
+use tokio::sync::watch;
 use zksync_config::{configs::PrometheusConfig, ApiConfig, ContractVerifierConfig, PostgresConfig};
 use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
-
-use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
-use tokio::sync::watch;
 
 use crate::verifier::ContractVerifier;
 

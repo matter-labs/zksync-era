@@ -1,28 +1,28 @@
 use zk_evm_1_4_1::aux_structures::Timestamp;
-
-use zksync_types::{
-    ethabi::Contract,
-    Execute, COMPLEX_UPGRADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS, CONTRACT_FORCE_DEPLOYER_ADDRESS,
-    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
-    {ethabi::Token, Address, ExecuteTransactionCommon, Transaction, H256, U256},
-    {get_code_key, get_known_code_key, H160},
-};
-
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
-
 use zksync_contracts::{deployer_contract, load_contract, load_sys_contract, read_bytecode};
 use zksync_state::WriteStorage;
 use zksync_test_account::TxType;
-
-use crate::interface::{
-    ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceHistoryEnabled,
+use zksync_types::{
+    ethabi::{Contract, Token},
+    get_code_key, get_known_code_key,
+    protocol_version::ProtocolUpgradeTxCommonData,
+    Address, Execute, ExecuteTransactionCommon, Transaction, COMPLEX_UPGRADER_ADDRESS,
+    CONTRACT_DEPLOYER_ADDRESS, CONTRACT_FORCE_DEPLOYER_ADDRESS, H160, H256,
+    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
 };
-use crate::vm_latest::tests::tester::VmTesterBuilder;
-use crate::vm_latest::tests::utils::verify_required_storage;
-use crate::vm_latest::HistoryEnabled;
-use zksync_types::protocol_version::ProtocolUpgradeTxCommonData;
+use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
 use super::utils::read_test_contract;
+use crate::{
+    interface::{
+        ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterface,
+        VmInterfaceHistoryEnabled,
+    },
+    vm_latest::{
+        tests::{tester::VmTesterBuilder, utils::verify_required_storage},
+        HistoryEnabled,
+    },
+};
 
 /// In this test we ensure that the requirements for protocol upgrade transactions are enforced by the bootloader:
 /// - This transaction must be the only one in block

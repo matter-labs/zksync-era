@@ -1,17 +1,17 @@
 //! Metrics for the JSON-RPC server.
 
-use vise::{
-    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LabeledFamily,
-    LatencyObserver, Metrics, Unit,
-};
-
 use std::{
     fmt,
     time::{Duration, Instant},
 };
 
-use super::{ApiTransport, TypedFilter};
+use vise::{
+    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LabeledFamily,
+    LatencyObserver, Metrics, Unit,
+};
 use zksync_types::api;
+
+use super::{ApiTransport, TypedFilter};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "scheme", rename_all = "UPPERCASE")]
@@ -184,12 +184,27 @@ pub(super) enum SubscriptionType {
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "api_web3_pubsub")]
 pub(super) struct PubSubMetrics {
+    /// Latency to load new events from Postgres before broadcasting them to subscribers.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub db_poll_latency: Family<SubscriptionType, Histogram<Duration>>,
+    /// Latency to send an atomic batch of events to a single subscriber.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub notify_subscribers_latency: Family<SubscriptionType, Histogram<Duration>>,
+    /// Total number of events sent to all subscribers of a certain type.
     pub notify: Family<SubscriptionType, Counter>,
+    /// Number of currently active subscribers split by the subscription type.
     pub active_subscribers: Family<SubscriptionType, Gauge>,
+    /// Lifetime of a subscriber of a certain type.
+    #[metrics(buckets = Buckets::LATENCIES)]
+    pub subscriber_lifetime: Family<SubscriptionType, Histogram<Duration>>,
+    /// Current length of the broadcast channel of a certain type. With healthy subscribers, this value
+    /// should be reasonably low.
+    pub broadcast_channel_len: Family<SubscriptionType, Gauge<usize>>,
+    /// Number of skipped broadcast messages.
+    #[metrics(buckets = Buckets::exponential(1.0..=128.0, 2.0))]
+    pub skipped_broadcast_messages: Family<SubscriptionType, Histogram<u64>>,
+    /// Number of subscribers dropped because of a send timeout.
+    pub subscriber_send_timeouts: Family<SubscriptionType, Counter>,
 }
 
 #[vise::register]
@@ -217,7 +232,7 @@ impl From<&TypedFilter> for FilterType {
 #[metrics(prefix = "api_web3_filter")]
 pub(super) struct FilterMetrics {
     /// Number of currently active filters grouped by the filter type
-    pub metrics_count: Family<FilterType, Gauge>,
+    pub filter_count: Family<FilterType, Gauge>,
     /// Time in seconds between consecutive requests to the filter grouped by the filter type
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
     pub request_frequency: Family<FilterType, Histogram<Duration>>,
@@ -226,7 +241,7 @@ pub(super) struct FilterMetrics {
     pub filter_lifetime: Family<FilterType, Histogram<Duration>>,
     /// Number of requests to the filter grouped by the filter type
     #[metrics(buckets = Buckets::exponential(1.0..=1048576.0, 2.0))]
-    pub filter_count: Family<FilterType, Histogram<usize>>,
+    pub request_count: Family<FilterType, Histogram<usize>>,
 }
 
 #[vise::register]

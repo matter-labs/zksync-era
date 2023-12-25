@@ -1,11 +1,11 @@
+use zk_evm_1_3_3::zkevm_opcode_defs::system_params::MAX_TX_ERGS_LIMIT;
+use zksync_system_constants::{MAX_L2_TX_GAS_LIMIT, MAX_TXS_IN_BLOCK};
+use zksync_types::{l1::is_l1_tx_type, U256};
+use zksync_utils::ceil_div_u256;
+
 use crate::vm_refunds_enhancement::constants::{
     BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA, BOOTLOADER_TX_ENCODING_SPACE,
 };
-use zk_evm_1_3_3::zkevm_opcode_defs::system_params::MAX_TX_ERGS_LIMIT;
-use zksync_system_constants::{MAX_L2_TX_GAS_LIMIT, MAX_TXS_IN_BLOCK};
-use zksync_types::l1::is_l1_tx_type;
-use zksync_types::U256;
-use zksync_utils::ceil_div_u256;
 
 /// Derives the overhead for processing transactions in a block.
 pub fn derive_overhead(
@@ -23,7 +23,7 @@ pub fn derive_overhead(
     let gas_limit = U256::from(gas_limit);
     let encoded_len = U256::from(encoded_len);
 
-    // The MAX_TX_ERGS_LIMIT is formed in a way that may fullfills a single-instance circuits
+    // The MAX_TX_ERGS_LIMIT is formed in a way that may fulfills a single-instance circuits
     // if used in full. That is, within MAX_TX_ERGS_LIMIT it is possible to fully saturate all the single-instance
     // circuits.
     let overhead_for_single_instance_circuits =

@@ -7,7 +7,6 @@ use std::{
 
 use serde_json::Value;
 use tokio::{sync::watch::Receiver, time::sleep};
-
 use zksync_types::{
     api::{BlockDetails, BlockNumber, L1BatchDetails},
     web3::types::U64,
@@ -15,15 +14,17 @@ use zksync_types::{
 };
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 use zksync_web3_decl::{
-    jsonrpsee::core::Error,
-    jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
+    jsonrpsee::{
+        core::ClientError,
+        http_client::{HttpClient, HttpClientBuilder},
+    },
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
     types::FilterBuilder,
     RpcResult,
 };
 
-use crate::config::{CheckerConfig, RpcMode};
 use crate::{
+    config::{CheckerConfig, RpcMode},
     divergence::{Divergence, DivergenceDetails},
     helpers::compare_json,
 };
@@ -373,7 +374,7 @@ impl Checker {
                 // Either somehow a batch wasn't checked or a non-genesis miniblock was set as the start
                 // miniblock. In the latter case, update the `next_batch_to_check` map and check the batch.
                 if self.start_miniblock == Some(MiniblockNumber(0)) {
-                    return Err(Error::Custom(format!(
+                    return Err(ClientError::Custom(format!(
                         "the next batch number to check (#{}) is less than current miniblock batch number (#{}) for instance {}",
                         instance_batch_to_check,
                         miniblock_batch_number,

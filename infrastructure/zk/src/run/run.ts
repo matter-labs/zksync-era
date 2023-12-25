@@ -22,7 +22,7 @@ export async function deployERC20(
             destinationFile = args[args.indexOf('--envFile') + 1];
             args.splice(args.indexOf('--envFile'), 2);
         }
-        await utils.spawn(`yarn --silent --cwd contracts/ethereum deploy-erc20 add-multi '
+        await utils.spawn(`yarn --silent --cwd contracts/l1-contracts deploy-erc20 add-multi '
             [
                 { "name": "DAI",  "symbol": "DAI",  "decimals": 18 },
                 { "name": "wBTC", "symbol": "wBTC", "decimals":  8, "implementation": "RevertTransferERC20" },
@@ -45,7 +45,7 @@ export async function deployERC20(
         env.modify('CONTRACTS_L1_WETH_TOKEN_ADDR', `CONTRACTS_L1_WETH_TOKEN_ADDR=${WETH.address}`);
     } else if (command == 'new') {
         await utils.spawn(
-            `yarn --silent --cwd contracts/ethereum deploy-erc20 add --token-name ${name} --symbol ${symbol} --decimals ${decimals}`
+            `yarn --silent --cwd contracts/l1-contracts deploy-erc20 add --token-name ${name} --symbol ${symbol} --decimals ${decimals}`
         );
     }
 }
@@ -61,22 +61,6 @@ export async function yarn() {
 
 export async function deployTestkit(genesisRoot: string) {
     await utils.spawn(`yarn l1-contracts deploy-testkit --genesis-root ${genesisRoot}`);
-}
-
-export async function plonkSetup(powers?: number[]) {
-    if (!powers) {
-        powers = [20, 21, 22, 23, 24, 25, 26];
-    }
-    const URL = 'https://storage.googleapis.com/universal-setup';
-    fs.mkdirSync('keys/setup', { recursive: true });
-    process.chdir('keys/setup');
-    for (let power = 20; power <= 26; power++) {
-        if (!fs.existsSync(`setup_2^${power}.key`)) {
-            await utils.spawn(`curl -LO ${URL}/setup_2^${power}.key`);
-            await utils.sleep(1);
-        }
-    }
-    process.chdir(process.env.ZKSYNC_HOME as string);
 }
 
 export async function revertReason(txHash: string, web3url?: string) {
@@ -121,11 +105,11 @@ export async function loadtest(...args: string[]) {
 export async function readVariable(address: string, contractName: string, variableName: string, file?: string) {
     if (file === undefined)
         await utils.spawn(
-            `yarn --silent --cwd contracts/ethereum read-variable read ${address} ${contractName} ${variableName}`
+            `yarn --silent --cwd contracts/l1-contracts read-variable read ${address} ${contractName} ${variableName}`
         );
     else
         await utils.spawn(
-            `yarn --silent --cwd contracts/ethereum read-variable read ${address} ${contractName} ${variableName} -f ${file}`
+            `yarn --silent --cwd contracts/l1-contracts read-variable read ${address} ${contractName} ${variableName} -f ${file}`
         );
 }
 
@@ -135,6 +119,11 @@ export async function cross_en_checker() {
     await utils.spawn(`${logLevel} ${suffix}`);
 }
 
+export async function snapshots_creator() {
+    process.chdir(`${process.env.ZKSYNC_HOME}`);
+    let logLevel = 'RUST_LOG=snapshots_creator=debug';
+    await utils.spawn(`${logLevel} cargo run --bin snapshots_creator --release`);
+}
 export const command = new Command('run').description('run miscellaneous applications').addCommand(dataRestore.command);
 
 command.command('test-accounts').description('print ethereum test accounts').action(testAccounts);
@@ -156,17 +145,6 @@ command
     .description('get symbol, name and decimals parameters from token')
     .action(async (address: string) => {
         await tokenInfo(address);
-    });
-
-command
-    .command('plonk-setup [powers]')
-    .description('download missing keys')
-    .action(async (powers?: string) => {
-        const powersArray = powers
-            ?.split(' ')
-            .map((x) => parseInt(x))
-            .filter((x) => !Number.isNaN(x));
-        await plonkSetup(powersArray);
     });
 
 command
@@ -214,6 +192,8 @@ command
     .action(async (address: string, contractName: string, variableName: string, cmd: Command) => {
         await readVariable(address, contractName, variableName, cmd.file);
     });
+
+command.command('snapshots-creator').action(snapshots_creator);
 
 command
     .command('cross-en-checker')

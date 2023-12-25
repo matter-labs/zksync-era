@@ -1,19 +1,22 @@
-use crate::vm_virtual_blocks::bootloader_state::{
-    l2_block::BootloaderL2Block,
-    snapshot::BootloaderStateSnapshot,
-    utils::{apply_l2_block, apply_tx_to_memory},
-};
 use std::cmp::Ordering;
+
 use zksync_types::{L2ChainId, U256};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
-use crate::interface::{BootloaderMemory, L2BlockEnv, TxExecutionMode};
-use crate::vm_virtual_blocks::{
-    constants::TX_DESCRIPTION_OFFSET, types::internals::TransactionData,
-    utils::l2_blocks::assert_next_block,
-};
-
 use super::tx::BootloaderTx;
+use crate::{
+    interface::{BootloaderMemory, L2BlockEnv, TxExecutionMode},
+    vm_virtual_blocks::{
+        bootloader_state::{
+            l2_block::BootloaderL2Block,
+            snapshot::BootloaderStateSnapshot,
+            utils::{apply_l2_block, apply_tx_to_memory},
+        },
+        constants::TX_DESCRIPTION_OFFSET,
+        types::internals::TransactionData,
+        utils::l2_blocks::assert_next_block,
+    },
+};
 /// Intermediate bootloader-related VM state.
 ///
 /// Required to process transactions one by one (since we intercept the VM execution to execute

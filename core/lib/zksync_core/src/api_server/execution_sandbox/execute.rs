@@ -1,13 +1,13 @@
 //! Implementation of "executing" methods, e.g. `eth_call`.
 
+use multivm::{
+    interface::{TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface},
+    tracers::StorageInvocations,
+    vm_latest::constants::ETH_CALL_GAS_LIMIT,
+    MultiVMTracer,
+};
 use tracing::{span, Level};
-
-use multivm::interface::{TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface};
-use multivm::tracers::StorageInvocations;
-use multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
-use multivm::MultiVMTracer;
 use zksync_dal::ConnectionPool;
-
 use zksync_types::{
     fee::TransactionExecutionMetrics, l2::L2Tx, ExecuteTransactionCommon, Nonce,
     PackedEthSignature, Transaction, U256,

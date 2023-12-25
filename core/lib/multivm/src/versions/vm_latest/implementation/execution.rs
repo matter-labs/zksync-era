@@ -1,15 +1,19 @@
-use crate::HistoryMode;
 use zk_evm_1_4_1::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
-use crate::interface::{
-    types::tracer::{TracerExecutionStatus, VmExecutionStopReason},
-    VmExecutionMode, VmExecutionResultAndLogs,
-};
-use crate::vm_latest::{
-    old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
-    tracers::{dispatcher::TracerDispatcher, DefaultExecutionTracer, PubdataTracer, RefundsTracer},
-    vm::Vm,
+use crate::{
+    interface::{
+        types::tracer::{TracerExecutionStatus, VmExecutionStopReason},
+        VmExecutionMode, VmExecutionResultAndLogs,
+    },
+    vm_latest::{
+        old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
+        tracers::{
+            dispatcher::TracerDispatcher, DefaultExecutionTracer, PubdataTracer, RefundsTracer,
+        },
+        vm::Vm,
+    },
+    HistoryMode,
 };
 
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {

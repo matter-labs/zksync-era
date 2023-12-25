@@ -2,7 +2,6 @@
 
 use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 use test_casing::test_casing;
-
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
     recovery::MerkleTreeRecovery, Database, MerkleTree, PatchSet, PruneDatabase, ValueHash,
@@ -34,7 +33,7 @@ fn recovery_basics() {
     assert_eq!(recovery.last_processed_key(), Some(greatest_key));
     assert_eq!(recovery.root_hash(), *expected_hash);
 
-    let tree = recovery.finalize();
+    let tree = MerkleTree::new(recovery.finalize());
     tree.verify_consistency(recovered_version, true).unwrap();
 }
 
@@ -66,7 +65,7 @@ fn test_recovery_in_chunks(mut db: impl PruneDatabase, kind: RecoveryKind, chunk
     assert_eq!(recovery.last_processed_key(), Some(greatest_key));
     assert_eq!(recovery.root_hash(), *expected_hash);
 
-    let mut tree = recovery.finalize();
+    let mut tree = MerkleTree::new(recovery.finalize());
     tree.verify_consistency(recovered_version, true).unwrap();
     // Check that new tree versions can be built and function as expected.
     test_tree_after_recovery(&mut tree, recovered_version, *expected_hash);
@@ -125,9 +124,9 @@ fn recovery_in_chunks(kind: RecoveryKind, chunk_size: usize) {
 
 mod rocksdb {
     use tempfile::TempDir;
+    use zksync_merkle_tree::RocksDBWrapper;
 
     use super::*;
-    use zksync_merkle_tree::RocksDBWrapper;
 
     #[test_casing(8, test_casing::Product((RecoveryKind::ALL, [6, 10, 17, 42])))]
     fn recovery_in_chunks(kind: RecoveryKind, chunk_size: usize) {

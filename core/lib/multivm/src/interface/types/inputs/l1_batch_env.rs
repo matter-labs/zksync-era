@@ -1,6 +1,6 @@
-use super::L2BlockEnv;
 use zksync_types::{Address, L1BatchNumber, H256, U256};
 
+use super::L2BlockEnv;
 use crate::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
 
 /// Unique params for each block
