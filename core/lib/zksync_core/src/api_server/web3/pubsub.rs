@@ -93,17 +93,20 @@ impl PubSubNotifier {
 
             if let Some(last_block) = new_blocks.last() {
                 last_block_number = MiniblockNumber(last_block.number.unwrap().as_u32());
-
                 let new_blocks = new_blocks.into_iter().map(PubSubResult::Header).collect();
-                // Errors only on 0 receivers, but we want to go on
-                // if we have 0 subscribers so ignore the error.
-                self.sender.send(new_blocks).ok();
+                self.send_pub_sub_results(new_blocks, SubscriptionType::Blocks);
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(
                 SubscriptionType::Blocks,
             ));
         }
         Ok(())
+    }
+
+    fn send_pub_sub_results(&self, results: Vec<PubSubResult>, sub_type: SubscriptionType) {
+        // Errors only on 0 receivers, but we want to go on if we have 0 subscribers so ignore the error.
+        self.sender.send(results).ok();
+        PUB_SUB_METRICS.broadcast_channel_len[&sub_type].set(self.sender.len());
     }
 
     async fn new_blocks(
@@ -123,9 +126,7 @@ impl PubSubNotifier {
             .await
             .with_context(|| format!("get_block_headers_after({last_block_number})"))
     }
-}
 
-impl PubSubNotifier {
     async fn notify_txs(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut last_time = chrono::Utc::now().naive_utc();
         let mut timer = interval(self.polling_interval);
@@ -145,11 +146,8 @@ impl PubSubNotifier {
 
             if let Some(new_last_time) = new_last_time {
                 last_time = new_last_time;
-
                 let new_txs = new_txs.into_iter().map(PubSubResult::TxHash).collect();
-                // Errors only on 0 receivers, but we want to go on
-                // if we have 0 subscribers so ignore the error.
-                self.sender.send(new_txs).ok();
+                self.send_pub_sub_results(new_txs, SubscriptionType::Txs);
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(SubscriptionType::Txs));
         }
@@ -173,9 +171,7 @@ impl PubSubNotifier {
             .await
             .context("get_pending_txs_hashes_after()")
     }
-}
 
-impl PubSubNotifier {
     async fn notify_logs(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut last_block_number = self.sealed_miniblock_number().await?;
         let mut timer = interval(self.polling_interval);
@@ -193,12 +189,8 @@ impl PubSubNotifier {
 
             if let Some(last_log) = new_logs.last() {
                 last_block_number = MiniblockNumber(last_log.block_number.unwrap().as_u32());
-
                 let new_logs = new_logs.into_iter().map(PubSubResult::Log).collect();
-
-                // Errors only on 0 receivers, but we want to go on
-                // if we have 0 subscribers so ignore the error.
-                self.sender.send(new_logs).ok();
+                self.send_pub_sub_results(new_logs, SubscriptionType::Logs);
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(SubscriptionType::Logs));
         }
@@ -255,29 +247,50 @@ impl EthSubscribe {
     async fn run_subscriber(
         sink: SubscriptionSink,
         subscription_type: SubscriptionType,
-        mut b: broadcast::Receiver<Vec<PubSubResult>>,
+        mut receiver: broadcast::Receiver<Vec<PubSubResult>>,
         filter: Option<PubSubFilter>,
     ) {
         let _guard = PUB_SUB_METRICS.active_subscribers[&subscription_type].inc_guard(1);
+        let lifetime_latency = PUB_SUB_METRICS.subscriber_lifetime[&subscription_type].start();
         let closed = sink.closed().fuse();
         tokio::pin!(closed);
 
         loop {
             tokio::select! {
-                new_items = b.recv() => {
-                    let Ok(new_items) = new_items else { return };
-                    if Self::handle_new_items(
+                new_items_result = receiver.recv() => {
+                    let new_items = match new_items_result {
+                        Ok(items) => items,
+                        Err(broadcast::error::RecvError::Closed) => {
+                            // The broadcast channel has closed because the notifier task is shut down.
+                            // This is fine; we should just stop this task.
+                            break;
+                        }
+                        Err(broadcast::error::RecvError::Lagged(message_count)) => {
+                            PUB_SUB_METRICS
+                                .skipped_broadcast_messages[&subscription_type]
+                                .observe(message_count);
+                            break;
+                        }
+                    };
+
+                    let handle_result = Self::handle_new_items(
                         &sink,
                         subscription_type,
                         new_items,
                         filter.as_ref()
-                    ).await.is_err() { return };
+                    )
+                    .await;
+                    if handle_result.is_err() {
+                        PUB_SUB_METRICS.subscriber_send_timeouts[&subscription_type].inc();
+                        break;
+                    }
                 }
                 _ = &mut closed => {
-                    break
+                    break;
                 }
             }
         }
+        lifetime_latency.observe();
     }
 
     async fn handle_new_items(
@@ -286,6 +299,7 @@ impl EthSubscribe {
         new_items: Vec<PubSubResult>,
         filter: Option<&PubSubFilter>,
     ) -> Result<(), SendTimeoutError> {
+        let notify_latency = PUB_SUB_METRICS.notify_subscribers_latency[&subscription_type].start();
         for item in new_items {
             if let PubSubResult::Log(log) = &item {
                 if let Some(filter) = &filter {
@@ -305,6 +319,7 @@ impl EthSubscribe {
             PUB_SUB_METRICS.notify[&subscription_type].inc();
         }
 
+        notify_latency.observe();
         Ok(())
     }
 
@@ -317,11 +332,10 @@ impl EthSubscribe {
     ) {
         let sub_type = match sub_type.as_str() {
             "newHeads" => {
-                let blocks_rx = self.blocks.subscribe();
-
                 let Ok(sink) = pending_sink.accept().await else {
                     return;
                 };
+                let blocks_rx = self.blocks.subscribe();
                 tokio::spawn(Self::run_subscriber(
                     sink,
                     SubscriptionType::Blocks,
@@ -332,11 +346,10 @@ impl EthSubscribe {
                 Some(SubscriptionType::Blocks)
             }
             "newPendingTransactions" => {
-                let transactions_rx = self.transactions.subscribe();
-
                 let Ok(sink) = pending_sink.accept().await else {
                     return;
                 };
+                let transactions_rx = self.transactions.subscribe();
                 tokio::spawn(Self::run_subscriber(
                     sink,
                     SubscriptionType::Txs,
@@ -346,7 +359,6 @@ impl EthSubscribe {
                 Some(SubscriptionType::Txs)
             }
             "logs" => {
-                let logs_rx = self.logs.subscribe();
                 let filter = params.unwrap_or_default();
                 let topic_count = filter.topics.as_ref().map_or(0, Vec::len);
 
@@ -357,6 +369,7 @@ impl EthSubscribe {
                     let Ok(sink) = pending_sink.accept().await else {
                         return;
                     };
+                    let logs_rx = self.logs.subscribe();
                     tokio::spawn(Self::run_subscriber(
                         sink,
                         SubscriptionType::Logs,
@@ -443,7 +456,6 @@ impl EthPubSubServer for EthSubscribe {
         filter: Option<PubSubFilter>,
     ) -> SubscriptionResult {
         self.sub(pending, sub_type, filter).await;
-
         Ok(())
     }
 }

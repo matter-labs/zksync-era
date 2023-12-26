@@ -170,7 +170,8 @@ impl BlocksDal<'_, '_> {
                 default_aa_code_hash,
                 protocol_version,
                 system_logs,
-                compressed_state_diffs
+                compressed_state_diffs,
+                pubdata_input
             FROM
                 l1_batches
             WHERE
@@ -234,7 +235,8 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 compressed_state_diffs,
                 events_queue_commitment,
-                bootloader_initial_content_commitment
+                bootloader_initial_content_commitment,
+                pubdata_input
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -275,7 +277,8 @@ impl BlocksDal<'_, '_> {
                 default_aa_code_hash,
                 protocol_version,
                 compressed_state_diffs,
-                system_logs
+                system_logs,
+                pubdata_input
             FROM
                 l1_batches
             WHERE
@@ -465,6 +468,7 @@ impl BlocksDal<'_, '_> {
             .iter()
             .map(|log| log.0.to_bytes().to_vec())
             .collect::<Vec<Vec<u8>>>();
+        let pubdata_input = header.pubdata_input.clone();
 
         // Serialization should always succeed.
         let initial_bootloader_contents = serde_json::to_value(initial_bootloader_contents)
@@ -506,6 +510,7 @@ impl BlocksDal<'_, '_> {
                     protocol_version,
                     system_logs,
                     storage_refunds,
+                    pubdata_input,
                     created_at,
                     updated_at
                 )
@@ -534,6 +539,7 @@ impl BlocksDal<'_, '_> {
                     $21,
                     $22,
                     $23,
+                    $24,
                     NOW(),
                     NOW()
                 )
@@ -561,6 +567,7 @@ impl BlocksDal<'_, '_> {
             header.protocol_version.map(|v| v as i32),
             &system_logs,
             &storage_refunds,
+            pubdata_input,
         )
         .execute(transaction.conn())
         .await?;
@@ -1036,7 +1043,8 @@ impl BlocksDal<'_, '_> {
                 compressed_state_diffs,
                 system_logs,
                 events_queue_commitment,
-                bootloader_initial_content_commitment
+                bootloader_initial_content_commitment,
+                pubdata_input
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1221,7 +1229,8 @@ impl BlocksDal<'_, '_> {
                 compressed_state_diffs,
                 system_logs,
                 events_queue_commitment,
-                bootloader_initial_content_commitment
+                bootloader_initial_content_commitment,
+                pubdata_input
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1333,7 +1342,8 @@ impl BlocksDal<'_, '_> {
                 compressed_state_diffs,
                 protocol_version,
                 events_queue_commitment,
-                bootloader_initial_content_commitment
+                bootloader_initial_content_commitment,
+                pubdata_input
             FROM
                 (
                     SELECT
@@ -1419,7 +1429,8 @@ impl BlocksDal<'_, '_> {
                         compressed_state_diffs,
                         system_logs,
                         events_queue_commitment,
-                        bootloader_initial_content_commitment
+                        bootloader_initial_content_commitment,
+                        pubdata_input
                     FROM
                         l1_batches
                         LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1557,7 +1568,8 @@ impl BlocksDal<'_, '_> {
                     compressed_state_diffs,
                     system_logs,
                     events_queue_commitment,
-                    bootloader_initial_content_commitment
+                    bootloader_initial_content_commitment,
+                    pubdata_input
                 FROM
                     l1_batches
                     LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1634,7 +1646,8 @@ impl BlocksDal<'_, '_> {
                 compressed_state_diffs,
                 system_logs,
                 events_queue_commitment,
-                bootloader_initial_content_commitment
+                bootloader_initial_content_commitment,
+                pubdata_input
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1721,7 +1734,8 @@ impl BlocksDal<'_, '_> {
                 compressed_state_diffs,
                 system_logs,
                 events_queue_commitment,
-                bootloader_initial_content_commitment
+                bootloader_initial_content_commitment,
+                pubdata_input
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1832,7 +1846,8 @@ impl BlocksDal<'_, '_> {
                 default_aa_code_hash,
                 protocol_version,
                 compressed_state_diffs,
-                system_logs
+                system_logs,
+                pubdata_input
             FROM
                 l1_batches
             ORDER BY

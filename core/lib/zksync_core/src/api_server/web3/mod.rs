@@ -86,13 +86,13 @@ pub enum Namespace {
 }
 
 impl Namespace {
-    pub const DEFAULT: &'static [Namespace] = &[
-        Namespace::Eth,
-        Namespace::Net,
-        Namespace::Web3,
-        Namespace::Zks,
-        Namespace::En,
-        Namespace::Pubsub,
+    pub const DEFAULT: &'static [Self] = &[
+        Self::Eth,
+        Self::Net,
+        Self::Web3,
+        Self::Zks,
+        Self::En,
+        Self::Pubsub,
     ];
 }
 
@@ -104,49 +104,66 @@ pub struct ApiServerHandles {
     pub health_check: ReactiveHealthCheck,
 }
 
-#[derive(Debug)]
-pub struct ApiBuilder<G> {
-    pool: ConnectionPool,
-    last_miniblock_pool: ConnectionPool,
-    config: InternalApiConfig,
-    transport: Option<ApiTransport>,
-    tx_sender: Option<TxSender<G>>,
-    vm_barrier: Option<VmConcurrencyBarrier>,
+/// Optional part of the API server parameters.
+#[derive(Debug, Default)]
+struct OptionalApiParams {
+    sync_state: Option<SyncState>,
     filters_limit: Option<usize>,
     subscriptions_limit: Option<usize>,
     batch_request_size_limit: Option<usize>,
     response_body_size_limit: Option<usize>,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
-    sync_state: Option<SyncState>,
-    threads: Option<usize>,
-    vm_concurrency_limit: Option<usize>,
-    polling_interval: Option<Duration>,
-    namespaces: Option<Vec<Namespace>>,
     tree_api_url: Option<String>,
     pub_sub_events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
 }
 
+/// Full API server parameters.
+#[derive(Debug)]
+struct FullApiParams<G> {
+    pool: ConnectionPool,
+    last_miniblock_pool: ConnectionPool,
+    config: InternalApiConfig,
+    transport: ApiTransport,
+    tx_sender: TxSender<G>,
+    vm_barrier: VmConcurrencyBarrier,
+    threads: usize,
+    polling_interval: Duration,
+    namespaces: Vec<Namespace>,
+    optional: OptionalApiParams,
+}
+
+#[derive(Debug)]
+pub struct ApiBuilder<G> {
+    pool: ConnectionPool,
+    last_miniblock_pool: ConnectionPool,
+    config: InternalApiConfig,
+    polling_interval: Duration,
+    // Mandatory params that must be set using builder methods.
+    transport: Option<ApiTransport>,
+    tx_sender: Option<TxSender<G>>,
+    vm_barrier: Option<VmConcurrencyBarrier>,
+    threads: Option<usize>,
+    // Optional params that may or may not be set using builder methods. We treat `namespaces`
+    // specially because we want to output a warning if they are not set.
+    namespaces: Option<Vec<Namespace>>,
+    optional: OptionalApiParams,
+}
+
 impl<G> ApiBuilder<G> {
+    const DEFAULT_POLLING_INTERVAL: Duration = Duration::from_millis(200);
+
     pub fn jsonrpsee_backend(config: InternalApiConfig, pool: ConnectionPool) -> Self {
         Self {
-            transport: None,
             last_miniblock_pool: pool.clone(),
             pool,
-            sync_state: None,
+            config,
+            polling_interval: Self::DEFAULT_POLLING_INTERVAL,
+            transport: None,
             tx_sender: None,
             vm_barrier: None,
-            filters_limit: None,
-            subscriptions_limit: None,
-            batch_request_size_limit: None,
-            response_body_size_limit: None,
-            websocket_requests_per_minute_limit: None,
             threads: None,
-            vm_concurrency_limit: None,
-            polling_interval: None,
             namespaces: None,
-            config,
-            tree_api_url: None,
-            pub_sub_events_sender: None,
+            optional: OptionalApiParams::default(),
         }
     }
 
@@ -179,22 +196,22 @@ impl<G> ApiBuilder<G> {
     }
 
     pub fn with_filter_limit(mut self, filters_limit: usize) -> Self {
-        self.filters_limit = Some(filters_limit);
+        self.optional.filters_limit = Some(filters_limit);
         self
     }
 
     pub fn with_subscriptions_limit(mut self, subscriptions_limit: usize) -> Self {
-        self.subscriptions_limit = Some(subscriptions_limit);
+        self.optional.subscriptions_limit = Some(subscriptions_limit);
         self
     }
 
     pub fn with_batch_request_size_limit(mut self, batch_request_size_limit: usize) -> Self {
-        self.batch_request_size_limit = Some(batch_request_size_limit);
+        self.optional.batch_request_size_limit = Some(batch_request_size_limit);
         self
     }
 
     pub fn with_response_body_size_limit(mut self, response_body_size_limit: usize) -> Self {
-        self.response_body_size_limit = Some(response_body_size_limit);
+        self.optional.response_body_size_limit = Some(response_body_size_limit);
         self
     }
 
@@ -202,12 +219,13 @@ impl<G> ApiBuilder<G> {
         mut self,
         websocket_requests_per_minute_limit: NonZeroU32,
     ) -> Self {
-        self.websocket_requests_per_minute_limit = Some(websocket_requests_per_minute_limit);
+        self.optional.websocket_requests_per_minute_limit =
+            Some(websocket_requests_per_minute_limit);
         self
     }
 
     pub fn with_sync_state(mut self, sync_state: SyncState) -> Self {
-        self.sync_state = Some(sync_state);
+        self.optional.sync_state = Some(sync_state);
         self
     }
 
@@ -217,12 +235,7 @@ impl<G> ApiBuilder<G> {
     }
 
     pub fn with_polling_interval(mut self, polling_interval: Duration) -> Self {
-        self.polling_interval = Some(polling_interval);
-        self
-    }
-
-    pub fn with_vm_concurrency_limit(mut self, vm_concurrency_limit: usize) -> Self {
-        self.vm_concurrency_limit = Some(vm_concurrency_limit);
+        self.polling_interval = polling_interval;
         self
     }
 
@@ -232,18 +245,47 @@ impl<G> ApiBuilder<G> {
     }
 
     pub fn with_tree_api(mut self, tree_api_url: Option<String>) -> Self {
-        self.tree_api_url = tree_api_url;
+        self.optional.tree_api_url = tree_api_url;
         self
     }
 
     #[cfg(test)]
     fn with_pub_sub_events(mut self, sender: mpsc::UnboundedSender<PubSubEvent>) -> Self {
-        self.pub_sub_events_sender = Some(sender);
+        self.optional.pub_sub_events_sender = Some(sender);
         self
+    }
+
+    fn into_full_params(self) -> anyhow::Result<FullApiParams<G>> {
+        Ok(FullApiParams {
+            pool: self.pool,
+            last_miniblock_pool: self.last_miniblock_pool,
+            config: self.config,
+            transport: self.transport.context("API transport not set")?,
+            tx_sender: self.tx_sender.context("Transaction sender not set")?,
+            vm_barrier: self.vm_barrier.context("VM barrier not set")?,
+            threads: self.threads.context("Number of server threads not set")?,
+            polling_interval: self.polling_interval,
+            namespaces: self.namespaces.unwrap_or_else(|| {
+                tracing::warn!(
+                    "debug_ and snapshots_ API namespace will be disabled by default in ApiBuilder"
+                );
+                Namespace::DEFAULT.to_vec()
+            }),
+            optional: self.optional,
+        })
     }
 }
 
 impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
+    pub async fn build(
+        self,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<ApiServerHandles> {
+        self.into_full_params()?.spawn_server(stop_receiver).await
+    }
+}
+
+impl<G: 'static + Send + Sync + L1GasPriceProvider> FullApiParams<G> {
     fn build_rpc_state(self) -> RpcState<G> {
         // Chosen to be significantly smaller than the interval between miniblocks, but larger than
         // the latency of getting the latest sealed miniblock number from Postgres. If the API server
@@ -257,20 +299,21 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         tokio::spawn(update_task);
 
         RpcState {
-            installed_filters: Arc::new(Mutex::new(Filters::new(self.filters_limit))),
+            installed_filters: Arc::new(Mutex::new(Filters::new(self.optional.filters_limit))),
             connection_pool: self.pool,
-            tx_sender: self.tx_sender.expect("TxSender is not provided"),
-            sync_state: self.sync_state,
+            tx_sender: self.tx_sender,
+            sync_state: self.optional.sync_state,
             api_config: self.config,
             last_sealed_miniblock,
             tree_api: self
+                .optional
                 .tree_api_url
                 .map(|url| TreeApiHttpClient::new(url.as_str())),
         }
     }
 
-    async fn build_rpc_module(mut self, pubsub: Option<EthSubscribe>) -> RpcModule<()> {
-        let namespaces = self.namespaces.take().unwrap();
+    async fn build_rpc_module(self, pubsub: Option<EthSubscribe>) -> RpcModule<()> {
+        let namespaces = self.namespaces.clone();
         let zksync_network_id = self.config.l2_chain_id;
         let rpc_state = self.build_rpc_state();
 
@@ -312,38 +355,27 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         rpc
     }
 
-    pub async fn build(
-        mut self,
+    async fn spawn_server(
+        self,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<ApiServerHandles> {
-        if self.filters_limit.is_none() {
+        if self.optional.filters_limit.is_none() {
             tracing::warn!("Filters limit is not set - unlimited filters are allowed");
         }
 
-        if self.namespaces.is_none() {
-            tracing::warn!(
-                "debug_  and snapshots_ API namespace will be disabled by default in ApiBuilder"
-            );
-            self.namespaces = Some(Namespace::DEFAULT.to_vec());
-        }
-
-        if self
-            .namespaces
-            .as_ref()
-            .unwrap()
-            .contains(&Namespace::Pubsub)
-            && matches!(&self.transport, Some(ApiTransport::Http(_)))
+        if self.namespaces.contains(&Namespace::Pubsub)
+            && matches!(&self.transport, ApiTransport::Http(_))
         {
             tracing::debug!("pubsub API is not supported for HTTP transport, ignoring");
         }
 
-        match (&self.transport, self.subscriptions_limit) {
-            (Some(ApiTransport::WebSocket(_)), None) => {
+        match (&self.transport, self.optional.subscriptions_limit) {
+            (ApiTransport::WebSocket(_), None) => {
                 tracing::warn!(
                     "`subscriptions_limit` is not set - unlimited subscriptions are allowed"
                 );
             }
-            (Some(ApiTransport::Http(_)), Some(_)) => {
+            (ApiTransport::Http(_), Some(_)) => {
                 tracing::warn!(
                     "`subscriptions_limit` is ignored for HTTP transport, use WebSocket instead"
                 );
@@ -351,10 +383,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
             _ => {}
         }
 
-        match self.transport.take() {
-            Some(transport) => self.build_jsonrpsee(transport, stop_receiver).await,
-            None => anyhow::bail!("ApiTransport is not specified"),
-        }
+        self.build_jsonrpsee(stop_receiver).await
     }
 
     async fn wait_for_vm(vm_barrier: VmConcurrencyBarrier, transport: &str) {
@@ -371,33 +400,34 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
     }
 
     async fn build_jsonrpsee(
-        mut self,
-        transport: ApiTransport,
+        self,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<ApiServerHandles> {
+        let transport = self.transport;
         let (runtime_thread_name, health_check_name) = match transport {
             ApiTransport::Http(_) => ("jsonrpsee-http-worker", "http_api"),
             ApiTransport::WebSocket(_) => ("jsonrpsee-ws-worker", "ws_api"),
         };
         let (health_check, health_updater) = ReactiveHealthCheck::new(health_check_name);
-        let vm_barrier = self.vm_barrier.take().unwrap();
-        let batch_request_config = if let Some(limit) = self.batch_request_size_limit {
-            BatchRequestConfig::Limit(limit as u32)
-        } else {
-            BatchRequestConfig::Unlimited
-        };
+        let vm_barrier = self.vm_barrier.clone();
+        let batch_request_config = self
+            .optional
+            .batch_request_size_limit
+            .map_or(BatchRequestConfig::Unlimited, |limit| {
+                BatchRequestConfig::Limit(limit as u32)
+            });
         let response_body_size_limit = self
+            .optional
             .response_body_size_limit
-            .map(|limit| limit as u32)
-            .unwrap_or(u32::MAX);
+            .map_or(u32::MAX, |limit| limit as u32);
 
-        let websocket_requests_per_minute_limit = self.websocket_requests_per_minute_limit;
-        let subscriptions_limit = self.subscriptions_limit;
+        let websocket_requests_per_minute_limit = self.optional.websocket_requests_per_minute_limit;
+        let subscriptions_limit = self.optional.subscriptions_limit;
 
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .thread_name(runtime_thread_name)
-            .worker_threads(self.threads.unwrap())
+            .worker_threads(self.threads)
             .build()
             .with_context(|| {
                 format!("Failed creating Tokio runtime for {health_check_name} jsonrpsee server")
@@ -406,27 +436,19 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         let mut tasks = vec![];
         let mut pubsub = None;
         if matches!(transport, ApiTransport::WebSocket(_))
-            && self
-                .namespaces
-                .as_ref()
-                .unwrap()
-                .contains(&Namespace::Pubsub)
+            && self.namespaces.contains(&Namespace::Pubsub)
         {
             let mut pub_sub = EthSubscribe::new();
-            if let Some(sender) = self.pub_sub_events_sender.take() {
-                pub_sub.set_events_sender(sender);
+            if let Some(sender) = &self.optional.pub_sub_events_sender {
+                pub_sub.set_events_sender(sender.clone());
             }
-            let polling_interval = self
-                .polling_interval
-                .context("Polling interval is not set")?;
 
             tasks.extend(pub_sub.spawn_notifiers(
                 runtime.handle(),
                 self.pool.clone(),
-                polling_interval,
+                self.polling_interval,
                 stop_receiver.clone(),
             ));
-
             pubsub = Some(pub_sub);
         }
 
@@ -511,13 +533,12 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
             .option_layer(cors);
 
         // Settings shared by HTTP and WS servers.
+        let max_connections = !is_http
+            .then_some(subscriptions_limit)
+            .flatten()
+            .unwrap_or(5_000);
         let server_builder = ServerBuilder::default()
-            .max_connections(
-                !is_http
-                    .then_some(subscriptions_limit)
-                    .flatten()
-                    .unwrap_or(5_000) as u32,
-            )
+            .max_connections(max_connections as u32)
             .set_http_middleware(middleware)
             .max_response_body_size(response_body_size_limit)
             .set_batch_request_config(batch_request_config);
