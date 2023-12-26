@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                number,\n                l1_tx_count,\n                l2_tx_count,\n                timestamp,\n                is_finished,\n                fee_account_address,\n                l2_to_l1_logs,\n                l2_to_l1_messages,\n                bloom,\n                priority_ops_onchain_data,\n                used_contract_hashes,\n                base_fee_per_gas,\n                l1_gas_price,\n                l2_fair_gas_price,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                protocol_version,\n                system_logs,\n                compressed_state_diffs\n            FROM\n                l1_batches\n            WHERE\n                eth_commit_tx_id = $1\n                OR eth_prove_tx_id = $1\n                OR eth_execute_tx_id = $1\n            ",
+  "query": "\n            SELECT\n                number,\n                l1_tx_count,\n                l2_tx_count,\n                timestamp,\n                is_finished,\n                fee_account_address,\n                l2_to_l1_logs,\n                l2_to_l1_messages,\n                bloom,\n                priority_ops_onchain_data,\n                used_contract_hashes,\n                base_fee_per_gas,\n                l1_gas_price,\n                l2_fair_gas_price,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                protocol_version,\n                system_logs,\n                compressed_state_diffs,\n                pubdata_input\n            FROM\n                l1_batches\n            WHERE\n                eth_commit_tx_id = $1\n                OR eth_prove_tx_id = $1\n                OR eth_execute_tx_id = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -97,6 +97,11 @@
         "ordinal": 18,
         "name": "compressed_state_diffs",
         "type_info": "Bytea"
+      },
+      {
+        "ordinal": 19,
+        "name": "pubdata_input",
+        "type_info": "Bytea"
       }
     ],
     "parameters": {
@@ -123,8 +128,9 @@
       true,
       true,
       false,
+      true,
       true
     ]
   },
-  "hash": "f89d5b65ce2c1a82acec40776bc9bab706512f234c0bb50be89b33cc85b66d41"
+  "hash": "d8e0f98a67ffb53a1caa6820f8475da2787332deca5708d1d08730cdbfc73541"
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n                SELECT\n                    number,\n                    timestamp,\n                    is_finished,\n                    l1_tx_count,\n                    l2_tx_count,\n                    fee_account_address,\n                    bloom,\n                    priority_ops_onchain_data,\n                    hash,\n                    parent_hash,\n                    commitment,\n                    compressed_write_logs,\n                    compressed_contracts,\n                    eth_prove_tx_id,\n                    eth_commit_tx_id,\n                    eth_execute_tx_id,\n                    merkle_root_hash,\n                    l2_to_l1_logs,\n                    l2_to_l1_messages,\n                    used_contract_hashes,\n                    compressed_initial_writes,\n                    compressed_repeated_writes,\n                    l2_l1_compressed_messages,\n                    l2_l1_merkle_root,\n                    l1_gas_price,\n                    l2_fair_gas_price,\n                    rollup_last_leaf_index,\n                    zkporter_is_available,\n                    bootloader_code_hash,\n                    default_aa_code_hash,\n                    base_fee_per_gas,\n                    aux_data_hash,\n                    pass_through_data_hash,\n                    meta_parameters_hash,\n                    protocol_version,\n                    compressed_state_diffs,\n                    system_logs,\n                    events_queue_commitment,\n                    bootloader_initial_content_commitment\n                FROM\n                    l1_batches\n                    LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n                WHERE\n                    number BETWEEN $1 AND $2\n                ORDER BY\n                    number\n                LIMIT\n                    $3\n                ",
+  "query": "\n                SELECT\n                    number,\n                    timestamp,\n                    is_finished,\n                    l1_tx_count,\n                    l2_tx_count,\n                    fee_account_address,\n                    bloom,\n                    priority_ops_onchain_data,\n                    hash,\n                    parent_hash,\n                    commitment,\n                    compressed_write_logs,\n                    compressed_contracts,\n                    eth_prove_tx_id,\n                    eth_commit_tx_id,\n                    eth_execute_tx_id,\n                    merkle_root_hash,\n                    l2_to_l1_logs,\n                    l2_to_l1_messages,\n                    used_contract_hashes,\n                    compressed_initial_writes,\n                    compressed_repeated_writes,\n                    l2_l1_compressed_messages,\n                    l2_l1_merkle_root,\n                    l1_gas_price,\n                    l2_fair_gas_price,\n                    rollup_last_leaf_index,\n                    zkporter_is_available,\n                    bootloader_code_hash,\n                    default_aa_code_hash,\n                    base_fee_per_gas,\n                    aux_data_hash,\n                    pass_through_data_hash,\n                    meta_parameters_hash,\n                    protocol_version,\n                    compressed_state_diffs,\n                    system_logs,\n                    events_queue_commitment,\n                    bootloader_initial_content_commitment,\n                    pubdata_input\n                FROM\n                    l1_batches\n                    LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n                WHERE\n                    number BETWEEN $1 AND $2\n                ORDER BY\n                    number\n                LIMIT\n                    $3\n                ",
   "describe": {
     "columns": [
       {
@@ -197,6 +197,11 @@
         "ordinal": 38,
         "name": "bootloader_initial_content_commitment",
         "type_info": "Bytea"
+      },
+      {
+        "ordinal": 39,
+        "name": "pubdata_input",
+        "type_info": "Bytea"
       }
     ],
     "parameters": {
@@ -245,8 +250,9 @@
       true,
       false,
       true,
+      true,
       true
     ]
   },
-  "hash": "3767abe810cebfc0ea1992948274c3c20ebc23e30b30eb1358fade7b23318414"
+  "hash": "3671f23665664b8d6acf97e4f697e5afa28d855d87ea2f8c93e79c436749068a"
 }
