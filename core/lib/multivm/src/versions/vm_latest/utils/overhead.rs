@@ -7,17 +7,7 @@ use crate::vm_latest::constants::{
     BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_L1_GAS, BLOCK_OVERHEAD_PUBDATA, BOOTLOADER_TX_ENCODING_SPACE,
 };
 
-/// Derives the overhead for processing transactions in a block.
-pub fn derive_overhead(
-    l1_gas_price: u64,
-    base_fee: u64,
-    encoded_len: usize,
-    coefficients: OverheadCoefficients,
-) -> u32 {
-    let base_fee = U256::from(base_fee);
-
-    let overhead_for_batch_eth = block_overhead_eth(l1_gas_price);
-
+pub fn derive_overhead(encoded_len: usize) -> u32 {
     // todo: move into constants
     let slot_overhead_gas = 10000; //ceil_div_u256(overhead_for_batch_eth, (base_fee * MAX_TXS_IN_BLOCK));
                                    // todo: the 32 constant is for words -> byte conversion
@@ -88,15 +78,8 @@ impl OverheadCoefficients {
     }
 }
 
-/// This method returns the overhead for processing the block  
-/// TODO: maybe remove this method
-pub(crate) fn get_amortized_overhead(
-    l1_gas_price: u64,
-    base_fee: u64,
-    encoded_len: usize,
-    coefficients: OverheadCoefficients,
-) -> u32 {
-    derive_overhead(l1_gas_price, base_fee, encoded_len, coefficients)
+pub fn get_amortized_overhead(encoded_len: usize) -> u32 {
+    derive_overhead(encoded_len)
 }
 
 // todo: maybe remove this function

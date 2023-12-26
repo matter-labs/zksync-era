@@ -13,10 +13,11 @@ use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{l2::L2Tx, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS, U256};
 
 use super::{
-    adjust_pubdata_price_for_tx, apply,
+    apply,
     vm_metrics::{SandboxStage, EXECUTION_METRICS, SANDBOX_METRICS},
     BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
+use crate::fee_model::FeeModel;
 
 impl TxSharedArgs {
     pub async fn validate_tx_with_pending_state(
@@ -29,10 +30,7 @@ impl TxSharedArgs {
         let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
         let block_args = BlockArgs::pending(&mut connection).await;
         drop(connection);
-        self.adjust_pubdata_price(
-            tx.common_data.fee.gas_per_pubdata_limit,
-            tx.common_data.fee.max_fee_per_gas,
-        );
+
         self.validate_tx_in_sandbox(
             connection_pool,
             vm_permit,
@@ -41,17 +39,6 @@ impl TxSharedArgs {
             computational_gas_limit,
         )
         .await
-    }
-
-    // In order for validation to pass smoothlessly, we need to ensure that block's required gasPerPubdata will be
-    // <= to the one in the transaction itself.
-    pub fn adjust_pubdata_price(&mut self, gas_per_pubdata_limit: U256, base_fee: U256) {
-        self.operator_pubdata_price = adjust_pubdata_price_for_tx(
-            self.l1_gas_price,
-            self.operator_pubdata_price,
-            base_fee.as_u64(),
-            gas_per_pubdata_limit,
-        );
     }
 
     async fn validate_tx_in_sandbox(

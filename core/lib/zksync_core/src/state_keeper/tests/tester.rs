@@ -14,6 +14,7 @@ use multivm::{
     vm_latest::constants::BLOCK_GAS_LIMIT,
 };
 use tokio::sync::{mpsc, watch};
+use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::MiniblockExecutionData, protocol_version::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
@@ -652,6 +653,7 @@ impl StateKeeperIO for TestIO {
                 timestamp: self.timestamp,
                 l1_gas_price: self.l1_gas_price,
                 fair_l2_gas_price: self.fair_l2_gas_price,
+                fair_pubdata_price: self.l1_gas_price * L1_GAS_PER_PUBDATA_BYTE as u64,
                 fee_account: self.fee_account,
                 enforced_base_fee: None,
                 first_l2_block: first_miniblock_info,

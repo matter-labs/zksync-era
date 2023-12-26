@@ -80,6 +80,7 @@ mod consensus;
 pub mod consistency_checker;
 pub mod eth_sender;
 pub mod eth_watch;
+pub(crate) mod fee_model;
 pub mod gas_tracker;
 pub mod genesis;
 pub mod house_keeper;

@@ -638,7 +638,7 @@ impl BlocksDal<'_, '_> {
                 .as_bytes(),
             miniblock_header.protocol_version.map(|v| v as i32),
             miniblock_header.virtual_blocks as i64,
-            miniblock_header.pubdata_price as i64,
+            miniblock_header.l1_fair_pubdata_price as i64,
         )
         .execute(self.storage.conn())
         .await?;

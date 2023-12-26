@@ -1,15 +1,13 @@
 use std::{sync::Arc, time::Duration};
 
-use multivm::vm_latest::utils::fee::{
-    derive_base_fee_and_gas_per_pubdata, get_operator_gas_price, get_operator_pubdata_price,
-};
+use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
 use tokio::sync::watch;
 use zksync_config::configs::chain::MempoolConfig;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
-use crate::l1_gas_price::L1GasPriceProvider;
+use crate::{fee_model::FeeModel, l1_gas_price::L1GasPriceProvider};
 
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.
 /// The filter is used to filter out transactions from the mempool that do not cover expenses
@@ -21,16 +19,26 @@ pub fn l2_tx_filter<G: L1GasPriceProvider>(
     let l1_gas_price = gas_price_provider.estimate_effective_gas_price();
     let l1_pubdata_price = gas_price_provider.estimate_effective_pubdata_price();
 
-    let fair_l2_gas_price = get_operator_gas_price(l1_gas_price, minimal_l2_gas_price);
-    let operator_pubdata_price = get_operator_pubdata_price(l1_gas_price, l1_pubdata_price);
+    let output = FeeModel::new(
+        l1_gas_price,
+        l1_pubdata_price,
+        minimal_l2_gas_price,
+        0.0,
+        1.0,
+        800_000,
+        120_000_000,
+        100_000,
+    )
+    .get_output();
 
     let (base_fee, gas_per_pubdata) =
-        derive_base_fee_and_gas_per_pubdata(operator_pubdata_price, fair_l2_gas_price);
+        derive_base_fee_and_gas_per_pubdata(output.l1_gas_price, output.fair_l2_gas_price);
     L2TxFilter {
-        l1_gas_price: l1_gas_price,
+        l1_gas_price: output.l1_gas_price,
+        fair_pubdata_price: output.fair_pubdata_price,
+        fair_l2_gas_price: output.fair_l2_gas_price,
         fee_per_gas: base_fee,
         gas_per_pubdata: gas_per_pubdata as u32,
-        pubdata_price: operator_pubdata_price,
     }
 }
 

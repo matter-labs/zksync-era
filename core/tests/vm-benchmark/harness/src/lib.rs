@@ -71,6 +71,7 @@ impl BenchmarkingVm {
                 timestamp,
                 l1_gas_price: 50_000_000_000,   // 50 gwei
                 fair_l2_gas_price: 250_000_000, // 0.25 gwei
+                fair_pubdata_price: 850_000_000_000,
                 fee_account: Address::random(),
                 enforced_base_fee: None,
                 first_l2_block: L2BlockEnv {

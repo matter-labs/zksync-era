@@ -12,7 +12,6 @@ pub struct L1BatchEnv {
     pub timestamp: u64,
     /// The price of the L1 gas in Wei
     pub l1_gas_price: u64,
-    /// The minimal price for the L2 gas in Wei that the operator agress on.
     pub fair_l2_gas_price: u64,
     /// The minimal price for the pubdata in Wei that the operator agrees on.
     pub fair_pubdata_price: u64,

@@ -1,12 +1,6 @@
 use std::sync::Arc;
 
-use multivm::{
-    interface::ExecutionResult,
-    vm_latest::{
-        constants::BLOCK_GAS_LIMIT,
-        utils::fee::{get_operator_gas_price, get_operator_pubdata_price},
-    },
-};
+use multivm::{interface::ExecutionResult, vm_latest::constants::BLOCK_GAS_LIMIT};
 use once_cell::sync::OnceCell;
 use zksync_dal::ConnectionPool;
 use zksync_state::PostgresStorageCaches;
@@ -214,16 +208,12 @@ impl DebugNamespace {
 
     fn shared_args(&self) -> TxSharedArgs {
         let l1_gas_price = 100_000;
-        let fair_l2_gas_price = get_operator_gas_price(l1_gas_price, self.minimal_l2_gas_price);
-        let operator_pubdata_price = get_operator_pubdata_price(
-            l1_gas_price,
-            l1_gas_price * (L1_GAS_PER_PUBDATA_BYTE as u64),
-        );
         TxSharedArgs {
             operator_account: AccountTreeId::default(),
             l1_gas_price,
-            operator_pubdata_price,
-            fair_l2_gas_price,
+            minimal_l2_gas_price: self.minimal_l2_gas_price,
+            // TOOD: this is not correct
+            l1_pubdata_price: l1_gas_price * 17,
             base_system_contracts: self.api_contracts.eth_call.clone(),
             caches: self.storage_caches.clone(),
             validation_computational_gas_limit: BLOCK_GAS_LIMIT,

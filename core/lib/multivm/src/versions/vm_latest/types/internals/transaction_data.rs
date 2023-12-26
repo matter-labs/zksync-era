@@ -202,12 +202,7 @@ impl TransactionData {
         );
 
         let coefficients = OverheadCoefficients::from_tx_type(self.tx_type);
-        get_amortized_overhead(
-            batch_l1_gas_price,
-            batch_base_fee,
-            encoded_len,
-            coefficients,
-        )
+        get_amortized_overhead(encoded_len)
     }
 
     pub(crate) fn trusted_ergs_limit(&self, _block_gas_price_per_pubdata: u64) -> U256 {

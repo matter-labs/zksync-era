@@ -1,8 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use multivm::vm_latest::utils::fee::{
-    derive_base_fee_and_gas_per_pubdata, get_operator_gas_price, get_operator_pubdata_price,
-};
+use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
 use tokio::runtime::Handle;
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
@@ -18,6 +16,7 @@ pub(super) use self::{
     vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
 };
 use super::tx_sender::MultiVMBaseSystemContracts;
+use crate::fee_model::{FeeModel, FeeModelOutput};
 
 // Note: keep the modules private, and instead re-export functions that make public interface.
 mod apply;
@@ -143,40 +142,6 @@ impl VmConcurrencyLimiter {
     }
 }
 
-pub(super) fn adjust_pubdata_price_for_tx(
-    l1_gas_price: u64,
-    operator_pubdata_price: u64,
-    l2_gas_price: u64,
-    tx_gas_per_pubdata_limit: U256,
-) -> u64 {
-    let (_, current_gas_per_pubdata) =
-        derive_base_fee_and_gas_per_pubdata(operator_pubdata_price, l2_gas_price);
-    if U256::from(current_gas_per_pubdata) <= tx_gas_per_pubdata_limit {
-        // The current pubdata price is small enough
-        operator_pubdata_price
-    } else {
-        if tx_gas_per_pubdata_limit == U256::zero() || l2_gas_price == 0 {
-            // todo: check whether this check is even needed
-            return 0;
-        }
-
-        // tx_gas_per_pubdata_limit >= ceil(pubdata_price / operator_gas_price)
-        // tx_gas_per_pubdata_limit > pubdata_price / operator_gas_price
-        // pubdata_price < (tx_gas_per_pubdata_limit) * operator_gas_price
-        // pubdata_price <= (tx_gas_per_pubdata_limit) * operator_gas_price - 1
-        let pubdata_price = (tx_gas_per_pubdata_limit) * l2_gas_price - U256::from(1);
-
-        let (_, updated_gas_per_pubdata) =
-            derive_base_fee_and_gas_per_pubdata(pubdata_price.as_u64(), l2_gas_price);
-        assert!(
-            U256::from(updated_gas_per_pubdata) <= tx_gas_per_pubdata_limit,
-            "failed to adjust the pubdata price"
-        );
-
-        pubdata_price.as_u64()
-    }
-}
-
 async fn get_pending_state(
     connection: &mut StorageProcessor<'_>,
 ) -> (api::BlockId, MiniblockNumber) {
@@ -239,12 +204,36 @@ pub(super) async fn get_pubdata_for_factory_deps(
 pub(crate) struct TxSharedArgs {
     pub operator_account: AccountTreeId,
     pub l1_gas_price: u64,
-    pub operator_pubdata_price: u64,
-    pub fair_l2_gas_price: u64,
+    pub l1_pubdata_price: u64,
+    pub minimal_l2_gas_price: u64,
     pub base_system_contracts: MultiVMBaseSystemContracts,
     pub caches: PostgresStorageCaches,
     pub validation_computational_gas_limit: u32,
     pub chain_id: L2ChainId,
+}
+
+impl TxSharedArgs {
+    pub(crate) fn adjust_pubdata_price_for_tx(&mut self, tx_gas_per_pubdata_limit: U256) {
+        let mut fee_model = FeeModel::new(
+            self.l1_gas_price,
+            self.l1_pubdata_price,
+            self.minimal_l2_gas_price,
+            0.0,
+            1.0,
+            800_000,
+            1_000_000_000,
+            100_000,
+        );
+        fee_model.adjust_pubdata_price_for_tx(tx_gas_per_pubdata_limit);
+
+        let FeeModelOutput {
+            fair_l2_gas_price,
+            fair_pubdata_price,
+            ..
+        } = fee_model.get_output();
+
+        self.l1_pubdata_price = fair_pubdata_price;
+    }
 }
 
 /// Information about a block provided to VM.

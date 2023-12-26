@@ -8,6 +8,7 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_dal::ConnectionPool;
 use zksync_eth_client::clients::mock::MockEthereum;
 use zksync_object_store::ObjectStoreFactory;
+use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},
     protocol_version::L1VerifierConfig,
@@ -139,7 +140,7 @@ impl Tester {
                 base_fee_per_gas,
                 l1_gas_price,
                 l2_fair_gas_price,
-                pubdata_price,
+                l1_fair_pubdata_price: pubdata_price,
                 base_system_contracts_hashes: self.base_system_contracts.hashes(),
                 protocol_version: Some(ProtocolVersionId::latest()),
                 virtual_blocks: 0,

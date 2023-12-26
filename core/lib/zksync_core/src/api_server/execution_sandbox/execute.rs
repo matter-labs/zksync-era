@@ -120,13 +120,7 @@ pub(crate) async fn execute_tx_with_pending_state(
     let block_args = BlockArgs::pending(&mut connection).await;
     drop(connection);
 
-    // In order for execution to pass smoothlessly, we need to ensure that block's required gasPerPubdata will be
-    // <= to the one in the transaction itself.
-    shared_args.adjust_pubdata_price(
-        tx.gas_per_pubdata_byte_limit(),
-        // todo: change to base fee
-        shared_args.operator_pubdata_price.into(),
-    );
+    shared_args.adjust_pubdata_price_for_tx(tx.gas_per_pubdata_byte_limit());
 
     execute_tx_in_sandbox(
         vm_permit,

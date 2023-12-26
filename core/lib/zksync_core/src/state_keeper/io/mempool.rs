@@ -8,7 +8,7 @@ use std::{
 use async_trait::async_trait;
 use multivm::{
     interface::{FinishedL1Batch, L1BatchEnv, SystemEnv},
-    vm_latest::utils::fee::{derive_base_fee_and_gas_per_pubdata, get_operator_gas_price},
+    vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata,
 };
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_dal::ConnectionPool;
@@ -119,9 +119,10 @@ where
         );
         self.filter = L2TxFilter {
             l1_gas_price: l1_batch_env.l1_gas_price,
+            fair_pubdata_price: l1_batch_env.fair_pubdata_price,
+            fair_l2_gas_price: l1_batch_env.fair_l2_gas_price,
             fee_per_gas: base_fee,
             gas_per_pubdata: gas_per_pubdata as u32,
-            pubdata_price: l1_batch_env.fair_pubdata_price,
         };
 
         Some(PendingBatchData {
@@ -173,7 +174,7 @@ where
                 "(l1_gas_price, fair_l2_gas_price) for L1 batch #{} is ({}, {})",
                 self.current_l1_batch_number.0,
                 self.filter.l1_gas_price,
-                self.minimal_l2_gas_price
+                self.filter.fair_l2_gas_price
             );
             let mut storage = self.pool.access_storage().await.unwrap();
             let (base_system_contracts, protocol_version) = storage
@@ -181,17 +182,14 @@ where
                 .base_system_contracts_by_timestamp(current_timestamp)
                 .await;
 
-            let fair_l2_gas_price =
-                get_operator_gas_price(self.filter.l1_gas_price, self.minimal_l2_gas_price);
-
             return Some(l1_batch_params(
                 self.current_l1_batch_number,
                 self.fee_account,
                 current_timestamp,
                 prev_l1_batch_hash,
                 self.filter.l1_gas_price,
-                self.filter.pubdata_price,
-                fair_l2_gas_price,
+                self.filter.fair_pubdata_price,
+                self.filter.fair_l2_gas_price,
                 self.current_miniblock_number,
                 prev_miniblock_hash,
                 base_system_contracts,
