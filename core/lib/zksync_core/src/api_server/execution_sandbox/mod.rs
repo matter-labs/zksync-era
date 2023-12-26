@@ -203,9 +203,7 @@ pub(super) async fn get_pubdata_for_factory_deps(
 #[derive(Debug, Clone)]
 pub(crate) struct TxSharedArgs {
     pub operator_account: AccountTreeId,
-    pub l1_gas_price: u64,
-    pub l1_pubdata_price: u64,
-    pub minimal_l2_gas_price: u64,
+    pub fee_model_params: FeeModel,
     pub base_system_contracts: MultiVMBaseSystemContracts,
     pub caches: PostgresStorageCaches,
     pub validation_computational_gas_limit: u32,
@@ -214,25 +212,8 @@ pub(crate) struct TxSharedArgs {
 
 impl TxSharedArgs {
     pub(crate) fn adjust_pubdata_price_for_tx(&mut self, tx_gas_per_pubdata_limit: U256) {
-        let mut fee_model = FeeModel::new(
-            self.l1_gas_price,
-            self.l1_pubdata_price,
-            self.minimal_l2_gas_price,
-            0.0,
-            1.0,
-            800_000,
-            1_000_000_000,
-            100_000,
-        );
-        fee_model.adjust_pubdata_price_for_tx(tx_gas_per_pubdata_limit);
-
-        let FeeModelOutput {
-            fair_l2_gas_price,
-            fair_pubdata_price,
-            ..
-        } = fee_model.get_output();
-
-        self.l1_pubdata_price = fair_pubdata_price;
+        self.fee_model_params
+            .adjust_pubdata_price_for_tx(tx_gas_per_pubdata_limit);
     }
 }
 

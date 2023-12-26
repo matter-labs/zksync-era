@@ -36,7 +36,7 @@ use super::{
     vm_metrics::{self, SandboxStage, SANDBOX_METRICS},
     BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
-use crate::fee_model::FeeModel;
+use crate::fee_model::{FeeModel, FeeModelOutput};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn apply_vm_in_sandbox<T>(
@@ -179,9 +179,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
 
     let TxSharedArgs {
         operator_account,
-        l1_pubdata_price: effective_pubdata_price,
-        l1_gas_price,
-        minimal_l2_gas_price,
+        fee_model_params,
         base_system_contracts,
         validation_computational_gas_limit,
         chain_id,
@@ -199,26 +197,19 @@ pub(super) fn apply_vm_in_sandbox<T>(
         chain_id,
     };
 
-    // TODO: make those params
-    let params = FeeModel::new(
+    let FeeModelOutput {
+        fair_l2_gas_price,
+        fair_pubdata_price,
         l1_gas_price,
-        effective_pubdata_price,
-        minimal_l2_gas_price,
-        0.0,
-        1.0,
-        800_000,
-        120_000_000,
-        100_000,
-    )
-    .get_output();
+    } = fee_model_params.get_output();
 
     let l1_batch_env = L1BatchEnv {
         previous_batch_hash: None,
         number: vm_l1_batch_number,
         timestamp: l1_batch_timestamp,
-        l1_gas_price: params.l1_gas_price,
-        fair_pubdata_price: params.fair_pubdata_price,
-        fair_l2_gas_price: params.fair_l2_gas_price,
+        l1_gas_price,
+        fair_pubdata_price,
+        fair_l2_gas_price,
         fee_account: *operator_account.address(),
         enforced_base_fee: execution_args.enforced_base_fee,
         first_l2_block: next_l2_block_info,
