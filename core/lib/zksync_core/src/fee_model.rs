@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
-use zksync_types::U256;
+use zksync_types::{fee_model::FeeModelOutput, U256};
 
 use crate::l1_gas_price::L1GasPriceProvider;
 
@@ -109,38 +109,6 @@ struct FeeModel {
     fair_pubdata_price: u64,
 }
 
-/// Output to be provided into the VM
-#[derive(Debug, Clone, Copy)]
-pub struct FeeModelOutput {
-    /// Fair L2 gas price to provide
-    pub(crate) fair_l2_gas_price: u64,
-    /// Fair pubdata price to provide.
-    /// In this version, it MUST be equal to 17 * l1_gas_price
-    pub(crate) fair_pubdata_price: u64,
-
-    /// The L1 gas price to provide to the VM
-    pub(crate) l1_gas_price: u64,
-}
-
-impl FeeModelOutput {
-    pub(crate) fn adjust_pubdata_price_for_tx(&mut self, tx_gas_per_pubdata_limit: U256) {
-        let (_, current_pubdata_price) =
-            derive_base_fee_and_gas_per_pubdata(self.fair_pubdata_price, self.fair_l2_gas_price);
-
-        let new_fair_pubdata_price = if U256::from(current_pubdata_price) > tx_gas_per_pubdata_limit
-        {
-            // gasPerPubdata = ceil(pubdata_price / fair_l2_gas_price)
-            // gasPerPubdata <= pubdata_price / fair_l2_gas_price + 1
-            // fair_l2_gas_price(gasPerPubdata - 1) <= pubdata_price
-            U256::from(self.fair_l2_gas_price) * (tx_gas_per_pubdata_limit - U256::from(1u32))
-        } else {
-            return;
-        };
-
-        self.fair_pubdata_price = new_fair_pubdata_price.as_u64();
-    }
-}
-
 impl FeeModel {
     fn new(
         base_l1_gas_price: u64,
@@ -196,3 +164,20 @@ impl FeeModel {
         }
     }
 }
+
+// pub(crate) fn adjust_pubdata_price_for_tx(output: &mut FeeModelOutput, tx_gas_per_pubdata_limit: U256) {
+//     let (_, current_pubdata_price) =
+//         derive_base_fee_and_gas_per_pubdata(self.fair_pubdata_price, self.fair_l2_gas_price);
+
+//     let new_fair_pubdata_price = if U256::from(current_pubdata_price) > tx_gas_per_pubdata_limit
+//     {
+//         // gasPerPubdata = ceil(pubdata_price / fair_l2_gas_price)
+//         // gasPerPubdata <= pubdata_price / fair_l2_gas_price + 1
+//         // fair_l2_gas_price(gasPerPubdata - 1) <= pubdata_price
+//         U256::from(self.fair_l2_gas_price) * (tx_gas_per_pubdata_limit - U256::from(1u32))
+//     } else {
+//         return;
+//     };
+
+//     self.fair_pubdata_price = new_fair_pubdata_price.as_u64();
+// }

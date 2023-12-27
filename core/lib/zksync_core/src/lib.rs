@@ -3,7 +3,6 @@
 use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
-use fee_model::{FeeBatchInputProvider, MainNodeFeeModel, MainNodeFeeModelConfig};
 use futures::channel::oneshot;
 use prometheus_exporter::PrometheusExporterConfig;
 use sync_layer::MainNodeClient;
@@ -54,6 +53,7 @@ use crate::{
     basic_witness_input_producer::BasicWitnessInputProducer,
     eth_sender::{Aggregator, EthTxAggregator, EthTxManager},
     eth_watch::start_eth_watch,
+    fee_model::{FeeBatchInputProvider, MainNodeFeeModel, MainNodeFeeModelConfig},
     house_keeper::{
         blocks_state_reporter::L1BatchMetricsReporter,
         fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager,
@@ -712,6 +712,20 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
     );
     task_futures.push(tokio::spawn(miniblock_sealer.run()));
 
+    let fee_info_provider = Arc::new(MainNodeFeeModel::new(
+        gas_adjuster,
+        MainNodeFeeModelConfig {
+            l1_gas_price_scale_factor: 1.0,
+            l1_pubdata_price_scale_factor: 1.0,
+            minimal_l2_gas_price: state_keeper_config.minimal_l2_gas_price,
+            compute_overhead_percent: 0.0,
+            pubdata_overhead_percent: 1.0,
+            batch_overhead_l1_gas: 800_000,
+            max_gas_per_batch: 120_000_000,
+            max_pubdata_per_batch: 100_000,
+        },
+    ));
+
     let state_keeper = create_state_keeper(
         contracts_config,
         state_keeper_config,
@@ -720,7 +734,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         mempool_config,
         state_keeper_pool,
         mempool.clone(),
-        gas_adjuster.clone(),
+        fee_info_provider.clone(),
         miniblock_sealer_handle,
         object_store,
         stop_receiver.clone(),
@@ -732,7 +746,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         .build()
         .await
         .context("failed to build mempool_fetcher_pool")?;
-    let mempool_fetcher = MempoolFetcher::new(mempool, gas_adjuster, mempool_config);
+    let mempool_fetcher = MempoolFetcher::new(mempool, fee_info_provider, mempool_config);
     let mempool_fetcher_handle = tokio::spawn(mempool_fetcher.run(
         mempool_fetcher_pool,
         mempool_config.remove_stuck_txs,

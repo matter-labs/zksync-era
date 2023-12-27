@@ -54,6 +54,7 @@ pub mod vm_trace;
 
 pub mod api;
 pub mod eth_sender;
+pub mod fee_model;
 pub mod helpers;
 pub mod proofs;
 pub mod proto;

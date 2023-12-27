@@ -16,7 +16,7 @@ use zksync_core::{
     },
     block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert},
     consistency_checker::ConsistencyChecker,
-    l1_gas_price::MainNodeGasPriceFetcher,
+    l1_gas_price::MainNodeFeeParamsFetcher,
     metadata_calculator::{
         MetadataCalculator, MetadataCalculatorConfig, MetadataCalculatorModeConfig,
     },
@@ -119,7 +119,7 @@ async fn init_tasks(
     let (stop_sender, stop_receiver) = watch::channel(false);
     let mut healthchecks: Vec<Box<dyn CheckHealth>> = Vec::new();
     // Create components.
-    let gas_adjuster = Arc::new(MainNodeGasPriceFetcher::new(&main_node_url));
+    let gas_price_fetcher = Arc::new(MainNodeFeeParamsFetcher::new(&main_node_url));
 
     let sync_state = SyncState::new();
     let (action_queue_sender, action_queue) = ActionQueue::new();
@@ -230,7 +230,8 @@ async fn init_tasks(
     let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
     let sk_handle = task::spawn(state_keeper.run());
     let fetcher_handle = tokio::spawn(fetcher.run());
-    let gas_adjuster_handle = tokio::spawn(gas_adjuster.clone().run(stop_receiver.clone()));
+    let gas_price_fetcher_handle =
+        tokio::spawn(gas_price_fetcher.clone().run(stop_receiver.clone()));
 
     let (tx_sender, vm_barrier, cache_update_handle) = {
         let mut tx_sender_builder =
@@ -260,7 +261,7 @@ async fn init_tasks(
 
         let tx_sender = tx_sender_builder
             .build(
-                gas_adjuster,
+                gas_price_fetcher,
                 Arc::new(vm_concurrency_limiter),
                 ApiContracts::load_from_disk(), // TODO (BFT-138): Allow to dynamically reload API contracts
                 storage_caches,
@@ -319,7 +320,7 @@ async fn init_tasks(
         fetcher_handle,
         updater_handle,
         tree_handle,
-        gas_adjuster_handle,
+        gas_price_fetcher_handle,
     ]);
     task_handles.push(consistency_checker_handle);
 

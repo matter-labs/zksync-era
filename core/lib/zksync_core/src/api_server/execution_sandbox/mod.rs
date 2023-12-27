@@ -5,7 +5,9 @@ use tokio::runtime::Handle;
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
 use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
-use zksync_types::{api, AccountTreeId, L2ChainId, MiniblockNumber, U256};
+use zksync_types::{
+    api, fee_model::FeeModelOutput, AccountTreeId, L2ChainId, MiniblockNumber, U256,
+};
 use zksync_utils::bytecode::{compress_bytecode, hash_bytecode};
 
 use self::vm_metrics::SandboxStage;
@@ -16,7 +18,6 @@ pub(super) use self::{
     vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
 };
 use super::tx_sender::MultiVMBaseSystemContracts;
-use crate::fee_model::FeeModelOutput;
 
 // Note: keep the modules private, and instead re-export functions that make public interface.
 mod apply;

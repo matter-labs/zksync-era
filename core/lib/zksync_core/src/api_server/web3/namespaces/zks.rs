@@ -9,6 +9,7 @@ use zksync_types::{
         ProtocolVersion, StorageProof, TransactionDetails,
     },
     fee::Fee,
+    fee_model::FeeModelOutput,
     l1::L1Tx,
     l2::L2Tx,
     l2_to_l1_log::L2ToL1Log,
@@ -565,6 +566,22 @@ impl<G: FeeBatchInputProvider> ZksNamespace<G> {
 
         method_latency.observe();
         gas_price.into()
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn get_main_node_fee_params_impl(&self) -> FeeModelOutput {
+        const METHOD_NAME: &str = "get_main_node_fee_params_impl";
+
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
+        let fee_model_params = self
+            .state
+            .tx_sender
+            .0
+            .fee_model_provider
+            .get_fee_model_params(false);
+
+        method_latency.observe();
+        fee_model_params
     }
 
     #[tracing::instrument(skip(self))]

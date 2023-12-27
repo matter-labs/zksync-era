@@ -23,6 +23,7 @@ use zksync_types::{
 use zksync_utils::time::millis_since_epoch;
 
 use crate::{
+    fee_model::FeeBatchInputProvider,
     l1_gas_price::L1GasPriceProvider,
     state_keeper::{
         extractors,
@@ -57,7 +58,7 @@ pub(crate) struct MempoolIO<G> {
     validation_computational_gas_limit: u32,
     delay_interval: Duration,
     // Used to keep track of gas prices to set accepted price per pubdata byte in blocks.
-    l1_gas_price_provider: Arc<G>,
+    fee_batch_input_provider: Arc<G>,
     l2_erc20_bridge_addr: Address,
     chain_id: L2ChainId,
 
@@ -67,7 +68,7 @@ pub(crate) struct MempoolIO<G> {
 
 impl<G> IoSealCriteria for MempoolIO<G>
 where
-    G: L1GasPriceProvider + 'static + Send + Sync,
+    G: FeeBatchInputProvider + 'static + Send + Sync,
 {
     fn should_seal_l1_batch_unconditionally(&mut self, manager: &UpdatesManager) -> bool {
         self.timeout_sealer
@@ -82,7 +83,7 @@ where
 #[async_trait]
 impl<G> StateKeeperIO for MempoolIO<G>
 where
-    G: L1GasPriceProvider + 'static + Send + Sync,
+    G: FeeBatchInputProvider + 'static + Send + Sync,
 {
     fn current_l1_batch_number(&self) -> L1BatchNumber {
         self.current_l1_batch_number
@@ -143,10 +144,7 @@ where
         for _ in 0..poll_iters(self.delay_interval, max_wait) {
             // We create a new filter each time, since parameters may change and a previously
             // ignored transaction in the mempool may be scheduled for the execution.
-            self.filter = l2_tx_filter(
-                self.l1_gas_price_provider.clone(),
-                self.minimal_l2_gas_price,
-            );
+            self.filter = l2_tx_filter(self.fee_batch_input_provider.as_ref());
             // We only need to get the root hash when we're certain that we have a new transaction.
             if !self.mempool.has_next(&self.filter) {
                 tokio::time::sleep(self.delay_interval).await;
@@ -407,7 +405,7 @@ async fn sleep_past(timestamp: u64, miniblock: MiniblockNumber) -> u64 {
     }
 }
 
-impl<G: L1GasPriceProvider> MempoolIO<G> {
+impl<G: FeeBatchInputProvider> MempoolIO<G> {
     #[allow(clippy::too_many_arguments)]
     pub(in crate::state_keeper) async fn new(
         mempool: MempoolGuard,
@@ -458,7 +456,7 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
             minimal_l2_gas_price: config.minimal_l2_gas_price,
             validation_computational_gas_limit,
             delay_interval,
-            l1_gas_price_provider,
+            fee_batch_input_provider: l1_gas_price_provider,
             l2_erc20_bridge_addr,
             chain_id,
             virtual_blocks_interval: config.virtual_blocks_interval,

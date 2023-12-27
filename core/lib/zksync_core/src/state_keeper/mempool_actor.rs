@@ -15,28 +15,8 @@ use crate::{
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.
 /// The filter is used to filter out transactions from the mempool that do not cover expenses
 /// to process them.
-pub fn l2_tx_filter<G: L1GasPriceProvider>(
-    gas_price_provider: Arc<G>,
-    minimal_l2_gas_price: u64,
-) -> L2TxFilter {
-    let l1_gas_price = gas_price_provider.estimate_effective_gas_price();
-    let l1_pubdata_price = gas_price_provider.estimate_effective_pubdata_price();
-
-    let fee_model = MainNodeFeeModel::new(
-        gas_price_provider,
-        MainNodeFeeModelConfig {
-            l1_gas_price_scale_factor: 1.0,
-            l1_pubdata_price_scale_factor: 1.0,
-            minimal_l2_gas_price: minimal_l2_gas_price,
-            compute_overhead_percent: 0.0,
-            pubdata_overhead_percent: 1.0,
-            batch_overhead_l1_gas: 800_000,
-            max_gas_per_batch: 120_000_000,
-            max_pubdata_per_batch: 100_000,
-        },
-    );
-
-    let output = fee_model.get_fee_model_params(false);
+pub fn l2_tx_filter<G: FeeBatchInputProvider>(fee_batch_input_provider: &G) -> L2TxFilter {
+    let output = fee_batch_input_provider.get_fee_model_params(false);
 
     let (base_fee, gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(output.l1_gas_price, output.fair_l2_gas_price);
@@ -52,20 +32,20 @@ pub fn l2_tx_filter<G: L1GasPriceProvider>(
 #[derive(Debug)]
 pub struct MempoolFetcher<G> {
     mempool: MempoolGuard,
-    l1_gas_price_provider: Arc<G>,
+    batch_fee_info_provider: Arc<G>,
     sync_interval: Duration,
     sync_batch_size: usize,
 }
 
-impl<G: L1GasPriceProvider> MempoolFetcher<G> {
+impl<G: FeeBatchInputProvider> MempoolFetcher<G> {
     pub fn new(
         mempool: MempoolGuard,
-        l1_gas_price_provider: Arc<G>,
+        batch_fee_info_provider: Arc<G>,
         config: &MempoolConfig,
     ) -> Self {
         Self {
             mempool,
-            l1_gas_price_provider,
+            batch_fee_info_provider,
             sync_interval: config.sync_interval(),
             sync_batch_size: config.sync_batch_size,
         }
@@ -99,7 +79,7 @@ impl<G: L1GasPriceProvider> MempoolFetcher<G> {
             let latency = KEEPER_METRICS.mempool_sync.start();
             let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
             let mempool_info = self.mempool.get_mempool_info();
-            let l2_tx_filter = l2_tx_filter(self.l1_gas_price_provider.clone(), fair_l2_gas_price);
+            let l2_tx_filter = l2_tx_filter(self.batch_fee_info_provider.as_ref());
 
             let (transactions, nonces) = storage
                 .transactions_dal()

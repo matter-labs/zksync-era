@@ -1,19 +1,21 @@
 use std::{
     sync::{
         atomic::{AtomicU64, Ordering},
-        Arc,
+        Arc, RwLock,
     },
     time::Duration,
 };
 
 use tokio::sync::watch::Receiver;
 use zksync_system_constants::{GAS_PER_PUBDATA_BYTE, L1_GAS_PER_PUBDATA_BYTE};
+use zksync_types::fee_model::FeeModelOutput;
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::ZksNamespaceClient,
 };
 
 use super::L1GasPriceProvider;
+use crate::fee_model::FeeBatchInputProvider;
 
 const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
@@ -24,22 +26,20 @@ const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 /// The same algorithm cannot be consistently replicated on the external node side,
 /// since it relies on the configuration, which may change.
 #[derive(Debug)]
-pub struct MainNodeGasPriceFetcher {
+pub struct MainNodeFeeParamsFetcher {
     client: HttpClient,
-    l1_gas_price: AtomicU64,
-    l1_pubdata_price: AtomicU64,
-    l2_fair_gas_price: AtomicU64,
+    fee_model_output: RwLock<FeeModelOutput>,
 }
 
-impl MainNodeGasPriceFetcher {
+impl MainNodeFeeParamsFetcher {
     pub fn new(main_node_url: &str) -> Self {
         Self {
             client: Self::build_client(main_node_url),
-            l1_gas_price: AtomicU64::new(1u64),
-            // Start with 1 wei until the first update.
-            l1_pubdata_price: AtomicU64::new(1u64),
-            // todo: fix it
-            l2_fair_gas_price: AtomicU64::new(100000000u64),
+            fee_model_output: RwLock::new(FeeModelOutput {
+                l1_gas_price: 1_000_000_000,
+                fair_pubdata_price: 17_000_000_000,
+                fair_l2_gas_price: 1_000_000_000,
+            }),
         }
     }
 
@@ -56,7 +56,7 @@ impl MainNodeGasPriceFetcher {
                 break;
             }
 
-            let main_node_gas_price = match self.client.get_l1_gas_price().await {
+            let main_node_fee_params = match self.client.get_main_node_fee_params().await {
                 Ok(price) => price,
                 Err(err) => {
                     tracing::warn!("Unable to get the gas price: {}", err);
@@ -65,22 +65,18 @@ impl MainNodeGasPriceFetcher {
                     continue;
                 }
             };
-            self.l1_gas_price
-                .store(main_node_gas_price.as_u64(), Ordering::Relaxed);
-            self.l1_pubdata_price
-                .store(main_node_gas_price.as_u64() * 17, Ordering::Relaxed);
+
+            *self.fee_model_output.write().unwrap() = main_node_fee_params;
+
             tokio::time::sleep(SLEEP_INTERVAL).await;
         }
         Ok(())
     }
 }
 
-impl L1GasPriceProvider for MainNodeGasPriceFetcher {
-    fn estimate_effective_gas_price(&self) -> u64 {
-        self.l1_gas_price.load(Ordering::Relaxed)
-    }
-
-    fn estimate_effective_pubdata_price(&self) -> u64 {
-        self.l1_pubdata_price.load(Ordering::Relaxed)
+impl FeeBatchInputProvider for MainNodeFeeParamsFetcher {
+    // TODO: use scale l1 gas prices
+    fn get_fee_model_params(&self, scale_l1_prices: bool) -> FeeModelOutput {
+        self.fee_model_output.read().unwrap().clone()
     }
 }

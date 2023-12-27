@@ -6,6 +6,7 @@ use zksync_dal::ConnectionPool;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
+    fee_model::FeeModelOutput,
     l2::L2Tx,
     transaction_request::CallRequest,
     vm_trace::Call,
@@ -26,7 +27,7 @@ use crate::{
             state::{RpcState, SealedMiniblockNumber},
         },
     },
-    fee_model::{FeeBatchInputProvider, FeeModelOutput},
+    fee_model::FeeBatchInputProvider,
     l1_gas_price::L1GasPriceProvider,
 };
 

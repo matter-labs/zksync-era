@@ -25,6 +25,7 @@ use zksync_system_constants::{
 use zksync_types::{
     api,
     block::{pack_block_info, unpack_block_info, MiniblockHasher},
+    fee_model::FeeModelOutput,
     get_nonce_key,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     AccountTreeId, L1BatchNumber, MiniblockNumber, Nonce, ProtocolVersionId, StorageKey,
@@ -36,7 +37,6 @@ use super::{
     vm_metrics::{self, SandboxStage, SANDBOX_METRICS},
     BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
-use crate::fee_model::FeeModelOutput;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn apply_vm_in_sandbox<T>(

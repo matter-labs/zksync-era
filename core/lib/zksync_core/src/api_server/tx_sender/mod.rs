@@ -20,6 +20,7 @@ use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     fee::{Fee, TransactionExecutionMetrics},
+    fee_model::FeeModelOutput,
     get_code_key, get_intrinsic_constants,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     utils::storage_key_for_eth_balance,
@@ -40,7 +41,7 @@ use crate::{
         },
         tx_sender::result::{ApiCallResult, SubmitTxError},
     },
-    fee_model::{FeeBatchInputProvider, FeeModelOutput, MainNodeFeeModel},
+    fee_model::{FeeBatchInputProvider, MainNodeFeeModel},
 };
 use crate::{
     l1_gas_price::L1GasPriceProvider,

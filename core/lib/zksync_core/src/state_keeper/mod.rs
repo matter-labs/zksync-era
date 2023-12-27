@@ -18,7 +18,10 @@ pub use self::{
 pub(crate) use self::{
     mempool_actor::MempoolFetcher, seal_criteria::ConditionalSealer, types::MempoolGuard,
 };
-use crate::l1_gas_price::L1GasPriceProvider;
+use crate::{
+    fee_model::{FeeBatchInputProvider, MainNodeFeeModel, MainNodeFeeModelConfig},
+    l1_gas_price::L1GasPriceProvider,
+};
 
 mod batch_executor;
 pub(crate) mod extractors;
@@ -41,13 +44,13 @@ pub(crate) async fn create_state_keeper<G>(
     mempool_config: &MempoolConfig,
     pool: ConnectionPool,
     mempool: MempoolGuard,
-    l1_gas_price_provider: Arc<G>,
+    fee_model_fetcher: Arc<G>,
     miniblock_sealer_handle: MiniblockSealerHandle,
     object_store: Box<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
 ) -> ZkSyncStateKeeper
 where
-    G: L1GasPriceProvider + 'static + Send + Sync,
+    G: FeeBatchInputProvider + 'static + Send + Sync,
 {
     assert!(
         state_keeper_config.transaction_slots <= MAX_TXS_IN_BLOCK,
@@ -69,7 +72,7 @@ where
         mempool,
         object_store,
         miniblock_sealer_handle,
-        l1_gas_price_provider,
+        fee_model_fetcher,
         pool,
         &state_keeper_config,
         mempool_config.delay_interval(),
