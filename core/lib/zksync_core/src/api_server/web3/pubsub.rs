@@ -80,15 +80,12 @@ impl PubSubNotifier {
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, pubsub_block_notifier is shutting down");
-                eprintln!("{} notify blocks exiting", chrono::Utc::now());
                 break;
             }
             timer.tick().await;
 
             let db_latency = PUB_SUB_METRICS.db_poll_latency[&SubscriptionType::Blocks].start();
-            eprintln!("{} new blocks", chrono::Utc::now());
             let new_blocks = self.new_blocks(last_block_number).await?;
-            eprintln!("{} new blocks end", chrono::Utc::now());
             db_latency.observe();
 
             if let Some(last_block) = new_blocks.last() {
@@ -113,13 +110,11 @@ impl PubSubNotifier {
         &self,
         last_block_number: MiniblockNumber,
     ) -> anyhow::Result<Vec<BlockHeader>> {
-        eprintln!("{} new blocks conn", chrono::Utc::now());
         let mut storage = self
             .connection_pool
             .access_storage_tagged("api")
             .await
             .context("access_storage_tagged")?;
-        eprintln!("{} new blocks conn end", chrono::Utc::now());
         storage
             .blocks_web3_dal()
             .get_block_headers_after(last_block_number)
@@ -133,15 +128,12 @@ impl PubSubNotifier {
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, pubsub_tx_notifier is shutting down");
-                eprintln!("{} notify txs exiting", chrono::Utc::now());
                 break;
             }
             timer.tick().await;
 
             let db_latency = PUB_SUB_METRICS.db_poll_latency[&SubscriptionType::Txs].start();
-            eprintln!("{} txs", chrono::Utc::now());
             let (new_txs, new_last_time) = self.new_txs(last_time).await?;
-            eprintln!("{} txs end", chrono::Utc::now());
             db_latency.observe();
 
             if let Some(new_last_time) = new_last_time {
@@ -158,13 +150,11 @@ impl PubSubNotifier {
         &self,
         last_time: chrono::NaiveDateTime,
     ) -> anyhow::Result<(Vec<H256>, Option<chrono::NaiveDateTime>)> {
-        eprintln!("{} tx conn", chrono::Utc::now());
         let mut storage = self
             .connection_pool
             .access_storage_tagged("api")
             .await
             .context("access_storage_tagged")?;
-        eprintln!("{} tx conn end", chrono::Utc::now());
         storage
             .transactions_web3_dal()
             .get_pending_txs_hashes_after(last_time, None)
@@ -178,7 +168,6 @@ impl PubSubNotifier {
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, pubsub_logs_notifier is shutting down");
-                eprintln!("{} notify logs exiting", chrono::Utc::now());
                 break;
             }
             timer.tick().await;

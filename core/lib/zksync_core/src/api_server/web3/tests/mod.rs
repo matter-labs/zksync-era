@@ -62,9 +62,7 @@ impl ApiServerHandles {
 
     pub(crate) async fn shutdown(self) {
         let stop_server = async {
-            eprintln!("tasks len {}", self.tasks.len());
             for task in self.tasks {
-                eprintln!("{} {task:?}", chrono::Utc::now());
                 let task_result = task.await.unwrap_or_else(|err| {
                     if err.is_cancelled() {
                         Ok(())
@@ -73,11 +71,8 @@ impl ApiServerHandles {
                     }
                 });
                 task_result.expect("Server task returned an error");
-
-                eprintln!("{} completed waiting", chrono::Utc::now());
             }
         };
-        eprintln!("{} stopping", chrono::Utc::now());
         tokio::time::timeout(TEST_TIMEOUT, stop_server)
             .await
             .expect(format!("panicking at {}", chrono::Utc::now()).as_str());
