@@ -6,11 +6,12 @@ use zksync_web3_decl::{
 
 use crate::{
     api_server::web3::{backend_jsonrpsee::into_jsrpc_error, namespaces::EnNamespace},
+    fee_model::FeeBatchInputProvider,
     l1_gas_price::L1GasPriceProvider,
 };
 
 #[async_trait]
-impl<G: L1GasPriceProvider + Send + Sync + 'static> EnNamespaceServer for EnNamespace<G> {
+impl<G: FeeBatchInputProvider + Send + Sync + 'static> EnNamespaceServer for EnNamespace<G> {
     async fn sync_l2_block(
         &self,
         block_number: MiniblockNumber,

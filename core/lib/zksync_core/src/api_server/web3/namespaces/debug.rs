@@ -26,14 +26,14 @@ use crate::{
             state::{RpcState, SealedMiniblockNumber},
         },
     },
-    fee_model::FeeModel,
+    fee_model::{FeeBatchInputProvider, FeeModelOutput},
     l1_gas_price::L1GasPriceProvider,
 };
 
 #[derive(Debug, Clone)]
 pub struct DebugNamespace {
     connection_pool: ConnectionPool,
-    fee_model: FeeModel,
+    fee_model: FeeModelOutput,
     api_contracts: ApiContracts,
     vm_execution_cache_misses_limit: Option<usize>,
     vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
@@ -43,13 +43,17 @@ pub struct DebugNamespace {
 }
 
 impl DebugNamespace {
-    pub async fn new<G: L1GasPriceProvider>(state: RpcState<G>) -> Self {
+    pub async fn new<G: FeeBatchInputProvider>(state: RpcState<G>) -> Self {
         let sender_config = &state.tx_sender.0.sender_config;
 
         let api_contracts = ApiContracts::load_from_disk();
         Self {
             connection_pool: state.connection_pool,
-            fee_model: state.tx_sender.get_fee_model_params(true),
+            fee_model: state
+                .tx_sender
+                .0
+                .fee_model_provider
+                .get_fee_model_params(true),
             api_contracts,
             vm_execution_cache_misses_limit: sender_config.vm_execution_cache_misses_limit,
             vm_concurrency_limiter: state.tx_sender.vm_concurrency_limiter(),

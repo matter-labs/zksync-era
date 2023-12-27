@@ -29,6 +29,7 @@ use crate::{
         tree::TreeApiClient,
         web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, RpcState},
     },
+    fee_model::FeeBatchInputProvider,
     l1_gas_price::L1GasPriceProvider,
 };
 
@@ -45,7 +46,7 @@ impl<G> Clone for ZksNamespace<G> {
     }
 }
 
-impl<G: L1GasPriceProvider> ZksNamespace<G> {
+impl<G: FeeBatchInputProvider> ZksNamespace<G> {
     pub fn new(state: RpcState<G>) -> Self {
         Self { state }
     }
@@ -558,8 +559,9 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .state
             .tx_sender
             .0
-            .l1_gas_price_source
-            .estimate_effective_gas_price();
+            .fee_model_provider
+            .get_fee_model_params(false)
+            .l1_gas_price;
 
         method_latency.observe();
         gas_price.into()

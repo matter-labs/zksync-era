@@ -36,7 +36,7 @@ use super::{
     vm_metrics::{self, SandboxStage, SANDBOX_METRICS},
     BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
-use crate::fee_model::{FeeModel, FeeModelOutput};
+use crate::fee_model::FeeModelOutput;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn apply_vm_in_sandbox<T>(
@@ -201,7 +201,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
         fair_l2_gas_price,
         fair_pubdata_price,
         l1_gas_price,
-    } = fee_model_params.get_output();
+    } = fee_model_params;
 
     let l1_batch_env = L1BatchEnv {
         previous_batch_hash: None,

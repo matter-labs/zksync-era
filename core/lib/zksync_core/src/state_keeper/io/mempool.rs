@@ -144,7 +144,7 @@ where
             // We create a new filter each time, since parameters may change and a previously
             // ignored transaction in the mempool may be scheduled for the execution.
             self.filter = l2_tx_filter(
-                self.l1_gas_price_provider.as_ref(),
+                self.l1_gas_price_provider.clone(),
                 self.minimal_l2_gas_price,
             );
             // We only need to get the root hash when we're certain that we have a new transaction.

@@ -26,14 +26,20 @@ const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 #[derive(Debug)]
 pub struct MainNodeGasPriceFetcher {
     client: HttpClient,
-    gas_price: AtomicU64,
+    l1_gas_price: AtomicU64,
+    l1_pubdata_price: AtomicU64,
+    l2_fair_gas_price: AtomicU64,
 }
 
 impl MainNodeGasPriceFetcher {
     pub fn new(main_node_url: &str) -> Self {
         Self {
             client: Self::build_client(main_node_url),
-            gas_price: AtomicU64::new(1u64), // Start with 1 wei until the first update.
+            l1_gas_price: AtomicU64::new(1u64),
+            // Start with 1 wei until the first update.
+            l1_pubdata_price: AtomicU64::new(1u64),
+            // todo: fix it
+            l2_fair_gas_price: AtomicU64::new(100000000u64),
         }
     }
 
@@ -59,8 +65,10 @@ impl MainNodeGasPriceFetcher {
                     continue;
                 }
             };
-            self.gas_price
+            self.l1_gas_price
                 .store(main_node_gas_price.as_u64(), Ordering::Relaxed);
+            self.l1_pubdata_price
+                .store(main_node_gas_price.as_u64() * 17, Ordering::Relaxed);
             tokio::time::sleep(SLEEP_INTERVAL).await;
         }
         Ok(())
@@ -69,13 +77,10 @@ impl MainNodeGasPriceFetcher {
 
 impl L1GasPriceProvider for MainNodeGasPriceFetcher {
     fn estimate_effective_gas_price(&self) -> u64 {
-        self.gas_price.load(Ordering::Relaxed)
+        self.l1_gas_price.load(Ordering::Relaxed)
     }
 
     fn estimate_effective_pubdata_price(&self) -> u64 {
-        let gas_price = self.gas_price.load(Ordering::Relaxed);
-
-        // todo: why do we need GAS_PER_PUBDATA constant as well??
-        gas_price * (L1_GAS_PER_PUBDATA_BYTE as u64)
+        self.l1_pubdata_price.load(Ordering::Relaxed)
     }
 }

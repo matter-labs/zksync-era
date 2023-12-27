@@ -7,29 +7,36 @@ use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
-use crate::{fee_model::FeeModel, l1_gas_price::L1GasPriceProvider};
+use crate::{
+    fee_model::{FeeBatchInputProvider, MainNodeFeeModel, MainNodeFeeModelConfig},
+    l1_gas_price::L1GasPriceProvider,
+};
 
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.
 /// The filter is used to filter out transactions from the mempool that do not cover expenses
 /// to process them.
 pub fn l2_tx_filter<G: L1GasPriceProvider>(
-    gas_price_provider: &G,
+    gas_price_provider: Arc<G>,
     minimal_l2_gas_price: u64,
 ) -> L2TxFilter {
     let l1_gas_price = gas_price_provider.estimate_effective_gas_price();
     let l1_pubdata_price = gas_price_provider.estimate_effective_pubdata_price();
 
-    let output = FeeModel::new(
-        l1_gas_price,
-        l1_pubdata_price,
-        minimal_l2_gas_price,
-        0.0,
-        1.0,
-        800_000,
-        120_000_000,
-        100_000,
-    )
-    .get_output();
+    let fee_model = MainNodeFeeModel::new(
+        gas_price_provider,
+        MainNodeFeeModelConfig {
+            l1_gas_price_scale_factor: 1.0,
+            l1_pubdata_price_scale_factor: 1.0,
+            minimal_l2_gas_price: minimal_l2_gas_price,
+            compute_overhead_percent: 0.0,
+            pubdata_overhead_percent: 1.0,
+            batch_overhead_l1_gas: 800_000,
+            max_gas_per_batch: 120_000_000,
+            max_pubdata_per_batch: 100_000,
+        },
+    );
+
+    let output = fee_model.get_fee_model_params(false);
 
     let (base_fee, gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(output.l1_gas_price, output.fair_l2_gas_price);
@@ -92,7 +99,7 @@ impl<G: L1GasPriceProvider> MempoolFetcher<G> {
             let latency = KEEPER_METRICS.mempool_sync.start();
             let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
             let mempool_info = self.mempool.get_mempool_info();
-            let l2_tx_filter = l2_tx_filter(self.l1_gas_price_provider.as_ref(), fair_l2_gas_price);
+            let l2_tx_filter = l2_tx_filter(self.l1_gas_price_provider.clone(), fair_l2_gas_price);
 
             let (transactions, nonces) = storage
                 .transactions_dal()

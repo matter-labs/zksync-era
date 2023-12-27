@@ -40,7 +40,7 @@ use crate::{
         },
         tx_sender::result::{ApiCallResult, SubmitTxError},
     },
-    fee_model::FeeModel,
+    fee_model::{FeeBatchInputProvider, FeeModelOutput, MainNodeFeeModel},
 };
 use crate::{
     l1_gas_price::L1GasPriceProvider,
@@ -194,9 +194,9 @@ impl TxSenderBuilder {
         self
     }
 
-    pub async fn build<G: L1GasPriceProvider>(
+    pub async fn build<G: FeeBatchInputProvider>(
         self,
-        l1_gas_price_source: Arc<G>,
+        fee_model_provider: Arc<G>,
         vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
         api_contracts: ApiContracts,
         storage_caches: PostgresStorageCaches,
@@ -210,7 +210,7 @@ impl TxSenderBuilder {
             sender_config: self.config,
             master_connection_pool: self.master_connection_pool,
             replica_connection_pool: self.replica_connection_pool,
-            l1_gas_price_source,
+            fee_model_provider,
             api_contracts,
             rate_limiter: self.rate_limiter,
             proxy: self.proxy,
@@ -261,8 +261,10 @@ pub struct TxSenderInner<G> {
     pub(super) sender_config: TxSenderConfig,
     pub master_connection_pool: Option<ConnectionPool>,
     pub replica_connection_pool: ConnectionPool,
-    // Used to keep track of gas prices for the fee ticker.
-    pub l1_gas_price_source: Arc<G>,
+    // /// Provides the fee params without additional scaling
+    // pub plain_fee_model_provider: Arc<G>,
+    // /// Provides the fee params with additional scaling
+    pub fee_model_provider: Arc<G>,
     pub(super) api_contracts: ApiContracts,
     /// Optional rate limiter that will limit the amount of transactions per second sent from a single entity.
     rate_limiter: Option<TxSenderRateLimiter>,
@@ -295,7 +297,7 @@ impl<G> std::fmt::Debug for TxSender<G> {
     }
 }
 
-impl<G: L1GasPriceProvider> TxSender<G> {
+impl<G: FeeBatchInputProvider> TxSender<G> {
     pub(crate) fn vm_concurrency_limiter(&self) -> Arc<VmConcurrencyLimiter> {
         Arc::clone(&self.0.vm_concurrency_limiter)
     }
@@ -411,7 +413,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
     fn shared_args(&self) -> TxSharedArgs {
         TxSharedArgs {
             operator_account: AccountTreeId::new(self.0.sender_config.fee_account_addr),
-            fee_model_params: self.get_fee_model_params(false),
+            fee_model_params: self.0.fee_model_provider.get_fee_model_params(false),
             base_system_contracts: self.0.api_contracts.eth_call.clone(),
             caches: self.storage_caches(),
             validation_computational_gas_limit: self
@@ -463,7 +465,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             ));
         }
 
-        let fee_model = self.get_fee_model_params(false).get_output();
+        let fee_model = self.0.fee_model_provider.get_fee_model_params(false);
 
         let (_, gas_per_pubdata_byte) = derive_base_fee_and_gas_per_pubdata(
             fee_model.l1_gas_price,
@@ -586,7 +588,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         vm_permit: VmPermit,
         mut tx: Transaction,
         tx_gas_limit: u32,
-        fee_model_params: FeeModel,
+        fee_model_params: FeeModelOutput,
         base_fee: u64,
     ) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics) {
         let gas_limit_with_overhead = tx_gas_limit + derive_overhead(tx.encoding_len());
@@ -627,7 +629,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         (exec_result, tx_metrics)
     }
 
-    fn shared_args_for_gas_estimate(&self, fee_model_params: FeeModel) -> TxSharedArgs {
+    fn shared_args_for_gas_estimate(&self, fee_model_params: FeeModelOutput) -> TxSharedArgs {
         let config = &self.0.sender_config;
 
         TxSharedArgs {
@@ -648,13 +650,12 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         acceptable_overestimation: u32,
     ) -> Result<Fee, SubmitTxError> {
         let estimation_started_at = Instant::now();
-        let mut fee_model = self.get_fee_model_params(true);
+        let mut fee_model = self.0.fee_model_provider.get_fee_model_params(true);
         fee_model.adjust_pubdata_price_for_tx(tx.gas_per_pubdata_byte_limit());
-        let fee_model_output = fee_model.get_output();
 
         let (base_fee, gas_per_pubdata_byte) = derive_base_fee_and_gas_per_pubdata(
-            fee_model_output.fair_pubdata_price,
-            fee_model_output.fair_l2_gas_price,
+            fee_model.fair_pubdata_price,
+            fee_model.fair_l2_gas_price,
         );
         match &mut tx.common_data {
             ExecuteTransactionCommon::L2(common_data) => {
@@ -870,43 +871,8 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         .into_api_call_result()
     }
 
-    /// Returns the fee params. If `scale_l1_prices` is set to `true`, it will also
-    /// multiply them by a constant defined in the config. This is usually required when estimating gas to
-    /// ensure that the transaction will remain future-proof in the short term.
-    pub(crate) fn get_fee_model_params(&self, scale_l1_prices: bool) -> FeeModel {
-        let l1_gas_price = self.0.l1_gas_price_source.estimate_effective_gas_price();
-        let l1_pubdata_price = self
-            .0
-            .l1_gas_price_source
-            .estimate_effective_pubdata_price();
-
-        let (gas_price_scale_factor, pubdata_price_scale_factor) = if scale_l1_prices {
-            // For now, the scaling factor for both pubdata and gas are the same
-            (
-                self.0.sender_config.gas_price_scale_factor,
-                self.0.sender_config.gas_price_scale_factor,
-            )
-        } else {
-            (1.0, 1.0)
-        };
-
-        let l1_gas_price = (l1_gas_price as f64 * gas_price_scale_factor).round();
-        let l1_pubdata_price = (l1_pubdata_price as f64 * pubdata_price_scale_factor).round();
-
-        FeeModel::new(
-            l1_gas_price as u64,
-            l1_pubdata_price as u64,
-            self.0.sender_config.minimal_l2_gas_price,
-            0.0,
-            1.0,
-            800_000,
-            120_000_000,
-            100_000,
-        )
-    }
-
     pub fn gas_price(&self) -> u64 {
-        let fee_model_params = self.get_fee_model_params(true).get_output();
+        let fee_model_params = self.0.fee_model_provider.get_fee_model_params(true);
 
         let (base_fee, _) = derive_base_fee_and_gas_per_pubdata(
             fee_model_params.fair_pubdata_price,

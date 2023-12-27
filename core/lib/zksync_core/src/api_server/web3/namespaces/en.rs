@@ -3,6 +3,7 @@ use zksync_web3_decl::error::Web3Error;
 
 use crate::{
     api_server::web3::{backend_jsonrpsee::internal_error, state::RpcState},
+    fee_model::FeeBatchInputProvider,
     l1_gas_price::L1GasPriceProvider,
 };
 
@@ -21,7 +22,7 @@ impl<G> Clone for EnNamespace<G> {
     }
 }
 
-impl<G: L1GasPriceProvider> EnNamespace<G> {
+impl<G: FeeBatchInputProvider> EnNamespace<G> {
     pub fn new(state: RpcState<G>) -> Self {
         Self { state }
     }

@@ -16,7 +16,7 @@ pub(super) use self::{
     vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
 };
 use super::tx_sender::MultiVMBaseSystemContracts;
-use crate::fee_model::{FeeModel, FeeModelOutput};
+use crate::fee_model::FeeModelOutput;
 
 // Note: keep the modules private, and instead re-export functions that make public interface.
 mod apply;
@@ -203,7 +203,7 @@ pub(super) async fn get_pubdata_for_factory_deps(
 #[derive(Debug, Clone)]
 pub(crate) struct TxSharedArgs {
     pub operator_account: AccountTreeId,
-    pub fee_model_params: FeeModel,
+    pub fee_model_params: FeeModelOutput,
     pub base_system_contracts: MultiVMBaseSystemContracts,
     pub caches: PostgresStorageCaches,
     pub validation_computational_gas_limit: u32,

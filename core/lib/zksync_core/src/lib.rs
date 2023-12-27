@@ -3,8 +3,10 @@
 use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
+use fee_model::{FeeBatchInputProvider, MainNodeFeeModel, MainNodeFeeModelConfig};
 use futures::channel::oneshot;
 use prometheus_exporter::PrometheusExporterConfig;
+use sync_layer::MainNodeClient;
 use temp_config_store::TempConfigStore;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_circuit_breaker::{
@@ -1033,7 +1035,7 @@ async fn build_tx_sender<G: L1GasPriceProvider>(
     master_pool: ConnectionPool,
     l1_gas_price_provider: Arc<G>,
     storage_caches: PostgresStorageCaches,
-) -> (TxSender<G>, VmConcurrencyBarrier) {
+) -> (TxSender<MainNodeFeeModel<G>>, VmConcurrencyBarrier) {
     let mut tx_sender_builder = TxSenderBuilder::new(tx_sender_config.clone(), replica_pool)
         .with_main_connection_pool(master_pool)
         .with_state_keeper_config(state_keeper_config.clone());
@@ -1046,9 +1048,23 @@ async fn build_tx_sender<G: L1GasPriceProvider>(
     let max_concurrency = web3_json_config.vm_concurrency_limit();
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
 
+    let main_node_fee_params_provider = MainNodeFeeModel::new(
+        l1_gas_price_provider,
+        MainNodeFeeModelConfig {
+            l1_gas_price_scale_factor: web3_json_config.estimate_gas_scale_factor,
+            l1_pubdata_price_scale_factor: web3_json_config.estimate_gas_scale_factor,
+            minimal_l2_gas_price: state_keeper_config.minimal_l2_gas_price,
+            compute_overhead_percent: 0.0,
+            pubdata_overhead_percent: 1.0,
+            batch_overhead_l1_gas: 800_000,
+            max_gas_per_batch: 120_000_000,
+            max_pubdata_per_batch: 100_000,
+        },
+    );
+
     let tx_sender = tx_sender_builder
         .build(
-            l1_gas_price_provider,
+            Arc::new(main_node_fee_params_provider),
             Arc::new(vm_concurrency_limiter),
             ApiContracts::load_from_disk(),
             storage_caches,

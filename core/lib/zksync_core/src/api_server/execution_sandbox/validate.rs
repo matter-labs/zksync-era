@@ -17,7 +17,6 @@ use super::{
     vm_metrics::{SandboxStage, EXECUTION_METRICS, SANDBOX_METRICS},
     BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
-use crate::fee_model::FeeModel;
 
 impl TxSharedArgs {
     pub async fn validate_tx_with_pending_state(
