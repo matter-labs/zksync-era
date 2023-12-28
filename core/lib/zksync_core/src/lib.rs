@@ -1166,12 +1166,10 @@ async fn circuit_breakers_for_components(
 ) -> anyhow::Result<Vec<Box<dyn CircuitBreaker>>> {
     let mut circuit_breakers: Vec<Box<dyn CircuitBreaker>> = Vec::new();
 
-    if components.iter().any(|c| {
-        matches!(
-            c,
-            Component::EthTxAggregator | Component::EthTxManager | Component::StateKeeper
-        )
-    }) {
+    if components
+        .iter()
+        .any(|c| matches!(c, Component::EthTxAggregator | Component::EthTxManager))
+    {
         let pool = ConnectionPool::singleton(postgres_config.replica_url()?)
             .build()
             .await
