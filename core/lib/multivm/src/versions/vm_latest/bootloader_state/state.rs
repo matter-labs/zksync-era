@@ -14,7 +14,7 @@ use crate::{
             utils::{apply_l2_block, apply_tx_to_memory},
         },
         constants::TX_DESCRIPTION_OFFSET,
-        types::internals::{pubdata::PubdataInput, TransactionData},
+        types::internals::{PubdataInput, TransactionData},
         utils::l2_blocks::assert_next_block,
     },
 };
@@ -135,6 +135,11 @@ impl BootloaderState {
 
     pub(crate) fn last_l2_block(&self) -> &BootloaderL2Block {
         self.l2_blocks.last().unwrap()
+    }
+    pub(crate) fn get_pubdata_information(&self) -> &PubdataInput {
+        self.pubdata_information
+            .get()
+            .expect("Pubdata information is not set")
     }
 
     fn last_mut_l2_block(&mut self) -> &mut BootloaderL2Block {
