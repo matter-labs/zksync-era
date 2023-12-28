@@ -22,7 +22,7 @@ const RETRY_DELAY_INTERVAL: Duration = Duration::from_secs(5);
 
 /// Common denominator for blocks fetched by an external node.
 #[derive(Debug)]
-pub(super) struct FetchedBlock {
+pub(crate) struct FetchedBlock {
     pub number: MiniblockNumber,
     pub l1_batch_number: L1BatchNumber,
     pub last_in_batch: bool,

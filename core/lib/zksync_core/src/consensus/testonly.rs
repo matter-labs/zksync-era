@@ -279,7 +279,7 @@ impl StateKeeperHandle {
         genesis: validator::BlockNumber,
         validators: &validator::ValidatorSet,
     ) -> anyhow::Result<()> {
-        let mut storage = super::storage::storage(ctx, pool)
+        let mut storage = super::storage::CtxStorage(ctx, pool)
             .await
             .context("storage()")?;
         for i in genesis.0..self.next_block.0 as u64 {

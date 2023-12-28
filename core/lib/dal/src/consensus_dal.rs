@@ -31,6 +31,13 @@ impl ConsensusDal<'_, '_> {
         Ok(())
     }
 
+    pub async fn first_certificate(&mut self) -> anyhow::Result<Option<validator::CommitQC>> {
+        let Some(row) = sqlx::query!("SELECT certificate FROM miniblocks_consensus ORDER BY number ASC LIMIT 1")
+            .fetch_optional(self.storage.conn())
+            .await? else { return Ok(None) };
+        Ok(Some(zksync_protobuf::serde::deserialize(row.certificate)?))
+    }
+    
     /// Fetches the number of the last miniblock with consensus fields set.
     /// Miniblocks with Consensus fields set constitute a prefix of sealed miniblocks,
     /// so it is enough to traverse the miniblocks in descending order to find the last
@@ -39,13 +46,6 @@ impl ConsensusDal<'_, '_> {
     /// If better efficiency is needed we can add an index on "miniblocks without consensus fields".
     pub async fn last_certificate(&mut self) -> anyhow::Result<Option<validator::CommitQC>> {
         let Some(row) = sqlx::query!("SELECT certificate FROM miniblocks_consensus ORDER BY number DESC LIMIT 1")
-            .fetch_optional(self.storage.conn())
-            .await? else { return Ok(None) };
-        Ok(Some(zksync_protobuf::serde::deserialize(row.certificate)?))
-    }
-
-    pub async fn first_certificate(&mut self) -> anyhow::Result<Option<validator::CommitQC>> {
-        let Some(row) = sqlx::query!("SELECT certificate FROM miniblocks_consensus ORDER BY number ASC LIMIT 1")
             .fetch_optional(self.storage.conn())
             .await? else { return Ok(None) };
         Ok(Some(zksync_protobuf::serde::deserialize(row.certificate)?))
@@ -74,6 +74,8 @@ impl ConsensusDal<'_, '_> {
             let last = &last.message.proposal;
             anyhow::ensure!(last.number.next()==header.number,"expected certificate for a block after the current head block");
             anyhow::ensure!(last.hash()==header.parent,"parent block mismatch");
+        } else {
+            anyhow::ensure!(header.parent == validator::BlockHeaderHash::genesis_parent(), "inserting first block with non-zero parent hash");
         }
         let want_payload = txn.consensus_dal().block_payload(cert.message.proposal.number,operator_address).await?
             .context("corresponding miniblock is missing")?;

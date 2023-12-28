@@ -5,7 +5,9 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, scope};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::{node, validator};
+use zksync_consensus_storage::{BlockStore};
 use zksync_dal::{consensus_dal::Payload,ConnectionPool};
+use crate::sync_layer::sync_action::ActionQueueSender;
 use zksync_types::Address;
 
 mod storage;
@@ -14,7 +16,10 @@ mod storage;
 pub(crate) mod testonly;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod gossip_tests;
 
+use self::storage::Store;
 use serde::de::Error;
 use std::collections::{HashMap, HashSet};
 use zksync_consensus_crypto::{Text, TextFmt};
@@ -126,7 +131,7 @@ impl Config {
             "currently only consensus with just 1 validator is supported"
         );
         let store = Arc::new(
-            storage::SignedBlockStore::new(
+            Store::new(
                 ctx,
                 pool,
                 self.genesis_block_number,
@@ -147,6 +152,56 @@ impl Config {
         scope::run!(&ctx, |ctx, s| async {
             s.spawn_bg(store.run_background_tasks(ctx));
             executor.run(ctx).await
+        })
+        .await
+    }
+}
+
+pub struct FetcherConfig {
+    executor: executor::Config,
+    genesis_block_number: validator::BlockNumber,
+    operator_address: Address,
+}
+
+impl TryFrom<SerdeConfig> for FetcherConfig {
+    type Error = anyhow::Error;
+    fn try_from(cfg: SerdeConfig) -> anyhow::Result<Self> {
+        Ok(Self {
+            executor: cfg.executor()?,
+            genesis_block_number: validator::BlockNumber(cfg.genesis_block_number),
+            operator_address: cfg
+                .operator_address
+                .context("operator_address is required")?,
+        })
+    }
+}
+
+impl FetcherConfig {
+    /// Starts fetching L2 blocks using peer-to-peer gossip network.
+    pub async fn run(
+        self,
+        ctx: &ctx::Ctx,
+        pool: ConnectionPool,
+        actions: ActionQueueSender,
+    ) -> anyhow::Result<()> {
+        tracing::info!(
+            "Starting gossip fetcher with {:?} and node key {:?}",
+            self.executor,
+            self.executor.node_key.public(),
+        );
+
+        let mut store = Store::new(pool, self.operator_address);
+        store.set_actions_queue(ctx,actions).await.context("store.set_actions_queue()")?;
+        let (store,store_runner) = BlockStore::new(ctx,store,1000).await.context("BlockStore::new()")?;
+
+        scope::run!(ctx, |ctx, s| async {
+            s.spawn_bg(store_runner.run(ctx));
+            let executor = executor::Executor {
+                config: self.executor,
+                block_store: store,
+                validator: None,
+            };
+            executor.run(ctx).await.context("Node executor terminated")
         })
         .await
     }
