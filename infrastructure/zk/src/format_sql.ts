@@ -144,12 +144,11 @@ async function formatFile(filePath: string, check: boolean) {
         }
     }
     modifiedFile = modifiedFile.slice(0, modifiedFile.length - 1);
-
-    if (!check) {
-        await fs.promises.writeFile(filePath, modifiedFile);
-    } else {
-        if (content !== modifiedFile) {
+    if (content !== modifiedFile) {
+        if (check) {
             console.warn(`Sqlx query format issues found in ${filePath}.`);
+        } else {
+            await fs.promises.writeFile(filePath, modifiedFile);
         }
     }
     return content === modifiedFile;

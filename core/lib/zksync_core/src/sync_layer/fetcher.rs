@@ -7,7 +7,7 @@ use zksync_types::{
     api::en::SyncBlock, block::MiniblockHasher, Address, L1BatchNumber, MiniblockNumber,
     ProtocolVersionId, H256,
 };
-use zksync_web3_decl::jsonrpsee::core::Error as RpcError;
+use zksync_web3_decl::jsonrpsee::core::ClientError as RpcError;
 
 use super::{
     client::{CachingMainNodeClient, MainNodeClient},

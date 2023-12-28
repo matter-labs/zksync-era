@@ -126,8 +126,8 @@ sent.
 ### Retrieving Full Message Contents
 
 We go through all the Events generated during the run [here][iterate_over_events] and identify those coming from the
-`L1_MESSENGER_ADDRESS` that correspond to the `L1MessageSent` topic. These Events represent the 'emit' calls executed in
-Part 2.
+`L1_MESSENGER_ADDRESS` that corresponds to the `L1MessageSent` topic. These Events represent the 'emit' calls executed
+in Part 2.
 
 ### Retrieving Message Hashes
 
