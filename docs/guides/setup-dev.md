@@ -82,7 +82,7 @@ sudo usermod -a -G docker your_user_name
 After that, you should logout and login again (user groups are refreshed after the login). The problem should be solved
 at this step.
 
-If logging out does not help, restarting the computer should.
+If logging out does not resolve the issue, restarting the computer should.
 
 ## `Node` & `Yarn`
 
