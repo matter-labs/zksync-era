@@ -26,6 +26,17 @@ pub use zksync_types::{
     },
 };
 
+/// Token in the zkSync network
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Token {
+    pub l1_address: Address,
+    pub l2_address: Address,
+    pub name: String,
+    pub symbol: String,
+    pub decimals: u8,
+}
+
 /// Helper structure used to parse deserialized `Ethereum` transaction.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TransactionCalldata {
