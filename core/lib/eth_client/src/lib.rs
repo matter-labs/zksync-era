@@ -1,9 +1,5 @@
 #![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
 
-pub mod clients;
-pub mod types;
-
-use crate::types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult};
 use async_trait::async_trait;
 use zksync_types::{
     web3::{
@@ -19,6 +15,11 @@ use zksync_types::{
     },
     L1ChainId,
 };
+
+use crate::types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult};
+
+pub mod clients;
+pub mod types;
 
 /// Common Web3 interface, as seen by the core applications.
 /// Encapsulates the raw Web3 interaction, providing a high-level interface.
@@ -131,7 +132,7 @@ pub trait EthInterface: Sync + Send {
     /// Returns the block header for the specified block number or hash.
     async fn block(
         &self,
-        block_id: String,
+        block_id: BlockId,
         component: &'static str,
     ) -> Result<Option<Block<H256>>, Error>;
 }

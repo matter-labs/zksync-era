@@ -1,8 +1,10 @@
+use std::{collections::HashMap, convert::TryInto};
+
 use itertools::Itertools;
-use std::collections::HashMap;
-use std::convert::TryInto;
-use zksync_basic_types::ethabi::{encode, Token};
-use zksync_basic_types::H256;
+use zksync_basic_types::{
+    ethabi::{encode, Token},
+    H256,
+};
 
 use crate::bytes_to_chunks;
 

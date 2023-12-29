@@ -1,13 +1,16 @@
 #![feature(generic_const_exprs)]
-use anyhow::Context as _;
 use std::future::Future;
-use tokio::sync::oneshot;
-use tokio::sync::watch::Receiver;
-use tokio::task::JoinHandle;
 
+use anyhow::Context as _;
+use local_ip_address::local_ip;
 use prometheus_exporter::PrometheusExporterConfig;
-use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
-use zksync_config::configs::{FriProverConfig, PostgresConfig, ProverGroupConfig};
+use tokio::{
+    sync::{oneshot, watch::Receiver},
+    task::JoinHandle,
+};
+use zksync_config::configs::{
+    fri_prover_group::FriProverGroupConfig, FriProverConfig, PostgresConfig, ProverGroupConfig,
+};
 use zksync_dal::ConnectionPool;
 use zksync_env_config::{
     object_store::{ProverObjectStoreConfig, PublicObjectStoreConfig},
@@ -15,16 +18,16 @@ use zksync_env_config::{
 };
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_fri_utils::get_all_circuit_id_round_tuples_for;
-
-use local_ip_address::local_ip;
 use zksync_prover_utils::region_fetcher::get_zone;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::basic_fri_types::CircuitIdRoundTuple;
-use zksync_types::proofs::GpuProverInstanceStatus;
-use zksync_types::proofs::SocketAddress;
+use zksync_types::{
+    basic_fri_types::CircuitIdRoundTuple,
+    proofs::{GpuProverInstanceStatus, SocketAddress},
+};
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 mod gpu_prover_job_processor;
+mod metrics;
 mod prover_job_processor;
 mod socket_listener;
 mod utils;
@@ -116,13 +119,16 @@ async fn main() -> anyhow::Result<()> {
         circuit_ids_for_round_to_be_proven.clone()
     );
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let pool = ConnectionPool::builder(
-        postgres_config.prover_url()?,
-        postgres_config.max_connections()?,
-    )
-    .build()
-    .await
-    .context("failed to build a connection pool")?;
+
+    // There are 2 threads using the connection pool:
+    // 1. The prover thread, which is used to update the prover job status.
+    // 2. The socket listener thread, which is used to update the prover instance status.
+    const MAX_POOL_SIZE_FOR_PROVER: u32 = 2;
+
+    let pool = ConnectionPool::builder(postgres_config.prover_url()?, MAX_POOL_SIZE_FOR_PROVER)
+        .build()
+        .await
+        .context("failed to build a connection pool")?;
     let port = prover_config.witness_vector_receiver_port;
     let prover_tasks = get_prover_tasks(
         prover_config,
@@ -168,8 +174,9 @@ async fn get_prover_tasks(
     pool: ConnectionPool,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
-    use crate::prover_job_processor::{load_setup_data_cache, Prover};
     use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
+
+    use crate::prover_job_processor::{load_setup_data_cache, Prover};
 
     let vk_commitments = get_cached_commitments();
 
@@ -201,9 +208,10 @@ async fn get_prover_tasks(
     pool: ConnectionPool,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
+    use std::sync::Arc;
+
     use gpu_prover_job_processor::gpu_prover;
     use socket_listener::gpu_socket_listener;
-    use std::sync::Arc;
     use tokio::sync::Mutex;
     use zksync_prover_fri_types::queue::FixedSizeQueue;
 

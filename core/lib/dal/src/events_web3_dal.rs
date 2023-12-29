@@ -1,14 +1,11 @@
 use sqlx::Row;
-
 use zksync_types::{
     api::{GetLogsFilter, Log},
     Address, MiniblockNumber, H256,
 };
 
 use crate::{
-    instrument::InstrumentExt,
-    models::{storage_block::web3_block_number_to_sql, storage_event::StorageWeb3Log},
-    SqlxError, StorageProcessor,
+    instrument::InstrumentExt, models::storage_event::StorageWeb3Log, SqlxError, StorageProcessor,
 };
 
 #[derive(Debug)]
@@ -119,10 +116,8 @@ impl EventsWeb3Dal<'_, '_> {
 
         let mut where_sql = format!("(miniblock_number >= {})", filter.from_block.0 as i64);
 
-        if let Some(to_block) = filter.to_block {
-            let block_sql = web3_block_number_to_sql(to_block);
-            where_sql += &format!(" AND (miniblock_number <= {})", block_sql);
-        }
+        where_sql += &format!(" AND (miniblock_number <= {})", filter.to_block.0 as i64);
+
         if !filter.addresses.is_empty() {
             where_sql += &format!(" AND (address = ANY(${}))", arg_index);
             arg_index += 1;
@@ -143,27 +138,53 @@ impl EventsWeb3Dal<'_, '_> {
             let db_logs: Vec<StorageWeb3Log> = sqlx::query_as!(
                 StorageWeb3Log,
                 r#"
-                WITH events_select AS (
-                    SELECT
-                        address, topic1, topic2, topic3, topic4, value,
-                        miniblock_number, tx_hash, tx_index_in_block,
-                        event_index_in_block, event_index_in_tx
-                    FROM events
-                    WHERE miniblock_number > $1
-                    ORDER BY miniblock_number ASC, event_index_in_block ASC
-                )
-                SELECT miniblocks.hash as "block_hash?",
-                    address as "address!", topic1 as "topic1!", topic2 as "topic2!", topic3 as "topic3!", topic4 as "topic4!", value as "value!",
-                    miniblock_number as "miniblock_number!", miniblocks.l1_batch_number as "l1_batch_number?", tx_hash as "tx_hash!",
-                    tx_index_in_block as "tx_index_in_block!", event_index_in_block as "event_index_in_block!", event_index_in_tx as "event_index_in_tx!"
-                FROM events_select
-                INNER JOIN miniblocks ON events_select.miniblock_number = miniblocks.number
-                ORDER BY miniblock_number ASC, event_index_in_block ASC
+                WITH
+                    events_select AS (
+                        SELECT
+                            address,
+                            topic1,
+                            topic2,
+                            topic3,
+                            topic4,
+                            value,
+                            miniblock_number,
+                            tx_hash,
+                            tx_index_in_block,
+                            event_index_in_block,
+                            event_index_in_tx
+                        FROM
+                            events
+                        WHERE
+                            miniblock_number > $1
+                        ORDER BY
+                            miniblock_number ASC,
+                            event_index_in_block ASC
+                    )
+                SELECT
+                    miniblocks.hash AS "block_hash?",
+                    address AS "address!",
+                    topic1 AS "topic1!",
+                    topic2 AS "topic2!",
+                    topic3 AS "topic3!",
+                    topic4 AS "topic4!",
+                    value AS "value!",
+                    miniblock_number AS "miniblock_number!",
+                    miniblocks.l1_batch_number AS "l1_batch_number?",
+                    tx_hash AS "tx_hash!",
+                    tx_index_in_block AS "tx_index_in_block!",
+                    event_index_in_block AS "event_index_in_block!",
+                    event_index_in_tx AS "event_index_in_tx!"
+                FROM
+                    events_select
+                    INNER JOIN miniblocks ON events_select.miniblock_number = miniblocks.number
+                ORDER BY
+                    miniblock_number ASC,
+                    event_index_in_block ASC
                 "#,
                 from_block.0 as i64
             )
-                .fetch_all(self.storage.conn())
-                .await?;
+            .fetch_all(self.storage.conn())
+            .await?;
             let logs = db_logs.into_iter().map(Into::into).collect();
             Ok(logs)
         }
@@ -172,7 +193,6 @@ impl EventsWeb3Dal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::api::BlockNumber;
     use zksync_types::{Address, H256};
 
     use super::*;
@@ -185,7 +205,7 @@ mod tests {
         let events_web3_dal = EventsWeb3Dal { storage };
         let filter = GetLogsFilter {
             from_block: MiniblockNumber(100),
-            to_block: Some(BlockNumber::Number(200.into())),
+            to_block: MiniblockNumber(200),
             addresses: vec![Address::from_low_u64_be(123)],
             topics: vec![(0, vec![H256::from_low_u64_be(456)])],
         };

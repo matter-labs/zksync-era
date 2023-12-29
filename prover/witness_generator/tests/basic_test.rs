@@ -4,20 +4,20 @@ use serde::Serialize;
 use zksync_config::ObjectStoreConfig;
 use zksync_env_config::FromEnv;
 use zksync_object_store::{AggregationsKey, FriCircuitKey, ObjectStoreFactory};
-use zksync_types::proofs::{
-    AggregationRound, LeafAggregationJobMetadata, NodeAggregationJobMetadata,
-};
-use zksync_types::L1BatchNumber;
-
 use zksync_prover_fri_types::CircuitWrapper;
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
-use zksync_witness_generator::leaf_aggregation::{
-    prepare_leaf_aggregation_job, LeafAggregationWitnessGenerator,
+use zksync_types::{
+    proofs::{AggregationRound, LeafAggregationJobMetadata, NodeAggregationJobMetadata},
+    L1BatchNumber,
 };
-use zksync_witness_generator::node_aggregation::NodeAggregationWitnessGenerator;
-use zksync_witness_generator::scheduler::SchedulerWitnessGenerator;
-use zksync_witness_generator::utils::AggregationWrapper;
-use zksync_witness_generator::{node_aggregation, scheduler};
+use zksync_witness_generator::{
+    leaf_aggregation::{prepare_leaf_aggregation_job, LeafAggregationWitnessGenerator},
+    node_aggregation,
+    node_aggregation::NodeAggregationWitnessGenerator,
+    scheduler,
+    scheduler::SchedulerWitnessGenerator,
+    utils::AggregationWrapper,
+};
 
 fn compare_serialized<T: Serialize>(expected: &T, actual: &T) {
     let serialized_expected = bincode::serialize(expected).unwrap();

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use itertools::Itertools;
 use zk_evm_1_3_3::{
     aux_structures::{MemoryPage, Timestamp},
     block_properties::BlockProperties,
@@ -11,8 +12,8 @@ use zk_evm_1_3_3::{
     },
 };
 use zksync_contracts::BaseSystemContracts;
+use zksync_state::WriteStorage;
 use zksync_system_constants::MAX_TXS_IN_BLOCK;
-
 use zksync_types::{
     l1::is_l1_tx_type, zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address, Transaction,
     BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, MAX_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS,
@@ -24,9 +25,6 @@ use zksync_utils::{
     bytes_to_be_words, h256_to_u256,
     misc::ceil_div,
 };
-
-use itertools::Itertools;
-use zksync_state::WriteStorage;
 
 use crate::vm_1_3_2::{
     bootloader_state::BootloaderState,
@@ -589,7 +587,7 @@ pub(crate) fn get_bootloader_memory_for_encoded_tx(
     let encoding_length = encoded_tx.len();
     memory.extend((tx_description_offset..tx_description_offset + encoding_length).zip(encoded_tx));
 
-    // Note, +1 is moving for poitner
+    // Note, +1 is moving for pointer
     let compressed_bytecodes_offset =
         COMPRESSED_BYTECODES_OFFSET + 1 + previous_compressed_bytecode_size;
 

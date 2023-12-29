@@ -1,7 +1,6 @@
 use std::convert::TryInto;
 
 use tokio::sync::watch;
-
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
@@ -17,13 +16,15 @@ use zksync_types::{
     Address, ProtocolVersionId, H256, U256,
 };
 
-use crate::eth_sender::{
-    metrics::{PubdataKind, METRICS},
-    zksync_functions::ZkSyncFunctions,
-    Aggregator, ETHSenderError,
+use crate::{
+    eth_sender::{
+        metrics::{PubdataKind, METRICS},
+        zksync_functions::ZkSyncFunctions,
+        Aggregator, ETHSenderError,
+    },
+    gas_tracker::agg_l1_batch_base_cost,
+    metrics::BlockL1Stage,
 };
-use crate::gas_tracker::agg_l1_batch_base_cost;
-use crate::metrics::BlockL1Stage;
 
 /// Data queried from L1 using multicall contract.
 #[derive(Debug)]
@@ -72,26 +73,18 @@ impl EthTxAggregator {
     pub async fn run<E: BoundEthInterface>(
         mut self,
         pool: ConnectionPool,
-        prover_pool: ConnectionPool,
         eth_client: E,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         loop {
             let mut storage = pool.access_storage_tagged("eth_sender").await.unwrap();
-            let mut prover_storage = prover_pool
-                .access_storage_tagged("eth_sender")
-                .await
-                .unwrap();
 
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, eth_tx_aggregator is shutting down");
                 break;
             }
 
-            if let Err(err) = self
-                .loop_iteration(&mut storage, &mut prover_storage, &eth_client)
-                .await
-            {
+            if let Err(err) = self.loop_iteration(&mut storage, &eth_client).await {
                 // Web3 API request failures can cause this,
                 // and anything more important is already properly reported.
                 tracing::warn!("eth_sender error {err:?}");
@@ -354,7 +347,6 @@ impl EthTxAggregator {
     async fn loop_iteration<E: BoundEthInterface>(
         &mut self,
         storage: &mut StorageProcessor<'_>,
-        prover_storage: &mut StorageProcessor<'_>,
         eth_client: &E,
     ) -> Result<(), ETHSenderError> {
         let MulticallData {
@@ -387,7 +379,6 @@ impl EthTxAggregator {
             .aggregator
             .get_next_ready_operation(
                 storage,
-                prover_storage,
                 base_system_contracts_hashes,
                 protocol_version_id,
                 l1_verifier_config,

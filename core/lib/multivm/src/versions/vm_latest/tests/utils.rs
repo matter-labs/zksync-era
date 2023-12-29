@@ -1,18 +1,17 @@
 use ethabi::Contract;
 use once_cell::sync::Lazy;
-
-use crate::vm_latest::tests::tester::InMemoryStorageView;
 use zksync_contracts::{
     load_contract, read_bytecode, read_zbin_bytecode, BaseSystemContracts, SystemContractCode,
 };
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::utils::storage_key_for_standard_token_balance;
-use zksync_types::{AccountTreeId, Address, StorageKey, H256, U256};
-use zksync_utils::bytecode::hash_bytecode;
-use zksync_utils::{bytes_to_be_words, h256_to_u256, u256_to_h256};
+use zksync_types::{
+    utils::storage_key_for_standard_token_balance, AccountTreeId, Address, StorageKey, H256, U256,
+};
+use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
-use crate::vm_latest::types::internals::ZkSyncVmState;
-use crate::vm_latest::HistoryMode;
+use crate::vm_latest::{
+    tests::tester::InMemoryStorageView, types::internals::ZkSyncVmState, HistoryMode,
+};
 
 pub(crate) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
@@ -61,7 +60,7 @@ pub(crate) fn read_test_contract() -> Vec<u8> {
 
 pub(crate) fn get_bootloader(test: &str) -> SystemContractCode {
     let bootloader_code = read_zbin_bytecode(format!(
-        "etc/system-contracts/bootloader/tests/artifacts/{}.yul/{}.yul.zbin",
+        "contracts/system-contracts/bootloader/tests/artifacts/{}.yul/{}.yul.zbin",
         test, test
     ));
 

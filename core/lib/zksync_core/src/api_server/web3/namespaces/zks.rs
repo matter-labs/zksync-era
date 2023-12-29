@@ -2,7 +2,6 @@ use std::{collections::HashMap, convert::TryInto};
 
 use bigdecimal::{BigDecimal, Zero};
 use zksync_dal::StorageProcessor;
-
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
     api::{
@@ -22,14 +21,16 @@ use zksync_types::{
 use zksync_utils::{address_to_h256, ratio_to_big_decimal_normalized};
 use zksync_web3_decl::{
     error::Web3Error,
-    types::{Address, Filter, Log, Token, H256},
+    types::{Address, Token, H256},
 };
 
-use crate::api_server::{
-    tree::TreeApiClient,
-    web3::{backend_jsonrpc::error::internal_error, metrics::API_METRICS, RpcState},
+use crate::{
+    api_server::{
+        tree::TreeApiClient,
+        web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, RpcState},
+    },
+    l1_gas_price::L1GasPriceProvider,
 };
-use crate::l1_gas_price::L1GasPriceProvider;
 
 #[derive(Debug)]
 pub struct ZksNamespace<G> {
@@ -283,7 +284,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
                 .get_logs(
                     GetLogsFilter {
                         from_block: first_miniblock_of_l1_batch,
-                        to_block: Some(block_number.0.into()),
+                        to_block: block_number,
                         addresses: vec![L1_MESSENGER_ADDRESS],
                         topics: vec![(2, vec![address_to_h256(&sender)]), (3, vec![msg])],
                     },
@@ -632,14 +633,6 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
 
         method_latency.observe();
         protocol_version
-    }
-
-    #[tracing::instrument(skip_all)]
-    pub async fn get_logs_with_virtual_blocks_impl(
-        &self,
-        filter: Filter,
-    ) -> Result<Vec<Log>, Web3Error> {
-        self.state.translate_get_logs(filter).await
     }
 
     #[tracing::instrument(skip_all)]

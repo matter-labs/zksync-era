@@ -1,9 +1,9 @@
-use serde::Deserialize;
+use std::{net::SocketAddr, num::NonZeroU32, time::Duration};
 
-use std::{net::SocketAddr, time::Duration};
+use serde::Deserialize;
+use zksync_basic_types::H256;
 
 pub use crate::configs::PrometheusConfig;
-use zksync_basic_types::H256;
 
 /// API configuration.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -86,7 +86,7 @@ pub struct Web3JsonRpcConfig {
     /// Maximum number of requests per minute for the WebSocket server.
     /// The value is per active connection.
     /// Note: For HTTP, rate limiting is expected to be configured on the infra level.
-    pub websocket_requests_per_minute_limit: Option<u32>,
+    pub websocket_requests_per_minute_limit: Option<NonZeroU32>,
     /// Tree API url, currently used to proxy `getProof` calls to the tree
     pub tree_api_url: Option<String>,
 }
@@ -204,9 +204,10 @@ impl Web3JsonRpcConfig {
         self.max_response_body_size_mb.unwrap_or(10) * super::BYTES_IN_MEGABYTE
     }
 
-    pub fn websocket_requests_per_minute_limit(&self) -> u32 {
+    pub fn websocket_requests_per_minute_limit(&self) -> NonZeroU32 {
         // The default limit is chosen to be reasonably permissive.
-        self.websocket_requests_per_minute_limit.unwrap_or(6000)
+        self.websocket_requests_per_minute_limit
+            .unwrap_or(NonZeroU32::new(6000).unwrap())
     }
 
     pub fn tree_api_url(&self) -> Option<String> {

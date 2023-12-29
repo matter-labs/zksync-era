@@ -1,20 +1,21 @@
 use chrono::{DateTime, Utc};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use strum::Display;
-
 use zksync_basic_types::{
     web3::types::{Bytes, H160, H256, H64, U256, U64},
     L1BatchNumber,
 };
 use zksync_contracts::BaseSystemContractsHashes;
 
-use crate::protocol_version::L1VerifierConfig;
 pub use crate::transaction_request::{
     Eip712Meta, SerializationTransactionError, TransactionRequest,
 };
-use crate::vm_trace::{Call, CallType};
-use crate::web3::types::{AccessList, Index, H2048};
-use crate::{Address, MiniblockNumber, ProtocolVersionId};
+use crate::{
+    protocol_version::L1VerifierConfig,
+    vm_trace::{Call, CallType},
+    web3::types::{AccessList, Index, H2048},
+    Address, MiniblockNumber, ProtocolVersionId,
+};
 
 pub mod en;
 
@@ -208,10 +209,10 @@ pub struct TransactionReceipt {
     pub transaction_index: Index,
     /// Hash of the block this transaction was included within.
     #[serde(rename = "blockHash")]
-    pub block_hash: Option<H256>,
+    pub block_hash: H256,
     /// Number of the miniblock this transaction was included within.
     #[serde(rename = "blockNumber")]
-    pub block_number: Option<U64>,
+    pub block_number: U64,
     /// Index of transaction in l1 batch
     #[serde(rename = "l1BatchTxIndex")]
     pub l1_batch_tx_index: Option<Index>,
@@ -245,9 +246,9 @@ pub struct TransactionReceipt {
     #[serde(rename = "l2ToL1Logs")]
     pub l2_to_l1_logs: Vec<L2ToL1Log>,
     /// Status: either 1 (success) or 0 (failure).
-    pub status: Option<U64>,
+    pub status: U64,
     /// State root.
-    pub root: Option<H256>,
+    pub root: H256,
     /// Logs bloom
     #[serde(rename = "logsBloom")]
     pub logs_bloom: H2048,
@@ -548,7 +549,7 @@ pub struct TransactionDetails {
 #[derive(Debug, Clone)]
 pub struct GetLogsFilter {
     pub from_block: MiniblockNumber,
-    pub to_block: Option<BlockNumber>,
+    pub to_block: MiniblockNumber,
     pub addresses: Vec<Address>,
     pub topics: Vec<(u32, Vec<H256>)>,
 }

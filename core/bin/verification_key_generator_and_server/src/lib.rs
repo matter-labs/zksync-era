@@ -1,29 +1,29 @@
-use ff::to_hex;
-use once_cell::sync::Lazy;
-use std::collections::HashMap;
-use std::path::Path;
-use std::str::FromStr;
-use zksync_types::zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
-use zksync_types::zkevm_test_harness::bellman::bn256::Bn256;
-use zksync_types::zkevm_test_harness::bellman::plonk::better_better_cs::setup::VerificationKey;
-use zksync_types::zkevm_test_harness::witness::oracle::VmWitnessOracle;
+use std::{collections::HashMap, path::Path, str::FromStr};
 
+use ff::to_hex;
 use itertools::Itertools;
+use once_cell::sync::Lazy;
 use structopt::lazy_static::lazy_static;
-use zksync_types::circuit::SCHEDULER_CIRCUIT_INDEX;
-use zksync_types::circuit::{
-    GEOMETRY_CONFIG, LEAF_CIRCUIT_INDEX, LEAF_SPLITTING_FACTOR, NODE_CIRCUIT_INDEX,
-    NODE_SPLITTING_FACTOR, SCHEDULER_UPPER_BOUND,
+use zksync_types::{
+    circuit::{
+        GEOMETRY_CONFIG, LEAF_CIRCUIT_INDEX, LEAF_SPLITTING_FACTOR, NODE_CIRCUIT_INDEX,
+        NODE_SPLITTING_FACTOR, SCHEDULER_CIRCUIT_INDEX, SCHEDULER_UPPER_BOUND,
+    },
+    protocol_version::{L1VerifierConfig, VerifierParams},
+    vk_transform::generate_vk_commitment,
+    zkevm_test_harness::{
+        abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
+        bellman::{bn256::Bn256, plonk::better_better_cs::setup::VerificationKey},
+        witness,
+        witness::{
+            full_block_artifact::BlockBasicCircuits,
+            oracle::VmWitnessOracle,
+            recursive_aggregation::{erase_vk_type, padding_aggregations},
+            vk_set_generator::circuits_for_vk_generation,
+        },
+    },
+    H256,
 };
-use zksync_types::protocol_version::{L1VerifierConfig, VerifierParams};
-use zksync_types::vk_transform::generate_vk_commitment;
-use zksync_types::zkevm_test_harness::witness;
-use zksync_types::zkevm_test_harness::witness::full_block_artifact::BlockBasicCircuits;
-use zksync_types::zkevm_test_harness::witness::recursive_aggregation::{
-    erase_vk_type, padding_aggregations,
-};
-use zksync_types::zkevm_test_harness::witness::vk_set_generator::circuits_for_vk_generation;
-use zksync_types::H256;
 
 #[cfg(test)]
 mod tests;

@@ -1,8 +1,7 @@
-use axum::{extract::State, http::StatusCode, routing::get, Json, Router};
-use tokio::sync::watch;
-
 use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
 
+use axum::{extract::State, http::StatusCode, routing::get, Json, Router};
+use tokio::sync::watch;
 use zksync_health_check::{AppHealth, CheckHealth};
 
 type SharedHealthchecks = Arc<[Box<dyn CheckHealth>]>;

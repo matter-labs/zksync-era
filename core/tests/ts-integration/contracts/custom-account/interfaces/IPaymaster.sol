@@ -37,7 +37,7 @@ interface IPaymaster {
     /// @param _context, the context of the execution, returned by the "validateAndPayForPaymasterTransaction" method.
     /// @param  _transaction, the users' transaction.
     /// @param _txResult, the result of the transaction execution (success or failure).
-    /// @param _maxRefundedGas, the upper bound on the amout of gas that could be refunded to the paymaster.
+    /// @param _maxRefundedGas, the upper bound on the amount of gas that could be refunded to the paymaster.
     /// @dev The exact amount refunded depends on the gas spent by the "postOp" itself and so the developers should
     /// take that into account.
     function postTransaction(

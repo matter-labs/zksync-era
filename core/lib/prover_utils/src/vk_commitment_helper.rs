@@ -1,5 +1,6 @@
-use anyhow::Context as _;
 use std::fs;
+
+use anyhow::Context as _;
 use toml_edit::{Document, Item, Value};
 
 pub fn get_toml_formatted_value(string_value: String) -> Item {

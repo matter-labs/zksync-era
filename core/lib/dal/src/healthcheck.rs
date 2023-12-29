@@ -1,6 +1,4 @@
 use serde::Serialize;
-use sqlx::PgPool;
-
 use zksync_health_check::{async_trait, CheckHealth, Health, HealthStatus};
 
 use crate::ConnectionPool;
@@ -8,12 +6,14 @@ use crate::ConnectionPool;
 #[derive(Debug, Serialize)]
 struct ConnectionPoolHealthDetails {
     pool_size: u32,
+    max_size: u32,
 }
 
 impl ConnectionPoolHealthDetails {
-    async fn new(pool: &PgPool) -> Self {
+    fn new(pool: &ConnectionPool) -> Self {
         Self {
-            pool_size: pool.size(),
+            pool_size: pool.inner.size(),
+            max_size: pool.max_size(),
         }
     }
 }
@@ -42,7 +42,7 @@ impl CheckHealth for ConnectionPoolHealthCheck {
         // This check is rather feeble, plan to make reliable here:
         // https://linear.app/matterlabs/issue/PLA-255/revamp-db-connection-health-check
         self.connection_pool.access_storage().await.unwrap();
-        let details = ConnectionPoolHealthDetails::new(&self.connection_pool.0).await;
+        let details = ConnectionPoolHealthDetails::new(&self.connection_pool);
         Health::from(HealthStatus::Ready).with_details(details)
     }
 }

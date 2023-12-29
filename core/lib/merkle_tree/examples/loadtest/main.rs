@@ -3,26 +3,26 @@
 //! Should be compiled with the release profile, otherwise hashing and other ops would be
 //! prohibitively slow.
 
-use clap::Parser;
-use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
-use tempfile::TempDir;
-use tracing_subscriber::EnvFilter;
-
 use std::{
     thread,
     time::{Duration, Instant},
 };
 
+use clap::Parser;
+use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
+use tempfile::TempDir;
+use tracing_subscriber::EnvFilter;
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
-    Database, HashTree, MerkleTree, MerkleTreePruner, PatchSet, RocksDBWrapper, TreeInstruction,
+    Database, HashTree, MerkleTree, MerkleTreePruner, PatchSet, RocksDBWrapper, TreeEntry,
+    TreeInstruction,
 };
 use zksync_storage::{RocksDB, RocksDBOptions};
 use zksync_types::{AccountTreeId, Address, StorageKey, H256, U256};
 
-mod batch;
-
 use crate::batch::WithBatching;
+
+mod batch;
 
 /// CLI for load-testing for the Merkle tree implementation.
 #[derive(Debug, Parser)]
@@ -135,19 +135,22 @@ impl Cli {
             next_key_idx += new_keys.len() as u64;
 
             next_value_idx += (new_keys.len() + updated_indices.len()) as u64;
-            let values = (next_value_idx..).map(H256::from_low_u64_be);
             let updated_keys = Self::generate_keys(updated_indices.into_iter());
-            let kvs = new_keys.into_iter().chain(updated_keys).zip(values);
+            let kvs = new_keys
+                .into_iter()
+                .chain(updated_keys)
+                .zip(next_value_idx..);
+            let kvs = kvs.map(|(key, idx)| {
+                // The assigned leaf indices here are not always correct, but it's OK for load test purposes.
+                TreeEntry::new(key, idx, H256::from_low_u64_be(idx))
+            });
 
             tracing::info!("Processing block #{version}");
             let start = Instant::now();
             let root_hash = if self.proofs {
-                let reads = Self::generate_keys(read_indices.into_iter())
-                    .map(|key| (key, TreeInstruction::Read));
-                let instructions = kvs
-                    .map(|(key, hash)| (key, TreeInstruction::Write(hash)))
-                    .chain(reads)
-                    .collect();
+                let reads =
+                    Self::generate_keys(read_indices.into_iter()).map(TreeInstruction::Read);
+                let instructions = kvs.map(TreeInstruction::Write).chain(reads).collect();
                 let output = tree.extend_with_proofs(instructions);
                 output.root_hash().unwrap()
             } else {
@@ -160,7 +163,7 @@ impl Cli {
 
         tracing::info!("Verifying tree consistency...");
         let start = Instant::now();
-        tree.verify_consistency(self.commit_count - 1)
+        tree.verify_consistency(self.commit_count - 1, false)
             .expect("tree consistency check failed");
         let elapsed = start.elapsed();
         tracing::info!("Verified tree consistency in {elapsed:?}");

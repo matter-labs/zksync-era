@@ -1,8 +1,5 @@
-use crate::vm_virtual_blocks::old_vm::{
-    history_recorder::{AppDataFrameManagerWithHistory, HistoryEnabled, HistoryMode},
-    oracles::OracleWithHistory,
-};
 use std::collections::HashMap;
+
 use zk_evm_1_3_3::{
     abstractions::EventSink,
     aux_structures::{LogQuery, Timestamp},
@@ -10,6 +7,11 @@ use zk_evm_1_3_3::{
     zkevm_opcode_defs::system_params::{
         BOOTLOADER_FORMAL_ADDRESS, EVENT_AUX_BYTE, L1_MESSAGE_AUX_BYTE,
     },
+};
+
+use crate::vm_virtual_blocks::old_vm::{
+    history_recorder::{AppDataFrameManagerWithHistory, HistoryEnabled, HistoryMode},
+    oracles::OracleWithHistory,
 };
 
 #[derive(Debug, Clone, PartialEq, Default)]
