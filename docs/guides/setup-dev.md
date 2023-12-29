@@ -36,7 +36,7 @@ zkSync currently can be launched on any \*nix operating system (e.g. any linux d
 If you're using Windows, then make sure to use WSL 2, since WSL 1 is known to cause troubles.
 
 Additionally, if you are going to use WSL 2, make sure that your project is located in the _linux filesystem_, since
-accessing NTFS partitions from inside of WSL is very slow.
+accessing NTFS partitions from within WSL is very slow.
 
 If you're using MacOS with an ARM processor (e.g. M1/M2), make sure that you are working in the _native_ environment
 (e.g. your terminal and IDE don't run in Rosetta, and your toolchain is native). Trying to work with zkSync code via
