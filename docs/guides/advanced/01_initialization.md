@@ -1,11 +1,11 @@
 # zkSync deeper dive
 
-The goal of this doc, is to show you some more details on how zkSync works internally.
+The goal of this doc is to show you some more details on how zkSync works internally.
 
 Please do the dev_setup.md and development.md (these commands do all the heavy lifting on starting the components of the
 system).
 
-Now let's take a look what's inside:
+Now let's take a look at what's inside:
 
 ### Initialization (zk init)
 
@@ -20,7 +20,7 @@ there, make sure to run `zk` (that compiles this code), before re-running `zk in
 
 As first step, it gets the docker images for postgres and geth.
 
-Geth (one of the ethereum clients) will be used to setup our own copy of L1 chain (that our local zkSync would use).
+Geth (one of the Ethereum clients) will be used to setup our own copy of L1 chain (that our local zkSync would use).
 
 Postgres is one of the two databases, that is used by zkSync (the other one is RocksDB). Currently most of the data is
 stored in postgres (blocks, transactions etc) - while RocksDB is only storing the state (Tree & Map) - and it used by
