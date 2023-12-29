@@ -174,7 +174,7 @@ bootloader’s memory, the array of the transactions is not passed as the ABI-en
 struct BootloaderTxDescription {
   // The offset by which the ABI-encoded transaction's data is stored
   uint256 txDataOffset;
-  // Auxilary data on the transaction's execution. In our internal versions
+  // Auxiliary data on the transaction's execution. In our internal versions
   // of the bootloader it may have some special meaning, but for the
   // bootloader used on the mainnet it has only one meaning: whether to execute
   // the transaction. If 0, no more transactions should be executed. If 1, then
