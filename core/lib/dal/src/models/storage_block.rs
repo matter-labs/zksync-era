@@ -536,7 +536,6 @@ impl From<StorageMiniblockHeader> for MiniblockHeader {
             base_fee_per_gas: row.base_fee_per_gas.to_u64().unwrap(),
             l1_gas_price: l1_gas_price,
             l2_fair_gas_price: row.l2_fair_gas_price as u64,
-            // TODO fix it
             l1_fair_pubdata_price: row.pubdata_price.map(|x| x as u64).unwrap_or_default(),
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 row.bootloader_code_hash,

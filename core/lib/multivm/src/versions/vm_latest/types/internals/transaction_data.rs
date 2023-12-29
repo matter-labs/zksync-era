@@ -13,7 +13,7 @@ use zksync_utils::{address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, 
 
 use crate::vm_latest::{
     constants::{L1_TX_TYPE, PRIORITY_TX_MAX_GAS_LIMIT},
-    utils::overhead::{get_amortized_overhead, OverheadCoefficients},
+    utils::overhead::get_amortized_overhead,
 };
 
 /// This structure represents the data that is used by
@@ -192,7 +192,7 @@ impl TransactionData {
         bytes_to_be_words(bytes)
     }
 
-    pub(crate) fn overhead_gas(&self, batch_l1_gas_price: u64, batch_base_fee: u64) -> u32 {
+    pub(crate) fn overhead_gas(&self) -> u32 {
         let encoded_len = encoding_len(
             self.data.len() as u64,
             self.signature.len() as u64,
@@ -201,7 +201,6 @@ impl TransactionData {
             self.reserved_dynamic.len() as u64,
         );
 
-        let coefficients = OverheadCoefficients::from_tx_type(self.tx_type);
         get_amortized_overhead(encoded_len)
     }
 

@@ -8,7 +8,7 @@ pub static ETHEREUM_ADDRESS: Address = Address::zero();
 /// This the number of pubdata such that it should be always possible to publish
 /// from a single transaction. Note, that these pubdata bytes include only bytes that are
 /// to be published inside the body of transaction (i.e. excluding of factory deps).
-pub const GUARANTEED_PUBDATA_PER_L1_BATCH: u64 = 4000;
+pub const GUARANTEED_PUBDATA_PER_L1_BATCH: u64 = 2500;
 
 /// The maximum number of pubdata per L1 batch. This limit is due to the fact that the Ethereum
 /// nodes do not accept transactions that have more than 128kb of pubdata.

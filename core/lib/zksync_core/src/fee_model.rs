@@ -164,20 +164,3 @@ impl FeeModel {
         }
     }
 }
-
-// pub(crate) fn adjust_pubdata_price_for_tx(output: &mut FeeModelOutput, tx_gas_per_pubdata_limit: U256) {
-//     let (_, current_pubdata_price) =
-//         derive_base_fee_and_gas_per_pubdata(self.fair_pubdata_price, self.fair_l2_gas_price);
-
-//     let new_fair_pubdata_price = if U256::from(current_pubdata_price) > tx_gas_per_pubdata_limit
-//     {
-//         // gasPerPubdata = ceil(pubdata_price / fair_l2_gas_price)
-//         // gasPerPubdata <= pubdata_price / fair_l2_gas_price + 1
-//         // fair_l2_gas_price(gasPerPubdata - 1) <= pubdata_price
-//         U256::from(self.fair_l2_gas_price) * (tx_gas_per_pubdata_limit - U256::from(1u32))
-//     } else {
-//         return;
-//     };
-
-//     self.fair_pubdata_price = new_fair_pubdata_price.as_u64();
-// }

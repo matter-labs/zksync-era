@@ -11,7 +11,8 @@ use std::time::{Duration, Instant};
 use multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv, VmInterface},
     vm_latest::{
-        constants::BLOCK_GAS_LIMIT, utils::fee::derive_base_fee_and_gas_per_pubdata,
+        constants::BLOCK_GAS_LIMIT,
+        utils::fee::{adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata},
         HistoryDisabled,
     },
     VmInstance,
@@ -31,7 +32,7 @@ use zksync_types::{
     AccountTreeId, L1BatchNumber, MiniblockNumber, Nonce, ProtocolVersionId, StorageKey,
     Transaction, H256, U256,
 };
-use zksync_utils::{h256_to_u256, time::seconds_since_epoch, u256_to_h256};
+use zksync_utils::{ceil_div, h256_to_u256, time::seconds_since_epoch, u256_to_h256};
 
 use super::{
     vm_metrics::{self, SandboxStage, SANDBOX_METRICS},
@@ -185,6 +186,19 @@ pub(super) fn apply_vm_in_sandbox<T>(
         chain_id,
         ..
     } = shared_args;
+
+    println!("FEE MODEL PARAMS: {:?}", fee_model_params);
+
+    if tx.gas_per_pubdata_byte_limit()
+        < ceil_div(
+            fee_model_params.fair_pubdata_price,
+            fee_model_params.fair_l2_gas_price,
+        )
+        .into()
+    {
+        println!("DAMN {}", tx.gas_per_pubdata_byte_limit());
+        // adjust_pubdata_price_for_tx(&mut, tx_gas_per_pubdata_limit)
+    }
 
     let system_env = SystemEnv {
         zk_porter_available: ZKPORTER_IS_AVAILABLE,

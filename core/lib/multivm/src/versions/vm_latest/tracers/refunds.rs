@@ -261,16 +261,10 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
             self.pubdata_published = pubdata_published;
             let current_ergs_per_pubdata_byte = state.local_state.current_ergs_per_pubdata_byte;
 
-            // let to_print = if let VmExecutionMode::Bootloader = self.execution_mode {
             println!(
                 "Fee profile for tx {:#?}",
                 bootloader_state.last_l2_block().last_tx_hash().unwrap()
             );
-
-            //     true
-            // } else {
-            //     false
-            // };
 
             let tx_body_refund = self.tx_body_refund(
                 bootloader_refund,

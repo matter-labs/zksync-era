@@ -72,7 +72,7 @@ describe('System behavior checks', () => {
         expect(createAddressBySDK).toEqual(createAddressByDeployer);
     });
 
-    test.only('Should accept transactions with small gasPerPubdataByte', async () => {
+    test('Should accept transactions with small gasPerPubdataByte', async () => {
         // The number "10" was chosen because we have a different error for lesser `smallGasPerPubdata`.
         const smallGasPerPubdata = 10;
         const senderNonce = await alice.getTransactionCount();

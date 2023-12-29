@@ -300,21 +300,6 @@ impl BatchExecutor {
 
         let storage_view = StorageView::new(secondary_storage).to_rc_ptr();
 
-        println!(
-            "NEW BATCH params: {} {}",
-            l1_batch_params.fair_pubdata_price, l1_batch_params.fair_l2_gas_price
-        );
-
-        let (predicted_base_fee, predicted_gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(
-            l1_batch_params.fair_pubdata_price,
-            l1_batch_params.fair_l2_gas_price,
-        );
-
-        println!(
-            "STARTED NEW BATCH: {} {}",
-            predicted_base_fee, predicted_gas_per_pubdata
-        );
-
         let mut vm = VmInstance::new(l1_batch_params, system_env, storage_view.clone());
 
         while let Some(cmd) = self.commands.blocking_recv() {

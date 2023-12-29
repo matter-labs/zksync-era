@@ -11,7 +11,7 @@ use governor::{
 // Workspace uses
 use multivm::vm_latest::{
     constants::{BLOCK_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK},
-    utils::fee::derive_base_fee_and_gas_per_pubdata,
+    utils::fee::{adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata},
 };
 use multivm::{interface::VmExecutionResultAndLogs, vm_latest::utils::overhead::derive_overhead};
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
@@ -232,7 +232,6 @@ pub struct TxSenderConfig {
     pub gas_price_scale_factor: f64,
     pub max_nonce_ahead: u32,
     pub max_allowed_l2_tx_gas_limit: u32,
-    pub minimal_l2_gas_price: u64,
     pub vm_execution_cache_misses_limit: Option<usize>,
     pub validation_computational_gas_limit: u32,
     pub chain_id: L2ChainId,
@@ -249,7 +248,6 @@ impl TxSenderConfig {
             gas_price_scale_factor: web3_json_config.gas_price_scale_factor,
             max_nonce_ahead: web3_json_config.max_nonce_ahead,
             max_allowed_l2_tx_gas_limit: state_keeper_config.max_allowed_l2_tx_gas_limit,
-            minimal_l2_gas_price: state_keeper_config.minimal_l2_gas_price,
             vm_execution_cache_misses_limit: web3_json_config.vm_execution_cache_misses_limit,
             validation_computational_gas_limit: state_keeper_config
                 .validation_computational_gas_limit,
@@ -262,9 +260,7 @@ pub struct TxSenderInner<G> {
     pub(super) sender_config: TxSenderConfig,
     pub master_connection_pool: Option<ConnectionPool>,
     pub replica_connection_pool: ConnectionPool,
-    // /// Provides the fee params without additional scaling
-    // pub plain_fee_model_provider: Arc<G>,
-    // /// Provides the fee params with additional scaling
+    /// Provides the fee params to the `TxSender`.
     pub fee_model_provider: Arc<G>,
     pub(super) api_contracts: ApiContracts,
     /// Optional rate limiter that will limit the amount of transactions per second sent from a single entity.
@@ -433,6 +429,8 @@ impl<G: FeeBatchInputProvider> TxSender<G> {
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
 
+        let fee_model = self.0.fee_model_provider.get_fee_model_params(false);
+
         // TODO (SMA-1715): do not subsidize the overhead for the transaction
 
         if tx.common_data.fee.gas_limit > self.0.sender_config.max_allowed_l2_tx_gas_limit.into() {
@@ -443,7 +441,7 @@ impl<G: FeeBatchInputProvider> TxSender<G> {
             );
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
-        if tx.common_data.fee.max_fee_per_gas < self.0.sender_config.minimal_l2_gas_price.into() {
+        if tx.common_data.fee.max_fee_per_gas < fee_model.fair_l2_gas_price.into() {
             tracing::info!(
                 "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
                 tx.hash(),
@@ -465,8 +463,6 @@ impl<G: FeeBatchInputProvider> TxSender<G> {
                 MAX_NEW_FACTORY_DEPS,
             ));
         }
-
-        let fee_model = self.0.fee_model_provider.get_fee_model_params(false);
 
         let (_, gas_per_pubdata_byte) = derive_base_fee_and_gas_per_pubdata(
             fee_model.l1_gas_price,
@@ -652,7 +648,7 @@ impl<G: FeeBatchInputProvider> TxSender<G> {
     ) -> Result<Fee, SubmitTxError> {
         let estimation_started_at = Instant::now();
         let mut fee_model = self.0.fee_model_provider.get_fee_model_params(true);
-        fee_model.adjust_pubdata_price_for_tx(tx.gas_per_pubdata_byte_limit());
+        adjust_pubdata_price_for_tx(&mut fee_model, tx.gas_per_pubdata_byte_limit());
 
         let (base_fee, gas_per_pubdata_byte) = derive_base_fee_and_gas_per_pubdata(
             fee_model.fair_pubdata_price,
@@ -733,17 +729,6 @@ impl<G: FeeBatchInputProvider> TxSender<G> {
             }
             let result = pubdata_for_factory_deps * (gas_per_pubdata_byte as u32);
 
-            // if pubdata_for_factory_deps > 0 {
-            //     // println!(
-            //     //     "\n\nGAS FOR BYTECODES PUBDATA: {} {} {} {} {}\n\n",
-            //     //     result,
-            //     //     operator_gas_price,
-            //     //     (result as u64) * operator_gas_price,
-            //     //     gas_per_pubdata_byte,
-            //     //     pubdata_for_factory_deps
-            //     // );
-            // }
-
             result
         };
 
@@ -800,19 +785,9 @@ impl<G: FeeBatchInputProvider> TxSender<G> {
             .estimate_gas_binary_search_iterations
             .observe(number_of_iterations);
 
-        println!(
-            "FINAL UPPER BOUND: {upper_bound} {}",
-            (upper_bound as f64) * estimated_fee_scale_factor
-        );
-
         let tx_body_gas_limit = cmp::min(
             MAX_L2_TX_GAS_LIMIT as u32,
             ((upper_bound as f64) * estimated_fee_scale_factor) as u32,
-        );
-
-        println!(
-            "SUGGESTED GAS LIMIT: {}",
-            tx_body_gas_limit + gas_for_bytecodes_pubdata
         );
 
         let suggested_gas_limit = tx_body_gas_limit + gas_for_bytecodes_pubdata;

@@ -1,22 +1,10 @@
 //! Utility functions for vm
-use zksync_system_constants::{
-    MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT, MAX_PUBDATA_PER_L1_BATCH,
-};
-use zksync_types::U256;
+use zksync_system_constants::MAX_GAS_PER_PUBDATA_BYTE;
+use zksync_types::{fee_model::FeeModelOutput, U256};
 use zksync_utils::ceil_div;
 
-use crate::vm_latest::{
-    constants::BLOCK_OVERHEAD_L1_GAS, old_vm::utils::eth_price_per_pubdata_byte,
-};
+use crate::vm_latest::old_vm::utils::eth_price_per_pubdata_byte;
 
-/// Calculates the amount of gas required to publish one byte of pubdata
-pub fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
-    let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
-
-    ceil_div(eth_price_per_pubdata_byte, base_fee)
-}
-
-/// TODO: possibly fix this method to explicitly use pubdata price
 /// Calculates the base fee and gas per pubdata for the given L1 gas price.
 pub fn derive_base_fee_and_gas_per_pubdata(
     pubdata_price: u64,
@@ -32,4 +20,22 @@ pub fn derive_base_fee_and_gas_per_pubdata(
     let gas_per_pubdata = ceil_div(pubdata_price, base_fee);
 
     (base_fee, gas_per_pubdata)
+}
+
+pub fn adjust_pubdata_price_for_tx(fee_model: &mut FeeModelOutput, tx_gas_per_pubdata_limit: U256) {
+    let (_, current_pubdata_price) = derive_base_fee_and_gas_per_pubdata(
+        fee_model.fair_pubdata_price,
+        fee_model.fair_l2_gas_price,
+    );
+
+    let new_fair_pubdata_price = if U256::from(current_pubdata_price) > tx_gas_per_pubdata_limit {
+        // gasPerPubdata = ceil(pubdata_price / fair_l2_gas_price)
+        // gasPerPubdata <= pubdata_price / fair_l2_gas_price + 1
+        // fair_l2_gas_price(gasPerPubdata - 1) <= pubdata_price
+        U256::from(fee_model.fair_l2_gas_price) * (tx_gas_per_pubdata_limit - U256::from(1u32))
+    } else {
+        return;
+    };
+
+    fee_model.fair_pubdata_price = new_fair_pubdata_price.as_u64();
 }

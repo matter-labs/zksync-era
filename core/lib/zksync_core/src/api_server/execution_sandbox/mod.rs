@@ -1,6 +1,8 @@
 use std::{sync::Arc, time::Duration};
 
-use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
+use multivm::vm_latest::utils::fee::{
+    adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata,
+};
 use tokio::runtime::Handle;
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
@@ -213,8 +215,7 @@ pub(crate) struct TxSharedArgs {
 
 impl TxSharedArgs {
     pub(crate) fn adjust_pubdata_price_for_tx(&mut self, tx_gas_per_pubdata_limit: U256) {
-        self.fee_model_params
-            .adjust_pubdata_price_for_tx(tx_gas_per_pubdata_limit);
+        adjust_pubdata_price_for_tx(&mut self.fee_model_params, tx_gas_per_pubdata_limit);
     }
 }
 

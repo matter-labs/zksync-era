@@ -30,6 +30,8 @@ impl TxSharedArgs {
         let block_args = BlockArgs::pending(&mut connection).await;
         drop(connection);
 
+        self.adjust_pubdata_price_for_tx(tx.common_data.fee.gas_per_pubdata_limit);
+
         self.validate_tx_in_sandbox(
             connection_pool,
             vm_permit,
