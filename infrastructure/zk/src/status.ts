@@ -4,7 +4,7 @@ import { Pool } from 'pg';
 import { ethers } from 'ethers';
 import { assert } from 'console';
 
-// Postgres connection pool - must be intialized later - as the ENV variables are set later.
+// Postgres connection pool - must be initialized later - as the ENV variables are set later.
 let pool: Pool | null = null;
 
 const GETTER_ABI = [
