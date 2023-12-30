@@ -8,7 +8,7 @@ use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
 use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
 use zksync_types::{
-    api, fee_model::FeeModelOutput, AccountTreeId, L2ChainId, MiniblockNumber, U256,
+    api, fee_model::BatchFeeModelInput, AccountTreeId, L2ChainId, MiniblockNumber, U256,
 };
 use zksync_utils::bytecode::{compress_bytecode, hash_bytecode};
 
@@ -206,7 +206,7 @@ pub(super) async fn get_pubdata_for_factory_deps(
 #[derive(Debug, Clone)]
 pub(crate) struct TxSharedArgs {
     pub operator_account: AccountTreeId,
-    pub fee_model_params: FeeModelOutput,
+    pub batch_fee_model_input: BatchFeeModelInput,
     pub base_system_contracts: MultiVMBaseSystemContracts,
     pub caches: PostgresStorageCaches,
     pub validation_computational_gas_limit: u32,
@@ -215,7 +215,7 @@ pub(crate) struct TxSharedArgs {
 
 impl TxSharedArgs {
     pub(crate) fn adjust_pubdata_price_for_tx(&mut self, tx_gas_per_pubdata_limit: U256) {
-        adjust_pubdata_price_for_tx(&mut self.fee_model_params, tx_gas_per_pubdata_limit);
+        adjust_pubdata_price_for_tx(&mut self.batch_fee_model_input, tx_gas_per_pubdata_limit);
     }
 }
 

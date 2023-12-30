@@ -28,7 +28,7 @@ async fn store_miniblock(storage: &mut StorageProcessor<'_>, number: u32, hash: 
         base_fee_per_gas: 0,
         l1_gas_price: 0,
         l2_fair_gas_price: 0,
-        l1_fair_pubdata_price: 0,
+        fair_pubdata_price: 0,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         virtual_blocks: 1,

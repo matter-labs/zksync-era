@@ -30,8 +30,6 @@ pub struct RemoteENConfig {
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l2_chain_id: L2ChainId,
     pub l1_chain_id: L1ChainId,
-
-    pub minimal_l2_gas_price: u64,
 }
 
 impl RemoteENConfig {
@@ -67,11 +65,6 @@ impl RemoteENConfig {
             .get_block_number()
             .await
             .context("Failed to fetch block number")?;
-        let block_header = client
-            .sync_l2_block(MiniblockNumber(current_miniblock.as_u32()), false)
-            .await
-            .context("Failed to fetch last miniblock header")?
-            .expect("Block is known to exist");
 
         Ok(Self {
             diamond_proxy_addr,
@@ -82,9 +75,6 @@ impl RemoteENConfig {
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
             l2_chain_id,
             l1_chain_id,
-
-            // FIXME: this is very incorrect.
-            minimal_l2_gas_price: block_header.l2_fair_gas_price,
         })
     }
 }

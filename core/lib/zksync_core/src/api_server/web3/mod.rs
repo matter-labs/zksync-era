@@ -40,7 +40,7 @@ use crate::{
         execution_sandbox::VmConcurrencyBarrier, tree::TreeApiHttpClient, tx_sender::TxSender,
         web3::backend_jsonrpsee::batch_limiter_middleware::LimitMiddleware,
     },
-    fee_model::FeeBatchInputProvider,
+    fee_model::BatchFeeModelInputProvider,
     l1_gas_price::L1GasPriceProvider,
     sync_layer::SyncState,
 };
@@ -277,7 +277,7 @@ impl<G> ApiBuilder<G> {
     }
 }
 
-impl<G: 'static + Send + Sync + FeeBatchInputProvider> ApiBuilder<G> {
+impl<G: 'static + Send + Sync + BatchFeeModelInputProvider> ApiBuilder<G> {
     pub async fn build(
         self,
         stop_receiver: watch::Receiver<bool>,
@@ -286,7 +286,7 @@ impl<G: 'static + Send + Sync + FeeBatchInputProvider> ApiBuilder<G> {
     }
 }
 
-impl<G: 'static + Send + Sync + FeeBatchInputProvider> FullApiParams<G> {
+impl<G: 'static + Send + Sync + BatchFeeModelInputProvider> FullApiParams<G> {
     fn build_rpc_state(self) -> RpcState<G> {
         // Chosen to be significantly smaller than the interval between miniblocks, but larger than
         // the latency of getting the latest sealed miniblock number from Postgres. If the API server

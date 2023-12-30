@@ -657,7 +657,6 @@ impl StateKeeperIO for TestIO {
                 fee_account: self.fee_account,
                 enforced_base_fee: None,
                 first_l2_block: first_miniblock_info,
-                fair_pubdata_price: self.l1_gas_price * 17,
             },
         ))
     }

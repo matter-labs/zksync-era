@@ -7,7 +7,7 @@ use zksync_types::{
         TransactionDetails,
     },
     fee::Fee,
-    fee_model::FeeModelOutput,
+    fee_model::BatchFeeModelInput,
     transaction_request::CallRequest,
     Address, L1BatchNumber, MiniblockNumber, H256, U256, U64,
 };
@@ -18,12 +18,12 @@ use zksync_web3_decl::{
 
 use crate::{
     api_server::web3::{backend_jsonrpsee::into_jsrpc_error, ZksNamespace},
-    fee_model::FeeBatchInputProvider,
+    fee_model::BatchFeeModelInputProvider,
     l1_gas_price::L1GasPriceProvider,
 };
 
 #[async_trait]
-impl<G: FeeBatchInputProvider + Send + Sync + 'static> ZksNamespaceServer for ZksNamespace<G> {
+impl<G: BatchFeeModelInputProvider + Send + Sync + 'static> ZksNamespaceServer for ZksNamespace<G> {
     async fn estimate_fee(&self, req: CallRequest) -> RpcResult<Fee> {
         self.estimate_fee_impl(req).await.map_err(into_jsrpc_error)
     }
@@ -140,8 +140,8 @@ impl<G: FeeBatchInputProvider + Send + Sync + 'static> ZksNamespaceServer for Zk
         Ok(self.get_l1_gas_price_impl())
     }
 
-    async fn get_main_node_fee_params(&self) -> RpcResult<FeeModelOutput> {
-        Ok(self.get_main_node_fee_params_impl())
+    async fn get_main_node_batch_fee_input(&self) -> RpcResult<BatchFeeModelInput> {
+        Ok(self.get_main_node_batch_fee_input())
     }
 
     async fn get_protocol_version(

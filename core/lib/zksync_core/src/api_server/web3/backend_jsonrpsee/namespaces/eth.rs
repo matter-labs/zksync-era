@@ -15,12 +15,12 @@ use zksync_web3_decl::{
 
 use crate::{
     api_server::web3::{backend_jsonrpsee::into_jsrpc_error, EthNamespace},
-    fee_model::FeeBatchInputProvider,
+    fee_model::BatchFeeModelInputProvider,
     l1_gas_price::L1GasPriceProvider,
 };
 
 #[async_trait]
-impl<G: FeeBatchInputProvider + Send + Sync + 'static> EthNamespaceServer for EthNamespace<G> {
+impl<G: BatchFeeModelInputProvider + Send + Sync + 'static> EthNamespaceServer for EthNamespace<G> {
     async fn get_block_number(&self) -> RpcResult<U64> {
         self.get_block_number_impl().await.map_err(into_jsrpc_error)
     }

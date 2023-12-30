@@ -19,7 +19,7 @@ pub(crate) use self::{
     mempool_actor::MempoolFetcher, seal_criteria::ConditionalSealer, types::MempoolGuard,
 };
 use crate::{
-    fee_model::{FeeBatchInputProvider, MainNodeFeeModel, MainNodeFeeModelConfig},
+    fee_model::{BatchFeeModelInputProvider, MainNodeFeeInputProvider, MainNodeFeeModelConfig},
     l1_gas_price::L1GasPriceProvider,
 };
 
@@ -50,7 +50,7 @@ pub(crate) async fn create_state_keeper<G>(
     stop_receiver: watch::Receiver<bool>,
 ) -> ZkSyncStateKeeper
 where
-    G: FeeBatchInputProvider + 'static + Send + Sync,
+    G: BatchFeeModelInputProvider + 'static + Send + Sync,
 {
     assert!(
         state_keeper_config.transaction_slots <= MAX_TXS_IN_BLOCK,

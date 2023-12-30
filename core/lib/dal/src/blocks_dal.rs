@@ -612,7 +612,7 @@ impl BlocksDal<'_, '_> {
                     default_aa_code_hash,
                     protocol_version,
                     virtual_blocks,
-                    pubdata_price,
+                    fair_pubdata_price,
                     created_at,
                     updated_at
                 )
@@ -638,7 +638,7 @@ impl BlocksDal<'_, '_> {
                 .as_bytes(),
             miniblock_header.protocol_version.map(|v| v as i32),
             miniblock_header.virtual_blocks as i64,
-            miniblock_header.l1_fair_pubdata_price as i64,
+            miniblock_header.fair_pubdata_price as i64,
         )
         .execute(self.storage.conn())
         .await?;
@@ -742,7 +742,7 @@ impl BlocksDal<'_, '_> {
                 default_aa_code_hash,
                 protocol_version,
                 virtual_blocks,
-                pubdata_price
+                fair_pubdata_price
             FROM
                 miniblocks
             ORDER BY
@@ -776,7 +776,7 @@ impl BlocksDal<'_, '_> {
                 default_aa_code_hash,
                 protocol_version,
                 virtual_blocks,
-                pubdata_price
+                fair_pubdata_price
             FROM
                 miniblocks
             WHERE

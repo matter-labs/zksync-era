@@ -16,7 +16,7 @@ use zksync_core::{
     },
     block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert},
     consistency_checker::ConsistencyChecker,
-    l1_gas_price::MainNodeFeeParamsFetcher,
+    l1_gas_price::MainNodeBatchFeeInputFetcher,
     metadata_calculator::{
         MetadataCalculator, MetadataCalculatorConfig, MetadataCalculatorModeConfig,
     },
@@ -119,7 +119,7 @@ async fn init_tasks(
     let (stop_sender, stop_receiver) = watch::channel(false);
     let mut healthchecks: Vec<Box<dyn CheckHealth>> = Vec::new();
     // Create components.
-    let gas_price_fetcher = Arc::new(MainNodeFeeParamsFetcher::new(&main_node_url));
+    let fee_params_fetcher = Arc::new(MainNodeBatchFeeInputFetcher::new(&main_node_url));
 
     let sync_state = SyncState::new();
     let (action_queue_sender, action_queue) = ActionQueue::new();
@@ -231,7 +231,7 @@ async fn init_tasks(
     let sk_handle = task::spawn(state_keeper.run());
     let fetcher_handle = tokio::spawn(fetcher.run());
     let gas_price_fetcher_handle =
-        tokio::spawn(gas_price_fetcher.clone().run(stop_receiver.clone()));
+        tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
 
     let (tx_sender, vm_barrier, cache_update_handle) = {
         let mut tx_sender_builder =
@@ -261,7 +261,7 @@ async fn init_tasks(
 
         let tx_sender = tx_sender_builder
             .build(
-                gas_price_fetcher,
+                fee_params_fetcher,
                 Arc::new(vm_concurrency_limiter),
                 ApiContracts::load_from_disk(), // TODO (BFT-138): Allow to dynamically reload API contracts
                 storage_caches,

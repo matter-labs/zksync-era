@@ -53,7 +53,7 @@ use crate::{
     basic_witness_input_producer::BasicWitnessInputProducer,
     eth_sender::{Aggregator, EthTxAggregator, EthTxManager},
     eth_watch::start_eth_watch,
-    fee_model::{FeeBatchInputProvider, MainNodeFeeModel, MainNodeFeeModelConfig},
+    fee_model::{BatchFeeModelInputProvider, MainNodeFeeInputProvider, MainNodeFeeModelConfig},
     house_keeper::{
         blocks_state_reporter::L1BatchMetricsReporter,
         fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager,
@@ -712,7 +712,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
     );
     task_futures.push(tokio::spawn(miniblock_sealer.run()));
 
-    let fee_info_provider = Arc::new(MainNodeFeeModel::new(
+    let fee_info_provider = Arc::new(MainNodeFeeInputProvider::new(
         gas_adjuster,
         MainNodeFeeModelConfig {
             l1_gas_price_scale_factor: 1.0,
@@ -1049,7 +1049,7 @@ async fn build_tx_sender<G: L1GasPriceProvider>(
     master_pool: ConnectionPool,
     l1_gas_price_provider: Arc<G>,
     storage_caches: PostgresStorageCaches,
-) -> (TxSender<MainNodeFeeModel<G>>, VmConcurrencyBarrier) {
+) -> (TxSender<MainNodeFeeInputProvider<G>>, VmConcurrencyBarrier) {
     let mut tx_sender_builder = TxSenderBuilder::new(tx_sender_config.clone(), replica_pool)
         .with_main_connection_pool(master_pool)
         .with_state_keeper_config(state_keeper_config.clone());
@@ -1062,7 +1062,7 @@ async fn build_tx_sender<G: L1GasPriceProvider>(
     let max_concurrency = web3_json_config.vm_concurrency_limit();
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
 
-    let main_node_fee_params_provider = MainNodeFeeModel::new(
+    let main_node_fee_params_provider = MainNodeFeeInputProvider::new(
         l1_gas_price_provider,
         MainNodeFeeModelConfig {
             l1_gas_price_scale_factor: web3_json_config.estimate_gas_scale_factor,

@@ -28,7 +28,7 @@ use crate::{
             TypedFilter,
         },
     },
-    fee_model::FeeBatchInputProvider,
+    fee_model::BatchFeeModelInputProvider,
     l1_gas_price::L1GasPriceProvider,
 };
 
@@ -48,7 +48,7 @@ impl<G> Clone for EthNamespace<G> {
     }
 }
 
-impl<G: FeeBatchInputProvider> EthNamespace<G> {
+impl<G: BatchFeeModelInputProvider> EthNamespace<G> {
     pub fn new(state: RpcState<G>) -> Self {
         Self { state }
     }

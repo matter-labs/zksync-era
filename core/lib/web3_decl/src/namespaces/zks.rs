@@ -8,7 +8,7 @@ use zksync_types::{
         TransactionDetails,
     },
     fee::Fee,
-    fee_model::FeeModelOutput,
+    fee_model::BatchFeeModelInput,
     transaction_request::CallRequest,
     Address, L1BatchNumber, MiniblockNumber, H256, U256, U64,
 };
@@ -98,8 +98,8 @@ pub trait ZksNamespace {
     #[method(name = "getL1GasPrice")]
     async fn get_l1_gas_price(&self) -> RpcResult<U64>;
 
-    #[method(name = "getMainNodeFeeParams")]
-    async fn get_main_node_fee_params(&self) -> RpcResult<FeeModelOutput>;
+    #[method(name = "getMainNodeBatchFeeInput")]
+    async fn get_main_node_batch_fee_input(&self) -> RpcResult<BatchFeeModelInput>;
 
     #[method(name = "getProtocolVersion")]
     async fn get_protocol_version(

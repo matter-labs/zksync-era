@@ -127,7 +127,7 @@ pub(crate) async fn load_l1_batch_params(
         pending_miniblock_header.timestamp,
         previous_l1_batch_hash,
         pending_miniblock_header.l1_gas_price,
-        pending_miniblock_header.l1_fair_pubdata_price,
+        pending_miniblock_header.fair_pubdata_price,
         pending_miniblock_header.l2_fair_gas_price,
         pending_miniblock_number,
         prev_miniblock_hash,

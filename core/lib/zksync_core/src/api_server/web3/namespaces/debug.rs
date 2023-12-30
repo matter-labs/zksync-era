@@ -6,7 +6,7 @@ use zksync_dal::ConnectionPool;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
-    fee_model::FeeModelOutput,
+    fee_model::BatchFeeModelInput,
     l2::L2Tx,
     transaction_request::CallRequest,
     vm_trace::Call,
@@ -27,14 +27,14 @@ use crate::{
             state::{RpcState, SealedMiniblockNumber},
         },
     },
-    fee_model::FeeBatchInputProvider,
+    fee_model::BatchFeeModelInputProvider,
     l1_gas_price::L1GasPriceProvider,
 };
 
 #[derive(Debug, Clone)]
 pub struct DebugNamespace {
     connection_pool: ConnectionPool,
-    fee_model: FeeModelOutput,
+    batch_fee_input: BatchFeeModelInput,
     api_contracts: ApiContracts,
     vm_execution_cache_misses_limit: Option<usize>,
     vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
@@ -44,16 +44,16 @@ pub struct DebugNamespace {
 }
 
 impl DebugNamespace {
-    pub async fn new<G: FeeBatchInputProvider>(state: RpcState<G>) -> Self {
+    pub async fn new<G: BatchFeeModelInputProvider>(state: RpcState<G>) -> Self {
         let sender_config = &state.tx_sender.0.sender_config;
 
         let api_contracts = ApiContracts::load_from_disk();
         Self {
             connection_pool: state.connection_pool,
-            fee_model: state
+            batch_fee_input: state
                 .tx_sender
                 .0
-                .fee_model_provider
+                .batch_fee_input_provider
                 .get_fee_model_params(true),
             api_contracts,
             vm_execution_cache_misses_limit: sender_config.vm_execution_cache_misses_limit,
@@ -214,7 +214,7 @@ impl DebugNamespace {
     fn shared_args(&self) -> TxSharedArgs {
         TxSharedArgs {
             operator_account: AccountTreeId::default(),
-            fee_model_params: self.fee_model.clone(),
+            batch_fee_model_input: self.batch_fee_input.clone(),
             base_system_contracts: self.api_contracts.eth_call.clone(),
             caches: self.storage_caches.clone(),
             validation_computational_gas_limit: BLOCK_GAS_LIMIT,

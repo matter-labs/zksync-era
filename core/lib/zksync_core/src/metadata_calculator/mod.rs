@@ -18,7 +18,7 @@ use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_types::{
     block::L1BatchHeader,
     commitment::{L1BatchCommitment, L1BatchMetadata},
-    H256,
+    ProtocolVersionId, H256,
 };
 
 pub(crate) use self::helpers::{AsyncTreeReader, L1BatchWithLogs, MerkleTreeInfo};
@@ -220,10 +220,12 @@ impl MetadataCalculator {
         events_queue_commitment: Option<H256>,
         bootloader_initial_content_commitment: Option<H256>,
     ) -> L1BatchMetadata {
-        let is_pre_boojum = header
+        // The commitment generation pre-boojum is the same for all the version, so in case the version is not present, we just supply the
+        // last pre-boojum version.
+        // TODO(X): make sure that protocol version is not an Option
+        let protocol_version = header
             .protocol_version
-            .map(|v| v.is_pre_boojum())
-            .unwrap_or(true);
+            .unwrap_or(ProtocolVersionId::last_pre_boojum());
 
         let merkle_root_hash = tree_metadata.root_hash;
 
@@ -239,12 +241,12 @@ impl MetadataCalculator {
             tree_metadata.state_diffs,
             bootloader_initial_content_commitment.unwrap_or_default(),
             events_queue_commitment.unwrap_or_default(),
-            is_pre_boojum,
+            protocol_version,
         );
         let commitment_hash = commitment.hash();
         tracing::trace!("L1 batch commitment: {commitment:?}");
 
-        let l2_l1_messages_compressed = if is_pre_boojum {
+        let l2_l1_messages_compressed = if protocol_version.is_pre_boojum() {
             commitment.l2_l1_logs_compressed().to_vec()
         } else {
             commitment.system_logs_compressed().to_vec()

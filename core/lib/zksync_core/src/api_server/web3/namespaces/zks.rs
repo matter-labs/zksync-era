@@ -9,7 +9,7 @@ use zksync_types::{
         ProtocolVersion, StorageProof, TransactionDetails,
     },
     fee::Fee,
-    fee_model::FeeModelOutput,
+    fee_model::BatchFeeModelInput,
     l1::L1Tx,
     l2::L2Tx,
     l2_to_l1_log::L2ToL1Log,
@@ -30,7 +30,7 @@ use crate::{
         tree::TreeApiClient,
         web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, RpcState},
     },
-    fee_model::FeeBatchInputProvider,
+    fee_model::BatchFeeModelInputProvider,
     l1_gas_price::L1GasPriceProvider,
 };
 
@@ -47,7 +47,7 @@ impl<G> Clone for ZksNamespace<G> {
     }
 }
 
-impl<G: FeeBatchInputProvider> ZksNamespace<G> {
+impl<G: BatchFeeModelInputProvider> ZksNamespace<G> {
     pub fn new(state: RpcState<G>) -> Self {
         Self { state }
     }
@@ -560,7 +560,7 @@ impl<G: FeeBatchInputProvider> ZksNamespace<G> {
             .state
             .tx_sender
             .0
-            .fee_model_provider
+            .batch_fee_input_provider
             .get_fee_model_params(false)
             .l1_gas_price;
 
@@ -569,15 +569,15 @@ impl<G: FeeBatchInputProvider> ZksNamespace<G> {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_main_node_fee_params_impl(&self) -> FeeModelOutput {
-        const METHOD_NAME: &str = "get_main_node_fee_params_impl";
+    pub fn get_main_node_batch_fee_input(&self) -> BatchFeeModelInput {
+        const METHOD_NAME: &str = "get_main_node_batch_fee_input";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
         let fee_model_params = self
             .state
             .tx_sender
             .0
-            .fee_model_provider
+            .batch_fee_input_provider
             .get_fee_model_params(false);
 
         method_latency.observe();

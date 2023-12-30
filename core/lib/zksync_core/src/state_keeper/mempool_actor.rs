@@ -8,14 +8,14 @@ use zksync_mempool::L2TxFilter;
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
 use crate::{
-    fee_model::{FeeBatchInputProvider, MainNodeFeeModel, MainNodeFeeModelConfig},
+    fee_model::{BatchFeeModelInputProvider, MainNodeFeeInputProvider, MainNodeFeeModelConfig},
     l1_gas_price::L1GasPriceProvider,
 };
 
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.
 /// The filter is used to filter out transactions from the mempool that do not cover expenses
 /// to process them.
-pub fn l2_tx_filter<G: FeeBatchInputProvider>(fee_batch_input_provider: &G) -> L2TxFilter {
+pub fn l2_tx_filter<G: BatchFeeModelInputProvider>(fee_batch_input_provider: &G) -> L2TxFilter {
     let output = fee_batch_input_provider.get_fee_model_params(false);
 
     let (base_fee, gas_per_pubdata) =
@@ -37,7 +37,7 @@ pub struct MempoolFetcher<G> {
     sync_batch_size: usize,
 }
 
-impl<G: FeeBatchInputProvider> MempoolFetcher<G> {
+impl<G: BatchFeeModelInputProvider> MempoolFetcher<G> {
     pub fn new(
         mempool: MempoolGuard,
         batch_fee_info_provider: Arc<G>,

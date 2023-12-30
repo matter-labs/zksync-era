@@ -107,7 +107,7 @@ pub async fn ensure_genesis_state(
         vec![],
         H256::zero(),
         H256::zero(),
-        protocol_version.is_pre_boojum(),
+        *protocol_version,
     );
 
     save_genesis_l1_batch_metadata(
@@ -296,7 +296,7 @@ pub(crate) async fn create_genesis_l1_batch(
         base_fee_per_gas: 0,
         l1_gas_price: 0,
         l2_fair_gas_price: 0,
-        l1_fair_pubdata_price: 0,
+        fair_pubdata_price: 0,
         base_system_contracts_hashes: base_system_contracts.hashes(),
         protocol_version: Some(ProtocolVersionId::latest()),
         virtual_blocks: 0,

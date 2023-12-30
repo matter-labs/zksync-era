@@ -26,7 +26,7 @@ use zksync_system_constants::{
 use zksync_types::{
     api,
     block::{pack_block_info, unpack_block_info, MiniblockHasher},
-    fee_model::FeeModelOutput,
+    fee_model::BatchFeeModelInput,
     get_nonce_key,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     AccountTreeId, L1BatchNumber, MiniblockNumber, Nonce, ProtocolVersionId, StorageKey,
@@ -180,25 +180,12 @@ pub(super) fn apply_vm_in_sandbox<T>(
 
     let TxSharedArgs {
         operator_account,
-        fee_model_params,
+        batch_fee_model_input: fee_model_params,
         base_system_contracts,
         validation_computational_gas_limit,
         chain_id,
         ..
     } = shared_args;
-
-    println!("FEE MODEL PARAMS: {:?}", fee_model_params);
-
-    if tx.gas_per_pubdata_byte_limit()
-        < ceil_div(
-            fee_model_params.fair_pubdata_price,
-            fee_model_params.fair_l2_gas_price,
-        )
-        .into()
-    {
-        println!("DAMN {}", tx.gas_per_pubdata_byte_limit());
-        // adjust_pubdata_price_for_tx(&mut, tx_gas_per_pubdata_limit)
-    }
 
     let system_env = SystemEnv {
         zk_porter_available: ZKPORTER_IS_AVAILABLE,
@@ -211,7 +198,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
         chain_id,
     };
 
-    let FeeModelOutput {
+    let BatchFeeModelInput {
         fair_l2_gas_price,
         fair_pubdata_price,
         l1_gas_price,
@@ -231,7 +218,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
 
     let storage_view = storage_view.to_rc_ptr();
     let mut vm = Box::new(VmInstance::new_with_specific_version(
-        l1_batch_env.clone(),
+        l1_batch_env,
         system_env,
         storage_view.clone(),
         protocol_version.into_api_vm_version(),

@@ -185,7 +185,6 @@ fn default_l1_batch() -> L1BatchEnv {
             prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
             max_virtual_blocks_to_create: 100,
         },
-        fair_pubdata_price: 850_000_000_000,
     }
 }
 

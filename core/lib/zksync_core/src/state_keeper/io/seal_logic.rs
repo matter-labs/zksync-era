@@ -335,7 +335,7 @@ impl MiniblockSealCommand {
             l2_tx_count: l2_tx_count as u16,
             base_fee_per_gas: self.base_fee_per_gas,
             l1_gas_price: self.l1_gas_price,
-            l1_fair_pubdata_price: self.pubdata_price,
+            fair_pubdata_price: self.fair_pubdata_price,
             l2_fair_gas_price: self.fair_l2_gas_price,
             base_system_contracts_hashes: self.base_system_contracts_hashes,
             protocol_version: self.protocol_version,

@@ -23,7 +23,7 @@ use zksync_types::{
 use zksync_utils::time::millis_since_epoch;
 
 use crate::{
-    fee_model::FeeBatchInputProvider,
+    fee_model::BatchFeeModelInputProvider,
     l1_gas_price::L1GasPriceProvider,
     state_keeper::{
         extractors,
@@ -68,7 +68,7 @@ pub(crate) struct MempoolIO<G> {
 
 impl<G> IoSealCriteria for MempoolIO<G>
 where
-    G: FeeBatchInputProvider + 'static + Send + Sync,
+    G: BatchFeeModelInputProvider + 'static + Send + Sync,
 {
     fn should_seal_l1_batch_unconditionally(&mut self, manager: &UpdatesManager) -> bool {
         self.timeout_sealer
@@ -83,7 +83,7 @@ where
 #[async_trait]
 impl<G> StateKeeperIO for MempoolIO<G>
 where
-    G: FeeBatchInputProvider + 'static + Send + Sync,
+    G: BatchFeeModelInputProvider + 'static + Send + Sync,
 {
     fn current_l1_batch_number(&self) -> L1BatchNumber {
         self.current_l1_batch_number
@@ -405,7 +405,7 @@ async fn sleep_past(timestamp: u64, miniblock: MiniblockNumber) -> u64 {
     }
 }
 
-impl<G: FeeBatchInputProvider> MempoolIO<G> {
+impl<G: BatchFeeModelInputProvider> MempoolIO<G> {
     #[allow(clippy::too_many_arguments)]
     pub(in crate::state_keeper) async fn new(
         mempool: MempoolGuard,

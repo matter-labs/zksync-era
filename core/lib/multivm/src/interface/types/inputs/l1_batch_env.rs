@@ -10,10 +10,13 @@ pub struct L1BatchEnv {
     pub previous_batch_hash: Option<H256>,
     pub number: L1BatchNumber,
     pub timestamp: u64,
-    /// The price of the L1 gas in Wei
+    /// The price of the L1 gas in Wei. It may not be used by the latest VM, but it is kept for the backward compatibility.
     pub l1_gas_price: u64,
+    /// The minimal price for the pubdata in Wei that the operator agrees on. Starting from the new fee model VM,
+    /// this value must also account for the fact that batch might be sealed because of the running out of compute.
     pub fair_l2_gas_price: u64,
     /// The minimal price for the pubdata in Wei that the operator agrees on.
+    /// This value must also account for the fact that batch might be sealed because of the running out of compute.
     pub fair_pubdata_price: u64,
     pub fee_account: Address,
     pub enforced_base_fee: Option<u64>,

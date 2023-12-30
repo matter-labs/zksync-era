@@ -75,7 +75,6 @@ pub(super) fn default_l1_batch_env(
         timestamp,
         l1_gas_price: 1,
         fair_l2_gas_price: 1,
-        fair_pubdata_price: 1,
         fee_account,
         enforced_base_fee: None,
         first_l2_block: L2BlockEnv {

@@ -127,3 +127,6 @@ pub(crate) const COMPRESSED_BYTECODES_OFFSET: usize =
 
 // The maximal gas limit that gets passed into an L1->L2 transaction
 pub(crate) const PRIORITY_TX_MAX_GAS_LIMIT: usize = 72_000_000;
+
+pub(crate) const TX_SLOT_OVERHEAD_GAS: u32 = 10_000;
+pub(crate) const TX_MEMORY_OVERHEAD_GAS: u32 = 10;

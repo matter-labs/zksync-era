@@ -20,7 +20,7 @@ use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     fee::{Fee, TransactionExecutionMetrics},
-    fee_model::FeeModelOutput,
+    fee_model::BatchFeeModelInput,
     get_code_key, get_intrinsic_constants,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     utils::storage_key_for_eth_balance,
@@ -41,7 +41,7 @@ use crate::{
         },
         tx_sender::result::{ApiCallResult, SubmitTxError},
     },
-    fee_model::{FeeBatchInputProvider, MainNodeFeeModel},
+    fee_model::{BatchFeeModelInputProvider, MainNodeFeeInputProvider},
 };
 use crate::{
     l1_gas_price::L1GasPriceProvider,
@@ -92,9 +92,9 @@ impl MultiVMBaseSystemContracts {
             | ProtocolVersionId::Version16
             | ProtocolVersionId::Version17 => self.post_virtual_blocks_finish_upgrade_fix,
             ProtocolVersionId::Version18 => self.post_boojum,
-            ProtocolVersionId::Version19 | ProtocolVersionId::Version20 => {
-                self.post_allowlist_removal
-            }
+            ProtocolVersionId::Version19
+            | ProtocolVersionId::Version20
+            | ProtocolVersionId::Version21 => self.post_allowlist_removal,
         }
     }
 }
@@ -195,7 +195,7 @@ impl TxSenderBuilder {
         self
     }
 
-    pub async fn build<G: FeeBatchInputProvider>(
+    pub async fn build<G: BatchFeeModelInputProvider>(
         self,
         fee_model_provider: Arc<G>,
         vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
@@ -211,7 +211,7 @@ impl TxSenderBuilder {
             sender_config: self.config,
             master_connection_pool: self.master_connection_pool,
             replica_connection_pool: self.replica_connection_pool,
-            fee_model_provider,
+            batch_fee_input_provider: fee_model_provider,
             api_contracts,
             rate_limiter: self.rate_limiter,
             proxy: self.proxy,
@@ -261,7 +261,7 @@ pub struct TxSenderInner<G> {
     pub master_connection_pool: Option<ConnectionPool>,
     pub replica_connection_pool: ConnectionPool,
     /// Provides the fee params to the `TxSender`.
-    pub fee_model_provider: Arc<G>,
+    pub batch_fee_input_provider: Arc<G>,
     pub(super) api_contracts: ApiContracts,
     /// Optional rate limiter that will limit the amount of transactions per second sent from a single entity.
     rate_limiter: Option<TxSenderRateLimiter>,
@@ -294,7 +294,7 @@ impl<G> std::fmt::Debug for TxSender<G> {
     }
 }
 
-impl<G: FeeBatchInputProvider> TxSender<G> {
+impl<G: BatchFeeModelInputProvider> TxSender<G> {
     pub(crate) fn vm_concurrency_limiter(&self) -> Arc<VmConcurrencyLimiter> {
         Arc::clone(&self.0.vm_concurrency_limiter)
     }
@@ -410,7 +410,7 @@ impl<G: FeeBatchInputProvider> TxSender<G> {
     fn shared_args(&self) -> TxSharedArgs {
         TxSharedArgs {
             operator_account: AccountTreeId::new(self.0.sender_config.fee_account_addr),
-            fee_model_params: self.0.fee_model_provider.get_fee_model_params(false),
+            batch_fee_model_input: self.0.batch_fee_input_provider.get_fee_model_params(false),
             base_system_contracts: self.0.api_contracts.eth_call.clone(),
             caches: self.storage_caches(),
             validation_computational_gas_limit: self
@@ -429,7 +429,7 @@ impl<G: FeeBatchInputProvider> TxSender<G> {
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
 
-        let fee_model = self.0.fee_model_provider.get_fee_model_params(false);
+        let fee_model = self.0.batch_fee_input_provider.get_fee_model_params(false);
 
         // TODO (SMA-1715): do not subsidize the overhead for the transaction
 
@@ -585,7 +585,7 @@ impl<G: FeeBatchInputProvider> TxSender<G> {
         vm_permit: VmPermit,
         mut tx: Transaction,
         tx_gas_limit: u32,
-        fee_model_params: FeeModelOutput,
+        fee_model_params: BatchFeeModelInput,
         base_fee: u64,
     ) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics) {
         let gas_limit_with_overhead = tx_gas_limit + derive_overhead(tx.encoding_len());
@@ -626,12 +626,12 @@ impl<G: FeeBatchInputProvider> TxSender<G> {
         (exec_result, tx_metrics)
     }
 
-    fn shared_args_for_gas_estimate(&self, fee_model_params: FeeModelOutput) -> TxSharedArgs {
+    fn shared_args_for_gas_estimate(&self, fee_model_params: BatchFeeModelInput) -> TxSharedArgs {
         let config = &self.0.sender_config;
 
         TxSharedArgs {
             operator_account: AccountTreeId::new(config.fee_account_addr),
-            fee_model_params,
+            batch_fee_model_input: fee_model_params,
             // We want to bypass the computation gas limit check for gas estimation
             validation_computational_gas_limit: BLOCK_GAS_LIMIT,
             base_system_contracts: self.0.api_contracts.estimate_gas.clone(),
@@ -647,7 +647,7 @@ impl<G: FeeBatchInputProvider> TxSender<G> {
         acceptable_overestimation: u32,
     ) -> Result<Fee, SubmitTxError> {
         let estimation_started_at = Instant::now();
-        let mut fee_model = self.0.fee_model_provider.get_fee_model_params(true);
+        let mut fee_model = self.0.batch_fee_input_provider.get_fee_model_params(true);
         adjust_pubdata_price_for_tx(&mut fee_model, tx.gas_per_pubdata_byte_limit());
 
         let (base_fee, gas_per_pubdata_byte) = derive_base_fee_and_gas_per_pubdata(
@@ -727,9 +727,7 @@ impl<G: FeeBatchInputProvider> TxSender<G> {
                     "exceeds limit for published pubdata".to_string(),
                 ));
             }
-            let result = pubdata_for_factory_deps * (gas_per_pubdata_byte as u32);
-
-            result
+            pubdata_for_factory_deps * (gas_per_pubdata_byte as u32)
         };
 
         // We are using binary search to find the minimal values of gas_limit under which
@@ -848,7 +846,7 @@ impl<G: FeeBatchInputProvider> TxSender<G> {
     }
 
     pub fn gas_price(&self) -> u64 {
-        let fee_model_params = self.0.fee_model_provider.get_fee_model_params(true);
+        let fee_model_params = self.0.batch_fee_input_provider.get_fee_model_params(true);
 
         let (base_fee, _) = derive_base_fee_and_gas_per_pubdata(
             fee_model_params.fair_pubdata_price,

@@ -12,6 +12,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
 use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
+use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::MiniblockHeader, fee::TransactionExecutionMetrics, tx::IncludedTxLocation, Address,
     L1BatchNumber, ProtocolVersionId, VmEvent, H256, U64,
@@ -43,7 +44,7 @@ impl L1GasPriceProvider for MockL1GasPriceProvider {
     }
 
     fn estimate_effective_pubdata_price(&self) -> u64 {
-        self.0 * 17
+        self.0 * L1_GAS_PER_PUBDATA_BYTE
     }
 }
 
@@ -217,7 +218,7 @@ fn create_miniblock(number: u32) -> MiniblockHeader {
         base_fee_per_gas: 100,
         l1_gas_price: 100,
         l2_fair_gas_price: 100,
-        l1_fair_pubdata_price: 1700,
+        fair_pubdata_price: 1700,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         virtual_blocks: 1,

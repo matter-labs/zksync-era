@@ -7,12 +7,12 @@ use zksync_web3_decl::{jsonrpsee::core::RpcResult, namespaces::SnapshotsNamespac
 
 use crate::{
     api_server::web3::{backend_jsonrpsee::into_jsrpc_error, namespaces::SnapshotsNamespace},
-    fee_model::FeeBatchInputProvider,
+    fee_model::BatchFeeModelInputProvider,
     l1_gas_price::L1GasPriceProvider,
 };
 
 #[async_trait]
-impl<G: FeeBatchInputProvider + Send + Sync + 'static> SnapshotsNamespaceServer
+impl<G: BatchFeeModelInputProvider + Send + Sync + 'static> SnapshotsNamespaceServer
     for SnapshotsNamespace<G>
 {
     async fn get_all_snapshots(&self) -> RpcResult<AllSnapshots> {

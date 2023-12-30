@@ -6,7 +6,7 @@ use zksync_web3_decl::error::Web3Error;
 
 use crate::{
     api_server::web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, state::RpcState},
-    fee_model::FeeBatchInputProvider,
+    fee_model::BatchFeeModelInputProvider,
     l1_gas_price::L1GasPriceProvider,
 };
 
@@ -22,7 +22,7 @@ impl<G> Clone for SnapshotsNamespace<G> {
         }
     }
 }
-impl<G: FeeBatchInputProvider> SnapshotsNamespace<G> {
+impl<G: BatchFeeModelInputProvider> SnapshotsNamespace<G> {
     pub fn new(state: RpcState<G>) -> Self {
         Self { state }
     }
