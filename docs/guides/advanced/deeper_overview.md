@@ -211,7 +211,7 @@ how we were operating on regular 'Variables' above).
 
 ### CSSelectable
 
-Implements the `Selectable` trait - that allows this struct to participage in operations like conditionally select (so
+Implements the `Selectable` trait - that allows this struct to participate in operations like conditionally select (so
 it can be used as 'a' or 'b' in the Select gate example above).
 
 ### CSVarLengthEncodable
