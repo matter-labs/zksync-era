@@ -6,6 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use c_kzg::{KzgCommitment, Bytes32, KzgProof, Blob};
 use itertools::Itertools;
 use multivm::interface::{FinishedL1Batch, L1BatchEnv};
 use zksync_dal::{blocks_dal::ConsensusBlockFields, StorageProcessor};
@@ -15,7 +16,7 @@ use zksync_types::{
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
     l1::L1Tx,
     l2::L2Tx,
-    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log, L2ToL1Log},
     protocol_version::ProtocolUpgradeTx,
     storage_writes_deduplicator::{ModifiedSlot, StorageWritesDeduplicator},
     tx::{
@@ -25,7 +26,7 @@ use zksync_types::{
     zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
     AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, LogQuery,
     MiniblockNumber, StorageKey, StorageLog, StorageLogQuery, StorageValue, Transaction, VmEvent,
-    CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS,
+    CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS, commitment::SerializeCommitment,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::{h256_to_u256, time::millis_since_epoch, u256_to_h256};
@@ -115,6 +116,10 @@ impl UpdatesManager {
 
         let l2_to_l1_messages =
             extract_long_l2_to_l1_messages(&finished_batch.final_execution_state.events);
+
+        // let kzg_blob_information = construct_kzg_info(
+        //     pubda
+        // )
 
         let l1_batch = L1BatchHeader {
             number: l1_batch_env.number,
@@ -653,4 +658,47 @@ fn log_query_write_read_counts<'a>(logs: impl Iterator<Item = &'a LogQuery>) -> 
 
 fn storage_log_query_write_read_counts(logs: &[StorageLogQuery]) -> (usize, usize) {
     log_query_write_read_counts(logs.iter().map(|log| &log.log_query))
+}
+
+pub struct KZGInfo {
+    pub blob: Bytes32,
+    pub kzg_commitment: KzgCommitment,
+    pub opening_point: Bytes32,
+    pub opening_value: Bytes32,
+    pub proof: KzgProof,
+}
+
+pub const BLOB_SIZE_BYTES: usize = 131_072;
+
+fn construct_kzg_info(pubdata: Vec<u8>, system_logs: Vec<u8>) -> Vec<KZGInfo> {
+
+    let blobs_rolling_commitment = system_logs.chunks(L2ToL1Log::SERIALIZED_SIZE)
+        .map(L2ToL1Log::from_slice)
+        // 8 in the new value for the system logs that pertains to the blobs rolling hash
+        .filter(|log| log.key == H256::from_low_u64_be(8_u64))
+        .exactly_one()
+        .expect("failed to get blob linear hash from system logs")
+        .value
+        .as_fixed_bytes();
+
+    // pubdata -> blob
+    // blob -> polynomial
+    // compute Z
+    // evaluate polynomial at Z for Y
+    // polynomial -> kzg commitment
+    // kzg, z, y -> proof
+
+    let mut blobs: Vec<Blob> = vec![];
+
+    for i in (0..pubdata.len()).step_by(BLOB_SIZE_BYTES) {
+        let mut blob = [0u8; BLOB_SIZE_BYTES];
+        blob.copy_from_slice(&pubdata[i..i + BLOB_SIZE_BYTES]);
+        blobs.push(Blob::new(blob));
+    }
+
+    let polynomials = blobs.iter()
+        .map(|blob| blob);
+    
+
+    vec![]
 }

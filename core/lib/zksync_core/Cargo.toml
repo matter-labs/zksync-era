@@ -85,7 +85,8 @@ actix-web = "4.0.0-beta.8"
 
 tracing = "0.1.26"
 
-c-kzg = { git = "https://github.com/ethereum/c-kzg-4844.git", rev = "e266280d88f006b23925c5062476b316d5407cb1" }
+# c-kzg = { git = "https://github.com/ethereum/c-kzg-4844.git", rev = "e266280d88f006b23925c5062476b316d5407cb1" }
+kzg = { git = "https://github.com/sifraitech/rust-kzg.git", package = "rust-kzg-blst" }
 
 [dev-dependencies]
 zksync_test_account = { path = "../test_account" }
