@@ -247,7 +247,7 @@ pub struct ZkSyncUniformCircuitInstance<F: SmallField, S: ZkSyncUniformSynthesis
     pub witness: AtomicCell<Option<S::Witness>>,
 
     // Configuration - that is circuit specific, in case of MainVM - the configuration
-    // is simply the amount of opcodes that we put wihtin 1 circuit.
+    // is simply the amount of opcodes that we put within 1 circuit.
     pub config: std::sync::Arc<S::Config>,
 
     // Circuit 'friendly' hash function.
@@ -363,7 +363,7 @@ entry_point_code: Vec<[u8; 32]>, // for read lobkc must be a bootloader code
 initial_heap_content: Vec<u8>, // bootloader starts with non-deterministic heap
     zk_porter_is_available: bool,
     default_aa_code_hash: U256,
-used_bytecodes: std::collections::HashMap<U256, Vec<[u8; 32]>>, // auxilary information to avoid passing a full set of all used codes
+used_bytecodes: std::collections::HashMap<U256, Vec<[u8; 32]>>, // auxiliary information to avoid passing a full set of all used codes
 ram_verification_queries: Vec<(u32, U256)>, // we may need to check that after the bootloader's memory is filled
     cycle_limit: usize,
 round_function: R, // used for all queues implementation
