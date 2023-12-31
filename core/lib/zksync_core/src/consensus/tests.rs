@@ -1,7 +1,9 @@
 use zksync_concurrency::{ctx, scope};
 use zksync_consensus_executor::testonly::ValidatorNode;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool,connection::TestTemplate};
 use zksync_types::Address;
+use zksync_consensus_storage as storage;
+use crate::consensus::storage::PostgresBlockStore;
 
 use super::*;
 
@@ -57,10 +59,20 @@ async fn test_backfill() {
         sk.validate_consensus(ctx, &pool, &validators)
             .await
             .context("sk.validate_consensus()")?;
-        Ok(())
+        Ok(()) 
     })
     .await
     .unwrap();
+
+    let store = PostgresStore::new(pool.clone(),OPERATOR_ADDRESS);
+    let store = PostgresBlockStore { inner: store, cursor: None };
+    let s1 = storage::testonly::dump(ctx,&store).await;
+    let template = TestTemplate::freeze(pool).await.unwrap(); 
+    let pool = template.create_db().await.unwrap();
+    let store = PostgresStore::new(pool.clone(),OPERATOR_ADDRESS);
+    let store = PostgresBlockStore { inner: store, cursor: None };
+    let s2 = storage::testonly::dump(ctx,&store).await;
+    assert_eq!(s1,s2);
 
     // TODO: restart node and continue.
 }

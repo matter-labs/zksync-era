@@ -97,11 +97,11 @@ impl TestTemplate {
         url
     }
 
-    async fn connect_to_server(&self) -> sqlx::Result<sqlx::PgConnection> {
+    async fn connect_to(db_url: &url::Url) -> sqlx::Result<sqlx::PgConnection> {
         use sqlx::Connection as _;
         let mut attempts = 10;
         loop {
-            match sqlx::PgConnection::connect(self.url("").as_ref()).await {
+            match sqlx::PgConnection::connect(db_url.as_ref()).await {
                 Ok(conn) => return Ok(conn),
                 Err(err) => {
                     attempts -= 1;
@@ -114,23 +114,24 @@ impl TestTemplate {
         }
     }
     /// Obtains the test database URL from the environment variable.
-    pub fn empty() -> Self {
+    pub fn empty() -> anyhow::Result<Self> {
         let db_url = env::var("TEST_DATABASE_URL").context(
             "TEST_DATABASE_URL must be set. Normally, this is done by the 'zk' tool. \
             Make sure that you are running the tests with 'zk test rust' command or equivalent.",
-        ).unwrap();
-        Self(db_url.parse().unwrap())
+        )?;
+        Ok(Self(db_url.parse()?))
     }
 
     /// Closes the connection pool, disallows connecting to the underlying db,
     /// so that the db can be used as a template.
-    pub async fn freeze(pool: ConnectionPool) -> Self {
+    pub async fn freeze(pool: ConnectionPool) -> anyhow::Result<Self> {
         use sqlx::{Executor as _};
         pool.inner.close().await;
-        let this = Self(pool.database_url.parse().unwrap());
-        let mut conn = this.connect_to_server().await.unwrap(); 
-        conn.execute(format!("update pg_database set datallowconn = false where datname = \"{}\"",this.db_name()).as_str()).await.unwrap();
-        this
+        let this = Self(pool.database_url.parse()?);
+        let mut conn = Self::connect_to(&this.0).await.context("connect_to()")?; 
+        conn.execute(format!("UPDATE pg_database SET datallowconn = false WHERE datname = current_database()").as_str()).await
+            .context("SET dataallowconn = false")?;
+        Ok(this)
     } 
 
     /// Constructs a new temporary database (with a randomized name)
@@ -141,35 +142,35 @@ impl TestTemplate {
     /// whenever you write to the DBs, therefore making it as fast as an in-memory Postgres instance.
     /// The database is not cleaned up automatically, but rather the whole Postgres
     /// container is recreated whenever you call "zk test rust".
-    pub async fn create_db(&self) -> ConnectionPool {
+    pub async fn create_db(&self) -> anyhow::Result<ConnectionPool> {
         use rand::Rng as _;
         use sqlx::{Executor as _};
 
-        let mut conn = self.connect_to_server().await.unwrap(); 
+        let mut conn = Self::connect_to(&self.url("")).await.context("connect_to()")?; 
         let db_old = self.db_name();
         let db_new = format!("test-{}", rand::thread_rng().gen::<u64>());
         conn.execute(
             format!("CREATE DATABASE \"{db_new}\" WITH TEMPLATE \"{db_old}\"").as_str(),
         )
-        .await.unwrap();
+        .await.context("CREATE DATABASE")?;
         
         const TEST_MAX_CONNECTIONS: u32 = 50; // Expected to be enough for any unit test.
         ConnectionPool::builder(self.url(&db_new).as_ref(), TEST_MAX_CONNECTIONS)
             .build()
             .await
-            .unwrap()
+            .context("ConnectionPool::builder()")
     }
 }
 
 impl ConnectionPool {
     pub async fn test_pool() -> ConnectionPool {
-        TestTemplate::empty().create_db().await
+        TestTemplate::empty().unwrap().create_db().await.unwrap()
     }
 
     /// Initializes a builder for connection pools.
     pub fn builder(database_url: &str, max_pool_size: u32) -> ConnectionPoolBuilder {
         ConnectionPoolBuilder {
-            database_url: database_url.parse().unwrap(),
+            database_url: database_url.to_string(),
             max_size: max_pool_size,
             statement_timeout: None,
         }
@@ -278,8 +279,9 @@ mod tests {
 
     #[tokio::test]
     async fn setting_statement_timeout() {
-        let db_url = TestTemplate::empty().create_db() 
+        let db_url = TestTemplate::empty().unwrap().create_db() 
             .await
+            .unwrap()
             .database_url;
 
         let pool = ConnectionPool::singleton(&db_url)

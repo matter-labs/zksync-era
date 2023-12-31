@@ -76,7 +76,7 @@ impl<'a> CtxStorage<'a> {
 }
 
 #[derive(Debug)]
-struct Cursor {
+pub(super) struct Cursor {
     inner: Mutex<FetcherCursor>,
     actions: ActionQueueSender,
 }
@@ -90,9 +90,9 @@ pub(super) struct PostgresStore {
 }
 
 #[derive(Debug)]
-struct PostgresBlockStore {
-    inner: PostgresStore,
-    cursor: Option<Cursor>,
+pub(super) struct PostgresBlockStore {
+    pub(super) inner: PostgresStore,
+    pub(super) cursor: Option<Cursor>,
 }
 
 impl PostgresStore {
