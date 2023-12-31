@@ -36,6 +36,7 @@ use zksync_prover_utils::periodic_job::PeriodicJob;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
+    fee_model::MainNodeFeeModelConfig,
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
     L2ChainId, PackedEthSignature, ProtocolVersionId,
@@ -53,7 +54,7 @@ use crate::{
     basic_witness_input_producer::BasicWitnessInputProducer,
     eth_sender::{Aggregator, EthTxAggregator, EthTxManager},
     eth_watch::start_eth_watch,
-    fee_model::{BatchFeeModelInputProvider, MainNodeFeeInputProvider, MainNodeFeeModelConfig},
+    fee_model::{BatchFeeModelInputProvider, MainNodeFeeInputProvider},
     house_keeper::{
         blocks_state_reporter::L1BatchMetricsReporter,
         fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager,

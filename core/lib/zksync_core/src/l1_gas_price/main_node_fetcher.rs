@@ -8,14 +8,14 @@ use std::{
 
 use tokio::sync::watch::Receiver;
 use zksync_system_constants::{GAS_PER_PUBDATA_BYTE, L1_GAS_PER_PUBDATA_BYTE};
-use zksync_types::fee_model::BatchFeeModelInput;
+use zksync_types::fee_model::{BatchFeeModelInput, MainNodeFeeModelConfig, MainNodeFeeParams};
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::ZksNamespaceClient,
 };
 
 use super::L1GasPriceProvider;
-use crate::fee_model::BatchFeeModelInputProvider;
+use crate::fee_model::{compute_batch_fee_model_input, BatchFeeModelInputProvider};
 
 const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
@@ -28,17 +28,17 @@ const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 #[derive(Debug)]
 pub struct MainNodeBatchFeeInputFetcher {
     client: HttpClient,
-    fee_model_output: RwLock<BatchFeeModelInput>,
+    fee_model_output: RwLock<MainNodeFeeParams>,
 }
 
 impl MainNodeBatchFeeInputFetcher {
     pub fn new(main_node_url: &str) -> Self {
         Self {
             client: Self::build_client(main_node_url),
-            fee_model_output: RwLock::new(BatchFeeModelInput {
+            fee_model_output: RwLock::new(MainNodeFeeParams {
                 l1_gas_price: 1_000_000_000,
-                fair_pubdata_price: 17_000_000_000,
-                fair_l2_gas_price: 1_000_000_000,
+                l1_pubdata_price: 17_000_000_000,
+                config: Default::default(),
             }),
         }
     }
@@ -56,7 +56,7 @@ impl MainNodeBatchFeeInputFetcher {
                 break;
             }
 
-            let main_node_fee_params = match self.client.get_main_node_batch_fee_input().await {
+            let main_node_fee_params = match self.client.get_main_node_fee_params().await {
                 Ok(price) => price,
                 Err(err) => {
                     tracing::warn!("Unable to get the gas price: {}", err);
@@ -75,8 +75,7 @@ impl MainNodeBatchFeeInputFetcher {
 }
 
 impl BatchFeeModelInputProvider for MainNodeBatchFeeInputFetcher {
-    // TODO: use scale l1 gas prices
-    fn get_fee_model_params(&self, scale_l1_prices: bool) -> BatchFeeModelInput {
+    fn get_fee_model_params(&self) -> MainNodeFeeParams {
         self.fee_model_output.read().unwrap().clone()
     }
 }

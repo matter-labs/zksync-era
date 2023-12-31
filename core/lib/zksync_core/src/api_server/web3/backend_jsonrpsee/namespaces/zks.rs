@@ -7,7 +7,7 @@ use zksync_types::{
         TransactionDetails,
     },
     fee::Fee,
-    fee_model::BatchFeeModelInput,
+    fee_model::{BatchFeeModelInput, MainNodeFeeModelConfig, MainNodeFeeParams},
     transaction_request::CallRequest,
     Address, L1BatchNumber, MiniblockNumber, H256, U256, U64,
 };
@@ -140,8 +140,8 @@ impl<G: BatchFeeModelInputProvider + Send + Sync + 'static> ZksNamespaceServer f
         Ok(self.get_l1_gas_price_impl())
     }
 
-    async fn get_main_node_batch_fee_input(&self) -> RpcResult<BatchFeeModelInput> {
-        Ok(self.get_main_node_batch_fee_input())
+    async fn get_main_node_fee_params(&self) -> RpcResult<MainNodeFeeParams> {
+        Ok(self.get_main_node_fee_params())
     }
 
     async fn get_protocol_version(

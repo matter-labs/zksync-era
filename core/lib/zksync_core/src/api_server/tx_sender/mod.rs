@@ -410,7 +410,7 @@ impl<G: BatchFeeModelInputProvider> TxSender<G> {
     fn shared_args(&self) -> TxSharedArgs {
         TxSharedArgs {
             operator_account: AccountTreeId::new(self.0.sender_config.fee_account_addr),
-            batch_fee_model_input: self.0.batch_fee_input_provider.get_fee_model_params(false),
+            batch_fee_model_input: self.0.batch_fee_input_provider.get_batch_fee_input(false),
             base_system_contracts: self.0.api_contracts.eth_call.clone(),
             caches: self.storage_caches(),
             validation_computational_gas_limit: self
@@ -429,7 +429,7 @@ impl<G: BatchFeeModelInputProvider> TxSender<G> {
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
 
-        let fee_model = self.0.batch_fee_input_provider.get_fee_model_params(false);
+        let fee_model = self.0.batch_fee_input_provider.get_batch_fee_input(false);
 
         // TODO (SMA-1715): do not subsidize the overhead for the transaction
 
@@ -647,7 +647,7 @@ impl<G: BatchFeeModelInputProvider> TxSender<G> {
         acceptable_overestimation: u32,
     ) -> Result<Fee, SubmitTxError> {
         let estimation_started_at = Instant::now();
-        let mut fee_model = self.0.batch_fee_input_provider.get_fee_model_params(true);
+        let mut fee_model = self.0.batch_fee_input_provider.get_batch_fee_input(true);
         adjust_pubdata_price_for_tx(&mut fee_model, tx.gas_per_pubdata_byte_limit());
 
         let (base_fee, gas_per_pubdata_byte) = derive_base_fee_and_gas_per_pubdata(
@@ -846,7 +846,7 @@ impl<G: BatchFeeModelInputProvider> TxSender<G> {
     }
 
     pub fn gas_price(&self) -> u64 {
-        let fee_model_params = self.0.batch_fee_input_provider.get_fee_model_params(true);
+        let fee_model_params = self.0.batch_fee_input_provider.get_batch_fee_input(true);
 
         let (base_fee, _) = derive_base_fee_and_gas_per_pubdata(
             fee_model_params.fair_pubdata_price,

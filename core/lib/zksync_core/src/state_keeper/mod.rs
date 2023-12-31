@@ -19,7 +19,7 @@ pub(crate) use self::{
     mempool_actor::MempoolFetcher, seal_criteria::ConditionalSealer, types::MempoolGuard,
 };
 use crate::{
-    fee_model::{BatchFeeModelInputProvider, MainNodeFeeInputProvider, MainNodeFeeModelConfig},
+    fee_model::{BatchFeeModelInputProvider, MainNodeFeeInputProvider},
     l1_gas_price::L1GasPriceProvider,
 };
 

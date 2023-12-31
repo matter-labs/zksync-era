@@ -54,7 +54,7 @@ impl DebugNamespace {
                 .tx_sender
                 .0
                 .batch_fee_input_provider
-                .get_fee_model_params(true),
+                .get_batch_fee_input(true),
             api_contracts,
             vm_execution_cache_misses_limit: sender_config.vm_execution_cache_misses_limit,
             vm_concurrency_limiter: state.tx_sender.vm_concurrency_limiter(),
