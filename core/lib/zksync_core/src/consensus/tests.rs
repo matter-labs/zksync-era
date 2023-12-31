@@ -1,6 +1,5 @@
 use zksync_concurrency::{ctx, scope};
 use zksync_consensus_executor::testonly::ValidatorNode;
-use zksync_consensus_roles::validator;
 use zksync_dal::ConnectionPool;
 use zksync_types::Address;
 
@@ -12,7 +11,6 @@ use super::*;
 #[tokio::test(flavor = "multi_thread")]
 async fn test_backfill() {
     const OPERATOR_ADDRESS: Address = Address::repeat_byte(17);
-    const GENESIS_BLOCK: validator::BlockNumber = validator::BlockNumber(5);
 
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
@@ -25,17 +23,16 @@ async fn test_backfill() {
         s.spawn_bg(sk_runner.run(ctx, &pool));
 
         // Populate storage with a bunch of blocks.
-        sk.push_random_blocks(rng, 10).await;
+        sk.push_random_blocks(rng, 5).await;
         sk.sync(ctx, &pool).await.context("sk.sync(<1st phase>)")?;
 
         let cfg = ValidatorNode::for_single_validator(&mut ctx.rng());
         let validators = cfg.node.validators.clone();
 
-        // Start consensus actor and wait for it to catch up.
+        // Start consensus actor and wait for it to create a genesis block.
         let cfg = Config {
             executor: cfg.node,
             validator: cfg.validator,
-            genesis_block_number: GENESIS_BLOCK,
             operator_address: OPERATOR_ADDRESS,
         };
         s.spawn_bg(cfg.run(ctx, pool.clone()));
@@ -57,11 +54,13 @@ async fn test_backfill() {
                 .context("sk.sync_consensus(<3rd phase>)")?;
         }
 
-        sk.validate_consensus(ctx, &pool, GENESIS_BLOCK, &validators)
+        sk.validate_consensus(ctx, &pool, &validators)
             .await
             .context("sk.validate_consensus()")?;
         Ok(())
     })
     .await
     .unwrap();
+
+    // TODO: restart node and continue.
 }

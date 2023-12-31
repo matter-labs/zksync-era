@@ -72,7 +72,7 @@ impl TryFrom<SyncBlock> for FetchedBlock {
 #[derive(Debug)]
 pub struct FetcherCursor {
     // Fields are public for testing purposes.
-    pub(super) next_miniblock: MiniblockNumber,
+    pub(crate) next_miniblock: MiniblockNumber,
     pub(super) prev_miniblock_hash: H256,
     pub(super) l1_batch: L1BatchNumber,
 }
@@ -119,7 +119,7 @@ impl FetcherCursor {
         })
     }
 
-    pub(super) fn advance(&mut self, block: FetchedBlock) -> Vec<SyncAction> {
+    pub(crate) fn advance(&mut self, block: FetchedBlock) -> Vec<SyncAction> {
         assert_eq!(block.number, self.next_miniblock);
         let local_block_hash = block.compute_hash(self.prev_miniblock_hash);
         if let Some(reference_hash) = block.reference_hash {

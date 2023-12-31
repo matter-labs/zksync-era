@@ -10,6 +10,7 @@ use zksync_types::{
 };
 
 use crate::{
+    consensus::storage::CtxStorage,
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
         tests::{create_l1_batch_metadata, create_l2_transaction, MockBatchExecutorBuilder},
@@ -74,7 +75,6 @@ impl MockMainNodeClient {
                 virtual_blocks: Some(!is_fictive as u32),
                 hash: Some(miniblock_hash),
                 protocol_version: ProtocolVersionId::latest(),
-                consensus: None,
             }
         });
 
@@ -133,7 +133,7 @@ impl MainNodeClient for MockMainNodeClient {
     }
 }
 
-pub(crate) struct StateKeeperHandle {
+pub(super) struct StateKeeperHandle {
     next_batch: L1BatchNumber,
     next_block: MiniblockNumber,
     next_timestamp: u64,
@@ -146,7 +146,7 @@ pub(crate) struct StateKeeperHandle {
     actions_sender: ActionQueueSender,
 }
 
-pub(crate) struct StateKeeperRunner {
+pub(super) struct StateKeeperRunner {
     actions_queue: ActionQueue,
     operator_address: Address,
 }
@@ -256,14 +256,9 @@ impl StateKeeperHandle {
     ) -> anyhow::Result<()> {
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
         loop {
-            let mut storage = pool.access_storage().await.context("access_storage()")?;
-            if let Some(head) = storage
-                .blocks_dal()
-                .get_last_miniblock_number_with_consensus_fields()
-                .await
-                .context("get_last_miniblock_number_with_consensus_fields()")?
-            {
-                if head.0 >= self.next_block.0 - 1 {
+            let mut storage = CtxStorage::access(ctx,&pool).await.context("access_storage()")?;
+            if let Some(last) = storage.last_certificate(ctx).await.context("storage.last_certificate()")? {
+                if last.header().number.0 >= (self.next_block.0 - 1) as u64 {
                     return Ok(());
                 }
             }
@@ -276,25 +271,31 @@ impl StateKeeperHandle {
         &self,
         ctx: &ctx::Ctx,
         pool: &ConnectionPool,
-        genesis: validator::BlockNumber,
         validators: &validator::ValidatorSet,
     ) -> anyhow::Result<()> {
-        let mut storage = super::storage::CtxStorage(ctx, pool)
+        let mut storage = CtxStorage::access(ctx, pool)
             .await
             .context("storage()")?;
-        for i in genesis.0..self.next_block.0 as u64 {
-            let block = storage
-                .fetch_block(ctx, validator::BlockNumber(i), self.operator_address)
-                .await?
-                .with_context(|| format!("missing block {i}"))?;
-            block.validate(validators, 1).unwrap();
+        let genesis_cert = storage.first_certificate(ctx).await
+            .context("first_certificate()")?
+            .context("genesis missing")?;
+        for i in genesis_cert.header().number.0..self.next_block.0 as u64 {
+            let number = validator::BlockNumber(i);
+            let justification = storage.certificate(ctx, number).await
+                .with_context(||format!("storage.certificate({i})"))?
+                .with_context(|| format!("missing cert {i}"))?;
+            let payload = storage.payload(ctx, number, self.operator_address).await
+                .with_context(||format!("storage.payload({i})"))?
+                .with_context(||format!("missing payload {i}"))?;
+            let block = validator::FinalBlock { payload: payload.encode(), justification };
+            block.validate(validators, 1).context(i)?;
         }
         Ok(())
     }
 }
 
 // Waits for L1 batches to be sealed and then populates them with mock metadata.
-async fn run_mock_metadata_calculator(ctx: &ctx::Ctx, pool: ConnectionPool) -> anyhow::Result<()> {
+async fn run_mock_metadata_calculator(ctx: &ctx::Ctx, pool: &ConnectionPool) -> anyhow::Result<()> {
     const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
     let mut n = L1BatchNumber(1);
     while let Ok(()) = ctx.sleep(POLL_INTERVAL).await {
@@ -349,7 +350,7 @@ impl StateKeeperRunner {
             )
             .await;
             s.spawn_bg(miniblock_sealer.run());
-            s.spawn_bg(run_mock_metadata_calculator(ctx, pool.clone()));
+            s.spawn_bg(run_mock_metadata_calculator(ctx, &pool));
             s.spawn_bg(
                 ZkSyncStateKeeper::without_sealer(
                     stop_receiver,

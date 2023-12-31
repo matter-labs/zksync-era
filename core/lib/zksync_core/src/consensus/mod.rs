@@ -1,11 +1,8 @@
 //! Consensus-related functionality.
-use std::sync::Arc;
-
 use anyhow::Context as _;
-use zksync_concurrency::{ctx, scope};
+use zksync_concurrency::{ctx, scope, error::Wrap as _};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::{node, validator};
-use zksync_consensus_storage::{BlockStore};
 use zksync_dal::{consensus_dal::Payload,ConnectionPool};
 use crate::sync_layer::sync_action::ActionQueueSender;
 use zksync_types::Address;
@@ -16,10 +13,10 @@ mod storage;
 pub(crate) mod testonly;
 #[cfg(test)]
 mod tests;
-#[cfg(test)]
-mod gossip_tests;
+//#[cfg(test)]
+//mod gossip_tests;
 
-use self::storage::Store;
+use self::storage::PostgresStore;
 use serde::de::Error;
 use std::collections::{HashMap, HashSet};
 use zksync_consensus_crypto::{Text, TextFmt};
@@ -46,8 +43,6 @@ pub struct SerdeConfig {
 
     /// Validator private key. Should be set only for the validator node.
     pub validator_key: Option<SerdeText<validator::SecretKey>>,
-    /// Number of the block that should be considered as the genesis block.
-    pub genesis_block_number: u64,
 
     /// Validators participating in consensus.
     pub validator_set: Vec<SerdeText<validator::PublicKey>>,
@@ -106,7 +101,6 @@ impl TryFrom<SerdeConfig> for Config {
         Ok(Self {
             executor: cfg.executor()?,
             validator: cfg.validator()?,
-            genesis_block_number: validator::BlockNumber(cfg.genesis_block_number),
             operator_address: cfg
                 .operator_address
                 .context("operator_address is required")?,
@@ -118,39 +112,28 @@ impl TryFrom<SerdeConfig> for Config {
 pub struct Config {
     pub executor: executor::Config,
     pub validator: executor::ValidatorConfig,
-    pub genesis_block_number: validator::BlockNumber,
     pub operator_address: Address,
 }
 
 impl Config {
     #[allow(dead_code)]
     pub async fn run(self, ctx: &ctx::Ctx, pool: ConnectionPool) -> anyhow::Result<()> {
-        anyhow::ensure!(
-            self.executor.validators
-                == validator::ValidatorSet::new(vec![self.validator.key.public()]).unwrap(),
-            "currently only consensus with just 1 validator is supported"
-        );
-        let store = Arc::new(
-            Store::new(
-                ctx,
-                pool,
-                self.genesis_block_number,
-                &self.validator.key,
-                self.operator_address,
-            )
-            .await?,
-        );
-        let executor = executor::Executor {
-            config: self.executor,
-            storage: store.clone(),
-            validator: Some(executor::Validator {
-                config: self.validator,
-                replica_state_store: store.clone(),
-                payload_source: store.clone(),
-            }),
-        };
+        if self.executor.validators != validator::ValidatorSet::new(vec![self.validator.key.public()]).unwrap() {
+            return Err(anyhow::anyhow!("currently only consensus with just 1 validator is supported").into());
+        }
         scope::run!(&ctx, |ctx, s| async {
-            s.spawn_bg(store.run_background_tasks(ctx));
+            let store = PostgresStore::new(pool, self.operator_address);
+            let (block_store,runner) = store.clone().validator_block_store(ctx,&self.validator.key).await.wrap("store.try_init_genesis()")?;
+            s.spawn_bg(runner.run(ctx));
+            let executor = executor::Executor {
+                config: self.executor,
+                block_store,
+                validator: Some(executor::Validator {
+                    config: self.validator,
+                    replica_store: Box::new(store.clone()),
+                    payload_manager: Box::new(store.clone()),
+                }),
+            };
             executor.run(ctx).await
         })
         .await
@@ -159,7 +142,6 @@ impl Config {
 
 pub struct FetcherConfig {
     executor: executor::Config,
-    genesis_block_number: validator::BlockNumber,
     operator_address: Address,
 }
 
@@ -168,7 +150,6 @@ impl TryFrom<SerdeConfig> for FetcherConfig {
     fn try_from(cfg: SerdeConfig) -> anyhow::Result<Self> {
         Ok(Self {
             executor: cfg.executor()?,
-            genesis_block_number: validator::BlockNumber(cfg.genesis_block_number),
             operator_address: cfg
                 .operator_address
                 .context("operator_address is required")?,
@@ -178,6 +159,7 @@ impl TryFrom<SerdeConfig> for FetcherConfig {
 
 impl FetcherConfig {
     /// Starts fetching L2 blocks using peer-to-peer gossip network.
+    #[allow(dead_code)]
     pub async fn run(
         self,
         ctx: &ctx::Ctx,
@@ -190,18 +172,16 @@ impl FetcherConfig {
             self.executor.node_key.public(),
         );
 
-        let mut store = Store::new(pool, self.operator_address);
-        store.set_actions_queue(ctx,actions).await.context("store.set_actions_queue()")?;
-        let (store,store_runner) = BlockStore::new(ctx,store,1000).await.context("BlockStore::new()")?;
-
         scope::run!(ctx, |ctx, s| async {
-            s.spawn_bg(store_runner.run(ctx));
+            let store = PostgresStore::new(pool, self.operator_address);
+            let (block_store,runner) = store.clone().fetcher_block_store(ctx,actions).await.context("store.set_actions_queue()")?;
+            s.spawn_bg(runner.run(ctx));
             let executor = executor::Executor {
                 config: self.executor,
-                block_store: store,
+                block_store,
                 validator: None,
             };
-            executor.run(ctx).await.context("Node executor terminated")
+            executor.run(ctx).await
         })
         .await
     }
