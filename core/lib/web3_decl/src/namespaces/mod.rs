@@ -16,6 +16,6 @@ pub use self::{
 #[cfg(feature = "server")]
 pub use self::{
     debug::DebugNamespaceServer, en::EnNamespaceServer, eth::EthNamespaceServer,
-    net::NetNamespaceServer, snapshots::SnapshotsNamespaceClient, web3::Web3NamespaceServer,
-    zks::ZksNamespaceServer,
+    eth::EthPubSubServer, net::NetNamespaceServer, snapshots::SnapshotsNamespaceClient,
+    web3::Web3NamespaceServer, zks::ZksNamespaceServer,
 };

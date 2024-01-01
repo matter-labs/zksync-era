@@ -1,6 +1,8 @@
 //! WS-related tests.
 
 use async_trait::async_trait;
+use jsonrpsee::core::{client::ClientT, params::BatchRequestBuilder, ClientError};
+use reqwest::StatusCode;
 use tokio::sync::watch;
 use zksync_config::configs::chain::NetworkConfig;
 use zksync_dal::ConnectionPool;
@@ -70,6 +72,10 @@ trait WsTest {
         pool: &ConnectionPool,
         pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()>;
+
+    fn websocket_requests_per_minute_limit(&self) -> Option<NonZeroU32> {
+        None
+    }
 }
 
 async fn test_ws_server(test: impl WsTest) {
@@ -88,8 +94,13 @@ async fn test_ws_server(test: impl WsTest) {
     drop(storage);
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let (server_handles, pub_sub_events) =
-        spawn_ws_server(&network_config, pool.clone(), stop_receiver).await;
+    let (server_handles, pub_sub_events) = spawn_ws_server(
+        &network_config,
+        pool.clone(),
+        stop_receiver,
+        test.websocket_requests_per_minute_limit(),
+    )
+    .await;
     server_handles.wait_until_ready().await;
 
     let client = WsClientBuilder::default()
@@ -462,4 +473,85 @@ impl WsTest for LogSubscriptionsWithDelay {
 #[tokio::test]
 async fn log_subscriptions_with_delay() {
     test_ws_server(LogSubscriptionsWithDelay).await;
+}
+
+#[derive(Debug)]
+struct RateLimiting;
+
+#[async_trait]
+impl WsTest for RateLimiting {
+    async fn test(
+        &self,
+        client: &WsClient,
+        _pool: &ConnectionPool,
+        _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+    ) -> anyhow::Result<()> {
+        client.chain_id().await.unwrap();
+        client.chain_id().await.unwrap();
+        client.chain_id().await.unwrap();
+        let expected_err = client.chain_id().await.unwrap_err();
+
+        if let ClientError::Call(error) = expected_err {
+            assert_eq!(error.code() as u16, StatusCode::TOO_MANY_REQUESTS.as_u16());
+            assert_eq!(error.message(), "Too many requests");
+            assert!(error.data().is_none());
+        } else {
+            panic!("Unexpected error returned: {expected_err}");
+        }
+
+        Ok(())
+    }
+
+    fn websocket_requests_per_minute_limit(&self) -> Option<NonZeroU32> {
+        Some(NonZeroU32::new(3).unwrap())
+    }
+}
+
+#[tokio::test]
+async fn rate_limiting() {
+    test_ws_server(RateLimiting).await;
+}
+
+#[derive(Debug)]
+struct BatchGetsRateLimited;
+
+#[async_trait]
+impl WsTest for BatchGetsRateLimited {
+    async fn test(
+        &self,
+        client: &WsClient,
+        _pool: &ConnectionPool,
+        _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+    ) -> anyhow::Result<()> {
+        client.chain_id().await.unwrap();
+        client.chain_id().await.unwrap();
+
+        let mut batch = BatchRequestBuilder::new();
+        batch.insert("eth_chainId", rpc_params![]).unwrap();
+        batch.insert("eth_chainId", rpc_params![]).unwrap();
+
+        let mut expected_err = client
+            .batch_request::<String>(batch)
+            .await
+            .unwrap()
+            .into_ok()
+            .unwrap_err();
+
+        let error = expected_err.next().unwrap();
+
+        assert_eq!(error.code() as u16, StatusCode::TOO_MANY_REQUESTS.as_u16());
+        assert_eq!(error.message(), "Too many requests");
+        assert!(error.data().is_none());
+
+        Ok(())
+    }
+
+    fn websocket_requests_per_minute_limit(&self) -> Option<NonZeroU32> {
+        Some(NonZeroU32::new(3).unwrap())
+    }
+}
+
+#[tokio::test]
+async fn batch_rate_limiting() {
+    test_ws_server(BatchGetsRateLimited).await;
 }

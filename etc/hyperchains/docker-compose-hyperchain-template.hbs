@@ -10,7 +10,7 @@ services:
     networks:
       - zksync-era_zkstack
     image: {{orgName}}/server-v2:latest
-    command: ["--components", "tree_new,eth,state_keeper,housekeeper,proof_data_handler"]
+    command: ["--components", "tree,eth,state_keeper,housekeeper,proof_data_handler"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3071/health"]
       interval: 10s
