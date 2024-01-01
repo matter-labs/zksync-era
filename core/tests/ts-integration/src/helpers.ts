@@ -3,6 +3,7 @@ import * as zksync from 'zksync-web3';
 import * as ethers from 'ethers';
 import * as hre from 'hardhat';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-solc/dist/src/types';
+import path from 'path';
 
 /**
  * Loads the test contract
@@ -23,7 +24,8 @@ export function getTestContract(name: string): ZkSyncArtifact {
  */
 export function getContractSource(relativePath: string): string {
     const contractPath = `${process.env.ZKSYNC_HOME}/core/tests/ts-integration/contracts/${relativePath}`;
-    const source = fs.readFileSync(contractPath, 'utf8');
+    const filePath = path.resolve(__dirname, contractPath);
+    const source = fs.readFileSync(filePath, 'utf8');
     return source;
 }
 
