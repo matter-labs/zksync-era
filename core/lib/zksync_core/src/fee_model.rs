@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
 use zksync_types::{
-    fee_model::{BatchFeeModelInput, MainNodeFeeModelConfig, MainNodeFeeParams},
+    fee_model::{
+        BatchFeeModelInput, L1PeggedBatchFeeModelInput, MainNodeFeeModelConfig, MainNodeFeeParams,
+        PubdataIndependentBatchFeeModelInput,
+    },
     U256,
 };
 
@@ -10,7 +13,8 @@ use crate::l1_gas_price::L1GasPriceProvider;
 /// Trait responsiblef for providign fee info for a batch
 pub trait BatchFeeModelInputProvider {
     fn get_batch_fee_input(&self, scale_l1_prices: bool) -> BatchFeeModelInput {
-        compute_batch_fee_model_input(self.get_fee_model_params(), scale_l1_prices)
+        // FIXME: use legacy by default or use a config to regulate it
+        compute_legacy_batch_fee_model_input(self.get_fee_model_params(), scale_l1_prices)
     }
 
     fn get_fee_model_params(&self) -> MainNodeFeeParams;
@@ -38,6 +42,24 @@ impl<G: L1GasPriceProvider> MainNodeFeeInputProvider<G> {
     pub(crate) fn new(provider: Arc<G>, config: MainNodeFeeModelConfig) -> Self {
         Self { provider, config }
     }
+}
+
+pub(crate) fn compute_legacy_batch_fee_model_input(
+    params: MainNodeFeeParams,
+    scale_l1_prices: bool,
+) -> BatchFeeModelInput {
+    let l1_gas_price_scale_factor = if scale_l1_prices {
+        params.config.l1_gas_price_scale_factor
+    } else {
+        1.0
+    };
+
+    let l1_gas_price = (params.l1_gas_price as f64 * l1_gas_price_scale_factor) as u64;
+
+    BatchFeeModelInput::L1Pegged(L1PeggedBatchFeeModelInput {
+        l1_gas_price: l1_gas_price,
+        fair_l2_gas_price: params.config.minimal_l2_gas_price,
+    })
 }
 
 /// TOOD: this comment is incorrect.
@@ -103,9 +125,9 @@ pub(crate) fn compute_batch_fee_model_input(
         l1_pubdata_price + pubdata_overhead_wei
     };
 
-    BatchFeeModelInput {
+    BatchFeeModelInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
         l1_gas_price,
         fair_l2_gas_price,
         fair_pubdata_price,
-    }
+    })
 }

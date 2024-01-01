@@ -7,12 +7,13 @@ use std::{
 use anyhow::Context as _;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
 use sqlx::Row;
+use zksync_system_constants::MAX_GAS_PER_PUBDATA_BYTE_PRE_1_4_1;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
     commitment::{L1BatchMetadata, L1BatchWithMetadata},
     Address, L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256,
-    MAX_GAS_PER_PUBDATA_BYTE, U256,
+    MAX_GAS_PER_PUBDATA_BYTE_1_4_1, U256,
 };
 
 pub use crate::models::storage_sync::ConsensusBlockFields;
@@ -595,6 +596,16 @@ impl BlocksDal<'_, '_> {
     ) -> anyhow::Result<()> {
         let base_fee_per_gas = BigDecimal::from_u64(miniblock_header.base_fee_per_gas)
             .context("base_fee_per_gas should fit in u64")?;
+        let gas_per_pubdata_limit = if miniblock_header
+            .protocol_version
+            .unwrap_or(ProtocolVersionId::last_pre_boojum())
+            .is_1_4_1()
+        {
+            MAX_GAS_PER_PUBDATA_BYTE_1_4_1
+        } else {
+            MAX_GAS_PER_PUBDATA_BYTE_PRE_1_4_1
+        };
+
         sqlx::query!(
             r#"
             INSERT INTO
@@ -627,7 +638,7 @@ impl BlocksDal<'_, '_> {
             base_fee_per_gas,
             miniblock_header.l1_gas_price as i64,
             miniblock_header.l2_fair_gas_price as i64,
-            MAX_GAS_PER_PUBDATA_BYTE as i64,
+            gas_per_pubdata_limit as i64,
             miniblock_header
                 .base_system_contracts_hashes
                 .bootloader

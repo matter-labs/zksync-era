@@ -42,7 +42,7 @@ impl<G: BatchFeeModelInputProvider + Send + Sync + 'static> EthNamespaceServer f
     }
 
     async fn gas_price(&self) -> RpcResult<U256> {
-        self.gas_price_impl().map_err(into_jsrpc_error)
+        self.gas_price_impl().await.map_err(into_jsrpc_error)
     }
 
     async fn new_filter(&self, filter: Filter) -> RpcResult<U256> {

@@ -35,6 +35,17 @@ pub enum TransactionType {
     ProtocolUpgradeTransaction = PROTOCOL_UPGRADE_TX_TYPE as u32,
 }
 
+impl TransactionType {
+    pub fn is_ethereum_type(&self) -> bool {
+        match self {
+            TransactionType::LegacyTransaction => true,
+            TransactionType::EIP2930Transaction => true,
+            TransactionType::EIP1559Transaction => true,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct L2TxCommonData {

@@ -19,7 +19,7 @@ use super::{
 };
 
 impl TxSharedArgs {
-    pub async fn validate_tx_with_pending_state(
+    async fn validate_tx_with_pending_state(
         mut self,
         vm_permit: VmPermit,
         connection_pool: ConnectionPool,
@@ -29,8 +29,6 @@ impl TxSharedArgs {
         let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
         let block_args = BlockArgs::pending(&mut connection).await;
         drop(connection);
-
-        self.adjust_pubdata_price_for_tx(tx.common_data.fee.gas_per_pubdata_limit);
 
         self.validate_tx_in_sandbox(
             connection_pool,
@@ -42,7 +40,7 @@ impl TxSharedArgs {
         .await
     }
 
-    async fn validate_tx_in_sandbox(
+    pub(crate) async fn validate_tx_in_sandbox(
         self,
         connection_pool: ConnectionPool,
         vm_permit: VmPermit,
@@ -64,6 +62,7 @@ impl TxSharedArgs {
             let result = apply::apply_vm_in_sandbox(
                 vm_permit,
                 self,
+                true,
                 &execution_args,
                 &connection_pool,
                 tx,

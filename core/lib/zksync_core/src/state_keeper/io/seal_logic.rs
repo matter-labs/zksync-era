@@ -9,9 +9,7 @@ use std::{
 use itertools::Itertools;
 use multivm::interface::{FinishedL1Batch, L1BatchEnv};
 use zksync_dal::{blocks_dal::ConsensusBlockFields, StorageProcessor};
-use zksync_system_constants::{
-    ACCOUNT_CODE_STORAGE_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, MAX_GAS_PER_PUBDATA_BYTE,
-};
+use zksync_system_constants::{ACCOUNT_CODE_STORAGE_ADDRESS, L1_GAS_PER_PUBDATA_BYTE};
 use zksync_types::{
     block::{unpack_block_info, L1BatchHeader, MiniblockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
@@ -130,7 +128,7 @@ impl UpdatesManager {
             l2_to_l1_messages,
             bloom: Default::default(),
             used_contract_hashes: finished_batch.final_execution_state.used_contract_hashes,
-            base_fee_per_gas: l1_batch_env.base_fee(),
+            base_fee_per_gas: l1_batch_env.base_fee(self.protocol_version().into()),
             l1_gas_price: self.l1_gas_price(),
             l2_fair_gas_price: self.fair_l2_gas_price(),
             base_system_contracts_hashes: self.base_system_contract_hashes(),

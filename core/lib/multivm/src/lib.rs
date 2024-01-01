@@ -22,5 +22,6 @@ pub use crate::{
 mod glue;
 pub mod interface;
 pub mod tracers;
+pub mod utils;
 pub mod versions;
 mod vm_instance;

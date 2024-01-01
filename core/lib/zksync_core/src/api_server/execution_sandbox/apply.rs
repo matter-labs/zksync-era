@@ -10,11 +10,8 @@ use std::time::{Duration, Instant};
 
 use multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv, VmInterface},
-    vm_latest::{
-        constants::BLOCK_GAS_LIMIT,
-        utils::fee::{adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata},
-        HistoryDisabled,
-    },
+    utils::adjust_pubdata_price_for_tx,
+    vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryDisabled},
     VmInstance,
 };
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
@@ -42,7 +39,8 @@ use super::{
 #[allow(clippy::too_many_arguments)]
 pub(super) fn apply_vm_in_sandbox<T>(
     vm_permit: VmPermit,
-    shared_args: TxSharedArgs,
+    mut shared_args: TxSharedArgs,
+    adjust_pubdata_price: bool,
     execution_args: &TxExecutionArgs,
     connection_pool: &ConnectionPool,
     tx: Transaction,
@@ -178,6 +176,14 @@ pub(super) fn apply_vm_in_sandbox<T>(
         tracing::debug!("Prepared the storage view (took {storage_view_setup_time:?})",);
     }
 
+    if adjust_pubdata_price {
+        adjust_pubdata_price_for_tx(
+            &mut shared_args.batch_fee_model_input,
+            tx.gas_per_pubdata_byte_limit(),
+            protocol_version.into(),
+        );
+    }
+
     let TxSharedArgs {
         operator_account,
         batch_fee_model_input: fee_model_params,
@@ -198,19 +204,11 @@ pub(super) fn apply_vm_in_sandbox<T>(
         chain_id,
     };
 
-    let BatchFeeModelInput {
-        fair_l2_gas_price,
-        fair_pubdata_price,
-        l1_gas_price,
-    } = fee_model_params;
-
     let l1_batch_env = L1BatchEnv {
         previous_batch_hash: None,
         number: vm_l1_batch_number,
         timestamp: l1_batch_timestamp,
-        l1_gas_price,
-        fair_pubdata_price,
-        fair_l2_gas_price,
+        fee_input: fee_model_params,
         fee_account: *operator_account.address(),
         enforced_base_fee: execution_args.enforced_base_fee,
         first_l2_block: next_l2_block_info,

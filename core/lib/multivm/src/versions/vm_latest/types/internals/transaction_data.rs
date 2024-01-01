@@ -1,5 +1,6 @@
 use std::convert::TryInto;
 
+use zksync_system_constants::MAX_GAS_PER_PUBDATA_BYTE_1_4_1;
 use zksync_types::{
     ethabi::{encode, Address, Token},
     fee::{encoding_len, Fee},
@@ -62,12 +63,19 @@ impl From<Transaction> for TransactionData {
                     U256::zero()
                 };
 
+                // FIXME: make sure it is replicated on all older VMs
+                let gas_per_pubdata_limit = if common_data.transaction_type.is_ethereum_type() {
+                    MAX_GAS_PER_PUBDATA_BYTE_1_4_1.into()
+                } else {
+                    common_data.fee.gas_per_pubdata_limit
+                };
+
                 TransactionData {
                     tx_type: (common_data.transaction_type as u32) as u8,
                     from: common_data.initiator_address,
                     to: execute_tx.execute.contract_address,
                     gas_limit: common_data.fee.gas_limit,
-                    pubdata_price_limit: common_data.fee.gas_per_pubdata_limit,
+                    pubdata_price_limit: gas_per_pubdata_limit,
                     max_fee_per_gas: common_data.fee.max_fee_per_gas,
                     max_priority_fee_per_gas: common_data.fee.max_priority_fee_per_gas,
                     paymaster: common_data.paymaster_params.paymaster,
@@ -204,7 +212,7 @@ impl TransactionData {
         get_amortized_overhead(encoded_len)
     }
 
-    pub(crate) fn trusted_ergs_limit(&self, _block_gas_price_per_pubdata: u64) -> U256 {
+    pub(crate) fn trusted_ergs_limit(&self) -> U256 {
         if self.tx_type == L1_TX_TYPE {
             // In case we get a users' transactions with unexpected gas limit, we do not let it have more than
             // a certain limit

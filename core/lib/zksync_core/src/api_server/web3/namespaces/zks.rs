@@ -16,8 +16,7 @@ use zksync_types::{
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
     AccountTreeId, L1BatchNumber, MiniblockNumber, StorageKey, Transaction, L1_MESSENGER_ADDRESS,
-    L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
-    U64,
+    L2_ETH_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 use zksync_utils::{address_to_h256, ratio_to_big_decimal_normalized};
 use zksync_web3_decl::{
@@ -64,7 +63,8 @@ impl<G: BatchFeeModelInputProvider> ZksNamespace<G> {
             .await?;
 
         if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
-            eip712_meta.gas_per_pubdata = MAX_GAS_PER_PUBDATA_BYTE.into();
+            // fixme: use a constant
+            eip712_meta.gas_per_pubdata = U256::from(50000);
         }
 
         let mut tx = L2Tx::from_request(
@@ -75,7 +75,8 @@ impl<G: BatchFeeModelInputProvider> ZksNamespace<G> {
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
         tx.common_data.fee.max_priority_fee_per_gas = 0u64.into();
-        tx.common_data.fee.gas_per_pubdata_limit = MAX_GAS_PER_PUBDATA_BYTE.into();
+        // fixme: use a constant
+        tx.common_data.fee.gas_per_pubdata_limit = U256::from(50000);
 
         let fee = self.estimate_fee(tx.into()).await?;
         method_latency.observe();
@@ -562,7 +563,7 @@ impl<G: BatchFeeModelInputProvider> ZksNamespace<G> {
             .0
             .batch_fee_input_provider
             .get_batch_fee_input(false)
-            .l1_gas_price;
+            .l1_gas_price();
 
         method_latency.observe();
         gas_price.into()

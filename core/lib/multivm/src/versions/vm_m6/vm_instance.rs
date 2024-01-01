@@ -9,7 +9,6 @@ use zk_evm_1_3_1::{
         definitions::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
     },
 };
-use zksync_system_constants::MAX_TXS_IN_BLOCK;
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     tx::tx_execution_info::TxExecutionStatus,
@@ -59,6 +58,9 @@ pub type ZkSyncVmState<S, H> = VmState<
     DecommitterOracle<false, S, H>,
     DummyTracer,
 >;
+
+// The maximal number of transactions in a single batch
+pub const MAX_TXS_IN_BLOCK: usize = 1024;
 
 pub const MAX_MEM_SIZE_BYTES: u32 = 16777216; // 2^24
 

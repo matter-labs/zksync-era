@@ -7,7 +7,7 @@ use multivm::{
         VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
     },
     tracers::CallTracer,
-    vm_latest::{utils::fee::derive_base_fee_and_gas_per_pubdata, HistoryEnabled},
+    vm_latest::HistoryEnabled,
     MultiVMTracer, VmInstance,
 };
 use once_cell::sync::OnceCell;

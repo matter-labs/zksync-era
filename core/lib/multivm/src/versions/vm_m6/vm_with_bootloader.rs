@@ -11,10 +11,10 @@ use zk_evm_1_3_1::{
     },
 };
 use zksync_contracts::BaseSystemContracts;
-use zksync_system_constants::MAX_TXS_IN_BLOCK;
 use zksync_types::{
-    zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address, Transaction, BOOTLOADER_ADDRESS,
-    L1_GAS_PER_PUBDATA_BYTE, MAX_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
+    fee_model::L1PeggedBatchFeeModelInput, zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER,
+    Address, Transaction, BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE,
+    MAX_GAS_PER_PUBDATA_BYTE_PRE_1_4_1, MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::{
     address_to_u256,
@@ -23,6 +23,7 @@ use zksync_utils::{
     misc::ceil_div,
 };
 
+use super::vm_instance::MAX_TXS_IN_BLOCK;
 use crate::vm_m6::{
     bootloader_state::BootloaderState,
     history_recorder::HistoryMode,
@@ -58,7 +59,11 @@ pub struct BlockContext {
 
 impl BlockContext {
     pub fn block_gas_price_per_pubdata(&self) -> u64 {
-        derive_base_fee_and_gas_per_pubdata(self.l1_gas_price, self.fair_l2_gas_price).1
+        derive_base_fee_and_gas_per_pubdata(L1PeggedBatchFeeModelInput {
+            l1_gas_price: self.l1_gas_price,
+            fair_l2_gas_price: self.fair_l2_gas_price,
+        })
+        .1
     }
 }
 
@@ -76,32 +81,40 @@ pub(crate) fn eth_price_per_pubdata_byte(l1_gas_price: u64) -> u64 {
     l1_gas_price * (L1_GAS_PER_PUBDATA_BYTE as u64)
 }
 
-pub fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
+pub(crate) fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
     let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
 
     ceil_div(eth_price_per_pubdata_byte, base_fee)
 }
 
-pub fn derive_base_fee_and_gas_per_pubdata(l1_gas_price: u64, fair_gas_price: u64) -> (u64, u64) {
-    let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
+pub(crate) fn derive_base_fee_and_gas_per_pubdata(
+    fee_input: L1PeggedBatchFeeModelInput,
+) -> (u64, u64) {
+    let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(fee_input.l1_gas_price);
 
     // The baseFee is set in such a way that it is always possible for a transaction to
     // publish enough public data while compensating us for it.
     let base_fee = std::cmp::max(
-        fair_gas_price,
-        ceil_div(eth_price_per_pubdata_byte, MAX_GAS_PER_PUBDATA_BYTE),
+        fee_input.fair_l2_gas_price,
+        ceil_div(
+            eth_price_per_pubdata_byte,
+            MAX_GAS_PER_PUBDATA_BYTE_PRE_1_4_1,
+        ),
     );
 
     (
         base_fee,
-        base_fee_to_gas_per_pubdata(l1_gas_price, base_fee),
+        base_fee_to_gas_per_pubdata(fee_input.l1_gas_price, base_fee),
     )
 }
 
 impl From<BlockContext> for DerivedBlockContext {
     fn from(context: BlockContext) -> Self {
-        let base_fee =
-            derive_base_fee_and_gas_per_pubdata(context.l1_gas_price, context.fair_l2_gas_price).0;
+        let base_fee = derive_base_fee_and_gas_per_pubdata(L1PeggedBatchFeeModelInput {
+            l1_gas_price: context.l1_gas_price,
+            fair_l2_gas_price: context.fair_l2_gas_price,
+        })
+        .0;
 
         DerivedBlockContext { context, base_fee }
     }

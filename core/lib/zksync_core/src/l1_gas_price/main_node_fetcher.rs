@@ -26,16 +26,16 @@ const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 /// The same algorithm cannot be consistently replicated on the external node side,
 /// since it relies on the configuration, which may change.
 #[derive(Debug)]
-pub struct MainNodeBatchFeeInputFetcher {
+pub struct MainNodeFeeParamsFetcher {
     client: HttpClient,
-    fee_model_output: RwLock<MainNodeFeeParams>,
+    main_node_fee_params: RwLock<MainNodeFeeParams>,
 }
 
-impl MainNodeBatchFeeInputFetcher {
+impl MainNodeFeeParamsFetcher {
     pub fn new(main_node_url: &str) -> Self {
         Self {
             client: Self::build_client(main_node_url),
-            fee_model_output: RwLock::new(MainNodeFeeParams {
+            main_node_fee_params: RwLock::new(MainNodeFeeParams {
                 l1_gas_price: 1_000_000_000,
                 l1_pubdata_price: 17_000_000_000,
                 config: Default::default(),
@@ -66,7 +66,7 @@ impl MainNodeBatchFeeInputFetcher {
                 }
             };
 
-            *self.fee_model_output.write().unwrap() = main_node_fee_params;
+            *self.main_node_fee_params.write().unwrap() = main_node_fee_params;
 
             tokio::time::sleep(SLEEP_INTERVAL).await;
         }
@@ -74,8 +74,8 @@ impl MainNodeBatchFeeInputFetcher {
     }
 }
 
-impl BatchFeeModelInputProvider for MainNodeBatchFeeInputFetcher {
+impl BatchFeeModelInputProvider for MainNodeFeeParamsFetcher {
     fn get_fee_model_params(&self) -> MainNodeFeeParams {
-        self.fee_model_output.read().unwrap().clone()
+        self.main_node_fee_params.read().unwrap().clone()
     }
 }

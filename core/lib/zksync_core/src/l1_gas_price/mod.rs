@@ -1,7 +1,7 @@
 //! This module determines the fees to pay in txs containing blocks submitted to the L1.
 
 pub use gas_adjuster::GasAdjuster;
-pub use main_node_fetcher::MainNodeBatchFeeInputFetcher;
+pub use main_node_fetcher::MainNodeFeeParamsFetcher;
 pub use singleton::GasAdjusterSingleton;
 
 mod gas_adjuster;

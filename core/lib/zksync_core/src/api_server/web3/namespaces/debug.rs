@@ -4,13 +4,14 @@ use multivm::{interface::ExecutionResult, vm_latest::constants::BLOCK_GAS_LIMIT}
 use once_cell::sync::OnceCell;
 use zksync_dal::ConnectionPool;
 use zksync_state::PostgresStorageCaches;
+use zksync_system_constants::MAX_ENCODED_TX_SIZE;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
     fee_model::BatchFeeModelInput,
     l2::L2Tx,
     transaction_request::CallRequest,
     vm_trace::Call,
-    AccountTreeId, L2ChainId, H256, USED_BOOTLOADER_MEMORY_BYTES,
+    AccountTreeId, L2ChainId, H256,
 };
 use zksync_web3_decl::error::Web3Error;
 
@@ -155,7 +156,7 @@ impl DebugNamespace {
             .ok_or(Web3Error::NoBlock)?;
         drop(connection);
 
-        let tx = L2Tx::from_request(request.into(), USED_BOOTLOADER_MEMORY_BYTES)?;
+        let tx = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE)?;
 
         let shared_args = self.shared_args();
         let vm_permit = self.vm_concurrency_limiter.acquire().await;

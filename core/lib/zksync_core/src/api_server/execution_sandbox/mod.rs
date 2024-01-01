@@ -1,8 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use multivm::vm_latest::utils::fee::{
-    adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata,
-};
+use multivm::utils::adjust_pubdata_price_for_tx;
 use tokio::runtime::Handle;
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
@@ -15,7 +13,9 @@ use zksync_utils::bytecode::{compress_bytecode, hash_bytecode};
 use self::vm_metrics::SandboxStage;
 pub(super) use self::{
     error::SandboxExecutionError,
-    execute::{execute_tx_eth_call, execute_tx_with_pending_state, TxExecutionArgs},
+    execute::{
+        execute_tx_eth_call, execute_tx_in_sandbox, execute_tx_with_pending_state, TxExecutionArgs,
+    },
     tracers::ApiTracer,
     vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
 };
@@ -213,12 +213,6 @@ pub(crate) struct TxSharedArgs {
     pub chain_id: L2ChainId,
 }
 
-impl TxSharedArgs {
-    pub(crate) fn adjust_pubdata_price_for_tx(&mut self, tx_gas_per_pubdata_limit: U256) {
-        adjust_pubdata_price_for_tx(&mut self.batch_fee_model_input, tx_gas_per_pubdata_limit);
-    }
-}
-
 /// Information about a block provided to VM.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct BlockArgs {
@@ -228,7 +222,7 @@ pub(crate) struct BlockArgs {
 }
 
 impl BlockArgs {
-    async fn pending(connection: &mut StorageProcessor<'_>) -> Self {
+    pub(crate) async fn pending(connection: &mut StorageProcessor<'_>) -> Self {
         let (block_id, resolved_block_number) = get_pending_state(connection).await;
         Self {
             block_id,

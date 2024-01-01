@@ -1,4 +1,4 @@
-use zksync_types::U256;
+use zksync_types::{VmVersion, U256};
 use zksync_utils::{address_to_u256, h256_to_u256};
 
 use crate::interface::L1BatchEnv;
@@ -29,13 +29,16 @@ pub(crate) fn bootloader_initial_memory(l1_batch: &L1BatchEnv) -> Vec<(usize, U2
         (NEW_BLOCK_NUMBER_SLOT, U256::from(l1_batch.number.0)),
         (
             FAIR_PUBDATA_PRICE_SLOT,
-            U256::from(l1_batch.fair_pubdata_price),
+            U256::from(l1_batch.fee_input.fair_pubdata_price()),
         ),
         (
             FAIR_L2_GAS_PRICE_SLOT,
-            U256::from(l1_batch.fair_l2_gas_price),
+            U256::from(l1_batch.fee_input.fair_l2_gas_price()),
         ),
-        (EXPECTED_BASE_FEE_SLOT, U256::from(l1_batch.base_fee())),
+        (
+            EXPECTED_BASE_FEE_SLOT,
+            U256::from(l1_batch.base_fee(VmVersion::VmBoojumIntegration)),
+        ),
         (SHOULD_SET_NEW_BLOCK_SLOT, should_set_new_block),
     ]
 }

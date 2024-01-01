@@ -60,7 +60,7 @@ fn test_predetermined_refunded_gas() {
         .build();
 
     let tx: TransactionData = tx.into();
-    let block_gas_per_pubdata_byte = vm.vm.batch_env.block_gas_price_per_pubdata();
+    let block_gas_per_pubdata_byte = vm.vm.batch_env.batch_gas_price_per_pubdata();
     // Overhead
     let overhead = tx.overhead_gas();
     vm.vm

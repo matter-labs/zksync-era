@@ -8,8 +8,7 @@ use zksync_types::{
     utils::decompose_full_nonce,
     web3,
     web3::types::{FeeHistory, SyncInfo, SyncState},
-    AccountTreeId, Bytes, MiniblockNumber, StorageKey, H256, L2_ETH_TOKEN_ADDRESS,
-    MAX_GAS_PER_PUBDATA_BYTE, U256,
+    AccountTreeId, Bytes, MiniblockNumber, StorageKey, H256, L2_ETH_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
@@ -94,6 +93,7 @@ impl<G: BatchFeeModelInputProvider> EthNamespace<G> {
             .await
             .map_err(|err| internal_error("eth_call", err))?
             .ok_or(Web3Error::NoBlock)?;
+
         drop(connection);
 
         let tx = L2Tx::from_request(request.into(), self.state.api_config.max_tx_size)?;
@@ -126,9 +126,24 @@ impl<G: BatchFeeModelInputProvider> EthNamespace<G> {
 
         if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
             if eip712_meta.gas_per_pubdata == U256::zero() {
-                eip712_meta.gas_per_pubdata = MAX_GAS_PER_PUBDATA_BYTE.into();
+                // fixme: use constant
+                eip712_meta.gas_per_pubdata = 50000.into();
             }
         }
+
+        // let mut connection = self
+        //     .connection_pool
+        //     .access_storage_tagged("api")
+        //     .await
+        //     .unwrap();
+        // let block_args = BlockArgs::new(&mut connection, block_id)
+        //     .await
+        //     .map_err(|err| internal_error("debug_trace_call", err))?
+        //     .ok_or(Web3Error::NoBlock)?;
+
+        // let protocol_version = connection.blocks_dal().get_miniblock_protocol_version_id(block_args.resolved_block_number()).await.unwrap().unwrap_or(ProtocolVersionId::last_pre_boojum());
+
+        // drop(connection);
 
         let is_eip712 = request_with_gas_per_pubdata_overridden
             .eip712_meta
@@ -148,7 +163,7 @@ impl<G: BatchFeeModelInputProvider> EthNamespace<G> {
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
 
-        tx.common_data.fee.max_fee_per_gas = self.state.tx_sender.gas_price().into();
+        tx.common_data.fee.max_fee_per_gas = self.state.tx_sender.gas_price().await.into();
         tx.common_data.fee.max_priority_fee_per_gas = tx.common_data.fee.max_fee_per_gas;
 
         // Modify the l1 gas price with the scale factor
@@ -168,11 +183,11 @@ impl<G: BatchFeeModelInputProvider> EthNamespace<G> {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn gas_price_impl(&self) -> Result<U256, Web3Error> {
+    pub async fn gas_price_impl(&self) -> Result<U256, Web3Error> {
         const METHOD_NAME: &str = "gas_price";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let price = self.state.tx_sender.gas_price();
+        let price = self.state.tx_sender.gas_price().await;
         method_latency.observe();
         Ok(price.into())
     }

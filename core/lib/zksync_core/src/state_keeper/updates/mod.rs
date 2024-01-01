@@ -2,7 +2,8 @@ use multivm::interface::{L1BatchEnv, VmExecutionResultAndLogs};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::blocks_dal::ConsensusBlockFields;
 use zksync_types::{
-    block::BlockGasCount, storage_writes_deduplicator::StorageWritesDeduplicator,
+    block::BlockGasCount, fee_model::BatchFeeModelInput,
+    storage_writes_deduplicator::StorageWritesDeduplicator,
     tx::tx_execution_info::ExecutionMetrics, vm_trace::Call, Address, L1BatchNumber,
     MiniblockNumber, ProtocolVersionId, Transaction,
 };
@@ -23,9 +24,7 @@ pub mod miniblock_updates;
 #[derive(Debug, Clone, PartialEq)]
 pub struct UpdatesManager {
     batch_timestamp: u64,
-    l1_gas_price: u64,
-    fair_pubdata_price: u64,
-    fair_l2_gas_price: u64,
+    batch_fee_input: BatchFeeModelInput,
     base_fee_per_gas: u64,
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
@@ -42,10 +41,8 @@ impl UpdatesManager {
     ) -> Self {
         Self {
             batch_timestamp: l1_batch_env.timestamp,
-            l1_gas_price: l1_batch_env.l1_gas_price,
-            fair_pubdata_price: l1_batch_env.fair_pubdata_price,
-            fair_l2_gas_price: l1_batch_env.fair_l2_gas_price,
-            base_fee_per_gas: l1_batch_env.base_fee(),
+            batch_fee_input: l1_batch_env.fee_input,
+            base_fee_per_gas: l1_batch_env.base_fee(protocol_version.into()),
             protocol_version,
             base_system_contract_hashes,
             l1_batch: L1BatchUpdates::new(),
@@ -69,11 +66,11 @@ impl UpdatesManager {
     }
 
     pub(crate) fn l1_gas_price(&self) -> u64 {
-        self.l1_gas_price
+        self.batch_fee_input.l1_gas_price()
     }
 
     pub(crate) fn fair_l2_gas_price(&self) -> u64 {
-        self.fair_l2_gas_price
+        self.batch_fee_input.fair_l2_gas_price()
     }
 
     pub(crate) fn seal_miniblock_command(
@@ -89,9 +86,9 @@ impl UpdatesManager {
             miniblock_number,
             miniblock: self.miniblock.clone(),
             first_tx_index: self.l1_batch.executed_transactions.len(),
-            l1_gas_price: self.l1_gas_price,
-            fair_pubdata_price: self.fair_pubdata_price,
-            fair_l2_gas_price: self.fair_l2_gas_price,
+            l1_gas_price: self.batch_fee_input.l1_gas_price(),
+            fair_pubdata_price: self.batch_fee_input.fair_pubdata_price(),
+            fair_l2_gas_price: self.batch_fee_input.fair_l2_gas_price(),
             base_fee_per_gas: self.base_fee_per_gas,
             base_system_contracts_hashes: self.base_system_contract_hashes,
             protocol_version: Some(self.protocol_version),

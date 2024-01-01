@@ -97,6 +97,7 @@ pub(crate) async fn execute_tx_eth_call(
     let (vm_result, _) = execute_tx_in_sandbox(
         vm_permit,
         shared_args,
+        false,
         execution_args,
         connection_pool,
         tx.into(),
@@ -111,7 +112,7 @@ pub(crate) async fn execute_tx_eth_call(
 #[tracing::instrument(skip_all)]
 pub(crate) async fn execute_tx_with_pending_state(
     vm_permit: VmPermit,
-    mut shared_args: TxSharedArgs,
+    shared_args: TxSharedArgs,
     execution_args: TxExecutionArgs,
     connection_pool: ConnectionPool,
     tx: Transaction,
@@ -119,13 +120,11 @@ pub(crate) async fn execute_tx_with_pending_state(
     let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
     let block_args = BlockArgs::pending(&mut connection).await;
     drop(connection);
-    // In order for execution to pass smoothlessly, we need to ensure that block's required gasPerPubdata will be
-    // <= to the one in the transaction itself.
-    shared_args.adjust_pubdata_price_for_tx(tx.gas_per_pubdata_byte_limit());
 
     execute_tx_in_sandbox(
         vm_permit,
         shared_args,
+        true,
         execution_args,
         connection_pool,
         tx,
@@ -139,9 +138,10 @@ pub(crate) async fn execute_tx_with_pending_state(
 /// or (`block_id` is `pending` and block with number `resolved_block_number - 1` is present in DB)
 #[allow(clippy::too_many_arguments)]
 #[tracing::instrument(skip_all)]
-async fn execute_tx_in_sandbox(
+pub(crate) async fn execute_tx_in_sandbox(
     vm_permit: VmPermit,
     shared_args: TxSharedArgs,
+    adjust_pubdata_price: bool,
     execution_args: TxExecutionArgs,
     connection_pool: ConnectionPool,
     tx: Transaction,
@@ -159,6 +159,7 @@ async fn execute_tx_in_sandbox(
         let result = apply::apply_vm_in_sandbox(
             vm_permit,
             shared_args,
+            adjust_pubdata_price,
             &execution_args,
             &connection_pool,
             tx,

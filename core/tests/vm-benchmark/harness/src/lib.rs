@@ -9,7 +9,7 @@ use multivm::{
 use once_cell::sync::Lazy;
 use zksync_contracts::{deployer_contract, BaseSystemContracts};
 use zksync_state::{InMemoryStorage, StorageView};
-use zksync_system_constants::ethereum::MAX_GAS_PER_PUBDATA_BYTE;
+use zksync_system_constants::ethereum::GUARANTEED_PUBDATA_PER_L1_BATCH_1_4_1;
 use zksync_types::{
     block::MiniblockHasher,
     ethabi::{encode, Token},
@@ -120,7 +120,7 @@ pub fn get_deploy_tx(code: &[u8]) -> Transaction {
             gas_limit: U256::from(30000000u32),
             max_fee_per_gas: U256::from(250_000_000),
             max_priority_fee_per_gas: U256::from(0),
-            gas_per_pubdata_limit: U256::from(MAX_GAS_PER_PUBDATA_BYTE),
+            gas_per_pubdata_limit: U256::from(GUARANTEED_PUBDATA_PER_L1_BATCH_1_4_1),
         },
         U256::zero(),
         L2ChainId::from(270),

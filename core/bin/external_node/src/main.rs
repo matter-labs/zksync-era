@@ -16,7 +16,7 @@ use zksync_core::{
     },
     block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert},
     consistency_checker::ConsistencyChecker,
-    l1_gas_price::MainNodeBatchFeeInputFetcher,
+    l1_gas_price::MainNodeFeeParamsFetcher,
     metadata_calculator::{
         MetadataCalculator, MetadataCalculatorConfig, MetadataCalculatorModeConfig,
     },
@@ -119,7 +119,7 @@ async fn init_tasks(
     let (stop_sender, stop_receiver) = watch::channel(false);
     let mut healthchecks: Vec<Box<dyn CheckHealth>> = Vec::new();
     // Create components.
-    let fee_params_fetcher = Arc::new(MainNodeBatchFeeInputFetcher::new(&main_node_url));
+    let fee_params_fetcher = Arc::new(MainNodeFeeParamsFetcher::new(&main_node_url));
 
     let sync_state = SyncState::new();
     let (action_queue_sender, action_queue) = ActionQueue::new();
@@ -230,7 +230,7 @@ async fn init_tasks(
     let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
     let sk_handle = task::spawn(state_keeper.run());
     let fetcher_handle = tokio::spawn(fetcher.run());
-    let gas_price_fetcher_handle =
+    let fee_params_fetcher_handle =
         tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
 
     let (tx_sender, vm_barrier, cache_update_handle) = {
@@ -320,7 +320,7 @@ async fn init_tasks(
         fetcher_handle,
         updater_handle,
         tree_handle,
-        gas_price_fetcher_handle,
+        fee_params_fetcher_handle,
     ]);
     task_handles.push(consistency_checker_handle);
 

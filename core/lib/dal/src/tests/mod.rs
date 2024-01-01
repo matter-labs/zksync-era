@@ -10,7 +10,8 @@ use zksync_types::{
     proofs::AggregationRound,
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
     Address, Execute, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2ChainId, MiniblockNumber,
-    PriorityOpId, ProtocolVersion, ProtocolVersionId, H160, H256, MAX_GAS_PER_PUBDATA_BYTE, U256,
+    PriorityOpId, ProtocolVersion, ProtocolVersionId, H160, H256, MAX_GAS_PER_PUBDATA_BYTE_1_4_1,
+    U256,
 };
 
 use crate::{
@@ -82,7 +83,7 @@ fn mock_l1_execute() -> L1Tx {
         full_fee: U256::zero(),
         gas_limit: U256::from(100_100),
         max_fee_per_gas: U256::from(1u32),
-        gas_per_pubdata_limit: MAX_GAS_PER_PUBDATA_BYTE.into(),
+        gas_per_pubdata_limit: MAX_GAS_PER_PUBDATA_BYTE_1_4_1.into(),
         op_processing_type: OpProcessingType::Common,
         priority_queue_type: PriorityQueueType::Deque,
         eth_hash: H256::random(),

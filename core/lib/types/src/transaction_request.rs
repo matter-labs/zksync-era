@@ -4,7 +4,9 @@ use rlp::{DecoderError, Rlp, RlpStream};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use zksync_basic_types::H256;
-use zksync_system_constants::{MAX_GAS_PER_PUBDATA_BYTE, USED_BOOTLOADER_MEMORY_BYTES};
+use zksync_system_constants::{
+    MAX_ENCODED_TX_SIZE, MAX_GAS_PER_PUBDATA_BYTE_1_4_1, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
+};
 use zksync_utils::{
     bytecode::{hash_bytecode, validate_bytecode, InvalidBytecodeError},
     concat_and_hash, u256_to_h256,
@@ -743,8 +745,9 @@ impl TransactionRequest {
             }
             meta.gas_per_pubdata
         } else {
-            // For transactions that don't support corresponding field, a default is chosen.
-            U256::from(MAX_GAS_PER_PUBDATA_BYTE)
+            // For transactions that don't support corresponding field, a maximal default value is chosen.
+            // FIXME: use a constant
+            50_000.into()
         };
 
         let max_priority_fee_per_gas = self.max_priority_fee_per_gas.unwrap_or(self.gas_price);
@@ -775,6 +778,7 @@ impl L2Tx {
     pub fn from_request(
         value: TransactionRequest,
         max_tx_size: usize,
+        // default_gas_per_pubdata_byte: U256
     ) -> Result<Self, SerializationTransactionError> {
         let fee = value.get_fee_data_checked()?;
         let nonce = value.get_nonce_checked()?;
@@ -882,7 +886,7 @@ impl TryFrom<CallRequest> for L1Tx {
     type Error = SerializationTransactionError;
     fn try_from(tx: CallRequest) -> Result<Self, Self::Error> {
         // L1 transactions have no limitations on the transaction size.
-        let tx: L2Tx = L2Tx::from_request(tx.into(), USED_BOOTLOADER_MEMORY_BYTES)?;
+        let tx: L2Tx = L2Tx::from_request(tx.into(), MAX_ENCODED_TX_SIZE)?;
 
         // Note, that while the user has theoretically provided the fee for ETH on L1,
         // the payment to the operator as well as refunds happen on L2 and so all the ETH
@@ -1488,21 +1492,15 @@ mod tests {
             access_list: None,
             eip712_meta: None,
         };
-        let l2_tx = L2Tx::from_request(
-            call_request_with_nonce.clone().into(),
-            USED_BOOTLOADER_MEMORY_BYTES,
-        )
-        .unwrap();
+        let l2_tx = L2Tx::from_request(call_request_with_nonce.clone().into(), MAX_ENCODED_TX_SIZE)
+            .unwrap();
         assert_eq!(l2_tx.nonce(), Nonce(123u32));
 
         let mut call_request_without_nonce = call_request_with_nonce;
         call_request_without_nonce.nonce = None;
 
-        let l2_tx = L2Tx::from_request(
-            call_request_without_nonce.into(),
-            USED_BOOTLOADER_MEMORY_BYTES,
-        )
-        .unwrap();
+        let l2_tx =
+            L2Tx::from_request(call_request_without_nonce.into(), MAX_ENCODED_TX_SIZE).unwrap();
         assert_eq!(l2_tx.nonce(), Nonce(0u32));
     }
 }

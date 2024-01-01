@@ -185,6 +185,12 @@ impl<E> RpcState<E> {
         let chain_id = self.api_config.l2_chain_id;
         let (tx_request, hash) = api::TransactionRequest::from_bytes(bytes, chain_id)?;
 
+        // let mut connection = self.connection_pool.access_storage_tagged("api").await.unwrap();
+        // let block_args = BlockArgs::pending(&mut connection).await;
+        // // If protocol version is not present, we'll use the pre-boojum one
+        // let protocol_version = connection.blocks_dal().get_miniblock_protocol_version_id(block_args.resolved_block_number()).await.unwrap().unwrap_or(ProtocolVersionId::last_pre_boojum());
+        // drop(connection);
+
         Ok((
             L2Tx::from_request(tx_request, self.api_config.max_tx_size)?,
             hash,

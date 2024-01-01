@@ -7,6 +7,9 @@ use zksync_system_constants::SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER;
 use zksync_utils::concat_and_hash;
 
 use crate::{
+    fee_model::{
+        BatchFeeModelInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput,
+    },
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     priority_op_onchain_data::PriorityOpOnchainData,
     web3::signing::keccak256,
@@ -85,6 +88,32 @@ pub struct MiniblockHeader {
     pub protocol_version: Option<ProtocolVersionId>,
     /// The maximal number of virtual blocks to be created in the miniblock.
     pub virtual_blocks: u32,
+}
+
+impl MiniblockHeader {
+    // FIXME: consider removing this method if not necessary
+    pub fn get_batch_fee_input(&self) -> BatchFeeModelInput {
+        match self.protocol_version {
+            Some(version) => {
+                if version.is_1_4_1() {
+                    BatchFeeModelInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+                        fair_l2_gas_price: self.l2_fair_gas_price,
+                        fair_pubdata_price: self.fair_pubdata_price,
+                        l1_gas_price: self.l1_gas_price,
+                    })
+                } else {
+                    BatchFeeModelInput::L1Pegged(L1PeggedBatchFeeModelInput {
+                        l1_gas_price: self.l1_gas_price,
+                        fair_l2_gas_price: self.l2_fair_gas_price,
+                    })
+                }
+            }
+            None => BatchFeeModelInput::L1Pegged(L1PeggedBatchFeeModelInput {
+                l1_gas_price: self.l1_gas_price,
+                fair_l2_gas_price: self.l2_fair_gas_price,
+            }),
+        }
+    }
 }
 
 /// Data needed to execute a miniblock in the VM.

@@ -6,7 +6,10 @@ use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    ethabi::Address, protocol_version::ProtocolUpgradeTx, witness_block_state::WitnessBlockState,
+    ethabi::Address,
+    fee_model::{BatchFeeModelInput, L1PeggedBatchFeeModelInput},
+    protocol_version::ProtocolUpgradeTx,
+    witness_block_state::WitnessBlockState,
     L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256, U256,
 };
 use zksync_utils::{be_words_to_bytes, bytes_to_be_words};
@@ -340,10 +343,11 @@ impl StateKeeperIO for ExternalIO {
                         operator_address,
                         timestamp,
                         previous_l1_batch_hash,
-                        l1_gas_price,
-                        // TODO: this is incorrect
-                        fair_pubdata_price,
-                        l2_fair_gas_price,
+                        // TODO: make sure to supply the correct enum var
+                        BatchFeeModelInput::L1Pegged(L1PeggedBatchFeeModelInput {
+                            l1_gas_price,
+                            fair_l2_gas_price: l2_fair_gas_price,
+                        }),
                         miniblock_number,
                         previous_miniblock_hash,
                         base_system_contracts,
