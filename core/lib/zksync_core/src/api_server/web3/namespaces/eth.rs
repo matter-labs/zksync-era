@@ -1,3 +1,4 @@
+use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
         BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
@@ -126,24 +127,9 @@ impl<G: BatchFeeModelInputProvider> EthNamespace<G> {
 
         if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
             if eip712_meta.gas_per_pubdata == U256::zero() {
-                // fixme: use constant
-                eip712_meta.gas_per_pubdata = 50000.into();
+                eip712_meta.gas_per_pubdata = DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE.into();
             }
         }
-
-        // let mut connection = self
-        //     .connection_pool
-        //     .access_storage_tagged("api")
-        //     .await
-        //     .unwrap();
-        // let block_args = BlockArgs::new(&mut connection, block_id)
-        //     .await
-        //     .map_err(|err| internal_error("debug_trace_call", err))?
-        //     .ok_or(Web3Error::NoBlock)?;
-
-        // let protocol_version = connection.blocks_dal().get_miniblock_protocol_version_id(block_args.resolved_block_number()).await.unwrap().unwrap_or(ProtocolVersionId::last_pre_boojum());
-
-        // drop(connection);
 
         let is_eip712 = request_with_gas_per_pubdata_overridden
             .eip712_meta

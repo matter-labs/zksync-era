@@ -6,16 +6,14 @@ use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
 use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
 use zksync_types::{
-    api, fee_model::BatchFeeModelInput, AccountTreeId, L2ChainId, MiniblockNumber, U256,
+    api, fee_model::BatchFeeInput, AccountTreeId, L2ChainId, MiniblockNumber, U256,
 };
 use zksync_utils::bytecode::{compress_bytecode, hash_bytecode};
 
 use self::vm_metrics::SandboxStage;
 pub(super) use self::{
     error::SandboxExecutionError,
-    execute::{
-        execute_tx_eth_call, execute_tx_in_sandbox, execute_tx_with_pending_state, TxExecutionArgs,
-    },
+    execute::{execute_tx_eth_call, execute_tx_in_sandbox, TxExecutionArgs},
     tracers::ApiTracer,
     vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
 };
@@ -206,7 +204,7 @@ pub(super) async fn get_pubdata_for_factory_deps(
 #[derive(Debug, Clone)]
 pub(crate) struct TxSharedArgs {
     pub operator_account: AccountTreeId,
-    pub batch_fee_model_input: BatchFeeModelInput,
+    pub batch_fee_model_input: BatchFeeInput,
     pub base_system_contracts: MultiVMBaseSystemContracts,
     pub caches: PostgresStorageCaches,
     pub validation_computational_gas_limit: u32,

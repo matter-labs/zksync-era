@@ -19,27 +19,6 @@ use super::{
 };
 
 impl TxSharedArgs {
-    async fn validate_tx_with_pending_state(
-        mut self,
-        vm_permit: VmPermit,
-        connection_pool: ConnectionPool,
-        tx: L2Tx,
-        computational_gas_limit: u32,
-    ) -> Result<(), ValidationError> {
-        let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
-        let block_args = BlockArgs::pending(&mut connection).await;
-        drop(connection);
-
-        self.validate_tx_in_sandbox(
-            connection_pool,
-            vm_permit,
-            tx,
-            block_args,
-            computational_gas_limit,
-        )
-        .await
-    }
-
     pub(crate) async fn validate_tx_in_sandbox(
         self,
         connection_pool: ConnectionPool,

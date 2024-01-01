@@ -109,31 +109,6 @@ pub(crate) async fn execute_tx_eth_call(
     vm_result
 }
 
-#[tracing::instrument(skip_all)]
-pub(crate) async fn execute_tx_with_pending_state(
-    vm_permit: VmPermit,
-    shared_args: TxSharedArgs,
-    execution_args: TxExecutionArgs,
-    connection_pool: ConnectionPool,
-    tx: Transaction,
-) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics) {
-    let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
-    let block_args = BlockArgs::pending(&mut connection).await;
-    drop(connection);
-
-    execute_tx_in_sandbox(
-        vm_permit,
-        shared_args,
-        true,
-        execution_args,
-        connection_pool,
-        tx,
-        block_args,
-        vec![],
-    )
-    .await
-}
-
 /// This method assumes that (block with number `resolved_block_number` is present in DB)
 /// or (`block_id` is `pending` and block with number `resolved_block_number - 1` is present in DB)
 #[allow(clippy::too_many_arguments)]

@@ -7,7 +7,7 @@ use multivm::{
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::StorageProcessor;
 use zksync_types::{
-    fee_model::BatchFeeModelInput, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
+    fee_model::BatchFeeInput, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
     ProtocolVersionId, H256, U256, ZKPORTER_IS_AVAILABLE,
 };
 use zksync_utils::u256_to_h256;
@@ -22,7 +22,7 @@ pub(crate) fn l1_batch_params(
     fee_account: Address,
     l1_batch_timestamp: u64,
     previous_batch_hash: U256,
-    fee_input: BatchFeeModelInput,
+    fee_input: BatchFeeInput,
     first_miniblock_number: MiniblockNumber,
     prev_miniblock_hash: H256,
     base_system_contracts: BaseSystemContracts,
@@ -122,7 +122,7 @@ pub(crate) async fn load_l1_batch_params(
         fee_account,
         pending_miniblock_header.timestamp,
         previous_l1_batch_hash,
-        pending_miniblock_header.get_batch_fee_input(),
+        pending_miniblock_header.batch_fee_input,
         pending_miniblock_number,
         prev_miniblock_hash,
         base_system_contracts,

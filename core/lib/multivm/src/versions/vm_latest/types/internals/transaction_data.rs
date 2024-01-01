@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 
-use zksync_system_constants::MAX_GAS_PER_PUBDATA_BYTE_1_4_1;
+use zksync_system_constants::{MAX_GAS_PER_PUBDATA_BYTE_1_4_1, MAX_GAS_PER_PUBDATA_BYTE_PRE_1_4_1};
 use zksync_types::{
     ethabi::{encode, Address, Token},
     fee::{encoding_len, Fee},
@@ -61,6 +61,12 @@ impl From<Transaction> for TransactionData {
                     U256([1, 0, 0, 0])
                 } else {
                     U256::zero()
+                };
+
+                let gas_per_pubdata_limit = if common_data.transaction_type.is_ethereum_type() {
+                    MAX_GAS_PER_PUBDATA_BYTE_PRE_1_4_1.into()
+                } else {
+                    common_data.fee.gas_per_pubdata_limit
                 };
 
                 // FIXME: make sure it is replicated on all older VMs

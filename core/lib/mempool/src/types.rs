@@ -1,7 +1,7 @@
 use std::{cmp::Ordering, collections::HashMap};
 
 use zksync_types::{
-    fee::Fee, fee_model::BatchFeeModelInput, l2::L2Tx, Address, Nonce, Transaction, U256,
+    fee::Fee, fee_model::BatchFeeInput, l2::L2Tx, Address, Nonce, Transaction, U256,
 };
 
 /// Pending mempool transactions of account
@@ -130,13 +130,8 @@ pub(crate) struct InsertionMetadata {
 /// criteria for transaction it wants to fetch.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct L2TxFilter {
-    // /// L1 gas price.
-    // pub l1_gas_price: u64,
-    // /// The minimal acceptable L2 pubdata byte price for the operator.
-    // pub fair_pubdata_price: u64,
-    // /// The minimal acceptable L2 gas price for the operator.
-    // pub fair_l2_gas_price: u64,
-    pub fee_input: BatchFeeModelInput,
+    /// The fee input into the batch
+    pub fee_input: BatchFeeInput,
 
     /// Effective fee price for the transaction. The price of 1 gas in wei.
     pub fee_per_gas: u64,

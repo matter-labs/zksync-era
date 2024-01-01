@@ -1,4 +1,5 @@
 use zk_evm_1_3_1::zkevm_opcode_defs::system_params::MAX_TX_ERGS_LIMIT;
+use zksync_system_constants::MAX_GAS_PER_PUBDATA_BYTE_PRE_1_4_1;
 use zksync_types::{
     ethabi::{encode, Address, Token},
     fee::encoding_len,
@@ -10,7 +11,7 @@ use zksync_utils::{
     address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, ceil_div_u256, h256_to_u256,
 };
 
-use super::vm_instance::MAX_TXS_IN_BLOCK;
+use super::vm_with_bootloader::MAX_TXS_IN_BLOCK;
 use crate::vm_m6::vm_with_bootloader::{
     BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA, BOOTLOADER_TX_ENCODING_SPACE,
 };
@@ -59,6 +60,12 @@ impl From<Transaction> for TransactionData {
                     U256([1, 0, 0, 0])
                 } else {
                     U256::zero()
+                };
+
+                let gas_per_pubdata_limit = if common_data.transaction_type.is_ethereum_type() {
+                    MAX_GAS_PER_PUBDATA_BYTE_PRE_1_4_1.into()
+                } else {
+                    common_data.fee.gas_per_pubdata_limit
                 };
 
                 TransactionData {

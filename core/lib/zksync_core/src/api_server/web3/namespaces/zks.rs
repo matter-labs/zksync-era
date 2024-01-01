@@ -3,6 +3,7 @@ use std::{collections::HashMap, convert::TryInto};
 use bigdecimal::{BigDecimal, Zero};
 use zksync_dal::StorageProcessor;
 use zksync_mini_merkle_tree::MiniMerkleTree;
+use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
         BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof, Proof,
@@ -63,8 +64,7 @@ impl<G: BatchFeeModelInputProvider> ZksNamespace<G> {
             .await?;
 
         if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
-            // fixme: use a constant
-            eip712_meta.gas_per_pubdata = U256::from(50000);
+            eip712_meta.gas_per_pubdata = U256::from(DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE);
         }
 
         let mut tx = L2Tx::from_request(
@@ -75,8 +75,7 @@ impl<G: BatchFeeModelInputProvider> ZksNamespace<G> {
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
         tx.common_data.fee.max_priority_fee_per_gas = 0u64.into();
-        // fixme: use a constant
-        tx.common_data.fee.gas_per_pubdata_limit = U256::from(50000);
+        tx.common_data.fee.gas_per_pubdata_limit = U256::from(DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE);
 
         let fee = self.estimate_fee(tx.into()).await?;
         method_latency.observe();

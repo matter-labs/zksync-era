@@ -23,7 +23,6 @@ use zksync_utils::{
     misc::ceil_div,
 };
 
-use super::vm_instance::MAX_TXS_IN_BLOCK;
 use crate::vm_m6::{
     bootloader_state::BootloaderState,
     history_recorder::HistoryMode,
@@ -119,6 +118,9 @@ impl From<BlockContext> for DerivedBlockContext {
         DerivedBlockContext { context, base_fee }
     }
 }
+
+// The maximal number of transactions in a single batch
+pub const MAX_TXS_IN_BLOCK: usize = 1024;
 
 // The first 32 slots are reserved for debugging purposes
 pub const DEBUG_SLOTS_OFFSET: usize = 8;

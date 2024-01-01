@@ -23,7 +23,7 @@ use zksync_system_constants::{
 use zksync_types::{
     api,
     block::{pack_block_info, unpack_block_info, MiniblockHasher},
-    fee_model::BatchFeeModelInput,
+    fee_model::BatchFeeInput,
     get_nonce_key,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     AccountTreeId, L1BatchNumber, MiniblockNumber, Nonce, ProtocolVersionId, StorageKey,

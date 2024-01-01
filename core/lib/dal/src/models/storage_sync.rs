@@ -14,6 +14,7 @@ pub(crate) struct StorageSyncBlock {
     pub l1_gas_price: i64,
     // L2 gas price assumed in the corresponding batch
     pub l2_fair_gas_price: i64,
+    pub fair_pubdata_price: Option<i64>,
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
     pub fee_account_address: Option<Vec<u8>>, // May be None if the block is not yet sealed

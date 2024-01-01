@@ -9,6 +9,7 @@ use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_types::{
     block::{BlockGasCount, DeployedContract, L1BatchHeader, MiniblockHasher, MiniblockHeader},
     commitment::{L1BatchCommitment, L1BatchMetadata},
+    fee_model::PubdataIndependentBatchFeeModelInput,
     get_code_key, get_system_context_init_logs,
     protocol_version::{L1VerifierConfig, ProtocolVersion},
     tokens::{TokenInfo, TokenMetadata, ETHEREUM_ADDRESS},
@@ -294,9 +295,13 @@ pub(crate) async fn create_genesis_l1_batch(
         l1_tx_count: 0,
         l2_tx_count: 0,
         base_fee_per_gas: 0,
-        l1_gas_price: 0,
-        l2_fair_gas_price: 0,
-        fair_pubdata_price: 0,
+        batch_fee_input: zksync_types::fee_model::BatchFeeInput::PubdataIndependent(
+            PubdataIndependentBatchFeeModelInput {
+                l1_gas_price: 0,
+                fair_l2_gas_price: 0,
+                fair_pubdata_price: 0,
+            },
+        ),
         base_system_contracts_hashes: base_system_contracts.hashes(),
         protocol_version: Some(ProtocolVersionId::latest()),
         virtual_blocks: 0,

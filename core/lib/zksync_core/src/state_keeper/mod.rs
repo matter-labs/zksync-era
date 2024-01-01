@@ -51,14 +51,6 @@ pub(crate) async fn create_state_keeper<G>(
 where
     G: BatchFeeModelInputProvider + 'static + Send + Sync,
 {
-    // FIXME: reutrn this assert
-    // assert!(
-    //     state_keeper_config.transaction_slots <= MAX_TXS_IN_BLOCK,
-    //     "Configured transaction_slots ({}) must be lower than the bootloader constant MAX_TXS_IN_BLOCK={}",
-    //     state_keeper_config.transaction_slots,
-    //     MAX_TXS_IN_BLOCK
-    // );
-
     let batch_executor_base = MainBatchExecutorBuilder::new(
         db_config.state_keeper_db_path.clone(),
         pool.clone(),

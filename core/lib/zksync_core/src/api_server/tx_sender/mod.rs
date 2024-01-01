@@ -8,7 +8,7 @@ use governor::{
     state::{InMemoryState, NotKeyed},
     Quota, RateLimiter,
 };
-use multivm::{interface::VmExecutionResultAndLogs, vm_latest::utils::overhead::derive_overhead};
+use multivm::{interface::VmExecutionResultAndLogs, utils::derive_overhead};
 // Workspace uses
 use multivm::{
     utils::{adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata},
@@ -18,14 +18,16 @@ use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
 use zksync_state::PostgresStorageCaches;
+use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     fee::{Fee, TransactionExecutionMetrics},
-    fee_model::BatchFeeModelInput,
+    fee_model::BatchFeeInput,
     get_code_key, get_intrinsic_constants,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     utils::storage_key_for_eth_balance,
-    AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, Nonce, PackedEthSignature,
-    ProtocolVersionId, Transaction, H160, H256, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS, U256,
+    vm_version, AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, Nonce,
+    PackedEthSignature, ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_L2_TX_GAS_LIMIT,
+    MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::h256_to_u256;
 
@@ -34,9 +36,9 @@ use self::proxy::TxProxy;
 use crate::{
     api_server::{
         execution_sandbox::{
-            execute_tx_eth_call, execute_tx_in_sandbox, execute_tx_with_pending_state,
-            get_pubdata_for_factory_deps, BlockArgs, SubmitTxStage, TxExecutionArgs, TxSharedArgs,
-            VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
+            execute_tx_eth_call, execute_tx_in_sandbox, get_pubdata_for_factory_deps, BlockArgs,
+            SubmitTxStage, TxExecutionArgs, TxSharedArgs, VmConcurrencyLimiter, VmPermit,
+            SANDBOX_METRICS,
         },
         tx_sender::result::{ApiCallResult, SubmitTxError},
     },
@@ -441,7 +443,7 @@ impl<G: BatchFeeModelInputProvider> TxSender<G> {
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
 
-        let fee_model = self.0.batch_fee_input_provider.get_batch_fee_input(false);
+        let fee_input = self.0.batch_fee_input_provider.get_batch_fee_input(false);
 
         // TODO (SMA-1715): do not subsidize the overhead for the transaction
 
@@ -453,7 +455,7 @@ impl<G: BatchFeeModelInputProvider> TxSender<G> {
             );
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
-        if tx.common_data.fee.max_fee_per_gas < fee_model.fair_l2_gas_price().into() {
+        if tx.common_data.fee.max_fee_per_gas < fee_input.fair_l2_gas_price().into() {
             tracing::info!(
                 "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
                 tx.hash(),
@@ -476,13 +478,13 @@ impl<G: BatchFeeModelInputProvider> TxSender<G> {
             ));
         }
 
-        let intrinsic_consts = get_intrinsic_constants();
+        let intrinsic_costs = get_intrinsic_constants();
         assert!(
-            intrinsic_consts.l2_tx_intrinsic_pubdata == 0,
+            intrinsic_costs.l2_tx_intrinsic_pubdata == 0,
             "Currently we assume that the L2 transactions do not have any intrinsic pubdata"
         );
 
-        let min_gas_limit = U256::from(intrinsic_consts.l2_tx_intrinsic_gas);
+        let min_gas_limit = U256::from(intrinsic_costs.l2_tx_intrinsic_gas);
         if tx.common_data.fee.gas_limit < min_gas_limit {
             return Err(SubmitTxError::IntrinsicGas);
         }
@@ -592,11 +594,20 @@ impl<G: BatchFeeModelInputProvider> TxSender<G> {
         vm_permit: VmPermit,
         mut tx: Transaction,
         tx_gas_limit: u32,
-        fee_model_params: BatchFeeModelInput,
+        gas_price_per_pubdata: u32,
+        fee_model_params: BatchFeeInput,
         block_args: BlockArgs,
         base_fee: u64,
+        vm_version: VmVersion,
     ) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics) {
-        let gas_limit_with_overhead = tx_gas_limit + derive_overhead(tx.encoding_len());
+        let gas_limit_with_overhead = tx_gas_limit
+            + derive_overhead(
+                tx_gas_limit,
+                gas_price_per_pubdata,
+                tx.encoding_len(),
+                tx.tx_format() as u8,
+                vm_version,
+            );
 
         match &mut tx.common_data {
             ExecuteTransactionCommon::L1(l1_common_data) => {
@@ -638,7 +649,7 @@ impl<G: BatchFeeModelInputProvider> TxSender<G> {
         (exec_result, tx_metrics)
     }
 
-    fn shared_args_for_gas_estimate(&self, fee_model_params: BatchFeeModelInput) -> TxSharedArgs {
+    fn shared_args_for_gas_estimate(&self, fee_model_params: BatchFeeInput) -> TxSharedArgs {
         let config = &self.0.sender_config;
 
         TxSharedArgs {
@@ -732,8 +743,8 @@ impl<G: BatchFeeModelInputProvider> TxSender<G> {
                 l2_common_data.signature = PackedEthSignature::default().serialize_packed().into();
             }
 
-            // todo: use a constant
-            l2_common_data.fee.gas_per_pubdata_limit = U256::from(50000);
+            l2_common_data.fee.gas_per_pubdata_limit =
+                U256::from(DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE);
         }
 
         // Acquire the vm token for the whole duration of the binary search.
@@ -790,9 +801,11 @@ impl<G: BatchFeeModelInputProvider> TxSender<G> {
                     vm_permit.clone(),
                     tx.clone(),
                     try_gas_limit,
+                    gas_per_pubdata_byte as u32,
                     fee_model,
                     block_args,
                     base_fee,
+                    protocol_version.into(),
                 )
                 .await;
 
@@ -827,16 +840,24 @@ impl<G: BatchFeeModelInputProvider> TxSender<G> {
                 vm_permit,
                 tx.clone(),
                 suggested_gas_limit,
+                gas_per_pubdata_byte as u32,
                 fee_model,
                 block_args,
                 base_fee,
+                protocol_version.into(),
             )
             .await;
 
         result.into_api_call_result()?;
         self.ensure_tx_executable(tx.clone(), &tx_metrics, false)?;
 
-        let overhead = derive_overhead(tx.encoding_len());
+        let overhead = derive_overhead(
+            suggested_gas_limit,
+            gas_per_pubdata_byte as u32,
+            tx.encoding_len(),
+            tx.tx_format() as u8,
+            protocol_version.into(),
+        );
 
         let full_gas_limit =
             match tx_body_gas_limit.overflowing_add(gas_for_bytecodes_pubdata + overhead) {

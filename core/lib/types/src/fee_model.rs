@@ -1,15 +1,22 @@
 use core::panic;
 
 use serde::{Deserialize, Serialize};
+use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 
-/// Output to be provided into the VM
+use crate::ProtocolVersionId;
+
+/// Fee input to be provided into the VM. It contains two options:
+/// - L1Pegged: L1 gas price is provided to the VM, and the pubdata price is derived from it. Using this option is required for the
+/// older versions of Era.
+/// - PubdataIndependent: L1 gas price and pubdata price are not necessarily dependend on one another. This options is more suitable for the
+/// newer versions of Era.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BatchFeeModelInput {
+pub enum BatchFeeInput {
     L1Pegged(L1PeggedBatchFeeModelInput),
     PubdataIndependent(PubdataIndependentBatchFeeModelInput),
 }
 
-impl Default for BatchFeeModelInput {
+impl Default for BatchFeeInput {
     fn default() -> Self {
         // We have a sensible default value of 1 gwei for L1 gas price and 0.1 gwei for fair L2 gas price.
         Self::L1Pegged(L1PeggedBatchFeeModelInput {
@@ -19,57 +26,78 @@ impl Default for BatchFeeModelInput {
     }
 }
 
-impl BatchFeeModelInput {
-    pub fn into_pegged(self) -> L1PeggedBatchFeeModelInput {
+impl BatchFeeInput {
+    pub fn into_l1_pegged(self) -> L1PeggedBatchFeeModelInput {
         match self {
-            BatchFeeModelInput::L1Pegged(input) => input,
+            BatchFeeInput::L1Pegged(input) => input,
             _ => panic!("Can not convert PubdataIndependentBatchFeeModelInput into L1PeggedBatchFeeModelInput"),
         }
     }
 
-    pub fn pegged_ref_mut(&mut self) -> &mut L1PeggedBatchFeeModelInput {
+    pub fn l1_pegged_ref_mut(&mut self) -> &mut L1PeggedBatchFeeModelInput {
         match self {
-            BatchFeeModelInput::L1Pegged(input) => input,
+            BatchFeeInput::L1Pegged(input) => input,
             _ => panic!("Can not convert PubdataIndependentBatchFeeModelInput into L1PeggedBatchFeeModelInput"),
         }
     }
 
-    pub fn pegged_ref(&self) -> &L1PeggedBatchFeeModelInput {
+    pub fn l1_pegged_ref(&self) -> &L1PeggedBatchFeeModelInput {
         match self {
-            BatchFeeModelInput::L1Pegged(input) => input,
+            BatchFeeInput::L1Pegged(input) => input,
             _ => panic!("Can not convert PubdataIndependentBatchFeeModelInput into L1PeggedBatchFeeModelInput"),
         }
     }
 
     pub fn fair_pubdata_price(&self) -> u64 {
         match self {
-            BatchFeeModelInput::L1Pegged(input) => input.l1_gas_price * 17,
-            BatchFeeModelInput::PubdataIndependent(input) => input.fair_pubdata_price,
+            BatchFeeInput::L1Pegged(input) => input.l1_gas_price * L1_GAS_PER_PUBDATA_BYTE as u64,
+            BatchFeeInput::PubdataIndependent(input) => input.fair_pubdata_price,
         }
     }
 
     pub fn fair_l2_gas_price(&self) -> u64 {
         match self {
-            BatchFeeModelInput::L1Pegged(input) => input.fair_l2_gas_price,
-            BatchFeeModelInput::PubdataIndependent(input) => input.fair_l2_gas_price,
+            BatchFeeInput::L1Pegged(input) => input.fair_l2_gas_price,
+            BatchFeeInput::PubdataIndependent(input) => input.fair_l2_gas_price,
         }
     }
 
     pub fn l1_gas_price(&self) -> u64 {
         match self {
-            BatchFeeModelInput::L1Pegged(input) => input.l1_gas_price,
-            BatchFeeModelInput::PubdataIndependent(input) => input.l1_gas_price,
+            BatchFeeInput::L1Pegged(input) => input.l1_gas_price,
+            BatchFeeInput::PubdataIndependent(input) => input.l1_gas_price,
         }
     }
 
     pub fn into_pubdata_independent(self) -> PubdataIndependentBatchFeeModelInput {
         match self {
-            BatchFeeModelInput::PubdataIndependent(input) => input,
-            BatchFeeModelInput::L1Pegged(input) => PubdataIndependentBatchFeeModelInput {
+            BatchFeeInput::PubdataIndependent(input) => input,
+            BatchFeeInput::L1Pegged(input) => PubdataIndependentBatchFeeModelInput {
                 fair_l2_gas_price: input.fair_l2_gas_price,
                 fair_pubdata_price: input.l1_gas_price * 17,
                 l1_gas_price: input.l1_gas_price,
             },
+        }
+    }
+
+    pub fn for_protocol_version(
+        protocol_version: ProtocolVersionId,
+        fair_l2_gas_price: u64,
+        fair_pubdata_price: Option<u64>,
+        l1_gas_price: u64,
+    ) -> Self {
+        if protocol_version.is_1_4_1() {
+            Self::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+                fair_l2_gas_price,
+                fair_pubdata_price: fair_pubdata_price
+                    .expect("Pubdata price must be provided for protocol version 1.4.1"),
+                l1_gas_price,
+            })
+        } else {
+            Self::L1Pegged(L1PeggedBatchFeeModelInput {
+                fair_l2_gas_price,
+                l1_gas_price,
+            })
         }
     }
 }
@@ -97,13 +125,22 @@ pub struct PubdataIndependentBatchFeeModelInput {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct MainNodeFeeModelConfig {
+    /// The factor by which the L1 gas price is scaled. This is used to account for the fact that the L1 gas price may fluctuate.
     pub l1_gas_price_scale_factor: f64,
+    /// The factor by which the L1 pubdata price is scaled. This is used to account for the fact that the L1 pubdata price may fluctuate.
     pub l1_pubdata_price_scale_factor: f64,
+    /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
+    /// as potentially premium for congestion.
     pub minimal_l2_gas_price: u64,
+    /// Tthe constant that represents the possibility that a batch can be sealed because of overuse of compute.
     pub compute_overhead_percent: f64,
+    /// The constant that represents the possibility that a batch can be sealed because of overuse of pubdata.
     pub pubdata_overhead_percent: f64,
+    /// The constant amount of L1 gas that is used as the overhead for the batch. It includes the price for batch verification, etc.
     pub batch_overhead_l1_gas: u64,
+    /// The maximum amount of gas that can be used by the batch.
     pub max_gas_per_batch: u64,
+    /// The maximum amount of pubdata that can be used by the batch.
     pub max_pubdata_per_batch: u64,
 }
 

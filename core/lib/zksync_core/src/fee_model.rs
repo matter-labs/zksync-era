@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use zksync_types::{
     fee_model::{
-        BatchFeeModelInput, L1PeggedBatchFeeModelInput, MainNodeFeeModelConfig, MainNodeFeeParams,
+        BatchFeeInput, L1PeggedBatchFeeModelInput, MainNodeFeeModelConfig, MainNodeFeeParams,
         PubdataIndependentBatchFeeModelInput,
     },
     U256,
@@ -12,7 +12,7 @@ use crate::l1_gas_price::L1GasPriceProvider;
 
 /// Trait responsiblef for providign fee info for a batch
 pub trait BatchFeeModelInputProvider {
-    fn get_batch_fee_input(&self, scale_l1_prices: bool) -> BatchFeeModelInput {
+    fn get_batch_fee_input(&self, scale_l1_prices: bool) -> BatchFeeInput {
         // FIXME: use legacy by default or use a config to regulate it
         compute_legacy_batch_fee_model_input(self.get_fee_model_params(), scale_l1_prices)
     }
@@ -44,10 +44,12 @@ impl<G: L1GasPriceProvider> MainNodeFeeInputProvider<G> {
     }
 }
 
+/// Calculates the batch fee input based on the main node parameters.
+/// This function uses the legacy fee model, used prior to 1.4.1, i.e. where the pubdata price does not include the proving costs.
 pub(crate) fn compute_legacy_batch_fee_model_input(
     params: MainNodeFeeParams,
     scale_l1_prices: bool,
-) -> BatchFeeModelInput {
+) -> BatchFeeInput {
     let l1_gas_price_scale_factor = if scale_l1_prices {
         params.config.l1_gas_price_scale_factor
     } else {
@@ -56,27 +58,17 @@ pub(crate) fn compute_legacy_batch_fee_model_input(
 
     let l1_gas_price = (params.l1_gas_price as f64 * l1_gas_price_scale_factor) as u64;
 
-    BatchFeeModelInput::L1Pegged(L1PeggedBatchFeeModelInput {
+    BatchFeeInput::L1Pegged(L1PeggedBatchFeeModelInput {
         l1_gas_price: l1_gas_price,
         fair_l2_gas_price: params.config.minimal_l2_gas_price,
     })
 }
 
-/// TOOD: this comment is incorrect.
-/// Accepts the input for the fee model and returns the parameters to provide into the VM.
-/// - `base_l1_gas_price` - the assumed L1 gas price.
-/// - `base_pubdata_price` - the assumed L1 pubdata price.
-/// - `base_l2_gas_price` - the assumed L2 gas price, i.e. the price that should include the cost of computation/proving as well
-/// as potentially premium for congestion.
-/// - `compute_overhead_percent` - the constant that represents the possibility that a batch can be sealed because of overuse of compute.
-/// - `pubdata_overhead_percent` - the constant that represents the possibility that a batch can be sealed because of overuse of pubdata.
-/// - `batch_overhead_l1_gas` - the constant amount of L1 gas that is used as the overhead for the batch. It includes the price for batch verification, etc.
-/// - `max_gas_per_batch` - the maximum amount of gas that can be used by the batch.
-/// - `max_pubdata_per_batch` - the maximum amount of pubdata that can be used by the batch.
+/// Calculates the batch fee input based on the main node parameters.
 pub(crate) fn compute_batch_fee_model_input(
     params: MainNodeFeeParams,
     scale_l1_prices: bool,
-) -> BatchFeeModelInput {
+) -> BatchFeeInput {
     let MainNodeFeeParams {
         config,
         l1_gas_price,
@@ -125,7 +117,7 @@ pub(crate) fn compute_batch_fee_model_input(
         l1_pubdata_price + pubdata_overhead_wei
     };
 
-    BatchFeeModelInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+    BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
         l1_gas_price,
         fair_l2_gas_price,
         fair_pubdata_price,

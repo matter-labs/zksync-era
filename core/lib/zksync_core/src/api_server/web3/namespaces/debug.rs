@@ -7,7 +7,7 @@ use zksync_state::PostgresStorageCaches;
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
-    fee_model::BatchFeeModelInput,
+    fee_model::BatchFeeInput,
     l2::L2Tx,
     transaction_request::CallRequest,
     vm_trace::Call,
@@ -35,7 +35,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct DebugNamespace {
     connection_pool: ConnectionPool,
-    batch_fee_input: BatchFeeModelInput,
+    batch_fee_input: BatchFeeInput,
     api_contracts: ApiContracts,
     vm_execution_cache_misses_limit: Option<usize>,
     vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,

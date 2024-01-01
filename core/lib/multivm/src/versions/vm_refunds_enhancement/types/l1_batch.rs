@@ -29,11 +29,11 @@ pub(crate) fn bootloader_initial_memory(l1_batch: &L1BatchEnv) -> Vec<(usize, U2
         (NEW_BLOCK_NUMBER_SLOT, U256::from(l1_batch.number.0)),
         (
             L1_GAS_PRICE_SLOT,
-            U256::from(l1_batch.fee_input.pegged_ref().l1_gas_price),
+            U256::from(l1_batch.fee_input.l1_pegged_ref().l1_gas_price),
         ),
         (
             FAIR_L2_GAS_PRICE_SLOT,
-            U256::from(l1_batch.fee_input.pegged_ref().fair_l2_gas_price),
+            U256::from(l1_batch.fee_input.l1_pegged_ref().fair_l2_gas_price),
         ),
         (
             EXPECTED_BASE_FEE_SLOT,

@@ -59,9 +59,6 @@ pub type ZkSyncVmState<S, H> = VmState<
     DummyTracer,
 >;
 
-// The maximal number of transactions in a single batch
-pub const MAX_TXS_IN_BLOCK: usize = 1024;
-
 pub const MAX_MEM_SIZE_BYTES: u32 = 16777216; // 2^24
 
 // Arbitrary space in memory closer to the end of the page
@@ -182,6 +179,7 @@ pub enum VmExecutionStopReason {
     TracerRequestedStop,
 }
 
+use super::vm_with_bootloader::MAX_TXS_IN_BLOCK;
 use crate::vm_m6::utils::VmExecutionResult as NewVmExecutionResult;
 
 fn vm_may_have_ended_inner<H: HistoryMode, S: Storage>(

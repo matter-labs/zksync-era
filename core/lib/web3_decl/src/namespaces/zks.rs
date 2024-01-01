@@ -8,7 +8,7 @@ use zksync_types::{
         TransactionDetails,
     },
     fee::Fee,
-    fee_model::{BatchFeeModelInput, MainNodeFeeModelConfig, MainNodeFeeParams},
+    fee_model::{BatchFeeInput, MainNodeFeeModelConfig, MainNodeFeeParams},
     transaction_request::CallRequest,
     Address, L1BatchNumber, MiniblockNumber, H256, U256, U64,
 };

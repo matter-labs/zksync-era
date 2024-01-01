@@ -8,7 +8,7 @@ use std::{
 
 use tokio::sync::watch::Receiver;
 use zksync_system_constants::{GAS_PER_PUBDATA_BYTE, L1_GAS_PER_PUBDATA_BYTE};
-use zksync_types::fee_model::{BatchFeeModelInput, MainNodeFeeModelConfig, MainNodeFeeParams};
+use zksync_types::fee_model::{BatchFeeInput, MainNodeFeeModelConfig, MainNodeFeeParams};
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::ZksNamespaceClient,

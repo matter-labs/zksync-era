@@ -1,4 +1,5 @@
 use zk_evm_1_3_3::zkevm_opcode_defs::system_params::MAX_TX_ERGS_LIMIT;
+use zksync_system_constants::MAX_GAS_PER_PUBDATA_BYTE_PRE_1_4_1;
 use zksync_types::{
     ethabi::{encode, Address, Token},
     fee::encoding_len,
@@ -57,6 +58,12 @@ impl From<Transaction> for TransactionData {
                     U256([1, 0, 0, 0])
                 } else {
                     U256::zero()
+                };
+
+                let gas_per_pubdata_limit = if common_data.transaction_type.is_ethereum_type() {
+                    MAX_GAS_PER_PUBDATA_BYTE_PRE_1_4_1.into()
+                } else {
+                    common_data.fee.gas_per_pubdata_limit
                 };
 
                 TransactionData {

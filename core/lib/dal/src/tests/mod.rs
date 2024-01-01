@@ -4,6 +4,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     block::{L1BatchHeader, MiniblockHasher, MiniblockHeader},
     fee::{Fee, TransactionExecutionMetrics},
+    fee_model::PubdataIndependentBatchFeeModelInput,
     helpers::unix_timestamp_ms,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     l2::L2Tx,
@@ -39,9 +40,13 @@ pub(crate) fn create_miniblock_header(number: u32) -> MiniblockHeader {
         l1_tx_count: 0,
         l2_tx_count: 0,
         base_fee_per_gas: 100,
-        l1_gas_price: 100,
-        fair_pubdata_price: 1700,
-        l2_fair_gas_price: 100,
+        batch_fee_input: zksync_types::fee_model::BatchFeeInput::PubdataIndependent(
+            PubdataIndependentBatchFeeModelInput {
+                l1_gas_price: 100,
+                fair_pubdata_price: 1700,
+                fair_l2_gas_price: 100,
+            },
+        ),
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(protocol_version),
         virtual_blocks: 1,

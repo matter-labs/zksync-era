@@ -531,6 +531,10 @@ async fn generate_witness(
         .unwrap()
         .unwrap();
 
+    let protocol_version = header
+        .protocol_version
+        .unwrap_or(ProtocolVersionId::last_pre_boojum());
+
     let previous_batch_with_metadata = connection
         .blocks_dal()
         .get_l1_batch_metadata(zksync_types::L1BatchNumber(
@@ -552,7 +556,8 @@ async fn generate_witness(
         .await
         .expect("Default aa bytecode should exist");
     let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
-    let bootloader_contents = expand_bootloader_contents(&input.initial_heap_content);
+    let bootloader_contents =
+        expand_bootloader_contents(&input.initial_heap_content, protocol_version);
     let account_code_hash = h256_to_u256(header.base_system_contracts_hashes.default_aa);
 
     let hashes: HashSet<H256> = input

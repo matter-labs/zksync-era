@@ -36,6 +36,7 @@ pub enum TransactionType {
 }
 
 impl TransactionType {
+    /// Returns whether a transaction type is an Ethereum transaction type.
     pub fn is_ethereum_type(&self) -> bool {
         match self {
             TransactionType::LegacyTransaction => true,

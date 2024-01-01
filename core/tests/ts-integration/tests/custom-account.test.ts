@@ -41,9 +41,7 @@ describe('Tests for the custom account behavior', () => {
 
     test('Should deploy custom account', async () => {
         const violateRules = false;
-        customAccount = await deployContract(alice, contracts.customAccount, [violateRules], 'createAccount', {
-            // gasLimit: '200000000'
-        });
+        customAccount = await deployContract(alice, contracts.customAccount, [violateRules], 'createAccount');
 
         // Now we need to check that it was correctly marked as an account:
         const contractAccountInfo = await alice.provider.getContractAccountInfo(customAccount.address);

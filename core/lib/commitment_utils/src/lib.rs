@@ -21,10 +21,10 @@ pub fn bootloader_initial_content_commitment(
 ) -> Option<H256> {
     let expanded_memory_size = if protocol_version.is_pre_boojum() {
         return None;
-    } else if protocol_version.is_1_4_0() {
-        USED_PRE_1_4_1_BOOTLOADER_MEMORY_BYTES
-    } else {
+    } else if protocol_version.is_1_4_1() {
         USED_1_4_1_BOOTLOADER_MEMORY_BYTES
+    } else {
+        USED_PRE_1_4_1_BOOTLOADER_MEMORY_BYTES
     };
 
     let full_bootloader_memory =

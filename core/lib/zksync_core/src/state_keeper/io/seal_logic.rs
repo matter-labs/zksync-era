@@ -13,6 +13,7 @@ use zksync_system_constants::{ACCOUNT_CODE_STORAGE_ADDRESS, L1_GAS_PER_PUBDATA_B
 use zksync_types::{
     block::{unpack_block_info, L1BatchHeader, MiniblockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
+    fee_model::PubdataIndependentBatchFeeModelInput,
     l1::L1Tx,
     l2::L2Tx,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
@@ -332,9 +333,7 @@ impl MiniblockSealCommand {
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
             base_fee_per_gas: self.base_fee_per_gas,
-            l1_gas_price: self.l1_gas_price,
-            fair_pubdata_price: self.fair_pubdata_price,
-            l2_fair_gas_price: self.fair_l2_gas_price,
+            batch_fee_input: self.fee_input,
             base_system_contracts_hashes: self.base_system_contracts_hashes,
             protocol_version: self.protocol_version,
             virtual_blocks: self.miniblock.virtual_blocks,

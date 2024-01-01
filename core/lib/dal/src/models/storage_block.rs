@@ -13,8 +13,9 @@ use zksync_types::{
     api,
     block::{L1BatchHeader, MiniblockHeader},
     commitment::{L1BatchMetaParameters, L1BatchMetadata},
+    fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
-    Address, L1BatchNumber, MiniblockNumber, H2048, H256,
+    Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H2048, H256,
 };
 
 #[derive(Debug, Error)]
@@ -525,6 +526,27 @@ pub struct StorageMiniblockHeader {
 
 impl From<StorageMiniblockHeader> for MiniblockHeader {
     fn from(row: StorageMiniblockHeader) -> Self {
+        let protocol_version = row.protocol_version.map(|v| (v as u16).try_into().unwrap());
+
+        let fee_input = protocol_version
+            .filter(|version: &ProtocolVersionId| version.is_1_4_1())
+            .map(|_| {
+                BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+                    fair_pubdata_price: row
+                        .fair_pubdata_price
+                        .expect("No fair pubdata price for 1.4.1 miniblock")
+                        as u64,
+                    fair_l2_gas_price: row.l2_fair_gas_price as u64,
+                    l1_gas_price: row.l1_gas_price as u64,
+                })
+            })
+            .unwrap_or_else(|| {
+                BatchFeeInput::L1Pegged(L1PeggedBatchFeeModelInput {
+                    fair_l2_gas_price: row.l2_fair_gas_price as u64,
+                    l1_gas_price: row.l1_gas_price as u64,
+                })
+            });
+
         MiniblockHeader {
             number: MiniblockNumber(row.number as u32),
             timestamp: row.timestamp as u64,
@@ -532,14 +554,12 @@ impl From<StorageMiniblockHeader> for MiniblockHeader {
             l1_tx_count: row.l1_tx_count as u16,
             l2_tx_count: row.l2_tx_count as u16,
             base_fee_per_gas: row.base_fee_per_gas.to_u64().unwrap(),
-            l1_gas_price: row.l1_gas_price as u64,
-            l2_fair_gas_price: row.l2_fair_gas_price as u64,
-            fair_pubdata_price: row.fair_pubdata_price.map(|x| x as u64).unwrap_or_default(),
+            batch_fee_input: fee_input,
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 row.bootloader_code_hash,
                 row.default_aa_code_hash,
             ),
-            protocol_version: row.protocol_version.map(|v| (v as u16).try_into().unwrap()),
+            protocol_version,
             virtual_blocks: row.virtual_blocks as u32,
         }
     }

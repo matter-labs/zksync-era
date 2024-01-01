@@ -44,7 +44,7 @@ impl L1GasPriceProvider for MockL1GasPriceProvider {
     }
 
     fn estimate_effective_pubdata_price(&self) -> u64 {
-        self.0 * L1_GAS_PER_PUBDATA_BYTE
+        self.0 * (L1_GAS_PER_PUBDATA_BYTE as u64)
     }
 }
 
@@ -216,9 +216,13 @@ fn create_miniblock(number: u32) -> MiniblockHeader {
         l1_tx_count: 0,
         l2_tx_count: 0,
         base_fee_per_gas: 100,
-        l1_gas_price: 100,
-        l2_fair_gas_price: 100,
-        fair_pubdata_price: 1700,
+        batch_fee_input: zksync_types::fee_model::BatchFeeInput::PubdataIndependent(
+            zksync_types::fee_model::PubdataIndependentBatchFeeModelInput {
+                l1_gas_price: 100,
+                fair_l2_gas_price: 100,
+                fair_pubdata_price: 1700,
+            },
+        ),
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         virtual_blocks: 1,

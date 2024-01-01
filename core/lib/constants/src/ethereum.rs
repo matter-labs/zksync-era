@@ -29,3 +29,7 @@ pub const MAX_GAS_PER_PUBDATA_BYTE_1_4_1: u64 =
 
 // The L1->L2 are required to have the following gas per pubdata byte.
 pub const REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE: u64 = 800;
+
+// The default gas per pubdata byte for L2 transactions, that is used, for instance, when we need to
+// insert some default value for type 2 transactions.
+pub const DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE: u64 = 50_000;

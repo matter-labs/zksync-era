@@ -1,5 +1,5 @@
 use zksync_types::{
-    fee_model::BatchFeeModelInput, Address, L1BatchNumber, ProtocolVersionId, VmVersion, H256, U256,
+    fee_model::BatchFeeInput, Address, L1BatchNumber, ProtocolVersionId, VmVersion, H256, U256,
 };
 
 use super::{L2BlockEnv, SystemEnv};
@@ -13,15 +13,8 @@ pub struct L1BatchEnv {
     pub number: L1BatchNumber,
     pub timestamp: u64,
 
-    pub fee_input: BatchFeeModelInput,
-    // /// The price of the L1 gas in Wei. It may not be used by the latest VM, but it is kept for the backward compatibility.
-    // pub l1_gas_price: u64,
-    // /// The minimal price for the pubdata in Wei that the operator agrees on. Starting from the new fee model VM,
-    // /// this value must also account for the fact that batch might be sealed because of the running out of compute.
-    // pub fair_l2_gas_price: u64,
-    // /// The minimal price for the pubdata in Wei that the operator agrees on.
-    // /// This value must also account for the fact that batch might be sealed because of the running out of compute.
-    // pub fair_pubdata_price: u64,
+    /// The fee input into the batch. It contains information such as L1 gas price, L2 fair gas price, etc.
+    pub fee_input: BatchFeeInput,
     pub fee_account: Address,
     pub enforced_base_fee: Option<u64>,
     pub first_l2_block: L2BlockEnv,

@@ -3,8 +3,7 @@ pub use zk_evm_1_4_1::zkevm_opcode_defs::system_params::{
     ERGS_PER_CIRCUIT, INITIAL_STORAGE_WRITE_PUBDATA_BYTES, MAX_PUBDATA_PER_BLOCK,
 };
 use zksync_system_constants::{
-    L1_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS,
-    USED_1_4_1_BOOTLOADER_MEMORY_WORDS,
+    MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS, USED_1_4_1_BOOTLOADER_MEMORY_WORDS,
 };
 
 use crate::vm_latest::old_vm::utils::heap_page_from_base;
@@ -73,7 +72,7 @@ pub(crate) const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
     OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET + OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS;
 
 /// The size of the bootloader memory dedicated to the encodings of transactions
-pub const BOOTLOADER_TX_ENCODING_SPACE: u32 =
+pub(crate) const BOOTLOADER_TX_ENCODING_SPACE: u32 =
     (USED_1_4_1_BOOTLOADER_MEMORY_WORDS - TX_DESCRIPTION_OFFSET - MAX_TXS_IN_BLOCK) as u32;
 
 // Size of the bootloader tx description in words
@@ -89,7 +88,6 @@ pub(crate) const TX_GAS_LIMIT_OFFSET: usize = 4;
 
 const INITIAL_BASE_PAGE: u32 = 8;
 pub const BOOTLOADER_HEAP_PAGE: u32 = heap_page_from_base(MemoryPage(INITIAL_BASE_PAGE)).0;
-pub const BLOCK_OVERHEAD_L1_GAS: u32 = 800000;
 
 /// VM Hooks are used for communication between bootloader and tracers.
 /// The 'type' / 'opcode' is put into VM_HOOK_POSITION slot,
@@ -100,7 +98,7 @@ pub const VM_HOOK_POSITION: u32 = RESULT_SUCCESS_FIRST_SLOT - 1;
 pub const VM_HOOK_PARAMS_COUNT: u32 = 2;
 pub const VM_HOOK_PARAMS_START_POSITION: u32 = VM_HOOK_POSITION - VM_HOOK_PARAMS_COUNT;
 
-pub(crate) const MAX_MEM_SIZE_BYTES: u32 = 24000000; // 2^24
+pub(crate) const MAX_MEM_SIZE_BYTES: u32 = 24000000;
 
 /// Arbitrary space in memory closer to the end of the page
 pub const RESULT_SUCCESS_FIRST_SLOT: u32 =
@@ -128,8 +126,11 @@ pub(crate) const TX_OPERATOR_L2_BLOCK_INFO_SLOTS: usize =
 pub(crate) const COMPRESSED_BYTECODES_OFFSET: usize =
     TX_OPERATOR_L2_BLOCK_INFO_OFFSET + TX_OPERATOR_L2_BLOCK_INFO_SLOTS;
 
-// The maximal gas limit that gets passed into an L1->L2 transaction
+/// The maximal gas limit that gets passed into an L1->L2 transaction
 pub(crate) const PRIORITY_TX_MAX_GAS_LIMIT: usize = 72_000_000;
 
+/// The amount of gas to be charged for occupying a single slot of a transaction.
 pub(crate) const TX_SLOT_OVERHEAD_GAS: u32 = 10_000;
+
+/// The amount of gas to be charged for occupying a single byte of the bootloader's memory.
 pub(crate) const TX_MEMORY_OVERHEAD_GAS: u32 = 10;
