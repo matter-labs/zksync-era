@@ -1,10 +1,10 @@
 //! Storage implementation based on DAL.
-use std::sync::{Arc,Mutex};
+use std::sync::{Mutex};
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_bft::PayloadManager;
 use zksync_consensus_roles::validator;
-use zksync_consensus_storage::{PersistentBlockStore, BlockStore, BlockStoreRunner, BlockStoreState, ReplicaState, ReplicaStore};
+use zksync_consensus_storage::{PersistentBlockStore, BlockStoreState, ReplicaState, ReplicaStore};
 use zksync_dal::{consensus_dal::Payload, ConnectionPool};
 use zksync_types::{Address,MiniblockNumber};
 use crate::sync_layer::fetcher::{FetchedBlock,FetcherCursor};
@@ -84,52 +84,54 @@ pub(super) struct Cursor {
 /// Postgres-based [`BlockStore`] implementation, which
 /// considers blocks as stored <=> they have consensus field set.
 #[derive(Clone,Debug)]
-pub(super) struct PostgresStore {
+pub(super) struct Store {
     pool: ConnectionPool,
     operator_addr: Address,
 }
 
 #[derive(Debug)]
-pub(super) struct PostgresBlockStore {
-    pub(super) inner: PostgresStore,
+pub(super) struct BlockStore {
+    pub(super) inner: Store,
     pub(super) cursor: Option<Cursor>,
 }
 
-impl PostgresStore {
+impl Store {
     /// Creates a new storage handle. `pool` should have multiple connections to work efficiently.
     pub fn new(pool: ConnectionPool, operator_addr: Address) -> Self { 
         Self { pool, operator_addr }
-    } 
-
-    pub async fn validator_block_store(self: Self, ctx: &ctx::Ctx, validator_key: &validator::SecretKey) -> ctx::Result<(Arc<BlockStore>,BlockStoreRunner)> {
-        {
-            let mut storage = CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
-            // Fetch last miniblock number outside of the transaction to avoid taking a lock.
-            let number = storage.last_miniblock_number(ctx).await.wrap("last_miniblock_number()")?; 
-            
-            let mut txn = storage.start_transaction(ctx).await.wrap("start_transaction()")?;
-            if txn.first_certificate(ctx).await.wrap("first_certificate()")?.is_none() {
-                let payload = txn.payload(ctx,number,self.operator_addr).await.wrap("payload()")?.context("miniblock disappeared")?;
-                let (genesis,_) = zksync_consensus_bft::testonly::make_genesis(&[validator_key.clone()],payload.encode(),number);
-                txn.insert_certificate(ctx,&genesis.justification,self.operator_addr).await.wrap("insert_certificate()")?;
-                txn.commit(ctx).await.wrap("commit()")?;
-            } 
-        }
-        BlockStore::new(ctx,Box::new(PostgresBlockStore{inner:self,cursor:None}),1000).await
     }
 
-    pub async fn fetcher_block_store(self, ctx: &ctx::Ctx, actions: ActionQueueSender) -> ctx::Result<(Arc<BlockStore>,BlockStoreRunner)> {
-        let cursor = {
-            let mut storage = CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
-            let cursor = storage.new_fetcher_cursor(ctx).await.wrap("new_fetcher_cursor()")?;
-            Some(Cursor { inner: Mutex::new(cursor), actions })
-        };
-        BlockStore::new(ctx,Box::new(PostgresBlockStore{inner:self,cursor}),1000).await
+    pub fn into_block_store(self) -> BlockStore {
+        BlockStore { inner: self, cursor: None }
+    }
+}
+
+impl BlockStore {
+    pub async fn try_init_genesis(&mut self, ctx: &ctx::Ctx, validator_key: &validator::SecretKey) -> ctx::Result<()> {
+        let mut storage = CtxStorage::access(ctx, &self.inner.pool).await.wrap("access()")?;
+        // Fetch last miniblock number outside of the transaction to avoid taking a lock.
+        let number = storage.last_miniblock_number(ctx).await.wrap("last_miniblock_number()")?; 
+        
+        let mut txn = storage.start_transaction(ctx).await.wrap("start_transaction()")?;
+        if txn.first_certificate(ctx).await.wrap("first_certificate()")?.is_some() {
+            return Ok(());
+        }
+        let payload = txn.payload(ctx,number,self.inner.operator_addr).await.wrap("payload()")?.context("miniblock disappeared")?;
+        let (genesis,_) = zksync_consensus_bft::testonly::make_genesis(&[validator_key.clone()],payload.encode(),number);
+        txn.insert_certificate(ctx,&genesis.justification,self.inner.operator_addr).await.wrap("insert_certificate()")?;
+        txn.commit(ctx).await.wrap("commit()")
+    }
+
+    pub async fn set_actions_queue(&mut self, ctx: &ctx::Ctx, actions: ActionQueueSender) -> ctx::Result<()> {
+        let mut storage = CtxStorage::access(ctx, &self.inner.pool).await.wrap("access()")?;
+        let cursor = storage.new_fetcher_cursor(ctx).await.wrap("new_fetcher_cursor()")?;
+        self.cursor = Some(Cursor { inner: Mutex::new(cursor), actions });
+        Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl PersistentBlockStore for PostgresBlockStore {
+impl PersistentBlockStore for BlockStore {
     async fn state(&self, ctx: &ctx::Ctx) -> ctx::Result<Option<BlockStoreState>> {
         // Ensure that genesis block has consensus field set in postgres.
         let mut storage = CtxStorage::access(ctx, &self.inner.pool).await.wrap("access()")?;
@@ -192,7 +194,7 @@ impl PersistentBlockStore for PostgresBlockStore {
 }
 
 #[async_trait::async_trait]
-impl ReplicaStore for PostgresStore {
+impl ReplicaStore for Store {
     async fn state(&self, ctx: &ctx::Ctx) -> ctx::Result<Option<ReplicaState>> {
         let storage = &mut CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
         storage.replica_state(ctx).await.wrap("replica_state()")
@@ -205,7 +207,7 @@ impl ReplicaStore for PostgresStore {
 }
 
 #[async_trait::async_trait]
-impl PayloadManager for PostgresStore {
+impl PayloadManager for Store {
     async fn propose(&self,ctx: &ctx::Ctx, block_number: validator::BlockNumber) -> ctx::Result<validator::Payload> {
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
         let mut storage = CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;

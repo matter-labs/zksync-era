@@ -1,7 +1,9 @@
 use anyhow::Context as _;
 use rand::Rng;
-use zksync_concurrency::{ctx, scope, sync, time};
+use zksync_concurrency::{ctx, scope, sync, time, error::Wrap as _};
 use zksync_consensus_roles::validator;
+use zksync_consensus_storage as storage;
+use zksync_consensus_storage::{PersistentBlockStore};
 use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
@@ -10,7 +12,7 @@ use zksync_types::{
 };
 
 use crate::{
-    consensus::storage::CtxStorage,
+    consensus::{Store,storage::{BlockStore}},
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
         tests::{create_l1_batch_metadata, create_l2_transaction, MockBatchExecutorBuilder},
@@ -143,16 +145,18 @@ pub(super) struct StateKeeperHandle {
     gas_per_pubdata: u32,
     operator_address: Address,
 
-    actions_sender: ActionQueueSender,
+    pub(super) actions_sender: ActionQueueSender,
+    pub(super) pool: ConnectionPool,
 }
 
 pub(super) struct StateKeeperRunner {
     actions_queue: ActionQueue,
     operator_address: Address,
+    pool: ConnectionPool,
 }
 
 impl StateKeeperHandle {
-    pub fn new(operator_address: Address) -> (Self, StateKeeperRunner) {
+    pub fn new(pool: ConnectionPool, operator_address: Address) -> (Self, StateKeeperRunner) {
         let (actions_sender, actions_queue) = ActionQueue::new();
         (
             Self {
@@ -164,10 +168,12 @@ impl StateKeeperHandle {
                 gas_per_pubdata: 100,
                 operator_address,
                 actions_sender,
+                pool: pool.clone(),
             },
             StateKeeperRunner {
                 operator_address,
                 actions_queue,
+                pool,
             },
         )
     }
@@ -231,11 +237,19 @@ impl StateKeeperHandle {
         }
     }
 
+    pub fn last_block(&self) -> validator::BlockNumber {
+        validator::BlockNumber((self.next_block.0 - 1) as u64)
+    }
+
+    pub fn store(&self) -> BlockStore {
+        Store::new(self.pool.clone(),self.operator_address).into_block_store()
+    }
+
     // Wait for all pushed miniblocks to be produced.
-    pub async fn sync(&self, ctx: &ctx::Ctx, pool: &ConnectionPool) -> anyhow::Result<()> {
+    pub async fn sync(&self, ctx: &ctx::Ctx) -> ctx::Result<()> {
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
         loop {
-            let mut storage = pool.access_storage().await.context("access_storage()")?;
+            let mut storage = self.pool.access_storage().await.context("access_storage()")?;
             let head = storage
                 .blocks_dal()
                 .get_sealed_miniblock_number()
@@ -246,51 +260,6 @@ impl StateKeeperHandle {
             }
             ctx.sleep(POLL_INTERVAL).await?;
         }
-    }
-
-    // Wait for all pushed miniblocks to have consensus certificate.
-    pub async fn sync_consensus(
-        &self,
-        ctx: &ctx::Ctx,
-        pool: &ConnectionPool,
-    ) -> anyhow::Result<()> {
-        const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
-        loop {
-            let mut storage = CtxStorage::access(ctx,&pool).await.context("access_storage()")?;
-            if let Some(last) = storage.last_certificate(ctx).await.context("storage.last_certificate()")? {
-                if last.header().number.0 >= (self.next_block.0 - 1) as u64 {
-                    return Ok(());
-                }
-            }
-            ctx.sleep(POLL_INTERVAL).await?;
-        }
-    }
-
-    /// Validate consensus certificates for all expected miniblocks.
-    pub async fn validate_consensus(
-        &self,
-        ctx: &ctx::Ctx,
-        pool: &ConnectionPool,
-        validators: &validator::ValidatorSet,
-    ) -> anyhow::Result<()> {
-        let mut storage = CtxStorage::access(ctx, pool)
-            .await
-            .context("storage()")?;
-        let genesis_cert = storage.first_certificate(ctx).await
-            .context("first_certificate()")?
-            .context("genesis missing")?;
-        for i in genesis_cert.header().number.0..self.next_block.0 as u64 {
-            let number = validator::BlockNumber(i);
-            let justification = storage.certificate(ctx, number).await
-                .with_context(||format!("storage.certificate({i})"))?
-                .with_context(|| format!("missing cert {i}"))?;
-            let payload = storage.payload(ctx, number, self.operator_address).await
-                .with_context(||format!("storage.payload({i})"))?
-                .with_context(||format!("missing payload {i}"))?;
-            let block = validator::FinalBlock { payload: payload.encode(), justification };
-            block.validate(validators, 1).context(i)?;
-        }
-        Ok(())
     }
 }
 
@@ -320,9 +289,9 @@ async fn run_mock_metadata_calculator(ctx: &ctx::Ctx, pool: &ConnectionPool) -> 
 }
 
 impl StateKeeperRunner {
-    pub async fn run(self, ctx: &ctx::Ctx, pool: &ConnectionPool) -> anyhow::Result<()> {
+    pub async fn run(self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
         scope::run!(ctx, |ctx, s| async {
-            let mut storage = pool.access_storage().await.context("access_storage()")?;
+            let mut storage = self.pool.access_storage().await.context("access_storage()")?;
             // ensure genesis
             if storage
                 .blocks_dal()
@@ -337,10 +306,10 @@ impl StateKeeperRunner {
                     .context("ensure_genesis_state()")?;
             }
             let (stop_sender, stop_receiver) = sync::watch::channel(false);
-            let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(pool.clone(), 5);
+            let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(self.pool.clone(), 5);
             let io = ExternalIO::new(
                 miniblock_sealer_handle,
-                pool.clone(),
+                self.pool.clone(),
                 self.actions_queue,
                 SyncState::new(),
                 Box::<MockMainNodeClient>::default(),
@@ -350,7 +319,7 @@ impl StateKeeperRunner {
             )
             .await;
             s.spawn_bg(miniblock_sealer.run());
-            s.spawn_bg(run_mock_metadata_calculator(ctx, &pool));
+            s.spawn_bg(run_mock_metadata_calculator(ctx, &self.pool));
             s.spawn_bg(
                 ZkSyncStateKeeper::without_sealer(
                     stop_receiver,
@@ -365,4 +334,37 @@ impl StateKeeperRunner {
         })
         .await
     }
+}
+
+pub async fn wait_for_block(
+    ctx: &ctx::Ctx,
+    store: &dyn PersistentBlockStore,
+    want_last: validator::BlockNumber,
+) -> ctx::Result<()> {
+    const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
+    loop {
+        if let Some(state) = store.state(ctx).await.wrap("store.state()")? {
+            if state.last.header().number >= want_last {
+                return Ok(());
+            }
+        }
+        ctx.sleep(POLL_INTERVAL).await?;
+    }
+}
+
+// Wait for all pushed miniblocks to have consensus certificate.
+pub async fn wait_for_blocks_and_verify(
+    ctx: &ctx::Ctx,
+    store: &dyn PersistentBlockStore,
+    validators: &validator::ValidatorSet,
+    want_last: validator::BlockNumber,
+) -> ctx::Result<Vec<validator::FinalBlock>> {
+    wait_for_block(ctx,store,want_last).await?;
+    let blocks = storage::testonly::dump(ctx,store).await;
+    let got_last = blocks.last().context("empty store")?.header().number;
+    assert_eq!(got_last,want_last);
+    for block in &blocks {
+        block.validate(validators,1).context(block.header().number)?;
+    }
+    Ok(blocks)
 }
