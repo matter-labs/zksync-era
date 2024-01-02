@@ -48,6 +48,10 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
         await announced('Deploying localhost ERC20 tokens', run.deployERC20('dev', '', '', '', testTokens.args));
     }
     await announced('Deploying L1 verifier', contract.deployVerifier([]));
+    if (validiumMode) {
+        await announced('Setting up validium mode');
+        process.env.ETH_SENDER_SENDER_VALIDIUM_MODE = 'true';
+    }
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
     await announced('Deploying L1 contracts', contract.redeployL1(governorPrivateKeyArgs, validiumMode));
