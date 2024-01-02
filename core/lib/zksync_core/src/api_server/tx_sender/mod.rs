@@ -194,13 +194,13 @@ impl TxSenderBuilder {
         self
     }
 
-    pub async fn build<G: L1GasPriceProvider>(
+    pub async fn build(
         self,
-        l1_gas_price_source: Arc<G>,
+        l1_gas_price_source: Arc<dyn L1GasPriceProvider>,
         vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
         api_contracts: ApiContracts,
         storage_caches: PostgresStorageCaches,
-    ) -> TxSender<G> {
+    ) -> TxSender {
         assert!(
             self.master_connection_pool.is_some() || self.proxy.is_some(),
             "Either master connection pool or proxy must be set"
@@ -257,12 +257,12 @@ impl TxSenderConfig {
     }
 }
 
-pub struct TxSenderInner<G> {
+pub struct TxSenderInner {
     pub(super) sender_config: TxSenderConfig,
     pub master_connection_pool: Option<ConnectionPool>,
     pub replica_connection_pool: ConnectionPool,
     // Used to keep track of gas prices for the fee ticker.
-    pub l1_gas_price_source: Arc<G>,
+    pub l1_gas_price_source: Arc<dyn L1GasPriceProvider>,
     pub(super) api_contracts: ApiContracts,
     /// Optional rate limiter that will limit the amount of transactions per second sent from a single entity.
     rate_limiter: Option<TxSenderRateLimiter>,
@@ -278,24 +278,16 @@ pub struct TxSenderInner<G> {
     storage_caches: PostgresStorageCaches,
 }
 
-pub struct TxSender<G>(pub(super) Arc<TxSenderInner<G>>);
+#[derive(Clone)]
+pub struct TxSender(pub(super) Arc<TxSenderInner>);
 
-// Custom implementation is required due to generic param:
-// Even though it's under `Arc`, compiler doesn't generate the `Clone` implementation unless
-// an unnecessary bound is added.
-impl<G> Clone for TxSender<G> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
-impl<G> std::fmt::Debug for TxSender<G> {
+impl std::fmt::Debug for TxSender {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TxSender").finish()
     }
 }
 
-impl<G: L1GasPriceProvider> TxSender<G> {
+impl TxSender {
     pub(crate) fn vm_concurrency_limiter(&self) -> Arc<VmConcurrencyLimiter> {
         Arc::clone(&self.0.vm_concurrency_limiter)
     }
