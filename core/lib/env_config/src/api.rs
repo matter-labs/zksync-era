@@ -68,7 +68,6 @@ mod tests {
                 pubsub_polling_interval: Some(200),
                 threads_per_server: 128,
                 max_nonce_ahead: 5,
-                transactions_per_sec_limit: Some(1000),
                 request_timeout: Some(10),
                 account_pks: Some(vec![
                     hash("0x0000000000000000000000000000000000000000000000000000000000000001"),
@@ -121,7 +120,6 @@ mod tests {
             API_WEB3_JSON_RPC_THREADS_PER_SERVER=128
             API_WEB3_JSON_RPC_MAX_NONCE_AHEAD=5
             API_WEB3_JSON_RPC_GAS_PRICE_SCALE_FACTOR=1.2
-            API_WEB3_JSON_RPC_TRANSACTIONS_PER_SEC_LIMIT=1000
             API_WEB3_JSON_RPC_REQUEST_TIMEOUT=10
             API_WEB3_JSON_RPC_ACCOUNT_PKS="0x0000000000000000000000000000000000000000000000000000000000000001,0x0000000000000000000000000000000000000000000000000000000000000002"
             API_WEB3_JSON_RPC_ESTIMATE_GAS_SCALE_FACTOR=1.0
