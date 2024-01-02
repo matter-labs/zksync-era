@@ -130,17 +130,17 @@ impl EventsWeb3Dal<'_, '_> {
                     let mut current_block = db_logs[0].miniblock_number;
                     let mut current_tx_hash = db_logs[0].tx_hash.clone();
 
-                    for i in 0..db_logs.len() {
-                        if db_logs[i].miniblock_number != current_block {
-                            current_block = db_logs[i].miniblock_number;
+                    for mut db_log in db_logs {
+                        if db_log.miniblock_number != current_block {
+                            current_block = db_log.miniblock_number;
                             new_event_index_in_block = 0;
                         }
-                        if db_logs[i].tx_hash != current_tx_hash {
+                        if db_log.tx_hash != current_tx_hash {
                             current_tx_hash = db_logs[i].tx_hash.clone();
                             new_event_index_in_tx = 0;
                         }
-                        db_logs[i].event_index_in_block = new_event_index_in_block;
-                        db_logs[i].event_index_in_tx = new_event_index_in_tx;
+                        db_log.event_index_in_block = new_event_index_in_block;
+                        db_log.event_index_in_tx = new_event_index_in_tx;
                         new_event_index_in_block += 1;
                         new_event_index_in_tx += 1;
                     }
