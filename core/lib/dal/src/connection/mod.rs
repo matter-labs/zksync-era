@@ -19,6 +19,7 @@ fn get_test_database_url() -> anyhow::Result<String> {
 }
 
 /// Builder for [`ConnectionPool`]s.
+#[derive(Clone)]
 pub struct ConnectionPoolBuilder {
     database_url: String,
     max_size: u32,
@@ -57,7 +58,7 @@ impl ConnectionPoolBuilder {
             let timeout_string = format!("{}s", timeout.as_secs());
             connect_options = connect_options.options([("statement_timeout", timeout_string)]);
         }
-        let pool = options
+        let pool: sqlx::Pool<Postgres> = options
             .connect_with(connect_options)
             .await
             .context("Failed connecting to database")?;
@@ -71,6 +72,14 @@ impl ConnectionPoolBuilder {
             inner: pool,
             max_size: self.max_size,
         })
+    }
+
+    pub async fn build_singleton(&self) -> anyhow::Result<ConnectionPool> {
+        let singleton_builder = Self {
+            max_size: 1,
+            ..self.clone()
+        };
+        singleton_builder.build().await
     }
 }
 
