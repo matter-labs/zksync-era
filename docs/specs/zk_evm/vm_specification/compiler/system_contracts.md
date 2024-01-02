@@ -48,7 +48,7 @@ Since EVM also uses heap to store the calldata for `KECCAK256`, the required mem
 generator, and zkSync Era compiler does not need to use [the auxiliary heap](#auxiliary-heap).
 
 For reference, see
-[the LLVM IR codegen source code](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/context/function/runtime/keccak256.rs).
+[the LLVM IR codegen source code](https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/context/function/llvm_runtime.rs).
 
 ### Contract Deployer
 

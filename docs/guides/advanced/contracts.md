@@ -86,7 +86,7 @@ changed - so updating the same slot multiple times doesn't increase the amount o
 
 ### Account abstraction and some method calls
 
-As `zkSync` has a built-in AccountAbstration (more on this in a separate article) - you shouldn't depend on some of the
+As `zkSync` has a built-in AccountAbstraction (more on this in a separate article) - you shouldn't depend on some of the
 solidity functions (like `ecrecover` - that checks the keys, or `tx.origin`) - in all the cases, the compiler will try
 to warn you.
 

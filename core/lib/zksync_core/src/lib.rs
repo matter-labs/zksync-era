@@ -91,6 +91,7 @@ pub mod reorg_detector;
 pub mod state_keeper;
 pub mod sync_layer;
 pub mod temp_config_store;
+mod utils;
 
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(
@@ -215,9 +216,6 @@ pub enum Component {
     ContractVerificationApi,
     /// Metadata calculator.
     Tree,
-    // TODO(BFT-273): Remove `TreeLightweight` component as obsolete
-    TreeLightweight,
-    TreeBackup,
     /// Merkle tree API.
     TreeApi,
     EthWatcher,
@@ -252,11 +250,7 @@ impl FromStr for Components {
             "http_api" => Ok(Components(vec![Component::HttpApi])),
             "ws_api" => Ok(Components(vec![Component::WsApi])),
             "contract_verification_api" => Ok(Components(vec![Component::ContractVerificationApi])),
-            "tree" | "tree_new" => Ok(Components(vec![Component::Tree])),
-            "tree_lightweight" | "tree_lightweight_new" => {
-                Ok(Components(vec![Component::TreeLightweight]))
-            }
-            "tree_backup" => Ok(Components(vec![Component::TreeBackup])),
+            "tree" => Ok(Components(vec![Component::Tree])),
             "tree_api" => Ok(Components(vec![Component::TreeApi])),
             "state_keeper" => Ok(Components(vec![Component::StateKeeper])),
             "housekeeper" => Ok(Components(vec![Component::Housekeeper])),
@@ -785,8 +779,12 @@ async fn add_trees_to_task_futures(
     store_factory: &ObjectStoreFactory,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
-    if components.contains(&Component::TreeBackup) {
-        anyhow::bail!("Tree backup mode is disabled");
+    if !components.contains(&Component::Tree) {
+        anyhow::ensure!(
+            !components.contains(&Component::TreeApi),
+            "Merkle tree API cannot be started without a tree component"
+        );
+        return Ok(());
     }
 
     let db_config = configs.db_config.clone().context("db_config")?;
@@ -804,28 +802,11 @@ async fn add_trees_to_task_futures(
         .contains(&Component::TreeApi)
         .then_some(&api_config);
 
-    let has_tree_component = components.contains(&Component::Tree);
-    let has_lightweight_component = components.contains(&Component::TreeLightweight);
-    let mode = match (has_tree_component, has_lightweight_component) {
-        (true, true) => anyhow::bail!(
-            "Cannot start a node with a Merkle tree in both full and lightweight modes. \
-             Since the storage layout is mode-independent, choose either of modes and run \
-             the node with it."
-        ),
-        (false, true) => MetadataCalculatorModeConfig::Lightweight,
-        (true, false) => match db_config.merkle_tree.mode {
-            MerkleTreeMode::Lightweight => MetadataCalculatorModeConfig::Lightweight,
-            MerkleTreeMode::Full => MetadataCalculatorModeConfig::Full {
-                store_factory: Some(store_factory),
-            },
+    let mode = match db_config.merkle_tree.mode {
+        MerkleTreeMode::Lightweight => MetadataCalculatorModeConfig::Lightweight,
+        MerkleTreeMode::Full => MetadataCalculatorModeConfig::Full {
+            store_factory: Some(store_factory),
         },
-        (false, false) => {
-            anyhow::ensure!(
-                !components.contains(&Component::TreeApi),
-                "Merkle tree API cannot be started without a tree component"
-            );
-            return Ok(());
-        }
     };
 
     run_tree(
@@ -1073,23 +1054,18 @@ fn build_storage_caches(
     Ok(storage_caches)
 }
 
-async fn build_tx_sender<G: L1GasPriceProvider>(
+async fn build_tx_sender(
     tx_sender_config: &TxSenderConfig,
     web3_json_config: &Web3JsonRpcConfig,
     state_keeper_config: &StateKeeperConfig,
     replica_pool: ConnectionPool,
     master_pool: ConnectionPool,
-    l1_gas_price_provider: Arc<G>,
+    l1_gas_price_provider: Arc<dyn L1GasPriceProvider>,
     storage_caches: PostgresStorageCaches,
-) -> (TxSender<G>, VmConcurrencyBarrier) {
-    let mut tx_sender_builder = TxSenderBuilder::new(tx_sender_config.clone(), replica_pool)
+) -> (TxSender, VmConcurrencyBarrier) {
+    let tx_sender_builder = TxSenderBuilder::new(tx_sender_config.clone(), replica_pool)
         .with_main_connection_pool(master_pool)
         .with_state_keeper_config(state_keeper_config.clone());
-
-    // Add rate limiter if enabled.
-    if let Some(transactions_per_sec_limit) = web3_json_config.transactions_per_sec_limit {
-        tx_sender_builder = tx_sender_builder.with_rate_limiter(transactions_per_sec_limit);
-    };
 
     let max_concurrency = web3_json_config.vm_concurrency_limit();
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
@@ -1215,12 +1191,10 @@ async fn circuit_breakers_for_components(
 ) -> anyhow::Result<Vec<Box<dyn CircuitBreaker>>> {
     let mut circuit_breakers: Vec<Box<dyn CircuitBreaker>> = Vec::new();
 
-    if components.iter().any(|c| {
-        matches!(
-            c,
-            Component::EthTxAggregator | Component::EthTxManager | Component::StateKeeper
-        )
-    }) {
+    if components
+        .iter()
+        .any(|c| matches!(c, Component::EthTxAggregator | Component::EthTxManager))
+    {
         let pool = ConnectionPool::singleton(postgres_config.replica_url()?)
             .build()
             .await

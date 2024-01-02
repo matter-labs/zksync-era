@@ -1,7 +1,7 @@
 use zksync_types::{
     api::{
-        ApiMode, BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId,
-        TransactionReceipt, TransactionVariant,
+        BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
+        TransactionVariant,
     },
     l2::{L2Tx, TransactionType},
     transaction_request::CallRequest,
@@ -17,41 +17,28 @@ use zksync_web3_decl::{
     types::{Address, Block, Filter, FilterChanges, Log, U64},
 };
 
-use crate::{
-    api_server::{
-        execution_sandbox::BlockArgs,
-        web3::{
-            backend_jsonrpsee::internal_error,
-            metrics::{BlockCallObserver, API_METRICS},
-            resolve_block,
-            state::RpcState,
-            TypedFilter,
-        },
+use crate::api_server::{
+    execution_sandbox::BlockArgs,
+    web3::{
+        backend_jsonrpsee::internal_error,
+        metrics::{BlockCallObserver, API_METRICS},
+        resolve_block,
+        state::RpcState,
+        TypedFilter,
     },
-    l1_gas_price::L1GasPriceProvider,
 };
 
 pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;
 pub const PROTOCOL_VERSION: &str = "zks/1";
 
 #[derive(Debug)]
-pub struct EthNamespace<G> {
-    state: RpcState<G>,
-    api_mode: ApiMode,
+pub struct EthNamespace {
+    state: RpcState,
 }
 
-impl<G> Clone for EthNamespace<G> {
-    fn clone(&self) -> Self {
-        Self {
-            state: self.state.clone(),
-            api_mode: self.api_mode,
-        }
-    }
-}
-
-impl<G: L1GasPriceProvider> EthNamespace<G> {
-    pub fn new(state: RpcState<G>, api_mode: ApiMode) -> Self {
-        Self { state, api_mode }
+impl EthNamespace {
+    pub fn new(state: RpcState) -> Self {
+        Self { state }
     }
 
     #[tracing::instrument(skip(self))]
@@ -506,7 +493,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .await
             .unwrap()
             .transactions_web3_dal()
-            .get_transaction_receipt(hash, self.api_mode)
+            .get_transaction_receipt(hash)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err));
 
@@ -832,7 +819,6 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                         .get_log_block_number(
                             &get_logs_filter,
                             self.state.api_config.req_entities_limit,
-                            self.api_mode,
                         )
                         .await
                         .map_err(|err| internal_error(METHOD_NAME, err))?
@@ -847,7 +833,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 
                 let logs = storage
                     .events_web3_dal()
-                    .get_logs(get_logs_filter, i32::MAX as usize, self.api_mode)
+                    .get_logs(get_logs_filter, i32::MAX as usize)
                     .await
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
                 *from_block = to_block + 1;
@@ -863,7 +849,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 // They are moved into a separate `impl` block so they don't make the actual implementation noisy.
 // This `impl` block contains methods that we *have* to implement for compliance, but don't really
 // make sense in terms of L2.
-impl<E> EthNamespace<E> {
+impl EthNamespace {
     pub fn coinbase_impl(&self) -> Address {
         // There is no coinbase account.
         Address::default()
