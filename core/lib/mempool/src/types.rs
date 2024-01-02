@@ -147,13 +147,12 @@ mod tests {
     #[test]
     fn filter() {
         fn filter(l1_gas_price: u64, fee_per_gas: u64, gas_per_pubdata: u32) -> L2TxFilter {
+            let mut fee_input = BatchFeeInput::default();
+            fee_input.l1_pegged_ref_mut().l1_gas_price = l1_gas_price;
             L2TxFilter {
-                l1_gas_price,
+                fee_input,
                 fee_per_gas,
                 gas_per_pubdata,
-                // The following two fields are irrelevant for the test
-                fair_pubdata_price: 0,
-                fair_l2_gas_price: 0,
             }
         }
 
