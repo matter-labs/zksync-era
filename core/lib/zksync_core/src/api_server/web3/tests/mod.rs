@@ -17,7 +17,7 @@ use zksync_types::{
     L1BatchNumber, ProtocolVersionId, VmEvent, H256, U64,
 };
 use zksync_web3_decl::{
-    jsonrpsee::{core::Error as RpcError, http_client::HttpClient, types::error::ErrorCode},
+    jsonrpsee::{core::ClientError as RpcError, http_client::HttpClient, types::error::ErrorCode},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
     types::FilterChanges,
 };
@@ -26,6 +26,7 @@ use super::{metrics::ApiTransportLabel, *};
 use crate::{
     api_server::tx_sender::TxSenderConfig,
     genesis::{ensure_genesis_state, GenesisParams},
+    l1_gas_price::L1GasPriceProvider,
     state_keeper::tests::create_l2_transaction,
 };
 
@@ -35,6 +36,7 @@ const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 /// Mock [`L1GasPriceProvider`] that returns a constant value.
+#[derive(Debug)]
 struct MockL1GasPriceProvider(u64);
 
 impl L1GasPriceProvider for MockL1GasPriceProvider {
@@ -81,17 +83,31 @@ pub(crate) async fn spawn_http_server(
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
 ) -> ApiServerHandles {
-    spawn_server(ApiTransportLabel::Http, network_config, pool, stop_receiver)
-        .await
-        .0
+    spawn_server(
+        ApiTransportLabel::Http,
+        network_config,
+        pool,
+        stop_receiver,
+        None,
+    )
+    .await
+    .0
 }
 
 async fn spawn_ws_server(
     network_config: &NetworkConfig,
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
+    websocket_requests_per_minute_limit: Option<NonZeroU32>,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
-    spawn_server(ApiTransportLabel::Ws, network_config, pool, stop_receiver).await
+    spawn_server(
+        ApiTransportLabel::Ws,
+        network_config,
+        pool,
+        stop_receiver,
+        websocket_requests_per_minute_limit,
+    )
+    .await
 }
 
 async fn spawn_server(
@@ -99,6 +115,7 @@ async fn spawn_server(
     network_config: &NetworkConfig,
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
+    websocket_requests_per_minute_limit: Option<NonZeroU32>,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = Web3JsonRpcConfig::for_tests();
@@ -123,16 +140,23 @@ async fn spawn_server(
 
     let server_builder = match transport {
         ApiTransportLabel::Http => ApiBuilder::jsonrpsee_backend(api_config, pool).http(0),
-        ApiTransportLabel::Ws => ApiBuilder::jsonrpc_backend(api_config, pool)
-            .ws(0)
-            .with_polling_interval(POLL_INTERVAL)
-            .with_subscriptions_limit(100),
+        ApiTransportLabel::Ws => {
+            let mut builder = ApiBuilder::jsonrpsee_backend(api_config, pool)
+                .ws(0)
+                .with_subscriptions_limit(100);
+            if let Some(websocket_requests_per_minute_limit) = websocket_requests_per_minute_limit {
+                builder = builder
+                    .with_websocket_requests_per_minute_limit(websocket_requests_per_minute_limit);
+            }
+            builder
+        }
     };
     let server_handles = server_builder
         .with_threads(1)
+        .with_polling_interval(POLL_INTERVAL)
         .with_tx_sender(tx_sender, vm_barrier)
         .with_pub_sub_events(pub_sub_events_sender)
-        .enable_api_namespaces(Namespace::NON_DEBUG.to_vec())
+        .enable_api_namespaces(Namespace::DEFAULT.to_vec())
         .build(stop_receiver)
         .await
         .expect("Failed spawning JSON-RPC server");

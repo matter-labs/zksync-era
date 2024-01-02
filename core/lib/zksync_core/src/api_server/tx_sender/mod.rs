@@ -1,13 +1,7 @@
 //! Helper module to submit transactions into the zkSync Network.
 
-use std::{cmp, num::NonZeroU32, sync::Arc, time::Instant};
+use std::{cmp, sync::Arc, time::Instant};
 
-use governor::{
-    clock::MonotonicClock,
-    middleware::NoOpMiddleware,
-    state::{InMemoryState, NotKeyed},
-    Quota, RateLimiter,
-};
 use multivm::{
     interface::VmExecutionResultAndLogs,
     vm_latest::{
@@ -50,10 +44,6 @@ use crate::{
 
 mod proxy;
 mod result;
-
-/// Type alias for the rate limiter implementation.
-type TxSenderRateLimiter =
-    RateLimiter<NotKeyed, InMemoryState, MonotonicClock, NoOpMiddleware<Instant>>;
 
 #[derive(Debug, Clone)]
 pub struct MultiVMBaseSystemContracts {
@@ -140,8 +130,6 @@ pub struct TxSenderBuilder {
     replica_connection_pool: ConnectionPool,
     /// Connection pool for write requests. If not set, `proxy` must be set.
     master_connection_pool: Option<ConnectionPool>,
-    /// Rate limiter for tx submissions.
-    rate_limiter: Option<TxSenderRateLimiter>,
     /// Proxy to submit transactions to the network. If not set, `master_connection_pool` must be set.
     proxy: Option<TxProxy>,
     /// Actual state keeper configuration, required for tx verification.
@@ -155,20 +143,8 @@ impl TxSenderBuilder {
             config,
             replica_connection_pool,
             master_connection_pool: None,
-            rate_limiter: None,
             proxy: None,
             state_keeper_config: None,
-        }
-    }
-
-    pub fn with_rate_limiter(self, transactions_per_sec: u32) -> Self {
-        let rate_limiter = RateLimiter::direct_with_clock(
-            Quota::per_second(NonZeroU32::new(transactions_per_sec).unwrap()),
-            &MonotonicClock,
-        );
-        Self {
-            rate_limiter: Some(rate_limiter),
-            ..self
         }
     }
 
@@ -187,13 +163,13 @@ impl TxSenderBuilder {
         self
     }
 
-    pub async fn build<G: L1GasPriceProvider>(
+    pub async fn build(
         self,
-        l1_gas_price_source: Arc<G>,
+        l1_gas_price_source: Arc<dyn L1GasPriceProvider>,
         vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
         api_contracts: ApiContracts,
         storage_caches: PostgresStorageCaches,
-    ) -> TxSender<G> {
+    ) -> TxSender {
         assert!(
             self.master_connection_pool.is_some() || self.proxy.is_some(),
             "Either master connection pool or proxy must be set"
@@ -205,7 +181,6 @@ impl TxSenderBuilder {
             replica_connection_pool: self.replica_connection_pool,
             l1_gas_price_source,
             api_contracts,
-            rate_limiter: self.rate_limiter,
             proxy: self.proxy,
             state_keeper_config: self.state_keeper_config,
             vm_concurrency_limiter,
@@ -250,15 +225,13 @@ impl TxSenderConfig {
     }
 }
 
-pub struct TxSenderInner<G> {
+pub struct TxSenderInner {
     pub(super) sender_config: TxSenderConfig,
     pub master_connection_pool: Option<ConnectionPool>,
     pub replica_connection_pool: ConnectionPool,
     // Used to keep track of gas prices for the fee ticker.
-    pub l1_gas_price_source: Arc<G>,
+    pub l1_gas_price_source: Arc<dyn L1GasPriceProvider>,
     pub(super) api_contracts: ApiContracts,
-    /// Optional rate limiter that will limit the amount of transactions per second sent from a single entity.
-    rate_limiter: Option<TxSenderRateLimiter>,
     /// Optional transaction proxy to be used for transaction submission.
     pub(super) proxy: Option<TxProxy>,
     /// An up-to-date version of the state keeper config.
@@ -271,24 +244,16 @@ pub struct TxSenderInner<G> {
     storage_caches: PostgresStorageCaches,
 }
 
-pub struct TxSender<G>(pub(super) Arc<TxSenderInner<G>>);
+#[derive(Clone)]
+pub struct TxSender(pub(super) Arc<TxSenderInner>);
 
-// Custom implementation is required due to generic param:
-// Even though it's under `Arc`, compiler doesn't generate the `Clone` implementation unless
-// an unnecessary bound is added.
-impl<G> Clone for TxSender<G> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
-impl<G> std::fmt::Debug for TxSender<G> {
+impl std::fmt::Debug for TxSender {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TxSender").finish()
     }
 }
 
-impl<G: L1GasPriceProvider> TxSender<G> {
+impl TxSender {
     pub(crate) fn vm_concurrency_limiter(&self) -> Arc<VmConcurrencyLimiter> {
         Arc::clone(&self.0.vm_concurrency_limiter)
     }
@@ -299,12 +264,6 @@ impl<G: L1GasPriceProvider> TxSender<G> {
 
     #[tracing::instrument(skip(self, tx))]
     pub async fn submit_tx(&self, tx: L2Tx) -> Result<L2TxSubmissionResult, SubmitTxError> {
-        if let Some(rate_limiter) = &self.0.rate_limiter {
-            if rate_limiter.check().is_err() {
-                return Err(SubmitTxError::RateLimitExceeded);
-            }
-        }
-
         let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::Validate].start();
         self.validate_tx(&tx).await?;
         stage_latency.observe();

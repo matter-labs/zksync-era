@@ -35,7 +35,6 @@ pub(crate) async fn prepare_postgres(conn: &mut StorageProcessor<'_>) {
 }
 
 pub(crate) fn gen_storage_logs(indices: ops::Range<u64>) -> Vec<StorageLog> {
-    // Addresses and keys of storage logs must be sorted for the `multi_block_workflow` test.
     let mut accounts = [
         "4b3af74f66ab1f0da3f2e4ec7a3cb99baf1af7b2",
         "ef4bb7b21c5fe7432a7d63876cc59ecc23b46636",

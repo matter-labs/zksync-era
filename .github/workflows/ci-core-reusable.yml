@@ -1,6 +1,12 @@
 name: Workflow template for CI jobs for Core Components
 on:
   workflow_call:
+    inputs:
+      compilers:
+        description: 'JSON of required compilers and their versions'
+        type: string
+        required: false
+        default: '[{ "zksolc": ["1.3.14", "1.3.16", "1.3.17", "1.3.1", "1.3.7", "1.3.18", "1.3.19"] } , { "zkvyper": ["1.3.13"] }]'
 
 jobs:
   lint:
@@ -19,6 +25,24 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
+
+      # TODO: Remove when we after upgrade of hardhat-plugins
+      - name: pre-download compiilers
+        run: |
+          # Download needed versions of vyper compiler
+          # Not sanitized due to unconventional path and tags
+          mkdir -p ./hardhat-nodejs/compilers-v2/vyper/linux
+          wget -nv -O ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.linux
+          wget -nv -O ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.3 https://github.com/vyperlang/vyper/releases/download/v0.3.3/vyper.0.3.3+commit.48e326f0.linux
+          chmod +x  ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.10
+          chmod +x  ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.3
+
+          COMPILERS_JSON='${{ inputs.compilers }}'
+          echo "$COMPILERS_JSON" | jq -r '.[] | to_entries[] | .key as $compiler | .value[] | "\(.),\($compiler)"' | while IFS=, read -r version compiler; do
+            mkdir -p "./hardhat-nodejs/compilers-v2/$compiler"
+            wget -nv -O "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}" "https://github.com/matter-labs/${compiler}-bin/releases/download/v${version}/${compiler}-linux-amd64-musl-v${version}"
+            chmod +x "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}"
+          done
 
       - name: Start services
         run: |
@@ -69,7 +93,7 @@ jobs:
         run: |
           ci_run git config --global --add safe.directory /usr/src/zksync
           ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
-          ci_run git config --global --add safe.directory /usr/src/zksync/etc/system-contracts
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
           ci_run zk
@@ -78,16 +102,19 @@ jobs:
       # `sleep 30` because we need to wait until server added all the tokens
       - name: Run server
         run: |
-          ci_run zk server --uring --components api,tree,eth,data_fetcher,state_keeper,housekeeper &>server.log &
+          ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper &>server.log &
           ci_run sleep 30
 
       - name: Perform loadtest
         run: ci_run zk run loadtest
 
-      - name: Show logs
+      - name: Show server.log logs
+        if: always()
+        run: ci_run cat server.log || true
+
+      - name: Show sccache logs
         if: always()
         run: |
-          ci_run cat server.log
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
   integration:
@@ -115,10 +142,10 @@ jobs:
           mv solc-linux-amd64-v0.8.23+commit.f704f362 $(pwd)/etc/solc-bin/0.8.23/solc
           chmod +x $(pwd)/etc/solc-bin/0.8.23/solc
 
-          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.17
-          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.17
-          mv zksolc-linux-amd64-musl-v1.3.17 $(pwd)/etc/zksolc-bin/v1.3.17/zksolc
-          chmod +x $(pwd)/etc/zksolc-bin/v1.3.17/zksolc
+          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.19
+          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.19
+          mv zksolc-linux-amd64-musl-v1.3.19 $(pwd)/etc/zksolc-bin/v1.3.19/zksolc
+          chmod +x $(pwd)/etc/zksolc-bin/v1.3.19/zksolc
 
           mkdir -p $(pwd)/etc/vyper-bin/0.3.10
           wget -O vyper0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10%2Bcommit.91361694.linux
@@ -132,14 +159,14 @@ jobs:
 
       - name: Start services
         run: |
-          ci_localnet_up 
+          ci_localnet_up
           ci_run sccache --start-server
 
       - name: Init
         run: |
           ci_run git config --global --add safe.directory /usr/src/zksync
           ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
-          ci_run git config --global --add safe.directory /usr/src/zksync/etc/system-contracts
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
           ci_run zk init
@@ -176,13 +203,25 @@ jobs:
           ci_run sleep 10
           ci_run zk test i upgrade
 
-      - name: Show logs
+      - name: Show server.log logs
+        if: always()
+        run: ci_run cat server.log || true
+
+      - name: Show contract_verifier.log logs
+        if: always()
+        run: ci_run cat contract_verifier.log || true
+
+      - name: Show revert.log logs
+        if: always()
+        run: ci_run cat core/tests/revert-test/revert.log || true
+
+      - name: Show upgrade.log logs
+        if: always()
+        run: ci_run cat core/tests/upgrade-test/upgrade.log || true
+
+      - name: Show sccache logs
         if: always()
         run: |
-          ci_run cat server.log
-          ci_run cat contract_verifier.log
-          ci_run cat core/tests/revert-test/revert.log
-          ci_run cat core/tests/upgrade-test/upgrade.log
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
 
@@ -212,10 +251,10 @@ jobs:
           mv solc-linux-amd64-v0.8.23+commit.f704f362 $(pwd)/etc/solc-bin/0.8.23/solc
           chmod +x $(pwd)/etc/solc-bin/0.8.23/solc
 
-          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.17
-          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.17
-          mv zksolc-linux-amd64-musl-v1.3.17 $(pwd)/etc/zksolc-bin/v1.3.17/zksolc
-          chmod +x $(pwd)/etc/zksolc-bin/v1.3.17/zksolc
+          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.19
+          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.19
+          mv zksolc-linux-amd64-musl-v1.3.19 $(pwd)/etc/zksolc-bin/v1.3.19/zksolc
+          chmod +x $(pwd)/etc/zksolc-bin/v1.3.19/zksolc
 
           mkdir -p $(pwd)/etc/vyper-bin/0.3.10
           wget -O vyper0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10%2Bcommit.91361694.linux
@@ -236,7 +275,7 @@ jobs:
         run: |
           ci_run git config --global --add safe.directory /usr/src/zksync
           ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
-          ci_run git config --global --add safe.directory /usr/src/zksync/etc/system-contracts
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
           ci_run zk init
@@ -256,7 +295,7 @@ jobs:
 
       # TODO(PLA-653): Restore bridge tests for EN.
       - name: Integration tests
-        run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification|custom-erc20-bridge'
+        run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification|custom-erc20-bridge|snapshots-creator'
 
       - name: Run Cross EN Checker
         run: ci_run zk run cross-en-checker
@@ -283,12 +322,24 @@ jobs:
           ci_run zk env docker
           CHECK_EN_URL="http://0.0.0.0:3060" ci_run zk test i upgrade
 
-      - name: Show logs
+      - name: Show server.log logs
+        if: always()
+        run: ci_run cat server.log || true
+
+      - name: Show contract_verifier.log logs
+        if: always()
+        run: ci_run cat ext-node.log || true
+
+      - name: Show revert.log logs
+        if: always()
+        run: ci_run cat core/tests/revert-test/revert.log || true
+
+      - name: Show upgrade.log logs
+        if: always()
+        run: ci_run cat core/tests/upgrade-test/upgrade.log || true
+
+      - name: Show sccache logs
         if: always()
         run: |
-          ci_run cat server.log
-          ci_run cat ext-node.log
-          ci_run cat core/tests/revert-test/revert.log
-          ci_run cat core/tests/upgrade-test/upgrade.log
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt

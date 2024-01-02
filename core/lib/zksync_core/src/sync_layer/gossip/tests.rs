@@ -9,9 +9,7 @@ use zksync_consensus_executor::testonly::FullValidatorConfig;
 use zksync_consensus_roles::validator::{self, FinalBlock};
 use zksync_consensus_storage::{InMemoryStorage, WriteBlockStore};
 use zksync_dal::{blocks_dal::ConsensusBlockFields, ConnectionPool, StorageProcessor};
-use zksync_types::{
-    api::en::SyncBlock, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
-};
+use zksync_types::{api::en::SyncBlock, L1BatchNumber, MiniblockNumber, H256};
 
 use super::*;
 use crate::{
@@ -20,7 +18,7 @@ use crate::{
         sync_action::SyncAction,
         tests::{
             mock_l1_batch_hash_computation, run_state_keeper_with_multiple_l1_batches,
-            run_state_keeper_with_multiple_miniblocks, StateKeeperHandles,
+            run_state_keeper_with_multiple_miniblocks, StateKeeperHandles, OPERATOR_ADDRESS,
         },
         ActionQueue,
     },
@@ -32,7 +30,7 @@ const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50 * CLOCK_SP
 async fn load_sync_block(storage: &mut StorageProcessor<'_>, number: u32) -> SyncBlock {
     storage
         .sync_dal()
-        .sync_block(MiniblockNumber(number), Address::default(), true)
+        .sync_block(MiniblockNumber(number), OPERATOR_ADDRESS, true)
         .await
         .unwrap()
         .unwrap_or_else(|| panic!("no sync block #{number}"))
@@ -44,13 +42,13 @@ pub(super) async fn load_final_block(
     number: u32,
 ) -> FinalBlock {
     let sync_block = load_sync_block(storage, number).await;
-    conversions::sync_block_to_consensus_block(sync_block).unwrap()
+    consensus::sync_block_to_consensus_block(sync_block).unwrap()
 }
 
 fn convert_sync_blocks(sync_blocks: Vec<SyncBlock>) -> Vec<FinalBlock> {
     sync_blocks
         .into_iter()
-        .map(|sync_block| conversions::sync_block_to_consensus_block(sync_block).unwrap())
+        .map(|sync_block| consensus::sync_block_to_consensus_block(sync_block).unwrap())
         .collect()
 }
 
@@ -62,19 +60,12 @@ pub(super) async fn block_payload(
     consensus::Payload::try_from(sync_block).unwrap()
 }
 
-fn latest_protocol_version() -> validator::ProtocolVersion {
-    (ProtocolVersionId::latest() as u32)
-        .try_into()
-        .expect("latest protocol version is invalid")
-}
-
 /// Adds consensus information for the specified `count` of miniblocks, starting from the genesis.
 pub(super) async fn add_consensus_fields(
     storage: &mut StorageProcessor<'_>,
     validator_key: &validator::SecretKey,
     block_numbers: ops::Range<u32>,
 ) {
-    let protocol_version = latest_protocol_version();
     let mut prev_block_hash = validator::BlockHeaderHash::from_bytes([0; 32]);
     let validator_set = validator::ValidatorSet::new([validator_key.public()]).unwrap();
     for number in block_numbers {
@@ -85,7 +76,7 @@ pub(super) async fn add_consensus_fields(
             payload: payload.hash(),
         };
         let replica_commit = validator::ReplicaCommit {
-            protocol_version,
+            protocol_version: validator::ProtocolVersion::EARLIEST,
             view: validator::ViewNumber(number.into()),
             proposal: block_header,
         };
@@ -119,7 +110,7 @@ pub(super) fn create_genesis_block(
     };
     let validator_set = validator::ValidatorSet::new([validator_key.public()]).unwrap();
     let replica_commit = validator::ReplicaCommit {
-        protocol_version: latest_protocol_version(),
+        protocol_version: validator::ProtocolVersion::EARLIEST,
         view: validator::ViewNumber(number),
         proposal: block_header,
     };
@@ -188,12 +179,14 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
     let tx_hashes = run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
 
     let mut storage = pool.access_storage().await.unwrap();
-    let protocol_version = latest_protocol_version();
     let genesis_block_payload = block_payload(&mut storage, 0).await.encode();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
     let rng = &mut ctx.rng();
-    let mut validator =
-        FullValidatorConfig::for_single_validator(rng, protocol_version, genesis_block_payload);
+    let mut validator = FullValidatorConfig::for_single_validator(
+        rng,
+        genesis_block_payload,
+        validator::BlockNumber(0),
+    );
     let validator_set = validator.node_config.validators.clone();
     let external_node = validator.connect_full_node(rng);
 
@@ -237,6 +230,7 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
             actions_sender,
             external_node.node_config,
             external_node.node_key,
+            OPERATOR_ADDRESS,
         ));
 
         if delay_first_block {
@@ -319,12 +313,14 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
     let tx_hashes: Vec<_> = tx_hashes.iter().map(Vec::as_slice).collect();
 
     let mut storage = pool.access_storage().await.unwrap();
-    let protocol_version = latest_protocol_version();
     let genesis_block_payload = block_payload(&mut storage, 0).await.encode();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
     let rng = &mut ctx.rng();
-    let mut validator =
-        FullValidatorConfig::for_single_validator(rng, protocol_version, genesis_block_payload);
+    let mut validator = FullValidatorConfig::for_single_validator(
+        rng,
+        genesis_block_payload,
+        validator::BlockNumber(0),
+    );
     let validator_set = validator.node_config.validators.clone();
     let external_node = validator.connect_full_node(rng);
 
@@ -370,6 +366,7 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
             actions_sender,
             external_node.node_config,
             external_node.node_key,
+            OPERATOR_ADDRESS,
         ));
 
         state_keeper
@@ -384,12 +381,12 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
     let mut storage = pool.access_storage().await.unwrap();
     for number in [1, 2, 3] {
         let block = load_final_block(&mut storage, number).await;
-        block.justification.verify(&validator_set, 1).unwrap();
+        block.validate(&validator_set, 1).unwrap();
     }
 }
 
 #[test_casing(2, [1, 2])]
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn syncing_from_non_zero_block(first_block_number: u32) {
     abort_on_panic();
     let pool = ConnectionPool::test_pool().await;
@@ -402,11 +399,10 @@ async fn syncing_from_non_zero_block(first_block_number: u32) {
         .encode();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
     let rng = &mut ctx.rng();
-    let protocol_version = latest_protocol_version();
     let mut validator = FullValidatorConfig::for_single_validator(
         rng,
-        protocol_version,
         genesis_block_payload.clone(),
+        validator::BlockNumber(0),
     );
     // Override the genesis block since it has an incorrect block number.
     let genesis_block = create_genesis_block(
@@ -452,11 +448,15 @@ async fn syncing_from_non_zero_block(first_block_number: u32) {
         )
         .await?;
 
-        s.spawn_bg(validator.run(ctx));
+        s.spawn_bg(async { validator.run(ctx).await.context("validator.run()") });
+
         s.spawn_bg(async {
             for block in &delayed_blocks {
                 ctx.sleep(POLL_INTERVAL).await?;
-                validator_storage.put_block(ctx, block).await?;
+                validator_storage
+                    .put_block(ctx, block)
+                    .await
+                    .wrap("validator_stroage.put_block()")?;
             }
             Ok(())
         });
@@ -465,22 +465,27 @@ async fn syncing_from_non_zero_block(first_block_number: u32) {
             // L1 batch #1 will be sealed during the state keeper operation; we need to emulate
             // computing metadata for it.
             s.spawn_bg(async {
-                mock_l1_batch_hash_computation(pool.clone(), 1).await;
+                ctx.wait(mock_l1_batch_hash_computation(pool.clone(), 1))
+                    .await?;
                 Ok(())
             });
         }
 
-        s.spawn_bg(run_gossip_fetcher_inner(
-            ctx,
-            pool.clone(),
-            actions_sender,
-            external_node.node_config,
-            external_node.node_key,
-        ));
+        s.spawn_bg(async {
+            run_gossip_fetcher_inner(
+                ctx,
+                pool.clone(),
+                actions_sender,
+                external_node.node_config,
+                external_node.node_key,
+                OPERATOR_ADDRESS,
+            )
+            .await
+            .context("run_gossip_fetcher_inner()")
+        });
 
-        state_keeper
-            .wait(|state| state.get_local_block() == MiniblockNumber(3))
-            .await;
+        ctx.wait(state_keeper.wait(|state| state.get_local_block() == MiniblockNumber(3)))
+            .await?;
         Ok(())
     })
     .await

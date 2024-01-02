@@ -108,7 +108,7 @@ pub struct OptionalENConfig {
     /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the API server panics.
     /// This is a temporary solution to mitigate API request resulting in thousands of DB queries.
     pub vm_execution_cache_misses_limit: Option<usize>,
-    /// Inbound transaction limit used for throttling.
+    /// Note: Deprecated option, no longer in use. Left to display a warning in case someone used them.
     pub transactions_per_sec_limit: Option<u32>,
     /// Limit for fee history block range.
     #[serde(default = "OptionalENConfig::default_fee_history_limit")]
@@ -338,7 +338,7 @@ impl OptionalENConfig {
     pub fn api_namespaces(&self) -> Vec<Namespace> {
         self.api_namespaces
             .clone()
-            .unwrap_or_else(|| Namespace::NON_DEBUG.to_vec())
+            .unwrap_or_else(|| Namespace::DEFAULT.to_vec())
     }
 
     pub fn max_response_body_size(&self) -> usize {

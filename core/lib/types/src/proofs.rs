@@ -446,7 +446,7 @@ pub struct SocketAddress {
     pub port: u16,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum GpuProverInstanceStatus {
     // The instance is available for processing.
     Available,
