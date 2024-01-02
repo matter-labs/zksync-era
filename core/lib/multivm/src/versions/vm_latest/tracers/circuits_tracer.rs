@@ -25,8 +25,8 @@ use crate::{
 pub(crate) struct CircuitsTracer<S> {
     pub(crate) estimated_circuits_used: f32,
     last_decommitment_history_entry_checked: Option<usize>,
-    last_hot_writes_history_entry_checked: Option<usize>,
-    last_hot_reads_history_entry_checked: Option<usize>,
+    last_written_keys_history_entry_checked: Option<usize>,
+    last_read_keys_history_entry_checked: Option<usize>,
     _phantom_data: PhantomData<S>,
 }
 
@@ -35,8 +35,8 @@ impl<S: WriteStorage> CircuitsTracer<S> {
         Self {
             estimated_circuits_used: 0.0,
             last_decommitment_history_entry_checked: None,
-            last_hot_writes_history_entry_checked: None,
-            last_hot_reads_history_entry_checked: None,
+            last_written_keys_history_entry_checked: None,
+            last_read_keys_history_entry_checked: None,
             _phantom_data: Default::default(),
         }
     }
@@ -106,9 +106,10 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
                 .len(),
         );
 
-        self.last_hot_writes_history_entry_checked = Some(state.storage.hot_writes.history().len());
+        self.last_written_keys_history_entry_checked =
+            Some(state.storage.written_keys.history().len());
 
-        self.last_hot_reads_history_entry_checked = Some(state.storage.hot_reads.history().len());
+        self.last_read_keys_history_entry_checked = Some(state.storage.read_keys.history().len());
     }
 
     fn finish_cycle(
@@ -135,7 +136,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
                 .expect("Bytecode must be known at this point")
                 .len();
 
-            // Each cycle of `CodeDecommitter` processes 64 bits.
+            // Each cycle of `CodeDecommitter` processes 64 bytes.
             let decommitter_cycles_used = bytecode_len / 4;
             self.estimated_circuits_used +=
                 (decommitter_cycles_used as f32) * CODE_DECOMMITTER_CYCLE_FRACTION;
@@ -144,37 +145,37 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
 
         // Process storage writes
         let last_writes_history_entry_checked = self
-            .last_hot_writes_history_entry_checked
+            .last_written_keys_history_entry_checked
             .expect("Value must be set during init");
-        let history = state.storage.hot_writes.history();
+        let history = state.storage.written_keys.history();
         for (_, history_event) in &history[last_writes_history_entry_checked..] {
             // We assume that only insertions may happen during a single VM inspection.
             assert!(history_event.value.is_some());
 
             self.estimated_circuits_used += 2.0 * STORAGE_APPLICATION_CYCLE_FRACTION;
         }
-        self.last_hot_writes_history_entry_checked = Some(history.len());
+        self.last_written_keys_history_entry_checked = Some(history.len());
 
         // Process storage reads
         let last_reads_history_entry_checked = self
-            .last_hot_reads_history_entry_checked
+            .last_read_keys_history_entry_checked
             .expect("Value must be set during init");
-        let history = state.storage.hot_reads.history();
+        let history = state.storage.read_keys.history();
         for (_, history_event) in &history[last_reads_history_entry_checked..] {
             // We assume that only insertions may happen during a single VM inspection.
             assert!(history_event.value.is_some());
 
-            // If the slot was already written to, then we already take 2 cycles into account.
+            // If the slot is already written to, then we've already taken 2 cycles into account.
             if !state
                 .storage
-                .hot_writes
+                .written_keys
                 .inner()
                 .contains_key(&history_event.key)
             {
                 self.estimated_circuits_used += STORAGE_APPLICATION_CYCLE_FRACTION;
             }
         }
-        self.last_hot_reads_history_entry_checked = Some(history.len());
+        self.last_read_keys_history_entry_checked = Some(history.len());
 
         TracerExecutionStatus::Continue
     }
