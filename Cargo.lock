@@ -8712,6 +8712,7 @@ dependencies = [
  "tracing",
  "zksync_core",
  "zksync_dal",
+ "zksync_health_check",
  "zksync_types",
 ]
 

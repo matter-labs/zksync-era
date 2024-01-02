@@ -11,6 +11,7 @@ categories = ["cryptography"]
 
 [dependencies]
 zksync_types = { path = "../types" }
+zksync_health_check = { path = "../health_check" }
 zksync_dal = { path = "../dal" }
 zksync_core = { path = "../zksync_core" }
 tracing = "0.1"

@@ -2,6 +2,7 @@ use std::{any::Any, collections::HashMap};
 
 use futures::future::BoxFuture;
 use zksync_dal::{connection::ConnectionPoolBuilder, ConnectionPool};
+use zksync_health_check::CheckHealth;
 
 mod resources;
 mod tasks;
@@ -85,6 +86,9 @@ pub trait ZkSyncTask: Send + Sync + 'static {
     type Config;
 
     async fn new(node: &ZkSyncNode, config: impl Into<Self::Config>) -> Self;
+
+    fn healtcheck(&self) -> Option<Box<dyn CheckHealth>>;
+
     async fn run(self) -> anyhow::Result<()>;
 }
 
@@ -98,6 +102,9 @@ pub struct ZkSyncNode {
     resources: HashMap<String, Box<dyn Any>>,
     /// Named tasks.
     tasks: HashMap<String, BoxFuture<'static, anyhow::Result<()>>>,
+    // TODO: healthchecks
+
+    // TODO: circuit breakers
 }
 
 impl ZkSyncNode {

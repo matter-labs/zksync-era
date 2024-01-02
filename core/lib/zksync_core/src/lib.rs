@@ -86,7 +86,6 @@ pub mod house_keeper;
 pub mod l1_gas_price;
 pub mod metadata_calculator;
 mod metrics;
-pub mod node_builder;
 pub mod proof_data_handler;
 pub mod reorg_detector;
 pub mod state_keeper;
