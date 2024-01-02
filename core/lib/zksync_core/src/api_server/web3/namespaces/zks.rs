@@ -3,11 +3,10 @@ use std::{collections::HashMap, convert::TryInto};
 use bigdecimal::{BigDecimal, Zero};
 use zksync_dal::StorageProcessor;
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use zksync_types::api::ApiMode;
 use zksync_types::{
     api::{
-        BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof, Proof,
-        ProtocolVersion, StorageProof, TransactionDetails,
+        ApiMode, BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof,
+        Proof, ProtocolVersion, StorageProof, TransactionDetails,
     },
     fee::Fee,
     l1::L1Tx,
