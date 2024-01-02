@@ -1,3 +1,4 @@
+//! Utilities for testing the consensus module.
 use anyhow::Context as _;
 use rand::Rng;
 use zksync_concurrency::{ctx, scope, sync, time, error::Wrap as _};
@@ -12,7 +13,7 @@ use zksync_types::{
 };
 
 use crate::{
-    consensus::{Store,storage::{BlockStore}},
+    consensus::{Store,storage::{CtxStorage,BlockStore}},
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
         tests::{create_l1_batch_metadata, create_l2_transaction, MockBatchExecutorBuilder},
@@ -25,7 +26,7 @@ use crate::{
 };
 
 #[derive(Debug, Default)]
-pub(crate) struct MockMainNodeClient {
+pub(super) struct MockMainNodeClient {
     prev_miniblock_hash: H256,
     l2_blocks: Vec<api::en::SyncBlock>,
 }
@@ -135,10 +136,13 @@ impl MainNodeClient for MockMainNodeClient {
     }
 }
 
-pub(super) struct StateKeeperHandle {
-    next_batch: L1BatchNumber,
-    next_block: MiniblockNumber,
-    next_timestamp: u64,
+/// Fake StateKeeper for tests.
+pub(super) struct StateKeeper {
+    // Batch of the last_block.
+    last_batch: L1BatchNumber,
+    last_block: MiniblockNumber,
+    // timestamp of the last block.
+    last_timestamp: u64,
     batch_sealed: bool,
 
     fee_per_gas: u64,
@@ -149,21 +153,52 @@ pub(super) struct StateKeeperHandle {
     pub(super) pool: ConnectionPool,
 }
 
+/// Fake StateKeeper task to be executed in the background.
 pub(super) struct StateKeeperRunner {
     actions_queue: ActionQueue,
     operator_address: Address,
     pool: ConnectionPool,
 }
 
-impl StateKeeperHandle {
-    pub fn new(pool: ConnectionPool, operator_address: Address) -> (Self, StateKeeperRunner) {
+impl StateKeeper {
+    /// Constructs and initializes a new `StateKeeper`.
+    /// Caller has to run `StateKeeperRunner.run()` task in the background.
+    pub async fn new(pool: ConnectionPool, operator_address: Address) -> anyhow::Result<(Self, StateKeeperRunner)> {
+        // ensure genesis
+        let mut storage = pool.access_storage().await.context("access_storage()")?;
+        if storage
+            .blocks_dal()
+            .is_genesis_needed()
+            .await
+            .context("is_genesis_needed()")?
+        {
+            let mut params = GenesisParams::mock();
+            params.first_validator = operator_address;
+            ensure_genesis_state(&mut storage, L2ChainId::default(), &params)
+                .await
+                .context("ensure_genesis_state()")?;
+        }
+        let last_batch = storage
+            .blocks_dal()
+            .get_newest_l1_batch_header()
+            .await
+            .context("get_newest_l1_batch_header()")?;
+        let pending_batch = storage
+            .blocks_dal()
+            .pending_batch_exists()
+            .await
+            .context("pending_batch_exists()")?;
         let (actions_sender, actions_queue) = ActionQueue::new();
-        (
+        Ok((
             Self {
-                next_batch: L1BatchNumber(1),
-                next_block: MiniblockNumber(1),
-                next_timestamp: 124356,
-                batch_sealed: true,
+                last_batch: last_batch.number + if pending_batch { 1 } else { 0 },
+                last_block: storage
+                    .blocks_dal()
+                    .get_sealed_miniblock_number()
+                    .await
+                    .context("get_sealed_miniblock_number()")?,
+                last_timestamp: last_batch.timestamp,
+                batch_sealed: !pending_batch,
                 fee_per_gas: 10,
                 gas_per_pubdata: 100,
                 operator_address,
@@ -173,39 +208,40 @@ impl StateKeeperHandle {
             StateKeeperRunner {
                 operator_address,
                 actions_queue,
-                pool,
+                pool: pool.clone(),
             },
-        )
+        ))
     }
 
     fn open_block(&mut self) -> SyncAction {
         if self.batch_sealed {
+            self.last_batch += 1;
+            self.last_block += 1;
+            self.last_timestamp += 5;
+            self.batch_sealed = false;
             let action = SyncAction::OpenBatch {
-                number: self.next_batch,
-                timestamp: self.next_timestamp,
+                number: self.last_batch,
+                timestamp: self.last_timestamp,
                 l1_gas_price: 2,
                 l2_fair_gas_price: 3,
                 operator_address: self.operator_address,
                 protocol_version: ProtocolVersionId::latest(),
-                first_miniblock_info: (self.next_block, 1),
+                first_miniblock_info: (self.last_block, 1),
             };
-            self.next_batch += 1;
-            self.next_block += 1;
-            self.next_timestamp += 5;
-            self.batch_sealed = false;
             action
         } else {
+            self.last_block += 1;
+            self.last_timestamp += 2;
             let action = SyncAction::Miniblock {
-                number: self.next_block,
-                timestamp: self.next_timestamp,
+                number: self.last_block,
+                timestamp: self.last_timestamp,
                 virtual_blocks: 0,
             };
-            self.next_block += 1;
-            self.next_timestamp += 2;
             action
         }
     }
 
+    /// Pushes a new miniblock with `transactions` transactions to the `StateKeeper`.
     pub async fn push_block(&mut self, transactions: usize) {
         assert!(transactions > 0);
         let mut actions = vec![self.open_block()];
@@ -217,6 +253,7 @@ impl StateKeeperHandle {
         self.actions_sender.push_actions(actions).await;
     }
 
+    /// Pushes `SealBatch` command to the `StateKeeper`.
     pub async fn seal_batch(&mut self) {
         // Each batch ends with an empty block (aka fictive block).
         let mut actions = vec![self.open_block()];
@@ -225,6 +262,7 @@ impl StateKeeperHandle {
         self.batch_sealed = true;
     }
 
+    /// Pushes `count` random miniblocks to the StateKeeper.
     pub async fn push_random_blocks(&mut self, rng: &mut impl Rng, count: usize) {
         for _ in 0..count {
             // 20% chance to seal an L1 batch.
@@ -237,10 +275,13 @@ impl StateKeeperHandle {
         }
     }
 
+    /// Last block that has been pushed to the `StateKeeper` via `ActionQueue`.
+    /// It might NOT be present in storage yet.
     pub fn last_block(&self) -> validator::BlockNumber {
-        validator::BlockNumber((self.next_block.0 - 1) as u64)
+        validator::BlockNumber(self.last_block.0 as u64)
     }
 
+    /// Creates a new `BlockStore` for the underlying `ConnectionPool`. 
     pub fn store(&self) -> BlockStore {
         Store::new(self.pool.clone(),self.operator_address).into_block_store()
     }
@@ -249,13 +290,8 @@ impl StateKeeperHandle {
     pub async fn sync(&self, ctx: &ctx::Ctx) -> ctx::Result<()> {
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
         loop {
-            let mut storage = self.pool.access_storage().await.context("access_storage()")?;
-            let head = storage
-                .blocks_dal()
-                .get_sealed_miniblock_number()
-                .await
-                .context("get_sealed_miniblock_number()")?;
-            if head.0 >= self.next_block.0 - 1 {
+            let mut storage = CtxStorage::access(ctx,&self.pool).await.wrap("access()")?;
+            if storage.payload(ctx, self.last_block(), self.operator_address).await.wrap("storage.payload()")?.is_some() {
                 return Ok(());
             }
             ctx.sleep(POLL_INTERVAL).await?;
@@ -263,10 +299,13 @@ impl StateKeeperHandle {
     }
 }
 
-// Waits for L1 batches to be sealed and then populates them with mock metadata.
+/// Waits for L1 batches to be sealed and then populates them with mock metadata.
 async fn run_mock_metadata_calculator(ctx: &ctx::Ctx, pool: &ConnectionPool) -> anyhow::Result<()> {
     const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
-    let mut n = L1BatchNumber(1);
+    let mut n = {
+        let mut storage = pool.access_storage().await.context("access_storage()")?;
+        storage.blocks_dal().get_last_l1_batch_number_with_metadata().await.context("get_last_l1_batch_number_with_metadata()")?
+    };
     while let Ok(()) = ctx.sleep(POLL_INTERVAL).await {
         let mut storage = pool.access_storage().await.context("access_storage()")?;
         let last = storage
@@ -275,36 +314,23 @@ async fn run_mock_metadata_calculator(ctx: &ctx::Ctx, pool: &ConnectionPool) -> 
             .await
             .context("get_sealed_l1_batch_number()")?;
 
-        while n <= last {
+        while n < last {
+            n += 1;
             let metadata = create_l1_batch_metadata(n.0);
             storage
                 .blocks_dal()
                 .save_l1_batch_metadata(n, &metadata, H256::zero(), false)
                 .await
                 .context("save_l1_batch_metadata()")?;
-            n += 1;
         }
     }
     Ok(())
 }
 
 impl StateKeeperRunner {
+    /// Executes the StateKeeper task.
     pub async fn run(self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
-        scope::run!(ctx, |ctx, s| async {
-            let mut storage = self.pool.access_storage().await.context("access_storage()")?;
-            // ensure genesis
-            if storage
-                .blocks_dal()
-                .is_genesis_needed()
-                .await
-                .context("is_genesis_needed()")?
-            {
-                let mut params = GenesisParams::mock();
-                params.first_validator = self.operator_address;
-                ensure_genesis_state(&mut storage, L2ChainId::default(), &params)
-                    .await
-                    .context("ensure_genesis_state()")?;
-            }
+        scope::run!(ctx, |ctx, s| async { 
             let (stop_sender, stop_receiver) = sync::watch::channel(false);
             let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(self.pool.clone(), 5);
             let io = ExternalIO::new(
@@ -336,6 +362,7 @@ impl StateKeeperRunner {
     }
 }
 
+/// Waits for the `want_last` miniblock to have a certificate.
 pub async fn wait_for_block(
     ctx: &ctx::Ctx,
     store: &dyn PersistentBlockStore,
@@ -352,7 +379,8 @@ pub async fn wait_for_block(
     }
 }
 
-// Wait for all pushed miniblocks to have consensus certificate.
+/// Waits for `want_last` block to have certificate, then fetches all miniblocks with certificates
+/// and verifies them.
 pub async fn wait_for_blocks_and_verify(
     ctx: &ctx::Ctx,
     store: &dyn PersistentBlockStore,

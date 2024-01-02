@@ -4,9 +4,11 @@ use zksync_dal::{ConnectionPool,connection::TestTemplate};
 use zksync_types::Address;
 use zksync_consensus_storage::{PersistentBlockStore as _}; 
 use zksync_consensus_storage as storage;
+use zksync_consensus_utils::no_copy::NoCopy;
 use crate::consensus::storage::CtxStorage;
 use super::*;
 use std::ops::Range;
+use tracing::Instrument as _;
 
 const OPERATOR_ADDRESS: Address = Address::repeat_byte(17);
 
@@ -37,17 +39,18 @@ async fn test_validator_block_store() {
     let pool = ConnectionPool::test_pool().await;
    
     // Fill storage with unsigned miniblocks.
+    // Fetch a suffix of blocks that we will generate (fake) certs for.
     let want = scope::run!(ctx, |ctx, s| async {
         // Start state keeper.
-        let (mut sk, runner) = testonly::StateKeeperHandle::new(pool.clone(),OPERATOR_ADDRESS);
+        let (mut sk, runner) = testonly::StateKeeper::new(pool.clone(),OPERATOR_ADDRESS).await?;
         s.spawn_bg(runner.run(ctx));
         sk.push_random_blocks(rng, 10).await;
-        sk.sync(ctx).await.unwrap();
+        sk.sync(ctx).await?;
         let range = Range {
             start: validator::BlockNumber(4),
             end: sk.last_block(),
         };
-        Ok(make_blocks(ctx,&sk.pool,range).await?)
+        Ok(make_blocks(ctx,&sk.pool,range).await.context("make_blocks")?)
     }).await.unwrap();
     
     // Insert blocks one by one and check the storage state.
@@ -62,15 +65,15 @@ async fn test_validator_block_store() {
 // for the miniblocks constructed by the StateKeeper. This means that consensus actor
 // is effectively just backfilling the consensus certificates for the miniblocks in storage.
 #[tokio::test(flavor = "multi_thread")]
-async fn test_validator_consensus() {
+async fn test_validator() {
     zksync_concurrency::testonly::abort_on_panic();
-    let ctx = &ctx::test_root(&ctx::RealClock);
+    let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
 
     scope::run!(ctx, |ctx, s| async {
         // Start state keeper.
         let pool = ConnectionPool::test_pool().await;
-        let (mut sk, runner) = testonly::StateKeeperHandle::new(pool,OPERATOR_ADDRESS);
+        let (mut sk, runner) = testonly::StateKeeper::new(pool,OPERATOR_ADDRESS).await?;
         s.spawn_bg(runner.run(ctx));
 
         // Populate storage with a bunch of blocks.
@@ -125,8 +128,10 @@ async fn test_validator_consensus() {
 // them directly or indirectly.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_fetcher() {
+    const FETCHERS : usize = 2;
+
     zksync_concurrency::testonly::abort_on_panic();
-    let ctx = &ctx::test_root(&ctx::RealClock);
+    let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
 
     // topology:
@@ -139,7 +144,7 @@ async fn test_fetcher() {
         operator_address: OPERATOR_ADDRESS,
     };
     let mut fetcher_cfgs = vec![connect_full_node(rng,&mut cfg.executor)];
-    while fetcher_cfgs.len() < 2 {
+    while fetcher_cfgs.len() < FETCHERS {
         let cfg = connect_full_node(rng,fetcher_cfgs.last_mut().unwrap());
         fetcher_cfgs.push(cfg);
     }
@@ -150,7 +155,7 @@ async fn test_fetcher() {
     // Create an initial database snapshot, which contains a cert for genesis block. 
     let pool = scope::run!(ctx, |ctx, s| async {
         let pool = ConnectionPool::test_pool().await;
-        let (mut sk, runner) = testonly::StateKeeperHandle::new(pool,OPERATOR_ADDRESS);
+        let (mut sk, runner) = testonly::StateKeeper::new(pool,OPERATOR_ADDRESS).await?;
         s.spawn_bg(runner.run(ctx));
         s.spawn_bg(cfg.clone().run(ctx, sk.pool.clone()));
         sk.push_random_blocks(rng, 5).await;
@@ -163,17 +168,29 @@ async fn test_fetcher() {
     scope::run!(ctx, |ctx, s| async {
         // Run validator.
         let pool = template.create_db().await?;
-        let (mut validator, runner) = testonly::StateKeeperHandle::new(pool,OPERATOR_ADDRESS);
-        s.spawn_bg(runner.run(ctx));
+        let (mut validator, runner) = testonly::StateKeeper::new(pool,OPERATOR_ADDRESS).await?;
+        s.spawn_bg(async {
+            runner.run(ctx)
+                .instrument(tracing::info_span!("validator"))
+                .await
+                .context("validator")
+        });
         s.spawn_bg(cfg.run(ctx, validator.pool.clone()));
     
         // Run fetchers.
         let mut fetchers = vec![];
-        for cfg in fetcher_cfgs {
+        for (i,cfg) in fetcher_cfgs.into_iter().enumerate() {
+            let i = NoCopy::from(i);
             let pool = template.create_db().await?;
-            let (fetcher, runner) = testonly::StateKeeperHandle::new(pool,OPERATOR_ADDRESS);
+            let (fetcher, runner) = testonly::StateKeeper::new(pool,OPERATOR_ADDRESS).await?;
             fetchers.push(fetcher.store());
-            s.spawn_bg(runner.run(ctx));
+            s.spawn_bg(async {
+                let i = i;
+                runner.run(ctx)
+                    .instrument(tracing::info_span!("fetcher",i=*i))
+                    .await
+                    .with_context(||format!("fetcher{}",*i))
+            });
             s.spawn_bg(cfg.run(ctx, fetcher.pool, fetcher.actions_sender));
         }
 
