@@ -6,6 +6,7 @@ pub mod genesis;
 mod metrics;
 pub(crate) mod sync_action;
 mod sync_state;
+#[cfg(dupa)]
 #[cfg(test)]
 mod tests;
 

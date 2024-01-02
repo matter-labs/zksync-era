@@ -111,6 +111,7 @@ impl BlockStore {
         let mut storage = CtxStorage::access(ctx, &self.inner.pool).await.wrap("access()")?;
         // Fetch last miniblock number outside of the transaction to avoid taking a lock.
         let number = storage.last_miniblock_number(ctx).await.wrap("last_miniblock_number()")?; 
+        tracing::warn!("head = {number}");
         
         let mut txn = storage.start_transaction(ctx).await.wrap("start_transaction()")?;
         if txn.first_certificate(ctx).await.wrap("first_certificate()")?.is_some() {

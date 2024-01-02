@@ -18,24 +18,24 @@ zksync_config = { path = "../config" }
 zksync_utils = { path = "../utils" }
 zksync_contracts = { path = "../contracts" }
 zksync_system_constants = { path = "../../lib/constants" }
-zksync_commitment_utils = { path = "../commitment_utils" }
-zksync_eth_client = { path = "../eth_client" }
-zksync_eth_signer = { path = "../eth_signer" }
+# zksync_commitment_utils = { path = "../commitment_utils" }
+#zksync_eth_client = { path = "../eth_client" }
+#zksync_eth_signer = { path = "../eth_signer" }
 zksync_mempool = { path = "../mempool" }
-zksync_prover_utils = { path = "../prover_utils" }
-zksync_queued_job_processor = { path = "../queued_job_processor" }
-zksync_circuit_breaker = { path = "../circuit_breaker" }
+#zksync_prover_utils = { path = "../prover_utils" }
+#zksync_queued_job_processor = { path = "../queued_job_processor" }
+#zksync_circuit_breaker = { path = "../circuit_breaker" }
 zksync_storage = { path = "../storage" }
 zksync_merkle_tree = { path = "../merkle_tree" }
 zksync_mini_merkle_tree = { path = "../mini_merkle_tree" }
-zksync_verification_key_generator_and_server = { path = "../../bin/verification_key_generator_and_server" }
+#zksync_verification_key_generator_and_server = { path = "../../bin/verification_key_generator_and_server" }
 prometheus_exporter = { path = "../prometheus_exporter" }
 zksync_web3_decl = { path = "../web3_decl", default-features = false, features = [
     "server",
     "client",
 ] }
 zksync_object_store = { path = "../object_store" }
-zksync_health_check = { path = "../health_check" }
+#zksync_health_check = { path = "../health_check" }
 vlog = { path = "../vlog" }
 
 multivm = { path = "../multivm" }
@@ -65,31 +65,31 @@ async-trait = "0.1"
 bitflags = "1.3.2"
 
 # API dependencies
-jsonrpc-core = { git = "https://github.com/matter-labs/jsonrpc.git", branch = "master" }
-jsonrpc-core-client = { git = "https://github.com/matter-labs/jsonrpc.git", branch = "master" } # Required for the RPC trait
-jsonrpc-http-server = { git = "https://github.com/matter-labs/jsonrpc.git", branch = "master" }
-jsonrpc-ws-server = { git = "https://github.com/matter-labs/jsonrpc.git", branch = "master" }
-jsonrpc-derive = { git = "https://github.com/matter-labs/jsonrpc.git", branch = "master" }
-jsonrpc-pubsub = { git = "https://github.com/matter-labs/jsonrpc.git", branch = "master" }
+#jsonrpc-core = { git = "https://github.com/matter-labs/jsonrpc.git", branch = "master" }
+#jsonrpc-core-client = { git = "https://github.com/matter-labs/jsonrpc.git", branch = "master" } # Required for the RPC trait
+#jsonrpc-http-server = { git = "https://github.com/matter-labs/jsonrpc.git", branch = "master" }
+#jsonrpc-ws-server = { git = "https://github.com/matter-labs/jsonrpc.git", branch = "master" }
+#jsonrpc-derive = { git = "https://github.com/matter-labs/jsonrpc.git", branch = "master" }
+#jsonrpc-pubsub = { git = "https://github.com/matter-labs/jsonrpc.git", branch = "master" }
 num = { version = "0.3.1", features = ["serde"] }
 bigdecimal = { version = "0.2.2", features = ["serde"] }
-reqwest = { version = "0.11", features = ["blocking", "json"] }
+#reqwest = { version = "0.11", features = ["blocking", "json"] }
 hex = "0.4"
 lru = { version = "0.12.1", default-features = false }
 governor = "0.4.2"
-tower-http = { version = "0.4.1", features = ["full"] }
-tower = { version = "0.4.13", features = ["full"] }
-axum = { version = "0.6.19", default-features = false, features = [
-    "http1",
-    "json",
-    "tokio",
-] }
+#tower-http = { version = "0.4.1", features = ["full"] }
+#tower = { version = "0.4.13", features = ["full"] }
+#axum = { version = "0.6.19", default-features = false, features = [
+#    "http1",
+#    "json",
+#    "tokio",
+#] }
 once_cell = "1.7"
 
 
-actix-rt = "2.2.0"
-actix-cors = "0.6.0-beta.2"
-actix-web = "4.0.0-beta.8"
+#actix-rt = "2.2.0"
+#actix-cors = "0.6.0-beta.2"
+#actix-web = "4.0.0-beta.8"
 
 tracing = "0.1.26"
 

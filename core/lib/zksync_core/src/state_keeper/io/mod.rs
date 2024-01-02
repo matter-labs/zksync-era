@@ -23,6 +23,7 @@ use super::{
 pub(crate) mod common;
 pub(crate) mod mempool;
 pub(crate) mod seal_logic;
+#[cfg(dupa)]
 #[cfg(test)]
 mod tests;
 

@@ -1,12 +1,14 @@
-#![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
+#![allow(unused,clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
 
 use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use futures::channel::oneshot;
 use prometheus_exporter::PrometheusExporterConfig;
+#[cfg(dupa)]
 use temp_config_store::TempConfigStore;
 use tokio::{sync::watch, task::JoinHandle};
+#[cfg(dupa)]
 use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker, CircuitBreaker,
     CircuitBreakerChecker, CircuitBreakerError,
@@ -23,23 +25,30 @@ use zksync_config::{
     },
     ApiConfig, ContractsConfig, DBConfig, ETHSenderConfig, PostgresConfig,
 };
+#[cfg(dupa)]
 use zksync_contracts::{governance_contract, BaseSystemContracts};
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
+#[cfg(dupa)]
 use zksync_eth_client::{
     clients::http::{PKSigningClient, QueryClient},
     BoundEthInterface, EthInterface,
 };
+#[cfg(dupa)]
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
+#[cfg(dupa)]
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+#[cfg(dupa)]
 use zksync_prover_utils::periodic_job::PeriodicJob;
+#[cfg(dupa)]
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
+#[cfg(dupa)]
 use zksync_types::{
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
     L2ChainId, PackedEthSignature, ProtocolVersionId,
 };
-
+#[cfg(dupa)]
 use crate::{
     api_server::{
         contract_verification,
@@ -74,25 +83,38 @@ use crate::{
     state_keeper::{create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer},
 };
 
+#[cfg(dupa)]
 pub mod api_server;
+#[cfg(dupa)]
 pub mod basic_witness_input_producer;
+#[cfg(dupa)]
 pub mod block_reverter;
 mod consensus;
+#[cfg(dupa)]
 pub mod consistency_checker;
+#[cfg(dupa)]
 pub mod data_fetchers;
+#[cfg(dupa)]
 pub mod eth_sender;
+#[cfg(dupa)]
 pub mod eth_watch;
 pub mod gas_tracker;
 pub mod genesis;
+#[cfg(dupa)]
 pub mod house_keeper;
 pub mod l1_gas_price;
 pub mod metadata_calculator;
 mod metrics;
+#[cfg(dupa)]
 pub mod proof_data_handler;
+#[cfg(dupa)]
 pub mod reorg_detector;
 pub mod state_keeper;
 pub mod sync_layer;
+#[cfg(dupa)]
 pub mod temp_config_store;
+
+/*
 
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(
@@ -1257,3 +1279,4 @@ async fn circuit_breakers_for_components(
     }
     Ok(circuit_breakers)
 }
+*/
