@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
 use zksync_types::{
     fee_model::{
@@ -11,7 +11,7 @@ use zksync_types::{
 use crate::l1_gas_price::L1GasPriceProvider;
 
 /// Trait responsiblef for providign fee info for a batch
-pub trait BatchFeeModelInputProvider {
+pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
     fn get_batch_fee_input(&self, scale_l1_prices: bool) -> BatchFeeInput {
         // FIXME: use legacy by default or use a config to regulate it
         compute_legacy_batch_fee_model_input(self.get_fee_model_params(), scale_l1_prices)
@@ -20,12 +20,13 @@ pub trait BatchFeeModelInputProvider {
     fn get_fee_model_params(&self) -> MainNodeFeeParams;
 }
 
-pub(crate) struct MainNodeFeeInputProvider<G> {
+#[derive(Debug)]
+pub(crate) struct MainNodeFeeInputProvider<G: ?Sized> {
     provider: Arc<G>,
     config: MainNodeFeeModelConfig,
 }
 
-impl<G: L1GasPriceProvider> BatchFeeModelInputProvider for MainNodeFeeInputProvider<G> {
+impl<G: L1GasPriceProvider + ?Sized> BatchFeeModelInputProvider for MainNodeFeeInputProvider<G> {
     fn get_fee_model_params(&self) -> MainNodeFeeParams {
         let l1_gas_price = self.provider.estimate_effective_gas_price();
         let l1_pubdata_price = self.provider.estimate_effective_pubdata_price();
@@ -38,7 +39,7 @@ impl<G: L1GasPriceProvider> BatchFeeModelInputProvider for MainNodeFeeInputProvi
     }
 }
 
-impl<G: L1GasPriceProvider> MainNodeFeeInputProvider<G> {
+impl<G: L1GasPriceProvider + ?Sized> MainNodeFeeInputProvider<G> {
     pub(crate) fn new(provider: Arc<G>, config: MainNodeFeeModelConfig) -> Self {
         Self { provider, config }
     }

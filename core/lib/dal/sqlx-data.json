@@ -11889,6 +11889,48 @@
     },
     "query": "\n                UPDATE prover_jobs\n                SET\n                    status = 'queued',\n                    updated_at = NOW(),\n                    processing_started_at = NOW()\n                WHERE\n                    (\n                        status = 'in_progress'\n                        AND processing_started_at <= NOW() - $1::INTERVAL\n                        AND attempts < $2\n                    )\n                    OR (\n                        status = 'in_gpu_proof'\n                        AND processing_started_at <= NOW() - $1::INTERVAL\n                        AND attempts < $2\n                    )\n                    OR (\n                        status = 'failed'\n                        AND attempts < $2\n                    )\n                RETURNING\n                    id,\n                    status,\n                    attempts\n                "
   },
+  "f39372e37160df4897f62a800694867ed765dcb9dc60754df9df8700d4244bfb": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_address",
+          "ordinal": 0,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "l2_address",
+          "ordinal": 1,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "name",
+          "ordinal": 2,
+          "type_info": "Varchar"
+        },
+        {
+          "name": "symbol",
+          "ordinal": 3,
+          "type_info": "Varchar"
+        },
+        {
+          "name": "decimals",
+          "ordinal": 4,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "\n                SELECT\n                    l1_address,\n                    l2_address,\n                    NAME,\n                    symbol,\n                    decimals\n                FROM\n                    tokens\n                WHERE\n                    well_known = TRUE\n                ORDER BY\n                    symbol\n                "
+  },
   "f4362a61ab05af3d71a3232d2f017db60405a887f9f7fa0ca60aa7fc879ce630": {
     "describe": {
       "columns": [],

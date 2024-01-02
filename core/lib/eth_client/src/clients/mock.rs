@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
+    fmt,
     sync::{
         atomic::{AtomicU64, Ordering},
         RwLock,
@@ -415,7 +416,7 @@ impl BoundEthInterface for MockEthereum {
 }
 
 #[async_trait]
-impl<T: AsRef<MockEthereum> + Send + Sync> EthInterface for T {
+impl<T: 'static + AsRef<MockEthereum> + Send + Sync + fmt::Debug> EthInterface for T {
     async fn nonce_at_for_account(
         &self,
         account: Address,
@@ -535,7 +536,7 @@ impl<T: AsRef<MockEthereum> + Send + Sync> EthInterface for T {
 }
 
 #[async_trait::async_trait]
-impl<T: AsRef<MockEthereum> + Send + Sync> BoundEthInterface for T {
+impl<T: 'static + AsRef<MockEthereum> + Send + Sync + fmt::Debug> BoundEthInterface for T {
     fn contract(&self) -> &ethabi::Contract {
         self.as_ref().contract()
     }

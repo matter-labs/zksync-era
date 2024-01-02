@@ -5,15 +5,12 @@ use zksync_types::{
 };
 use zksync_web3_decl::{jsonrpsee::core::RpcResult, namespaces::SnapshotsNamespaceServer};
 
-use crate::{
-    api_server::web3::{backend_jsonrpsee::into_jsrpc_error, namespaces::SnapshotsNamespace},
-    fee_model::BatchFeeModelInputProvider,
+use crate::api_server::web3::{
+    backend_jsonrpsee::into_jsrpc_error, namespaces::SnapshotsNamespace,
 };
 
 #[async_trait]
-impl<G: BatchFeeModelInputProvider + Send + Sync + 'static> SnapshotsNamespaceServer
-    for SnapshotsNamespace<G>
-{
+impl SnapshotsNamespaceServer for SnapshotsNamespace {
     async fn get_all_snapshots(&self) -> RpcResult<AllSnapshots> {
         self.get_all_snapshots_impl()
             .await

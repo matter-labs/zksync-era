@@ -15,20 +15,17 @@ use zksync_types::{
 };
 use zksync_web3_decl::error::Web3Error;
 
-use crate::{
-    api_server::{
-        execution_sandbox::{
-            execute_tx_eth_call, ApiTracer, BlockArgs, TxSharedArgs, VmConcurrencyLimiter,
-        },
-        tx_sender::ApiContracts,
-        web3::{
-            backend_jsonrpsee::internal_error,
-            metrics::API_METRICS,
-            resolve_block,
-            state::{RpcState, SealedMiniblockNumber},
-        },
+use crate::api_server::{
+    execution_sandbox::{
+        execute_tx_eth_call, ApiTracer, BlockArgs, TxSharedArgs, VmConcurrencyLimiter,
     },
-    fee_model::BatchFeeModelInputProvider,
+    tx_sender::ApiContracts,
+    web3::{
+        backend_jsonrpsee::internal_error,
+        metrics::API_METRICS,
+        resolve_block,
+        state::{RpcState, SealedMiniblockNumber},
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -44,7 +41,7 @@ pub struct DebugNamespace {
 }
 
 impl DebugNamespace {
-    pub async fn new<G: BatchFeeModelInputProvider>(state: RpcState<G>) -> Self {
+    pub async fn new(state: RpcState) -> Self {
         let sender_config = &state.tx_sender.0.sender_config;
 
         let api_contracts = ApiContracts::load_from_disk();

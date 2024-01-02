@@ -75,10 +75,7 @@ impl Tester {
         &self,
         pool: ConnectionPool,
         miniblock_sealer_capacity: usize,
-    ) -> (
-        MempoolIO<MainNodeFeeInputProvider<GasAdjuster<MockEthereum>>>,
-        MempoolGuard,
-    ) {
+    ) -> (MempoolIO, MempoolGuard) {
         let gas_adjuster = Arc::new(self.create_gas_adjuster().await);
         let batch_fee_input_provider =
             MainNodeFeeInputProvider::new(gas_adjuster, Default::default());

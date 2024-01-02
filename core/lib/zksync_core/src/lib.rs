@@ -3,6 +3,7 @@
 use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
+use fee_model::BatchFeeModelInputProvider;
 use futures::channel::oneshot;
 use prometheus_exporter::PrometheusExporterConfig;
 use temp_config_store::TempConfigStore;
@@ -1039,23 +1040,18 @@ fn build_storage_caches(
     Ok(storage_caches)
 }
 
-async fn build_tx_sender<G: L1GasPriceProvider>(
+async fn build_tx_sender(
     tx_sender_config: &TxSenderConfig,
     web3_json_config: &Web3JsonRpcConfig,
     state_keeper_config: &StateKeeperConfig,
     replica_pool: ConnectionPool,
     master_pool: ConnectionPool,
-    l1_gas_price_provider: Arc<G>,
+    l1_gas_price_provider: Arc<dyn L1GasPriceProvider>,
     storage_caches: PostgresStorageCaches,
-) -> (TxSender<MainNodeFeeInputProvider<G>>, VmConcurrencyBarrier) {
+) -> (TxSender, VmConcurrencyBarrier) {
     let mut tx_sender_builder = TxSenderBuilder::new(tx_sender_config.clone(), replica_pool)
         .with_main_connection_pool(master_pool)
         .with_state_keeper_config(state_keeper_config.clone());
-
-    // Add rate limiter if enabled.
-    if let Some(transactions_per_sec_limit) = web3_json_config.transactions_per_sec_limit {
-        tx_sender_builder = tx_sender_builder.with_rate_limiter(transactions_per_sec_limit);
-    };
 
     let max_concurrency = web3_json_config.vm_concurrency_limit();
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
@@ -1086,7 +1082,7 @@ async fn build_tx_sender<G: L1GasPriceProvider>(
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
+async fn run_http_api<G: L1GasPriceProvider>(
     postgres_config: &PostgresConfig,
     tx_sender_config: &TxSenderConfig,
     state_keeper_config: &StateKeeperConfig,

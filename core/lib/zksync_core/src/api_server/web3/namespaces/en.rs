@@ -9,20 +9,12 @@ use crate::{
 /// Namespace for External Node unique methods.
 /// Main use case for it is the EN synchronization.
 #[derive(Debug)]
-pub struct EnNamespace<G> {
-    pub state: RpcState<G>,
+pub struct EnNamespace {
+    pub state: RpcState,
 }
 
-impl<G> Clone for EnNamespace<G> {
-    fn clone(&self) -> Self {
-        Self {
-            state: self.state.clone(),
-        }
-    }
-}
-
-impl<G: BatchFeeModelInputProvider> EnNamespace<G> {
-    pub fn new(state: RpcState<G>) -> Self {
+impl EnNamespace {
+    pub fn new(state: RpcState) -> Self {
         Self { state }
     }
 

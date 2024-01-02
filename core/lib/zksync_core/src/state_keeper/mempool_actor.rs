@@ -14,8 +14,8 @@ use crate::fee_model::BatchFeeModelInputProvider;
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.
 /// The filter is used to filter out transactions from the mempool that do not cover expenses
 /// to process them.
-pub fn l2_tx_filter<G: BatchFeeModelInputProvider>(
-    fee_batch_input_provider: &G,
+pub fn l2_tx_filter(
+    fee_batch_input_provider: &dyn BatchFeeModelInputProvider,
     vm_version: VmVersion,
 ) -> L2TxFilter {
     let fee_input = fee_batch_input_provider.get_batch_fee_input(false);

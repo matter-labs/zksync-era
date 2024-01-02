@@ -120,12 +120,12 @@ struct OptionalApiParams {
 
 /// Full API server parameters.
 #[derive(Debug)]
-struct FullApiParams<G> {
+struct FullApiParams {
     pool: ConnectionPool,
     last_miniblock_pool: ConnectionPool,
     config: InternalApiConfig,
     transport: ApiTransport,
-    tx_sender: TxSender<G>,
+    tx_sender: TxSender,
     vm_barrier: VmConcurrencyBarrier,
     threads: usize,
     polling_interval: Duration,
@@ -134,14 +134,14 @@ struct FullApiParams<G> {
 }
 
 #[derive(Debug)]
-pub struct ApiBuilder<G> {
+pub struct ApiBuilder {
     pool: ConnectionPool,
     last_miniblock_pool: ConnectionPool,
     config: InternalApiConfig,
     polling_interval: Duration,
     // Mandatory params that must be set using builder methods.
     transport: Option<ApiTransport>,
-    tx_sender: Option<TxSender<G>>,
+    tx_sender: Option<TxSender>,
     vm_barrier: Option<VmConcurrencyBarrier>,
     threads: Option<usize>,
     // Optional params that may or may not be set using builder methods. We treat `namespaces`
@@ -150,7 +150,7 @@ pub struct ApiBuilder<G> {
     optional: OptionalApiParams,
 }
 
-impl<G> ApiBuilder<G> {
+impl ApiBuilder {
     const DEFAULT_POLLING_INTERVAL: Duration = Duration::from_millis(200);
 
     pub fn jsonrpsee_backend(config: InternalApiConfig, pool: ConnectionPool) -> Self {
@@ -186,11 +186,7 @@ impl<G> ApiBuilder<G> {
         self
     }
 
-    pub fn with_tx_sender(
-        mut self,
-        tx_sender: TxSender<G>,
-        vm_barrier: VmConcurrencyBarrier,
-    ) -> Self {
+    pub fn with_tx_sender(mut self, tx_sender: TxSender, vm_barrier: VmConcurrencyBarrier) -> Self {
         self.tx_sender = Some(tx_sender);
         self.vm_barrier = Some(vm_barrier);
         self
@@ -256,7 +252,7 @@ impl<G> ApiBuilder<G> {
         self
     }
 
-    fn into_full_params(self) -> anyhow::Result<FullApiParams<G>> {
+    fn into_full_params(self) -> anyhow::Result<FullApiParams> {
         Ok(FullApiParams {
             pool: self.pool,
             last_miniblock_pool: self.last_miniblock_pool,
@@ -277,7 +273,7 @@ impl<G> ApiBuilder<G> {
     }
 }
 
-impl<G: 'static + Send + Sync + BatchFeeModelInputProvider> ApiBuilder<G> {
+impl ApiBuilder {
     pub async fn build(
         self,
         stop_receiver: watch::Receiver<bool>,
@@ -286,8 +282,8 @@ impl<G: 'static + Send + Sync + BatchFeeModelInputProvider> ApiBuilder<G> {
     }
 }
 
-impl<G: 'static + Send + Sync + BatchFeeModelInputProvider> FullApiParams<G> {
-    fn build_rpc_state(self) -> RpcState<G> {
+impl FullApiParams {
+    fn build_rpc_state(self) -> RpcState {
         // Chosen to be significantly smaller than the interval between miniblocks, but larger than
         // the latency of getting the latest sealed miniblock number from Postgres. If the API server
         // processes enough requests, information about the latest sealed miniblock will be updated

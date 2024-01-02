@@ -9,20 +9,13 @@ use crate::{
     fee_model::BatchFeeModelInputProvider,
 };
 
-#[derive(Debug)]
-pub struct SnapshotsNamespace<G> {
-    state: RpcState<G>,
+#[derive(Debug, Clone)]
+pub struct SnapshotsNamespace {
+    state: RpcState,
 }
 
-impl<G> Clone for SnapshotsNamespace<G> {
-    fn clone(&self) -> Self {
-        Self {
-            state: self.state.clone(),
-        }
-    }
-}
-impl<G: BatchFeeModelInputProvider> SnapshotsNamespace<G> {
-    pub fn new(state: RpcState<G>) -> Self {
+impl SnapshotsNamespace {
+    pub fn new(state: RpcState) -> Self {
         Self { state }
     }
 

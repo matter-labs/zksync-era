@@ -32,7 +32,7 @@ pub(crate) mod types;
 pub(crate) mod updates;
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) async fn create_state_keeper<G>(
+pub(crate) async fn create_state_keeper(
     contracts_config: &ContractsConfig,
     state_keeper_config: StateKeeperConfig,
     db_config: &DBConfig,
@@ -40,14 +40,11 @@ pub(crate) async fn create_state_keeper<G>(
     mempool_config: &MempoolConfig,
     pool: ConnectionPool,
     mempool: MempoolGuard,
-    fee_model_fetcher: Arc<G>,
+    fee_model_fetcher: Arc<dyn BatchFeeModelInputProvider>,
     miniblock_sealer_handle: MiniblockSealerHandle,
     object_store: Box<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
-) -> ZkSyncStateKeeper
-where
-    G: BatchFeeModelInputProvider + 'static + Send + Sync,
-{
+) -> ZkSyncStateKeeper {
     let batch_executor_base = MainBatchExecutorBuilder::new(
         db_config.state_keeper_db_path.clone(),
         pool.clone(),

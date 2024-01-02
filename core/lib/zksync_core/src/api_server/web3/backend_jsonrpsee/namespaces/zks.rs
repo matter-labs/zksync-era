@@ -14,15 +14,13 @@ use zksync_types::{
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
     namespaces::zks::ZksNamespaceServer,
+    types::Token,
 };
 
-use crate::{
-    api_server::web3::{backend_jsonrpsee::into_jsrpc_error, ZksNamespace},
-    fee_model::BatchFeeModelInputProvider,
-};
+use crate::api_server::web3::{backend_jsonrpsee::into_jsrpc_error, ZksNamespace};
 
 #[async_trait]
-impl<G: BatchFeeModelInputProvider + Send + Sync + 'static> ZksNamespaceServer for ZksNamespace<G> {
+impl ZksNamespaceServer for ZksNamespace {
     async fn estimate_fee(&self, req: CallRequest) -> RpcResult<Fee> {
         self.estimate_fee_impl(req).await.map_err(into_jsrpc_error)
     }
@@ -47,6 +45,12 @@ impl<G: BatchFeeModelInputProvider + Send + Sync + 'static> ZksNamespaceServer f
 
     async fn l1_chain_id(&self) -> RpcResult<U64> {
         Ok(self.l1_chain_id_impl())
+    }
+
+    async fn get_confirmed_tokens(&self, from: u32, limit: u8) -> RpcResult<Vec<Token>> {
+        self.get_confirmed_tokens_impl(from, limit)
+            .await
+            .map_err(into_jsrpc_error)
     }
 
     async fn get_token_price(&self, token_address: Address) -> RpcResult<BigDecimal> {
