@@ -144,7 +144,7 @@ export async function deployL1(args: any[]) {
         'CONTRACTS_L1_WETH_BRIDGE_PROXY_ADDR',
         'CONTRACTS_L1_ALLOW_LIST_ADDR',
         'CONTRACTS_L1_MULTICALL3_ADDR',
-        'VALIDIUM_MODE'
+        'ETH_SENDER_SENDER_VALIDIUM_MODE'
     ];
     const updatedContracts = updateContractsEnv(deployLog, envVars);
 
