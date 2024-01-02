@@ -43,8 +43,8 @@ impl BlocksDal<'_, '_> {
         Ok(count == 0)
     }
 
-    pub async fn get_sealed_l1_batch_number(&mut self) -> anyhow::Result<L1BatchNumber> {
-        let number = sqlx::query!(
+    pub async fn get_sealed_l1_batch_number(&mut self) -> sqlx::Result<Option<L1BatchNumber>> {
+        let row = sqlx::query!(
             r#"
             SELECT
                 MAX(number) AS "number"
@@ -57,11 +57,9 @@ impl BlocksDal<'_, '_> {
         .instrument("get_sealed_block_number")
         .report_latency()
         .fetch_one(self.storage.conn())
-        .await?
-        .number
-        .context("DAL invocation before genesis")?;
+        .await?;
 
-        Ok(L1BatchNumber(number as u32))
+        Ok(row.number.map(|num| L1BatchNumber(num as u32)))
     }
 
     pub async fn get_sealed_miniblock_number(&mut self) -> sqlx::Result<MiniblockNumber> {

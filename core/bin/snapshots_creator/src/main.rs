@@ -144,9 +144,9 @@ async fn run(
 
     // We subtract 1 so that after restore, EN node has at least one L1 batch to fetch
     let sealed_l1_batch_number = conn.blocks_dal().get_sealed_l1_batch_number().await?;
-    assert_ne!(
-        sealed_l1_batch_number,
-        L1BatchNumber(0),
+    let sealed_l1_batch_number = sealed_l1_batch_number.context("No L1 batches in Postgres")?;
+    anyhow::ensure!(
+        sealed_l1_batch_number != L1BatchNumber(0),
         "Cannot create snapshot when only the genesis L1 batch is present in Postgres"
     );
     let l1_batch_number = sealed_l1_batch_number - 1;
