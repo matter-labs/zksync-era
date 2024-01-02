@@ -23,13 +23,13 @@ use crate::{
     BoundEthInterface, ContractCallArgs, EthInterface,
 };
 
-// FIXME: make private
 #[derive(Debug, Clone)]
-pub struct MockTx {
-    pub input: Vec<u8>,
-    pub hash: H256,
-    pub nonce: u64,
-    pub base_fee: U256,
+struct MockTx {
+    input: Vec<u8>,
+    hash: H256,
+    nonce: u64,
+    max_fee_per_gas: U256,
+    max_priority_fee_per_gas: U256,
 }
 
 impl From<Vec<u8>> for MockTx {
@@ -37,9 +37,8 @@ impl From<Vec<u8>> for MockTx {
         use std::convert::TryFrom;
 
         let len = tx.len();
-        let total_gas_price = U256::try_from(&tx[len - 96..len - 64]).unwrap();
-        let priority_fee = U256::try_from(&tx[len - 64..len - 32]).unwrap();
-        let base_fee = total_gas_price - priority_fee;
+        let max_fee_per_gas = U256::try_from(&tx[len - 96..len - 64]).unwrap();
+        let max_priority_fee_per_gas = U256::try_from(&tx[len - 64..len - 32]).unwrap();
         let nonce = U256::try_from(&tx[len - 32..]).unwrap().as_u64();
         let hash = {
             let mut buffer = [0_u8; 32];
@@ -51,7 +50,8 @@ impl From<Vec<u8>> for MockTx {
             input: tx[32..len - 96].to_vec(),
             nonce,
             hash,
-            base_fee,
+            max_fee_per_gas,
+            max_priority_fee_per_gas,
         }
     }
 }
@@ -62,6 +62,8 @@ impl From<MockTx> for Transaction {
             input: tx.input.into(),
             hash: tx.hash,
             nonce: tx.nonce.into(),
+            max_fee_per_gas: Some(tx.max_fee_per_gas),
+            max_priority_fee_per_gas: Some(tx.max_priority_fee_per_gas),
             ..Self::default()
         }
     }
@@ -70,13 +72,12 @@ impl From<MockTx> for Transaction {
 /// Mock Ethereum client is capable of recording all the incoming requests for the further analysis.
 #[derive(Debug)]
 pub struct MockEthereum {
-    // FIXME: make all fields private
-    pub block_number: AtomicU64,
+    block_number: AtomicU64,
     max_fee_per_gas: U256,
     base_fee_history: RwLock<Vec<u64>>,
     max_priority_fee_per_gas: U256,
     tx_statuses: RwLock<HashMap<H256, ExecutedTxStatus>>,
-    pub sent_txs: RwLock<HashMap<H256, MockTx>>,
+    sent_txs: RwLock<HashMap<H256, MockTx>>,
     current_nonce: AtomicU64,
     pending_nonce: AtomicU64,
     nonces: RwLock<BTreeMap<u64, u64>>,
@@ -114,6 +115,16 @@ impl MockEthereum {
         hasher.write(data);
         let result = hasher.finish();
         H256::from_low_u64_ne(result)
+    }
+
+    /// Creates the specified number of L1 blocks.
+    pub fn create_blocks(&self, count: u64) {
+        self.block_number.fetch_add(count, Ordering::Relaxed);
+    }
+
+    /// Returns the number of transactions sent via this client.
+    pub fn sent_tx_count(&self) -> usize {
+        self.sent_txs.read().unwrap().len()
     }
 
     /// Increments the blocks by a provided `confirmations` and marks the sent transaction

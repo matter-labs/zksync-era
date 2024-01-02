@@ -1,4 +1,4 @@
-use std::sync::{atomic::Ordering, Arc};
+use std::sync::Arc;
 
 use assert_matches::assert_matches;
 use once_cell::sync::Lazy;
@@ -84,9 +84,7 @@ impl EthSenderTester {
                 .with_non_ordering_confirmation(non_ordering_confirmations)
                 .with_multicall_address(contracts_config.l1_multicall3_addr),
         );
-        gateway
-            .block_number
-            .fetch_add(Self::WAIT_CONFIRMATIONS, Ordering::Relaxed);
+        gateway.create_blocks(Self::WAIT_CONFIRMATIONS);
 
         let gas_adjuster = Arc::new(
             GasAdjuster::new(
@@ -175,7 +173,7 @@ async fn confirm_many() -> anyhow::Result<()> {
     }
 
     // check that we sent something
-    assert_eq!(tester.gateway.sent_txs.read().unwrap().len(), 5);
+    assert_eq!(tester.gateway.sent_tx_count(), 5);
     assert_eq!(
         tester
             .storage()
@@ -252,7 +250,7 @@ async fn resend_each_block() -> anyhow::Result<()> {
         .await?;
 
     // check that we sent something and stored it in the db
-    assert_eq!(tester.gateway.sent_txs.read().unwrap().len(), 1);
+    assert_eq!(tester.gateway.sent_tx_count(), 1);
     assert_eq!(
         tester
             .storage()
@@ -265,12 +263,18 @@ async fn resend_each_block() -> anyhow::Result<()> {
         1
     );
 
-    {
-        let sent_tx = &tester.gateway.sent_txs.read().unwrap()[&hash];
-        assert_eq!(sent_tx.hash, hash);
-        assert_eq!(sent_tx.nonce, 0);
-        assert_eq!(sent_tx.base_fee.as_usize(), 18); // 6 * 3 * 2^0
-    }
+    let sent_tx = tester
+        .gateway
+        .get_tx(hash, "")
+        .await
+        .unwrap()
+        .expect("no transaction");
+    assert_eq!(sent_tx.hash, hash);
+    assert_eq!(sent_tx.nonce, 0.into());
+    assert_eq!(
+        sent_tx.max_fee_per_gas.unwrap() - sent_tx.max_priority_fee_per_gas.unwrap(),
+        18.into() // 6 * 3 * 2^0
+    );
 
     // now, median is 5
     tester.gateway.advance_block_number(2);
@@ -297,7 +301,7 @@ async fn resend_each_block() -> anyhow::Result<()> {
         .await?;
 
     // check that transaction has been resent
-    assert_eq!(tester.gateway.sent_txs.read().unwrap().len(), 2);
+    assert_eq!(tester.gateway.sent_tx_count(), 2);
     assert_eq!(
         tester
             .storage()
@@ -310,9 +314,17 @@ async fn resend_each_block() -> anyhow::Result<()> {
         1
     );
 
-    let resent_tx = &tester.gateway.sent_txs.read().unwrap()[&resent_hash];
-    assert_eq!(resent_tx.nonce, 0);
-    assert_eq!(resent_tx.base_fee.as_usize(), 30); // 5 * 3 * 2^1
+    let resent_tx = tester
+        .gateway
+        .get_tx(resent_hash, "")
+        .await
+        .unwrap()
+        .expect("no transaction");
+    assert_eq!(resent_tx.nonce, 0.into());
+    assert_eq!(
+        resent_tx.max_fee_per_gas.unwrap() - resent_tx.max_priority_fee_per_gas.unwrap(),
+        30.into() // 5 * 3 * 2^1
+    );
 
     Ok(())
 }
@@ -345,7 +357,7 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
         .unwrap();
 
     // check that we sent something and stored it in the db
-    assert_eq!(tester.gateway.sent_txs.read().unwrap().len(), 1);
+    assert_eq!(tester.gateway.sent_tx_count(), 1);
     assert_eq!(
         tester
             .storage()
@@ -422,7 +434,7 @@ async fn three_scenarios() -> anyhow::Result<()> {
     }
 
     // check that we sent something
-    assert_eq!(tester.gateway.sent_txs.read().unwrap().len(), 3);
+    assert_eq!(tester.gateway.sent_tx_count(), 3);
 
     // mined & confirmed
     tester
