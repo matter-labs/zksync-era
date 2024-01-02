@@ -1,9 +1,10 @@
 use std::{net::SocketAddr, num::NonZeroU32, time::Duration};
 
-pub use crate::configs::PrometheusConfig;
 use serde::Deserialize;
 use zksync_basic_types::H256;
 use zksync_types::api::ApiMode;
+
+pub use crate::configs::PrometheusConfig;
 
 /// API configuration.
 #[derive(Debug, Deserialize, Clone, PartialEq)]

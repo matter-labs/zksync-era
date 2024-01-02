@@ -49,6 +49,7 @@ impl FromEnv for MerkleTreeApiConfig {
 #[cfg(test)]
 mod tests {
     use std::num::NonZeroU32;
+
     use zksync_types::api::ApiMode;
 
     use super::*;

@@ -14,10 +14,9 @@ use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
 use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
 use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
-use zksync_types::api::ApiMode;
 use zksync_types::{
-    block::MiniblockHeader, fee::TransactionExecutionMetrics, tx::IncludedTxLocation, Address,
-    L1BatchNumber, ProtocolVersionId, VmEvent, H256, U64,
+    api::ApiMode, block::MiniblockHeader, fee::TransactionExecutionMetrics, tx::IncludedTxLocation,
+    Address, L1BatchNumber, ProtocolVersionId, VmEvent, H256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::{core::ClientError as RpcError, http_client::HttpClient, types::error::ErrorCode},
