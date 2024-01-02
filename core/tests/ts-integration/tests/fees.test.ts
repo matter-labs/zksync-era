@@ -17,7 +17,7 @@ import * as zksync from 'zksync-web3';
 import { BigNumber, ethers } from 'ethers';
 import { Token } from '../src/types';
 
-const logs = fs.createWriteStream('upgrade.log', { flags: 'a' });
+const logs = fs.createWriteStream('fees.log', { flags: 'a' });
 
 // Unless `RUN_FEE_TEST` is provided, skip the test suit
 const testFees = process.env.RUN_FEE_TEST ? describe : describe.skip;
@@ -228,6 +228,7 @@ async function setInternalL1GasPrice(provider: zksync.Provider, newPrice?: strin
     let command = 'zk server --components api,tree,eth,state_keeper';
     command = `DATABASE_MERKLE_TREE_MODE=full ${command}`;
     if (newPrice) {
+        // We need to ensure that each transaction gets into its own batch for more fair comparison.
         command = `CHAIN_STATE_KEEPER_TRANSACTION_SLOTS=1 ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_L1_GAS_PRICE=${newPrice} ${command}`;
     }
     const zkSyncServer = utils.background(command, [null, logs, logs]);
