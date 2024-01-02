@@ -295,7 +295,6 @@ impl<E: BoundEthInterface> EthTxAggregator<E> {
     /// Loads current verifier config on L1
     async fn get_recursion_scheduler_level_vk_hash(
         &mut self,
-
         verifier_address: Address,
         contracts_are_pre_boojum: bool,
     ) -> Result<H256, ETHSenderError> {

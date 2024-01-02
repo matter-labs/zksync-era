@@ -30,7 +30,7 @@ use crate::{
 };
 
 // Alias to conveniently call static methods of ETHSender.
-type MockEthTxManager = EthTxManager<Arc<MockEthereum>, GasAdjuster<Arc<MockEthereum>>>;
+type MockEthTxManager = EthTxManager<Arc<MockEthereum>>;
 
 static DUMMY_OPERATION: Lazy<AggregatedOperation> = Lazy::new(|| {
     AggregatedOperation::Execute(L1BatchExecuteOperation {
