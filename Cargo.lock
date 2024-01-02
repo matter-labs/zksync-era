@@ -6470,7 +6470,7 @@ dependencies = [
 [[package]]
 name = "sqlx"
 version = "0.6.2"
-source = "git+https://github.com/launchbadge/sqlx.git?rev=75a34951ab6b02cc39441b5f4e9dc082b1bee0b0#75a34951ab6b02cc39441b5f4e9dc082b1bee0b0"
+source = "git+https://github.com/launchbadge/sqlx.git?rev=f0d6924f9205781a9332cd4f6d3a4c69ba4a2522#f0d6924f9205781a9332cd4f6d3a4c69ba4a2522"
 dependencies = [
  "sqlx-core",
  "sqlx-macros",
@@ -6479,7 +6479,7 @@ dependencies = [
 [[package]]
 name = "sqlx-core"
 version = "0.6.2"
-source = "git+https://github.com/launchbadge/sqlx.git?rev=75a34951ab6b02cc39441b5f4e9dc082b1bee0b0#75a34951ab6b02cc39441b5f4e9dc082b1bee0b0"
+source = "git+https://github.com/launchbadge/sqlx.git?rev=f0d6924f9205781a9332cd4f6d3a4c69ba4a2522#f0d6924f9205781a9332cd4f6d3a4c69ba4a2522"
 dependencies = [
  "ahash 0.7.7",
  "atoi",
@@ -6532,7 +6532,7 @@ dependencies = [
 [[package]]
 name = "sqlx-macros"
 version = "0.6.2"
-source = "git+https://github.com/launchbadge/sqlx.git?rev=75a34951ab6b02cc39441b5f4e9dc082b1bee0b0#75a34951ab6b02cc39441b5f4e9dc082b1bee0b0"
+source = "git+https://github.com/launchbadge/sqlx.git?rev=f0d6924f9205781a9332cd4f6d3a4c69ba4a2522#f0d6924f9205781a9332cd4f6d3a4c69ba4a2522"
 dependencies = [
  "dotenvy",
  "either",
@@ -6553,7 +6553,7 @@ dependencies = [
 [[package]]
 name = "sqlx-rt"
 version = "0.6.2"
-source = "git+https://github.com/launchbadge/sqlx.git?rev=75a34951ab6b02cc39441b5f4e9dc082b1bee0b0#75a34951ab6b02cc39441b5f4e9dc082b1bee0b0"
+source = "git+https://github.com/launchbadge/sqlx.git?rev=f0d6924f9205781a9332cd4f6d3a4c69ba4a2522#f0d6924f9205781a9332cd4f6d3a4c69ba4a2522"
 dependencies = [
  "native-tls",
  "once_cell",
