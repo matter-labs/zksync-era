@@ -415,6 +415,7 @@ pub struct ExternalNodeConfig {
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
     pub remote: RemoteENConfig,
+    pub validium_mode: bool,
 }
 
 impl ExternalNodeConfig {
@@ -475,11 +476,14 @@ impl ExternalNodeConfig {
 
         let postgres = PostgresConfig::from_env()?;
 
+        let validium_mode = env_var("ETH_SENDER_SENDER_VALIDIUM_MODE");
+
         Ok(Self {
             remote,
             postgres,
             required,
             optional,
+            validium_mode,
         })
     }
 }
