@@ -176,7 +176,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                             let mut current_block = db_logs[0].miniblock_number;
                             let mut current_tx_hash = db_logs[0].tx_hash.clone();
 
-                            for mut db_log in db_logs {
+                            for db_log in &mut db_logs {
                                 if db_log.miniblock_number != current_block {
                                     current_block = db_log.miniblock_number;
                                     new_event_index_in_block = 0;
