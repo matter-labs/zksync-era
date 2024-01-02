@@ -55,8 +55,8 @@ impl CallFunctionArgs {
         self,
         contract_address: Address,
         contract_abi: ethabi::Contract,
-    ) -> ContractCallArgs {
-        ContractCallArgs {
+    ) -> ContractCall {
+        ContractCall {
             contract_address,
             contract_abi,
             inner: self,
@@ -64,9 +64,10 @@ impl CallFunctionArgs {
     }
 }
 
-/// Arguments for calling a function in a specific Ethereum smart contract.
+/// Information sufficient for calling a function in a specific Ethereum smart contract. Instantiated
+/// using [`CallFunctionArgs::for_contract()`].
 #[derive(Debug)]
-pub struct ContractCallArgs {
+pub struct ContractCall {
     contract_address: Address,
     contract_abi: ethabi::Contract,
     inner: CallFunctionArgs,
@@ -160,11 +161,8 @@ pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
     async fn eth_balance(&self, address: Address, component: &'static str) -> Result<U256, Error>;
 
     /// Invokes a function on a contract specified by `contract_address` / `contract_abi` using `eth_call`.
-    #[allow(clippy::too_many_arguments)]
-    async fn call_contract_function(
-        &self,
-        args: ContractCallArgs,
-    ) -> Result<Vec<ethabi::Token>, Error>;
+    async fn call_contract_function(&self, call: ContractCall)
+        -> Result<Vec<ethabi::Token>, Error>;
 
     /// Returns the logs for the specified filter.
     async fn logs(&self, filter: Filter, component: &'static str) -> Result<Vec<Log>, Error>;

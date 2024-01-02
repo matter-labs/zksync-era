@@ -21,7 +21,7 @@ use zksync_types::{
 use super::{query::QueryClient, Method, LATENCIES};
 use crate::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
-    BoundEthInterface, CallFunctionArgs, ContractCallArgs, EthInterface,
+    BoundEthInterface, CallFunctionArgs, ContractCall, EthInterface,
 };
 
 /// HTTP-based Ethereum client, backed by a private key to sign transactions.
@@ -165,9 +165,9 @@ impl<S: EthereumSigner> EthInterface for SigningClient<S> {
 
     async fn call_contract_function(
         &self,
-        args: ContractCallArgs,
+        call: ContractCall,
     ) -> Result<Vec<ethabi::Token>, Error> {
-        self.query_client.call_contract_function(args).await
+        self.query_client.call_contract_function(call).await
     }
 
     async fn tx_receipt(

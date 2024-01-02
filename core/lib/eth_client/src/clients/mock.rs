@@ -20,7 +20,7 @@ use zksync_types::{
 
 use crate::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
-    BoundEthInterface, ContractCallArgs, EthInterface,
+    BoundEthInterface, ContractCall, EthInterface,
 };
 
 #[derive(Debug, Clone)]
@@ -300,14 +300,13 @@ impl EthInterface for MockEthereum {
         }))
     }
 
-    #[allow(clippy::too_many_arguments)]
     async fn call_contract_function(
         &self,
-        args: ContractCallArgs,
+        call: ContractCall,
     ) -> Result<Vec<ethabi::Token>, Error> {
         use ethabi::Token;
 
-        if args.contract_address == self.multicall_address {
+        if call.contract_address == self.multicall_address {
             let token = Token::Array(vec![
                 Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
                 Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![2u8; 32])]),
@@ -497,9 +496,9 @@ impl EthInterface for Arc<MockEthereum> {
 
     async fn call_contract_function(
         &self,
-        args: ContractCallArgs,
+        call: ContractCall,
     ) -> Result<Vec<ethabi::Token>, Error> {
-        self.as_ref().call_contract_function(args).await
+        self.as_ref().call_contract_function(call).await
     }
 
     async fn tx_receipt(

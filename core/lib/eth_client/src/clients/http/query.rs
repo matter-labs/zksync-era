@@ -16,7 +16,7 @@ use zksync_types::web3::{
 use crate::{
     clients::http::{Method, COUNTERS, LATENCIES},
     types::{Error, ExecutedTxStatus, FailureInfo},
-    ContractCallArgs, EthInterface,
+    ContractCall, EthInterface,
 };
 
 /// An "anonymous" Ethereum client that can invoke read-only methods that aren't
@@ -232,17 +232,17 @@ impl EthInterface for QueryClient {
 
     async fn call_contract_function(
         &self,
-        args: ContractCallArgs,
+        call: ContractCall,
     ) -> Result<Vec<ethabi::Token>, Error> {
         let latency = LATENCIES.direct[&Method::CallContractFunction].start();
-        let contract = Contract::new(self.web3.eth(), args.contract_address, args.contract_abi);
+        let contract = Contract::new(self.web3.eth(), call.contract_address, call.contract_abi);
         let res = contract
             .query(
-                &args.inner.name,
-                args.inner.params,
-                args.inner.from,
-                args.inner.options,
-                args.inner.block,
+                &call.inner.name,
+                call.inner.params,
+                call.inner.from,
+                call.inner.options,
+                call.inner.block,
             )
             .await?;
         latency.observe();
