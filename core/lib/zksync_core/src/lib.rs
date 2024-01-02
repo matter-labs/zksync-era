@@ -26,7 +26,7 @@ use zksync_config::{
 use zksync_contracts::{governance_contract, BaseSystemContracts};
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_eth_client::{
-    clients::http::{PKSigningClient, QueryClient},
+    clients::{PKSigningClient, QueryClient},
     BoundEthInterface, CallFunctionArgs, EthInterface,
 };
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};

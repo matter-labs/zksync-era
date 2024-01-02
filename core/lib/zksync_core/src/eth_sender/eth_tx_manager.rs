@@ -4,10 +4,7 @@ use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_eth_client::{
-    types::{Error, ExecutedTxStatus, SignedCallResult},
-    BoundEthInterface,
-};
+use zksync_eth_client::{BoundEthInterface, Error, ExecutedTxStatus, SignedCallResult};
 use zksync_types::{
     eth_sender::EthTx,
     web3::{

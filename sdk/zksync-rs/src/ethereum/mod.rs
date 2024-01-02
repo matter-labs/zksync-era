@@ -7,7 +7,7 @@ use std::{
 
 use serde_json::{Map, Value};
 use zksync_eth_client::{
-    clients::http::SigningClient, types::Error, BoundEthInterface, CallFunctionArgs, EthInterface,
+    clients::SigningClient, BoundEthInterface, CallFunctionArgs, Error, EthInterface,
 };
 use zksync_eth_signer::EthereumSigner;
 use zksync_types::{

@@ -1,5 +1,3 @@
-#![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
-
 use std::fmt;
 
 use async_trait::async_trait;
@@ -15,63 +13,12 @@ use zksync_types::{
     L1ChainId,
 };
 
-use crate::types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult};
+pub use crate::types::{
+    CallFunctionArgs, ContractCall, Error, ExecutedTxStatus, FailureInfo, SignedCallResult,
+};
 
 pub mod clients;
-pub mod types;
-
-/// Arguments for calling a function in an unspecified Ethereum smart contract.
-#[derive(Debug)]
-pub struct CallFunctionArgs {
-    name: String,
-    from: Option<Address>,
-    options: Options,
-    block: Option<BlockId>,
-    params: Vec<ethabi::Token>,
-}
-
-impl CallFunctionArgs {
-    pub fn new(name: &str, params: impl Tokenize) -> Self {
-        Self {
-            name: name.to_owned(),
-            from: None,
-            options: Options::default(),
-            block: None,
-            params: params.into_tokens(),
-        }
-    }
-
-    pub fn with_sender(mut self, from: Address) -> Self {
-        self.from = Some(from);
-        self
-    }
-
-    pub fn with_block(mut self, block: BlockId) -> Self {
-        self.block = Some(block);
-        self
-    }
-
-    pub fn for_contract(
-        self,
-        contract_address: Address,
-        contract_abi: ethabi::Contract,
-    ) -> ContractCall {
-        ContractCall {
-            contract_address,
-            contract_abi,
-            inner: self,
-        }
-    }
-}
-
-/// Information sufficient for calling a function in a specific Ethereum smart contract. Instantiated
-/// using [`CallFunctionArgs::for_contract()`].
-#[derive(Debug)]
-pub struct ContractCall {
-    contract_address: Address,
-    contract_abi: ethabi::Contract,
-    inner: CallFunctionArgs,
-}
+mod types;
 
 /// Common Web3 interface, as seen by the core applications.
 /// Encapsulates the raw Web3 interaction, providing a high-level interface.

@@ -1,5 +1,5 @@
 use zksync_contracts::verifier_contract;
-use zksync_eth_client::{types::Error as EthClientError, CallFunctionArgs, EthInterface};
+use zksync_eth_client::{CallFunctionArgs, Error as EthClientError, EthInterface};
 use zksync_types::{
     ethabi::{Contract, Token},
     vk_transform::l1_vk_commitment,

@@ -1,8 +1,61 @@
-// External uses
 use zksync_types::web3::{
+    contract::{tokens::Tokenize, Options},
     ethabi,
-    types::{TransactionReceipt, H256, U256},
+    types::{Address, BlockId, TransactionReceipt, H256, U256},
 };
+
+/// Arguments for calling a function in an unspecified Ethereum smart contract.
+#[derive(Debug)]
+pub struct CallFunctionArgs {
+    pub(crate) name: String,
+    pub(crate) from: Option<Address>,
+    pub(crate) options: Options,
+    pub(crate) block: Option<BlockId>,
+    pub(crate) params: Vec<ethabi::Token>,
+}
+
+impl CallFunctionArgs {
+    pub fn new(name: &str, params: impl Tokenize) -> Self {
+        Self {
+            name: name.to_owned(),
+            from: None,
+            options: Options::default(),
+            block: None,
+            params: params.into_tokens(),
+        }
+    }
+
+    pub fn with_sender(mut self, from: Address) -> Self {
+        self.from = Some(from);
+        self
+    }
+
+    pub fn with_block(mut self, block: BlockId) -> Self {
+        self.block = Some(block);
+        self
+    }
+
+    pub fn for_contract(
+        self,
+        contract_address: Address,
+        contract_abi: ethabi::Contract,
+    ) -> ContractCall {
+        ContractCall {
+            contract_address,
+            contract_abi,
+            inner: self,
+        }
+    }
+}
+
+/// Information sufficient for calling a function in a specific Ethereum smart contract. Instantiated
+/// using [`CallFunctionArgs::for_contract()`].
+#[derive(Debug)]
+pub struct ContractCall {
+    pub(crate) contract_address: Address,
+    pub(crate) contract_abi: ethabi::Contract,
+    pub(crate) inner: CallFunctionArgs,
+}
 
 /// Common error type exposed by the crate,
 #[derive(Debug, thiserror::Error)]
