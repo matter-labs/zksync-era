@@ -12,6 +12,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::StorageProcessor;
 use zksync_types::{
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
+    fee_model::BatchFeeInput,
     Address, L2ChainId, ProtocolVersion, ProtocolVersionId,
 };
 
@@ -26,9 +27,7 @@ async fn store_miniblock(storage: &mut StorageProcessor<'_>, number: u32, hash: 
         l1_tx_count: 0,
         l2_tx_count: 0,
         base_fee_per_gas: 0,
-        l1_gas_price: 0,
-        l2_fair_gas_price: 0,
-        fair_pubdata_price: 0,
+        batch_fee_input: BatchFeeInput::default(),
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         virtual_blocks: 1,

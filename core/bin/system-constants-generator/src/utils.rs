@@ -18,7 +18,7 @@ use zksync_contracts::{
 };
 use zksync_state::{InMemoryStorage, StorageView, WriteStorage};
 use zksync_types::{
-    block::MiniblockHasher, ethabi::Token, fee::Fee, l1::L1Tx, l2::L2Tx,
+    block::MiniblockHasher, ethabi::Token, fee::Fee, fee_model::BatchFeeInput, l1::L1Tx, l2::L2Tx,
     utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute, L1BatchNumber,
     L1TxCommonData, L2ChainId, MiniblockNumber, Nonce, ProtocolVersionId, StorageKey, Timestamp,
     Transaction, BOOTLOADER_ADDRESS, H256, SYSTEM_CONTEXT_ADDRESS,
@@ -174,9 +174,7 @@ fn default_l1_batch() -> L1BatchEnv {
         previous_batch_hash: None,
         number: L1BatchNumber(1),
         timestamp: 100,
-        l1_gas_price: 50_000_000_000,   // 50 gwei
-        fair_l2_gas_price: 250_000_000, // 0.25 gwei
-        fair_pubdata_price: 850_000_000,
+        fee_input: BatchFeeInput::default(),
         fee_account: Address::random(),
         enforced_base_fee: None,
         first_l2_block: L2BlockEnv {

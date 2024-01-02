@@ -5,9 +5,11 @@ use std::{
 
 use zksync_types::{
     fee::Fee,
+    fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms,
     l1::{OpProcessingType, PriorityQueueType},
     l2::L2Tx,
+    web3::transports::Batch,
     Address, Execute, ExecuteTransactionCommon, L1TxCommonData, Nonce, PriorityOpId, Transaction,
     H256, U256,
 };
@@ -244,18 +246,14 @@ fn mempool_size() {
 fn filtering() {
     // Filter to find transactions with non-zero `gas_per_pubdata` values.
     let filter_non_zero = L2TxFilter {
-        l1_gas_price: 0u64,
+        fee_input: BatchFeeInput::default(),
         fee_per_gas: 0u64,
-        fair_l2_gas_price: 0,
-        fair_pubdata_price: 0,
         gas_per_pubdata: 1u32,
     };
     // No-op filter that fetches any transaction.
     let filter_zero = L2TxFilter {
-        l1_gas_price: 0u64,
+        fee_input: BatchFeeInput::default(),
         fee_per_gas: 0u64,
-        fair_l2_gas_price: 0,
-        fair_pubdata_price: 0,
         gas_per_pubdata: 0u32,
     };
 
@@ -292,18 +290,14 @@ fn filtering() {
 #[test]
 fn stashed_accounts() {
     let filter_non_zero = L2TxFilter {
-        l1_gas_price: 0u64,
+        fee_input: BatchFeeInput::default(),
         fee_per_gas: 0u64,
-        fair_l2_gas_price: 0,
-        fair_pubdata_price: 0,
         gas_per_pubdata: 1u32,
     };
     // No-op filter that fetches any transaction.
     let filter_zero = L2TxFilter {
-        l1_gas_price: 0u64,
+        fee_input: BatchFeeInput::default(),
         fee_per_gas: 0u64,
-        fair_l2_gas_price: 0,
-        fair_pubdata_price: 0,
         gas_per_pubdata: 0u32,
     };
     let mut mempool = MempoolStore::new(PriorityOpId(0), 100);

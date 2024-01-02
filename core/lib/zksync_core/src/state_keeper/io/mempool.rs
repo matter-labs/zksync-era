@@ -518,7 +518,7 @@ impl<G: BatchFeeModelInputProvider> MempoolIO<G> {
 
 /// Getters required for testing the MempoolIO.
 #[cfg(test)]
-impl<G: L1GasPriceProvider> MempoolIO<G> {
+impl<G: BatchFeeModelInputProvider> MempoolIO<G> {
     pub(super) fn filter(&self) -> &L2TxFilter {
         &self.filter
     }

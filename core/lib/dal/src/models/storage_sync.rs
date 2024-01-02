@@ -53,6 +53,10 @@ impl StorageSyncBlock {
                 .l2_fair_gas_price
                 .try_into()
                 .context("l2_fair_gas_price")?,
+            fair_pubdata_price: self
+                .fair_pubdata_price
+                .map(|v| v.try_into().context("fair_pubdata_price"))
+                .transpose()?,
             // TODO (SMA-1635): Make these fields non optional in database
             base_system_contracts_hashes: BaseSystemContractsHashes {
                 bootloader: parse_h256(

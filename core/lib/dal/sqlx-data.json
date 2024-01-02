@@ -1180,98 +1180,6 @@
     },
     "query": "\n            SELECT\n                id\n            FROM\n                prover_fri_protocol_versions\n            WHERE\n                recursion_circuits_set_vks_hash = $1\n                AND recursion_leaf_level_vk_hash = $2\n                AND recursion_node_level_vk_hash = $3\n                AND recursion_scheduler_level_vk_hash = $4\n            "
   },
-  "15893d68429ba09662ee27935653c17c7a7939195dd2d9aa42512b1479d2ed20": {
-    "describe": {
-      "columns": [
-        {
-          "name": "number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "l1_batch_number!",
-          "ordinal": 1,
-          "type_info": "Int8"
-        },
-        {
-          "name": "last_batch_miniblock?",
-          "ordinal": 2,
-          "type_info": "Int8"
-        },
-        {
-          "name": "timestamp",
-          "ordinal": 3,
-          "type_info": "Int8"
-        },
-        {
-          "name": "l1_gas_price",
-          "ordinal": 4,
-          "type_info": "Int8"
-        },
-        {
-          "name": "l2_fair_gas_price",
-          "ordinal": 5,
-          "type_info": "Int8"
-        },
-        {
-          "name": "bootloader_code_hash",
-          "ordinal": 6,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "default_aa_code_hash",
-          "ordinal": 7,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "virtual_blocks",
-          "ordinal": 8,
-          "type_info": "Int8"
-        },
-        {
-          "name": "hash",
-          "ordinal": 9,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "consensus",
-          "ordinal": 10,
-          "type_info": "Jsonb"
-        },
-        {
-          "name": "protocol_version!",
-          "ordinal": 11,
-          "type_info": "Int4"
-        },
-        {
-          "name": "fee_account_address?",
-          "ordinal": 12,
-          "type_info": "Bytea"
-        }
-      ],
-      "nullable": [
-        false,
-        null,
-        null,
-        false,
-        false,
-        false,
-        true,
-        true,
-        false,
-        false,
-        true,
-        true,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Int8"
-        ]
-      }
-    },
-    "query": "\n            SELECT\n                miniblocks.number,\n                COALESCE(\n                    miniblocks.l1_batch_number,\n                    (\n                        SELECT\n                            (MAX(number) + 1)\n                        FROM\n                            l1_batches\n                    )\n                ) AS \"l1_batch_number!\",\n                (\n                    SELECT\n                        MAX(m2.number)\n                    FROM\n                        miniblocks m2\n                    WHERE\n                        miniblocks.l1_batch_number = m2.l1_batch_number\n                ) AS \"last_batch_miniblock?\",\n                miniblocks.timestamp,\n                miniblocks.l1_gas_price,\n                miniblocks.l2_fair_gas_price,\n                miniblocks.bootloader_code_hash,\n                miniblocks.default_aa_code_hash,\n                miniblocks.virtual_blocks,\n                miniblocks.hash,\n                miniblocks.consensus,\n                miniblocks.protocol_version AS \"protocol_version!\",\n                l1_batches.fee_account_address AS \"fee_account_address?\"\n            FROM\n                miniblocks\n                LEFT JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number\n            WHERE\n                miniblocks.number = $1\n            "
-  },
   "1689c212d411ebd99a22210519ea2d505a1aabf52ff4136d2ed1b39c70dd1632": {
     "describe": {
       "columns": [
@@ -4228,6 +4136,104 @@
       }
     },
     "query": "\n            INSERT INTO\n                prover_protocol_versions (\n                    id,\n                    timestamp,\n                    recursion_scheduler_level_vk_hash,\n                    recursion_node_level_vk_hash,\n                    recursion_leaf_level_vk_hash,\n                    recursion_circuits_set_vks_hash,\n                    verifier_address,\n                    created_at\n                )\n            VALUES\n                ($1, $2, $3, $4, $5, $6, $7, NOW())\n            "
+  },
+  "413005888afbc49f72bc6f06107811b4df3fd9d3d6c45a17b011983c8f48799d": {
+    "describe": {
+      "columns": [
+        {
+          "name": "number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "l1_batch_number!",
+          "ordinal": 1,
+          "type_info": "Int8"
+        },
+        {
+          "name": "last_batch_miniblock?",
+          "ordinal": 2,
+          "type_info": "Int8"
+        },
+        {
+          "name": "timestamp",
+          "ordinal": 3,
+          "type_info": "Int8"
+        },
+        {
+          "name": "l1_gas_price",
+          "ordinal": 4,
+          "type_info": "Int8"
+        },
+        {
+          "name": "l2_fair_gas_price",
+          "ordinal": 5,
+          "type_info": "Int8"
+        },
+        {
+          "name": "fair_pubdata_price",
+          "ordinal": 6,
+          "type_info": "Int8"
+        },
+        {
+          "name": "bootloader_code_hash",
+          "ordinal": 7,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "default_aa_code_hash",
+          "ordinal": 8,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "virtual_blocks",
+          "ordinal": 9,
+          "type_info": "Int8"
+        },
+        {
+          "name": "hash",
+          "ordinal": 10,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "consensus",
+          "ordinal": 11,
+          "type_info": "Jsonb"
+        },
+        {
+          "name": "protocol_version!",
+          "ordinal": 12,
+          "type_info": "Int4"
+        },
+        {
+          "name": "fee_account_address?",
+          "ordinal": 13,
+          "type_info": "Bytea"
+        }
+      ],
+      "nullable": [
+        false,
+        null,
+        null,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        false,
+        false,
+        true,
+        true,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "\n            SELECT\n                miniblocks.number,\n                COALESCE(\n                    miniblocks.l1_batch_number,\n                    (\n                        SELECT\n                            (MAX(number) + 1)\n                        FROM\n                            l1_batches\n                    )\n                ) AS \"l1_batch_number!\",\n                (\n                    SELECT\n                        MAX(m2.number)\n                    FROM\n                        miniblocks m2\n                    WHERE\n                        miniblocks.l1_batch_number = m2.l1_batch_number\n                ) AS \"last_batch_miniblock?\",\n                miniblocks.timestamp,\n                miniblocks.l1_gas_price,\n                miniblocks.l2_fair_gas_price,\n                miniblocks.fair_pubdata_price,\n                miniblocks.bootloader_code_hash,\n                miniblocks.default_aa_code_hash,\n                miniblocks.virtual_blocks,\n                miniblocks.hash,\n                miniblocks.consensus,\n                miniblocks.protocol_version AS \"protocol_version!\",\n                l1_batches.fee_account_address AS \"fee_account_address?\"\n            FROM\n                miniblocks\n                LEFT JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number\n            WHERE\n                miniblocks.number = $1\n            "
   },
   "41c9f45d6eb727aafad0d8c18024cee5c602d275bb812022cc8fdabf0a60e151": {
     "describe": {

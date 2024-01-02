@@ -180,7 +180,7 @@ impl StateKeeperHandle {
                 timestamp: self.next_timestamp,
                 l1_gas_price: 2,
                 l2_fair_gas_price: 3,
-                fair_pubdata_price: Option(24),
+                fair_pubdata_price: Some(24),
                 operator_address: self.operator_address,
                 protocol_version: ProtocolVersionId::latest(),
                 first_miniblock_info: (self.next_block, 1),
