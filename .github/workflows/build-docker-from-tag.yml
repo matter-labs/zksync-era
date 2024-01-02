@@ -56,7 +56,7 @@ jobs:
 
   build-push-core-images:
     name: Build and push image
-    needs: [build-contracts]
+    needs: [setup, build-contracts]
     uses: ./.github/workflows/build-core-template.yml
     if: contains(github.ref_name, 'core')
     secrets:
