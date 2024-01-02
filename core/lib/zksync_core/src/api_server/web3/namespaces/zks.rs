@@ -3,6 +3,7 @@ use std::{collections::HashMap, convert::TryInto};
 use bigdecimal::{BigDecimal, Zero};
 use zksync_dal::StorageProcessor;
 use zksync_mini_merkle_tree::MiniMerkleTree;
+use zksync_types::api::ApiMode;
 use zksync_types::{
     api::{
         BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof, Proof,
@@ -32,11 +33,12 @@ use crate::api_server::{
 #[derive(Debug)]
 pub struct ZksNamespace {
     pub state: RpcState,
+    pub api_mode: ApiMode,
 }
 
 impl ZksNamespace {
-    pub fn new(state: RpcState) -> Self {
-        Self { state }
+    pub fn new(state: RpcState, api_mode: ApiMode) -> Self {
+        Self { state, api_mode }
     }
 
     #[tracing::instrument(skip(self, request))]
@@ -278,6 +280,7 @@ impl ZksNamespace {
                         topics: vec![(2, vec![address_to_h256(&sender)]), (3, vec![msg])],
                     },
                     self.state.api_config.req_entities_limit,
+                    self.api_mode,
                 )
                 .await
                 .map_err(|err| internal_error(METHOD_NAME, err))?;
