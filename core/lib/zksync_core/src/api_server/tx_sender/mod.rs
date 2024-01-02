@@ -25,8 +25,8 @@ use zksync_types::{
     get_code_key, get_intrinsic_constants,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     utils::storage_key_for_eth_balance,
-    vm_version, AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, Nonce,
-    PackedEthSignature, ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_L2_TX_GAS_LIMIT,
+    AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, Nonce, PackedEthSignature,
+    ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_L2_TX_GAS_LIMIT,
     MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::h256_to_u256;
@@ -42,10 +42,9 @@ use crate::{
         },
         tx_sender::result::{ApiCallResult, SubmitTxError},
     },
-    fee_model::{BatchFeeModelInputProvider, MainNodeFeeInputProvider},
+    fee_model::BatchFeeModelInputProvider,
 };
 use crate::{
-    l1_gas_price::L1GasPriceProvider,
     metrics::{TxStage, APP_METRICS},
     state_keeper::seal_criteria::{ConditionalSealer, SealData},
 };

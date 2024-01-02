@@ -1,8 +1,4 @@
-use zksync_system_constants::{
-    MAX_GAS_PER_PUBDATA_BYTE_1_4_1, MAX_GAS_PER_PUBDATA_BYTE_PRE_1_4_1,
-    USED_1_4_1_BOOTLOADER_MEMORY_BYTES, USED_PRE_1_4_1_BOOTLOADER_MEMORY_BYTES,
-};
-use zksync_types::{fee_model::BatchFeeInput, ProtocolVersionId, VmVersion, U256};
+use zksync_types::{fee_model::BatchFeeInput, VmVersion, U256};
 
 /// Calculates the base fee and gas per pubdata for the given L1 gas price.
 pub fn derive_base_fee_and_gas_per_pubdata(

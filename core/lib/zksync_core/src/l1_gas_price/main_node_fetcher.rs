@@ -1,21 +1,16 @@
 use std::{
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc, RwLock,
-    },
+    sync::{Arc, RwLock},
     time::Duration,
 };
 
 use tokio::sync::watch::Receiver;
-use zksync_system_constants::{GAS_PER_PUBDATA_BYTE, L1_GAS_PER_PUBDATA_BYTE};
-use zksync_types::fee_model::{BatchFeeInput, MainNodeFeeModelConfig, MainNodeFeeParams};
+use zksync_types::fee_model::MainNodeFeeParams;
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::ZksNamespaceClient,
 };
 
-use super::L1GasPriceProvider;
-use crate::fee_model::{compute_batch_fee_model_input, BatchFeeModelInputProvider};
+use crate::fee_model::BatchFeeModelInputProvider;
 
 const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 

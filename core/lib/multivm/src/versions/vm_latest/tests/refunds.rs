@@ -1,5 +1,3 @@
-use zksync_types::VmVersion;
-
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
     vm_latest::{

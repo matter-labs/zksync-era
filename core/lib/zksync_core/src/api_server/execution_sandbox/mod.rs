@@ -1,13 +1,10 @@
 use std::{sync::Arc, time::Duration};
 
-use multivm::utils::adjust_pubdata_price_for_tx;
 use tokio::runtime::Handle;
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
 use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
-use zksync_types::{
-    api, fee_model::BatchFeeInput, AccountTreeId, L2ChainId, MiniblockNumber, U256,
-};
+use zksync_types::{api, fee_model::BatchFeeInput, AccountTreeId, L2ChainId, MiniblockNumber};
 use zksync_utils::bytecode::{compress_bytecode, hash_bytecode};
 
 use self::vm_metrics::SandboxStage;

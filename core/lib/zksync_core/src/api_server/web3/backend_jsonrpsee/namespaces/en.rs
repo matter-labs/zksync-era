@@ -7,7 +7,6 @@ use zksync_web3_decl::{
 use crate::{
     api_server::web3::{backend_jsonrpsee::into_jsrpc_error, namespaces::EnNamespace},
     fee_model::BatchFeeModelInputProvider,
-    l1_gas_price::L1GasPriceProvider,
 };
 
 #[async_trait]

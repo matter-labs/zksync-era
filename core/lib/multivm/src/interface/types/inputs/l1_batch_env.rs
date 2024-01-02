@@ -1,8 +1,6 @@
-use zksync_types::{
-    fee_model::BatchFeeInput, Address, L1BatchNumber, ProtocolVersionId, VmVersion, H256, U256,
-};
+use zksync_types::{fee_model::BatchFeeInput, Address, L1BatchNumber, VmVersion, H256};
 
-use super::{L2BlockEnv, SystemEnv};
+use super::L2BlockEnv;
 use crate::utils::derive_base_fee_and_gas_per_pubdata;
 
 /// Unique params for each batch

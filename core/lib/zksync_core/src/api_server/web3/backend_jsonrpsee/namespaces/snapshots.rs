@@ -8,7 +8,6 @@ use zksync_web3_decl::{jsonrpsee::core::RpcResult, namespaces::SnapshotsNamespac
 use crate::{
     api_server::web3::{backend_jsonrpsee::into_jsrpc_error, namespaces::SnapshotsNamespace},
     fee_model::BatchFeeModelInputProvider,
-    l1_gas_price::L1GasPriceProvider,
 };
 
 #[async_trait]

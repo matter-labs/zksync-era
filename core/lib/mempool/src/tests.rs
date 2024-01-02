@@ -9,7 +9,6 @@ use zksync_types::{
     helpers::unix_timestamp_ms,
     l1::{OpProcessingType, PriorityQueueType},
     l2::L2Tx,
-    web3::transports::Batch,
     Address, Execute, ExecuteTransactionCommon, L1TxCommonData, Nonce, PriorityOpId, Transaction,
     H256, U256,
 };

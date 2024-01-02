@@ -14,7 +14,6 @@ use multivm::{
     vm_latest::constants::BLOCK_GAS_LIMIT,
 };
 use tokio::sync::{mpsc, watch};
-use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::MiniblockExecutionData, fee_model::BatchFeeInput, protocol_version::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, Address, L1BatchNumber, L2ChainId, MiniblockNumber,

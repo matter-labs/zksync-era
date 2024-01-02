@@ -3,7 +3,7 @@ use std::{env, time::Duration};
 use anyhow::Context;
 use serde::Deserialize;
 use url::Url;
-use zksync_basic_types::{Address, L1ChainId, L2ChainId, MiniblockNumber};
+use zksync_basic_types::{Address, L1ChainId, L2ChainId};
 use zksync_core::api_server::{
     tx_sender::TxSenderConfig,
     web3::{state::InternalApiConfig, Namespace},
@@ -11,7 +11,7 @@ use zksync_core::api_server::{
 use zksync_types::api::BridgeAddresses;
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
-    namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
+    namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
 #[cfg(test)]
@@ -61,10 +61,6 @@ impl RemoteENConfig {
                 .context("Failed to fetch L1 chain ID")?
                 .as_u64(),
         );
-        let current_miniblock = client
-            .get_block_number()
-            .await
-            .context("Failed to fetch block number")?;
 
         Ok(Self {
             diamond_proxy_addr,

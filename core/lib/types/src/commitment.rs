@@ -19,13 +19,12 @@ use crate::{
     block::L1BatchHeader,
     ethabi::Token,
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
-    protocol_version,
     web3::signing::keccak256,
     writes::{
         compress_state_diffs, InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord,
         PADDED_ENCODED_STORAGE_DIFF_LEN_BYTES,
     },
-    ProtocolVersion, ProtocolVersionId, H256, KNOWN_CODES_STORAGE_ADDRESS, U256,
+    ProtocolVersionId, H256, KNOWN_CODES_STORAGE_ADDRESS, U256,
 };
 
 /// Type that can be serialized for commitment.

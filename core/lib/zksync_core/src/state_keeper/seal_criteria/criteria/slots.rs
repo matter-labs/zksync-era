@@ -1,4 +1,4 @@
-use multivm::utils::{get_bootloader_encoding_space, get_max_transactions_in_batch};
+use multivm::utils::get_max_transactions_in_batch;
 use zksync_types::ProtocolVersionId;
 
 use crate::state_keeper::seal_criteria::{

@@ -1,7 +1,4 @@
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Duration};
 
 use multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use tokio::sync::watch;
@@ -12,10 +9,7 @@ use zksync_types::VmVersion;
 use zksync_utils::time::seconds_since_epoch;
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
-use crate::{
-    fee_model::{BatchFeeModelInputProvider, MainNodeFeeInputProvider},
-    l1_gas_price::L1GasPriceProvider,
-};
+use crate::fee_model::BatchFeeModelInputProvider;
 
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.
 /// The filter is used to filter out transactions from the mempool that do not cover expenses
@@ -61,7 +55,6 @@ impl<G: BatchFeeModelInputProvider> MempoolFetcher<G> {
         pool: ConnectionPool,
         remove_stuck_txs: bool,
         stuck_tx_timeout: Duration,
-        fair_l2_gas_price: u64,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         {
@@ -85,10 +78,11 @@ impl<G: BatchFeeModelInputProvider> MempoolFetcher<G> {
             let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
             let mempool_info = self.mempool.get_mempool_info();
 
-            let (base_system_contracts, protocol_version) = storage
+            let protocol_version = storage
                 .protocol_versions_dal()
                 .base_system_contracts_by_timestamp(seconds_since_epoch())
-                .await;
+                .await
+                .1;
 
             let l2_tx_filter = l2_tx_filter(
                 self.batch_fee_info_provider.as_ref(),

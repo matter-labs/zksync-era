@@ -4,7 +4,6 @@ use zksync_web3_decl::error::Web3Error;
 use crate::{
     api_server::web3::{backend_jsonrpsee::internal_error, state::RpcState},
     fee_model::BatchFeeModelInputProvider,
-    l1_gas_price::L1GasPriceProvider,
 };
 
 /// Namespace for External Node unique methods.

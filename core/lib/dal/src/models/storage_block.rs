@@ -8,7 +8,6 @@ use sqlx::{
 };
 use thiserror::Error;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api,
     block::{L1BatchHeader, MiniblockHeader},

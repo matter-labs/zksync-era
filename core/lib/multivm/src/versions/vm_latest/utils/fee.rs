@@ -1,9 +1,6 @@
 //! Utility functions for vm
 use zksync_system_constants::MAX_GAS_PER_PUBDATA_BYTE_1_4_1;
-use zksync_types::{
-    fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
-    U256,
-};
+use zksync_types::{fee_model::BatchFeeInput, U256};
 use zksync_utils::ceil_div;
 
 /// Calculates the base fee and gas per pubdata for the given L1 gas price.

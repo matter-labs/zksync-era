@@ -4,10 +4,7 @@ use rlp::{DecoderError, Rlp, RlpStream};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use zksync_basic_types::H256;
-use zksync_system_constants::{
-    DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE, MAX_ENCODED_TX_SIZE, MAX_GAS_PER_PUBDATA_BYTE_1_4_1,
-    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
-};
+use zksync_system_constants::{DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE, MAX_ENCODED_TX_SIZE};
 use zksync_utils::{
     bytecode::{hash_bytecode, validate_bytecode, InvalidBytecodeError},
     concat_and_hash, u256_to_h256,

@@ -17,19 +17,18 @@ use multivm::{
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_state::{PostgresStorage, ReadStorage, StorageView, WriteStorage};
 use zksync_system_constants::{
-    L1_GAS_PER_PUBDATA_BYTE, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, ZKPORTER_IS_AVAILABLE,
 };
 use zksync_types::{
     api,
     block::{pack_block_info, unpack_block_info, MiniblockHasher},
-    fee_model::BatchFeeInput,
     get_nonce_key,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     AccountTreeId, L1BatchNumber, MiniblockNumber, Nonce, ProtocolVersionId, StorageKey,
     Transaction, H256, U256,
 };
-use zksync_utils::{ceil_div, h256_to_u256, time::seconds_since_epoch, u256_to_h256};
+use zksync_utils::{h256_to_u256, time::seconds_since_epoch, u256_to_h256};
 
 use super::{
     vm_metrics::{self, SandboxStage, SANDBOX_METRICS},

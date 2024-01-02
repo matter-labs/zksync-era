@@ -31,7 +31,7 @@ use crate::{
             },
         },
         types::internals::ZkSyncVmState,
-        TxExecutionMode, VmExecutionMode,
+        VmExecutionMode,
     },
 };
 

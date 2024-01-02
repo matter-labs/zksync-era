@@ -3,7 +3,6 @@ use std::time::Duration;
 use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_dal::{blocks_dal::ConsensusBlockFields, StorageProcessor};
-use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::en::SyncBlock, block::MiniblockHasher, Address, L1BatchNumber, MiniblockNumber,
     ProtocolVersionId, H256,

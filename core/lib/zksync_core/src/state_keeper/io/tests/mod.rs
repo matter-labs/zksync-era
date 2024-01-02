@@ -5,7 +5,6 @@ use multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
-use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::BlockGasCount,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
@@ -16,17 +15,14 @@ use zksync_types::{
 use zksync_utils::time::seconds_since_epoch;
 
 use self::tester::Tester;
-use crate::{
-    l1_gas_price,
-    state_keeper::{
-        io::{MiniblockParams, MiniblockSealer, StateKeeperIO},
-        mempool_actor::l2_tx_filter,
-        tests::{
-            create_execution_result, create_l1_batch_metadata, create_transaction,
-            create_updates_manager, default_l1_batch_env, default_vm_block_result, Query,
-        },
-        updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
+use crate::state_keeper::{
+    io::{MiniblockParams, MiniblockSealer, StateKeeperIO},
+    mempool_actor::l2_tx_filter,
+    tests::{
+        create_execution_result, create_l1_batch_metadata, create_transaction,
+        create_updates_manager, default_l1_batch_env, default_vm_block_result, Query,
     },
+    updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
 };
 
 mod tester;

@@ -29,7 +29,6 @@ use crate::{
         },
     },
     fee_model::BatchFeeModelInputProvider,
-    l1_gas_price::L1GasPriceProvider,
 };
 
 #[derive(Debug, Clone)]

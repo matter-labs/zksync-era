@@ -71,7 +71,7 @@ impl From<Transaction> for TransactionData {
                     from: common_data.initiator_address,
                     to: execute_tx.execute.contract_address,
                     gas_limit: common_data.fee.gas_limit,
-                    pubdata_price_limit: common_data.fee.gas_per_pubdata_limit,
+                    pubdata_price_limit: gas_per_pubdata_limit,
                     max_fee_per_gas: common_data.fee.max_fee_per_gas,
                     max_priority_fee_per_gas: common_data.fee.max_priority_fee_per_gas,
                     paymaster: common_data.paymaster_params.paymaster,

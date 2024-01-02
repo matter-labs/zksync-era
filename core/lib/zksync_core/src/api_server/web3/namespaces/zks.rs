@@ -31,7 +31,6 @@ use crate::{
         web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, RpcState},
     },
     fee_model::BatchFeeModelInputProvider,
-    l1_gas_price::L1GasPriceProvider,
 };
 
 #[derive(Debug)]

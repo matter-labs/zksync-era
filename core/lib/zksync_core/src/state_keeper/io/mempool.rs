@@ -24,7 +24,6 @@ use zksync_utils::time::millis_since_epoch;
 
 use crate::{
     fee_model::BatchFeeModelInputProvider,
-    l1_gas_price::L1GasPriceProvider,
     state_keeper::{
         extractors,
         io::{

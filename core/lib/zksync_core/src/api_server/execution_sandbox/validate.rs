@@ -10,7 +10,7 @@ use multivm::{
     MultiVMTracer,
 };
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_types::{l2::L2Tx, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS, U256};
+use zksync_types::{l2::L2Tx, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS};
 
 use super::{
     apply,

@@ -5,7 +5,6 @@ use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 use anyhow::Context as _;
 use futures::channel::oneshot;
 use prometheus_exporter::PrometheusExporterConfig;
-use sync_layer::MainNodeClient;
 use temp_config_store::TempConfigStore;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_circuit_breaker::{
@@ -54,7 +53,7 @@ use crate::{
     basic_witness_input_producer::BasicWitnessInputProducer,
     eth_sender::{Aggregator, EthTxAggregator, EthTxManager},
     eth_watch::start_eth_watch,
-    fee_model::{BatchFeeModelInputProvider, MainNodeFeeInputProvider},
+    fee_model::MainNodeFeeInputProvider,
     house_keeper::{
         blocks_state_reporter::L1BatchMetricsReporter,
         fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager,
@@ -687,7 +686,6 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
     object_store: Box<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
-    let minimal_l2_gas_price = state_keeper_config.minimal_l2_gas_price;
     let pool_builder = ConnectionPool::singleton(postgres_config.master_url()?);
     let state_keeper_pool = pool_builder
         .build()
@@ -752,7 +750,6 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         mempool_fetcher_pool,
         mempool_config.remove_stuck_txs,
         mempool_config.stuck_tx_timeout(),
-        minimal_l2_gas_price,
         stop_receiver,
     ));
     task_futures.push(mempool_fetcher_handle);
