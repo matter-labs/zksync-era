@@ -38,9 +38,6 @@ jobs:
           - name: external-node
             platforms: linux/amd64
             runner: matterlabs-ci-runner
-          - name: external-node
-            platforms: linux/arm64
-            runner: matterlabs-ci-runner-arm
           - name: contract-verifier
             platforms: linux/amd64
             runner: matterlabs-ci-runner
