@@ -1003,6 +1003,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "borsh"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26d4d6dafc1a3bb54687538972158f07b2c948bc57d5890df22c0739098b3028"
+dependencies = [
+ "borsh-derive",
+ "cfg_aliases",
+]
+
+[[package]]
+name = "borsh-derive"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf4918709cc4dd777ad2b6303ed03cb37f3ca0ccede8c1b0d28ac6db8f4710e0"
+dependencies = [
+ "once_cell",
+ "proc-macro-crate 2.0.1",
+ "proc-macro2 1.0.69",
+ "quote 1.0.33",
+ "syn 2.0.38",
+ "syn_derive",
+]
+
+[[package]]
 name = "brotli"
 version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1034,6 +1058,28 @@ name = "byte-slice-cast"
 version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3ac9f8b63eca6fd385229b3675f6cc0dc5c8a5c8a54a59d4f52ffd670d87b0c"
+
+[[package]]
+name = "bytecheck"
+version = "0.6.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b6372023ac861f6e6dc89c8344a8f398fb42aaba2b5dbc649ca0c0e9dbcb627"
+dependencies = [
+ "bytecheck_derive",
+ "ptr_meta",
+ "simdutf8",
+]
+
+[[package]]
+name = "bytecheck_derive"
+version = "0.6.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a7ec4c6f261935ad534c0c22dbef2201b45918860eb1c574b972bd213a76af61"
+dependencies = [
+ "proc-macro2 1.0.69",
+ "quote 1.0.33",
+ "syn 1.0.109",
+]
 
 [[package]]
 name = "bytecount"
@@ -1140,6 +1186,12 @@ name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
+
+[[package]]
+name = "cfg_aliases"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd16c4719339c4530435d38e511904438d07cce7950afa3718a84ac36c10e89e"
 
 [[package]]
 name = "chacha20"
@@ -1410,6 +1462,12 @@ dependencies = [
  "libc",
  "windows-sys 0.45.0",
 ]
+
+[[package]]
+name = "const-oid"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4c78c047431fee22c1a7bb92e00ad095a02a983affe4d8a72e2a2c62c1b94f3"
 
 [[package]]
 name = "const-oid"
@@ -1719,6 +1777,16 @@ checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 
 [[package]]
 name = "crypto-bigint"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03c6a1d5fa1de37e071642dfa44ec552ca5b299adb128fab16138e24b548fd21"
+dependencies = [
+ "generic-array",
+ "subtle",
+]
+
+[[package]]
+name = "crypto-bigint"
 version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ef2b4b23cddf68b89b8f8069890e8c270d54e2d5fe1b143820234805e4cb17ef"
@@ -1909,11 +1977,22 @@ dependencies = [
 
 [[package]]
 name = "der"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6919815d73839e7ad218de758883aae3a257ba6759ce7a9992501efbb53d705c"
+dependencies = [
+ "const-oid 0.7.1",
+ "crypto-bigint 0.3.2",
+ "pem-rfc7468 0.3.1",
+]
+
+[[package]]
+name = "der"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1a467a65c5e759bce6e65eaf91cc29f466cdc57cb65777bd646872a8a1fd4de"
 dependencies = [
- "const-oid",
+ "const-oid 0.9.5",
  "zeroize",
 ]
 
@@ -1923,8 +2002,8 @@ version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fffa369a668c8af7dbf8b5e56c9f744fbd399949ed171606040001947de40b1c"
 dependencies = [
- "const-oid",
- "pem-rfc7468",
+ "const-oid 0.9.5",
+ "pem-rfc7468 0.7.0",
  "zeroize",
 ]
 
@@ -2382,6 +2461,18 @@ checksum = "46303f565772937ffe1d394a4fac6f411c6013172fadde9dcdb1e147a086940e"
 dependencies = [
  "crc32fast",
  "miniz_oxide",
+]
+
+[[package]]
+name = "flume"
+version = "0.10.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1657b4441c3403d9f7b3409e47575237dac27b1b5726df654a6ecbf92f0f7577"
+dependencies = [
+ "futures-core",
+ "futures-sink",
+ "pin-project",
+ "spin 0.9.8",
 ]
 
 [[package]]
@@ -2857,6 +2948,9 @@ name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
+dependencies = [
+ "ahash 0.7.7",
+]
 
 [[package]]
 name = "hashbrown"
@@ -3281,9 +3375,12 @@ checksum = "8f518f335dce6725a761382244631d86cf0ccb2863413590b31338feb467f9c3"
 
 [[package]]
 name = "ipnetwork"
-version = "0.19.0"
+version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f84f1612606f3753f205a4e9a2efd6fe5b4c573a6269b2cc6c3003d44a0d127"
+checksum = "bf466541e9d546596ee94f9f69590f89473455f88372423e0008fc1a7daf100e"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "iri-string"
@@ -3572,6 +3669,9 @@ name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
+dependencies = [
+ "spin 0.5.2",
+]
 
 [[package]]
 name = "lazycell"
@@ -3630,6 +3730,17 @@ dependencies = [
  "glob",
  "libc",
  "libz-sys",
+]
+
+[[package]]
+name = "libsqlite3-sys"
+version = "0.25.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29f835d03d717946d28b1d1ed632eb6f0e24a299388ee623d0c23118d3e8a7fa"
+dependencies = [
+ "cc",
+ "pkg-config",
+ "vcpkg",
 ]
 
 [[package]]
@@ -4161,6 +4272,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "num-bigint-dig"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc84195820f291c7697304f3cbdadd1cb7199c0efc917ff5eafd71225c136151"
+dependencies = [
+ "byteorder",
+ "lazy_static",
+ "libm",
+ "num-integer",
+ "num-iter",
+ "num-traits",
+ "rand 0.8.5",
+ "smallvec",
+ "zeroize",
+]
+
+[[package]]
 name = "num-complex"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4635,6 +4763,15 @@ dependencies = [
 
 [[package]]
 name = "pem-rfc7468"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "01de5d978f34aa4b2296576379fcc416034702fd94117c56ffd8a1a767cefb30"
+dependencies = [
+ "base64ct",
+]
+
+[[package]]
+name = "pem-rfc7468"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "88b39c9bfcfc231068454382784bb460aae594343fb030d46e9f50a645418412"
@@ -4734,6 +4871,28 @@ name = "pin-utils"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
+
+[[package]]
+name = "pkcs1"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a78f66c04ccc83dd4486fd46c33896f4e17b24a7a3a6400dedc48ed0ddd72320"
+dependencies = [
+ "der 0.5.1",
+ "pkcs8 0.8.0",
+ "zeroize",
+]
+
+[[package]]
+name = "pkcs8"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7cabda3fb821068a9a4fab19a683eac3af12edf0f34b94a8be53c4972b8149d0"
+dependencies = [
+ "der 0.5.1",
+ "spki 0.5.4",
+ "zeroize",
+]
 
 [[package]]
 name = "pkcs8"
@@ -5070,6 +5229,26 @@ dependencies = [
  "miette",
  "prost-types",
  "thiserror",
+]
+
+[[package]]
+name = "ptr_meta"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0738ccf7ea06b608c10564b31debd4f5bc5e197fc8bfe088f68ae5ce81e7a4f1"
+dependencies = [
+ "ptr_meta_derive",
+]
+
+[[package]]
+name = "ptr_meta_derive"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16b845dbfca988fa33db069c0e230574d15a3088f147a87b64c7589eb662c9ac"
+dependencies = [
+ "proc-macro2 1.0.69",
+ "quote 1.0.33",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -5481,6 +5660,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rend"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2571463863a6bd50c32f94402933f03457a3fbaf697a707c5be741e459f08fd"
+dependencies = [
+ "bytecheck",
+]
+
+[[package]]
 name = "reqwest"
 version = "0.11.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5620,6 +5808,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "rkyv"
+version = "0.7.43"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "527a97cdfef66f65998b5f3b637c26f5a5ec09cc52a3f9932313ac645f4190f5"
+dependencies = [
+ "bitvec 1.0.1",
+ "bytecheck",
+ "bytes",
+ "hashbrown 0.12.3",
+ "ptr_meta",
+ "rend",
+ "rkyv_derive",
+ "seahash",
+ "tinyvec",
+ "uuid",
+]
+
+[[package]]
+name = "rkyv_derive"
+version = "0.7.43"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5c462a1328c8e67e4d6dbad1eb0355dd43e8ab432c6e227a43657f16ade5033"
+dependencies = [
+ "proc-macro2 1.0.69",
+ "quote 1.0.33",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "rlp"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5644,6 +5861,42 @@ name = "route-recognizer"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "afab94fb28594581f62d981211a9a4d53cc8130bbcbbb89a0440d9b8e81a7746"
+
+[[package]]
+name = "rsa"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4cf22754c49613d2b3b119f0e5d46e34a2c628a937e3024b8762de4e7d8c710b"
+dependencies = [
+ "byteorder",
+ "digest 0.10.7",
+ "num-bigint-dig",
+ "num-integer",
+ "num-iter",
+ "num-traits",
+ "pkcs1",
+ "pkcs8 0.8.0",
+ "rand_core 0.6.4",
+ "smallvec",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
+name = "rust_decimal"
+version = "1.33.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06676aec5ccb8fc1da723cc8c0f9a46549f21ebb8753d3915c6c41db1e7f1dc4"
+dependencies = [
+ "arrayvec 0.7.4",
+ "borsh",
+ "bytes",
+ "num-traits",
+ "rand 0.8.5",
+ "rkyv",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "rustc-demangle"
@@ -5852,6 +6105,12 @@ dependencies = [
  "ring 0.16.20",
  "untrusted 0.7.1",
 ]
+
+[[package]]
+name = "seahash"
+version = "4.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c107b6f4780854c8b126e228ea8869f4d7b71260f962fefb57b996b8959ba6b"
 
 [[package]]
 name = "sec1"
@@ -6270,6 +6529,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "simdutf8"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f27f6278552951f1f2b8cf9da965d10969b2efdea95a6ec47987ab46edfe263a"
+
+[[package]]
 name = "similar"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6429,6 +6694,19 @@ name = "spin"
 version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
+dependencies = [
+ "lock_api",
+]
+
+[[package]]
+name = "spki"
+version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44d01ac02a6ccf3e07db148d2be087da624fea0221a16152ed01f0496a6b0a27"
+dependencies = [
+ "base64ct",
+ "der 0.5.1",
+]
 
 [[package]]
 name = "spki"
@@ -6470,20 +6748,22 @@ dependencies = [
 [[package]]
 name = "sqlx"
 version = "0.6.2"
-source = "git+https://github.com/launchbadge/sqlx.git?rev=f0d6924f9205781a9332cd4f6d3a4c69ba4a2522#f0d6924f9205781a9332cd4f6d3a4c69ba4a2522"
+source = "git+https://github.com/launchbadge/sqlx.git?rev=b5312c3b6f8e34e757d1441216b6b34a18afd14b#b5312c3b6f8e34e757d1441216b6b34a18afd14b"
 dependencies = [
  "sqlx-core",
  "sqlx-macros",
+ "sqlx-mysql",
+ "sqlx-postgres",
+ "sqlx-sqlite",
 ]
 
 [[package]]
 name = "sqlx-core"
 version = "0.6.2"
-source = "git+https://github.com/launchbadge/sqlx.git?rev=f0d6924f9205781a9332cd4f6d3a4c69ba4a2522#f0d6924f9205781a9332cd4f6d3a4c69ba4a2522"
+source = "git+https://github.com/launchbadge/sqlx.git?rev=b5312c3b6f8e34e757d1441216b6b34a18afd14b#b5312c3b6f8e34e757d1441216b6b34a18afd14b"
 dependencies = [
  "ahash 0.7.7",
  "atoi",
- "base64 0.13.1",
  "bigdecimal",
  "bitflags 1.3.2",
  "byteorder",
@@ -6491,48 +6771,52 @@ dependencies = [
  "chrono",
  "crc",
  "crossbeam-queue 0.3.8",
- "dirs",
  "dotenvy",
  "either",
  "event-listener 2.5.3",
  "futures-channel",
  "futures-core",
  "futures-intrusive",
+ "futures-io",
  "futures-util",
  "hashlink",
  "hex",
- "hkdf",
- "hmac 0.12.1",
  "indexmap 1.9.3",
  "ipnetwork",
- "itoa",
- "libc",
  "log",
- "md-5",
  "memchr",
- "num-bigint 0.4.4",
+ "native-tls",
  "once_cell",
  "paste",
  "percent-encoding",
- "rand 0.8.5",
+ "rust_decimal",
  "serde",
  "serde_json",
- "sha1",
  "sha2 0.10.8",
  "smallvec",
  "sqlformat",
- "sqlx-rt",
- "stringprep",
  "thiserror",
+ "tokio",
  "tokio-stream",
  "url",
- "whoami",
 ]
 
 [[package]]
 name = "sqlx-macros"
 version = "0.6.2"
-source = "git+https://github.com/launchbadge/sqlx.git?rev=f0d6924f9205781a9332cd4f6d3a4c69ba4a2522#f0d6924f9205781a9332cd4f6d3a4c69ba4a2522"
+source = "git+https://github.com/launchbadge/sqlx.git?rev=b5312c3b6f8e34e757d1441216b6b34a18afd14b#b5312c3b6f8e34e757d1441216b6b34a18afd14b"
+dependencies = [
+ "proc-macro2 1.0.69",
+ "quote 1.0.33",
+ "sqlx-core",
+ "sqlx-macros-core",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "sqlx-macros-core"
+version = "0.6.2"
+source = "git+https://github.com/launchbadge/sqlx.git?rev=b5312c3b6f8e34e757d1441216b6b34a18afd14b#b5312c3b6f8e34e757d1441216b6b34a18afd14b"
 dependencies = [
  "dotenvy",
  "either",
@@ -6545,20 +6829,119 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "sqlx-core",
- "sqlx-rt",
+ "sqlx-mysql",
+ "sqlx-postgres",
+ "sqlx-sqlite",
  "syn 1.0.109",
+ "tokio",
  "url",
 ]
 
 [[package]]
-name = "sqlx-rt"
+name = "sqlx-mysql"
 version = "0.6.2"
-source = "git+https://github.com/launchbadge/sqlx.git?rev=f0d6924f9205781a9332cd4f6d3a4c69ba4a2522#f0d6924f9205781a9332cd4f6d3a4c69ba4a2522"
+source = "git+https://github.com/launchbadge/sqlx.git?rev=b5312c3b6f8e34e757d1441216b6b34a18afd14b#b5312c3b6f8e34e757d1441216b6b34a18afd14b"
 dependencies = [
- "native-tls",
+ "atoi",
+ "base64 0.13.1",
+ "bigdecimal",
+ "bitflags 1.3.2",
+ "byteorder",
+ "bytes",
+ "chrono",
+ "crc",
+ "digest 0.10.7",
+ "dirs",
+ "dotenvy",
+ "either",
+ "futures-channel",
+ "futures-core",
+ "futures-io",
+ "futures-util",
+ "generic-array",
+ "hex",
+ "hkdf",
+ "hmac 0.12.1",
+ "itoa",
+ "log",
+ "md-5",
+ "memchr",
  "once_cell",
- "tokio",
- "tokio-native-tls",
+ "percent-encoding",
+ "rand 0.8.5",
+ "rsa",
+ "rust_decimal",
+ "serde",
+ "sha1",
+ "sha2 0.10.8",
+ "smallvec",
+ "sqlx-core",
+ "stringprep",
+ "thiserror",
+ "whoami",
+]
+
+[[package]]
+name = "sqlx-postgres"
+version = "0.6.2"
+source = "git+https://github.com/launchbadge/sqlx.git?rev=b5312c3b6f8e34e757d1441216b6b34a18afd14b#b5312c3b6f8e34e757d1441216b6b34a18afd14b"
+dependencies = [
+ "atoi",
+ "base64 0.13.1",
+ "bigdecimal",
+ "bitflags 1.3.2",
+ "byteorder",
+ "chrono",
+ "crc",
+ "dirs",
+ "dotenvy",
+ "futures-channel",
+ "futures-core",
+ "futures-io",
+ "futures-util",
+ "hex",
+ "hkdf",
+ "hmac 0.12.1",
+ "ipnetwork",
+ "itoa",
+ "log",
+ "md-5",
+ "memchr",
+ "num-bigint 0.4.4",
+ "once_cell",
+ "rand 0.8.5",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "sha1",
+ "sha2 0.10.8",
+ "smallvec",
+ "sqlx-core",
+ "stringprep",
+ "thiserror",
+ "whoami",
+]
+
+[[package]]
+name = "sqlx-sqlite"
+version = "0.6.2"
+source = "git+https://github.com/launchbadge/sqlx.git?rev=b5312c3b6f8e34e757d1441216b6b34a18afd14b#b5312c3b6f8e34e757d1441216b6b34a18afd14b"
+dependencies = [
+ "atoi",
+ "bitflags 1.3.2",
+ "chrono",
+ "flume",
+ "futures-channel",
+ "futures-core",
+ "futures-executor",
+ "futures-intrusive",
+ "futures-util",
+ "libsqlite3-sys",
+ "log",
+ "percent-encoding",
+ "serde",
+ "sqlx-core",
+ "url",
 ]
 
 [[package]]
@@ -6691,6 +7074,18 @@ dependencies = [
  "proc-macro2 1.0.69",
  "quote 1.0.33",
  "unicode-ident",
+]
+
+[[package]]
+name = "syn_derive"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1329189c02ff984e9736652b1631330da25eaa6bc639089ed4915d25446cbe7b"
+dependencies = [
+ "proc-macro-error",
+ "proc-macro2 1.0.69",
+ "quote 1.0.33",
+ "syn 2.0.38",
 ]
 
 [[package]]

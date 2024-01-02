@@ -29,12 +29,12 @@ url = "2"
 prost = "0.12.1"
 rand = "0.8"
 tokio = { version = "1", features = ["full"] }
-sqlx = { git = "https://github.com/launchbadge/sqlx.git", rev = "f0d6924f9205781a9332cd4f6d3a4c69ba4a2522", default-features = false, features = [
+sqlx = { git = "https://github.com/launchbadge/sqlx.git", rev = "b5312c3b6f8e34e757d1441216b6b34a18afd14b", default-features = false, features = [
     "runtime-tokio-native-tls",
     "macros",
-    "offline",
     "postgres",
     "bigdecimal",
+    "rust_decimal",
     "chrono",
     "json",
     "migrate",
