@@ -548,6 +548,7 @@ async fn correct_order_for_confirmations() -> anyhow::Result<()> {
         genesis_l1_batch.clone(),
         first_l1_batch.clone(),
         true,
+        false,
     )
     .await;
     prove_l1_batch(
@@ -563,6 +564,7 @@ async fn correct_order_for_confirmations() -> anyhow::Result<()> {
         first_l1_batch.clone(),
         second_l1_batch.clone(),
         true,
+        false,
     )
     .await;
     prove_l1_batch(
@@ -609,6 +611,7 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
         genesis_l1_batch.clone(),
         first_l1_batch.clone(),
         true,
+        false,
     )
     .await;
     prove_l1_batch(
@@ -624,6 +627,7 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
         first_l1_batch.clone(),
         second_l1_batch.clone(),
         true,
+        false,
     )
     .await;
     prove_l1_batch(
@@ -643,6 +647,7 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
         second_l1_batch.clone(),
         third_l1_batch.clone(),
         false,
+        false,
     )
     .await;
 
@@ -658,6 +663,7 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
         third_l1_batch.clone(),
         fourth_l1_batch.clone(),
         true,
+        false,
     )
     .await;
     prove_l1_batch(
@@ -701,6 +707,7 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
         genesis_l1_batch.clone(),
         first_l1_batch.clone(),
         true,
+        false,
     )
     .await;
     prove_l1_batch(&mut tester, genesis_l1_batch, first_l1_batch.clone(), true).await;
@@ -710,6 +717,7 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
         first_l1_batch.clone(),
         second_l1_batch.clone(),
         true,
+        false,
     )
     .await;
     prove_l1_batch(
@@ -728,6 +736,7 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
         second_l1_batch.clone(),
         third_l1_batch.clone(),
         false,
+        false,
     )
     .await;
 
@@ -743,6 +752,7 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
         third_l1_batch.clone(),
         fourth_l1_batch.clone(),
         true,
+        false,
     )
     .await;
     prove_l1_batch(
@@ -936,10 +946,12 @@ async fn commit_l1_batch(
     last_committed_l1_batch: L1BatchHeader,
     l1_batch: L1BatchHeader,
     confirm: bool,
+    validium_mode: bool,
 ) -> H256 {
     let operation = AggregatedOperation::Commit(L1BatchCommitOperation {
         last_committed_l1_batch: l1_batch_with_metadata(last_committed_l1_batch),
         l1_batches: vec![l1_batch_with_metadata(l1_batch)],
+        validium_mode,
     });
     send_operation(tester, operation, confirm).await
 }
