@@ -197,6 +197,7 @@ impl L1BatchPublishCriterion for GasCriterion {
 pub struct DataSizeCriterion {
     pub op: AggregatedActionType,
     pub data_limit: usize,
+    pub validium_mode: bool,
 }
 
 #[async_trait]
@@ -215,12 +216,12 @@ impl L1BatchPublishCriterion for DataSizeCriterion {
         let mut data_size_left = self.data_limit - STORED_BLOCK_INFO_SIZE;
 
         for (index, l1_batch) in consecutive_l1_batches.iter().enumerate() {
-            if data_size_left < l1_batch.l1_commit_data_size() {
+            if data_size_left < l1_batch.l1_commit_data_size(self.validium_mode) {
                 if index == 0 {
                     panic!(
                         "L1 batch #{} requires {} data, which is more than the range limit of {}",
                         l1_batch.header.number,
-                        l1_batch.l1_commit_data_size(),
+                        l1_batch.l1_commit_data_size(self.validium_mode),
                         self.data_limit
                     );
                 }
@@ -236,7 +237,7 @@ impl L1BatchPublishCriterion for DataSizeCriterion {
                 METRICS.block_aggregation_reason[&(self.op, "data_size").into()].inc();
                 return Some(output);
             }
-            data_size_left -= l1_batch.l1_commit_data_size();
+            data_size_left -= l1_batch.l1_commit_data_size(self.validium_mode);
         }
 
         None

@@ -43,6 +43,7 @@ impl Aggregator {
                 Box::from(DataSizeCriterion {
                     op: AggregatedActionType::Commit,
                     data_limit: config.max_eth_tx_data_size,
+                    validium_mode: config.validium_mode,
                 }),
                 Box::from(TimestampDeadlineCriterion {
                     op: AggregatedActionType::Commit,
@@ -216,6 +217,7 @@ impl Aggregator {
         batches.map(|batches| L1BatchCommitOperation {
             last_committed_l1_batch,
             l1_batches: batches,
+            validium_mode: self.config.validium_mode,
         })
     }
 
