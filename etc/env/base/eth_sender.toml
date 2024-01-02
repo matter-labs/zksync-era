@@ -38,7 +38,7 @@ aggregated_proof_sizes=[1,4]
 # for now (should be > 4kk which is max gas for one block commit/verify/execute)
 max_aggregated_tx_gas=4000000
 
-# Max gas that can used to include single block in aggregated operation
+# Max gas that can be used to include single block in aggregated operation
 max_single_tx_gas=6000000
 
 # Max acceptable fee for sending tx to L1
@@ -57,8 +57,8 @@ max_base_fee_samples=10_000
 # 2. base_fee_median * A * B ^ time_in_mempool
 # Currently the second is used.
 # To confirm, see core/bin/zksync_core/src/eth_sender/gas_adjuster/mod.rs
-pricing_formula_parameter_a=1.5
-pricing_formula_parameter_b=1.0005
+pricing_formula_parameter_a=2
+pricing_formula_parameter_b=1.001
 internal_l1_pricing_multiplier=0.8
 # Node polling period in seconds.
 poll_period=5
