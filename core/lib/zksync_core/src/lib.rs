@@ -1024,15 +1024,15 @@ fn build_storage_caches(
     Ok(storage_caches)
 }
 
-async fn build_tx_sender<G: L1GasPriceProvider>(
+async fn build_tx_sender(
     tx_sender_config: &TxSenderConfig,
     web3_json_config: &Web3JsonRpcConfig,
     state_keeper_config: &StateKeeperConfig,
     replica_pool: ConnectionPool,
     master_pool: ConnectionPool,
-    l1_gas_price_provider: Arc<G>,
+    l1_gas_price_provider: Arc<dyn L1GasPriceProvider>,
     storage_caches: PostgresStorageCaches,
-) -> (TxSender<G>, VmConcurrencyBarrier) {
+) -> (TxSender, VmConcurrencyBarrier) {
     let mut tx_sender_builder = TxSenderBuilder::new(tx_sender_config.clone(), replica_pool)
         .with_main_connection_pool(master_pool)
         .with_state_keeper_config(state_keeper_config.clone());
@@ -1166,12 +1166,10 @@ async fn circuit_breakers_for_components(
 ) -> anyhow::Result<Vec<Box<dyn CircuitBreaker>>> {
     let mut circuit_breakers: Vec<Box<dyn CircuitBreaker>> = Vec::new();
 
-    if components.iter().any(|c| {
-        matches!(
-            c,
-            Component::EthTxAggregator | Component::EthTxManager | Component::StateKeeper
-        )
-    }) {
+    if components
+        .iter()
+        .any(|c| matches!(c, Component::EthTxAggregator | Component::EthTxManager))
+    {
         let pool = ConnectionPool::singleton(postgres_config.replica_url()?)
             .build()
             .await
