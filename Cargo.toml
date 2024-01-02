@@ -27,6 +27,7 @@ members = [
     "core/lib/mempool",
     "core/lib/merkle_tree",
     "core/lib/mini_merkle_tree",
+    "core/lib/node",
     "core/lib/object_store",
     "core/lib/prometheus_exporter",
     "core/lib/queued_job_processor",

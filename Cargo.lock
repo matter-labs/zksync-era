@@ -8702,6 +8702,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_node"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "futures 0.3.28",
+ "tokio",
+ "tracing",
+ "zksync_core",
+ "zksync_dal",
+ "zksync_types",
+]
+
+[[package]]
 name = "zksync_object_store"
 version = "0.1.0"
 dependencies = [

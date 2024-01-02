@@ -133,6 +133,7 @@ pub trait VmInterface<S, H: HistoryMode> {
             block_tip_execution_result: result,
             final_execution_state: execution_state,
             final_bootloader_memory: Some(bootloader_memory),
+            pubdata_input: None,
         }
     }
 }
