@@ -17,12 +17,18 @@ pub struct ConsistencyChecker {
     max_batches_to_recheck: u32,
     web3: Web3<Http>,
     db: ConnectionPool,
+    validium_mode: bool,
 }
 
 const SLEEP_DELAY: Duration = Duration::from_secs(5);
 
 impl ConsistencyChecker {
-    pub fn new(web3_url: &str, max_batches_to_recheck: u32, db: ConnectionPool) -> Self {
+    pub fn new(
+        web3_url: &str,
+        max_batches_to_recheck: u32,
+        db: ConnectionPool,
+        validium_mode: bool,
+    ) -> Self {
         let web3 = Web3::new(Http::new(web3_url).unwrap());
         let contract = zksync_contracts::zksync_contract();
         Self {
@@ -30,6 +36,7 @@ impl ConsistencyChecker {
             contract,
             max_batches_to_recheck,
             db,
+            validium_mode,
         }
     }
 
@@ -127,7 +134,7 @@ impl ConsistencyChecker {
         };
         let commitment = &commitments[batch_number.0 as usize - first_batch_number];
 
-        Ok(commitment == &block_metadata.l1_commit_data())
+        Ok(commitment == &block_metadata.l1_commit_data(self.validium_mode))
     }
 
     async fn last_committed_batch(&self) -> L1BatchNumber {
