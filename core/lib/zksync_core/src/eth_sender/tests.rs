@@ -265,10 +265,12 @@ async fn resend_each_block() -> anyhow::Result<()> {
         1
     );
 
-    let sent_tx = tester.gateway.sent_txs.read().unwrap()[&hash];
-    assert_eq!(sent_tx.hash, hash);
-    assert_eq!(sent_tx.nonce, 0);
-    assert_eq!(sent_tx.base_fee.as_usize(), 18); // 6 * 3 * 2^0
+    {
+        let sent_tx = &tester.gateway.sent_txs.read().unwrap()[&hash];
+        assert_eq!(sent_tx.hash, hash);
+        assert_eq!(sent_tx.nonce, 0);
+        assert_eq!(sent_tx.base_fee.as_usize(), 18); // 6 * 3 * 2^0
+    }
 
     // now, median is 5
     tester.gateway.advance_block_number(2);
@@ -308,7 +310,7 @@ async fn resend_each_block() -> anyhow::Result<()> {
         1
     );
 
-    let resent_tx = tester.gateway.sent_txs.read().unwrap()[&resent_hash];
+    let resent_tx = &tester.gateway.sent_txs.read().unwrap()[&resent_hash];
     assert_eq!(resent_tx.nonce, 0);
     assert_eq!(resent_tx.base_fee.as_usize(), 30); // 5 * 3 * 2^1
 

@@ -27,7 +27,7 @@ use zksync_contracts::{governance_contract, BaseSystemContracts};
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_eth_client::{
     clients::http::{PKSigningClient, QueryClient},
-    BoundEthInterface, EthInterface,
+    BoundEthInterface, CallFunctionArgs, EthInterface,
 };
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
@@ -37,6 +37,7 @@ use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
+    web3::contract::tokens::Detokenize,
     L2ChainId, PackedEthSignature, ProtocolVersionId,
 };
 
@@ -130,17 +131,13 @@ pub async fn genesis_init(
             };
 
             let eth_client = QueryClient::new(eth_client_url)?;
-            let vk_hash: zksync_types::H256 = eth_client
-                .call_contract_function(
-                    "verificationKeyHash",
-                    (),
-                    None,
-                    Default::default(),
-                    None,
-                    contracts_config.verifier_addr,
-                    zksync_contracts::verifier_contract(),
-                )
-                .await?;
+            let args = CallFunctionArgs::new("verificationKeyHash", ()).for_contract(
+                contracts_config.verifier_addr,
+                zksync_contracts::verifier_contract(),
+            );
+
+            let vk_hash = eth_client.call_contract_function(args).await?;
+            let vk_hash = zksync_types::H256::from_tokens(vk_hash)?;
 
             assert_eq!(
                 vk_hash, l1_verifier_config.recursion_scheduler_level_vk_hash,

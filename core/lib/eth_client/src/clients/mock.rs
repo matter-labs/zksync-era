@@ -1,9 +1,8 @@
 use std::{
     collections::{BTreeMap, HashMap},
-    fmt,
     sync::{
         atomic::{AtomicU64, Ordering},
-        RwLock,
+        Arc, RwLock,
     },
 };
 
@@ -11,11 +10,8 @@ use async_trait::async_trait;
 use jsonrpc_core::types::error::Error as RpcError;
 use zksync_types::{
     web3::{
-        contract::{
-            tokens::{Detokenize, Tokenize},
-            Options,
-        },
-        ethabi::{self, Token},
+        contract::{tokens::Tokenize, Options},
+        ethabi,
         types::{Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, U64},
         Error as Web3Error,
     },
@@ -24,11 +20,13 @@ use zksync_types::{
 
 use crate::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
-    BoundEthInterface, EthInterface,
+    BoundEthInterface, ContractCallArgs, EthInterface,
 };
 
-#[derive(Debug, Clone, Default, Copy)]
+// FIXME: make private
+#[derive(Debug, Clone)]
 pub struct MockTx {
+    pub input: Vec<u8>,
     pub hash: H256,
     pub nonce: u64,
     pub base_fee: U256,
@@ -44,12 +42,13 @@ impl From<Vec<u8>> for MockTx {
         let base_fee = total_gas_price - priority_fee;
         let nonce = U256::try_from(&tx[len - 32..]).unwrap().as_u64();
         let hash = {
-            let mut buffer: [u8; 32] = Default::default();
+            let mut buffer = [0_u8; 32];
             buffer.copy_from_slice(&tx[..32]);
             buffer.into()
         };
 
         Self {
+            input: tx[32..len - 96].to_vec(),
             nonce,
             hash,
             base_fee,
@@ -57,22 +56,34 @@ impl From<Vec<u8>> for MockTx {
     }
 }
 
+impl From<MockTx> for Transaction {
+    fn from(tx: MockTx) -> Self {
+        Self {
+            input: tx.input.into(),
+            hash: tx.hash,
+            nonce: tx.nonce.into(),
+            ..Self::default()
+        }
+    }
+}
+
 /// Mock Ethereum client is capable of recording all the incoming requests for the further analysis.
 #[derive(Debug)]
 pub struct MockEthereum {
+    // FIXME: make all fields private
     pub block_number: AtomicU64,
-    pub max_fee_per_gas: U256,
-    pub base_fee_history: RwLock<Vec<u64>>,
-    pub max_priority_fee_per_gas: U256,
-    pub tx_statuses: RwLock<HashMap<H256, ExecutedTxStatus>>,
+    max_fee_per_gas: U256,
+    base_fee_history: RwLock<Vec<u64>>,
+    max_priority_fee_per_gas: U256,
+    tx_statuses: RwLock<HashMap<H256, ExecutedTxStatus>>,
     pub sent_txs: RwLock<HashMap<H256, MockTx>>,
-    pub current_nonce: AtomicU64,
-    pub pending_nonce: AtomicU64,
-    pub nonces: RwLock<BTreeMap<u64, u64>>,
+    current_nonce: AtomicU64,
+    pending_nonce: AtomicU64,
+    nonces: RwLock<BTreeMap<u64, u64>>,
     /// If true, the mock will not check the ordering nonces of the transactions.
     /// This is useful for testing the cases when the transactions are executed out of order.
-    pub non_ordering_confirmations: bool,
-    pub multicall_address: Address,
+    non_ordering_confirmations: bool,
+    multicall_address: Address,
 }
 
 impl Default for MockEthereum {
@@ -96,14 +107,12 @@ impl Default for MockEthereum {
 impl MockEthereum {
     /// A fake `sha256` hasher, which calculates an `std::hash` instead.
     /// This is done for simplicity and it's also much faster.
-    pub fn fake_sha256(data: &[u8]) -> H256 {
+    fn fake_sha256(data: &[u8]) -> H256 {
         use std::{collections::hash_map::DefaultHasher, hash::Hasher};
 
         let mut hasher = DefaultHasher::new();
         hasher.write(data);
-
         let result = hasher.finish();
-
         H256::from_low_u64_ne(result)
     }
 
@@ -217,6 +226,7 @@ impl EthInterface for MockEthereum {
 
     async fn send_raw_tx(&self, tx: Vec<u8>) -> Result<H256, Error> {
         let mock_tx = MockTx::from(tx);
+        let mock_tx_hash = mock_tx.hash;
 
         if mock_tx.nonce < self.current_nonce.load(Ordering::SeqCst) {
             return Err(Error::EthereumGateway(Web3Error::Rpc(RpcError {
@@ -230,9 +240,9 @@ impl EthInterface for MockEthereum {
             self.pending_nonce.fetch_add(1, Ordering::SeqCst);
         }
 
-        self.sent_txs.write().unwrap().insert(mock_tx.hash, mock_tx);
+        self.sent_txs.write().unwrap().insert(mock_tx_hash, mock_tx);
 
-        Ok(mock_tx.hash)
+        Ok(mock_tx_hash)
     }
 
     async fn nonce_at_for_account(
@@ -280,23 +290,13 @@ impl EthInterface for MockEthereum {
     }
 
     #[allow(clippy::too_many_arguments)]
-    async fn call_contract_function<R, A, B, P>(
+    async fn call_contract_function(
         &self,
-        _func: &str,
-        _params: P,
-        _from: A,
-        _options: Options,
-        _block: B,
-        contract_address: Address,
-        _contract_abi: ethabi::Contract,
-    ) -> Result<R, Error>
-    where
-        R: Detokenize + Unpin,
-        A: Into<Option<Address>> + Send,
-        B: Into<Option<BlockId>> + Send,
-        P: Tokenize + Send,
-    {
-        if contract_address == self.multicall_address {
+        args: ContractCallArgs,
+    ) -> Result<Vec<ethabi::Token>, Error> {
+        use ethabi::Token;
+
+        if args.contract_address == self.multicall_address {
             let token = Token::Array(vec![
                 Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
                 Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![2u8; 32])]),
@@ -311,17 +311,21 @@ impl EthInterface for MockEthereum {
                     ),
                 ]),
             ]);
-            return Ok(R::from_tokens(vec![token]).unwrap());
+            return Ok(vec![token]);
         }
-        Ok(R::from_tokens(vec![]).unwrap())
+        Ok(vec![])
     }
 
     async fn get_tx(
         &self,
-        _hash: H256,
+        hash: H256,
         _component: &'static str,
     ) -> Result<Option<Transaction>, Error> {
-        unimplemented!("Not needed right now")
+        let txs = self.sent_txs.read().unwrap();
+        let Some(tx) = txs.get(&hash) else {
+            return Ok(None);
+        };
+        Ok(Some(tx.clone().into()))
     }
 
     async fn tx_receipt(
@@ -416,7 +420,7 @@ impl BoundEthInterface for MockEthereum {
 }
 
 #[async_trait]
-impl<T: 'static + AsRef<MockEthereum> + Send + Sync + fmt::Debug> EthInterface for T {
+impl EthInterface for Arc<MockEthereum> {
     async fn nonce_at_for_account(
         &self,
         account: Address,
@@ -480,34 +484,11 @@ impl<T: 'static + AsRef<MockEthereum> + Send + Sync + fmt::Debug> EthInterface f
         self.as_ref().get_tx(hash, component).await
     }
 
-    #[allow(clippy::too_many_arguments)]
-    async fn call_contract_function<R, A, B, P>(
+    async fn call_contract_function(
         &self,
-        func: &str,
-        params: P,
-        from: A,
-        options: Options,
-        block: B,
-        contract_address: Address,
-        contract_abi: ethabi::Contract,
-    ) -> Result<R, Error>
-    where
-        R: Detokenize + Unpin,
-        A: Into<Option<Address>> + Send,
-        B: Into<Option<BlockId>> + Send,
-        P: Tokenize + Send,
-    {
-        self.as_ref()
-            .call_contract_function(
-                func,
-                params,
-                from,
-                options,
-                block,
-                contract_address,
-                contract_abi,
-            )
-            .await
+        args: ContractCallArgs,
+    ) -> Result<Vec<ethabi::Token>, Error> {
+        self.as_ref().call_contract_function(args).await
     }
 
     async fn tx_receipt(
@@ -536,7 +517,7 @@ impl<T: 'static + AsRef<MockEthereum> + Send + Sync + fmt::Debug> EthInterface f
 }
 
 #[async_trait::async_trait]
-impl<T: 'static + AsRef<MockEthereum> + Send + Sync + fmt::Debug> BoundEthInterface for T {
+impl BoundEthInterface for Arc<MockEthereum> {
     fn contract(&self) -> &ethabi::Contract {
         self.as_ref().contract()
     }

@@ -3,10 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use zksync_types::web3::{
     self,
-    contract::{
-        tokens::{Detokenize, Tokenize},
-        Contract, Options,
-    },
+    contract::Contract,
     ethabi,
     transports::Http,
     types::{
@@ -19,7 +16,7 @@ use zksync_types::web3::{
 use crate::{
     clients::http::{Method, COUNTERS, LATENCIES},
     types::{Error, ExecutedTxStatus, FailureInfo},
-    EthInterface,
+    ContractCallArgs, EthInterface,
 };
 
 /// An "anonymous" Ethereum client that can invoke read-only methods that aren't
@@ -233,26 +230,21 @@ impl EthInterface for QueryClient {
         Ok(tx)
     }
 
-    #[allow(clippy::too_many_arguments)]
-    async fn call_contract_function<R, A, B, P>(
+    async fn call_contract_function(
         &self,
-        func: &str,
-        params: P,
-        from: A,
-        options: Options,
-        block: B,
-        contract_address: Address,
-        contract_abi: ethabi::Contract,
-    ) -> Result<R, Error>
-    where
-        R: Detokenize + Unpin,
-        A: Into<Option<Address>> + Send,
-        B: Into<Option<BlockId>> + Send,
-        P: Tokenize + Send,
-    {
+        args: ContractCallArgs,
+    ) -> Result<Vec<ethabi::Token>, Error> {
         let latency = LATENCIES.direct[&Method::CallContractFunction].start();
-        let contract = Contract::new(self.web3.eth(), contract_address, contract_abi);
-        let res = contract.query(func, params, from, options, block).await?;
+        let contract = Contract::new(self.web3.eth(), args.contract_address, args.contract_abi);
+        let res = contract
+            .query(
+                &args.inner.name,
+                args.inner.params,
+                args.inner.from,
+                args.inner.options,
+                args.inner.block,
+            )
+            .await?;
         latency.observe();
         Ok(res)
     }

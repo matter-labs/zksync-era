@@ -5,10 +5,7 @@ use std::fmt;
 use async_trait::async_trait;
 use zksync_types::{
     web3::{
-        contract::{
-            tokens::{Detokenize, Tokenize},
-            Options,
-        },
+        contract::{tokens::Tokenize, Options},
         ethabi,
         types::{
             Address, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt,
@@ -22,6 +19,58 @@ use crate::types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult};
 
 pub mod clients;
 pub mod types;
+
+/// Arguments for calling a function in an unspecified Ethereum smart contract.
+#[derive(Debug)]
+pub struct CallFunctionArgs {
+    name: String,
+    from: Option<Address>,
+    options: Options,
+    block: Option<BlockId>,
+    params: Vec<ethabi::Token>,
+}
+
+impl CallFunctionArgs {
+    pub fn new(name: &str, params: impl Tokenize) -> Self {
+        Self {
+            name: name.to_owned(),
+            from: None,
+            options: Options::default(),
+            block: None,
+            params: params.into_tokens(),
+        }
+    }
+
+    pub fn with_sender(mut self, from: Address) -> Self {
+        self.from = Some(from);
+        self
+    }
+
+    pub fn with_block(mut self, block: BlockId) -> Self {
+        self.block = Some(block);
+        self
+    }
+
+    pub fn for_contract(
+        self,
+        contract_address: Address,
+        contract_abi: ethabi::Contract,
+    ) -> ContractCallArgs {
+        ContractCallArgs {
+            contract_address,
+            contract_abi,
+            inner: self,
+        }
+    }
+}
+
+/// Arguments for calling a function in a specific Ethereum smart contract.
+#[derive(Debug)]
+pub struct ContractCallArgs {
+    contract_address: Address,
+    contract_abi: ethabi::Contract,
+    inner: CallFunctionArgs,
+}
 
 /// Common Web3 interface, as seen by the core applications.
 /// Encapsulates the raw Web3 interaction, providing a high-level interface.
@@ -112,21 +161,10 @@ pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
 
     /// Invokes a function on a contract specified by `contract_address` / `contract_abi` using `eth_call`.
     #[allow(clippy::too_many_arguments)]
-    async fn call_contract_function<R, A, B, P>(
+    async fn call_contract_function(
         &self,
-        func: &str,
-        params: P,
-        from: A,
-        options: Options,
-        block: B,
-        contract_address: Address,
-        contract_abi: ethabi::Contract,
-    ) -> Result<R, Error>
-    where
-        R: Detokenize + Unpin,
-        A: Into<Option<Address>> + Send,
-        B: Into<Option<BlockId>> + Send,
-        P: Tokenize + Send;
+        args: ContractCallArgs,
+    ) -> Result<Vec<ethabi::Token>, Error>;
 
     /// Returns the logs for the specified filter.
     async fn logs(&self, filter: Filter, component: &'static str) -> Result<Vec<Log>, Error>;
@@ -228,30 +266,12 @@ pub trait BoundEthInterface: EthInterface {
     }
 
     /// Invokes a function on a contract specified by `Self::contract()` / `Self::contract_addr()`.
-    async fn call_main_contract_function<R, A, P, B>(
+    async fn call_main_contract_function(
         &self,
-        func: &str,
-        params: P,
-        from: A,
-        options: Options,
-        block: B,
-    ) -> Result<R, Error>
-    where
-        R: Detokenize + Unpin,
-        A: Into<Option<Address>> + Send,
-        P: Tokenize + Send,
-        B: Into<Option<BlockId>> + Send,
-    {
-        self.call_contract_function(
-            func,
-            params,
-            from,
-            options,
-            block,
-            self.contract_addr(),
-            self.contract().clone(),
-        )
-        .await
+        args: CallFunctionArgs,
+    ) -> Result<Vec<ethabi::Token>, Error> {
+        let args = args.for_contract(self.contract_addr(), self.contract().clone());
+        self.call_contract_function(args).await
     }
 
     /// Encodes a function using the `Self::contract()` ABI.

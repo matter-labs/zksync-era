@@ -1,10 +1,11 @@
 use zksync_contracts::verifier_contract;
-use zksync_eth_client::{types::Error as EthClientError, EthInterface};
+use zksync_eth_client::{types::Error as EthClientError, CallFunctionArgs, EthInterface};
 use zksync_types::{
     ethabi::{Contract, Token},
     vk_transform::l1_vk_commitment,
     web3::{
         self,
+        contract::tokens::Detokenize,
         types::{BlockId, BlockNumber, FilterBuilder, Log},
     },
     Address, H256,
@@ -20,6 +21,12 @@ pub enum Error {
     EthClient(#[from] EthClientError),
     #[error("Infinite recursion caused by too many responses")]
     InfiniteRecursion,
+}
+
+impl From<web3::contract::Error> for Error {
+    fn from(err: web3::contract::Error) -> Self {
+        Self::EthClient(err.into())
+    }
 }
 
 #[async_trait::async_trait]
@@ -107,35 +114,17 @@ impl<E: EthInterface + Send + Sync + 'static> EthClient for EthHttpQueryClient<E
         // Legacy verifier returns the full verification key;
         // New verifier returns the hash of the verification key.
 
-        let vk_hash = self
-            .client
-            .call_contract_function(
-                "verificationKeyHash",
-                (),
-                None,
-                Default::default(),
-                None,
-                verifier_address,
-                self.verifier_contract_abi.clone(),
-            )
-            .await;
+        let args = CallFunctionArgs::new("verificationKeyHash", ())
+            .for_contract(verifier_address, self.verifier_contract_abi.clone());
+        let vk_hash_tokens = self.client.call_contract_function(args).await;
 
-        if let Ok(Token::FixedBytes(vk_hash)) = vk_hash {
-            Ok(H256::from_slice(&vk_hash))
+        if let Ok(tokens) = vk_hash_tokens {
+            Ok(H256::from_tokens(tokens)?)
         } else {
-            let vk = self
-                .client
-                .call_contract_function(
-                    "get_verification_key",
-                    (),
-                    None,
-                    Default::default(),
-                    None,
-                    verifier_address,
-                    self.verifier_contract_abi.clone(),
-                )
-                .await?;
-            Ok(l1_vk_commitment(vk))
+            let args = CallFunctionArgs::new("get_verification_key", ())
+                .for_contract(verifier_address, self.verifier_contract_abi.clone());
+            let vk = self.client.call_contract_function(args).await?;
+            Ok(l1_vk_commitment(Token::from_tokens(vk)?))
         }
     }
 
