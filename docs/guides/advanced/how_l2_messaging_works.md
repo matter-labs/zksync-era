@@ -199,7 +199,7 @@ transmitted to L1 for final verification.
 [event_sink]:
   https://github.com/matter-labs/zksync-era/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/vm/src/event_sink.rs#L116
 [log_writing_in_vm]: https://github.com/matter-labs/era-zk_evm/blob/v1.3.2/src/opcodes/execution/log.rs
-[log_opcode]: https://github.com/matter-labs/zkevm_opcode_defs/blob/v1.3.2/src/definitions/log.rs#L16
+[log_opcode]: https://github.com/matter-labs/era-zkevm_opcode_defs/blob/v1.3.2/src/definitions/log.rs#L16
 [zkevm_assembly_parse]:
   https://github.com/matter-labs/zkEVM-assembly/blob/fcfeb51e45544a629d4279b3455def847dcc2505/src/assembly/instruction/log.rs#L32
 [executor_sol]:

@@ -33,7 +33,7 @@ pub(crate) mod types;
 pub(crate) mod updates;
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) async fn create_state_keeper<G>(
+pub(crate) async fn create_state_keeper(
     contracts_config: &ContractsConfig,
     state_keeper_config: StateKeeperConfig,
     db_config: &DBConfig,
@@ -41,14 +41,11 @@ pub(crate) async fn create_state_keeper<G>(
     mempool_config: &MempoolConfig,
     pool: ConnectionPool,
     mempool: MempoolGuard,
-    l1_gas_price_provider: Arc<G>,
+    l1_gas_price_provider: Arc<dyn L1GasPriceProvider>,
     miniblock_sealer_handle: MiniblockSealerHandle,
     object_store: Box<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
-) -> ZkSyncStateKeeper
-where
-    G: L1GasPriceProvider + 'static + Send + Sync,
-{
+) -> ZkSyncStateKeeper {
     assert!(
         state_keeper_config.transaction_slots <= MAX_TXS_IN_BLOCK,
         "Configured transaction_slots ({}) must be lower than the bootloader constant MAX_TXS_IN_BLOCK={}",
