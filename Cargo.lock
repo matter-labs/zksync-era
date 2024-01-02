@@ -1230,7 +1230,7 @@ dependencies = [
  "derivative",
  "serde",
  "snark_wrapper",
- "zk_evm 1.4.0",
+ "zk_evm 1.4.0 (git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.4.0)",
  "zkevm_circuits",
 ]
 
@@ -4004,8 +4004,8 @@ dependencies = [
  "tracing",
  "vise",
  "zk_evm 1.3.1",
- "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
- "zk_evm 1.4.0",
+ "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.3.3-perekopskiy-add-precompiles-enum)",
+ "zk_evm 1.4.0 (git+https://github.com/matter-labs/era-zk_evm.git?branch=perekopskiy-add-precompiles-enum)",
  "zkevm_test_harness 1.4.0",
  "zksync_contracts",
  "zksync_eth_signer",
@@ -8013,7 +8013,7 @@ dependencies = [
  "serde",
  "serde_json",
  "static_assertions",
- "zk_evm_abstractions",
+ "zk_evm_abstractions 0.1.0 (git+https://github.com/matter-labs/era-zk_evm_abstractions.git)",
  "zkevm_opcode_defs 1.3.2",
 ]
 
@@ -8028,7 +8028,37 @@ dependencies = [
  "serde",
  "serde_json",
  "static_assertions",
- "zk_evm_abstractions",
+ "zk_evm_abstractions 0.1.0 (git+https://github.com/matter-labs/era-zk_evm_abstractions.git)",
+ "zkevm_opcode_defs 1.3.2",
+]
+
+[[package]]
+name = "zk_evm"
+version = "1.3.3"
+source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.3.3-perekopskiy-add-precompiles-enum#3d76dadc419b862a89a00731066a8e0aa863f608"
+dependencies = [
+ "anyhow",
+ "lazy_static",
+ "num 0.4.1",
+ "serde",
+ "serde_json",
+ "static_assertions",
+ "zk_evm_abstractions 0.1.0 (git+https://github.com/matter-labs/era-zk_evm_abstractions.git?branch=perekopskiy-add-precompiles-enum)",
+ "zkevm_opcode_defs 1.3.2",
+]
+
+[[package]]
+name = "zk_evm"
+version = "1.4.0"
+source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=perekopskiy-add-precompiles-enum#405220c7ca48b1f1d11a2e6dad5d9f78e3adb834"
+dependencies = [
+ "anyhow",
+ "lazy_static",
+ "num 0.4.1",
+ "serde",
+ "serde_json",
+ "static_assertions",
+ "zk_evm_abstractions 0.1.0 (git+https://github.com/matter-labs/era-zk_evm_abstractions.git?branch=perekopskiy-add-precompiles-enum)",
  "zkevm_opcode_defs 1.3.2",
 ]
 
@@ -8043,7 +8073,19 @@ dependencies = [
  "serde",
  "serde_json",
  "static_assertions",
- "zk_evm_abstractions",
+ "zk_evm_abstractions 0.1.0 (git+https://github.com/matter-labs/era-zk_evm_abstractions.git)",
+ "zkevm_opcode_defs 1.3.2",
+]
+
+[[package]]
+name = "zk_evm_abstractions"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-zk_evm_abstractions.git?branch=perekopskiy-add-precompiles-enum#72aee66dc059ae73f97d2843da7da50df56efc4a"
+dependencies = [
+ "anyhow",
+ "num_enum",
+ "serde",
+ "static_assertions",
  "zkevm_opcode_defs 1.3.2",
 ]
 
@@ -8125,14 +8167,14 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.3.3"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.3.3#d52b56d6ba8196c8a3c74c4933654469e6f27a5a"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=perekopskiy-add-precompiles-enum#3a1b229e5c8abf971a7cfc4cd1dd757d1700b455"
 dependencies = [
  "bincode",
  "circuit_testing",
  "codegen 0.2.0",
  "crossbeam 0.8.2",
  "derivative",
- "env_logger 0.10.0",
+ "env_logger 0.9.3",
  "hex",
  "num-bigint 0.4.4",
  "num-integer",
@@ -8145,7 +8187,7 @@ dependencies = [
  "sync_vm",
  "test-log",
  "tracing",
- "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.3.3)",
+ "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.3.3-perekopskiy-add-precompiles-enum)",
  "zkevm-assembly",
 ]
 
@@ -8897,8 +8939,8 @@ dependencies = [
  "strum",
  "thiserror",
  "tokio",
- "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
- "zk_evm 1.4.0",
+ "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.3.3-perekopskiy-add-precompiles-enum)",
+ "zk_evm 1.4.0 (git+https://github.com/matter-labs/era-zk_evm.git?branch=perekopskiy-add-precompiles-enum)",
  "zkevm_test_harness 1.3.3",
  "zksync_basic_types",
  "zksync_consensus_roles",
