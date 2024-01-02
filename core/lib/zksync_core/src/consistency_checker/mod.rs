@@ -1,14 +1,11 @@
 use std::{fmt, time::Duration};
 
 use anyhow::Context as _;
-use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::ConnectionPool;
-use zksync_types::{
-    web3::{self, ethabi, transports::Http, types::TransactionId, Web3},
-    L1BatchNumber, H256, U64,
-};
+use zksync_eth_client::{clients::http::QueryClient, types::Error as L1ClientError, EthInterface};
+use zksync_types::{web3::ethabi, L1BatchNumber};
 
 use crate::{
     metrics::{CheckerComponent, EN_METRICS},
@@ -21,7 +18,7 @@ mod tests;
 #[derive(Debug, thiserror::Error)]
 enum CheckError {
     #[error("Web3 error communicating with L1")]
-    Web3(#[from] web3::Error),
+    Web3(#[from] L1ClientError),
     #[error("Internal error")]
     Internal(#[from] anyhow::Error),
 }
@@ -29,30 +26,6 @@ enum CheckError {
 impl From<zksync_dal::SqlxError> for CheckError {
     fn from(err: zksync_dal::SqlxError) -> Self {
         Self::Internal(err.into())
-    }
-}
-
-#[async_trait]
-trait L1Client: fmt::Debug + Send + Sync {
-    async fn transaction_status(&self, tx_hash: H256) -> Result<Option<U64>, web3::Error>;
-
-    /// **NB.** Must include the 4-byte Solidity method selector.
-    async fn transaction_input_data(&self, tx_hash: H256) -> Result<Option<Vec<u8>>, web3::Error>;
-}
-
-#[async_trait]
-impl L1Client for Web3<Http> {
-    async fn transaction_status(&self, tx_hash: H256) -> Result<Option<U64>, web3::Error> {
-        Ok(self
-            .eth()
-            .transaction_receipt(tx_hash)
-            .await?
-            .and_then(|receipt| receipt.status))
-    }
-
-    async fn transaction_input_data(&self, tx_hash: H256) -> Result<Option<Vec<u8>>, web3::Error> {
-        let transaction = self.eth().transaction(TransactionId::Hash(tx_hash)).await?;
-        Ok(transaction.map(|tx| tx.input.0))
     }
 }
 
@@ -81,7 +54,7 @@ pub struct ConsistencyChecker {
     /// How many past batches to check when starting
     max_batches_to_recheck: u32,
     sleep_interval: Duration,
-    l1_client: Box<dyn L1Client>,
+    l1_client: Box<dyn EthInterface>,
     l1_batch_updater: Box<dyn UpdateCheckedBatch>,
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool,
@@ -91,7 +64,7 @@ impl ConsistencyChecker {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
     pub fn new(web3_url: &str, max_batches_to_recheck: u32, pool: ConnectionPool) -> Self {
-        let web3 = Web3::new(Http::new(web3_url).unwrap());
+        let web3 = QueryClient::new(web3_url).unwrap();
         Self {
             contract: zksync_contracts::zksync_contract(),
             max_batches_to_recheck,
@@ -140,10 +113,10 @@ impl ConsistencyChecker {
 
         let commit_tx_status = self
             .l1_client
-            .transaction_status(commit_tx_hash)
+            .get_tx_status(commit_tx_hash, "consistency_checker")
             .await?
             .with_context(|| format!("Receipt for tx {commit_tx_hash:?} not found on L1"))?;
-        if commit_tx_status != 1.into() {
+        if !commit_tx_status.success {
             let err = anyhow::anyhow!("Main node gave us a failed commit tx");
             return Err(err.into());
         }
@@ -151,9 +124,10 @@ impl ConsistencyChecker {
         // We can't get tx calldata from db because it can be fake.
         let commit_tx_input_data = self
             .l1_client
-            .transaction_input_data(commit_tx_hash)
+            .get_tx(commit_tx_hash, "consistency_checker")
             .await?
-            .with_context(|| format!("Commit for tx {commit_tx_hash:?} not found on L1"))?;
+            .with_context(|| format!("Commit for tx {commit_tx_hash:?} not found on L1"))?
+            .input;
         // FIXME: shouldn't the receiving contract and selector be checked as well?
 
         let is_pre_boojum = block_metadata
@@ -169,7 +143,7 @@ impl ConsistencyChecker {
         };
 
         let commitment =
-            Self::extract_commit_data(&commit_tx_input_data, commit_function, batch_number)
+            Self::extract_commit_data(&commit_tx_input_data.0, commit_function, batch_number)
                 .with_context(|| {
                     format!("Failed extracting commit data for transaction {commit_tx_hash:?}")
                 })?;

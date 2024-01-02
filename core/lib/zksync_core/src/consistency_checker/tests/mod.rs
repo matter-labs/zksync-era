@@ -6,9 +6,11 @@ use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_dal::StorageProcessor;
+use zksync_eth_client::clients::mock::MockEthereum;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, block::BlockGasCount,
-    commitment::L1BatchWithMetadata, L2ChainId, ProtocolVersion, ProtocolVersionId,
+    commitment::L1BatchWithMetadata, web3::contract::Options, L2ChainId, ProtocolVersion,
+    ProtocolVersionId, H256,
 };
 
 use super::*;
@@ -26,55 +28,30 @@ fn create_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
     }
 }
 
-#[derive(Debug, Default)]
-struct MockL1Client {
-    transaction_status_responses: HashMap<H256, U64>,
-    transaction_input_data_responses: HashMap<H256, Vec<u8>>,
+fn build_commit_tx_input_data(batches: &[L1BatchWithMetadata]) -> Vec<u8> {
+    let commit_tokens = batches.iter().map(L1BatchWithMetadata::l1_commit_data);
+    let commit_tokens = ethabi::Token::Array(commit_tokens.collect());
+
+    let mut encoded = vec![];
+    // Fake Solidity function selector (not checked for now)
+    encoded.extend_from_slice(b"fake");
+    // Mock an additional arg used in real `commitBlocks` / `commitBatches`. In real transactions,
+    // it's taken from the L1 batch previous to batches[0], but since this arg is not checked,
+    // it's OK to use batches[0].
+    let prev_header_tokens = batches[0].l1_header_data();
+    encoded.extend_from_slice(&ethabi::encode(&[prev_header_tokens, commit_tokens]));
+    encoded
 }
 
-impl MockL1Client {
-    fn build_commit_tx_input_data(batches: &[L1BatchWithMetadata]) -> Vec<u8> {
-        let commit_tokens = batches.iter().map(L1BatchWithMetadata::l1_commit_data);
-        let commit_tokens = ethabi::Token::Array(commit_tokens.collect());
-
-        let mut encoded = vec![];
-        // Fake Solidity function selector (not checked for now)
-        encoded.extend_from_slice(b"fake");
-        // Mock an additional arg used in real `commitBlocks` / `commitBatches`. In real transactions,
-        // it's taken from the L1 batch previous to batches[0], but since this arg is not checked,
-        // it's OK to use batches[0].
-        let prev_header_tokens = batches[0].l1_header_data();
-        encoded.extend_from_slice(&ethabi::encode(&[prev_header_tokens, commit_tokens]));
-        encoded
-    }
-
-    fn into_checker(self, pool: ConnectionPool) -> ConsistencyChecker {
-        ConsistencyChecker {
-            contract: zksync_contracts::zksync_contract(),
-            max_batches_to_recheck: 100,
-            sleep_interval: Duration::from_millis(10),
-            l1_client: Box::new(self),
-            l1_batch_updater: Box::new(()),
-            l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
-            pool,
-        }
-    }
-}
-
-#[async_trait]
-impl L1Client for MockL1Client {
-    async fn transaction_status(&self, tx_hash: H256) -> Result<Option<U64>, web3::Error> {
-        if let Some(response) = self.transaction_status_responses.get(&tx_hash) {
-            return Ok(Some(*response));
-        }
-        Ok(None)
-    }
-
-    async fn transaction_input_data(&self, tx_hash: H256) -> Result<Option<Vec<u8>>, web3::Error> {
-        if let Some(response) = self.transaction_input_data_responses.get(&tx_hash) {
-            return Ok(Some(response.clone()));
-        }
-        Ok(None)
+fn create_mock_checker(client: MockEthereum, pool: ConnectionPool) -> ConsistencyChecker {
+    ConsistencyChecker {
+        contract: zksync_contracts::zksync_contract(),
+        max_batches_to_recheck: 100,
+        sleep_interval: Duration::from_millis(10),
+        l1_client: Box::new(client),
+        l1_batch_updater: Box::new(()),
+        l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
+        pool,
     }
 }
 
@@ -93,7 +70,7 @@ fn build_commit_tx_input_data_is_correct() {
         create_l1_batch_with_metadata(2),
     ];
 
-    let commit_tx_input_data = MockL1Client::build_commit_tx_input_data(&batches);
+    let commit_tx_input_data = build_commit_tx_input_data(&batches);
 
     for batch in &batches {
         let commit_data = ConsistencyChecker::extract_commit_data(
@@ -305,34 +282,32 @@ async fn normal_checker_function(
 
     let l1_batches: Vec<_> = (1..=10).map(create_l1_batch_with_metadata).collect();
     let mut commit_tx_hash_by_l1_batch = HashMap::with_capacity(l1_batches.len());
-    let commit_transactions: Vec<_> = l1_batches
-        .chunks(batches_per_transaction)
-        .map(|l1_batches| {
-            let tx_hash = H256::random();
-            commit_tx_hash_by_l1_batch.extend(
-                l1_batches
-                    .iter()
-                    .map(|batch| (batch.header.number, tx_hash)),
-            );
-            let input_data = MockL1Client::build_commit_tx_input_data(l1_batches);
-            (tx_hash, input_data)
-        })
-        .collect();
+    let client = MockEthereum::default();
 
-    let mut client = MockL1Client::default();
-    for (tx_hash, input_data) in &commit_transactions {
-        client
-            .transaction_status_responses
-            .insert(*tx_hash, 1.into());
-        client
-            .transaction_input_data_responses
-            .insert(*tx_hash, input_data.clone());
+    for (i, l1_batches) in l1_batches.chunks(batches_per_transaction).enumerate() {
+        let input_data = build_commit_tx_input_data(l1_batches);
+        let signed_tx = client.sign_prepared_tx(
+            input_data.clone(),
+            Options {
+                nonce: Some(i.into()),
+                ..Options::default()
+            },
+        );
+        let signed_tx = signed_tx.unwrap();
+        client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
+        client.execute_tx(signed_tx.hash, true, 1).unwrap();
+
+        commit_tx_hash_by_l1_batch.extend(
+            l1_batches
+                .iter()
+                .map(|batch| (batch.header.number, signed_tx.hash)),
+        );
     }
 
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         l1_batch_updater: Box::new(l1_batch_updates_sender),
-        ..client.into_checker(pool.clone())
+        ..create_mock_checker(client, pool.clone())
     };
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -370,15 +345,21 @@ async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) 
         .await;
 
     let l1_batch = create_l1_batch_with_metadata(99);
-    let commit_tx_hash = H256::repeat_byte(1);
-    let commit_tx_input_data = MockL1Client::build_commit_tx_input_data(slice::from_ref(&l1_batch));
-    let mut client = MockL1Client::default();
-    client
-        .transaction_status_responses
-        .insert(commit_tx_hash, 1.into());
-    client
-        .transaction_input_data_responses
-        .insert(commit_tx_hash, commit_tx_input_data);
+
+    let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(&l1_batch));
+    let client = MockEthereum::default();
+    let signed_tx = client.sign_prepared_tx(
+        commit_tx_input_data.clone(),
+        Options {
+            nonce: Some(0.into()),
+            ..Options::default()
+        },
+    );
+    let signed_tx = signed_tx.unwrap();
+    let commit_tx_hash = signed_tx.hash;
+    client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
+    client.execute_tx(commit_tx_hash, true, 1).unwrap();
+
     let save_actions = [
         SaveAction::InsertBatch(&l1_batch),
         SaveAction::SaveMetadata(&l1_batch),
@@ -397,7 +378,7 @@ async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) 
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         l1_batch_updater: Box::new(l1_batch_updates_sender),
-        ..client.into_checker(pool.clone())
+        ..create_mock_checker(client, pool.clone())
     };
     let (stop_sender, stop_receiver) = watch::channel(false);
     let checker_task = tokio::spawn(checker.run(stop_receiver));
@@ -423,7 +404,6 @@ async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) 
 enum IncorrectDataKind {
     MissingStatus,
     MismatchedStatus,
-    MissingCommitData,
     BogusCommitDataFormat,
     MismatchedCommitDataTimestamp,
     CommitDataForAnotherBatch,
@@ -431,71 +411,66 @@ enum IncorrectDataKind {
 }
 
 impl IncorrectDataKind {
-    const ALL: [Self; 7] = [
+    const ALL: [Self; 6] = [
         Self::MissingStatus,
         Self::MismatchedStatus,
-        Self::MissingCommitData,
         Self::BogusCommitDataFormat,
         Self::MismatchedCommitDataTimestamp,
         Self::CommitDataForAnotherBatch,
         Self::CommitDataForPreBoojum,
     ];
 
-    fn apply(self, client: &mut MockL1Client, commit_tx_hash: H256) {
-        match self {
+    async fn apply(self, client: &MockEthereum, l1_batch: &L1BatchWithMetadata) -> H256 {
+        let (commit_tx_input_data, successful_status) = match self {
             Self::MissingStatus => {
-                client.transaction_status_responses.remove(&commit_tx_hash);
+                return H256::zero(); // Do not execute the transaction
             }
             Self::MismatchedStatus => {
-                client
-                    .transaction_status_responses
-                    .insert(commit_tx_hash, 0.into());
-            }
-
-            Self::MissingCommitData => {
-                client
-                    .transaction_input_data_responses
-                    .remove(&commit_tx_hash);
+                let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
+                (commit_tx_input_data, false)
             }
             Self::BogusCommitDataFormat => {
                 let mut bogus_tx_input_data = b"test".to_vec(); // Preserve the function selector
                 bogus_tx_input_data
                     .extend_from_slice(&ethabi::encode(&[ethabi::Token::Bool(true)]));
-                client
-                    .transaction_input_data_responses
-                    .insert(commit_tx_hash, bogus_tx_input_data);
+                (bogus_tx_input_data, true)
             }
             Self::MismatchedCommitDataTimestamp => {
                 let mut l1_batch = create_l1_batch_with_metadata(1);
                 l1_batch.header.timestamp += 1;
-                let bogus_tx_input_data =
-                    MockL1Client::build_commit_tx_input_data(slice::from_ref(&l1_batch));
-                client
-                    .transaction_input_data_responses
-                    .insert(commit_tx_hash, bogus_tx_input_data);
+                let bogus_tx_input_data = build_commit_tx_input_data(slice::from_ref(&l1_batch));
+                (bogus_tx_input_data, true)
             }
             Self::CommitDataForAnotherBatch => {
                 let l1_batch = create_l1_batch_with_metadata(100);
-                let bogus_tx_input_data =
-                    MockL1Client::build_commit_tx_input_data(slice::from_ref(&l1_batch));
-                client
-                    .transaction_input_data_responses
-                    .insert(commit_tx_hash, bogus_tx_input_data);
+                let bogus_tx_input_data = build_commit_tx_input_data(slice::from_ref(&l1_batch));
+                (bogus_tx_input_data, true)
             }
             Self::CommitDataForPreBoojum => {
                 let mut l1_batch = create_l1_batch_with_metadata(1);
                 l1_batch.header.protocol_version = Some(ProtocolVersionId::Version0);
-                let bogus_tx_input_data =
-                    MockL1Client::build_commit_tx_input_data(slice::from_ref(&l1_batch));
-                client
-                    .transaction_input_data_responses
-                    .insert(commit_tx_hash, bogus_tx_input_data);
+                let bogus_tx_input_data = build_commit_tx_input_data(slice::from_ref(&l1_batch));
+                (bogus_tx_input_data, true)
             }
-        }
+        };
+
+        let signed_tx = client.sign_prepared_tx(
+            commit_tx_input_data,
+            Options {
+                nonce: Some(0.into()),
+                ..Options::default()
+            },
+        );
+        let signed_tx = signed_tx.unwrap();
+        client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
+        client
+            .execute_tx(signed_tx.hash, successful_status, 1)
+            .unwrap();
+        signed_tx.hash
     }
 }
 
-#[test_casing(7, Product((IncorrectDataKind::ALL, [false])))]
+#[test_casing(6, Product((IncorrectDataKind::ALL, [false])))]
 // ^ `snapshot_recovery = true` is tested below; we don't want to run it with all incorrect data kinds
 #[tokio::test]
 async fn checker_detects_incorrect_tx_data(kind: IncorrectDataKind, snapshot_recovery: bool) {
@@ -513,9 +488,10 @@ async fn checker_detects_incorrect_tx_data(kind: IncorrectDataKind, snapshot_rec
     }
 
     let l1_batch = create_l1_batch_with_metadata(if snapshot_recovery { 99 } else { 1 });
-    let commit_tx_hash = H256::repeat_byte(1);
-    let commit_tx_input_data = MockL1Client::build_commit_tx_input_data(slice::from_ref(&l1_batch));
+    let client = MockEthereum::default();
+    let commit_tx_hash = kind.apply(&client, &l1_batch).await;
     let commit_tx_hash_by_l1_batch = HashMap::from([(l1_batch.header.number, commit_tx_hash)]);
+
     let save_actions = [
         SaveAction::InsertBatch(&l1_batch),
         SaveAction::SaveMetadata(&l1_batch),
@@ -528,17 +504,7 @@ async fn checker_detects_incorrect_tx_data(kind: IncorrectDataKind, snapshot_rec
     }
     drop(storage);
 
-    let mut client = MockL1Client::default();
-    // Insert the correct data into the client so that it can be mutated more concisely.
-    client
-        .transaction_status_responses
-        .insert(commit_tx_hash, 1.into());
-    client
-        .transaction_input_data_responses
-        .insert(commit_tx_hash, commit_tx_input_data);
-    kind.apply(&mut client, commit_tx_hash);
-
-    let checker = client.into_checker(pool);
+    let checker = create_mock_checker(client, pool);
     let (_stop_sender, stop_receiver) = watch::channel(false);
     // The checker must stop with an error.
     tokio::time::timeout(Duration::from_secs(30), checker.run(stop_receiver))
