@@ -96,9 +96,15 @@ jobs:
     name: CI for Docs
     uses: ./.github/workflows/ci-docs-reusable.yml
 
+  build-contracts:
+    name: Build contracts
+    needs: changed_files
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    uses: ./.github/workflows/build-contracts.yml
+
   build-core-images:
     name: Build core images
-    needs: changed_files
+    needs: build-contracts
     if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     uses: ./.github/workflows/build-core-template.yml
     with:
