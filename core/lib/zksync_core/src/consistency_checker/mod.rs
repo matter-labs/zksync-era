@@ -69,6 +69,12 @@ impl UpdateCheckedBatch for () {
 }
 
 #[derive(Debug)]
+enum L1DataMismatchBehavior {
+    Bail,
+    Log,
+}
+
+#[derive(Debug)]
 pub struct ConsistencyChecker {
     /// ABI of the zkSync contract
     contract: ethabi::Contract,
@@ -77,6 +83,7 @@ pub struct ConsistencyChecker {
     sleep_interval: Duration,
     l1_client: Box<dyn L1Client>,
     l1_batch_updater: Box<dyn UpdateCheckedBatch>,
+    l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool,
 }
 
@@ -91,8 +98,14 @@ impl ConsistencyChecker {
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
             l1_client: Box::new(web3),
             l1_batch_updater: Box::new(()),
+            l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
             pool,
         }
+    }
+
+    /// Configures this checker to log discovered L1 batch mismatches instead of bailing with an error.
+    pub fn log_l1_data_mismatches(&mut self) {
+        self.l1_data_mismatch_behavior = L1DataMismatchBehavior::Log;
     }
 
     async fn check_commitments(&self, batch_number: L1BatchNumber) -> Result<bool, CheckError> {
@@ -284,10 +297,14 @@ impl ConsistencyChecker {
                     self.l1_batch_updater.update_checked_batch(batch_number);
                     batch_number += 1;
                 }
-                Ok(false) => {
-                    // FIXME: don't bail based on config?
-                    anyhow::bail!("L1 Batch #{batch_number} is inconsistent with L1");
-                }
+                Ok(false) => match &self.l1_data_mismatch_behavior {
+                    L1DataMismatchBehavior::Bail => {
+                        anyhow::bail!("L1 Batch #{batch_number} is inconsistent with L1");
+                    }
+                    L1DataMismatchBehavior::Log => {
+                        tracing::warn!("L1 Batch #{batch_number} is inconsistent with L1");
+                    }
+                },
                 Err(CheckError::Web3(err)) => {
                     tracing::warn!("Error accessing L1; will retry after a delay: {err}");
                     tokio::time::sleep(self.sleep_interval).await;

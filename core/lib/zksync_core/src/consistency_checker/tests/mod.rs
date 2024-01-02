@@ -55,6 +55,7 @@ impl MockL1Client {
             sleep_interval: Duration::from_millis(10),
             l1_client: Box::new(self),
             l1_batch_updater: Box::new(()),
+            l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
             pool,
         }
     }
