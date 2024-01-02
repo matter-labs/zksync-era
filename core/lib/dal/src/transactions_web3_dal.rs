@@ -1,7 +1,7 @@
 use sqlx::types::chrono::NaiveDateTime;
 use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
 use zksync_types::{
-    api, api::APIMode, Address, L2ChainId, MiniblockNumber, Transaction,
+    api, api::ApiMode, Address, L2ChainId, MiniblockNumber, Transaction,
     ACCOUNT_CODE_STORAGE_ADDRESS, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256, U256, U64,
 };
 use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
@@ -28,7 +28,7 @@ impl TransactionsWeb3Dal<'_, '_> {
     pub async fn get_transaction_receipt(
         &mut self,
         hash: H256,
-        api_mode: APIMode,
+        api_mode: ApiMode,
     ) -> Result<Option<api::TransactionReceipt>, SqlxError> {
         {
             let receipt = sqlx::query!(
@@ -164,7 +164,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                     .fetch_all(self.storage.conn())
                     .await?;
 
-                    if api_mode == APIMode::Modern {
+                    if api_mode == ApiMode::Modern {
                         db_logs.retain(|log| {
                             log.address != L2_ETH_TOKEN_ADDRESS.as_bytes()
                                 || log.topic1 != TRANSFER_EVENT_TOPIC.as_bytes()

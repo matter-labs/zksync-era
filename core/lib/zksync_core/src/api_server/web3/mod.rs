@@ -11,7 +11,7 @@ use tokio::{
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_types::{api, api::APIMode, MiniblockNumber};
+use zksync_types::{api, MiniblockNumber};
 use zksync_web3_decl::{
     error::Web3Error,
     jsonrpsee::{
@@ -269,13 +269,10 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         }
     }
 
-    async fn build_rpc_module(
-        mut self,
-        pubsub: Option<EthSubscribe>,
-        api_mode: APIMode,
-    ) -> RpcModule<()> {
+    async fn build_rpc_module(mut self, pubsub: Option<EthSubscribe>) -> RpcModule<()> {
         let namespaces = self.namespaces.take().unwrap();
         let zksync_network_id = self.config.l2_chain_id;
+        let api_mode = self.config.api_mode;
         let rpc_state = self.build_rpc_state();
 
         // Collect all the methods into a single RPC module.
@@ -319,7 +316,6 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
     pub async fn build(
         mut self,
         stop_receiver: watch::Receiver<bool>,
-        api_mode: APIMode,
     ) -> anyhow::Result<ApiServerHandles> {
         if self.filters_limit.is_none() {
             tracing::warn!("Filters limit is not set - unlimited filters are allowed");
@@ -357,10 +353,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         }
 
         match self.transport.take() {
-            Some(transport) => {
-                self.build_jsonrpsee(transport, stop_receiver, api_mode)
-                    .await
-            }
+            Some(transport) => self.build_jsonrpsee(transport, stop_receiver).await,
             None => anyhow::bail!("ApiTransport is not specified"),
         }
     }
@@ -382,7 +375,6 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         mut self,
         transport: ApiTransport,
         stop_receiver: watch::Receiver<bool>,
-        api_mode: APIMode,
     ) -> anyhow::Result<ApiServerHandles> {
         let (runtime_thread_name, health_check_name) = match transport {
             ApiTransport::Http(_) => ("jsonrpsee-http-worker", "http_api"),
@@ -433,13 +425,13 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
                 self.pool.clone(),
                 polling_interval,
                 stop_receiver.clone(),
-                api_mode,
+                self.config.api_mode,
             ));
 
             pubsub = Some(pub_sub);
         }
 
-        let rpc = self.build_rpc_module(pubsub, api_mode).await;
+        let rpc = self.build_rpc_module(pubsub).await;
         // Start the server in a separate tokio runtime from a dedicated thread.
         let (local_addr_sender, local_addr) = oneshot::channel();
         let server_task = tokio::task::spawn_blocking(move || {

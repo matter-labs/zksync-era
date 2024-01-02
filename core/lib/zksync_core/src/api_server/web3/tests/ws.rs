@@ -3,6 +3,7 @@
 use async_trait::async_trait;
 use jsonrpsee::core::{client::ClientT, params::BatchRequestBuilder, ClientError};
 use reqwest::StatusCode;
+use test_casing::test_casing;
 use tokio::sync::watch;
 use zksync_config::configs::chain::NetworkConfig;
 use zksync_dal::ConnectionPool;
@@ -22,62 +23,46 @@ use crate::api_server::web3::metrics::SubscriptionType;
 
 #[tokio::test]
 async fn ws_server_can_start() {
-    test_ws_server(WsServerCanStart, APIMode::Modern).await;
+    test_ws_server(WsServerCanStart).await;
 }
 
 #[tokio::test]
 async fn basic_subscriptions() {
-    test_ws_server(BasicSubscriptions, APIMode::Modern).await;
+    test_ws_server(BasicSubscriptions).await;
 }
 
+#[test_casing(2, [ApiMode::Modern, ApiMode::EthTransferIncluded])]
 #[tokio::test]
-async fn log_subscriptions() {
-    test_ws_server(LogSubscriptions, APIMode::Modern).await;
+async fn log_subscriptions(mode: ApiMode) {
+    test_ws_server(LogSubscriptions(mode)).await;
 }
 
+#[test_casing(2, [ApiMode::Modern, ApiMode::EthTransferIncluded])]
 #[tokio::test]
-async fn legacy_log_subscriptions() {
-    test_ws_server(LogSubscriptions, APIMode::Legacy).await;
+async fn log_subscriptions_with_new_block(mode: ApiMode) {
+    test_ws_server(LogSubscriptionsWithNewBlock(mode)).await;
 }
 
+#[test_casing(2, [ApiMode::Modern, ApiMode::EthTransferIncluded])]
 #[tokio::test]
-async fn log_subscriptions_with_new_block() {
-    test_ws_server(LogSubscriptionsWithNewBlock, APIMode::Modern).await;
+async fn log_subscriptions_with_many_new_blocks_at_once(mode: ApiMode) {
+    test_ws_server(LogSubscriptionsWithManyBlocks(mode)).await;
 }
 
+#[test_casing(2, [ApiMode::Modern, ApiMode::EthTransferIncluded])]
 #[tokio::test]
-async fn legacy_log_subscriptions_with_new_block() {
-    test_ws_server(LogSubscriptionsWithNewBlock, APIMode::Legacy).await;
-}
-
-#[tokio::test]
-async fn log_subscriptions_with_many_new_blocks_at_once() {
-    test_ws_server(LogSubscriptionsWithManyBlocks, APIMode::Modern).await;
-}
-
-#[tokio::test]
-async fn legacy_log_subscriptions_with_many_new_blocks_at_once() {
-    test_ws_server(LogSubscriptionsWithManyBlocks, APIMode::Legacy).await;
-}
-
-#[tokio::test]
-async fn log_subscriptions_with_delay() {
-    test_ws_server(LogSubscriptionsWithDelay, APIMode::Modern).await;
-}
-
-#[tokio::test]
-async fn legacy_log_subscriptions_with_delay() {
-    test_ws_server(LogSubscriptionsWithDelay, APIMode::Legacy).await;
+async fn log_subscriptions_with_delay(mode: ApiMode) {
+    test_ws_server(LogSubscriptionsWithDelay(mode)).await;
 }
 
 #[tokio::test]
 async fn rate_limiting() {
-    test_ws_server(RateLimiting, APIMode::Modern).await;
+    test_ws_server(RateLimiting).await;
 }
 
 #[tokio::test]
 async fn batch_rate_limiting() {
-    test_ws_server(BatchGetsRateLimited, APIMode::Modern).await;
+    test_ws_server(BatchGetsRateLimited).await;
 }
 
 #[allow(clippy::needless_pass_by_ref_mut)] // false positive
@@ -131,15 +116,16 @@ trait WsTest {
         client: &WsClient,
         pool: &ConnectionPool,
         pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
-        api_mode: APIMode,
     ) -> anyhow::Result<()>;
+
+    fn api_mode(&self) -> ApiMode;
 
     fn websocket_requests_per_minute_limit(&self) -> Option<NonZeroU32> {
         None
     }
 }
 
-async fn test_ws_server(test: impl WsTest, api_mode: APIMode) {
+async fn test_ws_server(test: impl WsTest) {
     let pool = ConnectionPool::test_pool().await;
     let network_config = NetworkConfig::for_tests();
     let mut storage = pool.access_storage().await.unwrap();
@@ -160,7 +146,7 @@ async fn test_ws_server(test: impl WsTest, api_mode: APIMode) {
         pool.clone(),
         stop_receiver,
         test.websocket_requests_per_minute_limit(),
-        api_mode,
+        test.api_mode(),
     )
     .await;
     server_handles.wait_until_ready().await;
@@ -169,9 +155,7 @@ async fn test_ws_server(test: impl WsTest, api_mode: APIMode) {
         .build(format!("ws://{}", server_handles.local_addr))
         .await
         .unwrap();
-    test.test(&client, &pool, pub_sub_events, api_mode)
-        .await
-        .unwrap();
+    test.test(&client, &pool, pub_sub_events).await.unwrap();
 
     stop_sender.send_replace(true);
     server_handles.shutdown().await;
@@ -187,7 +171,6 @@ impl WsTest for WsServerCanStart {
         client: &WsClient,
         _pool: &ConnectionPool,
         _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
-        _api_mode: APIMode,
     ) -> anyhow::Result<()> {
         let block_number = client.get_block_number().await?;
         assert_eq!(block_number, U64::from(0));
@@ -202,6 +185,10 @@ impl WsTest for WsServerCanStart {
         assert!(genesis_l1_batch.base.root_hash.is_some());
         Ok(())
     }
+
+    fn api_mode(&self) -> ApiMode {
+        ApiMode::Modern
+    }
 }
 
 #[derive(Debug)]
@@ -214,7 +201,6 @@ impl WsTest for BasicSubscriptions {
         client: &WsClient,
         pool: &ConnectionPool,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
-        _api_mode: APIMode,
     ) -> anyhow::Result<()> {
         // Wait for the notifiers to get initialized so that they don't skip notifications
         // for the created subscriptions.
@@ -250,10 +236,14 @@ impl WsTest for BasicSubscriptions {
         blocks_subscription.unsubscribe().await?;
         Ok(())
     }
+
+    fn api_mode(&self) -> ApiMode {
+        ApiMode::Modern
+    }
 }
 
 #[derive(Debug)]
-struct LogSubscriptions;
+struct LogSubscriptions(ApiMode);
 
 #[derive(Debug)]
 struct Subscriptions {
@@ -310,7 +300,6 @@ impl WsTest for LogSubscriptions {
         client: &WsClient,
         pool: &ConnectionPool,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
-        api_mode: APIMode,
     ) -> anyhow::Result<()> {
         let Subscriptions {
             mut all_logs_subscription,
@@ -320,10 +309,16 @@ impl WsTest for LogSubscriptions {
 
         let mut storage = pool.access_storage().await?;
         let (tx_location, events) = store_events(&mut storage, 1, 0).await?;
-        drop(storage);
-        let events: Vec<_> = get_expected_events(events.iter().collect(), api_mode);
 
-        let expected_count = if api_mode == APIMode::Modern { 6 } else { 7 };
+        let expected_count = if self.api_mode() == ApiMode::Modern {
+            6
+        } else {
+            7
+        };
+
+        drop(storage);
+
+        let events: Vec<_> = get_expected_events(events.iter().collect(), self.api_mode());
 
         let all_logs = collect_logs(&mut all_logs_subscription, expected_count).await?;
         for (i, log) in all_logs.iter().enumerate() {
@@ -354,6 +349,10 @@ impl WsTest for LogSubscriptions {
             .unwrap_err();
         Ok(())
     }
+
+    fn api_mode(&self) -> ApiMode {
+        self.0
+    }
 }
 
 async fn collect_logs(
@@ -372,7 +371,7 @@ async fn collect_logs(
 }
 
 #[derive(Debug)]
-struct LogSubscriptionsWithNewBlock;
+struct LogSubscriptionsWithNewBlock(ApiMode);
 
 #[async_trait]
 impl WsTest for LogSubscriptionsWithNewBlock {
@@ -381,7 +380,6 @@ impl WsTest for LogSubscriptionsWithNewBlock {
         client: &WsClient,
         pool: &ConnectionPool,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
-        api_mode: APIMode,
     ) -> anyhow::Result<()> {
         let Subscriptions {
             mut all_logs_subscription,
@@ -392,9 +390,13 @@ impl WsTest for LogSubscriptionsWithNewBlock {
         let mut storage = pool.access_storage().await?;
         let (_, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
-        let events: Vec<_> = get_expected_events(events.iter().collect(), api_mode);
+        let events: Vec<_> = get_expected_events(events.iter().collect(), self.api_mode());
 
-        let expected_count = if api_mode == APIMode::Modern { 6 } else { 7 };
+        let expected_count = if self.api_mode() == ApiMode::Modern {
+            6
+        } else {
+            7
+        };
         let all_logs = collect_logs(&mut all_logs_subscription, expected_count).await?;
         assert_logs_match(&all_logs, &events);
 
@@ -402,7 +404,7 @@ impl WsTest for LogSubscriptionsWithNewBlock {
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
-        let new_events: Vec<_> = get_expected_events(new_events.iter().collect(), api_mode);
+        let new_events: Vec<_> = get_expected_events(new_events.iter().collect(), self.api_mode());
 
         let all_new_logs = collect_logs(&mut all_logs_subscription, expected_count).await?;
         assert_logs_match(&all_new_logs, &new_events);
@@ -414,10 +416,14 @@ impl WsTest for LogSubscriptionsWithNewBlock {
         );
         Ok(())
     }
+
+    fn api_mode(&self) -> ApiMode {
+        self.0
+    }
 }
 
 #[derive(Debug)]
-struct LogSubscriptionsWithManyBlocks;
+struct LogSubscriptionsWithManyBlocks(ApiMode);
 
 #[async_trait]
 impl WsTest for LogSubscriptionsWithManyBlocks {
@@ -426,7 +432,6 @@ impl WsTest for LogSubscriptionsWithManyBlocks {
         client: &WsClient,
         pool: &ConnectionPool,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
-        api_mode: APIMode,
     ) -> anyhow::Result<()> {
         let Subscriptions {
             mut all_logs_subscription,
@@ -438,13 +443,17 @@ impl WsTest for LogSubscriptionsWithManyBlocks {
         let mut storage = pool.access_storage().await?;
         let mut transaction = storage.start_transaction().await?;
         let (_, events) = store_events(&mut transaction, 1, 0).await?;
-        let events: Vec<_> = get_expected_events(events.iter().collect(), api_mode);
+        let events: Vec<_> = get_expected_events(events.iter().collect(), self.api_mode());
         let (_, new_events) = store_events(&mut transaction, 2, 4).await?;
-        let new_events: Vec<_> = get_expected_events(new_events.iter().collect(), api_mode);
+        let new_events: Vec<_> = get_expected_events(new_events.iter().collect(), self.api_mode());
         transaction.commit().await?;
         drop(storage);
 
-        let expected_count = if api_mode == APIMode::Modern { 6 } else { 7 };
+        let expected_count = if self.api_mode() == ApiMode::Modern {
+            6
+        } else {
+            7
+        };
 
         let all_logs = collect_logs(&mut all_logs_subscription, expected_count).await?;
         assert_logs_match(&all_logs, &events);
@@ -458,10 +467,14 @@ impl WsTest for LogSubscriptionsWithManyBlocks {
         );
         Ok(())
     }
+
+    fn api_mode(&self) -> ApiMode {
+        self.0
+    }
 }
 
 #[derive(Debug)]
-struct LogSubscriptionsWithDelay;
+struct LogSubscriptionsWithDelay(ApiMode);
 
 #[async_trait]
 impl WsTest for LogSubscriptionsWithDelay {
@@ -470,7 +483,6 @@ impl WsTest for LogSubscriptionsWithDelay {
         client: &WsClient,
         pool: &ConnectionPool,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
-        api_mode: APIMode,
     ) -> anyhow::Result<()> {
         // Store a miniblock w/o subscriptions being present.
         let mut storage = pool.access_storage().await?;
@@ -501,9 +513,13 @@ impl WsTest for LogSubscriptionsWithDelay {
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
-        let new_events: Vec<_> = get_expected_events(new_events.iter().collect(), api_mode);
+        let new_events: Vec<_> = get_expected_events(new_events.iter().collect(), self.api_mode());
 
-        let expected_count = if api_mode == APIMode::Modern { 6 } else { 7 };
+        let expected_count = if self.api_mode() == ApiMode::Modern {
+            6
+        } else {
+            7
+        };
 
         let all_logs = collect_logs(&mut all_logs_subscription, expected_count).await?;
         assert_logs_match(&all_logs, &new_events);
@@ -514,13 +530,17 @@ impl WsTest for LogSubscriptionsWithDelay {
         all_logs_subscription.unsubscribe().await?;
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 3, 8).await?;
-        let new_events = get_expected_events(new_events.iter().collect(), api_mode);
+        let new_events = get_expected_events(new_events.iter().collect(), self.api_mode());
 
         drop(storage);
 
         let address_and_topic_logs = collect_logs(&mut address_and_topic_subscription, 1).await?;
         assert_logs_match(&address_and_topic_logs, &[&new_events[3]]);
         Ok(())
+    }
+
+    fn api_mode(&self) -> ApiMode {
+        self.0
     }
 }
 
@@ -534,7 +554,6 @@ impl WsTest for RateLimiting {
         client: &WsClient,
         _pool: &ConnectionPool,
         _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
-        _api_mode: APIMode,
     ) -> anyhow::Result<()> {
         client.chain_id().await.unwrap();
         client.chain_id().await.unwrap();
@@ -552,6 +571,10 @@ impl WsTest for RateLimiting {
         Ok(())
     }
 
+    fn api_mode(&self) -> ApiMode {
+        ApiMode::Modern
+    }
+
     fn websocket_requests_per_minute_limit(&self) -> Option<NonZeroU32> {
         Some(NonZeroU32::new(3).unwrap())
     }
@@ -567,7 +590,6 @@ impl WsTest for BatchGetsRateLimited {
         client: &WsClient,
         _pool: &ConnectionPool,
         _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
-        _api_mode: APIMode,
     ) -> anyhow::Result<()> {
         client.chain_id().await.unwrap();
         client.chain_id().await.unwrap();
@@ -590,6 +612,10 @@ impl WsTest for BatchGetsRateLimited {
         assert!(error.data().is_none());
 
         Ok(())
+    }
+
+    fn api_mode(&self) -> ApiMode {
+        ApiMode::Modern
     }
 
     fn websocket_requests_per_minute_limit(&self) -> Option<NonZeroU32> {

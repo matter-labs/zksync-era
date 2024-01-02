@@ -20,11 +20,11 @@ use crate::{
 pub mod en;
 
 /// Enum for choosing API mode
-#[derive(Copy, Clone, Debug, PartialEq, Display, Default)]
-pub enum APIMode {
+#[derive(Copy, Clone, Debug, PartialEq, Display, Default, Deserialize)]
+pub enum ApiMode {
     #[default]
     Modern,
-    Legacy,
+    EthTransferIncluded,
 }
 
 /// Block Number

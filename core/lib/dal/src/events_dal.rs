@@ -82,7 +82,7 @@ impl EventsDal<'_, '_> {
                     r"\\x{value}|\\x{tx_initiator_address:x}|{now}|{now}",
                     value = hex::encode(&event.value)
                 );
-                event_index_in_block += 1
+                event_index_in_block += 1;
             }
         }
         copy.send(buffer.as_bytes()).await.unwrap();
@@ -220,7 +220,7 @@ impl EventsDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
-    use zksync_types::{api::APIMode, Address, L1BatchNumber, ProtocolVersion};
+    use zksync_types::{api::ApiMode, Address, L1BatchNumber, ProtocolVersion};
 
     use super::*;
     use crate::{tests::create_miniblock_header, ConnectionPool};
@@ -294,7 +294,7 @@ mod tests {
 
         let logs = conn
             .events_web3_dal()
-            .get_all_logs(MiniblockNumber(0), APIMode::Modern)
+            .get_all_logs(MiniblockNumber(0), ApiMode::Modern)
             .await
             .unwrap();
         assert_eq!(logs.len(), 5);
@@ -317,7 +317,7 @@ mod tests {
 
         let logs = conn
             .events_web3_dal()
-            .get_all_logs(MiniblockNumber(0), APIMode::Legacy)
+            .get_all_logs(MiniblockNumber(0), ApiMode::EthTransferIncluded)
             .await
             .unwrap();
         assert_eq!(logs.len(), 6);

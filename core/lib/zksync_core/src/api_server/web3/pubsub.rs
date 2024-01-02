@@ -8,7 +8,7 @@ use tokio::{
     time::{interval, Duration},
 };
 use zksync_dal::ConnectionPool;
-use zksync_types::{api::APIMode, MiniblockNumber, H128, H256};
+use zksync_types::{api::ApiMode, MiniblockNumber, H128, H256};
 use zksync_web3_decl::{
     jsonrpsee::{
         core::{server::SubscriptionMessage, SubscriptionResult},
@@ -52,7 +52,7 @@ struct PubSubNotifier {
     connection_pool: ConnectionPool,
     polling_interval: Duration,
     events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
-    api_mode: APIMode,
+    api_mode: ApiMode,
 }
 
 impl PubSubNotifier {
@@ -385,7 +385,7 @@ impl EthSubscribe {
         connection_pool: ConnectionPool,
         polling_interval: Duration,
         stop_receiver: watch::Receiver<bool>,
-        api_mode: APIMode,
+        api_mode: ApiMode,
     ) -> Vec<JoinHandle<anyhow::Result<()>>> {
         let mut notifier_tasks = Vec::with_capacity(3);
 

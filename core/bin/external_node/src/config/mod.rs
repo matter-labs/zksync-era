@@ -8,7 +8,7 @@ use zksync_core::api_server::{
     tx_sender::TxSenderConfig,
     web3::{state::InternalApiConfig, Namespace},
 };
-use zksync_types::api::BridgeAddresses;
+use zksync_types::api::{ApiMode, BridgeAddresses};
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
@@ -515,6 +515,8 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: config.optional.req_entities_limit,
             fee_history_limit: config.optional.fee_history_limit,
+            // fixme: add to config
+            api_mode: ApiMode::Modern,
         }
     }
 }

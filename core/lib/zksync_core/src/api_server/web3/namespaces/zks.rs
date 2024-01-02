@@ -5,7 +5,7 @@ use zksync_dal::StorageProcessor;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
     api::{
-        APIMode, BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof,
+        ApiMode, BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof,
         Proof, ProtocolVersion, StorageProof, TransactionDetails,
     },
     fee::Fee,
@@ -35,7 +35,7 @@ use crate::{
 #[derive(Debug)]
 pub struct ZksNamespace<G> {
     pub state: RpcState<G>,
-    api_mode: APIMode,
+    api_mode: ApiMode,
 }
 
 impl<G> Clone for ZksNamespace<G> {
@@ -48,7 +48,7 @@ impl<G> Clone for ZksNamespace<G> {
 }
 
 impl<G: L1GasPriceProvider> ZksNamespace<G> {
-    pub fn new(state: RpcState<G>, api_mode: APIMode) -> Self {
+    pub fn new(state: RpcState<G>, api_mode: ApiMode) -> Self {
         Self { state, api_mode }
     }
 

@@ -35,7 +35,6 @@ use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
-use zksync_types::api::APIMode;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 mod config;
@@ -280,24 +279,9 @@ async fn init_tasks(
             .with_tx_sender(tx_sender.clone(), vm_barrier.clone())
             .with_sync_state(sync_state.clone())
             .enable_api_namespaces(config.optional.api_namespaces())
-            .build(stop_receiver.clone(), APIMode::Modern)
+            .build(stop_receiver.clone())
             .await
             .context("Failed initializing HTTP JSON-RPC server")?;
-
-    let legacy_http_server_handles =
-        ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
-            .http(config.required.http_port)
-            .with_filter_limit(config.optional.filters_limit)
-            .with_batch_request_size_limit(config.optional.max_batch_request_size)
-            .with_response_body_size_limit(config.optional.max_response_body_size())
-            .with_threads(config.required.threads_per_server)
-            .with_tx_sender(tx_sender.clone(), vm_barrier.clone())
-            .with_sync_state(sync_state.clone())
-            .enable_api_namespaces(config.optional.api_namespaces())
-            .build(stop_receiver.clone(), APIMode::Legacy)
-            .await
-            .context("Failed initializing legacy HTTP JSON-RPC server")?;
-
     let ws_server_handles =
         ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
             .ws(config.required.ws_port)
@@ -310,30 +294,12 @@ async fn init_tasks(
             .with_tx_sender(tx_sender.clone(), vm_barrier.clone())
             .with_sync_state(sync_state.clone())
             .enable_api_namespaces(config.optional.api_namespaces())
-            .build(stop_receiver.clone(), APIMode::Modern)
+            .build(stop_receiver.clone())
             .await
             .context("Failed initializing WS JSON-RPC server")?;
 
-    let legacy_ws_server_handles =
-        ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
-            .ws(config.required.ws_port)
-            .with_filter_limit(config.optional.filters_limit)
-            .with_subscriptions_limit(config.optional.subscriptions_limit)
-            .with_batch_request_size_limit(config.optional.max_batch_request_size)
-            .with_response_body_size_limit(config.optional.max_response_body_size())
-            .with_polling_interval(config.optional.polling_interval())
-            .with_threads(config.required.threads_per_server)
-            .with_tx_sender(tx_sender, vm_barrier)
-            .with_sync_state(sync_state)
-            .enable_api_namespaces(config.optional.api_namespaces())
-            .build(stop_receiver.clone(), APIMode::Legacy)
-            .await
-            .context("Failed initializing legacy WS JSON-RPC server")?;
-
     healthchecks.push(Box::new(ws_server_handles.health_check));
     healthchecks.push(Box::new(http_server_handles.health_check));
-    healthchecks.push(Box::new(legacy_ws_server_handles.health_check));
-    healthchecks.push(Box::new(legacy_http_server_handles.health_check));
 
     healthchecks.push(Box::new(ConnectionPoolHealthCheck::new(connection_pool)));
     let healthcheck_handle = HealthCheckHandle::spawn_server(
@@ -347,8 +313,6 @@ async fn init_tasks(
     }
     task_handles.extend(http_server_handles.tasks);
     task_handles.extend(ws_server_handles.tasks);
-    task_handles.extend(legacy_ws_server_handles.tasks);
-    task_handles.extend(legacy_http_server_handles.tasks);
     task_handles.extend(cache_update_handle);
     task_handles.extend([
         sk_handle,

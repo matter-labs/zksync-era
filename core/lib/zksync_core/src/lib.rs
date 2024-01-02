@@ -35,7 +35,6 @@ use zksync_prover_utils::periodic_job::PeriodicJob;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
-    api::APIMode,
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
     L2ChainId, PackedEthSignature, ProtocolVersionId,
@@ -411,7 +410,6 @@ pub async fn initialize_components(
                 bounded_gas_adjuster.clone(),
                 state_keeper_config.save_call_traces,
                 storage_caches.clone().unwrap(),
-                APIMode::Modern,
             )
             .await
             .context("run_http_api")?;
@@ -422,43 +420,6 @@ pub async fn initialize_components(
             APP_METRICS.init_latency[&InitStage::HttpApi].set(elapsed);
             tracing::info!(
                 "Initialized HTTP API on {:?} in {elapsed:?}",
-                server_handles.local_addr
-            );
-
-            storage_caches = Some(
-                build_storage_caches(configs, &replica_connection_pool, &mut task_futures)
-                    .context("build_storage_caches()")?,
-            );
-
-            let started_at = Instant::now();
-            tracing::info!("Initializing HTTP API");
-            let bounded_gas_adjuster = gas_adjuster
-                .get_or_init()
-                .await
-                .context("gas_adjuster.get_or_init()")?;
-            let server_handles = run_http_api(
-                &postgres_config,
-                &tx_sender_config,
-                &state_keeper_config,
-                &internal_api_config,
-                &api_config,
-                connection_pool.clone(),
-                replica_connection_pool.clone(),
-                stop_receiver.clone(),
-                bounded_gas_adjuster.clone(),
-                state_keeper_config.save_call_traces,
-                storage_caches.clone().unwrap(),
-                APIMode::Legacy,
-            )
-            .await
-            .context("run_legacy_http_api")?;
-
-            task_futures.extend(server_handles.tasks);
-            healthchecks.push(Box::new(server_handles.health_check));
-            let elapsed = started_at.elapsed();
-            APP_METRICS.init_latency[&InitStage::HttpApi].set(elapsed);
-            tracing::info!(
-                "Initialized Legacy HTTP API on {:?} in {elapsed:?}",
                 server_handles.local_addr
             );
         }
@@ -487,7 +448,6 @@ pub async fn initialize_components(
                 replica_connection_pool.clone(),
                 stop_receiver.clone(),
                 storage_caches.clone(),
-                APIMode::Modern,
             )
             .await
             .context("run_ws_api")?;
@@ -518,7 +478,6 @@ pub async fn initialize_components(
                 replica_connection_pool.clone(),
                 stop_receiver.clone(),
                 storage_caches.clone(),
-                APIMode::Legacy,
             )
             .await
             .context("run_ws_api")?;
@@ -1159,7 +1118,6 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     gas_adjuster: Arc<G>,
     with_debug_namespace: bool,
     storage_caches: PostgresStorageCaches,
-    api_mode: APIMode,
 ) -> anyhow::Result<ApiServerHandles> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
@@ -1183,14 +1141,9 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
         .await
         .context("failed to build last_miniblock_pool")?;
 
-    let port = match api_mode {
-        APIMode::Modern => api_config.web3_json_rpc.http_port,
-        APIMode::Legacy => api_config.web3_json_rpc.legacy_http_port,
-    };
-
     let api_builder =
         web3::ApiBuilder::jsonrpsee_backend(internal_api.clone(), replica_connection_pool)
-            .http(port)
+            .http(api_config.web3_json_rpc.http_port)
             .with_last_miniblock_pool(last_miniblock_pool)
             .with_filter_limit(api_config.web3_json_rpc.filters_limit())
             .with_threads(api_config.web3_json_rpc.http_server_threads())
@@ -1199,7 +1152,7 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
             .with_response_body_size_limit(api_config.web3_json_rpc.max_response_body_size())
             .with_tx_sender(tx_sender, vm_barrier)
             .enable_api_namespaces(namespaces);
-    api_builder.build(stop_receiver, api_mode).await
+    api_builder.build(stop_receiver).await
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1214,7 +1167,6 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     replica_connection_pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
     storage_caches: PostgresStorageCaches,
-    api_mode: APIMode,
 ) -> anyhow::Result<ApiServerHandles> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
@@ -1234,14 +1186,9 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     let mut namespaces = Namespace::DEFAULT.to_vec();
     namespaces.push(Namespace::Snapshots);
 
-    let port = match api_mode {
-        APIMode::Modern => api_config.web3_json_rpc.ws_port,
-        APIMode::Legacy => api_config.web3_json_rpc.legacy_ws_port,
-    };
-
     let api_builder =
         web3::ApiBuilder::jsonrpsee_backend(internal_api.clone(), replica_connection_pool)
-            .ws(port)
+            .ws(api_config.web3_json_rpc.ws_port)
             .with_last_miniblock_pool(last_miniblock_pool)
             .with_filter_limit(api_config.web3_json_rpc.filters_limit())
             .with_subscriptions_limit(api_config.web3_json_rpc.subscriptions_limit())
@@ -1258,7 +1205,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
             .with_tx_sender(tx_sender, vm_barrier)
             .enable_api_namespaces(namespaces);
 
-    api_builder.build(stop_receiver.clone(), api_mode).await
+    api_builder.build(stop_receiver.clone()).await
 }
 
 async fn circuit_breakers_for_components(

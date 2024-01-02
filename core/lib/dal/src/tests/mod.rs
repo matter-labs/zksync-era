@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
-    api::APIMode,
+    api::ApiMode,
     block::{L1BatchHeader, MiniblockHasher, MiniblockHeader},
     fee::{Fee, TransactionExecutionMetrics},
     helpers::unix_timestamp_ms,
@@ -252,7 +252,7 @@ async fn remove_stuck_txs() {
     let storage = transactions_dal.storage;
     let mut transactions_web3_dal = TransactionsWeb3Dal { storage };
     transactions_web3_dal
-        .get_transaction_receipt(executed_tx.hash(), APIMode::Modern)
+        .get_transaction_receipt(executed_tx.hash(), ApiMode::Modern)
         .await
         .unwrap()
         .unwrap();

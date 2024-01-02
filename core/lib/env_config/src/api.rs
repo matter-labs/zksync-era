@@ -49,6 +49,7 @@ impl FromEnv for MerkleTreeApiConfig {
 #[cfg(test)]
 mod tests {
     use std::num::NonZeroU32;
+    use zksync_types::api::ApiMode;
 
     use super::*;
     use crate::test_utils::{hash, EnvMutex};
@@ -59,10 +60,8 @@ mod tests {
         ApiConfig {
             web3_json_rpc: Web3JsonRpcConfig {
                 http_port: 3050,
-                legacy_http_port: 3052,
                 http_url: "http://127.0.0.1:3050".into(),
                 ws_port: 3051,
-                legacy_ws_port: 3053,
                 ws_url: "ws://127.0.0.1:3051".into(),
                 req_entities_limit: Some(10000),
                 filters_limit: Some(10000),
@@ -92,6 +91,7 @@ mod tests {
                 max_response_body_size_mb: Some(10),
                 websocket_requests_per_minute_limit: Some(NonZeroU32::new(10).unwrap()),
                 tree_api_url: None,
+                api_mode: ApiMode::Modern,
             },
             contract_verification: ContractVerificationApiConfig {
                 port: 3070,
@@ -140,6 +140,7 @@ mod tests {
             API_WEB3_JSON_RPC_FEE_HISTORY_LIMIT=100
             API_WEB3_JSON_RPC_MAX_BATCH_REQUEST_SIZE=200
             API_WEB3_JSON_RPC_WEBSOCKET_REQUESTS_PER_MINUTE_LIMIT=10
+            API_WEB3_JSON_RPC_API_MODE="Modern"
             API_CONTRACT_VERIFICATION_PORT="3070"
             API_CONTRACT_VERIFICATION_URL="http://127.0.0.1:3070"
             API_CONTRACT_VERIFICATION_THREADS_PER_SERVER=128

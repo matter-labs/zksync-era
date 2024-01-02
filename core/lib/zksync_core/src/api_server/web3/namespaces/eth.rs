@@ -1,6 +1,6 @@
 use zksync_types::{
     api::{
-        APIMode, BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId,
+        ApiMode, BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId,
         TransactionReceipt, TransactionVariant,
     },
     l2::{L2Tx, TransactionType},
@@ -37,7 +37,7 @@ pub const PROTOCOL_VERSION: &str = "zks/1";
 #[derive(Debug)]
 pub struct EthNamespace<G> {
     state: RpcState<G>,
-    api_mode: APIMode,
+    api_mode: ApiMode,
 }
 
 impl<G> Clone for EthNamespace<G> {
@@ -50,7 +50,7 @@ impl<G> Clone for EthNamespace<G> {
 }
 
 impl<G: L1GasPriceProvider> EthNamespace<G> {
-    pub fn new(state: RpcState<G>, api_mode: APIMode) -> Self {
+    pub fn new(state: RpcState<G>, api_mode: ApiMode) -> Self {
         Self { state, api_mode }
     }
 

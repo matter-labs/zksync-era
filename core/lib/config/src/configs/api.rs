@@ -1,9 +1,9 @@
 use std::{net::SocketAddr, num::NonZeroU32, time::Duration};
 
+pub use crate::configs::PrometheusConfig;
 use serde::Deserialize;
 use zksync_basic_types::H256;
-
-pub use crate::configs::PrometheusConfig;
+use zksync_types::api::ApiMode;
 
 /// API configuration.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -24,14 +24,10 @@ pub struct ApiConfig {
 pub struct Web3JsonRpcConfig {
     /// Port to which the HTTP RPC server is listening.
     pub http_port: u16,
-    /// Legacy port to which the HTTP RPC server is listening.
-    pub legacy_http_port: u16,
     /// URL to access HTTP RPC server.
     pub http_url: String,
     /// Port to which the WebSocket RPC server is listening.
     pub ws_port: u16,
-    /// Legacy port to which the WebSocket RPC server is listening.
-    pub legacy_ws_port: u16,
     /// URL to access WebSocket RPC server.
     pub ws_url: String,
     /// Max possible limit of entities to be requested once.
@@ -93,6 +89,8 @@ pub struct Web3JsonRpcConfig {
     pub websocket_requests_per_minute_limit: Option<NonZeroU32>,
     /// Tree API url, currently used to proxy `getProof` calls to the tree
     pub tree_api_url: Option<String>,
+    /// API mode, currently used to enable/disable filtering ETH Transfer events
+    pub api_mode: ApiMode,
 }
 
 impl Web3JsonRpcConfig {
@@ -102,10 +100,8 @@ impl Web3JsonRpcConfig {
     pub fn for_tests() -> Self {
         Self {
             http_port: 3050,
-            legacy_http_port: 3052,
             http_url: "http://localhost:3050".into(),
             ws_port: 3051,
-            legacy_ws_port: 3053,
             ws_url: "ws://localhost:3051".into(),
             req_entities_limit: Some(10000),
             filters_limit: Some(10000),
@@ -132,6 +128,7 @@ impl Web3JsonRpcConfig {
             max_response_body_size_mb: Default::default(),
             websocket_requests_per_minute_limit: Default::default(),
             tree_api_url: None,
+            api_mode: Default::default(),
         }
     }
 
@@ -218,6 +215,10 @@ impl Web3JsonRpcConfig {
 
     pub fn tree_api_url(&self) -> Option<String> {
         self.tree_api_url.clone()
+    }
+
+    pub fn api_mode(&self) -> ApiMode {
+        self.api_mode
     }
 }
 
