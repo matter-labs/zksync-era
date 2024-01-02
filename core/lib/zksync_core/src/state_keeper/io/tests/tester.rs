@@ -65,7 +65,7 @@ impl Tester {
         &self,
         pool: ConnectionPool,
         miniblock_sealer_capacity: usize,
-    ) -> (MempoolIO<GasAdjuster<MockEthereum>>, MempoolGuard) {
+    ) -> (MempoolIO, MempoolGuard) {
         let gas_adjuster = Arc::new(self.create_gas_adjuster().await);
         let mempool = MempoolGuard::new(PriorityOpId(0), 100);
         let (miniblock_sealer, miniblock_sealer_handle) =

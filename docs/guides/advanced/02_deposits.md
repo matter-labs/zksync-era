@@ -158,7 +158,7 @@ The call to requestL2Transaction, is adding the transaction to the priorityQueue
 
 The zk server (that you started with `zk server` command) is listening on events that are emitted from this contract
 (via eth_watcher module -
-[`loop_iteration` function](https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/eth_watch/mod.rs#L163)
+[`loop_iteration` function](https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/eth_watch/mod.rs#L161)
 ) and adds them to the postgres database (into `transactions` table).
 
 You can actually check it - by running the psql and looking at the contents of the table - then you'll notice that

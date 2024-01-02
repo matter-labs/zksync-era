@@ -489,7 +489,7 @@ async function startServer() {
     const results: any = await enquirer.prompt(questions);
 
     let components: string[] = [];
-    const defaultChoices = ['http_api', 'eth', 'state_keeper', 'housekeeper', 'tree_lightweight'];
+    const defaultChoices = ['http_api', 'eth', 'state_keeper', 'housekeeper', 'tree'];
 
     if (results.start === NO) {
         return;
@@ -499,7 +499,7 @@ async function startServer() {
                 message: 'Please select the desired components',
                 name: 'components',
                 type: 'multiselect',
-                choices: ['api', 'ws_api', ...defaultChoices, 'tree'].sort()
+                choices: ['api', 'ws_api', ...defaultChoices].sort()
             }
         ];
 

@@ -25,6 +25,7 @@ use super::{metrics::ApiTransportLabel, *};
 use crate::{
     api_server::tx_sender::TxSenderConfig,
     genesis::{ensure_genesis_state, GenesisParams},
+    l1_gas_price::L1GasPriceProvider,
     utils::testonly::{create_l2_transaction, create_miniblock},
 };
 
@@ -34,6 +35,7 @@ const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 /// Mock [`L1GasPriceProvider`] that returns a constant value.
+#[derive(Debug)]
 struct MockL1GasPriceProvider(u64);
 
 impl L1GasPriceProvider for MockL1GasPriceProvider {
@@ -140,19 +142,17 @@ async fn spawn_server(
         ApiTransportLabel::Ws => {
             let mut builder = ApiBuilder::jsonrpsee_backend(api_config, pool)
                 .ws(0)
-                .with_polling_interval(POLL_INTERVAL)
                 .with_subscriptions_limit(100);
-
             if let Some(websocket_requests_per_minute_limit) = websocket_requests_per_minute_limit {
                 builder = builder
                     .with_websocket_requests_per_minute_limit(websocket_requests_per_minute_limit);
             }
-
             builder
         }
     };
     let server_handles = server_builder
         .with_threads(1)
+        .with_polling_interval(POLL_INTERVAL)
         .with_tx_sender(tx_sender, vm_barrier)
         .with_pub_sub_events(pub_sub_events_sender)
         .enable_api_namespaces(Namespace::DEFAULT.to_vec())

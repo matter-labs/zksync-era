@@ -114,7 +114,6 @@ pub struct MetadataCalculator {
 impl MetadataCalculator {
     /// Creates a calculator with the specified `config`.
     pub async fn new(config: &MetadataCalculatorConfig<'_>) -> Self {
-        // TODO (SMA-1726): restore the tree from backup if appropriate
         assert!(
             config.max_l1_batches_per_iter > 0,
             "Maximum L1 batches per iteration is misconfigured to be 0; please update it to positive value"
@@ -271,6 +270,4 @@ impl MetadataCalculator {
         tracing::trace!("L1 batch metadata: {metadata:?}");
         metadata
     }
-
-    // TODO (SMA-1726): Integrate tree backup mode
 }

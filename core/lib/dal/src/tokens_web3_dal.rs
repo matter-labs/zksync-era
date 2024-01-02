@@ -1,4 +1,7 @@
-use zksync_types::{tokens::TokenPrice, Address};
+use zksync_types::{
+    tokens::{TokenInfo, TokenMetadata, TokenPrice},
+    Address,
+};
 
 use crate::{models::storage_token::StorageTokenPrice, SqlxError, StorageProcessor};
 
@@ -8,6 +11,42 @@ pub struct TokensWeb3Dal<'a, 'c> {
 }
 
 impl TokensWeb3Dal<'_, '_> {
+    pub async fn get_well_known_tokens(&mut self) -> Result<Vec<TokenInfo>, SqlxError> {
+        {
+            let records = sqlx::query!(
+                r#"
+                SELECT
+                    l1_address,
+                    l2_address,
+                    NAME,
+                    symbol,
+                    decimals
+                FROM
+                    tokens
+                WHERE
+                    well_known = TRUE
+                ORDER BY
+                    symbol
+                "#
+            )
+            .fetch_all(self.storage.conn())
+            .await?;
+            let result: Vec<TokenInfo> = records
+                .into_iter()
+                .map(|record| TokenInfo {
+                    l1_address: Address::from_slice(&record.l1_address),
+                    l2_address: Address::from_slice(&record.l2_address),
+                    metadata: TokenMetadata {
+                        name: record.name,
+                        symbol: record.symbol,
+                        decimals: record.decimals as u8,
+                    },
+                })
+                .collect();
+            Ok(result)
+        }
+    }
+
     pub async fn get_token_price(
         &mut self,
         l2_address: &Address,

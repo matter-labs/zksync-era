@@ -285,6 +285,7 @@ impl ConsistencyChecker {
                     batch_number += 1;
                 }
                 Ok(false) => {
+                    // FIXME: don't bail based on config?
                     anyhow::bail!("L1 Batch #{batch_number} is inconsistent with L1");
                 }
                 Err(CheckError::Web3(err)) => {
