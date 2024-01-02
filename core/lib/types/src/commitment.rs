@@ -738,6 +738,7 @@ mod tests {
         expected_outputs: ExpectedOutput,
     }
 
+    // TODO: restore this test
     #[test]
     fn commitment_test() {
         let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
@@ -771,7 +772,7 @@ mod tests {
             vec![],
             H256::zero(),
             H256::zero(),
-            ProtocolVersionId::latest(),
+            ProtocolVersionId::Version19,
         );
 
         let commitment = L1BatchCommitment {

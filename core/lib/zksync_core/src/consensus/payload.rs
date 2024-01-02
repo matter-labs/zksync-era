@@ -14,6 +14,7 @@ pub(crate) struct Payload {
     pub timestamp: u64,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
+    pub fair_pubdata_price: Option<u64>,
     pub virtual_blocks: u32,
     pub operator_address: Address,
     pub transactions: Vec<Transaction>,
@@ -46,6 +47,7 @@ impl ProtoFmt for Payload {
             l1_gas_price: *required(&message.l1_gas_price).context("l1_gas_price")?,
             l2_fair_gas_price: *required(&message.l2_fair_gas_price)
                 .context("l2_fair_gas_price")?,
+            fair_pubdata_price: message.fair_pubdata_price,
             virtual_blocks: *required(&message.virtual_blocks).context("virtual_blocks")?,
             operator_address: required(&message.operator_address)
                 .and_then(|bytes| Ok(<[u8; 20]>::try_from(bytes.as_slice())?.into()))
@@ -61,6 +63,7 @@ impl ProtoFmt for Payload {
             timestamp: Some(self.timestamp),
             l1_gas_price: Some(self.l1_gas_price),
             l2_fair_gas_price: Some(self.l2_fair_gas_price),
+            fair_pubdata_price: self.fair_pubdata_price,
             virtual_blocks: Some(self.virtual_blocks),
             operator_address: Some(self.operator_address.as_bytes().into()),
             // Transactions are stored in execution order, therefore order is deterministic.
@@ -87,6 +90,7 @@ impl TryFrom<SyncBlock> for Payload {
             timestamp: block.timestamp,
             l1_gas_price: block.l1_gas_price,
             l2_fair_gas_price: block.l2_fair_gas_price,
+            fair_pubdata_price: block.fair_pubdata_price,
             virtual_blocks: block.virtual_blocks.unwrap_or(0),
             operator_address: block.operator_address,
             transactions: block.transactions.context("Transactions are required")?,
