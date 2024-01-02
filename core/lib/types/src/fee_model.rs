@@ -16,6 +16,15 @@ pub enum BatchFeeInput {
     PubdataIndependent(PubdataIndependentBatchFeeModelInput),
 }
 
+impl BatchFeeInput {
+    pub fn zero() -> Self {
+        Self::L1Pegged(L1PeggedBatchFeeModelInput {
+            l1_gas_price: 0,
+            fair_l2_gas_price: 0,
+        })
+    }
+}
+
 impl Default for BatchFeeInput {
     fn default() -> Self {
         // We have a sensible default value of 1 gwei for L1 gas price and 0.1 gwei for fair L2 gas price.

@@ -22,7 +22,7 @@ use zksync_types::{
     block::{BlockGasCount, MiniblockExecutionData, MiniblockHasher},
     commitment::{L1BatchMetaParameters, L1BatchMetadata},
     fee::Fee,
-    fee_model::BatchFeeInput,
+    fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     l2::L2Tx,
     transaction_request::PaymasterParams,
     tx::tx_execution_info::ExecutionMetrics,
@@ -82,7 +82,11 @@ pub(super) fn default_l1_batch_env(
             prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(number - 1)),
             max_virtual_blocks_to_create: 1,
         },
-        fee_input: BatchFeeInput::default(),
+        fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+            fair_l2_gas_price: 1,
+            fair_pubdata_price: 1,
+            l1_gas_price: 1,
+        }),
     }
 }
 
