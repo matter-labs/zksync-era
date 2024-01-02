@@ -1,13 +1,7 @@
 //! Helper module to submit transactions into the zkSync Network.
 
-use std::{cmp, num::NonZeroU32, sync::Arc, time::Instant};
+use std::{cmp, sync::Arc, time::Instant};
 
-use governor::{
-    clock::MonotonicClock,
-    middleware::NoOpMiddleware,
-    state::{InMemoryState, NotKeyed},
-    Quota, RateLimiter,
-};
 use multivm::{
     interface::VmExecutionResultAndLogs,
     vm_latest::{
@@ -50,10 +44,6 @@ use crate::{
 
 mod proxy;
 mod result;
-
-/// Type alias for the rate limiter implementation.
-type TxSenderRateLimiter =
-    RateLimiter<NotKeyed, InMemoryState, MonotonicClock, NoOpMiddleware<Instant>>;
 
 #[derive(Debug, Clone)]
 pub struct MultiVMBaseSystemContracts {
@@ -140,8 +130,6 @@ pub struct TxSenderBuilder {
     replica_connection_pool: ConnectionPool,
     /// Connection pool for write requests. If not set, `proxy` must be set.
     master_connection_pool: Option<ConnectionPool>,
-    /// Rate limiter for tx submissions.
-    rate_limiter: Option<TxSenderRateLimiter>,
     /// Proxy to submit transactions to the network. If not set, `master_connection_pool` must be set.
     proxy: Option<TxProxy>,
     /// Actual state keeper configuration, required for tx verification.
@@ -155,20 +143,8 @@ impl TxSenderBuilder {
             config,
             replica_connection_pool,
             master_connection_pool: None,
-            rate_limiter: None,
             proxy: None,
             state_keeper_config: None,
-        }
-    }
-
-    pub fn with_rate_limiter(self, transactions_per_sec: u32) -> Self {
-        let rate_limiter = RateLimiter::direct_with_clock(
-            Quota::per_second(NonZeroU32::new(transactions_per_sec).unwrap()),
-            &MonotonicClock,
-        );
-        Self {
-            rate_limiter: Some(rate_limiter),
-            ..self
         }
     }
 
@@ -205,7 +181,6 @@ impl TxSenderBuilder {
             replica_connection_pool: self.replica_connection_pool,
             l1_gas_price_source,
             api_contracts,
-            rate_limiter: self.rate_limiter,
             proxy: self.proxy,
             state_keeper_config: self.state_keeper_config,
             vm_concurrency_limiter,
@@ -257,8 +232,6 @@ pub struct TxSenderInner {
     // Used to keep track of gas prices for the fee ticker.
     pub l1_gas_price_source: Arc<dyn L1GasPriceProvider>,
     pub(super) api_contracts: ApiContracts,
-    /// Optional rate limiter that will limit the amount of transactions per second sent from a single entity.
-    rate_limiter: Option<TxSenderRateLimiter>,
     /// Optional transaction proxy to be used for transaction submission.
     pub(super) proxy: Option<TxProxy>,
     /// An up-to-date version of the state keeper config.
@@ -291,12 +264,6 @@ impl TxSender {
 
     #[tracing::instrument(skip(self, tx))]
     pub async fn submit_tx(&self, tx: L2Tx) -> Result<L2TxSubmissionResult, SubmitTxError> {
-        if let Some(rate_limiter) = &self.0.rate_limiter {
-            if rate_limiter.check().is_err() {
-                return Err(SubmitTxError::RateLimitExceeded);
-            }
-        }
-
         let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::Validate].start();
         self.validate_tx(&tx).await?;
         stage_latency.observe();

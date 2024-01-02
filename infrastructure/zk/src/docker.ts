@@ -111,7 +111,7 @@ async function _build(
     }
     if (image === 'prover-gpu-fri') {
         const cudaArch = process.env.CUDA_ARCH;
-        buildArgs += `--build-arg CUDA_ARCH='${cudaArch}'`;
+        buildArgs += `--build-arg CUDA_ARCH='${cudaArch}' `;
     }
     buildArgs += extraArgs;
 
