@@ -167,7 +167,7 @@ async function compareVerificationParams() {
     }
 
     if (fail == false) {
-        console.log(`${greenStart}Verifcation params match.${resetColor}`);
+        console.log(`${greenStart}Verification params match.${resetColor}`);
     }
 }
 

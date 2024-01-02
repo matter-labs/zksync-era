@@ -157,6 +157,8 @@ namespaces
 StateDiffRecord
 BYTES_PER_ENUMERATION_INDEX
 derived_key
+prefill
+reorg
 
 // zkSync-related words
 matterlabs
