@@ -52,10 +52,10 @@ describe('Tests for the custom bridge behavior', () => {
         const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
         const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `cd $ZKSYNC_HOME && yarn l1-contracts`;
         let args = `--private-key ${alice.privateKey} --erc20-bridge ${l1BridgeProxy.address}`;
-        let command = `${baseCommandL1} initialize-bridges ${args}`;
+        let command = `${baseCommandL1} initialize-erc20-bridge ${args}`;
         await spawn(command);
         await sleep(2);
-        let command2 = `${baseCommandL1} initialize-erc20-bridge-chain ${args}`;
+        let command2 = `${baseCommandL1} erc20-deploy-on-chain ${args}`;
         await spawn(command2);
         await sleep(2);
 

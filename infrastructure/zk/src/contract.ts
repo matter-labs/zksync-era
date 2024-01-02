@@ -79,6 +79,7 @@ export async function initializeL1AllowList(args: any[] = []) {
     await utils.spawn(`${baseCommandL1} initialize-allow-list ${args.join(' ')} | tee initializeL1AllowList.log`);
 }
 
+/// kl todo: delete, not needed anymore
 export async function initializeWethToken(args: any[] = []) {
     await utils.confirmAction();
 
@@ -96,14 +97,9 @@ export async function initializeBridges(args: any[] = []) {
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
     const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
 
-    await utils.spawn(`${baseCommandL1} initialize-bridges ${args.join(' ')} | tee deployL1.log`);
-    const l2DeploymentEnvVars: string[] = [
-        'CONTRACTS_L2_WETH_BRIDGE_ADDR',
-        'CONTRACTS_L2_WETH_TOKEN_IMPL_ADDR',
-        'CONTRACTS_L2_WETH_TOKEN_PROXY_ADDR'
-    ];
-    const l1DeployLog = fs.readFileSync('deployL1.log').toString();
-    updateContractsEnv(`etc/env/l1-inits/${process.env.ZKSYNC_ENV!}.init.env`, l1DeployLog, l2DeploymentEnvVars);
+    await utils.spawn(`${baseCommandL1} initialize-erc20-bridge ${args.join(' ')} | tee deployL1.log`);
+    await utils.spawn(`${baseCommandL1} initialize-weth-bridge ${args.join(' ')} | tee -a deployL1.log`);
+
 }
 
 export async function deployL2(args: any[] = [], includePaymaster?: boolean, includeWETH?: boolean) {
@@ -124,14 +120,14 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean, inc
     // Skip compilation for local setup, since we already copied artifacts into the container.
     await utils.spawn(`${baseCommandL2} build`);
 
-    await utils.spawn(`${baseCommandL1} initialize-erc20-bridge-chain ${args.join(' ')} | tee deployL2.log`);
+    await utils.spawn(`${baseCommandL1} erc20-deploy-on-chain ${args.join(' ')} | tee deployL2.log`);
 
     if (includePaymaster) {
         await utils.spawn(`${baseCommandL2} deploy-testnet-paymaster ${args.join(' ')} | tee -a deployL2.log`);
     }
 
     if (includeWETH) {
-        await utils.spawn(`${baseCommandL1} initialize-weth-bridge-chain ${args.join(' ')} | tee -a deployL2.log`);
+        await utils.spawn(`${baseCommandL1} weth-deploy-on-chain ${args.join(' ')} | tee -a deployL2.log`);
     }
 
     await utils.spawn(`${baseCommandL2} deploy-force-deploy-upgrader ${args.join(' ')} | tee -a deployL2.log`);
@@ -209,7 +205,7 @@ export async function wethBridgeFinish(args: any[] = [], includePaymaster?: bool
     // so we have to `--cwd` into the required directory.
     const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
 
-    await utils.spawn(`${baseCommandL1} initialize-weth-bridge-chain-finish ${args.join(' ')} | tee -a deployL2.log`);
+    await utils.spawn(`${baseCommandL1} weth-finish-deployment-on-chain ${args.join(' ')} | tee -a deployL2.log`);
 }
 
 export async function erc20BridgeFinish(args: any[] = [], includePaymaster?: boolean) {
@@ -226,7 +222,7 @@ export async function erc20BridgeFinish(args: any[] = [], includePaymaster?: boo
     // so we have to `--cwd` into the required directory.
     const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
 
-    await utils.spawn(`${baseCommandL1} initialize-erc20-bridge-chain-finish ${args.join(' ')} | tee -a deployL2.log`);
+    await utils.spawn(`${baseCommandL1} erc20-finish-deployment-on-chain ${args.join(' ')} | tee -a deployL2.log`);
 }
 
 export async function redeployL1(args: any[]) {

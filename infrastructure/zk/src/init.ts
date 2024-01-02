@@ -95,9 +95,6 @@ export async function initHyperchain(initArgs: InitArgs = DEFAULT_ARGS) {
             deployerL2ContractInput.includeL2WETH
         )
     );
-    if (deployerL2ContractInput.includeL2WETH) {
-        await announced('Initializing L2 WETH token', contract.initializeWethToken(governorPrivateKeyArgs));
-    }
     await announced(
         'Initializing governance of chain',
         contract.initializeGovernanceChain([
