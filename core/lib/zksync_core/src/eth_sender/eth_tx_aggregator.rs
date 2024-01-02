@@ -39,8 +39,9 @@ pub struct MulticallData {
 /// Such as CommitBlocks, PublishProofBlocksOnchain and ExecuteBlock
 /// These eth_txs will be used as a queue for generating signed txs and send them later
 #[derive(Debug)]
-pub struct EthTxAggregator {
+pub struct EthTxAggregator<E> {
     aggregator: Aggregator,
+    eth_client: E,
     config: SenderConfig,
     timelock_contract_address: Address,
     l1_multicall3_address: Address,
@@ -49,10 +50,11 @@ pub struct EthTxAggregator {
     base_nonce: u64,
 }
 
-impl EthTxAggregator {
+impl<E: BoundEthInterface> EthTxAggregator<E> {
     pub fn new(
         config: SenderConfig,
         aggregator: Aggregator,
+        eth_client: E,
         timelock_contract_address: Address,
         l1_multicall3_address: Address,
         main_zksync_contract_address: Address,
@@ -62,6 +64,7 @@ impl EthTxAggregator {
         Self {
             config,
             aggregator,
+            eth_client,
             timelock_contract_address,
             l1_multicall3_address,
             main_zksync_contract_address,
@@ -70,10 +73,9 @@ impl EthTxAggregator {
         }
     }
 
-    pub async fn run<E: BoundEthInterface>(
+    pub async fn run(
         mut self,
         pool: ConnectionPool,
-        eth_client: E,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         loop {
@@ -84,7 +86,7 @@ impl EthTxAggregator {
                 break;
             }
 
-            if let Err(err) = self.loop_iteration(&mut storage, &eth_client).await {
+            if let Err(err) = self.loop_iteration(&mut storage).await {
                 // Web3 API request failures can cause this,
                 // and anything more important is already properly reported.
                 tracing::warn!("eth_sender error {err:?}");
@@ -95,12 +97,10 @@ impl EthTxAggregator {
         Ok(())
     }
 
-    pub(super) async fn get_multicall_data<E: BoundEthInterface>(
-        &mut self,
-        eth_client: &E,
-    ) -> Result<MulticallData, ETHSenderError> {
+    pub(super) async fn get_multicall_data(&mut self) -> Result<MulticallData, ETHSenderError> {
         let calldata = self.generate_calldata_for_multicall();
-        let aggregate3_result = eth_client
+        let aggregate3_result = self
+            .eth_client
             .call_contract_function(
                 &self.functions.aggregate3.name,
                 calldata,
@@ -293,9 +293,9 @@ impl EthTxAggregator {
     }
 
     /// Loads current verifier config on L1
-    async fn get_recursion_scheduler_level_vk_hash<E: BoundEthInterface>(
+    async fn get_recursion_scheduler_level_vk_hash(
         &mut self,
-        eth_client: &E,
+
         verifier_address: Address,
         contracts_are_pre_boojum: bool,
     ) -> Result<H256, ETHSenderError> {
@@ -313,7 +313,8 @@ impl EthTxAggregator {
                 .collect(),
                 ..Default::default()
             };
-            let vk = eth_client
+            let vk = self
+                .eth_client
                 .call_contract_function(
                     &self.functions.get_verification_key.name,
                     (),
@@ -328,7 +329,8 @@ impl EthTxAggregator {
         } else {
             let get_vk_hash = self.functions.verification_key_hash.as_ref();
             tracing::debug!("Calling verificationKeyHash");
-            let vk_hash = eth_client
+            let vk_hash = self
+                .eth_client
                 .call_contract_function(
                     &get_vk_hash.unwrap().name,
                     (),
@@ -343,29 +345,24 @@ impl EthTxAggregator {
         }
     }
 
-    #[tracing::instrument(skip(self, storage, eth_client))]
-    async fn loop_iteration<E: BoundEthInterface>(
+    #[tracing::instrument(skip(self, storage))]
+    async fn loop_iteration(
         &mut self,
         storage: &mut StorageProcessor<'_>,
-        eth_client: &E,
     ) -> Result<(), ETHSenderError> {
         let MulticallData {
             base_system_contracts_hashes,
             verifier_params,
             verifier_address,
             protocol_version_id,
-        } = self.get_multicall_data(eth_client).await.map_err(|err| {
+        } = self.get_multicall_data().await.map_err(|err| {
             tracing::error!("Failed to get multicall data {err:?}");
             err
         })?;
         let contracts_are_pre_boojum = protocol_version_id.is_pre_boojum();
 
         let recursion_scheduler_level_vk_hash = self
-            .get_recursion_scheduler_level_vk_hash(
-                eth_client,
-                verifier_address,
-                contracts_are_pre_boojum,
-            )
+            .get_recursion_scheduler_level_vk_hash(verifier_address, contracts_are_pre_boojum)
             .await
             .map_err(|err| {
                 tracing::error!("Failed to get VK hash from the Verifier {err:?}");

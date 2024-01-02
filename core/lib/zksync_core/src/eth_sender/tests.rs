@@ -53,7 +53,7 @@ struct EthSenderTester {
     conn: ConnectionPool,
     gateway: Arc<MockEthereum>,
     manager: MockEthTxManager,
-    aggregator: EthTxAggregator,
+    aggregator: EthTxAggregator<Arc<MockEthereum>>,
     gas_adjuster: Arc<GasAdjuster<Arc<MockEthereum>>>,
 }
 
@@ -113,6 +113,7 @@ impl EthSenderTester {
                 aggregator_config.clone(),
                 store_factory.create_store().await,
             ),
+            gateway.clone(),
             // zkSync contract address
             Address::random(),
             contracts_config.l1_multicall3_addr,
@@ -859,7 +860,7 @@ async fn test_parse_multicall_data() {
 async fn get_multicall_data() {
     let connection_pool = ConnectionPool::test_pool().await;
     let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], false).await;
-    let multicall_data = tester.aggregator.get_multicall_data(&tester.gateway).await;
+    let multicall_data = tester.aggregator.get_multicall_data().await;
     assert!(multicall_data.is_ok());
 }
 
