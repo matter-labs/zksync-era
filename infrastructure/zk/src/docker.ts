@@ -101,19 +101,18 @@ async function _build(
 
         for (const tag of tagList) {
             for (const registry of DOCKER_REGISTRIES) {
-                tagsToBuild = tagsToBuild +
-                    `-t ${registry}/${image}:${tag}-${platform.replace(/\//g, '-')} `;
+                tagsToBuild = tagsToBuild + `-t ${registry}/${image}:${tag}-${platform.replace(/\//g, '-')} `;
             }
         }
 
         let buildArgs = '';
         if (image === 'prover-v2') {
             const eraBellmanCudaRelease = process.env.ERA_BELLMAN_CUDA_RELEASE;
-            buildArgs += `--build-arg ERA_BELLMAN_CUDA_RELEASE=${eraBellmanCudaRelease}`;
+            buildArgs += `--build-arg ERA_BELLMAN_CUDA_RELEASE=${eraBellmanCudaRelease} `;
         }
         if (image === 'prover-gpu-fri') {
             const cudaArch = process.env.CUDA_ARCH;
-            buildArgs += `--build-arg CUDA_ARCH='${cudaArch}'`;
+            buildArgs += `--build-arg CUDA_ARCH='${cudaArch}' `;
         }
         buildArgs += extraArgs;
 
