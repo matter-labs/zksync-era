@@ -6956,35 +6956,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_circuit_synthesizer"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "ctrlc",
- "futures 0.3.29",
- "local-ip-address",
- "prometheus_exporter",
- "prover-service",
- "structopt",
- "thiserror",
- "tokio",
- "tracing",
- "vise",
- "vlog",
- "zkevm_test_harness 1.3.3",
- "zksync_config",
- "zksync_dal",
- "zksync_env_config",
- "zksync_object_store",
- "zksync_prover_fri_utils",
- "zksync_prover_utils",
- "zksync_queued_job_processor",
- "zksync_types",
- "zksync_utils",
- "zksync_verification_key_generator_and_server",
-]
-
-[[package]]
 name = "zksync_concurrency"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-consensus.git?rev=84cdd9e45fd84bc1fac0b394c899ae33aef91afa#84cdd9e45fd84bc1fac0b394c899ae33aef91afa"
