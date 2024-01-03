@@ -13,7 +13,7 @@ pub struct ConsensusDal<'a, 'c> {
 }
 
 impl ConsensusDal<'_, '_> {
-    /// Fetch the current BFT replica state.
+    /// Fetches the current BFT replica state.
     pub async fn replica_state(&mut self) -> anyhow::Result<Option<ReplicaState>> {
         let Some(row) = sqlx::query!(
             r#"
@@ -33,7 +33,7 @@ impl ConsensusDal<'_, '_> {
         Ok(Some(zksync_protobuf::serde::deserialize(row.state)?))
     }
 
-    /// Set the current BFT replica state.
+    /// Sets the current BFT replica state.
     pub async fn set_replica_state(&mut self, state: &ReplicaState) -> sqlx::Result<()> {
         let state =
             zksync_protobuf::serde::serialize(state, serde_json::value::Serializer).unwrap();
@@ -55,7 +55,7 @@ impl ConsensusDal<'_, '_> {
         Ok(())
     }
 
-    /// Fetch the first consensus certificate.
+    /// Fetches the first consensus certificate.
     /// Note that we didn't backfill the certificates for the past miniblocks
     /// when enabling consensus certificate generation, so it might NOT be the certificate
     /// for the genesis miniblock.

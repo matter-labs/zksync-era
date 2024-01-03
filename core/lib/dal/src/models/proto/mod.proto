@@ -4,7 +4,7 @@ package zksync.dal;
 
 message Transaction {
   // Default derive(serde::Serialize) encoding of the zksync_types::Transaction.
-  // TODO(gprusak): it is neither efficient, unique, nor suitable for version control.
+  // TODO(BFT-407): it is neither efficient, unique, nor suitable for version control.
   //     replace with a more robust encoding.
   optional string json = 1; // required
 }

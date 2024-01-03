@@ -76,9 +76,10 @@ pub struct ConnectionPool {
 
 impl fmt::Debug for ConnectionPool {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // We don't print the `database_url`, as is may contain
+        // sensistive information (e.g. database password).
         formatter
             .debug_struct("ConnectionPool")
-            .field("database_url", &self.database_url)
             .field("max_size", &self.max_size)
             .finish_non_exhaustive()
     }
