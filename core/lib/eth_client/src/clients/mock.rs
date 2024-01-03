@@ -422,3 +422,62 @@ impl BoundEthInterface for MockEthereum {
         Ok(self.inner.read().unwrap().current_nonce.into())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn managing_block_number() {
+        let client = MockEthereum::default();
+        let block_number = client.block_number("test").await.unwrap();
+        assert_eq!(block_number, 0.into());
+
+        client.advance_block_number(5);
+        let block_number = client.block_number("test").await.unwrap();
+        assert_eq!(block_number, 5.into());
+    }
+
+    #[tokio::test]
+    async fn managing_transactions() {
+        let client = MockEthereum::default().with_non_ordering_confirmation(true);
+        client.advance_block_number(2);
+
+        let signed_tx = client
+            .sign_prepared_tx(
+                b"test".to_vec(),
+                Options {
+                    nonce: Some(1.into()),
+                    ..Options::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(signed_tx.nonce, 1.into());
+        assert!(signed_tx.max_priority_fee_per_gas > 0.into());
+        assert!(signed_tx.max_fee_per_gas > 0.into());
+
+        let tx_hash = client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
+        assert_eq!(tx_hash, signed_tx.hash);
+
+        client.execute_tx(tx_hash, true, 3);
+        let returned_tx = client
+            .get_tx(tx_hash, "test")
+            .await
+            .unwrap()
+            .expect("no transaction");
+        assert_eq!(returned_tx.hash, tx_hash);
+        assert_eq!(returned_tx.input.0, b"test");
+        assert_eq!(returned_tx.nonce, 1.into());
+        assert!(returned_tx.max_priority_fee_per_gas.is_some());
+        assert!(returned_tx.max_fee_per_gas.is_some());
+
+        let tx_status = client
+            .get_tx_status(tx_hash, "test")
+            .await
+            .unwrap()
+            .expect("no transaction status");
+        assert!(tx_status.success);
+        assert_eq!(tx_status.tx_hash, tx_hash);
+        assert_eq!(tx_status.receipt.block_number, Some(2.into()));
+    }
+}

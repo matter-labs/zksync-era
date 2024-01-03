@@ -123,6 +123,9 @@ pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
     ) -> Result<Option<Block<H256>>, Error>;
 }
 
+#[cfg(test)]
+static_assertions::assert_obj_safe!(EthInterface);
+
 /// An extension of `EthInterface` trait, which is used to perform queries that are bound to
 /// a certain contract and account.
 ///
