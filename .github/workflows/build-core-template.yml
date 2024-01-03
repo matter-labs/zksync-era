@@ -28,28 +28,20 @@ jobs:
     env:
       image_tag: ${{ inputs.image_tag }}
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
-    runs-on: ${{ matrix.component.runner }}
+    runs-on: ${{ contains(matrix.platforms, 'arm') ? 'matterlabs-ci-runner-arm' : 'matterlabs-ci-runner' }}
     strategy:
       matrix:
-          component:
-          - name: server-v2
-            platform: linux/amd64
-            runner: matterlabs-ci-runner
-          - name: external-node
-            platform: linux/amd64
-            runner: matterlabs-ci-runner
-          - name: external-node
-            platform: linux/arm64
-            runner: matterlabs-ci-runner-arm
-          - name: contract-verifier
-            platform: linux/amd64
-            runner: matterlabs-ci-runner
-          - name: cross-external-nodes-checker
-            platform: linux/amd64
-            runner: matterlabs-ci-runner
-          - name: snapshots-creator
-            platform: linux/amd64
-            runner: matterlabs-ci-runner
+          components:
+            - server-v2
+            - external-node
+            - contract-verifier
+            - cross-external-nodes-checker
+            - snapshots-creator
+          platforms:
+            - linux/amd64
+          include:
+            - components: external-node
+              platforms: linux/arm64
 
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
@@ -96,8 +88,8 @@ jobs:
       - name: update-images
         env:
           DOCKER_ACTION: ${{ inputs.action }}
-          COMPONENT: ${{ matrix.component.name }}
-          PLATFORM: ${{ matrix.component.platform }}
+          COMPONENT: ${{ matrix.components }}
+          PLATFORM: ${{ matrix.platforms }}
         run: |
           ci_run rustup default nightly-2023-08-21
           ci_run zk docker $DOCKER_ACTION --platform=${PLATFORM} $COMPONENT
