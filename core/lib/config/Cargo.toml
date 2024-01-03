@@ -11,8 +11,8 @@ categories = ["cryptography"]
 
 [dependencies]
 zksync_basic_types = { path = "../../lib/basic_types" }
-zksync_consensus_crypto = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "49b1a98f80d0e9f74fdceadece4283e745c71599" }
-zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "49b1a98f80d0e9f74fdceadece4283e745c71599" }
+zksync_consensus_crypto = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "f2dae9a67b461ce3fe9a2f9eaade4172a051a87f" }
+zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "f2dae9a67b461ce3fe9a2f9eaade4172a051a87f" }
 
 anyhow = "1.0"
 serde = { version = "1.0", features = ["derive"] }
