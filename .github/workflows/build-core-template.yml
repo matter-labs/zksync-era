@@ -33,22 +33,22 @@ jobs:
       matrix:
           component:
           - name: server-v2
-            platform: linux/amd64
+            platforms: linux/amd64
             runner: matterlabs-ci-runner
           - name: external-node
-            platform: linux/amd64
+            platforms: linux/amd64
             runner: matterlabs-ci-runner
           - name: external-node
-            platform: linux/arm64
-            runner: matterlabs-ci-runner-arm
+            platforms: linux/arm64
+            runner: matterlabs-ci-runner
           - name: contract-verifier
-            platform: linux/amd64
+            platforms: linux/amd64
             runner: matterlabs-ci-runner
           - name: cross-external-nodes-checker
-            platform: linux/amd64
+            platforms: linux/amd64
             runner: matterlabs-ci-runner
           - name: snapshots-creator
-            platform: linux/amd64
+            platforms: linux/amd64
             runner: matterlabs-ci-runner
 
     steps:
@@ -97,12 +97,35 @@ jobs:
         env:
           DOCKER_ACTION: ${{ inputs.action }}
           COMPONENT: ${{ matrix.component.name }}
-          PLATFORM: ${{ matrix.component.platform }}
+          PLATFORMS: ${{ matrix.component.platforms }}
         run: |
           ci_run rustup default nightly-2023-08-21
-          ci_run zk docker $DOCKER_ACTION --platforms=${PLATFORM} $COMPONENT
+          ci_run zk docker $DOCKER_ACTION --platforms=${PLATFORMS} $COMPONENT
       - name: Show sccache stats
         if: always()
         run: |
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
+
+  create_manifest:
+    name: Create release docker manifest
+    runs-on: matterlabs-ci-runner
+    strategy:
+      matrix:
+        component:
+          - name: server-v2
+            platforms: linux/amd64
+          - name: external-node
+            platforms: linux/amd64,linux/arm64
+          - name: contract-verifier
+            platforms: linux/amd64
+          - name: cross-external-nodes-checker
+            platforms: linux/amd64
+          - name: snapshots-creator
+            platforms: linux/amd64
+    env:
+      image_tag: ${{ inputs.image_tag }}
+      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
+    steps:
+      - name: Some steps for merge image per component using platforms comma-separated string
+        run: echo "TODO"

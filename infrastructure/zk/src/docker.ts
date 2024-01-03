@@ -96,35 +96,36 @@ async function _build(
     platforms: string[],
     extraArgs: string = ''
 ) {
-    let tagsToBuild = '';
+    for (const platform in platforms) {
+        let tagsToBuild = '';
 
-    let platform = platforms.join(',').replace(/\//g, '-');
-    for (const tag of tagList) {
-        for (const registry of DOCKER_REGISTRIES) {
-            tagsToBuild = tagsToBuild + `-t ${registry}/${image}:${tag}-${platform} `;
+        for (const tag of tagList) {
+            for (const registry of DOCKER_REGISTRIES) {
+                tagsToBuild = tagsToBuild +
+                    `-t ${registry}/${image}:${tag}-${platform.replace(/\//g, '-')} `;
+            }
         }
+
+        let buildArgs = '';
+        if (image === 'prover-v2') {
+            const eraBellmanCudaRelease = process.env.ERA_BELLMAN_CUDA_RELEASE;
+            buildArgs += `--build-arg ERA_BELLMAN_CUDA_RELEASE=${eraBellmanCudaRelease}`;
+        }
+        if (image === 'prover-gpu-fri') {
+            const cudaArch = process.env.CUDA_ARCH;
+            buildArgs += `--build-arg CUDA_ARCH='${cudaArch}'`;
+        }
+        buildArgs += extraArgs;
+
+        const imagePath = image === 'prover-v2' ? 'prover' : image;
+
+        const buildCommand =
+            `DOCKER_BUILDKIT=1 docker buildx build ${tagsToBuild}` +
+            ` --platform=${platform}` +
+            (buildArgs ? ` ${buildArgs}` : '') +
+            ` -f ./docker/${imagePath}/Dockerfile .`;
+        await utils.spawn(buildCommand);
     }
-
-    let buildArgs = '';
-    if (image === 'prover-v2') {
-        const eraBellmanCudaRelease = process.env.ERA_BELLMAN_CUDA_RELEASE;
-        buildArgs += `--build-arg ERA_BELLMAN_CUDA_RELEASE=${eraBellmanCudaRelease}`;
-    }
-    if (image === 'prover-gpu-fri') {
-        const cudaArch = process.env.CUDA_ARCH;
-        buildArgs += `--build-arg CUDA_ARCH='${cudaArch}' `;
-    }
-    buildArgs += extraArgs;
-
-    const imagePath = image === 'prover-v2' ? 'prover' : image;
-
-    const buildCommand =
-        `DOCKER_BUILDKIT=1 docker buildx build ${tagsToBuild}` +
-        ` --platform=${platform}` +
-        (buildArgs ? ` ${buildArgs}` : '') +
-        ` -f ./docker/${imagePath}/Dockerfile .`;
-
-    await utils.spawn(buildCommand);
 }
 
 export async function build(image: string, cmd: Command) {
