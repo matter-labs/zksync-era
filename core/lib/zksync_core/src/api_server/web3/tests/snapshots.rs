@@ -36,11 +36,11 @@ async fn seal_l1_batch(
 }
 
 #[derive(Debug)]
-struct SnapshotBasics {
+struct SnapshotBasicsTest {
     chunk_ids: HashSet<u64>,
 }
 
-impl SnapshotBasics {
+impl SnapshotBasicsTest {
     const CHUNK_COUNT: u64 = 5;
 
     fn new(chunk_ids: impl IntoIterator<Item = u64>) -> Self {
@@ -55,7 +55,7 @@ impl SnapshotBasics {
 }
 
 #[async_trait]
-impl HttpTest for SnapshotBasics {
+impl HttpTest for SnapshotBasicsTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
         let mut storage = pool.access_storage().await.unwrap();
         store_miniblock(&mut storage).await?;
@@ -111,15 +111,15 @@ impl HttpTest for SnapshotBasics {
 
 #[tokio::test]
 async fn snapshot_without_chunks() {
-    test_http_server(SnapshotBasics::new([])).await;
+    test_http_server(SnapshotBasicsTest::new([])).await;
 }
 
 #[tokio::test]
 async fn snapshot_with_some_chunks() {
-    test_http_server(SnapshotBasics::new([0, 2, 4])).await;
+    test_http_server(SnapshotBasicsTest::new([0, 2, 4])).await;
 }
 
 #[tokio::test]
 async fn snapshot_with_all_chunks() {
-    test_http_server(SnapshotBasics::new(0..SnapshotBasics::CHUNK_COUNT)).await;
+    test_http_server(SnapshotBasicsTest::new(0..SnapshotBasicsTest::CHUNK_COUNT)).await;
 }

@@ -300,10 +300,10 @@ async fn store_events(
 }
 
 #[derive(Debug)]
-struct HttpServerBasics;
+struct HttpServerBasicsTest;
 
 #[async_trait]
-impl HttpTest for HttpServerBasics {
+impl HttpTest for HttpServerBasicsTest {
     async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
         let block_number = client.get_block_number().await?;
         assert_eq!(block_number, U64::from(0));
@@ -322,14 +322,14 @@ impl HttpTest for HttpServerBasics {
 
 #[tokio::test]
 async fn http_server_basics() {
-    test_http_server(HttpServerBasics).await;
+    test_http_server(HttpServerBasicsTest).await;
 }
 
 #[derive(Debug)]
-struct BasicFilterChanges;
+struct BasicFilterChangesTest;
 
 #[async_trait]
-impl HttpTest for BasicFilterChanges {
+impl HttpTest for BasicFilterChangesTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
         let block_filter_id = client.new_block_filter().await?;
         let tx_filter_id = client.new_pending_transaction_filter().await?;
@@ -370,14 +370,14 @@ impl HttpTest for BasicFilterChanges {
 
 #[tokio::test]
 async fn basic_filter_changes() {
-    test_http_server(BasicFilterChanges).await;
+    test_http_server(BasicFilterChangesTest).await;
 }
 
 #[derive(Debug)]
-struct LogFilterChanges;
+struct LogFilterChangesTest;
 
 #[async_trait]
-impl HttpTest for LogFilterChanges {
+impl HttpTest for LogFilterChangesTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
         let all_logs_filter_id = client.new_filter(Filter::default()).await?;
         let address_filter = Filter {
@@ -425,14 +425,14 @@ impl HttpTest for LogFilterChanges {
 
 #[tokio::test]
 async fn log_filter_changes() {
-    test_http_server(LogFilterChanges).await;
+    test_http_server(LogFilterChangesTest).await;
 }
 
 #[derive(Debug)]
-struct LogFilterChangesWithBlockBoundaries;
+struct LogFilterChangesWithBlockBoundariesTest;
 
 #[async_trait]
-impl HttpTest for LogFilterChangesWithBlockBoundaries {
+impl HttpTest for LogFilterChangesWithBlockBoundariesTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
         let lower_bound_filter = Filter {
             from_block: Some(api::BlockNumber::Number(2.into())),
@@ -522,5 +522,5 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
 
 #[tokio::test]
 async fn log_filter_changes_with_block_boundaries() {
-    test_http_server(LogFilterChangesWithBlockBoundaries).await;
+    test_http_server(LogFilterChangesWithBlockBoundariesTest).await;
 }
