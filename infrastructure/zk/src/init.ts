@@ -49,8 +49,11 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     }
     await announced('Deploying L1 verifier', contract.deployVerifier([]));
     if (validiumMode) {
-        await announced('Setting up validium mode');
+        await announced('Setting up validium mode to true');
         process.env.ETH_SENDER_SENDER_VALIDIUM_MODE = 'true';
+    } else {
+        await announced('Setting up validium mode to false');
+        process.env.ETH_SENDER_SENDER_VALIDIUM_MODE = 'false';
     }
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
