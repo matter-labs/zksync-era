@@ -306,7 +306,8 @@ async fn run_mock_metadata_calculator(ctx: &ctx::Ctx, pool: ConnectionPool) -> a
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
-            .context("get_sealed_l1_batch_number()")?;
+            .context("get_sealed_l1_batch_number()")?
+            .context("no L1 batches in Postgres")?;
 
         while n <= last {
             let metadata = create_l1_batch_metadata(n.0);
