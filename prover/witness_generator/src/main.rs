@@ -96,13 +96,10 @@ async fn main() -> anyhow::Result<()> {
     .build()
     .await
     .context("failed to build a connection_pool")?;
-    let prover_connection_pool = ConnectionPool::builder(
-        postgres_config.prover_url()?,
-        postgres_config.max_connections()?,
-    )
-    .build()
-    .await
-    .context("failed to build a prover_connection_pool")?;
+    let prover_connection_pool = ConnectionPool::singleton(postgres_config.prover_url()?)
+        .build()
+        .await
+        .context("failed to build a prover_connection_pool")?;
     let (stop_sender, stop_receiver) = watch::channel(false);
     let vk_commitments = get_cached_commitments();
     let protocol_versions = prover_connection_pool

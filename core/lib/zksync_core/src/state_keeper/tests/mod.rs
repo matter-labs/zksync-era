@@ -130,6 +130,7 @@ pub(super) fn default_vm_block_result() -> FinishedL1Batch {
             storage_refunds: Vec::new(),
         },
         final_bootloader_memory: Some(vec![]),
+        pubdata_input: Some(vec![]),
     }
 }
 

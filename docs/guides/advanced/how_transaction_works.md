@@ -74,7 +74,7 @@ The transaction can have three different results in state keeper:
 - Success
 - Failure (but still included in the block, and gas was charged)
 - Rejection - when it fails validation, and cannot be included in the block. This last case should (in theory) never
-  happen - as we cannot charge the fee in such scenario, and it opens the possiblity for the DDoS attack.
+  happen - as we cannot charge the fee in such scenario, and it opens the possibility for the DDoS attack.
 
 [transaction_request_from_bytes]:
   https://github.com/matter-labs/zksync-era/blob/main/core/lib/types/src/transaction_request.rs#L196

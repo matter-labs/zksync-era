@@ -1,5 +1,7 @@
 #![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
 
+use std::fmt;
+
 use async_trait::async_trait;
 use zksync_types::{
     web3::{
@@ -38,7 +40,7 @@ pub mod types;
 /// unnecessary high amount of Web3 calls. Implementations are advice to count invocations
 /// per component and expose them to Prometheus.
 #[async_trait]
-pub trait EthInterface: Sync + Send {
+pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
     /// Returns the nonce of the provided account at the specified block.
     async fn nonce_at_for_account(
         &self,

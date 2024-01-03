@@ -17,38 +17,27 @@ use zksync_web3_decl::{
     types::{Address, Block, Filter, FilterChanges, Log, U64},
 };
 
-use crate::{
-    api_server::{
-        execution_sandbox::BlockArgs,
-        web3::{
-            backend_jsonrpsee::internal_error,
-            metrics::{BlockCallObserver, API_METRICS},
-            resolve_block,
-            state::RpcState,
-            TypedFilter,
-        },
+use crate::api_server::{
+    execution_sandbox::BlockArgs,
+    web3::{
+        backend_jsonrpsee::internal_error,
+        metrics::{BlockCallObserver, API_METRICS},
+        resolve_block,
+        state::RpcState,
+        TypedFilter,
     },
-    l1_gas_price::L1GasPriceProvider,
 };
 
 pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;
 pub const PROTOCOL_VERSION: &str = "zks/1";
 
 #[derive(Debug)]
-pub struct EthNamespace<G> {
-    state: RpcState<G>,
+pub struct EthNamespace {
+    state: RpcState,
 }
 
-impl<G> Clone for EthNamespace<G> {
-    fn clone(&self) -> Self {
-        Self {
-            state: self.state.clone(),
-        }
-    }
-}
-
-impl<G: L1GasPriceProvider> EthNamespace<G> {
-    pub fn new(state: RpcState<G>) -> Self {
+impl EthNamespace {
+    pub fn new(state: RpcState) -> Self {
         Self { state }
     }
 
@@ -860,7 +849,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 // They are moved into a separate `impl` block so they don't make the actual implementation noisy.
 // This `impl` block contains methods that we *have* to implement for compliance, but don't really
 // make sense in terms of L2.
-impl<E> EthNamespace<E> {
+impl EthNamespace {
     pub fn coinbase_impl(&self) -> Address {
         // There is no coinbase account.
         Address::default()
