@@ -11,7 +11,7 @@ use lru::LruCache;
 use tokio::sync::Mutex;
 use vise::GaugeGuard;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
     api, l2::L2Tx, transaction_request::CallRequest, Address, L1ChainId, L2ChainId,
     MiniblockNumber, H256, U256, U64,
@@ -24,7 +24,7 @@ use crate::{
         execution_sandbox::BlockArgs,
         tree::TreeApiHttpClient,
         tx_sender::TxSender,
-        web3::{backend_jsonrpsee::internal_error, resolve_block, TypedFilter},
+        web3::{backend_jsonrpsee::internal_error, TypedFilter},
     },
     sync_layer::SyncState,
 };
@@ -160,6 +160,9 @@ pub struct RpcState {
     pub tx_sender: TxSender,
     pub sync_state: Option<SyncState>,
     pub(super) api_config: InternalApiConfig,
+    /// Number of the first locally available miniblock. May differ from 0 if the node state was recovered
+    /// from a snapshot.
+    pub(super) first_local_miniblock: MiniblockNumber,
     pub(super) last_sealed_miniblock: SealedMiniblockNumber,
 }
 
@@ -182,6 +185,25 @@ impl RpcState {
         }
     }
 
+    pub async fn resolve_block(
+        &self,
+        connection: &mut StorageProcessor<'_>,
+        block: api::BlockId,
+        method_name: &'static str,
+    ) -> Result<MiniblockNumber, Web3Error> {
+        if let api::BlockId::Number(api::BlockNumber::Number(number)) = block {
+            if number < self.first_local_miniblock.0.into() {
+                // TODO: metrics for pruned blocks?
+                return Err(Web3Error::PrunedBlock(self.first_local_miniblock));
+            }
+        }
+
+        let result = connection.blocks_web3_dal().resolve_block_id(block).await;
+        result
+            .map_err(|err| internal_error(method_name, err))?
+            .ok_or(Web3Error::NoBlock)
+    }
+
     pub async fn resolve_filter_block_number(
         &self,
         block_number: Option<api::BlockNumber>,
@@ -198,12 +220,10 @@ impl RpcState {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap();
-        Ok(conn
-            .blocks_web3_dal()
-            .resolve_block_id(block_id)
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
+        Ok(self
+            .resolve_block(&mut conn, block_id, METHOD_NAME)
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?
             .unwrap())
         // ^ `unwrap()` is safe: `resolve_block_id(api::BlockId::Number(_))` can only return `None`
         // if called with an explicit number, and we've handled this case earlier.
@@ -284,7 +304,9 @@ impl RpcState {
                 .access_storage_tagged("api")
                 .await
                 .unwrap();
-            let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
+            let block_number = self
+                .resolve_block(&mut connection, block_id, METHOD_NAME)
+                .await?;
             let address_historical_nonce = connection
                 .storage_web3_dal()
                 .get_address_historical_nonce(from, block_number)

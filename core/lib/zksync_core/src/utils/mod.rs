@@ -2,9 +2,10 @@
 
 use std::time::Duration;
 
+use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_dal::ConnectionPool;
-use zksync_types::L1BatchNumber;
+use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_types::{L1BatchNumber, MiniblockNumber};
 
 #[cfg(test)]
 pub(crate) mod testonly;
@@ -71,6 +72,18 @@ pub(crate) async fn wait_for_l1_batch_with_metadata(
             .await
             .ok();
     }
+}
+
+/// Returns the number of the first locally available miniblock.
+pub(crate) async fn first_local_miniblock(
+    storage: &mut StorageProcessor<'_>,
+) -> anyhow::Result<MiniblockNumber> {
+    let snapshot_recovery = storage
+        .snapshot_recovery_dal()
+        .get_applied_snapshot_status()
+        .await
+        .context("failed getting snapshot recovery status")?;
+    Ok(snapshot_recovery.map_or(MiniblockNumber(0), |recovery| recovery.miniblock_number + 1))
 }
 
 #[cfg(test)]

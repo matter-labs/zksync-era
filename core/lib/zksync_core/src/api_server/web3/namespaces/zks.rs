@@ -39,6 +39,17 @@ impl ZksNamespace {
         Self { state }
     }
 
+    async fn access_storage(
+        &self,
+        method_name: &'static str,
+    ) -> Result<StorageProcessor<'_>, Web3Error> {
+        self.state
+            .connection_pool
+            .access_storage_tagged("api")
+            .await
+            .map_err(|err| internal_error(method_name, err))
+    }
+
     #[tracing::instrument(skip(self, request))]
     pub async fn estimate_fee_impl(&self, request: CallRequest) -> Result<Fee, Web3Error> {
         const METHOD_NAME: &str = "estimate_fee";
@@ -139,16 +150,14 @@ impl ZksNamespace {
         const METHOD_NAME: &str = "get_confirmed_tokens";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let tokens = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap()
+        let mut storage = self.access_storage(METHOD_NAME).await?;
+        let tokens = storage
             .tokens_web3_dal()
             .get_well_known_tokens()
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
+
+        let tokens = tokens
             .into_iter()
             .skip(from as usize)
             .take(limit.into())
@@ -160,7 +169,6 @@ impl ZksNamespace {
                 decimals: token_info.metadata.decimals,
             })
             .collect();
-
         method_latency.observe();
         Ok(tokens)
     }
@@ -178,12 +186,7 @@ impl ZksNamespace {
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
         let token_price_result = {
-            let mut storage = self
-                .state
-                .connection_pool
-                .access_storage_tagged("api")
-                .await
-                .unwrap();
+            let mut storage = self.access_storage(METHOD_NAME).await?;
             storage.tokens_web3_dal().get_token_price(&l2_token).await
         };
 
@@ -209,16 +212,14 @@ impl ZksNamespace {
         const METHOD_NAME: &str = "get_all_balances";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let balances = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap()
+        let mut storage = self.access_storage(METHOD_NAME).await?;
+        let balances = storage
             .accounts_dal()
             .get_balances_for_address(address)
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
+
+        let balances = balances
             .into_iter()
             .map(|(address, balance)| {
                 if address == L2_ETH_TOKEN_ADDRESS {
@@ -228,7 +229,6 @@ impl ZksNamespace {
                 }
             })
             .collect();
-
         method_latency.observe();
         Ok(balances)
     }
@@ -244,20 +244,14 @@ impl ZksNamespace {
         const METHOD_NAME: &str = "get_l2_to_l1_msg_proof";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let mut storage = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap();
-        let l1_batch_number = match storage
+        let mut storage = self.access_storage(METHOD_NAME).await?;
+        let Some(l1_batch_number) = storage
             .blocks_web3_dal()
             .get_l1_batch_number_of_miniblock(block_number)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?
-        {
-            Some(number) => number,
-            None => return Ok(None),
+        else {
+            return Ok(None);
         };
         let (first_miniblock_of_l1_batch, _) = storage
             .blocks_web3_dal()
@@ -373,12 +367,7 @@ impl ZksNamespace {
         const METHOD_NAME: &str = "get_l2_to_l1_msg_proof";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let mut storage = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap();
+        let mut storage = self.access_storage(METHOD_NAME).await?;
         let Some((l1_batch_number, l1_batch_tx_index)) = storage
             .blocks_web3_dal()
             .get_l1_batch_info_for_tx(tx_hash)
@@ -407,12 +396,8 @@ impl ZksNamespace {
         const METHOD_NAME: &str = "get_l1_batch_number";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let l1_batch_number = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap()
+        let mut storage = self.access_storage(METHOD_NAME).await?;
+        let l1_batch_number = storage
             .blocks_web3_dal()
             .get_sealed_l1_batch_number()
             .await
@@ -431,12 +416,8 @@ impl ZksNamespace {
         const METHOD_NAME: &str = "get_miniblock_range";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let minmax = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap()
+        let mut storage = self.access_storage(METHOD_NAME).await?;
+        let minmax = storage
             .blocks_web3_dal()
             .get_miniblock_range_of_l1_batch(batch)
             .await
@@ -455,12 +436,8 @@ impl ZksNamespace {
         const METHOD_NAME: &str = "get_block_details";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let block_details = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap()
+        let mut storage = self.access_storage(METHOD_NAME).await?;
+        let block_details = storage
             .blocks_web3_dal()
             .get_block_details(
                 block_number,
@@ -481,12 +458,8 @@ impl ZksNamespace {
         const METHOD_NAME: &str = "get_raw_block_transactions";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let transactions = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap()
+        let mut storage = self.access_storage(METHOD_NAME).await?;
+        let transactions = storage
             .transactions_web3_dal()
             .get_raw_miniblock_transactions(block_number)
             .await
@@ -504,16 +477,13 @@ impl ZksNamespace {
         const METHOD_NAME: &str = "get_transaction_details";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let mut tx_details = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap()
+        let mut storage = self.access_storage(METHOD_NAME).await?;
+        let mut tx_details = storage
             .transactions_web3_dal()
             .get_transaction_details(hash)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err));
+        drop(storage);
 
         if let Some(proxy) = &self.state.tx_sender.0.proxy {
             // We're running an external node - we should query the main node directly
@@ -539,12 +509,8 @@ impl ZksNamespace {
         const METHOD_NAME: &str = "get_l1_batch";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let l1_batch = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap()
+        let mut storage = self.access_storage(METHOD_NAME).await?;
+        let l1_batch = storage
             .blocks_web3_dal()
             .get_l1_batch_details(batch_number)
             .await
@@ -555,22 +521,18 @@ impl ZksNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn get_bytecode_by_hash_impl(&self, hash: H256) -> Option<Vec<u8>> {
+    pub async fn get_bytecode_by_hash_impl(
+        &self,
+        hash: H256,
+    ) -> Result<Option<Vec<u8>>, Web3Error> {
         const METHOD_NAME: &str = "get_bytecode_by_hash";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let bytecode = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap()
-            .storage_dal()
-            .get_factory_dep(hash)
-            .await;
+        let mut storage = self.access_storage(METHOD_NAME).await?;
+        let bytecode = storage.storage_dal().get_factory_dep(hash).await;
 
         method_latency.observe();
-        bytecode
+        Ok(bytecode)
     }
 
     #[tracing::instrument(skip(self))]
@@ -593,27 +555,20 @@ impl ZksNamespace {
     pub async fn get_protocol_version_impl(
         &self,
         version_id: Option<u16>,
-    ) -> Option<ProtocolVersion> {
+    ) -> Result<Option<ProtocolVersion>, Web3Error> {
         const METHOD_NAME: &str = "get_protocol_version";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
+        let mut storage = self.access_storage(METHOD_NAME).await?;
         let protocol_version = match version_id {
             Some(id) => {
-                self.state
-                    .connection_pool
-                    .access_storage()
-                    .await
-                    .unwrap()
+                storage
                     .protocol_versions_web3_dal()
                     .get_protocol_version_by_id(id)
                     .await
             }
             None => Some(
-                self.state
-                    .connection_pool
-                    .access_storage()
-                    .await
-                    .unwrap()
+                storage
                     .protocol_versions_web3_dal()
                     .get_latest_protocol_version()
                     .await,
@@ -621,7 +576,7 @@ impl ZksNamespace {
         };
 
         method_latency.observe();
-        protocol_version
+        Ok(protocol_version)
     }
 
     #[tracing::instrument(skip_all)]

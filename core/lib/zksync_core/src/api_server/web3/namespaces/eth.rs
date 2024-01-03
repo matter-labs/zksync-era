@@ -22,7 +22,6 @@ use crate::api_server::{
     web3::{
         backend_jsonrpsee::internal_error,
         metrics::{BlockCallObserver, API_METRICS},
-        resolve_block,
         state::RpcState,
         TypedFilter,
     },
@@ -181,7 +180,10 @@ impl EthNamespace {
             .access_storage_tagged("api")
             .await
             .unwrap();
-        let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
+        let block_number = self
+            .state
+            .resolve_block(&mut connection, block_id, METHOD_NAME)
+            .await?;
         let balance = connection
             .storage_web3_dal()
             .standard_token_historical_balance(
@@ -335,7 +337,10 @@ impl EthNamespace {
             .access_storage_tagged("api")
             .await
             .unwrap();
-        let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
+        let block_number = self
+            .state
+            .resolve_block(&mut connection, block_id, METHOD_NAME)
+            .await?;
         let contract_code = connection
             .storage_web3_dal()
             .get_contract_code_unchecked(address, block_number)
@@ -369,7 +374,10 @@ impl EthNamespace {
             .access_storage_tagged("api")
             .await
             .unwrap();
-        let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
+        let block_number = self
+            .state
+            .resolve_block(&mut connection, block_id, METHOD_NAME)
+            .await?;
         let value = connection
             .storage_web3_dal()
             .get_historical_value_unchecked(&storage_key, block_number)
@@ -411,7 +419,10 @@ impl EthNamespace {
                 (nonce, None)
             }
             _ => {
-                let block_number = resolve_block(&mut connection, block_id, method_name).await?;
+                let block_number = self
+                    .state
+                    .resolve_block(&mut connection, block_id, method_name)
+                    .await?;
                 let nonce = connection
                     .storage_web3_dal()
                     .get_address_historical_nonce(address, block_number)
@@ -684,8 +695,10 @@ impl EthNamespace {
             .access_storage_tagged("api")
             .await
             .unwrap();
-        let newest_miniblock =
-            resolve_block(&mut connection, BlockId::Number(newest_block), METHOD_NAME).await?;
+        let newest_miniblock = self
+            .state
+            .resolve_block(&mut connection, BlockId::Number(newest_block), METHOD_NAME)
+            .await?;
 
         let mut base_fee_per_gas = connection
             .blocks_web3_dal()

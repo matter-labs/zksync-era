@@ -9,11 +9,10 @@ use tokio::{
     task::JoinHandle,
 };
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::ConnectionPool;
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_types::{api, MiniblockNumber};
+use zksync_types::MiniblockNumber;
 use zksync_web3_decl::{
-    error::Web3Error,
     jsonrpsee::{
         server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder},
         RpcModule,
@@ -26,7 +25,6 @@ use zksync_web3_decl::{
 };
 
 use self::{
-    backend_jsonrpsee::internal_error,
     metrics::API_METRICS,
     namespaces::{
         DebugNamespace, EnNamespace, EthNamespace, NetNamespace, SnapshotsNamespace, Web3Namespace,
@@ -41,6 +39,7 @@ use crate::{
         web3::backend_jsonrpsee::batch_limiter_middleware::LimitMiddleware,
     },
     sync_layer::SyncState,
+    utils::first_local_miniblock,
 };
 
 pub mod backend_jsonrpsee;
@@ -281,36 +280,44 @@ impl ApiBuilder {
 }
 
 impl FullApiParams {
-    fn build_rpc_state(self) -> RpcState {
+    async fn build_rpc_state(self) -> anyhow::Result<RpcState> {
         // Chosen to be significantly smaller than the interval between miniblocks, but larger than
         // the latency of getting the latest sealed miniblock number from Postgres. If the API server
         // processes enough requests, information about the latest sealed miniblock will be updated
         // by reporting block difference metrics, so the actual update lag would be much smaller than this value.
         const SEALED_MINIBLOCK_UPDATE_INTERVAL: Duration = Duration::from_millis(25);
 
+        let mut storage = self
+            .last_miniblock_pool
+            .access_storage_tagged("api")
+            .await?;
+        let first_local_miniblock = first_local_miniblock(&mut storage).await?;
+        drop(storage);
+
         let (last_sealed_miniblock, update_task) =
             SealedMiniblockNumber::new(self.last_miniblock_pool, SEALED_MINIBLOCK_UPDATE_INTERVAL);
         // The update tasks takes care of its termination, so we don't need to retain its handle.
         tokio::spawn(update_task);
 
-        RpcState {
+        Ok(RpcState {
             installed_filters: Arc::new(Mutex::new(Filters::new(self.optional.filters_limit))),
             connection_pool: self.pool,
             tx_sender: self.tx_sender,
             sync_state: self.optional.sync_state,
             api_config: self.config,
+            first_local_miniblock,
             last_sealed_miniblock,
             tree_api: self
                 .optional
                 .tree_api_url
                 .map(|url| TreeApiHttpClient::new(url.as_str())),
-        }
+        })
     }
 
-    async fn build_rpc_module(self, pubsub: Option<EthSubscribe>) -> RpcModule<()> {
+    async fn build_rpc_module(self, pubsub: Option<EthSubscribe>) -> anyhow::Result<RpcModule<()>> {
         let namespaces = self.namespaces.clone();
         let zksync_network_id = self.config.l2_chain_id;
-        let rpc_state = self.build_rpc_state();
+        let rpc_state = self.build_rpc_state().await?;
 
         // Collect all the methods into a single RPC module.
         let mut rpc = RpcModule::new(());
@@ -347,7 +354,7 @@ impl FullApiParams {
             rpc.merge(SnapshotsNamespace::new(rpc_state).into_rpc())
                 .expect("Can't merge snapshots namespace");
         }
-        rpc
+        Ok(rpc)
     }
 
     async fn spawn_server(
@@ -446,7 +453,7 @@ impl FullApiParams {
             pubsub = Some(pub_sub);
         }
 
-        let rpc = self.build_rpc_module(pubsub).await;
+        let rpc = self.build_rpc_module(pubsub).await?;
         // Start the server in a separate tokio runtime from a dedicated thread.
         let (local_addr_sender, local_addr) = oneshot::channel();
         let server_task = tokio::task::spawn_blocking(move || {
@@ -585,15 +592,4 @@ impl FullApiParams {
         Self::wait_for_vm(vm_barrier, transport_str).await;
         Ok(())
     }
-}
-
-async fn resolve_block(
-    connection: &mut StorageProcessor<'_>,
-    block: api::BlockId,
-    method_name: &'static str,
-) -> Result<MiniblockNumber, Web3Error> {
-    let result = connection.blocks_web3_dal().resolve_block_id(block).await;
-    result
-        .map_err(|err| internal_error(method_name, err))?
-        .ok_or(Web3Error::NoBlock)
 }

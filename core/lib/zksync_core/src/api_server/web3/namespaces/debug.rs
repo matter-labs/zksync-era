@@ -14,9 +14,7 @@ use zksync_web3_decl::error::Web3Error;
 use crate::api_server::{
     execution_sandbox::{execute_tx_eth_call, ApiTracer, BlockArgs, TxSharedArgs},
     tx_sender::{ApiContracts, TxSenderConfig},
-    web3::{
-        backend_jsonrpsee::internal_error, metrics::API_METRICS, resolve_block, state::RpcState,
-    },
+    web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, state::RpcState},
 };
 
 #[derive(Debug, Clone)]
@@ -56,7 +54,10 @@ impl DebugNamespace {
             .access_storage_tagged("api")
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
-        let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
+        let block_number = self
+            .state
+            .resolve_block(&mut connection, block_id, METHOD_NAME)
+            .await?;
         let call_trace = connection
             .blocks_web3_dal()
             .get_trace_for_miniblock(block_number)

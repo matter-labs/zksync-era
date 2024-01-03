@@ -228,6 +228,7 @@ impl BlockArgs {
     }
 
     /// Loads block information from DB.
+    // FIXME: check pruning here
     pub async fn new(
         connection: &mut StorageProcessor<'_>,
         block_id: api::BlockId,
