@@ -4,23 +4,10 @@ use reqwest::{
     header::{HeaderMap, HeaderValue},
     Method,
 };
-use zksync_config::configs::ProverGroupConfig;
 use zksync_utils::http_with_retries::send_request_with_retries;
 
-pub async fn get_region(prover_group_config: &ProverGroupConfig) -> anyhow::Result<String> {
-    if let Some(region) = &prover_group_config.region_override {
-        return Ok(region.clone());
-    }
-    let url = &prover_group_config.region_read_url;
-    fetch_from_url(url).await.context("fetch_from_url()")
-}
-
-pub async fn get_zone(prover_group_config: &ProverGroupConfig) -> anyhow::Result<String> {
-    if let Some(zone) = &prover_group_config.zone_override {
-        return Ok(zone.clone());
-    }
-    let url = &prover_group_config.zone_read_url;
-    let data = fetch_from_url(url).await.context("fetch_from_url()")?;
+pub async fn get_zone(zone_url: &str) -> anyhow::Result<String> {
+    let data = fetch_from_url(zone_url).await.context("fetch_from_url()")?;
     parse_zone(&data).context("parse_zone")
 }
 
@@ -47,9 +34,7 @@ fn parse_zone(data: &str) -> anyhow::Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use zksync_config::configs::ProverGroupConfig;
-
-    use crate::region_fetcher::{get_region, get_zone, parse_zone};
+    use crate::region_fetcher::parse_zone;
 
     #[test]
     fn test_parse_zone() {
@@ -62,50 +47,5 @@ mod tests {
     fn test_parse_zone_panic() {
         let data = "invalid data";
         assert!(parse_zone(data).is_err());
-    }
-
-    #[tokio::test]
-    async fn test_get_region_with_override() {
-        let config = ProverGroupConfig {
-            group_0_circuit_ids: vec![],
-            group_1_circuit_ids: vec![],
-            group_2_circuit_ids: vec![],
-            group_3_circuit_ids: vec![],
-            group_4_circuit_ids: vec![],
-            group_5_circuit_ids: vec![],
-            group_6_circuit_ids: vec![],
-            group_7_circuit_ids: vec![],
-            group_8_circuit_ids: vec![],
-            group_9_circuit_ids: vec![],
-            region_override: Some("us-central-1".to_string()),
-            region_read_url: "".to_string(),
-            zone_override: Some("us-central-1-b".to_string()),
-            zone_read_url: "".to_string(),
-            synthesizer_per_gpu: 0,
-        };
-
-        assert_eq!("us-central-1", get_region(&config).await.unwrap());
-    }
-
-    #[tokio::test]
-    async fn test_get_zone_with_override() {
-        let config = ProverGroupConfig {
-            group_0_circuit_ids: vec![],
-            group_1_circuit_ids: vec![],
-            group_2_circuit_ids: vec![],
-            group_3_circuit_ids: vec![],
-            group_4_circuit_ids: vec![],
-            group_5_circuit_ids: vec![],
-            group_6_circuit_ids: vec![],
-            group_7_circuit_ids: vec![],
-            group_8_circuit_ids: vec![],
-            group_9_circuit_ids: vec![],
-            region_override: Some("us-central-1".to_string()),
-            region_read_url: "".to_string(),
-            zone_override: Some("us-central-1-b".to_string()),
-            zone_read_url: "".to_string(),
-            synthesizer_per_gpu: 0,
-        };
-        assert_eq!("us-central-1-b", get_zone(&config).await.unwrap());
     }
 }
