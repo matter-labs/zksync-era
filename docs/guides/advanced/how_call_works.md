@@ -69,7 +69,8 @@ opcodes similar to EVM, but operates on registers rather than a stack. We have t
 'pure rust' without circuits (in the zk_evm repository), and the other has circuits (in the sync_vm repository). In this
 example, the api server uses the 'zk_evm' implementation without circuits.
 
-Most of the code that the server uses to interact with the VM is in [core/lib/vm/src/vm.rs][vm_code].
+Most of the code that the server uses to interact with the VM is in
+[core/lib/multivm/src/versions/vm_latest/implementation/execution.rs][vm_code].
 
 In this line, we're calling self.state.cycle(), which executes a single VM instruction. You can see that we do a lot of
 things around this, such as executing multiple tracers after each instruction. This allows us to debug and provide
@@ -121,5 +122,5 @@ In this article, we covered the 'life of a call' from the RPC to the inner worki
   https://github.com/matter-labs/era-system-contracts/blob/93a375ef6ccfe0181a248cb712c88a1babe1f119/bootloader/bootloader.yul
   'bootloader code'
 [init_vm_inner]:
-  https://github.com/matter-labs/zksync-2-dev/blob/dc3b3d6b055c558b0e1a76ef5de3184291489d9f/core/lib/vm/src/vm_with_bootloader.rs#L348
+  https://github.com/matter-labs/zksync-era/blob/main/core/lib/multivm/src/versions/vm_m6/vm_with_bootloader.rs#L330
   'vm constructor'

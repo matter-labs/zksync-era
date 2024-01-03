@@ -2,7 +2,10 @@
 
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
-use tokio::sync::{watch, Semaphore};
+use tokio::{
+    sync::{watch, Semaphore},
+    task::JoinHandle,
+};
 use zksync_config::{configs::PrometheusConfig, PostgresConfig, SnapshotsCreatorConfig};
 use zksync_dal::ConnectionPool;
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
@@ -27,7 +30,7 @@ mod tests;
 
 async fn maybe_enable_prometheus_metrics(
     stop_receiver: watch::Receiver<bool>,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Option<JoinHandle<anyhow::Result<()>>>> {
     let prometheus_config = PrometheusConfig::from_env().ok();
     if let Some(prometheus_config) = prometheus_config {
         let exporter_config = PrometheusExporterConfig::push(
@@ -36,11 +39,12 @@ async fn maybe_enable_prometheus_metrics(
         );
 
         tracing::info!("Starting prometheus exporter with config {prometheus_config:?}");
-        tokio::spawn(exporter_config.run(stop_receiver));
+        let prometheus_exporter_task = tokio::spawn(exporter_config.run(stop_receiver));
+        Ok(Some(prometheus_exporter_task))
     } else {
         tracing::info!("Starting without prometheus exporter");
+        Ok(None)
     }
-    Ok(())
 }
 
 async fn process_storage_logs_single_chunk(
@@ -144,9 +148,9 @@ async fn run(
 
     // We subtract 1 so that after restore, EN node has at least one L1 batch to fetch
     let sealed_l1_batch_number = conn.blocks_dal().get_sealed_l1_batch_number().await?;
-    assert_ne!(
-        sealed_l1_batch_number,
-        L1BatchNumber(0),
+    let sealed_l1_batch_number = sealed_l1_batch_number.context("No L1 batches in Postgres")?;
+    anyhow::ensure!(
+        sealed_l1_batch_number != L1BatchNumber(0),
         "Cannot create snapshot when only the genesis L1 batch is present in Postgres"
     );
     let l1_batch_number = sealed_l1_batch_number - 1;
@@ -257,7 +261,7 @@ async fn main() -> anyhow::Result<()> {
     #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
     let environment = vlog::environment_from_env();
 
-    maybe_enable_prometheus_metrics(stop_receiver).await?;
+    let prometheus_exporter_task = maybe_enable_prometheus_metrics(stop_receiver).await?;
     let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
     if let Some(sentry_url) = sentry_url {
         builder = builder
@@ -291,5 +295,10 @@ async fn main() -> anyhow::Result<()> {
     run(blob_store, replica_pool, master_pool, MIN_CHUNK_COUNT).await?;
     tracing::info!("Finished running snapshot creator!");
     stop_sender.send(true).ok();
+    if let Some(prometheus_exporter_task) = prometheus_exporter_task {
+        prometheus_exporter_task
+            .await?
+            .context("Prometheus did not finish gracefully")?;
+    }
     Ok(())
 }

@@ -40,7 +40,6 @@ Used as a 'last step' to compress/wrap the final FRI proof into a SNARK (to make
 
 Some of the components here belong to the old proof system:
 
-- circuit_synthesizer
 - prover
 - setup_key_generator_and_server
 

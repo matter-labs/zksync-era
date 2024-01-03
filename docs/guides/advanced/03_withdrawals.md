@@ -120,7 +120,7 @@ BTW - all the transactions are sent to the 0x54e address - which is the `Diamond
 be different on your local node - see previous tutorial for more info) .
 
 And inside, all three methods above belong to
-[Executor.sol](https://github.com/matter-labs/era-contracts/blob/main/ethereum/contracts/zksync/facets/Executor.sol)
+[Executor.sol](https://github.com/matter-labs/era-contracts/blob/main/l1-contracts/contracts/zksync/facets/Executor.sol)
 facet and you can look at
 [README](https://github.com/matter-labs/era-contracts/blob/main/docs/Overview.md#executorfacet) to see the details of
 what each method does.
