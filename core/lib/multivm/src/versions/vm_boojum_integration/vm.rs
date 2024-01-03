@@ -14,7 +14,7 @@ use crate::{
     },
     vm_boojum_integration::{
         bootloader_state::BootloaderState,
-        old_vm::{events::merge_events, history_recorder::HistoryEnabled},
+        old_vm::events::merge_events,
         tracers::dispatcher::TracerDispatcher,
         types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState},
     },
