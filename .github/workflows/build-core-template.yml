@@ -28,7 +28,8 @@ jobs:
     env:
       image_tag: ${{ inputs.image_tag }}
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
-    runs-on: ${{ contains(matrix.platforms, 'arm') ? 'matterlabs-ci-runner-arm' : 'matterlabs-ci-runner' }}
+    runs-on:
+      ${{ contains(matrix.platforms, 'arm') ? 'matterlabs-ci-runner-arm' : 'matterlabs-ci-runner' }}
     strategy:
       matrix:
           components:
