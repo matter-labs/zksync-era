@@ -6,7 +6,6 @@ use zksync_types::{LogQuery, H256, U256, USED_BOOTLOADER_MEMORY_BYTES};
 use zksync_utils::expand_memory_contents;
 
 pub fn events_queue_commitment(events_queue: &Vec<LogQuery>, is_pre_boojum: bool) -> Option<H256> {
-    let events_queue = unsafe { std::mem::transmute(events_queue) };
     (!is_pre_boojum).then(|| H256(events_queue_commitment_fixed(events_queue)))
 }
 
