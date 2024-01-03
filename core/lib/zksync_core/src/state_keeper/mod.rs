@@ -16,7 +16,7 @@ pub use self::{
     keeper::ZkSyncStateKeeper,
 };
 pub(crate) use self::{
-    mempool_actor::MempoolFetcher, seal_criteria::ConditionalSealer, types::MempoolGuard,
+    mempool_actor::MempoolFetcher, seal_criteria::SequencerSealer, types::MempoolGuard,
 };
 use crate::l1_gas_price::L1GasPriceProvider;
 
@@ -26,14 +26,14 @@ pub(crate) mod io;
 mod keeper;
 mod mempool_actor;
 pub(crate) mod metrics;
-pub(crate) mod seal_criteria;
+pub mod seal_criteria;
 #[cfg(test)]
 pub(crate) mod tests;
 pub(crate) mod types;
 pub(crate) mod updates;
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) async fn create_state_keeper<G>(
+pub(crate) async fn create_state_keeper(
     contracts_config: &ContractsConfig,
     state_keeper_config: StateKeeperConfig,
     db_config: &DBConfig,
@@ -41,14 +41,11 @@ pub(crate) async fn create_state_keeper<G>(
     mempool_config: &MempoolConfig,
     pool: ConnectionPool,
     mempool: MempoolGuard,
-    l1_gas_price_provider: Arc<G>,
+    l1_gas_price_provider: Arc<dyn L1GasPriceProvider>,
     miniblock_sealer_handle: MiniblockSealerHandle,
     object_store: Box<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
-) -> ZkSyncStateKeeper
-where
-    G: L1GasPriceProvider + 'static + Send + Sync,
-{
+) -> ZkSyncStateKeeper {
     assert!(
         state_keeper_config.transaction_slots <= MAX_TXS_IN_BLOCK,
         "Configured transaction_slots ({}) must be lower than the bootloader constant MAX_TXS_IN_BLOCK={}",
@@ -79,11 +76,11 @@ where
     )
     .await;
 
-    let sealer = ConditionalSealer::new(state_keeper_config);
+    let sealer = SequencerSealer::new(state_keeper_config);
     ZkSyncStateKeeper::new(
         stop_receiver,
         Box::new(io),
         Box::new(batch_executor_base),
-        sealer,
+        Box::new(sealer),
     )
 }

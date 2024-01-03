@@ -12,10 +12,10 @@ use zksync_config::{
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, PrometheusConfig,
-        ProofDataHandlerConfig, ProverGroupConfig, WitnessGeneratorConfig,
+        ProofDataHandlerConfig, WitnessGeneratorConfig,
     },
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
-    GasAdjusterConfig, ObjectStoreConfig, PostgresConfig, ProverConfigs,
+    GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
 };
 use zksync_core::{
     genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
@@ -110,7 +110,6 @@ async fn main() -> anyhow::Result<()> {
         fri_witness_generator_config: FriWitnessGeneratorConfig::from_env().ok(),
         prometheus_config: PrometheusConfig::from_env().ok(),
         proof_data_handler_config: ProofDataHandlerConfig::from_env().ok(),
-        prover_group_config: ProverGroupConfig::from_env().ok(),
         witness_generator_config: WitnessGeneratorConfig::from_env().ok(),
         api_config: ApiConfig::from_env().ok(),
         contracts_config: ContractsConfig::from_env().ok(),
@@ -119,7 +118,6 @@ async fn main() -> anyhow::Result<()> {
         eth_sender_config: ETHSenderConfig::from_env().ok(),
         eth_watch_config: ETHWatchConfig::from_env().ok(),
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
-        prover_configs: ProverConfigs::from_env().ok(),
         object_store_config: ObjectStoreConfig::from_env().ok(),
     };
 

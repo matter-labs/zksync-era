@@ -42,7 +42,7 @@ use crate::{
         keeper::POLL_WAIT_DURATION,
         seal_criteria::{
             criteria::{GasCriterion, SlotsCriterion},
-            ConditionalSealer,
+            SequencerSealer,
         },
         types::ExecutionMetricsForCriteria,
         updates::UpdatesManager,
@@ -130,6 +130,7 @@ pub(super) fn default_vm_block_result() -> FinishedL1Batch {
             storage_refunds: Vec::new(),
         },
         final_bootloader_memory: Some(vec![]),
+        pubdata_input: Some(vec![]),
     }
 }
 
@@ -249,7 +250,7 @@ async fn sealed_by_number_of_txs() {
         transaction_slots: 2,
         ..StateKeeperConfig::default()
     };
-    let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
     TestScenario::new()
         .seal_miniblock_when(|updates| updates.miniblock.executed_transactions.len() == 1)
@@ -270,7 +271,7 @@ async fn sealed_by_gas() {
         close_block_at_gas_percentage: 0.5,
         ..StateKeeperConfig::default()
     };
-    let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(GasCriterion)]);
+    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(GasCriterion)]);
 
     let l1_gas_per_tx = BlockGasCount {
         commit: 1, // Both txs together with block_base_cost would bring it over the block 31_001 commit bound.
@@ -319,7 +320,7 @@ async fn sealed_by_gas_then_by_num_tx() {
         transaction_slots: 3,
         ..StateKeeperConfig::default()
     };
-    let sealer = ConditionalSealer::with_sealers(
+    let sealer = SequencerSealer::with_sealers(
         config,
         vec![Box::new(GasCriterion), Box::new(SlotsCriterion)],
     );
@@ -356,7 +357,7 @@ async fn batch_sealed_before_miniblock_does() {
         transaction_slots: 2,
         ..StateKeeperConfig::default()
     };
-    let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
     // Miniblock sealer will not return true before the batch is sealed because the batch only has 2 txs.
     TestScenario::new()
@@ -381,7 +382,7 @@ async fn rejected_tx() {
         transaction_slots: 2,
         ..StateKeeperConfig::default()
     };
-    let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
     let rejected_tx = random_tx(1);
     TestScenario::new()
@@ -403,7 +404,7 @@ async fn bootloader_tip_out_of_gas_flow() {
         transaction_slots: 2,
         ..StateKeeperConfig::default()
     };
-    let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
     let first_tx = random_tx(1);
     let bootloader_out_of_gas_tx = random_tx(2);
@@ -441,7 +442,7 @@ async fn pending_batch_is_applied() {
         transaction_slots: 3,
         ..StateKeeperConfig::default()
     };
-    let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
     let pending_batch = pending_batch_data(vec![
         MiniblockExecutionData {
@@ -499,7 +500,7 @@ async fn unconditional_sealing() {
         transaction_slots: 2,
         ..StateKeeperConfig::default()
     };
-    let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
     TestScenario::new()
         .seal_l1_batch_when(move |_| batch_seal_trigger_checker.load(Ordering::Relaxed))
@@ -529,7 +530,7 @@ async fn miniblock_timestamp_after_pending_batch() {
         transaction_slots: 2,
         ..StateKeeperConfig::default()
     };
-    let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
     let pending_batch = pending_batch_data(vec![MiniblockExecutionData {
         number: MiniblockNumber(1),
@@ -573,7 +574,7 @@ async fn time_is_monotonic() {
         transaction_slots: 2,
         ..StateKeeperConfig::default()
     };
-    let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
     TestScenario::new()
         .seal_miniblock_when(|updates| updates.miniblock.executed_transactions.len() == 1)
@@ -624,7 +625,7 @@ async fn protocol_upgrade() {
         transaction_slots: 2,
         ..StateKeeperConfig::default()
     };
-    let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
     TestScenario::new()
         .seal_miniblock_when(|updates| updates.miniblock.executed_transactions.len() == 1)

@@ -229,7 +229,12 @@ impl L1BatchWithMetadata {
                 // systemLogs
                 Token::Bytes(self.metadata.l2_l1_messages_compressed.clone()),
                 // totalL2ToL1Pubdata
-                Token::Bytes(self.construct_pubdata()),
+                Token::Bytes(
+                    self.header
+                        .pubdata_input
+                        .clone()
+                        .unwrap_or(self.construct_pubdata()),
+                ),
             ])
         }
     }
