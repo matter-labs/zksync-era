@@ -41,8 +41,12 @@ impl UpdateCheckedBatch for () {
     }
 }
 
+// This is a temporary workaround for a bug that sometimes leads to incorrect L1 batch data returned by the server
+// (and thus persisted by external nodes). Eventually, we want to go back to bailing on L1 data mismatch;
+// for now, it's only enabled for the unit tests.
 #[derive(Debug)]
 enum L1DataMismatchBehavior {
+    #[cfg(test)]
     Bail,
     Log,
 }
@@ -71,14 +75,9 @@ impl ConsistencyChecker {
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
             l1_client: Box::new(web3),
             l1_batch_updater: Box::new(()),
-            l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
+            l1_data_mismatch_behavior: L1DataMismatchBehavior::Log,
             pool,
         }
-    }
-
-    /// Configures this checker to log discovered L1 batch mismatches instead of bailing with an error.
-    pub fn log_l1_data_mismatches(&mut self) {
-        self.l1_data_mismatch_behavior = L1DataMismatchBehavior::Log;
     }
 
     async fn check_commitments(&self, batch_number: L1BatchNumber) -> Result<bool, CheckError> {
@@ -272,6 +271,7 @@ impl ConsistencyChecker {
                     batch_number += 1;
                 }
                 Ok(false) => match &self.l1_data_mismatch_behavior {
+                    #[cfg(test)]
                     L1DataMismatchBehavior::Bail => {
                         anyhow::bail!("L1 Batch #{batch_number} is inconsistent with L1");
                     }

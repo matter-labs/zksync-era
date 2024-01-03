@@ -199,7 +199,7 @@ async fn init_tasks(
     .await;
     healthchecks.push(Box::new(metadata_calculator.tree_health_check()));
 
-    let mut consistency_checker = ConsistencyChecker::new(
+    let consistency_checker = ConsistencyChecker::new(
         &config
             .required
             .eth_client_url()
@@ -210,7 +210,6 @@ async fn init_tasks(
             .await
             .context("failed to build connection pool for ConsistencyChecker")?,
     );
-    consistency_checker.log_l1_data_mismatches();
 
     let batch_status_updater = BatchStatusUpdater::new(
         &main_node_url,
