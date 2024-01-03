@@ -62,9 +62,15 @@ jobs:
         run: |
           ./prover/extract-setup-data-keys.sh >> $GITHUB_OUTPUT
 
+  build-contracts:
+    name: Build contracts
+    needs: changed_files
+    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
+    uses: ./.github/workflows/build-contracts.yml
+
   build-push-core-images:
     name: Build and push images
-    needs: [setup, changed_files]
+    needs: [setup, build-contracts]
     uses: ./.github/workflows/build-core-template.yml
     if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
     with:

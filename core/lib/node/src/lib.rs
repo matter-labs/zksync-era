@@ -1,95 +1,37 @@
 use std::{any::Any, collections::HashMap};
 
 use futures::future::BoxFuture;
-use zksync_dal::{connection::ConnectionPoolBuilder, ConnectionPool};
-use zksync_health_check::CheckHealth;
+// Public re-exports from external crate to minimize the required dependencies.
+pub use zksync_health_check::{CheckHealth, ReactiveHealthCheck};
 
 mod resources;
 mod tasks;
 
-#[derive(Debug)]
-struct Pools {
-    master_pool: Option<ConnectionPoolBuilder>,
-    replica_pool: Option<ConnectionPoolBuilder>,
-    prover_pool: Option<ConnectionPoolBuilder>,
-}
-
-impl Pools {
-    pub fn with_master_pool(mut self, master_pool: ConnectionPoolBuilder) -> Self {
-        self.master_pool = Some(master_pool);
-        self
-    }
-
-    pub fn with_replica_pool(mut self, replica_pool: ConnectionPoolBuilder) -> Self {
-        self.replica_pool = Some(replica_pool);
-        self
-    }
-
-    pub fn with_prover_pool(mut self, prover_pool: ConnectionPoolBuilder) -> Self {
-        self.prover_pool = Some(prover_pool);
-        self
-    }
-
-    pub async fn master_pool(&self) -> anyhow::Result<ConnectionPool> {
-        self.master_pool
-            .as_ref()
-            .map(|builder| builder.build())
-            .expect("master pool is not initialized")
-            .await
-    }
-
-    pub async fn master_pool_singleton(&self) -> anyhow::Result<ConnectionPool> {
-        self.master_pool
-            .as_ref()
-            .map(|builder| builder.build_singleton())
-            .expect("master pool is not initialized")
-            .await
-    }
-
-    pub async fn replica_pool(&self) -> anyhow::Result<ConnectionPool> {
-        self.replica_pool
-            .as_ref()
-            .map(|builder| builder.build())
-            .expect("replica pool is not initialized")
-            .await
-    }
-
-    pub async fn replica_pool_singleton(&self) -> anyhow::Result<ConnectionPool> {
-        self.replica_pool
-            .as_ref()
-            .map(|builder| builder.build_singleton())
-            .expect("replica pool is not initialized")
-            .await
-    }
-
-    pub async fn prover_pool(&self) -> anyhow::Result<ConnectionPool> {
-        self.prover_pool
-            .as_ref()
-            .map(|builder| builder.build())
-            .expect("prover pool is not initialized")
-            .await
-    }
-
-    pub async fn prover_pool_singleton(&self) -> anyhow::Result<ConnectionPool> {
-        self.prover_pool
-            .as_ref()
-            .map(|builder| builder.build_singleton())
-            .expect("prover pool is not initialized")
-            .await
-    }
-}
-
 /// A task represents some code that "runs".
 /// During its creation, it uses its own config and resources added to the `ZkSyncNode`.
 #[async_trait::async_trait]
-pub trait ZkSyncTask: Send + Sync + 'static {
-    type Config;
+pub trait ZkSyncTask: 'static + Send + Sync {
+    type Config: 'static + Send + Sync;
 
-    async fn new(node: &ZkSyncNode, config: impl Into<Self::Config>) -> Self;
+    /// Creates a new task.
+    /// Normally, at this step the task is only expected to gather required resources from `ZkSyncNode`.
+    ///
+    /// If additional preparations are required, they should be done in `before_launch`.
+    fn new(node: &ZkSyncNode, config: Self::Config) -> Self;
 
-    fn healtcheck(&self) -> Option<Box<dyn CheckHealth>>;
+    /// Gets the healthcheck for the task, if it exists.
+    /// Guaranteed to be called only once per task.
+    fn healtcheck(&mut self) -> Option<Box<dyn CheckHealth>>;
 
+    /// Asynchronous hook that can be used to prepare the task for launch.
+    async fn before_launch(&mut self) {}
+
+    /// Runs the task.
     async fn run(self) -> anyhow::Result<()>;
+
+    /// Asynchronous hook that can be used to perform some actions after the task is finished.
+    /// It can be used to perform any sort of cleanup before the application exits.
+    async fn after_finish(&mut self) {}
 }
 
 /// "Manager" class of the node. Collects all the resources and tasks,
@@ -125,13 +67,9 @@ impl ZkSyncNode {
 
     /// Takes care of task creation.
     /// May do some "registration" stuff for reporting purposes.
-    pub async fn add_task<T: ZkSyncTask>(
-        &mut self,
-        name: impl AsRef<str>,
-        config: impl Into<T::Config>,
-    ) {
+    pub fn add_task<T: ZkSyncTask>(&mut self, name: impl AsRef<str>, config: impl Into<T::Config>) {
         // <- todo should not be async
-        let task = T::new(self, config).await;
+        let task = T::new(self, config.into());
         let future = Box::pin(task.run()); // <- todo should we create a future here?
         self.tasks.insert(name.as_ref().into(), future);
     }

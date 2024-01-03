@@ -8708,6 +8708,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "futures 0.3.28",
+ "prometheus_exporter",
  "tokio",
  "tracing",
  "zksync_core",

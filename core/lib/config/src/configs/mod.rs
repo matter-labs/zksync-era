@@ -3,7 +3,6 @@ pub use self::{
     alerts::AlertsConfig,
     api::ApiConfig,
     chain::ChainConfig,
-    circuit_synthesizer::CircuitSynthesizerConfig,
     contract_verifier::ContractVerifierConfig,
     contracts::ContractsConfig,
     database::{DBConfig, PostgresConfig},
@@ -27,7 +26,6 @@ pub use self::{
 pub mod alerts;
 pub mod api;
 pub mod chain;
-pub mod circuit_synthesizer;
 pub mod contract_verifier;
 pub mod contracts;
 pub mod database;
