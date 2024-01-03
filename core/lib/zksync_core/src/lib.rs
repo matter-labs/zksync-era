@@ -70,7 +70,9 @@ use crate::{
         MetadataCalculator, MetadataCalculatorConfig, MetadataCalculatorModeConfig,
     },
     metrics::{InitStage, APP_METRICS},
-    state_keeper::{create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer},
+    state_keeper::{
+        create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer, SequencerSealer,
+    },
 };
 
 pub mod api_server;
@@ -1032,9 +1034,10 @@ async fn build_tx_sender(
     l1_gas_price_provider: Arc<dyn L1GasPriceProvider>,
     storage_caches: PostgresStorageCaches,
 ) -> (TxSender, VmConcurrencyBarrier) {
+    let sequencer_sealer = SequencerSealer::new(state_keeper_config.clone());
     let tx_sender_builder = TxSenderBuilder::new(tx_sender_config.clone(), replica_pool)
         .with_main_connection_pool(master_pool)
-        .with_state_keeper_config(state_keeper_config.clone());
+        .with_sealer(Arc::new(sequencer_sealer));
 
     let max_concurrency = web3_json_config.vm_concurrency_limit();
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);

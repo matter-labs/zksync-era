@@ -23,8 +23,8 @@ use zksync_core::{
     reorg_detector::ReorgDetector,
     setup_sigint_handler,
     state_keeper::{
-        L1BatchExecutorBuilder, MainBatchExecutorBuilder, MiniblockSealer, MiniblockSealerHandle,
-        ZkSyncStateKeeper,
+        seal_criteria::NoopSealer, L1BatchExecutorBuilder, MainBatchExecutorBuilder,
+        MiniblockSealer, MiniblockSealerHandle, ZkSyncStateKeeper,
     },
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, fetcher::FetcherCursor,
@@ -92,7 +92,12 @@ async fn build_state_keeper(
     )
     .await;
 
-    ZkSyncStateKeeper::without_sealer(stop_receiver, Box::new(io), batch_executor_base)
+    ZkSyncStateKeeper::new(
+        stop_receiver,
+        Box::new(io),
+        batch_executor_base,
+        Box::new(NoopSealer),
+    )
 }
 
 async fn init_tasks(

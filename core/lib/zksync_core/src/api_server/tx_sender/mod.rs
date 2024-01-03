@@ -39,7 +39,7 @@ use crate::{
     },
     l1_gas_price::L1GasPriceProvider,
     metrics::{TxStage, APP_METRICS},
-    state_keeper::seal_criteria::{ConditionalSealer, SealData},
+    state_keeper::seal_criteria::{ConditionalSealer, NoopSealer, SealData},
 };
 
 mod proxy;
@@ -139,9 +139,8 @@ pub struct TxSenderBuilder {
     master_connection_pool: Option<ConnectionPool>,
     /// Proxy to submit transactions to the network. If not set, `master_connection_pool` must be set.
     proxy: Option<TxProxy>,
-    /// Actual state keeper configuration, required for tx verification.
-    /// If not set, transactions would not be checked against seal criteria.
-    state_keeper_config: Option<StateKeeperConfig>,
+    /// Batch sealer used to check whether transaction can be executed by the sequencer.
+    sealer: Option<Arc<dyn ConditionalSealer>>,
 }
 
 impl TxSenderBuilder {
@@ -151,8 +150,13 @@ impl TxSenderBuilder {
             replica_connection_pool,
             master_connection_pool: None,
             proxy: None,
-            state_keeper_config: None,
+            sealer: None,
         }
+    }
+
+    pub fn with_sealer(mut self, sealer: Arc<dyn ConditionalSealer>) -> Self {
+        self.sealer = Some(sealer);
+        self
     }
 
     pub fn with_tx_proxy(mut self, main_node_url: &str) -> Self {
@@ -162,11 +166,6 @@ impl TxSenderBuilder {
 
     pub fn with_main_connection_pool(mut self, master_connection_pool: ConnectionPool) -> Self {
         self.master_connection_pool = Some(master_connection_pool);
-        self
-    }
-
-    pub fn with_state_keeper_config(mut self, state_keeper_config: StateKeeperConfig) -> Self {
-        self.state_keeper_config = Some(state_keeper_config);
         self
     }
 
@@ -182,6 +181,9 @@ impl TxSenderBuilder {
             "Either master connection pool or proxy must be set"
         );
 
+        // Use noop sealer if no sealer was explicitly provided.
+        let sealer = self.sealer.unwrap_or_else(|| Arc::new(NoopSealer));
+
         TxSender(Arc::new(TxSenderInner {
             sender_config: self.config,
             master_connection_pool: self.master_connection_pool,
@@ -189,9 +191,9 @@ impl TxSenderBuilder {
             l1_gas_price_source,
             api_contracts,
             proxy: self.proxy,
-            state_keeper_config: self.state_keeper_config,
             vm_concurrency_limiter,
             storage_caches,
+            sealer,
         }))
     }
 }
@@ -241,14 +243,12 @@ pub struct TxSenderInner {
     pub(super) api_contracts: ApiContracts,
     /// Optional transaction proxy to be used for transaction submission.
     pub(super) proxy: Option<TxProxy>,
-    /// An up-to-date version of the state keeper config.
-    /// This field may be omitted on the external node, since the configuration may change unexpectedly.
-    /// If this field is set to `None`, `TxSender` will assume that any transaction is executable.
-    state_keeper_config: Option<StateKeeperConfig>,
     /// Used to limit the amount of VMs that can be executed simultaneously.
     pub(super) vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
     // Caches used in VM execution.
     storage_caches: PostgresStorageCaches,
+    /// Batch sealer used to check whether transaction can be executed by the sequencer.
+    sealer: Arc<dyn ConditionalSealer>,
 }
 
 #[derive(Clone)]
@@ -850,13 +850,6 @@ impl TxSender {
         tx_metrics: &TransactionExecutionMetrics,
         log_message: bool,
     ) -> Result<(), SubmitTxError> {
-        let Some(sk_config) = &self.0.state_keeper_config else {
-            // No config provided, so we can't check if transaction satisfies the seal criteria.
-            // We assume that it's executable, and if it's not, it will be caught by the main server
-            // (where this check is always performed).
-            return Ok(());
-        };
-
         // Hash is not computable for the provided `transaction` during gas estimation (it doesn't have
         // its input data set). Since we don't log a hash in this case anyway, we just use a dummy value.
         let tx_hash = if log_message {
@@ -870,8 +863,10 @@ impl TxSender {
         // still reject them as it's not.
         let protocol_version = ProtocolVersionId::latest();
         let seal_data = SealData::for_transaction(transaction, tx_metrics, protocol_version);
-        if let Some(reason) =
-            ConditionalSealer::find_unexecutable_reason(sk_config, &seal_data, protocol_version)
+        if let Some(reason) = self
+            .0
+            .sealer
+            .find_unexecutable_reason(&seal_data, protocol_version)
         {
             let message = format!(
                 "Tx is Unexecutable because of {reason}; inputs for decision: {seal_data:?}"
