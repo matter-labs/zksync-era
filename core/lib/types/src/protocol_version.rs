@@ -41,19 +41,20 @@ pub enum ProtocolVersionId {
     Version17,
     Version18,
     Version19,
+    Version20,
     // kl todo delete local vm verion
     Local,
 }
 
 impl ProtocolVersionId {
     pub fn latest() -> Self {
-        // Self::Version18
+        // Self::Version19
         // kl todo delete local vm verion
         Self::Local
     }
 
     pub fn next() -> Self {
-        Self::Version19
+        Self::Version20
     }
 
     /// Returns VM version to be used by API for this protocol version.
@@ -80,6 +81,7 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version18 => VmVersion::VmBoojumIntegration,
             ProtocolVersionId::Version19 => VmVersion::VmBoojumIntegration,
+            ProtocolVersionId::Version20 => VmVersion::VmBoojumIntegration,
             // kl todo delete local vm verion
             ProtocolVersionId::Local => VmVersion::Local,
         }
@@ -777,6 +779,7 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version18 => VmVersion::VmBoojumIntegration,
             ProtocolVersionId::Version19 => VmVersion::VmBoojumIntegration,
+            ProtocolVersionId::Version20 => VmVersion::VmBoojumIntegration,
             // kl todo delete local vm verion
             ProtocolVersionId::Local => VmVersion::Local,
         }

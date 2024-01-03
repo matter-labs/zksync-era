@@ -1,7 +1,9 @@
 import { TestMaster } from '../../src/index';
 import fs from 'fs';
 import * as zlib from 'zlib';
+import * as protobuf from 'protobufjs';
 import { snapshots_creator } from 'zk/build/run/run';
+import path from 'path';
 
 describe('Snapshots API tests', () => {
     let testMaster: TestMaster;
@@ -15,13 +17,11 @@ describe('Snapshots API tests', () => {
     });
 
     async function runCreator() {
-        console.log('Starting creator');
         await snapshots_creator();
     }
 
     async function rpcRequest(name: string, params: any) {
         const response = await testMaster.mainAccount().provider.send(name, params);
-        console.log(response);
         return response;
     }
 
@@ -33,14 +33,14 @@ describe('Snapshots API tests', () => {
         return rpcRequest('snapshots_getSnapshot', [snapshotL1Batch]);
     }
 
-    async function decompressGzip(filePath: string): Promise<string> {
+    async function decompressGzip(filePath: string): Promise<Buffer> {
         return new Promise((resolve, reject) => {
             const readStream = fs.createReadStream(filePath);
             const gunzip = zlib.createGunzip();
-            let data = '';
+            let chunks: Uint8Array[] = [];
 
-            gunzip.on('data', (chunk) => (data += chunk.toString()));
-            gunzip.on('end', () => resolve(data));
+            gunzip.on('data', (chunk) => chunks.push(chunk));
+            gunzip.on('end', () => resolve(Buffer.concat(chunks)));
             gunzip.on('error', reject);
 
             readStream.pipe(gunzip);
@@ -57,18 +57,19 @@ describe('Snapshots API tests', () => {
         const fullSnapshot = await getSnapshot(l1BatchNumber);
         const miniblockNumber = fullSnapshot.miniblockNumber;
 
+        const protoPath = path.join(process.env.ZKSYNC_HOME as string, 'core/lib/types/src/proto/mod.proto');
+        const root = await protobuf.load(protoPath);
+        const SnapshotStorageLogsChunk = root.lookupType('zksync.types.SnapshotStorageLogsChunk');
+
         expect(fullSnapshot.l1BatchNumber).toEqual(l1BatchNumber);
         for (let chunkMetadata of fullSnapshot.storageLogsChunks) {
-            console.log(`Verifying ${chunkMetadata.filepath}`);
-            let path = `${process.env.ZKSYNC_HOME}/${chunkMetadata.filepath}`;
-
-            let output = JSON.parse(await decompressGzip(path));
+            const chunkPath = path.join(process.env.ZKSYNC_HOME as string, chunkMetadata.filepath);
+            const output = SnapshotStorageLogsChunk.decode(await decompressGzip(chunkPath)) as any;
             expect(output['storageLogs'].length > 0);
-
             for (const storageLog of output['storageLogs'] as any[]) {
-                const snapshotAccountAddress = storageLog['key']['account']['address'];
-                const snapshotKey = storageLog['key']['key'];
-                const snapshotValue = storageLog['value'];
+                const snapshotAccountAddress = '0x' + storageLog['accountAddress'].toString('hex');
+                const snapshotKey = '0x' + storageLog['storageKey'].toString('hex');
+                const snapshotValue = '0x' + storageLog['storageValue'].toString('hex');
                 const snapshotL1BatchNumber = storageLog['l1BatchNumberOfInitialWrite'];
                 const valueOnBlockchain = await testMaster
                     .mainAccount()

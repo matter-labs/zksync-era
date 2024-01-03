@@ -194,7 +194,7 @@ impl ConsistencyChecker {
                     batch_number.0 += 1;
                 }
                 Ok(false) => {
-                    anyhow::bail!("Batch {} is inconsistent with L1", batch_number.0);
+                    tracing::warn!("Batch {} is inconsistent with L1", batch_number.0);
                 }
                 Err(e) => {
                     tracing::warn!("Consistency checker error: {}", e);

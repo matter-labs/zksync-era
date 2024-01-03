@@ -50,8 +50,8 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y libpq5 ca-certificates openssl && rm -rf /var/lib/apt/lists/*
 
-COPY etc/system-contracts/bootloader/build/artifacts/ /etc/system-contracts/bootloader/build/artifacts/
-COPY etc/system-contracts/artifacts-zk /etc/system-contracts/artifacts-zk
+COPY contracts/system-contracts/bootloader/build/artifacts/ /contracts/system-contracts/bootloader/build/artifacts/
+COPY contracts/system-contracts/artifacts-zk /contracts/system-contracts/artifacts-zk
 COPY contracts/l1-contracts/artifacts/ /contracts/l1-contracts/artifacts/
 COPY contracts/l2-contracts/artifacts-zk/ /contracts/l2-contracts/artifacts-zk/
 COPY setup_2\^26.key /etc/

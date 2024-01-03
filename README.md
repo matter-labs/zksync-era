@@ -43,6 +43,7 @@ at your option.
 - [Twitter for Devs](https://twitter.com/zkSyncDevs)
 - [Discord](https://join.zksync.dev/)
 - [Mirror](https://zksync.mirror.xyz/)
+- [Youtube](https://www.youtube.com/@zkSync-era)
 
 ## Disclaimer
 

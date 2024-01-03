@@ -9,7 +9,7 @@ use tokio::sync::RwLock;
 use zksync::{error::ClientError, operations::SyncTransactionHandle, HttpClient};
 use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 use zksync_types::{api::TransactionReceipt, Address, Nonce, H256, U256, U64};
-use zksync_web3_decl::jsonrpsee::core::Error as CoreError;
+use zksync_web3_decl::jsonrpsee::core::ClientError as CoreError;
 
 use crate::{
     account::tx_command_executor::SubmitResult,
@@ -221,7 +221,7 @@ impl AccountLifespan {
         expected_outcome: &ExpectedOutcome,
     ) -> ReportLabel {
         match expected_outcome {
-            ExpectedOutcome::TxSucceed if transaction_receipt.status == Some(U64::one()) => {
+            ExpectedOutcome::TxSucceed if transaction_receipt.status == U64::one() => {
                 // If it was a successful `DeployContract` transaction, set the contract
                 // address for subsequent usage by `Execute`.
                 if let Some(address) = transaction_receipt.contract_address {
@@ -232,7 +232,7 @@ impl AccountLifespan {
                 // Transaction succeed and it should have.
                 ReportLabel::done()
             }
-            ExpectedOutcome::TxRejected if transaction_receipt.status == Some(U64::zero()) => {
+            ExpectedOutcome::TxRejected if transaction_receipt.status == U64::zero() => {
                 // Transaction failed and it should have.
                 ReportLabel::done()
             }

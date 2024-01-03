@@ -26,7 +26,7 @@ export async function deployERC20(
         if (governorPrivateKey) {
             args.push('--private-key', governorPrivateKey);
         }
-        await utils.spawn(`yarn --silent --cwd contracts/ethereum deploy-erc20 add-multi '
+        await utils.spawn(`yarn --silent --cwd contracts/l1-contracts deploy-erc20 add-multi '
             [
                 { "name": "DAI",  "symbol": "DAI",  "decimals": 18 },
                 { "name": "wBTC", "symbol": "wBTC", "decimals":  8, "implementation": "RevertTransferERC20" },
@@ -53,7 +53,7 @@ export async function deployERC20(
         );
     } else if (command == 'new') {
         await utils.spawn(
-            `yarn --silent --cwd contracts/ethereum deploy-erc20 add --token-name ${name} --symbol ${symbol} --decimals ${decimals}`
+            `yarn --silent --cwd contracts/l1-contracts deploy-erc20 add --token-name ${name} --symbol ${symbol} --decimals ${decimals}`
         );
     }
 }
@@ -113,11 +113,11 @@ export async function loadtest(...args: string[]) {
 export async function readVariable(address: string, contractName: string, variableName: string, file?: string) {
     if (file === undefined)
         await utils.spawn(
-            `yarn --silent --cwd contracts/ethereum read-variable read ${address} ${contractName} ${variableName}`
+            `yarn --silent --cwd contracts/l1-contracts read-variable read ${address} ${contractName} ${variableName}`
         );
     else
         await utils.spawn(
-            `yarn --silent --cwd contracts/ethereum read-variable read ${address} ${contractName} ${variableName} -f ${file}`
+            `yarn --silent --cwd contracts/l1-contracts read-variable read ${address} ${contractName} ${variableName} -f ${file}`
         );
 }
 

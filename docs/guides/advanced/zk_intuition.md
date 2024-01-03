@@ -80,7 +80,7 @@ the hashes we mentioned earlier. This is similar merkle paths that we discussed 
 
 ### Where is the Code
 
-The job of generating witnesses, which we discussed earlier, is handled by a the witness generator. Initially, this was
+The job of generating witnesses, which we discussed earlier, is handled by the witness generator. Initially, this was
 located in a module [zksync core witness]. However, for the new proof system, the team began to shift this function to a
 new location called [separate witness binary].
 

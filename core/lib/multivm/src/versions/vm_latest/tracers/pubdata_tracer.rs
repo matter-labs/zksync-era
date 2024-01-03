@@ -28,7 +28,7 @@ use crate::{
         constants::BOOTLOADER_HEAP_PAGE,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::{traits::VmTracer, utils::VmHook},
-        types::internals::{pubdata::PubdataInput, ZkSyncVmState},
+        types::internals::{PubdataInput, ZkSyncVmState},
         utils::logs::collect_events_and_l1_system_logs_after_timestamp,
         StorageOracle,
     },

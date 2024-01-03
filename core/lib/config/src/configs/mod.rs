@@ -3,14 +3,12 @@ pub use self::{
     alerts::AlertsConfig,
     api::ApiConfig,
     chain::ChainConfig,
-    circuit_synthesizer::CircuitSynthesizerConfig,
     contract_verifier::ContractVerifierConfig,
     contracts::ContractsConfig,
     database::{DBConfig, PostgresConfig},
     eth_client::ETHClientConfig,
     eth_sender::{ETHSenderConfig, GasAdjusterConfig},
     eth_watch::ETHWatchConfig,
-    fetcher::FetcherConfig,
     fri_proof_compressor::FriProofCompressorConfig,
     fri_prover::FriProverConfig,
     fri_prover_gateway::FriProverGatewayConfig,
@@ -28,14 +26,12 @@ pub use self::{
 pub mod alerts;
 pub mod api;
 pub mod chain;
-pub mod circuit_synthesizer;
 pub mod contract_verifier;
 pub mod contracts;
 pub mod database;
 pub mod eth_client;
 pub mod eth_sender;
 pub mod eth_watch;
-pub mod fetcher;
 pub mod fri_proof_compressor;
 pub mod fri_prover;
 pub mod fri_prover_gateway;

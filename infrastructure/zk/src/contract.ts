@@ -37,7 +37,7 @@ export async function initializeValidator(args: any[] = []) {
     await utils.confirmAction();
 
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
-    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
+    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/l1-contracts` : `yarn l1-contracts`;
 
     const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
     if (governorPrivateKey) {
@@ -51,45 +51,45 @@ export async function initializeGovernance(args: any[] = []) {
     await utils.confirmAction();
 
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
-    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
+    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/l1-contracts` : `yarn l1-contracts`;
 
     await utils.spawn(`${baseCommandL1} initialize-governance ${args.join(' ')} | tee initializeGovernance.log`);
 }
 
-export async function initializeGovernanceChain(args: any[] = []) {
-    await utils.confirmAction();
+// export async function initializeGovernanceChain(args: any[] = []) {
+//     await utils.confirmAction();
 
-    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
-    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
+//     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
+//     const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
 
-    await utils.spawn(`${baseCommandL1} initialize-governance-chain ${args.join(' ')} | tee initializeGovernance.log`);
-}
+//     await utils.spawn(`${baseCommandL1} initialize-governance-chain ${args.join(' ')} | tee initializeGovernance.log`);
+// }
 
-export async function initializeL1AllowList(args: any[] = []) {
-    await utils.confirmAction();
+// export async function initializeL1AllowList(args: any[] = []) {
+//     await utils.confirmAction();
 
-    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
-    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
+//     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
+//     const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
 
-    const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
-    if (governorPrivateKey) {
-        args.push('--private-key', governorPrivateKey);
-    }
+//     const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
+//     if (governorPrivateKey) {
+//         args.push('--private-key', governorPrivateKey);
+//     }
 
-    await utils.spawn(`${baseCommandL1} initialize-allow-list ${args.join(' ')} | tee initializeL1AllowList.log`);
-}
+//     await utils.spawn(`${baseCommandL1} initialize-allow-list ${args.join(' ')} | tee initializeL1AllowList.log`);
+// }
 
 /// kl todo: delete, not needed anymore
-export async function initializeWethToken(args: any[] = []) {
-    await utils.confirmAction();
+// export async function initializeWethToken(args: any[] = []) {
+//     await utils.confirmAction();
 
-    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
-    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
+//     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
+//     const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/l1-contracts` : `yarn l1-contracts`;
 
-    await utils.spawn(
-        `${baseCommandL1} initialize-l2-weth-token instant-call ${args.join(' ')} | tee initializeWeth.log`
-    );
-}
+//     await utils.spawn(
+//         `${baseCommandL1} initialize-l2-weth-token instant-call ${args.join(' ')} | tee initializeWeth.log`
+//     );
+// }
 
 export async function initializeBridges(args: any[] = []) {
     await utils.confirmAction();
@@ -114,8 +114,8 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean, inc
 
     // In the localhost setup scenario we don't have the workspace,
     // so we have to `--cwd` into the required directory.
-    const baseCommandL2 = isLocalSetup ? `yarn --cwd /contracts/zksync` : `yarn l2-contracts`;
-    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
+    const baseCommandL2 = isLocalSetup ? `yarn --cwd /contracts/l2-contracts` : `yarn l2-contracts`;
+    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/l1-contracts` : `yarn l1-contracts`;
 
     // Skip compilation for local setup, since we already copied artifacts into the container.
     await utils.spawn(`${baseCommandL2} build`);
@@ -149,7 +149,7 @@ export async function deployL1(args: any[]) {
 
     // In the localhost setup scenario we don't have the workspace,
     // so we have to `--cwd` into the required directory.
-    const baseCommand = process.env.ZKSYNC_LOCAL_SETUP ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
+    const baseCommand = process.env.ZKSYNC_LOCAL_SETUP ? `yarn --cwd /contracts/l1-contracts` : `yarn l1-contracts`;
 
     await utils.spawn(`${baseCommand} deploy-no-build ${args.join(' ')} | tee deployL1.log`);
     const deployLog = fs.readFileSync('deployL1.log').toString();
@@ -286,8 +286,4 @@ command
 command.command('deploy [deploy-opts...]').allowUnknownOption(true).description('deploy contracts').action(deployL1);
 command.command('build').description('build contracts').action(build);
 command.command('initialize-validator').description('initialize validator').action(initializeValidator);
-command
-    .command('initialize-l1-allow-list-contract')
-    .description('initialize L1 allow list contract')
-    .action(initializeL1AllowList);
 command.command('verify').description('verify L1 contracts').action(verifyL1Contracts);

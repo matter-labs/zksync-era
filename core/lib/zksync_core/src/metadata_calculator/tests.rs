@@ -1,3 +1,7 @@
+//! Tests for the metadata calculator component life cycle.
+
+// TODO (PLA-708): test full recovery life cycle
+
 use std::{future::Future, ops, panic, path::Path, time::Duration};
 
 use assert_matches::assert_matches;
@@ -51,8 +55,6 @@ async fn genesis_creation() {
     };
     assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(1));
 }
-
-// TODO (SMA-1726): Restore tests for tree backup mode
 
 #[tokio::test]
 async fn basic_workflow() {

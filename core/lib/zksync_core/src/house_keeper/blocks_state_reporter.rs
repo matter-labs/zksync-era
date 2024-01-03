@@ -21,22 +21,22 @@ impl L1BatchMetricsReporter {
 
     async fn report_metrics(&self) {
         let mut conn = self.connection_pool.access_storage().await.unwrap();
-        let mut block_metrics = vec![
-            (
-                conn.blocks_dal()
-                    .get_sealed_l1_batch_number()
-                    .await
-                    .unwrap(),
-                BlockStage::Sealed,
-            ),
-            (
-                conn.blocks_dal()
-                    .get_last_l1_batch_number_with_metadata()
-                    .await
-                    .unwrap(),
-                BlockStage::MetadataCalculated,
-            ),
-        ];
+        let mut block_metrics = vec![(
+            conn.blocks_dal()
+                .get_sealed_l1_batch_number()
+                .await
+                .unwrap(),
+            BlockStage::Sealed,
+        )];
+
+        let last_l1_batch_with_metadata = conn
+            .blocks_dal()
+            .get_last_l1_batch_number_with_metadata()
+            .await
+            .unwrap();
+        if let Some(number) = last_l1_batch_with_metadata {
+            block_metrics.push((number, BlockStage::MetadataCalculated));
+        }
 
         let eth_stats = conn.eth_sender_dal().get_eth_l1_batches().await.unwrap();
         for (tx_type, l1_batch) in eth_stats.saved {

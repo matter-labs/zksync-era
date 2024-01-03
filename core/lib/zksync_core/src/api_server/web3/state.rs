@@ -24,7 +24,7 @@ use crate::{
         execution_sandbox::BlockArgs,
         tree::TreeApiHttpClient,
         tx_sender::TxSender,
-        web3::{backend_jsonrpc::error::internal_error, resolve_block, TypedFilter},
+        web3::{backend_jsonrpsee::internal_error, resolve_block, TypedFilter},
     },
     sync_layer::SyncState,
 };
@@ -154,35 +154,18 @@ impl SealedMiniblockNumber {
 }
 
 /// Holder for the data required for the API to be functional.
-#[derive(Debug)]
-pub struct RpcState<E> {
+#[derive(Debug, Clone)]
+pub struct RpcState {
     pub(crate) installed_filters: Arc<Mutex<Filters>>,
     pub connection_pool: ConnectionPool,
     pub tree_api: Option<TreeApiHttpClient>,
-    pub tx_sender: TxSender<E>,
+    pub tx_sender: TxSender,
     pub sync_state: Option<SyncState>,
     pub(super) api_config: InternalApiConfig,
     pub(super) last_sealed_miniblock: SealedMiniblockNumber,
 }
 
-// Custom implementation is required due to generic param:
-// Even though it's under `Arc`, compiler doesn't generate the `Clone` implementation unless
-// an unnecessary bound is added.
-impl<E> Clone for RpcState<E> {
-    fn clone(&self) -> Self {
-        Self {
-            installed_filters: self.installed_filters.clone(),
-            connection_pool: self.connection_pool.clone(),
-            tx_sender: self.tx_sender.clone(),
-            tree_api: self.tree_api.clone(),
-            sync_state: self.sync_state.clone(),
-            api_config: self.api_config.clone(),
-            last_sealed_miniblock: self.last_sealed_miniblock.clone(),
-        }
-    }
-}
-
-impl<E> RpcState<E> {
+impl RpcState {
     pub fn parse_transaction_bytes(&self, bytes: &[u8]) -> Result<(L2Tx, H256), Web3Error> {
         let chain_id = self.api_config.l2_chain_id;
         let (tx_request, hash) = api::TransactionRequest::from_bytes(bytes, chain_id)?;

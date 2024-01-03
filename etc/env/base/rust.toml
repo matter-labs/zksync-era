@@ -25,7 +25,6 @@ block_sizes_test=info,\
 zksync_verification_key_generator_and_server=info,\
 zksync_object_store=info,\
 setup_key_generator_and_server=info,\
-zksync_circuit_synthesizer=info,\
 en_playground=info,\
 zksync_external_node=info,\
 cross_nodes_checker=debug,\
