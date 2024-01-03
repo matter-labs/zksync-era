@@ -294,7 +294,7 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
         &OperationsManagerConfig { delay_interval: 50 },
         MetadataCalculatorModeConfig::Lightweight,
     );
-    let mut calculator = MetadataCalculator::new(&calculator_config).await;
+    let mut calculator = MetadataCalculator::new(calculator_config).await;
     let (delay_sx, mut delay_rx) = mpsc::unbounded_channel();
     calculator.delayer.delay_notifier = delay_sx;
 

@@ -181,11 +181,9 @@ async fn init_tasks(
         stop_receiver.clone(),
     );
 
-    let metadata_calculator = MetadataCalculator::new(&MetadataCalculatorConfig {
-        db_path: &config.required.merkle_tree_path,
-        mode: MetadataCalculatorModeConfig::Full {
-            store_factory: None,
-        },
+    let metadata_calculator = MetadataCalculator::new(MetadataCalculatorConfig {
+        db_path: config.required.merkle_tree_path.clone(),
+        mode: MetadataCalculatorModeConfig::Full { object_store: None },
         delay_interval: config.optional.metadata_calculator_delay(),
         max_l1_batches_per_iter: config.optional.max_l1_batches_per_tree_iter,
         multi_get_chunk_size: config.optional.merkle_tree_multi_get_chunk_size,
