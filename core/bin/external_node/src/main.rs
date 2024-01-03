@@ -233,14 +233,13 @@ async fn init_tasks(
     let gas_adjuster_handle = tokio::spawn(gas_adjuster.clone().run(stop_receiver.clone()));
 
     let (tx_sender, vm_barrier, cache_update_handle) = {
-        let mut tx_sender_builder =
+        let tx_sender_builder =
             TxSenderBuilder::new(config.clone().into(), connection_pool.clone())
                 .with_main_connection_pool(connection_pool.clone())
                 .with_tx_proxy(&main_node_url);
 
-        // Add rate limiter if enabled.
-        if let Some(tps_limit) = config.optional.transactions_per_sec_limit {
-            tx_sender_builder = tx_sender_builder.with_rate_limiter(tps_limit);
+        if config.optional.transactions_per_sec_limit.is_some() {
+            tracing::warn!("`transactions_per_sec_limit` option is deprecated and ignored");
         };
 
         let max_concurrency = config.optional.vm_concurrency_limit;
@@ -400,12 +399,15 @@ async fn main() -> anyhow::Result<()> {
             L1ExecutedBatchesRevert::Allowed,
         );
 
-        let mut connection = connection_pool.access_storage().await.unwrap();
+        let mut connection = connection_pool.access_storage().await?;
         let sealed_l1_batch_number = connection
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
-            .unwrap();
+            .context("Failed getting sealed L1 batch number")?
+            .context(
+                "Cannot roll back pending L1 batch since there are no L1 batches in Postgres",
+            )?;
         drop(connection);
 
         tracing::info!("Rolling back to l1 batch number {sealed_l1_batch_number}");
@@ -419,9 +421,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let sigint_receiver = setup_sigint_handler();
-
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
-
     tracing::info!("Started the external node");
     tracing::info!("Main node URL is: {}", main_node_url);
 
