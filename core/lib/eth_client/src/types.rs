@@ -1,8 +1,27 @@
 use zksync_types::web3::{
-    contract::{tokens::Tokenize, Options},
+    contract::{
+        tokens::{Detokenize, Tokenize},
+        Error as ContractError, Options,
+    },
     ethabi,
     types::{Address, BlockId, TransactionReceipt, H256, U256},
 };
+
+/// Wrapper for `Vec<ethabi::Token>` that doesn't wrap them in an additional array in `Tokenize` implementation.
+#[derive(Debug)]
+pub(crate) struct RawTokens(pub Vec<ethabi::Token>);
+
+impl Tokenize for RawTokens {
+    fn into_tokens(self) -> Vec<ethabi::Token> {
+        self.0
+    }
+}
+
+impl Detokenize for RawTokens {
+    fn from_tokens(tokens: Vec<ethabi::Token>) -> Result<Self, ContractError> {
+        Ok(Self(tokens))
+    }
+}
 
 /// Arguments for calling a function in an unspecified Ethereum smart contract.
 #[derive(Debug)]
@@ -11,7 +30,7 @@ pub struct CallFunctionArgs {
     pub(crate) from: Option<Address>,
     pub(crate) options: Options,
     pub(crate) block: Option<BlockId>,
-    pub(crate) params: Vec<ethabi::Token>,
+    pub(crate) params: RawTokens,
 }
 
 impl CallFunctionArgs {
@@ -21,7 +40,7 @@ impl CallFunctionArgs {
             from: None,
             options: Options::default(),
             block: None,
-            params: params.into_tokens(),
+            params: RawTokens(params.into_tokens()),
         }
     }
 
@@ -139,4 +158,22 @@ pub struct FailureInfo {
     pub gas_used: Option<U256>,
     /// Gas limit of the transaction.
     pub gas_limit: U256,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn raw_tokens_are_compatible_with_actual_call() {
+        let vk_contract = zksync_contracts::verifier_contract();
+        let args = CallFunctionArgs::new("verificationKeyHash", ());
+        let func = vk_contract.function(&args.name).unwrap();
+        func.encode_input(&args.params.into_tokens()).unwrap();
+
+        let output_tokens = vec![ethabi::Token::FixedBytes(vec![1; 32])];
+        let RawTokens(output_tokens) = RawTokens::from_tokens(output_tokens).unwrap();
+        let hash = H256::from_tokens(output_tokens).unwrap();
+        assert_eq!(hash, H256::repeat_byte(1));
+    }
 }

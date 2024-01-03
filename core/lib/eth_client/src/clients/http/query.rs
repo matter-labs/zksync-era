@@ -15,7 +15,7 @@ use zksync_types::web3::{
 
 use crate::{
     clients::http::{Method, COUNTERS, LATENCIES},
-    types::{Error, ExecutedTxStatus, FailureInfo},
+    types::{Error, ExecutedTxStatus, FailureInfo, RawTokens},
     ContractCall, EthInterface, RawTransactionBytes,
 };
 
@@ -236,7 +236,7 @@ impl EthInterface for QueryClient {
     ) -> Result<Vec<ethabi::Token>, Error> {
         let latency = LATENCIES.direct[&Method::CallContractFunction].start();
         let contract = Contract::new(self.web3.eth(), call.contract_address, call.contract_abi);
-        let res = contract
+        let RawTokens(res) = contract
             .query(
                 &call.inner.name,
                 call.inner.params,
