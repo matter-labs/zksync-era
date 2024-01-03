@@ -1,0 +1,12 @@
+[package]
+name = "zksync_full_stack"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+zksync-web3-rs = "*"
+ethers = "2.0.1"
+hex = "0.4.3"
+tokio = { version = "1", features = ["macros", "process"] }

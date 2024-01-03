@@ -48,6 +48,9 @@ members = [
 
     # SDK section
     "sdk/zksync-rs",
+
+    # Validium Example
+    "zksync_full_stack",
 ]
 resolver = "2"
 
