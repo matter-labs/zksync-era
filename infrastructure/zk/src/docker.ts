@@ -98,9 +98,10 @@ async function _build(
 ) {
     let tagsToBuild = '';
 
+    let platform = platforms.join(',').replace(/\//g, '-');
     for (const tag of tagList) {
         for (const registry of DOCKER_REGISTRIES) {
-            tagsToBuild = tagsToBuild + `-t ${registry}/${image}:${tag} `;
+            tagsToBuild = tagsToBuild + `-t ${registry}/${image}:${tag}-${platform} `;
         }
     }
 
@@ -119,7 +120,7 @@ async function _build(
 
     const buildCommand =
         `DOCKER_BUILDKIT=1 docker buildx build ${tagsToBuild}` +
-        ` --platform=${platforms.join(',')}` +
+        ` --platform=${platform}` +
         (buildArgs ? ` ${buildArgs}` : '') +
         ` -f ./docker/${imagePath}/Dockerfile .`;
 
