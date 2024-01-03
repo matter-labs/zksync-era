@@ -1,8 +1,8 @@
 use std::{sync::Arc, time::Duration};
 
-use anyhow::Context;
+use anyhow::Context as _;
 use clap::Parser;
-use futures::{future::FusedFuture, FutureExt};
+use futures::{future::FusedFuture, FutureExt as _};
 use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task, time::sleep};
@@ -233,14 +233,13 @@ async fn init_tasks(
     let gas_adjuster_handle = tokio::spawn(gas_adjuster.clone().run(stop_receiver.clone()));
 
     let (tx_sender, vm_barrier, cache_update_handle) = {
-        let mut tx_sender_builder =
+        let tx_sender_builder =
             TxSenderBuilder::new(config.clone().into(), connection_pool.clone())
                 .with_main_connection_pool(connection_pool.clone())
                 .with_tx_proxy(&main_node_url);
 
-        // Add rate limiter if enabled.
-        if let Some(tps_limit) = config.optional.transactions_per_sec_limit {
-            tx_sender_builder = tx_sender_builder.with_rate_limiter(tps_limit);
+        if config.optional.transactions_per_sec_limit.is_some() {
+            tracing::warn!("`transactions_per_sec_limit` option is deprecated and ignored");
         };
 
         let max_concurrency = config.optional.vm_concurrency_limit;
@@ -270,7 +269,7 @@ async fn init_tasks(
     };
 
     let http_server_handles =
-        ApiBuilder::jsonrpc_backend(config.clone().into(), connection_pool.clone())
+        ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
             .http(config.required.http_port)
             .with_filter_limit(config.optional.filters_limit)
             .with_batch_request_size_limit(config.optional.max_batch_request_size)
@@ -284,7 +283,7 @@ async fn init_tasks(
             .context("Failed initializing HTTP JSON-RPC server")?;
 
     let ws_server_handles =
-        ApiBuilder::jsonrpc_backend(config.clone().into(), connection_pool.clone())
+        ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
             .ws(config.required.ws_port)
             .with_filter_limit(config.optional.filters_limit)
             .with_subscriptions_limit(config.optional.subscriptions_limit)
@@ -400,12 +399,15 @@ async fn main() -> anyhow::Result<()> {
             L1ExecutedBatchesRevert::Allowed,
         );
 
-        let mut connection = connection_pool.access_storage().await.unwrap();
+        let mut connection = connection_pool.access_storage().await?;
         let sealed_l1_batch_number = connection
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
-            .unwrap();
+            .context("Failed getting sealed L1 batch number")?
+            .context(
+                "Cannot roll back pending L1 batch since there are no L1 batches in Postgres",
+            )?;
         drop(connection);
 
         tracing::info!("Rolling back to l1 batch number {sealed_l1_batch_number}");
@@ -419,9 +421,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let sigint_receiver = setup_sigint_handler();
-
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
-
     tracing::info!("Started the external node");
     tracing::info!("Main node URL is: {}", main_node_url);
 
@@ -443,23 +443,20 @@ async fn main() -> anyhow::Result<()> {
 
     let reorg_detector = ReorgDetector::new(&main_node_url, connection_pool.clone(), stop_receiver);
     let mut reorg_detector_handle = tokio::spawn(reorg_detector.run()).fuse();
+    let mut reorg_detector_result = None;
 
     let particular_crypto_alerts = None;
     let graceful_shutdown = None::<futures::future::Ready<()>>;
     let tasks_allowed_to_finish = false;
-    let mut reorg_detector_last_correct_batch = None;
 
     tokio::select! {
         _ = wait_for_tasks(task_handles, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
         _ = sigint_receiver => {
             tracing::info!("Stop signal received, shutting down");
         },
-        last_correct_batch = &mut reorg_detector_handle => {
-            if let Ok(last_correct_batch) = last_correct_batch {
-                reorg_detector_last_correct_batch = last_correct_batch;
-            } else {
-                tracing::error!("Reorg detector actor failed");
-            }
+        result = &mut reorg_detector_handle => {
+            tracing::info!("Reorg detector terminated, shutting down");
+            reorg_detector_result = Some(result);
         }
     };
 
@@ -468,13 +465,23 @@ async fn main() -> anyhow::Result<()> {
     shutdown_components(stop_sender, health_check_handle).await;
 
     if !reorg_detector_handle.is_terminated() {
-        if let Ok(Some(last_correct_batch)) = reorg_detector_handle.await {
-            reorg_detector_last_correct_batch = Some(last_correct_batch);
-        }
+        reorg_detector_result = Some(reorg_detector_handle.await);
     }
+    let reorg_detector_last_correct_batch = reorg_detector_result.and_then(|result| match result {
+        Ok(Ok(last_correct_batch)) => last_correct_batch,
+        Ok(Err(err)) => {
+            tracing::error!("Reorg detector failed: {err}");
+            None
+        }
+        Err(err) => {
+            tracing::error!("Reorg detector panicked: {err}");
+            None
+        }
+    });
 
     if let Some(last_correct_batch) = reorg_detector_last_correct_batch {
-        tracing::info!("Performing rollback to block {}", last_correct_batch);
+        tracing::info!("Performing rollback to L1 batch #{last_correct_batch}");
+
         let reverter = BlockReverter::new(
             config.required.state_cache_path,
             config.required.merkle_tree_path,

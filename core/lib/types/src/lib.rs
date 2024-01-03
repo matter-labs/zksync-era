@@ -56,6 +56,7 @@ pub mod api;
 pub mod eth_sender;
 pub mod helpers;
 pub mod proofs;
+pub mod proto;
 pub mod prover_server_api;
 pub mod transaction_request;
 pub mod utils;

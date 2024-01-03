@@ -13,7 +13,7 @@ export async function callFacetDeployer(
     file: string
 ) {
     const cwd = process.cwd();
-    process.chdir(`${process.env.ZKSYNC_HOME}/contracts/ethereum/`);
+    process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l1-contracts/`);
     let argsString = '';
     if (executor) {
         argsString += ' --executor';
