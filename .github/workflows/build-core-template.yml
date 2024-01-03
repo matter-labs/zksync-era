@@ -98,3 +98,27 @@ jobs:
         run: |
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
+
+  create_manifest:
+    name: Create release docker manifest
+    runs-on: matterlabs-ci-runner
+    needs: build-images
+    strategy:
+      matrix:
+        component:
+          - name: server-v2
+            platform: linux/amd64
+          - name: external-node
+            platform: linux/amd64,linux/arm64
+          - name: contract-verifier
+            platform: linux/amd64
+          - name: cross-external-nodes-checker
+            platform: linux/amd64
+          - name: snapshots-creator
+            platform: linux/amd64
+    env:
+      image_tag: ${{ inputs.image_tag }}
+      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
+    steps:
+      - name: Some steps for merge image per component using platforms comma-separated string
+        run: echo "TODO"
