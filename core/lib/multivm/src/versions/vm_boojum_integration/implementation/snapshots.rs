@@ -5,9 +5,7 @@ use zk_evm_1_4_0::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
 use crate::vm_boojum_integration::{
-    old_vm::{history_recorder::HistoryEnabled, oracles::OracleWithHistory},
-    types::internals::VmSnapshot,
-    vm::Vm,
+    old_vm::oracles::OracleWithHistory, types::internals::VmSnapshot, vm::Vm,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
