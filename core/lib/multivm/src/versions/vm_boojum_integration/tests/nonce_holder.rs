@@ -5,7 +5,7 @@ use crate::{
         ExecutionResult, Halt, TxExecutionMode, TxRevertReason, VmExecutionMode, VmInterface,
         VmRevertReason,
     },
-    vm_latest::{
+    vm_boojum_integration::{
         tests::{
             tester::{Account, VmTesterBuilder},
             utils::read_nonce_holder_tester,

@@ -2,7 +2,7 @@ use zksync_types::{Execute, H160};
 
 use crate::{
     interface::{TxExecutionMode, TxRevertReason, VmRevertReason},
-    vm_latest::{
+    vm_boojum_integration::{
         tests::{
             tester::{ExpectedError, TransactionTestInfo, VmTesterBuilder},
             utils::{get_execute_error_calldata, read_error_contract, BASE_SYSTEM_CONTRACTS},

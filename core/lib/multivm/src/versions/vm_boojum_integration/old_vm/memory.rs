@@ -6,7 +6,7 @@ use zk_evm_1_4_0::{
 };
 use zksync_types::U256;
 
-use crate::vm_latest::old_vm::{
+use crate::vm_boojum_integration::old_vm::{
     history_recorder::{
         FramedStack, HistoryEnabled, HistoryMode, IntFrameManagerWithHistory, MemoryWithHistory,
         MemoryWrapper, WithHistory,

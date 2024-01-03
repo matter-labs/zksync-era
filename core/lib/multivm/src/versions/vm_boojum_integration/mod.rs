@@ -28,8 +28,6 @@ pub mod constants;
 mod implementation;
 mod old_vm;
 mod oracles;
-#[cfg(test)]
-mod tests;
 pub(crate) mod tracers;
 mod types;
 pub mod utils;

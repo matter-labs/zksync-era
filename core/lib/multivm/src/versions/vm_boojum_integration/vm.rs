@@ -12,7 +12,7 @@ use crate::{
         L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
         VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
-    vm_latest::{
+    vm_boojum_integration::{
         bootloader_state::BootloaderState,
         old_vm::{events::merge_events, history_recorder::HistoryEnabled},
         tracers::dispatcher::TracerDispatcher,
@@ -160,7 +160,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
 }
 
 /// Methods of vm, which required some history manipulations
-impl<S: WriteStorage> VmInterfaceHistoryEnabled<S> for Vm<S, HistoryEnabled> {
+impl<S: WriteStorage> VmInterfaceHistoryEnabled<S> for Vm<S, crate::vm_latest::HistoryEnabled> {
     /// Create snapshot of current vm state and push it into the memory
     fn make_snapshot(&mut self) {
         self.make_snapshot_inner()

@@ -4,7 +4,7 @@ use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics
 use zk_evm_1_4_0::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
-use crate::vm_latest::{
+use crate::vm_boojum_integration::{
     old_vm::{history_recorder::HistoryEnabled, oracles::OracleWithHistory},
     types::internals::VmSnapshot,
     vm::Vm,
@@ -32,7 +32,7 @@ struct VmMetrics {
 static METRICS: vise::Global<VmMetrics> = vise::Global::new();
 
 /// Implementation of VM related to rollbacks inside virtual machine
-impl<S: WriteStorage> Vm<S, HistoryEnabled> {
+impl<S: WriteStorage> Vm<S, crate::vm_latest::HistoryEnabled> {
     pub(crate) fn make_snapshot_inner(&mut self) {
         self.snapshots.push(VmSnapshot {
             // Vm local state contains O(1) various parameters (registers/etc).
