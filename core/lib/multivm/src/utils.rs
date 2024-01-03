@@ -146,7 +146,7 @@ pub fn get_bootloader_encoding_space(version: VmVersion) -> u32 {
     }
 }
 
-pub fn get_max_transactions_in_batch(version: VmVersion) -> usize {
+pub fn get_bootloader_max_txs_in_batch(version: VmVersion) -> usize {
     match version {
         VmVersion::M5WithRefunds | VmVersion::M5WithoutRefunds => {
             crate::vm_m5::vm_with_bootloader::MAX_TXS_IN_BLOCK

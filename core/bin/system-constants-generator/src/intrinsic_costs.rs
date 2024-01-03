@@ -5,9 +5,7 @@
 //!
 
 use multivm::utils::get_bootloader_encoding_space;
-use zksync_types::{
-    ethabi::Address, IntrinsicSystemGasConstants, ProtocolVersion, ProtocolVersionId, U256,
-};
+use zksync_types::{ethabi::Address, IntrinsicSystemGasConstants, ProtocolVersionId, U256};
 
 use crate::utils::{
     execute_internal_transfer_test, execute_user_txs_in_test_gas_vm, get_l1_tx, get_l1_txs,
