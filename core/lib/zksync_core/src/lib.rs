@@ -454,36 +454,6 @@ pub async fn initialize_components(
                 "initialized WS API on {:?} in {elapsed:?}",
                 server_handles.local_addr
             );
-
-            let started_at = Instant::now();
-            tracing::info!("initializing WS API");
-            let bounded_gas_adjuster = gas_adjuster
-                .get_or_init()
-                .await
-                .context("gas_adjuster.get_or_init()")?;
-            let server_handles = run_ws_api(
-                &postgres_config,
-                &tx_sender_config,
-                &state_keeper_config,
-                &internal_api_config,
-                &api_config,
-                bounded_gas_adjuster.clone(),
-                connection_pool.clone(),
-                replica_connection_pool.clone(),
-                stop_receiver.clone(),
-                storage_caches.clone(),
-            )
-            .await
-            .context("run_ws_api")?;
-
-            task_futures.extend(server_handles.tasks);
-            healthchecks.push(Box::new(server_handles.health_check));
-            let elapsed = started_at.elapsed();
-            APP_METRICS.init_latency[&InitStage::WsApi].set(elapsed);
-            tracing::info!(
-                "initialized Legacy WS API on {:?} in {elapsed:?}",
-                server_handles.local_addr
-            );
         }
 
         if components.contains(&Component::ContractVerificationApi) {

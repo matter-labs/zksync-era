@@ -43,6 +43,7 @@ account_pks=[
 estimate_gas_scale_factor=1.2
 estimate_gas_acceptable_overestimation=1000
 max_tx_size=1000000
+api_mode="eth_transfer_included"
 # Configuration for the contract verification API
 [api.contract_verification]
 # Port for the contract verification API.

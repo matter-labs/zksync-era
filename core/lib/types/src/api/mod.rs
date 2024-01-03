@@ -20,11 +20,36 @@ use crate::{
 pub mod en;
 
 /// Enum for choosing API mode
-#[derive(Copy, Clone, Debug, PartialEq, Display, Default, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Display, Default)]
 pub enum ApiMode {
     #[default]
     Modern,
     EthTransferIncluded,
+}
+
+impl<'de> Deserialize<'de> for ApiMode {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct V;
+        impl<'de> serde::de::Visitor<'de> for V {
+            type Value = ApiMode;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("A block number or one of the supported aliases")
+            }
+            fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
+                let result = match value {
+                    "modern" => ApiMode::Modern,
+                    "eth_transfer_included" => ApiMode::EthTransferIncluded,
+                    _ => return Err(E::custom(format!("Unsupported API mode: {}", value))),
+                };
+
+                Ok(result)
+            }
+        }
+        deserializer.deserialize_str(V)
+    }
 }
 
 /// Block Number
