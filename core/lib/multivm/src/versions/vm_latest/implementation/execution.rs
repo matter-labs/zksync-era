@@ -71,9 +71,6 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             .map(|x| (x.get_refunds(), x.pubdata_published()))
             .unwrap_or_default();
 
-        let estimated_circuits_used =
-            tx_tracer.circuits_tracer.estimated_circuits_used.ceil() as usize;
-
         let statistics = self.get_statistics(
             timestamp_initial,
             cycles_initial,
@@ -83,7 +80,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             spent_pubdata_counter_before,
             pubdata_published,
             logs.total_log_queries_count,
-            estimated_circuits_used,
+            tx_tracer.circuits_tracer.estimated_circuits_used,
         );
         let result = tx_tracer.result_tracer.into_result();
 

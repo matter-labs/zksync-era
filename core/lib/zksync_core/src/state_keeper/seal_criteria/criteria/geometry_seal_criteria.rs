@@ -70,7 +70,7 @@ impl MetricExtractor for CircuitsCriterion {
     }
 
     fn extract(metrics: &ExecutionMetrics) -> usize {
-        metrics.estimated_circuits_used
+        metrics.estimated_circuits_used.ceil() as usize
     }
 }
 
@@ -218,7 +218,7 @@ mod tests {
         test_scenario_execution_metrics!(
             CircuitsCriterion,
             estimated_circuits_used,
-            usize,
+            f32,
             ProtocolVersionId::Version17
         );
     }

@@ -24,7 +24,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         spent_pubdata_counter_before: u32,
         pubdata_published: u32,
         total_log_queries_count: usize,
-        estimated_circuits_used: usize,
+        estimated_circuits_used: f32,
     ) -> VmExecutionStatistics {
         let computational_gas_used = self.calculate_computational_gas_used(
             tracer,

@@ -69,7 +69,7 @@ pub struct ExecutionMetrics {
     pub cycles_used: u32,
     pub computational_gas_used: u32,
     pub pubdata_published: u32,
-    pub estimated_circuits_used: usize,
+    pub estimated_circuits_used: f32,
 }
 
 impl ExecutionMetrics {
