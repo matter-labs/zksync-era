@@ -4,7 +4,7 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_eth_client::BoundEthInterface;
+use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
 use zksync_types::{
     aggregated_operations::AggregatedOperation,
     contracts::{Multicall3Call, Multicall3Result},
@@ -12,7 +12,10 @@ use zksync_types::{
     ethabi::{Contract, Token},
     protocol_version::{L1VerifierConfig, VerifierParams},
     vk_transform::l1_vk_commitment,
-    web3::contract::{tokens::Tokenizable, Error, Options},
+    web3::contract::{
+        tokens::{Detokenize, Tokenizable},
+        Error,
+    },
     Address, ProtocolVersionId, H256, U256,
 };
 
@@ -99,20 +102,12 @@ impl<E: BoundEthInterface> EthTxAggregator<E> {
 
     pub(super) async fn get_multicall_data(&mut self) -> Result<MulticallData, ETHSenderError> {
         let calldata = self.generate_calldata_for_multicall();
-        let aggregate3_result = self
-            .eth_client
-            .call_contract_function(
-                &self.functions.aggregate3.name,
-                calldata,
-                None,
-                Options::default(),
-                None,
-                self.l1_multicall3_address,
-                self.functions.multicall_contract.clone(),
-            )
-            .await?;
-
-        self.parse_multicall_data(aggregate3_result)
+        let args = CallFunctionArgs::new(&self.functions.aggregate3.name, calldata).for_contract(
+            self.l1_multicall3_address,
+            self.functions.multicall_contract.clone(),
+        );
+        let aggregate3_result = self.eth_client.call_contract_function(args).await?;
+        self.parse_multicall_data(Token::from_tokens(aggregate3_result)?)
     }
 
     // Multicall's aggregate function accepts 1 argument - arrays of different contract calls.
@@ -304,43 +299,25 @@ impl<E: BoundEthInterface> EthTxAggregator<E> {
         tracing::debug!("Calling get_verification_key");
         if contracts_are_pre_boojum {
             let abi = Contract {
-                functions: vec![(
+                functions: [(
                     self.functions.get_verification_key.name.clone(),
                     vec![self.functions.get_verification_key.clone()],
                 )]
-                .into_iter()
-                .collect(),
+                .into(),
                 ..Default::default()
             };
-            let vk = self
-                .eth_client
-                .call_contract_function(
-                    &self.functions.get_verification_key.name,
-                    (),
-                    None,
-                    Default::default(),
-                    None,
-                    verifier_address,
-                    abi,
-                )
-                .await?;
-            Ok(l1_vk_commitment(vk))
+            let args = CallFunctionArgs::new(&self.functions.get_verification_key.name, ())
+                .for_contract(verifier_address, abi);
+
+            let vk = self.eth_client.call_contract_function(args).await?;
+            Ok(l1_vk_commitment(Token::from_tokens(vk)?))
         } else {
             let get_vk_hash = self.functions.verification_key_hash.as_ref();
             tracing::debug!("Calling verificationKeyHash");
-            let vk_hash = self
-                .eth_client
-                .call_contract_function(
-                    &get_vk_hash.unwrap().name,
-                    (),
-                    None,
-                    Default::default(),
-                    None,
-                    verifier_address,
-                    self.functions.verifier_contract.clone(),
-                )
-                .await?;
-            Ok(vk_hash)
+            let args = CallFunctionArgs::new(&get_vk_hash.unwrap().name, ())
+                .for_contract(verifier_address, self.functions.verifier_contract.clone());
+            let vk_hash = self.eth_client.call_contract_function(args).await?;
+            Ok(H256::from_tokens(vk_hash)?)
         }
     }
 

@@ -6,7 +6,7 @@ use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
 use zksync_config::{configs::chain::StateKeeperConfig, GasAdjusterConfig};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::ConnectionPool;
-use zksync_eth_client::clients::mock::MockEthereum;
+use zksync_eth_client::clients::MockEthereum;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},

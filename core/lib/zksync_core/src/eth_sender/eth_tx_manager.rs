@@ -5,8 +5,7 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{
-    types::{Error, ExecutedTxStatus, SignedCallResult},
-    BoundEthInterface,
+    BoundEthInterface, Error, ExecutedTxStatus, RawTransactionBytes, SignedCallResult,
 };
 use zksync_types::{
     eth_sender::EthTx,
@@ -211,7 +210,7 @@ where
                 base_fee_per_gas,
                 priority_fee_per_gas,
                 signed_tx.hash,
-                signed_tx.raw_tx.clone(),
+                signed_tx.raw_tx.as_ref(),
             )
             .await
             .unwrap()
@@ -236,7 +235,7 @@ where
         &self,
         storage: &mut StorageProcessor<'_>,
         tx_history_id: u32,
-        raw_tx: Vec<u8>,
+        raw_tx: RawTransactionBytes,
         current_block: L1BlockNumber,
     ) -> Result<H256, ETHSenderError> {
         match self.ethereum_gateway.send_raw_tx(raw_tx).await {
@@ -439,12 +438,12 @@ where
                 .send_raw_transaction(
                     storage,
                     tx.id,
-                    tx.signed_raw_tx.clone(),
+                    RawTransactionBytes::new_unchecked(tx.signed_raw_tx.clone()),
                     l1_block_numbers.latest,
                 )
                 .await
             {
-                tracing::warn!("Error {:?} in sending tx {:?}", error, &tx);
+                tracing::warn!("Error sending transaction {tx:?}: {error}");
             }
         }
     }
