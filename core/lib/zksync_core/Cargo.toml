@@ -10,7 +10,7 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "dd05139b76ab0843443ab3ff730174942c825dae" }
+vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
 zksync_state = { path = "../state" }
 zksync_types = { path = "../types" }
 zksync_dal = { path = "../dal" }
@@ -72,6 +72,7 @@ bitflags = "1.3.2"
 #jsonrpc-ws-server = { git = "https://github.com/matter-labs/jsonrpc.git", branch = "master" }
 #jsonrpc-derive = { git = "https://github.com/matter-labs/jsonrpc.git", branch = "master" }
 #jsonrpc-pubsub = { git = "https://github.com/matter-labs/jsonrpc.git", branch = "master" }
+
 num = { version = "0.3.1", features = ["serde"] }
 bigdecimal = { version = "0.2.2", features = ["serde"] }
 #reqwest = { version = "0.11", features = ["blocking", "json"] }
@@ -98,5 +99,6 @@ tracing = "0.1.26"
 zksync_test_account = { path = "../test_account" }
 
 assert_matches = "1.5"
+jsonrpsee = "0.21.0"
 tempfile = "3.0.2"
 test-casing = "0.1.2"

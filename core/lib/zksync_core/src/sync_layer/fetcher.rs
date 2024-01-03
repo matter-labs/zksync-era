@@ -7,7 +7,7 @@ use zksync_types::{
     api::en::SyncBlock, block::MiniblockHasher, Address, L1BatchNumber, MiniblockNumber,
     ProtocolVersionId, H256,
 };
-use zksync_web3_decl::jsonrpsee::core::Error as RpcError;
+use zksync_web3_decl::jsonrpsee::core::ClientError as RpcError;
 
 use super::{
     client::{CachingMainNodeClient, MainNodeClient},
@@ -123,10 +123,15 @@ impl FetcherCursor {
         assert_eq!(block.number, self.next_miniblock);
         let local_block_hash = block.compute_hash(self.prev_miniblock_hash);
         if let Some(reference_hash) = block.reference_hash {
-            assert_eq!(
-                local_block_hash, reference_hash,
-                "Mismatch between the locally computed and received miniblock hash for {block:?}"
-            );
+            if local_block_hash != reference_hash {
+                // This is a warning, not an assertion because hash mismatch may occur after a reorg.
+                // Indeed, `self.prev_miniblock_hash` may differ from the hash of the updated previous miniblock.
+                tracing::warn!(
+                    "Mismatch between the locally computed and received miniblock hash for {block:?}; \
+                     local_block_hash = {local_block_hash:?}, prev_miniblock_hash = {:?}",
+                    self.prev_miniblock_hash
+                );
+            }
         }
 
         let mut new_actions = Vec::new();

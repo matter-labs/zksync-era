@@ -26,19 +26,19 @@ pub enum ContractLanguage {
 }
 
 const GOVERNANCE_CONTRACT_FILE: &str =
-    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/governance/IGovernance.sol/IGovernance.json";
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/governance/IGovernance.sol/IGovernance.json";
 const ZKSYNC_CONTRACT_FILE: &str =
-    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/zksync/interfaces/IZkSync.sol/IZkSync.json";
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/interfaces/IZkSync.sol/IZkSync.json";
 const MULTICALL3_CONTRACT_FILE: &str =
-    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/dev-contracts/Multicall3.sol/Multicall3.json";
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/dev-contracts/Multicall3.sol/Multicall3.json";
 const VERIFIER_CONTRACT_FILE: &str =
-    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/zksync/Verifier.sol/Verifier.json";
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/Verifier.sol/Verifier.json";
 const IERC20_CONTRACT_FILE: &str =
-    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/common/interfaces/IERC20.sol/IERC20.json";
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/common/interfaces/IERC20.sol/IERC20.json";
 const FAIL_ON_RECEIVE_CONTRACT_FILE: &str =
-    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/zksync/dev-contracts/FailOnReceive.sol/FailOnReceive.json";
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/dev-contracts/FailOnReceive.sol/FailOnReceive.json";
 const L2_BRIDGE_CONTRACT_FILE: &str =
-    "contracts/zksync/artifacts-zk/cache-zk/solpp-generated-contracts/bridge/interfaces/IL2Bridge.sol/IL2Bridge.json";
+    "contracts/l2-contracts/artifacts-zk/cache-zk/solpp-generated-contracts/bridge/interfaces/IL2Bridge.sol/IL2Bridge.json";
 const LOADNEXT_CONTRACT_FILE: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/LoadnextContract.json";
 const LOADNEXT_SIMPLE_CONTRACT_FILE: &str =
@@ -70,7 +70,7 @@ pub fn load_contract<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Contract {
 
 pub fn load_sys_contract(contract_name: &str) -> Contract {
     load_contract(format!(
-        "etc/system-contracts/artifacts-zk/cache-zk/solpp-generated-contracts/{0}.sol/{0}.json",
+        "contracts/system-contracts/artifacts-zk/contracts-preprocessed/{0}.sol/{0}.json",
         contract_name
     ))
 }
@@ -200,7 +200,7 @@ impl SystemContractsRepo {
         let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
         let zksync_home = PathBuf::from(zksync_home);
         SystemContractsRepo {
-            root: zksync_home.join("etc/system-contracts"),
+            root: zksync_home.join("contracts/system-contracts"),
         }
     }
     pub fn read_sys_contract_bytecode(
@@ -211,11 +211,11 @@ impl SystemContractsRepo {
     ) -> Vec<u8> {
         match lang {
             ContractLanguage::Sol => read_bytecode_from_path(self.root.join(format!(
-                "artifacts-zk/cache-zk/solpp-generated-contracts/{0}{1}.sol/{1}.json",
+                "artifacts-zk/contracts-preprocessed/{0}{1}.sol/{1}.json",
                 directory, name
             ))),
             ContractLanguage::Yul => read_zbin_bytecode_from_path(self.root.join(format!(
-                "contracts/{0}artifacts/{1}.yul/{1}.yul.zbin",
+                "contracts-preprocessed/{0}artifacts/{1}.yul.zbin",
                 directory, name
             ))),
         }
@@ -224,8 +224,8 @@ impl SystemContractsRepo {
 
 pub fn read_bootloader_code(bootloader_type: &str) -> Vec<u8> {
     read_zbin_bytecode(format!(
-        "etc/system-contracts/bootloader/build/artifacts/{}.yul/{}.yul.zbin",
-        bootloader_type, bootloader_type
+        "contracts/system-contracts/bootloader/build/artifacts/{}.yul.zbin",
+        bootloader_type
     ))
 }
 
@@ -365,6 +365,11 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
+    pub fn playground_post_allowlist_removal() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode("etc/multivm_bootloaders/vm_remove_allowlist/playground_batch.yul/playground_batch.yul.zbin");
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
     /// BaseSystemContracts with playground bootloader - used for handling eth_calls.
     pub fn estimate_gas() -> Self {
         let bootloader_bytecode = read_bootloader_code("fee_estimate");
@@ -395,6 +400,13 @@ impl BaseSystemContracts {
     pub fn estimate_gas_post_boojum() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_boojum_integration/fee_estimate.yul/fee_estimate.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn estimate_gas_post_allowlist_removal() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_remove_allowlist/fee_estimate.yul/fee_estimate.yul.zbin",
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }

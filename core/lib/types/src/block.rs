@@ -65,6 +65,7 @@ pub struct L1BatchHeader {
     pub system_logs: Vec<SystemL2ToL1Log>,
     /// Version of protocol used for the L1 batch.
     pub protocol_version: Option<ProtocolVersionId>,
+    pub pubdata_input: Option<Vec<u8>>,
 }
 
 /// Holder for the miniblock metadata that is not available from transactions themselves.
@@ -121,6 +122,7 @@ impl L1BatchHeader {
             base_system_contracts_hashes,
             system_logs: vec![],
             protocol_version: Some(protocol_version),
+            pubdata_input: Some(vec![]),
         }
     }
 
@@ -260,14 +262,6 @@ pub fn unpack_block_info(info: U256) -> (u64, u64) {
 pub fn pack_block_info(block_number: u64, block_timestamp: u64) -> U256 {
     U256::from(block_number) * SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER
         + U256::from(block_timestamp)
-}
-
-/// Returns virtual_block_start_batch and virtual_block_finish_l2_block based on the virtual block upgrade information
-pub fn unpack_block_upgrade_info(info: U256) -> (u64, u64) {
-    // its safe to use SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER here, since VirtualBlockUpgradeInfo and BlockInfo are packed same way
-    let virtual_block_start_batch = (info / SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER).as_u64();
-    let virtual_block_finish_l2_block = (info % SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER).as_u64();
-    (virtual_block_start_batch, virtual_block_finish_l2_block)
 }
 
 #[cfg(test)]

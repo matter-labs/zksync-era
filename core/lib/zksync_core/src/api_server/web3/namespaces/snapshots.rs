@@ -4,27 +4,17 @@ use zksync_types::{
 };
 use zksync_web3_decl::error::Web3Error;
 
-use crate::{
-    api_server::web3::{
-        backend_jsonrpc::error::internal_error, metrics::API_METRICS, state::RpcState,
-    },
-    l1_gas_price::L1GasPriceProvider,
+use crate::api_server::web3::{
+    backend_jsonrpsee::internal_error, metrics::API_METRICS, state::RpcState,
 };
 
-#[derive(Debug)]
-pub struct SnapshotsNamespace<G> {
-    state: RpcState<G>,
+#[derive(Debug, Clone)]
+pub struct SnapshotsNamespace {
+    state: RpcState,
 }
 
-impl<G> Clone for SnapshotsNamespace<G> {
-    fn clone(&self) -> Self {
-        Self {
-            state: self.state.clone(),
-        }
-    }
-}
-impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
-    pub fn new(state: RpcState<G>) -> Self {
+impl SnapshotsNamespace {
+    pub fn new(state: RpcState) -> Self {
         Self { state }
     }
 

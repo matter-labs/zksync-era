@@ -138,27 +138,53 @@ impl EventsWeb3Dal<'_, '_> {
             let db_logs: Vec<StorageWeb3Log> = sqlx::query_as!(
                 StorageWeb3Log,
                 r#"
-                WITH events_select AS (
-                    SELECT
-                        address, topic1, topic2, topic3, topic4, value,
-                        miniblock_number, tx_hash, tx_index_in_block,
-                        event_index_in_block, event_index_in_tx
-                    FROM events
-                    WHERE miniblock_number > $1
-                    ORDER BY miniblock_number ASC, event_index_in_block ASC
-                )
-                SELECT miniblocks.hash as "block_hash?",
-                    address as "address!", topic1 as "topic1!", topic2 as "topic2!", topic3 as "topic3!", topic4 as "topic4!", value as "value!",
-                    miniblock_number as "miniblock_number!", miniblocks.l1_batch_number as "l1_batch_number?", tx_hash as "tx_hash!",
-                    tx_index_in_block as "tx_index_in_block!", event_index_in_block as "event_index_in_block!", event_index_in_tx as "event_index_in_tx!"
-                FROM events_select
-                INNER JOIN miniblocks ON events_select.miniblock_number = miniblocks.number
-                ORDER BY miniblock_number ASC, event_index_in_block ASC
+                WITH
+                    events_select AS (
+                        SELECT
+                            address,
+                            topic1,
+                            topic2,
+                            topic3,
+                            topic4,
+                            value,
+                            miniblock_number,
+                            tx_hash,
+                            tx_index_in_block,
+                            event_index_in_block,
+                            event_index_in_tx
+                        FROM
+                            events
+                        WHERE
+                            miniblock_number > $1
+                        ORDER BY
+                            miniblock_number ASC,
+                            event_index_in_block ASC
+                    )
+                SELECT
+                    miniblocks.hash AS "block_hash?",
+                    address AS "address!",
+                    topic1 AS "topic1!",
+                    topic2 AS "topic2!",
+                    topic3 AS "topic3!",
+                    topic4 AS "topic4!",
+                    value AS "value!",
+                    miniblock_number AS "miniblock_number!",
+                    miniblocks.l1_batch_number AS "l1_batch_number?",
+                    tx_hash AS "tx_hash!",
+                    tx_index_in_block AS "tx_index_in_block!",
+                    event_index_in_block AS "event_index_in_block!",
+                    event_index_in_tx AS "event_index_in_tx!"
+                FROM
+                    events_select
+                    INNER JOIN miniblocks ON events_select.miniblock_number = miniblocks.number
+                ORDER BY
+                    miniblock_number ASC,
+                    event_index_in_block ASC
                 "#,
                 from_block.0 as i64
             )
-                .fetch_all(self.storage.conn())
-                .await?;
+            .fetch_all(self.storage.conn())
+            .await?;
             let logs = db_logs.into_iter().map(Into::into).collect();
             Ok(logs)
         }

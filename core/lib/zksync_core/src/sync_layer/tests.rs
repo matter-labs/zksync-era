@@ -174,7 +174,7 @@ async fn external_io_basics() {
         .await
         .unwrap()
         .expect("Transaction not persisted");
-    assert_eq!(tx_receipt.block_number, Some(1.into()));
+    assert_eq!(tx_receipt.block_number, 1.into());
     assert_eq!(tx_receipt.transaction_index, 0.into());
 }
 
@@ -299,7 +299,7 @@ pub(super) async fn mock_l1_batch_hash_computation(pool: ConnectionPool, number:
             .get_sealed_l1_batch_number()
             .await
             .unwrap();
-        if last_l1_batch_number < L1BatchNumber(number) {
+        if last_l1_batch_number < Some(L1BatchNumber(number)) {
             tokio::time::sleep(POLL_INTERVAL).await;
             continue;
         }

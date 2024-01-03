@@ -132,6 +132,7 @@ impl UpdatesManager {
             base_system_contracts_hashes: self.base_system_contract_hashes(),
             protocol_version: Some(self.protocol_version()),
             system_logs: finished_batch.final_execution_state.system_logs,
+            pubdata_input: finished_batch.pubdata_input,
         };
 
         let events_queue = finished_batch

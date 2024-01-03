@@ -97,7 +97,7 @@ async function callGenerateFacetCuts(
     executorAddress?: string
 ) {
     const cwd = process.cwd();
-    process.chdir(`${process.env.ZKSYNC_HOME}/contracts/ethereum/`);
+    process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l1-contracts/`);
     let argsString = '';
     if (l1RpcProvider) {
         argsString += ` --l1Rpc ${l1RpcProvider}`;
