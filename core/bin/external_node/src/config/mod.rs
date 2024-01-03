@@ -386,10 +386,6 @@ impl RequiredENConfig {
         let url = Url::parse(url_str).context("URL can not be parsed")?;
         format_url_with_port(&url)
     }
-
-    fn api_mode(&self) -> ApiMode {
-        self.api_mode
-    }
 }
 
 /// Configuration for Postgres database.
