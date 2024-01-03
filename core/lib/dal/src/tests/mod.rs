@@ -2,15 +2,14 @@ use std::time::Duration;
 
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
-    block::{L1BatchHeader, MiniblockHasher, MiniblockHeader},
+    block::{MiniblockHasher, MiniblockHeader},
     fee::{Fee, TransactionExecutionMetrics},
     helpers::unix_timestamp_ms,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     l2::L2Tx,
-    proofs::AggregationRound,
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
-    Address, Execute, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2ChainId, MiniblockNumber,
-    PriorityOpId, ProtocolVersion, ProtocolVersionId, H160, H256, MAX_GAS_PER_PUBDATA_BYTE, U256,
+    Address, Execute, L1BlockNumber, L1TxCommonData, L2ChainId, MiniblockNumber, PriorityOpId,
+    ProtocolVersionId, H160, H256, MAX_GAS_PER_PUBDATA_BYTE, U256,
 };
 
 use crate::{
@@ -254,19 +253,4 @@ async fn remove_stuck_txs() {
         .await
         .unwrap()
         .unwrap();
-}
-
-fn create_circuits() -> Vec<(&'static str, String)> {
-    vec![
-        ("Main VM", "1_0_Main VM_BasicCircuits.bin".to_owned()),
-        ("SHA256", "1_1_SHA256_BasicCircuits.bin".to_owned()),
-        (
-            "Code decommitter",
-            "1_2_Code decommitter_BasicCircuits.bin".to_owned(),
-        ),
-        (
-            "Log demuxer",
-            "1_3_Log demuxer_BasicCircuits.bin".to_owned(),
-        ),
-    ]
 }

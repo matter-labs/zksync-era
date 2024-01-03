@@ -4,12 +4,10 @@ use reqwest::{
     header::{HeaderMap, HeaderValue},
     Method,
 };
-use zksync_config::configs::FriProverConfig;
 use zksync_utils::http_with_retries::send_request_with_retries;
 
-pub async fn get_zone(prover_config: &FriProverConfig) -> anyhow::Result<String> {
-    let url = &prover_config.zone_read_url;
-    let data = fetch_from_url(url).await.context("fetch_from_url()")?;
+pub async fn get_zone(zone_url: &str) -> anyhow::Result<String> {
+    let data = fetch_from_url(zone_url).await.context("fetch_from_url()")?;
     parse_zone(&data).context("parse_zone")
 }
 
