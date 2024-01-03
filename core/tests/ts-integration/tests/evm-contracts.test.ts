@@ -72,6 +72,7 @@ describe('EVM equivalence contract', () => {
                     '0x' + artifacts.counter.evm.deployedBytecode.object
                 );
                 const contract = await factory.deploy(args);
+                await contract.deployTransaction.wait();
                 const receipt = await alice.provider.getTransactionReceipt(contract.deployTransaction.hash);
 
                 await assertCreatedCorrectly(deployer, alice.address, expectedBytecodeHash, receipt.logs);
@@ -83,8 +84,13 @@ describe('EVM equivalence contract', () => {
 
             test('Should propegate revert in constructor', async () => {
                 const factory = getEVMContractFactory(alice, artifacts.constructorRevert);
-                const contract = await factory.deploy({ gasLimit });
 
+                const contract = await factory.deploy({ gasLimit });
+                try {
+                    await contract.deployTransaction.wait();
+                } catch {
+                    // Do nothing, should fail
+                }
                 const receipt = await alice.provider.getTransactionReceipt(contract.deployTransaction.hash);
 
                 expect(receipt.status).toBe(0);
@@ -618,18 +624,17 @@ const opcodeDataDump: any = {};
 });
 
 async function dumpOpcodeLogs(hash: string, provider: zksync.Provider): Promise<void> {
-    const logs = (await provider.getTransactionReceipt(hash)).logs;
-    logs.forEach((log) => {
-        if (log.topics[0] === '0x63307236653da06aaa7e128a306b128c594b4cf3b938ef212975ed10dad17515') {
-            //Overhead
-            overheadDataDump.push(Number(ethers.utils.defaultAbiCoder.decode(['uint256'], log.data).toString()));
-        } else if (log.topics[0] === '0xca5a69edf1b934943a56c00605317596b03e2f61c3f633e8657b150f102a3dfa') {
-            // Opcode
-            const parsed = ethers.utils.defaultAbiCoder.decode(['uint256', 'uint256'], log.data);
-            const opcode = Number(parsed[0].toString());
-            const cost = Number(parsed[1].toString());
-
-            opcodeDataDump[opcode.toString()].push(cost);
-        }
-    });
+    // const logs = (await provider.getTransactionReceipt(hash)).logs;
+    // logs.forEach((log) => {
+    //     if (log.topics[0] === '0x63307236653da06aaa7e128a306b128c594b4cf3b938ef212975ed10dad17515') {
+    //         //Overhead
+    //         overheadDataDump.push(Number(ethers.utils.defaultAbiCoder.decode(['uint256'], log.data).toString()));
+    //     } else if (log.topics[0] === '0xca5a69edf1b934943a56c00605317596b03e2f61c3f633e8657b150f102a3dfa') {
+    //         // Opcode
+    //         const parsed = ethers.utils.defaultAbiCoder.decode(['uint256', 'uint256'], log.data);
+    //         const opcode = Number(parsed[0].toString());
+    //         const cost = Number(parsed[1].toString());
+    //         opcodeDataDump[opcode.toString()].push(cost);
+    //     }
+    // });
 }

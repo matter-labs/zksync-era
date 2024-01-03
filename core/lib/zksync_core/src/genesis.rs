@@ -3,7 +3,6 @@
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
 use anyhow::Context as _;
-
 use zksync_contracts::{read_sys_contract_bytecode, BaseSystemContracts, ContractLanguage};
 use zksync_dal::StorageProcessor;
 use zksync_merkle_tree::domain::ZkSyncTree;
