@@ -95,11 +95,15 @@ impl Aggregator {
         protocol_version_id: ProtocolVersionId,
         l1_verifier_config: L1VerifierConfig,
     ) -> Option<AggregatedOperation> {
-        let last_sealed_l1_batch_number = storage
+        let Some(last_sealed_l1_batch_number) = storage
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
-            .unwrap();
+            .unwrap()
+        else {
+            return None; // No L1 batches in Postgres; no operations are ready yet
+        };
+
         if let Some(op) = self
             .get_execute_operations(
                 storage,
