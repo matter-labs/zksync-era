@@ -8576,13 +8576,10 @@ dependencies = [
 name = "zksync_eth_client"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "async-trait",
- "hex",
  "jsonrpc-core",
  "serde",
  "thiserror",
- "tokio",
  "tracing",
  "vise",
  "zksync_config",

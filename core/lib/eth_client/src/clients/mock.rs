@@ -31,8 +31,6 @@ struct MockTx {
 
 impl From<Vec<u8>> for MockTx {
     fn from(tx: Vec<u8>) -> Self {
-        use std::convert::TryFrom;
-
         let len = tx.len();
         let max_fee_per_gas = U256::try_from(&tx[len - 96..len - 64]).unwrap();
         let max_priority_fee_per_gas = U256::try_from(&tx[len - 64..len - 32]).unwrap();

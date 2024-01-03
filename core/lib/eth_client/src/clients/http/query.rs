@@ -37,7 +37,7 @@ impl From<Http> for QueryClient {
 impl QueryClient {
     /// Creates a new HTTP client.
     pub fn new(node_url: &str) -> Result<Self, Error> {
-        let transport = web3::transports::Http::new(node_url)?;
+        let transport = Http::new(node_url)?;
         Ok(transport.into())
     }
 }
