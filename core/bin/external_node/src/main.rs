@@ -23,8 +23,8 @@ use zksync_core::{
     reorg_detector::ReorgDetector,
     setup_sigint_handler,
     state_keeper::{
-        L1BatchExecutorBuilder, MainBatchExecutorBuilder, MiniblockSealer, MiniblockSealerHandle,
-        ZkSyncStateKeeper,
+        seal_criteria::NoopSealer, L1BatchExecutorBuilder, MainBatchExecutorBuilder,
+        MiniblockSealer, MiniblockSealerHandle, ZkSyncStateKeeper,
     },
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, fetcher::FetcherCursor,
@@ -92,7 +92,12 @@ async fn build_state_keeper(
     )
     .await;
 
-    ZkSyncStateKeeper::without_sealer(stop_receiver, Box::new(io), batch_executor_base)
+    ZkSyncStateKeeper::new(
+        stop_receiver,
+        Box::new(io),
+        batch_executor_base,
+        Box::new(NoopSealer),
+    )
 }
 
 async fn init_tasks(
@@ -181,11 +186,9 @@ async fn init_tasks(
         stop_receiver.clone(),
     );
 
-    let metadata_calculator = MetadataCalculator::new(&MetadataCalculatorConfig {
-        db_path: &config.required.merkle_tree_path,
-        mode: MetadataCalculatorModeConfig::Full {
-            store_factory: None,
-        },
+    let metadata_calculator = MetadataCalculator::new(MetadataCalculatorConfig {
+        db_path: config.required.merkle_tree_path.clone(),
+        mode: MetadataCalculatorModeConfig::Full { object_store: None },
         delay_interval: config.optional.metadata_calculator_delay(),
         max_l1_batches_per_iter: config.optional.max_l1_batches_per_tree_iter,
         multi_get_chunk_size: config.optional.merkle_tree_multi_get_chunk_size,
@@ -399,12 +402,15 @@ async fn main() -> anyhow::Result<()> {
             L1ExecutedBatchesRevert::Allowed,
         );
 
-        let mut connection = connection_pool.access_storage().await.unwrap();
+        let mut connection = connection_pool.access_storage().await?;
         let sealed_l1_batch_number = connection
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
-            .unwrap();
+            .context("Failed getting sealed L1 batch number")?
+            .context(
+                "Cannot roll back pending L1 batch since there are no L1 batches in Postgres",
+            )?;
         drop(connection);
 
         tracing::info!("Rolling back to l1 batch number {sealed_l1_batch_number}");
@@ -418,9 +424,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let sigint_receiver = setup_sigint_handler();
-
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
-
     tracing::info!("Started the external node");
     tracing::info!("Main node URL is: {}", main_node_url);
 
