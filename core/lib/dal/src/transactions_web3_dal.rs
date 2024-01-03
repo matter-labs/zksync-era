@@ -5,8 +5,8 @@ use zksync_types::{
 };
 use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
 
-use crate::events_web3_dal::filter_logs_by_api_mode;
 use crate::{
+    events_web3_dal::filter_logs_by_api_mode,
     instrument::InstrumentExt,
     models::{
         storage_block::{bind_block_where_sql_params, web3_block_where_sql},
