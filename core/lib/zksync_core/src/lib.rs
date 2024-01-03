@@ -774,7 +774,7 @@ async fn add_trees_to_task_futures(
     let mode = match db_config.merkle_tree.mode {
         MerkleTreeMode::Lightweight => MetadataCalculatorModeConfig::Lightweight,
         MerkleTreeMode::Full => MetadataCalculatorModeConfig::Full {
-            store_factory: Some(store_factory),
+            object_store: Some(store_factory.create_store().await),
         },
     };
 
@@ -800,7 +800,7 @@ async fn run_tree(
     db_config: &DBConfig,
     api_config: Option<&MerkleTreeApiConfig>,
     operation_manager: &OperationsManagerConfig,
-    mode: MetadataCalculatorModeConfig<'_>,
+    mode: MetadataCalculatorModeConfig,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let started_at = Instant::now();
@@ -813,7 +813,7 @@ async fn run_tree(
 
     let config =
         MetadataCalculatorConfig::for_main_node(&db_config.merkle_tree, operation_manager, mode);
-    let metadata_calculator = MetadataCalculator::new(&config).await;
+    let metadata_calculator = MetadataCalculator::new(config).await;
     if let Some(api_config) = api_config {
         let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
         let tree_reader = metadata_calculator.tree_reader();
