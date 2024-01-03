@@ -15,7 +15,7 @@ use zksync_types::{
 
 use crate::{
     BoundEthInterface, ContractCall, Error, EthInterface, ExecutedTxStatus, FailureInfo,
-    SignedCallResult,
+    RawTransactionBytes, SignedCallResult,
 };
 
 #[async_trait]
@@ -59,7 +59,7 @@ impl<C: EthInterface + ?Sized> EthInterface for Arc<C> {
         self.as_ref().block_number(component).await
     }
 
-    async fn send_raw_tx(&self, tx: Vec<u8>) -> Result<H256, Error> {
+    async fn send_raw_tx(&self, tx: RawTransactionBytes) -> Result<H256, Error> {
         self.as_ref().send_raw_tx(tx).await
     }
 

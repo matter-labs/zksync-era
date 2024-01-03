@@ -21,7 +21,7 @@ use zksync_types::{
 use super::{query::QueryClient, Method, LATENCIES};
 use crate::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
-    BoundEthInterface, CallFunctionArgs, ContractCall, EthInterface,
+    BoundEthInterface, CallFunctionArgs, ContractCall, EthInterface, RawTransactionBytes,
 };
 
 /// HTTP-based Ethereum client, backed by a private key to sign transactions.
@@ -118,7 +118,7 @@ impl<S: EthereumSigner> EthInterface for SigningClient<S> {
         self.query_client.get_gas_price(component).await
     }
 
-    async fn send_raw_tx(&self, tx: Vec<u8>) -> Result<H256, Error> {
+    async fn send_raw_tx(&self, tx: RawTransactionBytes) -> Result<H256, Error> {
         self.query_client.send_raw_tx(tx).await
     }
 
@@ -276,7 +276,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         let hash = web3::signing::keccak256(&signed_tx).into();
         latency.observe();
         Ok(SignedCallResult {
-            raw_tx: signed_tx,
+            raw_tx: RawTransactionBytes(signed_tx),
             max_priority_fee_per_gas,
             max_fee_per_gas,
             nonce,

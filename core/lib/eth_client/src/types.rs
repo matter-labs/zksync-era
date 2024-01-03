@@ -77,11 +77,29 @@ pub enum Error {
     WrongFeeProvided(U256, U256),
 }
 
+/// Raw transaction bytes.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RawTransactionBytes(pub(crate) Vec<u8>);
+
+impl RawTransactionBytes {
+    /// Converts raw transaction bytes. It is caller's responsibility to ensure that these bytes
+    /// were actually obtained by signing a transaction.
+    pub fn new_unchecked(bytes: Vec<u8>) -> Self {
+        Self(bytes)
+    }
+}
+
+impl AsRef<[u8]> for RawTransactionBytes {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
 /// Representation of a signed transaction.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SignedCallResult {
     /// Raw transaction bytes.
-    pub raw_tx: Vec<u8>,
+    pub raw_tx: RawTransactionBytes,
     /// `max_priority_fee_per_gas` field of transaction (EIP1559).
     pub max_priority_fee_per_gas: U256,
     /// `max_fee_per_gas` field of transaction (EIP1559).

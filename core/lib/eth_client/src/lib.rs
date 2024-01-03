@@ -14,7 +14,8 @@ use zksync_types::{
 };
 
 pub use crate::types::{
-    CallFunctionArgs, ContractCall, Error, ExecutedTxStatus, FailureInfo, SignedCallResult,
+    CallFunctionArgs, ContractCall, Error, ExecutedTxStatus, FailureInfo, RawTransactionBytes,
+    SignedCallResult,
 };
 
 pub mod clients;
@@ -70,7 +71,7 @@ pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
     async fn block_number(&self, component: &'static str) -> Result<U64, Error>;
 
     /// Sends a transaction to the Ethereum network.
-    async fn send_raw_tx(&self, tx: Vec<u8>) -> Result<H256, Error>;
+    async fn send_raw_tx(&self, tx: RawTransactionBytes) -> Result<H256, Error>;
 
     /// Fetches the transaction status for a specified transaction hash.
     ///

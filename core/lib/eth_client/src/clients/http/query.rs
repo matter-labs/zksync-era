@@ -16,7 +16,7 @@ use zksync_types::web3::{
 use crate::{
     clients::http::{Method, COUNTERS, LATENCIES},
     types::{Error, ExecutedTxStatus, FailureInfo},
-    ContractCall, EthInterface,
+    ContractCall, EthInterface, RawTransactionBytes,
 };
 
 /// An "anonymous" Ethereum client that can invoke read-only methods that aren't
@@ -77,9 +77,9 @@ impl EthInterface for QueryClient {
         Ok(network_gas_price)
     }
 
-    async fn send_raw_tx(&self, tx: Vec<u8>) -> Result<H256, Error> {
+    async fn send_raw_tx(&self, tx: RawTransactionBytes) -> Result<H256, Error> {
         let latency = LATENCIES.direct[&Method::SendRawTx].start();
-        let tx = self.web3.eth().send_raw_transaction(Bytes(tx)).await?;
+        let tx = self.web3.eth().send_raw_transaction(Bytes(tx.0)).await?;
         latency.observe();
         Ok(tx)
     }

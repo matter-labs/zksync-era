@@ -17,7 +17,7 @@ use zksync_types::{
 
 use crate::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
-    BoundEthInterface, ContractCall, EthInterface,
+    BoundEthInterface, ContractCall, EthInterface, RawTransactionBytes,
 };
 
 #[derive(Debug, Clone)]
@@ -188,7 +188,7 @@ impl MockEthereum {
         let mut new_raw_tx = hash.as_bytes().to_vec();
         new_raw_tx.extend(raw_tx);
         Ok(SignedCallResult {
-            raw_tx: new_raw_tx,
+            raw_tx: RawTransactionBytes(new_raw_tx),
             max_priority_fee_per_gas,
             max_fee_per_gas,
             nonce,
@@ -238,8 +238,8 @@ impl EthInterface for MockEthereum {
         Ok(self.inner.read().unwrap().block_number.into())
     }
 
-    async fn send_raw_tx(&self, tx: Vec<u8>) -> Result<H256, Error> {
-        let mock_tx = MockTx::from(tx);
+    async fn send_raw_tx(&self, tx: RawTransactionBytes) -> Result<H256, Error> {
+        let mock_tx = MockTx::from(tx.0);
         let mock_tx_hash = mock_tx.hash;
         let mut inner = self.inner.write().unwrap();
 
