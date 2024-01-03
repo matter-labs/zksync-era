@@ -7,7 +7,7 @@ import * as zksync from 'zksync-web3';
 import { scaledGasPrice, waitUntilBlockFinalized } from '../src/helpers';
 import { WETH9, WETH9Factory } from 'l1-contracts/typechain';
 import { L2Weth, L2WethFactory } from 'l2-contracts/typechain';
-import { BigNumber, BigNumberish,  ethers } from 'ethers';
+import { BigNumber, BigNumberish, ethers } from 'ethers';
 import {
     shouldChangeETHBalances,
     shouldChangeTokenBalances,

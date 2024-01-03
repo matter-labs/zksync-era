@@ -1,4 +1,4 @@
-use std::convert::TryFrom;
+// use std::convert::TryFrom;
 
 // use std::time::Instant;
 use zksync_contracts::state_transition_chain_contract;

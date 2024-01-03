@@ -3598,6 +3598,19 @@
     },
     "query": "\n                UPDATE transactions\n                SET\n                    in_mempool = FALSE\n                FROM\n                    UNNEST($1::bytea[]) AS s (address)\n                WHERE\n                    transactions.in_mempool = TRUE\n                    AND transactions.initiator_address = s.address\n                "
   },
+  "3127124ca4e42675e1b9f924653ac6b96ef39a5ef8a0b20d658f18c641b2cb5b": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Bytea",
+          "Int4"
+        ]
+      }
+    },
+    "query": "UPDATE protocol_versions SET upgrade_tx_hash = $1 WHERE id = $2"
+  },
   "314f7e619a34efa89255a58c89f85d4402ff6005446bbded68c8d3dbca510f37": {
     "describe": {
       "columns": [],

@@ -56,40 +56,40 @@ export async function initializeGovernance(args: any[] = []) {
     await utils.spawn(`${baseCommandL1} initialize-governance ${args.join(' ')} | tee initializeGovernance.log`);
 }
 
-// export async function initializeGovernanceChain(args: any[] = []) {
-//     await utils.confirmAction();
+export async function initializeGovernanceChain(args: any[] = []) {
+    await utils.confirmAction();
 
-//     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
-//     const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
+    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
+    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
 
-//     await utils.spawn(`${baseCommandL1} initialize-governance-chain ${args.join(' ')} | tee initializeGovernance.log`);
-// }
+    await utils.spawn(`${baseCommandL1} initialize-governance-chain ${args.join(' ')} | tee initializeGovernance.log`);
+}
 
-// export async function initializeL1AllowList(args: any[] = []) {
-//     await utils.confirmAction();
+export async function initializeL1AllowList(args: any[] = []) {
+    await utils.confirmAction();
 
-//     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
-//     const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
+    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
+    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
 
-//     const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
-//     if (governorPrivateKey) {
-//         args.push('--private-key', governorPrivateKey);
-//     }
+    const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
+    if (governorPrivateKey) {
+        args.push('--private-key', governorPrivateKey);
+    }
 
-//     await utils.spawn(`${baseCommandL1} initialize-allow-list ${args.join(' ')} | tee initializeL1AllowList.log`);
-// }
+    await utils.spawn(`${baseCommandL1} initialize-allow-list ${args.join(' ')} | tee initializeL1AllowList.log`);
+}
 
 /// kl todo: delete, not needed anymore
-// export async function initializeWethToken(args: any[] = []) {
-//     await utils.confirmAction();
+export async function initializeWethToken(args: any[] = []) {
+    await utils.confirmAction();
 
-//     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
-//     const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/l1-contracts` : `yarn l1-contracts`;
+    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
+    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/l1-contracts` : `yarn l1-contracts`;
 
-//     await utils.spawn(
-//         `${baseCommandL1} initialize-l2-weth-token instant-call ${args.join(' ')} | tee initializeWeth.log`
-//     );
-// }
+    await utils.spawn(
+        `${baseCommandL1} initialize-l2-weth-token instant-call ${args.join(' ')} | tee initializeWeth.log`
+    );
+}
 
 export async function initializeBridges(args: any[] = []) {
     await utils.confirmAction();
@@ -99,7 +99,6 @@ export async function initializeBridges(args: any[] = []) {
 
     await utils.spawn(`${baseCommandL1} initialize-erc20-bridge ${args.join(' ')} | tee deployL1.log`);
     await utils.spawn(`${baseCommandL1} initialize-weth-bridge ${args.join(' ')} | tee -a deployL1.log`);
-
 }
 
 export async function deployL2(args: any[] = [], includePaymaster?: boolean, includeWETH?: boolean) {
