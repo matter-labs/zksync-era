@@ -1,6 +1,5 @@
-use super::*;
-use crate::consensus::storage::CtxStorage;
 use std::ops::Range;
+
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, scope};
 use zksync_consensus_executor::testonly::{connect_full_node, ValidatorNode};
@@ -9,6 +8,9 @@ use zksync_consensus_storage::PersistentBlockStore as _;
 use zksync_consensus_utils::no_copy::NoCopy;
 use zksync_dal::{connection::TestTemplate, ConnectionPool};
 use zksync_types::Address;
+
+use super::*;
+use crate::consensus::storage::CtxStorage;
 
 const OPERATOR_ADDRESS: Address = Address::repeat_byte(17);
 

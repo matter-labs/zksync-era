@@ -1,5 +1,4 @@
 //! Consensus-related functionality.
-use crate::sync_layer::sync_action::ActionQueueSender;
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope};
 use zksync_consensus_executor as executor;
@@ -8,6 +7,8 @@ use zksync_consensus_storage::BlockStore;
 use zksync_dal::{consensus_dal::Payload, ConnectionPool};
 use zksync_types::Address;
 
+use crate::sync_layer::sync_action::ActionQueueSender;
+
 mod storage;
 
 #[cfg(test)]
@@ -15,10 +16,12 @@ pub(crate) mod testonly;
 #[cfg(test)]
 mod tests;
 
-use self::storage::Store;
-use serde::de::Error;
 use std::collections::{HashMap, HashSet};
+
+use serde::de::Error;
 use zksync_consensus_crypto::{Text, TextFmt};
+
+use self::storage::Store;
 
 #[derive(PartialEq, Eq, Hash)]
 pub struct SerdeText<T: TextFmt>(pub T);

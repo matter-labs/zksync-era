@@ -76,7 +76,16 @@ impl SyncDal<'_, '_> {
     ) -> sqlx::Result<Vec<Transaction>> {
         let transactions = sqlx::query_as!(
             StorageTransaction,
-            r#"SELECT * FROM transactions WHERE miniblock_number = $1 ORDER BY index_in_block"#,
+            r#"
+            SELECT
+                *
+            FROM
+                transactions
+            WHERE
+                miniblock_number = $1
+            ORDER BY
+                index_in_block
+            "#,
             block_number.0 as i64
         )
         .instrument("sync_dal_sync_block.transactions")

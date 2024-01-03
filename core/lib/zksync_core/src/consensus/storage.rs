@@ -1,6 +1,4 @@
 //! Storage implementation based on DAL.
-use crate::sync_layer::fetcher::{FetchedBlock, FetcherCursor};
-use crate::sync_layer::sync_action::ActionQueueSender;
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, sync, time};
 use zksync_consensus_bft::PayloadManager;
@@ -9,7 +7,13 @@ use zksync_consensus_storage::{BlockStoreState, PersistentBlockStore, ReplicaSta
 use zksync_dal::{consensus_dal::Payload, ConnectionPool};
 use zksync_types::{Address, MiniblockNumber};
 
-use crate::consensus;
+use crate::{
+    consensus,
+    sync_layer::{
+        fetcher::{FetchedBlock, FetcherCursor},
+        sync_action::ActionQueueSender,
+    },
+};
 
 /// Context-aware `zksync_dal::StorageProcessor` wrapper.
 pub(super) struct CtxStorage<'a>(zksync_dal::StorageProcessor<'a>);

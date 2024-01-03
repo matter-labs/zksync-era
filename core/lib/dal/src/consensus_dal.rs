@@ -1,9 +1,10 @@
-pub use crate::models::storage_sync::Payload;
-use crate::StorageProcessor;
 use anyhow::Context as _;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::ReplicaState;
 use zksync_types::{Address, MiniblockNumber};
+
+pub use crate::models::storage_sync::Payload;
+use crate::StorageProcessor;
 
 /// Storage access methods for `zksync_core::consensus` module.
 #[derive(Debug)]
@@ -60,7 +61,16 @@ impl ConsensusDal<'_, '_> {
     /// for the genesis miniblock.
     pub async fn first_certificate(&mut self) -> anyhow::Result<Option<validator::CommitQC>> {
         let Some(row) = sqlx::query!(
-            "SELECT certificate FROM miniblocks_consensus ORDER BY number ASC LIMIT 1"
+            r#"
+            SELECT
+                certificate
+            FROM
+                miniblocks_consensus
+            ORDER BY
+                number ASC
+            LIMIT
+                1
+            "#
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -75,7 +85,16 @@ impl ConsensusDal<'_, '_> {
     /// so it might NOT be the certificate for the last miniblock.
     pub async fn last_certificate(&mut self) -> anyhow::Result<Option<validator::CommitQC>> {
         let Some(row) = sqlx::query!(
-            "SELECT certificate FROM miniblocks_consensus ORDER BY number DESC LIMIT 1"
+            r#"
+            SELECT
+                certificate
+            FROM
+                miniblocks_consensus
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -91,7 +110,14 @@ impl ConsensusDal<'_, '_> {
         block_number: validator::BlockNumber,
     ) -> anyhow::Result<Option<validator::CommitQC>> {
         let Some(row) = sqlx::query!(
-            "SELECT certificate FROM miniblocks_consensus WHERE number = $1",
+            r#"
+            SELECT
+                certificate
+            FROM
+                miniblocks_consensus
+            WHERE
+                number = $1
+            "#,
             i64::try_from(block_number.0)?
         )
         .fetch_optional(self.storage.conn())
@@ -166,7 +192,12 @@ impl ConsensusDal<'_, '_> {
             "consensus block payload doesn't match the miniblock"
         );
         sqlx::query!(
-            "INSERT INTO miniblocks_consensus (number, certificate) VALUES ($1, $2)",
+            r#"
+            INSERT INTO
+                miniblocks_consensus (number, certificate)
+            VALUES
+                ($1, $2)
+            "#,
             header.number.0 as i64,
             zksync_protobuf::serde::serialize(cert, serde_json::value::Serializer).unwrap(),
         )

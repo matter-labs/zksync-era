@@ -4,11 +4,13 @@ use anyhow::Context;
 use serde::Deserialize;
 use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId, MiniblockNumber};
-use zksync_core::api_server::{
-    tx_sender::TxSenderConfig,
-    web3::{state::InternalApiConfig, Namespace},
+use zksync_core::{
+    api_server::{
+        tx_sender::TxSenderConfig,
+        web3::{state::InternalApiConfig, Namespace},
+    },
+    consensus, sync_layer,
 };
-use zksync_core::{consensus, sync_layer};
 use zksync_types::api::BridgeAddresses;
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
@@ -416,7 +418,7 @@ pub struct ExternalNodeConfig {
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
     pub remote: RemoteENConfig,
-    pub consensus: Option<sync_layer::GossipConfig>,
+    pub consensus: Option<consensus::SerdeConfig>,
 }
 
 impl ExternalNodeConfig {
@@ -432,7 +434,7 @@ impl ExternalNodeConfig {
             .context("could not load external node config")?;
 
         let consensus = envy::prefixed("EN_")
-            .from_env::<Option<gossip::Config>>()
+            .from_env::<Option<consensus::SerdeConfig>>()
             .context("cound not load consensus config")?;
 
         let client = HttpClientBuilder::default()
