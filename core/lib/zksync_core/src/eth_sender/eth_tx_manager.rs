@@ -47,18 +47,21 @@ pub(super) struct L1BlockNumbers {
 /// Based on eth_tx_history queue the component can mark txs as stuck and create the new attempt
 /// with higher gas price
 #[derive(Debug)]
-pub struct EthTxManager<E, G> {
+pub struct EthTxManager<E> {
     ethereum_gateway: E,
     config: SenderConfig,
-    gas_adjuster: Arc<G>,
+    gas_adjuster: Arc<dyn L1TxParamsProvider>,
 }
 
-impl<E, G> EthTxManager<E, G>
+impl<E> EthTxManager<E>
 where
     E: BoundEthInterface + Sync,
-    G: L1TxParamsProvider,
 {
-    pub fn new(config: SenderConfig, gas_adjuster: Arc<G>, ethereum_gateway: E) -> Self {
+    pub fn new(
+        config: SenderConfig,
+        gas_adjuster: Arc<dyn L1TxParamsProvider>,
+        ethereum_gateway: E,
+    ) -> Self {
         Self {
             ethereum_gateway,
             config,

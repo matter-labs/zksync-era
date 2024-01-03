@@ -31,8 +31,8 @@ contracts/.git
 !infrastructure/zk
 !sdk/zksync-rs
 !contracts/system-contracts/bootloader/build/artifacts
-!contracts/system-contracts/contracts/artifacts
-!contracts/system-contracts/contracts/precompiles/artifacts
+!contracts/system-contracts/contracts-preprocessed/artifacts
+!contracts/system-contracts/contracts-preprocessed/precompiles/artifacts
 !contracts/system-contracts/artifacts-zk
 !etc/multivm_bootloaders
 !cargo

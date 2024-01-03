@@ -555,16 +555,15 @@ pub async fn initialize_components(
                 eth_sender.sender.clone(),
                 store_factory.create_store().await,
             ),
+            eth_client,
             contracts_config.validator_timelock_addr,
             contracts_config.l1_multicall3_addr,
             main_zksync_contract_address,
             nonce.as_u64(),
         );
-        task_futures.push(tokio::spawn(eth_tx_aggregator_actor.run(
-            eth_sender_pool,
-            eth_client,
-            stop_receiver.clone(),
-        )));
+        task_futures.push(tokio::spawn(
+            eth_tx_aggregator_actor.run(eth_sender_pool, stop_receiver.clone()),
+        ));
         let elapsed = started_at.elapsed();
         APP_METRICS.init_latency[&InitStage::EthTxAggregator].set(elapsed);
         tracing::info!("initialized ETH-TxAggregator in {elapsed:?}");

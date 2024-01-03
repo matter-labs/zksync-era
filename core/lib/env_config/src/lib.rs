@@ -4,7 +4,6 @@ use serde::de::DeserializeOwned;
 mod alerts;
 mod api;
 mod chain;
-mod circuit_synthesizer;
 mod contract_verifier;
 mod contracts;
 mod database;
