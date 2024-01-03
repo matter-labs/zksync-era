@@ -33,19 +33,22 @@ jobs:
       matrix:
           component:
           - name: server-v2
-            platforms: linux/amd64
+            platform: linux/amd64
             runner: matterlabs-ci-runner
           - name: external-node
-            platforms: linux/amd64
+            platform: linux/amd64
             runner: matterlabs-ci-runner
+          - name: external-node
+            platform: linux/arm64
+            runner: matterlabs-ci-runner-arm
           - name: contract-verifier
-            platforms: linux/amd64
+            platform: linux/amd64
             runner: matterlabs-ci-runner
           - name: cross-external-nodes-checker
-            platforms: linux/amd64
+            platform: linux/amd64
             runner: matterlabs-ci-runner
           - name: snapshots-creator
-            platforms: linux/amd64
+            platform: linux/amd64
             runner: matterlabs-ci-runner
 
     steps:
@@ -94,10 +97,10 @@ jobs:
         env:
           DOCKER_ACTION: ${{ inputs.action }}
           COMPONENT: ${{ matrix.component.name }}
-          PLATFORMS: ${{ matrix.component.platforms }}
+          PLATFORM: ${{ matrix.component.platform }}
         run: |
           ci_run rustup default nightly-2023-08-21
-          ci_run zk docker $DOCKER_ACTION --platforms=${PLATFORMS} $COMPONENT
+          ci_run zk docker $DOCKER_ACTION --platforms=${PLATFORM} $COMPONENT
       - name: Show sccache stats
         if: always()
         run: |
