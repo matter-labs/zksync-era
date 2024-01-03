@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::ConnectionPool;
-use zksync_eth_client::{clients::http::QueryClient, types::Error as L1ClientError, EthInterface};
+use zksync_eth_client::{clients::QueryClient, Error as L1ClientError, EthInterface};
 use zksync_types::{web3::ethabi, L1BatchNumber};
 
 use crate::{

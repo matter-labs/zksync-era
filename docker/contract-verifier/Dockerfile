@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y curl libpq5 ca-certificates wget python
 
 # install zksolc 1.3.x
 RUN skip_versions="v1.3.12 v1.3.15" && \
-    for VERSION in $(seq -f "v1.3.%g" 0 18); do \
+    for VERSION in $(seq -f "v1.3.%g" 0 19); do \
     if echo " $skip_versions " | grep -q -w " $VERSION "; then \
     continue; \
     fi; \

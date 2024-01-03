@@ -1,7 +1,5 @@
 //! Tests for the metadata calculator component life cycle.
 
-// TODO (PLA-708): test full recovery life cycle
-
 use std::{future::Future, ops, panic, path::Path, time::Duration};
 
 use assert_matches::assert_matches;
@@ -93,9 +91,9 @@ async fn expected_tree_hash(pool: &ConnectionPool) -> H256 {
         .get_sealed_l1_batch_number()
         .await
         .unwrap()
-        .0;
+        .expect("No L1 batches in Postgres");
     let mut all_logs = vec![];
-    for i in 0..=sealed_l1_batch_number {
+    for i in 0..=sealed_l1_batch_number.0 {
         let logs = L1BatchWithLogs::new(&mut storage, L1BatchNumber(i)).await;
         let logs = logs.unwrap().storage_logs;
         all_logs.extend(logs);
@@ -367,10 +365,11 @@ pub(crate) async fn setup_calculator(
     db_path: &Path,
     pool: &ConnectionPool,
 ) -> (MetadataCalculator, Box<dyn ObjectStore>) {
-    let store_factory = &ObjectStoreFactory::mock();
+    let store_factory = ObjectStoreFactory::mock();
+    let store = store_factory.create_store().await;
     let (merkle_tree_config, operation_manager) = create_config(db_path);
     let mode = MetadataCalculatorModeConfig::Full {
-        store_factory: Some(store_factory),
+        object_store: Some(store),
     };
     let calculator =
         setup_calculator_with_options(&merkle_tree_config, &operation_manager, pool, mode).await;
@@ -386,7 +385,7 @@ async fn setup_lightweight_calculator(db_path: &Path, pool: &ConnectionPool) -> 
 fn create_config(db_path: &Path) -> (MerkleTreeConfig, OperationsManagerConfig) {
     let db_config = MerkleTreeConfig {
         path: path_to_string(&db_path.join("new")),
-        ..Default::default()
+        ..MerkleTreeConfig::default()
     };
 
     let operation_config = OperationsManagerConfig {
@@ -399,11 +398,11 @@ async fn setup_calculator_with_options(
     merkle_tree_config: &MerkleTreeConfig,
     operation_config: &OperationsManagerConfig,
     pool: &ConnectionPool,
-    mode: MetadataCalculatorModeConfig<'_>,
+    mode: MetadataCalculatorModeConfig,
 ) -> MetadataCalculator {
     let calculator_config =
         MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_config, mode);
-    let metadata_calculator = MetadataCalculator::new(&calculator_config).await;
+    let metadata_calculator = MetadataCalculator::new(calculator_config).await;
 
     let mut storage = pool.access_storage().await.unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
@@ -474,15 +473,24 @@ pub(super) async fn extend_db_state(
     new_logs: impl IntoIterator<Item = Vec<StorageLog>>,
 ) {
     let mut storage = storage.start_transaction().await.unwrap();
-    let next_l1_batch = storage
+    let sealed_l1_batch = storage
         .blocks_dal()
         .get_sealed_l1_batch_number()
         .await
         .unwrap()
-        .0
-        + 1;
+        .expect("no L1 batches in Postgres");
+    extend_db_state_from_l1_batch(&mut storage, sealed_l1_batch + 1, new_logs).await;
+    storage.commit().await.unwrap();
+}
 
-    for (idx, batch_logs) in (next_l1_batch..).zip(new_logs) {
+pub(super) async fn extend_db_state_from_l1_batch(
+    storage: &mut StorageProcessor<'_>,
+    next_l1_batch: L1BatchNumber,
+    new_logs: impl IntoIterator<Item = Vec<StorageLog>>,
+) {
+    assert!(storage.in_transaction(), "must be called in DB transaction");
+
+    for (idx, batch_logs) in (next_l1_batch.0..).zip(new_logs) {
         let header = create_l1_batch(idx);
         let batch_number = header.number;
         // Assumes that L1 batch consists of only one miniblock.
@@ -508,9 +516,8 @@ pub(super) async fn extend_db_state(
             .mark_miniblocks_as_executed_in_l1_batch(batch_number)
             .await
             .unwrap();
-        insert_initial_writes_for_batch(&mut storage, batch_number).await;
+        insert_initial_writes_for_batch(storage, batch_number).await;
     }
-    storage.commit().await.unwrap();
 }
 
 async fn insert_initial_writes_for_batch(
@@ -589,7 +596,8 @@ async fn remove_l1_batches(
         .blocks_dal()
         .get_sealed_l1_batch_number()
         .await
-        .unwrap();
+        .unwrap()
+        .expect("no L1 batches in Postgres");
     assert!(sealed_l1_batch_number >= last_l1_batch_to_keep);
 
     let mut batch_headers = vec![];

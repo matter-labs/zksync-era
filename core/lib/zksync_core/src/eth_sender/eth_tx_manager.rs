@@ -5,8 +5,7 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{
-    types::{Error, ExecutedTxStatus, SignedCallResult},
-    BoundEthInterface,
+    BoundEthInterface, Error, ExecutedTxStatus, RawTransactionBytes, SignedCallResult,
 };
 use zksync_types::{
     eth_sender::EthTx,
@@ -48,18 +47,21 @@ pub(super) struct L1BlockNumbers {
 /// Based on eth_tx_history queue the component can mark txs as stuck and create the new attempt
 /// with higher gas price
 #[derive(Debug)]
-pub struct EthTxManager<E, G> {
+pub struct EthTxManager<E> {
     ethereum_gateway: E,
     config: SenderConfig,
-    gas_adjuster: Arc<G>,
+    gas_adjuster: Arc<dyn L1TxParamsProvider>,
 }
 
-impl<E, G> EthTxManager<E, G>
+impl<E> EthTxManager<E>
 where
     E: BoundEthInterface + Sync,
-    G: L1TxParamsProvider,
 {
-    pub fn new(config: SenderConfig, gas_adjuster: Arc<G>, ethereum_gateway: E) -> Self {
+    pub fn new(
+        config: SenderConfig,
+        gas_adjuster: Arc<dyn L1TxParamsProvider>,
+        ethereum_gateway: E,
+    ) -> Self {
         Self {
             ethereum_gateway,
             config,
@@ -208,7 +210,7 @@ where
                 base_fee_per_gas,
                 priority_fee_per_gas,
                 signed_tx.hash,
-                signed_tx.raw_tx.clone(),
+                signed_tx.raw_tx.as_ref(),
             )
             .await
             .unwrap()
@@ -233,7 +235,7 @@ where
         &self,
         storage: &mut StorageProcessor<'_>,
         tx_history_id: u32,
-        raw_tx: Vec<u8>,
+        raw_tx: RawTransactionBytes,
         current_block: L1BlockNumber,
     ) -> Result<H256, ETHSenderError> {
         match self.ethereum_gateway.send_raw_tx(raw_tx).await {
@@ -436,12 +438,12 @@ where
                 .send_raw_transaction(
                     storage,
                     tx.id,
-                    tx.signed_raw_tx.clone(),
+                    RawTransactionBytes::new_unchecked(tx.signed_raw_tx.clone()),
                     l1_block_numbers.latest,
                 )
                 .await
             {
-                tracing::warn!("Error {:?} in sending tx {:?}", error, &tx);
+                tracing::warn!("Error sending transaction {tx:?}: {error}");
             }
         }
     }

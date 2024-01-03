@@ -1,13 +1,7 @@
 //! Helper module to submit transactions into the zkSync Network.
 
-use std::{cmp, num::NonZeroU32, sync::Arc, time::Instant};
+use std::{cmp, sync::Arc, time::Instant};
 
-use governor::{
-    clock::MonotonicClock,
-    middleware::NoOpMiddleware,
-    state::{InMemoryState, NotKeyed},
-    Quota, RateLimiter,
-};
 use multivm::{
     interface::VmExecutionResultAndLogs,
     vm_latest::{
@@ -45,15 +39,11 @@ use crate::{
     },
     l1_gas_price::L1GasPriceProvider,
     metrics::{TxStage, APP_METRICS},
-    state_keeper::seal_criteria::{ConditionalSealer, SealData},
+    state_keeper::seal_criteria::{ConditionalSealer, NoopSealer, SealData},
 };
 
 mod proxy;
 mod result;
-
-/// Type alias for the rate limiter implementation.
-type TxSenderRateLimiter =
-    RateLimiter<NotKeyed, InMemoryState, MonotonicClock, NoOpMiddleware<Instant>>;
 
 #[derive(Debug, Clone)]
 pub struct MultiVMBaseSystemContracts {
@@ -65,6 +55,8 @@ pub struct MultiVMBaseSystemContracts {
     pub(crate) post_virtual_blocks_finish_upgrade_fix: BaseSystemContracts,
     /// Contracts to be used for post-boojum protocol versions.
     pub(crate) post_boojum: BaseSystemContracts,
+    /// Contracts to be used after the allow-list removal upgrade
+    pub(crate) post_allowlist_removal: BaseSystemContracts,
 }
 
 impl MultiVMBaseSystemContracts {
@@ -88,7 +80,10 @@ impl MultiVMBaseSystemContracts {
             | ProtocolVersionId::Version15
             | ProtocolVersionId::Version16
             | ProtocolVersionId::Version17 => self.post_virtual_blocks_finish_upgrade_fix,
-            ProtocolVersionId::Version18 | ProtocolVersionId::Version19 => self.post_boojum,
+            ProtocolVersionId::Version18 => self.post_boojum,
+            ProtocolVersionId::Version19 | ProtocolVersionId::Version20 => {
+                self.post_allowlist_removal
+            }
         }
     }
 }
@@ -119,6 +114,7 @@ impl ApiContracts {
                 post_virtual_blocks_finish_upgrade_fix:
                     BaseSystemContracts::estimate_gas_post_virtual_blocks_finish_upgrade_fix(),
                 post_boojum: BaseSystemContracts::estimate_gas_post_boojum(),
+                post_allowlist_removal: BaseSystemContracts::estimate_gas_post_allowlist_removal(),
             },
             eth_call: MultiVMBaseSystemContracts {
                 pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
@@ -126,6 +122,7 @@ impl ApiContracts {
                 post_virtual_blocks_finish_upgrade_fix:
                     BaseSystemContracts::playground_post_virtual_blocks_finish_upgrade_fix(),
                 post_boojum: BaseSystemContracts::playground_post_boojum(),
+                post_allowlist_removal: BaseSystemContracts::playground_post_allowlist_removal(),
             },
         }
     }
@@ -140,13 +137,10 @@ pub struct TxSenderBuilder {
     replica_connection_pool: ConnectionPool,
     /// Connection pool for write requests. If not set, `proxy` must be set.
     master_connection_pool: Option<ConnectionPool>,
-    /// Rate limiter for tx submissions.
-    rate_limiter: Option<TxSenderRateLimiter>,
     /// Proxy to submit transactions to the network. If not set, `master_connection_pool` must be set.
     proxy: Option<TxProxy>,
-    /// Actual state keeper configuration, required for tx verification.
-    /// If not set, transactions would not be checked against seal criteria.
-    state_keeper_config: Option<StateKeeperConfig>,
+    /// Batch sealer used to check whether transaction can be executed by the sequencer.
+    sealer: Option<Arc<dyn ConditionalSealer>>,
 }
 
 impl TxSenderBuilder {
@@ -155,21 +149,14 @@ impl TxSenderBuilder {
             config,
             replica_connection_pool,
             master_connection_pool: None,
-            rate_limiter: None,
             proxy: None,
-            state_keeper_config: None,
+            sealer: None,
         }
     }
 
-    pub fn with_rate_limiter(self, transactions_per_sec: u32) -> Self {
-        let rate_limiter = RateLimiter::direct_with_clock(
-            Quota::per_second(NonZeroU32::new(transactions_per_sec).unwrap()),
-            &MonotonicClock,
-        );
-        Self {
-            rate_limiter: Some(rate_limiter),
-            ..self
-        }
+    pub fn with_sealer(mut self, sealer: Arc<dyn ConditionalSealer>) -> Self {
+        self.sealer = Some(sealer);
+        self
     }
 
     pub fn with_tx_proxy(mut self, main_node_url: &str) -> Self {
@@ -179,11 +166,6 @@ impl TxSenderBuilder {
 
     pub fn with_main_connection_pool(mut self, master_connection_pool: ConnectionPool) -> Self {
         self.master_connection_pool = Some(master_connection_pool);
-        self
-    }
-
-    pub fn with_state_keeper_config(mut self, state_keeper_config: StateKeeperConfig) -> Self {
-        self.state_keeper_config = Some(state_keeper_config);
         self
     }
 
@@ -199,17 +181,19 @@ impl TxSenderBuilder {
             "Either master connection pool or proxy must be set"
         );
 
+        // Use noop sealer if no sealer was explicitly provided.
+        let sealer = self.sealer.unwrap_or_else(|| Arc::new(NoopSealer));
+
         TxSender(Arc::new(TxSenderInner {
             sender_config: self.config,
             master_connection_pool: self.master_connection_pool,
             replica_connection_pool: self.replica_connection_pool,
             l1_gas_price_source,
             api_contracts,
-            rate_limiter: self.rate_limiter,
             proxy: self.proxy,
-            state_keeper_config: self.state_keeper_config,
             vm_concurrency_limiter,
             storage_caches,
+            sealer,
         }))
     }
 }
@@ -257,18 +241,14 @@ pub struct TxSenderInner {
     // Used to keep track of gas prices for the fee ticker.
     pub l1_gas_price_source: Arc<dyn L1GasPriceProvider>,
     pub(super) api_contracts: ApiContracts,
-    /// Optional rate limiter that will limit the amount of transactions per second sent from a single entity.
-    rate_limiter: Option<TxSenderRateLimiter>,
     /// Optional transaction proxy to be used for transaction submission.
     pub(super) proxy: Option<TxProxy>,
-    /// An up-to-date version of the state keeper config.
-    /// This field may be omitted on the external node, since the configuration may change unexpectedly.
-    /// If this field is set to `None`, `TxSender` will assume that any transaction is executable.
-    state_keeper_config: Option<StateKeeperConfig>,
     /// Used to limit the amount of VMs that can be executed simultaneously.
     pub(super) vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
     // Caches used in VM execution.
     storage_caches: PostgresStorageCaches,
+    /// Batch sealer used to check whether transaction can be executed by the sequencer.
+    sealer: Arc<dyn ConditionalSealer>,
 }
 
 #[derive(Clone)]
@@ -291,12 +271,6 @@ impl TxSender {
 
     #[tracing::instrument(skip(self, tx))]
     pub async fn submit_tx(&self, tx: L2Tx) -> Result<L2TxSubmissionResult, SubmitTxError> {
-        if let Some(rate_limiter) = &self.0.rate_limiter {
-            if rate_limiter.check().is_err() {
-                return Err(SubmitTxError::RateLimitExceeded);
-            }
-        }
-
         let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::Validate].start();
         self.validate_tx(&tx).await?;
         stage_latency.observe();
@@ -876,13 +850,6 @@ impl TxSender {
         tx_metrics: &TransactionExecutionMetrics,
         log_message: bool,
     ) -> Result<(), SubmitTxError> {
-        let Some(sk_config) = &self.0.state_keeper_config else {
-            // No config provided, so we can't check if transaction satisfies the seal criteria.
-            // We assume that it's executable, and if it's not, it will be caught by the main server
-            // (where this check is always performed).
-            return Ok(());
-        };
-
         // Hash is not computable for the provided `transaction` during gas estimation (it doesn't have
         // its input data set). Since we don't log a hash in this case anyway, we just use a dummy value.
         let tx_hash = if log_message {
@@ -896,8 +863,10 @@ impl TxSender {
         // still reject them as it's not.
         let protocol_version = ProtocolVersionId::latest();
         let seal_data = SealData::for_transaction(transaction, tx_metrics, protocol_version);
-        if let Some(reason) =
-            ConditionalSealer::find_unexecutable_reason(sk_config, &seal_data, protocol_version)
+        if let Some(reason) = self
+            .0
+            .sealer
+            .find_unexecutable_reason(&seal_data, protocol_version)
         {
             let message = format!(
                 "Tx is Unexecutable because of {reason}; inputs for decision: {seal_data:?}"

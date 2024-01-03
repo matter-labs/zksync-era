@@ -24,7 +24,7 @@ use crate::{
     state_keeper::{
         batch_executor::{BatchExecutorHandle, Command, L1BatchExecutorBuilder, TxExecutionResult},
         io::{MiniblockParams, PendingBatchData, StateKeeperIO},
-        seal_criteria::{ConditionalSealer, IoSealCriteria},
+        seal_criteria::{IoSealCriteria, SequencerSealer},
         tests::{default_l1_batch_env, default_vm_block_result, BASE_SYSTEM_CONTRACTS},
         types::ExecutionMetricsForCriteria,
         updates::UpdatesManager,
@@ -190,7 +190,7 @@ impl TestScenario {
 
     /// Launches the test.
     /// Provided `SealManager` is expected to be externally configured to adhere the written scenario logic.
-    pub(crate) async fn run(self, sealer: ConditionalSealer) {
+    pub(crate) async fn run(self, sealer: SequencerSealer) {
         assert!(!self.actions.is_empty(), "Test scenario can't be empty");
 
         let batch_executor_base = TestBatchExecutorBuilder::new(&self);
@@ -200,7 +200,7 @@ impl TestScenario {
             stop_receiver,
             Box::new(io),
             Box::new(batch_executor_base),
-            sealer,
+            Box::new(sealer),
         );
         let sk_thread = tokio::spawn(sk.run());
 

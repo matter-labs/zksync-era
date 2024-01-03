@@ -6,7 +6,7 @@ use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_dal::StorageProcessor;
-use zksync_eth_client::clients::mock::MockEthereum;
+use zksync_eth_client::clients::MockEthereum;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, block::BlockGasCount,
     commitment::L1BatchWithMetadata, web3::contract::Options, L2ChainId, ProtocolVersion,
@@ -295,7 +295,7 @@ async fn normal_checker_function(
         );
         let signed_tx = signed_tx.unwrap();
         client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
-        client.execute_tx(signed_tx.hash, true, 1).unwrap();
+        client.execute_tx(signed_tx.hash, true, 1);
 
         commit_tx_hash_by_l1_batch.extend(
             l1_batches
@@ -358,7 +358,7 @@ async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) 
     let signed_tx = signed_tx.unwrap();
     let commit_tx_hash = signed_tx.hash;
     client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
-    client.execute_tx(commit_tx_hash, true, 1).unwrap();
+    client.execute_tx(commit_tx_hash, true, 1);
 
     let save_actions = [
         SaveAction::InsertBatch(&l1_batch),
@@ -463,9 +463,7 @@ impl IncorrectDataKind {
         );
         let signed_tx = signed_tx.unwrap();
         client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
-        client
-            .execute_tx(signed_tx.hash, successful_status, 1)
-            .unwrap();
+        client.execute_tx(signed_tx.hash, successful_status, 1);
         signed_tx.hash
     }
 }

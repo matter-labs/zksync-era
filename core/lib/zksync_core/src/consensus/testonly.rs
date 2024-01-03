@@ -11,7 +11,10 @@ use zksync_types::{
 
 use crate::{
     genesis::{ensure_genesis_state, GenesisParams},
-    state_keeper::{tests::MockBatchExecutorBuilder, MiniblockSealer, ZkSyncStateKeeper},
+    state_keeper::{
+        seal_criteria::NoopSealer, tests::MockBatchExecutorBuilder, MiniblockSealer,
+        ZkSyncStateKeeper,
+    },
     sync_layer::{
         sync_action::{ActionQueue, ActionQueueSender, SyncAction},
         ExternalIO, MainNodeClient, SyncState,
@@ -304,7 +307,8 @@ async fn run_mock_metadata_calculator(ctx: &ctx::Ctx, pool: ConnectionPool) -> a
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
-            .context("get_sealed_l1_batch_number()")?;
+            .context("get_sealed_l1_batch_number()")?
+            .context("no L1 batches in Postgres")?;
 
         while n <= last {
             let metadata = create_l1_batch_metadata(n.0);
@@ -352,10 +356,11 @@ impl StateKeeperRunner {
             s.spawn_bg(miniblock_sealer.run());
             s.spawn_bg(run_mock_metadata_calculator(ctx, pool.clone()));
             s.spawn_bg(
-                ZkSyncStateKeeper::without_sealer(
+                ZkSyncStateKeeper::new(
                     stop_receiver,
                     Box::new(io),
                     Box::new(MockBatchExecutorBuilder),
+                    Box::new(NoopSealer),
                 )
                 .run(),
             );

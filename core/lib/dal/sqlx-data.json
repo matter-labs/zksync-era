@@ -391,19 +391,6 @@
     },
     "query": "\n            SELECT\n                *\n            FROM\n                call_traces\n            WHERE\n                tx_hash IN (\n                    SELECT\n                        hash\n                    FROM\n                        transactions\n                    WHERE\n                        miniblock_number = $1\n                )\n            "
   },
-  "0587fadb4f7a014caddf9e540cd2a1ece830de8777d945d48bd9c796fefb3253": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Int8"
-        ]
-      }
-    },
-    "query": "\n                UPDATE prover_jobs\n                SET\n                    status = $1,\n                    updated_at = NOW()\n                WHERE\n                    id = $2\n                "
-  },
   "07310d96fc7e258154ad510684e33d196907ebd599e926d305e5ef9f26afa2fa": {
     "describe": {
       "columns": [
@@ -425,24 +412,6 @@
       }
     },
     "query": "INSERT INTO eth_txs_history (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at) VALUES ($1, 0, 0, $2, '\\x00', now(), now(), $3) RETURNING id"
-  },
-  "08024b2ba970d2fdac2a71c9c7c73be42a289d034670ca4e644f5df1e4614ddf": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Int8",
-          "Text",
-          "Int4",
-          "Bytea",
-          "Int4",
-          "Text",
-          "Int4"
-        ]
-      }
-    },
-    "query": "\n                    INSERT INTO\n                        prover_jobs (\n                            l1_batch_number,\n                            circuit_type,\n                            sequence_number,\n                            prover_input,\n                            aggregation_round,\n                            circuit_input_blob_url,\n                            protocol_version,\n                            status,\n                            created_at,\n                            updated_at\n                        )\n                    VALUES\n                        ($1, $2, $3, $4, $5, $6, $7, 'queued', NOW(), NOW())\n                    ON CONFLICT (l1_batch_number, aggregation_round, sequence_number) DO NOTHING\n                    "
   },
   "083991abb3f1c2183d1bd1fb2ad4710daa723e2d9a23317c347f6081465c3643": {
     "describe": {
@@ -981,30 +950,6 @@
       }
     },
     "query": "\n            UPDATE gpu_prover_queue_fri\n            SET\n                instance_status = 'reserved',\n                updated_at = NOW(),\n                processing_started_at = NOW()\n            WHERE\n                id IN (\n                    SELECT\n                        id\n                    FROM\n                        gpu_prover_queue_fri\n                    WHERE\n                        specialized_prover_group_id = $2\n                        AND zone = $3\n                        AND (\n                            instance_status = 'available'\n                            OR (\n                                instance_status = 'reserved'\n                                AND processing_started_at < NOW() - $1::INTERVAL\n                            )\n                        )\n                    ORDER BY\n                        updated_at ASC\n                    LIMIT\n                        1\n                    FOR UPDATE\n                        SKIP LOCKED\n                )\n            RETURNING\n                gpu_prover_queue_fri.*\n            "
-  },
-  "0e1317c908de3d9b9b87b51802cbe545198d7debecd65dc2165731c8a0c0f508": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number!",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "circuit_type",
-          "ordinal": 1,
-          "type_info": "Text"
-        }
-      ],
-      "nullable": [
-        null,
-        false
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "\n                SELECT\n                    MIN(l1_batch_number) AS \"l1_batch_number!\",\n                    circuit_type\n                FROM\n                    prover_jobs\n                WHERE\n                    aggregation_round = 0\n                    AND (\n                        status = 'queued'\n                        OR status = 'in_progress'\n                        OR status = 'in_gpu_proof'\n                        OR status = 'failed'\n                    )\n                GROUP BY\n                    circuit_type\n                "
   },
   "10959c91f01ce0da196f4c6eaf0661a097308d9f81024fdfef24a14418202730": {
     "describe": {
@@ -3654,32 +3599,6 @@
     },
     "query": "\n                UPDATE l1_batches\n                SET\n                    commitment = $2,\n                    aux_data_hash = $3,\n                    updated_at = NOW()\n                WHERE\n                    number = $1\n                "
   },
-  "3263423b6097fac01eadd978b826b831321c10f91b87cea38dc8a7377da9385e": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "circuit_input_blob_url",
-          "ordinal": 1,
-          "type_info": "Text"
-        }
-      ],
-      "nullable": [
-        false,
-        true
-      ],
-      "parameters": {
-        "Left": [
-          "Int8"
-        ]
-      }
-    },
-    "query": "\n                SELECT\n                    id,\n                    circuit_input_blob_url\n                FROM\n                    prover_jobs\n                WHERE\n                    status = 'successful'\n                    AND circuit_input_blob_url IS NOT NULL\n                    AND updated_at < NOW() - INTERVAL '30 days'\n                LIMIT\n                    $1;\n                "
-  },
   "32792c6aee69cb8c8b928a209a3b04ba5868d1897553df85aac15b169ebb0732": {
     "describe": {
       "columns": [],
@@ -3761,21 +3680,6 @@
       }
     },
     "query": "\n            SELECT\n                hashed_key,\n                l1_batch_number,\n                INDEX\n            FROM\n                initial_writes\n            WHERE\n                hashed_key = ANY ($1::bytea[])\n            "
-  },
-  "3502a673e04b57bfde096303d7643092702c835069cc055e01f382bc56681401": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Time",
-          "Bytea",
-          "Text",
-          "Int8"
-        ]
-      }
-    },
-    "query": "\n                UPDATE prover_jobs\n                SET\n                    status = 'successful',\n                    updated_at = NOW(),\n                    time_taken = $1,\n                    result = $2,\n                    proccesed_by = $3\n                WHERE\n                    id = $4\n                "
   },
   "35b87a3b7db0af87c6a95e9fe7ef9044ae85b579c7051301b40bd5f94df1f530": {
     "describe": {
@@ -4066,26 +3970,6 @@
     },
     "query": "\n            SELECT\n                COUNT(*) AS \"count!\"\n            FROM\n                miniblocks\n            WHERE\n                number = $1\n                AND consensus IS NOT NULL\n            "
   },
-  "373f6339a61c6ac74080f855fcc25dab33355eefdce69255bc7106675b0e5641": {
-    "describe": {
-      "columns": [
-        {
-          "name": "count!",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        null
-      ],
-      "parameters": {
-        "Left": [
-          "Int4"
-        ]
-      }
-    },
-    "query": "\n            SELECT\n                COUNT(*) AS \"count!\"\n            FROM\n                prover_protocol_versions\n            WHERE\n                id = $1\n            "
-  },
   "38a8b00e320b16e99f6ea0e5954e2f7e49cd6600bd3d56cf41795c2c9e082e4c": {
     "describe": {
       "columns": [
@@ -4234,24 +4118,6 @@
       }
     },
     "query": "\n            UPDATE scheduler_witness_jobs_fri\n            SET\n                status = 'queued'\n            WHERE\n                l1_batch_number = $1\n                AND status != 'successful'\n                AND status != 'in_progress'\n            "
-  },
-  "40c82325e05572db9c3a4ca8cc347617ed18495ef147b3ecfacdd89f54957b6a": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Int4",
-          "Int8",
-          "Bytea",
-          "Bytea",
-          "Bytea",
-          "Bytea",
-          "Bytea"
-        ]
-      }
-    },
-    "query": "\n            INSERT INTO\n                prover_protocol_versions (\n                    id,\n                    timestamp,\n                    recursion_scheduler_level_vk_hash,\n                    recursion_node_level_vk_hash,\n                    recursion_leaf_level_vk_hash,\n                    recursion_circuits_set_vks_hash,\n                    verifier_address,\n                    created_at\n                )\n            VALUES\n                ($1, $2, $3, $4, $5, $6, $7, NOW())\n            "
   },
   "41c9f45d6eb727aafad0d8c18024cee5c602d275bb812022cc8fdabf0a60e151": {
     "describe": {
@@ -4738,30 +4604,6 @@
       }
     },
     "query": "\n            SELECT\n                l1_batch_number,\n                factory_deps_filepath,\n                storage_logs_filepaths\n            FROM\n                snapshots\n            "
-  },
-  "4f9b84e4ee54902edb3738ec111268d1266a05f4d931dd874baceedf5444efa4": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number!",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "aggregation_round",
-          "ordinal": 1,
-          "type_info": "Int4"
-        }
-      ],
-      "nullable": [
-        null,
-        false
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "\n                SELECT\n                    MAX(l1_batch_number) AS \"l1_batch_number!\",\n                    aggregation_round\n                FROM\n                    prover_jobs\n                WHERE\n                    status = 'successful'\n                GROUP BY\n                    aggregation_round\n                "
   },
   "525123d4ec2b427f1c171f30d0937d8d542b4f14cf560972c005ab3cc13d1f63": {
     "describe": {
@@ -5724,23 +5566,6 @@
     },
     "query": "\n            INSERT INTO\n                eth_txs (\n                    raw_tx,\n                    nonce,\n                    tx_type,\n                    contract_address,\n                    predicted_gas_cost,\n                    created_at,\n                    updated_at\n                )\n            VALUES\n                ($1, $2, $3, $4, $5, NOW(), NOW())\n            RETURNING\n                *\n            "
   },
-  "684775aaed3d7f3f5580363e5180a04e7a1af1057995805cb6fd35d0b810e734": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Text",
-          "Int4",
-          "Int4",
-          "Text",
-          "Text"
-        ]
-      }
-    },
-    "query": "\n                UPDATE gpu_prover_queue\n                SET\n                    instance_status = $1,\n                    updated_at = NOW(),\n                    queue_free_slots = $4\n                WHERE\n                    instance_host = $2::TEXT::inet\n                    AND instance_port = $3\n                    AND region = $5\n                    AND zone = $6\n                "
-  },
   "68936a53e5b80576f3f341523e6843eb48b5e26ee92cd8476f50251e8c32610d": {
     "describe": {
       "columns": [
@@ -5764,128 +5589,6 @@
       }
     },
     "query": "\n                SELECT\n                    COUNT(*) AS \"count!\"\n                FROM\n                    l1_batches\n                WHERE\n                    number = $1\n                    AND hash = $2\n                    AND merkle_root_hash = $3\n                    AND parent_hash = $4\n                    AND l2_l1_merkle_root = $5\n                "
-  },
-  "68a937c42e280690a7a63eeec6883d30eeb6e614ca75edf582b44378c0a698ed": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "l1_batch_number",
-          "ordinal": 1,
-          "type_info": "Int8"
-        },
-        {
-          "name": "circuit_type",
-          "ordinal": 2,
-          "type_info": "Text"
-        },
-        {
-          "name": "prover_input",
-          "ordinal": 3,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "status",
-          "ordinal": 4,
-          "type_info": "Text"
-        },
-        {
-          "name": "error",
-          "ordinal": 5,
-          "type_info": "Text"
-        },
-        {
-          "name": "processing_started_at",
-          "ordinal": 6,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "created_at",
-          "ordinal": 7,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "updated_at",
-          "ordinal": 8,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "time_taken",
-          "ordinal": 9,
-          "type_info": "Time"
-        },
-        {
-          "name": "aggregation_round",
-          "ordinal": 10,
-          "type_info": "Int4"
-        },
-        {
-          "name": "result",
-          "ordinal": 11,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "sequence_number",
-          "ordinal": 12,
-          "type_info": "Int4"
-        },
-        {
-          "name": "attempts",
-          "ordinal": 13,
-          "type_info": "Int4"
-        },
-        {
-          "name": "circuit_input_blob_url",
-          "ordinal": 14,
-          "type_info": "Text"
-        },
-        {
-          "name": "proccesed_by",
-          "ordinal": 15,
-          "type_info": "Text"
-        },
-        {
-          "name": "is_blob_cleaned",
-          "ordinal": 16,
-          "type_info": "Bool"
-        },
-        {
-          "name": "protocol_version",
-          "ordinal": 17,
-          "type_info": "Int4"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        true,
-        true,
-        false,
-        false,
-        false,
-        false,
-        true,
-        false,
-        false,
-        true,
-        true,
-        false,
-        true
-      ],
-      "parameters": {
-        "Left": [
-          "Int8"
-        ]
-      }
-    },
-    "query": "\n                SELECT\n                    *\n                FROM\n                    prover_jobs\n                WHERE\n                    id = $1\n                "
   },
   "68c891ee9d71cffe709731f2804b734d5d255e36e48668b3bfc25a0f86ea52e7": {
     "describe": {
@@ -6055,101 +5758,6 @@
       }
     },
     "query": "\n            SELECT\n                number,\n                timestamp,\n                hash,\n                l1_tx_count,\n                l2_tx_count,\n                base_fee_per_gas,\n                l1_gas_price,\n                l2_fair_gas_price,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                protocol_version,\n                virtual_blocks\n            FROM\n                miniblocks\n            ORDER BY\n                number DESC\n            LIMIT\n                1\n            "
-  },
-  "6f6f60e7139fc789ca420d8610985a918e90b4e7087a98356ab19e22783c88cd": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "instance_host",
-          "ordinal": 1,
-          "type_info": "Inet"
-        },
-        {
-          "name": "instance_port",
-          "ordinal": 2,
-          "type_info": "Int4"
-        },
-        {
-          "name": "instance_status",
-          "ordinal": 3,
-          "type_info": "Text"
-        },
-        {
-          "name": "created_at",
-          "ordinal": 4,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "updated_at",
-          "ordinal": 5,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "processing_started_at",
-          "ordinal": 6,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "queue_free_slots",
-          "ordinal": 7,
-          "type_info": "Int4"
-        },
-        {
-          "name": "queue_capacity",
-          "ordinal": 8,
-          "type_info": "Int4"
-        },
-        {
-          "name": "specialized_prover_group_id",
-          "ordinal": 9,
-          "type_info": "Int2"
-        },
-        {
-          "name": "region",
-          "ordinal": 10,
-          "type_info": "Text"
-        },
-        {
-          "name": "zone",
-          "ordinal": 11,
-          "type_info": "Text"
-        },
-        {
-          "name": "num_gpu",
-          "ordinal": 12,
-          "type_info": "Int2"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        true,
-        true,
-        true,
-        true,
-        false,
-        false,
-        true
-      ],
-      "parameters": {
-        "Left": [
-          "Interval",
-          "Int2",
-          "Text",
-          "Text"
-        ]
-      }
-    },
-    "query": "\n                UPDATE gpu_prover_queue\n                SET\n                    instance_status = 'reserved',\n                    updated_at = NOW(),\n                    processing_started_at = NOW()\n                WHERE\n                    id IN (\n                        SELECT\n                            id\n                        FROM\n                            gpu_prover_queue\n                        WHERE\n                            specialized_prover_group_id = $2\n                            AND region = $3\n                            AND zone = $4\n                            AND (\n                                instance_status = 'available'\n                                OR (\n                                    instance_status = 'reserved'\n                                    AND processing_started_at < NOW() - $1::INTERVAL\n                                )\n                            )\n                        ORDER BY\n                            updated_at ASC\n                        LIMIT\n                            1\n                        FOR UPDATE\n                            SKIP LOCKED\n                    )\n                RETURNING\n                    gpu_prover_queue.*\n                "
   },
   "708b2b3e40887e6d8d2d7aa20448a58479487686d774e6b2b1391347bdafe06d": {
     "describe": {
@@ -7130,24 +6738,6 @@
     },
     "query": "\n            INSERT INTO\n                snapshots (\n                    l1_batch_number,\n                    storage_logs_filepaths,\n                    factory_deps_filepath,\n                    created_at,\n                    updated_at\n                )\n            VALUES\n                ($1, $2, $3, NOW(), NOW())\n            "
   },
-  "831f7bec105541bd3ff9bcf6940d6b6b9d558224ad2d8ed079a68c7e339ded6b": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number?",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        null
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "\n                SELECT\n                    MIN(l1_batch_number) AS \"l1_batch_number?\"\n                FROM\n                    (\n                        SELECT\n                            MIN(l1_batch_number) AS \"l1_batch_number\"\n                        FROM\n                            prover_jobs\n                        WHERE\n                            status = 'successful'\n                            OR aggregation_round < 3\n                        GROUP BY\n                            l1_batch_number\n                        HAVING\n                            MAX(aggregation_round) < 3\n                    ) AS inn\n                "
-  },
   "83a931ceddf34e1c760649d613f534014b9ab9ca7725e14fb17aa050d9f35eb8": {
     "describe": {
       "columns": [
@@ -7785,36 +7375,6 @@
     },
     "query": "\n            SELECT\n                protocol_version\n            FROM\n                miniblocks\n            WHERE\n                number = $1\n            "
   },
-  "8a773618c9df11217467222c9117d6868fbf88ee21d8868a7d133e7cebb3d20e": {
-    "describe": {
-      "columns": [
-        {
-          "name": "successful_limit!",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "queued_limit!",
-          "ordinal": 1,
-          "type_info": "Int8"
-        },
-        {
-          "name": "max_block!",
-          "ordinal": 2,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        null,
-        null,
-        null
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "\n                SELECT\n                    (\n                        SELECT\n                            l1_batch_number\n                        FROM\n                            prover_jobs\n                        WHERE\n                            status NOT IN ('successful', 'skipped')\n                        ORDER BY\n                            l1_batch_number\n                        LIMIT\n                            1\n                    ) AS \"successful_limit!\",\n                    (\n                        SELECT\n                            l1_batch_number\n                        FROM\n                            prover_jobs\n                        WHERE\n                            status <> 'queued'\n                        ORDER BY\n                            l1_batch_number DESC\n                        LIMIT\n                            1\n                    ) AS \"queued_limit!\",\n                    (\n                        SELECT\n                            MAX(l1_batch_number) AS \"max!\"\n                        FROM\n                            prover_jobs\n                    ) AS \"max_block!\"\n                "
-  },
   "8a7a57ca3d4d65da3e0877c003902c690c33686c889d318b1d64bdd7fa6374db": {
     "describe": {
       "columns": [
@@ -8187,36 +7747,6 @@
     },
     "query": "\n            INSERT INTO\n                witness_inputs_fri (\n                    l1_batch_number,\n                    merkle_tree_paths_blob_url,\n                    protocol_version,\n                    status,\n                    created_at,\n                    updated_at\n                )\n            VALUES\n                ($1, $2, $3, 'queued', NOW(), NOW())\n            ON CONFLICT (l1_batch_number) DO NOTHING\n            "
   },
-  "9c0c3e5edce083804f49137eb3b01c0b73dfb30bdb9e11fcbf370d599344f20e": {
-    "describe": {
-      "columns": [
-        {
-          "name": "count!",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "circuit_type!",
-          "ordinal": 1,
-          "type_info": "Text"
-        },
-        {
-          "name": "status!",
-          "ordinal": 2,
-          "type_info": "Text"
-        }
-      ],
-      "nullable": [
-        null,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "\n                SELECT\n                    COUNT(*) AS \"count!\",\n                    circuit_type AS \"circuit_type!\",\n                    status AS \"status!\"\n                FROM\n                    prover_jobs\n                WHERE\n                    status <> 'skipped'\n                    AND status <> 'successful'\n                GROUP BY\n                    circuit_type,\n                    status\n                "
-  },
   "9c2a5f32c627d3a5c6f1e87b31ce3b0fd67aa1f5f7ea0de673a2fbe1f742db86": {
     "describe": {
       "columns": [
@@ -8584,22 +8114,6 @@
       }
     },
     "query": "\n            SELECT\n                (\n                    SELECT\n                        l1_batch_number\n                    FROM\n                        miniblocks\n                    WHERE\n                        number = $1\n                ) AS \"block_batch?\",\n                (\n                    SELECT\n                        MAX(number) + 1\n                    FROM\n                        l1_batches\n                ) AS \"max_batch?\"\n            "
-  },
-  "ad53e912e68d81628089ae68aaa4154b988ce8ed67af02f4254717a1cdd3da7e": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Int4",
-          "Int4",
-          "Text",
-          "Text"
-        ]
-      }
-    },
-    "query": "\n                UPDATE gpu_prover_queue\n                SET\n                    instance_status = 'available',\n                    updated_at = NOW(),\n                    queue_free_slots = $3\n                WHERE\n                    instance_host = $1::TEXT::inet\n                    AND instance_port = $2\n                    AND instance_status = 'full'\n                    AND region = $4\n                    AND zone = $5\n                "
   },
   "ada54322a28012b1b761f3631c4cd6ca26aa2fa565fcf208b6985f461c1868f2": {
     "describe": {
@@ -9596,29 +9110,6 @@
     },
     "query": "\n            SELECT\n                address,\n                key,\n                value\n            FROM\n                storage_logs\n            WHERE\n                miniblock_number BETWEEN (\n                    SELECT\n                        MIN(number)\n                    FROM\n                        miniblocks\n                    WHERE\n                        l1_batch_number = $1\n                ) AND (\n                    SELECT\n                        MAX(number)\n                    FROM\n                        miniblocks\n                    WHERE\n                        l1_batch_number = $1\n                )\n            ORDER BY\n                miniblock_number,\n                operation_number\n            "
   },
-  "c3b76b8030d4b5266242619f091c5cffe6869add3e43c71390a9a921b8ff48c5": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Int4"
-        }
-      ],
-      "nullable": [
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Bytea",
-          "Bytea",
-          "Bytea",
-          "Bytea"
-        ]
-      }
-    },
-    "query": "\n            SELECT\n                id\n            FROM\n                prover_protocol_versions\n            WHERE\n                recursion_circuits_set_vks_hash = $1\n                AND recursion_leaf_level_vk_hash = $2\n                AND recursion_node_level_vk_hash = $3\n                AND recursion_scheduler_level_vk_hash = $4\n            "
-  },
   "c41312e01aa66897552e8be9acc8d43c31ec7441a7f6c5040e120810ebbb72f7": {
     "describe": {
       "columns": [],
@@ -9697,30 +9188,6 @@
       }
     },
     "query": "\n            UPDATE scheduler_dependency_tracker_fri\n            SET\n                status = 'queuing'\n            WHERE\n                l1_batch_number IN (\n                    SELECT\n                        l1_batch_number\n                    FROM\n                        scheduler_dependency_tracker_fri\n                    WHERE\n                        status != 'queued'\n                        AND circuit_1_final_prover_job_id IS NOT NULL\n                        AND circuit_2_final_prover_job_id IS NOT NULL\n                        AND circuit_3_final_prover_job_id IS NOT NULL\n                        AND circuit_4_final_prover_job_id IS NOT NULL\n                        AND circuit_5_final_prover_job_id IS NOT NULL\n                        AND circuit_6_final_prover_job_id IS NOT NULL\n                        AND circuit_7_final_prover_job_id IS NOT NULL\n                        AND circuit_8_final_prover_job_id IS NOT NULL\n                        AND circuit_9_final_prover_job_id IS NOT NULL\n                        AND circuit_10_final_prover_job_id IS NOT NULL\n                        AND circuit_11_final_prover_job_id IS NOT NULL\n                        AND circuit_12_final_prover_job_id IS NOT NULL\n                        AND circuit_13_final_prover_job_id IS NOT NULL\n                )\n            RETURNING\n                l1_batch_number;\n            "
-  },
-  "c689a86a40c882a0d990a17ecc32290b2a47043fc88d4a2232461434a3f4a57d": {
-    "describe": {
-      "columns": [
-        {
-          "name": "count!",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "status!",
-          "ordinal": 1,
-          "type_info": "Text"
-        }
-      ],
-      "nullable": [
-        null,
-        false
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "\n                SELECT\n                    COUNT(*) AS \"count!\",\n                    status AS \"status!\"\n                FROM\n                    prover_jobs\n                GROUP BY\n                    status\n                "
   },
   "c6d523c6ae857022318350a2f210d7eaeeb4549ed59b58f8d984be2a22a80355": {
     "describe": {
@@ -9821,129 +9288,6 @@
       }
     },
     "query": "\n            SELECT\n                timestamp,\n                hash\n            FROM\n                l1_batches\n            WHERE\n                number = $1\n            "
-  },
-  "cd76f54e1b9b4c0cf3044d3b767714e290f88ea1f20092a0278718fecda63caf": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "l1_batch_number",
-          "ordinal": 1,
-          "type_info": "Int8"
-        },
-        {
-          "name": "circuit_type",
-          "ordinal": 2,
-          "type_info": "Text"
-        },
-        {
-          "name": "prover_input",
-          "ordinal": 3,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "status",
-          "ordinal": 4,
-          "type_info": "Text"
-        },
-        {
-          "name": "error",
-          "ordinal": 5,
-          "type_info": "Text"
-        },
-        {
-          "name": "processing_started_at",
-          "ordinal": 6,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "created_at",
-          "ordinal": 7,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "updated_at",
-          "ordinal": 8,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "time_taken",
-          "ordinal": 9,
-          "type_info": "Time"
-        },
-        {
-          "name": "aggregation_round",
-          "ordinal": 10,
-          "type_info": "Int4"
-        },
-        {
-          "name": "result",
-          "ordinal": 11,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "sequence_number",
-          "ordinal": 12,
-          "type_info": "Int4"
-        },
-        {
-          "name": "attempts",
-          "ordinal": 13,
-          "type_info": "Int4"
-        },
-        {
-          "name": "circuit_input_blob_url",
-          "ordinal": 14,
-          "type_info": "Text"
-        },
-        {
-          "name": "proccesed_by",
-          "ordinal": 15,
-          "type_info": "Text"
-        },
-        {
-          "name": "is_blob_cleaned",
-          "ordinal": 16,
-          "type_info": "Bool"
-        },
-        {
-          "name": "protocol_version",
-          "ordinal": 17,
-          "type_info": "Int4"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        true,
-        true,
-        false,
-        false,
-        false,
-        false,
-        true,
-        false,
-        false,
-        true,
-        true,
-        false,
-        true
-      ],
-      "parameters": {
-        "Left": [
-          "TextArray",
-          "Int4Array"
-        ]
-      }
-    },
-    "query": "\n                UPDATE prover_jobs\n                SET\n                    status = 'in_progress',\n                    attempts = attempts + 1,\n                    updated_at = NOW(),\n                    processing_started_at = NOW()\n                WHERE\n                    id = (\n                        SELECT\n                            id\n                        FROM\n                            prover_jobs\n                        WHERE\n                            circuit_type = ANY ($1)\n                            AND status = 'queued'\n                            AND protocol_version = ANY ($2)\n                        ORDER BY\n                            aggregation_round DESC,\n                            l1_batch_number ASC,\n                            id ASC\n                        LIMIT\n                            1\n                        FOR UPDATE\n                            SKIP LOCKED\n                    )\n                RETURNING\n                    prover_jobs.*\n                "
   },
   "cddf48514aa2aa249d0530d44c741368993009bb4bd90c2ad177ce56317aa04c": {
     "describe": {
@@ -10274,128 +9618,6 @@
       }
     },
     "query": "\n            SELECT\n                timestamp\n            FROM\n                l1_batches\n            WHERE\n                eth_commit_tx_id IS NULL\n                AND number > 0\n            ORDER BY\n                number\n            LIMIT\n                1\n            "
-  },
-  "d17221312e645b0287ff9238954512b528e7928087351a32c96b44d538dfb9ee": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "l1_batch_number",
-          "ordinal": 1,
-          "type_info": "Int8"
-        },
-        {
-          "name": "circuit_type",
-          "ordinal": 2,
-          "type_info": "Text"
-        },
-        {
-          "name": "prover_input",
-          "ordinal": 3,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "status",
-          "ordinal": 4,
-          "type_info": "Text"
-        },
-        {
-          "name": "error",
-          "ordinal": 5,
-          "type_info": "Text"
-        },
-        {
-          "name": "processing_started_at",
-          "ordinal": 6,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "created_at",
-          "ordinal": 7,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "updated_at",
-          "ordinal": 8,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "time_taken",
-          "ordinal": 9,
-          "type_info": "Time"
-        },
-        {
-          "name": "aggregation_round",
-          "ordinal": 10,
-          "type_info": "Int4"
-        },
-        {
-          "name": "result",
-          "ordinal": 11,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "sequence_number",
-          "ordinal": 12,
-          "type_info": "Int4"
-        },
-        {
-          "name": "attempts",
-          "ordinal": 13,
-          "type_info": "Int4"
-        },
-        {
-          "name": "circuit_input_blob_url",
-          "ordinal": 14,
-          "type_info": "Text"
-        },
-        {
-          "name": "proccesed_by",
-          "ordinal": 15,
-          "type_info": "Text"
-        },
-        {
-          "name": "is_blob_cleaned",
-          "ordinal": 16,
-          "type_info": "Bool"
-        },
-        {
-          "name": "protocol_version",
-          "ordinal": 17,
-          "type_info": "Int4"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        true,
-        true,
-        false,
-        false,
-        false,
-        false,
-        true,
-        false,
-        false,
-        true,
-        true,
-        false,
-        true
-      ],
-      "parameters": {
-        "Left": [
-          "Int4Array"
-        ]
-      }
-    },
-    "query": "\n            UPDATE prover_jobs\n            SET\n                status = 'in_progress',\n                attempts = attempts + 1,\n                updated_at = NOW(),\n                processing_started_at = NOW()\n            WHERE\n                id = (\n                    SELECT\n                        id\n                    FROM\n                        prover_jobs\n                    WHERE\n                        status = 'queued'\n                        AND protocol_version = ANY ($1)\n                    ORDER BY\n                        aggregation_round DESC,\n                        l1_batch_number ASC,\n                        id ASC\n                    LIMIT\n                        1\n                    FOR UPDATE\n                        SKIP LOCKED\n                )\n            RETURNING\n                prover_jobs.*\n            "
   },
   "d1b261f4057e4113b96eb87c9e20015eeb3ef2643ceda3024504a471b24d1283": {
     "describe": {
@@ -11360,33 +10582,6 @@
     },
     "query": "\n                DELETE FROM transactions\n                WHERE\n                    miniblock_number IS NULL\n                    AND received_at < NOW() - $1::INTERVAL\n                    AND is_priority = FALSE\n                    AND error IS NULL\n                RETURNING\n                    hash\n                "
   },
-  "e6a3efeffe1b3520cc9b1751e2c842c27546b3fd41f7d8a784ca58579856621b": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "attempts",
-          "ordinal": 1,
-          "type_info": "Int4"
-        }
-      ],
-      "nullable": [
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Int8"
-        ]
-      }
-    },
-    "query": "\n                UPDATE prover_jobs\n                SET\n                    status = 'failed',\n                    error = $1,\n                    updated_at = NOW()\n                WHERE\n                    id = $2\n                RETURNING\n                    l1_batch_number,\n                    attempts\n                "
-  },
   "e71c39b93ceba5416ff3d988290cb35d4d07d47f33fe1a5b9e9fe1f0ae09b705": {
     "describe": {
       "columns": [
@@ -11715,24 +10910,6 @@
     },
     "query": "\n                INSERT INTO\n                    proof_compression_jobs_fri (l1_batch_number, fri_proof_blob_url, status, created_at, updated_at)\n                VALUES\n                    ($1, $2, $3, NOW(), NOW())\n                ON CONFLICT (l1_batch_number) DO NOTHING\n                "
   },
-  "efe2a4ce4ba09e40ac7401f19ac5a42a0d521ffa33594c7861d786741d303f30": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Int4",
-          "Int4",
-          "Int2",
-          "Text",
-          "Text",
-          "Int2"
-        ]
-      }
-    },
-    "query": "\n                    INSERT INTO\n                        gpu_prover_queue (\n                            instance_host,\n                            instance_port,\n                            queue_capacity,\n                            queue_free_slots,\n                            instance_status,\n                            specialized_prover_group_id,\n                            region,\n                            zone,\n                            num_gpu,\n                            created_at,\n                            updated_at\n                        )\n                    VALUES\n                        (CAST($1::TEXT AS inet), $2, $3, $3, 'available', $4, $5, $6, $7, NOW(), NOW())\n                    ON CONFLICT (instance_host, instance_port, region, zone) DO\n                    UPDATE\n                    SET\n                        instance_status = 'available',\n                        queue_capacity = $3,\n                        queue_free_slots = $3,\n                        specialized_prover_group_id = $4,\n                        region = $5,\n                        zone = $6,\n                        num_gpu = $7,\n                        updated_at = NOW()\n                    "
-  },
   "f012d0922265269746396dac8f25ff66f2c3b2b83d45360818a8782e56aa3d66": {
     "describe": {
       "columns": [
@@ -11766,36 +10943,6 @@
       }
     },
     "query": "\n            WITH\n                sl AS (\n                    SELECT\n                        (\n                            SELECT\n                                ARRAY[hashed_key, value] AS kv\n                            FROM\n                                storage_logs\n                            WHERE\n                                storage_logs.miniblock_number = $1\n                                AND storage_logs.hashed_key >= u.start_key\n                                AND storage_logs.hashed_key <= u.end_key\n                            ORDER BY\n                                storage_logs.hashed_key\n                            LIMIT\n                                1\n                        )\n                    FROM\n                        UNNEST($2::bytea[], $3::bytea[]) AS u (start_key, end_key)\n                )\n            SELECT\n                sl.kv[1] AS \"hashed_key?\",\n                sl.kv[2] AS \"value?\",\n                initial_writes.index\n            FROM\n                sl\n                LEFT OUTER JOIN initial_writes ON initial_writes.hashed_key = sl.kv[1]\n            "
-  },
-  "f1478830e5f95cbcd0da01d3457cbb9cb8da439c7ab28fa865f53908621dc4c5": {
-    "describe": {
-      "columns": [
-        {
-          "name": "region",
-          "ordinal": 0,
-          "type_info": "Text"
-        },
-        {
-          "name": "zone",
-          "ordinal": 1,
-          "type_info": "Text"
-        },
-        {
-          "name": "total_gpus",
-          "ordinal": 2,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        null
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "\n                SELECT\n                    region,\n                    zone,\n                    SUM(num_gpu) AS total_gpus\n                FROM\n                    gpu_prover_queue\n                GROUP BY\n                    region,\n                    zone\n                "
   },
   "f1a90090c192d68367e799188356efe8d41759bbdcdd6d39db93208f2664f03a": {
     "describe": {
@@ -11836,39 +10983,6 @@
       }
     },
     "query": "\n                SELECT\n                    l1_address\n                FROM\n                    tokens\n                WHERE\n                    market_volume > $1\n                "
-  },
-  "f303c53843a58fac4fcdedbfe2b2b33ad609b7df8e55a0cf214ea1ec6421e57a": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "status",
-          "ordinal": 1,
-          "type_info": "Text"
-        },
-        {
-          "name": "attempts",
-          "ordinal": 2,
-          "type_info": "Int4"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Interval",
-          "Int4"
-        ]
-      }
-    },
-    "query": "\n                UPDATE prover_jobs\n                SET\n                    status = 'queued',\n                    updated_at = NOW(),\n                    processing_started_at = NOW()\n                WHERE\n                    (\n                        status = 'in_progress'\n                        AND processing_started_at <= NOW() - $1::INTERVAL\n                        AND attempts < $2\n                    )\n                    OR (\n                        status = 'in_gpu_proof'\n                        AND processing_started_at <= NOW() - $1::INTERVAL\n                        AND attempts < $2\n                    )\n                    OR (\n                        status = 'failed'\n                        AND attempts < $2\n                    )\n                RETURNING\n                    id,\n                    status,\n                    attempts\n                "
   },
   "f39372e37160df4897f62a800694867ed765dcb9dc60754df9df8700d4244bfb": {
     "describe": {

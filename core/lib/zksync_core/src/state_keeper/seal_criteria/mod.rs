@@ -25,7 +25,7 @@ use zksync_utils::time::millis_since;
 mod conditional_sealer;
 pub(super) mod criteria;
 
-pub(crate) use self::conditional_sealer::ConditionalSealer;
+pub use self::conditional_sealer::{ConditionalSealer, NoopSealer, SequencerSealer};
 use super::{extractors, metrics::AGGREGATION_METRICS, updates::UpdatesManager};
 use crate::gas_tracker::{gas_count_from_tx_and_metrics, gas_count_from_writes};
 
@@ -104,7 +104,7 @@ impl SealData {
     }
 }
 
-pub(super) trait SealCriterion: fmt::Debug + Send + 'static {
+pub(super) trait SealCriterion: fmt::Debug + Send + Sync + 'static {
     fn should_seal(
         &self,
         config: &StateKeeperConfig,
