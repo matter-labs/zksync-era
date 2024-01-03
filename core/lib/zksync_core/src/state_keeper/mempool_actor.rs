@@ -5,11 +5,10 @@ use tokio::sync::watch;
 use zksync_config::configs::chain::MempoolConfig;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
-use zksync_types::VmVersion;
-use zksync_utils::time::seconds_since_epoch;
+use zksync_types::{ProtocolVersionId, VmVersion};
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
-use crate::l1_gas_price::L1GasPriceProvider;
+use crate::{api_server::execution_sandbox::BlockArgs, l1_gas_price::L1GasPriceProvider};
 
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.
 /// The filter is used to filter out transactions from the mempool that do not cover expenses
@@ -81,11 +80,14 @@ impl<G: L1GasPriceProvider> MempoolFetcher<G> {
             let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
             let mempool_info = self.mempool.get_mempool_info();
 
+            let latest_miniblock = BlockArgs::pending(&mut storage).await;
+
             let protocol_version = storage
-                .protocol_versions_dal()
-                .base_system_contracts_by_timestamp(seconds_since_epoch())
+                .blocks_dal()
+                .get_miniblock_protocol_version_id(latest_miniblock.resolved_block_number())
                 .await
-                .1;
+                .unwrap()
+                .unwrap_or_else(ProtocolVersionId::latest);
 
             let l2_tx_filter = l2_tx_filter(
                 self.l1_gas_price_provider.as_ref(),
