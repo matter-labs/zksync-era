@@ -1,10 +1,10 @@
 //! Utilities for testing the consensus module.
 use anyhow::Context as _;
 use rand::Rng;
-use zksync_concurrency::{ctx, scope, sync, time, error::Wrap as _};
+use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage as storage;
-use zksync_consensus_storage::{PersistentBlockStore};
+use zksync_consensus_storage::PersistentBlockStore;
 use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
@@ -13,7 +13,10 @@ use zksync_types::{
 };
 
 use crate::{
-    consensus::{Store,storage::{CtxStorage,BlockStore}},
+    consensus::{
+        storage::{BlockStore, CtxStorage},
+        Store,
+    },
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
         tests::{create_l1_batch_metadata, create_l2_transaction, MockBatchExecutorBuilder},
@@ -26,7 +29,7 @@ use crate::{
 };
 
 #[derive(Debug, Default)]
-pub(super) struct MockMainNodeClient {
+pub(crate) struct MockMainNodeClient {
     prev_miniblock_hash: H256,
     l2_blocks: Vec<api::en::SyncBlock>,
 }
@@ -163,7 +166,10 @@ pub(super) struct StateKeeperRunner {
 impl StateKeeper {
     /// Constructs and initializes a new `StateKeeper`.
     /// Caller has to run `StateKeeperRunner.run()` task in the background.
-    pub async fn new(pool: ConnectionPool, operator_address: Address) -> anyhow::Result<(Self, StateKeeperRunner)> {
+    pub async fn new(
+        pool: ConnectionPool,
+        operator_address: Address,
+    ) -> anyhow::Result<(Self, StateKeeperRunner)> {
         // ensure genesis
         let mut storage = pool.access_storage().await.context("access_storage()")?;
         if storage
@@ -281,17 +287,22 @@ impl StateKeeper {
         validator::BlockNumber(self.last_block.0 as u64)
     }
 
-    /// Creates a new `BlockStore` for the underlying `ConnectionPool`. 
+    /// Creates a new `BlockStore` for the underlying `ConnectionPool`.
     pub fn store(&self) -> BlockStore {
-        Store::new(self.pool.clone(),self.operator_address).into_block_store()
+        Store::new(self.pool.clone(), self.operator_address).into_block_store()
     }
 
     // Wait for all pushed miniblocks to be produced.
     pub async fn sync(&self, ctx: &ctx::Ctx) -> ctx::Result<()> {
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
         loop {
-            let mut storage = CtxStorage::access(ctx,&self.pool).await.wrap("access()")?;
-            if storage.payload(ctx, self.last_block(), self.operator_address).await.wrap("storage.payload()")?.is_some() {
+            let mut storage = CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
+            if storage
+                .payload(ctx, self.last_block(), self.operator_address)
+                .await
+                .wrap("storage.payload()")?
+                .is_some()
+            {
                 return Ok(());
             }
             ctx.sleep(POLL_INTERVAL).await?;
@@ -304,7 +315,12 @@ async fn run_mock_metadata_calculator(ctx: &ctx::Ctx, pool: &ConnectionPool) -> 
     const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
     let mut n = {
         let mut storage = pool.access_storage().await.context("access_storage()")?;
-        storage.blocks_dal().get_last_l1_batch_number_with_metadata().await.context("get_last_l1_batch_number_with_metadata()")?
+        storage
+            .blocks_dal()
+            .get_last_l1_batch_number_with_metadata()
+            .await
+            .context("get_last_l1_batch_number_with_metadata()")?
+            .context("no L1 batchers in Postgres")?
     };
     while let Ok(()) = ctx.sleep(POLL_INTERVAL).await {
         let mut storage = pool.access_storage().await.context("access_storage()")?;
@@ -331,9 +347,10 @@ async fn run_mock_metadata_calculator(ctx: &ctx::Ctx, pool: &ConnectionPool) -> 
 impl StateKeeperRunner {
     /// Executes the StateKeeper task.
     pub async fn run(self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
-        scope::run!(ctx, |ctx, s| async { 
+        scope::run!(ctx, |ctx, s| async {
             let (stop_sender, stop_receiver) = sync::watch::channel(false);
-            let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(self.pool.clone(), 5);
+            let (miniblock_sealer, miniblock_sealer_handle) =
+                MiniblockSealer::new(self.pool.clone(), 5);
             let io = ExternalIO::new(
                 miniblock_sealer_handle,
                 self.pool.clone(),
@@ -388,12 +405,14 @@ pub async fn wait_for_blocks_and_verify(
     validators: &validator::ValidatorSet,
     want_last: validator::BlockNumber,
 ) -> ctx::Result<Vec<validator::FinalBlock>> {
-    wait_for_block(ctx,store,want_last).await?;
-    let blocks = storage::testonly::dump(ctx,store).await;
+    wait_for_block(ctx, store, want_last).await?;
+    let blocks = storage::testonly::dump(ctx, store).await;
     let got_last = blocks.last().context("empty store")?.header().number;
-    assert_eq!(got_last,want_last);
+    assert_eq!(got_last, want_last);
     for block in &blocks {
-        block.validate(validators,1).context(block.header().number)?;
+        block
+            .validate(validators, 1)
+            .context(block.header().number)?;
     }
     Ok(blocks)
 }

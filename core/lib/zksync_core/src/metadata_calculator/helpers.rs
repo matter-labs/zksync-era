@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use zksync_config::configs::database::MerkleTreeMode;
 use zksync_dal::StorageProcessor;
+use zksync_health_check::{Health, HealthStatus};
 use zksync_merkle_tree::{
     domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
     recovery::MerkleTreeRecovery,
@@ -20,8 +21,6 @@ use zksync_merkle_tree::{
 use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries};
 use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageKey, H256};
 
-<<<<<<< HEAD
-=======
 use super::metrics::{LoadChangesStage, TreeUpdateStage, METRICS};
 
 /// General information about the Merkle tree.
@@ -348,7 +347,6 @@ impl Delayer {
     }
 }
 
->>>>>>> origin/main
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct L1BatchWithLogs {
@@ -362,29 +360,39 @@ impl L1BatchWithLogs {
         l1_batch_number: L1BatchNumber,
     ) -> Option<Self> {
         tracing::debug!("Loading storage logs data for L1 batch #{l1_batch_number}");
+        let load_changes_latency = METRICS.start_stage(TreeUpdateStage::LoadChanges);
 
+        let header_latency = METRICS.start_load_stage(LoadChangesStage::LoadL1BatchHeader);
         let header = storage
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
             .await
             .unwrap()?;
+        header_latency.observe();
 
+        let protective_reads_latency =
+            METRICS.start_load_stage(LoadChangesStage::LoadProtectiveReads);
         let protective_reads = storage
             .storage_logs_dedup_dal()
             .get_protective_reads_for_l1_batch(l1_batch_number)
             .await;
+        protective_reads_latency.observe_with_count(protective_reads.len());
 
+        let touched_slots_latency = METRICS.start_load_stage(LoadChangesStage::LoadTouchedSlots);
         let mut touched_slots = storage
             .storage_logs_dal()
             .get_touched_slots_for_l1_batch(l1_batch_number)
             .await;
+        touched_slots_latency.observe_with_count(touched_slots.len());
 
+        let leaf_indices_latency = METRICS.start_load_stage(LoadChangesStage::LoadLeafIndices);
         let hashed_keys_for_writes: Vec<_> =
             touched_slots.keys().map(StorageKey::hashed_key).collect();
         let l1_batches_for_initial_writes = storage
             .storage_logs_dal()
             .get_l1_batches_and_indices_for_initial_writes(&hashed_keys_for_writes)
             .await;
+        leaf_indices_latency.observe_with_count(hashed_keys_for_writes.len());
 
         let mut storage_logs = BTreeMap::new();
         for storage_key in protective_reads {
@@ -414,6 +422,7 @@ impl L1BatchWithLogs {
             }
         }
 
+        load_changes_latency.observe();
         Some(Self {
             header,
             storage_logs: storage_logs.into_values().collect(),
@@ -421,7 +430,6 @@ impl L1BatchWithLogs {
     }
 }
 
-#[cfg(dupa)]
 #[cfg(test)]
 mod tests {
     use tempfile::TempDir;

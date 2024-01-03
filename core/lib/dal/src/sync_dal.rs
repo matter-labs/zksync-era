@@ -60,10 +60,13 @@ impl SyncDal<'_, '_> {
             "#,
             block_number.0 as i64
         )
-            .instrument("sync_dal_sync_block.block")
-            .with_arg("block_number", &block_number)
-            .fetch_optional(self.storage.conn())
-            .await? else { return Ok(None) };
+        .instrument("sync_dal_sync_block.block")
+        .with_arg("block_number", &block_number)
+        .fetch_optional(self.storage.conn())
+        .await?
+        else {
+            return Ok(None);
+        };
         Ok(Some(block.try_into()?))
     }
 

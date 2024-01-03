@@ -1,21 +1,13 @@
 //! This module determines the fees to pay in txs containing blocks submitted to the L1.
 
-<<<<<<< HEAD
-#[cfg(dupa)]
-pub use gas_adjuster::{bounded_gas_adjuster::BoundedGasAdjuster, GasAdjuster};
-=======
 use std::fmt;
 
 pub use gas_adjuster::GasAdjuster;
->>>>>>> origin/main
 pub use main_node_fetcher::MainNodeGasPriceFetcher;
-#[cfg(dupa)]
 pub use singleton::GasAdjusterSingleton;
 
-#[cfg(dupa)]
 mod gas_adjuster;
 mod main_node_fetcher;
-#[cfg(dupa)]
 pub mod singleton;
 
 /// Abstraction that provides information about the L1 gas price currently

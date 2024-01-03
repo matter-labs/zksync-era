@@ -1,11 +1,11 @@
 //! Consensus-related functionality.
+use crate::sync_layer::sync_action::ActionQueueSender;
 use anyhow::Context as _;
-use zksync_concurrency::{ctx, scope, error::Wrap as _};
+use zksync_concurrency::{ctx, error::Wrap as _, scope};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::{node, validator};
 use zksync_consensus_storage::BlockStore;
-use zksync_dal::{consensus_dal::Payload,ConnectionPool};
-use crate::sync_layer::sync_action::ActionQueueSender;
+use zksync_dal::{consensus_dal::Payload, ConnectionPool};
 use zksync_types::Address;
 
 mod storage;
@@ -113,7 +113,7 @@ impl TryFrom<SerdeConfig> for Config {
 }
 
 /// Main node consensus config.
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct Config {
     pub executor: executor::Config,
     pub validator: executor::ValidatorConfig,
@@ -125,14 +125,24 @@ impl Config {
     /// Broadcasts the blocks with certificates to gossip network peers.
     #[allow(dead_code)]
     pub async fn run(self, ctx: &ctx::Ctx, pool: ConnectionPool) -> anyhow::Result<()> {
-        if self.executor.validators != validator::ValidatorSet::new(vec![self.validator.key.public()]).unwrap() {
-            return Err(anyhow::anyhow!("currently only consensus with just 1 validator is supported").into());
+        if self.executor.validators
+            != validator::ValidatorSet::new(vec![self.validator.key.public()]).unwrap()
+        {
+            return Err(anyhow::anyhow!(
+                "currently only consensus with just 1 validator is supported"
+            )
+            .into());
         }
         scope::run!(&ctx, |ctx, s| async {
             let store = Store::new(pool, self.operator_address);
             let mut block_store = store.clone().into_block_store();
-            block_store.try_init_genesis(ctx,&self.validator.key).await.wrap("block_store.try_init_genesis()")?;
-            let (block_store,runner) = BlockStore::new(ctx,Box::new(block_store),1000).await.wrap("BlockStore::new()")?;
+            block_store
+                .try_init_genesis(ctx, &self.validator.key)
+                .await
+                .wrap("block_store.try_init_genesis()")?;
+            let (block_store, runner) = BlockStore::new(ctx, Box::new(block_store), 1000)
+                .await
+                .wrap("BlockStore::new()")?;
             s.spawn_bg(runner.run(ctx));
             let executor = executor::Executor {
                 config: self.executor,
@@ -150,7 +160,7 @@ impl Config {
 }
 
 /// External node consensus config.
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct FetcherConfig {
     executor: executor::Config,
     operator_address: Address,
@@ -184,10 +194,15 @@ impl FetcherConfig {
         );
 
         scope::run!(ctx, |ctx, s| async {
-             let store = Store::new(pool, self.operator_address);
+            let store = Store::new(pool, self.operator_address);
             let mut block_store = store.clone().into_block_store();
-            block_store.set_actions_queue(ctx,actions).await.wrap("block_store.try_init_genesis()")?;
-            let (block_store,runner) = BlockStore::new(ctx,Box::new(block_store),1000).await.wrap("BlockStore::new()")?;
+            block_store
+                .set_actions_queue(ctx, actions)
+                .await
+                .wrap("block_store.try_init_genesis()")?;
+            let (block_store, runner) = BlockStore::new(ctx, Box::new(block_store), 1000)
+                .await
+                .wrap("BlockStore::new()")?;
             s.spawn_bg(runner.run(ctx));
             let executor = executor::Executor {
                 config: self.executor,

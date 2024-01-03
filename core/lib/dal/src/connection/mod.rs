@@ -125,14 +125,20 @@ impl TestTemplate {
     /// Closes the connection pool, disallows connecting to the underlying db,
     /// so that the db can be used as a template.
     pub async fn freeze(pool: ConnectionPool) -> anyhow::Result<Self> {
-        use sqlx::{Executor as _};
+        use sqlx::Executor as _;
         pool.inner.close().await;
         let this = Self(pool.database_url.parse()?);
-        let mut conn = Self::connect_to(&this.0).await.context("connect_to()")?; 
-        conn.execute(format!("UPDATE pg_database SET datallowconn = false WHERE datname = current_database()").as_str()).await
-            .context("SET dataallowconn = false")?;
+        let mut conn = Self::connect_to(&this.0).await.context("connect_to()")?;
+        conn.execute(
+            format!(
+                "UPDATE pg_database SET datallowconn = false WHERE datname = current_database()"
+            )
+            .as_str(),
+        )
+        .await
+        .context("SET dataallowconn = false")?;
         Ok(this)
-    } 
+    }
 
     /// Constructs a new temporary database (with a randomized name)
     /// by cloning the database template pointed by TEST_DATABASE_URL env var.
@@ -144,16 +150,17 @@ impl TestTemplate {
     /// container is recreated whenever you call "zk test rust".
     pub async fn create_db(&self) -> anyhow::Result<ConnectionPool> {
         use rand::Rng as _;
-        use sqlx::{Executor as _};
+        use sqlx::Executor as _;
 
-        let mut conn = Self::connect_to(&self.url("")).await.context("connect_to()")?; 
+        let mut conn = Self::connect_to(&self.url(""))
+            .await
+            .context("connect_to()")?;
         let db_old = self.db_name();
         let db_new = format!("test-{}", rand::thread_rng().gen::<u64>());
-        conn.execute(
-            format!("CREATE DATABASE \"{db_new}\" WITH TEMPLATE \"{db_old}\"").as_str(),
-        )
-        .await.context("CREATE DATABASE")?;
-        
+        conn.execute(format!("CREATE DATABASE \"{db_new}\" WITH TEMPLATE \"{db_old}\"").as_str())
+            .await
+            .context("CREATE DATABASE")?;
+
         const TEST_MAX_CONNECTIONS: u32 = 50; // Expected to be enough for any unit test.
         ConnectionPool::builder(self.url(&db_new).as_ref(), TEST_MAX_CONNECTIONS)
             .build()
@@ -279,7 +286,9 @@ mod tests {
 
     #[tokio::test]
     async fn setting_statement_timeout() {
-        let db_url = TestTemplate::empty().unwrap().create_db() 
+        let db_url = TestTemplate::empty()
+            .unwrap()
+            .create_db()
             .await
             .unwrap()
             .database_url;

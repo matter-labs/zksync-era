@@ -1,12 +1,41 @@
 //! This module applies updates to the ZkSyncTree, calculates metadata for sealed blocks, and
 //! stores them in the DB.
 
+use std::{
+    future::{self, Future},
+    time::Duration,
+};
+
+use tokio::sync::watch;
+use zksync_config::configs::{
+    chain::OperationsManagerConfig,
+    database::{MerkleTreeConfig, MerkleTreeMode},
+};
+use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
+use zksync_merkle_tree::domain::TreeMetadata;
+use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_types::{
+    block::L1BatchHeader,
+    commitment::{L1BatchCommitment, L1BatchMetadata},
+    H256,
+};
+
+pub(crate) use self::helpers::{AsyncTreeReader, L1BatchWithLogs, MerkleTreeInfo};
+use self::{
+    helpers::{create_db, Delayer, GenericAsyncTree},
+    metrics::{TreeUpdateStage, METRICS},
+    updater::TreeUpdater,
+};
+use crate::gas_tracker::commit_gas_count_for_l1_batch;
+
 mod helpers;
 mod metrics;
+mod recovery;
+#[cfg(test)]
+pub(crate) mod tests;
+mod updater;
 
-<<<<<<< HEAD
-pub(crate) use self::helpers::L1BatchWithLogs;
-=======
 /// Part of [`MetadataCalculator`] related to the operation mode of the Merkle tree.
 #[derive(Debug, Clone, Copy)]
 pub enum MetadataCalculatorModeConfig<'a> {
@@ -242,4 +271,3 @@ impl MetadataCalculator {
         metadata
     }
 }
->>>>>>> origin/main
