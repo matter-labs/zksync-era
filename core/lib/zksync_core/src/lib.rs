@@ -1,4 +1,8 @@
-#![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
+#![allow(
+    clippy::upper_case_acronyms,
+    clippy::derive_partial_eq_without_eq,
+    clippy::redundant_locals
+)]
 
 use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 
@@ -76,7 +80,7 @@ use crate::{
 pub mod api_server;
 pub mod basic_witness_input_producer;
 pub mod block_reverter;
-mod consensus;
+pub mod consensus;
 pub mod consistency_checker;
 pub mod eth_sender;
 pub mod eth_watch;

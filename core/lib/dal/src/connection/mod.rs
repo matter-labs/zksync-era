@@ -113,6 +113,7 @@ impl TestTemplate {
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
     }
+
     /// Obtains the test database URL from the environment variable.
     pub fn empty() -> anyhow::Result<Self> {
         let db_url = env::var("TEST_DATABASE_URL").context(
@@ -126,18 +127,15 @@ impl TestTemplate {
     /// so that the db can be used as a template.
     pub async fn freeze(pool: ConnectionPool) -> anyhow::Result<Self> {
         use sqlx::Executor as _;
-        pool.inner.close().await;
-        let this = Self(pool.database_url.parse()?);
-        let mut conn = Self::connect_to(&this.0).await.context("connect_to()")?;
+        let mut conn = pool.acquire_connection_retried().await?;
         conn.execute(
-            format!(
-                "UPDATE pg_database SET datallowconn = false WHERE datname = current_database()"
-            )
-            .as_str(),
+            "UPDATE pg_database SET datallowconn = false WHERE datname = current_database()",
         )
         .await
         .context("SET dataallowconn = false")?;
-        Ok(this)
+        drop(conn);
+        pool.inner.close().await;
+        Ok(Self(pool.database_url.parse()?))
     }
 
     /// Constructs a new temporary database (with a randomized name)

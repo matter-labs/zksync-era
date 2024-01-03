@@ -65,9 +65,9 @@ async fn test_validator_block_store() {
             start: validator::BlockNumber(4),
             end: sk.last_block(),
         };
-        Ok(make_blocks(ctx, &sk.pool, range)
+        make_blocks(ctx, &sk.pool, range)
             .await
-            .context("make_blocks")?)
+            .context("make_blocks")
     })
     .await
     .unwrap();

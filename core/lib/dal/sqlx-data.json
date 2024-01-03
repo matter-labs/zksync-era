@@ -525,24 +525,6 @@
     },
     "query": "\n            SELECT\n                l1_batch_number\n            FROM\n                proof_generation_details\n            WHERE\n                status NOT IN ('generated', 'skipped')\n            ORDER BY\n                l1_batch_number ASC\n            LIMIT\n                1\n            "
   },
-  "0a33f2b50c14df138289d97517e76e3b4dfeb415fce768cca1cf658085f20030": {
-    "describe": {
-      "columns": [
-        {
-          "name": "certificate",
-          "ordinal": 0,
-          "type_info": "Jsonb"
-        }
-      ],
-      "nullable": [
-        false
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "SELECT certificate FROM miniblocks_consensus ORDER BY number DESC LIMIT 1"
-  },
   "0a3c928a616b5ebc0b977bd773edcde721ca1c652ae2f8db41fb75cecdecb674": {
     "describe": {
       "columns": [
@@ -3468,26 +3450,6 @@
     },
     "query": "\n                UPDATE prover_jobs_fri\n                SET\n                    status = 'failed',\n                    error = $1,\n                    updated_at = NOW()\n                WHERE\n                    id = $2\n                "
   },
-  "35c1680e872a6223f8adcb1703656076cd1c7efad73db685888911303851d6bd": {
-    "describe": {
-      "columns": [
-        {
-          "name": "certificate",
-          "ordinal": 0,
-          "type_info": "Jsonb"
-        }
-      ],
-      "nullable": [
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Int8"
-        ]
-      }
-    },
-    "query": "SELECT certificate FROM miniblocks_consensus WHERE number = $1"
-  },
   "3671f23665664b8d6acf97e4f697e5afa28d855d87ea2f8c93e79c436749068a": {
     "describe": {
       "columns": [
@@ -3764,24 +3726,6 @@
     },
     "query": "\n            SELECT\n                COUNT(*) AS \"count!\"\n            FROM\n                prover_protocol_versions\n            WHERE\n                id = $1\n            "
   },
-  "384d514517cecc729bf2a62d2cacaba25c29392096b778d5b573796afb1f9ecd": {
-    "describe": {
-      "columns": [
-        {
-          "name": "certificate",
-          "ordinal": 0,
-          "type_info": "Jsonb"
-        }
-      ],
-      "nullable": [
-        false
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "SELECT certificate FROM miniblocks_consensus ORDER BY number ASC LIMIT 1"
-  },
   "38a8b00e320b16e99f6ea0e5954e2f7e49cd6600bd3d56cf41795c2c9e082e4c": {
     "describe": {
       "columns": [
@@ -3799,6 +3743,24 @@
       }
     },
     "query": "\n            SELECT\n                MAX(number) AS \"number\"\n            FROM\n                l1_batches\n            "
+  },
+  "3b013b93ea4a6766162c9f0c60517a7ffc993cf436ad3aeeae82ed3e330b07bd": {
+    "describe": {
+      "columns": [
+        {
+          "name": "certificate",
+          "ordinal": 0,
+          "type_info": "Jsonb"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "\n            SELECT\n                certificate\n            FROM\n                miniblocks_consensus\n            ORDER BY\n                number ASC\n            LIMIT\n                1\n            "
   },
   "3b0af308b0ce95a13a4eed40834279601234a489f73d843f2f314252ed4cb8b0": {
     "describe": {
@@ -3904,6 +3866,26 @@
       }
     },
     "query": "\n            UPDATE scheduler_witness_jobs_fri\n            SET\n                status = 'queued',\n                updated_at = NOW(),\n                processing_started_at = NOW()\n            WHERE\n                (\n                    status = 'in_progress'\n                    AND processing_started_at <= NOW() - $1::INTERVAL\n                    AND attempts < $2\n                )\n                OR (\n                    status = 'failed'\n                    AND attempts < $2\n                )\n            RETURNING\n                l1_batch_number,\n                status,\n                attempts\n            "
+  },
+  "3c60ca71b8a3b544f5fe9d7f2fbb249026665c9fb17b6f53a2154473547cbbfd": {
+    "describe": {
+      "columns": [
+        {
+          "name": "certificate",
+          "ordinal": 0,
+          "type_info": "Jsonb"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "\n            SELECT\n                certificate\n            FROM\n                miniblocks_consensus\n            WHERE\n                number = $1\n            "
   },
   "3e170eea3a5ea5c7389c15f76c6489745438eae73a07b577aa25bd08adf95354": {
     "describe": {
@@ -9346,6 +9328,19 @@
     },
     "query": "\n            UPDATE prover_jobs_fri\n            SET\n                status = $1,\n                updated_at = NOW()\n            WHERE\n                id = $2\n            "
   },
+  "c2fe6a5476e69c9588eec73baba9d0e2d571533d4d5f683919987b6f8cbb00e0": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Jsonb"
+        ]
+      }
+    },
+    "query": "\n            INSERT INTO\n                miniblocks_consensus (number, certificate)\n            VALUES\n                ($1, $2)\n            "
+  },
   "c36abacc705a2244d423599779e38d60d6e93bcb34fd20422e227714fccbf6b7": {
     "describe": {
       "columns": [
@@ -11444,236 +11439,6 @@
     },
     "query": "\n            SELECT\n                *\n            FROM\n                eth_txs_history\n            WHERE\n                eth_tx_id = $1\n            ORDER BY\n                created_at DESC\n            LIMIT\n                1\n            "
   },
-  "ee87b42383cd6b4f1445e2aa152369fee31a7fea436db8b3b9925a60ac60cd1a": {
-    "describe": {
-      "columns": [
-        {
-          "name": "hash",
-          "ordinal": 0,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "is_priority",
-          "ordinal": 1,
-          "type_info": "Bool"
-        },
-        {
-          "name": "full_fee",
-          "ordinal": 2,
-          "type_info": "Numeric"
-        },
-        {
-          "name": "layer_2_tip_fee",
-          "ordinal": 3,
-          "type_info": "Numeric"
-        },
-        {
-          "name": "initiator_address",
-          "ordinal": 4,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "nonce",
-          "ordinal": 5,
-          "type_info": "Int8"
-        },
-        {
-          "name": "signature",
-          "ordinal": 6,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "input",
-          "ordinal": 7,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "data",
-          "ordinal": 8,
-          "type_info": "Jsonb"
-        },
-        {
-          "name": "received_at",
-          "ordinal": 9,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "priority_op_id",
-          "ordinal": 10,
-          "type_info": "Int8"
-        },
-        {
-          "name": "l1_batch_number",
-          "ordinal": 11,
-          "type_info": "Int8"
-        },
-        {
-          "name": "index_in_block",
-          "ordinal": 12,
-          "type_info": "Int4"
-        },
-        {
-          "name": "error",
-          "ordinal": 13,
-          "type_info": "Varchar"
-        },
-        {
-          "name": "gas_limit",
-          "ordinal": 14,
-          "type_info": "Numeric"
-        },
-        {
-          "name": "gas_per_storage_limit",
-          "ordinal": 15,
-          "type_info": "Numeric"
-        },
-        {
-          "name": "gas_per_pubdata_limit",
-          "ordinal": 16,
-          "type_info": "Numeric"
-        },
-        {
-          "name": "tx_format",
-          "ordinal": 17,
-          "type_info": "Int4"
-        },
-        {
-          "name": "created_at",
-          "ordinal": 18,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "updated_at",
-          "ordinal": 19,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "execution_info",
-          "ordinal": 20,
-          "type_info": "Jsonb"
-        },
-        {
-          "name": "contract_address",
-          "ordinal": 21,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "in_mempool",
-          "ordinal": 22,
-          "type_info": "Bool"
-        },
-        {
-          "name": "l1_block_number",
-          "ordinal": 23,
-          "type_info": "Int4"
-        },
-        {
-          "name": "value",
-          "ordinal": 24,
-          "type_info": "Numeric"
-        },
-        {
-          "name": "paymaster",
-          "ordinal": 25,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "paymaster_input",
-          "ordinal": 26,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "max_fee_per_gas",
-          "ordinal": 27,
-          "type_info": "Numeric"
-        },
-        {
-          "name": "max_priority_fee_per_gas",
-          "ordinal": 28,
-          "type_info": "Numeric"
-        },
-        {
-          "name": "effective_gas_price",
-          "ordinal": 29,
-          "type_info": "Numeric"
-        },
-        {
-          "name": "miniblock_number",
-          "ordinal": 30,
-          "type_info": "Int8"
-        },
-        {
-          "name": "l1_batch_tx_index",
-          "ordinal": 31,
-          "type_info": "Int4"
-        },
-        {
-          "name": "refunded_gas",
-          "ordinal": 32,
-          "type_info": "Int8"
-        },
-        {
-          "name": "l1_tx_mint",
-          "ordinal": 33,
-          "type_info": "Numeric"
-        },
-        {
-          "name": "l1_tx_refund_recipient",
-          "ordinal": 34,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "upgrade_id",
-          "ordinal": 35,
-          "type_info": "Int4"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        true,
-        true,
-        false,
-        true,
-        true,
-        true,
-        false,
-        false,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        false,
-        false,
-        false,
-        true,
-        false,
-        true,
-        false,
-        false,
-        false,
-        true,
-        true,
-        true,
-        true,
-        true,
-        false,
-        true,
-        true,
-        true
-      ],
-      "parameters": {
-        "Left": [
-          "Int8"
-        ]
-      }
-    },
-    "query": "SELECT * FROM transactions WHERE miniblock_number = $1 ORDER BY index_in_block"
-  },
   "ef331469f78c6ff68a254a15b55d056cc9bae25bc070c5de8424f88fab20e5ea": {
     "describe": {
       "columns": [
@@ -11924,19 +11689,6 @@
       }
     },
     "query": "\n            UPDATE proof_compression_jobs_fri\n            SET\n                status = $1,\n                error = $2,\n                updated_at = NOW()\n            WHERE\n                l1_batch_number = $3\n            "
-  },
-  "f46b08f2ad20e5a2b45a374fb53c4a898c8e9bcd67104c93440a6a21c7db2ffd": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Int8",
-          "Jsonb"
-        ]
-      }
-    },
-    "query": "INSERT INTO miniblocks_consensus (number, certificate) VALUES ($1, $2)"
   },
   "f63586d59264eab7388ad1de823227ecaa45d76d1ba260074898fe57c059a15a": {
     "describe": {
@@ -12308,5 +12060,23 @@
       }
     },
     "query": "\n            SELECT\n                l2_to_l1_logs\n            FROM\n                l1_batches\n            WHERE\n                number = $1\n            "
+  },
+  "fec7b791e371a4c58350b6537065223f4599d4128db588d8645f3d106de5f50b": {
+    "describe": {
+      "columns": [
+        {
+          "name": "certificate",
+          "ordinal": 0,
+          "type_info": "Jsonb"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "\n            SELECT\n                certificate\n            FROM\n                miniblocks_consensus\n            ORDER BY\n                number DESC\n            LIMIT\n                1\n            "
   }
 }

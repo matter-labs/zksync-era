@@ -225,7 +225,7 @@ impl StateKeeper {
             self.last_block += 1;
             self.last_timestamp += 5;
             self.batch_sealed = false;
-            let action = SyncAction::OpenBatch {
+            SyncAction::OpenBatch {
                 number: self.last_batch,
                 timestamp: self.last_timestamp,
                 l1_gas_price: 2,
@@ -233,17 +233,15 @@ impl StateKeeper {
                 operator_address: self.operator_address,
                 protocol_version: ProtocolVersionId::latest(),
                 first_miniblock_info: (self.last_block, 1),
-            };
-            action
+            }
         } else {
             self.last_block += 1;
             self.last_timestamp += 2;
-            let action = SyncAction::Miniblock {
+            SyncAction::Miniblock {
                 number: self.last_block,
                 timestamp: self.last_timestamp,
                 virtual_blocks: 0,
-            };
-            action
+            }
         }
     }
 
