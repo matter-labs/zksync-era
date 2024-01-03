@@ -177,7 +177,7 @@ impl Store {
 
 impl BlockStore {
     /// Generates and stores the genesis cert (signed by `validator_key`) for the last sealed miniblock.
-    /// Noop if db already contains a genesis cert.
+    /// No-op if db already contains a genesis cert.
     pub async fn try_init_genesis(
         &mut self,
         ctx: &ctx::Ctx,

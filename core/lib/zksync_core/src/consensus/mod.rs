@@ -34,13 +34,13 @@ impl<'de, T: TextFmt> serde::Deserialize<'de> for SerdeText<T> {
     }
 }
 
-/// Config (shared between main node and external node) which implements serde encoding
+/// Config (shared between main node and external node) which implements `serde` encoding
 /// and therefore can be flattened into env vars.
 #[derive(serde::Deserialize)]
 pub struct SerdeConfig {
     /// Local socket address to listen for the incoming connections.
     pub server_addr: std::net::SocketAddr,
-    /// Public address of this node (should forward to server_addr)
+    /// Public address of this node (should forward to `server_addr`)
     /// that will be advertised to peers, so that they can connect to this
     /// node.
     pub public_addr: std::net::SocketAddr,
@@ -66,7 +66,7 @@ pub struct SerdeConfig {
 }
 
 impl SerdeConfig {
-    /// Extracts bft executor config from the `SerdeConfig`.
+    /// Extracts consensus executor config from the `SerdeConfig`.
     fn executor(&self) -> anyhow::Result<executor::Config> {
         Ok(executor::Config {
             server_addr: self.server_addr,

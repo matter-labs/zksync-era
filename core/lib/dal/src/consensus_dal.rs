@@ -57,7 +57,7 @@ impl ConsensusDal<'_, '_> {
 
     /// Fetch the first consensus certificate.
     /// Note that we didn't backfill the certificates for the past miniblocks
-    /// when enabling consensus certificate generation, so it might NOT be the certifificate
+    /// when enabling consensus certificate generation, so it might NOT be the certificate
     /// for the genesis miniblock.
     pub async fn first_certificate(&mut self) -> anyhow::Result<Option<validator::CommitQC>> {
         let Some(row) = sqlx::query!(
