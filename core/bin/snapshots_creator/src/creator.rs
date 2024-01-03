@@ -267,7 +267,8 @@ impl SnapshotCreator {
             .load_or_initialize_snapshot_progress(&config, min_chunk_count)
             .await?
         else {
-            return Ok(()); // No snapshot creation is necessary
+            // No snapshot creation is necessary; a snapshot for the current L1 batch is already created
+            return Ok(());
         };
 
         let mut conn = self.connect_to_replica().await?;
