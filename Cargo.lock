@@ -8225,8 +8225,6 @@ dependencies = [
  "anyhow",
  "serde",
  "zksync_basic_types",
- "zksync_consensus_crypto",
- "zksync_consensus_roles",
 ]
 
 [[package]]
