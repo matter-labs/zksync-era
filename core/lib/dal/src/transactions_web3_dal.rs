@@ -1,11 +1,11 @@
 use sqlx::types::chrono::NaiveDateTime;
-use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
 use zksync_types::{
     api, api::ApiMode, Address, L2ChainId, MiniblockNumber, Transaction,
     ACCOUNT_CODE_STORAGE_ADDRESS, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256, U256, U64,
 };
 use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
 
+use crate::events_web3_dal::filter_logs_by_api_mode;
 use crate::{
     instrument::InstrumentExt,
     models::{
@@ -132,7 +132,7 @@ impl TransactionsWeb3Dal<'_, '_> {
             });
             match receipt {
                 Some(mut receipt) => {
-                    let mut db_logs: Vec<StorageWeb3Log> = sqlx::query_as!(
+                    let db_logs: Vec<StorageWeb3Log> = sqlx::query_as!(
                         StorageWeb3Log,
                         r#"
                         SELECT
@@ -164,36 +164,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                     .fetch_all(self.storage.conn())
                     .await?;
 
-                    if api_mode == ApiMode::Modern {
-                        db_logs.retain(|log| {
-                            log.address != L2_ETH_TOKEN_ADDRESS.as_bytes()
-                                || log.topic1 != TRANSFER_EVENT_TOPIC.as_bytes()
-                        });
-
-                        if !db_logs.is_empty() {
-                            let mut new_event_index_in_block = 0;
-                            let mut new_event_index_in_tx = 0;
-                            let mut current_block = db_logs[0].miniblock_number;
-                            let mut current_tx_hash = db_logs[0].tx_hash.clone();
-
-                            for db_log in &mut db_logs {
-                                if db_log.miniblock_number != current_block {
-                                    current_block = db_log.miniblock_number;
-                                    new_event_index_in_block = 0;
-                                }
-                                if db_log.tx_hash != current_tx_hash {
-                                    current_tx_hash = db_log.tx_hash.clone();
-                                    new_event_index_in_tx = 0;
-                                }
-                                db_log.event_index_in_block = new_event_index_in_block;
-                                db_log.event_index_in_tx = new_event_index_in_tx;
-                                new_event_index_in_block += 1;
-                                new_event_index_in_tx += 1;
-                            }
-                        }
-                    }
-
-                    let logs = db_logs
+                    let logs = filter_logs_by_api_mode(db_logs, api_mode)
                         .into_iter()
                         .map(|storage_log| {
                             let mut log = api::Log::from(storage_log);
