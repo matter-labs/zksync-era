@@ -84,7 +84,7 @@ impl EthSenderTester {
                 .with_non_ordering_confirmation(non_ordering_confirmations)
                 .with_multicall_address(contracts_config.l1_multicall3_addr),
         );
-        gateway.create_blocks(Self::WAIT_CONFIRMATIONS);
+        gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
 
         let gas_adjuster = Arc::new(
             GasAdjuster::new(
@@ -189,7 +189,7 @@ async fn confirm_many() -> anyhow::Result<()> {
     for hash in hashes {
         tester
             .gateway
-            .execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS)?;
+            .execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS);
     }
 
     let to_resend = tester
@@ -373,7 +373,7 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
     // mine the transaction but don't have enough confirmations yet
     tester
         .gateway
-        .execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS - 1)?;
+        .execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS - 1);
 
     let to_resend = tester
         .manager
@@ -439,12 +439,11 @@ async fn three_scenarios() -> anyhow::Result<()> {
     // mined & confirmed
     tester
         .gateway
-        .execute_tx(hashes[0], true, EthSenderTester::WAIT_CONFIRMATIONS)?;
-
+        .execute_tx(hashes[0], true, EthSenderTester::WAIT_CONFIRMATIONS);
     // mined but not confirmed
     tester
         .gateway
-        .execute_tx(hashes[1], true, EthSenderTester::WAIT_CONFIRMATIONS - 1)?;
+        .execute_tx(hashes[1], true, EthSenderTester::WAIT_CONFIRMATIONS - 1);
 
     let (to_resend, _) = tester
         .manager
@@ -504,8 +503,7 @@ async fn failed_eth_tx() {
     // fail this tx
     tester
         .gateway
-        .execute_tx(hash, false, EthSenderTester::WAIT_CONFIRMATIONS)
-        .unwrap();
+        .execute_tx(hash, false, EthSenderTester::WAIT_CONFIRMATIONS);
     tester
         .manager
         .monitor_inflight_transactions(
@@ -993,9 +991,7 @@ async fn send_operation(
 async fn confirm_tx(tester: &mut EthSenderTester, hash: H256) {
     tester
         .gateway
-        .execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS)
-        .unwrap();
-
+        .execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS);
     tester
         .manager
         .monitor_inflight_transactions(

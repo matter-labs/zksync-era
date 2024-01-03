@@ -1,9 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        RwLock,
-    },
+    sync::RwLock,
 };
 
 use async_trait::async_trait;
@@ -69,22 +66,65 @@ impl From<MockTx> for Transaction {
     }
 }
 
+/// Mutable part of [`MockEthereum`] that needs to be synchronized via an `RwLock`.
+#[derive(Debug, Default)]
+struct MockEthereumInner {
+    block_number: u64,
+    tx_statuses: HashMap<H256, ExecutedTxStatus>,
+    sent_txs: HashMap<H256, MockTx>,
+    current_nonce: u64,
+    pending_nonce: u64,
+    nonces: BTreeMap<u64, u64>,
+}
+
+impl MockEthereumInner {
+    fn execute_tx(
+        &mut self,
+        tx_hash: H256,
+        success: bool,
+        confirmations: u64,
+        non_ordering_confirmations: bool,
+    ) {
+        let block_number = self.block_number;
+        self.block_number += confirmations;
+        let nonce = self.current_nonce;
+        self.current_nonce += 1;
+        let tx_nonce = self.sent_txs[&tx_hash].nonce;
+
+        if non_ordering_confirmations {
+            if tx_nonce >= nonce {
+                self.current_nonce = tx_nonce;
+            }
+        } else {
+            assert_eq!(tx_nonce, nonce, "nonce mismatch");
+        }
+        self.nonces.insert(block_number, nonce + 1);
+
+        let status = ExecutedTxStatus {
+            tx_hash,
+            success,
+            receipt: TransactionReceipt {
+                gas_used: Some(21000u32.into()),
+                block_number: Some(block_number.into()),
+                transaction_hash: tx_hash,
+                ..TransactionReceipt::default()
+            },
+        };
+        self.tx_statuses.insert(tx_hash, status);
+    }
+}
+
 /// Mock Ethereum client is capable of recording all the incoming requests for the further analysis.
 #[derive(Debug)]
 pub struct MockEthereum {
-    block_number: AtomicU64,
     max_fee_per_gas: U256,
-    base_fee_history: RwLock<Vec<u64>>,
     max_priority_fee_per_gas: U256,
-    tx_statuses: RwLock<HashMap<H256, ExecutedTxStatus>>,
-    sent_txs: RwLock<HashMap<H256, MockTx>>,
-    current_nonce: AtomicU64,
-    pending_nonce: AtomicU64,
-    nonces: RwLock<BTreeMap<u64, u64>>,
+    base_fee_history: Vec<u64>,
     /// If true, the mock will not check the ordering nonces of the transactions.
     /// This is useful for testing the cases when the transactions are executed out of order.
     non_ordering_confirmations: bool,
     multicall_address: Address,
+    inner: RwLock<MockEthereumInner>,
 }
 
 impl Default for MockEthereum {
@@ -92,15 +132,10 @@ impl Default for MockEthereum {
         Self {
             max_fee_per_gas: 100.into(),
             max_priority_fee_per_gas: 10.into(),
-            block_number: Default::default(),
-            base_fee_history: Default::default(),
-            tx_statuses: Default::default(),
-            sent_txs: Default::default(),
-            current_nonce: Default::default(),
-            pending_nonce: Default::default(),
-            nonces: RwLock::new([(0, 0)].into()),
+            base_fee_history: vec![],
             non_ordering_confirmations: false,
             multicall_address: Address::default(),
+            inner: RwLock::default(),
         }
     }
 }
@@ -117,52 +152,20 @@ impl MockEthereum {
         H256::from_low_u64_ne(result)
     }
 
-    /// Creates the specified number of L1 blocks.
-    pub fn create_blocks(&self, count: u64) {
-        self.block_number.fetch_add(count, Ordering::Relaxed);
-    }
-
     /// Returns the number of transactions sent via this client.
     pub fn sent_tx_count(&self) -> usize {
-        self.sent_txs.read().unwrap().len()
+        self.inner.read().unwrap().sent_txs.len()
     }
 
     /// Increments the blocks by a provided `confirmations` and marks the sent transaction
     /// as a success.
-    pub fn execute_tx(
-        &self,
-        tx_hash: H256,
-        success: bool,
-        confirmations: u64,
-    ) -> anyhow::Result<()> {
-        let block_number = self.block_number.fetch_add(confirmations, Ordering::SeqCst);
-        let nonce = self.current_nonce.fetch_add(1, Ordering::SeqCst);
-        let tx_nonce = self.sent_txs.read().unwrap()[&tx_hash].nonce;
-
-        if self.non_ordering_confirmations {
-            if tx_nonce >= nonce {
-                self.current_nonce.store(tx_nonce, Ordering::SeqCst);
-            }
-        } else {
-            anyhow::ensure!(tx_nonce == nonce, "nonce mismatch");
-        }
-
-        self.nonces.write().unwrap().insert(block_number, nonce + 1);
-
-        let status = ExecutedTxStatus {
+    pub fn execute_tx(&self, tx_hash: H256, success: bool, confirmations: u64) {
+        self.inner.write().unwrap().execute_tx(
             tx_hash,
             success,
-            receipt: TransactionReceipt {
-                gas_used: Some(21000u32.into()),
-                block_number: Some(block_number.into()),
-                transaction_hash: tx_hash,
-                ..Default::default()
-            },
-        };
-
-        self.tx_statuses.write().unwrap().insert(tx_hash, status);
-
-        Ok(())
+            confirmations,
+            self.non_ordering_confirmations,
+        );
     }
 
     pub fn sign_prepared_tx(
@@ -196,12 +199,14 @@ impl MockEthereum {
     }
 
     pub fn advance_block_number(&self, val: u64) -> u64 {
-        self.block_number.fetch_add(val, Ordering::SeqCst) + val
+        let mut inner = self.inner.write().unwrap();
+        inner.block_number += val;
+        inner.block_number
     }
 
     pub fn with_fee_history(self, history: Vec<u64>) -> Self {
         Self {
-            base_fee_history: RwLock::new(history),
+            base_fee_history: history,
             ..self
         }
     }
@@ -228,18 +233,19 @@ impl EthInterface for MockEthereum {
         hash: H256,
         _: &'static str,
     ) -> Result<Option<ExecutedTxStatus>, Error> {
-        Ok(self.tx_statuses.read().unwrap().get(&hash).cloned())
+        Ok(self.inner.read().unwrap().tx_statuses.get(&hash).cloned())
     }
 
     async fn block_number(&self, _: &'static str) -> Result<U64, Error> {
-        Ok(self.block_number.load(Ordering::SeqCst).into())
+        Ok(self.inner.read().unwrap().block_number.into())
     }
 
     async fn send_raw_tx(&self, tx: Vec<u8>) -> Result<H256, Error> {
         let mock_tx = MockTx::from(tx);
         let mock_tx_hash = mock_tx.hash;
+        let mut inner = self.inner.write().unwrap();
 
-        if mock_tx.nonce < self.current_nonce.load(Ordering::SeqCst) {
+        if mock_tx.nonce < inner.current_nonce {
             return Err(Error::EthereumGateway(Web3Error::Rpc(RpcError {
                 message: "transaction with the same nonce already processed".to_string(),
                 code: 101.into(),
@@ -247,12 +253,10 @@ impl EthInterface for MockEthereum {
             })));
         }
 
-        if mock_tx.nonce == self.pending_nonce.load(Ordering::SeqCst) {
-            self.pending_nonce.fetch_add(1, Ordering::SeqCst);
+        if mock_tx.nonce == inner.pending_nonce {
+            inner.pending_nonce += 1;
         }
-
-        self.sent_txs.write().unwrap().insert(mock_tx_hash, mock_tx);
-
+        inner.sent_txs.insert(mock_tx_hash, mock_tx);
         Ok(mock_tx_hash)
     }
 
@@ -275,18 +279,15 @@ impl EthInterface for MockEthereum {
         block_count: usize,
         _component: &'static str,
     ) -> Result<Vec<u64>, Error> {
-        Ok(self.base_fee_history.read().unwrap()
-            [from_block.saturating_sub(block_count - 1)..=from_block]
-            .to_vec())
+        let start_block = from_block.saturating_sub(block_count - 1);
+        Ok(self.base_fee_history[start_block..=from_block].to_vec())
     }
 
     async fn get_pending_block_base_fee_per_gas(
         &self,
         _component: &'static str,
     ) -> Result<U256, Error> {
-        Ok(U256::from(
-            *self.base_fee_history.read().unwrap().last().unwrap(),
-        ))
+        Ok(U256::from(*self.base_fee_history.last().unwrap()))
     }
 
     async fn failure_reason(&self, tx_hash: H256) -> Result<Option<FailureInfo>, Error> {
@@ -331,7 +332,7 @@ impl EthInterface for MockEthereum {
         hash: H256,
         _component: &'static str,
     ) -> Result<Option<Transaction>, Error> {
-        let txs = self.sent_txs.read().unwrap();
+        let txs = &self.inner.read().unwrap().sent_txs;
         let Some(tx) = txs.get(&hash) else {
             return Ok(None);
         };
@@ -406,25 +407,20 @@ impl BoundEthInterface for MockEthereum {
 
     async fn nonce_at(&self, block: BlockNumber, _component: &'static str) -> Result<U256, Error> {
         if let BlockNumber::Number(block_number) = block {
-            Ok((*self
-                .nonces
-                .read()
-                .unwrap()
-                .range(..=block_number.as_u64())
-                .next_back()
-                .unwrap()
-                .1)
-                .into())
+            let inner = self.inner.read().unwrap();
+            let mut nonce_range = inner.nonces.range(..=block_number.as_u64());
+            let (_, &nonce) = nonce_range.next_back().unwrap_or((&0, &0));
+            Ok(nonce.into())
         } else {
             panic!("MockEthereum::nonce_at called with non-number block tag");
         }
     }
 
     async fn pending_nonce(&self, _: &'static str) -> Result<U256, Error> {
-        Ok(self.pending_nonce.load(Ordering::SeqCst).into())
+        Ok(self.inner.read().unwrap().pending_nonce.into())
     }
 
     async fn current_nonce(&self, _: &'static str) -> Result<U256, Error> {
-        Ok(self.current_nonce.load(Ordering::SeqCst).into())
+        Ok(self.inner.read().unwrap().current_nonce.into())
     }
 }
