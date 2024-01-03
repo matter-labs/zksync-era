@@ -6,7 +6,7 @@ use tokio::{
     task::JoinHandle,
 };
 use zksync_config::GasAdjusterConfig;
-use zksync_eth_client::clients::http::QueryClient;
+use zksync_eth_client::clients::QueryClient;
 
 use crate::l1_gas_price::GasAdjuster;
 

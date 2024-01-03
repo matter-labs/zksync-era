@@ -35,16 +35,3 @@ witness_vector_generators, that can 'share' as single gpu based prover_fri).
 ### proof_fri_compressor
 
 Used as a 'last step' to compress/wrap the final FRI proof into a SNARK (to make L1 verification cheaper).
-
-## Old proof system
-
-Some of the components here belong to the old proof system:
-
-- circuit_synthesizer
-- prover
-- setup_key_generator_and_server
-
-Moreover old proof system is also using components from 'core' directory, like:
-
-- core/bin/verification_key_generator_and_server
-- core/lib/zksycn_core/src/witness_generator.
