@@ -52,8 +52,8 @@ RUN apt-get update && apt-get install -y libpq5 ca-certificates openssl && rm -r
 
 COPY etc/system-contracts/bootloader/build/artifacts/ /etc/system-contracts/bootloader/build/artifacts/
 COPY etc/system-contracts/artifacts-zk /etc/system-contracts/artifacts-zk
-COPY contracts/ethereum/artifacts/ /contracts/ethereum/artifacts/
-COPY contracts/zksync/artifacts-zk/ /contracts/zksync/artifacts-zk/
+COPY contracts/l1-contracts/artifacts/ /contracts/l1-contracts/artifacts/
+COPY contracts/l2-contracts/artifacts-zk/ /contracts/l2-contracts/artifacts-zk/
 COPY setup_2\^26.key /etc/
 
 COPY core/bin/verification_key_generator_and_server/data/ /core/bin/verification_key_generator_and_server/data/
