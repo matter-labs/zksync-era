@@ -2,19 +2,20 @@ use std::marker::PhantomData;
 
 use zk_evm_1_4_0::{
     tracing::{BeforeExecutionData, VmLocalStateData},
+    zk_evm_abstractions::precompiles::PrecompileAddress,
     zkevm_opcode_defs::{LogOpcode, Opcode, UMAOpcode},
 };
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_system_constants::{
-    ECRECOVER_PRECOMPILE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
-};
 
 use super::circuits_capacity::*;
 use crate::{
     interface::{dyn_tracers::vm_1_4_0::DynTracer, tracer::TracerExecutionStatus},
     vm_latest::{
         bootloader_state::BootloaderState,
-        old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
+        old_vm::{
+            history_recorder::{HistoryMode, VectorHistoryEvent},
+            memory::SimpleMemory,
+        },
         tracers::traits::VmTracer,
         types::internals::ZkSyncVmState,
     },
@@ -27,6 +28,7 @@ pub(crate) struct CircuitsTracer<S> {
     last_decommitment_history_entry_checked: Option<usize>,
     last_written_keys_history_entry_checked: Option<usize>,
     last_read_keys_history_entry_checked: Option<usize>,
+    last_precompile_history_entry_checked: Option<usize>,
     _phantom_data: PhantomData<S>,
 }
 
@@ -37,6 +39,7 @@ impl<S: WriteStorage> CircuitsTracer<S> {
             last_decommitment_history_entry_checked: None,
             last_written_keys_history_entry_checked: None,
             last_read_keys_history_entry_checked: None,
+            last_precompile_history_entry_checked: None,
             _phantom_data: Default::default(),
         }
     }
@@ -45,7 +48,7 @@ impl<S: WriteStorage> CircuitsTracer<S> {
 impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CircuitsTracer<S> {
     fn before_execution(
         &mut self,
-        state: VmLocalStateData<'_>,
+        _state: VmLocalStateData<'_>,
         data: BeforeExecutionData,
         _memory: &SimpleMemory<H>,
         _storage: StoragePtr<S>,
@@ -66,24 +69,7 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
             Opcode::Log(LogOpcode::ToL1Message) | Opcode::Log(LogOpcode::Event) => {
                 EVENT_OR_L1_MESSAGE_FRACTION
             }
-            Opcode::Log(LogOpcode::PrecompileCall) => {
-                match state.vm_local_state.callstack.current.this_address {
-                    a if a == KECCAK256_PRECOMPILE_ADDRESS => {
-                        let precompile_interpreted = data.src0_value.value.0[3] as f32;
-                        PRECOMPILE_CALL_COMMON_FRACTION
-                            + precompile_interpreted * KECCAK256_CYCLE_FRACTION
-                    }
-                    a if a == SHA256_PRECOMPILE_ADDRESS => {
-                        let precompile_interpreted = data.src0_value.value.0[3] as f32;
-                        PRECOMPILE_CALL_COMMON_FRACTION
-                            + precompile_interpreted * SHA256_CYCLE_FRACTION
-                    }
-                    a if a == ECRECOVER_PRECOMPILE_ADDRESS => {
-                        PRECOMPILE_CALL_COMMON_FRACTION + ECRECOVER_CYCLE_FRACTION
-                    }
-                    _ => PRECOMPILE_CALL_COMMON_FRACTION,
-                }
-            }
+            Opcode::Log(LogOpcode::PrecompileCall) => PRECOMPILE_CALL_COMMON_FRACTION,
             Opcode::FarCall(_) => FAR_CALL_FRACTION,
             Opcode::UMA(UMAOpcode::AuxHeapWrite | UMAOpcode::HeapWrite) => UMA_WRITE_FRACTION,
             Opcode::UMA(
@@ -110,6 +96,14 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
             Some(state.storage.written_keys.history().len());
 
         self.last_read_keys_history_entry_checked = Some(state.storage.read_keys.history().len());
+
+        self.last_precompile_history_entry_checked = Some(
+            state
+                .precompiles_processor
+                .precompile_cycles_history
+                .history()
+                .len(),
+        );
     }
 
     fn finish_cycle(
@@ -143,7 +137,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
         }
         self.last_decommitment_history_entry_checked = Some(history.len());
 
-        // Process storage writes
+        // Process storage writes.
         let last_writes_history_entry_checked = self
             .last_written_keys_history_entry_checked
             .expect("Value must be set during init");
@@ -156,7 +150,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
         }
         self.last_written_keys_history_entry_checked = Some(history.len());
 
-        // Process storage reads
+        // Process storage reads.
         let last_reads_history_entry_checked = self
             .last_read_keys_history_entry_checked
             .expect("Value must be set during init");
@@ -176,6 +170,26 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
             }
         }
         self.last_read_keys_history_entry_checked = Some(history.len());
+
+        // Process precompiles.
+        let last_precompile_history_entry_checked = self
+            .last_precompile_history_entry_checked
+            .expect("Value must be set during init");
+        let history = state
+            .precompiles_processor
+            .precompile_cycles_history
+            .history();
+        for (_, history_event) in &history[last_precompile_history_entry_checked..] {
+            if let VectorHistoryEvent::Push((precompile, cycles)) = history_event {
+                let fraction = match precompile {
+                    PrecompileAddress::Ecrecover => ECRECOVER_CYCLE_FRACTION,
+                    PrecompileAddress::SHA256 => SHA256_CYCLE_FRACTION,
+                    PrecompileAddress::Keccak256 => KECCAK256_CYCLE_FRACTION,
+                };
+                self.estimated_circuits_used += (*cycles as f32) * fraction;
+            }
+        }
+        self.last_precompile_history_entry_checked = Some(history.len());
 
         TracerExecutionStatus::Continue
     }

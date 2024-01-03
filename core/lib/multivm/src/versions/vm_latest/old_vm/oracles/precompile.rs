@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::TryFrom};
+use std::convert::TryFrom;
 
 use zk_evm_1_4_0::{
     abstractions::{Memory, PrecompileCyclesWitness, PrecompilesProcessor},
@@ -17,14 +17,14 @@ use crate::vm_latest::old_vm::history_recorder::{HistoryEnabled, HistoryMode, Hi
 #[derive(Debug, Clone)]
 pub struct PrecompilesProcessorWithHistory<H: HistoryMode> {
     pub timestamp_history: HistoryRecorder<Vec<Timestamp>, H>,
-    pub circuit_cycles_history: HistoryRecorder<HashMap<PrecompileAddress, usize>, H>,
+    pub precompile_cycles_history: HistoryRecorder<Vec<(PrecompileAddress, usize)>, HistoryEnabled>,
 }
 
 impl<H: HistoryMode> Default for PrecompilesProcessorWithHistory<H> {
     fn default() -> Self {
         Self {
             timestamp_history: Default::default(),
-            circuit_cycles_history: Default::default(),
+            precompile_cycles_history: Default::default(),
         }
     }
 }
@@ -32,7 +32,8 @@ impl<H: HistoryMode> Default for PrecompilesProcessorWithHistory<H> {
 impl OracleWithHistory for PrecompilesProcessorWithHistory<HistoryEnabled> {
     fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
         self.timestamp_history.rollback_to_timestamp(timestamp);
-        self.circuit_cycles_history.rollback_to_timestamp(timestamp);
+        self.precompile_cycles_history
+            .rollback_to_timestamp(timestamp);
     }
 }
 
@@ -43,7 +44,7 @@ impl<H: HistoryMode> PrecompilesProcessorWithHistory<H> {
 
     pub fn delete_history(&mut self) {
         self.timestamp_history.delete_history();
-        self.circuit_cycles_history.delete_history();
+        self.precompile_cycles_history.delete_history();
     }
 }
 
@@ -98,17 +99,8 @@ impl<H: HistoryMode> PrecompilesProcessor for PrecompilesProcessorWithHistory<H>
                 }
             };
 
-            let prev_value = self
-                .circuit_cycles_history
-                .inner()
-                .get(&precompile_address)
-                .copied()
-                .unwrap_or(0);
-            self.circuit_cycles_history.insert(
-                precompile_address,
-                prev_value + rounds,
-                query.timestamp,
-            );
+            self.precompile_cycles_history
+                .push((precompile_address, rounds), query.timestamp);
         };
 
         None
