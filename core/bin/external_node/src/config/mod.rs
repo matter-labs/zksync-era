@@ -367,6 +367,10 @@ pub struct RequiredENConfig {
     pub state_cache_path: String,
     /// Fast SSD path. Used as a RocksDB dir for the Merkle tree (*new* implementation).
     pub merkle_tree_path: String,
+    /// Mode of the API server. Currently supports 2 options:
+    /// - `Modern` - the default mode
+    /// - `EthTransferIncluded` - the legacy mode, which returns events for ETH transfers
+    pub api_mode: ApiMode,
 }
 
 impl RequiredENConfig {
@@ -381,6 +385,10 @@ impl RequiredENConfig {
     fn get_url(url_str: &str) -> anyhow::Result<String> {
         let url = Url::parse(url_str).context("URL can not be parsed")?;
         format_url_with_port(&url)
+    }
+
+    fn api_mode(&self) -> ApiMode {
+        self.api_mode
     }
 }
 
