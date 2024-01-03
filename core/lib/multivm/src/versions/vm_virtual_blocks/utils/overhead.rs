@@ -1,14 +1,14 @@
 use zk_evm_1_3_3::zkevm_opcode_defs::system_params::MAX_TX_ERGS_LIMIT;
-use zksync_system_constants::{MAX_L2_TX_GAS_LIMIT, MAX_TXS_IN_BLOCK};
+use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{l1::is_l1_tx_type, U256};
 use zksync_utils::ceil_div_u256;
 
 use crate::vm_virtual_blocks::constants::{
-    BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA, BOOTLOADER_TX_ENCODING_SPACE,
+    BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA, BOOTLOADER_TX_ENCODING_SPACE, MAX_TXS_IN_BLOCK,
 };
 
 /// Derives the overhead for processing transactions in a block.
-pub fn derive_overhead(
+pub(crate) fn derive_overhead(
     gas_limit: u32,
     gas_price_per_pubdata: u32,
     encoded_len: usize,

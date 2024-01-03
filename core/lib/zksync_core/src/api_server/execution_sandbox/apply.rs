@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 
 use multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv, VmInterface},
+    utils::adjust_l1_gas_price_for_tx,
     vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryDisabled},
     VmInstance,
 };
@@ -38,6 +39,7 @@ use super::{
 pub(super) fn apply_vm_in_sandbox<T>(
     vm_permit: VmPermit,
     shared_args: TxSharedArgs,
+    adjust_pubdata_price: bool,
     execution_args: &TxExecutionArgs,
     connection_pool: &ConnectionPool,
     tx: Transaction,
@@ -182,6 +184,17 @@ pub(super) fn apply_vm_in_sandbox<T>(
         chain_id,
         ..
     } = shared_args;
+
+    let l1_gas_price = if adjust_pubdata_price {
+        adjust_l1_gas_price_for_tx(
+            l1_gas_price,
+            fair_l2_gas_price,
+            tx.gas_per_pubdata_byte_limit(),
+            protocol_version.into(),
+        )
+    } else {
+        l1_gas_price
+    };
 
     let system_env = SystemEnv {
         zk_porter_available: ZKPORTER_IS_AVAILABLE,

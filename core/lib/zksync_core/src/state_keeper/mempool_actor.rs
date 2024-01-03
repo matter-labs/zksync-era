@@ -1,10 +1,12 @@
 use std::{sync::Arc, time::Duration};
 
-use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
+use multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use tokio::sync::watch;
 use zksync_config::configs::chain::MempoolConfig;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
+use zksync_types::VmVersion;
+use zksync_utils::time::seconds_since_epoch;
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
 use crate::l1_gas_price::L1GasPriceProvider;
@@ -15,11 +17,12 @@ use crate::l1_gas_price::L1GasPriceProvider;
 pub fn l2_tx_filter(
     gas_price_provider: &dyn L1GasPriceProvider,
     fair_l2_gas_price: u64,
+    vm_version: VmVersion,
 ) -> L2TxFilter {
     let effective_gas_price = gas_price_provider.estimate_effective_gas_price();
 
     let (base_fee, gas_per_pubdata) =
-        derive_base_fee_and_gas_per_pubdata(effective_gas_price, fair_l2_gas_price);
+        derive_base_fee_and_gas_per_pubdata(effective_gas_price, fair_l2_gas_price, vm_version);
     L2TxFilter {
         l1_gas_price: effective_gas_price,
         fee_per_gas: base_fee,
@@ -77,7 +80,18 @@ impl<G: L1GasPriceProvider> MempoolFetcher<G> {
             let latency = KEEPER_METRICS.mempool_sync.start();
             let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
             let mempool_info = self.mempool.get_mempool_info();
-            let l2_tx_filter = l2_tx_filter(self.l1_gas_price_provider.as_ref(), fair_l2_gas_price);
+
+            let protocol_version = storage
+                .protocol_versions_dal()
+                .base_system_contracts_by_timestamp(seconds_since_epoch())
+                .await
+                .1;
+
+            let l2_tx_filter = l2_tx_filter(
+                self.l1_gas_price_provider.as_ref(),
+                fair_l2_gas_price,
+                protocol_version.into(),
+            );
 
             let (transactions, nonces) = storage
                 .transactions_dal()
