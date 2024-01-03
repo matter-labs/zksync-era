@@ -45,6 +45,8 @@ impl DebugNamespaceServer for DebugNamespace {
         tx_hash: H256,
         options: Option<TracerConfig>,
     ) -> RpcResult<Option<DebugCall>> {
-        Ok(self.debug_trace_transaction_impl(tx_hash, options).await)
+        self.debug_trace_transaction_impl(tx_hash, options)
+            .await
+            .map_err(into_jsrpc_error)
     }
 }
