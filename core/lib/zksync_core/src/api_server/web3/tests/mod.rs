@@ -26,6 +26,7 @@ use super::{metrics::ApiTransportLabel, *};
 use crate::{
     api_server::tx_sender::TxSenderConfig,
     genesis::{ensure_genesis_state, GenesisParams},
+    l1_gas_price::L1GasPriceProvider,
     state_keeper::tests::create_l2_transaction,
 };
 
@@ -35,6 +36,7 @@ const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 /// Mock [`L1GasPriceProvider`] that returns a constant value.
+#[derive(Debug)]
 struct MockL1GasPriceProvider(u64);
 
 impl L1GasPriceProvider for MockL1GasPriceProvider {
