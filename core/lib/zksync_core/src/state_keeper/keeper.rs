@@ -58,7 +58,7 @@ pub struct ZkSyncStateKeeper {
     stop_receiver: watch::Receiver<bool>,
     io: Box<dyn StateKeeperIO>,
     batch_executor_base: Box<dyn L1BatchExecutorBuilder>,
-    sealer: Option<ConditionalSealer>,
+    sealer: Box<dyn ConditionalSealer>,
 }
 
 impl ZkSyncStateKeeper {
@@ -66,26 +66,13 @@ impl ZkSyncStateKeeper {
         stop_receiver: watch::Receiver<bool>,
         io: Box<dyn StateKeeperIO>,
         batch_executor_base: Box<dyn L1BatchExecutorBuilder>,
-        sealer: ConditionalSealer,
+        sealer: Box<dyn ConditionalSealer>,
     ) -> Self {
         Self {
             stop_receiver,
             io,
             batch_executor_base,
-            sealer: Some(sealer),
-        }
-    }
-
-    pub fn without_sealer(
-        stop_receiver: watch::Receiver<bool>,
-        io: Box<dyn StateKeeperIO>,
-        batch_executor_base: Box<dyn L1BatchExecutorBuilder>,
-    ) -> Self {
-        Self {
-            stop_receiver,
-            io,
-            batch_executor_base,
-            sealer: None,
+            sealer,
         }
     }
 
@@ -651,18 +638,14 @@ impl ZkSyncStateKeeper {
                     writes_metrics: block_writes_metrics,
                 };
 
-                if let Some(sealer) = &self.sealer {
-                    sealer.should_seal_l1_batch(
-                        self.io.current_l1_batch_number().0,
-                        updates_manager.batch_timestamp() as u128 * 1_000,
-                        updates_manager.pending_executed_transactions_len() + 1,
-                        &block_data,
-                        &tx_data,
-                        updates_manager.protocol_version(),
-                    )
-                } else {
-                    SealResolution::NoSeal
-                }
+                self.sealer.should_seal_l1_batch(
+                    self.io.current_l1_batch_number().0,
+                    updates_manager.batch_timestamp() as u128 * 1_000,
+                    updates_manager.pending_executed_transactions_len() + 1,
+                    &block_data,
+                    &tx_data,
+                    updates_manager.protocol_version(),
+                )
             }
         };
         (resolution, exec_result)

@@ -7,7 +7,7 @@ use std::{
 
 use tokio::sync::watch;
 use zksync_config::GasAdjusterConfig;
-use zksync_eth_client::{types::Error, EthInterface};
+use zksync_eth_client::{Error, EthInterface};
 
 use self::metrics::METRICS;
 use super::{L1GasPriceProvider, L1TxParamsProvider};
