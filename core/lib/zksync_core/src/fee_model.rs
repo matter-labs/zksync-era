@@ -14,7 +14,7 @@ use crate::l1_gas_price::L1GasPriceProvider;
 /// Trait responsible for providing fee info for a batch
 pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
     /// Returns the batch fee with scaling applied. This may be used to account for the fact that the L1 gas and pubdata prices may fluctuate, esp.
-    // in API methods that should return values that are valid for some period of time after the estimation was done.
+    /// in API methods that should return values that are valid for some period of time after the estimation was done.
     fn get_batch_fee_input_scaled(
         &self,
         l1_gas_price_scale_factor: f64,
@@ -24,9 +24,9 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
 
         match params {
             MainNodeFeeParams::V1(params) => {
-                compute_legacy_batch_fee_model_input(params, l1_gas_price_scale_factor)
+                compute_batch_fee_model_input_v1(params, l1_gas_price_scale_factor)
             }
-            MainNodeFeeParams::V2(params) => compute_batch_fee_model_input(
+            MainNodeFeeParams::V2(params) => compute_batch_fee_model_input_v2(
                 params,
                 l1_gas_price_scale_factor,
                 l1_pubdata_price_scale_factor,
@@ -34,13 +34,18 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
         }
     }
 
+    /// Returns the batch fee input as-is, i.e. without any scaling for the L1 gas and pubdata prices.
     fn get_batch_fee_input(&self) -> BatchFeeInput {
         self.get_batch_fee_input_scaled(1.0, 1.0)
     }
 
+    /// Returns the fee model parameters.
     fn get_fee_model_params(&self) -> MainNodeFeeParams;
 }
 
+/// The struct that represents the batch fee input provider to be used in the main node of the server, i.e.
+/// it explicitly gets the L1 gas price from the provider and uses it to calculate the batch fee input instead of getting
+/// it from other node.
 #[derive(Debug)]
 pub(crate) struct MainNodeFeeInputProvider<G: ?Sized> {
     provider: Arc<G>,
@@ -70,8 +75,8 @@ impl<G: L1GasPriceProvider + ?Sized> MainNodeFeeInputProvider<G> {
 }
 
 /// Calculates the batch fee input based on the main node parameters.
-/// This function uses the legacy fee model, used prior to 1.4.1, i.e. where the pubdata price does not include the proving costs.
-pub(crate) fn compute_legacy_batch_fee_model_input(
+/// This function uses the V1 fee model, i.e. where the pubdata price does not include the proving costs.
+pub(crate) fn compute_batch_fee_model_input_v1(
     params: MainNodeFeeParamsV1,
     l1_gas_price_scale_factor: f64,
 ) -> BatchFeeInput {
@@ -84,7 +89,8 @@ pub(crate) fn compute_legacy_batch_fee_model_input(
 }
 
 /// Calculates the batch fee input based on the main node parameters.
-pub(crate) fn compute_batch_fee_model_input(
+/// This function uses the V2 fee model, i.e. where the pubdata price does not include the proving costs.
+pub(crate) fn compute_batch_fee_model_input_v2(
     params: MainNodeFeeParamsV2,
     l1_gas_price_scale_factor: f64,
     l1_pubdata_price_scale_factor: f64,

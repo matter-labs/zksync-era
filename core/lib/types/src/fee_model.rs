@@ -88,7 +88,7 @@ pub struct L1PeggedBatchFeeModelInput {
     pub l1_gas_price: u64,
 }
 
-/// Pubdata price may be independent from L1 gas price. The L1 gas price is not needed.
+/// Pubdata price may be independent from L1 gas price.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PubdataIndependentBatchFeeModelInput {
     /// Fair L2 gas price to provide
@@ -100,10 +100,12 @@ pub struct PubdataIndependentBatchFeeModelInput {
 }
 
 /// The enum which represents the version of the fee model. It is used to determine which fee model should be used for the batch.
-/// - V1, the first model that was used in the zkSync. In this fee model, the pubdata price must be pegged to the L1 gas price.
-/// Also, the fair L2 gas price is expected to only include the proving/computation price for the operator and not the overhead.
-/// - V2, the second model that was used in the zkSync. There the pubdata price might be independent from the L1 gas price. Also,
-/// The fair L2 gas price is expected to both the proving/computation price for the operator and the overhead for closing the batch.
+/// - V1, the first model that was used in zkSync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
+/// Also, the fair L2 gas price is expected to only include the proving/computation price for the operator and not the costs that come from
+/// processing the batch on L1.
+/// - V2, the second model that was used in zkSync Era. There the pubdata price might be independent from the L1 gas price. Also,
+/// The fair L2 gas price is expected to both the proving/computation price for the operator and the costs that come from
+/// processing the batch on L1.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum MainNodeFeeModelConfig {
     V1(MainNodeFeeModelConfigV1),
@@ -125,13 +127,13 @@ pub struct MainNodeFeeModelConfigV2 {
     /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
     /// as potentially premium for congestion.
     pub minimal_l2_gas_price: u64,
-    /// The constant that represents the possibility that a batch can be sealed because of overuse of compute.
+    /// The constant that represents the possibility that a batch can be sealed because of overuse of computation resources.
     /// It has range from 0 to 1. If it is 0, the compute will not depend on the cost for closing the batch.
-    /// If it is 1, the compute limit will have to cover the entire cost of closing the batch.
+    /// If it is 1, the gas limit per batch will have to cover the entire cost of closing the batch.
     pub compute_overhead_percent: f64,
     /// The constant that represents the possibility that a batch can be sealed because of overuse of pubdata.
     /// It has range from 0 to 1. If it is 0, the pubdata will not depend on the cost for closing the batch.
-    /// If it is 1, the pubdata limit will have to cover the entire cost of closing the batch.
+    /// If it is 1, the pubdata limit per batch will have to cover the entire cost of closing the batch.
     pub pubdata_overhead_percent: f64,
     /// The constant amount of L1 gas that is used as the overhead for the batch. It includes the price for batch verification, etc.
     pub batch_overhead_l1_gas: u64,
