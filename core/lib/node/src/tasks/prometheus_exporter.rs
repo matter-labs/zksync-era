@@ -24,7 +24,7 @@ use crate::{resources::stop_receiver::StopReceiver, ZkSyncNode, ZkSyncTask};
 */
 
 #[derive(Debug)]
-pub struct PrometheusExporter {
+pub struct PrometheusExporterTask {
     config: PrometheusExporterConfig,
     prometheus_health_check: Option<ReactiveHealthCheck>,
     prometheus_health_updater: HealthUpdater,
@@ -32,7 +32,7 @@ pub struct PrometheusExporter {
 }
 
 #[async_trait::async_trait]
-impl ZkSyncTask for PrometheusExporter {
+impl ZkSyncTask for PrometheusExporterTask {
     type Config = PrometheusExporterConfig;
 
     fn new(node: &ZkSyncNode, config: Self::Config) -> Self {

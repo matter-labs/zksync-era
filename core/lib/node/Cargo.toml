@@ -14,7 +14,9 @@ prometheus_exporter = { path = "../prometheus_exporter" }
 zksync_types = { path = "../types" }
 zksync_health_check = { path = "../health_check" }
 zksync_dal = { path = "../dal" }
+zksync_config = { path = "../config" }
 zksync_core = { path = "../zksync_core" }
+
 
 tracing = "0.1"
 async-trait = "0.1"

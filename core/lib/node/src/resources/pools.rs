@@ -5,7 +5,7 @@ use super::Resource;
 pub const RESOURCE_NAME: &str = "common/postgres_pools";
 
 #[derive(Debug, Clone)]
-struct Pools {
+pub struct Pools {
     master_pool: Option<ConnectionPoolBuilder>,
     replica_pool: Option<ConnectionPoolBuilder>,
     prover_pool: Option<ConnectionPoolBuilder>,

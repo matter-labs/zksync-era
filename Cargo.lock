@@ -8709,6 +8709,7 @@ dependencies = [
  "prometheus_exporter",
  "tokio",
  "tracing",
+ "zksync_config",
  "zksync_core",
  "zksync_dal",
  "zksync_health_check",

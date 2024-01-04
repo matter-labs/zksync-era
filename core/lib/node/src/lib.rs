@@ -53,6 +53,18 @@ pub struct ZkSyncNode {
 }
 
 impl ZkSyncNode {
+    /// Helper utility allowing to execute asynchrnous code within [`ZkSyncTask::new`].
+    /// This method is intended to only be used to invoke async contstructors, deferring as much async logic as possible
+    /// to [`ZkSyncTask::before_launch`].
+    pub fn block_on<F: std::future::Future>(&self, future: F) -> F::Output {
+        // TODO: Use self-stored runtime here.
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(future)
+    }
+
     /// Adds a resource. By default, any resource can be requested by multiple
     /// components, thus `T: Clone`. Think `Arc<U>`.
     pub fn add_resource<T: Resource>(&mut self, name: impl AsRef<str>, resource: T) {
