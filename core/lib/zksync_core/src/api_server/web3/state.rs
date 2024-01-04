@@ -102,7 +102,7 @@ impl SealedMiniblockNumber {
                 let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
                 let last_sealed_miniblock = connection
                     .blocks_web3_dal()
-                    .get_sealed_miniblock_number()
+                    .get_sealed_miniblock_number() // FIXME: may panic
                     .await;
                 drop(connection);
 

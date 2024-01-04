@@ -29,7 +29,12 @@ impl SnapshotBasicsTest {
 impl HttpTest for SnapshotBasicsTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
         let mut storage = pool.access_storage().await.unwrap();
-        store_miniblock(&mut storage, &[execute_l2_transaction()]).await?;
+        store_miniblock(
+            &mut storage,
+            MiniblockNumber(1),
+            &[execute_l2_transaction()],
+        )
+        .await?;
         seal_l1_batch(&mut storage, L1BatchNumber(1)).await?;
         storage
             .snapshots_dal()

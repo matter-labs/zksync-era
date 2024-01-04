@@ -176,7 +176,24 @@ async fn spawn_server(
 }
 
 #[async_trait]
-trait HttpTest {
+trait HttpTest: Send + Sync {
+    /// Prepares the storage before the server is started. The default implementation performs genesis.
+    async fn prepare_storage(
+        &self,
+        network_config: &NetworkConfig,
+        storage: &mut StorageProcessor<'_>,
+    ) -> anyhow::Result<()> {
+        if storage.blocks_dal().is_genesis_needed().await? {
+            ensure_genesis_state(
+                storage,
+                network_config.zksync_network_id,
+                &GenesisParams::mock(),
+            )
+            .await?;
+        }
+        Ok(())
+    }
+
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()>;
 }
 
@@ -184,15 +201,9 @@ async fn test_http_server(test: impl HttpTest) {
     let pool = ConnectionPool::test_pool().await;
     let network_config = NetworkConfig::for_tests();
     let mut storage = pool.access_storage().await.unwrap();
-    if storage.blocks_dal().is_genesis_needed().await.unwrap() {
-        ensure_genesis_state(
-            &mut storage,
-            network_config.zksync_network_id,
-            &GenesisParams::mock(),
-        )
+    test.prepare_storage(&network_config, &mut storage)
         .await
-        .unwrap();
-    }
+        .expect("Failed preparing storage for test");
     drop(storage);
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -235,6 +246,7 @@ fn execute_l2_transaction() -> TransactionExecutionResult {
 /// Stores miniblock #1 with a single transaction and returns the miniblock header + transaction hash.
 async fn store_miniblock(
     storage: &mut StorageProcessor<'_>,
+    number: MiniblockNumber,
     transaction_results: &[TransactionExecutionResult],
 ) -> anyhow::Result<MiniblockHeader> {
     for result in transaction_results {
@@ -246,7 +258,7 @@ async fn store_miniblock(
         assert_matches!(tx_submission_result, L2TxSubmissionResult::Added);
     }
 
-    let new_miniblock = create_miniblock(1);
+    let new_miniblock = create_miniblock(number.0);
     storage
         .blocks_dal()
         .insert_miniblock(&new_miniblock)
@@ -370,8 +382,12 @@ impl HttpTest for BasicFilterChangesTest {
         let tx_filter_id = client.new_pending_transaction_filter().await?;
         let tx_result = execute_l2_transaction();
         let new_tx_hash = tx_result.hash;
-        let new_miniblock =
-            store_miniblock(&mut pool.access_storage().await?, &[tx_result]).await?;
+        let new_miniblock = store_miniblock(
+            &mut pool.access_storage().await?,
+            MiniblockNumber(1),
+            &[tx_result],
+        )
+        .await?;
 
         let block_filter_changes = client.get_filter_changes(block_filter_id).await?;
         assert_matches!(

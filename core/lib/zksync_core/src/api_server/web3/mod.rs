@@ -492,6 +492,7 @@ impl FullApiParams {
         })
     }
 
+    // FIXME: wait for L1 batch (w/ metadata)?
     #[allow(clippy::too_many_arguments)]
     async fn run_jsonrpsee_server(
         rpc: RpcModule<()>,

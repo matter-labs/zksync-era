@@ -1,9 +1,11 @@
 //! Tests for the `debug` Web3 namespace.
 
+use jsonrpsee::core::ClientError;
 use zksync_types::{tx::TransactionExecutionResult, vm_trace::Call, BOOTLOADER_ADDRESS};
 use zksync_web3_decl::namespaces::DebugNamespaceClient;
 
 use super::*;
+use crate::utils::testonly::prepare_clean_recovery_snapshot;
 
 fn execute_l2_transaction_with_traces() -> TransactionExecutionResult {
     let first_call_trace = Call {
@@ -30,18 +32,18 @@ fn execute_l2_transaction_with_traces() -> TransactionExecutionResult {
 }
 
 #[derive(Debug)]
-struct TraceBlockTest;
+struct TraceBlockTest(MiniblockNumber);
 
 #[async_trait]
 impl HttpTest for TraceBlockTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
         let tx_results = [execute_l2_transaction_with_traces()];
         let mut storage = pool.access_storage().await?;
-        let new_miniblock = store_miniblock(&mut storage, &tx_results).await?;
+        let new_miniblock = store_miniblock(&mut storage, self.0, &tx_results).await?;
         drop(storage);
 
         let block_ids = [
-            api::BlockId::Number(1.into()),
+            api::BlockId::Number((*self.0).into()),
             api::BlockId::Number(api::BlockNumber::Latest),
             api::BlockId::Hash(new_miniblock.hash),
         ];
@@ -64,13 +66,30 @@ impl HttpTest for TraceBlockTest {
             assert_eq!(result.gas, tx_results[0].transaction.gas_limit());
             assert_eq!(result.calls, expected_calls);
         }
+
+        let missing_block_number = api::BlockNumber::from(*self.0 + 100);
+        let error = client
+            .trace_block_by_number(missing_block_number, None)
+            .await
+            .unwrap_err();
+        if let ClientError::Call(error) = error {
+            assert_eq!(error.code(), ErrorCode::InvalidParams.code());
+            assert!(
+                error.message().contains("Block") && error.message().contains("doesn't exist"),
+                "{error:?}"
+            );
+            assert!(error.data().is_none(), "{error:?}");
+        } else {
+            panic!("Unexpected error: {error:?}");
+        }
+
         Ok(())
     }
 }
 
 #[tokio::test]
 async fn tracing_block() {
-    test_http_server(TraceBlockTest).await;
+    test_http_server(TraceBlockTest(MiniblockNumber(1))).await;
 }
 
 #[derive(Debug)]
@@ -81,7 +100,7 @@ impl HttpTest for TraceTransactionTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
         let tx_results = [execute_l2_transaction_with_traces()];
         let mut storage = pool.access_storage().await?;
-        store_miniblock(&mut storage, &tx_results).await?;
+        store_miniblock(&mut storage, MiniblockNumber(1), &tx_results).await?;
         drop(storage);
 
         let expected_calls: Vec<_> = tx_results[0]
@@ -106,4 +125,55 @@ impl HttpTest for TraceTransactionTest {
 #[tokio::test]
 async fn tracing_transaction() {
     test_http_server(TraceTransactionTest).await;
+}
+
+#[derive(Debug)]
+struct TraceBlockTestWithSnapshotRecovery;
+
+#[async_trait]
+impl HttpTest for TraceBlockTestWithSnapshotRecovery {
+    async fn prepare_storage(
+        &self,
+        _network_config: &NetworkConfig,
+        storage: &mut StorageProcessor<'_>,
+    ) -> anyhow::Result<()> {
+        prepare_clean_recovery_snapshot(storage, 23, &[]).await;
+        Ok(())
+    }
+
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+        let snapshot_miniblock_number = MiniblockNumber(23);
+        let missing_miniblock_numbers = [
+            MiniblockNumber(0),
+            snapshot_miniblock_number - 1,
+            snapshot_miniblock_number,
+        ];
+
+        for number in missing_miniblock_numbers {
+            let error = client
+                .trace_block_by_number(number.0.into(), None)
+                .await
+                .unwrap_err();
+            if let ClientError::Call(error) = error {
+                assert_eq!(error.code(), ErrorCode::InvalidParams.code());
+                assert!(
+                    error.message().contains("first retained block is 24"),
+                    "{error:?}"
+                );
+                assert!(error.data().is_none(), "{error:?}");
+            } else {
+                panic!("Unexpected error: {error:?}");
+            }
+        }
+
+        TraceBlockTest(snapshot_miniblock_number + 1)
+            .test(client, pool)
+            .await?;
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn tracing_block_after_snapshot_recovery() {
+    test_http_server(TraceBlockTestWithSnapshotRecovery).await;
 }
