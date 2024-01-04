@@ -5,10 +5,10 @@ use zksync_utils::u256_to_h256;
 
 pub(crate) fn get_chunk_hashed_keys_range(
     chunk_id: u64,
-    chunks_count: u64,
+    chunk_count: u64,
 ) -> ops::RangeInclusive<H256> {
-    assert!(chunks_count > 0);
-    let mut stride = U256::MAX / chunks_count;
+    assert!(chunk_count > 0);
+    let mut stride = U256::MAX / chunk_count;
     let stride_minus_one = if stride < U256::MAX {
         stride += U256::one();
         stride - 1

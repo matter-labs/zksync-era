@@ -364,10 +364,11 @@ pub(crate) async fn setup_calculator(
     db_path: &Path,
     pool: &ConnectionPool,
 ) -> (MetadataCalculator, Box<dyn ObjectStore>) {
-    let store_factory = &ObjectStoreFactory::mock();
+    let store_factory = ObjectStoreFactory::mock();
+    let store = store_factory.create_store().await;
     let (merkle_tree_config, operation_manager) = create_config(db_path);
     let mode = MetadataCalculatorModeConfig::Full {
-        store_factory: Some(store_factory),
+        object_store: Some(store),
     };
     let calculator =
         setup_calculator_with_options(&merkle_tree_config, &operation_manager, pool, mode).await;
@@ -396,11 +397,11 @@ async fn setup_calculator_with_options(
     merkle_tree_config: &MerkleTreeConfig,
     operation_config: &OperationsManagerConfig,
     pool: &ConnectionPool,
-    mode: MetadataCalculatorModeConfig<'_>,
+    mode: MetadataCalculatorModeConfig,
 ) -> MetadataCalculator {
     let calculator_config =
         MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_config, mode);
-    let metadata_calculator = MetadataCalculator::new(&calculator_config).await;
+    let metadata_calculator = MetadataCalculator::new(calculator_config).await;
 
     let mut storage = pool.access_storage().await.unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {

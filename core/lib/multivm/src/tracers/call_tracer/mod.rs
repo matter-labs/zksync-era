@@ -6,6 +6,7 @@ use zksync_types::vm_trace::Call;
 use crate::tracers::call_tracer::metrics::CALL_METRICS;
 
 mod metrics;
+pub mod vm_boojum_integration;
 pub mod vm_latest;
 pub mod vm_refunds_enhancement;
 pub mod vm_virtual_blocks;

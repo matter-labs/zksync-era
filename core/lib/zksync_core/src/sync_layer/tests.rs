@@ -19,6 +19,7 @@ use crate::{
     consensus::testonly::MockMainNodeClient,
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
+        seal_criteria::NoopSealer,
         tests::{create_l1_batch_metadata, create_l2_transaction, TestBatchExecutorBuilder},
         MiniblockSealer, ZkSyncStateKeeper,
     },
@@ -77,10 +78,11 @@ impl StateKeeperHandles {
             batch_executor_base.push_successful_transactions(tx_hashes_in_l1_batch);
         }
 
-        let state_keeper = ZkSyncStateKeeper::without_sealer(
+        let state_keeper = ZkSyncStateKeeper::new(
             stop_receiver,
             Box::new(io),
             Box::new(batch_executor_base),
+            Box::new(NoopSealer),
         );
         Self {
             stop_sender,

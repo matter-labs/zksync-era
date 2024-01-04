@@ -30,6 +30,8 @@ mod tests {
             witness_vector_generator_thread_count: Some(5),
             queue_capacity: 10,
             witness_vector_receiver_port: 3316,
+            zone_read_url: "http://metadata.google.internal/computeMetadata/v1/instance/zone"
+                .to_string(),
             shall_save_to_public_bucket: true,
         }
     }
@@ -49,6 +51,7 @@ mod tests {
             FRI_PROVER_WITNESS_VECTOR_GENERATOR_THREAD_COUNT="5"
             FRI_PROVER_QUEUE_CAPACITY="10"
             FRI_PROVER_WITNESS_VECTOR_RECEIVER_PORT="3316"
+            FRI_PROVER_ZONE_READ_URL="http://metadata.google.internal/computeMetadata/v1/instance/zone"
             FRI_PROVER_SHALL_SAVE_TO_PUBLIC_BUCKET=true
         "#;
         lock.set_env(config);
