@@ -48,7 +48,7 @@ impl ConnectionPoolBuilder {
 
     /// Builds a connection pool from this builder.
     pub async fn build(&self) -> anyhow::Result<ConnectionPool> {
-        let options = PgPoolOptions::new().max_connections(std::cmp::min(self.max_size, 20));
+        let options = PgPoolOptions::new().max_connections(self.max_size);
         let mut connect_options: PgConnectOptions = self
             .database_url
             .parse()
