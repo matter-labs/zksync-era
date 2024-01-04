@@ -78,7 +78,7 @@ jobs:
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
         run: |
           ci_run docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-          ci_run gcloud auth configure-docker us-docker.pkg.dev,asia-docker.pkg.dev,europe-docker.pkg.dev -q
+          ci_run gcloud auth configure-docker us-docker.pkg.dev -q
 
       - name: update-images
         env:
@@ -95,9 +95,10 @@ jobs:
           ci_run cat /tmp/sccache_log.txt
 
   create_manifest:
-    name: Create release docker manifest
+    name: Create release manifest
     runs-on: matterlabs-ci-runner
     needs: build-images
+    if: ${{ inputs.action == 'push' }}
     strategy:
       matrix:
         component:
@@ -114,5 +115,21 @@ jobs:
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
     steps:
-      - name: Some steps for merge image per component using platforms comma-separated string
-        run: echo "TODO"
+      - name: login to Docker registries
+        run: |
+          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+          gcloud auth configure-docker us-docker.pkg.dev -q
+
+      - name: Create Docker manifest
+        run: |
+          docker_repositories=("matterlabs/${{ matrix.component.name }}" "us-docker.pkg.dev/${{ matrix.component.name }}")
+          for repo in "${docker_repositories[@]}"; do
+            repo_tags=()
+            for platform in ${{ matrix.component.platform }}; do
+              platform=$(echo $platform | tr '/' '-')
+              repo_tags+=("--amend ${repo}:${IMAGE_TAG_SUFFIX}-${platform}")
+            done
+          
+            docker manifest create "${repo}:${IMAGE_TAG_SUFFIX}" "${repo_tags[@]}"
+            docker manifest push "${repo}:${IMAGE_TAG_SUFFIX}"
+          done
