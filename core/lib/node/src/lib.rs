@@ -1,6 +1,7 @@
 use std::{any::Any, collections::HashMap};
 
 use futures::future::BoxFuture;
+use resources::Resource;
 // Public re-exports from external crate to minimize the required dependencies.
 pub use zksync_health_check::{CheckHealth, ReactiveHealthCheck};
 
@@ -9,6 +10,8 @@ mod tasks;
 
 /// A task represents some code that "runs".
 /// During its creation, it uses its own config and resources added to the `ZkSyncNode`.
+///
+/// TODO more elaborate docs
 #[async_trait::async_trait]
 pub trait ZkSyncTask: 'static + Send + Sync {
     type Config: 'static + Send + Sync;
@@ -52,13 +55,13 @@ pub struct ZkSyncNode {
 impl ZkSyncNode {
     /// Adds a resource. By default, any resource can be requested by multiple
     /// components, thus `T: Clone`. Think `Arc<U>`.
-    pub fn add_resource<T: Any + Clone>(&mut self, name: impl AsRef<str>, resource: T) {
+    pub fn add_resource<T: Resource>(&mut self, name: impl AsRef<str>, resource: T) {
         self.resources
             .insert(name.as_ref().into(), Box::new(resource));
     }
 
     /// To be called in `ZkSyncTask::new(..)`.
-    pub fn get_resource<T: Clone + 'static>(&self, name: impl AsRef<str>) -> Option<T> {
+    pub fn get_resource<T: Resource>(&self, name: impl AsRef<str>) -> Option<T> {
         self.resources
             .get(name.as_ref())
             .and_then(|resource| resource.downcast_ref::<T>())
