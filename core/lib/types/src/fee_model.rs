@@ -2,10 +2,10 @@ use serde::{Deserialize, Serialize};
 use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 
 /// Fee input to be provided into the VM. It contains two options:
-/// - L1Pegged: L1 gas price is provided to the VM, and the pubdata price is derived from it. Using this option is required for the
+/// - `L1Pegged`: L1 gas price is provided to the VM, and the pubdata price is derived from it. Using this option is required for the
 /// older versions of Era.
-/// - PubdataIndependent: L1 gas price and pubdata price are not necessarily dependend on one another. This options is more suitable for the
-/// newer versions of Era. It is expected that if a VM supports `PubdataIndependent` version, then it should also support `L1Pegged` version, but converting it into PubdataIndependentBatchFeeModelInput in-place.
+/// - `PubdataIndependent`: L1 gas price and pubdata price are not necessarily dependend on one another. This options is more suitable for the
+/// newer versions of Era. It is expected that if a VM supports `PubdataIndependent` version, then it should also support `L1Pegged` version, but converting it into `PubdataIndependentBatchFeeModelInput` in-place.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BatchFeeInput {
     L1Pegged(L1PeggedBatchFeeModelInput),
@@ -100,10 +100,10 @@ pub struct PubdataIndependentBatchFeeModelInput {
 }
 
 /// The enum which represents the version of the fee model. It is used to determine which fee model should be used for the batch.
-/// - V1, the first model that was used in zkSync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
+/// - `V1`, the first model that was used in zkSync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
 /// Also, the fair L2 gas price is expected to only include the proving/computation price for the operator and not the costs that come from
 /// processing the batch on L1.
-/// - V2, the second model that was used in zkSync Era. There the pubdata price might be independent from the L1 gas price. Also,
+/// - `V2`, the second model that was used in zkSync Era. There the pubdata price might be independent from the L1 gas price. Also,
 /// The fair L2 gas price is expected to both the proving/computation price for the operator and the costs that come from
 /// processing the batch on L1.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -118,7 +118,7 @@ pub enum MainNodeFeeModelConfig {
 pub struct MainNodeFeeModelConfigV1 {
     /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
     /// as potentially premium for congestion.
-    /// Unlike the V2, this price will be directly used as the "fair_l2_gas_price" in the bootloader.
+    /// Unlike the `V2`, this price will be directly used as the `fair_l2_gas_price` in the bootloader.
     pub minimal_l2_gas_price: u64,
 }
 
@@ -144,7 +144,7 @@ pub struct MainNodeFeeModelConfigV2 {
 }
 
 impl Default for MainNodeFeeModelConfig {
-    /// Config with all 0s is not a valid config (since for instance having 0 max gas per batch may incur division by zero),
+    /// Config with all zeroes is not a valid config (since for instance having 0 max gas per batch may incur division by zero),
     /// so we implement a sensible default config here.
     fn default() -> Self {
         Self::V1(MainNodeFeeModelConfigV1 {

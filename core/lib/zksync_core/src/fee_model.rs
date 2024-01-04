@@ -75,7 +75,7 @@ impl<G: L1GasPriceProvider + ?Sized> MainNodeFeeInputProvider<G> {
 }
 
 /// Calculates the batch fee input based on the main node parameters.
-/// This function uses the V1 fee model, i.e. where the pubdata price does not include the proving costs.
+/// This function uses the `V1` fee model, i.e. where the pubdata price does not include the proving costs.
 pub(crate) fn compute_batch_fee_model_input_v1(
     params: MainNodeFeeParamsV1,
     l1_gas_price_scale_factor: f64,
@@ -89,7 +89,7 @@ pub(crate) fn compute_batch_fee_model_input_v1(
 }
 
 /// Calculates the batch fee input based on the main node parameters.
-/// This function uses the V2 fee model, i.e. where the pubdata price does not include the proving costs.
+/// This function uses the `V2` fee model, i.e. where the pubdata price does not include the proving costs.
 pub(crate) fn compute_batch_fee_model_input_v2(
     params: MainNodeFeeParamsV2,
     l1_gas_price_scale_factor: f64,
