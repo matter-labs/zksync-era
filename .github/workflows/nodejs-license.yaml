@@ -19,8 +19,9 @@ env:
     Public Domain;
     WTFPL;
     Unlicense;
+    BlueOak-1.0.0;
   # It has to be one line, there must be no space between packages.
-  EXCLUDE_PACKAGES: testrpc@0.0.1;uuid@2.0.1;
+  EXCLUDE_PACKAGES: testrpc@0.0.1;uuid@2.0.1;@cspell/dict-en-common-misspellings@2.0.0;
 
 jobs:
   generate-matrix:

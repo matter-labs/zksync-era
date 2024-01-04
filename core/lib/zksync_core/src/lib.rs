@@ -26,8 +26,8 @@ use zksync_config::{
 use zksync_contracts::{governance_contract, BaseSystemContracts};
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_eth_client::{
-    clients::http::{PKSigningClient, QueryClient},
-    BoundEthInterface, EthInterface,
+    clients::{PKSigningClient, QueryClient},
+    BoundEthInterface, CallFunctionArgs, EthInterface,
 };
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
@@ -37,6 +37,7 @@ use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
+    web3::contract::tokens::Detokenize,
     L2ChainId, PackedEthSignature, ProtocolVersionId,
 };
 
@@ -61,8 +62,6 @@ use crate::{
         fri_scheduler_circuit_queuer::SchedulerCircuitQueuer,
         fri_witness_generator_jobs_retry_manager::FriWitnessGeneratorJobRetryManager,
         fri_witness_generator_queue_monitor::FriWitnessGeneratorStatsReporter,
-        gpu_prover_queue_monitor::GpuProverQueueMonitor,
-        prover_job_retry_manager::ProverJobRetryManager, prover_queue_monitor::ProverStatsReporter,
         waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
     },
     l1_gas_price::{GasAdjusterSingleton, L1GasPriceProvider},
@@ -70,7 +69,9 @@ use crate::{
         MetadataCalculator, MetadataCalculatorConfig, MetadataCalculatorModeConfig,
     },
     metrics::{InitStage, APP_METRICS},
-    state_keeper::{create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer},
+    state_keeper::{
+        create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer, SequencerSealer,
+    },
 };
 
 pub mod api_server;
@@ -130,17 +131,13 @@ pub async fn genesis_init(
             };
 
             let eth_client = QueryClient::new(eth_client_url)?;
-            let vk_hash: zksync_types::H256 = eth_client
-                .call_contract_function(
-                    "verificationKeyHash",
-                    (),
-                    None,
-                    Default::default(),
-                    None,
-                    contracts_config.verifier_addr,
-                    zksync_contracts::verifier_contract(),
-                )
-                .await?;
+            let args = CallFunctionArgs::new("verificationKeyHash", ()).for_contract(
+                contracts_config.verifier_addr,
+                zksync_contracts::verifier_contract(),
+            );
+
+            let vk_hash = eth_client.call_contract_function(args).await?;
+            let vk_hash = zksync_types::H256::from_tokens(vk_hash)?;
 
             assert_eq!(
                 vk_hash, l1_verifier_config.recursion_scheduler_level_vk_hash,
@@ -524,7 +521,7 @@ pub async fn initialize_components(
             start_eth_watch(
                 eth_watch_config,
                 eth_watch_pool,
-                query_client.clone(),
+                Box::new(query_client.clone()),
                 main_zksync_contract_address,
                 governance,
                 stop_receiver.clone(),
@@ -558,7 +555,7 @@ pub async fn initialize_components(
                 eth_sender.sender.clone(),
                 store_factory.create_store().await,
             ),
-            eth_client,
+            Arc::new(eth_client),
             contracts_config.validator_timelock_addr,
             contracts_config.l1_multicall3_addr,
             main_zksync_contract_address,
@@ -591,7 +588,7 @@ pub async fn initialize_components(
                 .get_or_init()
                 .await
                 .context("gas_adjuster.get_or_init()")?,
-            eth_client,
+            Arc::new(eth_client),
         );
         task_futures.extend([tokio::spawn(
             eth_tx_manager_actor.run(eth_manager_pool, stop_receiver.clone()),
@@ -774,7 +771,7 @@ async fn add_trees_to_task_futures(
     let mode = match db_config.merkle_tree.mode {
         MerkleTreeMode::Lightweight => MetadataCalculatorModeConfig::Lightweight,
         MerkleTreeMode::Full => MetadataCalculatorModeConfig::Full {
-            store_factory: Some(store_factory),
+            object_store: Some(store_factory.create_store().await),
         },
     };
 
@@ -800,7 +797,7 @@ async fn run_tree(
     db_config: &DBConfig,
     api_config: Option<&MerkleTreeApiConfig>,
     operation_manager: &OperationsManagerConfig,
-    mode: MetadataCalculatorModeConfig<'_>,
+    mode: MetadataCalculatorModeConfig,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let started_at = Instant::now();
@@ -813,7 +810,7 @@ async fn run_tree(
 
     let config =
         MetadataCalculatorConfig::for_main_node(&db_config.merkle_tree, operation_manager, mode);
-    let metadata_calculator = MetadataCalculator::new(&config).await;
+    let metadata_calculator = MetadataCalculator::new(config).await;
     if let Some(api_config) = api_config {
         let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
         let tree_reader = metadata_calculator.tree_reader();
@@ -895,32 +892,7 @@ async fn add_house_keeper_to_task_futures(
     .build()
     .await
     .context("failed to build a prover_connection_pool")?;
-    let prover_group_config = configs
-        .prover_group_config
-        .clone()
-        .context("prover_group_config")?;
-    let prover_configs = configs.prover_configs.clone().context("prover_configs")?;
-    let gpu_prover_queue = GpuProverQueueMonitor::new(
-        prover_group_config.synthesizer_per_gpu,
-        house_keeper_config.gpu_prover_queue_reporting_interval_ms,
-        prover_connection_pool.clone(),
-    );
-    let config = prover_configs.non_gpu.clone();
-    let prover_job_retry_manager = ProverJobRetryManager::new(
-        config.max_attempts,
-        config.proof_generation_timeout(),
-        house_keeper_config.prover_job_retrying_interval_ms,
-        prover_connection_pool.clone(),
-    );
-    let prover_stats_reporter = ProverStatsReporter::new(
-        house_keeper_config.prover_stats_reporting_interval_ms,
-        prover_connection_pool.clone(),
-        prover_group_config.clone(),
-    );
-    task_futures.push(tokio::spawn(gpu_prover_queue.run()));
     task_futures.push(tokio::spawn(l1_batch_metrics_reporter.run()));
-    task_futures.push(tokio::spawn(prover_stats_reporter.run()));
-    task_futures.push(tokio::spawn(prover_job_retry_manager.run()));
 
     // All FRI Prover related components are configured below.
     let fri_prover_config = configs
@@ -1032,9 +1004,10 @@ async fn build_tx_sender(
     l1_gas_price_provider: Arc<dyn L1GasPriceProvider>,
     storage_caches: PostgresStorageCaches,
 ) -> (TxSender, VmConcurrencyBarrier) {
+    let sequencer_sealer = SequencerSealer::new(state_keeper_config.clone());
     let tx_sender_builder = TxSenderBuilder::new(tx_sender_config.clone(), replica_pool)
         .with_main_connection_pool(master_pool)
-        .with_state_keeper_config(state_keeper_config.clone());
+        .with_sealer(Arc::new(sequencer_sealer));
 
     let max_concurrency = web3_json_config.vm_concurrency_limit();
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
