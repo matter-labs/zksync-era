@@ -20,7 +20,7 @@ use crate::{
         traits::tracers::dyn_tracers::vm_1_4_0::DynTracer, types::tracer::TracerExecutionStatus,
         L1BatchEnv, Refunds,
     },
-    vm_latest::{
+    vm_boojum_integration::{
         bootloader_state::BootloaderState,
         constants::{BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET},
         old_vm::{
@@ -203,7 +203,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
         ]);
 
         #[derive(Debug, Metrics)]
-        #[metrics(prefix = "vm")]
+        #[metrics(prefix = "vm_boojum_integration")]
         struct RefundMetrics {
             #[metrics(buckets = PERCENT_BUCKETS)]
             refund: Family<RefundType, Histogram<f64>>,

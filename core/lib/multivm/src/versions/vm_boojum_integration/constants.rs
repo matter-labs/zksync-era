@@ -7,7 +7,7 @@ use zksync_system_constants::{
     USED_BOOTLOADER_MEMORY_WORDS,
 };
 
-use crate::vm_latest::old_vm::utils::heap_page_from_base;
+use crate::vm_boojum_integration::old_vm::utils::heap_page_from_base;
 
 /// Max cycles for a single transaction.
 pub const MAX_CYCLES_FOR_TX: u32 = u32::MAX;

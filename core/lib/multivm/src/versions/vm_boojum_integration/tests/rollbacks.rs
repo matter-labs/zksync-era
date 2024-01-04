@@ -9,7 +9,7 @@ use crate::{
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceHistoryEnabled,
     },
-    vm_latest::{
+    vm_boojum_integration::{
         tests::{
             tester::{DeployContractsTx, TransactionTestInfo, TxModifier, TxType, VmTesterBuilder},
             utils::read_test_contract,

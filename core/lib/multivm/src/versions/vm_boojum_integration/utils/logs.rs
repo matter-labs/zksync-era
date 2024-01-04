@@ -3,7 +3,7 @@ use zksync_types::{l2_to_l1_log::L2ToL1Log, Timestamp, VmEvent};
 
 use crate::{
     interface::L1BatchEnv,
-    vm_latest::{
+    vm_boojum_integration::{
         old_vm::{events::merge_events, history_recorder::HistoryMode},
         types::internals::ZkSyncVmState,
     },
