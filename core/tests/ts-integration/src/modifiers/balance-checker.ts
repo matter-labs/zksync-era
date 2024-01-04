@@ -211,7 +211,7 @@ export async function extractFee(
     // We need to pad address to represent 256-bit value.
     const fromAccountAddress = ethers.utils.hexZeroPad(ethers.utils.arrayify(from), 32);
 
-    if (process.env.API_WEB3_JSON_RPC_API_MODE == 'modern') {
+    if (process.env.API_WEB3_JSON_RPC_API_MODE == 'modern' ?? process.env.EN_API_MODE =='modern') {
         const trace = await wallet!.provider.send('debug_traceTransaction', [receipt.transactionHash]);
 
         if (!trace) {
