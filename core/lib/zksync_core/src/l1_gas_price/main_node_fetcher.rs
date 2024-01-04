@@ -66,6 +66,6 @@ impl MainNodeFeeParamsFetcher {
 
 impl BatchFeeModelInputProvider for MainNodeFeeParamsFetcher {
     fn get_fee_model_params(&self) -> MainNodeFeeParams {
-        self.main_node_fee_params.read().unwrap().clone()
+        *self.main_node_fee_params.read().unwrap()
     }
 }

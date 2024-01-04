@@ -78,7 +78,7 @@ pub(crate) fn compute_legacy_batch_fee_model_input(
     let l1_gas_price = (params.l1_gas_price as f64 * l1_gas_price_scale_factor) as u64;
 
     BatchFeeInput::L1Pegged(L1PeggedBatchFeeModelInput {
-        l1_gas_price: l1_gas_price,
+        l1_gas_price,
         fair_l2_gas_price: params.config.minimal_l2_gas_price,
     })
 }

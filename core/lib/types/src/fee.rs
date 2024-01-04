@@ -1,8 +1,7 @@
 use serde::{Deserialize, Serialize};
-
 use zksync_utils::ceil_div;
 
-use crate::{U256};
+use crate::U256;
 
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "result")]

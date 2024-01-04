@@ -13,7 +13,8 @@ pub fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
 }
 
 /// Calculates the base fee and gas per pubdata for the given L1 gas price.
-pub(crate) fn derive_base_fee_and_gas_per_pubdata(
+/// FIXME: this method will be used once the new VM is integrated
+pub(crate) fn _derive_base_fee_and_gas_per_pubdata(
     l1_gas_price: u64,
     fair_gas_price: u64,
 ) -> (u64, u64) {

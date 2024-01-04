@@ -53,7 +53,6 @@ pub(crate) struct MempoolIO {
     miniblock_sealer_handle: MiniblockSealerHandle,
     current_l1_batch_number: L1BatchNumber,
     fee_account: Address,
-    fair_l2_gas_price: u64,
     validation_computational_gas_limit: u32,
     delay_interval: Duration,
     // Used to keep track of gas prices to set accepted price per pubdata byte in blocks.
@@ -442,7 +441,6 @@ impl MempoolIO {
             miniblock_sealer_handle,
             current_miniblock_number: last_miniblock_number + 1,
             fee_account: config.fee_account_addr,
-            fair_l2_gas_price: config.fair_l2_gas_price,
             validation_computational_gas_limit,
             delay_interval,
             batch_fee_input_provider,
