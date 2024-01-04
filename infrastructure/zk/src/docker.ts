@@ -27,7 +27,7 @@ const UNIX_TIMESTAMP = Date.now();
 async function dockerCommand(
     command: 'push' | 'build',
     image: string,
-    platform: string = 'linux/amd64',
+    platform: string = '',
     customTag?: string,
     buildExtraArgs: string = '',
     dockerOrg: string = 'matterlabs'
@@ -94,12 +94,19 @@ async function _build(image: string, tagList: string[], dockerOrg: string, platf
 
     for (const tag of tagList) {
         for (const registry of DOCKER_REGISTRIES) {
-            let platformSuffix = platform.replace('/', '-');
-            tagsToBuild = tagsToBuild + `-t ${registry}/${image}:${tag}-${platformSuffix} `;
+            if (platform != '') {
+                let platformSuffix = platform.replace('/', '-');
+                tagsToBuild = tagsToBuild + `-t ${registry}/${image}:${tag}-${platformSuffix} `;
+            } else {
+                tagsToBuild = tagsToBuild + `-t ${registry}/${image}:${tag} `;
+            }
         }
     }
 
     let buildArgs = '';
+    if (platform != '') {
+        buildArgs += `--platform=${platform} `;
+    }
     if (image === 'prover-v2') {
         const eraBellmanCudaRelease = process.env.ERA_BELLMAN_CUDA_RELEASE;
         buildArgs += `--build-arg ERA_BELLMAN_CUDA_RELEASE=${eraBellmanCudaRelease} `;
@@ -114,7 +121,6 @@ async function _build(image: string, tagList: string[], dockerOrg: string, platf
 
     const buildCommand =
         `DOCKER_BUILDKIT=1 docker buildx build ${tagsToBuild}` +
-        ` --platform=${platform}` +
         (buildArgs ? ` ${buildArgs}` : '') +
         ` -f ./docker/${imagePath}/Dockerfile .`;
 

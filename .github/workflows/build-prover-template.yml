@@ -51,6 +51,8 @@ jobs:
           - witness-vector-generator
           - prover-fri-gateway
           - proof-fri-compressor
+        platforms:
+          - linux/amd64
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
@@ -165,9 +167,9 @@ jobs:
             ci_run echo members = [\"prover/${underscored_name}\"] >> Cargo.toml
             ci_run cp prover/Cargo.lock Cargo.lock
             PASSED_ENV_VARS="ERA_BELLMAN_CUDA_RELEASE,CUDA_ARCH" \
-            ci_run zk docker $DOCKER_ACTION $COMPONENT
+            ci_run zk docker $DOCKER_ACTION --platform=${PLATFORM} $COMPONENT
           else
-            ci_run zk docker $DOCKER_ACTION $COMPONENT
+            ci_run zk docker $DOCKER_ACTION --platform=${PLATFORM} $COMPONENT
           fi
 
       - name: Show sccache stats
@@ -175,3 +177,45 @@ jobs:
         run: |
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
+
+  create_manifest:
+    name: Create release manifest
+    runs-on: matterlabs-ci-runner
+    needs: build-images
+    if: ${{ inputs.action == 'push' }}
+    strategy:
+      matrix:
+        component:
+          - name: witness-generator
+            platform: linux/amd64
+          - name: prover-fri
+            platform: linux/amd64
+          - name: prover-gpu-fri
+            platform: linux/amd64
+          - name: witness-vector-generator
+            platform: linux/amd64
+          - name: prover-fri-gateway
+            platform: linux/amd64
+          - name: proof-fri-compressor
+            platform: linux/amd64
+    env:
+      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
+    steps:
+      - name: login to Docker registries
+        run: |
+          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+          gcloud auth configure-docker us-docker.pkg.dev -q
+
+      - name: Create Docker manifest
+        run: |
+          docker_repositories=("matterlabs/${{ matrix.component.name }}" "us-docker.pkg.dev/${{ matrix.component.name }}")
+          for repo in "${docker_repositories[@]}"; do
+            repo_tags=()
+            for platform in ${{ matrix.component.platform }}; do
+              platform=$(echo $platform | tr '/' '-')
+              repo_tags+=("--amend ${repo}:${IMAGE_TAG_SUFFIX}-${platform}")
+            done
+          
+            docker manifest create "${repo}:${IMAGE_TAG_SUFFIX}" "${repo_tags[@]}"
+            docker manifest push "${repo}:${IMAGE_TAG_SUFFIX}"
+          done
