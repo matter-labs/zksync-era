@@ -38,11 +38,11 @@ impl GovernanceUpgradesEventProcessor {
 }
 
 #[async_trait::async_trait]
-impl<W: EthClient + Sync> EventProcessor<W> for GovernanceUpgradesEventProcessor {
+impl EventProcessor for GovernanceUpgradesEventProcessor {
     async fn process_events(
         &mut self,
         storage: &mut StorageProcessor<'_>,
-        client: &W,
+        client: &dyn EthClient,
         events: Vec<Log>,
     ) -> Result<(), Error> {
         let mut upgrades = Vec::new();

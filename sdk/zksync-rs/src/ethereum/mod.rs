@@ -408,7 +408,8 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                 L1_TO_L2_GAS_PER_PUBDATA,
                 factory_deps,
                 refund_recipient,
-            ),
+            )
+                .into_tokens(),
         );
 
         let tx = self
