@@ -3,7 +3,7 @@ use zksync_system_constants::{MAX_L2_TX_GAS_LIMIT, MAX_TXS_IN_BLOCK};
 use zksync_types::{l1::is_l1_tx_type, U256};
 use zksync_utils::ceil_div_u256;
 
-use crate::vm_latest::constants::{
+use crate::vm_boojum_integration::constants::{
     BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA, BOOTLOADER_TX_ENCODING_SPACE,
 };
 

@@ -14,7 +14,7 @@ use crate::{
         types::tracer::TracerExecutionStopReason, ExecutionResult, Halt, TxRevertReason,
         VmExecutionMode, VmRevertReason,
     },
-    vm_latest::{
+    vm_boojum_integration::{
         constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT},
         old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
         tracers::{

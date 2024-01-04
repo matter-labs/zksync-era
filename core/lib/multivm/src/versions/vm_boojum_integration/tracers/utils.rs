@@ -12,7 +12,7 @@ use zksync_system_constants::{
 use zksync_types::U256;
 use zksync_utils::u256_to_h256;
 
-use crate::vm_latest::{
+use crate::vm_boojum_integration::{
     constants::{
         BOOTLOADER_HEAP_PAGE, VM_HOOK_PARAMS_COUNT, VM_HOOK_PARAMS_START_POSITION, VM_HOOK_POSITION,
     },

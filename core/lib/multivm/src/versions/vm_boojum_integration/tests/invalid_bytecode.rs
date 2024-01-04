@@ -1,9 +1,9 @@
 use zksync_types::H256;
 use zksync_utils::h256_to_u256;
 
-use crate::vm_latest::tests::tester::VmTesterBuilder;
-use crate::vm_latest::types::inputs::system_env::TxExecutionMode;
-use crate::vm_latest::{HistoryEnabled, TxRevertReason};
+use crate::vm_boojum_integration::tests::tester::VmTesterBuilder;
+use crate::vm_boojum_integration::types::inputs::system_env::TxExecutionMode;
+use crate::vm_boojum_integration::{HistoryEnabled, TxRevertReason};
 
 // TODO this test requires a lot of hacks for bypassing the bytecode checks in the VM.
 // Port it later, it's not significant. for now
