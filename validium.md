@@ -2,8 +2,8 @@
 
 In order to start the node as a validium:
 
-- Make sure `zk` has been built and then run `zk init --validium`. This will set up the Ethereum node with the validium
-  contracts, and also define an env var which the server will pick up in order to run as a validium node
+- Make sure `zk` has been built and then run `zk init --validium-mode`. This will set up the Ethereum node with the
+  validium contracts, and also define an env var which the server will pick up in order to run as a validium node
 - Start the server (`zk server`)
 - Execute transactions. For testing, `cargo run --release --bin zksync_full_stack` inits a wallet, deploys a contract
   and executes a tx
