@@ -3,9 +3,9 @@ use std::{fmt, time::Duration};
 use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{clients::QueryClient, Error as L1ClientError, EthInterface};
-use zksync_types::{web3::ethabi, L1BatchNumber};
+use zksync_types::{web3::ethabi, L1BatchNumber, H256};
 
 use crate::{
     metrics::{CheckerComponent, EN_METRICS},
@@ -41,6 +41,7 @@ impl UpdateCheckedBatch for () {
     }
 }
 
+/// Consistency checker behavior when L1 commit data divergence is detected.
 // This is a temporary workaround for a bug that sometimes leads to incorrect L1 batch data returned by the server
 // (and thus persisted by external nodes). Eventually, we want to go back to bailing on L1 data mismatch;
 // for now, it's only enabled for the unit tests.
@@ -49,6 +50,73 @@ enum L1DataMismatchBehavior {
     #[cfg(test)]
     Bail,
     Log,
+}
+
+/// L1 commit data loaded from Postgres.
+#[derive(Debug)]
+struct LocalL1BatchCommitData {
+    is_pre_boojum: bool,
+    l1_commit_data: ethabi::Token,
+    commit_tx_hash: H256,
+}
+
+impl LocalL1BatchCommitData {
+    /// Returns `Ok(None)` if Postgres doesn't contain all data necessary to check L1 commitment
+    /// for the specified batch.
+    async fn new(
+        storage: &mut StorageProcessor<'_>,
+        batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Option<Self>> {
+        let Some(storage_l1_batch) = storage
+            .blocks_dal()
+            .get_storage_l1_batch(batch_number)
+            .await?
+        else {
+            return Ok(None);
+        };
+
+        let Some(commit_tx_id) = storage_l1_batch.eth_commit_tx_id else {
+            return Ok(None);
+        };
+        let commit_tx_hash = storage
+            .eth_sender_dal()
+            .get_confirmed_tx_hash_by_eth_tx_id(commit_tx_id as u32)
+            .await?
+            .with_context(|| {
+                format!("Commit tx hash not found in the database for tx id {commit_tx_id}")
+            })?;
+
+        let Some(l1_batch) = storage
+            .blocks_dal()
+            .get_l1_batch_with_metadata(storage_l1_batch)
+            .await?
+        else {
+            return Ok(None);
+        };
+
+        let is_pre_boojum = l1_batch
+            .header
+            .protocol_version
+            .map_or(true, |version| version.is_pre_boojum());
+        let metadata = &l1_batch.metadata;
+
+        // For Boojum batches, `bootloader_initial_content_commitment` and `events_queue_commitment`
+        // are (temporarily) only computed by the metadata calculator if it runs with the full tree.
+        // I.e., for these batches, we may have partial metadata in Postgres, which would not be sufficient
+        // to compute local L1 commitment.
+        if !is_pre_boojum
+            && (metadata.bootloader_initial_content_commitment.is_none()
+                || metadata.events_queue_commitment.is_none())
+        {
+            return Ok(None);
+        }
+
+        Ok(Some(Self {
+            is_pre_boojum,
+            l1_commit_data: l1_batch.l1_commit_data(),
+            commit_tx_hash,
+        }))
+    }
 }
 
 #[derive(Debug)]
@@ -80,34 +148,12 @@ impl ConsistencyChecker {
         }
     }
 
-    async fn check_commitments(&self, batch_number: L1BatchNumber) -> Result<bool, CheckError> {
-        let mut storage = self.pool.access_storage().await?;
-
-        let storage_l1_batch = storage
-            .blocks_dal()
-            .get_storage_l1_batch(batch_number)
-            .await?
-            .with_context(|| format!("L1 batch #{batch_number} not found in the database"))?;
-        let commit_tx_id = storage_l1_batch
-            .eth_commit_tx_id
-            .with_context(|| format!("Commit tx not found for L1 batch #{batch_number}"))?
-            as u32;
-        let block_metadata = storage
-            .blocks_dal()
-            .get_l1_batch_with_metadata(storage_l1_batch)
-            .await?
-            .with_context(|| {
-                format!("Metadata for L1 batch #{batch_number} not found in the database")
-            })?;
-        let commit_tx_hash = storage
-            .eth_sender_dal()
-            .get_confirmed_tx_hash_by_eth_tx_id(commit_tx_id)
-            .await?
-            .with_context(|| {
-                format!("Commit tx hash not found in the database for tx id {commit_tx_id}")
-            })?;
-        drop(storage);
-
+    async fn check_commitments(
+        &self,
+        batch_number: L1BatchNumber,
+        local: &LocalL1BatchCommitData,
+    ) -> Result<bool, CheckError> {
+        let commit_tx_hash = local.commit_tx_hash;
         tracing::info!("Checking commit tx {commit_tx_hash} for L1 batch #{batch_number}");
 
         let commit_tx_status = self
@@ -129,24 +175,19 @@ impl ConsistencyChecker {
             .input;
         // FIXME: shouldn't the receiving contract and selector be checked as well?
 
-        let is_pre_boojum = block_metadata
-            .header
-            .protocol_version
-            .map_or(true, |ver| ver.is_pre_boojum());
-        let commit_function = if is_pre_boojum {
+        let commit_function = if local.is_pre_boojum {
             &*PRE_BOOJUM_COMMIT_FUNCTION
         } else {
             self.contract
                 .function("commitBatches")
                 .context("L1 contract does not have `commitBatches` function")?
         };
-
         let commitment =
             Self::extract_commit_data(&commit_tx_input_data.0, commit_function, batch_number)
                 .with_context(|| {
                     format!("Failed extracting commit data for transaction {commit_tx_hash:?}")
                 })?;
-        Ok(commitment == block_metadata.l1_commit_data())
+        Ok(commitment == local.l1_commit_data)
     }
 
     fn extract_commit_data(
@@ -240,31 +281,17 @@ impl ConsistencyChecker {
                 break;
             }
 
-            let batch_with_metadata = self
-                .pool
-                .access_storage()
-                .await?
-                .blocks_dal()
-                .get_l1_batch_metadata(batch_number)
-                .await?;
-            let batch_has_metadata = batch_with_metadata.map_or(false, |batch| {
-                // FIXME: how does this work for pre-Boojum batches?
-                batch
-                    .metadata
-                    .bootloader_initial_content_commitment
-                    .is_some()
-                    && batch.metadata.events_queue_commitment.is_some()
-            });
-
+            let mut storage = self.pool.access_storage().await?;
             // The batch might be already committed but not yet processed by the external node's tree
             // OR the batch might be processed by the external node's tree but not yet committed.
             // We need both.
-            if !batch_has_metadata || self.last_committed_batch().await? < Some(batch_number) {
+            let Some(local) = LocalL1BatchCommitData::new(&mut storage, batch_number).await? else {
                 tokio::time::sleep(self.sleep_interval).await;
                 continue;
-            }
+            };
+            drop(storage);
 
-            match self.check_commitments(batch_number).await {
+            match self.check_commitments(batch_number, &local).await {
                 Ok(true) => {
                     tracing::info!("L1 batch #{batch_number} is consistent with L1");
                     self.l1_batch_updater.update_checked_batch(batch_number);
