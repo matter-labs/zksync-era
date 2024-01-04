@@ -1,16 +1,15 @@
 use std::{fmt, sync::Arc};
 
-use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_types::{
     fee_model::{
         BatchFeeInput, L1PeggedBatchFeeModelInput, MainNodeFeeModelConfig,
-        MainNodeFeeModelConfigV1, MainNodeFeeModelConfigV2, MainNodeFeeParams, MainNodeFeeParamsV1,
-        MainNodeFeeParamsV2, PubdataIndependentBatchFeeModelInput,
+        MainNodeFeeModelConfigV2, MainNodeFeeParams, MainNodeFeeParamsV1, MainNodeFeeParamsV2,
+        PubdataIndependentBatchFeeModelInput,
     },
     U256,
 };
 
-use crate::{api_server::tx_sender::TxSenderConfig, l1_gas_price::L1GasPriceProvider};
+use crate::l1_gas_price::L1GasPriceProvider;
 
 /// Trait responsible for providing fee info for a batch
 pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {

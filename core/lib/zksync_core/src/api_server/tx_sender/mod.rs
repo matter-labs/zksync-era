@@ -34,7 +34,6 @@ use crate::{
         tx_sender::result::ApiCallResult,
     },
     fee_model::BatchFeeModelInputProvider,
-    l1_gas_price::L1GasPriceProvider,
     metrics::{TxStage, APP_METRICS},
     state_keeper::seal_criteria::{ConditionalSealer, NoopSealer, SealData},
 };

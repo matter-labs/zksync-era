@@ -17,7 +17,7 @@ pub use self::{
 pub(crate) use self::{
     mempool_actor::MempoolFetcher, seal_criteria::SequencerSealer, types::MempoolGuard,
 };
-use crate::{fee_model::BatchFeeModelInputProvider, l1_gas_price::L1GasPriceProvider};
+use crate::fee_model::BatchFeeModelInputProvider;
 
 mod batch_executor;
 pub(crate) mod extractors;

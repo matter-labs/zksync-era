@@ -8,10 +8,7 @@ use zksync_mempool::L2TxFilter;
 use zksync_types::{ProtocolVersionId, VmVersion};
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
-use crate::{
-    api_server::execution_sandbox::BlockArgs, fee_model::BatchFeeModelInputProvider,
-    l1_gas_price::L1GasPriceProvider,
-};
+use crate::{api_server::execution_sandbox::BlockArgs, fee_model::BatchFeeModelInputProvider};
 
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.
 /// The filter is used to filter out transactions from the mempool that do not cover expenses

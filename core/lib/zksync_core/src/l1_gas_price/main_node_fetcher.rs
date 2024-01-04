@@ -1,8 +1,5 @@
 use std::{
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc, RwLock,
-    },
+    sync::{Arc, RwLock},
     time::Duration,
 };
 
@@ -13,7 +10,6 @@ use zksync_web3_decl::{
     namespaces::ZksNamespaceClient,
 };
 
-use super::L1GasPriceProvider;
 use crate::fee_model::BatchFeeModelInputProvider;
 
 const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
