@@ -20,23 +20,23 @@ message Web3JsonRpc {
   optional uint32 threads_per_server = 9; // required
   optional uint32 max_nonce_ahead = 10; // required
   optional double gas_price_scale_factor = 11; // required
-  optional uint64 request_timeout = 13; // seconds
-  optional PrivateKeys account_pks = 14;
-  optional double estimate_gas_scale_factor = 15; // required
-  optional uint32 estimate_gas_acceptable_overestimation = 16; // required
-  optional uint64 max_tx_size = 17; // required; bytes
-  optional uint64 vm_execution_cache_misses_limit = 18;
-  optional uint64 vm_concurrency_limit = 19;
-  optional uint64 factory_deps_cache_size_mb = 20;
-  optional uint64 initial_writes_cache_size_mb = 21;
-  optional uint64 latest_values_cache_size_mb = 22;
-  optional uint32 http_threads = 23;
-  optional uint32 ws_threads = 24;
-  optional uint64 fee_history_limit = 25;
-  optional uint64 max_batch_request_size = 26;
-  optional uint64 max_response_body_size_mb = 27;
-  optional uint32 websocket_requests_per_minute_limit = 28;
-  optional string tree_api_url = 12;
+  optional uint64 request_timeout = 12; // seconds
+  optional PrivateKeys account_pks = 13;
+  optional double estimate_gas_scale_factor = 14; // required
+  optional uint32 estimate_gas_acceptable_overestimation = 15; // required
+  optional uint64 max_tx_size = 16; // required; bytes
+  optional uint64 vm_execution_cache_misses_limit = 17;
+  optional uint64 vm_concurrency_limit = 18;
+  optional uint64 factory_deps_cache_size_mb = 19;
+  optional uint64 initial_writes_cache_size_mb = 20;
+  optional uint64 latest_values_cache_size_mb = 21;
+  optional uint32 http_threads = 22;
+  optional uint32 ws_threads = 23;
+  optional uint64 fee_history_limit = 24;
+  optional uint64 max_batch_request_size = 25;
+  optional uint64 max_response_body_size_mb = 26;
+  optional uint32 websocket_requests_per_minute_limit = 27;
+  optional string tree_api_url = 28;
 }
 
 message ContractVerificationApi {
