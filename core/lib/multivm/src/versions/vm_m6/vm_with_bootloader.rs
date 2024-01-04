@@ -121,10 +121,6 @@ pub(crate) fn get_batch_base_fee(l1_batch_env: &L1BatchEnv) -> u64 {
     base_fee
 }
 
-pub(crate) fn get_batch_gas_per_pubdata(l1_batch_env: &L1BatchEnv) -> u64 {
-    derive_base_fee_and_gas_per_pubdata(l1_batch_env.fee_input.into_l1_pegged()).1
-}
-
 impl From<BlockContext> for DerivedBlockContext {
     fn from(context: BlockContext) -> Self {
         let base_fee = derive_base_fee_and_gas_per_pubdata(L1PeggedBatchFeeModelInput {
