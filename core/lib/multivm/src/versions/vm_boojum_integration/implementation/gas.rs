@@ -1,7 +1,7 @@
 use zksync_state::WriteStorage;
 
 use crate::{
-    vm_latest::{tracers::DefaultExecutionTracer, vm::Vm},
+    vm_boojum_integration::{tracers::DefaultExecutionTracer, vm::Vm},
     HistoryMode,
 };
 

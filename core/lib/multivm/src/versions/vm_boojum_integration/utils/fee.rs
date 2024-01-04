@@ -2,7 +2,7 @@
 use zksync_system_constants::MAX_GAS_PER_PUBDATA_BYTE;
 use zksync_utils::ceil_div;
 
-use crate::vm_latest::old_vm::utils::eth_price_per_pubdata_byte;
+use crate::vm_boojum_integration::old_vm::utils::eth_price_per_pubdata_byte;
 
 /// Calculates the amount of gas required to publish one byte of pubdata
 pub fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
