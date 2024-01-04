@@ -1,19 +1,19 @@
 /**
  * This suite contains tests checking the behavior of paymasters -- entities that can cover fees for users.
  */
-import { TestMaster } from '../src/index';
+import {TestMaster} from '../src';
 import * as zksync from 'zksync-web3';
-import { Provider, Wallet, utils, Contract } from 'zksync-web3';
+import {Contract, Provider, utils, Wallet} from 'zksync-web3';
 import * as ethers from 'ethers';
-import { deployContract, getTestContract } from '../src/helpers';
-import { L2_ETH_PER_ACCOUNT } from '../src/context-owner';
-import { checkReceipt } from '../src/modifiers/receipt-check';
-import { extractFee } from '../src/modifiers/balance-checker';
-import { TestMessage } from '../src/matchers/matcher-helpers';
-import { Address } from 'zksync-web3/build/src/types';
+import {deployContract, getTestContract} from '../src/helpers';
+import {L2_ETH_PER_ACCOUNT} from '../src/context-owner';
+import {checkReceipt} from '../src/modifiers/receipt-check';
+import {extractFee} from '../src/modifiers/balance-checker';
+import {TestMessage} from '../src/matchers/matcher-helpers';
+import {Address} from 'zksync-web3/build/src/types';
 import * as hre from 'hardhat';
-import { Deployer } from '@matterlabs/hardhat-zksync-deploy';
-import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-deploy/dist/types';
+import {Deployer} from '@matterlabs/hardhat-zksync-deploy';
+import {ZkSyncArtifact} from '@matterlabs/hardhat-zksync-deploy/dist/types';
 
 const contracts = {
     customPaymaster: getTestContract('CustomPaymaster')
@@ -83,7 +83,7 @@ describe('Paymaster tests', () => {
         );
         await expect(txPromise).toBeAccepted([
             checkReceipt(
-                (receipt) => paidFeeWithPaymaster(receipt, CUSTOM_PAYMASTER_RATE_NUMERATOR, paymaster.address),
+                (receipt) => paidFeeWithPaymaster(receipt, CUSTOM_PAYMASTER_RATE_NUMERATOR, paymaster.address, alice),
                 'Fee was not paid (or paid incorrectly)'
             )
         ]);
@@ -124,7 +124,7 @@ describe('Paymaster tests', () => {
         );
         await expect(txPromise).toBeAccepted([
             checkReceipt(
-                (receipt) => paidFeeWithPaymaster(receipt, CUSTOM_PAYMASTER_RATE_NUMERATOR, paymaster.address),
+                (receipt) => paidFeeWithPaymaster(receipt, CUSTOM_PAYMASTER_RATE_NUMERATOR, paymaster.address, alice),
                 'Fee was not paid (or paid incorrectly)'
             )
         ]);
@@ -190,7 +190,7 @@ describe('Paymaster tests', () => {
 
         await expect(txPromise).toBeAccepted([
             checkReceipt(
-                (receipt) => paidFeeWithPaymaster(receipt, TESTNET_PAYMASTER_RATE_NUMERATOR, testnetPaymaster),
+                (receipt) => paidFeeWithPaymaster(receipt, TESTNET_PAYMASTER_RATE_NUMERATOR, testnetPaymaster, alice),
                 'Fee was not paid (or paid incorrectly)'
             )
         ]);
@@ -296,11 +296,12 @@ describe('Paymaster tests', () => {
  * It only checks the receipt logs and assumes that logs are correct (e.g. if event is present, tokens were moved).
  * Assumption is that other tests ensure this invariant.
  */
-function paidFeeWithPaymaster(
+async function paidFeeWithPaymaster(
     receipt: zksync.types.TransactionReceipt,
     ratioNumerator: ethers.BigNumber,
-    paymaster: string
-): boolean {
+    paymaster: string,
+    wallet: zksync.Wallet,
+): Promise<boolean> {
     const errorMessage = (line: string) => {
         return new TestMessage()
             .matcherHint('.shouldBeAccepted.paidFeeWithPaymaster')
@@ -320,7 +321,7 @@ function paidFeeWithPaymaster(
     // Below we're looking for the 1st log, then convert it to the ERC20 log and look for it as well.
     let fee;
     try {
-        fee = extractFee(receipt, paymaster);
+        fee = await extractFee(receipt, paymaster, wallet);
     } catch (e) {
         // No fee was paid by paymaster, test is failed.
         expect(null).fail(errorMessage('Transaction did not have the ETH fee log'));
@@ -383,7 +384,7 @@ async function getTestPaymasterParamsForFeeEstimation(
     const correctSignature = new Uint8Array(46);
 
     const aliceERC20Balance = await erc20.balanceOf(senderAddress);
-    const paramsForFeeEstimation = zksync.utils.getPaymasterParams(paymasterAddress, {
+    return zksync.utils.getPaymasterParams(paymasterAddress, {
         type: 'ApprovalBased',
         // For transaction estimation we provide the paymasterInput with large
         // minimalAllowance. It is safe for the end users, since the transaction is never
@@ -394,8 +395,6 @@ async function getTestPaymasterParamsForFeeEstimation(
         // to cover the fee for him.
         innerInput: getTestPaymasterInnerInput(correctSignature, ethers.BigNumber.from(1))
     });
-
-    return paramsForFeeEstimation;
 }
 
 function getTestPaymasterParams(

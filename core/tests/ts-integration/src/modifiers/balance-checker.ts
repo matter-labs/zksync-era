@@ -6,8 +6,9 @@ import * as zksync from 'zksync-web3';
 import * as ethers from 'ethers';
 import { TestMessage } from '../matchers/matcher-helpers';
 import { MatcherModifier, MatcherMessage } from '.';
-import { Fee } from '../types';
 import { IERC20Factory } from 'zksync-web3/build/typechain';
+import {Log} from "zksync-web3/build/src/types";
+import {BigNumber} from "ethers";
 
 /**
  * Modifier that ensures that fee was taken from the wallet for a transaction.
@@ -158,7 +159,8 @@ class ShouldChangeBalance extends MatcherModifier {
                 if (this.l1ToL2) {
                     newBalance = newBalance.sub(extractRefundForL1ToL2(receipt, address));
                 } else if (address == receipt.from) {
-                    newBalance = newBalance.add(extractFee(receipt).feeAfterRefund);
+                    const change = (await extractFee(receipt, undefined, wallet)).feeAfterRefund;
+                    newBalance = newBalance.add(change);
                 }
             }
 
@@ -194,45 +196,71 @@ class ShouldChangeBalance extends MatcherModifier {
  *
  * @param receipt Receipt of the transaction to extract fee from.
  * @param from Optional substitute to `receipt.from`.
+ * @param wallet Optional wallet if the api mode is modern
  * @returns Extracted fee
  */
-export function extractFee(receipt: zksync.types.TransactionReceipt, from?: string): Fee {
+export async function extractFee(receipt: zksync.types.TransactionReceipt, from?: string, wallet?: zksync.Wallet): Promise<Fee> {
     from = from ?? receipt.from;
 
     const systemAccountAddress = '0x0000000000000000000000000000000000000000000000000000000000008001';
     // We need to pad address to represent 256-bit value.
     const fromAccountAddress = ethers.utils.hexZeroPad(ethers.utils.arrayify(from), 32);
-    // Fee log is one that sends money to the system contract account.
-    const feeLog = receipt.logs.find((log) => {
-        return log.topics.length == 3 && log.topics[1] == fromAccountAddress && log.topics[2] == systemAccountAddress;
-    });
-    if (!feeLog) {
-        throw {
-            message: `No fee log was found in the following transaction receipt`,
-            receipt
+
+    if(process.env.API_WEB3_JSON_RPC_API_MODE == 'modern') {
+        const trace = (await wallet!.provider.send('debug_traceTransaction', [receipt.transactionHash]))
+
+        if (!trace) {
+            throw {
+                message: `No transaction was found in the following transaction receipt`,
+                receipt
+            };
+        }
+
+        const feeAmount = ethers.BigNumber.from(receipt.effectiveGasPrice).mul(BigNumber.from(trace.gas));
+        const feeAfterRefund = ethers.BigNumber.from(receipt.effectiveGasPrice).mul(BigNumber.from(receipt.gasUsed));
+
+        return {
+            feeBeforeRefund: feeAmount,
+            feeAfterRefund: feeAfterRefund,
+            refund: feeAmount.sub(feeAfterRefund)
         };
     }
-
-    const feeAmount = ethers.BigNumber.from(feeLog.data);
-
-    // There may be more than one refund log for the user
-    const feeRefund = receipt.logs
-        .filter((log) => {
+    else {
+        const feeLog = receipt.logs.find((log: Log) => {
             return (
-                log.topics.length == 3 && log.topics[1] == systemAccountAddress && log.topics[2] == fromAccountAddress
+                log.topics.length == 3 && log.topics[1] == fromAccountAddress && log.topics[2] == systemAccountAddress
             );
         })
-        .map((log) => ethers.BigNumber.from(log.data))
-        .reduce((prev, cur) => {
-            return prev.add(cur);
-        }, ethers.BigNumber.from(0));
 
-    return {
-        feeBeforeRefund: feeAmount,
-        feeAfterRefund: feeAmount.sub(feeRefund),
-        refund: feeRefund
-    };
+        if (!feeLog) {
+            throw {
+                message: `No fee log was found in the following transaction receipt`,
+                receipt
+            };
+        }
+
+        const feeAmount = ethers.BigNumber.from(feeLog.data);
+
+        const feeRefund = receipt.logs
+            .filter((log) => {
+                return (
+                    log.topics.length == 3 && log.topics[1] == systemAccountAddress && log.topics[2] == fromAccountAddress
+                );
+            })
+            .map((log) => ethers.BigNumber.from(log.data))
+            .reduce((prev, cur) => {
+                return prev.add(cur);
+            }, ethers.BigNumber.from(0));
+
+        return {
+            feeBeforeRefund: feeAmount,
+            feeAfterRefund: BigNumber.from(receipt.effectiveGasPrice).mul(BigNumber.from(receipt.gasUsed)),
+            refund: feeRefund
+        };
+    }
 }
+
+
 
 /**
  * Helper method to extract the refund for the L1->L2 transaction in ETH wei.
