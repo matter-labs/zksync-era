@@ -1,6 +1,6 @@
 use zk_evm_1_3_3::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
-use zksync_types::{l1::is_l1_tx_type, Transaction};
+use zksync_types::{l1::is_l1_tx_type, Transaction, VmVersion};
 
 use crate::{
     vm_refunds_enhancement::{
@@ -38,8 +38,10 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             .decommittment_processor
             .populate(codes_for_decommiter, timestamp);
 
-        let trusted_ergs_limit =
-            tx.trusted_ergs_limit(self.batch_env.block_gas_price_per_pubdata());
+        let trusted_ergs_limit = tx.trusted_ergs_limit(
+            self.batch_env
+                .block_gas_price_per_pubdata(VmVersion::VmVirtualBlocksRefundsEnhancement),
+        );
 
         let memory = self.bootloader_state.push_tx(
             tx,
@@ -61,7 +63,9 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         with_compression: bool,
     ) {
         let tx: TransactionData = tx.into();
-        let block_gas_per_pubdata_byte = self.batch_env.block_gas_price_per_pubdata();
+        let block_gas_per_pubdata_byte = self
+            .batch_env
+            .block_gas_price_per_pubdata(VmVersion::VmVirtualBlocksRefundsEnhancement);
         let overhead = tx.overhead_gas(block_gas_per_pubdata_byte as u32);
         self.push_raw_transaction(tx, overhead, 0, with_compression);
     }

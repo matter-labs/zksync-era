@@ -23,6 +23,7 @@ use zksync_types::{
 use zksync_utils::time::millis_since_epoch;
 
 use crate::{
+    fee_model::BatchFeeModelInputProvider,
     l1_gas_price::L1GasPriceProvider,
     state_keeper::{
         extractors,
@@ -57,7 +58,7 @@ pub(crate) struct MempoolIO {
     validation_computational_gas_limit: u32,
     delay_interval: Duration,
     // Used to keep track of gas prices to set accepted price per pubdata byte in blocks.
-    l1_gas_price_provider: Arc<dyn L1GasPriceProvider>,
+    batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     l2_erc20_bridge_addr: Address,
     chain_id: L2ChainId,
 
@@ -107,13 +108,10 @@ impl StateKeeperIO for MempoolIO {
         .await?;
         // Initialize the filter for the transactions that come after the pending batch.
         // We use values from the pending block to match the filter with one used before the restart.
-        let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(
-            l1_batch_env.l1_gas_price,
-            l1_batch_env.fair_l2_gas_price,
-            system_env.version.into(),
-        );
+        let (base_fee, gas_per_pubdata) =
+            derive_base_fee_and_gas_per_pubdata(l1_batch_env.fee_input, system_env.version.into());
         self.filter = L2TxFilter {
-            l1_gas_price: l1_batch_env.l1_gas_price,
+            fee_input: l1_batch_env.fee_input,
             fee_per_gas: base_fee,
             gas_per_pubdata: gas_per_pubdata as u32,
         };
@@ -152,10 +150,9 @@ impl StateKeeperIO for MempoolIO {
             let current_timestamp = current_timestamp.await.ok()?;
 
             tracing::info!(
-                "(l1_gas_price, fair_l2_gas_price) for L1 batch #{} is ({}, {})",
+                "Fee input for L1 batch #{} is {:#?}",
                 self.current_l1_batch_number.0,
-                self.filter.l1_gas_price,
-                self.fair_l2_gas_price
+                self.filter.fee_input
             );
             let mut storage = self.pool.access_storage().await.unwrap();
             let (base_system_contracts, protocol_version) = storage
@@ -166,8 +163,7 @@ impl StateKeeperIO for MempoolIO {
             // We create a new filter each time, since parameters may change and a previously
             // ignored transaction in the mempool may be scheduled for the execution.
             self.filter = l2_tx_filter(
-                self.l1_gas_price_provider.as_ref(),
-                self.fair_l2_gas_price,
+                self.batch_fee_input_provider.as_ref(),
                 protocol_version.into(),
             );
             // We only need to get the root hash when we're certain that we have a new transaction.
@@ -181,8 +177,7 @@ impl StateKeeperIO for MempoolIO {
                 self.fee_account,
                 current_timestamp,
                 prev_l1_batch_hash,
-                self.filter.l1_gas_price,
-                self.fair_l2_gas_price,
+                self.filter.fee_input,
                 self.current_miniblock_number,
                 prev_miniblock_hash,
                 base_system_contracts,
@@ -406,7 +401,7 @@ impl MempoolIO {
         mempool: MempoolGuard,
         object_store: Box<dyn ObjectStore>,
         miniblock_sealer_handle: MiniblockSealerHandle,
-        l1_gas_price_provider: Arc<dyn L1GasPriceProvider>,
+        batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
         pool: ConnectionPool,
         config: &StateKeeperConfig,
         delay_interval: Duration,
@@ -451,7 +446,7 @@ impl MempoolIO {
             fair_l2_gas_price: config.fair_l2_gas_price,
             validation_computational_gas_limit,
             delay_interval,
-            l1_gas_price_provider,
+            batch_fee_input_provider,
             l2_erc20_bridge_addr,
             chain_id,
             virtual_blocks_interval: config.virtual_blocks_interval,

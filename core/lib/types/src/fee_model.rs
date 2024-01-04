@@ -12,32 +12,28 @@ pub enum BatchFeeInput {
     PubdataIndependent(PubdataIndependentBatchFeeModelInput),
 }
 
-/// The enum which represents the version of the fee model. It is used to determine which fee model should be used for the batch.
-/// - V1, the first model that was used in the zkSync. In this fee model, the pubdata price must be pegged to the L1 gas price.
-/// Also, the fair L2 gas price is expected to only include the proving/computation price for the operator and not the overhead.
-/// - V2, the second model that was used in the zkSync. There the pubdata price might be independent from the L1 gas price. Also,
-/// The fair L2 gas price is expected to both the proving/computation price for the operator and the overhead for closing the batch.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum FeeModelVersion {
-    V1,
-    V2,
-}
-
 impl BatchFeeInput {
-    pub fn zero() -> Self {
+    // Sometimes for temporary usage or tests a "sensible" default, i.e. the one consisting of non-zero values is needed.
+    pub fn sensible_v1_default() -> Self {
         Self::L1Pegged(L1PeggedBatchFeeModelInput {
-            l1_gas_price: 0,
-            fair_l2_gas_price: 0,
+            l1_gas_price: 1_000_000_000,
+            fair_l2_gas_price: 100_000_000,
+        })
+    }
+
+    pub fn l1_pegged(l1_gas_price: u64, fair_l2_gas_price: u64) -> Self {
+        Self::L1Pegged(L1PeggedBatchFeeModelInput {
+            l1_gas_price,
+            fair_l2_gas_price,
         })
     }
 }
 
 impl Default for BatchFeeInput {
     fn default() -> Self {
-        // We have a sensible default value of 1 gwei for L1 gas price and 0.1 gwei for fair L2 gas price.
         Self::L1Pegged(L1PeggedBatchFeeModelInput {
-            l1_gas_price: 1_000_000_000,
-            fair_l2_gas_price: 100_000_000,
+            l1_gas_price: 0,
+            fair_l2_gas_price: 0,
         })
     }
 }
@@ -76,7 +72,7 @@ impl BatchFeeInput {
             BatchFeeInput::PubdataIndependent(input) => input,
             BatchFeeInput::L1Pegged(input) => PubdataIndependentBatchFeeModelInput {
                 fair_l2_gas_price: input.fair_l2_gas_price,
-                fair_pubdata_price: input.l1_gas_price * 17,
+                fair_pubdata_price: input.l1_gas_price * L1_GAS_PER_PUBDATA_BYTE as u64,
                 l1_gas_price: input.l1_gas_price,
             },
         }
@@ -103,8 +99,30 @@ pub struct PubdataIndependentBatchFeeModelInput {
     pub l1_gas_price: u64,
 }
 
+/// The enum which represents the version of the fee model. It is used to determine which fee model should be used for the batch.
+/// - V1, the first model that was used in the zkSync. In this fee model, the pubdata price must be pegged to the L1 gas price.
+/// Also, the fair L2 gas price is expected to only include the proving/computation price for the operator and not the overhead.
+/// - V2, the second model that was used in the zkSync. There the pubdata price might be independent from the L1 gas price. Also,
+/// The fair L2 gas price is expected to both the proving/computation price for the operator and the overhead for closing the batch.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct MainNodeFeeModelConfig {
+pub enum MainNodeFeeModelConfig {
+    V1(MainNodeFeeModelConfigV1),
+    V2(MainNodeFeeModelConfigV2),
+}
+
+/// Config params for the first version of the fee model. Here, the pubdata price is pegged to the L1 gas price and
+/// neither fair L2 gas price nor the pubdata price include the overhead for closing the batch
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct MainNodeFeeModelConfigV1 {
+    /// The factor by which the L1 gas price is scaled. This is used to account for the fact that the L1 gas price may fluctuate.
+    pub l1_gas_price_scale_factor: f64,
+    /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
+    /// as potentially premium for congestion.
+    pub minimal_l2_gas_price: u64,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct MainNodeFeeModelConfigV2 {
     /// The factor by which the L1 gas price is scaled. This is used to account for the fact that the L1 gas price may fluctuate.
     pub l1_gas_price_scale_factor: f64,
     /// The factor by which the L1 pubdata price is scaled. This is used to account for the fact that the L1 pubdata price may fluctuate.
@@ -122,32 +140,47 @@ pub struct MainNodeFeeModelConfig {
     pub max_gas_per_batch: u64,
     /// The maximum amount of pubdata that can be used by the batch.
     pub max_pubdata_per_batch: u64,
-    /// Whether the fee model is L1-pegged or not. If it is, then the L1 gas price is provided to the VM, and the pubdata price is derived from it.
-    pub fee_model_version: FeeModelVersion,
 }
 
 impl Default for MainNodeFeeModelConfig {
     /// Config with all 0s is not a valid config (since for instance having 0 max gas per batch may incur division by zero),
     /// so we implement a sensible default config here.
     fn default() -> Self {
-        Self {
-            // We don't scale L1 prices by default
+        Self::V1(MainNodeFeeModelConfigV1 {
             l1_gas_price_scale_factor: 1.0,
-            l1_pubdata_price_scale_factor: 1.0,
-            minimal_l2_gas_price: 100_000_000, // 0.1 gwei
-            compute_overhead_percent: 0.0,
-            pubdata_overhead_percent: 1.0, // We assume that all the batches are closed because of pubdata limit
-            batch_overhead_l1_gas: 800_000,
-            max_gas_per_batch: 250_000_000,
-            max_pubdata_per_batch: 120_000_000,
-            fee_model_version: FeeModelVersion::V1,
-        }
+            minimal_l2_gas_price: 100_000_000,
+        })
     }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct MainNodeFeeParams {
-    pub config: MainNodeFeeModelConfig,
+pub struct MainNodeFeeParamsV1 {
+    pub config: MainNodeFeeModelConfigV1,
+    pub l1_gas_price: u64,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct MainNodeFeeParamsV2 {
+    pub config: MainNodeFeeModelConfigV2,
     pub l1_gas_price: u64,
     pub l1_pubdata_price: u64,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum MainNodeFeeParams {
+    V1(MainNodeFeeParamsV1),
+    V2(MainNodeFeeParamsV2),
+}
+
+impl MainNodeFeeParams {
+    // Sometimes for temporary usage or tests a "sensible" default, i.e. the one consisting of non-zero values is needed.
+    pub fn sensible_v1_default() -> Self {
+        Self::V1(MainNodeFeeParamsV1 {
+            config: MainNodeFeeModelConfigV1 {
+                l1_gas_price_scale_factor: 1.0,
+                minimal_l2_gas_price: 100_000_000,
+            },
+            l1_gas_price: 1_000_000_000,
+        })
+    }
 }

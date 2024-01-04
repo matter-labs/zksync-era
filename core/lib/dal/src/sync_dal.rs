@@ -188,8 +188,14 @@ mod tests {
             block.virtual_blocks.unwrap(),
             miniblock_header.virtual_blocks
         );
-        assert_eq!(block.l1_gas_price, miniblock_header.l1_gas_price);
-        assert_eq!(block.l2_fair_gas_price, miniblock_header.l2_fair_gas_price);
+        assert_eq!(
+            block.l1_gas_price,
+            miniblock_header.batch_fee_input.l1_gas_price()
+        );
+        assert_eq!(
+            block.l2_fair_gas_price,
+            miniblock_header.batch_fee_input.fair_l2_gas_price()
+        );
         assert_eq!(block.operator_address, operator_address);
         assert!(block.transactions.is_none());
 

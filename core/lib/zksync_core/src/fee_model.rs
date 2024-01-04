@@ -1,20 +1,28 @@
 use std::{fmt, sync::Arc};
 
+use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_types::{
     fee_model::{
-        BatchFeeInput, L1PeggedBatchFeeModelInput, MainNodeFeeModelConfig, MainNodeFeeParams,
-        PubdataIndependentBatchFeeModelInput,
+        BatchFeeInput, L1PeggedBatchFeeModelInput, MainNodeFeeModelConfig,
+        MainNodeFeeModelConfigV1, MainNodeFeeModelConfigV2, MainNodeFeeParams, MainNodeFeeParamsV1,
+        MainNodeFeeParamsV2, PubdataIndependentBatchFeeModelInput,
     },
     U256,
 };
 
-use crate::l1_gas_price::L1GasPriceProvider;
+use crate::{api_server::tx_sender::TxSenderConfig, l1_gas_price::L1GasPriceProvider};
 
-/// Trait responsiblef for providign fee info for a batch
+/// Trait responsible for providing fee info for a batch
 pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
     fn get_batch_fee_input(&self, scale_l1_prices: bool) -> BatchFeeInput {
-        // FIXME: use legacy by default or use a config to regulate it
-        compute_legacy_batch_fee_model_input(self.get_fee_model_params(), scale_l1_prices)
+        let params = self.get_fee_model_params();
+
+        match params {
+            MainNodeFeeParams::V1(params) => {
+                compute_legacy_batch_fee_model_input(params, scale_l1_prices)
+            }
+            MainNodeFeeParams::V2(params) => compute_batch_fee_model_input(params, scale_l1_prices),
+        }
     }
 
     fn get_fee_model_params(&self) -> MainNodeFeeParams;
@@ -28,13 +36,16 @@ pub(crate) struct MainNodeFeeInputProvider<G: ?Sized> {
 
 impl<G: L1GasPriceProvider + ?Sized> BatchFeeModelInputProvider for MainNodeFeeInputProvider<G> {
     fn get_fee_model_params(&self) -> MainNodeFeeParams {
-        let l1_gas_price = self.provider.estimate_effective_gas_price();
-        let l1_pubdata_price = self.provider.estimate_effective_pubdata_price();
-
-        MainNodeFeeParams {
-            config: self.config,
-            l1_gas_price,
-            l1_pubdata_price,
+        match self.config {
+            MainNodeFeeModelConfig::V1(config) => MainNodeFeeParams::V1(MainNodeFeeParamsV1 {
+                config,
+                l1_gas_price: self.provider.estimate_effective_gas_price(),
+            }),
+            MainNodeFeeModelConfig::V2(config) => MainNodeFeeParams::V2(MainNodeFeeParamsV2 {
+                config,
+                l1_gas_price: self.provider.estimate_effective_gas_price(),
+                l1_pubdata_price: self.provider.estimate_effective_pubdata_price(),
+            }),
         }
     }
 }
@@ -48,7 +59,7 @@ impl<G: L1GasPriceProvider + ?Sized> MainNodeFeeInputProvider<G> {
 /// Calculates the batch fee input based on the main node parameters.
 /// This function uses the legacy fee model, used prior to 1.4.1, i.e. where the pubdata price does not include the proving costs.
 pub(crate) fn compute_legacy_batch_fee_model_input(
-    params: MainNodeFeeParams,
+    params: MainNodeFeeParamsV1,
     scale_l1_prices: bool,
 ) -> BatchFeeInput {
     let l1_gas_price_scale_factor = if scale_l1_prices {
@@ -67,16 +78,16 @@ pub(crate) fn compute_legacy_batch_fee_model_input(
 
 /// Calculates the batch fee input based on the main node parameters.
 pub(crate) fn compute_batch_fee_model_input(
-    params: MainNodeFeeParams,
+    params: MainNodeFeeParamsV2,
     scale_l1_prices: bool,
 ) -> BatchFeeInput {
-    let MainNodeFeeParams {
+    let MainNodeFeeParamsV2 {
         config,
         l1_gas_price,
         l1_pubdata_price,
     } = params;
 
-    let MainNodeFeeModelConfig {
+    let MainNodeFeeModelConfigV2 {
         l1_gas_price_scale_factor,
         l1_pubdata_price_scale_factor,
         minimal_l2_gas_price,
@@ -85,7 +96,6 @@ pub(crate) fn compute_batch_fee_model_input(
         batch_overhead_l1_gas,
         max_gas_per_batch,
         max_pubdata_per_batch,
-        ..
     } = config;
 
     let (l1_gas_price_scale_factor, l1_pubdata_price_scale_factor) = if scale_l1_prices {

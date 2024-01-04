@@ -12,8 +12,9 @@ use zk_evm_1_3_1::{
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_types::{
-    zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address, Transaction, BOOTLOADER_ADDRESS,
-    L1_GAS_PER_PUBDATA_BYTE, MAX_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
+    fee_model::L1PeggedBatchFeeModelInput, zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER,
+    Address, Transaction, BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, MAX_GAS_PER_PUBDATA_BYTE,
+    MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::{
     address_to_u256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, misc::ceil_div,
@@ -73,15 +74,19 @@ pub fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
 }
 
 pub(crate) fn derive_base_fee_and_gas_per_pubdata(
-    l1_gas_price: u64,
-    fair_gas_price: u64,
+    fee_input: L1PeggedBatchFeeModelInput,
 ) -> (u64, u64) {
+    let L1PeggedBatchFeeModelInput {
+        l1_gas_price,
+        fair_l2_gas_price,
+    } = fee_input;
+
     let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
 
     // The baseFee is set in such a way that it is always possible to a transaciton to
     // publish enough public data while compensating us for it.
     let base_fee = std::cmp::max(
-        fair_gas_price,
+        fair_l2_gas_price,
         ceil_div(eth_price_per_pubdata_byte, MAX_GAS_PER_PUBDATA_BYTE),
     );
 
@@ -93,8 +98,11 @@ pub(crate) fn derive_base_fee_and_gas_per_pubdata(
 
 impl From<BlockContext> for DerivedBlockContext {
     fn from(context: BlockContext) -> Self {
-        let base_fee =
-            derive_base_fee_and_gas_per_pubdata(context.l1_gas_price, context.fair_l2_gas_price).0;
+        let base_fee = derive_base_fee_and_gas_per_pubdata(L1PeggedBatchFeeModelInput {
+            l1_gas_price: context.l1_gas_price,
+            fair_l2_gas_price: context.fair_l2_gas_price,
+        })
+        .0;
 
         DerivedBlockContext { context, base_fee }
     }

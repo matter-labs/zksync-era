@@ -12,9 +12,10 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
 use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
+use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
-    block::MiniblockHeader, fee::TransactionExecutionMetrics, tx::IncludedTxLocation, Address,
-    L1BatchNumber, ProtocolVersionId, VmEvent, H256, U64,
+    block::MiniblockHeader, fee::TransactionExecutionMetrics, fee_model::BatchFeeInput,
+    tx::IncludedTxLocation, Address, L1BatchNumber, ProtocolVersionId, VmEvent, H256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::{core::ClientError as RpcError, http_client::HttpClient, types::error::ErrorCode},
@@ -42,6 +43,10 @@ struct MockL1GasPriceProvider(u64);
 impl L1GasPriceProvider for MockL1GasPriceProvider {
     fn estimate_effective_gas_price(&self) -> u64 {
         self.0
+    }
+
+    fn estimate_effective_pubdata_price(&self) -> u64 {
+        self.0 * L1_GAS_PER_PUBDATA_BYTE as u64
     }
 }
 
@@ -213,8 +218,7 @@ fn create_miniblock(number: u32) -> MiniblockHeader {
         l1_tx_count: 0,
         l2_tx_count: 0,
         base_fee_per_gas: 100,
-        l1_gas_price: 100,
-        l2_fair_gas_price: 100,
+        batch_fee_input: BatchFeeInput::l1_pegged(100, 100),
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         virtual_blocks: 1,

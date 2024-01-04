@@ -8,22 +8,23 @@ use zksync_mempool::L2TxFilter;
 use zksync_types::{ProtocolVersionId, VmVersion};
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
-use crate::{api_server::execution_sandbox::BlockArgs, l1_gas_price::L1GasPriceProvider};
+use crate::{
+    api_server::execution_sandbox::BlockArgs, fee_model::BatchFeeModelInputProvider,
+    l1_gas_price::L1GasPriceProvider,
+};
 
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.
 /// The filter is used to filter out transactions from the mempool that do not cover expenses
 /// to process them.
 pub fn l2_tx_filter(
-    gas_price_provider: &dyn L1GasPriceProvider,
-    fair_l2_gas_price: u64,
+    batch_fee_input_provider: &dyn BatchFeeModelInputProvider,
     vm_version: VmVersion,
 ) -> L2TxFilter {
-    let effective_gas_price = gas_price_provider.estimate_effective_gas_price();
+    let fee_input = batch_fee_input_provider.get_batch_fee_input(false);
 
-    let (base_fee, gas_per_pubdata) =
-        derive_base_fee_and_gas_per_pubdata(effective_gas_price, fair_l2_gas_price, vm_version);
+    let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(fee_input, vm_version);
     L2TxFilter {
-        l1_gas_price: effective_gas_price,
+        fee_input,
         fee_per_gas: base_fee,
         gas_per_pubdata: gas_per_pubdata as u32,
     }
@@ -32,20 +33,20 @@ pub fn l2_tx_filter(
 #[derive(Debug)]
 pub struct MempoolFetcher<G> {
     mempool: MempoolGuard,
-    l1_gas_price_provider: Arc<G>,
+    batch_fee_input_provider: Arc<G>,
     sync_interval: Duration,
     sync_batch_size: usize,
 }
 
-impl<G: L1GasPriceProvider> MempoolFetcher<G> {
+impl<G: BatchFeeModelInputProvider> MempoolFetcher<G> {
     pub fn new(
         mempool: MempoolGuard,
-        l1_gas_price_provider: Arc<G>,
+        batch_fee_input_provider: Arc<G>,
         config: &MempoolConfig,
     ) -> Self {
         Self {
             mempool,
-            l1_gas_price_provider,
+            batch_fee_input_provider,
             sync_interval: config.sync_interval(),
             sync_batch_size: config.sync_batch_size,
         }
@@ -56,7 +57,6 @@ impl<G: L1GasPriceProvider> MempoolFetcher<G> {
         pool: ConnectionPool,
         remove_stuck_txs: bool,
         stuck_tx_timeout: Duration,
-        fair_l2_gas_price: u64,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         {
@@ -90,8 +90,7 @@ impl<G: L1GasPriceProvider> MempoolFetcher<G> {
                 .unwrap_or_else(ProtocolVersionId::latest);
 
             let l2_tx_filter = l2_tx_filter(
-                self.l1_gas_price_provider.as_ref(),
-                fair_l2_gas_price,
+                self.batch_fee_input_provider.as_ref(),
                 protocol_version.into(),
             );
 

@@ -41,9 +41,9 @@ impl UpdatesManager {
     ) -> Self {
         Self {
             batch_timestamp: l1_batch_env.timestamp,
-            l1_gas_price: l1_batch_env.l1_gas_price,
-            fair_l2_gas_price: l1_batch_env.fair_l2_gas_price,
-            base_fee_per_gas: l1_batch_env.base_fee(),
+            l1_gas_price: l1_batch_env.fee_input.l1_gas_price(),
+            fair_l2_gas_price: l1_batch_env.fee_input.fair_l2_gas_price(),
+            base_fee_per_gas: l1_batch_env.base_fee(protocol_version.into()),
             protocol_version,
             base_system_contract_hashes,
             l1_batch: L1BatchUpdates::new(),

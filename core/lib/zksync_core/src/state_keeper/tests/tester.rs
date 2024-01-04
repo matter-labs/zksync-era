@@ -15,7 +15,7 @@ use multivm::{
 };
 use tokio::sync::{mpsc, watch};
 use zksync_types::{
-    block::MiniblockExecutionData, protocol_version::ProtocolUpgradeTx,
+    block::MiniblockExecutionData, fee_model::BatchFeeInput, protocol_version::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
     ProtocolVersionId, Transaction, H256,
 };
@@ -650,8 +650,7 @@ impl StateKeeperIO for TestIO {
                 previous_batch_hash: Some(H256::zero()),
                 number: self.batch_number,
                 timestamp: self.timestamp,
-                l1_gas_price: self.l1_gas_price,
-                fair_l2_gas_price: self.fair_l2_gas_price,
+                fee_input: BatchFeeInput::l1_pegged(self.l1_gas_price, self.fair_l2_gas_price),
                 fee_account: self.fee_account,
                 enforced_base_fee: None,
                 first_l2_block: first_miniblock_info,

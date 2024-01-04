@@ -14,6 +14,7 @@ use zksync_types::{
     block::MiniblockHasher,
     ethabi::{encode, Token},
     fee::Fee,
+    fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms,
     l2::L2Tx,
     utils::storage_key_for_eth_balance,
@@ -69,8 +70,10 @@ impl BenchmarkingVm {
                 previous_batch_hash: None,
                 number: L1BatchNumber(1),
                 timestamp,
-                l1_gas_price: 50_000_000_000,   // 50 gwei
-                fair_l2_gas_price: 250_000_000, // 0.25 gwei
+                fee_input: BatchFeeInput::l1_pegged(
+                    50_000_000_000, // 50 gwei
+                    250_000_000,    // 0.25 gwei
+                ),
                 fee_account: Address::random(),
                 enforced_base_fee: None,
                 first_l2_block: L2BlockEnv {
