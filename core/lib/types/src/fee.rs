@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
+use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_utils::ceil_div;
 
-use crate::U256;
+use crate::{ProtocolVersionId, U256};
 
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "result")]
