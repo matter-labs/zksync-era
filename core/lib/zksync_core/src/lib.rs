@@ -521,7 +521,7 @@ pub async fn initialize_components(
             start_eth_watch(
                 eth_watch_config,
                 eth_watch_pool,
-                query_client.clone(),
+                Box::new(query_client.clone()),
                 main_zksync_contract_address,
                 governance,
                 stop_receiver.clone(),
