@@ -1,5 +1,6 @@
-use metrics_exporter_prometheus::PrometheusBuilder;
 use std::time::Duration;
+
+use metrics_exporter_prometheus::PrometheusBuilder;
 
 pub fn with_prometheus<F: FnOnce()>(f: F) {
     println!("Pushing results to Prometheus");

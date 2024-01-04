@@ -1,6 +1,3 @@
-use async_trait::async_trait;
-use tokio::sync::{mpsc, watch};
-
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     convert::TryInto,
@@ -8,11 +5,15 @@ use std::{
     time::{Duration, Instant},
 };
 
-use multivm::interface::{
-    ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
-    VmExecutionResultAndLogs,
+use async_trait::async_trait;
+use multivm::{
+    interface::{
+        ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
+        VmExecutionResultAndLogs,
+    },
+    vm_latest::constants::BLOCK_GAS_LIMIT,
 };
-use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
+use tokio::sync::{mpsc, watch};
 use zksync_types::{
     block::MiniblockExecutionData, protocol_version::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
@@ -22,7 +23,7 @@ use zksync_types::{
 use crate::state_keeper::{
     batch_executor::{BatchExecutorHandle, Command, L1BatchExecutorBuilder, TxExecutionResult},
     io::{MiniblockParams, PendingBatchData, StateKeeperIO},
-    seal_criteria::{ConditionalSealer, IoSealCriteria},
+    seal_criteria::{IoSealCriteria, SequencerSealer},
     tests::{
         create_l2_transaction, default_l1_batch_env, default_vm_block_result, BASE_SYSTEM_CONTRACTS,
     },
@@ -188,7 +189,7 @@ impl TestScenario {
 
     /// Launches the test.
     /// Provided `SealManager` is expected to be externally configured to adhere the written scenario logic.
-    pub(crate) async fn run(self, sealer: ConditionalSealer) {
+    pub(crate) async fn run(self, sealer: SequencerSealer) {
         assert!(!self.actions.is_empty(), "Test scenario can't be empty");
 
         let batch_executor_base = TestBatchExecutorBuilder::new(&self);
@@ -198,7 +199,7 @@ impl TestScenario {
             stop_receiver,
             Box::new(io),
             Box::new(batch_executor_base),
-            sealer,
+            Box::new(sealer),
         );
         let sk_thread = tokio::spawn(sk.run());
 
@@ -767,5 +768,37 @@ impl StateKeeperIO for TestIO {
         _version_id: ProtocolVersionId,
     ) -> Option<ProtocolUpgradeTx> {
         None
+    }
+}
+
+/// `L1BatchExecutorBuilder` which doesn't check anything at all.
+/// Accepts all transactions.
+#[derive(Debug)]
+pub(crate) struct MockBatchExecutorBuilder;
+
+#[async_trait]
+impl L1BatchExecutorBuilder for MockBatchExecutorBuilder {
+    async fn init_batch(
+        &mut self,
+        _l1batch_params: L1BatchEnv,
+        _system_env: SystemEnv,
+    ) -> BatchExecutorHandle {
+        let (send, recv) = tokio::sync::mpsc::channel(1);
+        let handle = tokio::task::spawn(async {
+            let mut recv = recv;
+            while let Some(cmd) = recv.recv().await {
+                match cmd {
+                    Command::ExecuteTx(_, resp) => resp.send(successful_exec()).unwrap(),
+                    Command::StartNextMiniblock(_, resp) => resp.send(()).unwrap(),
+                    Command::RollbackLastTx(_) => panic!("unexpected rollback"),
+                    Command::FinishBatch(resp) => {
+                        // Blanket result, it doesn't really matter.
+                        resp.send((default_vm_block_result(), None)).unwrap();
+                        return;
+                    }
+                }
+            }
+        });
+        BatchExecutorHandle::from_raw(handle, send)
     }
 }

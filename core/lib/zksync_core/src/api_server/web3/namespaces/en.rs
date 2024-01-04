@@ -1,28 +1,17 @@
 use zksync_types::{api::en::SyncBlock, MiniblockNumber};
 use zksync_web3_decl::error::Web3Error;
 
-use crate::{
-    api_server::{web3::backend_jsonrpc::error::internal_error, web3::state::RpcState},
-    l1_gas_price::L1GasPriceProvider,
-};
+use crate::api_server::web3::{backend_jsonrpsee::internal_error, state::RpcState};
 
 /// Namespace for External Node unique methods.
 /// Main use case for it is the EN synchronization.
 #[derive(Debug)]
-pub struct EnNamespace<G> {
-    pub state: RpcState<G>,
+pub struct EnNamespace {
+    pub state: RpcState,
 }
 
-impl<G> Clone for EnNamespace<G> {
-    fn clone(&self) -> Self {
-        Self {
-            state: self.state.clone(),
-        }
-    }
-}
-
-impl<G: L1GasPriceProvider> EnNamespace<G> {
-    pub fn new(state: RpcState<G>) -> Self {
+impl EnNamespace {
+    pub fn new(state: RpcState) -> Self {
         Self { state }
     }
 

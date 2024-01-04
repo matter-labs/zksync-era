@@ -1,3 +1,10 @@
+use std::convert::{TryFrom, TryInto};
+
+use num_enum::TryFromPrimitive;
+use serde::{Deserialize, Serialize};
+use zksync_contracts::BaseSystemContractsHashes;
+use zksync_utils::u256_to_account_address;
+
 use crate::{
     ethabi::{decode, encode, ParamType, Token},
     helpers::unix_timestamp_ms,
@@ -8,11 +15,6 @@ use crate::{
     Address, Execute, ExecuteTransactionCommon, Log, Transaction, TransactionType, VmVersion, H256,
     PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
-use num_enum::TryFromPrimitive;
-use serde::{Deserialize, Serialize};
-use std::convert::{TryFrom, TryInto};
-use zksync_contracts::BaseSystemContractsHashes;
-use zksync_utils::u256_to_account_address;
 
 #[repr(u16)]
 #[derive(
@@ -39,15 +41,16 @@ pub enum ProtocolVersionId {
     Version17,
     Version18,
     Version19,
+    Version20,
 }
 
 impl ProtocolVersionId {
     pub fn latest() -> Self {
-        Self::Version18
+        Self::Version19
     }
 
     pub fn next() -> Self {
-        Self::Version19
+        Self::Version20
     }
 
     /// Returns VM version to be used by API for this protocol version.
@@ -74,6 +77,7 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version18 => VmVersion::VmBoojumIntegration,
             ProtocolVersionId::Version19 => VmVersion::VmBoojumIntegration,
+            ProtocolVersionId::Version20 => VmVersion::VmBoojumIntegration,
         }
     }
 
@@ -274,18 +278,19 @@ impl TryFrom<Log> for ProtocolUpgrade {
                 ParamType::Uint(256),                         // version id
                 ParamType::Address,                           // allow list address
             ])],
-            &init_calldata[4..],
+            init_calldata
+                .get(4..)
+                .ok_or(crate::ethabi::Error::InvalidData)?,
         )?;
 
-        let mut decoded = match decoded.remove(0) {
-            Token::Tuple(x) => x,
-            _ => unreachable!(),
+        let Token::Tuple(mut decoded) = decoded.remove(0) else {
+            unreachable!();
         };
 
-        let mut transaction = match decoded.remove(0) {
-            Token::Tuple(x) => x,
-            _ => unreachable!(),
+        let Token::Tuple(mut transaction) = decoded.remove(0) else {
+            unreachable!()
         };
+
         let factory_deps = decoded.remove(0).into_array().unwrap();
 
         let tx = {
@@ -399,9 +404,8 @@ impl TryFrom<Log> for ProtocolUpgrade {
         let default_account_code_hash =
             H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
         let verifier_address = decoded.remove(0).into_address().unwrap();
-        let mut verifier_params = match decoded.remove(0) {
-            Token::Tuple(tx) => tx,
-            _ => unreachable!(),
+        let Token::Tuple(mut verifier_params) = decoded.remove(0) else {
+            unreachable!()
         };
         let recursion_node_level_vk_hash =
             H256::from_slice(&verifier_params.remove(0).into_fixed_bytes().unwrap());
@@ -428,8 +432,8 @@ impl TryFrom<Log> for ProtocolUpgrade {
             default_account_code_hash: (default_account_code_hash != H256::zero())
                 .then_some(default_account_code_hash),
             verifier_params: (recursion_node_level_vk_hash != H256::zero()
-                && recursion_leaf_level_vk_hash != H256::zero()
-                && recursion_circuits_set_vks_hash != H256::zero())
+                || recursion_leaf_level_vk_hash != H256::zero()
+                || recursion_circuits_set_vks_hash != H256::zero())
             .then_some(VerifierParams {
                 recursion_node_level_vk_hash,
                 recursion_leaf_level_vk_hash,
@@ -693,6 +697,7 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version18 => VmVersion::VmBoojumIntegration,
             ProtocolVersionId::Version19 => VmVersion::VmBoojumIntegration,
+            ProtocolVersionId::Version20 => VmVersion::VmBoojumIntegration,
         }
     }
 }

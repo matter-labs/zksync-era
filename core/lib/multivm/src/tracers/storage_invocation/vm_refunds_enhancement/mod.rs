@@ -1,9 +1,14 @@
-use crate::interface::tracer::{TracerExecutionStatus, TracerExecutionStopReason};
-use crate::interface::{traits::tracers::dyn_tracers::vm_1_3_3::DynTracer, Halt};
-use crate::tracers::storage_invocation::StorageInvocations;
-use crate::vm_refunds_enhancement::VmTracer;
-use crate::vm_refunds_enhancement::{BootloaderState, HistoryMode, SimpleMemory, ZkSyncVmState};
 use zksync_state::WriteStorage;
+
+use crate::{
+    interface::{
+        tracer::{TracerExecutionStatus, TracerExecutionStopReason},
+        traits::tracers::dyn_tracers::vm_1_3_3::DynTracer,
+        Halt,
+    },
+    tracers::storage_invocation::StorageInvocations,
+    vm_refunds_enhancement::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState},
+};
 
 impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for StorageInvocations {}
 

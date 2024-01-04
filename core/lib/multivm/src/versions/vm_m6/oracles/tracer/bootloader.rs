@@ -1,12 +1,5 @@
 use std::marker::PhantomData;
 
-use crate::vm_m6::history_recorder::HistoryMode;
-use crate::vm_m6::memory::SimpleMemory;
-use crate::vm_m6::oracles::tracer::{
-    utils::gas_spent_on_bytecodes_and_long_messages_this_opcode, ExecutionEndTracer,
-    PendingRefundTracer, PubdataSpentTracer, StorageInvocationTracer,
-};
-
 use zk_evm_1_3_1::{
     abstractions::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
@@ -16,7 +9,16 @@ use zk_evm_1_3_1::{
     zkevm_opcode_defs::{Opcode, RetOpcode},
 };
 
-/// Tells the VM to end the execution before `ret` from the booloader if there is no panic or revert.
+use crate::vm_m6::{
+    history_recorder::HistoryMode,
+    memory::SimpleMemory,
+    oracles::tracer::{
+        utils::gas_spent_on_bytecodes_and_long_messages_this_opcode, ExecutionEndTracer,
+        PendingRefundTracer, PubdataSpentTracer, StorageInvocationTracer,
+    },
+};
+
+/// Tells the VM to end the execution before `ret` from the bootloader if there is no panic or revert.
 /// Also, saves the information if this `ret` was caused by "out of gas" panic.
 #[derive(Debug, Clone, Default)]
 pub struct BootloaderTracer<H: HistoryMode> {

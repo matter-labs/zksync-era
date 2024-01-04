@@ -1,11 +1,12 @@
 //! Generates rust code from protobufs.
 fn main() {
-    zksync_protobuf::build::Config {
+    zksync_protobuf_build::Config {
         input_root: "src/proto".into(),
         proto_root: "zksync/config".into(),
         dependencies: vec![],
-        protobuf_crate: "::zksync_protobuf".into(),
+        protobuf_crate: "::zksync_protobuf".parse().unwrap(),
+        is_public: true,
     }
     .generate()
-    .expect("generate()");
+    .unwrap();
 }

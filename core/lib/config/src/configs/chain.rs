@@ -1,11 +1,7 @@
-/// External uses
+use std::{str::FromStr, time::Duration};
+
 use serde::Deserialize;
-use std::str::FromStr;
-/// Built-in uses
-use std::time::Duration;
-// Local uses
-use zksync_basic_types::network::Network;
-use zksync_basic_types::{Address, L2ChainId};
+use zksync_basic_types::{network::Network, Address, L2ChainId};
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ChainConfig {
@@ -76,7 +72,7 @@ pub struct StateKeeperConfig {
     pub close_block_at_geometry_percentage: f64,
     /// Denotes the percentage of L1 params used in L2 block that triggers L2 block seal.
     pub close_block_at_eth_params_percentage: f64,
-    /// Denotes the percentage of L1 gas used in l2 block that triggers L2 block seal.
+    /// Denotes the percentage of L1 gas used in L2 block that triggers L2 block seal.
     pub close_block_at_gas_percentage: f64,
 
     pub fee_account_addr: Address,

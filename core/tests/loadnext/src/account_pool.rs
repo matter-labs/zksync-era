@@ -3,7 +3,6 @@ use std::{collections::VecDeque, convert::TryFrom, str::FromStr, sync::Arc, time
 use once_cell::sync::OnceCell;
 use rand::Rng;
 use tokio::time::timeout;
-
 use zksync::{signer::Signer, HttpClient, HttpClientBuilder, Wallet, ZksNamespaceClient};
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_types::{tx::primitives::PackedEthSignature, Address, L2ChainId, H256};
@@ -76,7 +75,7 @@ pub struct TestWallet {
 }
 
 /// Pool of accounts to be used in the test.
-/// Each account is represented as `zksync::Wallet` in order to provide convenient interface of interation with zkSync.
+/// Each account is represented as `zksync::Wallet` in order to provide convenient interface of interaction with zkSync.
 #[derive(Debug)]
 pub struct AccountPool {
     /// Main wallet that will be used to initialize all the test wallets.

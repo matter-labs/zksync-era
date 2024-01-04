@@ -9,10 +9,13 @@ export async function deployVerifier(
     gasPrice?: number
 ) {
     const cwd = process.cwd();
-    process.chdir(`${process.env.ZKSYNC_HOME}/contracts/ethereum/`);
+    process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l1-contracts/`);
     let argsString = '';
     if (l1Rpc) {
         argsString += ` --l1rpc ${l1Rpc}`;
+    }
+    if (privateKey) {
+        argsString += ` --private-key ${privateKey}`;
     }
     if (nonce) {
         argsString += ` --nonce ${nonce}`;

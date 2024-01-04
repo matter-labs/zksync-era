@@ -7,6 +7,11 @@ on:
         type: string
         required: false
         default: "latest2.0"
+      compilers:
+        description: 'JSON of required compilers and their versions'
+        type: string
+        required: false
+        default: '[{ "zksolc": ["1.3.14", "1.3.16", "1.3.17", "1.3.1", "1.3.7", "1.3.18", "1.3.19"] } , { "zkvyper": ["1.3.13"] }]'
 
 jobs:
   build-images:
@@ -25,15 +30,34 @@ jobs:
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
 
+      # TODO: Remove after when we can upgrade hardhat-plugins
+      - name: pre-download compiilers
+        run: |
+          # Download needed versions of vyper compiler
+          # Not sanitized due to unconventional path and tags
+          mkdir -p ./hardhat-nodejs/compilers-v2/vyper/linux
+          wget -nv -O ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.linux
+          wget -nv -O ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.3 https://github.com/vyperlang/vyper/releases/download/v0.3.3/vyper.0.3.3+commit.48e326f0.linux
+          chmod +x  ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.10
+          chmod +x  ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.3
+
+          COMPILERS_JSON='${{ inputs.compilers }}'
+          echo "$COMPILERS_JSON" | jq -r '.[] | to_entries[] | .key as $compiler | .value[] | "\(.),\($compiler)"' | while IFS=, read -r version compiler; do
+            mkdir -p "./hardhat-nodejs/compilers-v2/$compiler"
+            wget -nv -O "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}" "https://github.com/matter-labs/${compiler}-bin/releases/download/v${version}/${compiler}-linux-amd64-musl-v${version}"
+            chmod +x "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}"
+          done
+
       - name: start-services
         run: |
-          docker-compose -f docker-compose-runner.yml up -d zk geth postgres
+          mkdir -p ./volumes/postgres
+          docker compose up -d zk postgres
 
       - name: init
         run: |
           ci_run git config --global --add safe.directory /usr/src/zksync
           ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
-          ci_run git config --global --add safe.directory /usr/src/zksync/etc/system-contracts
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
           ci_run zk

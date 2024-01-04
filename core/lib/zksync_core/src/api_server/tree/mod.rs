@@ -1,5 +1,7 @@
 //! Primitive Merkle tree API used internally to fetch proofs.
 
+use std::{fmt, future::Future, net::SocketAddr, pin::Pin};
+
 use anyhow::Context as _;
 use async_trait::async_trait;
 use axum::{
@@ -10,18 +12,15 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::watch;
-
-use std::{fmt, future::Future, net::SocketAddr, pin::Pin};
-
 use zksync_merkle_tree::NoVersionError;
 use zksync_types::{L1BatchNumber, H256, U256};
+
+use self::metrics::{MerkleTreeApiMethod, API_METRICS};
+use crate::metadata_calculator::{AsyncTreeReader, MerkleTreeInfo};
 
 mod metrics;
 #[cfg(test)]
 mod tests;
-
-use self::metrics::{MerkleTreeApiMethod, API_METRICS};
-use crate::metadata_calculator::{AsyncTreeReader, MerkleTreeInfo};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct TreeProofsRequest {
@@ -54,7 +53,7 @@ impl TreeEntryWithProof {
         let mut merkle_path = src.merkle_path;
         merkle_path.reverse(); // Use root-to-leaf enumeration direction as in Ethereum
         Self {
-            value: src.base.value_hash,
+            value: src.base.value,
             index: src.base.leaf_index,
             merkle_path,
         }
@@ -119,14 +118,13 @@ impl TreeApiClient for AsyncTreeReader {
 
 /// [`TreeApiClient`] implementation requesting data from a Merkle tree API server.
 #[derive(Debug, Clone)]
-pub(crate) struct TreeApiHttpClient {
+pub struct TreeApiHttpClient {
     inner: reqwest::Client,
     info_url: String,
     proofs_url: String,
 }
 
 impl TreeApiHttpClient {
-    #[cfg(test)] // temporary measure until `TreeApiClient` is required by other components
     pub fn new(url_base: &str) -> Self {
         Self {
             inner: reqwest::Client::new(),

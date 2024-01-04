@@ -110,7 +110,6 @@ impl ProtoRepr for proto::Web3JsonRpc {
             max_nonce_ahead: *required(&self.max_nonce_ahead).context("max_nonce_ahead")?,
             gas_price_scale_factor: *required(&self.gas_price_scale_factor)
                 .context("gas_price_scale_factor")?,
-            transactions_per_sec_limit: self.transactions_per_sec_limit,
             request_timeout: self.request_timeout,
             account_pks: match &self.account_pks {
                 None => None,
@@ -173,7 +172,12 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .map(|x| x.try_into())
                 .transpose()
                 .context("max_response_body_size_mb")?,
-            websocket_requests_per_minute_limit: self.websocket_requests_per_minute_limit,
+            websocket_requests_per_minute_limit: self
+                .websocket_requests_per_minute_limit
+                .map(|x| x.try_into())
+                .transpose()
+                .context("websocket_requests_per_minute_limit")?,
+            tree_api_url: self.tree_api_url.clone(),
         })
     }
     fn build(this: &Self::Type) -> Self {
@@ -189,7 +193,6 @@ impl ProtoRepr for proto::Web3JsonRpc {
             threads_per_server: Some(this.threads_per_server),
             max_nonce_ahead: Some(this.max_nonce_ahead),
             gas_price_scale_factor: Some(this.gas_price_scale_factor),
-            transactions_per_sec_limit: this.transactions_per_sec_limit,
             request_timeout: this.request_timeout,
             account_pks: this.account_pks.as_ref().map(|keys| proto::PrivateKeys {
                 keys: keys.iter().map(|k| k.as_bytes().into()).collect(),
@@ -219,7 +222,10 @@ impl ProtoRepr for proto::Web3JsonRpc {
             max_response_body_size_mb: this
                 .max_response_body_size_mb
                 .map(|x| x.try_into().unwrap()),
-            websocket_requests_per_minute_limit: this.websocket_requests_per_minute_limit,
+            websocket_requests_per_minute_limit: this
+                .websocket_requests_per_minute_limit
+                .map(|x| x.into()),
+            tree_api_url: this.tree_api_url.clone(),
         }
     }
 }

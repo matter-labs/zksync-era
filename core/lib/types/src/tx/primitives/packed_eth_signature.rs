@@ -1,6 +1,3 @@
-use crate::tx::primitives::eip712_signature::typed_structure::{
-    EIP712TypedStructure, Eip712Domain,
-};
 use ethereum_types_old::H256 as ParityCryptoH256;
 use parity_crypto::{
     publickey::{
@@ -14,7 +11,11 @@ use thiserror::Error;
 use zksync_basic_types::{Address, H256};
 use zksync_utils::ZeroPrefixHexSerde;
 
-/// Struct used for working with ethereum signatures created using eth_sign (using geth, ethers.js, etc)
+use crate::tx::primitives::eip712_signature::typed_structure::{
+    EIP712TypedStructure, Eip712Domain,
+};
+
+/// Struct used for working with Ethereum signatures created using eth_sign (using geth, ethers.js, etc)
 /// message is serialized as 65 bytes long `0x` prefixed string.
 ///
 /// Some notes on implementation of methods of this structure:
@@ -66,7 +67,7 @@ impl PackedEthSignature {
         Ok(PackedEthSignature(ETHSignature::from(signature)))
     }
 
-    /// Signs message using ethereum private key, results are identical to signature created
+    /// Signs message using Ethereum private key, results are identical to signature created
     /// using `geth`, `ethers.js`, etc. No hashing and prefixes required.
     pub fn sign(private_key: &H256, msg: &[u8]) -> Result<PackedEthSignature, ParityCryptoError> {
         let signed_bytes = Self::message_to_signed_bytes(msg);
@@ -85,7 +86,7 @@ impl PackedEthSignature {
         Ok(PackedEthSignature(signature))
     }
 
-    /// Signs typed struct using ethereum private key by EIP-712 signature standard.
+    /// Signs typed struct using Ethereum private key by EIP-712 signature standard.
     /// Result of this function is the equivalent of RPC calling `eth_signTypedData`.
     pub fn sign_typed_data(
         private_key: &H256,
@@ -115,7 +116,7 @@ impl PackedEthSignature {
         msg.keccak256().into()
     }
 
-    /// Checks signature and returns ethereum address of the signer.
+    /// Checks signature and returns Ethereum address of the signer.
     /// message should be the same message that was passed to `eth.sign`(or similar) method
     /// as argument. No hashing and prefixes required.
     pub fn signature_recover_signer(

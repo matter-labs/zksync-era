@@ -1,15 +1,19 @@
 use std::collections::HashMap;
 
-use zk_evm_1_4_0::aux_structures::Timestamp;
-use zk_evm_1_4_0::vm_state::VmLocalState;
+use zk_evm_1_4_0::{aux_structures::Timestamp, vm_state::VmLocalState};
 use zksync_state::WriteStorage;
-
 use zksync_types::{StorageKey, StorageLogQuery, StorageValue, U256};
 
-use crate::vm_latest::old_vm::event_sink::InMemoryEventSink;
-use crate::vm_latest::old_vm::history_recorder::{AppDataFrameManagerWithHistory, HistoryRecorder};
-use crate::vm_latest::{HistoryEnabled, HistoryMode, SimpleMemory, Vm};
-use crate::HistoryMode as CommonHistoryMode;
+use crate::{
+    vm_latest::{
+        old_vm::{
+            event_sink::InMemoryEventSink,
+            history_recorder::{AppDataFrameManagerWithHistory, HistoryRecorder},
+        },
+        HistoryEnabled, HistoryMode, SimpleMemory, Vm,
+    },
+    HistoryMode as CommonHistoryMode,
+};
 
 #[derive(Clone, Debug)]
 pub(crate) struct ModifiedKeysMap(HashMap<StorageKey, StorageValue>);
@@ -34,7 +38,7 @@ impl PartialEq for ModifiedKeysMap {
 
 #[derive(Clone, PartialEq, Debug)]
 pub(crate) struct DecommitterTestInnerState<H: HistoryMode> {
-    /// There is no way to "trully" compare the storage pointer,
+    /// There is no way to "truly" compare the storage pointer,
     /// so we just compare the modified keys. This is reasonable enough.
     pub(crate) modified_storage_keys: ModifiedKeysMap,
     pub(crate) known_bytecodes: HistoryRecorder<HashMap<U256, Vec<U256>>, H>,
@@ -43,7 +47,7 @@ pub(crate) struct DecommitterTestInnerState<H: HistoryMode> {
 
 #[derive(Clone, PartialEq, Debug)]
 pub(crate) struct StorageOracleInnerState<H: HistoryMode> {
-    /// There is no way to "trully" compare the storage pointer,
+    /// There is no way to "truly" compare the storage pointer,
     /// so we just compare the modified keys. This is reasonable enough.
     pub(crate) modified_storage_keys: ModifiedKeysMap,
 
@@ -74,7 +78,7 @@ pub(crate) struct VmInstanceInnerState<H: HistoryMode> {
 
 impl<S: WriteStorage, H: CommonHistoryMode> Vm<S, H> {
     // Dump inner state of the VM.
-    pub(crate) fn dump_inner_state(&self) -> VmInstanceInnerState<H::VmBoojumIntegration> {
+    pub(crate) fn dump_inner_state(&self) -> VmInstanceInnerState<H::VmLatest> {
         let event_sink = self.state.event_sink.clone();
         let precompile_processor_state = PrecompileProcessorTestInnerState {
             timestamp_history: self.state.precompiles_processor.timestamp_history.clone(),

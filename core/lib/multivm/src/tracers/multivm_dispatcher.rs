@@ -1,5 +1,6 @@
-use crate::{HistoryMode, MultiVmTracerPointer};
 use zksync_state::WriteStorage;
+
+use crate::{HistoryMode, MultiVmTracerPointer};
 
 /// Tracer dispatcher is a tracer that can dispatch calls to multiple tracers.
 pub struct TracerDispatcher<S, H> {
@@ -29,10 +30,24 @@ impl<S: WriteStorage, H: HistoryMode> Default for TracerDispatcher<S, H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>>
-    for crate::vm_latest::TracerDispatcher<S, H::VmBoojumIntegration>
+    for crate::vm_latest::TracerDispatcher<S, H::VmLatest>
 {
     fn from(value: TracerDispatcher<S, H>) -> Self {
         Self::new(value.tracers.into_iter().map(|x| x.latest()).collect())
+    }
+}
+
+impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>>
+    for crate::vm_boojum_integration::TracerDispatcher<S, H::VmBoojumIntegration>
+{
+    fn from(value: TracerDispatcher<S, H>) -> Self {
+        Self::new(
+            value
+                .tracers
+                .into_iter()
+                .map(|x| x.vm_boojum_integration())
+                .collect(),
+        )
     }
 }
 

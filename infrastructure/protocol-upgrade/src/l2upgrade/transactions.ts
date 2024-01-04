@@ -1,7 +1,7 @@
 import { BytesLike } from 'ethers';
-import { ComplexUpgraderFactory, ContractDeployerFactory } from '../../../../etc/system-contracts/typechain';
+import { ComplexUpgraderFactory, ContractDeployerFactory } from 'system-contracts/typechain';
 import { ForceDeployment, L2CanonicalTransaction } from '../transaction';
-import { ForceDeployUpgraderFactory } from 'l2-zksync-contracts/typechain';
+import { ForceDeployUpgraderFactory } from 'l2-contracts/typechain';
 import { Command } from 'commander';
 import { getCommonDataFileName, getL2UpgradeFileName } from '../utils';
 import fs from 'fs';

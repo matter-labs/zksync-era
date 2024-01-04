@@ -1,5 +1,3 @@
-use async_trait::async_trait;
-
 use std::{
     cmp,
     collections::HashMap,
@@ -7,9 +5,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
-use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
-
+use async_trait::async_trait;
+use multivm::{
+    interface::{FinishedL1Batch, L1BatchEnv, SystemEnv},
+    vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata,
+};
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
@@ -43,7 +43,7 @@ use crate::{
 /// Decides which batch parameters should be used for the new batch.
 /// This is an IO for the main server application.
 #[derive(Debug)]
-pub(crate) struct MempoolIO<G> {
+pub(crate) struct MempoolIO {
     mempool: MempoolGuard,
     pool: ConnectionPool,
     object_store: Box<dyn ObjectStore>,
@@ -57,7 +57,7 @@ pub(crate) struct MempoolIO<G> {
     validation_computational_gas_limit: u32,
     delay_interval: Duration,
     // Used to keep track of gas prices to set accepted price per pubdata byte in blocks.
-    l1_gas_price_provider: Arc<G>,
+    l1_gas_price_provider: Arc<dyn L1GasPriceProvider>,
     l2_erc20_bridge_addr: Address,
     chain_id: L2ChainId,
 
@@ -65,10 +65,7 @@ pub(crate) struct MempoolIO<G> {
     virtual_blocks_per_miniblock: u32,
 }
 
-impl<G> IoSealCriteria for MempoolIO<G>
-where
-    G: L1GasPriceProvider + 'static + Send + Sync,
-{
+impl IoSealCriteria for MempoolIO {
     fn should_seal_l1_batch_unconditionally(&mut self, manager: &UpdatesManager) -> bool {
         self.timeout_sealer
             .should_seal_l1_batch_unconditionally(manager)
@@ -80,10 +77,7 @@ where
 }
 
 #[async_trait]
-impl<G> StateKeeperIO for MempoolIO<G>
-where
-    G: L1GasPriceProvider + 'static + Send + Sync,
-{
+impl StateKeeperIO for MempoolIO {
     fn current_l1_batch_number(&self) -> L1BatchNumber {
         self.current_l1_batch_number
     }
@@ -274,6 +268,8 @@ where
             self.current_l1_batch_number,
             self.current_miniblock_number,
             self.l2_erc20_bridge_addr,
+            None,
+            false,
         );
         self.miniblock_sealer_handle.submit(command).await;
         self.current_miniblock_number += 1;
@@ -323,6 +319,7 @@ where
                 l1_batch_env,
                 finished_batch,
                 self.l2_erc20_bridge_addr,
+                None,
             )
             .await;
         self.current_miniblock_number += 1; // Due to fictive miniblock being sealed.
@@ -398,13 +395,13 @@ async fn sleep_past(timestamp: u64, miniblock: MiniblockNumber) -> u64 {
     }
 }
 
-impl<G: L1GasPriceProvider> MempoolIO<G> {
+impl MempoolIO {
     #[allow(clippy::too_many_arguments)]
     pub(in crate::state_keeper) async fn new(
         mempool: MempoolGuard,
         object_store: Box<dyn ObjectStore>,
         miniblock_sealer_handle: MiniblockSealerHandle,
-        l1_gas_price_provider: Arc<G>,
+        l1_gas_price_provider: Arc<dyn L1GasPriceProvider>,
         pool: ConnectionPool,
         config: &StateKeeperConfig,
         delay_interval: Duration,
@@ -514,7 +511,7 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
 
 /// Getters required for testing the MempoolIO.
 #[cfg(test)]
-impl<G: L1GasPriceProvider> MempoolIO<G> {
+impl MempoolIO {
     pub(super) fn filter(&self) -> &L2TxFilter {
         &self.filter
     }
@@ -523,7 +520,6 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
 #[cfg(test)]
 mod tests {
     use tokio::time::timeout_at;
-
     use zksync_utils::time::seconds_since_epoch;
 
     use super::*;

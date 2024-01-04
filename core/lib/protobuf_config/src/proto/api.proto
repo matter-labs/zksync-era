@@ -20,7 +20,6 @@ message Web3JsonRpc {
   optional uint32 threads_per_server = 9; // required
   optional uint32 max_nonce_ahead = 10; // required
   optional double gas_price_scale_factor = 11; // required
-  optional uint32 transactions_per_sec_limit = 12;
   optional uint64 request_timeout = 13; // seconds
   optional PrivateKeys account_pks = 14;
   optional double estimate_gas_scale_factor = 15; // required
@@ -37,6 +36,7 @@ message Web3JsonRpc {
   optional uint64 max_batch_request_size = 26;
   optional uint64 max_response_body_size_mb = 27;
   optional uint32 websocket_requests_per_minute_limit = 28;
+  optional string tree_api_url = 12;
 }
 
 message ContractVerificationApi {

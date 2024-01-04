@@ -1,8 +1,7 @@
-use tokio::sync::watch;
-
 use std::{sync::Arc, time::Duration};
 
 use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
+use tokio::sync::watch;
 use zksync_config::configs::chain::MempoolConfig;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
@@ -13,8 +12,8 @@ use crate::l1_gas_price::L1GasPriceProvider;
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.
 /// The filter is used to filter out transactions from the mempool that do not cover expenses
 /// to process them.
-pub fn l2_tx_filter<G: L1GasPriceProvider>(
-    gas_price_provider: &G,
+pub fn l2_tx_filter(
+    gas_price_provider: &dyn L1GasPriceProvider,
     fair_l2_gas_price: u64,
 ) -> L2TxFilter {
     let effective_gas_price = gas_price_provider.estimate_effective_gas_price();

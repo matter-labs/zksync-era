@@ -11,11 +11,14 @@ fn decode<P: ProtoRepr>(bytes: &[u8]) -> anyhow::Result<P::Type> {
 }
 
 fn encode_json<P: ProtoRepr>(msg: &P::Type) -> String {
-    zksync_protobuf::encode_json_proto(&P::build(msg))
+    let mut s = serde_json::Serializer::pretty(vec![]);
+    zksync_protobuf::serde::serialize_proto(&P::build(msg), &mut s).unwrap();
+    String::from_utf8(s.into_inner()).unwrap()
 }
 
 fn decode_json<P: ProtoRepr>(json: &str) -> anyhow::Result<P::Type> {
-    P::read(&zksync_protobuf::decode_json_proto(json)?)
+    let mut d = serde_json::Deserializer::from_str(json);
+    P::read(&zksync_protobuf::serde::deserialize_proto(&mut d)?)
 }
 
 #[test]

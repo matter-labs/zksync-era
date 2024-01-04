@@ -5,12 +5,13 @@ use zksync_config::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
             StateKeeperConfig,
         },
+        fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, PrometheusConfig,
-        ProofDataHandlerConfig, ProverGroupConfig, WitnessGeneratorConfig,
+        ProofDataHandlerConfig, WitnessGeneratorConfig,
     },
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
-    FetcherConfig, GasAdjusterConfig, ObjectStoreConfig, PostgresConfig, ProverConfigs,
+    GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
 };
 
 // TODO (QIT-22): This structure is going to be removed when components will be respnsible for their own configs.
@@ -30,10 +31,10 @@ pub struct TempConfigStore {
     pub house_keeper_config: Option<HouseKeeperConfig>,
     pub fri_proof_compressor_config: Option<FriProofCompressorConfig>,
     pub fri_prover_config: Option<FriProverConfig>,
+    pub fri_prover_group_config: Option<FriProverGroupConfig>,
     pub fri_witness_generator_config: Option<FriWitnessGeneratorConfig>,
     pub prometheus_config: Option<PrometheusConfig>,
     pub proof_data_handler_config: Option<ProofDataHandlerConfig>,
-    pub prover_group_config: Option<ProverGroupConfig>,
     pub witness_generator_config: Option<WitnessGeneratorConfig>,
     pub api_config: Option<ApiConfig>,
     pub contracts_config: Option<ContractsConfig>,
@@ -41,8 +42,6 @@ pub struct TempConfigStore {
     pub eth_client_config: Option<ETHClientConfig>,
     pub eth_sender_config: Option<ETHSenderConfig>,
     pub eth_watch_config: Option<ETHWatchConfig>,
-    pub fetcher_config: Option<FetcherConfig>,
     pub gas_adjuster_config: Option<GasAdjusterConfig>,
-    pub prover_configs: Option<ProverConfigs>,
     pub object_store_config: Option<ObjectStoreConfig>,
 }

@@ -9,14 +9,17 @@ license = "MIT OR Apache-2.0"
 keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
+links = "zksync_protobuf_config_proto"
+
 [dependencies]
+serde_json = "1.0"
 zksync_basic_types = { path = "../../lib/basic_types" }
 zksync_config = { path = "../../lib/config" }
-zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "9b300371512a4e443d086ecd19c1877719c15646" }
+zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "84cdd9e45fd84bc1fac0b394c899ae33aef91afa" }
 
 anyhow = "1.0"
 prost = "0.12.1"
 
 [build-dependencies]
-zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "9b300371512a4e443d086ecd19c1877719c15646" }
+zksync_protobuf_build = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "84cdd9e45fd84bc1fac0b394c899ae33aef91afa" }
 

@@ -1,9 +1,7 @@
-use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
-use once_cell::sync::OnceCell;
 use std::sync::Arc;
 
-use multivm::interface::ExecutionResult;
-
+use multivm::{interface::ExecutionResult, vm_latest::constants::BLOCK_GAS_LIMIT};
+use once_cell::sync::OnceCell;
 use zksync_dal::ConnectionPool;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
@@ -21,13 +19,12 @@ use crate::api_server::{
     },
     tx_sender::ApiContracts,
     web3::{
-        backend_jsonrpc::error::internal_error,
+        backend_jsonrpsee::internal_error,
         metrics::API_METRICS,
         resolve_block,
         state::{RpcState, SealedMiniblockNumber},
     },
 };
-use crate::l1_gas_price::L1GasPriceProvider;
 
 #[derive(Debug, Clone)]
 pub struct DebugNamespace {
@@ -42,7 +39,7 @@ pub struct DebugNamespace {
 }
 
 impl DebugNamespace {
-    pub async fn new<G: L1GasPriceProvider>(state: RpcState<G>) -> Self {
+    pub async fn new(state: RpcState) -> Self {
         let sender_config = &state.tx_sender.0.sender_config;
 
         let api_contracts = ApiContracts::load_from_disk();
