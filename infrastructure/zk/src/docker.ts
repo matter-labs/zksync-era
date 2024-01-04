@@ -94,7 +94,7 @@ async function _build(image: string, tagList: string[], dockerOrg: string, platf
 
     for (const tag of tagList) {
         for (const registry of DOCKER_REGISTRIES) {
-            let platformSuffix = platform.replace('/', '-')
+            let platformSuffix = platform.replace('/', '-');
             tagsToBuild = tagsToBuild + `-t ${registry}/${image}:${tag}-${platformSuffix} `;
         }
     }
