@@ -6178,6 +6178,42 @@
     },
     "query": "\n            SELECT\n                number,\n                hash\n            FROM\n                miniblocks\n            WHERE\n                number >= $1\n            ORDER BY\n                number ASC\n            LIMIT\n                $2\n            "
   },
+  "70979db81f473950b2fae7816dbad7fe3464f2619cee2d583accaa829aa12b94": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int4",
+          "Int4",
+          "Int8",
+          "Bool",
+          "Bytea",
+          "ByteaArray",
+          "ByteaArray",
+          "Bytea",
+          "ByteaArray",
+          "Int8",
+          "Int8",
+          "Int8",
+          "Jsonb",
+          "Jsonb",
+          "Numeric",
+          "Int8",
+          "Int8",
+          "Bytea",
+          "Bytea",
+          "Int4",
+          "ByteaArray",
+          "Int8Array",
+          "Bytea",
+          "Int4"
+        ]
+      }
+    },
+    "query": "\n            INSERT INTO\n                l1_batches (\n                    number,\n                    l1_tx_count,\n                    l2_tx_count,\n                    timestamp,\n                    is_finished,\n                    fee_account_address,\n                    l2_to_l1_logs,\n                    l2_to_l1_messages,\n                    bloom,\n                    priority_ops_onchain_data,\n                    predicted_commit_gas_cost,\n                    predicted_prove_gas_cost,\n                    predicted_execute_gas_cost,\n                    initial_bootloader_heap_content,\n                    used_contract_hashes,\n                    base_fee_per_gas,\n                    l1_gas_price,\n                    l2_fair_gas_price,\n                    bootloader_code_hash,\n                    default_aa_code_hash,\n                    protocol_version,\n                    system_logs,\n                    storage_refunds,\n                    pubdata_input,\n                    predicted_circuits,\n                    created_at,\n                    updated_at\n                )\n            VALUES\n                (\n                    $1,\n                    $2,\n                    $3,\n                    $4,\n                    $5,\n                    $6,\n                    $7,\n                    $8,\n                    $9,\n                    $10,\n                    $11,\n                    $12,\n                    $13,\n                    $14,\n                    $15,\n                    $16,\n                    $17,\n                    $18,\n                    $19,\n                    $20,\n                    $21,\n                    $22,\n                    $23,\n                    $24,\n                    $25,\n                    NOW(),\n                    NOW()\n                )\n            "
+  },
   "72a4f50355324cce85ebaef9fa32826095e9290f0c1157094bd0c44e06012e42": {
     "describe": {
       "columns": [
@@ -8439,41 +8475,6 @@
       }
     },
     "query": "\n            SELECT\n                upgrade_tx_hash\n            FROM\n                protocol_versions\n            WHERE\n                id = $1\n            "
-  },
-  "aa8e569cf406cd0975a6ffaeeafa92f632186181ba8b93518e549e0643f58da8": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Int8",
-          "Int4",
-          "Int4",
-          "Int8",
-          "Bool",
-          "Bytea",
-          "ByteaArray",
-          "ByteaArray",
-          "Bytea",
-          "ByteaArray",
-          "Int8",
-          "Int8",
-          "Int8",
-          "Jsonb",
-          "Jsonb",
-          "Numeric",
-          "Int8",
-          "Int8",
-          "Bytea",
-          "Bytea",
-          "Int4",
-          "ByteaArray",
-          "Int8Array",
-          "Bytea"
-        ]
-      }
-    },
-    "query": "\n            INSERT INTO\n                l1_batches (\n                    number,\n                    l1_tx_count,\n                    l2_tx_count,\n                    timestamp,\n                    is_finished,\n                    fee_account_address,\n                    l2_to_l1_logs,\n                    l2_to_l1_messages,\n                    bloom,\n                    priority_ops_onchain_data,\n                    predicted_commit_gas_cost,\n                    predicted_prove_gas_cost,\n                    predicted_execute_gas_cost,\n                    initial_bootloader_heap_content,\n                    used_contract_hashes,\n                    base_fee_per_gas,\n                    l1_gas_price,\n                    l2_fair_gas_price,\n                    bootloader_code_hash,\n                    default_aa_code_hash,\n                    protocol_version,\n                    system_logs,\n                    storage_refunds,\n                    pubdata_input,\n                    created_at,\n                    updated_at\n                )\n            VALUES\n                (\n                    $1,\n                    $2,\n                    $3,\n                    $4,\n                    $5,\n                    $6,\n                    $7,\n                    $8,\n                    $9,\n                    $10,\n                    $11,\n                    $12,\n                    $13,\n                    $14,\n                    $15,\n                    $16,\n                    $17,\n                    $18,\n                    $19,\n                    $20,\n                    $21,\n                    $22,\n                    $23,\n                    $24,\n                    NOW(),\n                    NOW()\n                )\n            "
   },
   "aa91697157517322b0dbb53dca99f41220c51f58a03c61d6b7789eab0504e320": {
     "describe": {

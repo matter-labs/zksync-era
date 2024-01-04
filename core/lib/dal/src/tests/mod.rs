@@ -294,7 +294,7 @@ async fn test_duplicate_insert_prover_jobs() {
     );
     storage
         .blocks_dal()
-        .insert_l1_batch(&header, &[], Default::default(), &[], &[])
+        .insert_l1_batch(&header, &[], Default::default(), &[], &[], 0)
         .await
         .unwrap();
 
@@ -357,7 +357,7 @@ async fn test_requeue_prover_jobs() {
     );
     storage
         .blocks_dal()
-        .insert_l1_batch(&header, &[], Default::default(), &[], &[])
+        .insert_l1_batch(&header, &[], Default::default(), &[], &[], 0)
         .await
         .unwrap();
 
