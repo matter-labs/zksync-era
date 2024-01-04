@@ -13,10 +13,6 @@ on:
         description: "ERA_BELLMAN_CUDA_RELEASE"
         type: string
         required: true
-      image_tag:
-        description: "Tag of a built image to deploy"
-        type: string
-        required: true
       image_tag_suffix:
         description: "Optional suffix to override tag name generation"
         type: string
@@ -41,7 +37,6 @@ jobs:
   build-images:
     name: Build and Push Docker Images
     env:
-      image_tag: ${{ inputs.image_tag }}
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
       RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
       ERA_BELLMAN_CUDA_RELEASE: ${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}

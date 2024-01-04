@@ -9,10 +9,6 @@ on:
         description: "DOCKERHUB_TOKEN"
         required: true
     inputs:
-      image_tag:
-        description: "Tag of a built image to deploy"
-        type: string
-        required: true
       image_tag_suffix:
         description: "Optional suffix to override tag name generation"
         type: string
@@ -26,7 +22,6 @@ jobs:
   build-images:
     name: Build and Push Docker Images
     env:
-      image_tag: ${{ inputs.image_tag }}
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
     runs-on: ${{ fromJSON('["matterlabs-ci-runner", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
     strategy:
@@ -117,7 +112,6 @@ jobs:
           - name: snapshots-creator
             platform: linux/amd64
     env:
-      image_tag: ${{ inputs.image_tag }}
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
     steps:
       - name: Some steps for merge image per component using platforms comma-separated string
