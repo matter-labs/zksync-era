@@ -9,6 +9,7 @@ import { MatcherModifier, MatcherMessage } from '.';
 import { IERC20Factory } from 'zksync-web3/build/typechain';
 import {Log} from "zksync-web3/build/src/types";
 import {BigNumber} from "ethers";
+import {Fee} from "../types";
 
 /**
  * Modifier that ensures that fee was taken from the wallet for a transaction.
