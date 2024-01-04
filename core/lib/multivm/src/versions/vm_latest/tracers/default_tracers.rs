@@ -63,6 +63,8 @@ pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     pub(crate) dispatcher: TracerDispatcher<S, H>,
     ret_from_the_bootloader: Option<RetOpcode>,
     // This tracer tracks what opcodes were executed and calculates how much circuits will be generated.
+    // It only takes into account circuits that are generated for actual execution. It doesn't
+    // take into account e.g circuits produced by the initial bootloader memory commitment.
     pub(crate) circuits_tracer: CircuitsTracer<S>,
 
     storage: StoragePtr<S>,
