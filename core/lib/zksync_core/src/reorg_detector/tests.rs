@@ -49,7 +49,7 @@ async fn seal_l1_batch(storage: &mut StorageProcessor<'_>, number: u32, hash: H2
     );
     storage
         .blocks_dal()
-        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
+        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
         .await
         .unwrap();
     storage
