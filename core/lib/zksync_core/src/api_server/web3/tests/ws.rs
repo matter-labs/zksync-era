@@ -172,8 +172,11 @@ impl WsTest for BasicSubscriptionsTest {
             .await?;
         wait_for_subscription(&mut pub_sub_events, SubscriptionType::Txs).await;
 
-        let (new_miniblock, new_tx_hash) =
-            store_miniblock(&mut pool.access_storage().await?).await?;
+        let mut storage = pool.access_storage().await?;
+        let tx_result = execute_l2_transaction();
+        let new_tx_hash = tx_result.hash;
+        let new_miniblock = store_miniblock(&mut storage, &[tx_result]).await?;
+        drop(storage);
 
         let received_tx_hash = tokio::time::timeout(TEST_TIMEOUT, txs_subscription.next())
             .await

@@ -58,12 +58,12 @@ impl DebugNamespace {
             .state
             .resolve_block(&mut connection, block_id, METHOD_NAME)
             .await?;
-        let call_trace = connection
+        let call_traces = connection
             .blocks_web3_dal()
-            .get_trace_for_miniblock(block_number)
+            .get_trace_for_miniblock(block_number) // FIXME: is some ordering among transactions expected?
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
-        let call_trace = call_trace
+        let call_trace = call_traces
             .into_iter()
             .map(|call_trace| {
                 let mut result: DebugCall = call_trace.into();

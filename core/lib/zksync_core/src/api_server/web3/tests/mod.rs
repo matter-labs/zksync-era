@@ -12,8 +12,14 @@ use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Storage
 use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
-    api, block::MiniblockHeader, fee::TransactionExecutionMetrics, tx::IncludedTxLocation, Address,
-    L1BatchNumber, VmEvent, H256, U64,
+    api,
+    block::{BlockGasCount, MiniblockHeader},
+    fee::TransactionExecutionMetrics,
+    tx::{
+        tx_execution_info::TxExecutionStatus, ExecutionMetrics, IncludedTxLocation,
+        TransactionExecutionResult,
+    },
+    Address, L1BatchNumber, VmEvent, H256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::{core::ClientError as RpcError, http_client::HttpClient, types::error::ErrorCode},
@@ -26,9 +32,12 @@ use crate::{
     api_server::tx_sender::TxSenderConfig,
     genesis::{ensure_genesis_state, GenesisParams},
     l1_gas_price::L1GasPriceProvider,
-    utils::testonly::{create_l2_transaction, create_miniblock},
+    utils::testonly::{
+        create_l1_batch, create_l1_batch_metadata, create_l2_transaction, create_miniblock,
+    },
 };
 
+mod debug;
 mod snapshots;
 mod ws;
 
@@ -139,7 +148,7 @@ async fn spawn_server(
     let (pub_sub_events_sender, pub_sub_events_receiver) = mpsc::unbounded_channel();
 
     let mut namespaces = Namespace::DEFAULT.to_vec();
-    namespaces.push(Namespace::Snapshots);
+    namespaces.extend([Namespace::Debug, Namespace::Snapshots]);
 
     let server_builder = match transport {
         ApiTransportLabel::Http => ApiBuilder::jsonrpsee_backend(api_config, pool).http(0),
@@ -208,23 +217,66 @@ fn assert_logs_match(actual_logs: &[api::Log], expected_logs: &[&VmEvent]) {
     }
 }
 
+fn execute_l2_transaction() -> TransactionExecutionResult {
+    let transaction = create_l2_transaction(1, 2);
+    TransactionExecutionResult {
+        hash: transaction.hash(),
+        transaction: transaction.into(),
+        execution_info: ExecutionMetrics::default(),
+        execution_status: TxExecutionStatus::Success,
+        refunded_gas: 0,
+        operator_suggested_refund: 0,
+        compressed_bytecodes: vec![],
+        call_traces: vec![],
+        revert_reason: None,
+    }
+}
+
+/// Stores miniblock #1 with a single transaction and returns the miniblock header + transaction hash.
 async fn store_miniblock(
     storage: &mut StorageProcessor<'_>,
-) -> anyhow::Result<(MiniblockHeader, H256)> {
-    let new_tx = create_l2_transaction(1, 2);
-    let new_tx_hash = new_tx.hash();
-    let tx_submission_result = storage
-        .transactions_dal()
-        .insert_transaction_l2(new_tx, TransactionExecutionMetrics::default())
-        .await;
-    assert_matches!(tx_submission_result, L2TxSubmissionResult::Added);
+    transaction_results: &[TransactionExecutionResult],
+) -> anyhow::Result<MiniblockHeader> {
+    for result in transaction_results {
+        let l2_tx = result.transaction.clone().try_into().unwrap();
+        let tx_submission_result = storage
+            .transactions_dal()
+            .insert_transaction_l2(l2_tx, TransactionExecutionMetrics::default())
+            .await;
+        assert_matches!(tx_submission_result, L2TxSubmissionResult::Added);
+    }
 
     let new_miniblock = create_miniblock(1);
     storage
         .blocks_dal()
         .insert_miniblock(&new_miniblock)
         .await?;
-    Ok((new_miniblock, new_tx_hash))
+    storage
+        .transactions_dal()
+        .mark_txs_as_executed_in_miniblock(new_miniblock.number, transaction_results, 1.into())
+        .await;
+    Ok(new_miniblock)
+}
+
+async fn seal_l1_batch(
+    storage: &mut StorageProcessor<'_>,
+    number: L1BatchNumber,
+) -> anyhow::Result<()> {
+    let header = create_l1_batch(number.0);
+    storage
+        .blocks_dal()
+        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
+        .await?;
+    storage
+        .blocks_dal()
+        .mark_miniblocks_as_executed_in_l1_batch(number)
+        .await?;
+    let metadata = create_l1_batch_metadata(number.0);
+    storage
+        .blocks_dal()
+        .save_l1_batch_metadata(number, &metadata, H256::zero(), false)
+        .await?;
+    Ok(())
 }
 
 async fn store_events(
@@ -316,9 +368,10 @@ impl HttpTest for BasicFilterChangesTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
         let block_filter_id = client.new_block_filter().await?;
         let tx_filter_id = client.new_pending_transaction_filter().await?;
-
-        let (new_miniblock, new_tx_hash) =
-            store_miniblock(&mut pool.access_storage().await?).await?;
+        let tx_result = execute_l2_transaction();
+        let new_tx_hash = tx_result.hash;
+        let new_miniblock =
+            store_miniblock(&mut pool.access_storage().await?, &[tx_result]).await?;
 
         let block_filter_changes = client.get_filter_changes(block_filter_id).await?;
         assert_matches!(
