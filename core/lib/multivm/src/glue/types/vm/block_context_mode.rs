@@ -14,9 +14,7 @@ impl GlueFrom<crate::interface::L1BatchEnv> for crate::vm_m5::vm_with_bootloader
                 l1_gas_price: fee_input.l1_gas_price,
                 fair_l2_gas_price: fee_input.fair_l2_gas_price,
             },
-            // There are two VmVersion's that would work here: M5WithoutRefunds and M5WithRefunds.
-            // Both work identically with regard to base fee, so eithr of them can be provided here.
-            base_fee: value.base_fee(VmVersion::M5WithRefunds),
+            base_fee: crate::vm_m5::vm_with_bootloader::get_batch_base_fee(&value),
         };
         match value.previous_batch_hash {
             Some(hash) => Self::NewBlock(derived, h256_to_u256(hash)),
@@ -36,9 +34,7 @@ impl GlueFrom<crate::interface::L1BatchEnv> for crate::vm_m6::vm_with_bootloader
                 l1_gas_price: fee_input.l1_gas_price,
                 fair_l2_gas_price: fee_input.fair_l2_gas_price,
             },
-            // There are two VmVersion's that would work here: M6Initial and M6BugWithCompressionFixed.
-            // Both work identically with regard to base fee, so eithr of them can be provided here.
-            base_fee: value.base_fee(VmVersion::M6Initial),
+            base_fee: crate::vm_m6::vm_with_bootloader::get_batch_base_fee(&value),
         };
         match value.previous_batch_hash {
             Some(hash) => Self::NewBlock(derived, h256_to_u256(hash)),
@@ -60,7 +56,7 @@ impl GlueFrom<crate::interface::L1BatchEnv>
                 l1_gas_price: fee_input.l1_gas_price,
                 fair_l2_gas_price: fee_input.fair_l2_gas_price,
             },
-            base_fee: value.base_fee(VmVersion::Vm1_3_2),
+            base_fee: crate::vm_1_3_2::vm_with_bootloader::get_batch_base_fee(&value),
         };
         match value.previous_batch_hash {
             Some(hash) => Self::NewBlock(derived, h256_to_u256(hash)),

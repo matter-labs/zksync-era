@@ -26,15 +26,19 @@ use zksync_utils::{
     misc::ceil_div,
 };
 
-use crate::vm_1_3_2::{
-    bootloader_state::BootloaderState,
-    history_recorder::HistoryMode,
-    transaction_data::TransactionData,
-    utils::{
-        code_page_candidate_from_base, heap_page_from_base, BLOCK_GAS_LIMIT, INITIAL_BASE_PAGE,
+use crate::{
+    interface::types::inputs::l1_batch_env,
+    vm_1_3_2::{
+        bootloader_state::BootloaderState,
+        history_recorder::HistoryMode,
+        transaction_data::TransactionData,
+        utils::{
+            code_page_candidate_from_base, heap_page_from_base, BLOCK_GAS_LIMIT, INITIAL_BASE_PAGE,
+        },
+        vm_instance::ZkSyncVmState,
+        OracleTools, VmInstance,
     },
-    vm_instance::ZkSyncVmState,
-    OracleTools, VmInstance,
+    vm_latest::L1BatchEnv,
 };
 
 // TODO (SMA-1703): move these to config and make them programmatically generatable.
@@ -109,6 +113,19 @@ pub(crate) fn derive_base_fee_and_gas_per_pubdata(
         base_fee,
         base_fee_to_gas_per_pubdata(l1_gas_price, base_fee),
     )
+}
+
+pub(crate) fn get_batch_base_fee(l1_batch_env: &L1BatchEnv) -> u64 {
+    if let Some(base_fee) = l1_batch_env.enforced_base_fee {
+        return base_fee;
+    }
+    let (base_fee, _) =
+        derive_base_fee_and_gas_per_pubdata(l1_batch_env.fee_input.into_l1_pegged());
+    base_fee
+}
+
+pub(crate) fn get_batch_gas_per_pubdata(l1_batch_env: &L1BatchEnv) -> u64 {
+    derive_base_fee_and_gas_per_pubdata(l1_batch_env.fee_input.into_l1_pegged()).1
 }
 
 impl From<BlockContext> for DerivedBlockContext {

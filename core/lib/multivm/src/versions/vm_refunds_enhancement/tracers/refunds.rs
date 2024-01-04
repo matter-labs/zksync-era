@@ -31,6 +31,7 @@ use crate::{
             },
         },
         types::internals::ZkSyncVmState,
+        utils::fee::get_batch_base_fee,
     },
 };
 
@@ -111,9 +112,7 @@ impl RefundsTracer {
             });
 
         // For now, bootloader charges only for base fee.
-        let effective_gas_price = self
-            .l1_batch
-            .base_fee(VmVersion::VmVirtualBlocksRefundsEnhancement);
+        let effective_gas_price = get_batch_base_fee(&self.l1_batch);
 
         let bootloader_eth_price_per_pubdata_byte =
             U256::from(effective_gas_price) * U256::from(current_ergs_per_pubdata_byte);

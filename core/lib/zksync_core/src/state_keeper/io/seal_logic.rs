@@ -7,7 +7,10 @@ use std::{
 };
 
 use itertools::Itertools;
-use multivm::interface::{FinishedL1Batch, L1BatchEnv};
+use multivm::{
+    interface::{FinishedL1Batch, L1BatchEnv},
+    utils::get_batch_base_fee,
+};
 use zksync_dal::{blocks_dal::ConsensusBlockFields, StorageProcessor};
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
@@ -129,7 +132,7 @@ impl UpdatesManager {
             l2_to_l1_messages,
             bloom: Default::default(),
             used_contract_hashes: finished_batch.final_execution_state.used_contract_hashes,
-            base_fee_per_gas: l1_batch_env.base_fee(self.protocol_version().into()),
+            base_fee_per_gas: get_batch_base_fee(&l1_batch_env, self.protocol_version().into()),
             l1_gas_price: self.l1_gas_price(),
             l2_fair_gas_price: self.fair_l2_gas_price(),
             base_system_contracts_hashes: self.base_system_contract_hashes(),

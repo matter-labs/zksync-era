@@ -1,5 +1,7 @@
 use zksync_types::{fee_model::BatchFeeInput, VmVersion, U256};
 
+use crate::vm_latest::L1BatchEnv;
+
 /// Calculates the base fee and gas per pubdata for the given L1 gas price.
 pub fn derive_base_fee_and_gas_per_pubdata(
     batch_fee_input: BatchFeeInput,
@@ -35,6 +37,27 @@ pub fn derive_base_fee_and_gas_per_pubdata(
             crate::vm_boojum_integration::utils::fee::derive_base_fee_and_gas_per_pubdata(
                 batch_fee_input.into_l1_pegged(),
             )
+        }
+    }
+}
+
+pub fn get_batch_base_fee(l1_batch_env: &L1BatchEnv, vm_version: VmVersion) -> u64 {
+    match vm_version {
+        VmVersion::M5WithRefunds | VmVersion::M5WithoutRefunds => {
+            crate::vm_m5::vm_with_bootloader::get_batch_base_fee(l1_batch_env)
+        }
+        VmVersion::M6Initial | VmVersion::M6BugWithCompressionFixed => {
+            crate::vm_m6::vm_with_bootloader::get_batch_base_fee(l1_batch_env)
+        }
+        VmVersion::Vm1_3_2 => crate::vm_1_3_2::vm_with_bootloader::get_batch_base_fee(l1_batch_env),
+        VmVersion::VmVirtualBlocks => {
+            crate::vm_virtual_blocks::utils::fee::get_batch_base_fee(l1_batch_env)
+        }
+        VmVersion::VmVirtualBlocksRefundsEnhancement => {
+            crate::vm_refunds_enhancement::utils::fee::get_batch_base_fee(l1_batch_env)
+        }
+        VmVersion::VmBoojumIntegration => {
+            crate::vm_boojum_integration::utils::fee::get_batch_base_fee(l1_batch_env)
         }
     }
 }
