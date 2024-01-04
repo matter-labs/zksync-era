@@ -74,10 +74,14 @@ impl ApiServerHandles {
     pub(crate) async fn shutdown(self) {
         let stop_server = async {
             for task in self.tasks {
-                // FIXME(PLA-481): avoid these errors (by spawning notifier tasks on server runtime?)
-                if let Err(err) = task.await.expect("Server panicked") {
-                    let err = err.root_cause().to_string();
-                    assert!(err.contains("Tokio 1.x context was found"));
+                match task.await {
+                    Ok(Ok(())) => { /* Task successfully completed */ }
+                    Err(err) if err.is_cancelled() => {
+                        // Task was cancelled since the server runtime which runs the task was dropped.
+                        // This is fine.
+                    }
+                    Err(err) => panic!("Server task panicked: {err:?}"),
+                    Ok(Err(err)) => panic!("Server task failed: {err:?}"),
                 }
             }
         };

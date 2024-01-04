@@ -8,7 +8,7 @@ use std::{
 };
 
 use lru::LruCache;
-use tokio::sync::Mutex;
+use tokio::sync::{watch, Mutex};
 use vise::GaugeGuard;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
 use zksync_dal::{ConnectionPool, StorageProcessor};
@@ -27,6 +27,7 @@ use crate::{
         web3::{backend_jsonrpsee::internal_error, TypedFilter},
     },
     sync_layer::SyncState,
+    utils::wait_for_l1_batch,
 };
 
 /// Configuration values for the API.
@@ -88,32 +89,35 @@ impl SealedMiniblockNumber {
     pub fn new(
         connection_pool: ConnectionPool,
         update_interval: Duration,
-    ) -> (Self, impl Future<Output = ()> + Send) {
+        mut stop_receiver: watch::Receiver<bool>,
+    ) -> (Self, impl Future<Output = anyhow::Result<()>>) {
         let this = Self(Arc::default());
         let number_updater = this.clone();
+
         let update_task = async move {
+            // Wait until there's at least one L1 batch in the storage so that we don't panic
+            // in `get_sealed_miniblock_number()` below.
+            let first_l1_batch =
+                wait_for_l1_batch(&connection_pool, update_interval, &mut stop_receiver).await?;
+
+            if first_l1_batch.is_none() {
+                return Ok(()); // Stop signal received.
+            }
+
             loop {
-                if Arc::strong_count(&number_updater.0) == 1 {
-                    // The `sealed_miniblock_number` was dropped; there's no sense continuing updates.
+                if *stop_receiver.borrow() {
                     tracing::debug!("Stopping latest sealed miniblock updates");
-                    break;
+                    return Ok(());
                 }
 
                 let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
                 let last_sealed_miniblock = connection
                     .blocks_web3_dal()
-                    .get_sealed_miniblock_number() // FIXME: may panic
-                    .await;
+                    .get_sealed_miniblock_number()
+                    .await?;
                 drop(connection);
 
-                match last_sealed_miniblock {
-                    Ok(number) => {
-                        number_updater.update(number);
-                    }
-                    Err(err) => tracing::warn!(
-                        "Failed fetching latest sealed miniblock to update the watch channel: {err}"
-                    ),
-                }
+                number_updater.update(last_sealed_miniblock);
                 tokio::time::sleep(update_interval).await;
             }
         };

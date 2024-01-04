@@ -24,6 +24,7 @@ use super::{
     metrics::{SubscriptionType, PUB_SUB_METRICS},
     namespaces::eth::EVENT_TOPIC_NUMBER_LIMIT,
 };
+use crate::utils::wait_for_l1_batch;
 
 const BROADCAST_CHANNEL_CAPACITY: usize = 1024;
 const SUBSCRIPTION_SINK_SEND_TIMEOUT: Duration = Duration::from_secs(1);
@@ -74,7 +75,18 @@ impl PubSubNotifier {
 }
 
 impl PubSubNotifier {
-    async fn notify_blocks(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    async fn notify_blocks(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        // FIXME: awkward; rework `get_sealed_miniblock_number()` instead?
+
+        // We should wait for at least one L1 batch in the storage in order to not panic
+        // when getting the sealed miniblock number below.
+        wait_for_l1_batch(
+            &self.connection_pool,
+            self.polling_interval,
+            &mut stop_receiver,
+        )
+        .await?;
+
         let mut last_block_number = self.sealed_miniblock_number().await?;
         let mut timer = interval(self.polling_interval);
         loop {
@@ -158,7 +170,16 @@ impl PubSubNotifier {
             .context("get_pending_txs_hashes_after()")
     }
 
-    async fn notify_logs(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    async fn notify_logs(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        // We should wait for at least one L1 batch in the storage in order to not panic
+        // when getting the sealed miniblock number below.
+        wait_for_l1_batch(
+            &self.connection_pool,
+            self.polling_interval,
+            &mut stop_receiver,
+        )
+        .await?;
+
         let mut last_block_number = self.sealed_miniblock_number().await?;
         let mut timer = interval(self.polling_interval);
         loop {
@@ -394,6 +415,7 @@ impl EthSubscribe {
     /// Spawns notifier tasks. This should be called once per instance.
     pub fn spawn_notifiers(
         &self,
+        handle: &tokio::runtime::Handle,
         connection_pool: ConnectionPool,
         polling_interval: Duration,
         stop_receiver: watch::Receiver<bool>,
@@ -406,7 +428,7 @@ impl EthSubscribe {
             polling_interval,
             events_sender: self.events_sender.clone(),
         };
-        let notifier_task = tokio::spawn(notifier.notify_blocks(stop_receiver.clone()));
+        let notifier_task = handle.spawn(notifier.notify_blocks(stop_receiver.clone()));
         notifier_tasks.push(notifier_task);
 
         let notifier = PubSubNotifier {
@@ -415,7 +437,7 @@ impl EthSubscribe {
             polling_interval,
             events_sender: self.events_sender.clone(),
         };
-        let notifier_task = tokio::spawn(notifier.notify_txs(stop_receiver.clone()));
+        let notifier_task = handle.spawn(notifier.notify_txs(stop_receiver.clone()));
         notifier_tasks.push(notifier_task);
 
         let notifier = PubSubNotifier {
@@ -424,7 +446,7 @@ impl EthSubscribe {
             polling_interval,
             events_sender: self.events_sender.clone(),
         };
-        let notifier_task = tokio::spawn(notifier.notify_logs(stop_receiver));
+        let notifier_task = handle.spawn(notifier.notify_logs(stop_receiver));
 
         notifier_tasks.push(notifier_task);
         notifier_tasks

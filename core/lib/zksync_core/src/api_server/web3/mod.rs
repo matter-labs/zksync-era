@@ -280,24 +280,16 @@ impl ApiBuilder {
 }
 
 impl FullApiParams {
-    async fn build_rpc_state(self) -> anyhow::Result<RpcState> {
-        // Chosen to be significantly smaller than the interval between miniblocks, but larger than
-        // the latency of getting the latest sealed miniblock number from Postgres. If the API server
-        // processes enough requests, information about the latest sealed miniblock will be updated
-        // by reporting block difference metrics, so the actual update lag would be much smaller than this value.
-        const SEALED_MINIBLOCK_UPDATE_INTERVAL: Duration = Duration::from_millis(25);
-
+    async fn build_rpc_state(
+        self,
+        last_sealed_miniblock: SealedMiniblockNumber,
+    ) -> anyhow::Result<RpcState> {
         let mut storage = self
             .last_miniblock_pool
             .access_storage_tagged("api")
             .await?;
         let first_local_miniblock = first_local_miniblock(&mut storage).await?;
         drop(storage);
-
-        let (last_sealed_miniblock, update_task) =
-            SealedMiniblockNumber::new(self.last_miniblock_pool, SEALED_MINIBLOCK_UPDATE_INTERVAL);
-        // The update tasks takes care of its termination, so we don't need to retain its handle.
-        tokio::spawn(update_task);
 
         Ok(RpcState {
             installed_filters: Arc::new(Mutex::new(Filters::new(self.optional.filters_limit))),
@@ -314,15 +306,19 @@ impl FullApiParams {
         })
     }
 
-    async fn build_rpc_module(self, pubsub: Option<EthSubscribe>) -> anyhow::Result<RpcModule<()>> {
+    async fn build_rpc_module(
+        self,
+        pub_sub: Option<EthSubscribe>,
+        last_sealed_miniblock: SealedMiniblockNumber,
+    ) -> anyhow::Result<RpcModule<()>> {
         let namespaces = self.namespaces.clone();
         let zksync_network_id = self.config.l2_chain_id;
-        let rpc_state = self.build_rpc_state().await?;
+        let rpc_state = self.build_rpc_state(last_sealed_miniblock).await?;
 
         // Collect all the methods into a single RPC module.
         let mut rpc = RpcModule::new(());
-        if let Some(pubsub) = pubsub {
-            rpc.merge(pubsub.into_rpc())
+        if let Some(pub_sub) = pub_sub {
+            rpc.merge(pub_sub.into_rpc())
                 .expect("Can't merge eth pubsub namespace");
         }
 
@@ -405,26 +401,18 @@ impl FullApiParams {
         self,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<ApiServerHandles> {
+        // Chosen to be significantly smaller than the interval between miniblocks, but larger than
+        // the latency of getting the latest sealed miniblock number from Postgres. If the API server
+        // processes enough requests, information about the latest sealed miniblock will be updated
+        // by reporting block difference metrics, so the actual update lag would be much smaller than this value.
+        const SEALED_MINIBLOCK_UPDATE_INTERVAL: Duration = Duration::from_millis(25);
+
         let transport = self.transport;
         let (runtime_thread_name, health_check_name) = match transport {
             ApiTransport::Http(_) => ("jsonrpsee-http-worker", "http_api"),
             ApiTransport::WebSocket(_) => ("jsonrpsee-ws-worker", "ws_api"),
         };
         let (health_check, health_updater) = ReactiveHealthCheck::new(health_check_name);
-        let vm_barrier = self.vm_barrier.clone();
-        let batch_request_config = self
-            .optional
-            .batch_request_size_limit
-            .map_or(BatchRequestConfig::Unlimited, |limit| {
-                BatchRequestConfig::Limit(limit as u32)
-            });
-        let response_body_size_limit = self
-            .optional
-            .response_body_size_limit
-            .map_or(u32::MAX, |limit| limit as u32);
-
-        let websocket_requests_per_minute_limit = self.optional.websocket_requests_per_minute_limit;
-        let subscriptions_limit = self.optional.subscriptions_limit;
 
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
@@ -435,9 +423,14 @@ impl FullApiParams {
                 format!("Failed creating Tokio runtime for {health_check_name} jsonrpsee server")
             })?;
 
-        let mut tasks = vec![];
-        let mut pubsub = None;
-        if matches!(transport, ApiTransport::WebSocket(_))
+        let (last_sealed_miniblock, update_task) = SealedMiniblockNumber::new(
+            self.last_miniblock_pool.clone(),
+            SEALED_MINIBLOCK_UPDATE_INTERVAL,
+            stop_receiver.clone(),
+        );
+        let mut tasks = vec![runtime.handle().spawn(update_task)];
+
+        let pub_sub = if matches!(transport, ApiTransport::WebSocket(_))
             && self.namespaces.contains(&Namespace::Pubsub)
         {
             let mut pub_sub = EthSubscribe::new();
@@ -446,31 +439,28 @@ impl FullApiParams {
             }
 
             tasks.extend(pub_sub.spawn_notifiers(
+                runtime.handle(),
                 self.pool.clone(),
                 self.polling_interval,
                 stop_receiver.clone(),
             ));
-            pubsub = Some(pub_sub);
-        }
+            Some(pub_sub)
+        } else {
+            None
+        };
 
-        let rpc = self.build_rpc_module(pubsub).await?;
         // Start the server in a separate tokio runtime from a dedicated thread.
         let (local_addr_sender, local_addr) = oneshot::channel();
         let server_task = tokio::task::spawn_blocking(move || {
-            let res = runtime.block_on(Self::run_jsonrpsee_server(
-                rpc,
-                transport,
+            runtime.block_on(self.run_jsonrpsee_server(
                 stop_receiver,
+                pub_sub,
+                last_sealed_miniblock,
                 local_addr_sender,
                 health_updater,
-                vm_barrier,
-                batch_request_config,
-                response_body_size_limit,
-                subscriptions_limit,
-                websocket_requests_per_minute_limit,
-            ));
+            ))?;
             runtime.shutdown_timeout(GRACEFUL_SHUTDOWN_TIMEOUT);
-            res
+            Ok(())
         });
 
         let local_addr = match local_addr.await {
@@ -492,20 +482,33 @@ impl FullApiParams {
         })
     }
 
-    // FIXME: wait for L1 batch (w/ metadata)?
-    #[allow(clippy::too_many_arguments)]
     async fn run_jsonrpsee_server(
-        rpc: RpcModule<()>,
-        transport: ApiTransport,
+        self,
         mut stop_receiver: watch::Receiver<bool>,
+        pub_sub: Option<EthSubscribe>,
+        last_sealed_miniblock: SealedMiniblockNumber,
         local_addr_sender: oneshot::Sender<SocketAddr>,
         health_updater: HealthUpdater,
-        vm_barrier: VmConcurrencyBarrier,
-        batch_request_config: BatchRequestConfig,
-        response_body_size_limit: u32,
-        subscriptions_limit: Option<usize>,
-        websocket_requests_per_minute_limit: Option<NonZeroU32>,
     ) -> anyhow::Result<()> {
+        let transport = self.transport;
+        let batch_request_config = self
+            .optional
+            .batch_request_size_limit
+            .map_or(BatchRequestConfig::Unlimited, |limit| {
+                BatchRequestConfig::Limit(limit as u32)
+            });
+        let response_body_size_limit = self
+            .optional
+            .response_body_size_limit
+            .map_or(u32::MAX, |limit| limit as u32);
+        let websocket_requests_per_minute_limit = self.optional.websocket_requests_per_minute_limit;
+        let subscriptions_limit = self.optional.subscriptions_limit;
+        let vm_barrier = self.vm_barrier.clone();
+
+        let rpc = self
+            .build_rpc_module(pub_sub, last_sealed_miniblock)
+            .await?;
+
         let (transport_str, is_http, addr) = match transport {
             ApiTransport::Http(addr) => ("HTTP", true, addr),
             ApiTransport::WebSocket(addr) => ("WS", false, addr),
