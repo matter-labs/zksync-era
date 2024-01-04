@@ -28,6 +28,20 @@ fn create_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
     }
 }
 
+const PRE_BOOJUM_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version10;
+
+fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
+    let mut l1_batch = L1BatchWithMetadata {
+        header: create_l1_batch(number),
+        metadata: create_l1_batch_metadata(number),
+        factory_deps: vec![],
+    };
+    l1_batch.header.protocol_version = Some(PRE_BOOJUM_PROTOCOL_VERSION);
+    l1_batch.metadata.bootloader_initial_content_commitment = None;
+    l1_batch.metadata.events_queue_commitment = None;
+    l1_batch
+}
+
 fn build_commit_tx_input_data(batches: &[L1BatchWithMetadata]) -> Vec<u8> {
     let commit_tokens = batches.iter().map(L1BatchWithMetadata::l1_commit_data);
     let commit_tokens = ethabi::Token::Array(commit_tokens.collect());
@@ -192,7 +206,7 @@ impl SaveAction<'_> {
                         l1_batch.header.number,
                         &l1_batch.metadata,
                         H256::default(),
-                        false,
+                        l1_batch.header.protocol_version.unwrap().is_pre_boojum(),
                     )
                     .await
                     .unwrap();
@@ -302,6 +316,80 @@ async fn normal_checker_function(
                 .iter()
                 .map(|batch| (batch.header.number, signed_tx.hash)),
         );
+    }
+
+    let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
+    let checker = ConsistencyChecker {
+        l1_batch_updater: Box::new(l1_batch_updates_sender),
+        ..create_mock_checker(client, pool.clone())
+    };
+
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let checker_task = tokio::spawn(checker.run(stop_receiver));
+
+    // Add new batches to the storage.
+    for save_action in save_actions_mapper(&l1_batches) {
+        save_action
+            .apply(&mut storage, &commit_tx_hash_by_l1_batch)
+            .await;
+        tokio::time::sleep(Duration::from_millis(7)).await;
+    }
+
+    // Wait until all batches are checked.
+    loop {
+        let checked_batch = l1_batch_updates_receiver.recv().await.unwrap();
+        if checked_batch == l1_batches.last().unwrap().header.number {
+            break;
+        }
+    }
+
+    // Send the stop signal to the checker and wait for it to stop.
+    stop_sender.send_replace(true);
+    checker_task.await.unwrap().unwrap();
+}
+
+#[test_casing(4, SAVE_ACTION_MAPPERS)]
+#[tokio::test]
+async fn checker_processes_pre_boojum_batches(
+    (mapper_name, save_actions_mapper): (&'static str, SaveActionMapper),
+) {
+    println!("Using save_actions_mapper={mapper_name}");
+
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.access_storage().await.unwrap();
+    let genesis_params = GenesisParams {
+        protocol_version: PRE_BOOJUM_PROTOCOL_VERSION,
+        ..GenesisParams::mock()
+    };
+    ensure_genesis_state(&mut storage, L2ChainId::default(), &genesis_params)
+        .await
+        .unwrap();
+    storage
+        .protocol_versions_dal()
+        .save_protocol_version_with_tx(ProtocolVersion::default())
+        .await;
+
+    let l1_batches: Vec<_> = (1..=5)
+        .map(create_pre_boojum_l1_batch_with_metadata)
+        .chain((6..=10).map(create_l1_batch_with_metadata))
+        .collect();
+    let mut commit_tx_hash_by_l1_batch = HashMap::with_capacity(l1_batches.len());
+    let client = MockEthereum::default();
+
+    for (i, l1_batch) in l1_batches.iter().enumerate() {
+        let input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
+        let signed_tx = client.sign_prepared_tx(
+            input_data.clone(),
+            Options {
+                nonce: Some(i.into()),
+                ..Options::default()
+            },
+        );
+        let signed_tx = signed_tx.unwrap();
+        client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
+        client.execute_tx(signed_tx.hash, true, 1);
+
+        commit_tx_hash_by_l1_batch.insert(l1_batch.header.number, signed_tx.hash);
     }
 
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
