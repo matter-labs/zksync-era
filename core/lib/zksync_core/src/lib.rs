@@ -555,7 +555,7 @@ pub async fn initialize_components(
                 eth_sender.sender.clone(),
                 store_factory.create_store().await,
             ),
-            eth_client,
+            Arc::new(eth_client),
             contracts_config.validator_timelock_addr,
             contracts_config.l1_multicall3_addr,
             main_zksync_contract_address,
@@ -588,7 +588,7 @@ pub async fn initialize_components(
                 .get_or_init()
                 .await
                 .context("gas_adjuster.get_or_init()")?,
-            eth_client,
+            Arc::new(eth_client),
         );
         task_futures.extend([tokio::spawn(
             eth_tx_manager_actor.run(eth_manager_pool, stop_receiver.clone()),
