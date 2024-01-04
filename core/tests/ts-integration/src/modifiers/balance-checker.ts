@@ -7,9 +7,9 @@ import * as ethers from 'ethers';
 import { TestMessage } from '../matchers/matcher-helpers';
 import { MatcherModifier, MatcherMessage } from '.';
 import { IERC20Factory } from 'zksync-web3/build/typechain';
-import {Log} from "zksync-web3/build/src/types";
-import {BigNumber} from "ethers";
-import {Fee} from "../types";
+import { Log } from 'zksync-web3/build/src/types';
+import { BigNumber } from 'ethers';
+import { Fee } from '../types';
 
 /**
  * Modifier that ensures that fee was taken from the wallet for a transaction.
@@ -200,15 +200,19 @@ class ShouldChangeBalance extends MatcherModifier {
  * @param wallet Optional wallet if the api mode is modern
  * @returns Extracted fee
  */
-export async function extractFee(receipt: zksync.types.TransactionReceipt, from?: string, wallet?: zksync.Wallet): Promise<Fee> {
+export async function extractFee(
+    receipt: zksync.types.TransactionReceipt,
+    from?: string,
+    wallet?: zksync.Wallet
+): Promise<Fee> {
     from = from ?? receipt.from;
 
     const systemAccountAddress = '0x0000000000000000000000000000000000000000000000000000000000008001';
     // We need to pad address to represent 256-bit value.
     const fromAccountAddress = ethers.utils.hexZeroPad(ethers.utils.arrayify(from), 32);
 
-    if(process.env.API_WEB3_JSON_RPC_API_MODE == 'modern') {
-        const trace = (await wallet!.provider.send('debug_traceTransaction', [receipt.transactionHash]))
+    if (process.env.API_WEB3_JSON_RPC_API_MODE == 'modern') {
+        const trace = await wallet!.provider.send('debug_traceTransaction', [receipt.transactionHash]);
 
         if (!trace) {
             throw {
@@ -225,13 +229,12 @@ export async function extractFee(receipt: zksync.types.TransactionReceipt, from?
             feeAfterRefund: feeAfterRefund,
             refund: feeAmount.sub(feeAfterRefund)
         };
-    }
-    else {
+    } else {
         const feeLog = receipt.logs.find((log: Log) => {
             return (
                 log.topics.length == 3 && log.topics[1] == fromAccountAddress && log.topics[2] == systemAccountAddress
             );
-        })
+        });
 
         if (!feeLog) {
             throw {
@@ -245,7 +248,9 @@ export async function extractFee(receipt: zksync.types.TransactionReceipt, from?
         const feeRefund = receipt.logs
             .filter((log) => {
                 return (
-                    log.topics.length == 3 && log.topics[1] == systemAccountAddress && log.topics[2] == fromAccountAddress
+                    log.topics.length == 3 &&
+                    log.topics[1] == systemAccountAddress &&
+                    log.topics[2] == fromAccountAddress
                 );
             })
             .map((log) => ethers.BigNumber.from(log.data))
@@ -260,8 +265,6 @@ export async function extractFee(receipt: zksync.types.TransactionReceipt, from?
         };
     }
 }
-
-
 
 /**
  * Helper method to extract the refund for the L1->L2 transaction in ETH wei.

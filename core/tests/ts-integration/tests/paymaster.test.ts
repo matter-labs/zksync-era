@@ -1,19 +1,19 @@
 /**
  * This suite contains tests checking the behavior of paymasters -- entities that can cover fees for users.
  */
-import {TestMaster} from '../src';
+import { TestMaster } from '../src';
 import * as zksync from 'zksync-web3';
-import {Contract, Provider, utils, Wallet} from 'zksync-web3';
+import { Contract, Provider, utils, Wallet } from 'zksync-web3';
 import * as ethers from 'ethers';
-import {deployContract, getTestContract} from '../src/helpers';
-import {L2_ETH_PER_ACCOUNT} from '../src/context-owner';
-import {checkReceipt} from '../src/modifiers/receipt-check';
-import {extractFee} from '../src/modifiers/balance-checker';
-import {TestMessage} from '../src/matchers/matcher-helpers';
-import {Address} from 'zksync-web3/build/src/types';
+import { deployContract, getTestContract } from '../src/helpers';
+import { L2_ETH_PER_ACCOUNT } from '../src/context-owner';
+import { checkReceipt } from '../src/modifiers/receipt-check';
+import { extractFee } from '../src/modifiers/balance-checker';
+import { TestMessage } from '../src/matchers/matcher-helpers';
+import { Address } from 'zksync-web3/build/src/types';
 import * as hre from 'hardhat';
-import {Deployer} from '@matterlabs/hardhat-zksync-deploy';
-import {ZkSyncArtifact} from '@matterlabs/hardhat-zksync-deploy/dist/types';
+import { Deployer } from '@matterlabs/hardhat-zksync-deploy';
+import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-deploy/dist/types';
 
 const contracts = {
     customPaymaster: getTestContract('CustomPaymaster')
@@ -300,7 +300,7 @@ async function paidFeeWithPaymaster(
     receipt: zksync.types.TransactionReceipt,
     ratioNumerator: ethers.BigNumber,
     paymaster: string,
-    wallet: zksync.Wallet,
+    wallet: zksync.Wallet
 ): Promise<boolean> {
     const errorMessage = (line: string) => {
         return new TestMessage()
