@@ -4,7 +4,7 @@ use zksync_utils::{bytecode::CompressedBytecodeInfo, bytes_to_be_words, h256_to_
 use super::tx::BootloaderTx;
 use crate::{
     interface::{BootloaderMemory, TxExecutionMode},
-    vm_latest::{
+    vm_boojum_integration::{
         bootloader_state::l2_block::BootloaderL2Block,
         constants::{
             BOOTLOADER_TX_DESCRIPTION_OFFSET, BOOTLOADER_TX_DESCRIPTION_SIZE,

@@ -3,7 +3,7 @@ use zksync_utils::bytecode::compress_bytecode;
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{
+    vm_boojum_integration::{
         tests::{
             tester::{DeployContractsTx, TxType, VmTesterBuilder},
             utils::read_test_contract,

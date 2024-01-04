@@ -9,7 +9,7 @@ use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{
+    vm_boojum_integration::{
         tests::{
             tester::{TxType, VmTesterBuilder},
             utils::{read_test_contract, BASE_SYSTEM_CONTRACTS},
