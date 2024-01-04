@@ -30,6 +30,7 @@ use crate::{
     state_keeper::tests::create_l2_transaction,
 };
 
+mod snapshots;
 mod ws;
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
@@ -138,6 +139,9 @@ async fn spawn_server(
     .await;
     let (pub_sub_events_sender, pub_sub_events_receiver) = mpsc::unbounded_channel();
 
+    let mut namespaces = Namespace::DEFAULT.to_vec();
+    namespaces.push(Namespace::Snapshots);
+
     let server_builder = match transport {
         ApiTransportLabel::Http => ApiBuilder::jsonrpsee_backend(api_config, pool).http(0),
         ApiTransportLabel::Ws => {
@@ -156,7 +160,7 @@ async fn spawn_server(
         .with_polling_interval(POLL_INTERVAL)
         .with_tx_sender(tx_sender, vm_barrier)
         .with_pub_sub_events(pub_sub_events_sender)
-        .enable_api_namespaces(Namespace::DEFAULT.to_vec())
+        .enable_api_namespaces(namespaces)
         .build(stop_receiver)
         .await
         .expect("Failed spawning JSON-RPC server");
@@ -221,8 +225,9 @@ fn create_miniblock(number: u32) -> MiniblockHeader {
     }
 }
 
-async fn store_block(pool: &ConnectionPool) -> anyhow::Result<(MiniblockHeader, H256)> {
-    let mut storage = pool.access_storage().await?;
+async fn store_miniblock(
+    storage: &mut StorageProcessor<'_>,
+) -> anyhow::Result<(MiniblockHeader, H256)> {
     let new_tx = create_l2_transaction(1, 2);
     let new_tx_hash = new_tx.hash();
     let tx_submission_result = storage
@@ -295,10 +300,10 @@ async fn store_events(
 }
 
 #[derive(Debug)]
-struct HttpServerBasics;
+struct HttpServerBasicsTest;
 
 #[async_trait]
-impl HttpTest for HttpServerBasics {
+impl HttpTest for HttpServerBasicsTest {
     async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
         let block_number = client.get_block_number().await?;
         assert_eq!(block_number, U64::from(0));
@@ -317,19 +322,20 @@ impl HttpTest for HttpServerBasics {
 
 #[tokio::test]
 async fn http_server_basics() {
-    test_http_server(HttpServerBasics).await;
+    test_http_server(HttpServerBasicsTest).await;
 }
 
 #[derive(Debug)]
-struct BasicFilterChanges;
+struct BasicFilterChangesTest;
 
 #[async_trait]
-impl HttpTest for BasicFilterChanges {
+impl HttpTest for BasicFilterChangesTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
         let block_filter_id = client.new_block_filter().await?;
         let tx_filter_id = client.new_pending_transaction_filter().await?;
 
-        let (new_miniblock, new_tx_hash) = store_block(pool).await?;
+        let (new_miniblock, new_tx_hash) =
+            store_miniblock(&mut pool.access_storage().await?).await?;
 
         let block_filter_changes = client.get_filter_changes(block_filter_id).await?;
         assert_matches!(
@@ -364,14 +370,14 @@ impl HttpTest for BasicFilterChanges {
 
 #[tokio::test]
 async fn basic_filter_changes() {
-    test_http_server(BasicFilterChanges).await;
+    test_http_server(BasicFilterChangesTest).await;
 }
 
 #[derive(Debug)]
-struct LogFilterChanges;
+struct LogFilterChangesTest;
 
 #[async_trait]
-impl HttpTest for LogFilterChanges {
+impl HttpTest for LogFilterChangesTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
         let all_logs_filter_id = client.new_filter(Filter::default()).await?;
         let address_filter = Filter {
@@ -419,14 +425,14 @@ impl HttpTest for LogFilterChanges {
 
 #[tokio::test]
 async fn log_filter_changes() {
-    test_http_server(LogFilterChanges).await;
+    test_http_server(LogFilterChangesTest).await;
 }
 
 #[derive(Debug)]
-struct LogFilterChangesWithBlockBoundaries;
+struct LogFilterChangesWithBlockBoundariesTest;
 
 #[async_trait]
-impl HttpTest for LogFilterChangesWithBlockBoundaries {
+impl HttpTest for LogFilterChangesWithBlockBoundariesTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
         let lower_bound_filter = Filter {
             from_block: Some(api::BlockNumber::Number(2.into())),
@@ -516,5 +522,5 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
 
 #[tokio::test]
 async fn log_filter_changes_with_block_boundaries() {
-    test_http_server(LogFilterChangesWithBlockBoundaries).await;
+    test_http_server(LogFilterChangesWithBlockBoundariesTest).await;
 }
