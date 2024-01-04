@@ -27,7 +27,6 @@ use zksync_utils::{
 };
 
 use crate::{
-    interface::types::inputs::l1_batch_env,
     vm_1_3_2::{
         bootloader_state::BootloaderState,
         history_recorder::HistoryMode,

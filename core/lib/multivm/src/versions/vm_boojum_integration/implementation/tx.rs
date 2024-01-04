@@ -1,6 +1,6 @@
 use zk_evm_1_4_0::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
-use zksync_types::{l1::is_l1_tx_type, Transaction, VmVersion};
+use zksync_types::{l1::is_l1_tx_type, Transaction};
 
 use crate::{
     vm_boojum_integration::{
