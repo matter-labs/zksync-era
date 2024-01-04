@@ -379,7 +379,7 @@ impl TxSender {
     fn shared_args(&self) -> TxSharedArgs {
         TxSharedArgs {
             operator_account: AccountTreeId::new(self.0.sender_config.fee_account_addr),
-            fee_input: self.0.batch_fee_input_provider.get_batch_fee_input(false),
+            fee_input: self.0.batch_fee_input_provider.get_batch_fee_input(),
             base_system_contracts: self.0.api_contracts.eth_call.clone(),
             caches: self.storage_caches(),
             validation_computational_gas_limit: self
@@ -642,7 +642,11 @@ impl TxSender {
         drop(connection);
 
         let fee_input = {
-            let fee_input = self.0.batch_fee_input_provider.get_batch_fee_input(true);
+            // For now, both L1 gas price and pubdata price are scaled with the same coefficient
+            let fee_input = self.0.batch_fee_input_provider.get_batch_fee_input_scaled(
+                self.0.sender_config.gas_price_scale_factor,
+                self.0.sender_config.gas_price_scale_factor,
+            );
             adjust_pubdata_price_for_tx(
                 fee_input,
                 tx.gas_per_pubdata_byte_limit(),
@@ -873,7 +877,11 @@ impl TxSender {
         drop(connection);
 
         let (base_fee, _) = derive_base_fee_and_gas_per_pubdata(
-            self.0.batch_fee_input_provider.get_batch_fee_input(true),
+            // For now, both the L1 gas price and the L1 pubdata price are scaled with the same coefficient
+            self.0.batch_fee_input_provider.get_batch_fee_input_scaled(
+                self.0.sender_config.gas_price_scale_factor,
+                self.0.sender_config.gas_price_scale_factor,
+            ),
             protocol_version.into(),
         );
         base_fee

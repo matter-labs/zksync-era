@@ -584,7 +584,7 @@ impl ZksNamespace {
             .tx_sender
             .0
             .batch_fee_input_provider
-            .get_batch_fee_input(false)
+            .get_batch_fee_input()
             .l1_gas_price();
 
         method_latency.observe();

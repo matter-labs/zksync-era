@@ -65,7 +65,6 @@ impl Tester {
         MainNodeFeeInputProvider::new(
             gas_adjuster,
             MainNodeFeeModelConfig::V1(MainNodeFeeModelConfigV1 {
-                l1_gas_price_scale_factor: 1.0,
                 minimal_l2_gas_price: self.fair_l2_gas_price(),
             }),
         )
@@ -85,7 +84,6 @@ impl Tester {
         let batch_fee_input_provider = MainNodeFeeInputProvider::new(
             gas_adjuster,
             MainNodeFeeModelConfig::V1(MainNodeFeeModelConfigV1 {
-                l1_gas_price_scale_factor: 1.0,
                 minimal_l2_gas_price: self.fair_l2_gas_price(),
             }),
         );

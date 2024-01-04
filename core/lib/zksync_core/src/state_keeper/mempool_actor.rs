@@ -20,7 +20,7 @@ pub fn l2_tx_filter(
     batch_fee_input_provider: &dyn BatchFeeModelInputProvider,
     vm_version: VmVersion,
 ) -> L2TxFilter {
-    let fee_input = batch_fee_input_provider.get_batch_fee_input(false);
+    let fee_input = batch_fee_input_provider.get_batch_fee_input();
 
     let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(fee_input, vm_version);
     L2TxFilter {

@@ -114,19 +114,14 @@ pub enum MainNodeFeeModelConfig {
 /// neither fair L2 gas price nor the pubdata price include the overhead for closing the batch
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct MainNodeFeeModelConfigV1 {
-    /// The factor by which the L1 gas price is scaled. This is used to account for the fact that the L1 gas price may fluctuate.
-    pub l1_gas_price_scale_factor: f64,
     /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
     /// as potentially premium for congestion.
+    /// Unlike the V2, this price will be directly used as the "fair_l2_gas_price" in the bootloader.
     pub minimal_l2_gas_price: u64,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct MainNodeFeeModelConfigV2 {
-    /// The factor by which the L1 gas price is scaled. This is used to account for the fact that the L1 gas price may fluctuate.
-    pub l1_gas_price_scale_factor: f64,
-    /// The factor by which the L1 pubdata price is scaled. This is used to account for the fact that the L1 pubdata price may fluctuate.
-    pub l1_pubdata_price_scale_factor: f64,
     /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
     /// as potentially premium for congestion.
     pub minimal_l2_gas_price: u64,
@@ -147,7 +142,6 @@ impl Default for MainNodeFeeModelConfig {
     /// so we implement a sensible default config here.
     fn default() -> Self {
         Self::V1(MainNodeFeeModelConfigV1 {
-            l1_gas_price_scale_factor: 1.0,
             minimal_l2_gas_price: 100_000_000,
         })
     }
@@ -177,7 +171,6 @@ impl MainNodeFeeParams {
     pub fn sensible_v1_default() -> Self {
         Self::V1(MainNodeFeeParamsV1 {
             config: MainNodeFeeModelConfigV1 {
-                l1_gas_price_scale_factor: 1.0,
                 minimal_l2_gas_price: 100_000_000,
             },
             l1_gas_price: 1_000_000_000,

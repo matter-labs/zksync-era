@@ -700,8 +700,6 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
     let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
         gas_adjuster,
         zksync_types::fee_model::MainNodeFeeModelConfig::V1(MainNodeFeeModelConfigV1 {
-            // We never scale L1 gas price in the state keeper
-            l1_gas_price_scale_factor: 1.0,
             minimal_l2_gas_price: state_keeper_config.fair_l2_gas_price,
         }),
     ));
@@ -1025,7 +1023,6 @@ async fn build_tx_sender(
     let batch_fee_input_provider = MainNodeFeeInputProvider::new(
         l1_gas_price_provider,
         zksync_types::fee_model::MainNodeFeeModelConfig::V1(MainNodeFeeModelConfigV1 {
-            l1_gas_price_scale_factor: tx_sender_config.gas_price_scale_factor,
             minimal_l2_gas_price: state_keeper_config.fair_l2_gas_price,
         }),
     );

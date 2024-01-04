@@ -14,15 +14,29 @@ use crate::{api_server::tx_sender::TxSenderConfig, l1_gas_price::L1GasPriceProvi
 
 /// Trait responsible for providing fee info for a batch
 pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
-    fn get_batch_fee_input(&self, scale_l1_prices: bool) -> BatchFeeInput {
+    /// Returns the batch fee with scaling applied. This may be used to account for the fact that the L1 gas and pubdata prices may fluctuate, esp.
+    // in API methods that should return values that are valid for some period of time after the estimation was done.
+    fn get_batch_fee_input_scaled(
+        &self,
+        l1_gas_price_scale_factor: f64,
+        l1_pubdata_price_scale_factor: f64,
+    ) -> BatchFeeInput {
         let params = self.get_fee_model_params();
 
         match params {
             MainNodeFeeParams::V1(params) => {
-                compute_legacy_batch_fee_model_input(params, scale_l1_prices)
+                compute_legacy_batch_fee_model_input(params, l1_gas_price_scale_factor)
             }
-            MainNodeFeeParams::V2(params) => compute_batch_fee_model_input(params, scale_l1_prices),
+            MainNodeFeeParams::V2(params) => compute_batch_fee_model_input(
+                params,
+                l1_gas_price_scale_factor,
+                l1_pubdata_price_scale_factor,
+            ),
         }
+    }
+
+    fn get_batch_fee_input(&self) -> BatchFeeInput {
+        self.get_batch_fee_input_scaled(1.0, 1.0)
     }
 
     fn get_fee_model_params(&self) -> MainNodeFeeParams;
@@ -60,14 +74,8 @@ impl<G: L1GasPriceProvider + ?Sized> MainNodeFeeInputProvider<G> {
 /// This function uses the legacy fee model, used prior to 1.4.1, i.e. where the pubdata price does not include the proving costs.
 pub(crate) fn compute_legacy_batch_fee_model_input(
     params: MainNodeFeeParamsV1,
-    scale_l1_prices: bool,
+    l1_gas_price_scale_factor: f64,
 ) -> BatchFeeInput {
-    let l1_gas_price_scale_factor = if scale_l1_prices {
-        params.config.l1_gas_price_scale_factor
-    } else {
-        1.0
-    };
-
     let l1_gas_price = (params.l1_gas_price as f64 * l1_gas_price_scale_factor) as u64;
 
     BatchFeeInput::L1Pegged(L1PeggedBatchFeeModelInput {
@@ -79,7 +87,8 @@ pub(crate) fn compute_legacy_batch_fee_model_input(
 /// Calculates the batch fee input based on the main node parameters.
 pub(crate) fn compute_batch_fee_model_input(
     params: MainNodeFeeParamsV2,
-    scale_l1_prices: bool,
+    l1_gas_price_scale_factor: f64,
+    l1_pubdata_price_scale_factor: f64,
 ) -> BatchFeeInput {
     let MainNodeFeeParamsV2 {
         config,
@@ -88,8 +97,6 @@ pub(crate) fn compute_batch_fee_model_input(
     } = params;
 
     let MainNodeFeeModelConfigV2 {
-        l1_gas_price_scale_factor,
-        l1_pubdata_price_scale_factor,
         minimal_l2_gas_price,
         compute_overhead_percent,
         pubdata_overhead_percent,
@@ -97,12 +104,6 @@ pub(crate) fn compute_batch_fee_model_input(
         max_gas_per_batch,
         max_pubdata_per_batch,
     } = config;
-
-    let (l1_gas_price_scale_factor, l1_pubdata_price_scale_factor) = if scale_l1_prices {
-        (l1_gas_price_scale_factor, l1_pubdata_price_scale_factor)
-    } else {
-        (1.0, 1.0)
-    };
 
     let l1_gas_price = (l1_gas_price as f64 * l1_gas_price_scale_factor) as u64;
     let l1_pubdata_price = (l1_pubdata_price as f64 * l1_pubdata_price_scale_factor) as u64;
