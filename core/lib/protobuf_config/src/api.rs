@@ -4,13 +4,14 @@ use zksync_protobuf::required;
 
 use crate::{
     proto,
+    parse_h256,
     repr::{read_required_repr, ProtoRepr},
 };
 
 impl ProtoRepr for proto::Api {
     type Type = ApiConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
-        Ok(ApiConfig {
+        Ok(Self::Type {
             web3_json_rpc: read_required_repr(&self.web3_json_rpc).context("web3_json_rpc")?,
             contract_verification: read_required_repr(&self.contract_verification)
                 .context("contract_verification")?,
@@ -53,20 +54,13 @@ impl ProtoRepr for proto::Web3JsonRpc {
             gas_price_scale_factor: *required(&self.gas_price_scale_factor)
                 .context("gas_price_scale_factor")?,
             request_timeout: self.request_timeout,
-            account_pks: match &self.account_pks {
-                None => None,
-                Some(r) => {
-                    let mut keys = vec![];
-                    for (i, k) in r.keys.iter().enumerate() {
-                        keys.push(
-                            <[u8; 32]>::try_from(&k[..])
-                                .with_context(|| format!("keys[{i}]"))?
-                                .into(),
-                        );
-                    }
-                    Some(keys)
-                }
-            },
+            account_pks: self.account_pks.as_ref().map(|keys| keys.keys
+                .iter()
+                .enumerate()
+                .map(|(i,k)|parse_h256(k).context(i))
+                .collect::<Result<_,_>>()
+                .context("keys")
+            ).transpose().context("account_pks")?,
             estimate_gas_scale_factor: *required(&self.estimate_gas_scale_factor)
                 .context("estimate_gas_scale_factor")?,
             estimate_gas_acceptable_overestimation: *required(

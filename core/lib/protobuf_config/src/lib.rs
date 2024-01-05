@@ -6,8 +6,20 @@
 
 mod alerts;
 mod api;
+mod chain;
 pub mod proto;
 mod repr;
 #[cfg(test)]
 mod tests;
 mod utils;
+
+use zksync_types::{H160,H256};
+use anyhow::Context as _;
+
+fn parse_h256(bytes: &[u8]) -> anyhow::Result<H256> {
+    Ok(<[u8; 32]>::try_from(bytes).context("invalid size")?.into())
+}
+
+fn parse_h160(bytes: &[u8]) -> anyhow::Result<H160> {
+    Ok(<[u8; 20]>::try_from(bytes).context("invalid size")?.into())
+}

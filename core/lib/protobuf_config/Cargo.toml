@@ -13,9 +13,10 @@ links = "zksync_protobuf_config_proto"
 
 [dependencies]
 serde_json = "1.0"
-zksync_basic_types = { path = "../../lib/basic_types" }
-zksync_config = { path = "../../lib/config" }
+zksync_basic_types = { path = "../basic_types" }
+zksync_config = { path = "../config" }
 zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "84cdd9e45fd84bc1fac0b394c899ae33aef91afa" }
+zksync_types = { path = "../types" }
 
 anyhow = "1.0"
 prost = "0.12.1"
