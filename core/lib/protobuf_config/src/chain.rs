@@ -196,7 +196,7 @@ impl ProtoRepr for proto::CircuitBreaker {
         Self {
             sync_interval_ms: Some(this.sync_interval_ms),
             http_req_max_retry_number: Some(this.http_req_max_retry_number.try_into().unwrap()),
-            http_req_retry_interval_sec: Some(this.http_req_retry_interval_sec.try_into().unwrap()),
+            http_req_retry_interval_sec: Some(this.http_req_retry_interval_sec.into()),
             replication_lag_limit_sec: this.replication_lag_limit_sec,
         }
     }

@@ -3,9 +3,8 @@ syntax = "proto3";
 package zksync.config;
 
 enum ProverAtGenesis {
-  PROVER_AT_GENESIS_UNKNOWN = 0;
-  FRI = 1;
-  OLD = 2;
+  FRI = 0;
+  OLD = 1;
 }
 
 message Contracts {

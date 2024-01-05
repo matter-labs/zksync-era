@@ -7,6 +7,9 @@
 mod alerts;
 mod api;
 mod chain;
+mod contract_verifier;
+mod contracts;
+
 pub mod proto;
 mod repr;
 #[cfg(test)]
