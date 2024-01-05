@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                l1_batch_number,\n                factory_deps_filepath,\n                storage_logs_filepaths\n            FROM\n                snapshots\n            ",
+  "query": "\n            SELECT\n                l1_batch_number,\n                factory_deps_filepath,\n                storage_logs_filepaths\n            FROM\n                snapshots\n            ORDER BY\n                l1_batch_number DESC\n            LIMIT\n                1\n            ",
   "describe": {
     "columns": [
       {
@@ -28,5 +28,5 @@
       false
     ]
   },
-  "hash": "4e2cb66131a524d1bd628424d0c0735d7f9b0b5820ae3a07467d2e76cd6280f9"
+  "hash": "995cecd37a5235d1acc2e6fc418d9b6a1a6fe629f9a02c8e33330a0efda64068"
 }
