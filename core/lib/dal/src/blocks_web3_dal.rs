@@ -32,24 +32,7 @@ pub struct BlocksWeb3Dal<'a, 'c> {
 }
 
 impl BlocksWeb3Dal<'_, '_> {
-    pub async fn get_sealed_miniblock_number(&mut self) -> sqlx::Result<MiniblockNumber> {
-        let number = sqlx::query!(
-            r#"
-            SELECT
-                MAX(number) AS "number"
-            FROM
-                miniblocks
-            "#
-        )
-        .instrument("get_sealed_block_number")
-        .report_latency()
-        .fetch_one(self.storage.conn())
-        .await?
-        .number
-        .expect("DAL invocation before genesis");
-        Ok(MiniblockNumber(number as u32))
-    }
-
+    // FIXME: remove as well?
     pub async fn get_sealed_l1_batch_number(&mut self) -> sqlx::Result<L1BatchNumber> {
         let number = sqlx::query!(
             r#"

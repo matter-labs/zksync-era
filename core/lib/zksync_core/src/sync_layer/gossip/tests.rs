@@ -279,7 +279,8 @@ async fn reset_storage(mut storage: StorageProcessor<'_>) -> Vec<SyncBlock> {
         .blocks_dal()
         .get_sealed_miniblock_number()
         .await
-        .unwrap();
+        .unwrap()
+        .unwrap_or(MiniblockNumber(0));
     let mut blocks = vec![];
     for number in 1..=sealed_miniblock_number.0 {
         blocks.push(load_sync_block(&mut storage, number).await);

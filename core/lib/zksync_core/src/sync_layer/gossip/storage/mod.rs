@@ -258,7 +258,8 @@ impl PostgresBlockStorage {
         let number = ctx
             .wait(storage.blocks_dal().get_sealed_miniblock_number())
             .await?
-            .context("Failed getting sealed miniblock number")?;
+            .context("Failed getting sealed miniblock number")?
+            .context("Storage has at least the genesis block")?;
         Ok(BlockNumber(number.0.into()))
     }
 }
@@ -270,7 +271,8 @@ impl BlockStore for PostgresBlockStorage {
         let miniblock_number = ctx
             .wait(storage.blocks_dal().get_sealed_miniblock_number())
             .await?
-            .context("Failed getting sealed miniblock number")?;
+            .context("Failed getting sealed miniblock number")?
+            .context("Storage has at least the genesis block")?;
         // ^ The number can get stale, but it's OK for our purposes
         Ok(
             Self::block(ctx, &mut storage, miniblock_number, self.operator_address)

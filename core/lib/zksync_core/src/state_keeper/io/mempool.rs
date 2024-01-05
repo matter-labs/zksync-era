@@ -433,7 +433,8 @@ impl MempoolIO {
             .blocks_dal()
             .get_sealed_miniblock_number()
             .await
-            .unwrap();
+            .unwrap()
+            .expect("empty storage not supported"); // FIXME: handle empty storage
 
         drop(storage);
 

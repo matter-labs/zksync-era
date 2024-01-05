@@ -2,6 +2,7 @@
 
 use std::{cmp, sync::Arc, time::Instant};
 
+use anyhow::Context as _;
 use multivm::{
     interface::VmExecutionResultAndLogs,
     utils::{adjust_l1_gas_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead},
@@ -16,9 +17,9 @@ use zksync_types::{
     get_code_key, get_intrinsic_constants,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     utils::storage_key_for_eth_balance,
-    AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, Nonce, PackedEthSignature,
-    ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_GAS_PER_PUBDATA_BYTE,
-    MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS, U256,
+    AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, MiniblockNumber, Nonce,
+    PackedEthSignature, ProtocolVersionId, Transaction, VmVersion, H160, H256,
+    MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::h256_to_u256;
 
@@ -35,6 +36,7 @@ use crate::{
     l1_gas_price::L1GasPriceProvider,
     metrics::{TxStage, APP_METRICS},
     state_keeper::seal_criteria::{ConditionalSealer, NoopSealer, SealData},
+    utils::first_local_miniblock,
 };
 
 mod proxy;
@@ -344,7 +346,7 @@ impl TxSender {
 
         let nonce = tx.common_data.nonce.0;
         let hash = tx.hash();
-        let expected_nonce = self.get_expected_nonce(&tx).await;
+        let initiator_account = tx.initiator_account();
         let submission_res_handle = self
             .0
             .master_connection_pool
@@ -360,11 +362,15 @@ impl TxSender {
         APP_METRICS.processed_txs[&TxStage::Mempool(submission_res_handle)].inc();
 
         match submission_res_handle {
-            L2TxSubmissionResult::AlreadyExecuted => Err(SubmitTxError::NonceIsTooLow(
-                expected_nonce.0,
-                expected_nonce.0 + self.0.sender_config.max_nonce_ahead,
-                nonce,
-            )),
+            L2TxSubmissionResult::AlreadyExecuted => {
+                let Nonce(expected_nonce) =
+                    self.get_expected_nonce(initiator_account).await.unwrap(); // FIXME: propagate errors
+                Err(SubmitTxError::NonceIsTooLow(
+                    expected_nonce,
+                    expected_nonce + self.0.sender_config.max_nonce_ahead,
+                    nonce,
+                ))
+            }
             L2TxSubmissionResult::Duplicate => Err(SubmitTxError::IncorrectTx(TxDuplication(hash))),
             _ => {
                 SANDBOX_METRICS.submit_tx[&SubmitTxStage::DbInsert]
@@ -450,19 +456,22 @@ impl TxSender {
     }
 
     async fn validate_account_nonce(&self, tx: &L2Tx) -> Result<(), SubmitTxError> {
-        let expected_nonce = self.get_expected_nonce(tx).await;
+        let Nonce(expected_nonce) = self
+            .get_expected_nonce(tx.initiator_account())
+            .await
+            .unwrap(); // FIXME: propagate errors
 
-        if tx.common_data.nonce.0 < expected_nonce.0 {
+        if tx.common_data.nonce.0 < expected_nonce {
             Err(SubmitTxError::NonceIsTooLow(
-                expected_nonce.0,
-                expected_nonce.0 + self.0.sender_config.max_nonce_ahead,
+                expected_nonce,
+                expected_nonce + self.0.sender_config.max_nonce_ahead,
                 tx.nonce().0,
             ))
         } else {
-            let max_nonce = expected_nonce.0 + self.0.sender_config.max_nonce_ahead;
-            if !(expected_nonce.0..=max_nonce).contains(&tx.common_data.nonce.0) {
+            let max_nonce = expected_nonce + self.0.sender_config.max_nonce_ahead;
+            if !(expected_nonce..=max_nonce).contains(&tx.common_data.nonce.0) {
                 Err(SubmitTxError::NonceIsTooHigh(
-                    expected_nonce.0,
+                    expected_nonce,
                     max_nonce,
                     tx.nonce().0,
                 ))
@@ -472,25 +481,37 @@ impl TxSender {
         }
     }
 
-    async fn get_expected_nonce(&self, tx: &L2Tx) -> Nonce {
-        let mut connection = self
+    async fn get_expected_nonce(&self, initiator_account: Address) -> anyhow::Result<Nonce> {
+        let mut storage = self
             .0
             .replica_connection_pool
             .access_storage_tagged("api")
-            .await
-            .unwrap();
+            .await?;
 
-        let latest_block_number = connection
-            .blocks_web3_dal()
+        let latest_block_number = storage
+            .blocks_dal()
             .get_sealed_miniblock_number()
             .await
-            .unwrap();
-        let nonce = connection
+            .context("failed getting sealed miniblock number")?;
+        let latest_block_number = match latest_block_number {
+            Some(number) => number,
+            None => {
+                // We don't have miniblocks in the storage yet. Use the snapshot miniblock number instead.
+                let first_local_miniblock = first_local_miniblock(&mut storage).await?;
+                MiniblockNumber(first_local_miniblock.saturating_sub(1))
+            }
+        };
+
+        let nonce = storage
             .storage_web3_dal()
-            .get_address_historical_nonce(tx.initiator_account(), latest_block_number)
+            .get_address_historical_nonce(initiator_account, latest_block_number)
             .await
-            .unwrap();
-        Nonce(nonce.as_u32())
+            .with_context(|| {
+                format!("failed getting nonce for address {initiator_account:?} at miniblock #{latest_block_number}")
+            })?;
+        let nonce = u32::try_from(nonce)
+            .map_err(|err| anyhow::anyhow!("failed converting nonce to u32: {err}"))?;
+        Ok(Nonce(nonce))
     }
 
     async fn validate_enough_balance(&self, tx: &L2Tx) -> Result<(), SubmitTxError> {

@@ -330,7 +330,7 @@ impl TransactionsWeb3Dal<'_, '_> {
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Latest))
             .await?
-            .expect("Failed to get `latest` nonce");
+            .expect("Failed to get `latest` nonce"); // FIXME: doesn't work after snapshot recovery
         let latest_nonce = self
             .storage
             .storage_web3_dal()

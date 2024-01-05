@@ -24,7 +24,6 @@ use super::{
     metrics::{SubscriptionType, PUB_SUB_METRICS},
     namespaces::eth::EVENT_TOPIC_NUMBER_LIMIT,
 };
-use crate::utils::wait_for_l1_batch;
 
 const BROADCAST_CHANNEL_CAPACITY: usize = 1024;
 const SUBSCRIPTION_SINK_SEND_TIMEOUT: Duration = Duration::from_secs(1);
@@ -56,15 +55,30 @@ struct PubSubNotifier {
 }
 
 impl PubSubNotifier {
-    async fn sealed_miniblock_number(&self) -> anyhow::Result<MiniblockNumber> {
-        self.connection_pool
-            .access_storage_tagged("api")
-            .await
-            .context("access_storage_tagged")?
-            .blocks_web3_dal()
-            .get_sealed_miniblock_number()
-            .await
-            .context("get_sealed_miniblock_number()")
+    async fn wait_for_sealed_miniblock_number(
+        &self,
+        stop_receiver: &watch::Receiver<bool>,
+    ) -> anyhow::Result<Option<MiniblockNumber>> {
+        loop {
+            if *stop_receiver.borrow() {
+                return Ok(None);
+            }
+
+            let sealed_miniblock_number = self
+                .connection_pool
+                .access_storage_tagged("api")
+                .await
+                .context("access_storage_tagged")?
+                .blocks_dal()
+                .get_sealed_miniblock_number()
+                .await
+                .context("get_sealed_miniblock_number()")?;
+            if let Some(number) = sealed_miniblock_number {
+                return Ok(Some(number));
+            } else {
+                tokio::time::sleep(self.polling_interval).await;
+            }
+        }
     }
 
     fn emit_event(&self, event: PubSubEvent) {
@@ -75,19 +89,15 @@ impl PubSubNotifier {
 }
 
 impl PubSubNotifier {
-    async fn notify_blocks(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        // FIXME: awkward; rework `get_sealed_miniblock_number()` instead?
+    async fn notify_blocks(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let Some(mut last_block_number) = self
+            .wait_for_sealed_miniblock_number(&stop_receiver)
+            .await?
+        else {
+            tracing::info!("Stop signal received, pubsub_block_notifier is shutting down");
+            return Ok(());
+        };
 
-        // We should wait for at least one L1 batch in the storage in order to not panic
-        // when getting the sealed miniblock number below.
-        wait_for_l1_batch(
-            &self.connection_pool,
-            self.polling_interval,
-            &mut stop_receiver,
-        )
-        .await?;
-
-        let mut last_block_number = self.sealed_miniblock_number().await?;
         let mut timer = interval(self.polling_interval);
         loop {
             if *stop_receiver.borrow() {
@@ -170,17 +180,15 @@ impl PubSubNotifier {
             .context("get_pending_txs_hashes_after()")
     }
 
-    async fn notify_logs(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        // We should wait for at least one L1 batch in the storage in order to not panic
-        // when getting the sealed miniblock number below.
-        wait_for_l1_batch(
-            &self.connection_pool,
-            self.polling_interval,
-            &mut stop_receiver,
-        )
-        .await?;
+    async fn notify_logs(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let Some(mut last_block_number) = self
+            .wait_for_sealed_miniblock_number(&stop_receiver)
+            .await?
+        else {
+            tracing::info!("Stop signal received, pubsub_block_notifier is shutting down");
+            return Ok(());
+        };
 
-        let mut last_block_number = self.sealed_miniblock_number().await?;
         let mut timer = interval(self.polling_interval);
         loop {
             if *stop_receiver.borrow() {

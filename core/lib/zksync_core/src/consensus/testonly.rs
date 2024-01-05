@@ -238,13 +238,15 @@ impl StateKeeperHandle {
     // Wait for all pushed miniblocks to be produced.
     pub async fn sync(&self, ctx: &ctx::Ctx, pool: &ConnectionPool) -> anyhow::Result<()> {
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
+
         loop {
             let mut storage = pool.access_storage().await.context("access_storage()")?;
             let head = storage
                 .blocks_dal()
                 .get_sealed_miniblock_number()
                 .await
-                .context("get_sealed_miniblock_number()")?;
+                .context("get_sealed_miniblock_number()")?
+                .unwrap_or(MiniblockNumber(0));
             if head.0 >= self.next_block.0 - 1 {
                 return Ok(());
             }

@@ -17,14 +17,17 @@ use zksync_web3_decl::{
     types::{Address, Block, Filter, FilterChanges, Log, U64},
 };
 
-use crate::api_server::{
-    execution_sandbox::BlockArgs,
-    web3::{
-        backend_jsonrpsee::internal_error,
-        metrics::{BlockCallObserver, API_METRICS},
-        state::RpcState,
-        TypedFilter,
+use crate::{
+    api_server::{
+        execution_sandbox::BlockArgs,
+        web3::{
+            backend_jsonrpsee::internal_error,
+            metrics::{BlockCallObserver, API_METRICS},
+            state::RpcState,
+            TypedFilter,
+        },
     },
+    utils::first_local_miniblock,
 };
 
 pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;
@@ -45,20 +48,21 @@ impl EthNamespace {
         const METHOD_NAME: &str = "get_block_number";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let block_number = self
+        let mut storage = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
-            .blocks_web3_dal()
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
+        let block_number = storage
+            .blocks_dal()
             .get_sealed_miniblock_number()
             .await
-            .map(|n| U64::from(n.0))
-            .map_err(|err| internal_error(METHOD_NAME, err));
+            .map_err(|err| internal_error(METHOD_NAME, err))?
+            .ok_or(Web3Error::NoBlock)?;
 
         method_latency.observe();
-        block_number
+        Ok(block_number.0.into())
     }
 
     #[tracing::instrument(skip(self, request, block_id))]
@@ -517,25 +521,32 @@ impl EthNamespace {
         const METHOD_NAME: &str = "new_block_filter";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let mut conn = self
+        let mut storage = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
-        let last_block_number = conn
-            .blocks_web3_dal()
+        let last_block_number = storage
+            .blocks_dal()
             .get_sealed_miniblock_number()
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
-        drop(conn);
+        let next_block_number = match last_block_number {
+            Some(number) => number + 1,
+            // If we don't have miniblocks in the storage, use the first projected miniblock number as the cursor
+            None => first_local_miniblock(&mut storage)
+                .await
+                .map_err(|err| internal_error(METHOD_NAME, err))?,
+        };
+        drop(storage);
 
         let idx = self
             .state
             .installed_filters
             .lock()
             .await
-            .add(TypedFilter::Blocks(last_block_number + 1));
+            .add(TypedFilter::Blocks(next_block_number));
         method_latency.observe();
         Ok(idx)
     }
