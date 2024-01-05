@@ -79,6 +79,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             spent_pubdata_counter_before,
             pubdata_published,
             logs.total_log_queries_count,
+            tx_tracer.circuits_tracer.estimated_circuits_used,
         );
         let result = tx_tracer.result_tracer.into_result();
 
