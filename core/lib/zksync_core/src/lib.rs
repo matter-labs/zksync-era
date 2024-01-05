@@ -674,7 +674,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
     db_config: &DBConfig,
     mempool_config: &MempoolConfig,
     gas_adjuster: Arc<E>,
-    object_store: Box<dyn ObjectStore>,
+    object_store: Arc<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let fair_l2_gas_price = state_keeper_config.fair_l2_gas_price;
@@ -793,7 +793,7 @@ async fn run_tree(
     merkle_tree_config: &MerkleTreeConfig,
     api_config: Option<&MerkleTreeApiConfig>,
     operation_manager: &OperationsManagerConfig,
-    object_store: Option<Box<dyn ObjectStore>>,
+    object_store: Option<Arc<dyn ObjectStore>>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let started_at = Instant::now();

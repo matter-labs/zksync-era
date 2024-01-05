@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -33,7 +33,7 @@ use zksync_vk_setup_data_server_fri::{get_recursive_layer_vk_for_circuit_type, g
 use crate::metrics::METRICS;
 
 pub struct ProofCompressor {
-    blob_store: Box<dyn ObjectStore>,
+    blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool,
     compression_mode: u8,
     verify_wrapper_proof: bool,
@@ -42,7 +42,7 @@ pub struct ProofCompressor {
 
 impl ProofCompressor {
     pub fn new(
-        blob_store: Box<dyn ObjectStore>,
+        blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool,
         compression_mode: u8,
         verify_wrapper_proof: bool,
