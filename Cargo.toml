@@ -32,7 +32,6 @@ members = [
     "core/lib/state",
     "core/lib/storage",
     "core/lib/types",
-    "core/lib/prover_utils",
     "core/lib/utils",
     "core/lib/vlog",
     "core/lib/multivm",

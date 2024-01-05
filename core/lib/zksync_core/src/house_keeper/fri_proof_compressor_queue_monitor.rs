@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use zksync_dal::ConnectionPool;
-use zksync_prover_utils::periodic_job::PeriodicJob;
 use zksync_types::proofs::JobCountStatistics;
+
+use crate::house_keeper::periodic_job::PeriodicJob;
 
 const PROOF_COMPRESSOR_SERVICE_NAME: &str = "proof_compressor";
 
