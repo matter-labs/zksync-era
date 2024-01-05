@@ -1441,16 +1441,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
 
 [[package]]
-name = "combine"
-version = "4.6.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35ed6e9d84f0b51a7f52daf1c7d71dd136fd7a3f41a8462b8cdb8c78d920fad4"
-dependencies = [
- "bytes",
- "memchr",
-]
-
-[[package]]
 name = "compile-fmt"
 version = "0.1.0"
 source = "git+https://github.com/slowli/compile-fmt.git?rev=c6a41c846c9a6f70cdba4b44c9f3922242ffcf12#c6a41c846c9a6f70cdba4b44c9f3922242ffcf12"
@@ -7373,17 +7363,6 @@ checksum = "7cda73e2f1397b1262d6dfdcef8aafae14d1de7748d66822d3bfeeb6d03e5e4b"
 
 [[package]]
 name = "toml_edit"
-version = "0.14.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5376256e44f2443f8896ac012507c19a012df0fe8758b55246ae51a2279db51f"
-dependencies = [
- "combine",
- "indexmap 1.9.3",
- "itertools 0.10.5",
-]
-
-[[package]]
-name = "toml_edit"
 version = "0.19.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
@@ -8804,7 +8783,6 @@ dependencies = [
  "zksync_object_store",
  "zksync_protobuf",
  "zksync_protobuf_build",
- "zksync_prover_utils",
  "zksync_queued_job_processor",
  "zksync_state",
  "zksync_storage",
@@ -9057,25 +9035,6 @@ dependencies = [
  "protox",
  "quote 1.0.33",
  "syn 2.0.38",
-]
-
-[[package]]
-name = "zksync_prover_utils"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "ctrlc",
- "futures 0.3.28",
- "regex",
- "reqwest",
- "tokio",
- "toml_edit 0.14.4",
- "tracing",
- "zksync_config",
- "zksync_object_store",
- "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]

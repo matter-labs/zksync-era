@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_dal::ConnectionPool;
-use zksync_prover_utils::periodic_job::PeriodicJob;
+
+use crate::house_keeper::periodic_job::PeriodicJob;
 
 #[derive(Debug)]
 pub struct FriProverStatsReporter {

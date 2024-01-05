@@ -1,12 +1,11 @@
 use zksync_config::configs::eth_sender::{ProofLoadingMode, ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::StorageProcessor;
-use zksync_object_store::ObjectStore;
-use zksync_prover_utils::gcs_proof_fetcher::load_wrapped_fri_proofs_for_range;
+use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_types::{
     aggregated_operations::{
         AggregatedActionType, AggregatedOperation, L1BatchCommitOperation, L1BatchExecuteOperation,
-        L1BatchProofOperation,
+        L1BatchProofForL1, L1BatchProofOperation,
     },
     commitment::L1BatchWithMetadata,
     helpers::unix_timestamp_ms,
@@ -417,4 +416,24 @@ async fn extract_ready_subrange(
             .take_while(|l1_batch| l1_batch.header.number <= last_l1_batch)
             .collect(),
     )
+}
+
+pub async fn load_wrapped_fri_proofs_for_range(
+    from: L1BatchNumber,
+    to: L1BatchNumber,
+    blob_store: &dyn ObjectStore,
+) -> Vec<L1BatchProofForL1> {
+    let mut proofs = Vec::new();
+    for l1_batch_number in from.0..=to.0 {
+        let l1_batch_number = L1BatchNumber(l1_batch_number);
+        match blob_store.get(l1_batch_number).await {
+            Ok(proof) => proofs.push(proof),
+            Err(ObjectStoreError::KeyNotFound(_)) => (), // do nothing, proof is not ready yet
+            Err(err) => panic!(
+                "Failed to load proof for batch {}: {}",
+                l1_batch_number.0, err
+            ),
+        }
+    }
+    proofs
 }

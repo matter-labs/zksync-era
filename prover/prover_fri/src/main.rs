@@ -17,8 +17,7 @@ use zksync_env_config::{
     FromEnv,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_prover_fri_utils::get_all_circuit_id_round_tuples_for;
-use zksync_prover_utils::region_fetcher::get_zone;
+use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::CircuitIdRoundTuple,
