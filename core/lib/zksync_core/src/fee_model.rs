@@ -106,7 +106,7 @@ fn compute_batch_fee_model_input_v2(
 
     let FeeModelConfigV2 {
         minimal_l2_gas_price,
-        compute_overhead_part: compute_overhead_part,
+        compute_overhead_part,
         pubdata_overhead_part,
         batch_overhead_l1_gas,
         max_gas_per_batch,
