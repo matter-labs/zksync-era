@@ -24,6 +24,7 @@ fn test_keccak() {
         .with_custom_contracts(vec![(contract, address, true)])
         .build();
 
+    // calldata for `doKeccak(1000)`.
     let keccak1000_calldata =
         "370f20ac00000000000000000000000000000000000000000000000000000000000003e8";
 
@@ -67,6 +68,7 @@ fn test_sha256() {
         .with_custom_contracts(vec![(contract, address, true)])
         .build();
 
+    // calldata for `doSha256(1000)`.
     let sha1000_calldata =
         "5d0b4fb500000000000000000000000000000000000000000000000000000000000003e8";
 

@@ -187,6 +187,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
                     PrecompileAddress::Keccak256 => KECCAK256_CYCLE_FRACTION,
                 };
                 self.estimated_circuits_used += (*cycles as f32) * fraction;
+            } else {
+                panic!("Precompile calls should not be rolled back");
             }
         }
         self.last_precompile_history_entry_checked = Some(history.len());
