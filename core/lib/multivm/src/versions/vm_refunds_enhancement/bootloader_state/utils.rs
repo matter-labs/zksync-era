@@ -92,8 +92,8 @@ pub(crate) fn apply_l2_block(
     bootloader_l2_block: &BootloaderL2Block,
     txs_index: usize,
 ) {
-    // Since L2 block infos start from the TX_OPERATOR_L2_BLOCK_INFO_OFFSET and each
-    // L2 block info takes TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO slots, the position where the L2 block info
+    // Since L2 block information start from the `TX_OPERATOR_L2_BLOCK_INFO_OFFSET` and each
+    // L2 block info takes `TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO` slots, the position where the L2 block info
     // for this transaction needs to be written is:
 
     let block_position =

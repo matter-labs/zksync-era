@@ -8,7 +8,7 @@ use std::{
 use async_trait::async_trait;
 use multivm::{
     interface::{FinishedL1Batch, L1BatchEnv, SystemEnv},
-    vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata,
+    utils::derive_base_fee_and_gas_per_pubdata,
 };
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_dal::ConnectionPool;
@@ -46,7 +46,7 @@ use crate::{
 pub(crate) struct MempoolIO {
     mempool: MempoolGuard,
     pool: ConnectionPool,
-    object_store: Box<dyn ObjectStore>,
+    object_store: Arc<dyn ObjectStore>,
     timeout_sealer: TimeoutSealer,
     filter: L2TxFilter,
     current_miniblock_number: MiniblockNumber,
@@ -110,6 +110,7 @@ impl StateKeeperIO for MempoolIO {
         let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(
             l1_batch_env.l1_gas_price,
             l1_batch_env.fair_l2_gas_price,
+            system_env.version.into(),
         );
         self.filter = L2TxFilter {
             l1_gas_price: l1_batch_env.l1_gas_price,
@@ -130,26 +131,17 @@ impl StateKeeperIO for MempoolIO {
     ) -> Option<(SystemEnv, L1BatchEnv)> {
         let deadline = Instant::now() + max_wait;
 
+        let prev_l1_batch_hash = self.load_previous_l1_batch_hash().await;
+
+        let MiniblockHeader {
+            timestamp: prev_miniblock_timestamp,
+            hash: prev_miniblock_hash,
+            ..
+        } = self.load_previous_miniblock_header().await;
+
         // Block until at least one transaction in the mempool can match the filter (or timeout happens).
         // This is needed to ensure that block timestamp is not too old.
         for _ in 0..poll_iters(self.delay_interval, max_wait) {
-            // We create a new filter each time, since parameters may change and a previously
-            // ignored transaction in the mempool may be scheduled for the execution.
-            self.filter = l2_tx_filter(self.l1_gas_price_provider.as_ref(), self.fair_l2_gas_price);
-            // We only need to get the root hash when we're certain that we have a new transaction.
-            if !self.mempool.has_next(&self.filter) {
-                tokio::time::sleep(self.delay_interval).await;
-                continue;
-            }
-
-            let prev_l1_batch_hash = self.load_previous_l1_batch_hash().await;
-
-            let MiniblockHeader {
-                timestamp: prev_miniblock_timestamp,
-                hash: prev_miniblock_hash,
-                ..
-            } = self.load_previous_miniblock_header().await;
-
             // We cannot create two L1 batches or miniblocks with the same timestamp (forbidden by the bootloader).
             // Hence, we wait until the current timestamp is larger than the timestamp of the previous miniblock.
             // We can use `timeout_at` since `sleep_past` is cancel-safe; it only uses `sleep()` async calls.
@@ -170,6 +162,19 @@ impl StateKeeperIO for MempoolIO {
                 .protocol_versions_dal()
                 .base_system_contracts_by_timestamp(current_timestamp)
                 .await;
+
+            // We create a new filter each time, since parameters may change and a previously
+            // ignored transaction in the mempool may be scheduled for the execution.
+            self.filter = l2_tx_filter(
+                self.l1_gas_price_provider.as_ref(),
+                self.fair_l2_gas_price,
+                protocol_version.into(),
+            );
+            // We only need to get the root hash when we're certain that we have a new transaction.
+            if !self.mempool.has_next(&self.filter) {
+                tokio::time::sleep(self.delay_interval).await;
+                continue;
+            }
 
             return Some(l1_batch_params(
                 self.current_l1_batch_number,
@@ -399,7 +404,7 @@ impl MempoolIO {
     #[allow(clippy::too_many_arguments)]
     pub(in crate::state_keeper) async fn new(
         mempool: MempoolGuard,
-        object_store: Box<dyn ObjectStore>,
+        object_store: Arc<dyn ObjectStore>,
         miniblock_sealer_handle: MiniblockSealerHandle,
         l1_gas_price_provider: Arc<dyn L1GasPriceProvider>,
         pool: ConnectionPool,

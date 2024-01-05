@@ -68,7 +68,7 @@ pub fn load_last_l2_block<S: ReadStorage>(storage: StoragePtr<S>) -> Option<L2Bl
         return None;
     }
 
-    // Get prev block hash
+    // Get previous block hash
     let position = get_l2_block_hash_key(block_number - 1);
     let prev_block_hash = storage_ptr.read_value(&position);
 

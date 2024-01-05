@@ -1,3 +1,4 @@
+use multivm::utils::get_bootloader_max_txs_in_batch;
 use zksync_types::ProtocolVersionId;
 
 use crate::state_keeper::seal_criteria::{
@@ -16,8 +17,15 @@ impl SealCriterion for SlotsCriterion {
         tx_count: usize,
         _block_data: &SealData,
         _tx_data: &SealData,
-        _protocol_version: ProtocolVersionId,
+        protocol_version: ProtocolVersionId,
     ) -> SealResolution {
+        let max_txs_in_batch = get_bootloader_max_txs_in_batch(protocol_version.into());
+        assert!(
+            config.transaction_slots <= max_txs_in_batch,
+            "Configured transaction_slots ({}) must be lower than the bootloader constant MAX_TXS_IN_BLOCK={} for protocol version {}",
+            config.transaction_slots, max_txs_in_batch, protocol_version as u16
+        );
+
         if tx_count >= config.transaction_slots {
             SealResolution::IncludeAndSeal
         } else {

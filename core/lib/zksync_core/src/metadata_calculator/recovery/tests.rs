@@ -27,7 +27,7 @@ use crate::{
             extend_db_state, extend_db_state_from_l1_batch, gen_storage_logs, run_calculator,
             setup_calculator,
         },
-        MetadataCalculator, MetadataCalculatorConfig, MetadataCalculatorModeConfig,
+        MetadataCalculator, MetadataCalculatorConfig,
     },
 };
 
@@ -292,9 +292,8 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
     let calculator_config = MetadataCalculatorConfig::for_main_node(
         &merkle_tree_config,
         &OperationsManagerConfig { delay_interval: 50 },
-        MetadataCalculatorModeConfig::Lightweight,
     );
-    let mut calculator = MetadataCalculator::new(calculator_config).await;
+    let mut calculator = MetadataCalculator::new(calculator_config, None).await;
     let (delay_sx, mut delay_rx) = mpsc::unbounded_channel();
     calculator.delayer.delay_notifier = delay_sx;
 
@@ -401,7 +400,7 @@ async fn prepare_clean_recovery_snapshot(
     );
     storage
         .blocks_dal()
-        .insert_l1_batch(&l1_batch, &[], Default::default(), &[], &[])
+        .insert_l1_batch(&l1_batch, &[], Default::default(), &[], &[], 0)
         .await
         .unwrap();
 
