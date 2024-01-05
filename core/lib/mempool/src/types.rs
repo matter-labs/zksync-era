@@ -147,7 +147,7 @@ mod tests {
     fn filter() {
         fn filter(fee_per_gas: u64, gas_per_pubdata: u32) -> L2TxFilter {
             L2TxFilter {
-                fee_input: BatchFeeInput::sensible_v1_default(),
+                fee_input: BatchFeeInput::sensible_l1_pegged_default(),
                 fee_per_gas,
                 gas_per_pubdata,
             }

@@ -3,9 +3,9 @@ use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 
 /// Fee input to be provided into the VM. It contains two options:
 /// - `L1Pegged`: L1 gas price is provided to the VM, and the pubdata price is derived from it. Using this option is required for the
-/// older versions of Era.
+/// versions of Era prior to 1.4.1 integration.
 /// - `PubdataIndependent`: L1 gas price and pubdata price are not necessarily dependend on one another. This options is more suitable for the
-/// newer versions of Era. It is expected that if a VM supports `PubdataIndependent` version, then it should also support `L1Pegged` version, but converting it into `PubdataIndependentBatchFeeModelInput` in-place.
+/// versions of Era after the 1.4.1 integration. It is expected that if a VM supports `PubdataIndependent` version, then it should also support `L1Pegged` version, but converting it into `PubdataIndependentBatchFeeModelInput` in-place.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BatchFeeInput {
     L1Pegged(L1PeggedBatchFeeModelInput),
@@ -14,7 +14,7 @@ pub enum BatchFeeInput {
 
 impl BatchFeeInput {
     // Sometimes for temporary usage or tests a "sensible" default, i.e. the one consisting of non-zero values is needed.
-    pub fn sensible_v1_default() -> Self {
+    pub fn sensible_l1_pegged_default() -> Self {
         Self::L1Pegged(L1PeggedBatchFeeModelInput {
             l1_gas_price: 1_000_000_000,
             fair_l2_gas_price: 100_000_000,
@@ -107,15 +107,15 @@ pub struct PubdataIndependentBatchFeeModelInput {
 /// The fair L2 gas price is expected to both the proving/computation price for the operator and the costs that come from
 /// processing the batch on L1.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum MainNodeFeeModelConfig {
-    V1(MainNodeFeeModelConfigV1),
-    V2(MainNodeFeeModelConfigV2),
+pub enum FeeModelConfig {
+    V1(FeeModelConfigV1),
+    V2(FeeModelConfigV2),
 }
 
 /// Config params for the first version of the fee model. Here, the pubdata price is pegged to the L1 gas price and
 /// neither fair L2 gas price nor the pubdata price include the overhead for closing the batch
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct MainNodeFeeModelConfigV1 {
+pub struct FeeModelConfigV1 {
     /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
     /// as potentially premium for congestion.
     /// Unlike the `V2`, this price will be directly used as the `fair_l2_gas_price` in the bootloader.
@@ -123,7 +123,7 @@ pub struct MainNodeFeeModelConfigV1 {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct MainNodeFeeModelConfigV2 {
+pub struct FeeModelConfigV2 {
     /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
     /// as potentially premium for congestion.
     pub minimal_l2_gas_price: u64,
@@ -143,40 +143,40 @@ pub struct MainNodeFeeModelConfigV2 {
     pub max_pubdata_per_batch: u64,
 }
 
-impl Default for MainNodeFeeModelConfig {
+impl Default for FeeModelConfig {
     /// Config with all zeroes is not a valid config (since for instance having 0 max gas per batch may incur division by zero),
     /// so we implement a sensible default config here.
     fn default() -> Self {
-        Self::V1(MainNodeFeeModelConfigV1 {
+        Self::V1(FeeModelConfigV1 {
             minimal_l2_gas_price: 100_000_000,
         })
     }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct MainNodeFeeParamsV1 {
-    pub config: MainNodeFeeModelConfigV1,
+pub struct FeeParamsV1 {
+    pub config: FeeModelConfigV1,
     pub l1_gas_price: u64,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct MainNodeFeeParamsV2 {
-    pub config: MainNodeFeeModelConfigV2,
+pub struct FeeParamsV2 {
+    pub config: FeeModelConfigV2,
     pub l1_gas_price: u64,
     pub l1_pubdata_price: u64,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum MainNodeFeeParams {
-    V1(MainNodeFeeParamsV1),
-    V2(MainNodeFeeParamsV2),
+pub enum FeeParams {
+    V1(FeeParamsV1),
+    V2(FeeParamsV2),
 }
 
-impl MainNodeFeeParams {
+impl FeeParams {
     // Sometimes for temporary usage or tests a "sensible" default, i.e. the one consisting of non-zero values is needed.
     pub fn sensible_v1_default() -> Self {
-        Self::V1(MainNodeFeeParamsV1 {
-            config: MainNodeFeeModelConfigV1 {
+        Self::V1(FeeParamsV1 {
+            config: FeeModelConfigV1 {
                 minimal_l2_gas_price: 100_000_000,
             },
             l1_gas_price: 1_000_000_000,

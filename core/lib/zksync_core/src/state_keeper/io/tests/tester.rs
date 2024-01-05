@@ -10,7 +10,7 @@ use zksync_eth_client::clients::MockEthereum;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},
-    fee_model::{BatchFeeInput, MainNodeFeeModelConfig, MainNodeFeeModelConfigV1},
+    fee_model::{BatchFeeInput, FeeModelConfig, FeeModelConfigV1},
     protocol_version::L1VerifierConfig,
     system_contracts::get_system_smart_contracts,
     Address, L1BatchNumber, L2ChainId, MiniblockNumber, PriorityOpId, ProtocolVersionId, H256,
@@ -64,7 +64,7 @@ impl Tester {
         let gas_adjuster = Arc::new(self.create_gas_adjuster().await);
         MainNodeFeeInputProvider::new(
             gas_adjuster,
-            MainNodeFeeModelConfig::V1(MainNodeFeeModelConfigV1 {
+            FeeModelConfig::V1(FeeModelConfigV1 {
                 minimal_l2_gas_price: self.fair_l2_gas_price(),
             }),
         )
@@ -83,7 +83,7 @@ impl Tester {
         let gas_adjuster = Arc::new(self.create_gas_adjuster().await);
         let batch_fee_input_provider = MainNodeFeeInputProvider::new(
             gas_adjuster,
-            MainNodeFeeModelConfig::V1(MainNodeFeeModelConfigV1 {
+            FeeModelConfig::V1(FeeModelConfigV1 {
                 minimal_l2_gas_price: self.fair_l2_gas_price(),
             }),
         );

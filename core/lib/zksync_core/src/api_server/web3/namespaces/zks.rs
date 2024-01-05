@@ -9,7 +9,7 @@ use zksync_types::{
         ProtocolVersion, StorageProof, TransactionDetails,
     },
     fee::Fee,
-    fee_model::MainNodeFeeParams,
+    fee_model::FeeParams,
     l1::L1Tx,
     l2::L2Tx,
     l2_to_l1_log::L2ToL1Log,
@@ -592,7 +592,7 @@ impl ZksNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_main_node_fee_params_impl(&self) -> MainNodeFeeParams {
+    pub fn get_main_node_fee_params_impl(&self) -> FeeParams {
         const METHOD_NAME: &str = "get_main_node_fee_params";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);

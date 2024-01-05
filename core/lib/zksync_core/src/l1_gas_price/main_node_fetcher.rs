@@ -4,7 +4,7 @@ use std::{
 };
 
 use tokio::sync::watch::Receiver;
-use zksync_types::fee_model::MainNodeFeeParams;
+use zksync_types::fee_model::FeeParams;
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::ZksNamespaceClient,
@@ -23,14 +23,14 @@ const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 #[derive(Debug)]
 pub struct MainNodeFeeParamsFetcher {
     client: HttpClient,
-    main_node_fee_params: RwLock<MainNodeFeeParams>,
+    main_node_fee_params: RwLock<FeeParams>,
 }
 
 impl MainNodeFeeParamsFetcher {
     pub fn new(main_node_url: &str) -> Self {
         Self {
             client: Self::build_client(main_node_url),
-            main_node_fee_params: RwLock::new(MainNodeFeeParams::sensible_v1_default()),
+            main_node_fee_params: RwLock::new(FeeParams::sensible_v1_default()),
         }
     }
 
@@ -65,7 +65,7 @@ impl MainNodeFeeParamsFetcher {
 }
 
 impl BatchFeeModelInputProvider for MainNodeFeeParamsFetcher {
-    fn get_fee_model_params(&self) -> MainNodeFeeParams {
+    fn get_fee_model_params(&self) -> FeeParams {
         *self.main_node_fee_params.read().unwrap()
     }
 }

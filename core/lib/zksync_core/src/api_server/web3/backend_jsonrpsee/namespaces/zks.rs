@@ -7,7 +7,7 @@ use zksync_types::{
         TransactionDetails,
     },
     fee::Fee,
-    fee_model::MainNodeFeeParams,
+    fee_model::FeeParams,
     transaction_request::CallRequest,
     Address, L1BatchNumber, MiniblockNumber, H256, U256, U64,
 };
@@ -143,7 +143,7 @@ impl ZksNamespaceServer for ZksNamespace {
         Ok(self.get_l1_gas_price_impl())
     }
 
-    async fn get_main_node_fee_params(&self) -> RpcResult<MainNodeFeeParams> {
+    async fn get_main_node_fee_params(&self) -> RpcResult<FeeParams> {
         Ok(self.get_main_node_fee_params_impl())
     }
 
