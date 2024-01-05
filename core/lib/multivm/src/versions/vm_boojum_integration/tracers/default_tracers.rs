@@ -32,7 +32,7 @@ use crate::{
                 computational_gas_price, gas_spent_on_bytecodes_and_long_messages_this_opcode,
                 print_debug_if_needed, VmHook,
             },
-            RefundsTracer, ResultTracer,
+            CircuitsTracer, RefundsTracer, ResultTracer,
         },
         types::internals::ZkSyncVmState,
         VmTracer,
@@ -62,6 +62,11 @@ pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     pub(crate) pubdata_tracer: Option<PubdataTracer<S>>,
     pub(crate) dispatcher: TracerDispatcher<S, H>,
     ret_from_the_bootloader: Option<RetOpcode>,
+    // This tracer tracks what opcodes were executed and calculates how much circuits will be generated.
+    // It only takes into account circuits that are generated for actual execution. It doesn't
+    // take into account e.g circuits produced by the initial bootloader memory commitment.
+    pub(crate) circuits_tracer: CircuitsTracer<S>,
+
     storage: StoragePtr<S>,
     _phantom: PhantomData<H>,
 }
@@ -88,6 +93,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             dispatcher,
             pubdata_tracer,
             ret_from_the_bootloader: None,
+            circuits_tracer: CircuitsTracer::new(),
             storage,
             _phantom: PhantomData,
         }
@@ -161,14 +167,15 @@ impl<S: WriteStorage, H: HistoryMode> Debug for DefaultExecutionTracer<S, H> {
 /// The macro passes the function call to all tracers.
 macro_rules! dispatch_tracers {
     ($self:ident.$function:ident($( $params:expr ),*)) => {
-       $self.result_tracer.$function($( $params ),*);
-       $self.dispatcher.$function($( $params ),*);
+        $self.result_tracer.$function($( $params ),*);
+        $self.dispatcher.$function($( $params ),*);
         if let Some(tracer) = &mut $self.refund_tracer {
             tracer.$function($( $params ),*);
         }
         if let Some(tracer) = &mut $self.pubdata_tracer {
             tracer.$function($( $params ),*);
         }
+        $self.circuits_tracer.$function($( $params ),*);
     };
 }
 
