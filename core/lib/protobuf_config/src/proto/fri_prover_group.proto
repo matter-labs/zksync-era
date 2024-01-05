@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package zksync.config;
+
+message CircuitIdRoundTuple {
+  optional uint32 circuit_id = 1; // required; u8
+  optional uint32 aggregation_round = 2; // required; u8
+}
+
+message FriProverGroupConfig {
+  optional repeated CircuitIdRoundTuple group_0 = 1;
+  optional repeated CircuitIdRoundTuple group_1 = 2;
+  optional repeated CircuitIdRoundTuple group_2 = 3;
+  optional repeated CircuitIdRoundTuple group_3 = 4;
+  optional repeated CircuitIdRoundTuple group_4 = 5;
+  optional repeated CircuitIdRoundTuple group_5 = 6;
+  optional repeated CircuitIdRoundTuple group_6 = 7;
+  optional repeated CircuitIdRoundTuple group_7 = 8;
+  optional repeated CircuitIdRoundTuple group_8 = 9;
+  optional repeated CircuitIdRoundTuple group_9 = 10;
+  optional repeated CircuitIdRoundTuple group_10 = 11;
+  optional repeated CircuitIdRoundTuple group_11 = 12;
+  optional repeated CircuitIdRoundTuple group_12 = 13;
+}

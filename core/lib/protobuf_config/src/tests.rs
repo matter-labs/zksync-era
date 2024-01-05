@@ -1,6 +1,7 @@
-use crate::repr::ProtoRepr;
 use zksync_basic_types::H256;
 use zksync_config::configs::api;
+
+use crate::repr::ProtoRepr;
 
 fn encode<P: ProtoRepr>(msg: &P::Type) -> Vec<u8> {
     let msg = P::build(msg);
