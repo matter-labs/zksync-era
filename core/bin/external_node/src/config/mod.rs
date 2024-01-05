@@ -355,8 +355,6 @@ pub struct RequiredENConfig {
     pub ws_port: u16,
     /// Port on which the healthcheck REST server is listening.
     pub healthcheck_port: u16,
-    /// Number of threads per API server
-    pub threads_per_server: usize,
     /// Address of the Ethereum node API.
     /// Intentionally private: use getter method as it manages the missing port.
     eth_client_url: String,
