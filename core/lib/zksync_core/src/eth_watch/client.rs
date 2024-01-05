@@ -1,3 +1,5 @@
+use std::fmt;
+
 use zksync_contracts::verifier_contract;
 use zksync_eth_client::{CallFunctionArgs, Error as EthClientError, EthInterface};
 use zksync_types::{
@@ -30,7 +32,7 @@ impl From<web3::contract::Error> for Error {
 }
 
 #[async_trait::async_trait]
-pub trait EthClient {
+pub trait EthClient: 'static + fmt::Debug + Send + Sync {
     /// Returns events in a given block range.
     async fn get_events(
         &self,
@@ -51,8 +53,8 @@ const TOO_MANY_RESULTS_INFURA: &str = "query returned more than";
 const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
 
 #[derive(Debug)]
-pub struct EthHttpQueryClient<E> {
-    client: E,
+pub struct EthHttpQueryClient {
+    client: Box<dyn EthInterface>,
     topics: Vec<H256>,
     zksync_contract_addr: Address,
     /// Address of the `Governance` contract. It's optional because it is present only for post-boojum chains.
@@ -62,9 +64,9 @@ pub struct EthHttpQueryClient<E> {
     confirmations_for_eth_event: Option<u64>,
 }
 
-impl<E: EthInterface> EthHttpQueryClient<E> {
+impl EthHttpQueryClient {
     pub fn new(
-        client: E,
+        client: Box<dyn EthInterface>,
         zksync_contract_addr: Address,
         governance_address: Option<Address>,
         confirmations_for_eth_event: Option<u64>,
@@ -108,7 +110,7 @@ impl<E: EthInterface> EthHttpQueryClient<E> {
 }
 
 #[async_trait::async_trait]
-impl<E: EthInterface + Send + Sync + 'static> EthClient for EthHttpQueryClient<E> {
+impl EthClient for EthHttpQueryClient {
     async fn scheduler_vk_hash(&self, verifier_address: Address) -> Result<H256, Error> {
         // This is here for backward compatibility with the old verifier:
         // Legacy verifier returns the full verification key;
