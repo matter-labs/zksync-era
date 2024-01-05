@@ -65,13 +65,13 @@ impl IntoResponse for RequestProcessorError {
 
 impl RequestProcessor {
     pub(crate) fn new(
-        blob_store: Box<dyn ObjectStore>,
+        blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool,
         config: ProofDataHandlerConfig,
         l1_verifier_config: Option<L1VerifierConfig>,
     ) -> Self {
         Self {
-            blob_store: Arc::from(blob_store),
+            blob_store,
             pool,
             config,
             l1_verifier_config,

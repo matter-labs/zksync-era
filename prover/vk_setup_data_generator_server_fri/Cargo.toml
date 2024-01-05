@@ -23,7 +23,6 @@ path = "src/commitment_generator.rs"
 [dependencies]
 vlog = { path = "../../core/lib/vlog" }
 zksync_types = { path = "../../core/lib/types" }
-zksync_prover_utils = { path = "../../core/lib/prover_utils" }
 zksync_prover_fri_types = { path = "../prover_fri_types" }
 
 zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0" }
@@ -43,6 +42,7 @@ itertools = "0.10.5"
 bincode = "1"
 structopt = "0.3.26"
 once_cell = "1.8.0"
+toml_edit = "0.14.4"
 
 [dev-dependencies]
 proptest = "1.2.0"

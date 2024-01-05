@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use futures::FutureExt;
-use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
+use multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
@@ -12,14 +12,17 @@ use zksync_types::{
 use zksync_utils::time::seconds_since_epoch;
 
 use self::tester::Tester;
-use crate::state_keeper::{
-    io::{MiniblockParams, MiniblockSealer, StateKeeperIO},
-    mempool_actor::l2_tx_filter,
-    tests::{
-        create_execution_result, create_l1_batch_metadata, create_transaction,
-        create_updates_manager, default_l1_batch_env, default_vm_block_result, Query,
+use crate::{
+    state_keeper::{
+        io::{MiniblockParams, MiniblockSealer, StateKeeperIO},
+        mempool_actor::l2_tx_filter,
+        tests::{
+            create_execution_result, create_transaction, create_updates_manager,
+            default_l1_batch_env, default_vm_block_result, Query,
+        },
+        updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
     },
-    updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
+    utils::testonly::create_l1_batch_metadata,
 };
 
 mod tester;
@@ -72,8 +75,11 @@ async fn test_filter_with_pending_batch() {
     assert_eq!(mempool.filter(), &L2TxFilter::default());
 
     mempool.load_pending_batch().await;
-    let (want_base_fee, want_gas_per_pubdata) =
-        derive_base_fee_and_gas_per_pubdata(give_l1_gas_price, give_fair_l2_gas_price);
+    let (want_base_fee, want_gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(
+        give_l1_gas_price,
+        give_fair_l2_gas_price,
+        ProtocolVersionId::latest().into(),
+    );
     let want_filter = L2TxFilter {
         l1_gas_price: give_l1_gas_price,
         fee_per_gas: want_base_fee,
@@ -100,6 +106,7 @@ async fn test_filter_with_no_pending_batch() {
     let want_filter = l2_tx_filter(
         &tester.create_gas_adjuster().await,
         tester.fair_l2_gas_price(),
+        ProtocolVersionId::latest().into(),
     );
 
     // Create a mempool without pending batch and ensure that filter is not initialized just yet.
@@ -144,6 +151,7 @@ async fn test_timestamps_are_distinct(
     let tx_filter = l2_tx_filter(
         &tester.create_gas_adjuster().await,
         tester.fair_l2_gas_price(),
+        ProtocolVersionId::latest().into(),
     );
     tester.insert_tx(&mut guard, tx_filter.fee_per_gas, tx_filter.gas_per_pubdata);
 

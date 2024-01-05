@@ -19,6 +19,7 @@ use zksync_types::{
 use crate::metrics::{CircuitLabels, PROVER_FRI_UTILS_METRICS};
 
 pub mod metrics;
+pub mod region_fetcher;
 pub mod socket_utils;
 
 pub async fn fetch_next_circuit(
