@@ -4,7 +4,7 @@ use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 /// Fee input to be provided into the VM. It contains two options:
 /// - `L1Pegged`: L1 gas price is provided to the VM, and the pubdata price is derived from it. Using this option is required for the
 /// versions of Era prior to 1.4.1 integration.
-/// - `PubdataIndependent`: L1 gas price and pubdata price are not necessarily dependend on one another. This options is more suitable for the
+/// - `PubdataIndependent`: L1 gas price and pubdata price are not necessarily dependent on one another. This options is more suitable for the
 /// versions of Era after the 1.4.1 integration. It is expected that if a VM supports `PubdataIndependent` version, then it should also support `L1Pegged` version, but converting it into `PubdataIndependentBatchFeeModelInput` in-place.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BatchFeeInput {
