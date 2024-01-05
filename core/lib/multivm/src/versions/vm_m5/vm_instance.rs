@@ -9,7 +9,6 @@ use zk_evm_1_3_1::{
         definitions::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
     },
 };
-use zksync_system_constants::MAX_TXS_IN_BLOCK;
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     tx::tx_execution_info::TxExecutionStatus,
@@ -176,6 +175,7 @@ pub enum VmExecutionStopReason {
     TracerRequestedStop,
 }
 
+use super::vm_with_bootloader::MAX_TXS_IN_BLOCK;
 use crate::vm_m5::utils::VmExecutionResult as NewVmExecutionResult;
 
 fn vm_may_have_ended_inner<const B: bool, S: Storage>(

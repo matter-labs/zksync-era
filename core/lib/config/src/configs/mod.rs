@@ -2,7 +2,6 @@
 pub use self::{
     alerts::AlertsConfig,
     api::ApiConfig,
-    chain::ChainConfig,
     contract_verifier::ContractVerifierConfig,
     contracts::ContractsConfig,
     database::{DBConfig, PostgresConfig},

@@ -4,8 +4,8 @@
 //! as well as contracts/SystemConfig.json
 //!
 
-use multivm::vm_latest::constants::BOOTLOADER_TX_ENCODING_SPACE;
-use zksync_types::{ethabi::Address, IntrinsicSystemGasConstants, U256};
+use multivm::utils::get_bootloader_encoding_space;
+use zksync_types::{ethabi::Address, IntrinsicSystemGasConstants, ProtocolVersionId, U256};
 
 use crate::utils::{
     execute_internal_transfer_test, execute_user_txs_in_test_gas_vm, get_l1_tx, get_l1_txs,
@@ -129,7 +129,8 @@ pub(crate) fn l2_gas_constants() -> IntrinsicSystemGasConstants {
         tx_with_more_factory_deps_result.pubdata_published - empty_l1_tx_result.pubdata_published;
 
     // The number of the bootloader memory that can be filled up with transactions.
-    let bootloader_tx_memory_size_slots = BOOTLOADER_TX_ENCODING_SPACE;
+    let bootloader_tx_memory_size_slots =
+        get_bootloader_encoding_space(ProtocolVersionId::latest().into());
 
     IntrinsicSystemGasConstants {
         l2_tx_intrinsic_gas,

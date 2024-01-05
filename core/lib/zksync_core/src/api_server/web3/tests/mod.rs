@@ -8,13 +8,12 @@ use zksync_config::configs::{
     chain::{NetworkConfig, StateKeeperConfig},
     ContractsConfig,
 };
-use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
 use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     block::MiniblockHeader, fee::TransactionExecutionMetrics, tx::IncludedTxLocation, Address,
-    L1BatchNumber, ProtocolVersionId, VmEvent, H256, U64,
+    L1BatchNumber, VmEvent, H256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::{core::ClientError as RpcError, http_client::HttpClient, types::error::ErrorCode},
@@ -27,7 +26,7 @@ use crate::{
     api_server::tx_sender::TxSenderConfig,
     genesis::{ensure_genesis_state, GenesisParams},
     l1_gas_price::L1GasPriceProvider,
-    state_keeper::tests::create_l2_transaction,
+    utils::testonly::{create_l2_transaction, create_miniblock},
 };
 
 mod snapshots;
@@ -209,22 +208,6 @@ fn assert_logs_match(actual_logs: &[api::Log], expected_logs: &[&VmEvent]) {
         assert_eq!(actual_log.address, expected_log.address);
         assert_eq!(actual_log.topics, expected_log.indexed_topics);
         assert_eq!(actual_log.data.0, expected_log.value);
-    }
-}
-
-fn create_miniblock(number: u32) -> MiniblockHeader {
-    MiniblockHeader {
-        number: MiniblockNumber(number),
-        timestamp: number.into(),
-        hash: H256::from_low_u64_be(number.into()),
-        l1_tx_count: 0,
-        l2_tx_count: 0,
-        base_fee_per_gas: 100,
-        l1_gas_price: 100,
-        l2_fair_gas_price: 100,
-        base_system_contracts_hashes: BaseSystemContractsHashes::default(),
-        protocol_version: Some(ProtocolVersionId::latest()),
-        virtual_blocks: 1,
     }
 }
 
