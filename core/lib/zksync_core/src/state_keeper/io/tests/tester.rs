@@ -21,6 +21,7 @@ use crate::{
     genesis::create_genesis_l1_batch,
     l1_gas_price::GasAdjuster,
     state_keeper::{io::MiniblockSealer, tests::create_transaction, MempoolGuard, MempoolIO},
+    utils::testonly::{create_l1_batch, create_miniblock},
 };
 
 #[derive(Debug)]
@@ -148,31 +149,18 @@ impl Tester {
         storage
             .blocks_dal()
             .insert_miniblock(&MiniblockHeader {
-                number: MiniblockNumber(number),
                 timestamp: self.current_timestamp,
-                hash: H256::default(),
-                l1_tx_count: 0,
-                l2_tx_count: 0,
                 base_fee_per_gas,
                 batch_fee_input: fee_input,
                 base_system_contracts_hashes: self.base_system_contracts.hashes(),
-                protocol_version: Some(ProtocolVersionId::latest()),
-                virtual_blocks: 0,
+                ..create_miniblock(number)
             })
             .await
             .unwrap();
     }
 
     pub(super) async fn insert_sealed_batch(&self, pool: &ConnectionPool, number: u32) {
-        let mut batch_header = L1BatchHeader::new(
-            L1BatchNumber(number),
-            self.current_timestamp,
-            Address::default(),
-            self.base_system_contracts.hashes(),
-            Default::default(),
-        );
-        batch_header.is_finished = true;
-
+        let batch_header = create_l1_batch(number);
         let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
         storage
             .blocks_dal()

@@ -10,21 +10,23 @@ use zksync_config::configs::{
     chain::OperationsManagerConfig,
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
-use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::{CheckHealth, HealthStatus};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_types::{
-    block::{BlockGasCount, L1BatchHeader, MiniblockHasher, MiniblockHeader},
+    block::{BlockGasCount, L1BatchHeader},
     proofs::PrepareBasicCircuitsJob,
-    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId,
-    StorageKey, StorageLog, H256,
+    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, StorageKey, StorageLog,
+    H256,
 };
 use zksync_utils::u32_to_h256;
 
 use super::{GenericAsyncTree, L1BatchWithLogs, MetadataCalculator, MetadataCalculatorConfig};
-use crate::genesis::{ensure_genesis_state, GenesisParams};
+use crate::{
+    genesis::{ensure_genesis_state, GenesisParams},
+    utils::testonly::{create_l1_batch, create_miniblock},
+};
 
 const RUN_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -485,33 +487,12 @@ pub(super) async fn extend_db_state_from_l1_batch(
 ) {
     assert!(storage.in_transaction(), "must be called in DB transaction");
 
-    let base_system_contracts = BaseSystemContracts::load_from_disk();
     for (idx, batch_logs) in (next_l1_batch.0..).zip(new_logs) {
-        let batch_number = L1BatchNumber(idx);
-        let mut header = L1BatchHeader::new(
-            batch_number,
-            0,
-            Address::default(),
-            base_system_contracts.hashes(),
-            Default::default(),
-        );
-        header.is_finished = true;
-
+        let header = create_l1_batch(idx);
+        let batch_number = header.number;
         // Assumes that L1 batch consists of only one miniblock.
-        let miniblock_number = MiniblockNumber(idx);
-        let miniblock_header = MiniblockHeader {
-            number: miniblock_number,
-            timestamp: header.timestamp,
-            hash: MiniblockHasher::new(miniblock_number, header.timestamp, H256::zero())
-                .finalize(ProtocolVersionId::latest()),
-            l1_tx_count: header.l1_tx_count,
-            l2_tx_count: header.l2_tx_count,
-            base_fee_per_gas: header.base_fee_per_gas,
-            batch_fee_input: Default::default(),
-            base_system_contracts_hashes: base_system_contracts.hashes(),
-            protocol_version: Some(ProtocolVersionId::latest()),
-            virtual_blocks: 0,
-        };
+        let miniblock_header = create_miniblock(idx);
+        let miniblock_number = miniblock_header.number;
 
         storage
             .blocks_dal()

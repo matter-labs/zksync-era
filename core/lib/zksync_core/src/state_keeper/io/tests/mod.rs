@@ -12,14 +12,17 @@ use zksync_types::{
 use zksync_utils::time::seconds_since_epoch;
 
 use self::tester::Tester;
-use crate::state_keeper::{
-    io::{MiniblockParams, MiniblockSealer, StateKeeperIO},
-    mempool_actor::l2_tx_filter,
-    tests::{
-        create_execution_result, create_l1_batch_metadata, create_transaction,
-        create_updates_manager, default_l1_batch_env, default_vm_block_result, Query,
+use crate::{
+    state_keeper::{
+        io::{MiniblockParams, MiniblockSealer, StateKeeperIO},
+        mempool_actor::l2_tx_filter,
+        tests::{
+            create_execution_result, create_transaction, create_updates_manager,
+            default_l1_batch_env, default_vm_block_result, Query,
+        },
+        updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
     },
-    updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
+    utils::testonly::create_l1_batch_metadata,
 };
 
 mod tester;

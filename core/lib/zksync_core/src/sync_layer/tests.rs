@@ -19,10 +19,10 @@ use crate::{
     consensus::testonly::MockMainNodeClient,
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
-        seal_criteria::NoopSealer,
-        tests::{create_l1_batch_metadata, create_l2_transaction, TestBatchExecutorBuilder},
-        MiniblockSealer, ZkSyncStateKeeper,
+        seal_criteria::NoopSealer, tests::TestBatchExecutorBuilder, MiniblockSealer,
+        ZkSyncStateKeeper,
     },
+    utils::testonly::{create_l1_batch_metadata, create_l2_transaction},
 };
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
