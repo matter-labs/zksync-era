@@ -84,6 +84,10 @@ impl ProtocolVersionId {
     pub fn is_pre_boojum(&self) -> bool {
         self < &ProtocolVersionId::Version18
     }
+
+    pub fn last_pre_boojum() -> Self {
+        ProtocolVersionId::Version17
+    }
 }
 
 impl Default for ProtocolVersionId {

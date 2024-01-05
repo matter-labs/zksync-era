@@ -1,4 +1,4 @@
-use multivm::vm_latest::constants::BOOTLOADER_TX_ENCODING_SPACE;
+use multivm::utils::get_bootloader_encoding_space;
 use zksync_types::ProtocolVersionId;
 
 use crate::state_keeper::seal_criteria::{
@@ -16,18 +16,21 @@ impl SealCriterion for TxEncodingSizeCriterion {
         _tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
-        _protocol_version_id: ProtocolVersionId,
+        protocol_version_id: ProtocolVersionId,
     ) -> SealResolution {
+        let bootloader_tx_encoding_space =
+            get_bootloader_encoding_space(protocol_version_id.into());
+
         let reject_bound =
-            (BOOTLOADER_TX_ENCODING_SPACE as f64 * config.reject_tx_at_geometry_percentage).round();
-        let include_and_seal_bound = (BOOTLOADER_TX_ENCODING_SPACE as f64
+            (bootloader_tx_encoding_space as f64 * config.reject_tx_at_geometry_percentage).round();
+        let include_and_seal_bound = (bootloader_tx_encoding_space as f64
             * config.close_block_at_geometry_percentage)
             .round();
 
         if tx_data.cumulative_size > reject_bound as usize {
             let message = "Transaction cannot be included due to large encoding size";
             SealResolution::Unexecutable(message.into())
-        } else if block_data.cumulative_size > BOOTLOADER_TX_ENCODING_SPACE as usize {
+        } else if block_data.cumulative_size > bootloader_tx_encoding_space as usize {
             SealResolution::ExcludeAndSeal
         } else if block_data.cumulative_size > include_and_seal_bound as usize {
             SealResolution::IncludeAndSeal
@@ -47,6 +50,9 @@ mod tests {
 
     #[test]
     fn seal_criterion() {
+        let bootloader_tx_encoding_space =
+            get_bootloader_encoding_space(ProtocolVersionId::latest().into());
+
         // Create an empty config and only setup fields relevant for the test.
         let config = StateKeeperConfig {
             reject_tx_at_geometry_percentage: 0.95,
@@ -72,7 +78,7 @@ mod tests {
             0,
             &SealData::default(),
             &SealData {
-                cumulative_size: BOOTLOADER_TX_ENCODING_SPACE as usize + 1,
+                cumulative_size: bootloader_tx_encoding_space as usize + 1,
                 ..SealData::default()
             },
             ProtocolVersionId::latest(),
@@ -89,7 +95,7 @@ mod tests {
             0,
             0,
             &SealData {
-                cumulative_size: BOOTLOADER_TX_ENCODING_SPACE as usize + 1,
+                cumulative_size: bootloader_tx_encoding_space as usize + 1,
                 ..SealData::default()
             },
             &SealData {
@@ -105,7 +111,7 @@ mod tests {
             0,
             0,
             &SealData {
-                cumulative_size: BOOTLOADER_TX_ENCODING_SPACE as usize,
+                cumulative_size: bootloader_tx_encoding_space as usize,
                 ..SealData::default()
             },
             &SealData {

@@ -97,6 +97,7 @@ pub(crate) async fn execute_tx_eth_call(
     let (vm_result, _) = execute_tx_in_sandbox(
         vm_permit,
         shared_args,
+        false,
         execution_args,
         connection_pool,
         tx.into(),
@@ -108,40 +109,17 @@ pub(crate) async fn execute_tx_eth_call(
     vm_result
 }
 
-#[tracing::instrument(skip_all)]
-pub(crate) async fn execute_tx_with_pending_state(
-    vm_permit: VmPermit,
-    mut shared_args: TxSharedArgs,
-    execution_args: TxExecutionArgs,
-    connection_pool: ConnectionPool,
-    tx: Transaction,
-) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics) {
-    let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
-    let block_args = BlockArgs::pending(&mut connection).await;
-    drop(connection);
-    // In order for execution to pass smoothlessly, we need to ensure that block's required gasPerPubdata will be
-    // <= to the one in the transaction itself.
-    shared_args.adjust_l1_gas_price(tx.gas_per_pubdata_byte_limit());
-
-    execute_tx_in_sandbox(
-        vm_permit,
-        shared_args,
-        execution_args,
-        connection_pool,
-        tx,
-        block_args,
-        vec![],
-    )
-    .await
-}
-
 /// This method assumes that (block with number `resolved_block_number` is present in DB)
 /// or (`block_id` is `pending` and block with number `resolved_block_number - 1` is present in DB)
 #[allow(clippy::too_many_arguments)]
 #[tracing::instrument(skip_all)]
-async fn execute_tx_in_sandbox(
+pub(crate) async fn execute_tx_in_sandbox(
     vm_permit: VmPermit,
     shared_args: TxSharedArgs,
+    // If `true`, then the batch's L1/pubdata gas price will be adjusted so that the transaction's gas per pubdata limit is <=
+    // to the one in the block. This is often helpful in case we want the transaction validation to work regardless of the
+    // current L1 prices for gas or pubdata.
+    adjust_pubdata_price: bool,
     execution_args: TxExecutionArgs,
     connection_pool: ConnectionPool,
     tx: Transaction,
@@ -159,6 +137,7 @@ async fn execute_tx_in_sandbox(
         let result = apply::apply_vm_in_sandbox(
             vm_permit,
             shared_args,
+            adjust_pubdata_price,
             &execution_args,
             &connection_pool,
             tx,

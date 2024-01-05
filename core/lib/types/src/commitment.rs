@@ -131,24 +131,34 @@ impl L1BatchWithMetadata {
         })
     }
 
+    /// Encodes L1Batch into StorageBatchInfo (see IExecutor.sol)
     pub fn l1_header_data(&self) -> Token {
         Token::Tuple(vec![
+            // batchNumber
             Token::Uint(U256::from(self.header.number.0)),
+            // batchHash
             Token::FixedBytes(self.metadata.root_hash.as_bytes().to_vec()),
+            // indexRepeatedStorageChanges
             Token::Uint(U256::from(self.metadata.rollup_last_leaf_index)),
+            // numberOfLayer1Txs
             Token::Uint(U256::from(self.header.l1_tx_count)),
+            // priorityOperationsHash
             Token::FixedBytes(
                 self.header
                     .priority_ops_onchain_data_hash()
                     .as_bytes()
                     .to_vec(),
             ),
+            // l2LogsTreeRoot
             Token::FixedBytes(self.metadata.l2_l1_merkle_root.as_bytes().to_vec()),
+            // timestamp
             Token::Uint(U256::from(self.header.timestamp)),
+            // commitment
             Token::FixedBytes(self.metadata.commitment.as_bytes().to_vec()),
         ])
     }
 
+    /// Encodes the L1Batch into CommitBatchInfo (see IExecutor.sol).
     pub fn l1_commit_data(&self) -> Token {
         if self.header.protocol_version.unwrap().is_pre_boojum() {
             Token::Tuple(vec![
@@ -183,17 +193,24 @@ impl L1BatchWithMetadata {
             ])
         } else {
             Token::Tuple(vec![
+                // batchNumber
                 Token::Uint(U256::from(self.header.number.0)),
+                // timestamp
                 Token::Uint(U256::from(self.header.timestamp)),
+                // indexRepeatedStorageChanges
                 Token::Uint(U256::from(self.metadata.rollup_last_leaf_index)),
+                // newStateRoot
                 Token::FixedBytes(self.metadata.merkle_root_hash.as_bytes().to_vec()),
+                // numberOfLayer1Txs
                 Token::Uint(U256::from(self.header.l1_tx_count)),
+                // priorityOperationsHash
                 Token::FixedBytes(
                     self.header
                         .priority_ops_onchain_data_hash()
                         .as_bytes()
                         .to_vec(),
                 ),
+                // bootloaderHeapInitialContentsHash
                 Token::FixedBytes(
                     self.metadata
                         .bootloader_initial_content_commitment
@@ -201,6 +218,7 @@ impl L1BatchWithMetadata {
                         .as_bytes()
                         .to_vec(),
                 ),
+                // eventsQueueStateHash
                 Token::FixedBytes(
                     self.metadata
                         .events_queue_commitment
@@ -208,7 +226,9 @@ impl L1BatchWithMetadata {
                         .as_bytes()
                         .to_vec(),
                 ),
+                // systemLogs
                 Token::Bytes(self.metadata.l2_l1_messages_compressed.clone()),
+                // totalL2ToL1Pubdata
                 Token::Bytes(
                     self.header
                         .pubdata_input
@@ -336,14 +356,10 @@ struct L1BatchAuxiliaryOutput {
 
     // The fields below are necessary for boojum.
     system_logs_compressed: Vec<u8>,
-    #[allow(dead_code)]
     system_logs_linear_hash: H256,
-    #[allow(dead_code)]
     state_diffs_hash: H256,
     state_diffs_compressed: Vec<u8>,
-    #[allow(dead_code)]
     bootloader_heap_hash: H256,
-    #[allow(dead_code)]
     events_state_queue_hash: H256,
     is_pre_boojum: bool,
 }

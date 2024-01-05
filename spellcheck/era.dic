@@ -406,6 +406,9 @@ ashr
 noalias
 immediates
 prode
+StorageBatchInfo
+CommitBatchInfo
+IExecutor
 
 // Names
 Vyper
@@ -852,3 +855,4 @@ L1Tx
 EIP
 DecommittmentProcessor
 decommitment
+tokenized
