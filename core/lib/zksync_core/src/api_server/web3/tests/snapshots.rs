@@ -21,7 +21,7 @@ async fn seal_l1_batch(
     );
     storage
         .blocks_dal()
-        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
+        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
         .await?;
     storage
         .blocks_dal()
