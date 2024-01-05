@@ -1,5 +1,5 @@
 #![feature(generic_const_exprs)]
-use std::future::Future;
+use std::{future::Future, sync::Arc};
 
 use anyhow::Context as _;
 use local_ip_address::local_ip;
@@ -171,7 +171,7 @@ async fn get_prover_tasks(
     prover_config: FriProverConfig,
     stop_receiver: Receiver<bool>,
     store_factory: ObjectStoreFactory,
-    public_blob_store: Option<Box<dyn ObjectStore>>,
+    public_blob_store: Option<Arc<dyn ObjectStore>>,
     pool: ConnectionPool,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
@@ -205,7 +205,7 @@ async fn get_prover_tasks(
     prover_config: FriProverConfig,
     stop_receiver: Receiver<bool>,
     store_factory: ObjectStoreFactory,
-    public_blob_store: Option<Box<dyn ObjectStore>>,
+    public_blob_store: Option<Arc<dyn ObjectStore>>,
     pool: ConnectionPool,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
