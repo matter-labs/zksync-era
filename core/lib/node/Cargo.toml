@@ -19,6 +19,7 @@ zksync_object_store = { path = "../object_store" }
 zksync_core = { path = "../zksync_core" }
 
 tracing = "0.1"
+thiserror = "1"
 async-trait = "0.1"
 futures = "0.3"
 anyhow = "1"

@@ -1,9 +1,7 @@
 use std::sync::Arc;
 
 use tokio::sync::watch;
-use zksync_config::configs::{
-    chain::OperationsManagerConfig, database::MerkleTreeConfig, object_store,
-};
+use zksync_config::configs::{chain::OperationsManagerConfig, database::MerkleTreeConfig};
 use zksync_core::metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig};
 use zksync_dal::ConnectionPool;
 use zksync_health_check::CheckHealth;
@@ -17,6 +15,8 @@ use crate::{
     ZkSyncNode, ZkSyncTask,
 };
 
+use super::TaskInitError;
+
 #[derive(Debug)]
 pub struct MetadataCalculatorTask {
     metadata_calculator: MetadataCalculator,
@@ -28,11 +28,13 @@ pub struct MetadataCalculatorTask {
 impl ZkSyncTask for MetadataCalculatorTask {
     type Config = MetadataCalculatorConfig;
 
-    fn new(node: &ZkSyncNode, config: Self::Config) -> Self {
+    fn new(node: &ZkSyncNode, config: Self::Config) -> Result<Self, TaskInitError> {
         let pools: PoolsResource = node
             .get_resource(crate::resources::pools::RESOURCE_NAME)
-            .unwrap(); // TODO do not unwrap
-        let main_pool = node.block_on(pools.master_pool()).unwrap(); // TODO do not unwrap
+            .ok_or(TaskInitError::ResourceLacking(
+                crate::resources::pools::RESOURCE_NAME,
+            ))?;
+        let main_pool = node.block_on(pools.master_pool()).unwrap();
         let object_store: Option<ObjectStoreResource> =
             node.get_resource(crate::resources::object_store::RESOURCE_NAME); // OK to be None.
 
@@ -43,16 +45,19 @@ impl ZkSyncTask for MetadataCalculatorTask {
             );
         }
 
-        let metadata_calculator = node.block_on(MetadataCalculator::new(config, object_store.0));
+        let metadata_calculator =
+            node.block_on(MetadataCalculator::new(config, object_store.map(|os| os.0)));
 
         let stop_receiver: StopReceiverResource = node
             .get_resource(crate::resources::stop_receiver::RESOURCE_NAME)
-            .unwrap(); // TODO do not unwrap
-        Self {
+            .ok_or(TaskInitError::ResourceLacking(
+                crate::resources::stop_receiver::RESOURCE_NAME,
+            ))?;
+        Ok(Self {
             metadata_calculator,
             main_pool,
             stop_receiver: stop_receiver.0,
-        }
+        })
     }
 
     fn healtcheck(&mut self) -> Option<Box<dyn CheckHealth>> {

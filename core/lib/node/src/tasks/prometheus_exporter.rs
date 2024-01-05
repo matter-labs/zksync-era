@@ -4,6 +4,8 @@ use zksync_health_check::{CheckHealth, HealthStatus, HealthUpdater, ReactiveHeal
 
 use crate::{resources::stop_receiver::StopReceiverResource, ZkSyncNode, ZkSyncTask};
 
+use super::TaskInitError;
+
 /** Reference
    let prom_config = configs
        .prometheus_config
@@ -35,20 +37,22 @@ pub struct PrometheusExporterTask {
 impl ZkSyncTask for PrometheusExporterTask {
     type Config = PrometheusExporterConfig;
 
-    fn new(node: &ZkSyncNode, config: Self::Config) -> Self {
+    fn new(node: &ZkSyncNode, config: Self::Config) -> Result<Self, TaskInitError> {
         let (prometheus_health_check, prometheus_health_updater) =
             ReactiveHealthCheck::new("prometheus_exporter");
 
         let stop_receiver: StopReceiverResource = node
             .get_resource(crate::resources::stop_receiver::RESOURCE_NAME)
-            .unwrap(); // TODO do not unwrap
+            .ok_or(TaskInitError::ResourceLacking(
+                crate::resources::stop_receiver::RESOURCE_NAME,
+            ))?;
 
-        Self {
+        Ok(Self {
             config,
             prometheus_health_check: Some(prometheus_health_check),
             prometheus_health_updater,
             stop_receiver: stop_receiver.0,
-        }
+        })
     }
 
     fn healtcheck(&mut self) -> Option<Box<dyn CheckHealth>> {

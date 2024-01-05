@@ -13,14 +13,14 @@ mod tasks;
 ///
 /// TODO more elaborate docs
 #[async_trait::async_trait]
-pub trait ZkSyncTask: 'static + Send + Sync {
+pub trait ZkSyncTask: 'static + Send + Sync + Sized {
     type Config: 'static + Send + Sync;
 
     /// Creates a new task.
     /// Normally, at this step the task is only expected to gather required resources from `ZkSyncNode`.
     ///
     /// If additional preparations are required, they should be done in `before_launch`.
-    fn new(node: &ZkSyncNode, config: Self::Config) -> Self;
+    fn new(node: &ZkSyncNode, config: Self::Config) -> Result<Self, tasks::TaskInitError>;
 
     /// Gets the healthcheck for the task, if it exists.
     /// Guaranteed to be called only once per task.
@@ -84,7 +84,7 @@ impl ZkSyncNode {
     /// May do some "registration" stuff for reporting purposes.
     pub fn add_task<T: ZkSyncTask>(&mut self, name: impl AsRef<str>, config: impl Into<T::Config>) {
         // <- todo should not be async
-        let task = T::new(self, config.into());
+        let task = T::new(self, config.into()).unwrap(); // TODO: Do not unwrap
         let future = Box::pin(task.run()); // <- todo should we create a future here?
         self.tasks.insert(name.as_ref().into(), future);
     }
