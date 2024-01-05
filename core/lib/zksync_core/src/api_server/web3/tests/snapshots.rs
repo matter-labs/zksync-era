@@ -2,23 +2,17 @@
 
 use std::collections::HashSet;
 
-use zksync_types::block::{BlockGasCount, L1BatchHeader};
+use zksync_types::block::BlockGasCount;
 use zksync_web3_decl::namespaces::SnapshotsNamespaceClient;
 
 use super::*;
-use crate::state_keeper::tests::create_l1_batch_metadata;
+use crate::utils::testonly::{create_l1_batch, create_l1_batch_metadata};
 
 async fn seal_l1_batch(
     storage: &mut StorageProcessor<'_>,
     number: L1BatchNumber,
 ) -> anyhow::Result<()> {
-    let header = L1BatchHeader::new(
-        number,
-        number.0.into(),
-        Address::repeat_byte(1),
-        BaseSystemContractsHashes::default(),
-        ProtocolVersionId::latest(),
-    );
+    let header = create_l1_batch(number.0);
     storage
         .blocks_dal()
         .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])

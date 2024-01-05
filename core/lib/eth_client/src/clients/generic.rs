@@ -160,11 +160,11 @@ impl<C: BoundEthInterface + ?Sized> BoundEthInterface for Arc<C> {
         self.as_ref().nonce_at(block, component).await
     }
 
-    async fn current_nonce(&self, _: &'static str) -> Result<U256, Error> {
-        self.as_ref().current_nonce("").await
+    async fn current_nonce(&self, component: &'static str) -> Result<U256, Error> {
+        self.as_ref().current_nonce(component).await
     }
 
-    async fn pending_nonce(&self, _: &'static str) -> Result<U256, Error> {
-        self.as_ref().pending_nonce("").await
+    async fn pending_nonce(&self, component: &'static str) -> Result<U256, Error> {
+        self.as_ref().pending_nonce(component).await
     }
 }
