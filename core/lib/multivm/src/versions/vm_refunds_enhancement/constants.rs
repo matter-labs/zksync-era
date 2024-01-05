@@ -70,7 +70,7 @@ const INITIAL_BASE_PAGE: u32 = 8;
 pub const BOOTLOADER_HEAP_PAGE: u32 = heap_page_from_base(MemoryPage(INITIAL_BASE_PAGE)).0;
 pub const BLOCK_OVERHEAD_GAS: u32 = 1200000;
 pub const BLOCK_OVERHEAD_L1_GAS: u32 = 1000000;
-pub const BLOCK_OVERHEAD_PUBDATA: u32 = BLOCK_OVERHEAD_L1_GAS / L1_GAS_PER_PUBDATA_BYTE;
+pub const BLOCK_OVERHEAD_PUBDATA: u32 = 0;
 
 /// VM Hooks are used for communication between bootloader and tracers.
 /// The 'type' / 'opcode' is put into VM_HOOK_POSITION slot,
