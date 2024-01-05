@@ -6,7 +6,10 @@ use assert_matches::assert_matches;
 use itertools::Itertools;
 use tempfile::TempDir;
 use tokio::sync::{mpsc, watch};
-use zksync_config::configs::{chain::OperationsManagerConfig, database::MerkleTreeConfig};
+use zksync_config::configs::{
+    chain::OperationsManagerConfig,
+    database::{MerkleTreeConfig, MerkleTreeMode},
+};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::{CheckHealth, HealthStatus};
@@ -20,10 +23,7 @@ use zksync_types::{
 };
 use zksync_utils::u32_to_h256;
 
-use super::{
-    GenericAsyncTree, L1BatchWithLogs, MetadataCalculator, MetadataCalculatorConfig,
-    MetadataCalculatorModeConfig,
-};
+use super::{GenericAsyncTree, L1BatchWithLogs, MetadataCalculator, MetadataCalculatorConfig};
 use crate::genesis::{ensure_genesis_state, GenesisParams};
 
 const RUN_TIMEOUT: Duration = Duration::from_secs(30);
@@ -237,16 +237,12 @@ async fn running_metadata_calculator_with_additional_blocks() {
 async fn shutting_down_calculator() {
     let pool = ConnectionPool::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let (merkle_tree_config, mut operation_config) = create_config(temp_dir.path());
+    let (merkle_tree_config, mut operation_config) =
+        create_config(temp_dir.path(), MerkleTreeMode::Lightweight);
     operation_config.delay_interval = 30_000; // ms; chosen to be larger than `RUN_TIMEOUT`
 
-    let calculator = setup_calculator_with_options(
-        &merkle_tree_config,
-        &operation_config,
-        &pool,
-        MetadataCalculatorModeConfig::Lightweight,
-    )
-    .await;
+    let calculator =
+        setup_calculator_with_options(&merkle_tree_config, &operation_config, &pool, None).await;
 
     reset_db_state(&pool, 5).await;
 
@@ -365,24 +361,25 @@ pub(crate) async fn setup_calculator(
 ) -> (MetadataCalculator, Box<dyn ObjectStore>) {
     let store_factory = ObjectStoreFactory::mock();
     let store = store_factory.create_store().await;
-    let (merkle_tree_config, operation_manager) = create_config(db_path);
-    let mode = MetadataCalculatorModeConfig::Full {
-        object_store: Some(store),
-    };
+    let (merkle_tree_config, operation_manager) = create_config(db_path, MerkleTreeMode::Full);
     let calculator =
-        setup_calculator_with_options(&merkle_tree_config, &operation_manager, pool, mode).await;
+        setup_calculator_with_options(&merkle_tree_config, &operation_manager, pool, Some(store))
+            .await;
     (calculator, store_factory.create_store().await)
 }
 
 async fn setup_lightweight_calculator(db_path: &Path, pool: &ConnectionPool) -> MetadataCalculator {
-    let mode = MetadataCalculatorModeConfig::Lightweight;
-    let (db_config, operation_config) = create_config(db_path);
-    setup_calculator_with_options(&db_config, &operation_config, pool, mode).await
+    let (db_config, operation_config) = create_config(db_path, MerkleTreeMode::Lightweight);
+    setup_calculator_with_options(&db_config, &operation_config, pool, None).await
 }
 
-fn create_config(db_path: &Path) -> (MerkleTreeConfig, OperationsManagerConfig) {
+fn create_config(
+    db_path: &Path,
+    mode: MerkleTreeMode,
+) -> (MerkleTreeConfig, OperationsManagerConfig) {
     let db_config = MerkleTreeConfig {
         path: path_to_string(&db_path.join("new")),
+        mode,
         ..MerkleTreeConfig::default()
     };
 
@@ -396,11 +393,11 @@ async fn setup_calculator_with_options(
     merkle_tree_config: &MerkleTreeConfig,
     operation_config: &OperationsManagerConfig,
     pool: &ConnectionPool,
-    mode: MetadataCalculatorModeConfig,
+    object_store: Option<Box<dyn ObjectStore>>,
 ) -> MetadataCalculator {
     let calculator_config =
-        MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_config, mode);
-    let metadata_calculator = MetadataCalculator::new(calculator_config).await;
+        MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_config);
+    let metadata_calculator = MetadataCalculator::new(calculator_config, object_store).await;
 
     let mut storage = pool.access_storage().await.unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {

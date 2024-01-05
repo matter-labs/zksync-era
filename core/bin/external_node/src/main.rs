@@ -7,6 +7,7 @@ use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task, time::sleep};
 use zksync_basic_types::{Address, L2ChainId};
+use zksync_config::configs::database::MerkleTreeMode;
 use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,
@@ -186,17 +187,17 @@ async fn init_tasks(
         stop_receiver.clone(),
     );
 
-    let metadata_calculator = MetadataCalculator::new(MetadataCalculatorConfig {
+    let metadata_calculator_config = MetadataCalculatorConfig {
         db_path: config.required.merkle_tree_path.clone(),
-        mode: MetadataCalculatorModeConfig::Full { object_store: None },
+        mode: MerkleTreeMode::Full,
         delay_interval: config.optional.metadata_calculator_delay(),
         max_l1_batches_per_iter: config.optional.max_l1_batches_per_tree_iter,
         multi_get_chunk_size: config.optional.merkle_tree_multi_get_chunk_size,
         block_cache_capacity: config.optional.merkle_tree_block_cache_size(),
         memtable_capacity: config.optional.merkle_tree_memtable_capacity(),
         stalled_writes_timeout: config.optional.merkle_tree_stalled_writes_timeout(),
-    })
-    .await;
+    };
+    let metadata_calculator = MetadataCalculator::new(metadata_calculator_config, None).await;
     healthchecks.push(Box::new(metadata_calculator.tree_health_check()));
 
     let consistency_checker = ConsistencyChecker::new(

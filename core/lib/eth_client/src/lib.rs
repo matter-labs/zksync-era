@@ -3,7 +3,7 @@ use std::fmt;
 use async_trait::async_trait;
 use zksync_types::{
     web3::{
-        contract::{tokens::Tokenize, Options},
+        contract::Options,
         ethabi,
         types::{
             Address, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt,
@@ -224,13 +224,18 @@ pub trait BoundEthInterface: EthInterface {
     }
 
     /// Encodes a function using the `Self::contract()` ABI.
-    fn encode_tx_data<P: Tokenize>(&self, func: &str, params: P) -> Vec<u8> {
+    ///
+    /// `params` are tokenized parameters of the function. Most of the time, you can use
+    /// [`Tokenize`][tokenize] trait to convert the parameters into tokens.
+    ///
+    /// [tokenize]: https://docs.rs/web3/latest/web3/contract/tokens/trait.Tokenize.html
+    fn encode_tx_data(&self, func: &str, params: Vec<ethabi::Token>) -> Vec<u8> {
         let f = self
             .contract()
             .function(func)
             .expect("failed to get function parameters");
 
-        f.encode_input(&params.into_tokens())
+        f.encode_input(&params)
             .expect("failed to encode parameters")
     }
 }
