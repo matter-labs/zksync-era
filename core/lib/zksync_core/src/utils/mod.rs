@@ -6,6 +6,9 @@ use tokio::sync::watch;
 use zksync_dal::ConnectionPool;
 use zksync_types::L1BatchNumber;
 
+#[cfg(test)]
+pub(crate) mod testonly;
+
 /// Repeatedly polls the DB until there is an L1 batch. We may not have such a batch initially
 /// if the DB is recovered from an application-level snapshot.
 ///

@@ -19,7 +19,7 @@ use zksync_config::{
             StateKeeperConfig,
         },
         contracts::ProverAtGenesis,
-        database::MerkleTreeMode,
+        database::{MerkleTreeConfig, MerkleTreeMode},
     },
     ApiConfig, ContractsConfig, DBConfig, ETHSenderConfig, PostgresConfig,
 };
@@ -31,7 +31,6 @@ use zksync_eth_client::{
 };
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_prover_utils::periodic_job::PeriodicJob;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
@@ -62,12 +61,11 @@ use crate::{
         fri_scheduler_circuit_queuer::SchedulerCircuitQueuer,
         fri_witness_generator_jobs_retry_manager::FriWitnessGeneratorJobRetryManager,
         fri_witness_generator_queue_monitor::FriWitnessGeneratorStatsReporter,
+        periodic_job::PeriodicJob,
         waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
     },
     l1_gas_price::{GasAdjusterSingleton, L1GasPriceProvider},
-    metadata_calculator::{
-        MetadataCalculator, MetadataCalculatorConfig, MetadataCalculatorModeConfig,
-    },
+    metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     metrics::{InitStage, APP_METRICS},
     state_keeper::{
         create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer, SequencerSealer,
@@ -676,7 +674,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
     db_config: &DBConfig,
     mempool_config: &MempoolConfig,
     gas_adjuster: Arc<E>,
-    object_store: Box<dyn ObjectStore>,
+    object_store: Arc<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let fair_l2_gas_price = state_keeper_config.fair_l2_gas_price;
@@ -768,21 +766,19 @@ async fn add_trees_to_task_futures(
         .contains(&Component::TreeApi)
         .then_some(&api_config);
 
-    let mode = match db_config.merkle_tree.mode {
-        MerkleTreeMode::Lightweight => MetadataCalculatorModeConfig::Lightweight,
-        MerkleTreeMode::Full => MetadataCalculatorModeConfig::Full {
-            object_store: Some(store_factory.create_store().await),
-        },
+    let object_store = match db_config.merkle_tree.mode {
+        MerkleTreeMode::Lightweight => None,
+        MerkleTreeMode::Full => Some(store_factory.create_store().await),
     };
 
     run_tree(
         task_futures,
         healthchecks,
         &postgres_config,
-        &db_config,
+        &db_config.merkle_tree,
         api_config,
         &operation_config,
-        mode,
+        object_store,
         stop_receiver,
     )
     .await
@@ -794,23 +790,22 @@ async fn run_tree(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     healthchecks: &mut Vec<Box<dyn CheckHealth>>,
     postgres_config: &PostgresConfig,
-    db_config: &DBConfig,
+    merkle_tree_config: &MerkleTreeConfig,
     api_config: Option<&MerkleTreeApiConfig>,
     operation_manager: &OperationsManagerConfig,
-    mode: MetadataCalculatorModeConfig,
+    object_store: Option<Arc<dyn ObjectStore>>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let started_at = Instant::now();
-    let mode_str = if matches!(mode, MetadataCalculatorModeConfig::Full { .. }) {
+    let mode_str = if matches!(merkle_tree_config.mode, MerkleTreeMode::Full) {
         "full"
     } else {
         "lightweight"
     };
     tracing::info!("Initializing Merkle tree in {mode_str} mode");
 
-    let config =
-        MetadataCalculatorConfig::for_main_node(&db_config.merkle_tree, operation_manager, mode);
-    let metadata_calculator = MetadataCalculator::new(config).await;
+    let config = MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_manager);
+    let metadata_calculator = MetadataCalculator::new(config, object_store).await;
     if let Some(api_config) = api_config {
         let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
         let tree_reader = metadata_calculator.tree_reader();

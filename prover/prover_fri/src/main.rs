@@ -1,5 +1,5 @@
 #![feature(generic_const_exprs)]
-use std::future::Future;
+use std::{future::Future, sync::Arc};
 
 use anyhow::Context as _;
 use local_ip_address::local_ip;
@@ -17,8 +17,7 @@ use zksync_env_config::{
     FromEnv,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_prover_fri_utils::get_all_circuit_id_round_tuples_for;
-use zksync_prover_utils::region_fetcher::get_zone;
+use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::CircuitIdRoundTuple,
@@ -171,7 +170,7 @@ async fn get_prover_tasks(
     prover_config: FriProverConfig,
     stop_receiver: Receiver<bool>,
     store_factory: ObjectStoreFactory,
-    public_blob_store: Option<Box<dyn ObjectStore>>,
+    public_blob_store: Option<Arc<dyn ObjectStore>>,
     pool: ConnectionPool,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
@@ -205,7 +204,7 @@ async fn get_prover_tasks(
     prover_config: FriProverConfig,
     stop_receiver: Receiver<bool>,
     store_factory: ObjectStoreFactory,
-    public_blob_store: Option<Box<dyn ObjectStore>>,
+    public_blob_store: Option<Arc<dyn ObjectStore>>,
     pool: ConnectionPool,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {

@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use anyhow::Context as _;
+use anyhow::Context;
 use async_trait::async_trait;
 use tokio::time::sleep;
 
