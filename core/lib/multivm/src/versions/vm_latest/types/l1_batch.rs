@@ -19,8 +19,6 @@ pub(crate) fn bootloader_initial_memory(l1_batch: &L1BatchEnv) -> Vec<(usize, U2
         .map(|prev_block_hash| (h256_to_u256(prev_block_hash), U256::one()))
         .unwrap_or_default();
 
-    let fee_input = l1_batch.fee_input.into_l1_pegged();
-
     vec![
         (
             OPERATOR_ADDRESS_SLOT,

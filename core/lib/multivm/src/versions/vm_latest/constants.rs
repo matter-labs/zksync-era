@@ -9,7 +9,7 @@ use zksync_system_constants::{
 use crate::vm_latest::old_vm::utils::heap_page_from_base;
 
 // The maximal number of transactions in a single batch
-pub(crate) const MAX_TXS_IN_BLOCK: usize = 1024;
+pub(crate) const MAX_TXS_IN_BATCH: usize = 1024;
 
 /// Max cycles for a single transaction.
 pub const MAX_CYCLES_FOR_TX: u32 = u32::MAX;
@@ -35,7 +35,7 @@ const CURRENT_L2_TX_HASHES_SLOTS: usize = 2;
 const NEW_FACTORY_DEPS_RESERVED_SLOTS: usize = MAX_NEW_FACTORY_DEPS + 4;
 
 /// The operator can provide for each transaction the proposed minimal refund
-pub(crate) const OPERATOR_REFUNDS_SLOTS: usize = MAX_TXS_IN_BLOCK;
+pub(crate) const OPERATOR_REFUNDS_SLOTS: usize = MAX_TXS_IN_BATCH;
 
 pub(crate) const OPERATOR_REFUNDS_OFFSET: usize = DEBUG_SLOTS_OFFSET
     + DEBUG_FIRST_SLOTS
@@ -44,10 +44,10 @@ pub(crate) const OPERATOR_REFUNDS_OFFSET: usize = DEBUG_SLOTS_OFFSET
     + NEW_FACTORY_DEPS_RESERVED_SLOTS;
 
 pub(crate) const TX_OVERHEAD_OFFSET: usize = OPERATOR_REFUNDS_OFFSET + OPERATOR_REFUNDS_SLOTS;
-pub(crate) const TX_OVERHEAD_SLOTS: usize = MAX_TXS_IN_BLOCK;
+pub(crate) const TX_OVERHEAD_SLOTS: usize = MAX_TXS_IN_BATCH;
 
 pub(crate) const TX_TRUSTED_GAS_LIMIT_OFFSET: usize = TX_OVERHEAD_OFFSET + TX_OVERHEAD_SLOTS;
-pub(crate) const TX_TRUSTED_GAS_LIMIT_SLOTS: usize = MAX_TXS_IN_BLOCK;
+pub(crate) const TX_TRUSTED_GAS_LIMIT_SLOTS: usize = MAX_TXS_IN_BATCH;
 
 pub(crate) const COMPRESSED_BYTECODES_SLOTS: usize = 32768;
 
@@ -73,7 +73,7 @@ pub(crate) const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
 
 /// The size of the bootloader memory dedicated to the encodings of transactions
 pub(crate) const BOOTLOADER_TX_ENCODING_SPACE: u32 =
-    (USED_1_4_1_BOOTLOADER_MEMORY_WORDS - TX_DESCRIPTION_OFFSET - MAX_TXS_IN_BLOCK) as u32;
+    (USED_1_4_1_BOOTLOADER_MEMORY_WORDS - TX_DESCRIPTION_OFFSET - MAX_TXS_IN_BATCH) as u32;
 
 // Size of the bootloader tx description in words
 pub(crate) const BOOTLOADER_TX_DESCRIPTION_SIZE: usize = 2;
@@ -81,7 +81,7 @@ pub(crate) const BOOTLOADER_TX_DESCRIPTION_SIZE: usize = 2;
 /// The actual descriptions of transactions should start after the minor descriptions and a MAX_POSTOP_SLOTS
 /// free slots to allow postOp encoding.
 pub(crate) const TX_DESCRIPTION_OFFSET: usize = BOOTLOADER_TX_DESCRIPTION_OFFSET
-    + BOOTLOADER_TX_DESCRIPTION_SIZE * MAX_TXS_IN_BLOCK
+    + BOOTLOADER_TX_DESCRIPTION_SIZE * MAX_TXS_IN_BATCH
     + MAX_POSTOP_SLOTS;
 
 pub(crate) const TX_GAS_LIMIT_OFFSET: usize = 4;
@@ -102,7 +102,7 @@ pub(crate) const MAX_MEM_SIZE_BYTES: u32 = 24000000;
 
 /// Arbitrary space in memory closer to the end of the page
 pub const RESULT_SUCCESS_FIRST_SLOT: u32 =
-    (MAX_MEM_SIZE_BYTES - (MAX_TXS_IN_BLOCK as u32) * 32) / 32;
+    (MAX_MEM_SIZE_BYTES - (MAX_TXS_IN_BATCH as u32) * 32) / 32;
 
 /// How many gas bootloader is allowed to spend within one block.
 /// Note that this value doesn't correspond to the gas limit of any particular transaction
@@ -121,7 +121,7 @@ pub(crate) const TX_OPERATOR_L2_BLOCK_INFO_OFFSET: usize =
 
 pub(crate) const TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO: usize = 4;
 pub(crate) const TX_OPERATOR_L2_BLOCK_INFO_SLOTS: usize =
-    (MAX_TXS_IN_BLOCK + 1) * TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO;
+    (MAX_TXS_IN_BATCH + 1) * TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO;
 
 pub(crate) const COMPRESSED_BYTECODES_OFFSET: usize =
     TX_OPERATOR_L2_BLOCK_INFO_OFFSET + TX_OPERATOR_L2_BLOCK_INFO_SLOTS;

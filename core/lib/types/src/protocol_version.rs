@@ -711,8 +711,8 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version18 => VmVersion::VmBoojumIntegration,
             ProtocolVersionId::Version19 => VmVersion::VmBoojumIntegration,
-            ProtocolVersionId::Version20 => VmVersion::VmBoojumIntegration,
-            ProtocolVersionId::Version21 => VmVersion::VmBoojumIntegration,
+            ProtocolVersionId::Version20 => VmVersion::Vm1_4_1,
+            ProtocolVersionId::Version21 => VmVersion::Vm1_4_1,
         }
     }
 }

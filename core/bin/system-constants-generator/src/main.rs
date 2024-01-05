@@ -102,8 +102,9 @@ pub fn generate_l2_contracts_system_config(gas_constants: &IntrinsicSystemGasCon
     let l2_contracts_config = L2SystemConfig {
         guaranteed_pubdata_bytes: GUARANTEED_PUBDATA_IN_TX,
         max_pubdata_per_block: MAX_PUBDATA_PER_BLOCK,
-        max_transactions_in_block: get_max_transactions_in_batch(ProtocolVersionId::latest().into())
-            as u32,
+        max_transactions_in_block: get_bootloader_max_txs_in_batch(
+            ProtocolVersionId::latest().into(),
+        ) as u32,
         block_overhead_l2_gas: 0,
         block_overhead_l1_gas: BLOCK_OVERHEAD_L1_GAS,
         l2_tx_intrinsic_gas: gas_constants.l2_tx_intrinsic_gas,
