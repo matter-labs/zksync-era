@@ -204,7 +204,7 @@ fn extract_added_token_info_from_addresses(
         .collect()
 }
 
-// moved from RuntimeContext
+// moved from `RuntimeContext`
 // Extracts all the "long" L2->L1 messages that were submitted by the
 // L1Messenger contract
 pub fn extract_long_l2_to_l1_messages(all_generated_events: &[VmEvent]) -> Vec<Vec<u8>> {
@@ -226,8 +226,8 @@ pub fn extract_long_l2_to_l1_messages(all_generated_events: &[VmEvent]) -> Vec<V
         .collect()
 }
 
-// Extracts all the L2ToL1Logs that were emitted
-// by the L1Messenger contract
+// Extracts all the `L2ToL1Logs` that were emitted
+// by the `L1Messenger` contract
 pub fn extract_l2tol1logs_from_l1_messenger(
     all_generated_events: &[VmEvent],
 ) -> Vec<L1MessengerL2ToL1Log> {
@@ -370,9 +370,9 @@ mod tests {
         value.to_big_endian(&mut val_arr);
 
         let tokens = vec![
-            /*l2ShardId*/ Token::Uint(U256::from(0)),
-            /*isService*/ Token::Bool(true),
-            /*txNumberInBlock*/ Token::Uint(tx_number),
+            /*`l2ShardId`*/ Token::Uint(U256::from(0)),
+            /*`isService`*/ Token::Bool(true),
+            /*`txNumberInBlock`*/ Token::Uint(tx_number),
             /*sender*/ Token::Address(sender),
             /*key*/ Token::FixedBytes(key_arr.to_vec()),
             /*value*/ Token::FixedBytes(val_arr.to_vec()),
