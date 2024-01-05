@@ -58,7 +58,7 @@ pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
     pub(crate) initial_values: HistoryRecorder<HashMap<StorageKey, U256>, H>,
 
     // Storage refunds that oracle has returned in `estimate_refunds_for_write`.
-    pub(crate) returned_refunds: HistoryRecorder<Vec<u32>, H>,
+    pub(crate) returned_refunds: HistoryRecorder<Vec<(LogQuery, u32)>, H>,
 }
 
 impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
@@ -379,9 +379,9 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
             // `INITIAL_STORAGE_WRITE_PUBDATA_BYTES` is the default amount of pubdata bytes the user pays for.
             pubdata_bytes: (INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32) - price_to_pay,
         });
-        tracing::debug!(?refund, ?storage_key, "refund for write");
+        partial_query.read_value = U256::zero();
         self.returned_refunds.apply_historic_record(
-            VectorHistoryEvent::Push(refund.pubdata_refund()),
+            VectorHistoryEvent::Push((partial_query.clone(), refund.pubdata_refund())),
             partial_query.timestamp,
         );
 

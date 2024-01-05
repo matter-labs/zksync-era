@@ -14,6 +14,7 @@ use crate::{
     },
     vm_boojum_integration::{
         bootloader_state::BootloaderState,
+        constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
         old_vm::events::merge_events,
         tracers::dispatcher::TracerDispatcher,
         types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState},
@@ -103,6 +104,23 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                 .len()
             + self.state.storage.get_final_log_queries().len();
 
+        tracing::debug!("Log queries for batch: {:?}", self.batch_env.number);
+        let refunds = self
+            .state
+            .storage
+            .returned_refunds
+            .inner()
+            .iter()
+            .map(|(query, refund)| {
+                tracing::debug!(
+                    "estimate_refunds_for_write {:?}; refund: {:?}",
+                    query,
+                    (INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32) - refund
+                );
+                *refund
+            })
+            .collect();
+
         CurrentExecutionState {
             events,
             storage_log_queries: self.state.storage.get_final_log_queries(),
@@ -115,7 +133,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             total_log_queries,
             cycles_used: self.state.local_state.monotonic_cycle_counter,
             deduplicated_events_logs,
-            storage_refunds: self.state.storage.returned_refunds.inner().clone(),
+            storage_refunds: refunds,
         }
     }
 
