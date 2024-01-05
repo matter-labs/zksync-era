@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Context as _;
 use axum::{extract::Path, routing::post, Json, Router};
@@ -34,7 +34,7 @@ fn fri_l1_verifier_config(contracts_config: &ContractsConfig) -> L1VerifierConfi
 pub(crate) async fn run_server(
     config: ProofDataHandlerConfig,
     contracts_config: ContractsConfig,
-    blob_store: Box<dyn ObjectStore>,
+    blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool,
     mut stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {

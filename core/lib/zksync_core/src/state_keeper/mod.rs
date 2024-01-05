@@ -42,7 +42,7 @@ pub(crate) async fn create_state_keeper(
     mempool: MempoolGuard,
     l1_gas_price_provider: Arc<dyn L1GasPriceProvider>,
     miniblock_sealer_handle: MiniblockSealerHandle,
-    object_store: Box<dyn ObjectStore>,
+    object_store: Arc<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
 ) -> ZkSyncStateKeeper {
     let batch_executor_base = MainBatchExecutorBuilder::new(
