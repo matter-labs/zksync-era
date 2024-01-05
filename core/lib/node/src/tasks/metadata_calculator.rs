@@ -1,11 +1,19 @@
+use std::sync::Arc;
+
 use tokio::sync::watch;
-use zksync_config::configs::{chain::OperationsManagerConfig, database::MerkleTreeConfig};
+use zksync_config::configs::{
+    chain::OperationsManagerConfig, database::MerkleTreeConfig, object_store,
+};
 use zksync_core::metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig};
 use zksync_dal::ConnectionPool;
 use zksync_health_check::CheckHealth;
+use zksync_object_store::ObjectStore;
 
 use crate::{
-    resources::{pools::Pools, stop_receiver::StopReceiver},
+    resources::{
+        object_store::ObjectStoreResource, pools::PoolsResource,
+        stop_receiver::StopReceiverResource,
+    },
     ZkSyncNode, ZkSyncTask,
 };
 
@@ -18,18 +26,26 @@ pub struct MetadataCalculatorTask {
 
 #[async_trait::async_trait]
 impl ZkSyncTask for MetadataCalculatorTask {
-    type Config = (MerkleTreeConfig, OperationsManagerConfig); // <- wrong
+    type Config = MetadataCalculatorConfig;
 
     fn new(node: &ZkSyncNode, config: Self::Config) -> Self {
-        let config: MetadataCalculatorConfig = todo!();
-        let metadata_calculator = node.block_on(MetadataCalculator::new(config));
-
-        let pools: Pools = node
+        let pools: PoolsResource = node
             .get_resource(crate::resources::pools::RESOURCE_NAME)
             .unwrap(); // TODO do not unwrap
         let main_pool = node.block_on(pools.master_pool()).unwrap(); // TODO do not unwrap
+        let object_store: Option<ObjectStoreResource> =
+            node.get_resource(crate::resources::object_store::RESOURCE_NAME); // OK to be None.
 
-        let stop_receiver: StopReceiver = node
+        if object_store.is_none() {
+            // TODO: use internal logging system?
+            tracing::info!(
+                "Object store is not configured, metadata calculator will run without it."
+            );
+        }
+
+        let metadata_calculator = node.block_on(MetadataCalculator::new(config, object_store.0));
+
+        let stop_receiver: StopReceiverResource = node
             .get_resource(crate::resources::stop_receiver::RESOURCE_NAME)
             .unwrap(); // TODO do not unwrap
         Self {

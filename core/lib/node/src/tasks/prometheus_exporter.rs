@@ -2,7 +2,7 @@ use prometheus_exporter::PrometheusExporterConfig;
 use tokio::sync::watch;
 use zksync_health_check::{CheckHealth, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 
-use crate::{resources::stop_receiver::StopReceiver, ZkSyncNode, ZkSyncTask};
+use crate::{resources::stop_receiver::StopReceiverResource, ZkSyncNode, ZkSyncTask};
 
 /** Reference
    let prom_config = configs
@@ -39,7 +39,7 @@ impl ZkSyncTask for PrometheusExporterTask {
         let (prometheus_health_check, prometheus_health_updater) =
             ReactiveHealthCheck::new("prometheus_exporter");
 
-        let stop_receiver: StopReceiver = node
+        let stop_receiver: StopReceiverResource = node
             .get_resource(crate::resources::stop_receiver::RESOURCE_NAME)
             .unwrap(); // TODO do not unwrap
 

@@ -1,3 +1,4 @@
+pub mod object_store;
 pub mod pools;
 pub mod stop_receiver;
 

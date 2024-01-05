@@ -5,11 +5,11 @@ use super::Resource;
 pub const RESOURCE_NAME: &str = "common/stop_receiver";
 
 #[derive(Debug, Clone)]
-pub struct StopReceiver(pub watch::Receiver<bool>);
+pub struct StopReceiverResource(pub watch::Receiver<bool>);
 
-impl Resource for StopReceiver {}
+impl Resource for StopReceiverResource {}
 
-impl StopReceiver {
+impl StopReceiverResource {
     pub fn new(receiver: watch::Receiver<bool>) -> Self {
         Self(receiver)
     }

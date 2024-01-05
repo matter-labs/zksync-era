@@ -5,15 +5,15 @@ use super::Resource;
 pub const RESOURCE_NAME: &str = "common/postgres_pools";
 
 #[derive(Debug, Clone)]
-pub struct Pools {
+pub struct PoolsResource {
     master_pool: Option<ConnectionPoolBuilder>,
     replica_pool: Option<ConnectionPoolBuilder>,
     prover_pool: Option<ConnectionPoolBuilder>,
 }
 
-impl Resource for Pools {}
+impl Resource for PoolsResource {}
 
-impl Pools {
+impl PoolsResource {
     pub fn with_master_pool(mut self, master_pool: ConnectionPoolBuilder) -> Self {
         self.master_pool = Some(master_pool);
         self
