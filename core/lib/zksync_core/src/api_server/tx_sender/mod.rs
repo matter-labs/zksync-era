@@ -266,6 +266,7 @@ impl TxSender {
         self.0.storage_caches.clone()
     }
 
+    // TODO (PLA-725): propagate DB errors instead of panicking
     #[tracing::instrument(skip(self, tx))]
     pub async fn submit_tx(&self, tx: L2Tx) -> Result<L2TxSubmissionResult, SubmitTxError> {
         let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::Validate].start();
@@ -364,7 +365,7 @@ impl TxSender {
         match submission_res_handle {
             L2TxSubmissionResult::AlreadyExecuted => {
                 let Nonce(expected_nonce) =
-                    self.get_expected_nonce(initiator_account).await.unwrap(); // FIXME: propagate errors
+                    self.get_expected_nonce(initiator_account).await.unwrap();
                 Err(SubmitTxError::NonceIsTooLow(
                     expected_nonce,
                     expected_nonce + self.0.sender_config.max_nonce_ahead,
@@ -459,7 +460,7 @@ impl TxSender {
         let Nonce(expected_nonce) = self
             .get_expected_nonce(tx.initiator_account())
             .await
-            .unwrap(); // FIXME: propagate errors
+            .unwrap();
 
         if tx.common_data.nonce.0 < expected_nonce {
             Err(SubmitTxError::NonceIsTooLow(
