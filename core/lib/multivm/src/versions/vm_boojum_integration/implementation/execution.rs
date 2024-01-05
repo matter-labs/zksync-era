@@ -6,7 +6,7 @@ use crate::{
         types::tracer::{TracerExecutionStatus, VmExecutionStopReason},
         VmExecutionMode, VmExecutionResultAndLogs,
     },
-    vm_latest::{
+    vm_boojum_integration::{
         old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
         tracers::{
             dispatcher::TracerDispatcher, DefaultExecutionTracer, PubdataTracer, RefundsTracer,

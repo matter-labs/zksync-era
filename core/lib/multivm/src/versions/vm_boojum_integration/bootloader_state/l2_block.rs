@@ -5,7 +5,7 @@ use zksync_utils::concat_and_hash;
 
 use crate::{
     interface::{L2Block, L2BlockEnv},
-    vm_latest::{
+    vm_boojum_integration::{
         bootloader_state::{snapshot::L2BlockSnapshot, tx::BootloaderTx},
         utils::l2_blocks::l2_block_hash,
     },

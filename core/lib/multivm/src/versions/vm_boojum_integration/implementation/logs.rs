@@ -8,7 +8,9 @@ use zksync_types::{
 
 use crate::{
     interface::types::outputs::VmExecutionLogs,
-    vm_latest::{old_vm::utils::precompile_calls_count_after_timestamp, utils::logs, vm::Vm},
+    vm_boojum_integration::{
+        old_vm::utils::precompile_calls_count_after_timestamp, utils::logs, vm::Vm,
+    },
     HistoryMode,
 };
 

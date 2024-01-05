@@ -19,7 +19,7 @@ use zksync_utils::h256_to_u256;
 
 use crate::{
     interface::{L1BatchEnv, L2Block, SystemEnv},
-    vm_latest::{
+    vm_boojum_integration::{
         bootloader_state::BootloaderState,
         constants::BOOTLOADER_HEAP_PAGE,
         old_vm::{
