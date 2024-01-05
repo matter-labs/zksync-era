@@ -10,6 +10,9 @@ mod chain;
 mod contract_verifier;
 mod contracts;
 mod database;
+mod eth_client;
+mod eth_sender;
+mod eth_watch;
 
 pub mod proto;
 mod repr;

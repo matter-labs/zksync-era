@@ -8,16 +8,14 @@ message ETHSender {
 }
 
 enum ProofSendingMode {
-  PROOF_SENDING_MODE_UNKNOWN = 0;
-  ONLY_REAL_PROOFS = 1;
-  ONLY_SAMPLED_PROOFS = 2;
-  SKIP_EVERY_PROOF = 3;
+  ONLY_REAL_PROOFS = 0;
+  ONLY_SAMPLED_PROOFS = 1;
+  SKIP_EVERY_PROOF = 2;
 }
 
 enum ProofLoadingMode {
-  PROOF_LOADING_MODE_UNKNOWN = 0;
-  OLD_PROOF_FROM_DB = 1;
-  FRI_PROOF_FROM_GCS = 2;
+  OLD_PROOF_FROM_DB = 0;
+  FRI_PROOF_FROM_GCS = 1;
 }
 
 message Sender {
