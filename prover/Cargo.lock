@@ -6217,13 +6217,13 @@ dependencies = [
  "serde_json",
  "shivini",
  "structopt",
+ "toml_edit 0.14.4",
  "tracing",
  "vlog",
  "zkevm_test_harness 1.4.0",
  "zksync_config",
  "zksync_env_config",
  "zksync_prover_fri_types",
- "zksync_prover_utils",
  "zksync_types",
 ]
 
@@ -7017,6 +7017,7 @@ dependencies = [
  "ctrlc",
  "futures 0.3.29",
  "prometheus_exporter",
+ "reqwest",
  "structopt",
  "tokio",
  "tracing",
@@ -7029,7 +7030,6 @@ dependencies = [
  "zksync_env_config",
  "zksync_object_store",
  "zksync_prover_fri_types",
- "zksync_prover_utils",
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
@@ -7080,6 +7080,8 @@ dependencies = [
  "futures 0.3.29",
  "local-ip-address",
  "prometheus_exporter",
+ "regex",
+ "reqwest",
  "serde",
  "shivini",
  "tokio",
@@ -7094,7 +7096,6 @@ dependencies = [
  "zksync_object_store",
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
- "zksync_prover_utils",
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
@@ -7138,6 +7139,9 @@ dependencies = [
 name = "zksync_prover_fri_utils"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "regex",
+ "reqwest",
  "serde",
  "tracing",
  "vise",
@@ -7145,24 +7149,6 @@ dependencies = [
  "zksync_dal",
  "zksync_object_store",
  "zksync_prover_fri_types",
- "zksync_types",
-]
-
-[[package]]
-name = "zksync_prover_utils"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "ctrlc",
- "futures 0.3.29",
- "regex",
- "reqwest",
- "tokio",
- "toml_edit 0.14.4",
- "tracing",
- "zksync_config",
- "zksync_object_store",
  "zksync_types",
  "zksync_utils",
 ]
@@ -7309,7 +7295,6 @@ dependencies = [
  "zksync_object_store",
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
- "zksync_prover_utils",
  "zksync_queued_job_processor",
  "zksync_state",
  "zksync_system_constants",
@@ -7341,7 +7326,6 @@ dependencies = [
  "zksync_object_store",
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
- "zksync_prover_utils",
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",

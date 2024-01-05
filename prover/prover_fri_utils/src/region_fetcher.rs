@@ -1,4 +1,4 @@
-use anyhow::Context as _;
+use anyhow::Context;
 use regex::Regex;
 use reqwest::{
     header::{HeaderMap, HeaderValue},
