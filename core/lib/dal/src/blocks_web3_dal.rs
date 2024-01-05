@@ -593,6 +593,7 @@ impl BlocksWeb3Dal<'_, '_> {
 mod tests {
     use zksync_types::{
         block::{MiniblockHasher, MiniblockHeader},
+        snapshots::SnapshotRecoveryStatus,
         MiniblockNumber, ProtocolVersion, ProtocolVersionId,
     };
 
@@ -678,13 +679,23 @@ mod tests {
     async fn resolving_latest_block_id() {
         let connection_pool = ConnectionPool::test_pool().await;
         let mut conn = connection_pool.access_storage().await.unwrap();
-        conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
+
+        let miniblock_number = conn
+            .blocks_web3_dal()
+            .resolve_block_id(api::BlockId::Number(api::BlockNumber::Latest))
+            .await
+            .unwrap();
+        assert_eq!(miniblock_number, None);
+        let miniblock_number = conn
+            .blocks_web3_dal()
+            .resolve_block_id(api::BlockId::Number(api::BlockNumber::Pending))
+            .await
+            .unwrap();
+        assert_eq!(miniblock_number, Some(MiniblockNumber(0)));
+
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(0))
             .await
@@ -728,6 +739,31 @@ mod tests {
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Number(1.into())))
             .await;
         assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(1)));
+    }
+
+    #[tokio::test]
+    async fn resolving_pending_block_id_for_snapshot_recovery() {
+        let connection_pool = ConnectionPool::test_pool().await;
+        let mut conn = connection_pool.access_storage().await.unwrap();
+        let snapshot_recovery = SnapshotRecoveryStatus {
+            l1_batch_number: L1BatchNumber(23),
+            l1_batch_root_hash: H256::zero(),
+            miniblock_number: MiniblockNumber(42),
+            miniblock_root_hash: H256::zero(),
+            last_finished_chunk_id: None,
+            total_chunk_count: 100,
+        };
+        conn.snapshot_recovery_dal()
+            .set_applied_snapshot_status(&snapshot_recovery)
+            .await
+            .unwrap();
+
+        let miniblock_number = conn
+            .blocks_web3_dal()
+            .resolve_block_id(api::BlockId::Number(api::BlockNumber::Pending))
+            .await
+            .unwrap();
+        assert_eq!(miniblock_number, Some(MiniblockNumber(43)));
     }
 
     #[tokio::test]
