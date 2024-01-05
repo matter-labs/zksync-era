@@ -4,20 +4,6 @@ use serde::Deserialize;
 use zksync_basic_types::{network::Network, Address, L2ChainId};
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct ChainConfig {
-    /// L1 parameters configuration.
-    pub network: NetworkConfig,
-    /// State keeper / block generating configuration.
-    pub state_keeper: StateKeeperConfig,
-    /// Operations manager / Metadata calculator.
-    pub operations_manager: OperationsManagerConfig,
-    /// mempool configuration
-    pub mempool: MempoolConfig,
-    /// circuit breaker configuration
-    pub circuit_breaker: CircuitBreakerConfig,
-}
-
-#[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct NetworkConfig {
     /// Name of the used Ethereum network, e.g. `localhost` or `rinkeby`.
     pub network: Network,
