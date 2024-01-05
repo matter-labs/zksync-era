@@ -50,12 +50,12 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
 /// it explicitly gets the L1 gas price from the provider and uses it to calculate the batch fee input instead of getting
 /// it from other node.
 #[derive(Debug)]
-pub(crate) struct MainNodeFeeInputProvider<G: ?Sized> {
-    provider: Arc<G>,
+pub(crate) struct MainNodeFeeInputProvider {
+    provider: Arc<dyn L1GasPriceProvider>,
     config: FeeModelConfig,
 }
 
-impl<G: L1GasPriceProvider + ?Sized> BatchFeeModelInputProvider for MainNodeFeeInputProvider<G> {
+impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
     fn get_fee_model_params(&self) -> FeeParams {
         match self.config {
             FeeModelConfig::V1(config) => FeeParams::V1(FeeParamsV1 {
@@ -71,8 +71,8 @@ impl<G: L1GasPriceProvider + ?Sized> BatchFeeModelInputProvider for MainNodeFeeI
     }
 }
 
-impl<G: L1GasPriceProvider + ?Sized> MainNodeFeeInputProvider<G> {
-    pub(crate) fn new(provider: Arc<G>, config: FeeModelConfig) -> Self {
+impl MainNodeFeeInputProvider {
+    pub(crate) fn new(provider: Arc<dyn L1GasPriceProvider>, config: FeeModelConfig) -> Self {
         Self { provider, config }
     }
 }
@@ -106,13 +106,14 @@ fn compute_batch_fee_model_input_v2(
 
     let FeeModelConfigV2 {
         minimal_l2_gas_price,
-        compute_overhead_percent,
-        pubdata_overhead_percent,
+        compute_overhead_part: compute_overhead_part,
+        pubdata_overhead_part,
         batch_overhead_l1_gas,
         max_gas_per_batch,
         max_pubdata_per_batch,
     } = config;
 
+    // Firstly, we scale the gas price and pubdata price in case it is needed.
     let l1_gas_price = (l1_gas_price as f64 * l1_gas_price_scale_factor) as u64;
     let l1_pubdata_price = (l1_pubdata_price as f64 * l1_pubdata_price_scale_factor) as u64;
 
@@ -121,20 +122,32 @@ fn compute_batch_fee_model_input_v2(
     let l1_batch_overhead_wei = U256::from(l1_gas_price) * U256::from(batch_overhead_l1_gas);
 
     let fair_l2_gas_price = {
+        // Firstly, we calculate which part of the overall overhead overhead each unit of L2 gas should cover.
         let l1_batch_overhead_per_gas =
             ceil_div_u256(l1_batch_overhead_wei, U256::from(max_gas_per_batch));
-        let gas_overhead_wei =
-            (l1_batch_overhead_per_gas.as_u64() as f64 * compute_overhead_percent) as u64;
 
+        // Then, we multiply by the `compute_overhead_part` to get the overhead for the computation for each gas.
+        // Also, this means that if we almost never close batches because of compute, the compute_overhead_part should be zero and so
+        // it is possible that the computation costs include for no overhead.
+        let gas_overhead_wei =
+            (l1_batch_overhead_per_gas.as_u64() as f64 * compute_overhead_part) as u64;
+
+        // We sum up the minimal L2 gas price (i.e. the raw prover/compute cost of a single L2 gas) and the overhead for batch being closed.
         minimal_l2_gas_price + gas_overhead_wei
     };
 
     let fair_pubdata_price = {
+        // Firstly, we calculate which part of the overall overhead overhead each pubdata byte should cover.
         let l1_batch_overhead_per_pubdata =
             ceil_div_u256(l1_batch_overhead_wei, U256::from(max_pubdata_per_batch));
-        let pubdata_overhead_wei =
-            (l1_batch_overhead_per_pubdata.as_u64() as f64 * pubdata_overhead_percent) as u64;
 
+        // Then, we multiply by the `pubdata_overhead_part` to get the overhead for each pubdata byte.
+        // Also, this means that if we almost never close batches because of pubdata, the pubdata_overhead_part should be zero and so
+        // it is possible that the pubdata costs include no overhead.
+        let pubdata_overhead_wei =
+            (l1_batch_overhead_per_pubdata.as_u64() as f64 * pubdata_overhead_part) as u64;
+
+        // We sum up the raw L1 pubdata price (i.e. the expected price of publishing a single pubdata byte) and the overhead for batch being closed.
         l1_pubdata_price + pubdata_overhead_wei
     };
 
@@ -163,8 +176,8 @@ mod tests {
             minimal_l2_gas_price: GIANT_L1_GAS_PRICE,
             // We generally don't expect those values to be larger than 1. Still, in theory the operator
             // may need to set higher values in extreme cases.
-            compute_overhead_percent: 5.0,
-            pubdata_overhead_percent: 5.0,
+            compute_overhead_part: 5.0,
+            pubdata_overhead_part: 5.0,
             // The batch overhead would likely never grow beyond that
             batch_overhead_l1_gas: 1_000_000,
             // Let's imagine that for some reason the limit is relatively small
@@ -192,8 +205,8 @@ mod tests {
         // Here we assume that the operator wants to make the lives of users as cheap as possible.
         let config = FeeModelConfigV2 {
             minimal_l2_gas_price: SMALL_L1_GAS_PRICE,
-            compute_overhead_percent: 0.0,
-            pubdata_overhead_percent: 0.0,
+            compute_overhead_part: 0.0,
+            pubdata_overhead_part: 0.0,
             batch_overhead_l1_gas: 0,
             max_gas_per_batch: 50_000_000,
             max_pubdata_per_batch: 100_000,
@@ -217,8 +230,8 @@ mod tests {
         // Here we use sensible config, but when only pubdata is used to close the batch
         let config = FeeModelConfigV2 {
             minimal_l2_gas_price: 100_000_000_000,
-            compute_overhead_percent: 0.0,
-            pubdata_overhead_percent: 1.0,
+            compute_overhead_part: 0.0,
+            pubdata_overhead_part: 1.0,
             batch_overhead_l1_gas: 700_000,
             max_gas_per_batch: 500_000_000,
             max_pubdata_per_batch: 100_000,
@@ -243,8 +256,8 @@ mod tests {
         // Here we use sensible config, but when only compute is used to close the batch
         let config = FeeModelConfigV2 {
             minimal_l2_gas_price: 100_000_000_000,
-            compute_overhead_percent: 1.0,
-            pubdata_overhead_percent: 0.0,
+            compute_overhead_part: 1.0,
+            pubdata_overhead_part: 0.0,
             batch_overhead_l1_gas: 700_000,
             max_gas_per_batch: 500_000_000,
             max_pubdata_per_batch: 100_000,
@@ -269,8 +282,8 @@ mod tests {
         // In this test we generally checking that each param behaves as expected
         let base_config = FeeModelConfigV2 {
             minimal_l2_gas_price: 100_000_000_000,
-            compute_overhead_percent: 0.5,
-            pubdata_overhead_percent: 0.5,
+            compute_overhead_part: 0.5,
+            pubdata_overhead_part: 0.5,
             batch_overhead_l1_gas: 700_000,
             max_gas_per_batch: 500_000_000,
             max_pubdata_per_batch: 100_000,

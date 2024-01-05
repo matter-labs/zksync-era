@@ -47,7 +47,7 @@ impl MainNodeFeeParamsFetcher {
                 break;
             }
 
-            let main_node_fee_params = match self.client.get_main_node_fee_params().await {
+            let main_node_fee_params = match self.client.get_fee_params().await {
                 Ok(price) => price,
                 Err(err) => {
                     tracing::warn!("Unable to get the gas price: {}", err);

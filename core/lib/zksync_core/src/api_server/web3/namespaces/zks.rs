@@ -592,8 +592,8 @@ impl ZksNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_main_node_fee_params_impl(&self) -> FeeParams {
-        const METHOD_NAME: &str = "get_main_node_fee_params";
+    pub fn get_fee_params_impl(&self) -> FeeParams {
+        const METHOD_NAME: &str = "get_fee_params";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
         let fee_model_params = self

@@ -130,11 +130,11 @@ pub struct FeeModelConfigV2 {
     /// The constant that represents the possibility that a batch can be sealed because of overuse of computation resources.
     /// It has range from 0 to 1. If it is 0, the compute will not depend on the cost for closing the batch.
     /// If it is 1, the gas limit per batch will have to cover the entire cost of closing the batch.
-    pub compute_overhead_percent: f64,
+    pub compute_overhead_part: f64,
     /// The constant that represents the possibility that a batch can be sealed because of overuse of pubdata.
     /// It has range from 0 to 1. If it is 0, the pubdata will not depend on the cost for closing the batch.
     /// If it is 1, the pubdata limit per batch will have to cover the entire cost of closing the batch.
-    pub pubdata_overhead_percent: f64,
+    pub pubdata_overhead_part: f64,
     /// The constant amount of L1 gas that is used as the overhead for the batch. It includes the price for batch verification, etc.
     pub batch_overhead_l1_gas: u64,
     /// The maximum amount of gas that can be used by the batch. This value is derived from the circuits limitation per batch.

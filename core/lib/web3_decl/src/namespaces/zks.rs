@@ -102,8 +102,8 @@ pub trait ZksNamespace {
     #[method(name = "getL1GasPrice")]
     async fn get_l1_gas_price(&self) -> RpcResult<U64>;
 
-    #[method(name = "getMainNodeFeeParams")]
-    async fn get_main_node_fee_params(&self) -> RpcResult<FeeParams>;
+    #[method(name = "getFeeParams")]
+    async fn get_fee_params(&self) -> RpcResult<FeeParams>;
 
     #[method(name = "getProtocolVersion")]
     async fn get_protocol_version(

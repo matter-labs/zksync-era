@@ -58,9 +58,7 @@ impl Tester {
             .unwrap()
     }
 
-    pub(super) async fn create_batch_fee_input_provider(
-        &self,
-    ) -> MainNodeFeeInputProvider<GasAdjuster<MockEthereum>> {
+    pub(super) async fn create_batch_fee_input_provider(&self) -> MainNodeFeeInputProvider {
         let gas_adjuster = Arc::new(self.create_gas_adjuster().await);
         MainNodeFeeInputProvider::new(
             gas_adjuster,
