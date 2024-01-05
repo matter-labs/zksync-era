@@ -27,7 +27,7 @@ use crate::{
             TypedFilter,
         },
     },
-    utils::first_local_miniblock,
+    utils::projected_first_miniblock,
 };
 
 pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;
@@ -535,7 +535,7 @@ impl EthNamespace {
         let next_block_number = match last_block_number {
             Some(number) => number + 1,
             // If we don't have miniblocks in the storage, use the first projected miniblock number as the cursor
-            None => first_local_miniblock(&mut storage)
+            None => projected_first_miniblock(&mut storage)
                 .await
                 .map_err(|err| internal_error(METHOD_NAME, err))?,
         };

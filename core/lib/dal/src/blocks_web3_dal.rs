@@ -32,25 +32,6 @@ pub struct BlocksWeb3Dal<'a, 'c> {
 }
 
 impl BlocksWeb3Dal<'_, '_> {
-    // FIXME: remove as well?
-    pub async fn get_sealed_l1_batch_number(&mut self) -> sqlx::Result<L1BatchNumber> {
-        let number = sqlx::query!(
-            r#"
-            SELECT
-                MAX(number) AS "number"
-            FROM
-                l1_batches
-            "#
-        )
-        .instrument("get_sealed_block_number")
-        .report_latency()
-        .fetch_one(self.storage.conn())
-        .await?
-        .number
-        .expect("DAL invocation before genesis");
-        Ok(L1BatchNumber(number as u32))
-    }
-
     pub async fn get_block_by_web3_block_id(
         &mut self,
         block_id: api::BlockId,

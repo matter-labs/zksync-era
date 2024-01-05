@@ -39,7 +39,7 @@ use crate::{
         web3::backend_jsonrpsee::batch_limiter_middleware::LimitMiddleware,
     },
     sync_layer::SyncState,
-    utils::first_local_miniblock,
+    utils::projected_first_miniblock,
 };
 
 pub mod backend_jsonrpsee;
@@ -288,7 +288,7 @@ impl FullApiParams {
             .last_miniblock_pool
             .access_storage_tagged("api")
             .await?;
-        let first_local_miniblock = first_local_miniblock(&mut storage).await?;
+        let first_local_miniblock = projected_first_miniblock(&mut storage).await?;
         drop(storage);
 
         Ok(RpcState {

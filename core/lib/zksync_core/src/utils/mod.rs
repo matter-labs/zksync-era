@@ -74,8 +74,22 @@ pub(crate) async fn wait_for_l1_batch_with_metadata(
     }
 }
 
-/// Returns the number of the first locally available miniblock.
-pub(crate) async fn first_local_miniblock(
+/// Returns the projected number of the first locally available L1 batch. The L1 batch is **not**
+/// guaranteed to be present in the storage!
+pub(crate) async fn projected_first_l1_batch(
+    storage: &mut StorageProcessor<'_>,
+) -> anyhow::Result<L1BatchNumber> {
+    let snapshot_recovery = storage
+        .snapshot_recovery_dal()
+        .get_applied_snapshot_status()
+        .await
+        .context("failed getting snapshot recovery status")?;
+    Ok(snapshot_recovery.map_or(L1BatchNumber(0), |recovery| recovery.l1_batch_number + 1))
+}
+
+/// Returns the projected number of the first locally available miniblock. The miniblock is **not**
+/// guaranteed to be present in the storage!
+pub(crate) async fn projected_first_miniblock(
     storage: &mut StorageProcessor<'_>,
 ) -> anyhow::Result<MiniblockNumber> {
     let snapshot_recovery = storage

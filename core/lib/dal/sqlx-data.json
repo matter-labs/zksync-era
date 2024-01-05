@@ -4002,24 +4002,6 @@
     },
     "query": "\n            SELECT\n                COUNT(*) AS \"count!\"\n            FROM\n                miniblocks\n            WHERE\n                number = $1\n                AND consensus IS NOT NULL\n            "
   },
-  "38a8b00e320b16e99f6ea0e5954e2f7e49cd6600bd3d56cf41795c2c9e082e4c": {
-    "describe": {
-      "columns": [
-        {
-          "name": "number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        null
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "\n            SELECT\n                MAX(number) AS \"number\"\n            FROM\n                l1_batches\n            "
-  },
   "3b0af308b0ce95a13a4eed40834279601234a489f73d843f2f314252ed4cb8b0": {
     "describe": {
       "columns": [

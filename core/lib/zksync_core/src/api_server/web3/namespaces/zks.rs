@@ -398,14 +398,14 @@ impl ZksNamespace {
         let method_latency = API_METRICS.start_call(METHOD_NAME);
         let mut storage = self.access_storage(METHOD_NAME).await?;
         let l1_batch_number = storage
-            .blocks_web3_dal()
+            .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
-            .map(|n| U64::from(n.0))
-            .map_err(|err| internal_error(METHOD_NAME, err));
+            .map_err(|err| internal_error(METHOD_NAME, err))?
+            .ok_or(Web3Error::NoBlock)?;
 
         method_latency.observe();
-        l1_batch_number
+        Ok(l1_batch_number.0.into())
     }
 
     #[tracing::instrument(skip(self))]

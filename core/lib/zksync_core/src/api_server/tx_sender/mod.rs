@@ -36,7 +36,7 @@ use crate::{
     l1_gas_price::L1GasPriceProvider,
     metrics::{TxStage, APP_METRICS},
     state_keeper::seal_criteria::{ConditionalSealer, NoopSealer, SealData},
-    utils::first_local_miniblock,
+    utils::projected_first_miniblock,
 };
 
 mod proxy;
@@ -497,7 +497,7 @@ impl TxSender {
             Some(number) => number,
             None => {
                 // We don't have miniblocks in the storage yet. Use the snapshot miniblock number instead.
-                let first_local_miniblock = first_local_miniblock(&mut storage).await?;
+                let first_local_miniblock = projected_first_miniblock(&mut storage).await?;
                 MiniblockNumber(first_local_miniblock.saturating_sub(1))
             }
         };
