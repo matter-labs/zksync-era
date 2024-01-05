@@ -4099,6 +4099,7 @@ dependencies = [
  "zk_evm 1.3.1",
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zk_evm 1.4.0",
+ "zkevm_test_harness 1.4.0",
  "zksync_contracts",
  "zksync_eth_signer",
  "zksync_state",
@@ -8326,9 +8327,10 @@ dependencies = [
 [[package]]
 name = "zk_evm_abstractions"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zk_evm_abstractions.git#15a2af404902d5f10352e3d1fac693cc395fcff9"
+source = "git+https://github.com/matter-labs/era-zk_evm_abstractions.git#32dd320953841aa78579d9da08abbc70bcaed175"
 dependencies = [
  "anyhow",
+ "num_enum",
  "serde",
  "static_assertions",
  "zkevm_opcode_defs 1.3.2",
@@ -8408,7 +8410,7 @@ dependencies = [
  "codegen 0.2.0",
  "crossbeam 0.8.2",
  "derivative",
- "env_logger 0.10.0",
+ "env_logger 0.9.3",
  "hex",
  "num-bigint 0.4.4",
  "num-integer",
