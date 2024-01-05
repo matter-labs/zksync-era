@@ -16,7 +16,7 @@ threads_per_server = 128
 l2_chain_id = 270
 l1_chain_id = 9
 
-api_mode="eth_transfer_included"
+api_mode="modern"
 
 req_entities_limit = 10000
 
