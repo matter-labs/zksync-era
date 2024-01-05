@@ -77,7 +77,7 @@ impl EthNamespace {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap();
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
         let block_args = self
             .state
             .resolve_block_args(&mut connection, block_id, METHOD_NAME)
@@ -180,7 +180,7 @@ impl EthNamespace {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap();
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
         let block_number = self
             .state
             .resolve_block(&mut connection, block_id, METHOD_NAME)
@@ -271,12 +271,13 @@ impl EthNamespace {
         };
         let method_latency = API_METRICS.start_block_call(method_name, block_id);
 
+        self.state.check_pruned_block(block_id)?;
         let block = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
+            .map_err(|err| internal_error(method_name, err))?
             .blocks_web3_dal()
             .get_block_by_web3_block_id(
                 block_id,
@@ -303,12 +304,13 @@ impl EthNamespace {
         const METHOD_NAME: &str = "get_block_transaction_count";
 
         let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
+        self.state.check_pruned_block(block_id)?;
         let tx_count = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
+            .map_err(|err| internal_error(METHOD_NAME, err))?
             .blocks_web3_dal()
             .get_block_tx_count(block_id)
             .await

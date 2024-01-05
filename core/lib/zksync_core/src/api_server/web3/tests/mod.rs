@@ -2,6 +2,7 @@ use std::{sync::Arc, time::Instant};
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
+use jsonrpsee::core::ClientError;
 use tokio::sync::watch;
 use zksync_config::configs::{
     api::Web3JsonRpcConfig,
@@ -11,6 +12,7 @@ use zksync_config::configs::{
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, StorageProcessor};
 use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
+use zksync_system_constants::L2_ETH_TOKEN_ADDRESS;
 use zksync_types::{
     api,
     block::{BlockGasCount, MiniblockHeader},
@@ -19,7 +21,7 @@ use zksync_types::{
         tx_execution_info::TxExecutionStatus, ExecutionMetrics, IncludedTxLocation,
         TransactionExecutionResult,
     },
-    Address, L1BatchNumber, VmEvent, H256, U64,
+    AccountTreeId, Address, L1BatchNumber, StorageKey, StorageLog, VmEvent, H256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::{core::ClientError as RpcError, http_client::HttpClient, types::error::ErrorCode},
@@ -34,6 +36,7 @@ use crate::{
     l1_gas_price::L1GasPriceProvider,
     utils::testonly::{
         create_l1_batch, create_l1_batch_metadata, create_l2_transaction, create_miniblock,
+        prepare_empty_recovery_snapshot, prepare_recovery_snapshot,
     },
 };
 
@@ -374,6 +377,212 @@ impl HttpTest for HttpServerBasicsTest {
 #[tokio::test]
 async fn http_server_basics() {
     test_http_server(HttpServerBasicsTest).await;
+}
+
+#[derive(Debug)]
+struct BlockMethodsWithSnapshotRecovery;
+
+#[async_trait]
+impl HttpTest for BlockMethodsWithSnapshotRecovery {
+    async fn prepare_storage(
+        &self,
+        _network_config: &NetworkConfig,
+        storage: &mut StorageProcessor<'_>,
+    ) -> anyhow::Result<()> {
+        prepare_empty_recovery_snapshot(storage, 23).await;
+        Ok(())
+    }
+
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+        let error = client.get_block_number().await.unwrap_err();
+        if let ClientError::Call(error) = error {
+            assert_eq!(error.code(), ErrorCode::InvalidParams.code());
+        } else {
+            panic!("Unexpected error: {error:?}");
+        }
+
+        let block = client
+            .get_block_by_number(api::BlockNumber::Latest, false)
+            .await?;
+        assert!(block.is_none());
+        let block = client.get_block_by_number(1_000.into(), false).await?;
+        assert!(block.is_none());
+
+        let mut storage = pool.access_storage().await?;
+        store_miniblock(&mut storage, MiniblockNumber(24), &[]).await?;
+        drop(storage);
+
+        let block_number = client.get_block_number().await?;
+        assert_eq!(block_number, 24.into());
+
+        for block_number in [api::BlockNumber::Latest, 24.into()] {
+            let block = client
+                .get_block_by_number(block_number, false)
+                .await?
+                .context("no latest block")?;
+            assert_eq!(block.number, 24.into());
+        }
+
+        for number in [0, 1, 23] {
+            let error = client
+                .get_block_details(MiniblockNumber(number))
+                .await
+                .unwrap_err();
+            assert_pruned_block_error(&error, 24);
+            let error = client
+                .get_raw_block_transactions(MiniblockNumber(number))
+                .await
+                .unwrap_err();
+            assert_pruned_block_error(&error, 24);
+
+            let error = client
+                .get_block_transaction_count_by_number(number.into())
+                .await
+                .unwrap_err();
+            assert_pruned_block_error(&error, 24);
+            let error = client
+                .get_block_by_number(number.into(), false)
+                .await
+                .unwrap_err();
+            assert_pruned_block_error(&error, 24);
+        }
+
+        Ok(())
+    }
+}
+
+fn assert_pruned_block_error(error: &ClientError, first_retained_block: u32) {
+    if let ClientError::Call(error) = error {
+        assert_eq!(error.code(), ErrorCode::InvalidParams.code());
+        assert!(
+            error
+                .message()
+                .contains(&format!("first retained block is {first_retained_block}")),
+            "{error:?}"
+        );
+        assert!(error.data().is_none(), "{error:?}");
+    } else {
+        panic!("Unexpected error: {error:?}");
+    }
+}
+
+#[tokio::test]
+async fn block_methods_with_snapshot_recovery() {
+    test_http_server(BlockMethodsWithSnapshotRecovery).await;
+}
+
+#[derive(Debug)]
+struct L1BatchMethodsWithSnapshotRecovery;
+
+#[async_trait]
+impl HttpTest for L1BatchMethodsWithSnapshotRecovery {
+    async fn prepare_storage(
+        &self,
+        _network_config: &NetworkConfig,
+        storage: &mut StorageProcessor<'_>,
+    ) -> anyhow::Result<()> {
+        prepare_empty_recovery_snapshot(storage, 23).await;
+        Ok(())
+    }
+
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+        let error = client.get_l1_batch_number().await.unwrap_err();
+        if let ClientError::Call(error) = error {
+            assert_eq!(error.code(), ErrorCode::InvalidParams.code());
+        } else {
+            panic!("Unexpected error: {error:?}");
+        }
+
+        let mut storage = pool.access_storage().await?;
+        store_miniblock(&mut storage, MiniblockNumber(24), &[]).await?;
+        seal_l1_batch(&mut storage, L1BatchNumber(24)).await?;
+        drop(storage);
+
+        let l1_batch_number = client.get_l1_batch_number().await?;
+        assert_eq!(l1_batch_number, 24.into());
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn l1_batch_methods_with_snapshot_recovery() {
+    test_http_server(L1BatchMethodsWithSnapshotRecovery).await;
+}
+
+#[derive(Debug)]
+struct StorageAccessWithSnapshotRecovery;
+
+#[async_trait]
+impl HttpTest for StorageAccessWithSnapshotRecovery {
+    async fn prepare_storage(
+        &self,
+        _network_config: &NetworkConfig,
+        storage: &mut StorageProcessor<'_>,
+    ) -> anyhow::Result<()> {
+        use zksync_types::{storage, utils::storage_key_for_standard_token_balance};
+
+        let address = Address::repeat_byte(1);
+        let code_key = storage::get_code_key(&address);
+        let code_hash = H256::repeat_byte(2);
+        let balance_key = storage_key_for_standard_token_balance(
+            AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
+            &address,
+        );
+        let logs = [
+            StorageLog::new_write_log(code_key, code_hash),
+            StorageLog::new_write_log(balance_key, H256::from_low_u64_be(123)),
+            StorageLog::new_write_log(
+                StorageKey::new(AccountTreeId::new(address), H256::zero()),
+                H256::repeat_byte(0xff),
+            ),
+        ];
+        prepare_recovery_snapshot(storage, 23, &logs).await;
+
+        storage
+            .storage_dal()
+            .insert_factory_deps(MiniblockNumber(23), &[(code_hash, b"code".to_vec())].into())
+            .await;
+        Ok(())
+    }
+
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+        let address = Address::repeat_byte(1);
+        for number in [0, 1, 23] {
+            let number = api::BlockIdVariant::BlockNumber(number.into());
+            let error = client.get_code(address, Some(number)).await.unwrap_err();
+            assert_pruned_block_error(&error, 24);
+            let error = client.get_balance(address, Some(number)).await.unwrap_err();
+            assert_pruned_block_error(&error, 24);
+            let error = client
+                .get_storage_at(address, 0.into(), Some(number))
+                .await
+                .unwrap_err();
+            assert_pruned_block_error(&error, 24);
+        }
+
+        let mut storage = pool.access_storage().await?;
+        store_miniblock(&mut storage, MiniblockNumber(24), &[]).await?;
+        drop(storage);
+
+        for number in [api::BlockNumber::Latest, 24.into()] {
+            let number = api::BlockIdVariant::BlockNumber(number);
+            let code = client.get_code(address, Some(number)).await?;
+            assert_eq!(code.0, b"code");
+            let balance = client.get_balance(address, Some(number)).await?;
+            assert_eq!(balance, 123.into());
+            let storage_value = client
+                .get_storage_at(address, 0.into(), Some(number))
+                .await?;
+            assert_eq!(storage_value, H256::repeat_byte(0xff));
+        }
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn storage_access_with_snapshot_recovery() {
+    test_http_server(StorageAccessWithSnapshotRecovery).await;
 }
 
 #[derive(Debug)]

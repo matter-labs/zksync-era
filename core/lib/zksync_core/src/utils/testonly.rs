@@ -98,7 +98,7 @@ pub(crate) fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u32) -> L
 }
 
 /// Prepares a recovery snapshot without performing genesis.
-pub(crate) async fn prepare_clean_recovery_snapshot(
+pub(crate) async fn prepare_recovery_snapshot(
     storage: &mut StorageProcessor<'_>,
     l1_batch_number: u32,
     snapshot_logs: &[StorageLog],
@@ -154,5 +154,31 @@ pub(crate) async fn prepare_clean_recovery_snapshot(
         .await
         .unwrap();
     storage.commit().await.unwrap();
+    snapshot_recovery
+}
+
+// TODO (PLA-596): Replace with `prepare_recovery_snapshot(.., &[])`
+pub(crate) async fn prepare_empty_recovery_snapshot(
+    storage: &mut StorageProcessor<'_>,
+    l1_batch_number: u32,
+) -> SnapshotRecoveryStatus {
+    storage
+        .protocol_versions_dal()
+        .save_protocol_version_with_tx(ProtocolVersion::default())
+        .await;
+
+    let snapshot_recovery = SnapshotRecoveryStatus {
+        l1_batch_number: l1_batch_number.into(),
+        l1_batch_root_hash: H256::zero(),
+        miniblock_number: l1_batch_number.into(),
+        miniblock_root_hash: H256::zero(), // not used
+        last_finished_chunk_id: None,
+        total_chunk_count: 100,
+    };
+    storage
+        .snapshot_recovery_dal()
+        .set_applied_snapshot_status(&snapshot_recovery)
+        .await
+        .unwrap();
     snapshot_recovery
 }

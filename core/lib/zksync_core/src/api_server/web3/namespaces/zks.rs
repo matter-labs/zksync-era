@@ -4,6 +4,7 @@ use bigdecimal::{BigDecimal, Zero};
 use zksync_dal::StorageProcessor;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
+    api,
     api::{
         BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof, Proof,
         ProtocolVersion, StorageProof, TransactionDetails,
@@ -305,6 +306,7 @@ impl ZksNamespace {
         Ok(log_proof)
     }
 
+    // FIXME: error on pruned batch?
     async fn get_l2_to_l1_log_proof_inner(
         &self,
         method_name: &'static str,
@@ -408,6 +410,7 @@ impl ZksNamespace {
         Ok(l1_batch_number.0.into())
     }
 
+    // FIXME: error on pruned batch?
     #[tracing::instrument(skip(self))]
     pub async fn get_miniblock_range_impl(
         &self,
@@ -436,6 +439,8 @@ impl ZksNamespace {
         const METHOD_NAME: &str = "get_block_details";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
+        self.state
+            .check_pruned_block(api::BlockId::Number(block_number.0.into()))?;
         let mut storage = self.access_storage(METHOD_NAME).await?;
         let block_details = storage
             .blocks_web3_dal()
@@ -458,6 +463,8 @@ impl ZksNamespace {
         const METHOD_NAME: &str = "get_raw_block_transactions";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
+        self.state
+            .check_pruned_block(api::BlockId::Number(block_number.0.into()))?;
         let mut storage = self.access_storage(METHOD_NAME).await?;
         let transactions = storage
             .transactions_web3_dal()
@@ -501,6 +508,7 @@ impl ZksNamespace {
         tx_details
     }
 
+    // FIXME: error on pruned batch?
     #[tracing::instrument(skip(self))]
     pub async fn get_l1_batch_details_impl(
         &self,
@@ -579,6 +587,7 @@ impl ZksNamespace {
         Ok(protocol_version)
     }
 
+    // FIXME: error on pruned batch?
     #[tracing::instrument(skip_all)]
     pub async fn get_proofs_impl(
         &self,

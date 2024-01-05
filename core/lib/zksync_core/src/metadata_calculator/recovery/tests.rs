@@ -26,7 +26,7 @@ use crate::{
         },
         MetadataCalculator, MetadataCalculatorConfig,
     },
-    utils::testonly::prepare_clean_recovery_snapshot,
+    utils::testonly::prepare_recovery_snapshot,
 };
 
 #[test]
@@ -100,7 +100,7 @@ async fn create_tree_recovery(path: PathBuf, l1_batch: L1BatchNumber) -> AsyncTr
 async fn basic_recovery_workflow() {
     let pool = ConnectionPool::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let snapshot_recovery = prepare_recovery_snapshot(&pool, &temp_dir).await;
+    let snapshot_recovery = prepare_recovery_snapshot_with_genesis(&pool, &temp_dir).await;
     let snapshot = SnapshotParameters::new(&pool, &snapshot_recovery)
         .await
         .unwrap();
@@ -131,7 +131,7 @@ async fn basic_recovery_workflow() {
     }
 }
 
-async fn prepare_recovery_snapshot(
+async fn prepare_recovery_snapshot_with_genesis(
     pool: &ConnectionPool,
     temp_dir: &TempDir,
 ) -> SnapshotRecoveryStatus {
@@ -210,7 +210,7 @@ impl HandleRecoveryEvent for TestEventListener {
 async fn recovery_fault_tolerance(chunk_count: usize) {
     let pool = ConnectionPool::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let snapshot_recovery = prepare_recovery_snapshot(&pool, &temp_dir).await;
+    let snapshot_recovery = prepare_recovery_snapshot_with_genesis(&pool, &temp_dir).await;
 
     let tree_path = temp_dir.path().join("recovery");
     let tree = create_tree_recovery(tree_path.clone(), L1BatchNumber(1)).await;
@@ -280,7 +280,7 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
     // Emulate the recovered view of Postgres. Unlike with previous tests, we don't perform genesis.
     let snapshot_logs = gen_storage_logs(100..300, 1).pop().unwrap();
     let mut storage = pool.access_storage().await.unwrap();
-    let snapshot_recovery = prepare_clean_recovery_snapshot(&mut storage, 23, &snapshot_logs).await;
+    let snapshot_recovery = prepare_recovery_snapshot(&mut storage, 23, &snapshot_logs).await;
 
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let merkle_tree_config = MerkleTreeConfig {

@@ -1,11 +1,9 @@
 //! Tests for the `debug` Web3 namespace.
 
-use jsonrpsee::core::ClientError;
 use zksync_types::{tx::TransactionExecutionResult, vm_trace::Call, BOOTLOADER_ADDRESS};
 use zksync_web3_decl::namespaces::DebugNamespaceClient;
 
 use super::*;
-use crate::utils::testonly::prepare_clean_recovery_snapshot;
 
 fn execute_l2_transaction_with_traces() -> TransactionExecutionResult {
     let first_call_trace = Call {
@@ -137,7 +135,7 @@ impl HttpTest for TraceBlockTestWithSnapshotRecovery {
         _network_config: &NetworkConfig,
         storage: &mut StorageProcessor<'_>,
     ) -> anyhow::Result<()> {
-        prepare_clean_recovery_snapshot(storage, 23, &[]).await;
+        prepare_empty_recovery_snapshot(storage, 23).await;
         Ok(())
     }
 
@@ -154,16 +152,7 @@ impl HttpTest for TraceBlockTestWithSnapshotRecovery {
                 .trace_block_by_number(number.0.into(), None)
                 .await
                 .unwrap_err();
-            if let ClientError::Call(error) = error {
-                assert_eq!(error.code(), ErrorCode::InvalidParams.code());
-                assert!(
-                    error.message().contains("first retained block is 24"),
-                    "{error:?}"
-                );
-                assert!(error.data().is_none(), "{error:?}");
-            } else {
-                panic!("Unexpected error: {error:?}");
-            }
+            assert_pruned_block_error(&error, 24);
         }
 
         TraceBlockTest(snapshot_miniblock_number + 1)

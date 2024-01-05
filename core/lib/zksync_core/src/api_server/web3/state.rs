@@ -183,18 +183,23 @@ impl RpcState {
         }
     }
 
+    /// Returns an error if the provided `block` is known to be pruned.
+    pub(crate) fn check_pruned_block(&self, block: api::BlockId) -> Result<(), Web3Error> {
+        if let api::BlockId::Number(api::BlockNumber::Number(number)) = block {
+            if number < self.first_local_miniblock.0.into() {
+                return Err(Web3Error::PrunedBlock(self.first_local_miniblock));
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) async fn resolve_block(
         &self,
         connection: &mut StorageProcessor<'_>,
         block: api::BlockId,
         method_name: &'static str,
     ) -> Result<MiniblockNumber, Web3Error> {
-        if let api::BlockId::Number(api::BlockNumber::Number(number)) = block {
-            if number < self.first_local_miniblock.0.into() {
-                return Err(Web3Error::PrunedBlock(self.first_local_miniblock));
-            }
-        }
-
+        self.check_pruned_block(block)?;
         let result = connection.blocks_web3_dal().resolve_block_id(block).await;
         result
             .map_err(|err| internal_error(method_name, err))?
@@ -207,12 +212,7 @@ impl RpcState {
         block: api::BlockId,
         method_name: &'static str,
     ) -> Result<BlockArgs, Web3Error> {
-        if let api::BlockId::Number(api::BlockNumber::Number(number)) = block {
-            if number < self.first_local_miniblock.0.into() {
-                return Err(Web3Error::PrunedBlock(self.first_local_miniblock));
-            }
-        }
-
+        self.check_pruned_block(block)?;
         BlockArgs::new(connection, block)
             .await
             .map_err(|err| internal_error(method_name, err))?
