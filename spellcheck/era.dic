@@ -406,6 +406,9 @@ ashr
 noalias
 immediates
 prode
+StorageBatchInfo
+CommitBatchInfo
+IExecutor
 
 // Names
 Vyper
@@ -846,3 +849,4 @@ satisfiability
 demultiplex
 precompile
 statekeeper
+tokenized

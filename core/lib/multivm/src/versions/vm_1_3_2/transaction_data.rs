@@ -4,14 +4,14 @@ use zksync_types::{
     fee::encoding_len,
     l1::is_l1_tx_type,
     l2::TransactionType,
-    ExecuteTransactionCommon, Transaction, MAX_L2_TX_GAS_LIMIT, MAX_TXS_IN_BLOCK, U256,
+    ExecuteTransactionCommon, Transaction, MAX_L2_TX_GAS_LIMIT, U256,
 };
 use zksync_utils::{
     address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, ceil_div_u256, h256_to_u256,
 };
 
 use crate::vm_1_3_2::vm_with_bootloader::{
-    BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA, BOOTLOADER_TX_ENCODING_SPACE,
+    BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA, BOOTLOADER_TX_ENCODING_SPACE, MAX_TXS_IN_BLOCK,
 };
 
 // This structure represents the data that is used by
@@ -229,7 +229,7 @@ impl TransactionData {
     }
 }
 
-pub fn derive_overhead(
+pub(crate) fn derive_overhead(
     gas_limit: u32,
     gas_price_per_pubdata: u32,
     encoded_len: usize,

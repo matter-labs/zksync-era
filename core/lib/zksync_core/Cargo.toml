@@ -22,7 +22,6 @@ zksync_commitment_utils = { path = "../commitment_utils" }
 zksync_eth_client = { path = "../eth_client" }
 zksync_eth_signer = { path = "../eth_signer" }
 zksync_mempool = { path = "../mempool" }
-zksync_prover_utils = { path = "../prover_utils" }
 zksync_queued_job_processor = { path = "../queued_job_processor" }
 zksync_circuit_breaker = { path = "../circuit_breaker" }
 zksync_storage = { path = "../storage" }

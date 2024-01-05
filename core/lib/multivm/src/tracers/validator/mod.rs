@@ -16,6 +16,7 @@ use crate::tracers::validator::types::{NewTrustedValidationItems, ValidationTrac
 pub use crate::tracers::validator::types::{ValidationError, ValidationTracerParams};
 
 mod types;
+mod vm_boojum_integration;
 mod vm_latest;
 mod vm_refunds_enhancement;
 mod vm_virtual_blocks;

@@ -49,8 +49,8 @@ pub mod gpu_prover {
 
     #[allow(dead_code)]
     pub struct Prover {
-        blob_store: Box<dyn ObjectStore>,
-        public_blob_store: Option<Box<dyn ObjectStore>>,
+        blob_store: Arc<dyn ObjectStore>,
+        public_blob_store: Option<Arc<dyn ObjectStore>>,
         config: Arc<FriProverConfig>,
         prover_connection_pool: ConnectionPool,
         setup_load_mode: SetupLoadMode,
@@ -66,8 +66,8 @@ pub mod gpu_prover {
     impl Prover {
         #[allow(dead_code)]
         pub fn new(
-            blob_store: Box<dyn ObjectStore>,
-            public_blob_store: Option<Box<dyn ObjectStore>>,
+            blob_store: Arc<dyn ObjectStore>,
+            public_blob_store: Option<Arc<dyn ObjectStore>>,
             config: FriProverConfig,
             prover_connection_pool: ConnectionPool,
             setup_load_mode: SetupLoadMode,

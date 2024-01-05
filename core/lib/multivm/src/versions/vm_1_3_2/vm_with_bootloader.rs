@@ -13,7 +13,6 @@ use zk_evm_1_3_3::{
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_state::WriteStorage;
-use zksync_system_constants::MAX_TXS_IN_BLOCK;
 use zksync_types::{
     l1::is_l1_tx_type, zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address, Transaction,
     BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, MAX_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS,
@@ -84,7 +83,10 @@ pub fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
     ceil_div(eth_price_per_pubdata_byte, base_fee)
 }
 
-pub fn derive_base_fee_and_gas_per_pubdata(l1_gas_price: u64, fair_gas_price: u64) -> (u64, u64) {
+pub(crate) fn derive_base_fee_and_gas_per_pubdata(
+    l1_gas_price: u64,
+    fair_gas_price: u64,
+) -> (u64, u64) {
     let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
 
     // The `baseFee` is set in such a way that it is always possible for a transaction to
@@ -108,6 +110,9 @@ impl From<BlockContext> for DerivedBlockContext {
         DerivedBlockContext { context, base_fee }
     }
 }
+
+// The maximal number of transactions in a single batch
+pub(crate) const MAX_TXS_IN_BLOCK: usize = 1024;
 
 // The first 32 slots are reserved for debugging purposes
 pub const DEBUG_SLOTS_OFFSET: usize = 8;
@@ -151,7 +156,7 @@ pub const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
     COMPRESSED_BYTECODES_OFFSET + COMPRESSED_BYTECODES_SLOTS;
 
 // The size of the bootloader memory dedicated to the encodings of transactions
-pub const BOOTLOADER_TX_ENCODING_SPACE: u32 =
+pub(crate) const BOOTLOADER_TX_ENCODING_SPACE: u32 =
     (USED_BOOTLOADER_MEMORY_WORDS - TX_DESCRIPTION_OFFSET - MAX_TXS_IN_BLOCK) as u32;
 
 // Size of the bootloader tx description in words

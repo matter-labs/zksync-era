@@ -1,4 +1,4 @@
-use std::sync::{atomic::Ordering, Arc};
+use std::sync::Arc;
 
 use assert_matches::assert_matches;
 use once_cell::sync::Lazy;
@@ -6,9 +6,8 @@ use zksync_config::{
     configs::eth_sender::{ProofSendingMode, SenderConfig},
     ContractsConfig, ETHSenderConfig, GasAdjusterConfig,
 };
-use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_eth_client::{clients::mock::MockEthereum, EthInterface};
+use zksync_eth_client::{clients::MockEthereum, EthInterface};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
     aggregated_operations::{
@@ -27,21 +26,16 @@ use crate::{
         eth_tx_manager::L1BlockNumbers, Aggregator, ETHSenderError, EthTxAggregator, EthTxManager,
     },
     l1_gas_price::GasAdjuster,
+    utils::testonly::create_l1_batch,
 };
 
 // Alias to conveniently call static methods of ETHSender.
-type MockEthTxManager = EthTxManager<Arc<MockEthereum>>;
+type MockEthTxManager = EthTxManager;
 
 static DUMMY_OPERATION: Lazy<AggregatedOperation> = Lazy::new(|| {
     AggregatedOperation::Execute(L1BatchExecuteOperation {
         l1_batches: vec![L1BatchWithMetadata {
-            header: L1BatchHeader::new(
-                L1BatchNumber(1),
-                1,
-                Address::default(),
-                BaseSystemContractsHashes::default(),
-                ProtocolVersionId::latest(),
-            ),
+            header: create_l1_batch(1),
             metadata: default_l1_batch_metadata(),
             factory_deps: Vec::new(),
         }],
@@ -53,7 +47,7 @@ struct EthSenderTester {
     conn: ConnectionPool,
     gateway: Arc<MockEthereum>,
     manager: MockEthTxManager,
-    aggregator: EthTxAggregator<Arc<MockEthereum>>,
+    aggregator: EthTxAggregator,
     gas_adjuster: Arc<GasAdjuster<Arc<MockEthereum>>>,
 }
 
@@ -84,9 +78,7 @@ impl EthSenderTester {
                 .with_non_ordering_confirmation(non_ordering_confirmations)
                 .with_multicall_address(contracts_config.l1_multicall3_addr),
         );
-        gateway
-            .block_number
-            .fetch_add(Self::WAIT_CONFIRMATIONS, Ordering::Relaxed);
+        gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
 
         let gas_adjuster = Arc::new(
             GasAdjuster::new(
@@ -176,7 +168,7 @@ async fn confirm_many() -> anyhow::Result<()> {
     }
 
     // check that we sent something
-    assert_eq!(tester.gateway.sent_txs.read().unwrap().len(), 5);
+    assert_eq!(tester.gateway.sent_tx_count(), 5);
     assert_eq!(
         tester
             .storage()
@@ -192,7 +184,7 @@ async fn confirm_many() -> anyhow::Result<()> {
     for hash in hashes {
         tester
             .gateway
-            .execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS)?;
+            .execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS);
     }
 
     let to_resend = tester
@@ -253,7 +245,7 @@ async fn resend_each_block() -> anyhow::Result<()> {
         .await?;
 
     // check that we sent something and stored it in the db
-    assert_eq!(tester.gateway.sent_txs.read().unwrap().len(), 1);
+    assert_eq!(tester.gateway.sent_tx_count(), 1);
     assert_eq!(
         tester
             .storage()
@@ -266,10 +258,18 @@ async fn resend_each_block() -> anyhow::Result<()> {
         1
     );
 
-    let sent_tx = tester.gateway.sent_txs.read().unwrap()[&hash];
+    let sent_tx = tester
+        .gateway
+        .get_tx(hash, "")
+        .await
+        .unwrap()
+        .expect("no transaction");
     assert_eq!(sent_tx.hash, hash);
-    assert_eq!(sent_tx.nonce, 0);
-    assert_eq!(sent_tx.base_fee.as_usize(), 18); // 6 * 3 * 2^0
+    assert_eq!(sent_tx.nonce, 0.into());
+    assert_eq!(
+        sent_tx.max_fee_per_gas.unwrap() - sent_tx.max_priority_fee_per_gas.unwrap(),
+        18.into() // 6 * 3 * 2^0
+    );
 
     // now, median is 5
     tester.gateway.advance_block_number(2);
@@ -296,7 +296,7 @@ async fn resend_each_block() -> anyhow::Result<()> {
         .await?;
 
     // check that transaction has been resent
-    assert_eq!(tester.gateway.sent_txs.read().unwrap().len(), 2);
+    assert_eq!(tester.gateway.sent_tx_count(), 2);
     assert_eq!(
         tester
             .storage()
@@ -309,9 +309,17 @@ async fn resend_each_block() -> anyhow::Result<()> {
         1
     );
 
-    let resent_tx = tester.gateway.sent_txs.read().unwrap()[&resent_hash];
-    assert_eq!(resent_tx.nonce, 0);
-    assert_eq!(resent_tx.base_fee.as_usize(), 30); // 5 * 3 * 2^1
+    let resent_tx = tester
+        .gateway
+        .get_tx(resent_hash, "")
+        .await
+        .unwrap()
+        .expect("no transaction");
+    assert_eq!(resent_tx.nonce, 0.into());
+    assert_eq!(
+        resent_tx.max_fee_per_gas.unwrap() - resent_tx.max_priority_fee_per_gas.unwrap(),
+        30.into() // 5 * 3 * 2^1
+    );
 
     Ok(())
 }
@@ -344,7 +352,7 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
         .unwrap();
 
     // check that we sent something and stored it in the db
-    assert_eq!(tester.gateway.sent_txs.read().unwrap().len(), 1);
+    assert_eq!(tester.gateway.sent_tx_count(), 1);
     assert_eq!(
         tester
             .storage()
@@ -360,7 +368,7 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
     // mine the transaction but don't have enough confirmations yet
     tester
         .gateway
-        .execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS - 1)?;
+        .execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS - 1);
 
     let to_resend = tester
         .manager
@@ -421,17 +429,16 @@ async fn three_scenarios() -> anyhow::Result<()> {
     }
 
     // check that we sent something
-    assert_eq!(tester.gateway.sent_txs.read().unwrap().len(), 3);
+    assert_eq!(tester.gateway.sent_tx_count(), 3);
 
     // mined & confirmed
     tester
         .gateway
-        .execute_tx(hashes[0], true, EthSenderTester::WAIT_CONFIRMATIONS)?;
-
+        .execute_tx(hashes[0], true, EthSenderTester::WAIT_CONFIRMATIONS);
     // mined but not confirmed
     tester
         .gateway
-        .execute_tx(hashes[1], true, EthSenderTester::WAIT_CONFIRMATIONS - 1)?;
+        .execute_tx(hashes[1], true, EthSenderTester::WAIT_CONFIRMATIONS - 1);
 
     let (to_resend, _) = tester
         .manager
@@ -491,8 +498,7 @@ async fn failed_eth_tx() {
     // fail this tx
     tester
         .gateway
-        .execute_tx(hash, false, EthSenderTester::WAIT_CONFIRMATIONS)
-        .unwrap();
+        .execute_tx(hash, false, EthSenderTester::WAIT_CONFIRMATIONS);
     tester
         .manager
         .monitor_inflight_transactions(
@@ -874,21 +880,14 @@ async fn insert_genesis_protocol_version(tester: &EthSenderTester) {
 }
 
 async fn insert_l1_batch(tester: &EthSenderTester, number: L1BatchNumber) -> L1BatchHeader {
-    let mut header = L1BatchHeader::new(
-        number,
-        0,
-        Address::zero(),
-        BaseSystemContractsHashes::default(),
-        Default::default(),
-    );
-    header.is_finished = true;
+    let header = create_l1_batch(number.0);
 
     // Save L1 batch to the database
     tester
         .storage()
         .await
         .blocks_dal()
-        .insert_l1_batch(&header, &[], Default::default(), &[], &[])
+        .insert_l1_batch(&header, &[], Default::default(), &[], &[], 0)
         .await
         .unwrap();
     tester
@@ -980,9 +979,7 @@ async fn send_operation(
 async fn confirm_tx(tester: &mut EthSenderTester, hash: H256) {
     tester
         .gateway
-        .execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS)
-        .unwrap();
-
+        .execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS);
     tester
         .manager
         .monitor_inflight_transactions(

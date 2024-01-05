@@ -3,6 +3,7 @@
 
 use std::{
     future::{self, Future},
+    sync::Arc,
     time::Duration,
 };
 
@@ -36,36 +37,13 @@ mod recovery;
 pub(crate) mod tests;
 mod updater;
 
-/// Part of [`MetadataCalculator`] related to the operation mode of the Merkle tree.
-#[derive(Debug)]
-pub enum MetadataCalculatorModeConfig {
-    /// In this mode, `MetadataCalculator` computes Merkle tree root hashes and some auxiliary information
-    /// for L1 batches, but not witness inputs.
-    Lightweight,
-    /// In this mode, `MetadataCalculator` will compute commitments and witness inputs for all storage operations
-    /// and optionally put witness inputs into the object store (e.g., GCS).
-    Full {
-        object_store: Option<Box<dyn ObjectStore>>,
-    },
-}
-
-impl MetadataCalculatorModeConfig {
-    fn to_mode(&self) -> MerkleTreeMode {
-        if matches!(self, Self::Full { .. }) {
-            MerkleTreeMode::Full
-        } else {
-            MerkleTreeMode::Lightweight
-        }
-    }
-}
-
 /// Configuration of [`MetadataCalculator`].
 #[derive(Debug)]
 pub struct MetadataCalculatorConfig {
     /// Filesystem path to the RocksDB instance that stores the tree.
     pub db_path: String,
     /// Configuration of the Merkle tree mode.
-    pub mode: MetadataCalculatorModeConfig,
+    pub mode: MerkleTreeMode,
     /// Interval between polling Postgres for updates if no progress was made by the tree.
     pub delay_interval: Duration,
     /// Maximum number of L1 batches to get from Postgres on a single update iteration.
@@ -86,11 +64,10 @@ impl MetadataCalculatorConfig {
     pub(crate) fn for_main_node(
         merkle_tree_config: &MerkleTreeConfig,
         operation_config: &OperationsManagerConfig,
-        mode: MetadataCalculatorModeConfig,
     ) -> Self {
         Self {
             db_path: merkle_tree_config.path.clone(),
-            mode,
+            mode: merkle_tree_config.mode,
             delay_interval: operation_config.delay_interval(),
             max_l1_batches_per_iter: merkle_tree_config.max_l1_batches_per_iter,
             multi_get_chunk_size: merkle_tree_config.multi_get_chunk_size,
@@ -105,7 +82,7 @@ impl MetadataCalculatorConfig {
 pub struct MetadataCalculator {
     tree: GenericAsyncTree,
     tree_reader: watch::Sender<Option<AsyncTreeReader>>,
-    object_store: Option<Box<dyn ObjectStore>>,
+    object_store: Option<Arc<dyn ObjectStore>>,
     delayer: Delayer,
     health_updater: HealthUpdater,
     max_l1_batches_per_iter: usize,
@@ -113,17 +90,14 @@ pub struct MetadataCalculator {
 
 impl MetadataCalculator {
     /// Creates a calculator with the specified `config`.
-    pub async fn new(config: MetadataCalculatorConfig) -> Self {
+    pub async fn new(
+        config: MetadataCalculatorConfig,
+        object_store: Option<Arc<dyn ObjectStore>>,
+    ) -> Self {
         assert!(
             config.max_l1_batches_per_iter > 0,
             "Maximum L1 batches per iteration is misconfigured to be 0; please update it to positive value"
         );
-
-        let mode = config.mode.to_mode();
-        let object_store = match config.mode {
-            MetadataCalculatorModeConfig::Full { object_store } => object_store,
-            MetadataCalculatorModeConfig::Lightweight => None,
-        };
 
         let db = create_db(
             config.db_path.clone().into(),
@@ -133,7 +107,7 @@ impl MetadataCalculator {
             config.multi_get_chunk_size,
         )
         .await;
-        let tree = GenericAsyncTree::new(db, mode).await;
+        let tree = GenericAsyncTree::new(db, config.mode).await;
 
         let (_, health_updater) = ReactiveHealthCheck::new("tree");
         Self {
