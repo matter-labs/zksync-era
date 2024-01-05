@@ -148,14 +148,12 @@ export function getAvailableApiModes() {
     return ['modern', 'eth_transfer_included'];
 }
 
-export function checkApiMode(){
+export function checkApiMode() {
     const apiModeEn = process.env.EN_API_MODE;
     const apiModeServer = process.env.API_WEB3_JSON_RPC_API_MODE;
 
-    if(apiModeEn && apiModeServer && apiModeEn !== apiModeServer){
-        console.error(
-            `Api mode mismatch: ${apiModeEn} != ${apiModeServer}.\nPlease, check your .env files.`
-        );
+    if (apiModeEn && apiModeServer && apiModeEn !== apiModeServer) {
+        console.error(`Api mode mismatch: ${apiModeEn} != ${apiModeServer}.\nPlease, check your .env files.`);
         process.exit(1);
     }
 }
@@ -165,21 +163,18 @@ export function getApiMode(print: boolean) {
 
     const apiMode = process.env.EN_API_MODE ?? process.env.API_WEB3_JSON_RPC_API_MODE;
 
-    if(print){
+    if (print) {
         const modes = getAvailableApiModes();
 
-        if(!apiMode || !modes.includes(apiMode)) {
-            console.error(
-                'Unknown api mode or api mode is not set.\nPlease, check your .env files.'
-            );
+        if (!apiMode || !modes.includes(apiMode)) {
+            console.error('Unknown api mode or api mode is not set.\nPlease, check your .env files.');
             process.exit(1);
         }
 
-        for(const mode of modes){
-            if(mode === apiMode){
+        for (const mode of modes) {
+            if (mode === apiMode) {
                 console.log(`* ${mode}`);
-            }
-            else{
+            } else {
                 console.log(`  ${mode}`);
             }
         }
@@ -192,10 +187,8 @@ export function setApiMode(mode: string, print: boolean) {
     checkApiMode();
 
     const modes = getAvailableApiModes();
-    if(!modes.includes(mode)){
-        console.error(
-            `Unknown api mode: ${mode}.\nPlease, check your .env files.`
-        );
+    if (!modes.includes(mode)) {
+        console.error(`Unknown api mode: ${mode}.\nPlease, check your .env files.`);
         process.exit(1);
     }
 
@@ -212,6 +205,10 @@ export const command = new Command('env')
         envName ? set(envName, true) : get(true);
     });
 
-command.command('api-mode').arguments('[mode]').description('get or set api mode').action((mode?: string) => {
-   mode? setApiMode(mode, true) : getApiMode(true);
-});
+command
+    .command('api-mode')
+    .arguments('[mode]')
+    .description('get or set api mode')
+    .action((mode?: string) => {
+        mode ? setApiMode(mode, true) : getApiMode(true);
+    });
