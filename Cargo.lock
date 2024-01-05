@@ -6748,7 +6748,7 @@ dependencies = [
 [[package]]
 name = "sqlx"
 version = "0.6.2"
-source = "git+https://github.com/montekki/sqlx.git?branch=fvs-investigate-en-integration#38dfc6c0e344399d488695769d6118fc5c336391"
+source = "git+https://github.com/launchbadge/sqlx.git?rev=b5312c3b6f8e34e757d1441216b6b34a18afd14b#b5312c3b6f8e34e757d1441216b6b34a18afd14b"
 dependencies = [
  "sqlx-core",
  "sqlx-macros",
@@ -6760,7 +6760,7 @@ dependencies = [
 [[package]]
 name = "sqlx-core"
 version = "0.6.2"
-source = "git+https://github.com/montekki/sqlx.git?branch=fvs-investigate-en-integration#38dfc6c0e344399d488695769d6118fc5c336391"
+source = "git+https://github.com/launchbadge/sqlx.git?rev=b5312c3b6f8e34e757d1441216b6b34a18afd14b#b5312c3b6f8e34e757d1441216b6b34a18afd14b"
 dependencies = [
  "ahash 0.7.7",
  "atoi",
@@ -6804,7 +6804,7 @@ dependencies = [
 [[package]]
 name = "sqlx-macros"
 version = "0.6.2"
-source = "git+https://github.com/montekki/sqlx.git?branch=fvs-investigate-en-integration#38dfc6c0e344399d488695769d6118fc5c336391"
+source = "git+https://github.com/launchbadge/sqlx.git?rev=b5312c3b6f8e34e757d1441216b6b34a18afd14b#b5312c3b6f8e34e757d1441216b6b34a18afd14b"
 dependencies = [
  "proc-macro2 1.0.69",
  "quote 1.0.33",
@@ -6816,7 +6816,7 @@ dependencies = [
 [[package]]
 name = "sqlx-macros-core"
 version = "0.6.2"
-source = "git+https://github.com/montekki/sqlx.git?branch=fvs-investigate-en-integration#38dfc6c0e344399d488695769d6118fc5c336391"
+source = "git+https://github.com/launchbadge/sqlx.git?rev=b5312c3b6f8e34e757d1441216b6b34a18afd14b#b5312c3b6f8e34e757d1441216b6b34a18afd14b"
 dependencies = [
  "dotenvy",
  "either",
@@ -6840,7 +6840,7 @@ dependencies = [
 [[package]]
 name = "sqlx-mysql"
 version = "0.6.2"
-source = "git+https://github.com/montekki/sqlx.git?branch=fvs-investigate-en-integration#38dfc6c0e344399d488695769d6118fc5c336391"
+source = "git+https://github.com/launchbadge/sqlx.git?rev=b5312c3b6f8e34e757d1441216b6b34a18afd14b#b5312c3b6f8e34e757d1441216b6b34a18afd14b"
 dependencies = [
  "atoi",
  "base64 0.13.1",
@@ -6884,7 +6884,7 @@ dependencies = [
 [[package]]
 name = "sqlx-postgres"
 version = "0.6.2"
-source = "git+https://github.com/montekki/sqlx.git?branch=fvs-investigate-en-integration#38dfc6c0e344399d488695769d6118fc5c336391"
+source = "git+https://github.com/launchbadge/sqlx.git?rev=b5312c3b6f8e34e757d1441216b6b34a18afd14b#b5312c3b6f8e34e757d1441216b6b34a18afd14b"
 dependencies = [
  "atoi",
  "base64 0.13.1",
@@ -6925,7 +6925,7 @@ dependencies = [
 [[package]]
 name = "sqlx-sqlite"
 version = "0.6.2"
-source = "git+https://github.com/montekki/sqlx.git?branch=fvs-investigate-en-integration#38dfc6c0e344399d488695769d6118fc5c336391"
+source = "git+https://github.com/launchbadge/sqlx.git?rev=b5312c3b6f8e34e757d1441216b6b34a18afd14b#b5312c3b6f8e34e757d1441216b6b34a18afd14b"
 dependencies = [
  "atoi",
  "bitflags 1.3.2",
