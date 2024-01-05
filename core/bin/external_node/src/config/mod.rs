@@ -519,8 +519,7 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: config.optional.req_entities_limit,
             fee_history_limit: config.optional.fee_history_limit,
-            // fixme: add to config
-            api_mode: ApiMode::Modern,
+            api_mode: config.required.api_mode,
         }
     }
 }

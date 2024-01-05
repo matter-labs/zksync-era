@@ -284,6 +284,7 @@ async fn init_tasks(
             .build(stop_receiver.clone())
             .await
             .context("Failed initializing HTTP JSON-RPC server")?;
+
     let ws_server_handles =
         ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
             .ws(config.required.ws_port)
@@ -293,8 +294,8 @@ async fn init_tasks(
             .with_response_body_size_limit(config.optional.max_response_body_size())
             .with_polling_interval(config.optional.polling_interval())
             .with_threads(config.required.threads_per_server)
-            .with_tx_sender(tx_sender.clone(), vm_barrier.clone())
-            .with_sync_state(sync_state.clone())
+            .with_tx_sender(tx_sender, vm_barrier)
+            .with_sync_state(sync_state)
             .enable_api_namespaces(config.optional.api_namespaces())
             .build(stop_receiver.clone())
             .await
