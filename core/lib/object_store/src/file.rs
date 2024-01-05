@@ -45,7 +45,10 @@ impl FileBackedObjectStore {
     }
 
     fn filename(&self, bucket: Bucket, key: &str) -> String {
-        format!("{}/{bucket}/{key}", self.base_dir)
+        let res = format!("{}/{bucket}/{key}", self.base_dir);
+        println!("filename: {}", res);
+        res
+
     }
 }
 

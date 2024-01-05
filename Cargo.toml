@@ -1,6 +1,7 @@
 [workspace]
 members = [
     # Binaries
+    "core/bin/batch_reexecutor",
     "core/bin/block_reverter",
     "core/bin/contract-verifier",
     "core/bin/external_node",

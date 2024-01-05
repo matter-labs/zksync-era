@@ -16,8 +16,8 @@ use tokio::{
     task::JoinHandle,
 };
 use zksync_dal::ConnectionPool;
-use zksync_state::{RocksdbStorage, StorageView, WriteStorage};
-use zksync_types::{vm_trace::Call, witness_block_state::WitnessBlockState, Transaction, U256};
+use zksync_state::{PostgresStorage, ReadStorage, RocksdbStorage, StorageView, WriteStorage};
+use zksync_types::{vm_trace::Call, witness_block_state::WitnessBlockState, Transaction, U256, MiniblockNumber};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::{
@@ -118,20 +118,10 @@ impl L1BatchExecutorBuilder for MainBatchExecutorBuilder {
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
     ) -> BatchExecutorHandle {
-        let mut secondary_storage = RocksdbStorage::new(self.state_keeper_db_path.as_ref());
-        secondary_storage.enable_enum_index_migration(self.enum_index_migration_chunk_size);
-        let mut conn = self
-            .pool
-            .access_storage_tagged("state_keeper")
-            .await
-            .unwrap();
-        secondary_storage.update_from_postgres(&mut conn).await;
-        drop(conn);
-
         BatchExecutorHandle::new(
             self.save_call_traces,
             self.max_allowed_tx_gas_limit,
-            secondary_storage,
+            self.pool.clone(),
             l1_batch_params,
             system_env,
             self.upload_witness_inputs_to_gcs,
@@ -154,7 +144,7 @@ impl BatchExecutorHandle {
     pub(super) fn new(
         save_call_traces: bool,
         max_allowed_tx_gas_limit: U256,
-        secondary_storage: RocksdbStorage,
+        pool: ConnectionPool,
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
         upload_witness_inputs_to_gcs: bool,
@@ -168,9 +158,10 @@ impl BatchExecutorHandle {
             commands: commands_receiver,
         };
 
+
         let handle = tokio::task::spawn_blocking(move || {
             executor.run(
-                secondary_storage,
+                pool,
                 l1_batch_env,
                 system_env,
                 upload_witness_inputs_to_gcs,
@@ -291,14 +282,34 @@ pub(super) struct BatchExecutor {
 impl BatchExecutor {
     pub(super) fn run(
         mut self,
-        secondary_storage: RocksdbStorage,
+        connection_pool: ConnectionPool,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
         upload_witness_inputs_to_gcs: bool,
     ) {
         tracing::info!("Starting executing batch #{:?}", &l1_batch_params.number);
 
-        let storage_view = StorageView::new(secondary_storage).to_rc_ptr();
+        let rt_handle = tokio::runtime::Handle::current();
+
+        let mut conn = rt_handle.block_on(connection_pool
+            .access_storage_tagged("state_keeper")
+        )
+            .unwrap();
+
+        let (_, last_miniblock_of_prev_batch) = rt_handle.block_on(
+            conn.blocks_dal().get_miniblock_range_of_l1_batch(l1_batch_params.number - 1)
+        )
+            .expect("Failed to get miniblock range of L1 batch")
+            .expect("Previous L1 batch is not present in the DB");
+
+        let storage = PostgresStorage::new(
+            rt_handle,
+            conn,
+            last_miniblock_of_prev_batch,
+            true,
+        );
+
+        let storage_view = StorageView::new(storage).to_rc_ptr();
 
         let mut vm = VmInstance::new(l1_batch_params, system_env, storage_view.clone());
 

@@ -15,7 +15,7 @@ use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_utils::get_stop_signal_receiver;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::{proofs::AggregationRound, web3::futures::StreamExt};
+use zksync_types::{L1BatchNumber, proofs::AggregationRound, web3::futures::StreamExt};
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
@@ -51,6 +51,12 @@ struct Opt {
     /// Start all aggregation rounds for the witness generator.
     #[structopt(short = "a", long = "all_rounds")]
     all_rounds: bool,
+    /// Enforce an l1 batch (ignoring the state of the corresponding job in the DB).
+    #[structopt(long="enforce_l1_batch_height")]
+    enforce_l1_batch_height: Option<u32>,
+    /// Dry run - don't save results in the DB
+    #[structopt(long)]
+    dry_run: bool,
 }
 
 #[tokio::main]
@@ -110,6 +116,7 @@ async fn main() -> anyhow::Result<()> {
         .protocol_version_for(&vk_commitments)
         .await;
 
+    println!("initialized");
     // If batch_size is none, it means that the job is 'looping forever' (this is the usual setup in local network).
     // At the same time, we're reading the protocol_version only once at startup - so if there is no protocol version
     // read (this is often due to the fact, that the gateway was started too late, and it didn't put the updated protocol
@@ -121,25 +128,7 @@ async fn main() -> anyhow::Result<()> {
         );
     }
 
-    let rounds = match (opt.round, opt.all_rounds) {
-        (Some(round), false) => vec![round],
-        (None, true) => vec![
-            AggregationRound::BasicCircuits,
-            AggregationRound::LeafAggregation,
-            AggregationRound::NodeAggregation,
-            AggregationRound::Scheduler,
-        ],
-        (Some(_), true) => {
-            return Err(anyhow!(
-                "Cannot set both the --all_rounds and --round flags. Choose one or the other."
-            ));
-        }
-        (None, false) => {
-            return Err(anyhow!(
-                "Expected --all_rounds flag with no --round flag present"
-            ));
-        }
-    };
+    let rounds =vec![AggregationRound::BasicCircuits];
 
     let mut tasks = Vec::new();
 
@@ -177,6 +166,8 @@ async fn main() -> anyhow::Result<()> {
                 };
                 let generator = BasicWitnessGenerator::new(
                     config.clone(),
+                    opt.enforce_l1_batch_height.map(|height| L1BatchNumber(height)),
+                    opt.dry_run,
                     &store_factory,
                     public_blob_store,
                     connection_pool.clone(),

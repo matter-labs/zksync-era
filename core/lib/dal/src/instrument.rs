@@ -122,11 +122,11 @@ impl<'a> InstrumentedData<'a> {
         let output = match output {
             Ok(output) => output,
             Err(_) => {
-                tracing::warn!(
-                    "Query {name}{args} called at {file}:{line} is executing for more than {SLOW_QUERY_TIMEOUT:?}",
-                    file = location.file(),
-                    line = location.line()
-                );
+                // tracing::warn!(
+                //     "Query {name}{args} called at {file}:{line} is executing for more than {SLOW_QUERY_TIMEOUT:?}",
+                //     file = location.file(),
+                //     line = location.line()
+                // );
                 REQUEST_METRICS.request_slow[&name].inc();
                 is_slow = true;
                 query_future.await
@@ -146,11 +146,11 @@ impl<'a> InstrumentedData<'a> {
             );
             REQUEST_METRICS.request_error[&name].inc();
         } else if is_slow {
-            tracing::info!(
-                "Slow query {name}{args} called at {file}:{line} has finished after {elapsed:?}",
-                file = location.file(),
-                line = location.line()
-            );
+            // tracing::info!(
+            //     "Slow query {name}{args} called at {file}:{line} has finished after {elapsed:?}",
+            //     file = location.file(),
+            //     line = location.line()
+            // );
         }
         output
     }

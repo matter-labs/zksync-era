@@ -26,23 +26,23 @@ mod vm_interactions;
 pub struct BasicWitnessInputProducer {
     connection_pool: ConnectionPool,
     l2_chain_id: L2ChainId,
-    object_store: Arc<dyn ObjectStore>,
+    // object_store: Arc<dyn ObjectStore>,
 }
 
 impl BasicWitnessInputProducer {
     pub async fn new(
         connection_pool: ConnectionPool,
-        store_factory: &ObjectStoreFactory,
+        // store_factory: &ObjectStoreFactory,
         l2_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         Ok(BasicWitnessInputProducer {
             connection_pool,
-            object_store: store_factory.create_store().await.into(),
+            // object_store: store_factory.create_store().await.into(),
             l2_chain_id,
         })
     }
 
-    fn process_job_impl(
+    pub fn process_job_impl(
         rt_handle: Handle,
         l1_batch_number: L1BatchNumber,
         started_at: Instant,
@@ -167,34 +167,34 @@ impl JobProcessor for BasicWitnessInputProducer {
         started_at: Instant,
         artifacts: Self::JobArtifacts,
     ) -> anyhow::Result<()> {
-        let upload_started_at = Instant::now();
-        let object_path = self
-            .object_store
-            .put(job_id, &artifacts)
-            .await
-            .context("failed to upload artifacts for BasicWitnessInputProducer")?;
-        METRICS
-            .upload_input_time
-            .observe(upload_started_at.elapsed());
-        let mut connection = self
-            .connection_pool
-            .access_storage()
-            .await
-            .context("failed to acquire DB connection for BasicWitnessInputProducer")?;
-        let mut transaction = connection
-            .start_transaction()
-            .await
-            .context("failed to acquire DB transaction for BasicWitnessInputProducer")?;
-        transaction
-            .basic_witness_input_producer_dal()
-            .mark_job_as_successful(job_id, started_at, &object_path)
-            .await
-            .context("failed to mark job as successful for BasicWitnessInputProducer")?;
-        transaction
-            .commit()
-            .await
-            .context("failed to commit DB transaction for BasicWitnessInputProducer")?;
-        METRICS.block_number_processed.set(job_id.0 as i64);
+        // let upload_started_at = Instant::now();
+        // let object_path = self
+        //     .object_store
+        //     .put(job_id, &artifacts)
+        //     .await
+        //     .context("failed to upload artifacts for BasicWitnessInputProducer")?;
+        // METRICS
+        //     .upload_input_time
+        //     .observe(upload_started_at.elapsed());
+        // let mut connection = self
+        //     .connection_pool
+        //     .access_storage()
+        //     .await
+        //     .context("failed to acquire DB connection for BasicWitnessInputProducer")?;
+        // let mut transaction = connection
+        //     .start_transaction()
+        //     .await
+        //     .context("failed to acquire DB transaction for BasicWitnessInputProducer")?;
+        // transaction
+        //     .basic_witness_input_producer_dal()
+        //     .mark_job_as_successful(job_id, started_at, &object_path)
+        //     .await
+        //     .context("failed to mark job as successful for BasicWitnessInputProducer")?;
+        // transaction
+        //     .commit()
+        //     .await
+        //     .context("failed to commit DB transaction for BasicWitnessInputProducer")?;
+        // METRICS.block_number_processed.set(job_id.0 as i64);
         Ok(())
     }
 

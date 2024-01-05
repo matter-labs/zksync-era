@@ -379,6 +379,8 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
             // `INITIAL_STORAGE_WRITE_PUBDATA_BYTES` is the default amount of pubdata bytes the user pays for.
             pubdata_bytes: (INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32) - price_to_pay,
         });
+        partial_query.read_value = U256::zero();
+        println!("estimate_refunds_for_write {:?}; refund: {:?}", partial_query, (INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32) - price_to_pay);
         self.returned_refunds.apply_historic_record(
             VectorHistoryEvent::Push(refund.pubdata_refund()),
             partial_query.timestamp,

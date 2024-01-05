@@ -848,7 +848,7 @@ async fn add_basic_witness_input_producer_to_task_futures(
     let started_at = Instant::now();
     tracing::info!("initializing BasicWitnessInputProducer");
     let producer =
-        BasicWitnessInputProducer::new(connection_pool.clone(), store_factory, l2_chain_id).await?;
+        BasicWitnessInputProducer::new(connection_pool.clone(), l2_chain_id).await?;
     task_futures.push(tokio::spawn(producer.run(stop_receiver, None)));
     tracing::info!(
         "Initialized BasicWitnessInputProducer in {:?}",

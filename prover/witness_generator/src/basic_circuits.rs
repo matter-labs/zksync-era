@@ -87,6 +87,8 @@ pub struct BasicWitnessGeneratorJob {
 #[derive(Debug)]
 pub struct BasicWitnessGenerator {
     config: Arc<FriWitnessGeneratorConfig>,
+    enforce_l1_batch: Option<L1BatchNumber>,
+    dry_run: bool,
     object_store: Arc<dyn ObjectStore>,
     public_blob_store: Option<Box<dyn ObjectStore>>,
     connection_pool: ConnectionPool,
@@ -97,6 +99,8 @@ pub struct BasicWitnessGenerator {
 impl BasicWitnessGenerator {
     pub async fn new(
         config: FriWitnessGeneratorConfig,
+        enforce_l1_batch: Option<L1BatchNumber>,
+        dry_run: bool,
         store_factory: &ObjectStoreFactory,
         public_blob_store: Option<Box<dyn ObjectStore>>,
         connection_pool: ConnectionPool,
@@ -105,6 +109,8 @@ impl BasicWitnessGenerator {
     ) -> Self {
         Self {
             config: Arc::new(config),
+            enforce_l1_batch,
+            dry_run,
             object_store: store_factory.create_store().await.into(),
             public_blob_store,
             connection_pool,
@@ -185,7 +191,21 @@ impl JobProcessor for BasicWitnessGenerator {
     const SERVICE_NAME: &'static str = "fri_basic_circuit_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
+        println!("get next job");
+        tracing::info!(
+                "get next job",
+            );
         let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
+
+        if let Some(enforced_l1_batch) = self.enforce_l1_batch {
+           tracing::info!(
+                "Enforcing L1 batch {} for FRI basic witness-gen",
+                enforced_l1_batch.0
+            );
+            let job = get_artifacts(enforced_l1_batch, &*self.object_store).await;
+            return Ok(Some((enforced_l1_batch, job)))
+        }
+
         let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
         let pod_name = get_current_pod_name();
         match prover_connection
@@ -215,13 +235,21 @@ impl JobProcessor for BasicWitnessGenerator {
     }
 
     async fn save_failure(&self, job_id: L1BatchNumber, _started_at: Instant, error: String) -> () {
-        self.prover_connection_pool
-            .access_storage()
-            .await
-            .unwrap()
-            .fri_witness_generator_dal()
-            .mark_witness_job_failed(&error, job_id)
-            .await;
+        if self.dry_run {
+            tracing::info!(
+                "Dry run: skipping marking witness job {} as failed with error: {}",
+                job_id.0,
+                error
+            );
+        } else {
+            self.prover_connection_pool
+                .access_storage()
+                .await
+                .unwrap()
+                .fri_witness_generator_dal()
+                .mark_witness_job_failed(&error, job_id)
+                .await;
+        }
     }
 
     #[allow(clippy::async_yields_async)]
@@ -253,9 +281,10 @@ impl JobProcessor for BasicWitnessGenerator {
         started_at: Instant,
         optional_artifacts: Option<BasicCircuitArtifacts>,
     ) -> anyhow::Result<()> {
+        // panic!("don't want to save result");
         match optional_artifacts {
             None => Ok(()),
-            Some(artifacts) => {
+            Some(artifacts) if !self.dry_run => {
                 let blob_started_at = Instant::now();
                 let blob_urls = save_artifacts(
                     job_id,
@@ -270,6 +299,13 @@ impl JobProcessor for BasicWitnessGenerator {
                     .observe(blob_started_at.elapsed());
 
                 update_database(&self.prover_connection_pool, started_at, job_id, blob_urls).await;
+                Ok(())
+            },
+            Some(_) => {
+                tracing::info!(
+                    "Dry run: skipping saving witness artifacts for l1 batch {}",
+                    job_id.0
+                );
                 Ok(())
             }
         }
@@ -370,6 +406,7 @@ async fn get_artifacts(
     block_number: L1BatchNumber,
     object_store: &dyn ObjectStore,
 ) -> BasicWitnessGeneratorJob {
+    println!("Getting artifacts for block {}", block_number.0);
     let job = object_store.get(block_number).await.unwrap();
     BasicWitnessGeneratorJob { block_number, job }
 }

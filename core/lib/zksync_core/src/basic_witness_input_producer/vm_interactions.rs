@@ -71,6 +71,7 @@ pub(super) fn execute_tx<S: WriteStorage>(
     vm: &mut VmInstance<S, HistoryEnabled>,
 ) -> anyhow::Result<()> {
     // Attempt to run VM with bytecode compression on.
+    println!("starting tx execution!");
     vm.make_snapshot();
     if vm
         .execute_transaction_with_bytecode_compression(tx.clone(), true)
@@ -80,8 +81,10 @@ pub(super) fn execute_tx<S: WriteStorage>(
         return Ok(());
     }
 
+    println!("rolling back the VM!");
     // If failed with bytecode compression, attempt to run without bytecode compression.
     vm.rollback_to_the_latest_snapshot();
+    println!("rolled back the VM");
     if vm
         .execute_transaction_with_bytecode_compression(tx.clone(), false)
         .is_err()
