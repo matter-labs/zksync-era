@@ -9,11 +9,11 @@ use zksync_dal::ConnectionPool;
 use zksync_eth_client::clients::MockEthereum;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
-    block::{L1BatchHeader, MiniblockHeader},
+    block::MiniblockHeader,
     fee_model::{BatchFeeInput, FeeModelConfig, FeeModelConfigV1},
     protocol_version::L1VerifierConfig,
     system_contracts::get_system_smart_contracts,
-    Address, L1BatchNumber, L2ChainId, MiniblockNumber, PriorityOpId, ProtocolVersionId, H256,
+    Address, L2ChainId, PriorityOpId, ProtocolVersionId, H256,
 };
 
 use crate::{

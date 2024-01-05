@@ -13,8 +13,8 @@ use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
 use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
-    block::MiniblockHeader, fee::TransactionExecutionMetrics, fee_model::BatchFeeInput,
-    tx::IncludedTxLocation, Address, L1BatchNumber, ProtocolVersionId, VmEvent, H256, U64,
+    block::MiniblockHeader, fee::TransactionExecutionMetrics, tx::IncludedTxLocation, Address,
+    L1BatchNumber, VmEvent, H256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::{core::ClientError as RpcError, http_client::HttpClient, types::error::ErrorCode},

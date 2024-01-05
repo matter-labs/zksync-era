@@ -20,11 +20,7 @@ use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, MiniblockExecutionData, MiniblockHasher},
-    commitment::{L1BatchMetaParameters, L1BatchMetadata},
-    fee::Fee,
     fee_model::BatchFeeInput,
-    l2::L2Tx,
-    transaction_request::PaymasterParams,
     tx::tx_execution_info::ExecutionMetrics,
     Address, L1BatchNumber, L2ChainId, LogQuery, MiniblockNumber, ProtocolVersionId,
     StorageLogQuery, StorageLogQueryType, Timestamp, Transaction, H256, U256,
