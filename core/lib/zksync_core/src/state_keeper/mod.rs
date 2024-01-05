@@ -15,7 +15,7 @@ pub use self::{
     keeper::ZkSyncStateKeeper,
 };
 pub(crate) use self::{
-    mempool_actor::MempoolFetcher, seal_criteria::ConditionalSealer, types::MempoolGuard,
+    mempool_actor::MempoolFetcher, seal_criteria::SequencerSealer, types::MempoolGuard,
 };
 use crate::fee_model::BatchFeeModelInputProvider;
 
@@ -25,7 +25,7 @@ pub(crate) mod io;
 mod keeper;
 mod mempool_actor;
 pub(crate) mod metrics;
-pub(crate) mod seal_criteria;
+pub mod seal_criteria;
 #[cfg(test)]
 pub(crate) mod tests;
 pub(crate) mod types;
@@ -40,7 +40,7 @@ pub(crate) async fn create_state_keeper(
     mempool_config: &MempoolConfig,
     pool: ConnectionPool,
     mempool: MempoolGuard,
-    fee_model_fetcher: Arc<dyn BatchFeeModelInputProvider>,
+    batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     miniblock_sealer_handle: MiniblockSealerHandle,
     object_store: Box<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
@@ -58,7 +58,7 @@ pub(crate) async fn create_state_keeper(
         mempool,
         object_store,
         miniblock_sealer_handle,
-        fee_model_fetcher,
+        batch_fee_input_provider,
         pool,
         &state_keeper_config,
         mempool_config.delay_interval(),
@@ -68,11 +68,11 @@ pub(crate) async fn create_state_keeper(
     )
     .await;
 
-    let sealer = ConditionalSealer::new(state_keeper_config);
+    let sealer = SequencerSealer::new(state_keeper_config);
     ZkSyncStateKeeper::new(
         stop_receiver,
         Box::new(io),
         Box::new(batch_executor_base),
-        sealer,
+        Box::new(sealer),
     )
 }

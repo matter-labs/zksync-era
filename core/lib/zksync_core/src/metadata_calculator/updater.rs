@@ -242,11 +242,15 @@ impl TreeUpdater {
         mut storage: StorageProcessor<'_>,
         next_l1_batch_to_seal: &mut L1BatchNumber,
     ) {
-        let last_sealed_l1_batch = storage
+        let Some(last_sealed_l1_batch) = storage
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
-            .unwrap();
+            .unwrap()
+        else {
+            tracing::trace!("No L1 batches to seal: Postgres storage is empty");
+            return;
+        };
         let last_requested_l1_batch =
             next_l1_batch_to_seal.0 + self.max_l1_batches_per_iter as u32 - 1;
         let last_requested_l1_batch = last_requested_l1_batch.min(last_sealed_l1_batch.0);
@@ -303,7 +307,7 @@ impl TreeUpdater {
 
         tracing::info!(
             "Initialized metadata calculator with {max_batches_per_iter} max L1 batches per iteration. \
-             Next L1 batch for Merkle tree: {next_l1_batch_to_seal}, current Postgres L1 batch: {current_db_batch}, \
+             Next L1 batch for Merkle tree: {next_l1_batch_to_seal}, current Postgres L1 batch: {current_db_batch:?}, \
              last L1 batch with metadata: {last_l1_batch_with_metadata:?}",
             max_batches_per_iter = self.max_l1_batches_per_iter
         );

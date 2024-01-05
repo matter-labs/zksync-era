@@ -17,17 +17,3 @@ pub struct L1BatchEnv {
     pub enforced_base_fee: Option<u64>,
     pub first_l2_block: L2BlockEnv,
 }
-
-impl L1BatchEnv {
-    pub fn base_fee(&self, vm_version: VmVersion) -> u64 {
-        if let Some(base_fee) = self.enforced_base_fee {
-            return base_fee;
-        }
-
-        let (base_fee, _) = derive_base_fee_and_gas_per_pubdata(self.fee_input, vm_version);
-        base_fee
-    }
-    pub(crate) fn batch_gas_price_per_pubdata(&self, vm_version: VmVersion) -> u64 {
-        derive_base_fee_and_gas_per_pubdata(self.fee_input, vm_version).1
-    }
-}

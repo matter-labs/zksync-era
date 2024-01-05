@@ -9,7 +9,7 @@ use zksync_system_constants::{
 use crate::vm_latest::old_vm::utils::heap_page_from_base;
 
 // The maximal number of transactions in a single batch
-pub const MAX_TXS_IN_BLOCK: usize = 10000;
+pub(crate) const MAX_TXS_IN_BLOCK: usize = 1024;
 
 /// Max cycles for a single transaction.
 pub const MAX_CYCLES_FOR_TX: u32 = u32::MAX;

@@ -1,4 +1,4 @@
-use zk_evm_1_4_1::{
+use zk_evm_1_4_0::{
     abstractions::Memory,
     tracing::{AfterDecodingData, AfterExecutionData, BeforeExecutionData, VmLocalStateData},
 };

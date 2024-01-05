@@ -252,7 +252,10 @@ pub(crate) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
         previous_batch_hash: None,
         number,
         timestamp,
-        fee_input: BatchFeeInput::default(),
+        fee_input: BatchFeeInput::l1_pegged(
+            50_000_000_000, // 50 gwei
+            250_000_000,    // 0.25 gweis
+        ),
         fee_account: Address::random(),
         enforced_base_fee: None,
         first_l2_block: L2BlockEnv {

@@ -4,7 +4,7 @@ use std::{
 };
 
 use tokio::sync::watch::Receiver;
-use zksync_types::fee_model::MainNodeFeeParams;
+use zksync_types::fee_model::FeeParams;
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::ZksNamespaceClient,
@@ -23,18 +23,14 @@ const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 #[derive(Debug)]
 pub struct MainNodeFeeParamsFetcher {
     client: HttpClient,
-    main_node_fee_params: RwLock<MainNodeFeeParams>,
+    main_node_fee_params: RwLock<FeeParams>,
 }
 
 impl MainNodeFeeParamsFetcher {
     pub fn new(main_node_url: &str) -> Self {
         Self {
             client: Self::build_client(main_node_url),
-            main_node_fee_params: RwLock::new(MainNodeFeeParams {
-                l1_gas_price: 1_000_000_000,
-                l1_pubdata_price: 17_000_000_000,
-                config: Default::default(),
-            }),
+            main_node_fee_params: RwLock::new(FeeParams::sensible_v1_default()),
         }
     }
 
@@ -47,11 +43,11 @@ impl MainNodeFeeParamsFetcher {
     pub async fn run(self: Arc<Self>, stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
         loop {
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, MainNodeGasPriceFetcher is shutting down");
+                tracing::info!("Stop signal received, MainNodeFeeParamsFetcher is shutting down");
                 break;
             }
 
-            let main_node_fee_params = match self.client.get_main_node_fee_params().await {
+            let main_node_fee_params = match self.client.get_fee_params().await {
                 Ok(price) => price,
                 Err(err) => {
                     tracing::warn!("Unable to get the gas price: {}", err);
@@ -60,7 +56,6 @@ impl MainNodeFeeParamsFetcher {
                     continue;
                 }
             };
-
             *self.main_node_fee_params.write().unwrap() = main_node_fee_params;
 
             tokio::time::sleep(SLEEP_INTERVAL).await;
@@ -70,7 +65,7 @@ impl MainNodeFeeParamsFetcher {
 }
 
 impl BatchFeeModelInputProvider for MainNodeFeeParamsFetcher {
-    fn get_fee_model_params(&self) -> MainNodeFeeParams {
-        self.main_node_fee_params.read().unwrap().clone()
+    fn get_fee_model_params(&self) -> FeeParams {
+        *self.main_node_fee_params.read().unwrap()
     }
 }

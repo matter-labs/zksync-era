@@ -2,7 +2,7 @@ use std::fs;
 
 use codegen::{Block, Scope};
 use multivm::{
-    utils::{get_bootloader_encoding_space, get_max_transactions_in_batch},
+    utils::{get_bootloader_encoding_space, get_bootloader_max_txs_in_batch},
     vm_latest::constants::{BLOCK_OVERHEAD_L1_GAS, MAX_PUBDATA_PER_BLOCK},
 };
 use serde::{Deserialize, Serialize};
@@ -58,8 +58,9 @@ pub fn generate_l1_contracts_system_config(gas_constants: &IntrinsicSystemGasCon
         l1_gas_per_pubdata_byte: L1_GAS_PER_PUBDATA_BYTE,
         block_overhead_l2_gas: 0,
         block_overhead_l1_gas: BLOCK_OVERHEAD_L1_GAS,
-        max_transactions_in_block: get_max_transactions_in_batch(ProtocolVersionId::latest().into())
-            as u32,
+        max_transactions_in_block: get_bootloader_max_txs_in_batch(
+            ProtocolVersionId::latest().into(),
+        ) as u32,
         bootloader_tx_encoding_space: get_bootloader_encoding_space(
             ProtocolVersionId::latest().into(),
         ),

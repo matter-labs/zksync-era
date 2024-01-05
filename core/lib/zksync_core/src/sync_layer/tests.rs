@@ -20,9 +20,10 @@ use crate::{
     consensus::testonly::MockMainNodeClient,
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
-        tests::{create_l1_batch_metadata, create_l2_transaction, TestBatchExecutorBuilder},
-        MiniblockSealer, ZkSyncStateKeeper,
+        seal_criteria::NoopSealer, tests::TestBatchExecutorBuilder, MiniblockSealer,
+        ZkSyncStateKeeper,
     },
+    utils::testonly::{create_l1_batch_metadata, create_l2_transaction},
 };
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
@@ -79,10 +80,11 @@ impl StateKeeperHandles {
             batch_executor_base.push_successful_transactions(tx_hashes_in_l1_batch);
         }
 
-        let state_keeper = ZkSyncStateKeeper::without_sealer(
+        let state_keeper = ZkSyncStateKeeper::new(
             stop_receiver,
             Box::new(io),
             Box::new(batch_executor_base),
+            Box::new(NoopSealer),
         );
         Self {
             stop_sender,
@@ -308,7 +310,7 @@ pub(super) async fn mock_l1_batch_hash_computation(pool: ConnectionPool, number:
             .get_sealed_l1_batch_number()
             .await
             .unwrap();
-        if last_l1_batch_number < L1BatchNumber(number) {
+        if last_l1_batch_number < Some(L1BatchNumber(number)) {
             tokio::time::sleep(POLL_INTERVAL).await;
             continue;
         }

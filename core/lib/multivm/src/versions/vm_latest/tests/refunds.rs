@@ -6,6 +6,7 @@ use crate::{
             utils::read_test_contract,
         },
         types::internals::TransactionData,
+        utils::fee::get_batch_gas_per_pubdata,
         HistoryEnabled,
     },
 };

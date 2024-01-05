@@ -174,7 +174,10 @@ fn default_l1_batch() -> L1BatchEnv {
         previous_batch_hash: None,
         number: L1BatchNumber(1),
         timestamp: 100,
-        fee_input: BatchFeeInput::default(),
+        fee_input: BatchFeeInput::l1_pegged(
+            50_000_000_000, // 50 gwei
+            250_000_000,    // 0.25 gwei
+        ),
         fee_account: Address::random(),
         enforced_base_fee: None,
         first_l2_block: L2BlockEnv {

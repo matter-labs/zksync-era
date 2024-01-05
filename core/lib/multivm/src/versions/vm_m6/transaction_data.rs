@@ -239,7 +239,7 @@ impl TransactionData {
     }
 }
 
-pub fn derive_overhead(
+pub(crate) fn derive_overhead(
     gas_limit: u32,
     gas_price_per_pubdata: u32,
     encoded_len: usize,

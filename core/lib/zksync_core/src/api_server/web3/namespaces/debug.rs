@@ -47,11 +47,15 @@ impl DebugNamespace {
         let api_contracts = ApiContracts::load_from_disk();
         Self {
             connection_pool: state.connection_pool,
+            // For now, the same scaling is used for both the L1 gas price and the pubdata price
             batch_fee_input: state
                 .tx_sender
                 .0
                 .batch_fee_input_provider
-                .get_batch_fee_input(true),
+                .get_batch_fee_input_scaled(
+                    sender_config.gas_price_scale_factor,
+                    sender_config.gas_price_scale_factor,
+                ),
             api_contracts,
             vm_execution_cache_misses_limit: sender_config.vm_execution_cache_misses_limit,
             vm_concurrency_limiter: state.tx_sender.vm_concurrency_limiter(),
@@ -211,7 +215,7 @@ impl DebugNamespace {
     fn shared_args(&self) -> TxSharedArgs {
         TxSharedArgs {
             operator_account: AccountTreeId::default(),
-            batch_fee_model_input: self.batch_fee_input.clone(),
+            fee_input: self.batch_fee_input.clone(),
             base_system_contracts: self.api_contracts.eth_call.clone(),
             caches: self.storage_caches.clone(),
             validation_computational_gas_limit: BLOCK_GAS_LIMIT,

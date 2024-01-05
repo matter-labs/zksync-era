@@ -6,14 +6,14 @@ use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
 use zksync_config::{configs::chain::StateKeeperConfig, GasAdjusterConfig};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::ConnectionPool;
-use zksync_eth_client::clients::mock::MockEthereum;
+use zksync_eth_client::clients::MockEthereum;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
-    block::{L1BatchHeader, MiniblockHeader},
-    fee_model::{BatchFeeInput, MainNodeFeeModelConfig},
+    block::MiniblockHeader,
+    fee_model::{BatchFeeInput, FeeModelConfig, FeeModelConfigV1},
     protocol_version::L1VerifierConfig,
     system_contracts::get_system_smart_contracts,
-    Address, L1BatchNumber, L2ChainId, MiniblockNumber, PriorityOpId, ProtocolVersionId, H256,
+    Address, L2ChainId, PriorityOpId, ProtocolVersionId, H256,
 };
 
 use crate::{
@@ -21,6 +21,7 @@ use crate::{
     genesis::create_genesis_l1_batch,
     l1_gas_price::GasAdjuster,
     state_keeper::{io::MiniblockSealer, tests::create_transaction, MempoolGuard, MempoolIO},
+    utils::testonly::{create_l1_batch, create_miniblock},
 };
 
 #[derive(Debug)]
@@ -38,7 +39,7 @@ impl Tester {
         }
     }
 
-    pub(super) async fn create_gas_adjuster(&self) -> GasAdjuster<MockEthereum> {
+    async fn create_gas_adjuster(&self) -> GasAdjuster<MockEthereum> {
         let eth_client =
             MockEthereum::default().with_fee_history(vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9]);
 
@@ -58,12 +59,14 @@ impl Tester {
             .unwrap()
     }
 
-    pub(super) async fn create_batch_fee_provider(
-        &self,
-    ) -> MainNodeFeeInputProvider<GasAdjuster<MockEthereum>> {
+    pub(super) async fn create_batch_fee_input_provider(&self) -> MainNodeFeeInputProvider {
         let gas_adjuster = Arc::new(self.create_gas_adjuster().await);
-
-        MainNodeFeeInputProvider::new(gas_adjuster, MainNodeFeeModelConfig::default())
+        MainNodeFeeInputProvider::new(
+            gas_adjuster,
+            FeeModelConfig::V1(FeeModelConfigV1 {
+                minimal_l2_gas_price: self.minimal_l2_gas_price(),
+            }),
+        )
     }
 
     // Constant value to be used both in tests and inside of the IO.
@@ -77,8 +80,12 @@ impl Tester {
         miniblock_sealer_capacity: usize,
     ) -> (MempoolIO, MempoolGuard) {
         let gas_adjuster = Arc::new(self.create_gas_adjuster().await);
-        let batch_fee_input_provider =
-            MainNodeFeeInputProvider::new(gas_adjuster, Default::default());
+        let batch_fee_input_provider = MainNodeFeeInputProvider::new(
+            gas_adjuster,
+            FeeModelConfig::V1(FeeModelConfigV1 {
+                minimal_l2_gas_price: self.minimal_l2_gas_price(),
+            }),
+        );
 
         let mempool = MempoolGuard::new(PriorityOpId(0), 100);
         let (miniblock_sealer, miniblock_sealer_handle) =
@@ -142,31 +149,18 @@ impl Tester {
         storage
             .blocks_dal()
             .insert_miniblock(&MiniblockHeader {
-                number: MiniblockNumber(number),
                 timestamp: self.current_timestamp,
-                hash: H256::default(),
-                l1_tx_count: 0,
-                l2_tx_count: 0,
                 base_fee_per_gas,
                 batch_fee_input: fee_input,
                 base_system_contracts_hashes: self.base_system_contracts.hashes(),
-                protocol_version: Some(ProtocolVersionId::latest()),
-                virtual_blocks: 0,
+                ..create_miniblock(number)
             })
             .await
             .unwrap();
     }
 
     pub(super) async fn insert_sealed_batch(&self, pool: &ConnectionPool, number: u32) {
-        let mut batch_header = L1BatchHeader::new(
-            L1BatchNumber(number),
-            self.current_timestamp,
-            Address::default(),
-            self.base_system_contracts.hashes(),
-            Default::default(),
-        );
-        batch_header.is_finished = true;
-
+        let batch_header = create_l1_batch(number);
         let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
         storage
             .blocks_dal()

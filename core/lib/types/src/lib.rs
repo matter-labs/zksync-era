@@ -39,6 +39,7 @@ pub mod contract_verification_api;
 pub mod contracts;
 pub mod event;
 pub mod fee;
+pub mod fee_model;
 pub mod l1;
 pub mod l2;
 pub mod l2_to_l1_log;
@@ -54,7 +55,6 @@ pub mod vm_trace;
 
 pub mod api;
 pub mod eth_sender;
-pub mod fee_model;
 pub mod helpers;
 pub mod proofs;
 pub mod proto;

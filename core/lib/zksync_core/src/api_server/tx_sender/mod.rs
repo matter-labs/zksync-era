@@ -2,10 +2,10 @@
 
 use std::{cmp, sync::Arc, time::Instant};
 
-use multivm::{interface::VmExecutionResultAndLogs, utils::derive_overhead};
 // Workspace uses
 use multivm::{
-    utils::{adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata},
+    interface::VmExecutionResultAndLogs,
+    utils::{adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead},
     vm_latest::constants::{BLOCK_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK},
 };
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
@@ -25,22 +25,19 @@ use zksync_types::{
 };
 use zksync_utils::h256_to_u256;
 
-use self::proxy::TxProxy;
-// Local uses
+pub(super) use self::{proxy::TxProxy, result::SubmitTxError};
+use super::execution_sandbox::execute_tx_in_sandbox;
 use crate::{
     api_server::{
         execution_sandbox::{
-            execute_tx_eth_call, execute_tx_in_sandbox, get_pubdata_for_factory_deps, BlockArgs,
-            SubmitTxStage, TxExecutionArgs, TxSharedArgs, VmConcurrencyLimiter, VmPermit,
-            SANDBOX_METRICS,
+            execute_tx_eth_call, get_pubdata_for_factory_deps, BlockArgs, SubmitTxStage,
+            TxExecutionArgs, TxSharedArgs, VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
         },
-        tx_sender::result::{ApiCallResult, SubmitTxError},
+        tx_sender::result::ApiCallResult,
     },
     fee_model::BatchFeeModelInputProvider,
-};
-use crate::{
     metrics::{TxStage, APP_METRICS},
-    state_keeper::seal_criteria::{ConditionalSealer, SealData},
+    state_keeper::seal_criteria::{ConditionalSealer, NoopSealer, SealData},
 };
 
 mod proxy;
@@ -140,9 +137,8 @@ pub struct TxSenderBuilder {
     master_connection_pool: Option<ConnectionPool>,
     /// Proxy to submit transactions to the network. If not set, `master_connection_pool` must be set.
     proxy: Option<TxProxy>,
-    /// Actual state keeper configuration, required for tx verification.
-    /// If not set, transactions would not be checked against seal criteria.
-    state_keeper_config: Option<StateKeeperConfig>,
+    /// Batch sealer used to check whether transaction can be executed by the sequencer.
+    sealer: Option<Arc<dyn ConditionalSealer>>,
 }
 
 impl TxSenderBuilder {
@@ -152,8 +148,13 @@ impl TxSenderBuilder {
             replica_connection_pool,
             master_connection_pool: None,
             proxy: None,
-            state_keeper_config: None,
+            sealer: None,
         }
+    }
+
+    pub fn with_sealer(mut self, sealer: Arc<dyn ConditionalSealer>) -> Self {
+        self.sealer = Some(sealer);
+        self
     }
 
     pub fn with_tx_proxy(mut self, main_node_url: &str) -> Self {
@@ -166,14 +167,9 @@ impl TxSenderBuilder {
         self
     }
 
-    pub fn with_state_keeper_config(mut self, state_keeper_config: StateKeeperConfig) -> Self {
-        self.state_keeper_config = Some(state_keeper_config);
-        self
-    }
-
-    pub async fn build<G: BatchFeeModelInputProvider>(
+    pub async fn build(
         self,
-        fee_model_provider: Arc<G>,
+        batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
         vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
         api_contracts: ApiContracts,
         storage_caches: PostgresStorageCaches,
@@ -183,16 +179,19 @@ impl TxSenderBuilder {
             "Either master connection pool or proxy must be set"
         );
 
+        // Use noop sealer if no sealer was explicitly provided.
+        let sealer = self.sealer.unwrap_or_else(|| Arc::new(NoopSealer));
+
         TxSender(Arc::new(TxSenderInner {
             sender_config: self.config,
             master_connection_pool: self.master_connection_pool,
             replica_connection_pool: self.replica_connection_pool,
-            batch_fee_input_provider: fee_model_provider,
+            batch_fee_input_provider,
             api_contracts,
             proxy: self.proxy,
-            state_keeper_config: self.state_keeper_config,
             vm_concurrency_limiter,
             storage_caches,
+            sealer,
         }))
     }
 }
@@ -235,19 +234,17 @@ pub struct TxSenderInner {
     pub(super) sender_config: TxSenderConfig,
     pub master_connection_pool: Option<ConnectionPool>,
     pub replica_connection_pool: ConnectionPool,
-    /// Provides the fee params to the `TxSender`.
+    // Used to keep track of gas prices for the fee ticker.
     pub batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     pub(super) api_contracts: ApiContracts,
     /// Optional transaction proxy to be used for transaction submission.
     pub(super) proxy: Option<TxProxy>,
-    /// An up-to-date version of the state keeper config.
-    /// This field may be omitted on the external node, since the configuration may change unexpectedly.
-    /// If this field is set to `None`, `TxSender` will assume that any transaction is executable.
-    state_keeper_config: Option<StateKeeperConfig>,
     /// Used to limit the amount of VMs that can be executed simultaneously.
     pub(super) vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
     // Caches used in VM execution.
     storage_caches: PostgresStorageCaches,
+    /// Batch sealer used to check whether transaction can be executed by the sequencer.
+    sealer: Arc<dyn ConditionalSealer>,
 }
 
 #[derive(Clone)]
@@ -278,7 +275,6 @@ impl TxSender {
         let shared_args = self.shared_args();
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
-
         let mut connection = self
             .0
             .replica_connection_pool
@@ -382,7 +378,7 @@ impl TxSender {
     fn shared_args(&self) -> TxSharedArgs {
         TxSharedArgs {
             operator_account: AccountTreeId::new(self.0.sender_config.fee_account_addr),
-            batch_fee_model_input: self.0.batch_fee_input_provider.get_batch_fee_input(false),
+            fee_input: self.0.batch_fee_input_provider.get_batch_fee_input(),
             base_system_contracts: self.0.api_contracts.eth_call.clone(),
             caches: self.storage_caches(),
             validation_computational_gas_limit: self
@@ -401,7 +397,7 @@ impl TxSender {
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
 
-        let fee_input = self.0.batch_fee_input_provider.get_batch_fee_input(false);
+        let fee_input = self.0.batch_fee_input_provider.get_batch_fee_input();
 
         // TODO (SMA-1715): do not subsidize the overhead for the transaction
 
@@ -436,13 +432,12 @@ impl TxSender {
             ));
         }
 
-        let intrinsic_costs = get_intrinsic_constants();
+        let intrinsic_consts = get_intrinsic_constants();
         assert!(
-            intrinsic_costs.l2_tx_intrinsic_pubdata == 0,
+            intrinsic_consts.l2_tx_intrinsic_pubdata == 0,
             "Currently we assume that the L2 transactions do not have any intrinsic pubdata"
         );
-
-        let min_gas_limit = U256::from(intrinsic_costs.l2_tx_intrinsic_gas);
+        let min_gas_limit = U256::from(intrinsic_consts.l2_tx_intrinsic_gas);
         if tx.common_data.fee.gas_limit < min_gas_limit {
             return Err(SubmitTxError::IntrinsicGas);
         }
@@ -591,14 +586,13 @@ impl TxSender {
         let vm_execution_cache_misses_limit = self.0.sender_config.vm_execution_cache_misses_limit;
         let execution_args =
             TxExecutionArgs::for_gas_estimate(vm_execution_cache_misses_limit, &tx, base_fee);
-
         let (exec_result, tx_metrics) = execute_tx_in_sandbox(
             vm_permit,
             shared_args,
             true,
             execution_args,
             self.0.replica_connection_pool.clone(),
-            tx,
+            tx.clone(),
             block_args,
             vec![],
         )
@@ -607,12 +601,12 @@ impl TxSender {
         (exec_result, tx_metrics)
     }
 
-    fn shared_args_for_gas_estimate(&self, fee_model_params: BatchFeeInput) -> TxSharedArgs {
+    fn shared_args_for_gas_estimate(&self, fee_input: BatchFeeInput) -> TxSharedArgs {
         let config = &self.0.sender_config;
 
         TxSharedArgs {
             operator_account: AccountTreeId::new(config.fee_account_addr),
-            batch_fee_model_input: fee_model_params,
+            fee_input,
             // We want to bypass the computation gas limit check for gas estimation
             validation_computational_gas_limit: BLOCK_GAS_LIMIT,
             base_system_contracts: self.0.api_contracts.estimate_gas.clone(),
@@ -628,7 +622,6 @@ impl TxSender {
         acceptable_overestimation: u32,
     ) -> Result<Fee, SubmitTxError> {
         let estimation_started_at = Instant::now();
-        let mut fee_model = self.0.batch_fee_input_provider.get_batch_fee_input(true);
 
         let mut connection = self
             .0
@@ -646,14 +639,21 @@ impl TxSender {
             .unwrap_or(ProtocolVersionId::last_pre_boojum());
         drop(connection);
 
-        adjust_pubdata_price_for_tx(
-            &mut fee_model,
-            tx.gas_per_pubdata_byte_limit(),
-            protocol_version.into(),
-        );
+        let fee_input = {
+            // For now, both L1 gas price and pubdata price are scaled with the same coefficient
+            let fee_input = self.0.batch_fee_input_provider.get_batch_fee_input_scaled(
+                self.0.sender_config.gas_price_scale_factor,
+                self.0.sender_config.gas_price_scale_factor,
+            );
+            adjust_pubdata_price_for_tx(
+                fee_input,
+                tx.gas_per_pubdata_byte_limit(),
+                protocol_version.into(),
+            )
+        };
 
         let (base_fee, gas_per_pubdata_byte) =
-            derive_base_fee_and_gas_per_pubdata(fee_model, protocol_version.into());
+            derive_base_fee_and_gas_per_pubdata(fee_input, protocol_version.into());
         match &mut tx.common_data {
             ExecuteTransactionCommon::L2(common_data) => {
                 common_data.fee.max_fee_per_gas = base_fee.into();
@@ -760,7 +760,7 @@ impl TxSender {
                     tx.clone(),
                     try_gas_limit,
                     gas_per_pubdata_byte as u32,
-                    fee_model,
+                    fee_input,
                     block_args,
                     base_fee,
                     protocol_version.into(),
@@ -799,7 +799,7 @@ impl TxSender {
                 tx.clone(),
                 suggested_gas_limit,
                 gas_per_pubdata_byte as u32,
-                fee_model,
+                fee_input,
                 block_args,
                 base_fee,
                 protocol_version.into(),
@@ -859,8 +859,6 @@ impl TxSender {
     }
 
     pub async fn gas_price(&self) -> u64 {
-        let fee_model_params = self.0.batch_fee_input_provider.get_batch_fee_input(true);
-
         let mut connection = self
             .0
             .replica_connection_pool
@@ -877,9 +875,14 @@ impl TxSender {
             .unwrap_or(ProtocolVersionId::last_pre_boojum());
         drop(connection);
 
-        let (base_fee, _) =
-            derive_base_fee_and_gas_per_pubdata(fee_model_params, protocol_version.into());
-
+        let (base_fee, _) = derive_base_fee_and_gas_per_pubdata(
+            // For now, both the L1 gas price and the L1 pubdata price are scaled with the same coefficient
+            self.0.batch_fee_input_provider.get_batch_fee_input_scaled(
+                self.0.sender_config.gas_price_scale_factor,
+                self.0.sender_config.gas_price_scale_factor,
+            ),
+            protocol_version.into(),
+        );
         base_fee
     }
 
@@ -889,13 +892,6 @@ impl TxSender {
         tx_metrics: &TransactionExecutionMetrics,
         log_message: bool,
     ) -> Result<(), SubmitTxError> {
-        let Some(sk_config) = &self.0.state_keeper_config else {
-            // No config provided, so we can't check if transaction satisfies the seal criteria.
-            // We assume that it's executable, and if it's not, it will be caught by the main server
-            // (where this check is always performed).
-            return Ok(());
-        };
-
         // Hash is not computable for the provided `transaction` during gas estimation (it doesn't have
         // its input data set). Since we don't log a hash in this case anyway, we just use a dummy value.
         let tx_hash = if log_message {
@@ -909,8 +905,10 @@ impl TxSender {
         // still reject them as it's not.
         let protocol_version = ProtocolVersionId::latest();
         let seal_data = SealData::for_transaction(transaction, tx_metrics, protocol_version);
-        if let Some(reason) =
-            ConditionalSealer::find_unexecutable_reason(sk_config, &seal_data, protocol_version)
+        if let Some(reason) = self
+            .0
+            .sealer
+            .find_unexecutable_reason(&seal_data, protocol_version)
         {
             let message = format!(
                 "Tx is Unexecutable because of {reason}; inputs for decision: {seal_data:?}"

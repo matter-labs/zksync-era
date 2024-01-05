@@ -15,14 +15,17 @@ use zksync_types::{
 use zksync_utils::time::seconds_since_epoch;
 
 use self::tester::Tester;
-use crate::state_keeper::{
-    io::{MiniblockParams, MiniblockSealer, StateKeeperIO},
-    mempool_actor::l2_tx_filter,
-    tests::{
-        create_execution_result, create_l1_batch_metadata, create_transaction,
-        create_updates_manager, default_l1_batch_env, default_vm_block_result, Query,
+use crate::{
+    state_keeper::{
+        io::{MiniblockParams, MiniblockSealer, StateKeeperIO},
+        mempool_actor::l2_tx_filter,
+        tests::{
+            create_execution_result, create_transaction, create_updates_manager,
+            default_l1_batch_env, default_vm_block_result, Query,
+        },
+        updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
     },
-    updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
+    utils::testonly::create_l1_batch_metadata,
 };
 
 mod tester;
@@ -53,7 +56,7 @@ async fn test_filter_with_pending_batch() {
     // These gas values are random and don't matter for filter calculation as there will be a
     // pending batch the filter will be based off of.
     tester
-        .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::default())
+        .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
     tester.insert_sealed_batch(&connection_pool, 1).await;
 
@@ -78,9 +81,9 @@ async fn test_filter_with_pending_batch() {
     let (want_base_fee, want_gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
     let want_filter = L2TxFilter {
+        fee_input,
         fee_per_gas: want_base_fee,
         gas_per_pubdata: want_gas_per_pubdata as u32,
-        fee_input,
     };
     assert_eq!(mempool.filter(), &want_filter);
 }
@@ -95,13 +98,13 @@ async fn test_filter_with_no_pending_batch() {
     // Insert a sealed batch so there will be a prev_l1_batch_state_root.
     // These gas values are random and don't matter for filter calculation.
     tester
-        .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::default())
+        .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
     tester.insert_sealed_batch(&connection_pool, 1).await;
 
     // Create a copy of the tx filter that the mempool will use.
     let want_filter = l2_tx_filter(
-        &tester.create_batch_fee_provider().await,
+        &tester.create_batch_fee_input_provider().await,
         ProtocolVersionId::latest().into(),
     );
 
@@ -135,7 +138,7 @@ async fn test_timestamps_are_distinct(
 
     tester.set_timestamp(prev_miniblock_timestamp);
     tester
-        .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::default())
+        .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
     if delay_prev_miniblock_compared_to_batch {
         tester.set_timestamp(prev_miniblock_timestamp - 1);
@@ -145,7 +148,7 @@ async fn test_timestamps_are_distinct(
     let (mut mempool, mut guard) = tester.create_test_mempool_io(connection_pool, 1).await;
     // Insert a transaction to trigger L1 batch creation.
     let tx_filter = l2_tx_filter(
-        &tester.create_batch_fee_provider().await,
+        &tester.create_batch_fee_input_provider().await,
         ProtocolVersionId::latest().into(),
     );
     tester.insert_tx(&mut guard, tx_filter.fee_per_gas, tx_filter.gas_per_pubdata);

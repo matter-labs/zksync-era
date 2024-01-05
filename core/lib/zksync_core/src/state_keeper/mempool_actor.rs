@@ -5,20 +5,19 @@ use tokio::sync::watch;
 use zksync_config::configs::chain::MempoolConfig;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
-use zksync_types::VmVersion;
-use zksync_utils::time::seconds_since_epoch;
+use zksync_types::{ProtocolVersionId, VmVersion};
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
-use crate::fee_model::BatchFeeModelInputProvider;
+use crate::{api_server::execution_sandbox::BlockArgs, fee_model::BatchFeeModelInputProvider};
 
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.
 /// The filter is used to filter out transactions from the mempool that do not cover expenses
 /// to process them.
 pub fn l2_tx_filter(
-    fee_batch_input_provider: &dyn BatchFeeModelInputProvider,
+    batch_fee_input_provider: &dyn BatchFeeModelInputProvider,
     vm_version: VmVersion,
 ) -> L2TxFilter {
-    let fee_input = fee_batch_input_provider.get_batch_fee_input(false);
+    let fee_input = batch_fee_input_provider.get_batch_fee_input();
 
     let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(fee_input, vm_version);
     L2TxFilter {
@@ -31,7 +30,7 @@ pub fn l2_tx_filter(
 #[derive(Debug)]
 pub struct MempoolFetcher<G> {
     mempool: MempoolGuard,
-    batch_fee_info_provider: Arc<G>,
+    batch_fee_input_provider: Arc<G>,
     sync_interval: Duration,
     sync_batch_size: usize,
 }
@@ -39,12 +38,12 @@ pub struct MempoolFetcher<G> {
 impl<G: BatchFeeModelInputProvider> MempoolFetcher<G> {
     pub fn new(
         mempool: MempoolGuard,
-        batch_fee_info_provider: Arc<G>,
+        batch_fee_input_provider: Arc<G>,
         config: &MempoolConfig,
     ) -> Self {
         Self {
             mempool,
-            batch_fee_info_provider,
+            batch_fee_input_provider,
             sync_interval: config.sync_interval(),
             sync_batch_size: config.sync_batch_size,
         }
@@ -78,14 +77,17 @@ impl<G: BatchFeeModelInputProvider> MempoolFetcher<G> {
             let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
             let mempool_info = self.mempool.get_mempool_info();
 
+            let latest_miniblock = BlockArgs::pending(&mut storage).await;
+
             let protocol_version = storage
-                .protocol_versions_dal()
-                .base_system_contracts_by_timestamp(seconds_since_epoch())
+                .blocks_dal()
+                .get_miniblock_protocol_version_id(latest_miniblock.resolved_block_number())
                 .await
-                .1;
+                .unwrap()
+                .unwrap_or_else(ProtocolVersionId::latest);
 
             let l2_tx_filter = l2_tx_filter(
-                self.batch_fee_info_provider.as_ref(),
+                self.batch_fee_input_provider.as_ref(),
                 protocol_version.into(),
             );
 

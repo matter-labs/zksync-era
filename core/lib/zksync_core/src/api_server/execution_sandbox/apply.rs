@@ -38,7 +38,10 @@ use super::{
 #[allow(clippy::too_many_arguments)]
 pub(super) fn apply_vm_in_sandbox<T>(
     vm_permit: VmPermit,
-    mut shared_args: TxSharedArgs,
+    shared_args: TxSharedArgs,
+    // If `true`, then the batch's L1/pubdata gas price will be adjusted so that the transaction's gas per pubdata limit is <=
+    // to the one in the block. This is often helpful in case we want the transaction validation to work regardless of the
+    // current L1 prices for gas or pubdata.
     adjust_pubdata_price: bool,
     execution_args: &TxExecutionArgs,
     connection_pool: &ConnectionPool,
@@ -175,22 +178,24 @@ pub(super) fn apply_vm_in_sandbox<T>(
         tracing::debug!("Prepared the storage view (took {storage_view_setup_time:?})",);
     }
 
-    if adjust_pubdata_price {
-        adjust_pubdata_price_for_tx(
-            &mut shared_args.batch_fee_model_input,
-            tx.gas_per_pubdata_byte_limit(),
-            protocol_version.into(),
-        );
-    }
-
     let TxSharedArgs {
         operator_account,
-        batch_fee_model_input: fee_model_params,
+        fee_input,
         base_system_contracts,
         validation_computational_gas_limit,
         chain_id,
         ..
     } = shared_args;
+
+    let fee_input = if adjust_pubdata_price {
+        adjust_pubdata_price_for_tx(
+            fee_input,
+            tx.gas_per_pubdata_byte_limit(),
+            protocol_version.into(),
+        )
+    } else {
+        fee_input
+    };
 
     let system_env = SystemEnv {
         zk_porter_available: ZKPORTER_IS_AVAILABLE,
@@ -207,7 +212,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
         previous_batch_hash: None,
         number: vm_l1_batch_number,
         timestamp: l1_batch_timestamp,
-        fee_input: fee_model_params,
+        fee_input,
         fee_account: *operator_account.address(),
         enforced_base_fee: execution_args.enforced_base_fee,
         first_l2_block: next_l2_block_info,

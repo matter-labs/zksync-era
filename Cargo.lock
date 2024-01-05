@@ -8652,7 +8652,6 @@ dependencies = [
  "zksync_test_account",
  "zksync_types",
  "zksync_utils",
- "zksync_verification_key_generator_and_server",
  "zksync_web3_decl",
 ]
 
@@ -8720,11 +8719,10 @@ dependencies = [
 name = "zksync_eth_client"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "async-trait",
- "hex",
  "jsonrpc-core",
  "serde",
+ "static_assertions",
  "thiserror",
  "tokio",
  "tracing",
@@ -9068,25 +9066,6 @@ dependencies = [
  "vlog",
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zksync_basic_types",
-]
-
-[[package]]
-name = "zksync_verification_key_generator_and_server"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bincode",
- "circuit_testing",
- "ff_ce",
- "hex",
- "itertools",
- "once_cell",
- "serde_json",
- "structopt",
- "tracing",
- "vlog",
- "zksync_prover_utils",
- "zksync_types",
 ]
 
 [[package]]

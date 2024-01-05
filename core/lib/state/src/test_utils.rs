@@ -74,13 +74,7 @@ pub(crate) async fn create_miniblock(
         l1_tx_count: 0,
         l2_tx_count: 0,
         base_fee_per_gas: 0,
-        batch_fee_input: zksync_types::fee_model::BatchFeeInput::PubdataIndependent(
-            PubdataIndependentBatchFeeModelInput {
-                l1_gas_price: 0,
-                fair_pubdata_price: 0,
-                fair_l2_gas_price: 0,
-            },
-        ),
+        batch_fee_input: Default::default(),
         base_system_contracts_hashes: Default::default(),
         protocol_version: Some(Default::default()),
         virtual_blocks: 0,

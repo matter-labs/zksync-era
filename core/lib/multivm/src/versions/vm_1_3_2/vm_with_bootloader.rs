@@ -17,7 +17,8 @@ use zksync_system_constants::USED_PRE_1_4_1_BOOTLOADER_MEMORY_WORDS;
 use zksync_types::{
     fee_model::L1PeggedBatchFeeModelInput, l1::is_l1_tx_type,
     zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address, Transaction, BOOTLOADER_ADDRESS,
-    L1_GAS_PER_PUBDATA_BYTE, MAX_GAS_PER_PUBDATA_BYTE_PRE_1_4_1, MAX_NEW_FACTORY_DEPS, U256,
+    L1_GAS_PER_PUBDATA_BYTE, MAX_GAS_PER_PUBDATA_BYTE_PRE_1_4_1 as MAX_GAS_PER_PUBDATA_BYTE,
+    MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::{
     address_to_u256,
@@ -26,15 +27,18 @@ use zksync_utils::{
     misc::ceil_div,
 };
 
-use crate::vm_1_3_2::{
-    bootloader_state::BootloaderState,
-    history_recorder::HistoryMode,
-    transaction_data::TransactionData,
-    utils::{
-        code_page_candidate_from_base, heap_page_from_base, BLOCK_GAS_LIMIT, INITIAL_BASE_PAGE,
+use crate::{
+    vm_1_3_2::{
+        bootloader_state::BootloaderState,
+        history_recorder::HistoryMode,
+        transaction_data::TransactionData,
+        utils::{
+            code_page_candidate_from_base, heap_page_from_base, BLOCK_GAS_LIMIT, INITIAL_BASE_PAGE,
+        },
+        vm_instance::ZkSyncVmState,
+        OracleTools, VmInstance,
     },
-    vm_instance::ZkSyncVmState,
-    OracleTools, VmInstance,
+    vm_latest::L1BatchEnv,
 };
 
 // TODO (SMA-1703): move these to config and make them programmatically generatable.
@@ -91,22 +95,33 @@ pub fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
 pub(crate) fn derive_base_fee_and_gas_per_pubdata(
     fee_input: L1PeggedBatchFeeModelInput,
 ) -> (u64, u64) {
-    let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(fee_input.l1_gas_price);
+    let L1PeggedBatchFeeModelInput {
+        l1_gas_price,
+        fair_l2_gas_price,
+    } = fee_input;
+
+    let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
 
     // The baseFee is set in such a way that it is always possible for a transaction to
     // publish enough public data while compensating us for it.
     let base_fee = std::cmp::max(
-        fee_input.fair_l2_gas_price,
-        ceil_div(
-            eth_price_per_pubdata_byte,
-            MAX_GAS_PER_PUBDATA_BYTE_PRE_1_4_1,
-        ),
+        fair_l2_gas_price,
+        ceil_div(eth_price_per_pubdata_byte, MAX_GAS_PER_PUBDATA_BYTE),
     );
 
     (
         base_fee,
         base_fee_to_gas_per_pubdata(fee_input.l1_gas_price, base_fee),
     )
+}
+
+pub(crate) fn get_batch_base_fee(l1_batch_env: &L1BatchEnv) -> u64 {
+    if let Some(base_fee) = l1_batch_env.enforced_base_fee {
+        return base_fee;
+    }
+    let (base_fee, _) =
+        derive_base_fee_and_gas_per_pubdata(l1_batch_env.fee_input.into_l1_pegged());
+    base_fee
 }
 
 impl From<BlockContext> for DerivedBlockContext {
@@ -122,7 +137,7 @@ impl From<BlockContext> for DerivedBlockContext {
 }
 
 // The maximal number of transactions in a single batch
-pub const MAX_TXS_IN_BLOCK: usize = 1024;
+pub(crate) const MAX_TXS_IN_BLOCK: usize = 1024;
 
 // The first 32 slots are reserved for debugging purposes
 pub const DEBUG_SLOTS_OFFSET: usize = 8;

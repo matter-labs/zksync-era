@@ -116,6 +116,9 @@ pub(crate) async fn execute_tx_eth_call(
 pub(crate) async fn execute_tx_in_sandbox(
     vm_permit: VmPermit,
     shared_args: TxSharedArgs,
+    // If `true`, then the batch's L1/pubdata gas price will be adjusted so that the transaction's gas per pubdata limit is <=
+    // to the one in the block. This is often helpful in case we want the transaction validation to work regardless of the
+    // current L1 prices for gas or pubdata.
     adjust_pubdata_price: bool,
     execution_args: TxExecutionArgs,
     connection_pool: ConnectionPool,
