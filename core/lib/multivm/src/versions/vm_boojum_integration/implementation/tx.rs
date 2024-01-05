@@ -3,7 +3,7 @@ use zksync_state::WriteStorage;
 use zksync_types::{l1::is_l1_tx_type, Transaction};
 
 use crate::{
-    vm_latest::{
+    vm_boojum_integration::{
         constants::BOOTLOADER_HEAP_PAGE,
         implementation::bytecode::{bytecode_to_factory_dep, compress_bytecodes},
         types::internals::TransactionData,

@@ -2,7 +2,7 @@ use zksync_types::U256;
 
 use crate::{
     interface::{ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{
+    vm_boojum_integration::{
         constants::BOOTLOADER_HEAP_PAGE,
         tests::{
             tester::VmTesterBuilder,

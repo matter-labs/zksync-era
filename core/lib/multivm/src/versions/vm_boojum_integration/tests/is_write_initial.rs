@@ -3,7 +3,7 @@ use zksync_types::get_nonce_key;
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{
+    vm_boojum_integration::{
         tests::{
             tester::{Account, TxType, VmTesterBuilder},
             utils::read_test_contract,

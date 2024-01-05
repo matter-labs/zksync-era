@@ -19,7 +19,7 @@ use crate::{
         types::{NewTrustedValidationItems, ValidationTracerMode},
         ValidationRoundResult, ValidationTracer,
     },
-    vm_latest::{
+    vm_boojum_integration::{
         tracers::utils::{
             computational_gas_price, get_calldata_page_via_abi, print_debug_if_needed, VmHook,
         },
@@ -29,11 +29,11 @@ use crate::{
 };
 
 impl<H: HistoryMode> ValidationTracer<H> {
-    fn check_user_restrictions_vm_latest<S: WriteStorage>(
+    fn check_user_restrictions_vm_boojum_integration<S: WriteStorage>(
         &mut self,
         state: VmLocalStateData<'_>,
         data: BeforeExecutionData,
-        memory: &SimpleMemory<H::VmLatest>,
+        memory: &SimpleMemory<H::VmBoojumIntegration>,
         storage: StoragePtr<S>,
     ) -> ValidationRoundResult {
         if self.computational_gas_used > self.computational_gas_limit {
@@ -127,14 +127,14 @@ impl<H: HistoryMode> ValidationTracer<H> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H::VmLatest>>
+impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H::VmBoojumIntegration>>
     for ValidationTracer<H>
 {
     fn before_execution(
         &mut self,
         state: VmLocalStateData<'_>,
         data: BeforeExecutionData,
-        memory: &SimpleMemory<H::VmLatest>,
+        memory: &SimpleMemory<H::VmBoojumIntegration>,
         storage: StoragePtr<S>,
     ) {
         // For now, we support only validations for users.
@@ -144,7 +144,7 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H::VmLatest>>
                 .saturating_add(computational_gas_price(state, &data));
 
             let validation_round_result =
-                self.check_user_restrictions_vm_latest(state, data, memory, storage);
+                self.check_user_restrictions_vm_boojum_integration(state, data, memory, storage);
             self.process_validation_round_result(validation_round_result);
         }
 
@@ -182,10 +182,10 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H::VmLatest>>
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H::VmLatest> for ValidationTracer<H> {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H::VmBoojumIntegration> for ValidationTracer<H> {
     fn finish_cycle(
         &mut self,
-        _state: &mut ZkSyncVmState<S, H::VmLatest>,
+        _state: &mut ZkSyncVmState<S, H::VmBoojumIntegration>,
         _bootloader_state: &mut BootloaderState,
     ) -> TracerExecutionStatus {
         if self.should_stop_execution {

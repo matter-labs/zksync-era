@@ -1,4 +1,4 @@
-use std::convert::TryInto;
+use std::{convert::TryInto, sync::Arc};
 
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
@@ -42,9 +42,9 @@ pub struct MulticallData {
 /// Such as CommitBlocks, PublishProofBlocksOnchain and ExecuteBlock
 /// These eth_txs will be used as a queue for generating signed txs and send them later
 #[derive(Debug)]
-pub struct EthTxAggregator<E> {
+pub struct EthTxAggregator {
     aggregator: Aggregator,
-    eth_client: E,
+    eth_client: Arc<dyn BoundEthInterface>,
     config: SenderConfig,
     timelock_contract_address: Address,
     l1_multicall3_address: Address,
@@ -53,11 +53,11 @@ pub struct EthTxAggregator<E> {
     base_nonce: u64,
 }
 
-impl<E: BoundEthInterface> EthTxAggregator<E> {
+impl EthTxAggregator {
     pub fn new(
         config: SenderConfig,
         aggregator: Aggregator,
-        eth_client: E,
+        eth_client: Arc<dyn BoundEthInterface>,
         timelock_contract_address: Address,
         l1_multicall3_address: Address,
         main_zksync_contract_address: Address,

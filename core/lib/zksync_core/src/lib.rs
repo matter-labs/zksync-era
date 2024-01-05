@@ -19,7 +19,7 @@ use zksync_config::{
             StateKeeperConfig,
         },
         contracts::ProverAtGenesis,
-        database::MerkleTreeMode,
+        database::{MerkleTreeConfig, MerkleTreeMode},
     },
     ApiConfig, ContractsConfig, DBConfig, ETHSenderConfig, PostgresConfig,
 };
@@ -65,9 +65,7 @@ use crate::{
         waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
     },
     l1_gas_price::{GasAdjusterSingleton, L1GasPriceProvider},
-    metadata_calculator::{
-        MetadataCalculator, MetadataCalculatorConfig, MetadataCalculatorModeConfig,
-    },
+    metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     metrics::{InitStage, APP_METRICS},
     state_keeper::{
         create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer, SequencerSealer,
@@ -521,7 +519,7 @@ pub async fn initialize_components(
             start_eth_watch(
                 eth_watch_config,
                 eth_watch_pool,
-                query_client.clone(),
+                Box::new(query_client.clone()),
                 main_zksync_contract_address,
                 governance,
                 stop_receiver.clone(),
@@ -555,7 +553,7 @@ pub async fn initialize_components(
                 eth_sender.sender.clone(),
                 store_factory.create_store().await,
             ),
-            eth_client,
+            Arc::new(eth_client),
             contracts_config.validator_timelock_addr,
             contracts_config.l1_multicall3_addr,
             main_zksync_contract_address,
@@ -588,7 +586,7 @@ pub async fn initialize_components(
                 .get_or_init()
                 .await
                 .context("gas_adjuster.get_or_init()")?,
-            eth_client,
+            Arc::new(eth_client),
         );
         task_futures.extend([tokio::spawn(
             eth_tx_manager_actor.run(eth_manager_pool, stop_receiver.clone()),
@@ -768,21 +766,19 @@ async fn add_trees_to_task_futures(
         .contains(&Component::TreeApi)
         .then_some(&api_config);
 
-    let mode = match db_config.merkle_tree.mode {
-        MerkleTreeMode::Lightweight => MetadataCalculatorModeConfig::Lightweight,
-        MerkleTreeMode::Full => MetadataCalculatorModeConfig::Full {
-            object_store: Some(store_factory.create_store().await),
-        },
+    let object_store = match db_config.merkle_tree.mode {
+        MerkleTreeMode::Lightweight => None,
+        MerkleTreeMode::Full => Some(store_factory.create_store().await),
     };
 
     run_tree(
         task_futures,
         healthchecks,
         &postgres_config,
-        &db_config,
+        &db_config.merkle_tree,
         api_config,
         &operation_config,
-        mode,
+        object_store,
         stop_receiver,
     )
     .await
@@ -794,23 +790,22 @@ async fn run_tree(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     healthchecks: &mut Vec<Box<dyn CheckHealth>>,
     postgres_config: &PostgresConfig,
-    db_config: &DBConfig,
+    merkle_tree_config: &MerkleTreeConfig,
     api_config: Option<&MerkleTreeApiConfig>,
     operation_manager: &OperationsManagerConfig,
-    mode: MetadataCalculatorModeConfig,
+    object_store: Option<Box<dyn ObjectStore>>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let started_at = Instant::now();
-    let mode_str = if matches!(mode, MetadataCalculatorModeConfig::Full { .. }) {
+    let mode_str = if matches!(merkle_tree_config.mode, MerkleTreeMode::Full) {
         "full"
     } else {
         "lightweight"
     };
     tracing::info!("Initializing Merkle tree in {mode_str} mode");
 
-    let config =
-        MetadataCalculatorConfig::for_main_node(&db_config.merkle_tree, operation_manager, mode);
-    let metadata_calculator = MetadataCalculator::new(config).await;
+    let config = MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_manager);
+    let metadata_calculator = MetadataCalculator::new(config, object_store).await;
     if let Some(api_config) = api_config {
         let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
         let tree_reader = metadata_calculator.tree_reader();

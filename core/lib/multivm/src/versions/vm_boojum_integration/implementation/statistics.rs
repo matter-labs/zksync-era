@@ -4,7 +4,7 @@ use zksync_types::U256;
 
 use crate::{
     interface::{VmExecutionStatistics, VmMemoryMetrics},
-    vm_latest::{tracers::DefaultExecutionTracer, vm::Vm},
+    vm_boojum_integration::{tracers::DefaultExecutionTracer, vm::Vm},
     HistoryMode,
 };
 
