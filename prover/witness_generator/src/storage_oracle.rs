@@ -1,3 +1,4 @@
+use multivm::vm_latest::old_vm::utils::storage_key_of_log;
 use zksync_types::{
     zkevm_test_harness::zk_evm::abstractions::{RefundType, RefundedAmounts, Storage},
     LogQuery, Timestamp,
@@ -24,7 +25,9 @@ impl<T: Storage> Storage for StorageOracle<T> {
         _monotonic_cycle_counter: u32,
         _partial_query: &LogQuery,
     ) -> RefundType {
+        let storage_key = storage_key_of_log(partial_query);
         let pubdata_bytes = self.storage_refunds.next().expect("Missing refund");
+        tracing::debug!(?pubdata_bytes, ?storage_key, "refund for write");
         RefundType::RepeatedWrite(RefundedAmounts {
             pubdata_bytes,
             ergs: 0,
