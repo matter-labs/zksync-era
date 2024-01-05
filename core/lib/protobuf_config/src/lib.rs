@@ -9,6 +9,7 @@ mod api;
 mod chain;
 mod contract_verifier;
 mod contracts;
+mod database;
 
 pub mod proto;
 mod repr;
