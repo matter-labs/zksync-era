@@ -130,8 +130,9 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
                 .expect("Bytecode must be known at this point")
                 .len();
 
-            // Each cycle of `CodeDecommitter` processes 64 bytes.
-            let decommitter_cycles_used = bytecode_len / 4;
+            // Each cycle of `CodeDecommitter` processes 2 words.
+            // If the number of words in bytecode is odd, then number of cycles must be rounded up.
+            let decommitter_cycles_used = (bytecode_len + 1) / 2;
             self.estimated_circuits_used +=
                 (decommitter_cycles_used as f32) * CODE_DECOMMITTER_CYCLE_FRACTION;
         }
