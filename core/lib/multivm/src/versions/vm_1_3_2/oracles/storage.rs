@@ -167,7 +167,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
     ) -> &[Box<StorageLogQuery>] {
         let logs = self.frames_stack.forward().current_frame();
 
-        // Select all of the last elements where l.log_query.timestamp >= from_timestamp.
+        // Select all of the last elements where `l.log_query.timestamp >= from_timestamp`.
         // Note, that using binary search here is dangerous, because the logs are not sorted by timestamp.
         logs.rsplit(|l| l.log_query.timestamp < from_timestamp)
             .next()
@@ -208,13 +208,14 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
-    // Perform a storage read/write access by taking an partially filled query
+    // Perform a storage read / write access by taking an partially filled query
     // and returning filled query and cold/warm marker for pricing purposes
     fn execute_partial_query(
         &mut self,
         _monotonic_cycle_counter: u32,
         query: LogQuery,
     ) -> LogQuery {
+        // ```
         // tracing::trace!(
         //     "execute partial query cyc {:?} addr {:?} key {:?}, rw {:?}, wr {:?}, tx {:?}",
         //     _monotonic_cycle_counter,
@@ -224,6 +225,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         //     query.written_value,
         //     query.tx_number_in_block
         // );
+        // ```
         assert!(!query.rollback);
         if query.rw_flag {
             // The number of bytes that have been compensated by the user to perform this write
@@ -303,7 +305,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
                 );
 
                 // Additional validation that the current value was correct
-                // Unwrap is safe because the return value from write_inner is the previous value in this leaf.
+                // Unwrap is safe because the return value from `write_inner` is the previous value in this leaf.
                 // It is impossible to set leaf value to `None`
                 assert_eq!(current_value, written_value);
             }
@@ -317,8 +319,8 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
 
 /// Returns the number of bytes needed to publish a slot.
 // Since we need to publish the state diffs onchain, for each of the updated storage slot
-// we basically need to publish the following pair: (<storage_key, new_value>).
-// While new_value is always 32 bytes long, for key we use the following optimization:
+// we basically need to publish the following pair: `(<storage_key, new_value>)`.
+// While `new_value` is always 32 bytes long, for key we use the following optimization:
 //   - The first time we publish it, we use 32 bytes.
 //         Then, we remember a 8-byte id for this slot and assign it to it. We call this initial write.
 //   - The second time we publish it, we will use this 8-byte instead of the 32 bytes of the entire key.
