@@ -279,7 +279,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
           ci_run zk init
-          ci_run zk echo "\nAPI_WEB3_JSON_RPC_API_MODE=eth_transfer_included" >> $ZKSYNC_HOME/etc/env/.init.env
+          ci_run zk env api-mode eth_transfer_included
 
       # `sleep 5` because we need to wait until server started properly
       - name: Run server
@@ -507,8 +507,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
           ci_run zk init
-          ci_run zk echo "\nAPI_WEB3_JSON_RPC_API_MODE=eth_transfer_included" >> $ZKSYNC_HOME/etc/env/.init.env
-          ci_run zk echo "\nEN_API_MODE=eth_transfer_included" >> $ZKSYNC_HOME/etc/env/.init.env
+          ci_run zk env api-mode eth_transfer_included
 
       # `sleep 30` because we need to wait until server started properly
       - name: Run server

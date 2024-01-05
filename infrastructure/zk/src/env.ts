@@ -14,6 +14,7 @@ export const getAvailableEnvsFromFiles = () => {
     });
     return envs;
 };
+
 export function get(print: boolean = false) {
     const current = `etc/env/.current`;
     const inCurrent = fs.existsSync(current) && fs.readFileSync(current).toString().trim();
@@ -143,9 +144,74 @@ export function mergeInitToEnv() {
     fs.writeFileSync(process.env.ENV_FILE!, output);
 }
 
+export function getAvailableApiModes() {
+    return ['modern', 'eth_transfer_included'];
+}
+
+export function checkApiMode(){
+    const apiModeEn = process.env.EN_API_MODE;
+    const apiModeServer = process.env.API_WEB3_JSON_RPC_API_MODE;
+
+    if(apiModeEn && apiModeServer && apiModeEn !== apiModeServer){
+        console.error(
+            `Api mode mismatch: ${apiModeEn} != ${apiModeServer}.\nPlease, check your .env files.`
+        );
+        process.exit(1);
+    }
+}
+
+export function getApiMode(print: boolean) {
+    checkApiMode();
+
+    const apiMode = process.env.EN_API_MODE ?? process.env.API_WEB3_JSON_RPC_API_MODE;
+
+    if(print){
+        const modes = getAvailableApiModes();
+
+        if(!apiMode || !modes.includes(apiMode)) {
+            console.error(
+                'Unknown api mode or api mode is not set.\nPlease, check your .env files.'
+            );
+            process.exit(1);
+        }
+
+        for(const mode of modes){
+            if(mode === apiMode){
+                console.log(`* ${mode}`);
+            }
+            else{
+                console.log(`  ${mode}`);
+            }
+        }
+    }
+
+    return apiMode;
+}
+
+export function setApiMode(mode: string, print: boolean) {
+    checkApiMode();
+
+    const modes = getAvailableApiModes();
+    if(!modes.includes(mode)){
+        console.error(
+            `Unknown api mode: ${mode}.\nPlease, check your .env files.`
+        );
+        process.exit(1);
+    }
+
+    modify('EN_API_MODE', `EN_API_MODE=${mode}`);
+    modify('API_WEB3_JSON_RPC_API_MODE', `API_WEB3_JSON_RPC_API_MODE=${mode}`);
+
+    getApiMode(print);
+}
+
 export const command = new Command('env')
     .arguments('[env_name]')
     .description('get or set zksync environment')
     .action((envName?: string) => {
         envName ? set(envName, true) : get(true);
     });
+
+command.command('api-mode').arguments('[mode]').description('get or set api mode').action((mode?: string) => {
+   mode? setApiMode(mode, true) : getApiMode(true);
+});
