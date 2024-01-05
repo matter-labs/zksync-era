@@ -12,7 +12,7 @@ use zksync_types::{
 use zksync_web3_decl::error::Web3Error;
 
 use crate::api_server::{
-    execution_sandbox::{execute_tx_eth_call, ApiTracer, BlockArgs, TxSharedArgs},
+    execution_sandbox::{execute_tx_eth_call, ApiTracer, TxSharedArgs},
     tx_sender::{ApiContracts, TxSenderConfig},
     web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, state::RpcState},
 };
@@ -127,10 +127,10 @@ impl DebugNamespace {
             .access_storage_tagged("api")
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
-        let block_args = BlockArgs::new(&mut connection, block_id)
-            .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?
-            .ok_or(Web3Error::NoBlock)?;
+        let block_args = self
+            .state
+            .resolve_block_args(&mut connection, block_id, METHOD_NAME)
+            .await?;
         drop(connection);
 
         let tx = L2Tx::from_request(request.into(), USED_BOOTLOADER_MEMORY_BYTES)?;

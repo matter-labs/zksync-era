@@ -7,7 +7,7 @@ use crate::api_server::web3::{backend_jsonrpsee::internal_error, state::RpcState
 /// Main use case for it is the EN synchronization.
 #[derive(Debug)]
 pub struct EnNamespace {
-    pub state: RpcState,
+    state: RpcState,
 }
 
 impl EnNamespace {

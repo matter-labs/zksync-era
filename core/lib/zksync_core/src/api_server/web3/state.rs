@@ -183,7 +183,7 @@ impl RpcState {
         }
     }
 
-    pub async fn resolve_block(
+    pub(crate) async fn resolve_block(
         &self,
         connection: &mut StorageProcessor<'_>,
         block: api::BlockId,
@@ -191,13 +191,30 @@ impl RpcState {
     ) -> Result<MiniblockNumber, Web3Error> {
         if let api::BlockId::Number(api::BlockNumber::Number(number)) = block {
             if number < self.first_local_miniblock.0.into() {
-                // TODO: metrics for pruned blocks?
                 return Err(Web3Error::PrunedBlock(self.first_local_miniblock));
             }
         }
 
         let result = connection.blocks_web3_dal().resolve_block_id(block).await;
         result
+            .map_err(|err| internal_error(method_name, err))?
+            .ok_or(Web3Error::NoBlock)
+    }
+
+    pub(crate) async fn resolve_block_args(
+        &self,
+        connection: &mut StorageProcessor<'_>,
+        block: api::BlockId,
+        method_name: &'static str,
+    ) -> Result<BlockArgs, Web3Error> {
+        if let api::BlockId::Number(api::BlockNumber::Number(number)) = block {
+            if number < self.first_local_miniblock.0.into() {
+                return Err(Web3Error::PrunedBlock(self.first_local_miniblock));
+            }
+        }
+
+        BlockArgs::new(connection, block)
+            .await
             .map_err(|err| internal_error(method_name, err))?
             .ok_or(Web3Error::NoBlock)
     }

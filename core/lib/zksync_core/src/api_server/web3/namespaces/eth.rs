@@ -18,14 +18,11 @@ use zksync_web3_decl::{
 };
 
 use crate::{
-    api_server::{
-        execution_sandbox::BlockArgs,
-        web3::{
-            backend_jsonrpsee::internal_error,
-            metrics::{BlockCallObserver, API_METRICS},
-            state::RpcState,
-            TypedFilter,
-        },
+    api_server::web3::{
+        backend_jsonrpsee::internal_error,
+        metrics::{BlockCallObserver, API_METRICS},
+        state::RpcState,
+        TypedFilter,
     },
     utils::projected_first_miniblock,
 };
@@ -81,10 +78,10 @@ impl EthNamespace {
             .access_storage_tagged("api")
             .await
             .unwrap();
-        let block_args = BlockArgs::new(&mut connection, block_id)
-            .await
-            .map_err(|err| internal_error("eth_call", err))?
-            .ok_or(Web3Error::NoBlock)?;
+        let block_args = self
+            .state
+            .resolve_block_args(&mut connection, block_id, METHOD_NAME)
+            .await?;
         drop(connection);
 
         let tx = L2Tx::from_request(request.into(), self.state.api_config.max_tx_size)?;
