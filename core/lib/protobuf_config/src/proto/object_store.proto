@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package zksync.config;
+
+enum ObjectStoreMode {
+  OBJECT_STORE_MODE_UNKNOWN = 0;
+  GCS = 1;
+  GCS_WITH_CREDENTIAL_FILE = 2;
+  FILE_BACKED = 3;
+}
+
+message ObjectStore {
+  optional string bucket_base_url = 1; // required; url
+  optional ObjectStoreMode mode = 2; // required
+  optional string file_backed_base_path = 3; // required; fs path
+  optional string gcs_credential_file_path = 4; // required; fs path
+  optional uint32 bmax_retries = 5; // required
+}
