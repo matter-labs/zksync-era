@@ -26,7 +26,7 @@ fn start_server(api: RestApi, bind_to: SocketAddr, threads: usize) -> Server {
                     .allow_any_method(),
             )
             .service(api.into_scope())
-            // Endpoint needed for js isReachable
+            // Endpoint needed for js `isReachable`
             .route(
                 "/favicon.ico",
                 web::get().to(|| async { HttpResponse::Ok().finish() }),

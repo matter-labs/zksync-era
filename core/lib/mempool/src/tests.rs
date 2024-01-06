@@ -45,7 +45,7 @@ fn basic_flow() {
         (account0, 3)
     );
     assert_eq!(mempool.next_transaction(&L2TxFilter::default()), None);
-    // unclog second account and insert more txns
+    // unclog second account and insert more transactions
     mempool.insert(
         vec![gen_l2_tx(account1, Nonce(0)), gen_l2_tx(account0, Nonce(3))],
         HashMap::new(),

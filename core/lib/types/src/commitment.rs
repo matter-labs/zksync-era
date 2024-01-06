@@ -255,7 +255,7 @@ impl L1BatchWithMetadata {
             res.extend(l2_to_l1_log.0.to_bytes());
         }
 
-        // Process and Pack Msgs
+        // Process and Pack Messages
         res.extend((self.header.l2_to_l1_messages.len() as u32).to_be_bytes());
         for msg in &self.header.l2_to_l1_messages {
             res.extend((msg.len() as u32).to_be_bytes());
@@ -347,7 +347,7 @@ struct L1BatchAuxiliaryOutput {
     l2_l1_logs_merkle_root: H256,
 
     // Once cut over to boojum, these fields are no longer required as their values
-    // are covered by state_diffs_compressed and its hash.
+    // are covered by `state_diffs_compressed` and its hash.
     // Task to remove: PLA-640
     initial_writes_compressed: Vec<u8>,
     initial_writes_hash: H256,
@@ -601,7 +601,7 @@ impl L1BatchCommitment {
                         last_leaf_index: rollup_last_leaf_index,
                         root_hash: rollup_root_hash,
                     },
-                    // Despite the fact that zk_porter is not available we have to add params about it.
+                    // Despite the fact that `zk_porter` is not available we have to add params about it.
                     RootState {
                         last_leaf_index: 0,
                         root_hash: H256::zero(),

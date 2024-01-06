@@ -226,7 +226,7 @@ impl StateKeeperHandle {
     pub async fn push_random_blocks(&mut self, rng: &mut impl Rng, count: usize) {
         for _ in 0..count {
             // 20% chance to seal an L1 batch.
-            // seal_batch() also produces a (fictive) block.
+            // `seal_batch()` also produces a (fictive) block.
             if rng.gen_range(0..100) < 20 {
                 self.seal_batch().await;
             } else {
