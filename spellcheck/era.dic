@@ -853,6 +853,10 @@ matchers
 lifecycle
 dedup
 deduped
+crаsh
+protobuf
+L1Tx
+EIP
 DecommittmentProcessor
 decommitment
 tokenized
