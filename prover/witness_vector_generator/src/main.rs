@@ -11,8 +11,7 @@ use zksync_config::configs::{
 use zksync_dal::ConnectionPool;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prover_fri_utils::get_all_circuit_id_round_tuples_for;
-use zksync_prover_utils::region_fetcher::get_zone;
+use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;

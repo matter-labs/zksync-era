@@ -3,11 +3,14 @@ pub use zk_evm_1_3_3::zkevm_opcode_defs::system_params::{
     ERGS_PER_CIRCUIT, INITIAL_STORAGE_WRITE_PUBDATA_BYTES, MAX_PUBDATA_PER_BLOCK,
 };
 use zksync_system_constants::{
-    L1_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS, MAX_TXS_IN_BLOCK,
+    L1_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS,
     USED_BOOTLOADER_MEMORY_WORDS,
 };
 
 use crate::vm_virtual_blocks::old_vm::utils::heap_page_from_base;
+
+// The maximal number of transactions in a single batch
+pub(crate) const MAX_TXS_IN_BLOCK: usize = 1024;
 
 /// Max cycles for a single transaction.
 pub const MAX_CYCLES_FOR_TX: u32 = u32::MAX;
@@ -52,7 +55,7 @@ pub(crate) const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
     COMPRESSED_BYTECODES_OFFSET + COMPRESSED_BYTECODES_SLOTS;
 
 /// The size of the bootloader memory dedicated to the encodings of transactions
-pub const BOOTLOADER_TX_ENCODING_SPACE: u32 =
+pub(crate) const BOOTLOADER_TX_ENCODING_SPACE: u32 =
     (USED_BOOTLOADER_MEMORY_WORDS - TX_DESCRIPTION_OFFSET - MAX_TXS_IN_BLOCK) as u32;
 
 // Size of the bootloader tx description in words

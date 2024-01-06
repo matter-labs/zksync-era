@@ -62,7 +62,7 @@ impl EthereumSigner for PrivateKeySigner {
         let key = SecretKey::from_slice(self.private_key.as_bytes()).unwrap();
 
         // According to the code in web3 <https://docs.rs/web3/latest/src/web3/api/accounts.rs.html#86>
-        // We should use max_fee_per_gas as gas_price if we use EIP1559
+        // We should use `max_fee_per_gas` as `gas_price` if we use EIP1559
         let gas_price = raw_tx.max_fee_per_gas;
 
         let max_priority_fee_per_gas = raw_tx.max_priority_fee_per_gas;
@@ -113,7 +113,7 @@ mod test {
             .await
             .unwrap();
         assert_ne!(raw_tx.len(), 1);
-        // precalculated signature with right algorithm implementation
+        // pre-calculated signature with right algorithm implementation
         let precalculated_raw_tx: Vec<u8> = vec![
             1, 248, 100, 130, 1, 14, 1, 2, 128, 148, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 128, 131, 1, 2, 3, 192, 1, 160, 98, 201, 238, 158, 215, 98, 23, 231,

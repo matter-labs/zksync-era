@@ -9,7 +9,6 @@ use zk_evm_1_3_1::{
         definitions::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
     },
 };
-use zksync_system_constants::MAX_TXS_IN_BLOCK;
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     tx::tx_execution_info::TxExecutionStatus,
@@ -180,6 +179,7 @@ pub enum VmExecutionStopReason {
     TracerRequestedStop,
 }
 
+use super::vm_with_bootloader::MAX_TXS_IN_BLOCK;
 use crate::vm_m6::utils::VmExecutionResult as NewVmExecutionResult;
 
 fn vm_may_have_ended_inner<H: HistoryMode, S: Storage>(
@@ -202,7 +202,7 @@ fn vm_may_have_ended_inner<H: HistoryMode, S: Storage>(
         }
         (false, _) => None,
         (true, l) if l == outer_eh_location => {
-            // check r1,r2,r3
+            // check `r1,r2,r3`
             if vm.local_state.flags.overflow_or_less_than_flag {
                 Some(NewVmExecutionResult::Panic)
             } else {
@@ -235,7 +235,7 @@ fn vm_may_have_ended<H: HistoryMode, S: Storage>(
         NewVmExecutionResult::Ok(data) => {
             Some(VmExecutionResult {
                 // The correct `events` value for this field should be set separately
-                // later on based on the information inside the event_sink oracle.
+                // later on based on the information inside the `event_sink` oracle.
                 events: vec![],
                 storage_log_queries: vm.get_final_log_queries(),
                 used_contract_hashes: vm.get_used_contracts(),
@@ -508,8 +508,8 @@ impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
                 );
             }
 
-            // This means that the bootloader has informed the system (usually via VMHooks) - that some gas
-            // should be refunded back (see askOperatorForRefund in bootloader.yul for details).
+            // This means that the bootloader has informed the system (usually via `VMHooks`) - that some gas
+            // should be refunded back (see `askOperatorForRefund` in `bootloader.yul` for details).
             if let Some(bootloader_refund) = tracer.requested_refund() {
                 assert!(
                     operator_refund.is_none(),
@@ -605,8 +605,8 @@ impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
     /// Panics if there are no new transactions in bootloader.
     /// Internally uses the OneTxTracer to stop the VM when the last opcode from the transaction is reached.
     // Err when transaction is rejected.
-    // Ok(status: TxExecutionStatus::Success) when the transaction succeeded
-    // Ok(status: TxExecutionStatus::Failure) when the transaction failed.
+    // `Ok(status: TxExecutionStatus::Success)` when the transaction succeeded
+    // `Ok(status: TxExecutionStatus::Failure)` when the transaction failed.
     // Note that failed transactions are considered properly processed and are included in blocks
     pub fn execute_next_tx(
         &mut self,
@@ -666,7 +666,7 @@ impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
                             revert_reason: None,
                             // getting contracts used during this transaction
                             // at least for now the number returned here is always <= to the number
-                            // of the code hashes actually used by the transaction, since it might've
+                            // of the code hashes actually used by the transaction, since it might have
                             // reused bytecode hashes from some of the previous ones.
                             contracts_used: self
                                 .state
@@ -951,8 +951,8 @@ impl<S: Storage> VmInstance<S, HistoryEnabled> {
     pub fn save_current_vm_as_snapshot(&mut self) {
         self.snapshots.push(VmSnapshot {
             // Vm local state contains O(1) various parameters (registers/etc).
-            // The only "expensive" copying here is copying of the callstack.
-            // It will take O(callstack_depth) to copy it.
+            // The only "expensive" copying here is copying of the call stack.
+            // It will take `O(callstack_depth)` to copy it.
             // So it is generally recommended to get snapshots of the bootloader frame,
             // where the depth is 1.
             local_state: self.state.local_state.clone(),

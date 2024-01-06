@@ -7,7 +7,7 @@ use super::VmRevertReason;
 /// Differentiates VM-specific issues from contract-related errors.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Halt {
-    // Can only be returned in VerifyAndExecute
+    // Can only be returned in `VerifyAndExecute`
     ValidationFailed(VmRevertReason),
     PaymasterValidationFailed(VmRevertReason),
     PrePaymasterPreparationFailed(VmRevertReason),
@@ -16,7 +16,7 @@ pub enum Halt {
     FailedToChargeFee(VmRevertReason),
     // Emitted when trying to call a transaction from an account that has not
     // been deployed as an account (i.e. the `from` is just a contract).
-    // Can only be returned in VerifyAndExecute
+    // Can only be returned in `VerifyAndExecute`
     FromIsNotAnAccount,
     // Currently cannot be returned. Should be removed when refactoring errors.
     InnerTxError,

@@ -3,7 +3,10 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
 };
 
 use rand::{thread_rng, Rng};
@@ -58,7 +61,7 @@ impl HandleEvent for TestEventListener {
 }
 
 impl SnapshotCreator {
-    fn for_tests(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) -> Self {
+    fn for_tests(blob_store: Arc<dyn ObjectStore>, pool: ConnectionPool) -> Self {
         Self {
             blob_store,
             master_pool: pool.clone(),
@@ -170,7 +173,7 @@ async fn create_l1_batch(
     );
     header.is_finished = true;
     conn.blocks_dal()
-        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
+        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
         .await
         .unwrap();
     conn.blocks_dal()

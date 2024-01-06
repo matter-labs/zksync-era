@@ -76,7 +76,7 @@ impl<H: HistoryMode> VmTester<H> {
 
         if !self.custom_contracts.is_empty() {
             println!("Inserting custom contracts is not yet supported")
-            // insert_contracts(&mut self.storage, &self.custom_contracts);
+            // `insert_contracts(&mut self.storage, &self.custom_contracts);`
         }
 
         let mut l1_batch = self.vm.batch_env.clone();
