@@ -214,7 +214,7 @@ async fn confirm_many() -> anyhow::Result<()> {
     Ok(())
 }
 
-// Tests that we resend first unmined transaction every block with an increased gas price.
+// Tests that we resend first un-mined transaction every block with an increased gas price.
 #[tokio::test]
 async fn resend_each_block() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
@@ -378,7 +378,7 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
         )
         .await?;
 
-    // check that transaction is still considered inflight
+    // check that transaction is still considered in-flight
     assert_eq!(
         tester
             .storage()
@@ -449,7 +449,7 @@ async fn three_scenarios() -> anyhow::Result<()> {
         .await?
         .expect("we should be trying to resend the last tx");
 
-    // check that last 2 transactions are still considered inflight
+    // check that last 2 transactions are still considered in-flight
     assert_eq!(
         tester
             .storage()
@@ -887,7 +887,7 @@ async fn insert_l1_batch(tester: &EthSenderTester, number: L1BatchNumber) -> L1B
         .storage()
         .await
         .blocks_dal()
-        .insert_l1_batch(&header, &[], Default::default(), &[], &[])
+        .insert_l1_batch(&header, &[], Default::default(), &[], &[], 0)
         .await
         .unwrap();
     tester

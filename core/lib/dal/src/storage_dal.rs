@@ -25,7 +25,7 @@ impl StorageDal<'_, '_> {
             .map(|dep| (dep.0.as_bytes(), dep.1.as_slice()))
             .unzip();
 
-        // Copy from stdin can't be used here because of 'ON CONFLICT'.
+        // Copy from stdin can't be used here because of `ON CONFLICT`.
         sqlx::query!(
             r#"
             INSERT INTO
@@ -186,7 +186,7 @@ impl StorageDal<'_, '_> {
             Vec<_>,
         ) = query_parts.multiunzip();
 
-        // Copy from stdin can't be used here because of 'ON CONFLICT'.
+        // Copy from stdin can't be used here because of `ON CONFLICT`.
         sqlx::query!(
             r#"
             INSERT INTO
