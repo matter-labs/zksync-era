@@ -78,17 +78,19 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version18 => VmVersion::VmBoojumIntegration,
             ProtocolVersionId::Version19 => VmVersion::VmBoojumIntegration,
-            ProtocolVersionId::Version20 => VmVersion::VmBoojumIntegration,
-            ProtocolVersionId::Version21 => VmVersion::VmBoojumIntegration,
+            ProtocolVersionId::Version20 => VmVersion::Vm1_4_1,
+            ProtocolVersionId::Version21 => VmVersion::Vm1_4_1,
         }
     }
 
-    pub fn last_pre_boojum() -> Self {
-        Self::Version17
+    // It is possible that some ENs do not store protocol versions for versions below 9.
+    // That's why we assume that whenever a protocol version is not present, version 9 is to be used.
+    pub fn last_potentially_undefined() -> Self {
+        Self::Version9
     }
 
     pub fn is_pre_boojum(&self) -> bool {
-        self <= &Self::last_pre_boojum()
+        self <= &Self::Version17
     }
 
     pub fn is_1_4_0(&self) -> bool {

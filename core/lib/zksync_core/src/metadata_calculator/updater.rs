@@ -210,7 +210,7 @@ impl TreeUpdater {
         // TODO(X): ensure that the protocol version is always available.
         let protocol_version = header
             .protocol_version
-            .unwrap_or(ProtocolVersionId::last_pre_boojum());
+            .unwrap_or(ProtocolVersionId::last_potentially_undefined());
         let events_queue_commitment = (!protocol_version.is_pre_boojum()).then(|| {
             let events_queue =
                 events_queue.expect("Events queue is required for post-boojum batch");

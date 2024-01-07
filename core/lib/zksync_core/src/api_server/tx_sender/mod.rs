@@ -630,13 +630,12 @@ impl TxSender {
             .await
             .unwrap();
         let block_args = BlockArgs::pending(&mut connection).await;
-        // If protocol version is not present, we'll use the pre-boojum one
-        let protocol_version = connection
-            .blocks_dal()
-            .get_miniblock_protocol_version_id(block_args.resolved_block_number())
+        let protocol_version = block_args
+            .resolve_block_info(&mut connection)
             .await
             .unwrap()
-            .unwrap_or(ProtocolVersionId::last_pre_boojum());
+            .protocol_version;
+
         drop(connection);
 
         let fee_input = {
@@ -866,13 +865,11 @@ impl TxSender {
             .await
             .unwrap();
         let block_args = BlockArgs::pending(&mut connection).await;
-        // If protocol version is not present, we'll use the pre-boojum one
-        let protocol_version = connection
-            .blocks_dal()
-            .get_miniblock_protocol_version_id(block_args.resolved_block_number())
+        let protocol_version = block_args
+            .resolve_block_info(&mut connection)
             .await
             .unwrap()
-            .unwrap_or(ProtocolVersionId::last_pre_boojum());
+            .protocol_version;
         drop(connection);
 
         let (base_fee, _) = derive_base_fee_and_gas_per_pubdata(

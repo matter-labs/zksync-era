@@ -195,7 +195,7 @@ impl MetadataCalculator {
         // TODO(X): make sure that protocol version is not an Option
         let protocol_version = header
             .protocol_version
-            .unwrap_or(ProtocolVersionId::last_pre_boojum());
+            .unwrap_or(ProtocolVersionId::last_potentially_undefined());
 
         let merkle_root_hash = tree_metadata.root_hash;
 

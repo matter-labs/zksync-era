@@ -533,7 +533,7 @@ async fn generate_witness(
 
     let protocol_version = header
         .protocol_version
-        .unwrap_or(ProtocolVersionId::last_pre_boojum());
+        .unwrap_or(ProtocolVersionId::last_potentially_undefined());
 
     let previous_batch_with_metadata = connection
         .blocks_dal()

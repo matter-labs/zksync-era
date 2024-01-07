@@ -52,12 +52,11 @@ pub(crate) struct RefundsTracer<S> {
     gas_spent_on_bytecodes_and_long_messages: u32,
     l1_batch: L1BatchEnv,
     pubdata_published: u32,
-    execution_mode: VmExecutionMode,
     _phantom: PhantomData<S>,
 }
 
 impl<S> RefundsTracer<S> {
-    pub(crate) fn new(l1_batch: L1BatchEnv, execution_mode: VmExecutionMode) -> Self {
+    pub(crate) fn new(l1_batch: L1BatchEnv) -> Self {
         Self {
             pending_operator_refund: None,
             refund_gas: 0,
@@ -68,7 +67,6 @@ impl<S> RefundsTracer<S> {
             spent_pubdata_counter_before: 0,
             gas_spent_on_bytecodes_and_long_messages: 0,
             l1_batch,
-            execution_mode,
             pubdata_published: 0,
             _phantom: PhantomData,
         }

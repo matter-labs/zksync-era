@@ -42,8 +42,8 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         execution_mode: VmExecutionMode,
         with_refund_tracer: bool,
     ) -> (VmExecutionStopReason, VmExecutionResultAndLogs) {
-        let refund_tracers = with_refund_tracer
-            .then_some(RefundsTracer::new(self.batch_env.clone(), execution_mode));
+        let refund_tracers =
+            with_refund_tracer.then_some(RefundsTracer::new(self.batch_env.clone()));
         let mut tx_tracer: DefaultExecutionTracer<S, H::Vm1_4_1> = DefaultExecutionTracer::new(
             self.system_env.default_validation_computational_gas_limit,
             execution_mode,

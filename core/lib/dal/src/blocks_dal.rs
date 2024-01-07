@@ -596,7 +596,7 @@ impl BlocksDal<'_, '_> {
             .context("base_fee_per_gas should fit in u64")?;
         let gas_per_pubdata_limit = if miniblock_header
             .protocol_version
-            .unwrap_or(ProtocolVersionId::last_pre_boojum())
+            .unwrap_or(ProtocolVersionId::last_potentially_undefined())
             .is_1_4_1()
         {
             MAX_GAS_PER_PUBDATA_BYTE_1_4_1
