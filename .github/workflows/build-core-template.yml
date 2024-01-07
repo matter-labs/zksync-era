@@ -123,9 +123,10 @@ jobs:
       - name: Create Docker manifest
         run: |
           docker_repositories=("matterlabs/${{ matrix.component.name }}" "us-docker.pkg.dev/${{ matrix.component.name }}")
+          platforms=${{ matrix.component.platform }}
           for repo in "${docker_repositories[@]}"; do
             repo_tags=()
-            for platform in ${{ matrix.component.platform }}; do
+            for platform in ${platforms//,/ }; do
               platform=$(echo $platform | tr '/' '-')
               repo_tags+=("--amend ${repo}:${IMAGE_TAG_SUFFIX}-${platform}")
             done
