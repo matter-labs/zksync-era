@@ -38,9 +38,11 @@ pub(crate) fn adjust_l1_gas_price_for_tx(
     fair_l2_gas_price: u64,
     tx_gas_per_pubdata_limit: U256,
 ) -> u64 {
+    //```
     // gasPerPubdata = ceil(17 * l1gasprice / fair_l2_gas_price)
     // gasPerPubdata <= 17 * l1gasprice / fair_l2_gas_price + 1
     // fair_l2_gas_price(gasPerPubdata - 1) / 17 <= l1gasprice
+    //```
     let l1_gas_price = U256::from(fair_l2_gas_price)
         * (tx_gas_per_pubdata_limit - U256::from(1u32))
         / U256::from(17);

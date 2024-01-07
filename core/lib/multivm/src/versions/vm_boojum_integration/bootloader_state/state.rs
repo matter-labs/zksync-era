@@ -68,7 +68,7 @@ impl BootloaderState {
 
     pub(crate) fn set_refund_for_current_tx(&mut self, refund: u32) {
         let current_tx = self.current_tx();
-        // We can't set the refund for the latest tx or using the latest l2_block for fining tx
+        // We can't set the refund for the latest tx or using the latest `l2_block` for fining tx
         // Because we can fill the whole batch first and then execute txs one by one
         let tx = self.find_tx_mut(current_tx);
         tx.refund = refund;
