@@ -72,7 +72,7 @@ pub struct EthereumProvider<S: EthereumSigner> {
     polling_interval: Duration,
 }
 
-// TODO (SMA-1623): create a way to pass `Options` (e.g. `nonce`, `gas_limit, priority_fee_per_gas`)
+// TODO (SMA-1623): create a way to pass `Options` (e.g. `nonce`, `gas_limit`, `priority_fee_per_gas`)
 // into methods that perform L1 transactions. The unit is wei.
 pub const DEFAULT_PRIORITY_FEE: u64 = 2_000_000_000;
 
