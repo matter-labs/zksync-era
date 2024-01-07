@@ -49,9 +49,9 @@ fn build_commit_tx_input_data(batches: &[L1BatchWithMetadata]) -> Vec<u8> {
     let mut encoded = vec![];
     // Fake Solidity function selector (not checked for now)
     encoded.extend_from_slice(b"fake");
-    // Mock an additional arg used in real `commitBlocks` / `commitBatches`. In real transactions,
-    // it's taken from the L1 batch previous to batches[0], but since this arg is not checked,
-    // it's OK to use batches[0].
+    // Mock an additional argument used in real `commitBlocks` / `commitBatches`. In real transactions,
+    // it's taken from the L1 batch previous to `batches[0]`, but since this argument is not checked,
+    // it's OK to use `batches[0]`.
     let prev_header_tokens = batches[0].l1_header_data();
     encoded.extend_from_slice(&ethabi::encode(&[prev_header_tokens, commit_tokens]));
     encoded
@@ -101,8 +101,8 @@ fn build_commit_tx_input_data_is_correct() {
 fn extracting_commit_data_for_boojum_batch() {
     let contract = zksync_contracts::zksync_contract();
     let commit_function = contract.function("commitBatches").unwrap();
-    // Calldata taken from the commit transaction for https://sepolia.explorer.zksync.io/batch/4470;
-    // https://sepolia.etherscan.io/tx/0x300b9115037028b1f8aa2177abf98148c3df95c9b04f95a4e25baf4dfee7711f
+    // Calldata taken from the commit transaction for `https://sepolia.explorer.zksync.io/batch/4470`;
+    // `https://sepolia.etherscan.io/tx/0x300b9115037028b1f8aa2177abf98148c3df95c9b04f95a4e25baf4dfee7711f`
     let commit_tx_input_data = include_bytes!("commit_l1_batch_4470_testnet_sepolia.calldata");
 
     let commit_data = ConsistencyChecker::extract_commit_data(
@@ -131,8 +131,8 @@ fn extracting_commit_data_for_boojum_batch() {
 fn extracting_commit_data_for_multiple_batches() {
     let contract = zksync_contracts::zksync_contract();
     let commit_function = contract.function("commitBatches").unwrap();
-    // Calldata taken from the commit transaction for https://explorer.zksync.io/batch/351000;
-    // https://etherscan.io/tx/0xbd8dfe0812df0da534eb95a2d2a4382d65a8172c0b648a147d60c1c2921227fd
+    // Calldata taken from the commit transaction for `https://explorer.zksync.io/batch/351000`;
+    // `https://etherscan.io/tx/0xbd8dfe0812df0da534eb95a2d2a4382d65a8172c0b648a147d60c1c2921227fd`
     let commit_tx_input_data = include_bytes!("commit_l1_batch_351000-351004_mainnet.calldata");
 
     for l1_batch in 351_000..=351_004 {
@@ -161,8 +161,8 @@ fn extracting_commit_data_for_multiple_batches() {
 
 #[test]
 fn extracting_commit_data_for_pre_boojum_batch() {
-    // Calldata taken from the commit transaction for https://goerli.explorer.zksync.io/batch/200000;
-    // https://goerli.etherscan.io/tx/0xfd2ef4ccd1223f502cc4a4e0f76c6905feafabc32ba616e5f70257eb968f20a3
+    // Calldata taken from the commit transaction for `https://goerli.explorer.zksync.io/batch/200000`;
+    // `https://goerli.etherscan.io/tx/0xfd2ef4ccd1223f502cc4a4e0f76c6905feafabc32ba616e5f70257eb968f20a3`
     let commit_tx_input_data = include_bytes!("commit_l1_batch_200000_testnet_goerli.calldata");
 
     let commit_data = ConsistencyChecker::extract_commit_data(
