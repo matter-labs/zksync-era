@@ -190,18 +190,25 @@ trait HttpTest: Send + Sync {
         network_config: &NetworkConfig,
         storage: &mut StorageProcessor<'_>,
     ) -> anyhow::Result<()> {
-        if storage.blocks_dal().is_genesis_needed().await? {
-            ensure_genesis_state(
-                storage,
-                network_config.zksync_network_id,
-                &GenesisParams::mock(),
-            )
-            .await?;
-        }
-        Ok(())
+        default_prepare_storage(network_config, storage).await
     }
 
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()>;
+}
+
+async fn default_prepare_storage(
+    network_config: &NetworkConfig,
+    storage: &mut StorageProcessor<'_>,
+) -> anyhow::Result<()> {
+    if storage.blocks_dal().is_genesis_needed().await? {
+        ensure_genesis_state(
+            storage,
+            network_config.zksync_network_id,
+            &GenesisParams::mock(),
+        )
+        .await?;
+    }
+    Ok(())
 }
 
 async fn test_http_server(test: impl HttpTest) {
@@ -304,6 +311,7 @@ async fn store_events(
     start_idx: u32,
 ) -> anyhow::Result<(IncludedTxLocation, Vec<VmEvent>)> {
     let new_miniblock = create_miniblock(miniblock_number);
+    let l1_batch_number = L1BatchNumber(miniblock_number);
     storage
         .blocks_dal()
         .insert_miniblock(&new_miniblock)
@@ -316,28 +324,28 @@ async fn store_events(
     let events = vec![
         // Matches address, doesn't match topics
         VmEvent {
-            location: (L1BatchNumber(1), start_idx),
+            location: (l1_batch_number, start_idx),
             address: Address::repeat_byte(23),
             indexed_topics: vec![],
             value: start_idx.to_le_bytes().to_vec(),
         },
         // Doesn't match address, matches topics
         VmEvent {
-            location: (L1BatchNumber(1), start_idx + 1),
+            location: (l1_batch_number, start_idx + 1),
             address: Address::zero(),
             indexed_topics: vec![H256::repeat_byte(42)],
             value: (start_idx + 1).to_le_bytes().to_vec(),
         },
         // Doesn't match address or topics
         VmEvent {
-            location: (L1BatchNumber(1), start_idx + 2),
+            location: (l1_batch_number, start_idx + 2),
             address: Address::zero(),
             indexed_topics: vec![H256::repeat_byte(1), H256::repeat_byte(42)],
             value: (start_idx + 2).to_le_bytes().to_vec(),
         },
         // Matches both address and topics
         VmEvent {
-            location: (L1BatchNumber(1), start_idx + 3),
+            location: (l1_batch_number, start_idx + 3),
             address: Address::repeat_byte(23),
             indexed_topics: vec![H256::repeat_byte(42), H256::repeat_byte(111)],
             value: (start_idx + 3).to_le_bytes().to_vec(),
