@@ -435,7 +435,7 @@ impl ExternalNodeConfig {
             .context("Unable to fetch required config values from the main node")?;
 
         // We can query them from main node, but it's better to set them explicitly
-        // as well to avoid connecting to wrong envs unintentionally.
+        // as well to avoid connecting to wrong environment variables unintentionally.
         let eth_chain_id = HttpClientBuilder::default()
             .build(required.eth_client_url()?)
             .expect("Unable to build HTTP client for L1 client")

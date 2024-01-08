@@ -27,7 +27,7 @@ const UNIX_TIMESTAMP = Date.now();
 async function dockerCommand(
     command: 'push' | 'build',
     image: string,
-    platforms: string[] = ['linux/amd64'],
+    platform: string = '',
     customTag?: string,
     buildExtraArgs: string = '',
     dockerOrg: string = 'matterlabs'
@@ -41,8 +41,8 @@ async function dockerCommand(
 
     // We want an alternative flow for Rust image
     if (image == 'rust') {
-        await dockerCommand(command, 'server-v2', platforms, customTag, dockerOrg);
-        await dockerCommand(command, 'prover', platforms, customTag, dockerOrg);
+        await dockerCommand(command, 'server-v2', platform, customTag, dockerOrg);
+        await dockerCommand(command, 'prover', platform, customTag, dockerOrg);
         return;
     }
     if (!IMAGES.includes(image)) {
@@ -58,7 +58,7 @@ async function dockerCommand(
     // Main build\push flow
     switch (command) {
         case 'build':
-            await _build(image, tagList, dockerOrg, platforms, buildExtraArgs);
+            await _build(image, tagList, dockerOrg, platform, buildExtraArgs);
             break;
         default:
             console.log(`Unknown command for docker ${command}.`);
@@ -89,25 +89,27 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
     return tagList;
 }
 
-async function _build(
-    image: string,
-    tagList: string[],
-    dockerOrg: string,
-    platforms: string[],
-    extraArgs: string = ''
-) {
+async function _build(image: string, tagList: string[], dockerOrg: string, platform: string, extraArgs: string = '') {
     let tagsToBuild = '';
 
     for (const tag of tagList) {
         for (const registry of DOCKER_REGISTRIES) {
-            tagsToBuild = tagsToBuild + `-t ${registry}/${image}:${tag} `;
+            if (platform != '') {
+                let platformSuffix = platform.replace('/', '-');
+                tagsToBuild = tagsToBuild + `-t ${registry}/${image}:${tag}-${platformSuffix} `;
+            } else {
+                tagsToBuild = tagsToBuild + `-t ${registry}/${image}:${tag} `;
+            }
         }
     }
 
     let buildArgs = '';
+    if (platform != '') {
+        buildArgs += `--platform=${platform} `;
+    }
     if (image === 'prover-v2') {
         const eraBellmanCudaRelease = process.env.ERA_BELLMAN_CUDA_RELEASE;
-        buildArgs += `--build-arg ERA_BELLMAN_CUDA_RELEASE=${eraBellmanCudaRelease}`;
+        buildArgs += `--build-arg ERA_BELLMAN_CUDA_RELEASE=${eraBellmanCudaRelease} `;
     }
     if (image === 'prover-gpu-fri') {
         const cudaArch = process.env.CUDA_ARCH;
@@ -119,7 +121,6 @@ async function _build(
 
     const buildCommand =
         `DOCKER_BUILDKIT=1 docker buildx build ${tagsToBuild}` +
-        ` --platform=${platforms.join(',')}` +
         (buildArgs ? ` ${buildArgs}` : '') +
         ` -f ./docker/${imagePath}/Dockerfile .`;
 
@@ -127,15 +128,15 @@ async function _build(
 }
 
 export async function build(image: string, cmd: Command) {
-    await dockerCommand('build', image, cmd.platforms, cmd.customTag);
+    await dockerCommand('build', image, cmd.platform, cmd.customTag);
 }
 
 export async function customBuildForHyperchain(image: string, dockerOrg: string) {
-    await dockerCommand('build', image, ['linux/amd64'], dockerOrg);
+    await dockerCommand('build', image, 'linux/amd64', dockerOrg);
 }
 
 export async function push(image: string, cmd: Command) {
-    await dockerCommand('build', image, cmd.platforms, cmd.customTag, '--push');
+    await dockerCommand('build', image, cmd.platform, cmd.customTag, '--push');
 }
 
 export async function restart(container: string) {
@@ -151,13 +152,13 @@ export const command = new Command('docker').description('docker management');
 command
     .command('build <image>')
     .option('--custom-tag <value>', 'Custom tag for image')
-    .option('--platforms <platforms>', 'Comma-separated list of platforms', (val) => val.split(','), ['linux/amd64'])
+    .option('--platform <platform>', 'Docker platform')
     .description('build docker image')
     .action(build);
 command
     .command('push <image>')
     .option('--custom-tag <value>', 'Custom tag for image')
-    .option('--platforms <platforms>', 'Comma-separated list of platforms', (val) => val.split(','), ['linux/amd64'])
+    .option('--platform <platform>', 'Docker platform')
     .action(push);
 command.command('pull').description('pull all containers').action(pull);
 command.command('restart <container>').description('restart container in docker-compose.yml').action(restart);

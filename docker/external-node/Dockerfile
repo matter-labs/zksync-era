@@ -18,7 +18,7 @@ WORKDIR /usr/src/zksync
 COPY . .
 
 RUN cargo build --release
-RUN cargo install sqlx-cli --version 0.5.13
+RUN cargo install sqlx-cli --version 0.7.3
 
 FROM debian:bookworm-slim
 

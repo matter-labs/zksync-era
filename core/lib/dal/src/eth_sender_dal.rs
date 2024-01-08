@@ -237,7 +237,7 @@ impl EthSenderDal<'_, '_> {
             RETURNING
                 id
             "#,
-            eth_tx_id as u32,
+            eth_tx_id as i32,
             base_fee_per_gas,
             priority_fee_per_gas,
             tx_hash,
