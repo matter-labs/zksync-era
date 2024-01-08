@@ -48,12 +48,10 @@ jobs:
           docker_repositories=("matterlabs/${{ matrix.component.name }}" "us-docker.pkg.dev/${{ matrix.component.name }}")
           platforms=${{ matrix.component.platform }}
           for repo in "${docker_repositories[@]}"; do
-            repo_tags=()
+            repo_tags=""
             for platform in ${platforms//,/ }; do
               platform=$(echo $platform | tr '/' '-')
-              repo_tags+=("--amend ${repo}:${IMAGE_TAG_SUFFIX}-${platform} ")
-            done
-            echo 'docker manifest create "${repo}:${IMAGE_TAG_SUFFIX}" "${repo_tags[@]}"'
-          
-            docker manifest create "${repo}:${IMAGE_TAG_SUFFIX}" "${repo_tags[@]}"
+              repo_tags+="-a ${repo}:${IMAGE_TAG_SUFFIX}-${platform} "
+            done          
+            docker manifest create "${repo_tags}" "${repo}:${IMAGE_TAG_SUFFIX}"
           done
