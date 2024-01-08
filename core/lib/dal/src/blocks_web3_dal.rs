@@ -17,7 +17,7 @@ use crate::{
     models::{
         storage_block::{
             bind_block_where_sql_params, web3_block_number_to_sql, web3_block_where_sql,
-            StorageBlockDetails, StorageL1BatchDetails,
+            ResolvedL1BatchForMiniblock, StorageBlockDetails, StorageL1BatchDetails,
         },
         storage_transaction::{extract_web3_transaction, web3_transaction_select_sql, CallTrace},
     },
@@ -247,21 +247,13 @@ impl BlocksWeb3Dal<'_, '_> {
     }
 
     /// Returns L1 batch timestamp for either sealed or pending L1 batch.
+    ///
+    /// The correctness of the current implementation depends on the timestamp of an L1 batch always
+    /// being equal to the timestamp of the first miniblock in the batch.
     pub async fn get_expected_l1_batch_timestamp(
         &mut self,
-        l1_batch_number: L1BatchNumber,
+        l1_batch_number: &ResolvedL1BatchForMiniblock,
     ) -> sqlx::Result<Option<u64>> {
-        let first_miniblock_of_batch = if l1_batch_number.0 == 0 {
-            MiniblockNumber(0)
-        } else {
-            match self
-                .get_miniblock_range_of_l1_batch(l1_batch_number - 1)
-                .await?
-            {
-                Some((_, miniblock_number)) => miniblock_number + 1,
-                None => return Ok(None),
-            }
-        };
         let timestamp = sqlx::query!(
             r#"
             SELECT
@@ -269,9 +261,19 @@ impl BlocksWeb3Dal<'_, '_> {
             FROM
                 miniblocks
             WHERE
-                number = $1
+                (
+                    $1::BIGINT IS NULL
+                    AND l1_batch_number IS NULL
+                )
+                OR (l1_batch_number = $1::BIGINT)
+            ORDER BY
+                number
+            LIMIT
+                1
             "#,
-            first_miniblock_of_batch.0 as i64
+            l1_batch_number
+                .miniblock_l1_batch
+                .map(|number| i64::from(number.0))
         )
         .fetch_optional(self.storage.conn())
         .await?
