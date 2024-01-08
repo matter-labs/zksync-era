@@ -36,7 +36,7 @@ jobs:
           - name: snapshots-creator
             platform: linux/amd64
     env:
-      IMAGE_TAG_SUFFIX: "some-tag"
+      IMAGE_TAG_SUFFIX: e650246-1704660441422
     steps:
       - name: login to Docker registries
         run: |
@@ -51,7 +51,7 @@ jobs:
             repo_tags=()
             for platform in ${platforms//,/ }; do
               platform=$(echo $platform | tr '/' '-')
-              repo_tags+=(" --amend ${repo}:${IMAGE_TAG_SUFFIX}-${platform} ")
+              repo_tags+=("--amend ${repo}:${IMAGE_TAG_SUFFIX}-${platform} ")
             done
           
             docker manifest create "${repo}:${IMAGE_TAG_SUFFIX}" "${repo_tags[@]}"
