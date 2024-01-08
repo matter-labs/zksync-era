@@ -98,6 +98,7 @@ jobs:
     name: Create release manifest
     runs-on: matterlabs-ci-runner
     needs: build-images
+    if: ${{ inputs.action == 'push' }}
     strategy:
       matrix:
         component:
@@ -112,7 +113,7 @@ jobs:
           - name: snapshots-creator
             platform: linux/amd64
     env:
-      IMAGE_TAG_SUFFIX: 5129b82-1704658569152
+      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
       DOCKER_CLI_EXPERIMENTAL: enabled
     steps:
       - name: login to Docker registries
