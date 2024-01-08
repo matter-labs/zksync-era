@@ -9001,6 +9001,18 @@
     },
     "query": "\n            SELECT\n                storage_logs.key AS \"key!\",\n                storage_logs.value AS \"value!\",\n                storage_logs.address AS \"address!\",\n                storage_logs.miniblock_number AS \"miniblock_number!\",\n                initial_writes.l1_batch_number AS \"l1_batch_number!\",\n                initial_writes.index\n            FROM\n                (\n                    SELECT\n                        hashed_key,\n                        MAX(ARRAY[miniblock_number, operation_number]::INT[]) AS op\n                    FROM\n                        storage_logs\n                    WHERE\n                        miniblock_number <= $1\n                        AND hashed_key >= $2\n                        AND hashed_key < $3\n                    GROUP BY\n                        hashed_key\n                    ORDER BY\n                        hashed_key\n                ) AS keys\n                INNER JOIN storage_logs ON keys.hashed_key = storage_logs.hashed_key\n                AND storage_logs.miniblock_number = keys.op[1]\n                AND storage_logs.operation_number = keys.op[2]\n                INNER JOIN initial_writes ON keys.hashed_key = initial_writes.hashed_key;\n            "
   },
+  "bdff72b92116b2d260e738a6ecb00b40d985a9b279bc57e76da8128993f615c5": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "DELETE FROM miniblocks_consensus WHERE number > $1"
+  },
   "be16d820c124dba9f4a272f54f0b742349e78e6e4ce3e7c9a0dcf6447eedc6d8": {
     "describe": {
       "columns": [

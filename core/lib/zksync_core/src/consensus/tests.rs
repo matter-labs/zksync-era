@@ -75,8 +75,8 @@ async fn test_validator_block_store() {
     // Insert blocks one by one and check the storage state.
     for (i, block) in want.iter().enumerate() {
         let store = Store::new(pool.clone(), OPERATOR_ADDRESS).into_block_store();
-        assert_eq!(want[..i], storage::testonly::dump(ctx, &store).await);
         store.store_next_block(ctx, block).await.unwrap();
+        assert_eq!(want[..i + 1], storage::testonly::dump(ctx, &store).await);
     }
 }
 
@@ -113,32 +113,31 @@ async fn test_validator() {
                     operator_address: OPERATOR_ADDRESS,
                 };
                 s.spawn_bg(cfg.run(ctx, sk.pool.clone()));
-                testonly::wait_for_block(ctx, &sk.store(), sk.last_block())
+                sk.store()
+                    .wait_for_certificate(ctx, sk.last_block())
                     .await
-                    .context("sk.sync_consensus(<1st phase>)")?;
+                    .context("wait_for_certificate(<1st phase>)")?;
 
                 // Generate couple more blocks and wait for consensus to catch up.
                 sk.push_random_blocks(rng, 3).await;
-                testonly::wait_for_block(ctx, &sk.store(), sk.last_block())
+                sk.store()
+                    .wait_for_certificate(ctx, sk.last_block())
                     .await
-                    .context("sk.sync_consensus(<2nd phase>)")?;
+                    .context("wait_for_certificate(<2nd phase>)")?;
 
                 // Synchronously produce blocks one by one, and wait for consensus.
                 for _ in 0..2 {
                     sk.push_random_blocks(rng, 1).await;
-                    testonly::wait_for_block(ctx, &sk.store(), sk.last_block())
+                    sk.store()
+                        .wait_for_certificate(ctx, sk.last_block())
                         .await
-                        .context("sk.sync_consensus(<3rd phase>)")?;
+                        .context("wait_for_certificate(<3rd phase>)")?;
                 }
 
-                testonly::wait_for_blocks_and_verify(
-                    ctx,
-                    &sk.store(),
-                    &validators,
-                    sk.last_block(),
-                )
-                .await
-                .context("wait_for_blocks_and_verify()")?;
+                sk.store()
+                    .wait_for_blocks_and_verify(ctx, &validators, sk.last_block())
+                    .await
+                    .context("wait_for_blocks_and_verify()")?;
                 Ok(())
             })
             .await
@@ -190,7 +189,9 @@ async fn test_fetcher() {
         s.spawn_bg(runner.run(ctx));
         s.spawn_bg(cfg.clone().run(ctx, sk.pool.clone()));
         sk.push_random_blocks(rng, 5).await;
-        testonly::wait_for_block(ctx, &sk.store(), sk.last_block()).await?;
+        sk.store()
+            .wait_for_certificate(ctx, sk.last_block())
+            .await?;
         Ok(sk.pool)
     })
     .await
@@ -232,15 +233,84 @@ async fn test_fetcher() {
         // Make validator produce blocks and wait for fetchers to get them.
         validator.push_random_blocks(rng, 5).await;
         let want_last = validator.last_block();
-        let want =
-            testonly::wait_for_blocks_and_verify(ctx, &validator.store(), &validators, want_last)
-                .await?;
+        let want = validator
+            .store()
+            .wait_for_blocks_and_verify(ctx, &validators, want_last)
+            .await?;
         for fetcher in &fetchers {
             assert_eq!(
                 want,
-                testonly::wait_for_blocks_and_verify(ctx, fetcher, &validators, want_last).await?
+                fetcher
+                    .wait_for_blocks_and_verify(ctx, &validators, want_last)
+                    .await?
             );
         }
+        Ok(())
+    })
+    .await
+    .unwrap();
+}
+
+// Test fetcher backfilling missing certs.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_fetcher_backfill_certs() {
+    zksync_concurrency::testonly::abort_on_panic();
+    let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
+    let rng = &mut ctx.rng();
+
+    let cfg = ValidatorNode::for_single_validator(rng);
+    let mut cfg = Config {
+        executor: cfg.node,
+        validator: cfg.validator,
+        operator_address: OPERATOR_ADDRESS,
+    };
+    let fetcher_cfg = FetcherConfig {
+        executor: connect_full_node(rng, &mut cfg.executor),
+        operator_address: OPERATOR_ADDRESS,
+    };
+
+    // Create an initial database snapshot, which contains some blocks and their certs.
+    let pool = scope::run!(ctx, |ctx, s| async {
+        let pool = ConnectionPool::test_pool().await;
+        let (mut sk, runner) = testonly::StateKeeper::new(pool, OPERATOR_ADDRESS).await?;
+        s.spawn_bg(runner.run(ctx));
+        s.spawn_bg(cfg.clone().run(ctx, sk.pool.clone()));
+        sk.push_random_blocks(rng, 10).await;
+        sk.store()
+            .wait_for_certificate(ctx, sk.last_block())
+            .await?;
+        Ok(sk.pool)
+    })
+    .await
+    .unwrap();
+    let template = TestTemplate::freeze(pool).await.unwrap();
+
+    // Run validator and fetchers in parallel.
+    scope::run!(ctx, |ctx, s| async {
+        // Run validator.
+        let pool = template.create_db().await?;
+        let (mut validator, runner) = testonly::StateKeeper::new(pool, OPERATOR_ADDRESS).await?;
+        s.spawn_bg(runner.run(ctx));
+        s.spawn_bg(cfg.run(ctx, validator.pool.clone()));
+
+        // Run fetcher with some certificates missing.
+        let pool = template.create_db().await?;
+        pool.access_storage()
+            .await?
+            .consensus_dal()
+            .testonly_delete_certificates_after(validator::BlockNumber(5))
+            .await?;
+        let (fetcher, runner) = testonly::StateKeeper::new(pool, OPERATOR_ADDRESS).await?;
+        let fetcher_store = fetcher.store();
+        s.spawn_bg(runner.run(ctx));
+        s.spawn_bg(fetcher_cfg.run(ctx, fetcher.pool, fetcher.actions_sender));
+
+        // Make validator produce new blocks and
+        // wait for the fetcher to get both the missing certs and the new blocks.
+        validator.push_random_blocks(rng, 5).await;
+        fetcher_store
+            .wait_for_certificate(ctx, validator.last_block())
+            .await?;
         Ok(())
     })
     .await

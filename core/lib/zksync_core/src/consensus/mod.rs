@@ -139,7 +139,7 @@ impl Config {
                 .try_init_genesis(ctx, &self.validator.key)
                 .await
                 .wrap("block_store.try_init_genesis()")?;
-            let (block_store, runner) = BlockStore::new(ctx, Box::new(block_store), 1000)
+            let (block_store, runner) = BlockStore::new(ctx, Box::new(block_store))
                 .await
                 .wrap("BlockStore::new()")?;
             s.spawn_bg(runner.run(ctx));
@@ -198,7 +198,7 @@ impl FetcherConfig {
                 .set_actions_queue(ctx, actions)
                 .await
                 .wrap("block_store.try_init_genesis()")?;
-            let (block_store, runner) = BlockStore::new(ctx, Box::new(block_store), 1000)
+            let (block_store, runner) = BlockStore::new(ctx, Box::new(block_store))
                 .await
                 .wrap("BlockStore::new()")?;
             s.spawn_bg(runner.run(ctx));

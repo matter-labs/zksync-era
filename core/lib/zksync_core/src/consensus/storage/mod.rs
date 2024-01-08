@@ -7,6 +7,9 @@ use zksync_consensus_storage::{BlockStoreState, PersistentBlockStore, ReplicaSta
 use zksync_dal::{consensus_dal::Payload, ConnectionPool};
 use zksync_types::{Address, MiniblockNumber};
 
+#[cfg(test)]
+mod testonly;
+
 use crate::{
     consensus,
     sync_layer::{
@@ -60,10 +63,14 @@ impl<'a> CtxStorage<'a> {
         &mut self,
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,
-        operator_addr: Address,
+        operator_address: Address,
     ) -> ctx::Result<Option<Payload>> {
         Ok(ctx
-            .wait(self.0.consensus_dal().block_payload(number, operator_addr))
+            .wait(
+                self.0
+                    .consensus_dal()
+                    .block_payload(number, operator_address),
+            )
             .await??)
     }
 
@@ -103,13 +110,13 @@ impl<'a> CtxStorage<'a> {
         &mut self,
         ctx: &ctx::Ctx,
         cert: &validator::CommitQC,
-        operator_addr: Address,
+        operator_address: Address,
     ) -> ctx::Result<()> {
         Ok(ctx
             .wait(
                 self.0
                     .consensus_dal()
-                    .insert_certificate(cert, operator_addr),
+                    .insert_certificate(cert, operator_address),
             )
             .await??)
     }
@@ -147,7 +154,7 @@ struct Cursor {
 #[derive(Clone, Debug)]
 pub(super) struct Store {
     pool: ConnectionPool,
-    operator_addr: Address,
+    operator_address: Address,
 }
 
 /// Wrapper of `ConnectionPool` implementing `PersistentBlockStore`.
@@ -159,10 +166,10 @@ pub(super) struct BlockStore {
 
 impl Store {
     /// Creates a `Store`. `pool` should have multiple connections to work efficiently.
-    pub fn new(pool: ConnectionPool, operator_addr: Address) -> Self {
+    pub fn new(pool: ConnectionPool, operator_address: Address) -> Self {
         Self {
             pool,
-            operator_addr,
+            operator_address,
         }
     }
 
@@ -205,7 +212,7 @@ impl BlockStore {
             return Ok(());
         }
         let payload = txn
-            .payload(ctx, number, self.inner.operator_addr)
+            .payload(ctx, number, self.inner.operator_address)
             .await
             .wrap("payload()")?
             .context("miniblock disappeared")?;
@@ -214,7 +221,7 @@ impl BlockStore {
             payload.encode(),
             number,
         );
-        txn.insert_certificate(ctx, &genesis.justification, self.inner.operator_addr)
+        txn.insert_certificate(ctx, &genesis.justification, self.inner.operator_address)
             .await
             .wrap("insert_certificate()")?;
         txn.commit(ctx).await.wrap("commit()")
@@ -240,50 +247,46 @@ impl BlockStore {
 
 #[async_trait::async_trait]
 impl PersistentBlockStore for BlockStore {
-    async fn state(&self, ctx: &ctx::Ctx) -> ctx::Result<Option<BlockStoreState>> {
+    async fn state(&self, ctx: &ctx::Ctx) -> ctx::Result<BlockStoreState> {
         // Ensure that genesis block has consensus field set in postgres.
         let mut storage = CtxStorage::access(ctx, &self.inner.pool)
             .await
             .wrap("access()")?;
-        let Some(first) = storage
+        let first = storage
             .first_certificate(ctx)
             .await
             .wrap("first_certificate()")?
-        else {
-            return Ok(None);
-        };
+            .context("store is empty")?;
         let last = storage
             .last_certificate(ctx)
             .await
             .wrap("last_certificate()")?
-            .context("genesis block disappeared from db")?;
-        Ok(Some(BlockStoreState { first, last }))
+            .context("store is empty")?;
+        Ok(BlockStoreState { first, last })
     }
 
     async fn block(
         &self,
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,
-    ) -> ctx::Result<Option<validator::FinalBlock>> {
+    ) -> ctx::Result<validator::FinalBlock> {
         let storage = &mut CtxStorage::access(ctx, &self.inner.pool)
             .await
             .wrap("access()")?;
-        let Some(justification) = storage
+        let justification = storage
             .certificate(ctx, number)
             .await
             .wrap("certificate()")?
-        else {
-            return Ok(None);
-        };
+            .context("not found")?;
         let payload = storage
-            .payload(ctx, number, self.inner.operator_addr)
+            .payload(ctx, number, self.inner.operator_address)
             .await
             .wrap("payload()")?
             .context("miniblock disappeared from storage")?;
-        Ok(Some(validator::FinalBlock {
+        Ok(validator::FinalBlock {
             payload: payload.encode(),
             justification,
-        }))
+        })
     }
 
     /// If actions queue is set (and the block has not been stored yet),
@@ -308,7 +311,11 @@ impl PersistentBlockStore for BlockStore {
             );
             let payload =
                 Payload::decode(&block.payload).context("Failed deserializing block payload")?;
-            if cursor.inner.next_miniblock <= number {
+            let want = cursor.inner.next_miniblock;
+            if want < number {
+                return Err(anyhow::anyhow!("expected {want:?}, got {number:?}").into());
+            }
+            if want == number {
                 let block = FetchedBlock {
                     number,
                     l1_batch_number: payload.l1_batch_number,
@@ -339,7 +346,7 @@ impl PersistentBlockStore for BlockStore {
                 .wrap("last_miniblock_number()")?;
             if number >= block.header().number {
                 storage
-                    .insert_certificate(ctx, &block.justification, self.inner.operator_addr)
+                    .insert_certificate(ctx, &block.justification, self.inner.operator_address)
                     .await
                     .wrap("insert_certificate()")?;
                 return Ok(());
@@ -386,7 +393,7 @@ impl PayloadManager for Store {
         loop {
             let mut storage = CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
             if let Some(payload) = storage
-                .payload(ctx, block_number, self.operator_addr)
+                .payload(ctx, block_number, self.operator_address)
                 .await
                 .wrap("payload()")?
             {
