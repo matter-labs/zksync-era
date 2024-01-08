@@ -53,6 +53,7 @@ jobs:
               platform=$(echo $platform | tr '/' '-')
               repo_tags+=("--amend ${repo}:${IMAGE_TAG_SUFFIX}-${platform} ")
             done
+            echo "docker manifest create "${repo}:${IMAGE_TAG_SUFFIX}" "${repo_tags[@]}"'
           
             docker manifest create "${repo}:${IMAGE_TAG_SUFFIX}" "${repo_tags[@]}"
           done
