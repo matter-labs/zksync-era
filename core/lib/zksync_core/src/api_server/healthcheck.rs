@@ -80,7 +80,7 @@ impl HealthCheckHandle {
         self.stop_sender.send(true).ok();
         let server_result = tokio::time::timeout(GRACEFUL_SHUTDOWN_WAIT, self.server).await;
         if let Ok(server_result) = server_result {
-            // Propasgate potential panics from the server task.
+            // Propagate potential panics from the server task.
             server_result.unwrap();
         } else {
             tracing::debug!("Timed out {GRACEFUL_SHUTDOWN_WAIT:?} waiting for healthcheck server to gracefully shut down");
