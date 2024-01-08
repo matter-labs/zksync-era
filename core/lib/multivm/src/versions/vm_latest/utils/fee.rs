@@ -60,9 +60,9 @@ pub(crate) fn adjust_pubdata_price_for_tx(
 ) -> BatchFeeInput {
     match &mut batch_fee_input {
         BatchFeeInput::L1Pegged(fee_input) => {
-            // gasPerPubdata = ceil(17 * l1gasprice / fair_l2_gas_price)
-            // gasPerPubdata <= 17 * l1gasprice / fair_l2_gas_price + 1
-            // fair_l2_gas_price(gasPerPubdata - 1) / 17 <= l1gasprice
+            // `gasPerPubdata = ceil(17 * l1gasprice / fair_l2_gas_price)`
+            // `gasPerPubdata <= 17 * l1gasprice / fair_l2_gas_price + 1`
+            // `fair_l2_gas_price(gasPerPubdata - 1) / 17 <= l1gasprice`
             let new_l1_gas_price = U256::from(fee_input.fair_l2_gas_price)
                 * (tx_gas_per_pubdata_limit - U256::from(1u32))
                 / U256::from(17);
@@ -70,9 +70,9 @@ pub(crate) fn adjust_pubdata_price_for_tx(
             fee_input.l1_gas_price = new_l1_gas_price.as_u64();
         }
         BatchFeeInput::PubdataIndependent(fee_input) => {
-            // gasPerPubdata = ceil(fair_pubdata_price / fair_l2_gas_price)
-            // gasPerPubdata <= fair_pubdata_price / fair_l2_gas_price + 1
-            // fair_l2_gas_price(gasPerPubdata - 1) <= fair_pubdata_price
+            // `gasPerPubdata = ceil(fair_pubdata_price / fair_l2_gas_price)`
+            // `gasPerPubdata <= fair_pubdata_price / fair_l2_gas_price + 1`
+            // `fair_l2_gas_price(gasPerPubdata - 1) <= fair_pubdata_price`
             let new_fair_pubdata_price = U256::from(fee_input.fair_l2_gas_price)
                 * (tx_gas_per_pubdata_limit - U256::from(1u32));
 
