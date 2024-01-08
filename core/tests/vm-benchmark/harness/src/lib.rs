@@ -1,14 +1,17 @@
-use multivm::interface::{
-    L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
-};
-use multivm::vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryEnabled, Vm};
-use once_cell::sync::Lazy;
 use std::{cell::RefCell, rc::Rc};
+
+use multivm::{
+    interface::{
+        L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+    },
+    vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryEnabled, Vm},
+};
+use once_cell::sync::Lazy;
 use zksync_contracts::{deployer_contract, BaseSystemContracts};
 use zksync_state::{InMemoryStorage, StorageView};
 use zksync_system_constants::ethereum::MAX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
-    block::legacy_miniblock_hash,
+    block::MiniblockHasher,
     ethabi::{encode, Token},
     fee::Fee,
     helpers::unix_timestamp_ms,
@@ -36,7 +39,7 @@ pub fn cut_to_allowed_bytecode_size(bytes: &[u8]) -> Option<&[u8]> {
 static STORAGE: Lazy<InMemoryStorage> = Lazy::new(|| {
     let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
 
-    // give PRIVATE_KEY some money
+    // give `PRIVATE_KEY` some money
     let my_addr = PackedEthSignature::address_from_private_key(&PRIVATE_KEY).unwrap();
     let key = storage_key_for_eth_balance(&my_addr);
     storage.set_value(key, zksync_utils::u256_to_h256(U256([0, 0, 1, 0])));
@@ -73,7 +76,7 @@ impl BenchmarkingVm {
                 first_l2_block: L2BlockEnv {
                     number: 1,
                     timestamp,
-                    prev_block_hash: legacy_miniblock_hash(MiniblockNumber(0)),
+                    prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
                     max_virtual_blocks_to_create: 100,
                 },
             },
@@ -133,8 +136,9 @@ pub fn get_deploy_tx(code: &[u8]) -> Transaction {
 
 #[cfg(test)]
 mod tests {
-    use crate::*;
     use zksync_contracts::read_bytecode;
+
+    use crate::*;
 
     #[test]
     fn can_deploy_contract() {

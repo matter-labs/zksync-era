@@ -1,9 +1,9 @@
-use serde::Deserialize;
+use std::{net::SocketAddr, num::NonZeroU32, time::Duration};
 
-use std::{net::SocketAddr, time::Duration};
+use serde::Deserialize;
+use zksync_basic_types::H256;
 
 pub use crate::configs::PrometheusConfig;
-use zksync_basic_types::H256;
 
 /// API configuration.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -45,8 +45,6 @@ pub struct Web3JsonRpcConfig {
     /// The multiplier to use when suggesting gas price. Should be higher than one,
     /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block
     pub gas_price_scale_factor: f64,
-    /// Inbound transaction limit used for throttling
-    pub transactions_per_sec_limit: Option<u32>,
     /// Timeout for requests (in s)
     pub request_timeout: Option<u64>,
     /// Private keys for accounts managed by node
@@ -86,7 +84,7 @@ pub struct Web3JsonRpcConfig {
     /// Maximum number of requests per minute for the WebSocket server.
     /// The value is per active connection.
     /// Note: For HTTP, rate limiting is expected to be configured on the infra level.
-    pub websocket_requests_per_minute_limit: Option<u32>,
+    pub websocket_requests_per_minute_limit: Option<NonZeroU32>,
     /// Tree API url, currently used to proxy `getProof` calls to the tree
     pub tree_api_url: Option<String>,
 }
@@ -108,7 +106,6 @@ impl Web3JsonRpcConfig {
             threads_per_server: 1,
             max_nonce_ahead: 50,
             gas_price_scale_factor: 1.2,
-            transactions_per_sec_limit: Default::default(),
             request_timeout: Default::default(),
             account_pks: Default::default(),
             estimate_gas_scale_factor: 1.2,
@@ -204,9 +201,10 @@ impl Web3JsonRpcConfig {
         self.max_response_body_size_mb.unwrap_or(10) * super::BYTES_IN_MEGABYTE
     }
 
-    pub fn websocket_requests_per_minute_limit(&self) -> u32 {
+    pub fn websocket_requests_per_minute_limit(&self) -> NonZeroU32 {
         // The default limit is chosen to be reasonably permissive.
-        self.websocket_requests_per_minute_limit.unwrap_or(6000)
+        self.websocket_requests_per_minute_limit
+            .unwrap_or(NonZeroU32::new(6000).unwrap())
     }
 
     pub fn tree_api_url(&self) -> Option<String> {

@@ -1,28 +1,29 @@
 use std::{convert::TryInto, str::FromStr};
 
-use crate::BigDecimal;
 use bigdecimal::Zero;
-
 use serde::{Deserialize, Serialize};
-use sqlx::postgres::PgRow;
-use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
-use sqlx::{Error, FromRow, Row};
-
-use zksync_types::l2::TransactionType;
-use zksync_types::protocol_version::ProtocolUpgradeTxCommonData;
-use zksync_types::transaction_request::PaymasterParams;
-use zksync_types::vm_trace::Call;
-use zksync_types::web3::types::U64;
-use zksync_types::{api, Bytes, ExecuteTransactionCommon};
+use sqlx::{
+    postgres::PgRow,
+    types::chrono::{DateTime, NaiveDateTime, Utc},
+    Error, FromRow, Row,
+};
 use zksync_types::{
+    api,
     api::{TransactionDetails, TransactionStatus},
     fee::Fee,
     l1::{OpProcessingType, PriorityQueueType},
-    Address, Execute, L1TxCommonData, L2ChainId, L2TxCommonData, Nonce, PackedEthSignature,
-    PriorityOpId, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H160, H256,
-    PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256,
+    l2::TransactionType,
+    protocol_version::ProtocolUpgradeTxCommonData,
+    transaction_request::PaymasterParams,
+    vm_trace::Call,
+    web3::types::U64,
+    Address, Bytes, Execute, ExecuteTransactionCommon, L1TxCommonData, L2ChainId, L2TxCommonData,
+    Nonce, PackedEthSignature, PriorityOpId, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE,
+    EIP_712_TX_TYPE, H160, H256, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_utils::bigdecimal_to_u256;
+
+use crate::BigDecimal;
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct StorageTransaction {
@@ -118,7 +119,7 @@ impl From<StorageTransaction> for L1TxCommonData {
 
         // `tx.hash` represents the transaction hash obtained from the execution results,
         // and it should be exactly the same as the canonical tx hash calculated from the
-        // transaction data, so we don't store it as a separate "canonical_tx_hash" field.
+        // transaction data, so we don't store it as a separate `canonical_tx_hash` field.
         let canonical_tx_hash = H256::from_slice(&tx.hash);
 
         L1TxCommonData {

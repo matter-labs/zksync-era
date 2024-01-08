@@ -1,14 +1,9 @@
-use crate::vm_m6::history_recorder::HistoryMode;
-use crate::vm_m6::memory::SimpleMemory;
-use crate::vm_m6::utils::{aux_heap_page_from_base, heap_page_from_base};
-use crate::vm_m6::vm_instance::{get_vm_hook_params, VM_HOOK_POSITION};
-use crate::vm_m6::vm_with_bootloader::BOOTLOADER_HEAP_PAGE;
-
-use zk_evm_1_3_1::aux_structures::MemoryPage;
-use zk_evm_1_3_1::zkevm_opcode_defs::{FarCallABI, FarCallForwardPageType};
 use zk_evm_1_3_1::{
     abstractions::{BeforeExecutionData, VmLocalStateData},
-    zkevm_opcode_defs::{FatPointer, LogOpcode, Opcode, UMAOpcode},
+    aux_structures::MemoryPage,
+    zkevm_opcode_defs::{
+        FarCallABI, FarCallForwardPageType, FatPointer, LogOpcode, Opcode, UMAOpcode,
+    },
 };
 use zksync_system_constants::{
     ECRECOVER_PRECOMPILE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS,
@@ -16,6 +11,14 @@ use zksync_system_constants::{
 };
 use zksync_types::U256;
 use zksync_utils::u256_to_h256;
+
+use crate::vm_m6::{
+    history_recorder::HistoryMode,
+    memory::SimpleMemory,
+    utils::{aux_heap_page_from_base, heap_page_from_base},
+    vm_instance::{get_vm_hook_params, VM_HOOK_POSITION},
+    vm_with_bootloader::BOOTLOADER_HEAP_PAGE,
+};
 
 #[derive(Clone, Debug, Copy)]
 pub(crate) enum VmHook {
@@ -45,7 +48,7 @@ impl VmHook {
 
         let value = data.src1_value.value;
 
-        // Only UMA opcodes in the bootloader serve for vm hooks
+        // Only `UMA` opcodes in the bootloader serve for vm hooks
         if !matches!(opcode_variant.opcode, Opcode::UMA(UMAOpcode::HeapWrite))
             || heap_page != BOOTLOADER_HEAP_PAGE
             || fat_ptr.offset != VM_HOOK_POSITION * 32

@@ -1,9 +1,6 @@
 use std::marker::PhantomData;
-use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 
-use crate::interface::traits::tracers::dyn_tracers::vm_1_4_0::DynTracer;
-use crate::interface::types::tracer::TracerExecutionStatus;
-use crate::interface::{L1BatchEnv, Refunds};
+use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 use zk_evm_1_4_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
@@ -16,24 +13,29 @@ use zksync_types::{
     l2_to_l1_log::L2ToL1Log,
     L1BatchNumber, U256,
 };
-use zksync_utils::bytecode::bytecode_len_in_bytes;
-use zksync_utils::{ceil_div_u256, u256_to_h256};
+use zksync_utils::{bytecode::bytecode_len_in_bytes, ceil_div_u256, u256_to_h256};
 
-use crate::vm_latest::constants::{
-    BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET,
+use crate::{
+    interface::{
+        traits::tracers::dyn_tracers::vm_1_4_0::DynTracer, types::tracer::TracerExecutionStatus,
+        L1BatchEnv, Refunds,
+    },
+    vm_latest::{
+        bootloader_state::BootloaderState,
+        constants::{BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET},
+        old_vm::{
+            events::merge_events, history_recorder::HistoryMode, memory::SimpleMemory,
+            utils::eth_price_per_pubdata_byte,
+        },
+        tracers::{
+            traits::VmTracer,
+            utils::{
+                gas_spent_on_bytecodes_and_long_messages_this_opcode, get_vm_hook_params, VmHook,
+            },
+        },
+        types::internals::ZkSyncVmState,
+    },
 };
-use crate::vm_latest::old_vm::{
-    events::merge_events, history_recorder::HistoryMode, memory::SimpleMemory,
-    utils::eth_price_per_pubdata_byte,
-};
-
-use crate::vm_latest::bootloader_state::BootloaderState;
-use crate::vm_latest::tracers::utils::gas_spent_on_bytecodes_and_long_messages_this_opcode;
-use crate::vm_latest::tracers::{
-    traits::VmTracer,
-    utils::{get_vm_hook_params, VmHook},
-};
-use crate::vm_latest::types::internals::ZkSyncVmState;
 
 /// Tracer responsible for collecting information about refunds.
 #[derive(Debug, Clone)]
@@ -212,8 +214,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
         #[vise::register]
         static METRICS: vise::Global<RefundMetrics> = vise::Global::new();
 
-        // This means that the bootloader has informed the system (usually via VMHooks) - that some gas
-        // should be refunded back (see askOperatorForRefund in bootloader.yul for details).
+        // This means that the bootloader has informed the system (usually via `VMHooks`) - that some gas
+        // should be refunded back (see `askOperatorForRefund` in `bootloader.yul` for details).
         if let Some(bootloader_refund) = self.requested_refund() {
             assert!(
                 self.operator_refund.is_none(),

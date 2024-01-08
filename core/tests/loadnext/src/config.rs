@@ -1,12 +1,9 @@
+use std::{path::PathBuf, time::Duration};
+
 use serde::Deserialize;
 use tokio::sync::Semaphore;
-
-use std::path::PathBuf;
-use std::time::Duration;
-
 use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
-use zksync_types::network::Network;
-use zksync_types::{Address, L2ChainId, H160};
+use zksync_types::{network::Network, Address, L2ChainId, H160};
 
 use crate::fs_utils::read_tokens;
 
@@ -155,8 +152,8 @@ fn default_l1_rpc_address() -> String {
 
 fn default_master_wallet_pk() -> String {
     // Use this key only for localhost because it is compromised!
-    // Using this key for rinkeby will result in losing rinkeby ETH.
-    // Corresponding wallet is 0x36615Cf349d7F6344891B1e7CA7C72883F5dc049
+    // Using this key for Rinkeby will result in losing Rinkeby ETH.
+    // Corresponding wallet is `0x36615Cf349d7F6344891B1e7CA7C72883F5dc049`
     let result = "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110".to_string();
     tracing::info!("Using default MASTER_WALLET_PK: {result}");
     result
@@ -184,7 +181,7 @@ fn default_main_token() -> H160 {
     // Read token addresses from `etc/tokens/localhost.json`. Use the first one
     // as a main token since all of them are suitable.
 
-    // 0xeb8f08a975Ab53E34D8a0330E0D34de942C95926 for rinkeby
+    // `0xeb8f08a975Ab53E34D8a0330E0D34de942C95926` for Rinkeby
     let tokens = read_tokens(Network::Localhost).expect("Failed to parse tokens file");
     let main_token = tokens.first().expect("Loaded tokens list is empty");
     tracing::info!("Main token: {main_token:?}");
@@ -228,7 +225,7 @@ fn default_seed() -> Option<String> {
 }
 
 fn default_l2_chain_id() -> u64 {
-    // 270 for rinkeby
+    // 270 for Rinkeby
     let result = L2ChainId::default().as_u64();
     tracing::info!("Using default L2_CHAIN_ID: {result}");
     result
@@ -239,14 +236,14 @@ pub fn get_default_l2_rpc_address() -> String {
 }
 
 fn default_l2_rpc_address() -> String {
-    // https://z2-dev-api.zksync.dev:443 for stage2
+    // `https://z2-dev-api.zksync.dev:443` for stage2
     let result = get_default_l2_rpc_address();
     tracing::info!("Using default L2_RPC_ADDRESS: {result}");
     result
 }
 
 fn default_l2_ws_rpc_address() -> String {
-    // ws://z2-dev-api.zksync.dev:80/ws for stage2
+    // `ws://z2-dev-api.zksync.dev:80/ws` for stage2
     let result = "ws://127.0.0.1:3051".to_string();
     tracing::info!("Using default L2_WS_RPC_ADDRESS: {result}");
     result
@@ -315,9 +312,9 @@ impl TransactionWeights {
 impl Default for TransactionWeights {
     fn default() -> Self {
         Self {
-            deposit: 0.1,
+            deposit: 0.05,
             withdrawal: 0.5,
-            l1_transactions: 0.1,
+            l1_transactions: 0.05,
             l2_transactions: 1.0,
         }
     }

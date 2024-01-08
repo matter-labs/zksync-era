@@ -1,10 +1,13 @@
+use std::fmt;
+
 use zksync_contracts::verifier_contract;
-use zksync_eth_client::{types::Error as EthClientError, EthInterface};
+use zksync_eth_client::{CallFunctionArgs, Error as EthClientError, EthInterface};
 use zksync_types::{
     ethabi::{Contract, Token},
     vk_transform::l1_vk_commitment,
     web3::{
         self,
+        contract::tokens::Detokenize,
         types::{BlockId, BlockNumber, FilterBuilder, Log},
     },
     Address, H256,
@@ -22,8 +25,14 @@ pub enum Error {
     InfiniteRecursion,
 }
 
+impl From<web3::contract::Error> for Error {
+    fn from(err: web3::contract::Error) -> Self {
+        Self::EthClient(err.into())
+    }
+}
+
 #[async_trait::async_trait]
-pub trait EthClient {
+pub trait EthClient: 'static + fmt::Debug + Send + Sync {
     /// Returns events in a given block range.
     async fn get_events(
         &self,
@@ -44,8 +53,8 @@ const TOO_MANY_RESULTS_INFURA: &str = "query returned more than";
 const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
 
 #[derive(Debug)]
-pub struct EthHttpQueryClient<E> {
-    client: E,
+pub struct EthHttpQueryClient {
+    client: Box<dyn EthInterface>,
     topics: Vec<H256>,
     zksync_contract_addr: Address,
     /// Address of the `Governance` contract. It's optional because it is present only for post-boojum chains.
@@ -55,9 +64,9 @@ pub struct EthHttpQueryClient<E> {
     confirmations_for_eth_event: Option<u64>,
 }
 
-impl<E: EthInterface> EthHttpQueryClient<E> {
+impl EthHttpQueryClient {
     pub fn new(
-        client: E,
+        client: Box<dyn EthInterface>,
         zksync_contract_addr: Address,
         governance_address: Option<Address>,
         confirmations_for_eth_event: Option<u64>,
@@ -101,41 +110,23 @@ impl<E: EthInterface> EthHttpQueryClient<E> {
 }
 
 #[async_trait::async_trait]
-impl<E: EthInterface + Send + Sync + 'static> EthClient for EthHttpQueryClient<E> {
+impl EthClient for EthHttpQueryClient {
     async fn scheduler_vk_hash(&self, verifier_address: Address) -> Result<H256, Error> {
         // This is here for backward compatibility with the old verifier:
         // Legacy verifier returns the full verification key;
         // New verifier returns the hash of the verification key.
 
-        let vk_hash = self
-            .client
-            .call_contract_function(
-                "verificationKeyHash",
-                (),
-                None,
-                Default::default(),
-                None,
-                verifier_address,
-                self.verifier_contract_abi.clone(),
-            )
-            .await;
+        let args = CallFunctionArgs::new("verificationKeyHash", ())
+            .for_contract(verifier_address, self.verifier_contract_abi.clone());
+        let vk_hash_tokens = self.client.call_contract_function(args).await;
 
-        if let Ok(Token::FixedBytes(vk_hash)) = vk_hash {
-            Ok(H256::from_slice(&vk_hash))
+        if let Ok(tokens) = vk_hash_tokens {
+            Ok(H256::from_tokens(tokens)?)
         } else {
-            let vk = self
-                .client
-                .call_contract_function(
-                    "get_verification_key",
-                    (),
-                    None,
-                    Default::default(),
-                    None,
-                    verifier_address,
-                    self.verifier_contract_abi.clone(),
-                )
-                .await?;
-            Ok(l1_vk_commitment(vk))
+            let args = CallFunctionArgs::new("get_verification_key", ())
+                .for_contract(verifier_address, self.verifier_contract_abi.clone());
+            let vk = self.client.call_contract_function(args).await?;
+            Ok(l1_vk_commitment(Token::from_tokens(vk)?))
         }
     }
 

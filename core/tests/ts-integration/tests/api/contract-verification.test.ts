@@ -9,11 +9,11 @@ import { sleep } from 'zksync-web3/build/src/utils';
 // Regular expression to match ISO dates.
 const DATE_REGEX = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{6})?/;
 
-const ZKSOLC_VERSION = 'v1.3.16';
-const SOLC_VERSION = '0.8.21';
+const ZKSOLC_VERSION = 'v1.3.19';
+const SOLC_VERSION = '0.8.23';
 
 const ZKVYPER_VERSION = 'v1.3.13';
-const VYPER_VERSION = '0.3.3';
+const VYPER_VERSION = '0.3.10';
 
 type HttpMethod = 'POST' | 'GET';
 

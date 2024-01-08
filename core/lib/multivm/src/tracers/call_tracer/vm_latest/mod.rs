@@ -7,16 +7,19 @@ use zk_evm_1_4_0::{
 };
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
-use zksync_types::vm_trace::{Call, CallType};
-use zksync_types::FarCallOpcode;
-use zksync_types::U256;
-
-use crate::interface::{
-    tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
-    VmRevertReason,
+use zksync_types::{
+    vm_trace::{Call, CallType},
+    FarCallOpcode, U256,
 };
-use crate::tracers::call_tracer::CallTracer;
-use crate::vm_latest::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState};
+
+use crate::{
+    interface::{
+        tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
+        VmRevertReason,
+    },
+    tracers::call_tracer::CallTracer,
+    vm_latest::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState},
+};
 
 impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
     fn after_execution(
@@ -136,7 +139,7 @@ impl CallTracer {
         let fat_data_pointer =
             state.vm_local_state.registers[RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER as usize];
 
-        // if fat_data_pointer is not a pointer then there is no output
+        // if `fat_data_pointer` is not a pointer then there is no output
         let output = if fat_data_pointer.is_pointer {
             let fat_data_pointer = FatPointer::from_u256(fat_data_pointer.value);
             if !fat_data_pointer.is_trivial() {

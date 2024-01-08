@@ -1,9 +1,9 @@
-use async_trait::async_trait;
-
 use std::{error, fmt, sync::Arc};
 
-use crate::{file::FileBackedObjectStore, gcs::GoogleCloudStorage, mock::MockStore};
+use async_trait::async_trait;
 use zksync_config::configs::object_store::{ObjectStoreConfig, ObjectStoreMode};
+
+use crate::{file::FileBackedObjectStore, gcs::GoogleCloudStorage, mock::MockStore};
 
 /// Bucket for [`ObjectStore`] in which objects can be placed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -19,6 +19,7 @@ pub enum Bucket {
     NodeAggregationWitnessJobsFri,
     SchedulerWitnessJobsFri,
     ProofsFri,
+    StorageSnapshot,
 }
 
 impl Bucket {
@@ -34,6 +35,7 @@ impl Bucket {
             Self::NodeAggregationWitnessJobsFri => "node_aggregation_witness_jobs_fri",
             Self::SchedulerWitnessJobsFri => "scheduler_witness_jobs_fri",
             Self::ProofsFri => "proofs_fri",
+            Self::StorageSnapshot => "storage_logs_snapshots",
         }
     }
 }
@@ -86,7 +88,7 @@ impl error::Error for ObjectStoreError {
 ///
 /// [`StoredObject`]: crate::StoredObject
 #[async_trait]
-pub trait ObjectStore: fmt::Debug + Send + Sync {
+pub trait ObjectStore: 'static + fmt::Debug + Send + Sync {
     /// Fetches the value for the given key from the given bucket if it exists.
     ///
     /// # Errors
@@ -113,6 +115,8 @@ pub trait ObjectStore: fmt::Debug + Send + Sync {
     ///
     /// Returns an error if removal fails.
     async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError>;
+
+    fn storage_prefix_raw(&self, bucket: Bucket) -> String;
 }
 
 #[async_trait]
@@ -132,6 +136,10 @@ impl<T: ObjectStore + ?Sized> ObjectStore for Arc<T> {
 
     async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError> {
         (**self).remove_raw(bucket, key).await
+    }
+
+    fn storage_prefix_raw(&self, bucket: Bucket) -> String {
+        (**self).storage_prefix_raw(bucket)
     }
 }
 
@@ -170,14 +178,14 @@ impl ObjectStoreFactory {
     }
 
     /// Creates an [`ObjectStore`].
-    pub async fn create_store(&self) -> Box<dyn ObjectStore> {
+    pub async fn create_store(&self) -> Arc<dyn ObjectStore> {
         match &self.origin {
             ObjectStoreOrigin::Config(config) => Self::create_from_config(config).await,
-            ObjectStoreOrigin::Mock(store) => Box::new(Arc::clone(store)),
+            ObjectStoreOrigin::Mock(store) => Arc::new(Arc::clone(store)),
         }
     }
 
-    async fn create_from_config(config: &ObjectStoreConfig) -> Box<dyn ObjectStore> {
+    async fn create_from_config(config: &ObjectStoreConfig) -> Arc<dyn ObjectStore> {
         let gcs_credential_file_path = match config.mode {
             ObjectStoreMode::GCSWithCredentialFile => Some(config.gcs_credential_file_path.clone()),
             _ => None,
@@ -193,7 +201,7 @@ impl ObjectStoreFactory {
                     config.max_retries,
                 )
                 .await;
-                Box::new(store)
+                Arc::new(store)
             }
             ObjectStoreMode::GCSWithCredentialFile => {
                 tracing::trace!("Initialized GoogleCloudStorage Object store with credential file");
@@ -203,12 +211,12 @@ impl ObjectStoreFactory {
                     config.max_retries,
                 )
                 .await;
-                Box::new(store)
+                Arc::new(store)
             }
             ObjectStoreMode::FileBacked => {
                 tracing::trace!("Initialized FileBacked Object store");
                 let store = FileBackedObjectStore::new(config.file_backed_base_path.clone()).await;
-                Box::new(store)
+                Arc::new(store)
             }
         }
     }

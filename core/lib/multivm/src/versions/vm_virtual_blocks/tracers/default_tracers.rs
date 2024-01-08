@@ -1,33 +1,37 @@
-use std::fmt::{Debug, Formatter};
-use std::marker::PhantomData;
+use std::{
+    fmt::{Debug, Formatter},
+    marker::PhantomData,
+};
 
-use crate::interface::dyn_tracers::vm_1_3_3::DynTracer;
-use crate::interface::tracer::VmExecutionStopReason;
-use crate::interface::VmExecutionMode;
-use zk_evm_1_3_3::witness_trace::DummyTracer;
-use zk_evm_1_3_3::zkevm_opcode_defs::{Opcode, RetOpcode};
 use zk_evm_1_3_3::{
     tracing::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
     },
     vm_state::VmLocalState,
+    witness_trace::DummyTracer,
+    zkevm_opcode_defs::{Opcode, RetOpcode},
 };
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::Timestamp;
 
-use crate::vm_virtual_blocks::bootloader_state::utils::apply_l2_block;
-use crate::vm_virtual_blocks::bootloader_state::BootloaderState;
-use crate::vm_virtual_blocks::constants::BOOTLOADER_HEAP_PAGE;
-use crate::vm_virtual_blocks::old_vm::history_recorder::HistoryMode;
-use crate::vm_virtual_blocks::old_vm::memory::SimpleMemory;
-use crate::vm_virtual_blocks::tracers::dispatcher::TracerDispatcher;
-use crate::vm_virtual_blocks::tracers::traits::{ExecutionEndTracer, ExecutionProcessing};
-use crate::vm_virtual_blocks::tracers::utils::{
-    computational_gas_price, gas_spent_on_bytecodes_and_long_messages_this_opcode,
-    print_debug_if_needed, VmHook,
+use crate::{
+    interface::{dyn_tracers::vm_1_3_3::DynTracer, tracer::VmExecutionStopReason, VmExecutionMode},
+    vm_virtual_blocks::{
+        bootloader_state::{utils::apply_l2_block, BootloaderState},
+        constants::BOOTLOADER_HEAP_PAGE,
+        old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
+        tracers::{
+            dispatcher::TracerDispatcher,
+            traits::{ExecutionEndTracer, ExecutionProcessing},
+            utils::{
+                computational_gas_price, gas_spent_on_bytecodes_and_long_messages_this_opcode,
+                print_debug_if_needed, VmHook,
+            },
+            RefundsTracer, ResultTracer,
+        },
+        types::internals::ZkSyncVmState,
+    },
 };
-use crate::vm_virtual_blocks::tracers::{RefundsTracer, ResultTracer};
-use crate::vm_virtual_blocks::types::internals::ZkSyncVmState;
 
 /// Default tracer for the VM. It manages the other tracers execution and stop the vm when needed.
 pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
@@ -267,7 +271,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
 }
 
 fn current_frame_is_bootloader(local_state: &VmLocalState) -> bool {
-    // The current frame is bootloader if the callstack depth is 1.
+    // The current frame is bootloader if the call stack depth is 1.
     // Some of the near calls inside the bootloader can be out of gas, which is totally normal behavior
     // and it shouldn't result in `is_bootloader_out_of_gas` becoming true.
     local_state.callstack.inner.len() == 1

@@ -1,22 +1,21 @@
 //! This module determines the fees to pay in txs containing blocks submitted to the L1.
 
-use tokio::sync::watch;
-
 use std::{
     collections::VecDeque,
     sync::{Arc, RwLock},
 };
 
+use tokio::sync::watch;
 use zksync_config::GasAdjusterConfig;
-use zksync_eth_client::{types::Error, EthInterface};
-
-pub mod bounded_gas_adjuster;
-mod metrics;
-#[cfg(test)]
-mod tests;
+use zksync_eth_client::{Error, EthInterface};
 
 use self::metrics::METRICS;
 use super::{L1GasPriceProvider, L1TxParamsProvider};
+use crate::state_keeper::metrics::KEEPER_METRICS;
+
+mod metrics;
+#[cfg(test)]
+mod tests;
 
 /// This component keeps track of the median base_fee from the last `max_base_fee_samples` blocks.
 /// It is used to adjust the base_fee of transactions sent to L1.
@@ -81,6 +80,19 @@ impl<E: EthInterface> GasAdjuster<E> {
         Ok(())
     }
 
+    fn bound_gas_price(&self, gas_price: u64) -> u64 {
+        let max_l1_gas_price = self.config.max_l1_gas_price();
+        if gas_price > max_l1_gas_price {
+            tracing::warn!(
+                "Effective gas price is too high: {gas_price}, using max allowed: {}",
+                max_l1_gas_price
+            );
+            KEEPER_METRICS.gas_price_too_high.inc();
+            return max_l1_gas_price;
+        }
+        gas_price
+    }
+
     pub async fn run(self: Arc<Self>, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         loop {
             if *stop_receiver.borrow() {
@@ -108,7 +120,11 @@ impl<E: EthInterface> L1GasPriceProvider for GasAdjuster<E> {
 
         let effective_gas_price = self.get_base_fee(0) + self.get_priority_fee();
 
-        (self.config.internal_l1_pricing_multiplier * effective_gas_price as f64) as u64
+        let calculated_price =
+            (self.config.internal_l1_pricing_multiplier * effective_gas_price as f64) as u64;
+
+        // Bound the price if it's too high.
+        self.bound_gas_price(calculated_price)
     }
 }
 
@@ -125,7 +141,7 @@ impl<E: EthInterface> L1TxParamsProvider for GasAdjuster<E> {
 
         // Currently we use an exponential formula.
         // The alternative is a linear one:
-        // let scale_factor = a + b * time_in_mempool as f64;
+        // `let scale_factor = a + b * time_in_mempool as f64;`
         let scale_factor = a * b.powf(time_in_mempool as f64);
         let median = self.statistics.median();
         METRICS.median_base_fee_per_gas.set(median);
@@ -142,11 +158,11 @@ impl<E: EthInterface> L1TxParamsProvider for GasAdjuster<E> {
 
     // Priority fee is set to constant, sourced from config.
     // Reasoning behind this is the following:
-    // High priority_fee means high demand for block space,
-    // which means base_fee will increase, which means priority_fee
+    // High `priority_fee` means high demand for block space,
+    // which means `base_fee` will increase, which means `priority_fee`
     // will decrease. The EIP-1559 mechanism is designed such that
-    // base_fee will balance out priority_fee in such a way that
-    // priority_fee will be a small fraction of the overall fee.
+    // `base_fee` will balance out `priority_fee` in such a way that
+    // `priority_fee` will be a small fraction of the overall fee.
     fn get_priority_fee(&self) -> u64 {
         self.config.default_priority_fee_per_gas
     }

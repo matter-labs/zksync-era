@@ -1,13 +1,14 @@
-use crate::eth_watch::{
-    client::{Error, EthClient},
-    event_processors::EventProcessor,
-};
-use std::convert::TryFrom;
-use std::time::Instant;
+use std::{convert::TryFrom, time::Instant};
+
 use zksync_dal::StorageProcessor;
 use zksync_types::{
     ethabi::Contract, protocol_version::GovernanceOperation, web3::types::Log, Address,
     ProtocolUpgrade, ProtocolVersionId, H256,
+};
+
+use crate::eth_watch::{
+    client::{Error, EthClient},
+    event_processors::EventProcessor,
 };
 
 /// Listens to operation events coming from the governance contract and saves new protocol upgrade proposals to the database.
@@ -37,11 +38,11 @@ impl GovernanceUpgradesEventProcessor {
 }
 
 #[async_trait::async_trait]
-impl<W: EthClient + Sync> EventProcessor<W> for GovernanceUpgradesEventProcessor {
+impl EventProcessor for GovernanceUpgradesEventProcessor {
     async fn process_events(
         &mut self,
         storage: &mut StorageProcessor<'_>,
-        client: &W,
+        client: &dyn EthClient,
         events: Vec<Log>,
     ) -> Result<(), Error> {
         let mut upgrades = Vec::new();
@@ -65,7 +66,7 @@ impl<W: EthClient + Sync> EventProcessor<W> for GovernanceUpgradesEventProcessor
                     );
                     continue;
                 };
-                // Scheduler VK is not present in proposal event. It is hardcoded in verifier contract.
+                // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.
                 let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
                     Some(client.scheduler_vk_hash(address).await?)
                 } else {

@@ -1,5 +1,6 @@
-use crate::hasher::Hasher;
 use zksync_basic_types::{web3::signing::keccak256, H256};
+
+use crate::hasher::Hasher;
 
 #[derive(Default, Clone, Debug)]
 pub struct KeccakHasher;

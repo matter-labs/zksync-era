@@ -9,10 +9,6 @@ on:
         description: "DOCKERHUB_TOKEN"
         required: true
     inputs:
-      image_tag:
-        description: "Tag of a built image to deploy"
-        type: string
-        required: true
       image_tag_suffix:
         description: "Optional suffix to override tag name generation"
         type: string
@@ -22,21 +18,23 @@ on:
         type: string
         default: "push"
         required: false
-
 jobs:
   build-images:
     name: Build and Push Docker Images
     env:
-      image_tag: ${{ inputs.image_tag }}
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
-    runs-on: [matterlabs-ci-runner]
+    runs-on: ${{ fromJSON('["matterlabs-ci-runner", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
     strategy:
       matrix:
-        component:
-          - server-v2
-          - external-node
-          - contract-verifier
-          - cross-external-nodes-checker
+          components:
+            - server-v2
+            - external-node
+            - contract-verifier
+            - cross-external-nodes-checker
+            - snapshots-creator
+          platforms:
+            - linux/amd64
+
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
@@ -50,37 +48,40 @@ jobs:
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
 
+      - name: Download contracts
+        uses: actions/download-artifact@v4
+        with:
+          name: contracts
+          path: ./contracts/
+
       - name: start-services
         run: |
           echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
-          docker-compose -f docker-compose-runner.yml up -d zk geth postgres
+          mkdir -p ./volumes/postgres
+          docker compose up -d zk postgres
           ci_run sccache --start-server
 
       - name: init
         run: |
           ci_run git config --global --add safe.directory /usr/src/zksync
           ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
-          ci_run git config --global --add safe.directory /usr/src/zksync/etc/system-contracts
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-          ci_run zk
-          ci_run zk clean --all
-          ci_run zk run yarn
-          ci_run cp etc/tokens/{test,localhost}.json
-          ci_run zk compiler all
-          ci_run zk contract build
-          ci_run zk f yarn run l2-contracts build
+          ci_run zk || true
+          ci_run yarn zk build
           ci_run curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
       - name: login to Docker registries
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
         run: |
           ci_run docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-          ci_run gcloud auth configure-docker us-docker.pkg.dev,asia-docker.pkg.dev,europe-docker.pkg.dev -q
+          ci_run gcloud auth configure-docker us-docker.pkg.dev -q
 
       - name: update-images
         env:
           DOCKER_ACTION: ${{ inputs.action }}
-          COMPONENT: ${{ matrix.component }}
+          COMPONENT: ${{ matrix.components }}
+          PLATFORM: ${{ matrix.platforms }}
         run: |
           ci_run rustup default nightly-2023-08-21
           ci_run zk docker $DOCKER_ACTION $COMPONENT

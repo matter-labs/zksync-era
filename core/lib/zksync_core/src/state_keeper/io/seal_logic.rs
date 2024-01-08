@@ -1,31 +1,31 @@
 //! This module is a source-of-truth on what is expected to be done when sealing a block.
 //! It contains the logic of the block sealing, which is used by both the mempool-based and external node IO.
 
-use itertools::Itertools;
 use std::{
     collections::HashMap,
     time::{Duration, Instant},
 };
 
+use itertools::Itertools;
 use multivm::interface::{FinishedL1Batch, L1BatchEnv};
-use zksync_dal::StorageProcessor;
+use zksync_dal::{blocks_dal::ConsensusBlockFields, StorageProcessor};
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
-    block::unpack_block_info,
-    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    CURRENT_VIRTUAL_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_ADDRESS,
-};
-use zksync_types::{
-    block::{L1BatchHeader, MiniblockHeader},
+    block::{unpack_block_info, L1BatchHeader, MiniblockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
+    l1::L1Tx,
+    l2::L2Tx,
+    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    protocol_version::ProtocolUpgradeTx,
     storage_writes_deduplicator::{ModifiedSlot, StorageWritesDeduplicator},
     tx::{
         tx_execution_info::DeduplicatedWritesMetrics, IncludedTxLocation,
         TransactionExecutionResult,
     },
     zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
-    AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, LogQuery, MiniblockNumber,
-    StorageKey, StorageLog, StorageLogQuery, StorageValue, Transaction, VmEvent, H256,
+    AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, LogQuery,
+    MiniblockNumber, StorageKey, StorageLog, StorageLogQuery, StorageValue, Transaction, VmEvent,
+    CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::{h256_to_u256, time::millis_since_epoch, u256_to_h256};
@@ -50,6 +50,7 @@ impl UpdatesManager {
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,
         l2_erc20_bridge_addr: Address,
+        consensus: Option<ConsensusBlockFields>,
     ) {
         let started_at = Instant::now();
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::VmFinalization);
@@ -63,6 +64,8 @@ impl UpdatesManager {
             l1_batch_env.number,
             current_miniblock_number,
             l2_erc20_bridge_addr,
+            consensus,
+            false, // fictive miniblocks don't have txs, so it's fine to pass `false` here.
         );
         miniblock_command.seal_inner(&mut transaction, true).await;
         progress.observe(None);
@@ -131,6 +134,7 @@ impl UpdatesManager {
             base_system_contracts_hashes: self.base_system_contract_hashes(),
             protocol_version: Some(self.protocol_version()),
             system_logs: finished_batch.final_execution_state.system_logs,
+            pubdata_input: finished_batch.pubdata_input,
         };
 
         let events_queue = finished_batch
@@ -145,6 +149,10 @@ impl UpdatesManager {
                 self.l1_batch.l1_gas_count,
                 &events_queue,
                 &finished_batch.final_execution_state.storage_refunds,
+                self.l1_batch
+                    .block_execution_metrics
+                    .estimated_circuits_used
+                    .ceil() as u32,
             )
             .await
             .unwrap();
@@ -274,6 +282,36 @@ impl MiniblockSealCommand {
     async fn seal_inner(&self, storage: &mut StorageProcessor<'_>, is_fictive: bool) {
         self.assert_valid_miniblock(is_fictive);
 
+        let mut transaction = storage.start_transaction().await.unwrap();
+        if self.pre_insert_txs {
+            let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::PreInsertTxs, is_fictive);
+            for tx in &self.miniblock.executed_transactions {
+                if let Ok(l1_tx) = L1Tx::try_from(tx.transaction.clone()) {
+                    let l1_block_number = L1BlockNumber(l1_tx.common_data.eth_block as u32);
+                    transaction
+                        .transactions_dal()
+                        .insert_transaction_l1(l1_tx, l1_block_number)
+                        .await;
+                } else if let Ok(l2_tx) = L2Tx::try_from(tx.transaction.clone()) {
+                    // Using `Default` for execution metrics should be OK here, since this data is not used on the EN.
+                    transaction
+                        .transactions_dal()
+                        .insert_transaction_l2(l2_tx, Default::default())
+                        .await;
+                } else if let Ok(protocol_system_upgrade_tx) =
+                    ProtocolUpgradeTx::try_from(tx.transaction.clone())
+                {
+                    transaction
+                        .transactions_dal()
+                        .insert_system_transaction(protocol_system_upgrade_tx)
+                        .await;
+                } else {
+                    unreachable!("Transaction {:?} is neither L1 nor L2", tx.transaction);
+                }
+            }
+            progress.observe(Some(self.miniblock.executed_transactions.len()));
+        }
+
         let l1_batch_number = self.l1_batch_number;
         let miniblock_number = self.miniblock_number;
         let started_at = Instant::now();
@@ -291,7 +329,6 @@ impl MiniblockSealCommand {
             event_count = self.miniblock.events.len()
         );
 
-        let mut transaction = storage.start_transaction().await.unwrap();
         let miniblock_header = MiniblockHeader {
             number: miniblock_number,
             timestamp: self.miniblock.timestamp,
@@ -403,6 +440,18 @@ impl MiniblockSealCommand {
             .save_user_l2_to_l1_logs(miniblock_number, &user_l2_to_l1_logs)
             .await;
         progress.observe(user_l2_to_l1_log_count);
+
+        let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::InsertConsensus, is_fictive);
+        // We want to add miniblock consensus fields atomically with the miniblock data so that we
+        // don't need to deal with corner cases (e.g., a miniblock w/o consensus fields).
+        if let Some(consensus) = &self.consensus {
+            transaction
+                .blocks_dal()
+                .set_miniblock_consensus_fields(self.miniblock_number, consensus)
+                .await
+                .unwrap();
+        }
+        progress.observe(None);
 
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::CommitMiniblock, is_fictive);
         let current_l2_virtual_block_info = transaction

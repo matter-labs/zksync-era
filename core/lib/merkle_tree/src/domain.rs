@@ -1,22 +1,21 @@
 //! Tying the Merkle tree implementation to the problem domain.
 
 use rayon::{ThreadPool, ThreadPoolBuilder};
+use zksync_crypto::hasher::blake2::Blake2Hasher;
+use zksync_types::{
+    proofs::{PrepareBasicCircuitsJob, StorageLogMetadata},
+    writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
+    L1BatchNumber, StorageKey, U256,
+};
 use zksync_utils::h256_to_u256;
 
 use crate::{
-    storage::{MerkleTreeColumnFamily, PatchSet, Patched, RocksDBWrapper},
+    storage::{PatchSet, Patched, RocksDBWrapper},
     types::{
         Key, Root, TreeEntry, TreeEntryWithProof, TreeInstruction, TreeLogEntry, ValueHash,
         TREE_DEPTH,
     },
     BlockOutput, HashTree, MerkleTree, NoVersionError,
-};
-use zksync_crypto::hasher::blake2::Blake2Hasher;
-use zksync_storage::RocksDB;
-use zksync_types::{
-    proofs::{PrepareBasicCircuitsJob, StorageLogMetadata},
-    writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
-    L1BatchNumber, StorageKey, U256,
 };
 
 /// Metadata for the current tree state.
@@ -92,19 +91,18 @@ impl ZkSyncTree {
     }
 
     /// Creates a tree with the full processing mode.
-    pub fn new(db: RocksDB<MerkleTreeColumnFamily>) -> Self {
+    pub fn new(db: RocksDBWrapper) -> Self {
         Self::new_with_mode(db, TreeMode::Full)
     }
 
     /// Creates a tree with the lightweight processing mode.
-    pub fn new_lightweight(db: RocksDB<MerkleTreeColumnFamily>) -> Self {
+    pub fn new_lightweight(db: RocksDBWrapper) -> Self {
         Self::new_with_mode(db, TreeMode::Lightweight)
     }
 
-    fn new_with_mode(db: RocksDB<MerkleTreeColumnFamily>, mode: TreeMode) -> Self {
-        let wrapper = RocksDBWrapper::from(db);
+    fn new_with_mode(db: RocksDBWrapper, mode: TreeMode) -> Self {
         Self {
-            tree: MerkleTree::new(Patched::new(wrapper)),
+            tree: MerkleTree::new(Patched::new(db)),
             thread_pool: None,
             mode,
         }

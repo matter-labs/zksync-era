@@ -1,14 +1,15 @@
 //! Definition of zkSync network priority operations: operations initiated from the L1.
 
-use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 
+use serde::{Deserialize, Serialize};
 use zksync_basic_types::{
     ethabi::{decode, ParamType, Token},
     Address, L1BlockNumber, Log, PriorityOpId, H160, H256, U256,
 };
 use zksync_utils::u256_to_account_address;
 
+use super::Transaction;
 use crate::{
     helpers::unix_timestamp_ms,
     l1::error::L1TxParseError,
@@ -17,8 +18,6 @@ use crate::{
     tx::Execute,
     ExecuteTransactionCommon, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE,
 };
-
-use super::Transaction;
 
 pub mod error;
 
@@ -200,11 +199,11 @@ impl TryFrom<Log> for L1Tx {
     fn try_from(event: Log) -> Result<Self, Self::Error> {
         // TODO: refactor according to tx type
         let transaction_param_type = ParamType::Tuple(vec![
-            ParamType::Uint(8),                                       // txType
+            ParamType::Uint(8),                                       // `txType`
             ParamType::Address,                                       // sender
             ParamType::Address,                                       // to
             ParamType::Uint(256),                                     // gasLimit
-            ParamType::Uint(256),                                     // gasPerPubdataLimit
+            ParamType::Uint(256),                                     // `gasPerPubdataLimit`
             ParamType::Uint(256),                                     // maxFeePerGas
             ParamType::Uint(256),                                     // maxPriorityFeePerGas
             ParamType::Address,                                       // paymaster
@@ -215,7 +214,7 @@ impl TryFrom<Log> for L1Tx {
             ParamType::Bytes,                                         // signature
             ParamType::Array(Box::new(ParamType::Uint(256))),         // factory deps
             ParamType::Bytes,                                         // paymaster input
-            ParamType::Bytes,                                         // reservedDynamic
+            ParamType::Bytes,                                         // `reservedDynamic`
         ]);
 
         let mut dec_ev = decode(
@@ -303,7 +302,7 @@ impl TryFrom<Log> for L1Tx {
         let signature = transaction.remove(0).into_bytes().unwrap();
         assert_eq!(signature.len(), 0);
 
-        // TODO (SMA-1621): check that reservedDynamic are constructed correctly.
+        // TODO (SMA-1621): check that `reservedDynamic` are constructed correctly.
         let _factory_deps_hashes = transaction.remove(0).into_array().unwrap();
         let _paymaster_input = transaction.remove(0).into_bytes().unwrap();
         let _reserved_dynamic = transaction.remove(0).into_bytes().unwrap();

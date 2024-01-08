@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
-
 use zksync_basic_types::L1BatchNumber;
 
-use crate::aggregated_operations::L1BatchProofForL1;
-use crate::proofs::PrepareBasicCircuitsJob;
-use crate::protocol_version::{FriProtocolVersionId, L1VerifierConfig};
+use crate::{
+    aggregated_operations::L1BatchProofForL1,
+    proofs::PrepareBasicCircuitsJob,
+    protocol_version::{FriProtocolVersionId, L1VerifierConfig},
+};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProofGenerationData {

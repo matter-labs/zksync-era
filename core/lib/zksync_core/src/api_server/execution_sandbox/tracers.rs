@@ -1,9 +1,7 @@
-use multivm::tracers::CallTracer;
-use multivm::vm_latest::HistoryMode;
-use multivm::{MultiVMTracer, MultiVmTracerPointer};
-use once_cell::sync::OnceCell;
-
 use std::sync::Arc;
+
+use multivm::{tracers::CallTracer, vm_latest::HistoryMode, MultiVMTracer, MultiVmTracerPointer};
+use once_cell::sync::OnceCell;
 use zksync_state::WriteStorage;
 use zksync_types::vm_trace::Call;
 
@@ -16,7 +14,7 @@ pub(crate) enum ApiTracer {
 impl ApiTracer {
     pub fn into_boxed<
         S: WriteStorage,
-        H: HistoryMode + multivm::HistoryMode<VmBoojumIntegration = H> + 'static,
+        H: HistoryMode + multivm::HistoryMode<VmLatest = H> + 'static,
     >(
         self,
     ) -> MultiVmTracerPointer<S, H> {

@@ -1,37 +1,37 @@
 #![feature(generic_const_exprs)]
 
-use anyhow::{anyhow, Context as _};
-use prometheus_exporter::PrometheusExporterConfig;
 use std::time::Instant;
+
+use anyhow::{anyhow, Context as _};
+use futures::{channel::mpsc, executor::block_on, SinkExt};
+use prometheus_exporter::PrometheusExporterConfig;
 use structopt::StructOpt;
 use tokio::sync::watch;
-use zksync_config::configs::{FriWitnessGeneratorConfig, PostgresConfig, PrometheusConfig};
-use zksync_config::ObjectStoreConfig;
+use zksync_config::{
+    configs::{FriWitnessGeneratorConfig, PostgresConfig, PrometheusConfig},
+    ObjectStoreConfig,
+};
 use zksync_dal::ConnectionPool;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prover_utils::get_stop_signal_receiver;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::proofs::AggregationRound;
-use zksync_types::web3::futures::StreamExt;
+use zksync_types::{proofs::AggregationRound, web3::futures::StreamExt};
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
-use crate::basic_circuits::BasicWitnessGenerator;
-use crate::leaf_aggregation::LeafAggregationWitnessGenerator;
-use crate::metrics::SERVER_METRICS;
-use crate::node_aggregation::NodeAggregationWitnessGenerator;
-use crate::scheduler::SchedulerWitnessGenerator;
+use crate::{
+    basic_circuits::BasicWitnessGenerator, leaf_aggregation::LeafAggregationWitnessGenerator,
+    metrics::SERVER_METRICS, node_aggregation::NodeAggregationWitnessGenerator,
+    scheduler::SchedulerWitnessGenerator,
+};
 
 mod basic_circuits;
 mod leaf_aggregation;
+mod metrics;
 mod node_aggregation;
 mod precalculated_merkle_paths_provider;
 mod scheduler;
 mod storage_oracle;
-
-mod metrics;
-
 mod utils;
 
 #[derive(Debug, StructOpt)]
@@ -96,13 +96,10 @@ async fn main() -> anyhow::Result<()> {
     .build()
     .await
     .context("failed to build a connection_pool")?;
-    let prover_connection_pool = ConnectionPool::builder(
-        postgres_config.prover_url()?,
-        postgres_config.max_connections()?,
-    )
-    .build()
-    .await
-    .context("failed to build a prover_connection_pool")?;
+    let prover_connection_pool = ConnectionPool::singleton(postgres_config.prover_url()?)
+        .build()
+        .await
+        .context("failed to build a prover_connection_pool")?;
     let (stop_sender, stop_receiver) = watch::channel(false);
     let vk_commitments = get_cached_commitments();
     let protocol_versions = prover_connection_pool
@@ -232,7 +229,11 @@ async fn main() -> anyhow::Result<()> {
         SERVER_METRICS.init_latency[&(*round).into()].set(started_at.elapsed());
     }
 
-    let mut stop_signal_receiver = get_stop_signal_receiver();
+    let (mut stop_signal_sender, mut stop_signal_receiver) = mpsc::channel(256);
+    ctrlc::set_handler(move || {
+        block_on(stop_signal_sender.send(true)).expect("Ctrl+C signal send");
+    })
+    .expect("Error setting Ctrl+C handler");
     let graceful_shutdown = None::<futures::future::Ready<()>>;
     let tasks_allowed_to_finish = true;
     tokio::select! {

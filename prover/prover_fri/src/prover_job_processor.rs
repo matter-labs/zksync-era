@@ -1,31 +1,27 @@
-use std::collections::HashMap;
-use std::{sync::Arc, time::Instant};
+use std::{collections::HashMap, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use tokio::task::JoinHandle;
-use zksync_prover_fri_types::circuit_definitions::aux_definitions::witness_oracle::VmWitnessOracle;
-use zksync_prover_fri_types::circuit_definitions::boojum::cs::implementations::pow::NoPow;
-use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::GoldilocksField;
-use zksync_prover_fri_types::circuit_definitions::boojum::worker::Worker;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::base_layer::{
-    ZkSyncBaseLayerCircuit, ZkSyncBaseLayerProof,
-};
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::{
-    ZkSyncRecursionLayerProof, ZkSyncRecursiveLayerCircuit,
-};
-use zksync_prover_fri_types::circuit_definitions::{
-    base_layer_proof_config, recursion_layer_proof_config, ZkSyncDefaultRoundFunction,
-};
-
 use zkevm_test_harness::prover_utils::{prove_base_layer_circuit, prove_recursion_layer_circuit};
-
-use crate::metrics::{CircuitLabels, Layer, METRICS};
-use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
-use zksync_config::configs::FriProverConfig;
+use zksync_config::configs::{fri_prover_group::FriProverGroupConfig, FriProverConfig};
 use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;
 use zksync_object_store::ObjectStore;
-use zksync_prover_fri_types::{CircuitWrapper, FriProofWrapper, ProverJob, ProverServiceDataKey};
+use zksync_prover_fri_types::{
+    circuit_definitions::{
+        aux_definitions::witness_oracle::VmWitnessOracle,
+        base_layer_proof_config,
+        boojum::{
+            cs::implementations::pow::NoPow, field::goldilocks::GoldilocksField, worker::Worker,
+        },
+        circuit_definitions::{
+            base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerProof},
+            recursion_layer::{ZkSyncRecursionLayerProof, ZkSyncRecursiveLayerCircuit},
+        },
+        recursion_layer_proof_config, ZkSyncDefaultRoundFunction,
+    },
+    CircuitWrapper, FriProofWrapper, ProverJob, ProverServiceDataKey,
+};
 use zksync_prover_fri_utils::fetch_next_circuit;
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{basic_fri_types::CircuitIdRoundTuple, protocol_version::L1VerifierConfig};
@@ -33,8 +29,12 @@ use zksync_vk_setup_data_server_fri::{
     get_cpu_setup_data_for_circuit_type, GoldilocksProverSetupData,
 };
 
-use crate::utils::{
-    get_setup_data_key, save_proof, setup_metadata_to_setup_data_key, verify_proof, ProverArtifacts,
+use crate::{
+    metrics::{CircuitLabels, Layer, METRICS},
+    utils::{
+        get_setup_data_key, save_proof, setup_metadata_to_setup_data_key, verify_proof,
+        ProverArtifacts,
+    },
 };
 
 pub enum SetupLoadMode {
@@ -43,8 +43,8 @@ pub enum SetupLoadMode {
 }
 
 pub struct Prover {
-    blob_store: Box<dyn ObjectStore>,
-    public_blob_store: Option<Box<dyn ObjectStore>>,
+    blob_store: Arc<dyn ObjectStore>,
+    public_blob_store: Option<Arc<dyn ObjectStore>>,
     config: Arc<FriProverConfig>,
     prover_connection_pool: ConnectionPool,
     setup_load_mode: SetupLoadMode,
@@ -57,8 +57,8 @@ pub struct Prover {
 impl Prover {
     #[allow(dead_code)]
     pub fn new(
-        blob_store: Box<dyn ObjectStore>,
-        public_blob_store: Option<Box<dyn ObjectStore>>,
+        blob_store: Arc<dyn ObjectStore>,
+        public_blob_store: Option<Arc<dyn ObjectStore>>,
         config: FriProverConfig,
         prover_connection_pool: ConnectionPool,
         setup_load_mode: SetupLoadMode,

@@ -1,5 +1,4 @@
 use actix_web::web;
-
 use zksync_dal::connection::ConnectionPool;
 
 #[derive(Debug, Clone)]

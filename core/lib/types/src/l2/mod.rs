@@ -2,25 +2,24 @@ use std::convert::TryFrom;
 
 use num_enum::TryFromPrimitive;
 use rlp::{Rlp, RlpStream};
-
-use self::error::SignError;
-use crate::transaction_request::PaymasterParams;
-use crate::LEGACY_TX_TYPE;
-
-use crate::{
-    api, tx::primitives::PackedEthSignature, tx::Execute, web3::types::U64, Address, Bytes,
-    EIP712TypedStructure, Eip712Domain, ExecuteTransactionCommon, InputData, L2ChainId, Nonce,
-    StructBuilder, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H256,
-    PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256,
-};
-
 use serde::{Deserialize, Serialize};
 
-pub mod error;
+use self::error::SignError;
+use crate::{
+    api,
+    api::TransactionRequest,
+    fee::{encoding_len, Fee},
+    helpers::unix_timestamp_ms,
+    transaction_request::PaymasterParams,
+    tx::{primitives::PackedEthSignature, Execute},
+    web3::types::U64,
+    Address, Bytes, EIP712TypedStructure, Eip712Domain, ExecuteTransactionCommon, InputData,
+    L2ChainId, Nonce, StructBuilder, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE,
+    EIP_712_TX_TYPE, H256, LEGACY_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE,
+    U256,
+};
 
-use crate::api::TransactionRequest;
-use crate::fee::{encoding_len, Fee};
-use crate::helpers::unix_timestamp_ms;
+pub mod error;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive)]
 #[repr(u32)]
@@ -30,7 +29,7 @@ pub enum TransactionType {
 
     EIP2930Transaction = 1,
     EIP1559Transaction = 2,
-    // Eip 712 transaction with additional fields specified for zksync
+    // EIP 712 transaction with additional fields specified for zkSync
     EIP712Transaction = EIP_712_TX_TYPE as u32,
     PriorityOpTransaction = PRIORITY_OPERATION_L2_TX_TYPE as u32,
     ProtocolUpgradeTransaction = PROTOCOL_UPGRADE_TX_TYPE as u32,
@@ -290,7 +289,7 @@ impl L2Tx {
 fn signature_to_vrs(signature: &[u8], tx_type: u32) -> (Option<U64>, Option<U256>, Option<U256>) {
     let signature = if tx_type == LEGACY_TX_TYPE as u32 {
         // Note that we use `deserialize_packed_no_v_check` here, because we want to preserve the original `v` value.
-        // This is needed due to inconsistent behaviour on Ethereum where the `v` value is >= 27 for legacy transactions
+        // This is needed due to inconsistent behavior on Ethereum where the `v` value is >= 27 for legacy transactions
         // and is either 0 or 1 for other ones.
         PackedEthSignature::deserialize_packed_no_v_check(signature)
     } else {
@@ -463,12 +462,11 @@ impl EIP712TypedStructure for L2Tx {
 mod tests {
     use zksync_basic_types::{Nonce, U256};
 
+    use super::{L2Tx, TransactionType};
     use crate::{
         api::TransactionRequest, fee::Fee, transaction_request::PaymasterParams, Execute,
         L2TxCommonData,
     };
-
-    use super::{L2Tx, TransactionType};
 
     #[test]
     fn test_correct_l2_tx_transaction_request_conversion() {

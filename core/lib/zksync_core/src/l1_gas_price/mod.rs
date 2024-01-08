@@ -1,6 +1,7 @@
 //! This module determines the fees to pay in txs containing blocks submitted to the L1.
 
-pub use gas_adjuster::bounded_gas_adjuster::BoundedGasAdjuster;
+use std::fmt;
+
 pub use gas_adjuster::GasAdjuster;
 pub use main_node_fetcher::MainNodeGasPriceFetcher;
 pub use singleton::GasAdjusterSingleton;
@@ -11,7 +12,7 @@ pub mod singleton;
 
 /// Abstraction that provides information about the L1 gas price currently
 /// observed by the application.
-pub trait L1GasPriceProvider {
+pub trait L1GasPriceProvider: fmt::Debug + 'static + Send + Sync {
     /// Returns a best guess of a realistic value for the L1 gas price.
     /// Return value is in wei.
     fn estimate_effective_gas_price(&self) -> u64;

@@ -18,21 +18,14 @@ const success = chalk.green;
 const timestamp = chalk.grey;
 
 export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
-    const {
-        skipSubmodulesCheckout,
-        skipEnvSetup,
-        skipPlonkStep,
-        testTokens,
-        governorPrivateKeyArgs,
-        deployerL2ContractInput
-    } = initArgs;
+    const { skipSubmodulesCheckout, skipEnvSetup, testTokens, governorPrivateKeyArgs, deployerL2ContractInput } =
+        initArgs;
 
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
         await announced('Checking environment', checkEnv());
         await announced('Checking git hooks', env.gitHooks());
         await announced('Setting up containers', up());
-        !skipPlonkStep && (await announced('Checking PLONK setup', run.plonkSetup()));
     }
     if (!skipSubmodulesCheckout) {
         await announced('Checkout system-contracts submodule', submoduleUpdate());
@@ -53,7 +46,6 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     await announced('Running server genesis setup', server.genesisFromSources());
     await announced('Deploying L1 contracts', contract.redeployL1(governorPrivateKeyArgs));
     await announced('Initializing validator', contract.initializeValidator(governorPrivateKeyArgs));
-    await announced('Initialize L1 allow list', contract.initializeL1AllowList(governorPrivateKeyArgs));
     await announced(
         'Deploying L2 contracts',
         contract.deployL2(
@@ -90,7 +82,6 @@ export async function reinit() {
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
     await announced('Deploying L1 contracts', contract.redeployL1([]));
-    await announced('Initializing L1 Allow list', contract.initializeL1AllowList());
     await announced('Deploying L2 contracts', contract.deployL2([], true, true));
     await announced('Initializing L2 WETH token', contract.initializeWethToken());
     await announced('Initializing governance', contract.initializeGovernance());
@@ -106,7 +97,6 @@ export async function lightweightInit() {
     await announced('Running server genesis setup', server.genesisFromBinary());
     await announced('Deploying L1 contracts', contract.redeployL1([]));
     await announced('Initializing validator', contract.initializeValidator());
-    await announced('Initializing L1 Allow list', contract.initializeL1AllowList());
     await announced('Deploying L2 contracts', contract.deployL2([], true, false));
     await announced('Initializing governance', contract.initializeGovernance());
 }
@@ -134,7 +124,7 @@ export async function submoduleUpdate() {
 }
 
 async function checkEnv() {
-    const tools = ['node', 'yarn', 'docker', 'docker-compose', 'cargo'];
+    const tools = ['node', 'yarn', 'docker', 'cargo'];
     for (const tool of tools) {
         await utils.exec(`which ${tool}`);
     }
@@ -149,7 +139,6 @@ async function checkEnv() {
 export interface InitArgs {
     skipSubmodulesCheckout: boolean;
     skipEnvSetup: boolean;
-    skipPlonkStep: boolean;
     governorPrivateKeyArgs: any[];
     deployerL2ContractInput: {
         args: any[];
@@ -165,7 +154,6 @@ export interface InitArgs {
 const DEFAULT_ARGS: InitArgs = {
     skipSubmodulesCheckout: false,
     skipEnvSetup: false,
-    skipPlonkStep: false,
     governorPrivateKeyArgs: [],
     deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
     testTokens: { deploy: true, args: [] }
@@ -179,7 +167,6 @@ export const initCommand = new Command('init')
         const initArgs: InitArgs = {
             skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
             skipEnvSetup: cmd.skipEnvSetup,
-            skipPlonkStep: false,
             governorPrivateKeyArgs: [],
             deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
             testTokens: { deploy: true, args: [] }

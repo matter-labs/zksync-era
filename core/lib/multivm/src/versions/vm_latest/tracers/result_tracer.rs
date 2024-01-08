@@ -1,27 +1,29 @@
 use std::marker::PhantomData;
+
 use zk_evm_1_4_0::{
     tracing::{AfterDecodingData, BeforeExecutionData, VmLocalStateData},
     vm_state::{ErrorFlags, VmLocalState},
     zkevm_opcode_defs::FatPointer,
 };
 use zksync_state::{StoragePtr, WriteStorage};
-
-use crate::interface::{
-    tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
-    types::tracer::TracerExecutionStopReason, ExecutionResult, Halt, TxRevertReason,
-    VmExecutionMode, VmRevertReason,
-};
 use zksync_types::U256;
 
-use crate::vm_latest::{
-    constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT},
-    old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
-    tracers::{
-        traits::VmTracer,
-        utils::{get_vm_hook_params, read_pointer, VmHook},
+use crate::{
+    interface::{
+        tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
+        types::tracer::TracerExecutionStopReason, ExecutionResult, Halt, TxRevertReason,
+        VmExecutionMode, VmRevertReason,
     },
-    types::internals::ZkSyncVmState,
-    BootloaderState, HistoryMode, SimpleMemory,
+    vm_latest::{
+        constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT},
+        old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
+        tracers::{
+            traits::VmTracer,
+            utils::{get_vm_hook_params, read_pointer, VmHook},
+        },
+        types::internals::ZkSyncVmState,
+        BootloaderState, HistoryMode, SimpleMemory,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -52,7 +54,7 @@ impl<S> ResultTracer<S> {
 }
 
 fn current_frame_is_bootloader(local_state: &VmLocalState) -> bool {
-    // The current frame is bootloader if the callstack depth is 1.
+    // The current frame is bootloader if the call stack depth is 1.
     // Some of the near calls inside the bootloader can be out of gas, which is totally normal behavior
     // and it shouldn't result in `is_bootloader_out_of_gas` becoming true.
     local_state.callstack.inner.len() == 1
@@ -148,7 +150,7 @@ impl<S: WriteStorage> ResultTracer<S> {
                 });
             }
             VmExecutionResult::Revert(output) => {
-                // Unlike VmHook::ExecutionResult,  vm has completely finished and returned not only the revert reason,
+                // Unlike `VmHook::ExecutionResult`,  vm has completely finished and returned not only the revert reason,
                 // but with bytecode, which represents the type of error from the bootloader side
                 let revert_reason = TxRevertReason::parse_error(&output);
 

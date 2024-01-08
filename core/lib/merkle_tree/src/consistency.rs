@@ -1,8 +1,8 @@
 //! Consistency verification for the Merkle tree.
 
-use rayon::prelude::*;
-
 use std::sync::atomic::{AtomicU64, Ordering};
+
+use rayon::prelude::*;
 
 use crate::{
     errors::DeserializeError,
@@ -161,8 +161,8 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
                                 is_leaf: child_ref.is_leaf,
                             })?;
 
-                        // Recursion here is OK; the tree isn't that deep (~8 nibbles for a tree with
-                        // ~1B entries).
+                        // Recursion here is OK; the tree isn't that deep (approximately 8 nibbles for a tree with
+                        // approximately 1B entries).
                         let child_hash = self.validate_node(&child, child_key, leaf_data)?;
                         if child_hash == child_ref.hash {
                             Ok(())
@@ -267,17 +267,17 @@ impl AtomicBitSet {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU64;
+
     use assert_matches::assert_matches;
     use rayon::ThreadPoolBuilder;
-
-    use std::num::NonZeroU64;
+    use zksync_types::{H256, U256};
 
     use super::*;
     use crate::{
         types::{InternalNode, TreeEntry},
         PatchSet,
     };
-    use zksync_types::{H256, U256};
 
     const FIRST_KEY: Key = U256([0, 0, 0, 0x_dead_beef_0000_0000]);
     const SECOND_KEY: Key = U256([0, 0, 0, 0x_dead_beef_0100_0000]);

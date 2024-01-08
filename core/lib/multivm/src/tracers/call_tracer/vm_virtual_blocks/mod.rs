@@ -1,20 +1,23 @@
-use zk_evm_1_3_3::tracing::{AfterExecutionData, VmLocalStateData};
-use zk_evm_1_3_3::zkevm_opcode_defs::{
-    FarCallABI, FatPointer, Opcode, RetOpcode, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER,
-    RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
+use zk_evm_1_3_3::{
+    tracing::{AfterExecutionData, VmLocalStateData},
+    zkevm_opcode_defs::{
+        FarCallABI, FatPointer, Opcode, RetOpcode, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER,
+        RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
+    },
 };
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
-use zksync_types::vm_trace::{Call, CallType};
-use zksync_types::FarCallOpcode;
-use zksync_types::U256;
-
-use crate::interface::{
-    dyn_tracers::vm_1_3_3::DynTracer, VmExecutionResultAndLogs, VmRevertReason,
+use zksync_types::{
+    vm_trace::{Call, CallType},
+    FarCallOpcode, U256,
 };
-use crate::tracers::call_tracer::CallTracer;
-use crate::vm_virtual_blocks::{
-    ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory, VmTracer,
+
+use crate::{
+    interface::{dyn_tracers::vm_1_3_3::DynTracer, VmExecutionResultAndLogs, VmRevertReason},
+    tracers::call_tracer::CallTracer,
+    vm_virtual_blocks::{
+        ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory, VmTracer,
+    },
 };
 
 impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
@@ -135,7 +138,7 @@ impl CallTracer {
         let fat_data_pointer =
             state.vm_local_state.registers[RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER as usize];
 
-        // if fat_data_pointer is not a pointer then there is no output
+        // if `fat_data_pointer` is not a pointer then there is no output
         let output = if fat_data_pointer.is_pointer {
             let fat_data_pointer = FatPointer::from_u256(fat_data_pointer.value);
             if !fat_data_pointer.is_trivial() {

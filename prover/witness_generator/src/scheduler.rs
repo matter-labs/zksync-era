@@ -1,31 +1,37 @@
-use std::convert::TryInto;
-use std::time::Instant;
+use std::{convert::TryInto, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::{GoldilocksExt2, GoldilocksField};
-use zksync_prover_fri_types::circuit_definitions::boojum::gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::scheduler::SchedulerCircuit;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::{
-    ZkSyncRecursionLayerStorageType, ZkSyncRecursionLayerVerificationKey,
-    ZkSyncRecursiveLayerCircuit, SCHEDULER_CAPACITY,
-};
-use zksync_prover_fri_types::circuit_definitions::recursion_layer_proof_config;
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness;
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::SchedulerConfig;
-use zksync_vk_setup_data_server_fri::get_recursive_layer_vk_for_circuit_type;
-use zksync_vk_setup_data_server_fri::utils::get_leaf_vk_params;
-
-use crate::metrics::WITNESS_GENERATOR_METRICS;
-use crate::utils::{load_proofs_for_job_ids, SchedulerPartialInputWrapper};
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{FriCircuitKey, ObjectStore, ObjectStoreFactory};
-use zksync_prover_fri_types::{get_current_pod_name, CircuitWrapper, FriProofWrapper};
+use zksync_prover_fri_types::{
+    circuit_definitions::{
+        boojum::{
+            field::goldilocks::{GoldilocksExt2, GoldilocksField},
+            gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge,
+        },
+        circuit_definitions::recursion_layer::{
+            scheduler::SchedulerCircuit, ZkSyncRecursionLayerStorageType,
+            ZkSyncRecursionLayerVerificationKey, ZkSyncRecursiveLayerCircuit, SCHEDULER_CAPACITY,
+        },
+        recursion_layer_proof_config,
+        zkevm_circuits::scheduler::{input::SchedulerCircuitInstanceWitness, SchedulerConfig},
+    },
+    get_current_pod_name, CircuitWrapper, FriProofWrapper,
+};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::proofs::AggregationRound;
-use zksync_types::protocol_version::FriProtocolVersionId;
-use zksync_types::L1BatchNumber;
+use zksync_types::{
+    proofs::AggregationRound, protocol_version::FriProtocolVersionId, L1BatchNumber,
+};
+use zksync_vk_setup_data_server_fri::{
+    get_recursive_layer_vk_for_circuit_type, utils::get_leaf_vk_params,
+};
+
+use crate::{
+    metrics::WITNESS_GENERATOR_METRICS,
+    utils::{load_proofs_for_job_ids, SchedulerPartialInputWrapper},
+};
 
 pub struct SchedulerArtifacts {
     pub scheduler_circuit: ZkSyncRecursiveLayerCircuit,
@@ -45,7 +51,7 @@ pub struct SchedulerWitnessGeneratorJob {
 #[derive(Debug)]
 pub struct SchedulerWitnessGenerator {
     config: FriWitnessGeneratorConfig,
-    object_store: Box<dyn ObjectStore>,
+    object_store: Arc<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool,
     protocol_versions: Vec<FriProtocolVersionId>,
 }

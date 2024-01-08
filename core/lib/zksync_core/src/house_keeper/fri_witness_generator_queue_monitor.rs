@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use zksync_dal::ConnectionPool;
 use zksync_types::proofs::{AggregationRound, JobCountStatistics};
 
-use zksync_prover_utils::periodic_job::PeriodicJob;
+use crate::house_keeper::periodic_job::PeriodicJob;
 
 const FRI_WITNESS_GENERATOR_SERVICE_NAME: &str = "fri_witness_generator";
 

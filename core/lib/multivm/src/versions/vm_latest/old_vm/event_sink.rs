@@ -1,9 +1,6 @@
-use crate::vm_latest::old_vm::{
-    history_recorder::{AppDataFrameManagerWithHistory, HistoryEnabled, HistoryMode},
-    oracles::OracleWithHistory,
-};
-use itertools::Itertools;
 use std::collections::HashMap;
+
+use itertools::Itertools;
 use zk_evm_1_4_0::{
     abstractions::EventSink,
     aux_structures::{LogQuery, Timestamp},
@@ -13,6 +10,11 @@ use zk_evm_1_4_0::{
     },
 };
 use zksync_types::U256;
+
+use crate::vm_latest::old_vm::{
+    history_recorder::{AppDataFrameManagerWithHistory, HistoryEnabled, HistoryMode},
+    oracles::OracleWithHistory,
+};
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct InMemoryEventSink<H: HistoryMode> {
@@ -52,7 +54,7 @@ impl<H: HistoryMode> InMemoryEventSink<H> {
     pub fn log_queries_after_timestamp(&self, from_timestamp: Timestamp) -> &[Box<LogQuery>] {
         let events = self.frames_stack.forward().current_frame();
 
-        // Select all of the last elements where e.timestamp >= from_timestamp.
+        // Select all of the last elements where `e.timestamp >= from_timestamp`.
         // Note, that using binary search here is dangerous, because the logs are not sorted by timestamp.
         events
             .rsplit(|e| e.timestamp < from_timestamp)

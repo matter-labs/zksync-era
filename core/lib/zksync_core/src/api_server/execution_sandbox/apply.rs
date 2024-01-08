@@ -8,11 +8,12 @@
 
 use std::time::{Duration, Instant};
 
-use multivm::vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryDisabled};
-
-use multivm::interface::VmInterface;
-use multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv};
-use multivm::VmInstance;
+use multivm::{
+    interface::{L1BatchEnv, L2BlockEnv, SystemEnv, VmInterface},
+    utils::adjust_l1_gas_price_for_tx,
+    vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryDisabled},
+    VmInstance,
+};
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_state::{PostgresStorage, ReadStorage, StorageView, WriteStorage};
 use zksync_system_constants::{
@@ -21,7 +22,7 @@ use zksync_system_constants::{
 };
 use zksync_types::{
     api,
-    block::{legacy_miniblock_hash, pack_block_info, unpack_block_info},
+    block::{pack_block_info, unpack_block_info, MiniblockHasher},
     get_nonce_key,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     AccountTreeId, L1BatchNumber, MiniblockNumber, Nonce, ProtocolVersionId, StorageKey,
@@ -38,6 +39,10 @@ use super::{
 pub(super) fn apply_vm_in_sandbox<T>(
     vm_permit: VmPermit,
     shared_args: TxSharedArgs,
+    // If `true`, then the batch's L1/pubdata gas price will be adjusted so that the transaction's gas per pubdata limit is <=
+    // to the one in the block. This is often helpful in case we want the transaction validation to work regardless of the
+    // current L1 prices for gas or pubdata.
+    adjust_pubdata_price: bool,
     execution_args: &TxExecutionArgs,
     connection_pool: &ConnectionPool,
     tx: Transaction,
@@ -102,12 +107,12 @@ pub(super) fn apply_vm_in_sandbox<T>(
     } else if current_l2_block_info.l2_block_number == 0 {
         // Special case:
         // - For environments, where genesis block was created before virtual block upgrade it doesn't matter what we put here.
-        // - Otherwise, we need to put actual values here. We cannot create next l2 block with block_number=0 and max_virtual_blocks_to_create=0
+        // - Otherwise, we need to put actual values here. We cannot create next L2 block with block_number=0 and `max_virtual_blocks_to_create=0`
         //   because of SystemContext requirements. But, due to intrinsics of SystemContext, block.number still will be resolved to 0.
         L2BlockEnv {
             number: 1,
             timestamp: 0,
-            prev_block_hash: legacy_miniblock_hash(MiniblockNumber(0)),
+            prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
             max_virtual_blocks_to_create: 1,
         }
     } else {
@@ -182,6 +187,17 @@ pub(super) fn apply_vm_in_sandbox<T>(
         chain_id,
         ..
     } = shared_args;
+
+    let l1_gas_price = if adjust_pubdata_price {
+        adjust_l1_gas_price_for_tx(
+            l1_gas_price,
+            fair_l2_gas_price,
+            tx.gas_per_pubdata_byte_limit(),
+            protocol_version.into(),
+        )
+    } else {
+        l1_gas_price
+    };
 
     let system_env = SystemEnv {
         zk_porter_available: ZKPORTER_IS_AVAILABLE,

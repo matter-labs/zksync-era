@@ -1,12 +1,18 @@
+use std::{
+    collections::{HashMap, HashSet},
+    iter::FromIterator,
+};
+
+use zksync_types::{
+    fee::Fee,
+    helpers::unix_timestamp_ms,
+    l1::{OpProcessingType, PriorityQueueType},
+    l2::L2Tx,
+    Address, Execute, ExecuteTransactionCommon, L1TxCommonData, Nonce, PriorityOpId, Transaction,
+    H256, U256,
+};
+
 use crate::{mempool_store::MempoolStore, types::L2TxFilter};
-use std::collections::{HashMap, HashSet};
-use std::iter::FromIterator;
-use zksync_types::fee::Fee;
-use zksync_types::helpers::unix_timestamp_ms;
-use zksync_types::l1::{OpProcessingType, PriorityQueueType};
-use zksync_types::l2::L2Tx;
-use zksync_types::{Address, ExecuteTransactionCommon, L1TxCommonData, PriorityOpId, H256, U256};
-use zksync_types::{Execute, Nonce, Transaction};
 
 #[test]
 fn basic_flow() {
@@ -39,7 +45,7 @@ fn basic_flow() {
         (account0, 3)
     );
     assert_eq!(mempool.next_transaction(&L2TxFilter::default()), None);
-    // unclog second account and insert more txns
+    // unclog second account and insert more transactions
     mempool.insert(
         vec![gen_l2_tx(account1, Nonce(0)), gen_l2_tx(account0, Nonce(3))],
         HashMap::new(),

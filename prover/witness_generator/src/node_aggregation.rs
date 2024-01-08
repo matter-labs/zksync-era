@@ -1,34 +1,42 @@
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::GoldilocksField;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::{
-    ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
-    ZkSyncRecursionLayerVerificationKey, ZkSyncRecursiveLayerCircuit,
-};
-use zksync_prover_fri_types::circuit_definitions::encodings::recursion_request::RecursionQueueSimulator;
-
 use zkevm_test_harness::witness::recursive_aggregation::{
     compute_node_vk_commitment, create_node_witnesses,
-};
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::recursion::leaf_layer::input::RecursionLeafParametersWitness;
-use zksync_vk_setup_data_server_fri::get_recursive_layer_vk_for_circuit_type;
-use zksync_vk_setup_data_server_fri::utils::get_leaf_vk_params;
-
-use crate::metrics::WITNESS_GENERATOR_METRICS;
-use crate::utils::{
-    load_proofs_for_job_ids, save_node_aggregations_artifacts,
-    save_recursive_layer_prover_input_artifacts, AggregationWrapper,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{AggregationsKey, ObjectStore, ObjectStoreFactory};
-use zksync_prover_fri_types::{get_current_pod_name, FriProofWrapper};
+use zksync_prover_fri_types::{
+    circuit_definitions::{
+        boojum::field::goldilocks::GoldilocksField,
+        circuit_definitions::recursion_layer::{
+            ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
+            ZkSyncRecursionLayerVerificationKey, ZkSyncRecursiveLayerCircuit,
+        },
+        encodings::recursion_request::RecursionQueueSimulator,
+        zkevm_circuits::recursion::leaf_layer::input::RecursionLeafParametersWitness,
+    },
+    get_current_pod_name, FriProofWrapper,
+};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::proofs::NodeAggregationJobMetadata;
-use zksync_types::protocol_version::FriProtocolVersionId;
-use zksync_types::{proofs::AggregationRound, L1BatchNumber};
+use zksync_types::{
+    proofs::{AggregationRound, NodeAggregationJobMetadata},
+    protocol_version::FriProtocolVersionId,
+    L1BatchNumber,
+};
+use zksync_vk_setup_data_server_fri::{
+    get_recursive_layer_vk_for_circuit_type, utils::get_leaf_vk_params,
+};
+
+use crate::{
+    metrics::WITNESS_GENERATOR_METRICS,
+    utils::{
+        load_proofs_for_job_ids, save_node_aggregations_artifacts,
+        save_recursive_layer_prover_input_artifacts, AggregationWrapper,
+    },
+};
 
 pub struct NodeAggregationArtifacts {
     circuit_id: u8,
@@ -66,7 +74,7 @@ pub struct NodeAggregationWitnessGeneratorJob {
 #[derive(Debug)]
 pub struct NodeAggregationWitnessGenerator {
     config: FriWitnessGeneratorConfig,
-    object_store: Box<dyn ObjectStore>,
+    object_store: Arc<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool,
     protocol_versions: Vec<FriProtocolVersionId>,
 }

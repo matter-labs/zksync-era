@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet};
+
 use assert_matches::assert_matches;
 use rand::{
     rngs::StdRng,
@@ -5,16 +7,14 @@ use rand::{
     Rng, SeedableRng,
 };
 use test_casing::test_casing;
-
-use std::collections::{HashMap, HashSet};
+use zksync_crypto::hasher::blake2::Blake2Hasher;
+use zksync_types::{H256, U256};
 
 use super::*;
 use crate::{
     hasher::{HasherWithStats, MerklePath},
     types::{NodeKey, TreeInstruction, KEY_SIZE},
 };
-use zksync_crypto::hasher::blake2::Blake2Hasher;
-use zksync_types::{H256, U256};
 
 pub(super) const FIRST_KEY: Key = U256([0, 0, 0, 0x_dead_beef_0000_0000]);
 const SECOND_KEY: Key = U256([0, 0, 0, 0x_dead_beef_0100_0000]);
@@ -79,7 +79,7 @@ fn inserting_entries_in_empty_database() {
 
 fn assert_storage_with_2_keys(updater: &TreeUpdater) {
     // Check the internal nodes with a single child that should be created at keys
-    // '', 'd', 'de', ..., 'deadbeef'.
+    // `'', 'd', 'de', ..., 'deadbeef'`.
     let internal_node_nibbles = (0..8).map(|i| {
         let nibbles = Nibbles::new(&FIRST_KEY, i);
         let next_nibble = Nibbles::nibble(&FIRST_KEY, i);
@@ -96,7 +96,7 @@ fn assert_storage_with_2_keys(updater: &TreeUpdater) {
         assert!(!child_ref.is_leaf);
     }
 
-    // Check the final internal node with 2 leaf children at 'deadbeef0'.
+    // Check the final internal node with 2 leaf children at `deadbeef0`.
     let nibbles = Nibbles::new(&FIRST_KEY, 9);
     let node = updater.patch_set.get(&nibbles).unwrap();
     let Node::Internal(node) = node else {

@@ -1,13 +1,6 @@
-use async_trait::async_trait;
-use once_cell::sync::OnceCell;
-use tokio::{
-    sync::{mpsc, oneshot},
-    task::JoinHandle,
-};
-
-use multivm::MultiVMTracer;
 use std::{fmt, sync::Arc};
 
+use async_trait::async_trait;
 use multivm::{
     interface::{
         ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
@@ -15,15 +8,17 @@ use multivm::{
     },
     tracers::CallTracer,
     vm_latest::HistoryEnabled,
-    VmInstance,
+    MultiVMTracer, VmInstance,
+};
+use once_cell::sync::OnceCell;
+use tokio::{
+    sync::{mpsc, oneshot},
+    task::JoinHandle,
 };
 use zksync_dal::ConnectionPool;
 use zksync_state::{RocksdbStorage, StorageView, WriteStorage};
 use zksync_types::{vm_trace::Call, witness_block_state::WitnessBlockState, Transaction, U256};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
-
-#[cfg(test)]
-mod tests;
 
 use crate::{
     gas_tracker::{gas_count_from_metrics, gas_count_from_tx_and_metrics},
@@ -33,6 +28,9 @@ use crate::{
         types::ExecutionMetricsForCriteria,
     },
 };
+
+#[cfg(test)]
+mod tests;
 
 /// Representation of a transaction executed in the virtual machine.
 #[derive(Debug, Clone)]
@@ -327,7 +325,7 @@ impl BatchExecutor {
                     };
                     resp.send((vm_block_result, witness_block_state)).unwrap();
 
-                    // storage_view cannot be accessed while borrowed by the VM,
+                    // `storage_view` cannot be accessed while borrowed by the VM,
                     // so this is the only point at which storage metrics can be obtained
                     let metrics = storage_view.as_ref().borrow_mut().metrics();
                     EXECUTOR_METRICS.batch_storage_interaction_duration[&InteractionType::GetValue]
@@ -435,8 +433,8 @@ impl BatchExecutor {
     }
 
     // Err when transaction is rejected.
-    // Ok(TxExecutionStatus::Success) when the transaction succeeded
-    // Ok(TxExecutionStatus::Failure) when the transaction failed.
+    // `Ok(TxExecutionStatus::Success)` when the transaction succeeded
+    // `Ok(TxExecutionStatus::Failure)` when the transaction failed.
     // Note that failed transactions are considered properly processed and are included in blocks
     fn execute_tx_in_vm<S: WriteStorage>(
         &self,
@@ -453,8 +451,8 @@ impl BatchExecutor {
         // that will not be published (e.g. due to out of gas), we use the following scheme:
         // We try to execute the transaction with compressed bytecodes.
         // If it fails and the compressed bytecodes have not been published,
-        // it means that there is no sense in pollutting the space of compressed bytecodes,
-        // and so we reexecute the transaction, but without compressions.
+        // it means that there is no sense in polluting the space of compressed bytecodes,
+        // and so we re-execute the transaction, but without compression.
 
         // Saving the snapshot before executing
         vm.make_snapshot();

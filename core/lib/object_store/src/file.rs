@@ -1,7 +1,7 @@
+use std::fmt::Debug;
+
 use async_trait::async_trait;
 use tokio::{fs, io};
-
-use std::fmt::Debug;
 
 use crate::raw::{Bucket, ObjectStore, ObjectStoreError};
 
@@ -32,6 +32,7 @@ impl FileBackedObjectStore {
             Bucket::NodeAggregationWitnessJobsFri,
             Bucket::SchedulerWitnessJobsFri,
             Bucket::ProofsFri,
+            Bucket::StorageSnapshot,
         ] {
             let bucket_path = format!("{base_dir}/{bucket}");
             fs::create_dir_all(&bucket_path)
@@ -68,6 +69,10 @@ impl ObjectStore for FileBackedObjectStore {
     async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError> {
         let filename = self.filename(bucket, key);
         fs::remove_file(filename).await.map_err(From::from)
+    }
+
+    fn storage_prefix_raw(&self, bucket: Bucket) -> String {
+        format!("{}/{}", self.base_dir, bucket)
     }
 }
 

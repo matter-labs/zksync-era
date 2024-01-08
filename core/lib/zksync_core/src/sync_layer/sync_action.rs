@@ -1,9 +1,6 @@
 use tokio::sync::mpsc;
-
-use zksync_types::{
-    block::ConsensusBlockFields, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId,
-    Transaction,
-};
+use zksync_dal::blocks_dal::ConsensusBlockFields;
+use zksync_types::{Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction};
 
 use super::metrics::QUEUE_METRICS;
 
@@ -249,7 +246,7 @@ mod tests {
             // Unexpected tx
             (vec![tx()], "Unexpected Tx"),
             (vec![open_batch(), seal_miniblock(), tx()], "Unexpected Tx"),
-            // Unexpected OpenBatch/Miniblock
+            // Unexpected `OpenBatch/Miniblock`
             (
                 vec![miniblock(), miniblock()],
                 "Unexpected OpenBatch/Miniblock",
@@ -262,7 +259,7 @@ mod tests {
                 vec![open_batch(), miniblock()],
                 "Unexpected OpenBatch/Miniblock",
             ),
-            // Unexpected SealMiniblock
+            // Unexpected `SealMiniblock`
             (vec![seal_miniblock()], "Unexpected SealMiniblock"),
             (
                 vec![miniblock(), seal_miniblock(), seal_miniblock()],

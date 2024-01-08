@@ -2,10 +2,16 @@
 //! Consists mostly of boilerplate code implementing the `jsonrpsee` server traits for the corresponding
 //! namespace structures defined in `zksync_core`.
 
-use std::error::Error;
-use zksync_web3_decl::error::Web3Error;
-use zksync_web3_decl::jsonrpsee::types::{error::ErrorCode, ErrorObjectOwned};
+use std::{error::Error, fmt};
 
+use zksync_web3_decl::{
+    error::Web3Error,
+    jsonrpsee::types::{error::ErrorCode, ErrorObjectOwned},
+};
+
+use crate::api_server::web3::metrics::API_METRICS;
+
+pub mod batch_limiter_middleware;
 pub mod namespaces;
 
 pub fn from_std_error(e: impl Error) -> ErrorObjectOwned {
@@ -24,8 +30,7 @@ pub fn into_jsrpc_error(err: Web3Error) -> ErrorObjectOwned {
             | Web3Error::FilterNotFound
             | Web3Error::InvalidFeeParams(_)
             | Web3Error::InvalidFilterBlockHash
-            | Web3Error::LogsLimitExceeded(_, _, _)
-            | Web3Error::TooManyLogs(_) => ErrorCode::InvalidParams.code(),
+            | Web3Error::LogsLimitExceeded(_, _, _) => ErrorCode::InvalidParams.code(),
             Web3Error::SubmitTransactionError(_, _) | Web3Error::SerializationError(_) => 3,
             Web3Error::PubSubTimeout => 4,
             Web3Error::RequestTimeout => 5,
@@ -40,4 +45,10 @@ pub fn into_jsrpc_error(err: Web3Error) -> ErrorObjectOwned {
             _ => None,
         },
     )
+}
+
+pub fn internal_error(method_name: &'static str, error: impl fmt::Display) -> Web3Error {
+    tracing::error!("Internal error in method {method_name}: {error}");
+    API_METRICS.web3_internal_errors[&method_name].inc();
+    Web3Error::InternalError
 }
