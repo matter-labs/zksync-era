@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Instant};
+use std::{collections::HashMap, sync::Arc, time::Instant};
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
@@ -185,37 +185,73 @@ async fn spawn_server(
 #[async_trait]
 trait HttpTest: Send + Sync {
     /// Prepares the storage before the server is started. The default implementation performs genesis.
-    async fn prepare_storage(
-        &self,
-        network_config: &NetworkConfig,
-        storage: &mut StorageProcessor<'_>,
-    ) -> anyhow::Result<()> {
-        default_prepare_storage(network_config, storage).await
+    fn storage_initialization(&self) -> StorageInitialization {
+        StorageInitialization::Genesis
     }
 
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()>;
 }
 
-async fn default_prepare_storage(
-    network_config: &NetworkConfig,
-    storage: &mut StorageProcessor<'_>,
-) -> anyhow::Result<()> {
-    if storage.blocks_dal().is_genesis_needed().await? {
-        ensure_genesis_state(
-            storage,
-            network_config.zksync_network_id,
-            &GenesisParams::mock(),
-        )
-        .await?;
+/// Storage initialization strategy.
+#[derive(Debug)]
+enum StorageInitialization {
+    Genesis,
+    Recovery {
+        logs: Vec<StorageLog>,
+        factory_deps: HashMap<H256, Vec<u8>>,
+    },
+}
+
+impl StorageInitialization {
+    const SNAPSHOT_RECOVERY_BLOCK: u32 = 23;
+
+    fn empty_recovery() -> Self {
+        Self::Recovery {
+            logs: vec![],
+            factory_deps: HashMap::new(),
+        }
     }
-    Ok(())
+
+    async fn prepare_storage(
+        &self,
+        network_config: &NetworkConfig,
+        storage: &mut StorageProcessor<'_>,
+    ) -> anyhow::Result<()> {
+        match self {
+            Self::Genesis => {
+                if storage.blocks_dal().is_genesis_needed().await? {
+                    ensure_genesis_state(
+                        storage,
+                        network_config.zksync_network_id,
+                        &GenesisParams::mock(),
+                    )
+                    .await?;
+                }
+            }
+            Self::Recovery { logs, factory_deps } if logs.is_empty() && factory_deps.is_empty() => {
+                prepare_empty_recovery_snapshot(storage, Self::SNAPSHOT_RECOVERY_BLOCK).await;
+            }
+            Self::Recovery { logs, factory_deps } => {
+                prepare_recovery_snapshot(storage, Self::SNAPSHOT_RECOVERY_BLOCK, logs).await;
+                storage
+                    .storage_dal()
+                    .insert_factory_deps(
+                        MiniblockNumber(Self::SNAPSHOT_RECOVERY_BLOCK),
+                        factory_deps,
+                    )
+                    .await;
+            }
+        }
+        Ok(())
+    }
 }
 
 async fn test_http_server(test: impl HttpTest) {
     let pool = ConnectionPool::test_pool().await;
     let network_config = NetworkConfig::for_tests();
     let mut storage = pool.access_storage().await.unwrap();
-    test.prepare_storage(&network_config, &mut storage)
+    test.storage_initialization()
+        .prepare_storage(&network_config, &mut storage)
         .await
         .expect("Failed preparing storage for test");
     drop(storage);
@@ -392,13 +428,8 @@ struct BlockMethodsWithSnapshotRecovery;
 
 #[async_trait]
 impl HttpTest for BlockMethodsWithSnapshotRecovery {
-    async fn prepare_storage(
-        &self,
-        _network_config: &NetworkConfig,
-        storage: &mut StorageProcessor<'_>,
-    ) -> anyhow::Result<()> {
-        prepare_empty_recovery_snapshot(storage, 23).await;
-        Ok(())
+    fn storage_initialization(&self) -> StorageInitialization {
+        StorageInitialization::empty_recovery()
     }
 
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
@@ -421,38 +452,39 @@ impl HttpTest for BlockMethodsWithSnapshotRecovery {
         drop(storage);
 
         let block_number = client.get_block_number().await?;
-        assert_eq!(block_number, 24.into());
+        let expected_block_number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
+        assert_eq!(block_number, expected_block_number.into());
 
-        for block_number in [api::BlockNumber::Latest, 24.into()] {
+        for block_number in [api::BlockNumber::Latest, expected_block_number.into()] {
             let block = client
                 .get_block_by_number(block_number, false)
                 .await?
                 .context("no latest block")?;
-            assert_eq!(block.number, 24.into());
+            assert_eq!(block.number, expected_block_number.into());
         }
 
-        for number in [0, 1, 23] {
+        for number in [0, 1, expected_block_number - 1] {
             let error = client
                 .get_block_details(MiniblockNumber(number))
                 .await
                 .unwrap_err();
-            assert_pruned_block_error(&error, 24);
+            assert_pruned_block_error(&error, expected_block_number);
             let error = client
                 .get_raw_block_transactions(MiniblockNumber(number))
                 .await
                 .unwrap_err();
-            assert_pruned_block_error(&error, 24);
+            assert_pruned_block_error(&error, expected_block_number);
 
             let error = client
                 .get_block_transaction_count_by_number(number.into())
                 .await
                 .unwrap_err();
-            assert_pruned_block_error(&error, 24);
+            assert_pruned_block_error(&error, expected_block_number);
             let error = client
                 .get_block_by_number(number.into(), false)
                 .await
                 .unwrap_err();
-            assert_pruned_block_error(&error, 24);
+            assert_pruned_block_error(&error, expected_block_number);
         }
 
         Ok(())
@@ -484,13 +516,8 @@ struct L1BatchMethodsWithSnapshotRecovery;
 
 #[async_trait]
 impl HttpTest for L1BatchMethodsWithSnapshotRecovery {
-    async fn prepare_storage(
-        &self,
-        _network_config: &NetworkConfig,
-        storage: &mut StorageProcessor<'_>,
-    ) -> anyhow::Result<()> {
-        prepare_empty_recovery_snapshot(storage, 23).await;
-        Ok(())
+    fn storage_initialization(&self) -> StorageInitialization {
+        StorageInitialization::empty_recovery()
     }
 
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
@@ -502,12 +529,13 @@ impl HttpTest for L1BatchMethodsWithSnapshotRecovery {
         }
 
         let mut storage = pool.access_storage().await?;
-        store_miniblock(&mut storage, MiniblockNumber(24), &[]).await?;
-        seal_l1_batch(&mut storage, L1BatchNumber(24)).await?;
+        let miniblock_number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
+        store_miniblock(&mut storage, MiniblockNumber(miniblock_number), &[]).await?;
+        seal_l1_batch(&mut storage, L1BatchNumber(miniblock_number)).await?;
         drop(storage);
 
         let l1_batch_number = client.get_l1_batch_number().await?;
-        assert_eq!(l1_batch_number, 24.into());
+        assert_eq!(l1_batch_number, miniblock_number.into());
 
         Ok(())
     }
@@ -523,11 +551,7 @@ struct StorageAccessWithSnapshotRecovery;
 
 #[async_trait]
 impl HttpTest for StorageAccessWithSnapshotRecovery {
-    async fn prepare_storage(
-        &self,
-        _network_config: &NetworkConfig,
-        storage: &mut StorageProcessor<'_>,
-    ) -> anyhow::Result<()> {
+    fn storage_initialization(&self) -> StorageInitialization {
         use zksync_types::{storage, utils::storage_key_for_standard_token_balance};
 
         let address = Address::repeat_byte(1);
@@ -537,7 +561,7 @@ impl HttpTest for StorageAccessWithSnapshotRecovery {
             AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
             &address,
         );
-        let logs = [
+        let logs = vec![
             StorageLog::new_write_log(code_key, code_hash),
             StorageLog::new_write_log(balance_key, H256::from_low_u64_be(123)),
             StorageLog::new_write_log(
@@ -545,23 +569,21 @@ impl HttpTest for StorageAccessWithSnapshotRecovery {
                 H256::repeat_byte(0xff),
             ),
         ];
-        prepare_recovery_snapshot(storage, 23, &logs).await;
-
-        storage
-            .storage_dal()
-            .insert_factory_deps(MiniblockNumber(23), &[(code_hash, b"code".to_vec())].into())
-            .await;
-        Ok(())
+        let factory_deps = [(code_hash, b"code".to_vec())].into();
+        StorageInitialization::Recovery { logs, factory_deps }
     }
 
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+        let mut storage = pool.access_storage().await?;
+
         let address = Address::repeat_byte(1);
-        for number in [0, 1, 23] {
+        let first_local_miniblock = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
+        for number in [0, 1, first_local_miniblock - 1] {
             let number = api::BlockIdVariant::BlockNumber(number.into());
             let error = client.get_code(address, Some(number)).await.unwrap_err();
-            assert_pruned_block_error(&error, 24);
+            assert_pruned_block_error(&error, first_local_miniblock);
             let error = client.get_balance(address, Some(number)).await.unwrap_err();
-            assert_pruned_block_error(&error, 24);
+            assert_pruned_block_error(&error, first_local_miniblock);
             let error = client
                 .get_storage_at(address, 0.into(), Some(number))
                 .await
@@ -569,11 +591,10 @@ impl HttpTest for StorageAccessWithSnapshotRecovery {
             assert_pruned_block_error(&error, 24);
         }
 
-        let mut storage = pool.access_storage().await?;
-        store_miniblock(&mut storage, MiniblockNumber(24), &[]).await?;
+        store_miniblock(&mut storage, MiniblockNumber(first_local_miniblock), &[]).await?;
         drop(storage);
 
-        for number in [api::BlockNumber::Latest, 24.into()] {
+        for number in [api::BlockNumber::Latest, first_local_miniblock.into()] {
             let number = api::BlockIdVariant::BlockNumber(number);
             let code = client.get_code(address, Some(number)).await?;
             assert_eq!(code.0, b"code");
@@ -594,10 +615,20 @@ async fn storage_access_with_snapshot_recovery() {
 }
 
 #[derive(Debug)]
-struct BasicFilterChangesTest;
+struct BasicFilterChangesTest {
+    snapshot_recovery: bool,
+}
 
 #[async_trait]
 impl HttpTest for BasicFilterChangesTest {
+    fn storage_initialization(&self) -> StorageInitialization {
+        if self.snapshot_recovery {
+            StorageInitialization::empty_recovery()
+        } else {
+            StorageInitialization::Genesis
+        }
+    }
+
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
         let block_filter_id = client.new_block_filter().await?;
         let tx_filter_id = client.new_pending_transaction_filter().await?;
@@ -605,7 +636,11 @@ impl HttpTest for BasicFilterChangesTest {
         let new_tx_hash = tx_result.hash;
         let new_miniblock = store_miniblock(
             &mut pool.access_storage().await?,
-            MiniblockNumber(1),
+            MiniblockNumber(if self.snapshot_recovery {
+                StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1
+            } else {
+                1
+            }),
             &[tx_result],
         )
         .await?;
@@ -643,14 +678,35 @@ impl HttpTest for BasicFilterChangesTest {
 
 #[tokio::test]
 async fn basic_filter_changes() {
-    test_http_server(BasicFilterChangesTest).await;
+    test_http_server(BasicFilterChangesTest {
+        snapshot_recovery: false,
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn basic_filter_changes_after_snapshot_recovery() {
+    test_http_server(BasicFilterChangesTest {
+        snapshot_recovery: true,
+    })
+    .await;
 }
 
 #[derive(Debug)]
-struct LogFilterChangesTest;
+struct LogFilterChangesTest {
+    snapshot_recovery: bool,
+}
 
 #[async_trait]
 impl HttpTest for LogFilterChangesTest {
+    fn storage_initialization(&self) -> StorageInitialization {
+        if self.snapshot_recovery {
+            StorageInitialization::empty_recovery()
+        } else {
+            StorageInitialization::Genesis
+        }
+    }
+
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
         let all_logs_filter_id = client.new_filter(Filter::default()).await?;
         let address_filter = Filter {
@@ -665,7 +721,12 @@ impl HttpTest for LogFilterChangesTest {
         let topics_filter_id = client.new_filter(topics_filter).await?;
 
         let mut storage = pool.access_storage().await?;
-        let (_, events) = store_events(&mut storage, 1, 0).await?;
+        let first_local_miniblock = if self.snapshot_recovery {
+            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1
+        } else {
+            1
+        };
+        let (_, events) = store_events(&mut storage, first_local_miniblock, 0).await?;
         drop(storage);
         let events: Vec<_> = events.iter().collect();
 
@@ -698,7 +759,18 @@ impl HttpTest for LogFilterChangesTest {
 
 #[tokio::test]
 async fn log_filter_changes() {
-    test_http_server(LogFilterChangesTest).await;
+    test_http_server(LogFilterChangesTest {
+        snapshot_recovery: false,
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn log_filter_changes_after_snapshot_recovery() {
+    test_http_server(LogFilterChangesTest {
+        snapshot_recovery: true,
+    })
+    .await;
 }
 
 #[derive(Debug)]

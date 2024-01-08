@@ -130,17 +130,13 @@ struct TraceBlockTestWithSnapshotRecovery;
 
 #[async_trait]
 impl HttpTest for TraceBlockTestWithSnapshotRecovery {
-    async fn prepare_storage(
-        &self,
-        _network_config: &NetworkConfig,
-        storage: &mut StorageProcessor<'_>,
-    ) -> anyhow::Result<()> {
-        prepare_empty_recovery_snapshot(storage, 23).await;
-        Ok(())
+    fn storage_initialization(&self) -> StorageInitialization {
+        StorageInitialization::empty_recovery()
     }
 
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
-        let snapshot_miniblock_number = MiniblockNumber(23);
+        let snapshot_miniblock_number =
+            MiniblockNumber(StorageInitialization::SNAPSHOT_RECOVERY_BLOCK);
         let missing_miniblock_numbers = [
             MiniblockNumber(0),
             snapshot_miniblock_number - 1,

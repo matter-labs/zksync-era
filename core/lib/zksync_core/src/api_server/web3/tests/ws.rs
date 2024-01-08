@@ -69,7 +69,8 @@ async fn wait_for_notifiers(
 async fn notifiers_start_after_snapshot_recovery() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    prepare_empty_recovery_snapshot(&mut storage, 23).await;
+    prepare_empty_recovery_snapshot(&mut storage, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK)
+        .await;
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (events_sender, mut events_receiver) = mpsc::unbounded_channel();
@@ -90,7 +91,8 @@ async fn notifiers_start_after_snapshot_recovery() {
     }
 
     // Emulate creating the first miniblock; check that notifiers react to it.
-    store_miniblock(&mut storage, MiniblockNumber(24), &[])
+    let first_local_miniblock = MiniblockNumber(StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1);
+    store_miniblock(&mut storage, first_local_miniblock, &[])
         .await
         .unwrap();
 
@@ -113,12 +115,8 @@ async fn notifiers_start_after_snapshot_recovery() {
 #[async_trait]
 trait WsTest: Send + Sync {
     /// Prepares the storage before the server is started. The default implementation performs genesis.
-    async fn prepare_storage(
-        &self,
-        network_config: &NetworkConfig,
-        storage: &mut StorageProcessor<'_>,
-    ) -> anyhow::Result<()> {
-        default_prepare_storage(network_config, storage).await
+    fn storage_initialization(&self) -> StorageInitialization {
+        StorageInitialization::Genesis
     }
 
     async fn test(
@@ -137,7 +135,8 @@ async fn test_ws_server(test: impl WsTest) {
     let pool = ConnectionPool::test_pool().await;
     let network_config = NetworkConfig::for_tests();
     let mut storage = pool.access_storage().await.unwrap();
-    test.prepare_storage(&network_config, &mut storage)
+    test.storage_initialization()
+        .prepare_storage(&network_config, &mut storage)
         .await
         .expect("Failed preparing storage for test");
     drop(storage);
@@ -200,16 +199,11 @@ struct BasicSubscriptionsTest {
 
 #[async_trait]
 impl WsTest for BasicSubscriptionsTest {
-    async fn prepare_storage(
-        &self,
-        network_config: &NetworkConfig,
-        storage: &mut StorageProcessor<'_>,
-    ) -> anyhow::Result<()> {
+    fn storage_initialization(&self) -> StorageInitialization {
         if self.snapshot_recovery {
-            prepare_empty_recovery_snapshot(storage, 23).await;
-            Ok(())
+            StorageInitialization::empty_recovery()
         } else {
-            default_prepare_storage(network_config, storage).await
+            StorageInitialization::Genesis
         }
     }
 
@@ -242,7 +236,11 @@ impl WsTest for BasicSubscriptionsTest {
         let mut storage = pool.access_storage().await?;
         let tx_result = execute_l2_transaction();
         let new_tx_hash = tx_result.hash;
-        let miniblock_number = MiniblockNumber(if self.snapshot_recovery { 24 } else { 1 });
+        let miniblock_number = MiniblockNumber(if self.snapshot_recovery {
+            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1
+        } else {
+            1
+        });
         let new_miniblock = store_miniblock(&mut storage, miniblock_number, &[tx_result]).await?;
         drop(storage);
 
@@ -340,16 +338,11 @@ impl LogSubscriptions {
 
 #[async_trait]
 impl WsTest for LogSubscriptionsTest {
-    async fn prepare_storage(
-        &self,
-        network_config: &NetworkConfig,
-        storage: &mut StorageProcessor<'_>,
-    ) -> anyhow::Result<()> {
+    fn storage_initialization(&self) -> StorageInitialization {
         if self.snapshot_recovery {
-            prepare_empty_recovery_snapshot(storage, 23).await;
-            Ok(())
+            StorageInitialization::empty_recovery()
         } else {
-            default_prepare_storage(network_config, storage).await
+            StorageInitialization::Genesis
         }
     }
 
@@ -366,7 +359,11 @@ impl WsTest for LogSubscriptionsTest {
         } = LogSubscriptions::new(client, &mut pub_sub_events).await?;
 
         let mut storage = pool.access_storage().await?;
-        let miniblock_number = if self.snapshot_recovery { 24 } else { 1 };
+        let miniblock_number = if self.snapshot_recovery {
+            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1
+        } else {
+            1
+        };
         let (tx_location, events) = store_events(&mut storage, miniblock_number, 0).await?;
         drop(storage);
         let events: Vec<_> = events.iter().collect();
