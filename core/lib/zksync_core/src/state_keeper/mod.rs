@@ -52,6 +52,7 @@ pub(crate) async fn create_state_keeper(
         state_keeper_config.save_call_traces,
         state_keeper_config.upload_witness_inputs_to_gcs,
         state_keeper_config.enum_index_migration_chunk_size(),
+        false,
     );
 
     let io = MempoolIO::new(
