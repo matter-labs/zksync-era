@@ -38,4 +38,5 @@ jobs:
 
       - name: Run spellcheck
         run: |
+          sleep 999999999
           ci_run zk spellcheck
