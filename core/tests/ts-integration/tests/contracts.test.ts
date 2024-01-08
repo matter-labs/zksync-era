@@ -306,6 +306,37 @@ describe('Smart contract behavior checks', () => {
         ).toBeAccepted([]);
     });
 
+    test('Should reject tx with not enough gas for publishing bytecode', async () => {
+        // Send a transaction with big unique factory dep and provide gas enough for validation but not for bytecode publishing.
+        // Transaction should be rejected by state keeper.
+
+        const BYTECODE_LEN = 50016;
+        const bytecode = ethers.utils.hexlify(ethers.utils.randomBytes(BYTECODE_LEN));
+
+        // Estimate gas for "no-op". It's a good estimate for validation gas.
+        const gasLimit = await alice.estimateGas({
+            to: alice.address,
+            data: '0x'
+        });
+
+        const tx = await alice.sendTransaction({
+            to: alice.address,
+            gasLimit,
+            customData: {
+                factoryDeps: [bytecode]
+            }
+        });
+
+        // We don't have a good check that tx was indeed rejected.
+        // Most that we can do is to ensure that tx wasn't mined for some time.
+        const attempts = 5;
+        for (let i = 0; i < attempts; ++i) {
+            const receipt = await alice.provider.getTransactionReceipt(tx.hash);
+            expect(receipt).toBeNull();
+            await zksync.utils.sleep(1000);
+        }
+    });
+
     afterAll(async () => {
         await testMaster.deinitialize();
     });

@@ -445,18 +445,6 @@ impl BatchExecutor {
         Vec<CompressedBytecodeInfo>,
         Vec<Call>,
     ) {
-        // Note, that the space where we can put the calldata for compressing transactions
-        // is limited and the transactions do not pay for taking it.
-        // In order to not let the accounts spam the space of compressed bytecodes with bytecodes
-        // that will not be published (e.g. due to out of gas), we use the following scheme:
-        // We try to execute the transaction with compressed bytecodes.
-        // If it fails and the compressed bytecodes have not been published,
-        // it means that there is no sense in polluting the space of compressed bytecodes,
-        // and so we re-execute the transaction, but without compression.
-
-        // Saving the snapshot before executing
-        vm.make_snapshot();
-
         let call_tracer_result = Arc::new(OnceCell::default());
         let tracer = if self.save_call_traces {
             vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()]
@@ -468,35 +456,24 @@ impl BatchExecutor {
             vm.inspect_transaction_with_bytecode_compression(tracer.into(), tx.clone(), true)
         {
             let compressed_bytecodes = vm.get_last_tx_compressed_bytecodes();
-            vm.pop_snapshot_no_rollback();
 
             let trace = Arc::try_unwrap(call_tracer_result)
                 .unwrap()
                 .take()
                 .unwrap_or_default();
-            return (result, compressed_bytecodes, trace);
-        }
-        vm.rollback_to_the_latest_snapshot();
-
-        let call_tracer_result = Arc::new(OnceCell::default());
-        let tracer = if self.save_call_traces {
-            vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()]
+            (result, compressed_bytecodes, trace)
         } else {
-            vec![]
-        };
-
-        let result = vm
-            .inspect_transaction_with_bytecode_compression(tracer.into(), tx.clone(), false)
-            .expect("Compression can't fail if we don't apply it");
-        let compressed_bytecodes = vm.get_last_tx_compressed_bytecodes();
-
-        // TODO implement tracer manager which will be responsible
-        // for collecting result from all tracers and save it to the database
-        let trace = Arc::try_unwrap(call_tracer_result)
-            .unwrap()
-            .take()
-            .unwrap_or_default();
-        (result, compressed_bytecodes, trace)
+            // Transaction failed to publish bytecodes, we reject it so initiator doesn't pay fee.
+            let result = VmExecutionResultAndLogs {
+                result: ExecutionResult::Halt {
+                    reason: Halt::FailedToPublishCompressedBytecodes,
+                },
+                logs: Default::default(),
+                statistics: Default::default(),
+                refunds: Default::default(),
+            };
+            (result, Default::default(), Default::default())
+        }
     }
 
     fn dryrun_block_tip<S: WriteStorage>(
