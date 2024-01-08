@@ -24,6 +24,7 @@ use super::{
     metrics::{SubscriptionType, PUB_SUB_METRICS},
     namespaces::eth::EVENT_TOPIC_NUMBER_LIMIT,
 };
+use crate::utils::projected_first_miniblock;
 
 const BROADCAST_CHANNEL_CAPACITY: usize = 1024;
 const SUBSCRIPTION_SINK_SEND_TIMEOUT: Duration = Duration::from_secs(1);
@@ -55,30 +56,25 @@ struct PubSubNotifier {
 }
 
 impl PubSubNotifier {
-    async fn wait_for_sealed_miniblock_number(
-        &self,
-        stop_receiver: &watch::Receiver<bool>,
-    ) -> anyhow::Result<Option<MiniblockNumber>> {
-        loop {
-            if *stop_receiver.borrow() {
-                return Ok(None);
+    async fn get_starting_miniblock_number(&self) -> anyhow::Result<MiniblockNumber> {
+        let mut storage = self
+            .connection_pool
+            .access_storage_tagged("api")
+            .await
+            .context("access_storage_tagged")?;
+        let sealed_miniblock_number = storage
+            .blocks_dal()
+            .get_sealed_miniblock_number()
+            .await
+            .context("get_sealed_miniblock_number()")?;
+        Ok(match sealed_miniblock_number {
+            Some(number) => number,
+            None => {
+                // We don't have miniblocks in the storage yet. Use the snapshot miniblock number instead.
+                let first_local_miniblock = projected_first_miniblock(&mut storage).await?;
+                MiniblockNumber(first_local_miniblock.saturating_sub(1))
             }
-
-            let sealed_miniblock_number = self
-                .connection_pool
-                .access_storage_tagged("api")
-                .await
-                .context("access_storage_tagged")?
-                .blocks_dal()
-                .get_sealed_miniblock_number()
-                .await
-                .context("get_sealed_miniblock_number()")?;
-            if let Some(number) = sealed_miniblock_number {
-                return Ok(Some(number));
-            } else {
-                tokio::time::sleep(self.polling_interval).await;
-            }
-        }
+        })
     }
 
     fn emit_event(&self, event: PubSubEvent) {
@@ -90,14 +86,7 @@ impl PubSubNotifier {
 
 impl PubSubNotifier {
     async fn notify_blocks(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let Some(mut last_block_number) = self
-            .wait_for_sealed_miniblock_number(&stop_receiver)
-            .await?
-        else {
-            tracing::info!("Stop signal received, pubsub_block_notifier is shutting down");
-            return Ok(());
-        };
-
+        let mut last_block_number = self.get_starting_miniblock_number().await?;
         let mut timer = interval(self.polling_interval);
         loop {
             if *stop_receiver.borrow() {
@@ -181,13 +170,7 @@ impl PubSubNotifier {
     }
 
     async fn notify_logs(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let Some(mut last_block_number) = self
-            .wait_for_sealed_miniblock_number(&stop_receiver)
-            .await?
-        else {
-            tracing::info!("Stop signal received, pubsub_block_notifier is shutting down");
-            return Ok(());
-        };
+        let mut last_block_number = self.get_starting_miniblock_number().await?;
 
         let mut timer = interval(self.polling_interval);
         loop {
