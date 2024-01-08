@@ -12,7 +12,7 @@ use zksync_types::{
 use zksync_web3_decl::error::Web3Error;
 
 use crate::api_server::{
-    execution_sandbox::{execute_tx_eth_call, ApiTracer, TxSharedArgs},
+    execution_sandbox::{ApiTracer, TxSharedArgs},
     tx_sender::{ApiContracts, TxSenderConfig},
     web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, state::RpcState},
 };
@@ -152,16 +152,18 @@ impl DebugNamespace {
             vec![ApiTracer::CallTracer(call_tracer_result.clone())]
         };
 
-        let result = execute_tx_eth_call(
-            vm_permit,
-            shared_args,
-            self.state.connection_pool.clone(),
-            tx.clone(),
-            block_args,
-            self.sender_config().vm_execution_cache_misses_limit,
-            custom_tracers,
-        )
-        .await;
+        let executor = &self.state.tx_sender.0.executor;
+        let result = executor
+            .execute_tx_eth_call(
+                vm_permit,
+                shared_args,
+                self.state.connection_pool.clone(),
+                tx.clone(),
+                block_args,
+                self.sender_config().vm_execution_cache_misses_limit,
+                custom_tracers,
+            )
+            .await;
 
         let (output, revert_reason) = match result.result {
             ExecutionResult::Success { output, .. } => (output, None),

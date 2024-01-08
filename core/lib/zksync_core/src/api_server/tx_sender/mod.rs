@@ -24,11 +24,10 @@ use zksync_types::{
 use zksync_utils::h256_to_u256;
 
 pub(super) use self::{proxy::TxProxy, result::SubmitTxError};
-use super::execution_sandbox::execute_tx_in_sandbox;
 use crate::{
     api_server::{
         execution_sandbox::{
-            execute_tx_eth_call, get_pubdata_for_factory_deps, BlockArgs, SubmitTxStage,
+            get_pubdata_for_factory_deps, BlockArgs, SubmitTxStage, TransactionExecutor,
             TxExecutionArgs, TxSharedArgs, VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
         },
         tx_sender::result::ApiCallResult,
@@ -191,6 +190,7 @@ impl TxSenderBuilder {
             vm_concurrency_limiter,
             storage_caches,
             sealer,
+            executor: TransactionExecutor::Real,
         }))
     }
 }
@@ -246,6 +246,7 @@ pub struct TxSenderInner {
     storage_caches: PostgresStorageCaches,
     /// Batch sealer used to check whether transaction can be executed by the sequencer.
     sealer: Arc<dyn ConditionalSealer>,
+    pub(super) executor: TransactionExecutor,
 }
 
 #[derive(Clone)]
@@ -286,17 +287,20 @@ impl TxSender {
         let block_args = BlockArgs::pending(&mut connection).await;
         drop(connection);
 
-        let (_, tx_metrics) = execute_tx_in_sandbox(
-            vm_permit.clone(),
-            shared_args.clone(),
-            true,
-            TxExecutionArgs::for_validation(&tx),
-            self.0.replica_connection_pool.clone(),
-            tx.clone().into(),
-            block_args,
-            vec![],
-        )
-        .await;
+        let (_, tx_metrics) = self
+            .0
+            .executor
+            .execute_tx_in_sandbox(
+                vm_permit.clone(),
+                shared_args.clone(),
+                true,
+                TxExecutionArgs::for_validation(&tx),
+                self.0.replica_connection_pool.clone(),
+                tx.clone().into(),
+                block_args,
+                vec![],
+            )
+            .await;
 
         tracing::info!(
             "Submit tx {:?} with execution metrics {:?}",
@@ -307,11 +311,14 @@ impl TxSender {
 
         let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::VerifyExecute].start();
         let computational_gas_limit = self.0.sender_config.validation_computational_gas_limit;
-        let validation_result = shared_args
+        let validation_result = self
+            .0
+            .executor
             .validate_tx_in_sandbox(
                 self.0.replica_connection_pool.clone(),
                 vm_permit,
                 tx.clone(),
+                shared_args,
                 block_args,
                 computational_gas_limit,
             )
@@ -610,17 +617,20 @@ impl TxSender {
         let vm_execution_cache_misses_limit = self.0.sender_config.vm_execution_cache_misses_limit;
         let execution_args =
             TxExecutionArgs::for_gas_estimate(vm_execution_cache_misses_limit, &tx, base_fee);
-        let (exec_result, tx_metrics) = execute_tx_in_sandbox(
-            vm_permit,
-            shared_args,
-            true,
-            execution_args,
-            self.0.replica_connection_pool.clone(),
-            tx.clone(),
-            block_args,
-            vec![],
-        )
-        .await;
+        let (exec_result, tx_metrics) = self
+            .0
+            .executor
+            .execute_tx_in_sandbox(
+                vm_permit,
+                shared_args,
+                true,
+                execution_args,
+                self.0.replica_connection_pool.clone(),
+                tx.clone(),
+                block_args,
+                vec![],
+            )
+            .await;
 
         (exec_result, tx_metrics)
     }
@@ -873,17 +883,19 @@ impl TxSender {
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
 
         let vm_execution_cache_misses_limit = self.0.sender_config.vm_execution_cache_misses_limit;
-        execute_tx_eth_call(
-            vm_permit,
-            self.shared_args(),
-            self.0.replica_connection_pool.clone(),
-            tx,
-            block_args,
-            vm_execution_cache_misses_limit,
-            vec![],
-        )
-        .await
-        .into_api_call_result()
+        self.0
+            .executor
+            .execute_tx_eth_call(
+                vm_permit,
+                self.shared_args(),
+                self.0.replica_connection_pool.clone(),
+                tx,
+                block_args,
+                vm_execution_cache_misses_limit,
+                vec![],
+            )
+            .await
+            .into_api_call_result()
     }
 
     pub async fn gas_price(&self) -> u64 {

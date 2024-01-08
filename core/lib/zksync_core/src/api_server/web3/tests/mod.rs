@@ -3,6 +3,7 @@ use std::{collections::HashMap, sync::Arc, time::Instant};
 use assert_matches::assert_matches;
 use async_trait::async_trait;
 use jsonrpsee::core::ClientError;
+use multivm::interface::ExecutionResult;
 use tokio::sync::watch;
 use zksync_config::configs::{
     api::Web3JsonRpcConfig,
@@ -12,17 +13,22 @@ use zksync_config::configs::{
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, StorageProcessor};
 use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
-use zksync_system_constants::L2_ETH_TOKEN_ADDRESS;
 use zksync_types::{
     api,
     block::{BlockGasCount, MiniblockHeader},
     fee::TransactionExecutionMetrics,
+    get_intrinsic_constants,
+    storage::get_code_key,
+    transaction_request::CallRequest,
     tx::{
         tx_execution_info::TxExecutionStatus, ExecutionMetrics, IncludedTxLocation,
         TransactionExecutionResult,
     },
-    AccountTreeId, Address, L1BatchNumber, StorageKey, StorageLog, VmEvent, H256, U64,
+    utils::storage_key_for_eth_balance,
+    AccountTreeId, Address, L1BatchNumber, L2ChainId, PackedEthSignature, StorageKey, StorageLog,
+    VmEvent, H256, U256, U64,
 };
+use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
     jsonrpsee::{core::ClientError as RpcError, http_client::HttpClient, types::error::ErrorCode},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
@@ -31,7 +37,7 @@ use zksync_web3_decl::{
 
 use super::{metrics::ApiTransportLabel, *};
 use crate::{
-    api_server::tx_sender::TxSenderConfig,
+    api_server::{execution_sandbox::testonly::MockTransactionExecutor, tx_sender::TxSenderConfig},
     genesis::{ensure_genesis_state, GenesisParams},
     l1_gas_price::L1GasPriceProvider,
     utils::testonly::{
@@ -40,6 +46,7 @@ use crate::{
     },
 };
 
+// FIXME: split off filter-related and VM-related tests
 mod debug;
 mod snapshots;
 mod ws;
@@ -97,14 +104,16 @@ impl ApiServerHandles {
 pub(crate) async fn spawn_http_server(
     network_config: &NetworkConfig,
     pool: ConnectionPool,
+    tx_executor: MockTransactionExecutor,
     stop_receiver: watch::Receiver<bool>,
 ) -> ApiServerHandles {
     spawn_server(
         ApiTransportLabel::Http,
         network_config,
         pool,
-        stop_receiver,
         None,
+        tx_executor,
+        stop_receiver,
     )
     .await
     .0
@@ -120,8 +129,9 @@ async fn spawn_ws_server(
         ApiTransportLabel::Ws,
         network_config,
         pool,
-        stop_receiver,
         websocket_requests_per_minute_limit,
+        MockTransactionExecutor::default(),
+        stop_receiver,
     )
     .await
 }
@@ -130,8 +140,9 @@ async fn spawn_server(
     transport: ApiTransportLabel,
     network_config: &NetworkConfig,
     pool: ConnectionPool,
-    stop_receiver: watch::Receiver<bool>,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
+    tx_executor: MockTransactionExecutor,
+    stop_receiver: watch::Receiver<bool>,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = Web3JsonRpcConfig::for_tests();
@@ -140,9 +151,16 @@ async fn spawn_server(
     let tx_sender_config =
         TxSenderConfig::new(&state_keeper_config, &web3_config, api_config.l2_chain_id);
 
-    let storage_caches = PostgresStorageCaches::new(1, 1);
+    let mut storage_caches = PostgresStorageCaches::new(1, 1);
+    let cache_update_task = storage_caches.configure_storage_values_cache(
+        1,
+        pool.clone(),
+        tokio::runtime::Handle::current(),
+    );
+    tokio::task::spawn_blocking(cache_update_task);
+
     let gas_adjuster = Arc::new(MockL1GasPriceProvider(1));
-    let (tx_sender, vm_barrier) = crate::build_tx_sender(
+    let (mut tx_sender, vm_barrier) = crate::build_tx_sender(
         &tx_sender_config,
         &web3_config,
         &state_keeper_config,
@@ -153,6 +171,8 @@ async fn spawn_server(
     )
     .await;
     let (pub_sub_events_sender, pub_sub_events_receiver) = mpsc::unbounded_channel();
+
+    Arc::get_mut(&mut tx_sender.0).unwrap().executor = tx_executor.into();
 
     let mut namespaces = Namespace::DEFAULT.to_vec();
     namespaces.extend([Namespace::Debug, Namespace::Snapshots]);
@@ -187,6 +207,10 @@ trait HttpTest: Send + Sync {
     /// Prepares the storage before the server is started. The default implementation performs genesis.
     fn storage_initialization(&self) -> StorageInitialization {
         StorageInitialization::Genesis
+    }
+
+    fn transaction_executor(&self) -> MockTransactionExecutor {
+        MockTransactionExecutor::default()
     }
 
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()>;
@@ -257,7 +281,13 @@ async fn test_http_server(test: impl HttpTest) {
     drop(storage);
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let server_handles = spawn_http_server(&network_config, pool.clone(), stop_receiver).await;
+    let server_handles = spawn_http_server(
+        &network_config,
+        pool.clone(),
+        test.transaction_executor(),
+        stop_receiver,
+    )
+    .await;
     server_handles.wait_until_ready().await;
 
     let client = <HttpClient>::builder()
@@ -552,15 +582,10 @@ struct StorageAccessWithSnapshotRecovery;
 #[async_trait]
 impl HttpTest for StorageAccessWithSnapshotRecovery {
     fn storage_initialization(&self) -> StorageInitialization {
-        use zksync_types::{storage, utils::storage_key_for_standard_token_balance};
-
         let address = Address::repeat_byte(1);
-        let code_key = storage::get_code_key(&address);
+        let code_key = get_code_key(&address);
         let code_hash = H256::repeat_byte(2);
-        let balance_key = storage_key_for_standard_token_balance(
-            AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
-            &address,
-        );
+        let balance_key = storage_key_for_eth_balance(&address);
         let logs = vec![
             StorageLog::new_write_log(code_key, code_hash),
             StorageLog::new_write_log(balance_key, H256::from_low_u64_be(123)),
@@ -868,4 +893,226 @@ impl HttpTest for LogFilterChangesWithBlockBoundariesTest {
 #[tokio::test]
 async fn log_filter_changes_with_block_boundaries() {
     test_http_server(LogFilterChangesWithBlockBoundariesTest).await;
+}
+
+#[derive(Debug)]
+struct CallTest;
+
+impl CallTest {
+    fn call_request() -> CallRequest {
+        CallRequest {
+            from: Some(Address::repeat_byte(1)),
+            to: Some(Address::repeat_byte(2)),
+            data: Some(b"call".to_vec().into()),
+            ..CallRequest::default()
+        }
+    }
+}
+
+#[async_trait]
+impl HttpTest for CallTest {
+    fn transaction_executor(&self) -> MockTransactionExecutor {
+        let mut tx_executor = MockTransactionExecutor::default();
+        tx_executor.insert_call_response(
+            Self::call_request().data.unwrap().0,
+            ExecutionResult::Success {
+                output: b"output".to_vec(),
+            },
+        );
+        tx_executor
+    }
+
+    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
+        let call_result = client.call(Self::call_request(), None).await?;
+        assert_eq!(call_result.0, b"output");
+
+        let valid_block_numbers = [
+            api::BlockNumber::Pending,
+            api::BlockNumber::Latest,
+            0.into(),
+        ];
+        for number in valid_block_numbers {
+            let number = api::BlockIdVariant::BlockNumber(number);
+            let call_result = client.call(Self::call_request(), Some(number)).await?;
+            assert_eq!(call_result.0, b"output");
+        }
+
+        let invalid_block_number = api::BlockNumber::from(100);
+        let number = api::BlockIdVariant::BlockNumber(invalid_block_number);
+        let error = client
+            .call(Self::call_request(), Some(number))
+            .await
+            .unwrap_err();
+        if let ClientError::Call(error) = error {
+            assert_eq!(error.code(), ErrorCode::InvalidParams.code());
+        } else {
+            panic!("Unexpected error: {error:?}");
+        }
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn call_method_basics() {
+    test_http_server(CallTest).await;
+}
+
+#[derive(Debug)]
+struct CallTestAfterSnapshotRecovery;
+
+#[async_trait]
+impl HttpTest for CallTestAfterSnapshotRecovery {
+    fn storage_initialization(&self) -> StorageInitialization {
+        StorageInitialization::empty_recovery()
+    }
+
+    fn transaction_executor(&self) -> MockTransactionExecutor {
+        CallTest.transaction_executor()
+    }
+
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+        let call_result = client.call(CallTest::call_request(), None).await?;
+        assert_eq!(call_result.0, b"output");
+        let pending_block_number = api::BlockIdVariant::BlockNumber(api::BlockNumber::Pending);
+        let call_result = client
+            .call(CallTest::call_request(), Some(pending_block_number))
+            .await?;
+        assert_eq!(call_result.0, b"output");
+
+        let first_local_miniblock = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
+        let first_miniblock_numbers = [api::BlockNumber::Latest, first_local_miniblock.into()];
+        for number in first_miniblock_numbers {
+            let number = api::BlockIdVariant::BlockNumber(number);
+            let error = client
+                .call(CallTest::call_request(), Some(number))
+                .await
+                .unwrap_err();
+            if let ClientError::Call(error) = error {
+                assert_eq!(error.code(), ErrorCode::InvalidParams.code());
+            } else {
+                panic!("Unexpected error: {error:?}");
+            }
+        }
+
+        let pruned_block_numbers = [0, 1, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK];
+        for number in pruned_block_numbers {
+            let number = api::BlockIdVariant::BlockNumber(number.into());
+            let error = client
+                .call(CallTest::call_request(), Some(number))
+                .await
+                .unwrap_err();
+            assert_pruned_block_error(&error, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1);
+        }
+
+        let mut storage = pool.access_storage().await?;
+        store_miniblock(&mut storage, MiniblockNumber(first_local_miniblock), &[]).await?;
+        drop(storage);
+
+        for number in first_miniblock_numbers {
+            let number = api::BlockIdVariant::BlockNumber(number);
+            let call_result = client.call(CallTest::call_request(), Some(number)).await?;
+            assert_eq!(call_result.0, b"output");
+        }
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn call_method_after_snapshot_recovery() {
+    test_http_server(CallTestAfterSnapshotRecovery).await;
+}
+
+#[derive(Debug)]
+struct SendRawTransactionTest {
+    snapshot_recovery: bool,
+}
+
+impl SendRawTransactionTest {
+    fn transaction_bytes_and_hash() -> (Vec<u8>, H256) {
+        let private_key = H256::repeat_byte(11);
+        let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
+
+        let tx_request = api::TransactionRequest {
+            chain_id: Some(L2ChainId::default().as_u64()),
+            from: Some(address),
+            to: Some(Address::repeat_byte(2)),
+            value: 123_456.into(),
+            gas: (get_intrinsic_constants().l2_tx_intrinsic_gas * 2).into(),
+            gas_price: StateKeeperConfig::for_tests().fair_l2_gas_price.into(),
+            input: vec![1, 2, 3, 4].into(),
+            ..api::TransactionRequest::default()
+        };
+        let mut rlp = Default::default();
+        tx_request.rlp(&mut rlp, L2ChainId::default().as_u64(), None);
+        let data = rlp.out();
+        let signed_message = PackedEthSignature::message_to_signed_bytes(&data);
+        let signature = PackedEthSignature::sign_raw(&private_key, &signed_message).unwrap();
+
+        let mut rlp = Default::default();
+        tx_request.rlp(&mut rlp, L2ChainId::default().as_u64(), Some(&signature));
+        let data = rlp.out();
+        let (_, tx_hash) =
+            api::TransactionRequest::from_bytes(&data, L2ChainId::default()).unwrap();
+        (data.into(), tx_hash)
+    }
+
+    fn balance_storage_log() -> StorageLog {
+        let private_key = H256::repeat_byte(11);
+        let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
+        let balance_key = storage_key_for_eth_balance(&address);
+        StorageLog::new_write_log(balance_key, u256_to_h256(U256::one() << 64))
+    }
+}
+
+#[async_trait]
+impl HttpTest for SendRawTransactionTest {
+    fn storage_initialization(&self) -> StorageInitialization {
+        if self.snapshot_recovery {
+            // TODO: should probably initialize logs here
+            StorageInitialization::empty_recovery()
+        } else {
+            StorageInitialization::Genesis
+        }
+    }
+
+    fn transaction_executor(&self) -> MockTransactionExecutor {
+        let mut tx_executor = MockTransactionExecutor::default();
+        tx_executor.insert_tx_response(
+            Self::transaction_bytes_and_hash().1,
+            ExecutionResult::Success { output: vec![] },
+        );
+        tx_executor
+    }
+
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+        // Manually set sufficient balance for the transaction account.
+        let mut storage = pool.access_storage().await?;
+        storage
+            .storage_dal()
+            .apply_storage_logs(&[(H256::zero(), vec![Self::balance_storage_log()])])
+            .await;
+        drop(storage);
+
+        let (tx_bytes, tx_hash) = Self::transaction_bytes_and_hash();
+        let send_result = client.send_raw_transaction(tx_bytes.into()).await?;
+        assert_eq!(send_result, tx_hash);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn send_raw_transaction_basics() {
+    test_http_server(SendRawTransactionTest {
+        snapshot_recovery: false,
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn send_raw_transaction_after_snapshot_recovery() {
+    test_http_server(SendRawTransactionTest {
+        snapshot_recovery: true,
+    })
+    .await;
 }

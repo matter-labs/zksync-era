@@ -10,7 +10,7 @@ use zksync_utils::bytecode::{compress_bytecode, hash_bytecode};
 use self::vm_metrics::SandboxStage;
 pub(super) use self::{
     error::SandboxExecutionError,
-    execute::{execute_tx_eth_call, execute_tx_in_sandbox, TxExecutionArgs},
+    execute::{TransactionExecutor, TxExecutionArgs},
     tracers::ApiTracer,
     vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
 };
@@ -20,6 +20,8 @@ use super::tx_sender::MultiVMBaseSystemContracts;
 mod apply;
 mod error;
 mod execute;
+#[cfg(test)]
+pub(super) mod testonly;
 mod tracers;
 mod validate;
 mod vm_metrics;
@@ -228,6 +230,7 @@ impl BlockArgs {
     }
 
     /// Loads block information from DB.
+    // FIXME: unit-test
     pub async fn new(
         connection: &mut StorageProcessor<'_>,
         block_id: api::BlockId,
@@ -247,11 +250,10 @@ impl BlockArgs {
         let l1_batch_number = connection
             .storage_web3_dal()
             .resolve_l1_batch_number_of_miniblock(resolved_block_number)
-            .await?
-            .expected_l1_batch();
+            .await?;
         let l1_batch_timestamp_s = connection
             .blocks_web3_dal()
-            .get_expected_l1_batch_timestamp(l1_batch_number)
+            .get_expected_l1_batch_timestamp(&l1_batch_number)
             .await?;
         assert!(
             l1_batch_timestamp_s.is_some(),
