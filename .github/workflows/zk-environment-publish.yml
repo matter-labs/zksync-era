@@ -37,13 +37,13 @@ jobs:
           files_yaml: |
             zk_env:
               - docker/zk-environment/Dockerfile
-              - .github/workflows/zk-environment.publish.yml
+              - .github/workflows/zk-environment-publish.yml
             zk_env_cuda_11_8:
               - docker/zk-environment/20.04_amd64_cuda_11_8.Dockerfile
-              - .github/workflows/zk-environment.publish.yml
+              - .github/workflows/zk-environment-publish.yml
             zk_env_cuda_12:
               - docker/zk-environment/20.04_amd64_cuda_12_0.Dockerfile
-              - .github/workflows/zk-environment.publish.yml
+              - .github/workflows/zk-environment-publish.yml
 
   get_short_sha:
     if: needs.changed_files.outputs.zk_environment == 'true'
