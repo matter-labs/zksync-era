@@ -56,7 +56,7 @@ fn test_keccak() {
 
 #[test]
 fn test_sha256() {
-    // Execute special transaction and check that at least 1000 sha256 calls were made.
+    // Execute special transaction and check that at least 1000 `sha256` calls were made.
     let contract = read_precompiles_contract();
     let address = Address::random();
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
@@ -100,7 +100,7 @@ fn test_sha256() {
 
 #[test]
 fn test_ecrecover() {
-    // Execute simple transfer and check that exactly 1 ecrecover call was made (it's done during tx validation).
+    // Execute simple transfer and check that exactly 1 `ecrecover` call was made (it's done during tx validation).
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)

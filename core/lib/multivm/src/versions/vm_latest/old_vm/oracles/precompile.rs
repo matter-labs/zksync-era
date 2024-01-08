@@ -107,6 +107,6 @@ impl<H: HistoryMode> PrecompilesProcessor for PrecompilesProcessorWithHistory<H>
     }
 
     fn finish_frame(&mut self, _panicked: bool) {
-        // there are no revertable precompile yes, so we are ok
+        // there are no revertible precompile yes, so we are ok
     }
 }
