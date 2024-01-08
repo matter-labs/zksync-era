@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                *\n            FROM\n                call_traces\n            WHERE\n                tx_hash IN (\n                    SELECT\n                        hash\n                    FROM\n                        transactions\n                    WHERE\n                        miniblock_number = $1\n                )\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tx_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "call_trace",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "05267e9774056bb0f984918ab861a2ee78eb59628d0429e89b27d185f83512be"
+}

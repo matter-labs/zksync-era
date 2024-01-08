@@ -190,7 +190,7 @@ impl IntoFixedLengthByteIterator<32> for U256 {
 
 /// Receives sorted slice of timestamps.
 /// Returns count of timestamps that are greater than or equal to `from_timestamp`.
-/// Works in O(log(sorted_timestamps.len())).
+/// Works in `O(log(sorted_timestamps.len()))`.
 pub fn precompile_calls_count_after_timestamp(
     sorted_timestamps: &[Timestamp],
     from_timestamp: Timestamp,

@@ -732,7 +732,7 @@ impl TxSender {
         };
 
         // We are using binary search to find the minimal values of gas_limit under which
-        // the transaction succeedes
+        // the transaction succeeds
         let mut lower_bound = 0;
         let mut upper_bound = MAX_L2_TX_GAS_LIMIT as u32;
         let tx_id = format!(
@@ -750,7 +750,7 @@ impl TxSender {
         while lower_bound + acceptable_overestimation < upper_bound {
             let mid = (lower_bound + upper_bound) / 2;
             // There is no way to distinct between errors due to out of gas
-            // or normal exeuction errors, so we just hope that increasing the
+            // or normal execution errors, so we just hope that increasing the
             // gas limit will make the transaction successful
             let iteration_started_at = Instant::now();
             let try_gas_limit = gas_for_bytecodes_pubdata + mid;

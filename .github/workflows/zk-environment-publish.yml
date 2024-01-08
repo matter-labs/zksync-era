@@ -5,14 +5,14 @@ on:
     branches:
       - main
     paths:
-      - "docker/zk-environment/*"
-      - ".github/workflows/zk-environment.publish.yml"
+      - "docker/zk-environment/**"
+      - ".github/workflows/zk-environment-publish.yml"
   pull_request:
     branches:
       - main
     paths:
-      - "docker/zk-environment/*"
-      - ".github/workflows/zk-environment.publish.yml"
+      - "docker/zk-environment/**"
+      - ".github/workflows/zk-environment-publish.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
@@ -23,7 +23,7 @@ jobs:
     outputs:
       zk_environment: ${{ steps.changed-files-yaml.outputs.zk_env_any_changed }}
       zk_environment_cuda_11_8: ${{ steps.changed-files-yaml.outputs.zk_env_cuda_11_8_any_changed }}
-      zk_environment_cuda_12: ${{ steps.changed-files-yaml.outputs.zk_env_cuda_12_any_changed }}
+      zk_environment_cuda_12_0: ${{ steps.changed-files-yaml.outputs.zk_env_cuda_12_any_changed }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
@@ -37,13 +37,13 @@ jobs:
           files_yaml: |
             zk_env:
               - docker/zk-environment/Dockerfile
-              - .github/workflows/zk-environment.publish.yml
+              - .github/workflows/zk-environment-publish.yml
             zk_env_cuda_11_8:
               - docker/zk-environment/20.04_amd64_cuda_11_8.Dockerfile
-              - .github/workflows/zk-environment.publish.yml
+              - .github/workflows/zk-environment-publish.yml
             zk_env_cuda_12:
               - docker/zk-environment/20.04_amd64_cuda_12_0.Dockerfile
-              - .github/workflows/zk-environment.publish.yml
+              - .github/workflows/zk-environment-publish.yml
 
   get_short_sha:
     if: needs.changed_files.outputs.zk_environment == 'true'

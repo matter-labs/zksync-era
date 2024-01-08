@@ -40,7 +40,7 @@ pub fn cut_to_allowed_bytecode_size(bytes: &[u8]) -> Option<&[u8]> {
 static STORAGE: Lazy<InMemoryStorage> = Lazy::new(|| {
     let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
 
-    // give PRIVATE_KEY some money
+    // give `PRIVATE_KEY` some money
     let my_addr = PackedEthSignature::address_from_private_key(&PRIVATE_KEY).unwrap();
     let key = storage_key_for_eth_balance(&my_addr);
     storage.set_value(key, zksync_utils::u256_to_h256(U256([0, 0, 1, 0])));

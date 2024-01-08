@@ -36,7 +36,7 @@ impl SnapshotMetadata {
 }
 
 /// Snapshot data returned by using JSON-RPC API.
-/// Contains all data not contained in factory deps / storage logs files to perform restore process.
+/// Contains all data not contained in `factory_deps` / `storage_logs` files to perform restore process.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotHeader {
@@ -52,7 +52,7 @@ pub struct SnapshotHeader {
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotStorageLogsChunkMetadata {
     pub chunk_id: u64,
-    // can be either be a file available under http(s) or local filesystem path
+    // can be either be a file available under HTTP(s) or local filesystem path
     pub filepath: String,
 }
 
