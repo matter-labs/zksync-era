@@ -36,7 +36,7 @@ jobs:
           - name: snapshots-creator
             platform: linux/amd64
     env:
-      IMAGE_TAG_SUFFIX: e650246-1704660441422
+      IMAGE_TAG_SUFFIX: 5129b82-1704658569152
     steps:
       - name: login to Docker registries
         run: |
