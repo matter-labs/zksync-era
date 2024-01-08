@@ -306,7 +306,7 @@ describe('Smart contract behavior checks', () => {
         ).toBeAccepted([]);
     });
 
-    test.only('Should reject tx with not enough gas for publishing bytecode', async () => {
+    test('Should reject tx with not enough gas for publishing bytecode', async () => {
         // Send a transaction with big unique factory dep and provide gas enough for validation but not for bytecode publishing.
         // Transaction should be rejected by API.
 

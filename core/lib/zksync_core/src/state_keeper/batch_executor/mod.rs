@@ -452,9 +452,9 @@ impl BatchExecutor {
             vec![]
         };
 
-        if let Ok(result) =
-            vm.inspect_transaction_with_bytecode_compression(tracer.into(), tx.clone(), true)
-        {
+        let (published_bytecodes, mut result) =
+            vm.inspect_transaction_with_bytecode_compression(tracer.into(), tx.clone(), true);
+        if published_bytecodes.is_ok() {
             let compressed_bytecodes = vm.get_last_tx_compressed_bytecodes();
 
             let trace = Arc::try_unwrap(call_tracer_result)
@@ -464,13 +464,8 @@ impl BatchExecutor {
             (result, compressed_bytecodes, trace)
         } else {
             // Transaction failed to publish bytecodes, we reject it so initiator doesn't pay fee.
-            let result = VmExecutionResultAndLogs {
-                result: ExecutionResult::Halt {
-                    reason: Halt::FailedToPublishCompressedBytecodes,
-                },
-                logs: Default::default(),
-                statistics: Default::default(),
-                refunds: Default::default(),
+            result.result = ExecutionResult::Halt {
+                reason: Halt::FailedToPublishCompressedBytecodes,
             };
             (result, Default::default(), Default::default())
         }
