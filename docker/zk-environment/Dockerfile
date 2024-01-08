@@ -105,6 +105,7 @@ RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y && \
 
 RUN cargo install --version=0.7.3 sqlx-cli
 RUN cargo install cargo-nextest
+RUN cargo install cargo-spellcheck
 
 # Copy compiler (both solc and zksolc) binaries
 # Obtain `solc` 0.8.20.
