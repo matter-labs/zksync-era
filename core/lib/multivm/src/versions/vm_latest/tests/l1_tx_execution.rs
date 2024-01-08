@@ -26,13 +26,13 @@ fn test_l1_tx_execution() {
     // using L1->L2 communication, the same it would likely be done during the priority mode.
 
     // There are always at least 7 initial writes here, because we pay fees from l1:
-    // - totalSupply of ETH token
+    // - `totalSupply` of ETH token
     // - balance of the refund recipient
     // - balance of the bootloader
-    // - tx_rolling hash
+    // - `tx_rolling` hash
     // - rolling hash of L2->L1 logs
     // - transaction number in block counter
-    // - L2->L1 log counter in L1Messenger
+    // - L2->L1 log counter in `L1Messenger`
 
     // TODO(PLA-537): right now we are using 4 slots instead of 7 due to 0 fee for transaction.
     let basic_initial_writes = 4;

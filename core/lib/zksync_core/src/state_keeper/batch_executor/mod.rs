@@ -325,7 +325,7 @@ impl BatchExecutor {
                     };
                     resp.send((vm_block_result, witness_block_state)).unwrap();
 
-                    // storage_view cannot be accessed while borrowed by the VM,
+                    // `storage_view` cannot be accessed while borrowed by the VM,
                     // so this is the only point at which storage metrics can be obtained
                     let metrics = storage_view.as_ref().borrow_mut().metrics();
                     EXECUTOR_METRICS.batch_storage_interaction_duration[&InteractionType::GetValue]
@@ -433,8 +433,8 @@ impl BatchExecutor {
     }
 
     // Err when transaction is rejected.
-    // Ok(TxExecutionStatus::Success) when the transaction succeeded
-    // Ok(TxExecutionStatus::Failure) when the transaction failed.
+    // `Ok(TxExecutionStatus::Success)` when the transaction succeeded
+    // `Ok(TxExecutionStatus::Failure)` when the transaction failed.
     // Note that failed transactions are considered properly processed and are included in blocks
     fn execute_tx_in_vm<S: WriteStorage>(
         &self,
@@ -451,8 +451,8 @@ impl BatchExecutor {
         // that will not be published (e.g. due to out of gas), we use the following scheme:
         // We try to execute the transaction with compressed bytecodes.
         // If it fails and the compressed bytecodes have not been published,
-        // it means that there is no sense in pollutting the space of compressed bytecodes,
-        // and so we reexecute the transaction, but without compressions.
+        // it means that there is no sense in polluting the space of compressed bytecodes,
+        // and so we re-execute the transaction, but without compression.
 
         // Saving the snapshot before executing
         vm.make_snapshot();
