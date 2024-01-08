@@ -97,6 +97,7 @@ jobs:
   create_manifest:
     name: Create release manifest
     runs-on: matterlabs-ci-runner
+    needs: build-images
     strategy:
       matrix:
         component:
@@ -131,4 +132,5 @@ jobs:
             done
             echo $repo_tags
             docker manifest create ${repo}:${IMAGE_TAG_SUFFIX} ${repo_tags}
+            docker manifest push ${repo}:${IMAGE_TAG_SUFFIX}
           done
