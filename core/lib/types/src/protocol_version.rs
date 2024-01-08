@@ -257,11 +257,11 @@ impl TryFrom<Log> for ProtocolUpgrade {
         };
 
         let transaction_param_type = ParamType::Tuple(vec![
-            ParamType::Uint(256),                                     // txType
+            ParamType::Uint(256),                                     // `txType`
             ParamType::Uint(256),                                     // sender
             ParamType::Uint(256),                                     // to
             ParamType::Uint(256),                                     // gasLimit
-            ParamType::Uint(256),                                     // gasPerPubdataLimit
+            ParamType::Uint(256),                                     // `gasPerPubdataLimit`
             ParamType::Uint(256),                                     // maxFeePerGas
             ParamType::Uint(256),                                     // maxPriorityFeePerGas
             ParamType::Uint(256),                                     // paymaster
@@ -272,7 +272,7 @@ impl TryFrom<Log> for ProtocolUpgrade {
             ParamType::Bytes,                                         // signature
             ParamType::Array(Box::new(ParamType::Uint(256))),         // factory deps
             ParamType::Bytes,                                         // paymaster input
-            ParamType::Bytes,                                         // reservedDynamic
+            ParamType::Bytes,                                         // `reservedDynamic`
         ]);
         let verifier_params_type = ParamType::Tuple(vec![
             ParamType::FixedBytes(32),
@@ -367,7 +367,7 @@ impl TryFrom<Log> for ProtocolUpgrade {
                 let paymaster_input = transaction.remove(0).into_bytes().unwrap();
                 assert_eq!(paymaster_input.len(), 0);
 
-                // TODO (SMA-1621): check that reservedDynamic are constructed correctly.
+                // TODO (SMA-1621): check that `reservedDynamic` are constructed correctly.
                 let reserved_dynamic = transaction.remove(0).into_bytes().unwrap();
                 assert_eq!(reserved_dynamic.len(), 0);
 

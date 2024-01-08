@@ -1,6 +1,6 @@
 //! Tests for the metadata calculator component life cycle.
 
-use std::{future::Future, ops, panic, path::Path, time::Duration};
+use std::{future::Future, ops, panic, path::Path, sync::Arc, time::Duration};
 
 use assert_matches::assert_matches;
 use itertools::Itertools;
@@ -288,6 +288,7 @@ async fn test_postgres_backup_recovery(
                 BlockGasCount::default(),
                 &[],
                 &[],
+                0,
             )
             .await
             .unwrap();
@@ -313,7 +314,7 @@ async fn test_postgres_backup_recovery(
     for batch_header in &removed_batches {
         let mut txn = storage.start_transaction().await.unwrap();
         txn.blocks_dal()
-            .insert_l1_batch(batch_header, &[], BlockGasCount::default(), &[], &[])
+            .insert_l1_batch(batch_header, &[], BlockGasCount::default(), &[], &[], 0)
             .await
             .unwrap();
         insert_initial_writes_for_batch(&mut txn, batch_header.number).await;
@@ -360,7 +361,7 @@ async fn postgres_backup_recovery_with_excluded_metadata() {
 pub(crate) async fn setup_calculator(
     db_path: &Path,
     pool: &ConnectionPool,
-) -> (MetadataCalculator, Box<dyn ObjectStore>) {
+) -> (MetadataCalculator, Arc<dyn ObjectStore>) {
     let store_factory = ObjectStoreFactory::mock();
     let store = store_factory.create_store().await;
     let (merkle_tree_config, operation_manager) = create_config(db_path, MerkleTreeMode::Full);
@@ -395,7 +396,7 @@ async fn setup_calculator_with_options(
     merkle_tree_config: &MerkleTreeConfig,
     operation_config: &OperationsManagerConfig,
     pool: &ConnectionPool,
-    object_store: Option<Box<dyn ObjectStore>>,
+    object_store: Option<Arc<dyn ObjectStore>>,
 ) -> MetadataCalculator {
     let calculator_config =
         MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_config);
@@ -496,7 +497,7 @@ pub(super) async fn extend_db_state_from_l1_batch(
 
         storage
             .blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
+            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
             .await
             .unwrap();
         storage

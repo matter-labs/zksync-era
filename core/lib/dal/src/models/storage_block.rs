@@ -340,7 +340,7 @@ pub fn bind_block_where_sql_params<'q>(
     query: Query<'q, Postgres, PgArguments>,
 ) -> Query<'q, Postgres, PgArguments> {
     match block_id {
-        // these block_id types result in `$1` in the query string, which we have to `bind`
+        // these `block_id` types result in `$1` in the query string, which we have to `bind`
         api::BlockId::Hash(block_hash) => query.bind(block_hash.as_bytes()),
         api::BlockId::Number(api::BlockNumber::Number(number)) => {
             query.bind(number.as_u64() as i64)
@@ -518,7 +518,7 @@ pub struct StorageMiniblockHeader {
 
     // The maximal number of virtual blocks that can be created with this miniblock.
     // If this value is greater than zero, then at least 1 will be created, but no more than
-    // min(virtual_blocks, miniblock_number - virtual_block_number), i.e. making sure that virtual blocks
+    // `min(virtual_blocks`, `miniblock_number - virtual_block_number`), i.e. making sure that virtual blocks
     // never go beyond the miniblock they are based on.
     pub virtual_blocks: i64,
 }

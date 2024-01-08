@@ -1,6 +1,6 @@
 //! Tree updater trait and its implementations.
 
-use std::{ops, time::Instant};
+use std::{ops, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use futures::{future, FutureExt};
@@ -26,14 +26,14 @@ use crate::utils::wait_for_l1_batch;
 pub(super) struct TreeUpdater {
     tree: AsyncTree,
     max_l1_batches_per_iter: usize,
-    object_store: Option<Box<dyn ObjectStore>>,
+    object_store: Option<Arc<dyn ObjectStore>>,
 }
 
 impl TreeUpdater {
     pub fn new(
         tree: AsyncTree,
         max_l1_batches_per_iter: usize,
-        object_store: Option<Box<dyn ObjectStore>>,
+        object_store: Option<Arc<dyn ObjectStore>>,
     ) -> Self {
         Self {
             tree,

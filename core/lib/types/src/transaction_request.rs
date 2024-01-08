@@ -442,7 +442,7 @@ impl TransactionRequest {
         match self.transaction_type {
             // EIP-2930 (0x01)
             Some(x) if x == EIP_2930_TX_TYPE.into() => {
-                // rlp_opt(rlp, &self.chain_id);
+                // `rlp_opt(rlp, &self.chain_id);`
                 rlp.append(&chain_id);
                 rlp.append(&self.nonce);
                 rlp.append(&self.gas_price);
@@ -454,7 +454,7 @@ impl TransactionRequest {
             }
             // EIP-1559 (0x02)
             Some(x) if x == EIP_1559_TX_TYPE.into() => {
-                // rlp_opt(rlp, &self.chain_id);
+                // `rlp_opt(rlp, &self.chain_id);`
                 rlp.append(&chain_id);
                 rlp.append(&self.nonce);
                 rlp_opt(rlp, &self.max_priority_fee_per_gas);
@@ -821,7 +821,7 @@ impl L2Tx {
 
     /// Ensures that encoded transaction size is not greater than `max_tx_size`.
     fn check_encoded_size(&self, max_tx_size: usize) -> Result<(), SerializationTransactionError> {
-        // since abi_encoding_len returns 32-byte words multiplication on 32 is needed
+        // since `abi_encoding_len` returns 32-byte words multiplication on 32 is needed
         let tx_size = self.abi_encoding_len() * 32;
         if tx_size > max_tx_size {
             return Err(SerializationTransactionError::OversizedData(
@@ -890,7 +890,7 @@ impl TryFrom<CallRequest> for L1Tx {
         let total_needed_eth =
             tx.execute.value + tx.common_data.fee.max_fee_per_gas * tx.common_data.fee.gas_limit;
 
-        // Note, that we do not set refund_recipient here, to keep it explicitly 0,
+        // Note, that we do not set `refund_recipient` here, to keep it explicitly 0,
         // so that during fee estimation it is taken into account that the refund recipient may be a different address
         let common_data = L1TxCommonData {
             sender: tx.common_data.initiator_address,
@@ -1396,7 +1396,7 @@ mod tests {
         let random_tx_max_size = 1_000_000; // bytes
         let private_key = H256::random();
         let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
-        // choose some number that devides on 8 and is > 1_000_000
+        // choose some number that divides on 8 and is `> 1_000_000`
         let factory_dep = vec![2u8; 1600000];
         let factory_deps: Vec<Vec<u8>> = factory_dep.chunks(32).map(|s| s.into()).collect();
         let mut tx = TransactionRequest {

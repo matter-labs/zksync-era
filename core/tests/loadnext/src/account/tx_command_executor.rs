@@ -201,7 +201,7 @@ impl AccountLifespan {
         }?;
 
         // Update current nonce for future txs
-        // If the transaction has a tx_hash and is small enough to be included in a block, this tx will change the nonce.
+        // If the transaction has a `tx_hash` and is small enough to be included in a block, this tx will change the nonce.
         // We can be sure that the nonce will be changed based on this assumption.
         if let SubmitResult::TxHash(_) = &result {
             self.current_nonce = Some(nonce + 1)

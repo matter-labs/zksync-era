@@ -56,7 +56,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
 
 impl<S: WriteStorage> PubdataTracer<S> {
     // Packs part of L1 Messenger total pubdata that corresponds to
-    // L2toL1Logs sent in the block
+    // `L2toL1Logs` sent in the block
     fn get_total_user_logs<H: HistoryMode>(
         &self,
         state: &ZkSyncVmState<S, H>,

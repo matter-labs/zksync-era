@@ -88,7 +88,7 @@ pub struct BasicWitnessGeneratorJob {
 pub struct BasicWitnessGenerator {
     config: Arc<FriWitnessGeneratorConfig>,
     object_store: Arc<dyn ObjectStore>,
-    public_blob_store: Option<Box<dyn ObjectStore>>,
+    public_blob_store: Option<Arc<dyn ObjectStore>>,
     connection_pool: ConnectionPool,
     prover_connection_pool: ConnectionPool,
     protocol_versions: Vec<FriProtocolVersionId>,
@@ -98,14 +98,14 @@ impl BasicWitnessGenerator {
     pub async fn new(
         config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
-        public_blob_store: Option<Box<dyn ObjectStore>>,
+        public_blob_store: Option<Arc<dyn ObjectStore>>,
         connection_pool: ConnectionPool,
         prover_connection_pool: ConnectionPool,
         protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {
             config: Arc::new(config),
-            object_store: store_factory.create_store().await.into(),
+            object_store: store_factory.create_store().await,
             public_blob_store,
             connection_pool,
             prover_connection_pool,

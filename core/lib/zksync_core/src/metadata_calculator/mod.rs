@@ -3,6 +3,7 @@
 
 use std::{
     future::{self, Future},
+    sync::Arc,
     time::Duration,
 };
 
@@ -81,7 +82,7 @@ impl MetadataCalculatorConfig {
 pub struct MetadataCalculator {
     tree: GenericAsyncTree,
     tree_reader: watch::Sender<Option<AsyncTreeReader>>,
-    object_store: Option<Box<dyn ObjectStore>>,
+    object_store: Option<Arc<dyn ObjectStore>>,
     delayer: Delayer,
     health_updater: HealthUpdater,
     max_l1_batches_per_iter: usize,
@@ -91,7 +92,7 @@ impl MetadataCalculator {
     /// Creates a calculator with the specified `config`.
     pub async fn new(
         config: MetadataCalculatorConfig,
-        object_store: Option<Box<dyn ObjectStore>>,
+        object_store: Option<Arc<dyn ObjectStore>>,
     ) -> Self {
         assert!(
             config.max_l1_batches_per_iter > 0,

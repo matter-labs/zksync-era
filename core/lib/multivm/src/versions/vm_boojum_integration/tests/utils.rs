@@ -103,3 +103,9 @@ pub(crate) fn read_max_depth_contract() -> Vec<u8> {
         "core/tests/ts-integration/contracts/zkasm/artifacts/deep_stak.zkasm/deep_stak.zkasm.zbin",
     )
 }
+
+pub(crate) fn read_precompiles_contract() -> Vec<u8> {
+    read_bytecode(
+        "etc/contracts-test-data/artifacts-zk/contracts/precompiles/precompiles.sol/Precompiles.json",
+    )
+}

@@ -137,7 +137,7 @@ mod tests {
             ProtocolVersionId::latest(),
         );
         conn.blocks_dal()
-            .insert_l1_batch(&l1_batch_header, &[], BlockGasCount::default(), &[], &[])
+            .insert_l1_batch(&l1_batch_header, &[], BlockGasCount::default(), &[], &[], 0)
             .await
             .unwrap();
         conn.blocks_dal()
@@ -212,7 +212,7 @@ mod tests {
         l1_batch_header.number = L1BatchNumber(1);
         l1_batch_header.timestamp = 1;
         conn.blocks_dal()
-            .insert_l1_batch(&l1_batch_header, &[], BlockGasCount::default(), &[], &[])
+            .insert_l1_batch(&l1_batch_header, &[], BlockGasCount::default(), &[], &[], 0)
             .await
             .unwrap();
         conn.blocks_dal()
