@@ -123,7 +123,7 @@ Make sure the version is higher than `2.17.10`.
 
 In order to compile RocksDB, you must have LLVM available. On debian-based linux it can be installed as follows:
 
-On linux:
+On debian-based linux:
 
 ```bash
 sudo apt-get install build-essential pkg-config cmake clang lldb lld
@@ -144,7 +144,7 @@ On mac:
 brew install openssl
 ```
 
-On linux:
+On debian-based linux:
 
 ```bash
 sudo apt-get install libssl-dev
@@ -196,7 +196,7 @@ On mac:
 brew install postgresql@14
 ```
 
-On linux:
+On debian-based linux:
 
 ```bash
 sudo apt-get install postgresql
@@ -224,8 +224,18 @@ cargo install sqlx-cli --version 0.7.3
 
 Install the latest solidity compiler.
 
+On mac:
+
 ```bash
 brew install solidity
+```
+
+On debian-based linux:
+
+```bash
+sudo add-apt-repository ppa:ethereum/ethereum
+sudo apt-get update
+sudo apt-get install solc
 ```
 
 Alternatively, download a [precompiled version](https://github.com/ethereum/solc-bin) and add it to your PATH.
