@@ -33,4 +33,4 @@
 1. [The Hyperchain](./the_hyperchain/README.md)
    - [Overview](./the_hyperchain/overview.md)
    - [Shared Bridge](./the_hyperchain/shared_bridge.md)
-   - [Hyperbridges](./the_hyperchain/hyperbridges.md)
+   - [Hyperbrdges](./the_hyperchain/hyperbridges.md)
