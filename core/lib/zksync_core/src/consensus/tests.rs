@@ -269,16 +269,27 @@ async fn test_fetcher_backfill_certs() {
         operator_address: OPERATOR_ADDRESS,
     };
 
-    // Create an initial database snapshot, which contains some blocks and their certs.
+    // Create an initial database snapshot, which contains some blocks: some with certs, some
+    // without.
     let pool = scope::run!(ctx, |ctx, s| async {
         let pool = ConnectionPool::test_pool().await;
         let (mut sk, runner) = testonly::StateKeeper::new(pool, OPERATOR_ADDRESS).await?;
         s.spawn_bg(runner.run(ctx));
-        s.spawn_bg(cfg.clone().run(ctx, sk.pool.clone()));
-        sk.push_random_blocks(rng, 10).await;
-        sk.store()
-            .wait_for_certificate(ctx, sk.last_block())
-            .await?;
+
+        // Some blocks with certs.
+        scope::run!(ctx, |ctx, s| async {
+            s.spawn_bg(cfg.clone().run(ctx, sk.pool.clone()));
+            sk.push_random_blocks(rng, 5).await;
+            sk.store()
+                .wait_for_certificate(ctx, sk.last_block())
+                .await?;
+            Ok(())
+        })
+        .await?;
+
+        // Some blocks without certs.
+        sk.push_random_blocks(rng, 5).await;
+        sk.sync(ctx).await?;
         Ok(sk.pool)
     })
     .await
@@ -293,13 +304,8 @@ async fn test_fetcher_backfill_certs() {
         s.spawn_bg(runner.run(ctx));
         s.spawn_bg(cfg.run(ctx, validator.pool.clone()));
 
-        // Run fetcher with some certificates missing.
+        // Run fetcher.
         let pool = template.create_db().await?;
-        pool.access_storage()
-            .await?
-            .consensus_dal()
-            .testonly_delete_certificates_after(validator::BlockNumber(5))
-            .await?;
         let (fetcher, runner) = testonly::StateKeeper::new(pool, OPERATOR_ADDRESS).await?;
         let fetcher_store = fetcher.store();
         s.spawn_bg(runner.run(ctx));

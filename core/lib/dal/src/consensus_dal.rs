@@ -206,24 +206,6 @@ impl ConsensusDal<'_, '_> {
         txn.commit().await?;
         Ok(())
     }
-
-    /// TESTONLY method. Deletes certificates for blocks with number > `after`.
-    pub async fn testonly_delete_certificates_after(
-        &mut self,
-        after: validator::BlockNumber,
-    ) -> sqlx::Result<()> {
-        sqlx::query!(
-            r#"
-            DELETE FROM miniblocks_consensus
-            WHERE
-                number > $1
-            "#,
-            after.0 as i64
-        )
-        .execute(self.storage.conn())
-        .await?;
-        Ok(())
-    }
 }
 
 #[cfg(test)]
