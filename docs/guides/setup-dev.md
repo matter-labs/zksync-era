@@ -10,14 +10,14 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 # NVM
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
 # All necessary stuff
-sudo apt-get install build-essential pkg-config cmake clang lldb lld libssl-dev postgresql docker-compose
+sudo apt-get install build-essential pkg-config cmake clang lldb lld libssl-dev postgresql
 # Docker
 sudo usermod -aG docker YOUR_USER
 
 ## You might need to re-connect (due to usermod change).
 
 # Node & yarn
-nvm install node
+nvm install 18
 npm install -g yarn
 yarn set version 1.22.19
 
@@ -55,9 +55,9 @@ want to only have CLI tool, you need the `docker-ce` package and you can follow
 
 Installing `docker` via `snap` or from the default repository can cause troubles.
 
-You need to install both `docker` and `docker-compose`.
+You need to install both `docker` and `docker compose`.
 
-**Note:** `docker-compose` is installed automatically with `Docker Desktop`.
+**Note:** `docker compose` is installed automatically with `Docker Desktop`.
 
 **Note:** On linux you may encounter the following error when you’ll try to work with `zksync`:
 
@@ -90,7 +90,7 @@ If logging out does not resolve the issue, restarting the computer should.
    `Node.js`, we suggest you to install [nvm](https://github.com/nvm-sh/nvm). It will allow you to update `Node.js`
    version easily in the future (by running `nvm use` in the root of the repository)
 2. Install `yarn` (make sure to get version 1.22.19 - you can change the version by running `yarn set version 1.22.19`).
-   Instructions can be found on the [official site](https://classic.yarnpkg.com/en/docs/install/).  
+   Instructions can be found on the [official site](https://classic.yarnpkg.com/en/docs/install/).
    Check if `yarn` is installed by running `yarn -v`. If you face any problems when installing `yarn`, it might be the
    case that your package manager installed the wrong package.Make sure to thoroughly follow the instructions above on
    the official website. It contains a lot of troubleshooting guides in it.
