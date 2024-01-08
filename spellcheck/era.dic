@@ -514,6 +514,12 @@ porco
 rosso
 insize
 MLOAD
+sload
+sload
+uadd
+nocallback
+nosync
+swrite
 
 // ETC
 gitter
