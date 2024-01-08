@@ -10,8 +10,7 @@ use zksync_types::{
     l2::L2Tx,
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
     Address, Execute, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2ChainId, MiniblockNumber,
-    PriorityOpId, ProtocolVersion, ProtocolVersionId, H160, H256, MAX_GAS_PER_PUBDATA_BYTE_1_4_1,
-    U256,
+    PriorityOpId, ProtocolVersion, ProtocolVersionId, H160, H256, U256,
 };
 
 use crate::{
@@ -37,6 +36,7 @@ pub(crate) fn create_miniblock_header(number: u32) -> MiniblockHeader {
         hash: MiniblockHasher::new(number, 0, H256::zero()).finalize(protocol_version),
         l1_tx_count: 0,
         l2_tx_count: 0,
+        gas_per_pubdata_limit: 100,
         base_fee_per_gas: 100,
         batch_fee_input: BatchFeeInput::l1_pegged(100, 100),
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
@@ -80,7 +80,7 @@ fn mock_l1_execute() -> L1Tx {
         full_fee: U256::zero(),
         gas_limit: U256::from(100_100),
         max_fee_per_gas: U256::from(1u32),
-        gas_per_pubdata_limit: MAX_GAS_PER_PUBDATA_BYTE_1_4_1.into(),
+        gas_per_pubdata_limit: 100.into(),
         op_processing_type: OpProcessingType::Common,
         priority_queue_type: PriorityQueueType::Deque,
         eth_hash: H256::random(),

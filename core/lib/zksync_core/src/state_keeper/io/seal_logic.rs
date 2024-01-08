@@ -9,7 +9,7 @@ use std::{
 use itertools::Itertools;
 use multivm::{
     interface::{FinishedL1Batch, L1BatchEnv},
-    utils::get_batch_base_fee,
+    utils::{get_batch_base_fee, get_max_gas_per_pubdata_byte},
 };
 use zksync_dal::{blocks_dal::ConsensusBlockFields, StorageProcessor};
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
@@ -28,8 +28,8 @@ use zksync_types::{
     },
     zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
     AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, LogQuery,
-    MiniblockNumber, StorageKey, StorageLog, StorageLogQuery, StorageValue, Transaction, VmEvent,
-    CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS,
+    MiniblockNumber, ProtocolVersionId, StorageKey, StorageLog, StorageLogQuery, StorageValue,
+    Transaction, VmEvent, CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::{h256_to_u256, time::millis_since_epoch, u256_to_h256};
@@ -343,6 +343,11 @@ impl MiniblockSealCommand {
             batch_fee_input: self.fee_input,
             base_system_contracts_hashes: self.base_system_contracts_hashes,
             protocol_version: self.protocol_version,
+            gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(
+                self.protocol_version
+                    .unwrap_or(ProtocolVersionId::last_potentially_undefined())
+                    .into(),
+            ),
             virtual_blocks: self.miniblock.virtual_blocks,
         };
 

@@ -1,12 +1,13 @@
 //! Utility functions for vm
-use zksync_system_constants::MAX_GAS_PER_PUBDATA_BYTE_1_4_1;
 use zksync_types::{
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
     U256,
 };
 use zksync_utils::ceil_div;
 
-use crate::vm_latest::{old_vm::utils::eth_price_per_pubdata_byte, L1BatchEnv};
+use crate::vm_latest::{
+    constants::MAX_GAS_PER_PUBDATA_BYTE, old_vm::utils::eth_price_per_pubdata_byte, L1BatchEnv,
+};
 
 /// Calculates the base fee and gas per pubdata for the given L1 gas price.
 pub(crate) fn derive_base_fee_and_gas_per_pubdata(
@@ -22,7 +23,7 @@ pub(crate) fn derive_base_fee_and_gas_per_pubdata(
     // publish enough public data while compensating us for it.
     let base_fee = std::cmp::max(
         fair_l2_gas_price,
-        ceil_div(fair_pubdata_price, MAX_GAS_PER_PUBDATA_BYTE_1_4_1),
+        ceil_div(fair_pubdata_price, MAX_GAS_PER_PUBDATA_BYTE),
     );
 
     let gas_per_pubdata = ceil_div(fair_pubdata_price, base_fee);

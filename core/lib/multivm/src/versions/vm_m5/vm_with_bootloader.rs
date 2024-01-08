@@ -11,10 +11,10 @@ use zk_evm_1_3_1::{
     },
 };
 use zksync_contracts::BaseSystemContracts;
+use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{
     fee_model::L1PeggedBatchFeeModelInput, zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER,
-    Address, Transaction, BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE,
-    MAX_GAS_PER_PUBDATA_BYTE_PRE_1_4_1 as MAX_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
+    Address, Transaction, BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::{
     address_to_u256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, misc::ceil_div,
@@ -119,6 +119,17 @@ impl From<BlockContext> for DerivedBlockContext {
         DerivedBlockContext { context, base_fee }
     }
 }
+
+// This the number of pubdata such that it should be always possible to publish
+// from a single transaction. Note, that these pubdata bytes include only bytes that are
+// to be published inside the body of transaction (i.e. excluding of factory deps).
+pub(crate) const GUARANTEED_PUBDATA_PER_L1_BATCH: u64 = 4000;
+
+// The users should always be able to provide `MAX_GAS_PER_PUBDATA_BYTE` gas per pubdata in their
+// transactions so that they are able to send at least `GUARANTEED_PUBDATA_PER_L1_BATCH` bytes per
+// transaction.
+pub(crate) const MAX_GAS_PER_PUBDATA_BYTE: u64 =
+    MAX_L2_TX_GAS_LIMIT / GUARANTEED_PUBDATA_PER_L1_BATCH;
 
 // The maximal number of transactions in a single batch
 pub(crate) const MAX_TXS_IN_BLOCK: usize = 1024;

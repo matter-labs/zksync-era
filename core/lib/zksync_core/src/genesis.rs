@@ -3,6 +3,7 @@
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
 use anyhow::Context as _;
+use multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::StorageProcessor;
 use zksync_merkle_tree::domain::ZkSyncTree;
@@ -295,6 +296,7 @@ pub(crate) async fn create_genesis_l1_batch(
         l1_tx_count: 0,
         l2_tx_count: 0,
         base_fee_per_gas: 0,
+        gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(protocol_version.into()),
         batch_fee_input: BatchFeeInput::l1_pegged(0, 0),
         base_system_contracts_hashes: base_system_contracts.hashes(),
         protocol_version: Some(protocol_version),

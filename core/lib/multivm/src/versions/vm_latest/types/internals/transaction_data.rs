@@ -1,6 +1,5 @@
 use std::convert::TryInto;
 
-use zksync_system_constants::MAX_GAS_PER_PUBDATA_BYTE_PRE_1_4_1;
 use zksync_types::{
     ethabi::{encode, Address, Token},
     fee::{encoding_len, Fee},
@@ -13,7 +12,7 @@ use zksync_types::{
 use zksync_utils::{address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
 
 use crate::vm_latest::{
-    constants::{L1_TX_TYPE, PRIORITY_TX_MAX_GAS_LIMIT},
+    constants::{L1_TX_TYPE, MAX_GAS_PER_PUBDATA_BYTE, PRIORITY_TX_MAX_GAS_LIMIT},
     utils::overhead::get_amortized_overhead,
 };
 
@@ -64,7 +63,7 @@ impl From<Transaction> for TransactionData {
                 };
 
                 let gas_per_pubdata_limit = if common_data.transaction_type.is_ethereum_type() {
-                    MAX_GAS_PER_PUBDATA_BYTE_PRE_1_4_1.into()
+                    MAX_GAS_PER_PUBDATA_BYTE.into()
                 } else {
                     common_data.fee.gas_per_pubdata_limit
                 };

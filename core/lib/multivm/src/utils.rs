@@ -183,3 +183,23 @@ pub fn get_bootloader_max_txs_in_batch(version: VmVersion) -> usize {
         VmVersion::Vm1_4_1 => crate::vm_latest::constants::MAX_TXS_IN_BATCH,
     }
 }
+
+pub fn get_max_gas_per_pubdata_byte(version: VmVersion) -> u64 {
+    match version {
+        VmVersion::M5WithRefunds | VmVersion::M5WithoutRefunds => {
+            crate::vm_m5::vm_with_bootloader::MAX_GAS_PER_PUBDATA_BYTE
+        }
+        VmVersion::M6Initial | VmVersion::M6BugWithCompressionFixed => {
+            crate::vm_m6::vm_with_bootloader::MAX_GAS_PER_PUBDATA_BYTE
+        }
+        VmVersion::Vm1_3_2 => crate::vm_1_3_2::vm_with_bootloader::MAX_GAS_PER_PUBDATA_BYTE,
+        VmVersion::VmVirtualBlocks => crate::vm_virtual_blocks::constants::MAX_GAS_PER_PUBDATA_BYTE,
+        VmVersion::VmVirtualBlocksRefundsEnhancement => {
+            crate::vm_refunds_enhancement::constants::MAX_GAS_PER_PUBDATA_BYTE
+        }
+        VmVersion::VmBoojumIntegration => {
+            crate::vm_boojum_integration::constants::MAX_GAS_PER_PUBDATA_BYTE
+        }
+        VmVersion::Vm1_4_1 => crate::vm_latest::constants::MAX_GAS_PER_PUBDATA_BYTE,
+    }
+}

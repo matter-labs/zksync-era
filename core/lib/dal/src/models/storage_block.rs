@@ -516,6 +516,8 @@ pub struct StorageMiniblockHeader {
 
     pub fair_pubdata_price: Option<i64>,
 
+    pub gas_per_pubdata_limit: i64,
+
     // The maximal number of virtual blocks that can be created with this miniblock.
     // If this value is greater than zero, then at least 1 will be created, but no more than
     // `min(virtual_blocks`, `miniblock_number - virtual_block_number`), i.e. making sure that virtual blocks
@@ -558,6 +560,7 @@ impl From<StorageMiniblockHeader> for MiniblockHeader {
                 row.bootloader_code_hash,
                 row.default_aa_code_hash,
             ),
+            gas_per_pubdata_limit: row.gas_per_pubdata_limit as u64,
             protocol_version,
             virtual_blocks: row.virtual_blocks as u32,
         }
