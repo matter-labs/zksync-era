@@ -50,7 +50,7 @@ RUN git config --global http.postBuffer 1048576000
 
 # Install node and yarn
 RUN wget -c -O - https://deb.nodesource.com/setup_18.x | bash -
-RUN apt-get install -y nodejs
+RUN apt-get install -y nodejs npm
 RUN npm install -g yarn
 
 # Install Rust and required cargo packages
