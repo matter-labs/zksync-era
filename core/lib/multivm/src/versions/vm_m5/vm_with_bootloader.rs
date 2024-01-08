@@ -120,6 +120,12 @@ impl From<BlockContext> for DerivedBlockContext {
     }
 }
 
+/// The size of the bootloader memory in bytes which is used by the protocol.
+/// While the maximal possible size is a lot higher, we restrict ourselves to a certain limit to reduce
+/// the requirements on RAM.
+pub(crate) const USED_BOOTLOADER_MEMORY_BYTES: usize = 1 << 24;
+pub(crate) const USED_BOOTLOADER_MEMORY_WORDS: usize = USED_BOOTLOADER_MEMORY_BYTES / 32;
+
 // This the number of pubdata such that it should be always possible to publish
 // from a single transaction. Note, that these pubdata bytes include only bytes that are
 // to be published inside the body of transaction (i.e. excluding of factory deps).

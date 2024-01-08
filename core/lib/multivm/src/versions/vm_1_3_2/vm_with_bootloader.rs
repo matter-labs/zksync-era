@@ -13,7 +13,7 @@ use zk_evm_1_3_3::{
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_state::WriteStorage;
-use zksync_system_constants::{MAX_L2_TX_GAS_LIMIT, USED_PRE_1_4_1_BOOTLOADER_MEMORY_WORDS};
+use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{
     fee_model::L1PeggedBatchFeeModelInput, l1::is_l1_tx_type,
     zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address, Transaction, BOOTLOADER_ADDRESS,
@@ -135,6 +135,12 @@ impl From<BlockContext> for DerivedBlockContext {
     }
 }
 
+/// The size of the bootloader memory in bytes which is used by the protocol.
+/// While the maximal possible size is a lot higher, we restrict ourselves to a certain limit to reduce
+/// the requirements on RAM.
+pub(crate) const USED_BOOTLOADER_MEMORY_BYTES: usize = 1 << 24;
+pub(crate) const USED_BOOTLOADER_MEMORY_WORDS: usize = USED_BOOTLOADER_MEMORY_BYTES / 32;
+
 // This the number of pubdata such that it should be always possible to publish
 // from a single transaction. Note, that these pubdata bytes include only bytes that are
 // to be published inside the body of transaction (i.e. excluding of factory deps).
@@ -192,7 +198,7 @@ pub const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
 
 // The size of the bootloader memory dedicated to the encodings of transactions
 pub const BOOTLOADER_TX_ENCODING_SPACE: u32 =
-    (USED_PRE_1_4_1_BOOTLOADER_MEMORY_WORDS - TX_DESCRIPTION_OFFSET - MAX_TXS_IN_BLOCK) as u32;
+    (USED_BOOTLOADER_MEMORY_WORDS - TX_DESCRIPTION_OFFSET - MAX_TXS_IN_BLOCK) as u32;
 
 // Size of the bootloader tx description in words
 pub const BOOTLOADER_TX_DESCRIPTION_SIZE: usize = 2;

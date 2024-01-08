@@ -2,12 +2,15 @@ use zk_evm_1_4_0::aux_structures::MemoryPage;
 pub use zk_evm_1_4_0::zkevm_opcode_defs::system_params::{
     ERGS_PER_CIRCUIT, INITIAL_STORAGE_WRITE_PUBDATA_BYTES, MAX_PUBDATA_PER_BLOCK,
 };
-use zksync_system_constants::{
-    L1_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS,
-    USED_1_4_1_BOOTLOADER_MEMORY_BYTES, USED_1_4_1_BOOTLOADER_MEMORY_WORDS,
-};
+use zksync_system_constants::{L1_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS};
 
 use crate::vm_boojum_integration::old_vm::utils::heap_page_from_base;
+
+/// The size of the bootloader memory in bytes which is used by the protocol.
+/// While the maximal possible size is a lot higher, we restrict ourselves to a certain limit to reduce
+/// the requirements on RAM.
+pub(crate) const USED_BOOTLOADER_MEMORY_BYTES: usize = 1 << 24;
+pub(crate) const USED_BOOTLOADER_MEMORY_WORDS: usize = USED_BOOTLOADER_MEMORY_BYTES / 32;
 
 // This the number of pubdata such that it should be always possible to publish
 // from a single transaction. Note, that these pubdata bytes include only bytes that are
@@ -84,7 +87,7 @@ pub(crate) const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
 
 /// The size of the bootloader memory dedicated to the encodings of transactions
 pub(crate) const BOOTLOADER_TX_ENCODING_SPACE: u32 =
-    (USED_1_4_1_BOOTLOADER_MEMORY_WORDS - TX_DESCRIPTION_OFFSET - MAX_TXS_IN_BLOCK) as u32;
+    (USED_BOOTLOADER_MEMORY_WORDS - TX_DESCRIPTION_OFFSET - MAX_TXS_IN_BLOCK) as u32;
 
 // Size of the bootloader tx description in words
 pub(crate) const BOOTLOADER_TX_DESCRIPTION_SIZE: usize = 2;

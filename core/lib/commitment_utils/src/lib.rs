@@ -1,11 +1,9 @@
 //! Utils for commitment calculation.
+use multivm::utils::get_used_bootloader_memory_bytes;
 use zkevm_test_harness::witness::utils::{
     events_queue_commitment_fixed, initial_heap_content_commitment_fixed,
 };
-use zksync_types::{
-    LogQuery, ProtocolVersionId, H256, U256, USED_1_4_1_BOOTLOADER_MEMORY_BYTES,
-    USED_PRE_1_4_1_BOOTLOADER_MEMORY_BYTES,
-};
+use zksync_types::{LogQuery, ProtocolVersionId, H256, U256};
 use zksync_utils::expand_memory_contents;
 
 pub fn events_queue_commitment(
@@ -21,10 +19,8 @@ pub fn bootloader_initial_content_commitment(
 ) -> Option<H256> {
     let expanded_memory_size = if protocol_version.is_pre_boojum() {
         return None;
-    } else if protocol_version.is_1_4_1() {
-        USED_1_4_1_BOOTLOADER_MEMORY_BYTES
     } else {
-        USED_PRE_1_4_1_BOOTLOADER_MEMORY_BYTES
+        get_used_bootloader_memory_bytes(protocol_version.into())
     };
 
     let full_bootloader_memory =

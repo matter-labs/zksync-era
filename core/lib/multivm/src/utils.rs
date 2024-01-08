@@ -203,3 +203,47 @@ pub fn get_max_gas_per_pubdata_byte(version: VmVersion) -> u64 {
         VmVersion::Vm1_4_1 => crate::vm_latest::constants::MAX_GAS_PER_PUBDATA_BYTE,
     }
 }
+
+pub fn get_used_bootloader_memory_bytes(version: VmVersion) -> usize {
+    match version {
+        VmVersion::M5WithRefunds | VmVersion::M5WithoutRefunds => {
+            crate::vm_m5::vm_with_bootloader::USED_BOOTLOADER_MEMORY_BYTES
+        }
+        VmVersion::M6Initial | VmVersion::M6BugWithCompressionFixed => {
+            crate::vm_m6::vm_with_bootloader::USED_BOOTLOADER_MEMORY_BYTES
+        }
+        VmVersion::Vm1_3_2 => crate::vm_1_3_2::vm_with_bootloader::USED_BOOTLOADER_MEMORY_BYTES,
+        VmVersion::VmVirtualBlocks => {
+            crate::vm_virtual_blocks::constants::USED_BOOTLOADER_MEMORY_BYTES
+        }
+        VmVersion::VmVirtualBlocksRefundsEnhancement => {
+            crate::vm_refunds_enhancement::constants::USED_BOOTLOADER_MEMORY_BYTES
+        }
+        VmVersion::VmBoojumIntegration => {
+            crate::vm_boojum_integration::constants::USED_BOOTLOADER_MEMORY_BYTES
+        }
+        VmVersion::Vm1_4_1 => crate::vm_latest::constants::USED_BOOTLOADER_MEMORY_BYTES,
+    }
+}
+
+pub fn get_used_bootloader_memory_words(version: VmVersion) -> usize {
+    match version {
+        VmVersion::M5WithRefunds | VmVersion::M5WithoutRefunds => {
+            crate::vm_m5::vm_with_bootloader::USED_BOOTLOADER_MEMORY_WORDS
+        }
+        VmVersion::M6Initial | VmVersion::M6BugWithCompressionFixed => {
+            crate::vm_m6::vm_with_bootloader::USED_BOOTLOADER_MEMORY_WORDS
+        }
+        VmVersion::Vm1_3_2 => crate::vm_1_3_2::vm_with_bootloader::USED_BOOTLOADER_MEMORY_WORDS,
+        VmVersion::VmVirtualBlocks => {
+            crate::vm_virtual_blocks::constants::USED_BOOTLOADER_MEMORY_WORDS
+        }
+        VmVersion::VmVirtualBlocksRefundsEnhancement => {
+            crate::vm_refunds_enhancement::constants::USED_BOOTLOADER_MEMORY_WORDS
+        }
+        VmVersion::VmBoojumIntegration => {
+            crate::vm_boojum_integration::constants::USED_BOOTLOADER_MEMORY_WORDS
+        }
+        VmVersion::Vm1_4_1 => crate::vm_latest::constants::USED_BOOTLOADER_MEMORY_WORDS,
+    }
+}
