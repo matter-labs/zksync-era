@@ -22,7 +22,7 @@ npm install -g yarn
 yarn set version 1.22.19
 
 # SQL tools
-cargo install sqlx-cli --version 0.5.13
+cargo install sqlx-cli --version 0.7.3
 # Stop default postgres (as we'll use the docker one)
 sudo systemctl stop postgresql
 # Start docker.
@@ -217,7 +217,7 @@ SQLx is a Rust library we use to interact with Postgres, and its CLI is used to 
 features of the library.
 
 ```bash
-cargo install sqlx-cli --version 0.5.13
+cargo install sqlx-cli --version 0.7.3
 ```
 
 ## Solidity compiler `solc`
