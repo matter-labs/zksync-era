@@ -54,5 +54,5 @@ jobs:
               repo_tags+=" --amend ${repo}:${IMAGE_TAG_SUFFIX}-${platform}"
             done
             echo $repo_tags
-            docker manifest create ${repo_tags} ${repo}:${IMAGE_TAG_SUFFIX}
+            docker manifest create ${repo}:${IMAGE_TAG_SUFFIX} ${repo_tags}
           done
