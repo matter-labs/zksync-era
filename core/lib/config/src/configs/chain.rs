@@ -63,8 +63,23 @@ pub struct StateKeeperConfig {
 
     pub fee_account_addr: Address,
 
-    /// The price the operator spends on 1 gas of computation in wei.
+    /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
+    /// as potentially premium for congestion.
     pub minimal_l2_gas_price: u64,
+    /// The constant that represents the possibility that a batch can be sealed because of overuse of computation resources.
+    /// It has range from 0 to 1. If it is 0, the compute will not depend on the cost for closing the batch.
+    /// If it is 1, the gas limit per batch will have to cover the entire cost of closing the batch.
+    pub compute_overhead_part: f64,
+    /// The constant that represents the possibility that a batch can be sealed because of overuse of pubdata.
+    /// It has range from 0 to 1. If it is 0, the pubdata will not depend on the cost for closing the batch.
+    /// If it is 1, the pubdata limit per batch will have to cover the entire cost of closing the batch.
+    pub pubdata_overhead_part: f64,
+    /// The constant amount of L1 gas that is used as the overhead for the batch. It includes the price for batch verification, etc.
+    pub batch_overhead_l1_gas: u64,
+    /// The maximum amount of gas that can be used by the batch. This value is derived from the circuits limitation per batch.
+    pub max_gas_per_batch: u64,
+    /// The maximum amount of pubdata that can be used by the batch. Note that if the calldata is used as pubdata, this variable should not exceed 128kb.
+    pub max_pubdata_per_batch: u64,
 
     /// Max number of computational gas that validation step is allowed to take.
     pub validation_computational_gas_limit: u32,
@@ -100,6 +115,11 @@ impl StateKeeperConfig {
             close_block_at_gas_percentage: 0.95,
             fee_account_addr: Address::from_str("0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7")
                 .unwrap(),
+            compute_overhead_part: 0.0,
+            pubdata_overhead_part: 1.0,
+            batch_overhead_l1_gas: 800_000,
+            max_gas_per_batch: 200_000_000,
+            max_pubdata_per_batch: 100_000,
             minimal_l2_gas_price: 100000000,
             validation_computational_gas_limit: 300000,
             save_call_traces: true,

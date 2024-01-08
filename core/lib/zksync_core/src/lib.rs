@@ -699,11 +699,11 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         gas_adjuster,
         FeeModelConfig::V2(FeeModelConfigV2 {
             minimal_l2_gas_price: state_keeper_config.minimal_l2_gas_price,
-            compute_overhead_part: 0.0,
-            pubdata_overhead_part: 1.0,
-            batch_overhead_l1_gas: 800_000,
-            max_gas_per_batch: 120_000_000,
-            max_pubdata_per_batch: 100_000,
+            compute_overhead_part: state_keeper_config.compute_overhead_part,
+            pubdata_overhead_part: state_keeper_config.pubdata_overhead_part,
+            batch_overhead_l1_gas: state_keeper_config.batch_overhead_l1_gas,
+            max_gas_per_batch: state_keeper_config.max_gas_per_batch,
+            max_pubdata_per_batch: state_keeper_config.max_pubdata_per_batch,
         }),
     ));
 
@@ -1024,11 +1024,11 @@ async fn build_tx_sender(
         l1_gas_price_provider,
         zksync_types::fee_model::FeeModelConfig::V2(FeeModelConfigV2 {
             minimal_l2_gas_price: state_keeper_config.minimal_l2_gas_price,
-            compute_overhead_part: 0.0,
-            pubdata_overhead_part: 1.0,
-            batch_overhead_l1_gas: 800_000,
-            max_gas_per_batch: 120_000_000,
-            max_pubdata_per_batch: 100_000,
+            compute_overhead_part: state_keeper_config.compute_overhead_part,
+            pubdata_overhead_part: state_keeper_config.pubdata_overhead_part,
+            batch_overhead_l1_gas: state_keeper_config.batch_overhead_l1_gas,
+            max_gas_per_batch: state_keeper_config.max_gas_per_batch,
+            max_pubdata_per_batch: state_keeper_config.max_pubdata_per_batch,
         }),
     );
 
