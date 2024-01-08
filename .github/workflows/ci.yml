@@ -105,7 +105,6 @@ jobs:
   build-core-images:
     name: Build core images
    # needs: build-contracts
-    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     uses: ./.github/workflows/build-core-template.yml
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
