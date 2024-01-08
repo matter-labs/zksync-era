@@ -37,6 +37,7 @@ jobs:
             platform: linux/amd64
     env:
       IMAGE_TAG_SUFFIX: 5129b82-1704658569152
+      DOCKER_CLI_EXPERIMENTAL: enabled
     steps:
       - name: login to Docker registries
         run: |
@@ -45,7 +46,7 @@ jobs:
 
       - name: Create Docker manifest
         run: |
-          docker_repositories=("matterlabs/${{ matrix.component.name }}" "us-docker.pkg.dev/${{ matrix.component.name }}")
+          docker_repositories=("matterlabs/${{ matrix.component.name }}" "us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component.name }}")
           platforms=${{ matrix.component.platform }}
           for repo in "${docker_repositories[@]}"; do
             repo_tags=""
