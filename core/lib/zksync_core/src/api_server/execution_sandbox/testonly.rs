@@ -10,10 +10,12 @@ use zksync_types::{
 
 use super::TransactionExecutor;
 
+type MockExecutionOutput = (VmExecutionResultAndLogs, TransactionExecutionMetrics, bool);
+
 #[derive(Debug, Default)]
 pub(crate) struct MockTransactionExecutor {
-    call_responses: HashMap<Vec<u8>, (VmExecutionResultAndLogs, TransactionExecutionMetrics)>,
-    tx_responses: HashMap<H256, (VmExecutionResultAndLogs, TransactionExecutionMetrics)>,
+    call_responses: HashMap<Vec<u8>, MockExecutionOutput>,
+    tx_responses: HashMap<H256, MockExecutionOutput>,
 }
 
 impl MockTransactionExecutor {
@@ -24,8 +26,8 @@ impl MockTransactionExecutor {
             statistics: Default::default(),
             refunds: Default::default(),
         };
-        self.call_responses
-            .insert(calldata, (result, TransactionExecutionMetrics::default()));
+        let output = (result, TransactionExecutionMetrics::default(), true);
+        self.call_responses.insert(calldata, output);
     }
 
     pub fn insert_tx_response(&mut self, tx_hash: H256, result: ExecutionResult) {
@@ -35,8 +37,8 @@ impl MockTransactionExecutor {
             statistics: Default::default(),
             refunds: Default::default(),
         };
-        self.tx_responses
-            .insert(tx_hash, (result, TransactionExecutionMetrics::default()));
+        let output = (result, TransactionExecutionMetrics::default(), true);
+        self.tx_responses.insert(tx_hash, output);
     }
 
     pub fn validate_tx(&self, tx: &L2Tx) -> Result<(), ValidationError> {
@@ -46,10 +48,7 @@ impl MockTransactionExecutor {
         Ok(())
     }
 
-    pub fn execute_tx(
-        &self,
-        tx: &Transaction,
-    ) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics) {
+    pub fn execute_tx(&self, tx: &Transaction) -> MockExecutionOutput {
         if let ExecuteTransactionCommon::L2(data) = &tx.common_data {
             if data.input.is_none() {
                 // `Transaction` was obtained from a `CallRequest`

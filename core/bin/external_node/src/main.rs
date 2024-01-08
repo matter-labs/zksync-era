@@ -74,6 +74,7 @@ async fn build_state_keeper(
             save_call_traces,
             false,
             config.optional.enum_index_migration_chunk_size,
+            true,
         ));
 
     let main_node_url = config.required.main_node_url().unwrap();
@@ -390,7 +391,6 @@ async fn main() -> anyhow::Result<()> {
     .build()
     .await
     .context("failed to build a connection_pool")?;
-
     if opt.revert_pending_l1_batch {
         tracing::info!("Rolling pending L1 batch back..");
         let reverter = BlockReverter::new(
@@ -484,11 +484,17 @@ async fn main() -> anyhow::Result<()> {
     if let Some(last_correct_batch) = reorg_detector_last_correct_batch {
         tracing::info!("Performing rollback to L1 batch #{last_correct_batch}");
 
+        let block_reverter_connection_pool =
+            ConnectionPool::builder(&config.postgres.database_url, 1)
+                .build()
+                .await
+                .context("failed to build a block reverter connection pool")?;
+
         let reverter = BlockReverter::new(
             config.required.state_cache_path,
             config.required.merkle_tree_path,
             None,
-            connection_pool,
+            block_reverter_connection_pool,
             L1ExecutedBatchesRevert::Allowed,
         );
         reverter

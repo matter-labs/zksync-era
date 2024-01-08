@@ -433,13 +433,12 @@ impl FullApiParams {
         let pub_sub = if matches!(transport, ApiTransport::WebSocket(_))
             && self.namespaces.contains(&Namespace::Pubsub)
         {
-            let mut pub_sub = EthSubscribe::new();
+            let mut pub_sub = EthSubscribe::new(runtime.handle().clone());
             if let Some(sender) = &self.optional.pub_sub_events_sender {
                 pub_sub.set_events_sender(sender.clone());
             }
 
             tasks.extend(pub_sub.spawn_notifiers(
-                runtime.handle(),
                 self.pool.clone(),
                 self.polling_interval,
                 stop_receiver.clone(),

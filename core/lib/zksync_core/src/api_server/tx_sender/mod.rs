@@ -287,7 +287,7 @@ impl TxSender {
         let block_args = BlockArgs::pending(&mut connection).await;
         drop(connection);
 
-        let (_, tx_metrics) = self
+        let (_, tx_metrics, published_bytecodes) = self
             .0
             .executor
             .execute_tx_in_sandbox(
@@ -327,6 +327,10 @@ impl TxSender {
 
         if let Err(err) = validation_result {
             return Err(err.into());
+        }
+
+        if !published_bytecodes {
+            return Err(SubmitTxError::FailedToPublishCompressedBytecodes);
         }
 
         let stage_started_at = Instant::now();
@@ -617,7 +621,7 @@ impl TxSender {
         let vm_execution_cache_misses_limit = self.0.sender_config.vm_execution_cache_misses_limit;
         let execution_args =
             TxExecutionArgs::for_gas_estimate(vm_execution_cache_misses_limit, &tx, base_fee);
-        let (exec_result, tx_metrics) = self
+        let (exec_result, tx_metrics, _) = self
             .0
             .executor
             .execute_tx_in_sandbox(

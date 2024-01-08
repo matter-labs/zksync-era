@@ -1,7 +1,7 @@
 //! Implementation of "executing" methods, e.g. `eth_call`.
 
 use multivm::{
-    interface::{TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface},
+    interface::{TxExecutionMode, VmExecutionResultAndLogs, VmInterface},
     tracers::StorageInvocations,
     vm_latest::constants::ETH_CALL_GAS_LIMIT,
     MultiVMTracer,
@@ -101,7 +101,7 @@ impl TransactionExecutor {
         tx: Transaction,
         block_args: BlockArgs,
         custom_tracers: Vec<ApiTracer>,
-    ) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics) {
+    ) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics, bool) {
         #[cfg(test)]
         if let Self::Mock(mock_executor) = self {
             return mock_executor.execute_tx(&tx);
@@ -113,7 +113,7 @@ impl TransactionExecutor {
             .as_ref()
             .map_or(0, |deps| deps.len() as u16);
 
-        let execution_result = tokio::task::spawn_blocking(move || {
+        let (published_bytecodes, execution_result) = tokio::task::spawn_blocking(move || {
             let span = span!(Level::DEBUG, "execute_in_sandbox").entered();
             let result = apply::apply_vm_in_sandbox(
                 vm_permit,
@@ -124,7 +124,6 @@ impl TransactionExecutor {
                 tx,
                 block_args,
                 |vm, tx| {
-                    vm.push_transaction(tx);
                     let storage_invocation_tracer =
                         StorageInvocations::new(execution_args.missed_storage_invocation_limit);
                     let custom_tracers: Vec<_> = custom_tracers
@@ -132,7 +131,11 @@ impl TransactionExecutor {
                         .map(|tracer| tracer.into_boxed())
                         .chain(vec![storage_invocation_tracer.into_tracer_pointer()])
                         .collect();
-                    vm.inspect(custom_tracers.into(), VmExecutionMode::OneTx)
+                    vm.inspect_transaction_with_bytecode_compression(
+                        custom_tracers.into(),
+                        tx,
+                        true,
+                    )
                 },
             );
             span.exit();
@@ -143,7 +146,11 @@ impl TransactionExecutor {
 
         let tx_execution_metrics =
             vm_metrics::collect_tx_execution_metrics(total_factory_deps, &execution_result);
-        (execution_result, tx_execution_metrics)
+        (
+            execution_result,
+            tx_execution_metrics,
+            published_bytecodes.is_ok(),
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -169,7 +176,7 @@ impl TransactionExecutor {
         // limiting the amount of gas the call can use.
         // We can't use `BLOCK_ERGS_LIMIT` here since the VM itself has some overhead.
         tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
-        let (vm_result, _) = self
+        let (vm_result, ..) = self
             .execute_tx_in_sandbox(
                 vm_permit,
                 shared_args,
