@@ -3,9 +3,8 @@ syntax = "proto3";
 package zksync.config;
 
 enum SetupLoadMode {
-  SETUP_LOAD_MODE_UNKNOWN = 0;
-  FROM_DISK = 1;
-  FROM_MEMORY = 2;
+  FROM_DISK = 0;
+  FROM_MEMORY = 1;
 }
 
 message FriProver {
