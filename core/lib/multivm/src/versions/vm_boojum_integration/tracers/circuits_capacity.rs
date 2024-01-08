@@ -47,7 +47,7 @@ pub(crate) const AVERAGE_OPCODE_FRACTION: f32 =
     MAIN_VM_CYCLE_FRACTION + RAM_PERMUTATION_CYCLE_FRACTION;
 
 // Here "base" fraction is a fraction that will be used unconditionally.
-// Usage of StorageApplication is being tracked separately as it depends on whether slot was read before or not.
+// Usage of `StorageApplication` is being tracked separately as it depends on whether slot was read before or not.
 pub(crate) const STORAGE_READ_BASE_FRACTION: f32 = MAIN_VM_CYCLE_FRACTION
     + RAM_PERMUTATION_CYCLE_FRACTION
     + LOG_DEMUXER_CYCLE_FRACTION
@@ -59,7 +59,7 @@ pub(crate) const EVENT_OR_L1_MESSAGE_FRACTION: f32 = MAIN_VM_CYCLE_FRACTION
     + 2.0 * EVENTS_OR_L1_MESSAGES_SORTER_CYCLE_FRACTION;
 
 // Here "base" fraction is a fraction that will be used unconditionally.
-// Usage of StorageApplication is being tracked separately as it depends on whether slot was written before or not.
+// Usage of `StorageApplication` is being tracked separately as it depends on whether slot was written before or not.
 pub(crate) const STORAGE_WRITE_BASE_FRACTION: f32 = MAIN_VM_CYCLE_FRACTION
     + RAM_PERMUTATION_CYCLE_FRACTION
     + 2.0 * LOG_DEMUXER_CYCLE_FRACTION

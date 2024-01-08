@@ -32,7 +32,7 @@ enum Command {
         #[arg(long)]
         l1_batch_number: u32,
         /// Priority fee used for rollback Ethereum transaction.
-        // We operate only by priority fee because we want to use base fee from ethereum
+        // We operate only by priority fee because we want to use base fee from Ethereum
         // and send transaction as soon as possible without any resend logic
         #[arg(long)]
         priority_fee_per_gas: Option<u64>,

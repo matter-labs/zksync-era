@@ -74,7 +74,7 @@ pub(super) fn apply_tx_to_memory(
     };
     apply_l2_block(memory, &bootloader_l2_block, tx_index);
 
-    // Note, +1 is moving for pointer
+    // Note, `+1` is moving for pointer
     let compressed_bytecodes_offset = COMPRESSED_BYTECODES_OFFSET + 1 + compressed_bytecodes_size;
 
     let encoded_compressed_bytecodes =
@@ -94,8 +94,8 @@ pub(crate) fn apply_l2_block(
     bootloader_l2_block: &BootloaderL2Block,
     txs_index: usize,
 ) {
-    // Since L2 block infos start from the TX_OPERATOR_L2_BLOCK_INFO_OFFSET and each
-    // L2 block info takes TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO slots, the position where the L2 block info
+    // Since L2 block information starts from the `TX_OPERATOR_L2_BLOCK_INFO_OFFSET` and each
+    // L2 block info takes `TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO slots`, the position where the L2 block info
     // for this transaction needs to be written is:
 
     let block_position =
@@ -120,12 +120,12 @@ pub(crate) fn apply_pubdata_to_memory(
     pubdata_information: PubdataInput,
 ) {
     // Skipping two slots as they will be filled by the bootloader itself:
-    // - One slot is for the selector of the call to the L1Messenger.
+    // - One slot is for the selector of the call to the `L1Messenger`.
     // - The other slot is for the 0x20 offset for the calldata.
     let l1_messenger_pubdata_start_slot = OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET + 2;
 
     // Need to skip first word as it represents array offset
-    // while bootloader expects only [len || data]
+    // while bootloader expects only `[len || data]`
     let pubdata = ethabi::encode(&[ethabi::Token::Bytes(
         pubdata_information.build_pubdata(true),
     )])[32..]
@@ -156,8 +156,8 @@ pub(crate) fn apply_pubdata_to_memory(
 ///     For example, when checking validity, we don't want to actually execute transaction and have side effects.
 ///
 ///     Possible values:
-///     - 0x00: validate & execute (normal mode)
-///     - 0x02: execute but DO NOT validate
+///     - `0x00`: validate & execute (normal mode)
+///     - `0x02`: execute but DO NOT validate
 ///
 /// - 31 byte (LSB): whether to execute transaction or not (at all).
 pub(super) fn assemble_tx_meta(execution_mode: TxExecutionMode, execute_tx: bool) -> U256 {
