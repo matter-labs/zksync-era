@@ -148,8 +148,6 @@ impl UpdatesManager {
             .final_execution_state
             .deduplicated_events_logs;
 
-        dbg!(self.pending_execution_metrics());
-        dbg!(&self.l1_batch.block_execution_metrics);
         transaction
             .blocks_dal()
             .insert_l1_batch(
