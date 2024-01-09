@@ -22,6 +22,8 @@ mod error;
 mod execute;
 #[cfg(test)]
 pub(super) mod testonly;
+#[cfg(test)]
+mod tests;
 mod tracers;
 mod validate;
 mod vm_metrics;
@@ -230,7 +232,13 @@ impl BlockArgs {
     }
 
     /// Loads block information from DB.
-    // FIXME: unit-test
+    ///
+    /// # Important!
+    ///
+    /// It is assumed that `block_id` is present in Postgres or can be present in the future
+    /// (i.e., it does not refer to a pruned block). If called for a pruned block, the returned value
+    /// (specifically, `l1_batch_timestamp_s`) will be nonsensical. Hence, the caller must take care
+    /// of pruned blocks separately.
     pub async fn new(
         connection: &mut StorageProcessor<'_>,
         block_id: api::BlockId,
@@ -255,10 +263,11 @@ impl BlockArgs {
             .blocks_web3_dal()
             .get_expected_l1_batch_timestamp(&l1_batch_number)
             .await?;
-        assert!(
-            l1_batch_timestamp_s.is_some(),
-            "Missing batch timestamp for non-pending block"
-        );
+        if l1_batch_timestamp_s.is_none() {
+            // Can happen after snapshot recovery if no miniblocks are persisted yet. In this case,
+            // we cannot proceed; the issue will be resolved shortly.
+            return Ok(None);
+        }
         Ok(Some(Self {
             block_id,
             resolved_block_number,
