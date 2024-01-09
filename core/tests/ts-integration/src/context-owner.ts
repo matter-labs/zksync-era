@@ -300,7 +300,7 @@ export class TestContextOwner {
                 this.reporter.debug(`Sent ERC20 deposit transaction. Hash: ${tx.hash}, nonce: ${tx.nonce}`);
                 return tx.wait();
             });
-        
+
         nonce = await this.mainEthersWallet.getTransactionCount();
         // Send ETH on L1.
         const ethTransfers = await sendTransfers(
