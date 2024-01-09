@@ -209,8 +209,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer {
         #[vise::register]
         static METRICS: vise::Global<RefundMetrics> = vise::Global::new();
 
-        // This means that the bootloader has informed the system (usually via VMHooks) - that some gas
-        // should be refunded back (see askOperatorForRefund in bootloader.yul for details).
+        // This means that the bootloader has informed the system (usually via `VMHooks`) - that some gas
+        // should be refunded back (see `askOperatorForRefund` in `bootloader.yul` for details).
         if let Some(bootloader_refund) = self.requested_refund() {
             assert!(
                 self.operator_refund.is_none(),

@@ -8,29 +8,22 @@ use std::{
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
-use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::StorageProcessor;
 use zksync_types::{
-    block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
-    Address, L2ChainId, ProtocolVersion, ProtocolVersionId,
+    block::{BlockGasCount, MiniblockHeader},
+    L2ChainId, ProtocolVersion,
 };
 
 use super::*;
-use crate::genesis::{ensure_genesis_state, GenesisParams};
+use crate::{
+    genesis::{ensure_genesis_state, GenesisParams},
+    utils::testonly::{create_l1_batch, create_miniblock},
+};
 
 async fn store_miniblock(storage: &mut StorageProcessor<'_>, number: u32, hash: H256) {
     let header = MiniblockHeader {
-        number: MiniblockNumber(number),
-        timestamp: number.into(),
         hash,
-        l1_tx_count: 0,
-        l2_tx_count: 0,
-        base_fee_per_gas: 0,
-        l1_gas_price: 0,
-        l2_fair_gas_price: 0,
-        base_system_contracts_hashes: BaseSystemContractsHashes::default(),
-        protocol_version: Some(ProtocolVersionId::latest()),
-        virtual_blocks: 1,
+        ..create_miniblock(number)
     };
     storage
         .blocks_dal()
@@ -40,16 +33,10 @@ async fn store_miniblock(storage: &mut StorageProcessor<'_>, number: u32, hash: 
 }
 
 async fn seal_l1_batch(storage: &mut StorageProcessor<'_>, number: u32, hash: H256) {
-    let header = L1BatchHeader::new(
-        L1BatchNumber(number),
-        number.into(),
-        Address::default(),
-        BaseSystemContractsHashes::default(),
-        ProtocolVersionId::latest(),
-    );
+    let header = create_l1_batch(number);
     storage
         .blocks_dal()
-        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
+        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
         .await
         .unwrap();
     storage

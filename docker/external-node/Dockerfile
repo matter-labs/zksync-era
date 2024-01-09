@@ -18,7 +18,7 @@ WORKDIR /usr/src/zksync
 COPY . .
 
 RUN cargo build --release
-RUN cargo install sqlx-cli --version 0.5.13
+RUN cargo install sqlx-cli --version 0.7.3
 
 FROM debian:bookworm-slim
 
@@ -29,8 +29,8 @@ COPY --from=builder /usr/src/zksync/target/release/block_reverter /usr/bin
 COPY --from=builder /usr/local/cargo/bin/sqlx /usr/bin
 COPY --from=builder /usr/src/zksync/docker/external-node/entrypoint.sh /usr/bin
 COPY contracts/system-contracts/bootloader/build/artifacts/ /contracts/system-contracts/bootloader/build/artifacts/
-COPY contracts/system-contracts/contracts/artifacts/ /contracts/system-contracts/contracts/artifacts/
-COPY contracts/system-contracts/contracts/precompiles/artifacts/ /contracts/system-contracts/contracts/precompiles/artifacts/
+COPY contracts/system-contracts/contracts-preprocessed/artifacts/ /contracts/system-contracts/contracts-preprocessed/artifacts/
+COPY contracts/system-contracts/contracts-preprocessed/precompiles/artifacts/ /contracts/system-contracts/contracts-preprocessed/precompiles/artifacts/
 COPY contracts/system-contracts/artifacts-zk /contracts/system-contracts/artifacts-zk
 COPY contracts/l1-contracts/artifacts/ /contracts/l1-contracts/artifacts/
 COPY contracts/l2-contracts/artifacts-zk/ /contracts/l2-contracts/artifacts-zk/

@@ -114,10 +114,10 @@ async fn test_ws_server(test: impl WsTest) {
 }
 
 #[derive(Debug)]
-struct WsServerCanStart;
+struct WsServerCanStartTest;
 
 #[async_trait]
-impl WsTest for WsServerCanStart {
+impl WsTest for WsServerCanStartTest {
     async fn test(
         &self,
         client: &WsClient,
@@ -141,14 +141,14 @@ impl WsTest for WsServerCanStart {
 
 #[tokio::test]
 async fn ws_server_can_start() {
-    test_ws_server(WsServerCanStart).await;
+    test_ws_server(WsServerCanStartTest).await;
 }
 
 #[derive(Debug)]
-struct BasicSubscriptions;
+struct BasicSubscriptionsTest;
 
 #[async_trait]
-impl WsTest for BasicSubscriptions {
+impl WsTest for BasicSubscriptionsTest {
     async fn test(
         &self,
         client: &WsClient,
@@ -172,7 +172,8 @@ impl WsTest for BasicSubscriptions {
             .await?;
         wait_for_subscription(&mut pub_sub_events, SubscriptionType::Txs).await;
 
-        let (new_miniblock, new_tx_hash) = store_block(pool).await?;
+        let (new_miniblock, new_tx_hash) =
+            store_miniblock(&mut pool.access_storage().await?).await?;
 
         let received_tx_hash = tokio::time::timeout(TEST_TIMEOUT, txs_subscription.next())
             .await
@@ -193,11 +194,11 @@ impl WsTest for BasicSubscriptions {
 
 #[tokio::test]
 async fn basic_subscriptions() {
-    test_ws_server(BasicSubscriptions).await;
+    test_ws_server(BasicSubscriptionsTest).await;
 }
 
 #[derive(Debug)]
-struct LogSubscriptions;
+struct LogSubscriptionsTest;
 
 #[derive(Debug)]
 struct Subscriptions {
@@ -248,7 +249,7 @@ impl Subscriptions {
 }
 
 #[async_trait]
-impl WsTest for LogSubscriptions {
+impl WsTest for LogSubscriptionsTest {
     async fn test(
         &self,
         client: &WsClient,
@@ -314,14 +315,14 @@ async fn collect_logs(
 
 #[tokio::test]
 async fn log_subscriptions() {
-    test_ws_server(LogSubscriptions).await;
+    test_ws_server(LogSubscriptionsTest).await;
 }
 
 #[derive(Debug)]
-struct LogSubscriptionsWithNewBlock;
+struct LogSubscriptionsWithNewBlockTest;
 
 #[async_trait]
-impl WsTest for LogSubscriptionsWithNewBlock {
+impl WsTest for LogSubscriptionsWithNewBlockTest {
     async fn test(
         &self,
         client: &WsClient,
@@ -362,14 +363,14 @@ impl WsTest for LogSubscriptionsWithNewBlock {
 
 #[tokio::test]
 async fn log_subscriptions_with_new_block() {
-    test_ws_server(LogSubscriptionsWithNewBlock).await;
+    test_ws_server(LogSubscriptionsWithNewBlockTest).await;
 }
 
 #[derive(Debug)]
-struct LogSubscriptionsWithManyBlocks;
+struct LogSubscriptionsWithManyBlocksTest;
 
 #[async_trait]
-impl WsTest for LogSubscriptionsWithManyBlocks {
+impl WsTest for LogSubscriptionsWithManyBlocksTest {
     async fn test(
         &self,
         client: &WsClient,
@@ -408,14 +409,14 @@ impl WsTest for LogSubscriptionsWithManyBlocks {
 
 #[tokio::test]
 async fn log_subscriptions_with_many_new_blocks_at_once() {
-    test_ws_server(LogSubscriptionsWithManyBlocks).await;
+    test_ws_server(LogSubscriptionsWithManyBlocksTest).await;
 }
 
 #[derive(Debug)]
-struct LogSubscriptionsWithDelay;
+struct LogSubscriptionsWithDelayTest;
 
 #[async_trait]
-impl WsTest for LogSubscriptionsWithDelay {
+impl WsTest for LogSubscriptionsWithDelayTest {
     async fn test(
         &self,
         client: &WsClient,
@@ -472,14 +473,14 @@ impl WsTest for LogSubscriptionsWithDelay {
 
 #[tokio::test]
 async fn log_subscriptions_with_delay() {
-    test_ws_server(LogSubscriptionsWithDelay).await;
+    test_ws_server(LogSubscriptionsWithDelayTest).await;
 }
 
 #[derive(Debug)]
-struct RateLimiting;
+struct RateLimitingTest;
 
 #[async_trait]
-impl WsTest for RateLimiting {
+impl WsTest for RateLimitingTest {
     async fn test(
         &self,
         client: &WsClient,
@@ -509,14 +510,14 @@ impl WsTest for RateLimiting {
 
 #[tokio::test]
 async fn rate_limiting() {
-    test_ws_server(RateLimiting).await;
+    test_ws_server(RateLimitingTest).await;
 }
 
 #[derive(Debug)]
-struct BatchGetsRateLimited;
+struct BatchGetsRateLimitedTest;
 
 #[async_trait]
-impl WsTest for BatchGetsRateLimited {
+impl WsTest for BatchGetsRateLimitedTest {
     async fn test(
         &self,
         client: &WsClient,
@@ -553,5 +554,5 @@ impl WsTest for BatchGetsRateLimited {
 
 #[tokio::test]
 async fn batch_rate_limiting() {
-    test_ws_server(BatchGetsRateLimited).await;
+    test_ws_server(BatchGetsRateLimitedTest).await;
 }

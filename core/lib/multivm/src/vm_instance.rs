@@ -5,8 +5,8 @@ use zksync_utils::bytecode::CompressedBytecodeInfo;
 use crate::{
     glue::history_mode::HistoryMode,
     interface::{
-        BootloaderMemory, CurrentExecutionState, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
-        SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+        BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch,
+        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
         VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
@@ -19,7 +19,7 @@ pub enum VmInstance<S: WriteStorage, H: HistoryMode> {
     Vm1_3_2(crate::vm_1_3_2::Vm<S, H>),
     VmVirtualBlocks(crate::vm_virtual_blocks::Vm<S, H>),
     VmVirtualBlocksRefundsEnhancement(crate::vm_refunds_enhancement::Vm<S, H>),
-    VmBoojumIntegration(crate::vm_latest::Vm<S, H>),
+    VmBoojumIntegration(crate::vm_boojum_integration::Vm<S, H>),
 }
 
 macro_rules! dispatch_vm {
@@ -86,7 +86,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for VmInstance<S, H> {
         &mut self,
         tx: zksync_types::Transaction,
         with_compression: bool,
-    ) -> Result<VmExecutionResultAndLogs, crate::interface::BytecodeCompressionError> {
+    ) -> (
+        Result<(), BytecodeCompressionError>,
+        VmExecutionResultAndLogs,
+    ) {
         dispatch_vm!(self.execute_transaction_with_bytecode_compression(tx, with_compression))
     }
 
@@ -96,7 +99,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for VmInstance<S, H> {
         dispatcher: Self::TracerDispatcher,
         tx: zksync_types::Transaction,
         with_compression: bool,
-    ) -> Result<VmExecutionResultAndLogs, crate::interface::BytecodeCompressionError> {
+    ) -> (
+        Result<(), BytecodeCompressionError>,
+        VmExecutionResultAndLogs,
+    ) {
         dispatch_vm!(self.inspect_transaction_with_bytecode_compression(
             dispatcher.into(),
             tx,
@@ -188,7 +194,8 @@ impl<S: WriteStorage, H: HistoryMode> VmInstance<S, H> {
                 VmInstance::VmVirtualBlocksRefundsEnhancement(vm)
             }
             VmVersion::VmBoojumIntegration => {
-                let vm = crate::vm_latest::Vm::new(l1_batch_env, system_env, storage_view);
+                let vm =
+                    crate::vm_boojum_integration::Vm::new(l1_batch_env, system_env, storage_view);
                 VmInstance::VmBoojumIntegration(vm)
             }
         }

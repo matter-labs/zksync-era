@@ -188,7 +188,7 @@ impl<H: HistoryMode> CallTracer<H> {
         let fat_data_pointer =
             state.vm_local_state.registers[RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER as usize];
 
-        // if fat_data_pointer is not a pointer then there is no output
+        // if `fat_data_pointer` is not a pointer then there is no output
         let output = if fat_data_pointer.is_pointer {
             let fat_data_pointer = FatPointer::from_u256(fat_data_pointer.value);
             if !fat_data_pointer.is_trivial() {
@@ -255,8 +255,8 @@ impl<H: HistoryMode> CallTracer<H> {
 
     // Filter all near calls from the call stack
     // Important that the very first call is near call
-    // And this NearCall includes several Normal or Mimic calls
-    // So we return all childrens of this NearCall
+    // And this `NearCall` includes several Normal or Mimic calls
+    // So we return all children of this `NearCall`
     pub fn extract_calls(&mut self) -> Vec<Call> {
         if let Some(current_call) = self.stack.pop() {
             filter_near_call(current_call)
@@ -267,7 +267,7 @@ impl<H: HistoryMode> CallTracer<H> {
 }
 
 // Filter all near calls from the call stack
-// Normally wr are not interested in NearCall, because it's just a wrapper for internal calls
+// Normally we are not interested in `NearCall`, because it's just a wrapper for internal calls
 fn filter_near_call(mut call: Call) -> Vec<Call> {
     let mut calls = vec![];
     let original_calls = std::mem::take(&mut call.calls);

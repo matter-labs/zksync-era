@@ -70,7 +70,7 @@ pub fn load_contract<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Contract {
 
 pub fn load_sys_contract(contract_name: &str) -> Contract {
     load_contract(format!(
-        "contracts/system-contracts/artifacts-zk/cache-zk/solpp-generated-contracts/{0}.sol/{0}.json",
+        "contracts/system-contracts/artifacts-zk/contracts-preprocessed/{0}.sol/{0}.json",
         contract_name
     ))
 }
@@ -190,7 +190,7 @@ pub static DEFAULT_SYSTEM_CONTRACTS_REPO: Lazy<SystemContractsRepo> =
 /// fetching contracts that are located there.
 /// As most of the static methods in this file, is loading data based on ZKSYNC_HOME environment variable.
 pub struct SystemContractsRepo {
-    // Path to the root of the system contracts repo.
+    // Path to the root of the system contracts repository.
     pub root: PathBuf,
 }
 
@@ -211,11 +211,11 @@ impl SystemContractsRepo {
     ) -> Vec<u8> {
         match lang {
             ContractLanguage::Sol => read_bytecode_from_path(self.root.join(format!(
-                "artifacts-zk/cache-zk/solpp-generated-contracts/{0}{1}.sol/{1}.json",
+                "artifacts-zk/contracts-preprocessed/{0}{1}.sol/{1}.json",
                 directory, name
             ))),
             ContractLanguage::Yul => read_zbin_bytecode_from_path(self.root.join(format!(
-                "contracts/{0}artifacts/{1}.yul/{1}.yul.zbin",
+                "contracts-preprocessed/{0}artifacts/{1}.yul.zbin",
                 directory, name
             ))),
         }
@@ -224,8 +224,8 @@ impl SystemContractsRepo {
 
 pub fn read_bootloader_code(bootloader_type: &str) -> Vec<u8> {
     read_zbin_bytecode(format!(
-        "contracts/system-contracts/bootloader/build/artifacts/{}.yul/{}.yul.zbin",
-        bootloader_type, bootloader_type
+        "contracts/system-contracts/bootloader/build/artifacts/{}.yul.zbin",
+        bootloader_type
     ))
 }
 
@@ -365,6 +365,11 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
+    pub fn playground_post_allowlist_removal() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode("etc/multivm_bootloaders/vm_remove_allowlist/playground_batch.yul/playground_batch.yul.zbin");
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
     /// BaseSystemContracts with playground bootloader - used for handling eth_calls.
     pub fn estimate_gas() -> Self {
         let bootloader_bytecode = read_bootloader_code("fee_estimate");
@@ -395,6 +400,13 @@ impl BaseSystemContracts {
     pub fn estimate_gas_post_boojum() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_boojum_integration/fee_estimate.yul/fee_estimate.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn estimate_gas_post_allowlist_removal() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_remove_allowlist/fee_estimate.yul/fee_estimate.yul.zbin",
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
