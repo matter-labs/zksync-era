@@ -130,6 +130,9 @@ pub fn get_leaf_circuits() -> anyhow::Result<Vec<ZkSyncRecursiveLayerCircuit>> {
             witness,
             config,
             transcript_params: (),
+            eip4844_proof_config: None,
+            eip4844_vk: None,
+            eip4844_vk_fixed_parameters: None,
             _marker: std::marker::PhantomData,
         };
 
@@ -167,6 +170,9 @@ pub fn get_node_circuit() -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
         witness,
         config,
         transcript_params: (),
+        eip4844_proof_config: None,
+        eip4844_vk: None,
+        eip4844_vk_fixed_parameters: None,
         _marker: std::marker::PhantomData,
     };
     Ok(ZkSyncRecursiveLayerCircuit::NodeLayerCircuit(circuit))
@@ -193,6 +199,9 @@ pub fn get_scheduler_circuit() -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
         witness: scheduler_witness,
         config,
         transcript_params: (),
+        eip4844_proof_config: None,
+        eip4844_vk: None,
+        eip4844_vk_fixed_parameters: None,
         _marker: std::marker::PhantomData,
     };
     Ok(ZkSyncRecursiveLayerCircuit::SchedulerCircuit(

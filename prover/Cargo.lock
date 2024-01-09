@@ -5488,13 +5488,13 @@ dependencies = [
 [[package]]
 name = "shivini"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-shivini.git?branch=main#bb3d4ad1fa454d7be54a819cc0c16561806c49fe"
+source = "git+https://github.com/matter-labs/era-shivini.git?branch=v1.4.1#a788f4007c4a63529f6715897556f169938a6a36"
 dependencies = [
  "bincode",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "boojum",
  "boojum-cuda",
- "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0)",
+ "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
  "cudart",
  "derivative",
  "hex",
