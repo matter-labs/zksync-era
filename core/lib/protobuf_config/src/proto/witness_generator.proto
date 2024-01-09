@@ -3,10 +3,9 @@ syntax = "proto3";
 package zksync.config;
 
 enum BasicWitnessGeneratorDataSource {
-  BASIC_WITNESS_GENERATOR_DATA_SOURCE_UNKNOWN = 0;
-  FROM_POSTGRES = 1;
-  FROM_POSTGRES_SHADOW_BLOB = 2;
-  FROM_BLOB = 3;
+  FROM_POSTGRES = 0;
+  FROM_POSTGRES_SHADOW_BLOB = 1;
+  FROM_BLOB = 2;
 }
 
 message WitnessGenerator {

@@ -3,9 +3,8 @@ syntax = "proto3";
 package zksync.config;
 
 enum ProtocolVersionLoadingMode {
-  PROTOCOL_VERSION_LOADING_MODE_UNKNOWN = 0;
-  FROM_DB = 1;
-  FROM_ENV_VAR = 2;
+  FROM_DB = 0;
+  FROM_ENV_VAR = 1;
 }
 
 message ProofDataHandler {
