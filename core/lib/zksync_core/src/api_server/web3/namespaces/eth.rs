@@ -17,14 +17,11 @@ use zksync_web3_decl::{
     types::{Address, Block, Filter, FilterChanges, Log, U64},
 };
 
-use crate::{
-    api_server::web3::{
-        backend_jsonrpsee::internal_error,
-        metrics::{BlockCallObserver, API_METRICS},
-        state::RpcState,
-        TypedFilter,
-    },
-    utils::projected_first_miniblock,
+use crate::api_server::web3::{
+    backend_jsonrpsee::internal_error,
+    metrics::{BlockCallObserver, API_METRICS},
+    state::RpcState,
+    TypedFilter,
 };
 
 pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;
@@ -534,9 +531,7 @@ impl EthNamespace {
         let next_block_number = match last_block_number {
             Some(number) => number + 1,
             // If we don't have miniblocks in the storage, use the first projected miniblock number as the cursor
-            None => projected_first_miniblock(&mut storage)
-                .await
-                .map_err(|err| internal_error(METHOD_NAME, err))?,
+            None => self.state.start_info.first_miniblock,
         };
         drop(storage);
 

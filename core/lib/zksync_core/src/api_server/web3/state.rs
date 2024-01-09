@@ -13,7 +13,7 @@ use vise::GaugeGuard;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
-    api, l2::L2Tx, transaction_request::CallRequest, Address, L1ChainId, L2ChainId,
+    api, l2::L2Tx, transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2ChainId,
     MiniblockNumber, H256, U256, U64,
 };
 use zksync_web3_decl::{error::Web3Error, types::Filter};
@@ -27,6 +27,7 @@ use crate::{
         web3::{backend_jsonrpsee::internal_error, TypedFilter},
     },
     sync_layer::SyncState,
+    utils::BlockStartInfo,
 };
 
 /// Configuration values for the API.
@@ -158,9 +159,9 @@ pub struct RpcState {
     pub tx_sender: TxSender,
     pub sync_state: Option<SyncState>,
     pub(super) api_config: InternalApiConfig,
-    /// Number of the first locally available miniblock. May differ from 0 if the node state was recovered
+    /// Number of the first locally available miniblock / L1 batch. May differ from 0 if the node state was recovered
     /// from a snapshot.
-    pub(super) first_local_miniblock: MiniblockNumber,
+    pub(super) start_info: BlockStartInfo,
     pub(super) last_sealed_miniblock: SealedMiniblockNumber,
 }
 
@@ -186,9 +187,18 @@ impl RpcState {
     /// Returns an error if the provided `block` is known to be pruned.
     pub(crate) fn check_pruned_block(&self, block: api::BlockId) -> Result<(), Web3Error> {
         if let api::BlockId::Number(api::BlockNumber::Number(number)) = block {
-            if number < self.first_local_miniblock.0.into() {
-                return Err(Web3Error::PrunedBlock(self.first_local_miniblock));
+            let first_local_miniblock = self.start_info.first_miniblock;
+            if number < first_local_miniblock.0.into() {
+                return Err(Web3Error::PrunedBlock(first_local_miniblock));
             }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn check_pruned_l1_batch(&self, number: L1BatchNumber) -> Result<(), Web3Error> {
+        let first_local_l1_batch = self.start_info.first_l1_batch;
+        if number < first_local_l1_batch {
+            return Err(Web3Error::PrunedL1Batch(first_local_l1_batch));
         }
         Ok(())
     }

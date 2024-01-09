@@ -39,7 +39,7 @@ use crate::{
         web3::backend_jsonrpsee::batch_limiter_middleware::LimitMiddleware,
     },
     sync_layer::SyncState,
-    utils::projected_first_miniblock,
+    utils::BlockStartInfo,
 };
 
 pub mod backend_jsonrpsee;
@@ -288,7 +288,7 @@ impl FullApiParams {
             .last_miniblock_pool
             .access_storage_tagged("api")
             .await?;
-        let first_local_miniblock = projected_first_miniblock(&mut storage).await?;
+        let start_info = BlockStartInfo::new(&mut storage).await?;
         drop(storage);
 
         Ok(RpcState {
@@ -297,7 +297,7 @@ impl FullApiParams {
             tx_sender: self.tx_sender,
             sync_state: self.optional.sync_state,
             api_config: self.config,
-            first_local_miniblock,
+            start_info,
             last_sealed_miniblock,
             tree_api: self
                 .optional

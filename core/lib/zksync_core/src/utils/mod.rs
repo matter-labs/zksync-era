@@ -87,17 +87,31 @@ pub(crate) async fn projected_first_l1_batch(
     Ok(snapshot_recovery.map_or(L1BatchNumber(0), |recovery| recovery.l1_batch_number + 1))
 }
 
-/// Returns the projected number of the first locally available miniblock. The miniblock is **not**
-/// guaranteed to be present in the storage!
-pub(crate) async fn projected_first_miniblock(
-    storage: &mut StorageProcessor<'_>,
-) -> anyhow::Result<MiniblockNumber> {
-    let snapshot_recovery = storage
-        .snapshot_recovery_dal()
-        .get_applied_snapshot_status()
-        .await
-        .context("failed getting snapshot recovery status")?;
-    Ok(snapshot_recovery.map_or(MiniblockNumber(0), |recovery| recovery.miniblock_number + 1))
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct BlockStartInfo {
+    /// Projected number of the first locally available miniblock. This miniblock is **not**
+    /// guaranteed to be present in the storage!
+    pub first_miniblock: MiniblockNumber,
+    /// Projected number of the first locally available L1 batch. This L1 batch is **not**
+    /// guaranteed to be present in the storage!
+    pub first_l1_batch: L1BatchNumber,
+}
+
+impl BlockStartInfo {
+    pub async fn new(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
+        let snapshot_recovery = storage
+            .snapshot_recovery_dal()
+            .get_applied_snapshot_status()
+            .await
+            .context("failed getting snapshot recovery status")?;
+        let snapshot_recovery = snapshot_recovery.as_ref();
+        Ok(Self {
+            first_miniblock: snapshot_recovery
+                .map_or(MiniblockNumber(0), |recovery| recovery.miniblock_number + 1),
+            first_l1_batch: snapshot_recovery
+                .map_or(L1BatchNumber(0), |recovery| recovery.l1_batch_number + 1),
+        })
+    }
 }
 
 #[cfg(test)]

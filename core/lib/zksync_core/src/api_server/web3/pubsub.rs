@@ -24,7 +24,7 @@ use super::{
     metrics::{SubscriptionType, PUB_SUB_METRICS},
     namespaces::eth::EVENT_TOPIC_NUMBER_LIMIT,
 };
-use crate::utils::projected_first_miniblock;
+use crate::utils::BlockStartInfo;
 
 const BROADCAST_CHANNEL_CAPACITY: usize = 1024;
 const SUBSCRIPTION_SINK_SEND_TIMEOUT: Duration = Duration::from_secs(1);
@@ -71,8 +71,8 @@ impl PubSubNotifier {
             Some(number) => number,
             None => {
                 // We don't have miniblocks in the storage yet. Use the snapshot miniblock number instead.
-                let first_local_miniblock = projected_first_miniblock(&mut storage).await?;
-                MiniblockNumber(first_local_miniblock.saturating_sub(1))
+                let start_info = BlockStartInfo::new(&mut storage).await?;
+                MiniblockNumber(start_info.first_miniblock.saturating_sub(1))
             }
         })
     }

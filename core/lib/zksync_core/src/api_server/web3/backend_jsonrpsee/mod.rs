@@ -24,6 +24,7 @@ pub fn into_jsrpc_error(err: Web3Error) -> ErrorObjectOwned {
             Web3Error::InternalError | Web3Error::NotImplemented => ErrorCode::InternalError.code(),
             Web3Error::NoBlock
             | Web3Error::PrunedBlock(_)
+            | Web3Error::PrunedL1Batch(_)
             | Web3Error::NoSuchFunction
             | Web3Error::RLPError(_)
             | Web3Error::InvalidTransactionData(_)

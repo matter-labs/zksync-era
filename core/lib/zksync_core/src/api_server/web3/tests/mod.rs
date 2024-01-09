@@ -530,7 +530,62 @@ impl HttpTest for L1BatchMethodsWithSnapshotRecovery {
         let l1_batch_number = client.get_l1_batch_number().await?;
         assert_eq!(l1_batch_number, miniblock_number.into());
 
+        // `get_miniblock_range` method
+        let miniblock_range = client
+            .get_miniblock_range(L1BatchNumber(miniblock_number))
+            .await?
+            .context("no range for sealed L1 batch")?;
+        assert_eq!(miniblock_range.0, miniblock_number.into());
+        assert_eq!(miniblock_range.1, miniblock_number.into());
+
+        let miniblock_range_for_future_batch = client
+            .get_miniblock_range(L1BatchNumber(miniblock_number) + 1)
+            .await?;
+        assert_eq!(miniblock_range_for_future_batch, None);
+
+        let error = client
+            .get_miniblock_range(L1BatchNumber(miniblock_number) - 1)
+            .await
+            .unwrap_err();
+        assert_pruned_l1_batch_error(&error, miniblock_number);
+
+        // `get_l1_batch_details` method
+        let details = client
+            .get_l1_batch_details(L1BatchNumber(miniblock_number))
+            .await?
+            .context("no details for sealed L1 batch")?;
+        assert_eq!(details.number, L1BatchNumber(miniblock_number));
+
+        let details_for_future_batch = client
+            .get_l1_batch_details(L1BatchNumber(miniblock_number) + 1)
+            .await?;
+        assert!(
+            details_for_future_batch.is_none(),
+            "{details_for_future_batch:?}"
+        );
+
+        let error = client
+            .get_l1_batch_details(L1BatchNumber(miniblock_number) - 1)
+            .await
+            .unwrap_err();
+        assert_pruned_l1_batch_error(&error, miniblock_number);
+
         Ok(())
+    }
+}
+
+fn assert_pruned_l1_batch_error(error: &ClientError, first_retained_l1_batch: u32) {
+    if let ClientError::Call(error) = error {
+        assert_eq!(error.code(), ErrorCode::InvalidParams.code());
+        assert!(
+            error.message().contains(&format!(
+                "first retained L1 batch is {first_retained_l1_batch}"
+            )),
+            "{error:?}"
+        );
+        assert!(error.data().is_none(), "{error:?}");
+    } else {
+        panic!("Unexpected error: {error:?}");
     }
 }
 
