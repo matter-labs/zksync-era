@@ -127,7 +127,7 @@ fn compute_batch_fee_model_input_v2(
             ceil_div_u256(l1_batch_overhead_wei, U256::from(max_gas_per_batch));
 
         // Then, we multiply by the `compute_overhead_part` to get the overhead for the computation for each gas.
-        // Also, this means that if we almost never close batches because of compute, the compute_overhead_part should be zero and so
+        // Also, this means that if we almost never close batches because of compute, the `compute_overhead_part` should be zero and so
         // it is possible that the computation costs include for no overhead.
         let gas_overhead_wei =
             (l1_batch_overhead_per_gas.as_u64() as f64 * compute_overhead_part) as u64;
@@ -142,7 +142,7 @@ fn compute_batch_fee_model_input_v2(
             ceil_div_u256(l1_batch_overhead_wei, U256::from(max_pubdata_per_batch));
 
         // Then, we multiply by the `pubdata_overhead_part` to get the overhead for each pubdata byte.
-        // Also, this means that if we almost never close batches because of pubdata, the pubdata_overhead_part should be zero and so
+        // Also, this means that if we almost never close batches because of pubdata, the `pubdata_overhead_part` should be zero and so
         // it is possible that the pubdata costs include no overhead.
         let pubdata_overhead_wei =
             (l1_batch_overhead_per_pubdata.as_u64() as f64 * pubdata_overhead_part) as u64;

@@ -287,6 +287,12 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
                 .finish_cycle(state, bootloader_state)
                 .stricter(&result);
         }
+
+        result = self
+            .circuits_tracer
+            .finish_cycle(state, bootloader_state)
+            .stricter(&result);
+
         result.stricter(&self.should_stop_execution())
     }
 

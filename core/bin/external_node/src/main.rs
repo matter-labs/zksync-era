@@ -74,6 +74,7 @@ async fn build_state_keeper(
             save_call_traces,
             false,
             config.optional.enum_index_migration_chunk_size,
+            true,
         ));
 
     let main_node_url = config.required.main_node_url().unwrap();

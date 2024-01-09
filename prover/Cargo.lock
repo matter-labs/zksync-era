@@ -3287,6 +3287,7 @@ dependencies = [
  "zk_evm 1.4.0",
  "zk_evm 1.4.1",
  "zkevm_test_harness 1.4.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0)",
+ "zkevm_test_harness 1.4.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
  "zksync_contracts",
  "zksync_state",
  "zksync_system_constants",

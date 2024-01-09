@@ -147,7 +147,7 @@ impl StateKeeperIO for MempoolIO {
             );
             let current_timestamp = current_timestamp.await.ok()?;
 
-            tracing::info!(
+            tracing::trace!(
                 "Fee input for L1 batch #{} is {:#?}",
                 self.current_l1_batch_number.0,
                 self.filter.fee_input

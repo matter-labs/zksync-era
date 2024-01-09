@@ -12,10 +12,7 @@ use crate::{
     interface::{dyn_tracers::vm_1_4_1::DynTracer, tracer::TracerExecutionStatus},
     vm_latest::{
         bootloader_state::BootloaderState,
-        old_vm::{
-            history_recorder::{HistoryMode, VectorHistoryEvent},
-            memory::SimpleMemory,
-        },
+        old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::traits::VmTracer,
         types::internals::ZkSyncVmState,
     },
@@ -28,7 +25,7 @@ pub(crate) struct CircuitsTracer<S> {
     last_decommitment_history_entry_checked: Option<usize>,
     last_written_keys_history_entry_checked: Option<usize>,
     last_read_keys_history_entry_checked: Option<usize>,
-    last_precompile_history_entry_checked: Option<usize>,
+    last_precompile_inner_entry_checked: Option<usize>,
     _phantom_data: PhantomData<S>,
 }
 
@@ -39,7 +36,7 @@ impl<S: WriteStorage> CircuitsTracer<S> {
             last_decommitment_history_entry_checked: None,
             last_written_keys_history_entry_checked: None,
             last_read_keys_history_entry_checked: None,
-            last_precompile_history_entry_checked: None,
+            last_precompile_inner_entry_checked: None,
             _phantom_data: Default::default(),
         }
     }
@@ -97,11 +94,11 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
 
         self.last_read_keys_history_entry_checked = Some(state.storage.read_keys.history().len());
 
-        self.last_precompile_history_entry_checked = Some(
+        self.last_precompile_inner_entry_checked = Some(
             state
                 .precompiles_processor
                 .precompile_cycles_history
-                .history()
+                .inner()
                 .len(),
         );
     }
@@ -121,7 +118,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
             .history();
         for (_, history_event) in &history[last_decommitment_history_entry_checked..] {
             // We assume that only insertions may happen during a single VM inspection.
-            assert!(history_event.value.is_some());
+            assert!(history_event.value.is_none());
             let bytecode_len = state
                 .decommittment_processor
                 .known_bytecodes
@@ -145,7 +142,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
         let history = state.storage.written_keys.history();
         for (_, history_event) in &history[last_writes_history_entry_checked..] {
             // We assume that only insertions may happen during a single VM inspection.
-            assert!(history_event.value.is_some());
+            assert!(history_event.value.is_none());
 
             self.estimated_circuits_used += 2.0 * STORAGE_APPLICATION_CYCLE_FRACTION;
         }
@@ -158,7 +155,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
         let history = state.storage.read_keys.history();
         for (_, history_event) in &history[last_reads_history_entry_checked..] {
             // We assume that only insertions may happen during a single VM inspection.
-            assert!(history_event.value.is_some());
+            assert!(history_event.value.is_none());
 
             // If the slot is already written to, then we've already taken 2 cycles into account.
             if !state
@@ -173,26 +170,22 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
         self.last_read_keys_history_entry_checked = Some(history.len());
 
         // Process precompiles.
-        let last_precompile_history_entry_checked = self
-            .last_precompile_history_entry_checked
+        let last_precompile_inner_entry_checked = self
+            .last_precompile_inner_entry_checked
             .expect("Value must be set during init");
-        let history = state
+        let inner = state
             .precompiles_processor
             .precompile_cycles_history
-            .history();
-        for (_, history_event) in &history[last_precompile_history_entry_checked..] {
-            if let VectorHistoryEvent::Push((precompile, cycles)) = history_event {
-                let fraction = match precompile {
-                    PrecompileAddress::Ecrecover => ECRECOVER_CYCLE_FRACTION,
-                    PrecompileAddress::SHA256 => SHA256_CYCLE_FRACTION,
-                    PrecompileAddress::Keccak256 => KECCAK256_CYCLE_FRACTION,
-                };
-                self.estimated_circuits_used += (*cycles as f32) * fraction;
-            } else {
-                panic!("Precompile calls should not be rolled back");
-            }
+            .inner();
+        for (precompile, cycles) in &inner[last_precompile_inner_entry_checked..] {
+            let fraction = match precompile {
+                PrecompileAddress::Ecrecover => ECRECOVER_CYCLE_FRACTION,
+                PrecompileAddress::SHA256 => SHA256_CYCLE_FRACTION,
+                PrecompileAddress::Keccak256 => KECCAK256_CYCLE_FRACTION,
+            };
+            self.estimated_circuits_used += (*cycles as f32) * fraction;
         }
-        self.last_precompile_history_entry_checked = Some(history.len());
+        self.last_precompile_inner_entry_checked = Some(inner.len());
 
         TracerExecutionStatus::Continue
     }
