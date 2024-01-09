@@ -86,7 +86,7 @@ jobs:
           PLATFORM: ${{ matrix.platforms }}
         run: |
           ci_run rustup default nightly-2023-08-21        
-          if [[ -z "$IMAGE_TAG_SUFFIX" ]]; then
+          if [[ -z "${IMAGE_TAG_SUFFIX}" ]]; then
             IMAGE_TAG_SUFFIX=$(git rev-parse --short HEAD)
             ci_run zk docker $DOCKER_ACTION --platform=${PLATFORM} $COMPONENT
           else
@@ -134,7 +134,7 @@ jobs:
         run: |
           docker_repositories=("matterlabs/${{ matrix.component.name }}" "us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component.name }}")
           platforms=${{ matrix.component.platform }}
-          if [[ -z "$IMAGE_TAG_SUFFIX" ]]; then
+          if [[ -z "${IMAGE_TAG_SUFFIX}" ]]; then
             IMAGE_TAG_SUFFIX=$(git rev-parse --short HEAD)
           fi
           for repo in "${docker_repositories[@]}"; do
@@ -149,7 +149,7 @@ jobs:
               ${repo}:latest \
               ${repo}:latest2.0 \
               ${platform_tags}
-            
+  
             docker manifest push \
               ${repo}:${IMAGE_TAG_SUFFIX} \
               ${repo}:2.0-${IMAGE_TAG_SUFFIX} \
