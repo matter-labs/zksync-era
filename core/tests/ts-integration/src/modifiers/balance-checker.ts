@@ -200,10 +200,7 @@ class ShouldChangeBalance extends MatcherModifier {
  * @param wallet Optional wallet if the api mode is modern
  * @returns Extracted fee
  */
-export async function extractFee(
-    receipt: zksync.types.TransactionReceipt,
-    wallet: zksync.Wallet
-): Promise<Fee> {
+export async function extractFee(receipt: zksync.types.TransactionReceipt, wallet: zksync.Wallet): Promise<Fee> {
     const trace = await wallet!.provider.send('debug_traceTransaction', [receipt.transactionHash]);
 
     if (!trace) {

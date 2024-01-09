@@ -48,9 +48,10 @@ impl FromEnv for MerkleTreeApiConfig {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU32;
+
     use super::*;
     use crate::test_utils::{hash, EnvMutex};
-    use std::num::NonZeroU32;
 
     static MUTEX: EnvMutex = EnvMutex::new();
 
