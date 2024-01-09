@@ -222,21 +222,26 @@ impl BlocksWeb3Dal<'_, '_> {
         &mut self,
         block_id: api::BlockId,
     ) -> sqlx::Result<Option<MiniblockNumber>> {
-        let query_string = match block_id {
-            api::BlockId::Hash(_) => "SELECT number FROM miniblocks WHERE hash = $1".to_owned(),
+        let query_string;
+        let query_str = match block_id {
+            api::BlockId::Hash(_) => "SELECT number FROM miniblocks WHERE hash = $1",
             api::BlockId::Number(api::BlockNumber::Number(_)) => {
                 // The reason why instead of returning the `block_number` directly we use query is
-                // to handle numbers of blocks that are not created yet.
-                // the `SELECT number FROM miniblocks WHERE number=block_number` for
-                // non-existing block number will returns zero.
-                "SELECT number FROM miniblocks WHERE number = $1".to_owned()
+                // to handle numbers of blocks that are not created yet or were pruned.
+                // The query below will return NULL for non-existing block numbers.
+                "SELECT number FROM miniblocks WHERE number = $1"
             }
             api::BlockId::Number(api::BlockNumber::Earliest) => {
-                return Ok(Some(MiniblockNumber(0)));
+                // Similarly to `BlockNumber::Number`, we may be missing the earliest block
+                // if the storage was recovered from a snapshot.
+                "SELECT number FROM miniblocks WHERE number = 0"
             }
-            api::BlockId::Number(block_number) => web3_block_number_to_sql(block_number),
+            api::BlockId::Number(block_number) => {
+                query_string = web3_block_number_to_sql(block_number);
+                &query_string
+            }
         };
-        let row = bind_block_where_sql_params(&block_id, sqlx::query(&query_string))
+        let row = bind_block_where_sql_params(&block_id, sqlx::query(query_str))
             .fetch_optional(self.storage.conn())
             .await?;
 
@@ -665,8 +670,18 @@ mod tests {
     async fn resolving_earliest_block_id() {
         let connection_pool = ConnectionPool::test_pool().await;
         let mut conn = connection_pool.access_storage().await.unwrap();
+
+        let miniblock_number = conn
+            .blocks_web3_dal()
+            .resolve_block_id(api::BlockId::Number(api::BlockNumber::Earliest))
+            .await;
+        assert_eq!(miniblock_number.unwrap(), None);
+
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .await;
         conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
+            .insert_miniblock(&create_miniblock_header(0))
             .await
             .unwrap();
 
