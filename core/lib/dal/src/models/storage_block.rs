@@ -534,8 +534,11 @@ impl From<StorageMiniblockHeader> for MiniblockHeader {
             l1_tx_count: row.l1_tx_count as u16,
             l2_tx_count: row.l2_tx_count as u16,
             base_fee_per_gas: row.base_fee_per_gas.to_u64().unwrap(),
-            l1_gas_price: row.l1_gas_price as u64,
-            l2_fair_gas_price: row.l2_fair_gas_price as u64,
+            // For now, only L1 pegged fee model is supported.
+            batch_fee_input: zksync_types::fee_model::BatchFeeInput::l1_pegged(
+                row.l1_gas_price as u64,
+                row.l2_fair_gas_price as u64,
+            ),
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 row.bootloader_code_hash,
                 row.default_aa_code_hash,

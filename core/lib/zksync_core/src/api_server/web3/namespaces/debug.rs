@@ -4,6 +4,7 @@ use multivm::{interface::ExecutionResult, vm_latest::constants::BLOCK_GAS_LIMIT}
 use once_cell::sync::OnceCell;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
+    fee_model::BatchFeeInput,
     l2::L2Tx,
     transaction_request::CallRequest,
     vm_trace::Call,
@@ -203,8 +204,7 @@ impl DebugNamespace {
         let sender_config = self.sender_config();
         TxSharedArgs {
             operator_account: AccountTreeId::default(),
-            l1_gas_price: 100_000,
-            fair_l2_gas_price: sender_config.fair_l2_gas_price,
+            fee_input: BatchFeeInput::l1_pegged(100_000, sender_config.fair_l2_gas_price),
             base_system_contracts: self.api_contracts.eth_call.clone(),
             caches: self.state.tx_sender.storage_caches().clone(),
             validation_computational_gas_limit: BLOCK_GAS_LIMIT,

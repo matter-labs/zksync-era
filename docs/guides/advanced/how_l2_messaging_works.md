@@ -201,7 +201,7 @@ transmitted to L1 for final verification.
 [log_writing_in_vm]: https://github.com/matter-labs/era-zk_evm/blob/v1.3.2/src/opcodes/execution/log.rs
 [log_opcode]: https://github.com/matter-labs/era-zkevm_opcode_defs/blob/v1.3.2/src/definitions/log.rs#L16
 [zkevm_assembly_parse]:
-  https://github.com/matter-labs/zkEVM-assembly/blob/fcfeb51e45544a629d4279b3455def847dcc2505/src/assembly/instruction/log.rs#L32
+  https://github.com/matter-labs/era-zkEVM-assembly/blob/v1.3.2/src/assembly/instruction/log.rs#L32
 [executor_sol]:
   https://github.com/matter-labs/era-contracts/blob/3a4506522aaef81485d8abb96f5a6394bd2ba69e/ethereum/contracts/zksync/facets/Executor.sol#L26
 [mainet_executor]: https://etherscan.io/address/0x389a081BCf20e5803288183b929F08458F1d863D

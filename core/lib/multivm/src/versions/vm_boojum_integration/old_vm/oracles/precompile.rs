@@ -19,7 +19,7 @@ use crate::vm_boojum_integration::old_vm::history_recorder::{
 #[derive(Debug, Clone)]
 pub struct PrecompilesProcessorWithHistory<H: HistoryMode> {
     pub timestamp_history: HistoryRecorder<Vec<Timestamp>, H>,
-    pub precompile_cycles_history: HistoryRecorder<Vec<(PrecompileAddress, usize)>, HistoryEnabled>,
+    pub precompile_cycles_history: HistoryRecorder<Vec<(PrecompileAddress, usize)>, H>,
 }
 
 impl<H: HistoryMode> Default for PrecompilesProcessorWithHistory<H> {

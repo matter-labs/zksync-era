@@ -156,7 +156,6 @@ async fn spawn_server(
         }
     };
     let server_handles = server_builder
-        .with_threads(1)
         .with_polling_interval(POLL_INTERVAL)
         .with_tx_sender(tx_sender, vm_barrier)
         .with_pub_sub_events(pub_sub_events_sender)

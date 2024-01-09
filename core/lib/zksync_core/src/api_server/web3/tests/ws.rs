@@ -74,7 +74,7 @@ async fn notifiers_start_after_snapshot_recovery() {
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (events_sender, mut events_receiver) = mpsc::unbounded_channel();
-    let mut subscribe_logic = EthSubscribe::new(tokio::runtime::Handle::current());
+    let mut subscribe_logic = EthSubscribe::new();
     subscribe_logic.set_events_sender(events_sender);
     let notifier_handles =
         subscribe_logic.spawn_notifiers(pool.clone(), POLL_INTERVAL, stop_receiver);

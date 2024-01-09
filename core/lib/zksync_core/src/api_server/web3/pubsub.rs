@@ -212,11 +212,10 @@ pub(super) struct EthSubscribe {
     transactions: broadcast::Sender<Vec<PubSubResult>>,
     logs: broadcast::Sender<Vec<PubSubResult>>,
     events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
-    handle: tokio::runtime::Handle,
 }
 
 impl EthSubscribe {
-    pub fn new(handle: tokio::runtime::Handle) -> Self {
+    pub fn new() -> Self {
         let (blocks, _) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
         let (transactions, _) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
         let (logs, _) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
@@ -226,7 +225,6 @@ impl EthSubscribe {
             transactions,
             logs,
             events_sender: None,
-            handle,
         }
     }
 
@@ -335,7 +333,7 @@ impl EthSubscribe {
                     return;
                 };
                 let blocks_rx = self.blocks.subscribe();
-                self.handle.spawn(Self::run_subscriber(
+                tokio::spawn(Self::run_subscriber(
                     sink,
                     SubscriptionType::Blocks,
                     blocks_rx,
@@ -349,7 +347,7 @@ impl EthSubscribe {
                     return;
                 };
                 let transactions_rx = self.transactions.subscribe();
-                self.handle.spawn(Self::run_subscriber(
+                tokio::spawn(Self::run_subscriber(
                     sink,
                     SubscriptionType::Txs,
                     transactions_rx,
@@ -369,7 +367,7 @@ impl EthSubscribe {
                         return;
                     };
                     let logs_rx = self.logs.subscribe();
-                    self.handle.spawn(Self::run_subscriber(
+                    tokio::spawn(Self::run_subscriber(
                         sink,
                         SubscriptionType::Logs,
                         logs_rx,
@@ -383,7 +381,7 @@ impl EthSubscribe {
                     return;
                 };
 
-                self.handle.spawn(async move {
+                tokio::spawn(async move {
                     sink.send_timeout(
                         SubscriptionMessage::from_json(&PubSubResult::Syncing(false)).unwrap(),
                         SUBSCRIPTION_SINK_SEND_TIMEOUT,
@@ -420,9 +418,7 @@ impl EthSubscribe {
             polling_interval,
             events_sender: self.events_sender.clone(),
         };
-        let notifier_task = self
-            .handle
-            .spawn(notifier.notify_blocks(stop_receiver.clone()));
+        let notifier_task = tokio::spawn(notifier.notify_blocks(stop_receiver.clone()));
         notifier_tasks.push(notifier_task);
 
         let notifier = PubSubNotifier {
@@ -431,9 +427,7 @@ impl EthSubscribe {
             polling_interval,
             events_sender: self.events_sender.clone(),
         };
-        let notifier_task = self
-            .handle
-            .spawn(notifier.notify_txs(stop_receiver.clone()));
+        let notifier_task = tokio::spawn(notifier.notify_txs(stop_receiver.clone()));
         notifier_tasks.push(notifier_task);
 
         let notifier = PubSubNotifier {
@@ -442,7 +436,7 @@ impl EthSubscribe {
             polling_interval,
             events_sender: self.events_sender.clone(),
         };
-        let notifier_task = self.handle.spawn(notifier.notify_logs(stop_receiver));
+        let notifier_task = tokio::spawn(notifier.notify_logs(stop_receiver));
 
         notifier_tasks.push(notifier_task);
         notifier_tasks

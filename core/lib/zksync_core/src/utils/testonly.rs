@@ -8,6 +8,7 @@ use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},
     commitment::{L1BatchMetaParameters, L1BatchMetadata},
     fee::Fee,
+    fee_model::BatchFeeInput,
     l2::L2Tx,
     snapshots::SnapshotRecoveryStatus,
     transaction_request::PaymasterParams,
@@ -26,8 +27,7 @@ pub(crate) fn create_miniblock(number: u32) -> MiniblockHeader {
         l1_tx_count: 0,
         l2_tx_count: 0,
         base_fee_per_gas: 100,
-        l1_gas_price: 100,
-        l2_fair_gas_price: 100,
+        batch_fee_input: BatchFeeInput::l1_pegged(100, 100),
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         virtual_blocks: 1,
@@ -196,5 +196,9 @@ pub(crate) struct MockL1GasPriceProvider(pub u64);
 impl L1GasPriceProvider for MockL1GasPriceProvider {
     fn estimate_effective_gas_price(&self) -> u64 {
         self.0
+    }
+
+    fn estimate_effective_pubdata_price(&self) -> u64 {
+        self.0 * u64::from(zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE)
     }
 }
