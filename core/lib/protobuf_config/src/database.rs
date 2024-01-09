@@ -4,7 +4,7 @@ use zksync_protobuf::required;
 
 use crate::{
     proto,
-    repr::{ProtoRepr, read_required_repr},
+    repr::{read_required_repr, ProtoRepr},
 };
 
 impl proto::MerkleTreeMode {
@@ -25,18 +25,29 @@ impl proto::MerkleTreeMode {
     }
 }
 
-
 impl ProtoRepr for proto::MerkleTree {
     type Type = configs::database::MerkleTreeConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             path: required(&self.path).context("path")?.clone(),
-            mode: required(&self.mode).and_then(|x|Ok(proto::MerkleTreeMode::try_from(*x)?)).context("mode")?.parse(),
-            multi_get_chunk_size: required(&self.multi_get_chunk_size).and_then(|x|Ok((*x).try_into()?)).context("multi_get_chunk_size")?,
-            block_cache_size_mb: required(&self.block_cache_size_mb).and_then(|x|Ok((*x).try_into()?)).context("block_cache_size_mb")?,
-            memtable_capacity_mb: required(&self.memtable_capacity_mb).and_then(|x|Ok((*x).try_into()?)).context("memtable_capacity_mb")?,
-            stalled_writes_timeout_sec: *required(&self.stalled_writes_timeout_sec).context("stalled_writes_timeout_sec")?,
-            max_l1_batches_per_iter: required(&self.max_l1_batches_per_iter).and_then(|x|Ok((*x).try_into()?)).context("max_l1_batches_per_iter")?,
+            mode: required(&self.mode)
+                .and_then(|x| Ok(proto::MerkleTreeMode::try_from(*x)?))
+                .context("mode")?
+                .parse(),
+            multi_get_chunk_size: required(&self.multi_get_chunk_size)
+                .and_then(|x| Ok((*x).try_into()?))
+                .context("multi_get_chunk_size")?,
+            block_cache_size_mb: required(&self.block_cache_size_mb)
+                .and_then(|x| Ok((*x).try_into()?))
+                .context("block_cache_size_mb")?,
+            memtable_capacity_mb: required(&self.memtable_capacity_mb)
+                .and_then(|x| Ok((*x).try_into()?))
+                .context("memtable_capacity_mb")?,
+            stalled_writes_timeout_sec: *required(&self.stalled_writes_timeout_sec)
+                .context("stalled_writes_timeout_sec")?,
+            max_l1_batches_per_iter: required(&self.max_l1_batches_per_iter)
+                .and_then(|x| Ok((*x).try_into()?))
+                .context("max_l1_batches_per_iter")?,
         })
     }
 
@@ -57,7 +68,9 @@ impl ProtoRepr for proto::Db {
     type Type = configs::database::DBConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
-            state_keeper_db_path: required(&self.state_keeper_db_path).context("state_keeper_db_path")?.clone(),
+            state_keeper_db_path: required(&self.state_keeper_db_path)
+                .context("state_keeper_db_path")?
+                .clone(),
             merkle_tree: read_required_repr(&self.merkle_tree).context("merkle_tree")?,
         })
     }
@@ -92,4 +105,3 @@ impl ProtoRepr for proto::Postgres {
         }
     }
 }
-

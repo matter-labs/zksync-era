@@ -1,20 +1,22 @@
-use anyhow::Context as _;
-use zksync_config::configs;
-use zksync_protobuf::required;
-use zksync_basic_types::basic_fri_types::CircuitIdRoundTuple;
 use std::collections::HashSet;
 
-use crate::{
-    proto,
-    repr::{ProtoRepr},
-};
+use anyhow::Context as _;
+use zksync_basic_types::basic_fri_types::CircuitIdRoundTuple;
+use zksync_config::configs;
+use zksync_protobuf::required;
+
+use crate::{proto, repr::ProtoRepr};
 
 impl ProtoRepr for proto::CircuitIdRoundTuple {
     type Type = CircuitIdRoundTuple;
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
-            circuit_id: required(&self.circuit_id).and_then(|x|Ok((*x).try_into()?)).context("circuit_id")?,
-            aggregation_round: required(&self.aggregation_round).and_then(|x|Ok((*x).try_into()?)).context("aggregation_round")?,
+            circuit_id: required(&self.circuit_id)
+                .and_then(|x| Ok((*x).try_into()?))
+                .context("circuit_id")?,
+            aggregation_round: required(&self.aggregation_round)
+                .and_then(|x| Ok((*x).try_into()?))
+                .context("aggregation_round")?,
         })
     }
 
@@ -27,11 +29,14 @@ impl ProtoRepr for proto::CircuitIdRoundTuple {
 }
 
 fn read_vec(v: &[proto::CircuitIdRoundTuple]) -> anyhow::Result<HashSet<CircuitIdRoundTuple>> {
-    v.iter().enumerate().map(|(i,x)|x.read().context(i)).collect()
+    v.iter()
+        .enumerate()
+        .map(|(i, x)| x.read().context(i))
+        .collect()
 }
 
 fn build_vec(v: &HashSet<CircuitIdRoundTuple>) -> Vec<proto::CircuitIdRoundTuple> {
-    let mut v : Vec<_> = v.iter().cloned().collect();
+    let mut v: Vec<_> = v.iter().cloned().collect();
     v.sort();
     v.iter().map(ProtoRepr::build).collect()
 }

@@ -3,8 +3,7 @@ use zksync_config::configs::{api, ApiConfig};
 use zksync_protobuf::required;
 
 use crate::{
-    proto,
-    parse_h256,
+    parse_h256, proto,
     repr::{read_required_repr, ProtoRepr},
 };
 
@@ -54,13 +53,19 @@ impl ProtoRepr for proto::Web3JsonRpc {
             gas_price_scale_factor: *required(&self.gas_price_scale_factor)
                 .context("gas_price_scale_factor")?,
             request_timeout: self.request_timeout,
-            account_pks: self.account_pks.as_ref().map(|keys| keys.keys
-                .iter()
-                .enumerate()
-                .map(|(i,k)|parse_h256(k).context(i))
-                .collect::<Result<_,_>>()
-                .context("keys")
-            ).transpose().context("account_pks")?,
+            account_pks: self
+                .account_pks
+                .as_ref()
+                .map(|keys| {
+                    keys.keys
+                        .iter()
+                        .enumerate()
+                        .map(|(i, k)| parse_h256(k).context(i))
+                        .collect::<Result<_, _>>()
+                        .context("keys")
+                })
+                .transpose()
+                .context("account_pks")?,
             estimate_gas_scale_factor: *required(&self.estimate_gas_scale_factor)
                 .context("estimate_gas_scale_factor")?,
             estimate_gas_acceptable_overestimation: *required(

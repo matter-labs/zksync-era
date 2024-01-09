@@ -2,10 +2,7 @@ use anyhow::Context as _;
 use zksync_config::configs;
 use zksync_protobuf::required;
 
-use crate::{
-    proto,
-    repr::{ProtoRepr},
-};
+use crate::{proto, repr::ProtoRepr};
 
 impl proto::ProtocolVersionLoadingMode {
     fn new(x: &configs::proof_data_handler::ProtocolVersionLoadingMode) -> Self {
@@ -28,10 +25,19 @@ impl ProtoRepr for proto::ProofDataHandler {
     type Type = configs::ProofDataHandlerConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
-            http_port: required(&self.http_port).and_then(|x|Ok((*x).try_into()?)).context("http_port")?,
-            proof_generation_timeout_in_secs: required(&self.proof_generation_timeout_in_secs).and_then(|x|Ok((*x).try_into()?)).context("proof_generation_timeout_in_secs")?,
-            protocol_version_loading_mode: required(&self.protocol_version_loading_mode).and_then(|x|Ok(proto::ProtocolVersionLoadingMode::try_from(*x)?)).context("protocol_version_loading_mode")?.parse(),
-            fri_protocol_version_id: required(&self.fri_protocol_version_id).and_then(|x|Ok((*x).try_into()?)).context("fri_protocol_version_id")?,
+            http_port: required(&self.http_port)
+                .and_then(|x| Ok((*x).try_into()?))
+                .context("http_port")?,
+            proof_generation_timeout_in_secs: required(&self.proof_generation_timeout_in_secs)
+                .and_then(|x| Ok((*x).try_into()?))
+                .context("proof_generation_timeout_in_secs")?,
+            protocol_version_loading_mode: required(&self.protocol_version_loading_mode)
+                .and_then(|x| Ok(proto::ProtocolVersionLoadingMode::try_from(*x)?))
+                .context("protocol_version_loading_mode")?
+                .parse(),
+            fri_protocol_version_id: required(&self.fri_protocol_version_id)
+                .and_then(|x| Ok((*x).try_into()?))
+                .context("fri_protocol_version_id")?,
         })
     }
 
@@ -39,7 +45,9 @@ impl ProtoRepr for proto::ProofDataHandler {
         Self {
             http_port: Some(this.http_port.into()),
             proof_generation_timeout_in_secs: Some(this.proof_generation_timeout_in_secs.into()),
-            protocol_version_loading_mode: Some(proto::ProtocolVersionLoadingMode::new(&this.protocol_version_loading_mode).into()),
+            protocol_version_loading_mode: Some(
+                proto::ProtocolVersionLoadingMode::new(&this.protocol_version_loading_mode).into(),
+            ),
             fri_protocol_version_id: Some(this.fri_protocol_version_id.into()),
         }
     }

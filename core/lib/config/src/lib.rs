@@ -7,3 +7,4 @@ pub use crate::configs::{
 };
 
 pub mod configs;
+pub mod testonly;

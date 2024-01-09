@@ -123,7 +123,7 @@ impl DBConfig {
 /// Collection of different database URLs and general PostgreSQL options.
 /// All the entries are optional, since some components may only require a subset of them,
 /// and any component may have overrides.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PostgresConfig {
     /// URL for the main (sequencer) database.
     pub master_url: Option<String>,

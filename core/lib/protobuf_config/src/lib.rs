@@ -31,8 +31,8 @@ mod repr;
 mod tests;
 mod utils;
 
-use zksync_types::{H160,H256};
 use anyhow::Context as _;
+use zksync_types::{H160, H256};
 
 fn parse_h256(bytes: &[u8]) -> anyhow::Result<H256> {
     Ok(<[u8; 32]>::try_from(bytes).context("invalid size")?.into())

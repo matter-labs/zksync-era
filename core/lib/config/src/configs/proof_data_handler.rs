@@ -15,6 +15,7 @@ pub struct ProofDataHandlerConfig {
     pub protocol_version_loading_mode: ProtocolVersionLoadingMode,
     pub fri_protocol_version_id: u16,
 }
+
 impl ProofDataHandlerConfig {
     pub fn proof_generation_timeout(&self) -> Duration {
         Duration::from_secs(self.proof_generation_timeout_in_secs as u64)
