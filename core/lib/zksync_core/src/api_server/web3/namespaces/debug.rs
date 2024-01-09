@@ -6,6 +6,7 @@ use zksync_dal::ConnectionPool;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
+    fee_model::BatchFeeInput,
     l2::L2Tx,
     transaction_request::CallRequest,
     vm_trace::Call,
@@ -205,8 +206,7 @@ impl DebugNamespace {
     fn shared_args(&self) -> TxSharedArgs {
         TxSharedArgs {
             operator_account: AccountTreeId::default(),
-            l1_gas_price: 100_000,
-            fair_l2_gas_price: self.fair_l2_gas_price,
+            fee_input: BatchFeeInput::l1_pegged(100_000, self.fair_l2_gas_price),
             base_system_contracts: self.api_contracts.eth_call.clone(),
             caches: self.storage_caches.clone(),
             validation_computational_gas_limit: BLOCK_GAS_LIMIT,

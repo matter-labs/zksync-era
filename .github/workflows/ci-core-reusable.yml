@@ -435,6 +435,10 @@ jobs:
         if: always()
         run: ci_run cat server.log || true
 
+      - name: Show ext-node.log logs
+        if: always()
+        run: ci_run cat ext-node.log || true
+
       - name: Show contract_verifier.log logs
         if: always()
         run: ci_run cat ext-node.log || true

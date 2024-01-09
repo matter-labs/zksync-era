@@ -12,6 +12,7 @@ use zksync_config::configs::{
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
 use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
+use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
 use zksync_types::{
     api::ApiEthTransferEvents, block::MiniblockHeader, fee::TransactionExecutionMetrics,
@@ -44,6 +45,10 @@ struct MockL1GasPriceProvider(u64);
 impl L1GasPriceProvider for MockL1GasPriceProvider {
     fn estimate_effective_gas_price(&self) -> u64 {
         self.0
+    }
+
+    fn estimate_effective_pubdata_price(&self) -> u64 {
+        self.0 * L1_GAS_PER_PUBDATA_BYTE as u64
     }
 }
 
@@ -89,16 +94,19 @@ impl ApiServerHandles {
     pub(crate) async fn shutdown(self) {
         let stop_server = async {
             for task in self.tasks {
-                // FIXME(PLA-481): avoid these errors (by spawning notifier tasks on server runtime?)
-                if let Err(err) = task.await.expect("Server panicked") {
-                    let err = err.root_cause().to_string();
-                    assert!(err.contains("Tokio 1.x context was found"));
-                }
+                let task_result = task.await.unwrap_or_else(|err| {
+                    if err.is_cancelled() {
+                        Ok(())
+                    } else {
+                        panic!("Server panicked: {err:?}");
+                    }
+                });
+                task_result.expect("Server task returned an error");
             }
         };
         tokio::time::timeout(TEST_TIMEOUT, stop_server)
             .await
-            .unwrap();
+            .expect(format!("panicking at {}", chrono::Utc::now()).as_str());
     }
 }
 
@@ -210,7 +218,6 @@ async fn spawn_server(
         }
     };
     let server_handles = server_builder
-        .with_threads(1)
         .with_polling_interval(POLL_INTERVAL)
         .with_tx_sender(tx_sender, vm_barrier)
         .with_pub_sub_events(pub_sub_events_sender)

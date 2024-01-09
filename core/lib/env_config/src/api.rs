@@ -66,7 +66,6 @@ mod tests {
                 filters_limit: Some(10000),
                 subscriptions_limit: Some(10000),
                 pubsub_polling_interval: Some(200),
-                threads_per_server: 128,
                 max_nonce_ahead: 5,
                 request_timeout: Some(10),
                 account_pks: Some(vec![
@@ -82,8 +81,6 @@ mod tests {
                 factory_deps_cache_size_mb: Some(128),
                 initial_writes_cache_size_mb: Some(32),
                 latest_values_cache_size_mb: Some(256),
-                http_threads: Some(128),
-                ws_threads: Some(256),
                 fee_history_limit: Some(100),
                 max_batch_request_size: Some(200),
                 max_response_body_size_mb: Some(10),
@@ -95,7 +92,6 @@ mod tests {
             contract_verification: ContractVerificationApiConfig {
                 port: 3070,
                 url: "http://127.0.0.1:3070".into(),
-                threads_per_server: 128,
             },
             prometheus: PrometheusConfig {
                 listener_port: 3312,
@@ -119,7 +115,6 @@ mod tests {
             API_WEB3_JSON_RPC_FILTERS_LIMIT=10000
             API_WEB3_JSON_RPC_SUBSCRIPTIONS_LIMIT=10000
             API_WEB3_JSON_RPC_PUBSUB_POLLING_INTERVAL=200
-            API_WEB3_JSON_RPC_THREADS_PER_SERVER=128
             API_WEB3_JSON_RPC_MAX_NONCE_AHEAD=5
             API_WEB3_JSON_RPC_GAS_PRICE_SCALE_FACTOR=1.2
             API_WEB3_JSON_RPC_REQUEST_TIMEOUT=10
@@ -131,15 +126,12 @@ mod tests {
             API_WEB3_JSON_RPC_FACTORY_DEPS_CACHE_SIZE_MB=128
             API_WEB3_JSON_RPC_INITIAL_WRITES_CACHE_SIZE_MB=32
             API_WEB3_JSON_RPC_LATEST_VALUES_CACHE_SIZE_MB=256
-            API_WEB3_JSON_RPC_HTTP_THREADS=128
-            API_WEB3_JSON_RPC_WS_THREADS=256
             API_WEB3_JSON_RPC_FEE_HISTORY_LIMIT=100
             API_WEB3_JSON_RPC_MAX_BATCH_REQUEST_SIZE=200
             API_WEB3_JSON_RPC_WEBSOCKET_REQUESTS_PER_MINUTE_LIMIT=10
             API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS="disabled"
             API_CONTRACT_VERIFICATION_PORT="3070"
             API_CONTRACT_VERIFICATION_URL="http://127.0.0.1:3070"
-            API_CONTRACT_VERIFICATION_THREADS_PER_SERVER=128
             API_WEB3_JSON_RPC_MAX_RESPONSE_BODY_SIZE_MB=10
             API_PROMETHEUS_LISTENER_PORT="3312"
             API_PROMETHEUS_PUSHGATEWAY_URL="http://127.0.0.1:9091"

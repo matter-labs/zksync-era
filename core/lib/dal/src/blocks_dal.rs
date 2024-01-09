@@ -626,8 +626,8 @@ impl BlocksDal<'_, '_> {
             miniblock_header.l1_tx_count as i32,
             miniblock_header.l2_tx_count as i32,
             base_fee_per_gas,
-            miniblock_header.l1_gas_price as i64,
-            miniblock_header.l2_fair_gas_price as i64,
+            miniblock_header.batch_fee_input.l1_gas_price() as i64,
+            miniblock_header.batch_fee_input.fair_l2_gas_price() as i64,
             MAX_GAS_PER_PUBDATA_BYTE as i64,
             miniblock_header
                 .base_system_contracts_hashes
@@ -2234,7 +2234,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            l1_batch_number.0 as u32
+            l1_batch_number.0 as i32
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -2254,7 +2254,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            miniblock_number.0 as u32
+            miniblock_number.0 as i32
         )
         .fetch_optional(self.storage.conn())
         .await?

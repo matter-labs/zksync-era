@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv, VmInterface},
-    utils::adjust_l1_gas_price_for_tx,
+    utils::adjust_pubdata_price_for_tx,
     vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryDisabled},
     VmInstance,
 };
@@ -180,23 +180,21 @@ pub(super) fn apply_vm_in_sandbox<T>(
 
     let TxSharedArgs {
         operator_account,
-        l1_gas_price,
-        fair_l2_gas_price,
+        fee_input,
         base_system_contracts,
         validation_computational_gas_limit,
         chain_id,
         ..
     } = shared_args;
 
-    let l1_gas_price = if adjust_pubdata_price {
-        adjust_l1_gas_price_for_tx(
-            l1_gas_price,
-            fair_l2_gas_price,
+    let fee_input = if adjust_pubdata_price {
+        adjust_pubdata_price_for_tx(
+            fee_input,
             tx.gas_per_pubdata_byte_limit(),
             protocol_version.into(),
         )
     } else {
-        l1_gas_price
+        fee_input
     };
 
     let system_env = SystemEnv {
@@ -214,8 +212,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
         previous_batch_hash: None,
         number: vm_l1_batch_number,
         timestamp: l1_batch_timestamp,
-        l1_gas_price,
-        fair_l2_gas_price,
+        fee_input,
         fee_account: *operator_account.address(),
         enforced_base_fee: execution_args.enforced_base_fee,
         first_l2_block: next_l2_block_info,

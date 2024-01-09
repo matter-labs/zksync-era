@@ -6,8 +6,9 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
 use zksync_types::{
-    api::ApiEthTransferEvents, block::BlockGasCount, tx::ExecutionMetrics, AccountTreeId, Address,
-    L1BatchNumber, MiniblockNumber, ProtocolVersionId, StorageKey, VmEvent, H256, U256,
+    api::ApiEthTransferEvents, block::BlockGasCount, fee_model::BatchFeeInput,
+    tx::ExecutionMetrics, AccountTreeId, Address, L1BatchNumber, MiniblockNumber,
+    ProtocolVersionId, StorageKey, VmEvent, H256, U256,
 };
 use zksync_utils::time::seconds_since_epoch;
 
@@ -53,21 +54,17 @@ async fn test_filter_with_pending_batch() {
     // These gas values are random and don't matter for filter calculation as there will be a
     // pending batch the filter will be based off of.
     tester
-        .insert_miniblock(&connection_pool, 1, 5, 55, 555)
+        .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
     tester.insert_sealed_batch(&connection_pool, 1).await;
 
     // Inserting a pending miniblock that isn't included in a sealed batch means there is a pending batch.
     // The gas values are randomly chosen but so affect filter values calculation.
-    let (give_l1_gas_price, give_fair_l2_gas_price) = (100, 1000);
+
+    let fee_input = BatchFeeInput::l1_pegged(100, 1000);
+
     tester
-        .insert_miniblock(
-            &connection_pool,
-            2,
-            10,
-            give_l1_gas_price,
-            give_fair_l2_gas_price,
-        )
+        .insert_miniblock(&connection_pool, 2, 10, fee_input)
         .await;
 
     let (mut mempool, _) = tester.create_test_mempool_io(connection_pool, 1).await;
@@ -75,13 +72,10 @@ async fn test_filter_with_pending_batch() {
     assert_eq!(mempool.filter(), &L2TxFilter::default());
 
     mempool.load_pending_batch().await;
-    let (want_base_fee, want_gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(
-        give_l1_gas_price,
-        give_fair_l2_gas_price,
-        ProtocolVersionId::latest().into(),
-    );
+    let (want_base_fee, want_gas_per_pubdata) =
+        derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
     let want_filter = L2TxFilter {
-        l1_gas_price: give_l1_gas_price,
+        fee_input,
         fee_per_gas: want_base_fee,
         gas_per_pubdata: want_gas_per_pubdata as u32,
     };
@@ -98,14 +92,13 @@ async fn test_filter_with_no_pending_batch() {
     // Insert a sealed batch so there will be a `prev_l1_batch_state_root`.
     // These gas values are random and don't matter for filter calculation.
     tester
-        .insert_miniblock(&connection_pool, 1, 5, 55, 555)
+        .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
     tester.insert_sealed_batch(&connection_pool, 1).await;
 
     // Create a copy of the tx filter that the mempool will use.
     let want_filter = l2_tx_filter(
-        &tester.create_gas_adjuster().await,
-        tester.fair_l2_gas_price(),
+        &tester.create_batch_fee_input_provider().await,
         ProtocolVersionId::latest().into(),
     );
 
@@ -139,7 +132,7 @@ async fn test_timestamps_are_distinct(
 
     tester.set_timestamp(prev_miniblock_timestamp);
     tester
-        .insert_miniblock(&connection_pool, 1, 5, 55, 555)
+        .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
     if delay_prev_miniblock_compared_to_batch {
         tester.set_timestamp(prev_miniblock_timestamp - 1);
@@ -149,8 +142,7 @@ async fn test_timestamps_are_distinct(
     let (mut mempool, mut guard) = tester.create_test_mempool_io(connection_pool, 1).await;
     // Insert a transaction to trigger L1 batch creation.
     let tx_filter = l2_tx_filter(
-        &tester.create_gas_adjuster().await,
-        tester.fair_l2_gas_price(),
+        &tester.create_batch_fee_input_provider().await,
         ProtocolVersionId::latest().into(),
     );
     tester.insert_tx(&mut guard, tx_filter.fee_per_gas, tx_filter.gas_per_pubdata);

@@ -49,7 +49,7 @@ We have to use special integer types because we are working in a finite field.
 The constants here are specific to the curve used, and are described in detail by code comments in the
 ecrecover_precompile_inner_routine.
 
-Finally we can call the ecrecover_precompile_innner_routine:
+Finally we can call the ecrecover_precompile_inner_routine:
 
 ![Contest(11).png](<./img/circuit_testing/Contest(11).png>)
 

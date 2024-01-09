@@ -38,8 +38,6 @@ pub struct Web3JsonRpcConfig {
     pub subscriptions_limit: Option<u32>,
     /// Interval between polling db for pubsub (in ms).
     pub pubsub_polling_interval: Option<u64>,
-    /// number of threads per server
-    pub threads_per_server: u32,
     /// Tx nonce: how far ahead from the committed nonce can it be.
     pub max_nonce_ahead: u32,
     /// The multiplier to use when suggesting gas price. Should be higher than one,
@@ -69,12 +67,6 @@ pub struct Web3JsonRpcConfig {
     /// Latest values cache size in MiBs. The default value is 128 MiB. If set to 0, the latest
     /// values cache will be disabled.
     pub latest_values_cache_size_mb: Option<usize>,
-    /// Override value for the amount of threads used for HTTP RPC server.
-    /// If not set, the value from `threads_per_server` is used.
-    pub http_threads: Option<u32>,
-    /// Override value for the amount of threads used for WebSocket RPC server.
-    /// If not set, the value from `threads_per_server` is used.
-    pub ws_threads: Option<u32>,
     /// Limit for fee history block range.
     pub fee_history_limit: Option<u64>,
     /// Maximum number of requests in a single batch JSON RPC request. Default is 500.
@@ -105,7 +97,6 @@ impl Web3JsonRpcConfig {
             filters_limit: Some(10000),
             subscriptions_limit: Some(10000),
             pubsub_polling_interval: Some(200),
-            threads_per_server: 1,
             max_nonce_ahead: 50,
             gas_price_scale_factor: 1.2,
             request_timeout: Default::default(),
@@ -118,8 +109,6 @@ impl Web3JsonRpcConfig {
             factory_deps_cache_size_mb: Default::default(),
             initial_writes_cache_size_mb: Default::default(),
             latest_values_cache_size_mb: Default::default(),
-            http_threads: Default::default(),
-            ws_threads: Default::default(),
             fee_history_limit: Default::default(),
             max_batch_request_size: Default::default(),
             max_response_body_size_mb: Default::default(),
@@ -183,14 +172,6 @@ impl Web3JsonRpcConfig {
         self.latest_values_cache_size_mb.unwrap_or(128) * super::BYTES_IN_MEGABYTE
     }
 
-    pub fn http_server_threads(&self) -> usize {
-        self.http_threads.unwrap_or(self.threads_per_server) as usize
-    }
-
-    pub fn ws_server_threads(&self) -> usize {
-        self.ws_threads.unwrap_or(self.threads_per_server) as usize
-    }
-
     pub fn fee_history_limit(&self) -> u64 {
         self.fee_history_limit.unwrap_or(1024)
     }
@@ -237,8 +218,6 @@ pub struct ContractVerificationApiConfig {
     pub port: u16,
     /// URL to access REST server.
     pub url: String,
-    /// number of threads per server
-    pub threads_per_server: u32,
 }
 
 impl ContractVerificationApiConfig {
