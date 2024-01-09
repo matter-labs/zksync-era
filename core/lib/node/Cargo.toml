@@ -17,6 +17,7 @@ zksync_dal = { path = "../dal" }
 zksync_config = { path = "../config" }
 zksync_object_store = { path = "../object_store" }
 zksync_core = { path = "../zksync_core" }
+zksync_storage = { path = "../storage" }
 
 tracing = "0.1"
 thiserror = "1"
@@ -24,3 +25,6 @@ async-trait = "0.1"
 futures = "0.3"
 anyhow = "1"
 tokio = { version = "1", features = ["rt"] }
+
+[dev-dependencies]
+zksync_env_config = { path = "../env_config" }

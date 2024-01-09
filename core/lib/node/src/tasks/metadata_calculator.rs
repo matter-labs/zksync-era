@@ -1,18 +1,16 @@
-use std::sync::Arc;
-
+use futures::future::BoxFuture;
 use tokio::sync::watch;
-use zksync_config::configs::{chain::OperationsManagerConfig, database::MerkleTreeConfig};
 use zksync_core::metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig};
 use zksync_dal::ConnectionPool;
 use zksync_health_check::CheckHealth;
-use zksync_object_store::ObjectStore;
+use zksync_storage::RocksDB;
 
 use crate::{
     resources::{
         object_store::ObjectStoreResource, pools::PoolsResource,
         stop_receiver::StopReceiverResource,
     },
-    ZkSyncNode, ZkSyncTask,
+    IntoZkSyncTask, ZkSyncNode, ZkSyncTask,
 };
 
 use super::TaskInitError;
@@ -24,11 +22,13 @@ pub struct MetadataCalculatorTask {
     stop_receiver: watch::Receiver<bool>,
 }
 
-#[async_trait::async_trait]
-impl ZkSyncTask for MetadataCalculatorTask {
+impl IntoZkSyncTask for MetadataCalculatorTask {
     type Config = MetadataCalculatorConfig;
 
-    fn new(node: &ZkSyncNode, config: Self::Config) -> Result<Self, TaskInitError> {
+    fn create(
+        node: &ZkSyncNode,
+        config: Self::Config,
+    ) -> Result<Box<dyn ZkSyncTask>, TaskInitError> {
         let pools: PoolsResource = node
             .get_resource(crate::resources::pools::RESOURCE_NAME)
             .ok_or(TaskInitError::ResourceLacking(
@@ -53,28 +53,32 @@ impl ZkSyncTask for MetadataCalculatorTask {
             .ok_or(TaskInitError::ResourceLacking(
                 crate::resources::stop_receiver::RESOURCE_NAME,
             ))?;
-        Ok(Self {
+        Ok(Box::new(Self {
             metadata_calculator,
             main_pool,
             stop_receiver: stop_receiver.0,
-        })
+        }))
     }
+}
 
+#[async_trait::async_trait]
+impl ZkSyncTask for MetadataCalculatorTask {
     fn healtcheck(&mut self) -> Option<Box<dyn CheckHealth>> {
         Some(Box::new(self.metadata_calculator.tree_health_check()))
     }
 
-    async fn before_launch(&mut self) {
-        todo!()
-    }
-
-    async fn run(self) -> anyhow::Result<()> {
+    async fn run(self: Box<Self>) -> anyhow::Result<()> {
         self.metadata_calculator
             .run(self.main_pool, self.stop_receiver)
             .await
     }
 
-    async fn after_finish(&mut self) {
-        todo!("Wait for rocksdb termination")
+    fn after_finish(&self) -> Option<BoxFuture<'static, ()>> {
+        // We need to make sure that there are no instances of RocksDB left running.
+        Some(Box::pin(async {
+            tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
+                .await
+                .unwrap();
+        }))
     }
 }
