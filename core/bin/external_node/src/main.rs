@@ -482,17 +482,11 @@ async fn main() -> anyhow::Result<()> {
     if let Some(last_correct_batch) = reorg_detector_last_correct_batch {
         tracing::info!("Performing rollback to L1 batch #{last_correct_batch}");
 
-        let block_reverter_connection_pool =
-            ConnectionPool::builder(&config.postgres.database_url, 1)
-                .build()
-                .await
-                .context("failed to build a block reverter connection pool")?;
-
         let reverter = BlockReverter::new(
             config.required.state_cache_path,
             config.required.merkle_tree_path,
             None,
-            block_reverter_connection_pool,
+            connection_pool,
             L1ExecutedBatchesRevert::Allowed,
         );
         reverter
