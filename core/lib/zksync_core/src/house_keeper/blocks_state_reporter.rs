@@ -1,9 +1,11 @@
 use async_trait::async_trait;
 use zksync_dal::ConnectionPool;
-use zksync_prover_utils::periodic_job::PeriodicJob;
 use zksync_utils::time::seconds_since_epoch;
 
-use crate::metrics::{BlockL1Stage, BlockStage, L1StageLatencyLabel, APP_METRICS};
+use crate::{
+    house_keeper::periodic_job::PeriodicJob,
+    metrics::{BlockL1Stage, BlockStage, L1StageLatencyLabel, APP_METRICS},
+};
 
 #[derive(Debug)]
 pub struct L1BatchMetricsReporter {
@@ -20,14 +22,16 @@ impl L1BatchMetricsReporter {
     }
 
     async fn report_metrics(&self) {
+        let mut block_metrics = vec![];
         let mut conn = self.connection_pool.access_storage().await.unwrap();
-        let mut block_metrics = vec![(
-            conn.blocks_dal()
-                .get_sealed_l1_batch_number()
-                .await
-                .unwrap(),
-            BlockStage::Sealed,
-        )];
+        let last_l1_batch = conn
+            .blocks_dal()
+            .get_sealed_l1_batch_number()
+            .await
+            .unwrap();
+        if let Some(number) = last_l1_batch {
+            block_metrics.push((number, BlockStage::Sealed));
+        }
 
         let last_l1_batch_with_metadata = conn
             .blocks_dal()

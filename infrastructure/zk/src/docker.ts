@@ -1,6 +1,5 @@
 import { Command } from 'commander';
 import * as utils from './utils';
-import * as contract from './contract';
 
 const IMAGES = [
     'server-v2',
@@ -20,12 +19,17 @@ const IMAGES = [
     'proof-fri-compressor',
     'snapshots-creator'
 ];
+
+const DOCKER_REGISTRIES = ['us-docker.pkg.dev/matterlabs-infra/matterlabs-docker', 'matterlabs'];
+
 const UNIX_TIMESTAMP = Date.now();
 
 async function dockerCommand(
     command: 'push' | 'build',
     image: string,
+    platform: string = '',
     customTag?: string,
+    buildExtraArgs: string = '',
     dockerOrg: string = 'matterlabs'
 ) {
     // Generating all tags for containers. We need 2 tags here: SHA and SHA+TS
@@ -37,8 +41,8 @@ async function dockerCommand(
 
     // We want an alternative flow for Rust image
     if (image == 'rust') {
-        await dockerCommand(command, 'server-v2', customTag, dockerOrg);
-        await dockerCommand(command, 'prover', customTag, dockerOrg);
+        await dockerCommand(command, 'server-v2', platform, customTag, dockerOrg);
+        await dockerCommand(command, 'prover', platform, customTag, dockerOrg);
         return;
     }
     if (!IMAGES.includes(image)) {
@@ -54,10 +58,7 @@ async function dockerCommand(
     // Main build\push flow
     switch (command) {
         case 'build':
-            await _build(image, tagList, dockerOrg);
-            break;
-        case 'push':
-            await _push(image, tagList);
+            await _build(image, tagList, dockerOrg, platform, buildExtraArgs);
             break;
         default:
             console.log(`Unknown command for docker ${command}.`);
@@ -88,72 +89,54 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
     return tagList;
 }
 
-async function _build(image: string, tagList: string[], dockerOrg: string) {
-    if (image === 'server-v2' || image === 'external-node' || image === 'prover') {
-        await contract.build();
-    }
+async function _build(image: string, tagList: string[], dockerOrg: string, platform: string, extraArgs: string = '') {
     let tagsToBuild = '';
 
-    // generate list of tags for image - we want 3 tags (latest, SHA, SHA+TimeStamp) for listed components and only "latest" for everything else
-    tagsToBuild = tagList.map((tag) => `-t ${dockerOrg}/${image}:${tag}`).join(' ');
+    for (const tag of tagList) {
+        for (const registry of DOCKER_REGISTRIES) {
+            if (platform != '') {
+                let platformSuffix = platform.replace('/', '-');
+                tagsToBuild = tagsToBuild + `-t ${registry}/${image}:${tag}-${platformSuffix} `;
+            } else {
+                tagsToBuild = tagsToBuild + `-t ${registry}/${image}:${tag} `;
+            }
+        }
+    }
 
-    // Conditionally add build argument if image is prover-v2
     let buildArgs = '';
+    if (platform != '') {
+        buildArgs += `--platform=${platform} `;
+    }
     if (image === 'prover-v2') {
         const eraBellmanCudaRelease = process.env.ERA_BELLMAN_CUDA_RELEASE;
-        buildArgs += `--build-arg ERA_BELLMAN_CUDA_RELEASE=${eraBellmanCudaRelease}`;
+        buildArgs += `--build-arg ERA_BELLMAN_CUDA_RELEASE=${eraBellmanCudaRelease} `;
     }
     if (image === 'prover-gpu-fri') {
         const cudaArch = process.env.CUDA_ARCH;
-        buildArgs += `--build-arg CUDA_ARCH='${cudaArch}'`;
+        buildArgs += `--build-arg CUDA_ARCH='${cudaArch}' `;
     }
+    buildArgs += extraArgs;
 
-    // HACK
-    // For prover-v2 which is not a prover, but should be built from the prover dockerfile. So here we go.
-    const imagePath = image == 'prover-v2' ? 'prover' : image;
+    const imagePath = image === 'prover-v2' ? 'prover' : image;
 
     const buildCommand =
-        `DOCKER_BUILDKIT=1 docker build ${tagsToBuild}` +
+        `DOCKER_BUILDKIT=1 docker buildx build ${tagsToBuild}` +
         (buildArgs ? ` ${buildArgs}` : '') +
         ` -f ./docker/${imagePath}/Dockerfile .`;
 
     await utils.spawn(buildCommand);
 }
 
-async function _push(image: string, tagList: string[]) {
-    // For development purposes, we want to use `2.0` tags for 2.0 images, just to not interfere with 1.x
-
-    for (const tag of tagList) {
-        await utils.spawn(`docker push matterlabs/${image}:${tag}`);
-        await utils.spawn(
-            `docker tag matterlabs/${image}:${tag} us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`
-        );
-        await utils.spawn(`docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`);
-
-        if (image == 'circuit-synthesizer') {
-            await utils.spawn(
-                `docker tag us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag} asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`
-            );
-            await utils.spawn(
-                `docker tag us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag} europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`
-            );
-            await utils.spawn(`docker push asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`);
-            await utils.spawn(`docker push europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`);
-        }
-    }
-}
-
 export async function build(image: string, cmd: Command) {
-    await dockerCommand('build', image, cmd.customTag);
+    await dockerCommand('build', image, cmd.platform, cmd.customTag);
 }
 
 export async function customBuildForHyperchain(image: string, dockerOrg: string) {
-    await dockerCommand('build', image, '', dockerOrg);
+    await dockerCommand('build', image, 'linux/amd64', dockerOrg);
 }
 
 export async function push(image: string, cmd: Command) {
-    await dockerCommand('build', image, cmd.customTag);
-    await dockerCommand('push', image, cmd.customTag);
+    await dockerCommand('build', image, cmd.platform, cmd.customTag, '--push');
 }
 
 export async function restart(container: string) {
@@ -169,12 +152,13 @@ export const command = new Command('docker').description('docker management');
 command
     .command('build <image>')
     .option('--custom-tag <value>', 'Custom tag for image')
+    .option('--platform <platform>', 'Docker platform')
     .description('build docker image')
     .action(build);
 command
     .command('push <image>')
     .option('--custom-tag <value>', 'Custom tag for image')
-    .description('build and push docker image')
+    .option('--platform <platform>', 'Docker platform')
     .action(push);
 command.command('pull').description('pull all containers').action(pull);
 command.command('restart <container>').description('restart container in docker-compose.yml').action(restart);

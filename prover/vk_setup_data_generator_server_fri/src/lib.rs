@@ -59,6 +59,7 @@ use {shivini::cs::GpuSetup, std::alloc::Global};
 
 pub mod commitment_utils;
 pub mod utils;
+pub mod vk_commitment_helper;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(

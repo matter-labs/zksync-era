@@ -22,13 +22,11 @@ zksync_commitment_utils = { path = "../commitment_utils" }
 zksync_eth_client = { path = "../eth_client" }
 zksync_eth_signer = { path = "../eth_signer" }
 zksync_mempool = { path = "../mempool" }
-zksync_prover_utils = { path = "../prover_utils" }
 zksync_queued_job_processor = { path = "../queued_job_processor" }
 zksync_circuit_breaker = { path = "../circuit_breaker" }
 zksync_storage = { path = "../storage" }
 zksync_merkle_tree = { path = "../merkle_tree" }
 zksync_mini_merkle_tree = { path = "../mini_merkle_tree" }
-zksync_verification_key_generator_and_server = { path = "../../bin/verification_key_generator_and_server" }
 prometheus_exporter = { path = "../prometheus_exporter" }
 zksync_web3_decl = { path = "../web3_decl", default-features = false, features = [
     "server",
@@ -64,7 +62,7 @@ async-trait = "0.1"
 bitflags = "1.3.2"
 
 num = { version = "0.3.1", features = ["serde"] }
-bigdecimal = { version = "0.2.2", features = ["serde"] }
+bigdecimal = { version = "0.3.0", features = ["serde"] }
 reqwest = { version = "0.11", features = ["blocking", "json"] }
 hex = "0.4"
 lru = { version = "0.12.1", default-features = false }

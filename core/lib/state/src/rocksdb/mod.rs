@@ -135,15 +135,16 @@ impl RocksdbStorage {
     /// in Postgres.
     pub async fn update_from_postgres(&mut self, conn: &mut StorageProcessor<'_>) {
         let latency = METRICS.update.start();
-        let latest_l1_batch_number = conn
+        let Some(latest_l1_batch_number) = conn
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
-            .unwrap();
-        tracing::debug!(
-            "loading storage for l1 batch number {}",
-            latest_l1_batch_number.0
-        );
+            .unwrap()
+        else {
+            // No L1 batches are persisted in Postgres; update is not necessary.
+            return;
+        };
+        tracing::debug!("Loading storage for l1 batch number {latest_l1_batch_number}");
 
         let mut current_l1_batch_number = self.l1_batch_number().0;
         assert!(
@@ -675,7 +676,7 @@ mod tests {
         storage.update_from_postgres(&mut conn).await;
 
         assert_eq!(storage.l1_batch_number(), L1BatchNumber(2));
-        // Check that enum indices are correct after syncing with postgres.
+        // Check that enum indices are correct after syncing with Postgres.
         for log in &storage_logs {
             let expected_index = enum_indices[&log.key.hashed_key()];
             assert_eq!(

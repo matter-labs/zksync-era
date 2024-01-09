@@ -167,7 +167,7 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             system_logs: vec![],
             total_log_queries,
             cycles_used: self.vm.state.local_state.monotonic_cycle_counter,
-            // It's not applicable for vm6
+            // It's not applicable for `vm6`
             deduplicated_events_logs: vec![],
             storage_refunds: vec![],
             user_l2_to_l1_logs: l2_to_l1_logs,
@@ -179,7 +179,10 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         _tracer: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError> {
+    ) -> (
+        Result<(), BytecodeCompressionError>,
+        VmExecutionResultAndLogs,
+    ) {
         self.last_tx_compressed_bytecodes = vec![];
         let bytecodes = if with_compression {
             let deps = tx.execute.factory_deps.as_deref().unwrap_or_default();
@@ -226,9 +229,12 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             .iter()
             .any(|info| !self.vm.is_bytecode_exists(info))
         {
-            Err(crate::interface::BytecodeCompressionError::BytecodeCompressionFailed)
+            (
+                Err(BytecodeCompressionError::BytecodeCompressionFailed),
+                result.glue_into(),
+            )
         } else {
-            Ok(result.glue_into())
+            (Ok(()), result.glue_into())
         }
     }
 

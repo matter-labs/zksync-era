@@ -108,7 +108,7 @@ pub struct OptionalENConfig {
     /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the API server panics.
     /// This is a temporary solution to mitigate API request resulting in thousands of DB queries.
     pub vm_execution_cache_misses_limit: Option<usize>,
-    /// Inbound transaction limit used for throttling.
+    /// Note: Deprecated option, no longer in use. Left to display a warning in case someone used them.
     pub transactions_per_sec_limit: Option<u32>,
     /// Limit for fee history block range.
     #[serde(default = "OptionalENConfig::default_fee_history_limit")]
@@ -437,7 +437,7 @@ impl ExternalNodeConfig {
             .context("Unable to fetch required config values from the main node")?;
 
         // We can query them from main node, but it's better to set them explicitly
-        // as well to avoid connecting to wrong envs unintentionally.
+        // as well to avoid connecting to wrong environment variables unintentionally.
         let eth_chain_id = HttpClientBuilder::default()
             .build(required.eth_client_url()?)
             .expect("Unable to build HTTP client for L1 client")
