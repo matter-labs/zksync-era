@@ -59,7 +59,7 @@ impl MempoolGuard {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct ExecutionMetricsForCriteria {
     pub l1_gas: BlockGasCount,
     pub execution_metrics: ExecutionMetrics,

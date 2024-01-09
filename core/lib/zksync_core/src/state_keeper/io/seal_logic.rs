@@ -35,6 +35,7 @@ use crate::{
     state_keeper::{
         extractors,
         metrics::{L1BatchSealStage, MiniblockSealStage, L1_BATCH_METRICS, MINIBLOCK_METRICS},
+        types::ExecutionMetricsForCriteria,
         updates::{MiniblockSealCommand, UpdatesManager},
     },
 };
@@ -43,6 +44,7 @@ impl UpdatesManager {
     /// Persists an L1 batch in the storage.
     /// This action includes a creation of an empty "fictive" miniblock that contains
     /// the events generated during the bootloader "tip phase".
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn seal_l1_batch(
         mut self,
         storage: &mut StorageProcessor<'_>,
@@ -51,6 +53,7 @@ impl UpdatesManager {
         finished_batch: FinishedL1Batch,
         l2_erc20_bridge_addr: Address,
         consensus: Option<ConsensusBlockFields>,
+        batch_tip_metrics: ExecutionMetricsForCriteria,
     ) {
         let started_at = Instant::now();
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::VmFinalization);
@@ -58,7 +61,11 @@ impl UpdatesManager {
         progress.observe(None);
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FictiveMiniblock);
-        self.extend_from_fictive_transaction(finished_batch.block_tip_execution_result);
+        self.extend_from_fictive_transaction(
+            finished_batch.block_tip_execution_result,
+            batch_tip_metrics.l1_gas,
+            batch_tip_metrics.execution_metrics,
+        );
         // Seal fictive miniblock with last events and storage logs.
         let miniblock_command = self.seal_miniblock_command(
             l1_batch_env.number,
@@ -141,16 +148,17 @@ impl UpdatesManager {
             .final_execution_state
             .deduplicated_events_logs;
 
+        dbg!(self.pending_execution_metrics());
+        dbg!(&self.l1_batch.block_execution_metrics);
         transaction
             .blocks_dal()
             .insert_l1_batch(
                 &l1_batch,
                 finished_batch.final_bootloader_memory.as_ref().unwrap(),
-                self.l1_batch.l1_gas_count,
+                self.pending_l1_gas_count(),
                 &events_queue,
                 &finished_batch.final_execution_state.storage_refunds,
-                self.l1_batch
-                    .block_execution_metrics
+                self.pending_execution_metrics()
                     .estimated_circuits_used
                     .ceil() as u32,
             )

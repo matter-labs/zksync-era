@@ -123,10 +123,16 @@ impl UpdatesManager {
         );
     }
 
-    pub(crate) fn extend_from_fictive_transaction(&mut self, result: VmExecutionResultAndLogs) {
+    pub(crate) fn extend_from_fictive_transaction(
+        &mut self,
+        result: VmExecutionResultAndLogs,
+        l1_gas_count: BlockGasCount,
+        execution_metrics: ExecutionMetrics,
+    ) {
         self.storage_writes_deduplicator
             .apply(&result.logs.storage_logs);
-        self.miniblock.extend_from_fictive_transaction(result);
+        self.miniblock
+            .extend_from_fictive_transaction(result, l1_gas_count, execution_metrics);
     }
 
     /// Pushes a new miniblock with the specified timestamp into this manager. The previously

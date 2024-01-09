@@ -33,6 +33,7 @@ use crate::{
         mempool_actor::l2_tx_filter,
         metrics::KEEPER_METRICS,
         seal_criteria::{IoSealCriteria, TimeoutSealer},
+        types::ExecutionMetricsForCriteria,
         updates::UpdatesManager,
         MempoolGuard,
     },
@@ -286,6 +287,7 @@ impl StateKeeperIO for MempoolIO {
         updates_manager: UpdatesManager,
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,
+        batch_tip_metrics: ExecutionMetricsForCriteria,
     ) -> anyhow::Result<()> {
         assert_eq!(
             updates_manager.batch_timestamp(),
@@ -325,6 +327,7 @@ impl StateKeeperIO for MempoolIO {
                 finished_batch,
                 self.l2_erc20_bridge_addr,
                 None,
+                batch_tip_metrics,
             )
             .await;
         self.current_miniblock_number += 1; // Due to fictive miniblock being sealed.

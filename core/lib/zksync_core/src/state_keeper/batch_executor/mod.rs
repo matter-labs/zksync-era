@@ -257,7 +257,13 @@ impl BatchExecutorHandle {
         latency.observe();
     }
 
-    pub(super) async fn finish_batch(self) -> (FinishedL1Batch, Option<WitnessBlockState>) {
+    pub(super) async fn finish_batch(
+        self,
+    ) -> (
+        FinishedL1Batch,
+        Option<WitnessBlockState>,
+        ExecutionMetricsForCriteria,
+    ) {
         let (response_sender, response_receiver) = oneshot::channel();
         self.commands
             .send(Command::FinishBatch(response_sender))
@@ -278,7 +284,13 @@ pub(super) enum Command {
     ExecuteTx(Box<Transaction>, oneshot::Sender<TxExecutionResult>),
     StartNextMiniblock(L2BlockEnv, oneshot::Sender<()>),
     RollbackLastTx(oneshot::Sender<()>),
-    FinishBatch(oneshot::Sender<(FinishedL1Batch, Option<WitnessBlockState>)>),
+    FinishBatch(
+        oneshot::Sender<(
+            FinishedL1Batch,
+            Option<WitnessBlockState>,
+            ExecutionMetricsForCriteria,
+        )>,
+    ),
 }
 
 /// Implementation of the "primary" (non-test) batch executor.
@@ -330,7 +342,13 @@ impl BatchExecutor {
                     } else {
                         None
                     };
-                    resp.send((vm_block_result, witness_block_state)).unwrap();
+                    let block_tip_metrics = Self::get_execution_metrics(
+                        None,
+                        &vm_block_result.block_tip_execution_result,
+                    );
+
+                    resp.send((vm_block_result, witness_block_state, block_tip_metrics))
+                        .unwrap();
 
                     // `storage_view` cannot be accessed while borrowed by the VM,
                     // so this is the only point at which storage metrics can be obtained

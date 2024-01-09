@@ -17,6 +17,7 @@ pub(crate) use self::mempool::MempoolIO;
 use super::{
     metrics::{MiniblockQueueStage, MINIBLOCK_METRICS},
     seal_criteria::IoSealCriteria,
+    types::ExecutionMetricsForCriteria,
     updates::{MiniblockSealCommand, UpdatesManager},
 };
 
@@ -100,6 +101,7 @@ pub trait StateKeeperIO: 'static + Send + IoSealCriteria {
         updates_manager: UpdatesManager,
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,
+        batch_tip_metrics: ExecutionMetricsForCriteria,
     ) -> anyhow::Result<()>;
     /// Loads protocol version of the previous l1 batch.
     async fn load_previous_batch_version_id(&mut self) -> Option<ProtocolVersionId>;

@@ -20,6 +20,7 @@ use crate::{
             create_execution_result, create_transaction, create_updates_manager,
             default_l1_batch_env, default_vm_block_result, Query,
         },
+        types::ExecutionMetricsForCriteria,
         updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
     },
     utils::testonly::create_l1_batch_metadata,
@@ -391,10 +392,17 @@ async fn test_miniblock_and_l1_batch_processing(
     });
 
     let finished_batch = default_vm_block_result();
+    let batch_tip_metrics = ExecutionMetricsForCriteria::default();
 
     let l1_batch_env = default_l1_batch_env(1, 1, Address::random());
     mempool
-        .seal_l1_batch(None, updates, &l1_batch_env, finished_batch)
+        .seal_l1_batch(
+            None,
+            updates,
+            &l1_batch_env,
+            finished_batch,
+            batch_tip_metrics,
+        )
         .await
         .unwrap();
 

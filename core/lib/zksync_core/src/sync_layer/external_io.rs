@@ -26,6 +26,7 @@ use crate::{
         },
         metrics::KEEPER_METRICS,
         seal_criteria::IoSealCriteria,
+        types::ExecutionMetricsForCriteria,
         updates::UpdatesManager,
     },
 };
@@ -479,6 +480,7 @@ impl StateKeeperIO for ExternalIO {
         updates_manager: UpdatesManager,
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,
+        batch_tip_metrics: ExecutionMetricsForCriteria,
     ) -> anyhow::Result<()> {
         let action = self.actions.pop_action();
         let Some(SyncAction::SealBatch { consensus, .. }) = action else {
@@ -500,6 +502,7 @@ impl StateKeeperIO for ExternalIO {
                 finished_batch,
                 self.l2_erc20_bridge_addr,
                 consensus,
+                batch_tip_metrics,
             )
             .await;
         transaction.commit().await.unwrap();
