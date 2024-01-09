@@ -17,6 +17,10 @@ mod fri_proof_compressor;
 mod fri_prover;
 mod fri_prover_gateway;
 mod fri_prover_group;
+mod fri_witness_generator;
+mod fri_witness_vector_generator;
+mod house_keeper;
+mod object_store;
 
 pub mod proto;
 mod repr;
