@@ -33,6 +33,7 @@
         "hardhat": "=2.16.0",
         "typescript": "^4.3.5",
         "cspell": "*",
-        "sql-formatter": "^13.1.0"
+        "sql-formatter": "^13.1.0",
+        "markdown-link-check": "^3.11.2"
     }
 }
