@@ -21,6 +21,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         &mut self,
         dispatcher: TracerDispatcher<S, H::VmBoojumIntegration>,
         execution_mode: VmExecutionMode,
+        enable_circuit_statistic: bool,
     ) -> VmExecutionResultAndLogs {
         let mut enable_refund_tracer = false;
         if let VmExecutionMode::OneTx = execution_mode {
@@ -29,8 +30,12 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             enable_refund_tracer = true;
         }
 
-        let (_, result) =
-            self.inspect_and_collect_results(dispatcher, execution_mode, enable_refund_tracer);
+        let (_, result) = self.inspect_and_collect_results(
+            dispatcher,
+            execution_mode,
+            enable_refund_tracer,
+            enable_circuit_statistic,
+        );
         result
     }
 
@@ -41,6 +46,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         dispatcher: TracerDispatcher<S, H::VmBoojumIntegration>,
         execution_mode: VmExecutionMode,
         with_refund_tracer: bool,
+        with_circuit_statistic: bool,
     ) -> (VmExecutionStopReason, VmExecutionResultAndLogs) {
         let refund_tracers =
             with_refund_tracer.then_some(RefundsTracer::new(self.batch_env.clone()));
@@ -52,6 +58,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
                 self.storage.clone(),
                 refund_tracers,
                 Some(PubdataTracer::new(self.batch_env.clone(), execution_mode)),
+                with_circuit_statistic,
             );
 
         let timestamp_initial = Timestamp(self.state.local_state.timestamp);
@@ -81,6 +88,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             pubdata_published,
             logs.total_log_queries_count,
             tx_tracer.circuits_tracer.estimated_circuits_used,
+            tx_tracer.circuits_tracer.statistics,
         );
         let result = tx_tracer.result_tracer.into_result();
 
