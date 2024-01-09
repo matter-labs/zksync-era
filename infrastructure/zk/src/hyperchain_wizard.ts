@@ -4,7 +4,7 @@ import { BigNumber, ethers, utils } from 'ethers';
 import chalk from 'chalk';
 import * as contract from './contract';
 import { compileConfig, pushConfig } from './config';
-import { announced, init, InitArgs } from './init';
+import { announced, init, InitArgs, ADDRESS_ONE } from './init';
 import * as server from './server';
 import * as docker from './docker';
 import * as db from './database';
@@ -68,6 +68,10 @@ async function initHyperchain() {
         testTokens: {
             deploy: deployTestTokens,
             args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
+        },
+        baseToken: {
+            name: 'ETH',
+            address: ADDRESS_ONE
         }
     };
 
@@ -807,6 +811,9 @@ async function configDemoHyperchain(cmd: Command) {
         testTokens: {
             deploy: deployTestTokens,
             args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
+        },
+        baseToken: {
+            address: ADDRESS_ONE
         }
     };
 

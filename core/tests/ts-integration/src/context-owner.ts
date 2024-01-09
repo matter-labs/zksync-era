@@ -1,4 +1,4 @@
-import * as zksync from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { BigNumberish } from 'ethers';
 
@@ -246,9 +246,10 @@ export class TestContextOwner {
             const depositHandle = this.mainSyncWallet
                 .deposit({
                     token: zksync.utils.ETH_ADDRESS,
+                    approveBaseERC20: true,
+                    approveERC20: true,
                     amount: l2ETHAmountToDeposit as BigNumberish,
                     overrides: {
-                        nonce: nonce++,
                         gasPrice
                     }
                 })
@@ -261,6 +262,7 @@ export class TestContextOwner {
             // Add this promise to the list of L1 tx promises.
             l1TxPromises.push(depositHandle);
         }
+        nonce = await this.mainEthersWallet.getTransactionCount();
 
         // Define values for handling ERC20 transfers/deposits.
         const erc20Token = this.env.erc20Token.l1Address;
@@ -285,12 +287,11 @@ export class TestContextOwner {
                 token: erc20Token,
                 amount: l2erc20DepositAmount,
                 approveERC20: true,
+                approveBaseERC20: true,
                 approveOverrides: {
-                    nonce: nonce++,
                     gasPrice
                 },
                 overrides: {
-                    nonce: nonce++,
                     gasPrice
                 }
             })
@@ -299,7 +300,8 @@ export class TestContextOwner {
                 this.reporter.debug(`Sent ERC20 deposit transaction. Hash: ${tx.hash}, nonce: ${tx.nonce}`);
                 return tx.wait();
             });
-
+        
+        nonce = await this.mainEthersWallet.getTransactionCount();
         // Send ETH on L1.
         const ethTransfers = await sendTransfers(
             zksync.utils.ETH_ADDRESS,

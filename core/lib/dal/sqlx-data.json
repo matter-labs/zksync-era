@@ -3598,19 +3598,6 @@
     },
     "query": "\n                UPDATE transactions\n                SET\n                    in_mempool = FALSE\n                FROM\n                    UNNEST($1::bytea[]) AS s (address)\n                WHERE\n                    transactions.in_mempool = TRUE\n                    AND transactions.initiator_address = s.address\n                "
   },
-  "3127124ca4e42675e1b9f924653ac6b96ef39a5ef8a0b20d658f18c641b2cb5b": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Bytea",
-          "Int4"
-        ]
-      }
-    },
-    "query": "UPDATE protocol_versions SET upgrade_tx_hash = $1 WHERE id = $2"
-  },
   "314f7e619a34efa89255a58c89f85d4402ff6005446bbded68c8d3dbca510f37": {
     "describe": {
       "columns": [],
@@ -8432,6 +8419,19 @@
       }
     },
     "query": "\n            SELECT\n                id\n            FROM\n                prover_jobs_fri\n            WHERE\n                l1_batch_number = $1\n                AND status = 'successful'\n                AND aggregation_round = $2\n            "
+  },
+  "a8dad09a54cc991706141da557dde45f8f3f3b6cf2e4136f25a1c3ab85d92668": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Bytea",
+          "Int4"
+        ]
+      }
+    },
+    "query": "\n            UPDATE protocol_versions\n            SET\n                upgrade_tx_hash = $1\n            WHERE\n                id = $2\n            "
   },
   "a91c23c4d33771122cec2589c6fe2757dbc13be6b30f5840744e5e0569adc66e": {
     "describe": {

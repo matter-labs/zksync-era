@@ -256,7 +256,9 @@ export async function registerHyperchain(args: any[]) {
     const l2EnvVars = [
         'CHAIN_ETH_ZKSYNC_NETWORK_ID',
         'CONTRACTS_DIAMOND_PROXY_ADDR',
-        'CONTRACTS_VALIDATOR_TIMELOCK_ADDR'
+        'CONTRACTS_VALIDATOR_TIMELOCK_ADDR',
+        'CONTRACTS_BASE_TOKEN_ADDR',
+        'CONTRACTS_BASE_TOKEN_BRIDGE_ADDR'
     ];
     console.log('Writing to', `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`);
 

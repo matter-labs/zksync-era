@@ -154,6 +154,7 @@ impl ZkSyncStateKeeper {
 
         let mut protocol_upgrade_tx =
             if pending_miniblocks.is_empty() && version_changed_or_first_batch {
+                tracing::info!("We have upgrade tx to be executed in empty miniblock");
                 self.io.load_upgrade_tx(protocol_version).await
             } else if !pending_miniblocks.is_empty() && version_changed_or_first_batch {
                 // Sanity check: if `txs_to_reexecute` is not empty and upgrade tx is present for this block
@@ -165,9 +166,10 @@ impl ZkSyncStateKeeper {
                         TransactionType::ProtocolUpgradeTransaction
                     )
                 }
-
+                tracing::info!("We have no upgrade tx to execute");
                 None
             } else {
+                tracing::info!("We are not changing protocol version");
                 None
             };
 

@@ -1,5 +1,7 @@
 import chalk from 'chalk';
 import { Command } from 'commander';
+import { ethers } from 'ethers';
+
 import * as utils from './utils';
 
 import { clean } from './clean';
@@ -16,6 +18,7 @@ const entry = chalk.bold.yellow;
 const announce = chalk.yellow;
 const success = chalk.green;
 const timestamp = chalk.grey;
+export const ADDRESS_ONE = '0x0000000000000000000000000000000000000001';
 
 export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     await initSetup(initArgs);
@@ -72,7 +75,7 @@ export async function initBridgehubStateTransition(initArgs: InitArgs = DEFAULT_
 }
 
 export async function initHyperchain(initArgs: InitArgs = DEFAULT_ARGS) {
-    const { governorPrivateKeyArgs, deployerL2ContractInput } = initArgs;
+    const { governorPrivateKeyArgs, deployerL2ContractInput, baseToken } = initArgs;
 
     await announced('Building L1 L2 contracts', contract.build());
 
@@ -83,8 +86,13 @@ export async function initHyperchain(initArgs: InitArgs = DEFAULT_ARGS) {
     await announced('Clean backups', clean(`backups/${process.env.ZKSYNC_ENV!}`));
 
     await announced('Running server genesis setup', server.genesisFromSources());
-
-    await announced('Registering Hyperchain', contract.registerHyperchain([]));
+    let baseTokenArgs: any[] = [];
+    if (baseToken.address !== ethers.constants.AddressZero) {
+        baseTokenArgs = ['--base-token-address', baseToken.address];
+    } else if (baseToken.name) {
+        baseTokenArgs = ['--base-token-name', baseToken.name];
+    }
+    await announced('Registering Hyperchain', contract.registerHyperchain(baseTokenArgs));
     await announced('Reloading env', env.reload());
     await announced('Initializing validator', contract.initializeValidator(governorPrivateKeyArgs));
     await announced(
@@ -192,6 +200,10 @@ export interface InitArgs {
         deploy: boolean;
         args: any[];
     };
+    baseToken: {
+        address: string;
+        name?: string;
+    };
 }
 
 const DEFAULT_ARGS: InitArgs = {
@@ -199,17 +211,20 @@ const DEFAULT_ARGS: InitArgs = {
     skipEnvSetup: false,
     governorPrivateKeyArgs: [],
     deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
-    testTokens: { deploy: true, args: [] }
+    testTokens: { deploy: true, args: [] },
+    baseToken: { name: 'ETH', address: ADDRESS_ONE }
 };
 
 export const initCommand = new Command('init')
     .option('--skip-submodules-checkout')
     .option('--skip-env-setup')
     .option('--env-name <env-name>', 'chain name to use for initialization')
+    .option('--base-token-name <base-token-name>', 'base token name')
+    .option('--base-token-address <base-token-address>', 'base token address')
     .description('perform zksync network initialization for development')
     .action(async (cmd: Command) => {
         if (cmd.envName) {
-            process.env.ZKSYNC_ENV = cmd.l2ChainName;
+            process.env.ZKSYNC_ENV = cmd.envName;
             env.reload();
         }
 
@@ -218,7 +233,11 @@ export const initCommand = new Command('init')
             skipEnvSetup: cmd.skipEnvSetup,
             governorPrivateKeyArgs: [],
             deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
-            testTokens: { deploy: true, args: [] }
+            testTokens: { deploy: true, args: [] },
+            baseToken: {
+                name: cmd.baseTokenName,
+                address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
+            }
         };
         await init(initArgs);
     });
@@ -245,13 +264,26 @@ export const lightweightInitCommand = new Command('lightweight-init')
 export const initHyperCommand = new Command('init-hyper')
     .description('initialize just the L2, currently with own bridge')
     .option('--env-name <env-name>', 'env name to use for initialization')
+    .option('--base-token-name <base-token-name>', 'base token name')
+    .option('--base-token-address <base-token-address>', 'base token address')
     .action(async (cmd: Command) => {
-        if (cmd.l2ChainName) {
+        if (cmd.envName) {
             process.env.ZKSYNC_ENV = cmd.envName;
             env.reload();
         }
 
-        await initHyperchain();
+        const initArgs: InitArgs = {
+            skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
+            skipEnvSetup: cmd.skipEnvSetup,
+            governorPrivateKeyArgs: [],
+            deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
+            testTokens: { deploy: true, args: [] },
+            baseToken: {
+                name: cmd.baseTokenName,
+                address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
+            }
+        };
+        await initHyperchain(initArgs);
     });
 export const finishBridgeInitCommand = new Command('finish-bridge-init')
     .description('finishing bridge init')
