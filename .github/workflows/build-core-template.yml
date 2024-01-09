@@ -87,7 +87,6 @@ jobs:
         run: |
           platform=$(echo $PLATFORM | tr '/' '-')
           IMAGE_TAG_SUFFIX="test"
-          tag="${IMAGE_TAG_SUFFIX}-${platform}"
           ci_run zk docker $DOCKER_ACTION --custom-tag=${tag} --platform=${PLATFORM} $COMPONENT
       - name: Show sccache stats
         if: always()
