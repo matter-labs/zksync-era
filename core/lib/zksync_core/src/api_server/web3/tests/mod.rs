@@ -15,13 +15,15 @@ use zksync_types::{
     api,
     block::{BlockGasCount, MiniblockHeader},
     fee::TransactionExecutionMetrics,
+    get_nonce_key,
+    l2::L2Tx,
     storage::get_code_key,
     tx::{
         tx_execution_info::TxExecutionStatus, ExecutionMetrics, IncludedTxLocation,
         TransactionExecutionResult,
     },
     utils::storage_key_for_eth_balance,
-    AccountTreeId, Address, L1BatchNumber, StorageKey, StorageLog, VmEvent, H256, U64,
+    AccountTreeId, Address, L1BatchNumber, Nonce, StorageKey, StorageLog, VmEvent, H256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::{http_client::HttpClient, types::error::ErrorCode},
@@ -271,8 +273,7 @@ fn assert_logs_match(actual_logs: &[api::Log], expected_logs: &[&VmEvent]) {
     }
 }
 
-fn execute_l2_transaction() -> TransactionExecutionResult {
-    let transaction = create_l2_transaction(1, 2);
+fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
     TransactionExecutionResult {
         hash: transaction.hash(),
         transaction: transaction.into(),
@@ -655,4 +656,157 @@ impl HttpTest for StorageAccessWithSnapshotRecovery {
 #[tokio::test]
 async fn storage_access_with_snapshot_recovery() {
     test_http_server(StorageAccessWithSnapshotRecovery).await;
+}
+
+#[derive(Debug)]
+struct TransactionCountTest;
+
+#[async_trait]
+impl HttpTest for TransactionCountTest {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+        let test_address = Address::repeat_byte(11);
+        let mut storage = pool.access_storage().await?;
+        let mut miniblock_number = MiniblockNumber(0);
+        for nonce in [0, 1] {
+            let mut committed_tx = create_l2_transaction(10, 200);
+            committed_tx.common_data.initiator_address = test_address;
+            committed_tx.common_data.nonce = Nonce(nonce);
+            miniblock_number += 1;
+            store_miniblock(
+                &mut storage,
+                miniblock_number,
+                &[execute_l2_transaction(committed_tx)],
+            )
+            .await?;
+            let nonce_log = StorageLog::new_write_log(
+                get_nonce_key(&test_address),
+                H256::from_low_u64_be(nonce.into()),
+            );
+            storage
+                .storage_logs_dal()
+                .insert_storage_logs(miniblock_number, &[(H256::zero(), vec![nonce_log])])
+                .await;
+        }
+
+        let pending_count = client.get_transaction_count(test_address, None).await?;
+        assert_eq!(pending_count, 2.into());
+
+        let mut pending_tx = create_l2_transaction(10, 200);
+        pending_tx.common_data.initiator_address = test_address;
+        pending_tx.common_data.nonce = Nonce(2);
+        storage
+            .transactions_dal()
+            .insert_transaction_l2(pending_tx, TransactionExecutionMetrics::default())
+            .await;
+
+        let pending_count = client.get_transaction_count(test_address, None).await?;
+        assert_eq!(pending_count, 3.into());
+
+        let latest_block_numbers = [api::BlockNumber::Latest, miniblock_number.0.into()];
+        for number in latest_block_numbers {
+            let number = api::BlockIdVariant::BlockNumber(number);
+            let latest_count = client
+                .get_transaction_count(test_address, Some(number))
+                .await?;
+            assert_eq!(latest_count, 1.into()); // FIXME: shouldn't it be 2?
+        }
+
+        let earliest_block_numbers = [api::BlockNumber::Earliest, 0.into()];
+        for number in earliest_block_numbers {
+            let number = api::BlockIdVariant::BlockNumber(number);
+            let historic_count = client
+                .get_transaction_count(test_address, Some(number))
+                .await?;
+            assert_eq!(historic_count, 0.into());
+        }
+
+        let number = api::BlockIdVariant::BlockNumber(1.into());
+        let historic_count = client
+            .get_transaction_count(test_address, Some(number))
+            .await?;
+        assert_eq!(historic_count, 0.into());
+
+        let number = api::BlockIdVariant::BlockNumber(100.into());
+        let error = client
+            .get_transaction_count(test_address, Some(number))
+            .await
+            .unwrap_err();
+        if let ClientError::Call(error) = error {
+            assert_eq!(error.code(), ErrorCode::InvalidParams.code());
+        } else {
+            panic!("Unexpected error: {error:?}");
+        }
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn getting_transaction_count_for_account() {
+    test_http_server(TransactionCountTest).await;
+}
+
+#[derive(Debug)]
+struct TransactionCountAfterSnapshotRecoveryTest;
+
+#[async_trait]
+impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
+    fn storage_initialization(&self) -> StorageInitialization {
+        let test_address = Address::repeat_byte(11);
+        let nonce_log =
+            StorageLog::new_write_log(get_nonce_key(&test_address), H256::from_low_u64_be(2));
+        StorageInitialization::Recovery {
+            logs: vec![nonce_log],
+            factory_deps: HashMap::new(),
+        }
+    }
+
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+        let test_address = Address::repeat_byte(11);
+        let pending_count = client.get_transaction_count(test_address, None).await?;
+        assert_eq!(pending_count, 3.into());
+
+        let mut pending_tx = create_l2_transaction(10, 200);
+        pending_tx.common_data.initiator_address = test_address;
+        pending_tx.common_data.nonce = Nonce(3);
+        let mut storage = pool.access_storage().await?;
+        storage
+            .transactions_dal()
+            .insert_transaction_l2(pending_tx, TransactionExecutionMetrics::default())
+            .await;
+
+        let pending_count = client.get_transaction_count(test_address, None).await?;
+        assert_eq!(pending_count, 4.into());
+
+        let pruned_block_numbers = [
+            api::BlockNumber::Earliest,
+            0.into(),
+            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.into(),
+        ];
+        for number in pruned_block_numbers {
+            let number = api::BlockIdVariant::BlockNumber(number);
+            let error = client
+                .get_transaction_count(test_address, Some(number))
+                .await
+                .unwrap_err();
+            assert_pruned_block_error(&error, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1);
+        }
+
+        let latest_miniblock_number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
+        store_miniblock(&mut storage, MiniblockNumber(latest_miniblock_number), &[]).await?;
+
+        let latest_block_numbers = [api::BlockNumber::Latest, latest_miniblock_number.into()];
+        for number in latest_block_numbers {
+            let number = api::BlockIdVariant::BlockNumber(number);
+            let latest_count = client
+                .get_transaction_count(test_address, Some(number))
+                .await?;
+            assert_eq!(latest_count, 2.into());
+        }
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn getting_transaction_count_for_account_after_snapshot_recovery() {
+    test_http_server(TransactionCountAfterSnapshotRecoveryTest).await;
 }

@@ -186,13 +186,20 @@ impl RpcState {
 
     /// Returns an error if the provided `block` is known to be pruned.
     pub(crate) fn check_pruned_block(&self, block: api::BlockId) -> Result<(), Web3Error> {
-        if let api::BlockId::Number(api::BlockNumber::Number(number)) = block {
-            let first_local_miniblock = self.start_info.first_miniblock;
-            if number < first_local_miniblock.0.into() {
-                return Err(Web3Error::PrunedBlock(first_local_miniblock));
+        let first_local_miniblock = self.start_info.first_miniblock;
+        match block {
+            api::BlockId::Number(api::BlockNumber::Number(number))
+                if number < first_local_miniblock.0.into() =>
+            {
+                Err(Web3Error::PrunedBlock(first_local_miniblock))
             }
+            api::BlockId::Number(api::BlockNumber::Earliest)
+                if first_local_miniblock > MiniblockNumber(0) =>
+            {
+                Err(Web3Error::PrunedBlock(first_local_miniblock))
+            }
+            _ => Ok(()),
         }
-        Ok(())
     }
 
     pub(crate) fn check_pruned_l1_batch(&self, number: L1BatchNumber) -> Result<(), Web3Error> {

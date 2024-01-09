@@ -25,7 +25,7 @@ fn execute_l2_transaction_with_traces() -> TransactionExecutionResult {
     };
     TransactionExecutionResult {
         call_traces: vec![first_call_trace, second_call_trace],
-        ..execute_l2_transaction()
+        ..execute_l2_transaction(create_l2_transaction(1, 2))
     }
 }
 

@@ -409,38 +409,34 @@ impl EthNamespace {
             .await
             .unwrap();
 
-        let (full_nonce, block_number) = match block_id {
-            BlockId::Number(BlockNumber::Pending) => {
-                let nonce = connection
-                    .transactions_web3_dal()
-                    .next_nonce_by_initiator_account(address)
-                    .await
-                    .map_err(|err| internal_error(method_name, err));
-                (nonce, None)
-            }
-            _ => {
-                let block_number = self
-                    .state
-                    .resolve_block(&mut connection, block_id, method_name)
-                    .await?;
-                let nonce = connection
-                    .storage_web3_dal()
-                    .get_address_historical_nonce(address, block_number)
-                    .await
-                    .map_err(|err| internal_error(method_name, err));
-                (nonce, Some(block_number))
-            }
-        };
+        let block_number = self
+            .state
+            .resolve_block(&mut connection, block_id, method_name)
+            .await?;
+        let full_nonce = connection
+            .storage_web3_dal()
+            .get_address_historical_nonce(address, block_number)
+            .await
+            .map_err(|err| internal_error(method_name, err))?;
 
         // TODO (SMA-1612): currently account nonce is returning always, but later we will
         //  return account nonce for account abstraction and deployment nonce for non account abstraction.
         //  Strip off deployer nonce part.
-        let account_nonce = full_nonce.map(|nonce| decompose_full_nonce(nonce).0);
+        let (mut account_nonce, _) = decompose_full_nonce(full_nonce);
 
-        let block_diff =
-            block_number.map_or(0, |number| self.state.last_sealed_miniblock.diff(number));
+        if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+            let account_nonce_u64 = u64::try_from(account_nonce)
+                .map_err(|err| internal_error(method_name, anyhow::anyhow!(err)))?;
+            account_nonce = connection
+                .transactions_web3_dal()
+                .next_nonce_by_initiator_account(address, account_nonce_u64)
+                .await
+                .map_err(|err| internal_error(method_name, err))?;
+        }
+
+        let block_diff = self.state.last_sealed_miniblock.diff(block_number);
         method_latency.observe(block_diff);
-        account_nonce
+        Ok(account_nonce)
     }
 
     #[tracing::instrument(skip(self))]
