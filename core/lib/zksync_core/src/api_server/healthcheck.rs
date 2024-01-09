@@ -74,7 +74,7 @@ impl HealthCheckHandle {
 
     pub async fn stop(self) {
         // Paradoxically, `hyper` server is quite slow to shut down if it isn't queried during shutdown:
-        // https://github.com/hyperium/hyper/issues/3188. It is thus recommended to set a timeout for shutdown.
+        // <https://github.com/hyperium/hyper/issues/3188>. It is thus recommended to set a timeout for shutdown.
         const GRACEFUL_SHUTDOWN_WAIT: Duration = Duration::from_secs(10);
 
         self.stop_sender.send(true).ok();

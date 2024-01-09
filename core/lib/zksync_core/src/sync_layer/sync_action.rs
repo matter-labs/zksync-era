@@ -246,7 +246,7 @@ mod tests {
             // Unexpected tx
             (vec![tx()], "Unexpected Tx"),
             (vec![open_batch(), seal_miniblock(), tx()], "Unexpected Tx"),
-            // Unexpected OpenBatch/Miniblock
+            // Unexpected `OpenBatch/Miniblock`
             (
                 vec![miniblock(), miniblock()],
                 "Unexpected OpenBatch/Miniblock",
@@ -259,7 +259,7 @@ mod tests {
                 vec![open_batch(), miniblock()],
                 "Unexpected OpenBatch/Miniblock",
             ),
-            // Unexpected SealMiniblock
+            // Unexpected `SealMiniblock`
             (vec![seal_miniblock()], "Unexpected SealMiniblock"),
             (
                 vec![miniblock(), seal_miniblock(), seal_miniblock()],

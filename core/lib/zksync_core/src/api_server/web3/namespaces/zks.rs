@@ -24,29 +24,18 @@ use zksync_web3_decl::{
     types::{Address, Token, H256},
 };
 
-use crate::{
-    api_server::{
-        tree::TreeApiClient,
-        web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, RpcState},
-    },
-    l1_gas_price::L1GasPriceProvider,
+use crate::api_server::{
+    tree::TreeApiClient,
+    web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, RpcState},
 };
 
 #[derive(Debug)]
-pub struct ZksNamespace<G> {
-    pub state: RpcState<G>,
+pub struct ZksNamespace {
+    pub state: RpcState,
 }
 
-impl<G> Clone for ZksNamespace<G> {
-    fn clone(&self) -> Self {
-        Self {
-            state: self.state.clone(),
-        }
-    }
-}
-
-impl<G: L1GasPriceProvider> ZksNamespace<G> {
-    pub fn new(state: RpcState<G>) -> Self {
+impl ZksNamespace {
+    pub fn new(state: RpcState) -> Self {
         Self { state }
     }
 

@@ -20,16 +20,17 @@ use zksync_types::{
     ProtocolVersionId, Transaction, H256,
 };
 
-use crate::state_keeper::{
-    batch_executor::{BatchExecutorHandle, Command, L1BatchExecutorBuilder, TxExecutionResult},
-    io::{MiniblockParams, PendingBatchData, StateKeeperIO},
-    seal_criteria::{ConditionalSealer, IoSealCriteria},
-    tests::{
-        create_l2_transaction, default_l1_batch_env, default_vm_block_result, BASE_SYSTEM_CONTRACTS,
+use crate::{
+    state_keeper::{
+        batch_executor::{BatchExecutorHandle, Command, L1BatchExecutorBuilder, TxExecutionResult},
+        io::{MiniblockParams, PendingBatchData, StateKeeperIO},
+        seal_criteria::{IoSealCriteria, SequencerSealer},
+        tests::{default_l1_batch_env, default_vm_block_result, BASE_SYSTEM_CONTRACTS},
+        types::ExecutionMetricsForCriteria,
+        updates::UpdatesManager,
+        ZkSyncStateKeeper,
     },
-    types::ExecutionMetricsForCriteria,
-    updates::UpdatesManager,
-    ZkSyncStateKeeper,
+    utils::testonly::create_l2_transaction,
 };
 
 const FEE_ACCOUNT: Address = Address::repeat_byte(0x11);
@@ -189,7 +190,7 @@ impl TestScenario {
 
     /// Launches the test.
     /// Provided `SealManager` is expected to be externally configured to adhere the written scenario logic.
-    pub(crate) async fn run(self, sealer: ConditionalSealer) {
+    pub(crate) async fn run(self, sealer: SequencerSealer) {
         assert!(!self.actions.is_empty(), "Test scenario can't be empty");
 
         let batch_executor_base = TestBatchExecutorBuilder::new(&self);
@@ -199,7 +200,7 @@ impl TestScenario {
             stop_receiver,
             Box::new(io),
             Box::new(batch_executor_base),
-            sealer,
+            Box::new(sealer),
         );
         let sk_thread = tokio::spawn(sk.run());
 
@@ -771,8 +772,8 @@ impl StateKeeperIO for TestIO {
     }
 }
 
-/// `L1BatchExecutorBuilder` which doesn't check anything at all.
-/// Accepts all transactions.
+/// `L1BatchExecutorBuilder` which doesn't check anything at all. Accepts all transactions.
+// FIXME: move to `utils`?
 #[derive(Debug)]
 pub(crate) struct MockBatchExecutorBuilder;
 
@@ -783,7 +784,7 @@ impl L1BatchExecutorBuilder for MockBatchExecutorBuilder {
         _l1batch_params: L1BatchEnv,
         _system_env: SystemEnv,
     ) -> BatchExecutorHandle {
-        let (send, recv) = tokio::sync::mpsc::channel(1);
+        let (send, recv) = mpsc::channel(1);
         let handle = tokio::task::spawn(async {
             let mut recv = recv;
             while let Some(cmd) = recv.recv().await {

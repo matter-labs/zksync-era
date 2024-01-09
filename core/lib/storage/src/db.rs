@@ -529,7 +529,7 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             .iterator_cf_opt(cf, options, IteratorMode::Start)
             .map(Result::unwrap)
             .fuse()
-        // ^ The rocksdb docs say that a raw iterator (which is used by the returned ordinary iterator)
+        // ^ The RocksDB docs say that a raw iterator (which is used by the returned ordinary iterator)
         // can become invalid "when it reaches the end of its defined range, or when it encounters an error."
         // We panic on RocksDB errors elsewhere and fuse it to prevent polling after the end of the range.
         // Thus, `unwrap()` should be safe.
