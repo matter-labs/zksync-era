@@ -323,10 +323,10 @@ impl<T: ContiguousBlockStore> WriteBlockStore for Buffered<T> {
         _payload: &Payload,
     ) -> ctx::Result<()> {
         // This is storage for non-validator nodes (aka full nodes),
-        // so verify_payload() won't be called.
+        // so `verify_payload()` won't be called.
         // Still, it probably would be better to either
-        // * move verify_payload() to BlockStore, so that Buffered can just forward the call
-        // * create another separate trait for verify_payload.
+        // * move `verify_payload()` to `BlockStore`, so that Buffered can just forward the call
+        // * create another separate trait for `verify_payload`.
         // It will be clear what needs to be done when we implement multi-validator consensus for
         // zksync-era.
         unimplemented!()

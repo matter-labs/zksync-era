@@ -1,17 +1,16 @@
 use std::{sync::Arc, time::Duration};
 
-use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
 use tokio::runtime::Handle;
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
 use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
-use zksync_types::{api, AccountTreeId, L2ChainId, MiniblockNumber, U256};
+use zksync_types::{api, fee_model::BatchFeeInput, AccountTreeId, L2ChainId, MiniblockNumber};
 use zksync_utils::bytecode::{compress_bytecode, hash_bytecode};
 
 use self::vm_metrics::SandboxStage;
 pub(super) use self::{
     error::SandboxExecutionError,
-    execute::{execute_tx_eth_call, execute_tx_with_pending_state, TxExecutionArgs},
+    execute::{execute_tx_eth_call, execute_tx_in_sandbox, TxExecutionArgs},
     tracers::ApiTracer,
     vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
 };
@@ -141,28 +140,6 @@ impl VmConcurrencyLimiter {
     }
 }
 
-pub(super) fn adjust_l1_gas_price_for_tx(
-    l1_gas_price: u64,
-    fair_l2_gas_price: u64,
-    tx_gas_per_pubdata_limit: U256,
-) -> u64 {
-    let (_, current_pubdata_price) =
-        derive_base_fee_and_gas_per_pubdata(l1_gas_price, fair_l2_gas_price);
-    if U256::from(current_pubdata_price) <= tx_gas_per_pubdata_limit {
-        // The current pubdata price is small enough
-        l1_gas_price
-    } else {
-        // gasPerPubdata = ceil(17 * l1gasprice / fair_l2_gas_price)
-        // gasPerPubdata <= 17 * l1gasprice / fair_l2_gas_price + 1
-        // fair_l2_gas_price(gasPerPubdata - 1) / 17 <= l1gasprice
-        let l1_gas_price = U256::from(fair_l2_gas_price)
-            * (tx_gas_per_pubdata_limit - U256::from(1u32))
-            / U256::from(17);
-
-        l1_gas_price.as_u64()
-    }
-}
-
 async fn get_pending_state(
     connection: &mut StorageProcessor<'_>,
 ) -> (api::BlockId, MiniblockNumber) {
@@ -224,8 +201,7 @@ pub(super) async fn get_pubdata_for_factory_deps(
 #[derive(Debug, Clone)]
 pub(crate) struct TxSharedArgs {
     pub operator_account: AccountTreeId,
-    pub l1_gas_price: u64,
-    pub fair_l2_gas_price: u64,
+    pub fee_input: BatchFeeInput,
     pub base_system_contracts: MultiVMBaseSystemContracts,
     pub caches: PostgresStorageCaches,
     pub validation_computational_gas_limit: u32,
@@ -241,7 +217,7 @@ pub(crate) struct BlockArgs {
 }
 
 impl BlockArgs {
-    async fn pending(connection: &mut StorageProcessor<'_>) -> Self {
+    pub(crate) async fn pending(connection: &mut StorageProcessor<'_>) -> Self {
         let (block_id, resolved_block_number) = get_pending_state(connection).await;
         Self {
             block_id,

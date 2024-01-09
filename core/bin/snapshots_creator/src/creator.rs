@@ -1,5 +1,7 @@
 //! [`SnapshotCreator`] and tightly related types.
 
+use std::sync::Arc;
+
 use anyhow::Context as _;
 use tokio::sync::Semaphore;
 use zksync_config::SnapshotsCreatorConfig;
@@ -61,7 +63,7 @@ impl SnapshotProgress {
 /// Creator of a single storage snapshot.
 #[derive(Debug)]
 pub(crate) struct SnapshotCreator {
-    pub blob_store: Box<dyn ObjectStore>,
+    pub blob_store: Arc<dyn ObjectStore>,
     pub master_pool: ConnectionPool,
     pub replica_pool: ConnectionPool,
     #[cfg(test)]

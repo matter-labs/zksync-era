@@ -3,10 +3,7 @@ use zksync_basic_types::network::Network;
 use zksync_config::configs;
 use zksync_protobuf::required;
 
-use crate::{
-    parse_h160, proto,
-    repr::{read_required_repr, ProtoRepr},
-};
+use crate::{parse_h160, proto, repr::ProtoRepr};
 
 impl proto::Network {
     fn new(n: &Network) -> Self {
@@ -32,31 +29,6 @@ impl proto::Network {
             Self::Localhost => Network::Localhost,
             Self::Unknown => Network::Unknown,
             Self::Test => Network::Test,
-        }
-    }
-}
-
-impl ProtoRepr for proto::Chain {
-    type Type = configs::ChainConfig;
-    fn read(&self) -> anyhow::Result<Self::Type> {
-        Ok(Self::Type {
-            network: read_required_repr(&self.network).context("network")?,
-            state_keeper: read_required_repr(&self.state_keeper).context("state_keeper")?,
-            operations_manager: read_required_repr(&self.operations_manager)
-                .context("operations_manager")?,
-            mempool: read_required_repr(&self.mempool).context("mempool")?,
-            circuit_breaker: read_required_repr(&self.circuit_breaker)
-                .context("circuit_breaker")?,
-        })
-    }
-
-    fn build(this: &Self::Type) -> Self {
-        Self {
-            network: Some(ProtoRepr::build(&this.network)),
-            state_keeper: Some(ProtoRepr::build(&this.state_keeper)),
-            operations_manager: Some(ProtoRepr::build(&this.operations_manager)),
-            mempool: Some(ProtoRepr::build(&this.mempool)),
-            circuit_breaker: Some(ProtoRepr::build(&this.circuit_breaker)),
         }
     }
 }

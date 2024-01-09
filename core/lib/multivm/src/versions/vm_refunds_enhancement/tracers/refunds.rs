@@ -31,6 +31,7 @@ use crate::{
             },
         },
         types::internals::ZkSyncVmState,
+        utils::fee::get_batch_base_fee,
     },
 };
 
@@ -111,13 +112,14 @@ impl RefundsTracer {
             });
 
         // For now, bootloader charges only for base fee.
-        let effective_gas_price = self.l1_batch.base_fee();
+        let effective_gas_price = get_batch_base_fee(&self.l1_batch);
 
         let bootloader_eth_price_per_pubdata_byte =
             U256::from(effective_gas_price) * U256::from(current_ergs_per_pubdata_byte);
 
-        let fair_eth_price_per_pubdata_byte =
-            U256::from(eth_price_per_pubdata_byte(self.l1_batch.l1_gas_price));
+        let fair_eth_price_per_pubdata_byte = U256::from(eth_price_per_pubdata_byte(
+            self.l1_batch.fee_input.l1_gas_price(),
+        ));
 
         // For now, L1 originated transactions are allowed to pay less than fair fee per pubdata,
         // so we should take it into account.
@@ -127,7 +129,7 @@ impl RefundsTracer {
         );
 
         let fair_fee_eth = U256::from(gas_spent_on_computation)
-            * U256::from(self.l1_batch.fair_l2_gas_price)
+            * U256::from(self.l1_batch.fee_input.fair_l2_gas_price())
             + U256::from(pubdata_published) * eth_price_per_pubdata_byte_for_calculation;
         let pre_paid_eth = U256::from(tx_gas_limit) * U256::from(effective_gas_price);
         let refund_eth = pre_paid_eth.checked_sub(fair_fee_eth).unwrap_or_else(|| {
@@ -209,8 +211,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer {
         #[vise::register]
         static METRICS: vise::Global<RefundMetrics> = vise::Global::new();
 
-        // This means that the bootloader has informed the system (usually via VMHooks) - that some gas
-        // should be refunded back (see askOperatorForRefund in bootloader.yul for details).
+        // This means that the bootloader has informed the system (usually via `VMHooks`) - that some gas
+        // should be refunded back (see `askOperatorForRefund` in `bootloader.yul` for details).
         if let Some(bootloader_refund) = self.requested_refund() {
             assert!(
                 self.operator_refund.is_none(),

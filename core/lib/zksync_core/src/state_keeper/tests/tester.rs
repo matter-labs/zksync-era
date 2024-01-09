@@ -15,21 +15,22 @@ use multivm::{
 };
 use tokio::sync::{mpsc, watch};
 use zksync_types::{
-    block::MiniblockExecutionData, protocol_version::ProtocolUpgradeTx,
+    block::MiniblockExecutionData, fee_model::BatchFeeInput, protocol_version::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
     ProtocolVersionId, Transaction, H256,
 };
 
-use crate::state_keeper::{
-    batch_executor::{BatchExecutorHandle, Command, L1BatchExecutorBuilder, TxExecutionResult},
-    io::{MiniblockParams, PendingBatchData, StateKeeperIO},
-    seal_criteria::{IoSealCriteria, SequencerSealer},
-    tests::{
-        create_l2_transaction, default_l1_batch_env, default_vm_block_result, BASE_SYSTEM_CONTRACTS,
+use crate::{
+    state_keeper::{
+        batch_executor::{BatchExecutorHandle, Command, L1BatchExecutorBuilder, TxExecutionResult},
+        io::{MiniblockParams, PendingBatchData, StateKeeperIO},
+        seal_criteria::{IoSealCriteria, SequencerSealer},
+        tests::{default_l1_batch_env, default_vm_block_result, BASE_SYSTEM_CONTRACTS},
+        types::ExecutionMetricsForCriteria,
+        updates::UpdatesManager,
+        ZkSyncStateKeeper,
     },
-    types::ExecutionMetricsForCriteria,
-    updates::UpdatesManager,
-    ZkSyncStateKeeper,
+    utils::testonly::create_l2_transaction,
 };
 
 const FEE_ACCOUNT: Address = Address::repeat_byte(0x11);
@@ -650,8 +651,7 @@ impl StateKeeperIO for TestIO {
                 previous_batch_hash: Some(H256::zero()),
                 number: self.batch_number,
                 timestamp: self.timestamp,
-                l1_gas_price: self.l1_gas_price,
-                fair_l2_gas_price: self.fair_l2_gas_price,
+                fee_input: BatchFeeInput::l1_pegged(self.l1_gas_price, self.fair_l2_gas_price),
                 fee_account: self.fee_account,
                 enforced_base_fee: None,
                 first_l2_block: first_miniblock_info,
@@ -771,8 +771,8 @@ impl StateKeeperIO for TestIO {
     }
 }
 
-/// `L1BatchExecutorBuilder` which doesn't check anything at all.
-/// Accepts all transactions.
+/// `L1BatchExecutorBuilder` which doesn't check anything at all. Accepts all transactions.
+// FIXME: move to `utils`?
 #[derive(Debug)]
 pub(crate) struct MockBatchExecutorBuilder;
 
@@ -783,7 +783,7 @@ impl L1BatchExecutorBuilder for MockBatchExecutorBuilder {
         _l1batch_params: L1BatchEnv,
         _system_env: SystemEnv,
     ) -> BatchExecutorHandle {
-        let (send, recv) = tokio::sync::mpsc::channel(1);
+        let (send, recv) = mpsc::channel(1);
         let handle = tokio::task::spawn(async {
             let mut recv = recv;
             while let Some(cmd) = recv.recv().await {

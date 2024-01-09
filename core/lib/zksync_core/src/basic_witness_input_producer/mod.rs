@@ -37,7 +37,7 @@ impl BasicWitnessInputProducer {
     ) -> anyhow::Result<Self> {
         Ok(BasicWitnessInputProducer {
             connection_pool,
-            object_store: store_factory.create_store().await.into(),
+            object_store: store_factory.create_store().await,
             l2_chain_id,
         })
     }

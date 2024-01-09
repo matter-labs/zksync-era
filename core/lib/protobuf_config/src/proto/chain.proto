@@ -2,14 +2,6 @@ syntax = "proto3";
 
 package zksync.config;
 
-message Chain {
-  optional EthNetwork network = 1; // required
-  optional StateKeeper state_keeper = 2; // required
-  optional OperationsManager operations_manager = 3; // required
-  optional Mempool mempool = 4; // required
-  optional CircuitBreaker circuit_breaker = 5; // required
-}
-
 enum Network {
   UNKNOWN = 0;
   MAINNET = 1;

@@ -136,7 +136,7 @@ impl EthNamespace {
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
 
-        tx.common_data.fee.max_fee_per_gas = self.state.tx_sender.gas_price().into();
+        tx.common_data.fee.max_fee_per_gas = self.state.tx_sender.gas_price().await.into();
         tx.common_data.fee.max_priority_fee_per_gas = tx.common_data.fee.max_fee_per_gas;
 
         // Modify the l1 gas price with the scale factor
@@ -156,11 +156,11 @@ impl EthNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn gas_price_impl(&self) -> Result<U256, Web3Error> {
+    pub async fn gas_price_impl(&self) -> Result<U256, Web3Error> {
         const METHOD_NAME: &str = "gas_price";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let price = self.state.tx_sender.gas_price();
+        let price = self.state.tx_sender.gas_price().await;
         method_latency.observe();
         Ok(price.into())
     }

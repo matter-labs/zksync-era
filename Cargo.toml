@@ -33,7 +33,6 @@ members = [
     "core/lib/storage",
     "core/lib/types",
     "core/lib/protobuf_config",
-    "core/lib/prover_utils",
     "core/lib/utils",
     "core/lib/vlog",
     "core/lib/multivm",

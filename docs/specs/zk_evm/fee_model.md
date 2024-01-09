@@ -478,7 +478,7 @@ Note, that the computational overhead is proportional to the `tx.gasLimit` and t
 pay is proportional to the L1 gas price (recall the formula of `B_O`). We can roughly express the transaction overhead
 from computation as `tx.gasLimit * L1_GAS_PRICE * C` where `C` is just some constant. Note, that since a transaction
 typically contains some storage writes, and its
-`tx.gasLimit = gasSpentOnCompute + pubdataPublished * gasPricePerPubdata`, `tx.gasLimit` is roughly proprtional to
+`tx.gasLimit = gasSpentOnCompute + pubdataPublished * gasPricePerPubdata`, `tx.gasLimit` is roughly proportional to
 `gasPricePerPubdata` and so it is also proportional to `L1_GAS_PRICE`.
 
 This means that formula `tx.gasLimit * L1_GAS_PRICE * C` becomes _quadratic_ to the `L1_GAS_PRICE`.

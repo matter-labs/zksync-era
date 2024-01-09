@@ -176,7 +176,6 @@ impl RandomConfig for configs::api::Web3JsonRpcConfig {
             filters_limit: g.gen(),
             subscriptions_limit: g.gen(),
             pubsub_polling_interval: g.gen(),
-            threads_per_server: g.gen(),
             max_nonce_ahead: g.gen(),
             gas_price_scale_factor: g.gen(),
             request_timeout: g.gen(),
@@ -189,8 +188,6 @@ impl RandomConfig for configs::api::Web3JsonRpcConfig {
             factory_deps_cache_size_mb: g.gen(),
             initial_writes_cache_size_mb: g.gen(),
             latest_values_cache_size_mb: g.gen(),
-            http_threads: g.gen(),
-            ws_threads: g.gen(),
             fee_history_limit: g.gen(),
             max_batch_request_size: g.gen(),
             max_response_body_size_mb: g.gen(),
@@ -211,7 +208,6 @@ impl RandomConfig for configs::api::ContractVerificationApiConfig {
         Self {
             port: g.gen(),
             url: g.gen(),
-            threads_per_server: g.gen(),
         }
     }
 }
@@ -228,18 +224,6 @@ impl RandomConfig for configs::PrometheusConfig {
             listener_port: g.gen(),
             pushgateway_url: g.gen(),
             push_interval_ms: g.gen(),
-        }
-    }
-}
-
-impl RandomConfig for configs::ChainConfig {
-    fn sample(g: &mut Gen<impl Rng>) -> Self {
-        Self {
-            network: g.gen(),
-            state_keeper: g.gen(),
-            operations_manager: g.gen(),
-            mempool: g.gen(),
-            circuit_breaker: g.gen(),
         }
     }
 }

@@ -133,7 +133,7 @@ state_diff_data.derived_key = UInt8::parallel_select(
 ...
 ```
 
-Finally, we compute a new merkel path.
+Finally, we compute a new Merkle path.
 
 ```rust
 let mut current_hash = blake2s(cs, &leaf_bytes);

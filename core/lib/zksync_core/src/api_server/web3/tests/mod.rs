@@ -8,13 +8,13 @@ use zksync_config::configs::{
     chain::{NetworkConfig, StateKeeperConfig},
     ContractsConfig,
 };
-use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
 use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
+use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::MiniblockHeader, fee::TransactionExecutionMetrics, tx::IncludedTxLocation, Address,
-    L1BatchNumber, ProtocolVersionId, VmEvent, H256, U64,
+    L1BatchNumber, VmEvent, H256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::{core::ClientError as RpcError, http_client::HttpClient, types::error::ErrorCode},
@@ -27,7 +27,7 @@ use crate::{
     api_server::tx_sender::TxSenderConfig,
     genesis::{ensure_genesis_state, GenesisParams},
     l1_gas_price::L1GasPriceProvider,
-    state_keeper::tests::create_l2_transaction,
+    utils::testonly::{create_l2_transaction, create_miniblock},
 };
 
 mod snapshots;
@@ -43,6 +43,10 @@ struct MockL1GasPriceProvider(u64);
 impl L1GasPriceProvider for MockL1GasPriceProvider {
     fn estimate_effective_gas_price(&self) -> u64 {
         self.0
+    }
+
+    fn estimate_effective_pubdata_price(&self) -> u64 {
+        self.0 * L1_GAS_PER_PUBDATA_BYTE as u64
     }
 }
 
@@ -66,16 +70,19 @@ impl ApiServerHandles {
     pub(crate) async fn shutdown(self) {
         let stop_server = async {
             for task in self.tasks {
-                // FIXME(PLA-481): avoid these errors (by spawning notifier tasks on server runtime?)
-                if let Err(err) = task.await.expect("Server panicked") {
-                    let err = err.root_cause().to_string();
-                    assert!(err.contains("Tokio 1.x context was found"));
-                }
+                let task_result = task.await.unwrap_or_else(|err| {
+                    if err.is_cancelled() {
+                        Ok(())
+                    } else {
+                        panic!("Server panicked: {err:?}");
+                    }
+                });
+                task_result.expect("Server task returned an error");
             }
         };
         tokio::time::timeout(TEST_TIMEOUT, stop_server)
             .await
-            .unwrap();
+            .expect(format!("panicking at {}", chrono::Utc::now()).as_str());
     }
 }
 
@@ -156,7 +163,6 @@ async fn spawn_server(
         }
     };
     let server_handles = server_builder
-        .with_threads(1)
         .with_polling_interval(POLL_INTERVAL)
         .with_tx_sender(tx_sender, vm_barrier)
         .with_pub_sub_events(pub_sub_events_sender)
@@ -206,22 +212,6 @@ fn assert_logs_match(actual_logs: &[api::Log], expected_logs: &[&VmEvent]) {
         assert_eq!(actual_log.address, expected_log.address);
         assert_eq!(actual_log.topics, expected_log.indexed_topics);
         assert_eq!(actual_log.data.0, expected_log.value);
-    }
-}
-
-fn create_miniblock(number: u32) -> MiniblockHeader {
-    MiniblockHeader {
-        number: MiniblockNumber(number),
-        timestamp: number.into(),
-        hash: H256::from_low_u64_be(number.into()),
-        l1_tx_count: 0,
-        l2_tx_count: 0,
-        base_fee_per_gas: 100,
-        l1_gas_price: 100,
-        l2_fair_gas_price: 100,
-        base_system_contracts_hashes: BaseSystemContractsHashes::default(),
-        protocol_version: Some(ProtocolVersionId::latest()),
-        virtual_blocks: 1,
     }
 }
 

@@ -18,4 +18,4 @@
 - [ ] Tests for the changes have been added / updated.
 - [ ] Documentation comments have been added / updated.
 - [ ] Code has been formatted via `zk fmt` and `zk lint`.
-- [ ] Spellcheck has been run via `cargo spellcheck --cfg=./spellcheck/era.cfg --code 1`.
+- [ ] Spellcheck has been run via `zk spellcheck`.

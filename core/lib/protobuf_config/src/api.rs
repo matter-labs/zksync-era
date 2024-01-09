@@ -47,8 +47,6 @@ impl ProtoRepr for proto::Web3JsonRpc {
             filters_limit: self.filters_limit,
             subscriptions_limit: self.subscriptions_limit,
             pubsub_polling_interval: self.pubsub_polling_interval,
-            threads_per_server: *required(&self.threads_per_server)
-                .context("threads_per_server")?,
             max_nonce_ahead: *required(&self.max_nonce_ahead).context("max_nonce_ahead")?,
             gas_price_scale_factor: *required(&self.gas_price_scale_factor)
                 .context("gas_price_scale_factor")?,
@@ -100,8 +98,6 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .map(|x| x.try_into())
                 .transpose()
                 .context("latests_values_cache_size_mb")?,
-            http_threads: self.http_threads,
-            ws_threads: self.ws_threads,
             fee_history_limit: self.fee_history_limit,
             max_batch_request_size: self
                 .max_batch_request_size
@@ -131,7 +127,6 @@ impl ProtoRepr for proto::Web3JsonRpc {
             filters_limit: this.filters_limit,
             subscriptions_limit: this.subscriptions_limit,
             pubsub_polling_interval: this.pubsub_polling_interval,
-            threads_per_server: Some(this.threads_per_server),
             max_nonce_ahead: Some(this.max_nonce_ahead),
             gas_price_scale_factor: Some(this.gas_price_scale_factor),
             request_timeout: this.request_timeout,
@@ -156,8 +151,6 @@ impl ProtoRepr for proto::Web3JsonRpc {
             latest_values_cache_size_mb: this
                 .latest_values_cache_size_mb
                 .map(|x| x.try_into().unwrap()),
-            http_threads: this.http_threads,
-            ws_threads: this.ws_threads,
             fee_history_limit: this.fee_history_limit,
             max_batch_request_size: this.max_batch_request_size.map(|x| x.try_into().unwrap()),
             max_response_body_size_mb: this
@@ -179,15 +172,12 @@ impl ProtoRepr for proto::ContractVerificationApi {
                 .and_then(|p| Ok((*p).try_into()?))
                 .context("port")?,
             url: required(&self.url).context("url")?.clone(),
-            threads_per_server: *required(&self.threads_per_server)
-                .context("threads_per_server")?,
         })
     }
     fn build(this: &Self::Type) -> Self {
         Self {
             port: Some(this.port.into()),
             url: Some(this.url.clone()),
-            threads_per_server: Some(this.threads_per_server),
         }
     }
 }

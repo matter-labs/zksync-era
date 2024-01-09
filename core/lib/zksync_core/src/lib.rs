@@ -3,6 +3,7 @@
 use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
+use fee_model::MainNodeFeeInputProvider;
 use futures::channel::oneshot;
 use prometheus_exporter::PrometheusExporterConfig;
 use temp_config_store::TempConfigStore;
@@ -31,10 +32,10 @@ use zksync_eth_client::{
 };
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_prover_utils::periodic_job::PeriodicJob;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
+    fee_model::FeeModelConfigV1,
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
     web3::contract::tokens::Detokenize,
@@ -62,6 +63,7 @@ use crate::{
         fri_scheduler_circuit_queuer::SchedulerCircuitQueuer,
         fri_witness_generator_jobs_retry_manager::FriWitnessGeneratorJobRetryManager,
         fri_witness_generator_queue_monitor::FriWitnessGeneratorStatsReporter,
+        periodic_job::PeriodicJob,
         waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
     },
     l1_gas_price::{GasAdjusterSingleton, L1GasPriceProvider},
@@ -79,6 +81,7 @@ mod consensus;
 pub mod consistency_checker;
 pub mod eth_sender;
 pub mod eth_watch;
+mod fee_model;
 pub mod gas_tracker;
 pub mod genesis;
 pub mod house_keeper;
@@ -674,10 +677,9 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
     db_config: &DBConfig,
     mempool_config: &MempoolConfig,
     gas_adjuster: Arc<E>,
-    object_store: Box<dyn ObjectStore>,
+    object_store: Arc<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
-    let fair_l2_gas_price = state_keeper_config.fair_l2_gas_price;
     let pool_builder = ConnectionPool::singleton(postgres_config.master_url()?);
     let state_keeper_pool = pool_builder
         .build()
@@ -692,6 +694,13 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         .await;
     let mempool = MempoolGuard::new(next_priority_id, mempool_config.capacity);
     mempool.register_metrics();
+
+    let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
+        gas_adjuster,
+        zksync_types::fee_model::FeeModelConfig::V1(FeeModelConfigV1 {
+            minimal_l2_gas_price: state_keeper_config.fair_l2_gas_price,
+        }),
+    ));
 
     let miniblock_sealer_pool = pool_builder
         .build()
@@ -711,7 +720,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         mempool_config,
         state_keeper_pool,
         mempool.clone(),
-        gas_adjuster.clone(),
+        batch_fee_input_provider.clone(),
         miniblock_sealer_handle,
         object_store,
         stop_receiver.clone(),
@@ -723,12 +732,11 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         .build()
         .await
         .context("failed to build mempool_fetcher_pool")?;
-    let mempool_fetcher = MempoolFetcher::new(mempool, gas_adjuster, mempool_config);
+    let mempool_fetcher = MempoolFetcher::new(mempool, batch_fee_input_provider, mempool_config);
     let mempool_fetcher_handle = tokio::spawn(mempool_fetcher.run(
         mempool_fetcher_pool,
         mempool_config.remove_stuck_txs,
         mempool_config.stuck_tx_timeout(),
-        fair_l2_gas_price,
         stop_receiver,
     ));
     task_futures.push(mempool_fetcher_handle);
@@ -793,7 +801,7 @@ async fn run_tree(
     merkle_tree_config: &MerkleTreeConfig,
     api_config: Option<&MerkleTreeApiConfig>,
     operation_manager: &OperationsManagerConfig,
-    object_store: Option<Box<dyn ObjectStore>>,
+    object_store: Option<Arc<dyn ObjectStore>>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let started_at = Instant::now();
@@ -1007,9 +1015,16 @@ async fn build_tx_sender(
     let max_concurrency = web3_json_config.vm_concurrency_limit();
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
 
+    let batch_fee_input_provider = MainNodeFeeInputProvider::new(
+        l1_gas_price_provider,
+        zksync_types::fee_model::FeeModelConfig::V1(FeeModelConfigV1 {
+            minimal_l2_gas_price: state_keeper_config.fair_l2_gas_price,
+        }),
+    );
+
     let tx_sender = tx_sender_builder
         .build(
-            l1_gas_price_provider,
+            Arc::new(batch_fee_input_provider),
             Arc::new(vm_concurrency_limiter),
             ApiContracts::load_from_disk(),
             storage_caches,
@@ -1059,7 +1074,6 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
             .http(api_config.web3_json_rpc.http_port)
             .with_last_miniblock_pool(last_miniblock_pool)
             .with_filter_limit(api_config.web3_json_rpc.filters_limit())
-            .with_threads(api_config.web3_json_rpc.http_server_threads())
             .with_tree_api(api_config.web3_json_rpc.tree_api_url())
             .with_batch_request_size_limit(api_config.web3_json_rpc.max_batch_request_size())
             .with_response_body_size_limit(api_config.web3_json_rpc.max_response_body_size())
@@ -1113,7 +1127,6 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
                     .websocket_requests_per_minute_limit(),
             )
             .with_polling_interval(api_config.web3_json_rpc.pubsub_interval())
-            .with_threads(api_config.web3_json_rpc.ws_server_threads())
             .with_tree_api(api_config.web3_json_rpc.tree_api_url())
             .with_tx_sender(tx_sender, vm_barrier)
             .enable_api_namespaces(namespaces);

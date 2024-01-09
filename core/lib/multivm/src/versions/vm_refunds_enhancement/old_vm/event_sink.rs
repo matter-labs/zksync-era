@@ -50,7 +50,7 @@ impl<H: HistoryMode> InMemoryEventSink<H> {
     pub fn log_queries_after_timestamp(&self, from_timestamp: Timestamp) -> &[Box<LogQuery>] {
         let events = self.frames_stack.forward().current_frame();
 
-        // Select all of the last elements where e.timestamp >= from_timestamp.
+        // Select all of the last elements where `e.timestamp >= from_timestamp`.
         // Note, that using binary search here is dangerous, because the logs are not sorted by timestamp.
         events
             .rsplit(|e| e.timestamp < from_timestamp)

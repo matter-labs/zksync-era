@@ -17,32 +17,28 @@ message Web3JsonRpc {
   optional uint32 filters_limit = 6; // optional
   optional uint32 subscriptions_limit = 7; // optional
   optional uint64 pubsub_polling_interval = 8; // optional
-  optional uint32 threads_per_server = 9; // required
-  optional uint32 max_nonce_ahead = 10; // required
-  optional double gas_price_scale_factor = 11; // required
-  optional uint64 request_timeout = 12; // seconds
-  optional PrivateKeys account_pks = 13; // optional
-  optional double estimate_gas_scale_factor = 14; // required
-  optional uint32 estimate_gas_acceptable_overestimation = 15; // required
-  optional uint64 max_tx_size = 16; // required; B
-  optional uint64 vm_execution_cache_misses_limit = 17; // optional
-  optional uint64 vm_concurrency_limit = 18; // optional
-  optional uint64 factory_deps_cache_size_mb = 19; // optional; MB
-  optional uint64 initial_writes_cache_size_mb = 20; // optional; MB
-  optional uint64 latest_values_cache_size_mb = 21; // optional; MB
-  optional uint32 http_threads = 22; // optional
-  optional uint32 ws_threads = 23; // optional
-  optional uint64 fee_history_limit = 24; // optional
-  optional uint64 max_batch_request_size = 25; // optional
-  optional uint64 max_response_body_size_mb = 26; // optional; MB
-  optional uint32 websocket_requests_per_minute_limit = 27; // optional
-  optional string tree_api_url = 28; // optional
+  optional uint32 max_nonce_ahead = 9; // required
+  optional double gas_price_scale_factor = 10; // required
+  optional uint64 request_timeout = 11; // seconds
+  optional PrivateKeys account_pks = 12; // optional
+  optional double estimate_gas_scale_factor = 13; // required
+  optional uint32 estimate_gas_acceptable_overestimation = 14; // required
+  optional uint64 max_tx_size = 15; // required; B
+  optional uint64 vm_execution_cache_misses_limit = 16; // optional
+  optional uint64 vm_concurrency_limit = 17; // optional
+  optional uint64 factory_deps_cache_size_mb = 18; // optional; MB
+  optional uint64 initial_writes_cache_size_mb = 19; // optional; MB
+  optional uint64 latest_values_cache_size_mb = 20; // optional; MB
+  optional uint64 fee_history_limit = 21; // optional
+  optional uint64 max_batch_request_size = 22; // optional
+  optional uint64 max_response_body_size_mb = 23; // optional; MB
+  optional uint32 websocket_requests_per_minute_limit = 24; // optional
+  optional string tree_api_url = 25; // optional
 }
 
 message ContractVerificationApi {
   optional uint32 port = 1; // required; u16
   optional string url = 2; // required
-  optional uint32 threads_per_server = 3; // required
 }
 
 message HealthCheck {

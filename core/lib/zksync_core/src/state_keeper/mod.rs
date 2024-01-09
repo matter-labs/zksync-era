@@ -7,7 +7,6 @@ use zksync_config::{
 };
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
-use zksync_system_constants::MAX_TXS_IN_BLOCK;
 
 use self::io::MempoolIO;
 pub use self::{
@@ -18,7 +17,7 @@ pub use self::{
 pub(crate) use self::{
     mempool_actor::MempoolFetcher, seal_criteria::SequencerSealer, types::MempoolGuard,
 };
-use crate::l1_gas_price::L1GasPriceProvider;
+use crate::fee_model::BatchFeeModelInputProvider;
 
 mod batch_executor;
 pub(crate) mod extractors;
@@ -41,18 +40,11 @@ pub(crate) async fn create_state_keeper(
     mempool_config: &MempoolConfig,
     pool: ConnectionPool,
     mempool: MempoolGuard,
-    l1_gas_price_provider: Arc<dyn L1GasPriceProvider>,
+    batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     miniblock_sealer_handle: MiniblockSealerHandle,
-    object_store: Box<dyn ObjectStore>,
+    object_store: Arc<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
 ) -> ZkSyncStateKeeper {
-    assert!(
-        state_keeper_config.transaction_slots <= MAX_TXS_IN_BLOCK,
-        "Configured transaction_slots ({}) must be lower than the bootloader constant MAX_TXS_IN_BLOCK={}",
-        state_keeper_config.transaction_slots,
-        MAX_TXS_IN_BLOCK
-    );
-
     let batch_executor_base = MainBatchExecutorBuilder::new(
         db_config.state_keeper_db_path.clone(),
         pool.clone(),
@@ -60,13 +52,14 @@ pub(crate) async fn create_state_keeper(
         state_keeper_config.save_call_traces,
         state_keeper_config.upload_witness_inputs_to_gcs,
         state_keeper_config.enum_index_migration_chunk_size(),
+        false,
     );
 
     let io = MempoolIO::new(
         mempool,
         object_store,
         miniblock_sealer_handle,
-        l1_gas_price_provider,
+        batch_fee_input_provider,
         pool,
         &state_keeper_config,
         mempool_config.delay_interval(),

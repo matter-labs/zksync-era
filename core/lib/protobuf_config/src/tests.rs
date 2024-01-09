@@ -61,7 +61,6 @@ fn test_encoding() {
     encode_decode::<proto::MerkleTreeApi>(rng);
     encode_decode::<proto::Api>(rng);
     encode_decode::<proto::Prometheus>(rng);
-    encode_decode::<proto::Chain>(rng);
     encode_decode::<proto::EthNetwork>(rng);
     encode_decode::<proto::StateKeeper>(rng);
     encode_decode::<proto::OperationsManager>(rng);

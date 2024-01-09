@@ -89,6 +89,7 @@ pub struct MainBatchExecutorBuilder {
     max_allowed_tx_gas_limit: U256,
     upload_witness_inputs_to_gcs: bool,
     enum_index_migration_chunk_size: usize,
+    optional_bytecode_compression: bool,
 }
 
 impl MainBatchExecutorBuilder {
@@ -99,6 +100,7 @@ impl MainBatchExecutorBuilder {
         save_call_traces: bool,
         upload_witness_inputs_to_gcs: bool,
         enum_index_migration_chunk_size: usize,
+        optional_bytecode_compression: bool,
     ) -> Self {
         Self {
             state_keeper_db_path,
@@ -107,6 +109,7 @@ impl MainBatchExecutorBuilder {
             max_allowed_tx_gas_limit,
             upload_witness_inputs_to_gcs,
             enum_index_migration_chunk_size,
+            optional_bytecode_compression,
         }
     }
 }
@@ -135,6 +138,7 @@ impl L1BatchExecutorBuilder for MainBatchExecutorBuilder {
             l1_batch_params,
             system_env,
             self.upload_witness_inputs_to_gcs,
+            self.optional_bytecode_compression,
         )
     }
 }
@@ -158,6 +162,7 @@ impl BatchExecutorHandle {
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
         upload_witness_inputs_to_gcs: bool,
+        optional_bytecode_compression: bool,
     ) -> Self {
         // Since we process `BatchExecutor` commands one-by-one (the next command is never enqueued
         // until a previous command is processed), capacity 1 is enough for the commands channel.
@@ -165,6 +170,7 @@ impl BatchExecutorHandle {
         let executor = BatchExecutor {
             save_call_traces,
             max_allowed_tx_gas_limit,
+            optional_bytecode_compression,
             commands: commands_receiver,
         };
 
@@ -285,6 +291,7 @@ pub(super) enum Command {
 pub(super) struct BatchExecutor {
     save_call_traces: bool,
     max_allowed_tx_gas_limit: U256,
+    optional_bytecode_compression: bool,
     commands: mpsc::Receiver<Command>,
 }
 
@@ -325,7 +332,7 @@ impl BatchExecutor {
                     };
                     resp.send((vm_block_result, witness_block_state)).unwrap();
 
-                    // storage_view cannot be accessed while borrowed by the VM,
+                    // `storage_view` cannot be accessed while borrowed by the VM,
                     // so this is the only point at which storage metrics can be obtained
                     let metrics = storage_view.as_ref().borrow_mut().metrics();
                     EXECUTOR_METRICS.batch_storage_interaction_duration[&InteractionType::GetValue]
@@ -364,7 +371,12 @@ impl BatchExecutor {
 
         // Execute the transaction.
         let latency = KEEPER_METRICS.tx_execution_time[&TxExecutionStage::Execution].start();
-        let (tx_result, compressed_bytecodes, call_tracer_result) = self.execute_tx_in_vm(tx, vm);
+        let (tx_result, compressed_bytecodes, call_tracer_result) =
+            if self.optional_bytecode_compression {
+                self.execute_tx_in_vm_with_optional_compression(tx, vm)
+            } else {
+                self.execute_tx_in_vm(tx, vm)
+            };
         latency.observe();
         APP_METRICS.processed_txs[&TxStage::StateKeeper].inc();
         APP_METRICS.processed_l1_txs[&TxStage::StateKeeper].inc_by(tx.is_l1().into());
@@ -432,11 +444,7 @@ impl BatchExecutor {
         result
     }
 
-    // Err when transaction is rejected.
-    // Ok(TxExecutionStatus::Success) when the transaction succeeded
-    // Ok(TxExecutionStatus::Failure) when the transaction failed.
-    // Note that failed transactions are considered properly processed and are included in blocks
-    fn execute_tx_in_vm<S: WriteStorage>(
+    fn execute_tx_in_vm_with_optional_compression<S: WriteStorage>(
         &self,
         tx: &Transaction,
         vm: &mut VmInstance<S, HistoryEnabled>,
@@ -451,8 +459,8 @@ impl BatchExecutor {
         // that will not be published (e.g. due to out of gas), we use the following scheme:
         // We try to execute the transaction with compressed bytecodes.
         // If it fails and the compressed bytecodes have not been published,
-        // it means that there is no sense in pollutting the space of compressed bytecodes,
-        // and so we reexecute the transaction, but without compressions.
+        // it means that there is no sense in polluting the space of compressed bytecodes,
+        // and so we re-execute the transaction, but without compression.
 
         // Saving the snapshot before executing
         vm.make_snapshot();
@@ -464,7 +472,7 @@ impl BatchExecutor {
             vec![]
         };
 
-        if let Ok(result) =
+        if let (Ok(()), result) =
             vm.inspect_transaction_with_bytecode_compression(tracer.into(), tx.clone(), true)
         {
             let compressed_bytecodes = vm.get_last_tx_compressed_bytecodes();
@@ -485,8 +493,10 @@ impl BatchExecutor {
             vec![]
         };
 
-        let result = vm
-            .inspect_transaction_with_bytecode_compression(tracer.into(), tx.clone(), false)
+        let result =
+            vm.inspect_transaction_with_bytecode_compression(tracer.into(), tx.clone(), false);
+        result
+            .0
             .expect("Compression can't fail if we don't apply it");
         let compressed_bytecodes = vm.get_last_tx_compressed_bytecodes();
 
@@ -496,7 +506,46 @@ impl BatchExecutor {
             .unwrap()
             .take()
             .unwrap_or_default();
-        (result, compressed_bytecodes, trace)
+        (result.1, compressed_bytecodes, trace)
+    }
+
+    // Err when transaction is rejected.
+    // `Ok(TxExecutionStatus::Success)` when the transaction succeeded
+    // `Ok(TxExecutionStatus::Failure)` when the transaction failed.
+    // Note that failed transactions are considered properly processed and are included in blocks
+    fn execute_tx_in_vm<S: WriteStorage>(
+        &self,
+        tx: &Transaction,
+        vm: &mut VmInstance<S, HistoryEnabled>,
+    ) -> (
+        VmExecutionResultAndLogs,
+        Vec<CompressedBytecodeInfo>,
+        Vec<Call>,
+    ) {
+        let call_tracer_result = Arc::new(OnceCell::default());
+        let tracer = if self.save_call_traces {
+            vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()]
+        } else {
+            vec![]
+        };
+
+        let (published_bytecodes, mut result) =
+            vm.inspect_transaction_with_bytecode_compression(tracer.into(), tx.clone(), true);
+        if published_bytecodes.is_ok() {
+            let compressed_bytecodes = vm.get_last_tx_compressed_bytecodes();
+
+            let trace = Arc::try_unwrap(call_tracer_result)
+                .unwrap()
+                .take()
+                .unwrap_or_default();
+            (result, compressed_bytecodes, trace)
+        } else {
+            // Transaction failed to publish bytecodes, we reject it so initiator doesn't pay fee.
+            result.result = ExecutionResult::Halt {
+                reason: Halt::FailedToPublishCompressedBytecodes,
+            };
+            (result, Default::default(), Default::default())
+        }
     }
 
     fn dryrun_block_tip<S: WriteStorage>(

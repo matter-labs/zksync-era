@@ -45,7 +45,7 @@ fn basic_flow() {
         (account0, 3)
     );
     assert_eq!(mempool.next_transaction(&L2TxFilter::default()), None);
-    // unclog second account and insert more txns
+    // unclog second account and insert more transactions
     mempool.insert(
         vec![gen_l2_tx(account1, Nonce(0)), gen_l2_tx(account0, Nonce(3))],
         HashMap::new(),
@@ -244,13 +244,13 @@ fn mempool_size() {
 fn filtering() {
     // Filter to find transactions with non-zero `gas_per_pubdata` values.
     let filter_non_zero = L2TxFilter {
-        l1_gas_price: 0u64,
+        fee_input: Default::default(),
         fee_per_gas: 0u64,
         gas_per_pubdata: 1u32,
     };
     // No-op filter that fetches any transaction.
     let filter_zero = L2TxFilter {
-        l1_gas_price: 0u64,
+        fee_input: Default::default(),
         fee_per_gas: 0u64,
         gas_per_pubdata: 0u32,
     };
@@ -288,13 +288,13 @@ fn filtering() {
 #[test]
 fn stashed_accounts() {
     let filter_non_zero = L2TxFilter {
-        l1_gas_price: 0u64,
+        fee_input: Default::default(),
         fee_per_gas: 0u64,
         gas_per_pubdata: 1u32,
     };
     // No-op filter that fetches any transaction.
     let filter_zero = L2TxFilter {
-        l1_gas_price: 0u64,
+        fee_input: Default::default(),
         fee_per_gas: 0u64,
         gas_per_pubdata: 0u32,
     };
