@@ -31,7 +31,7 @@ Dictionary would be:
 3 -> 0xC (count: 1)
 ```
 
-Note that '1' maps to '0xD', as it occurs twice, and first occurrence is earlier than first occurence of 0xB, that also
+Note that '1' maps to '0xD', as it occurs twice, and first occurrence is earlier than first occurrence of 0xB, that also
 occurs twice.
 
 Compressed bytecode:
