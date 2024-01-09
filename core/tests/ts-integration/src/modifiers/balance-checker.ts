@@ -7,7 +7,6 @@ import * as ethers from 'ethers';
 import { TestMessage } from '../matchers/matcher-helpers';
 import { MatcherModifier, MatcherMessage } from '.';
 import { IERC20Factory } from 'zksync-web3/build/typechain';
-import { Log } from 'zksync-web3/build/src/types';
 import { BigNumber } from 'ethers';
 import { Fee } from '../types';
 

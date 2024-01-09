@@ -8853,7 +8853,6 @@ dependencies = [
  "serde",
  "zksync_basic_types",
  "zksync_config",
- "zksync_types",
 ]
 
 [[package]]
