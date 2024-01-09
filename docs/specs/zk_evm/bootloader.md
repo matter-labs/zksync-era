@@ -76,7 +76,7 @@ supported:
   transactions. The L1 contract ensures that the hash did indeed match the
   [hashes of the priority transactions on L1](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/facets/Executor.sol#L282).
 
-You can also read more on L1->L2 transactions and upgrade transacitons
+You can also read more on L1->L2 transactions and upgrade transactions
 [here](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20L1%E2%86%92L2%20ops%20on%20zkSync.md).
 
 However, as already stated, the bootloader’s memory is not deterministic and the operator is free to put anything it

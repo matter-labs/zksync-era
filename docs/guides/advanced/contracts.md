@@ -46,7 +46,7 @@ You can see the full list (and codes) of the system contracts here:
 <https://github.com/matter-labs/era-system-contracts>.
 
 While some of them are not really visible to the contract developer (like the fact that we're running a special
-`Bootleader` to package a bunch of transactions together - more info in a future article) - some others are very
+`Bootloader` to package a bunch of transactions together - more info in a future article) - some others are very
 visible - like our `ContractDeployer`
 
 ### ContractDeployer
@@ -70,7 +70,7 @@ override getDeployTransaction(..) {
 }
 ```
 
-Also `ContractDeployer` adding a special prefix for all the new contract addresses. This means that contract addesses
+Also `ContractDeployer` adding a special prefix for all the new contract addresses. This means that contract addresses
 WILL be different on `zkSync` and Ethereum (and also leaves us the possibility of adding Ethereum addresses in the
 future if needed).
 
