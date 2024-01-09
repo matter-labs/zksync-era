@@ -40,6 +40,8 @@ use crate::{
 
 mod proxy;
 mod result;
+#[cfg(test)]
+pub(crate) mod tests;
 
 #[derive(Debug, Clone)]
 pub struct MultiVMBaseSystemContracts {
@@ -536,6 +538,7 @@ impl TxSender {
         }
 
         let balance = self.get_balance(&tx.common_data.initiator_address).await;
+        dbg!(balance);
 
         // Estimate the minimum fee price user will agree to.
         let gas_price = cmp::min(

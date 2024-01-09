@@ -15,6 +15,8 @@ use zksync_types::{
     StorageLog, H256, U256,
 };
 
+use crate::l1_gas_price::L1GasPriceProvider;
+
 /// Creates a miniblock header with the specified number and deterministic contents.
 pub(crate) fn create_miniblock(number: u32) -> MiniblockHeader {
     MiniblockHeader {
@@ -139,6 +141,10 @@ pub(crate) async fn prepare_recovery_snapshot(
         .storage_logs_dal()
         .insert_storage_logs(miniblock.number, &[(H256::zero(), snapshot_logs.to_vec())])
         .await;
+    storage
+        .storage_dal()
+        .apply_storage_logs(&[(H256::zero(), snapshot_logs.to_vec())])
+        .await;
 
     let snapshot_recovery = SnapshotRecoveryStatus {
         l1_batch_number: l1_batch.number,
@@ -181,4 +187,14 @@ pub(crate) async fn prepare_empty_recovery_snapshot(
         .await
         .unwrap();
     snapshot_recovery
+}
+
+/// Mock [`L1GasPriceProvider`] that returns a constant value.
+#[derive(Debug)]
+pub(crate) struct MockL1GasPriceProvider(pub u64);
+
+impl L1GasPriceProvider for MockL1GasPriceProvider {
+    fn estimate_effective_gas_price(&self) -> u64 {
+        self.0
+    }
 }

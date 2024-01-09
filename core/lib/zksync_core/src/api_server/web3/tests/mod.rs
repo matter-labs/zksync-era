@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc, time::Instant};
+use std::{collections::HashMap, time::Instant};
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
@@ -11,7 +11,6 @@ use zksync_config::configs::{
 };
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, StorageProcessor};
 use zksync_health_check::CheckHealth;
-use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     api,
     block::{BlockGasCount, MiniblockHeader},
@@ -31,9 +30,11 @@ use zksync_web3_decl::{
 
 use super::{metrics::ApiTransportLabel, *};
 use crate::{
-    api_server::{execution_sandbox::testonly::MockTransactionExecutor, tx_sender::TxSenderConfig},
+    api_server::{
+        execution_sandbox::testonly::MockTransactionExecutor,
+        tx_sender::tests::create_test_tx_sender,
+    },
     genesis::{ensure_genesis_state, GenesisParams},
-    l1_gas_price::L1GasPriceProvider,
     utils::testonly::{
         create_l1_batch, create_l1_batch_metadata, create_l2_transaction, create_miniblock,
         prepare_empty_recovery_snapshot, prepare_recovery_snapshot,
@@ -48,16 +49,6 @@ mod ws;
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
-
-/// Mock [`L1GasPriceProvider`] that returns a constant value.
-#[derive(Debug)]
-struct MockL1GasPriceProvider(u64);
-
-impl L1GasPriceProvider for MockL1GasPriceProvider {
-    fn estimate_effective_gas_price(&self) -> u64 {
-        self.0
-    }
-}
 
 impl ApiServerHandles {
     /// Waits until the server health check reports the ready state.
@@ -141,33 +132,10 @@ async fn spawn_server(
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = Web3JsonRpcConfig::for_tests();
-    let state_keeper_config = StateKeeperConfig::for_tests();
     let api_config = InternalApiConfig::new(network_config, &web3_config, &contracts_config);
-    let tx_sender_config =
-        TxSenderConfig::new(&state_keeper_config, &web3_config, api_config.l2_chain_id);
-
-    let mut storage_caches = PostgresStorageCaches::new(1, 1);
-    let cache_update_task = storage_caches.configure_storage_values_cache(
-        1,
-        pool.clone(),
-        tokio::runtime::Handle::current(),
-    );
-    tokio::task::spawn_blocking(cache_update_task);
-
-    let gas_adjuster = Arc::new(MockL1GasPriceProvider(1));
-    let (mut tx_sender, vm_barrier) = crate::build_tx_sender(
-        &tx_sender_config,
-        &web3_config,
-        &state_keeper_config,
-        pool.clone(),
-        pool.clone(),
-        gas_adjuster,
-        storage_caches,
-    )
-    .await;
+    let (tx_sender, vm_barrier) =
+        create_test_tx_sender(pool.clone(), api_config.l2_chain_id, tx_executor.into()).await;
     let (pub_sub_events_sender, pub_sub_events_receiver) = mpsc::unbounded_channel();
-
-    Arc::get_mut(&mut tx_sender.0).unwrap().executor = tx_executor.into();
 
     let mut namespaces = Namespace::DEFAULT.to_vec();
     namespaces.extend([Namespace::Debug, Namespace::Snapshots]);

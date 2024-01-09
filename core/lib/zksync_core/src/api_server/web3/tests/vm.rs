@@ -184,8 +184,11 @@ impl SendRawTransactionTest {
 impl HttpTest for SendRawTransactionTest {
     fn storage_initialization(&self) -> StorageInitialization {
         if self.snapshot_recovery {
-            // TODO: should probably initialize logs here
-            StorageInitialization::empty_recovery()
+            let logs = vec![Self::balance_storage_log()];
+            StorageInitialization::Recovery {
+                logs,
+                factory_deps: HashMap::default(),
+            }
         } else {
             StorageInitialization::Genesis
         }
@@ -201,13 +204,14 @@ impl HttpTest for SendRawTransactionTest {
     }
 
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
-        // Manually set sufficient balance for the transaction account.
-        let mut storage = pool.access_storage().await?;
-        storage
-            .storage_dal()
-            .apply_storage_logs(&[(H256::zero(), vec![Self::balance_storage_log()])])
-            .await;
-        drop(storage);
+        if !self.snapshot_recovery {
+            // Manually set sufficient balance for the transaction account.
+            let mut storage = pool.access_storage().await?;
+            storage
+                .storage_dal()
+                .apply_storage_logs(&[(H256::zero(), vec![Self::balance_storage_log()])])
+                .await;
+        }
 
         let (tx_bytes, tx_hash) = Self::transaction_bytes_and_hash();
         let send_result = client.send_raw_transaction(tx_bytes.into()).await?;
