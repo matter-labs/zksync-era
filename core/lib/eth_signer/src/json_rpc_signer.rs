@@ -171,7 +171,7 @@ impl JsonRpcSigner {
             None => AddressOrIndex::Index(0),
         };
 
-        // EthereumSigner can support many different addresses,
+        // `EthereumSigner` can support many different addresses,
         // we define only the one we need by the index
         // of receiving from the server or by the address itself.
         signer.detect_address(address_or_index).await?;

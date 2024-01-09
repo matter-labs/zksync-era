@@ -45,8 +45,6 @@ pub struct Web3JsonRpcConfig {
     /// The multiplier to use when suggesting gas price. Should be higher than one,
     /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block
     pub gas_price_scale_factor: f64,
-    /// Inbound transaction limit used for throttling
-    pub transactions_per_sec_limit: Option<u32>,
     /// Timeout for requests (in s)
     pub request_timeout: Option<u64>,
     /// Private keys for accounts managed by node
@@ -108,7 +106,6 @@ impl Web3JsonRpcConfig {
             threads_per_server: 1,
             max_nonce_ahead: 50,
             gas_price_scale_factor: 1.2,
-            transactions_per_sec_limit: Default::default(),
             request_timeout: Default::default(),
             account_pks: Default::default(),
             estimate_gas_scale_factor: 1.2,

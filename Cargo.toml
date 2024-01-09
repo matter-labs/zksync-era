@@ -8,7 +8,6 @@ members = [
     "core/bin/snapshots_creator",
     "core/bin/storage_logs_dedup_migration",
     "core/bin/system-constants-generator",
-    "core/bin/verification_key_generator_and_server",
     "core/bin/verified_sources_fetcher",
     "core/bin/zksync_server",
     # Libraries
@@ -33,7 +32,6 @@ members = [
     "core/lib/state",
     "core/lib/storage",
     "core/lib/types",
-    "core/lib/prover_utils",
     "core/lib/utils",
     "core/lib/vlog",
     "core/lib/multivm",

@@ -38,11 +38,11 @@ impl GovernanceUpgradesEventProcessor {
 }
 
 #[async_trait::async_trait]
-impl<W: EthClient + Sync> EventProcessor<W> for GovernanceUpgradesEventProcessor {
+impl EventProcessor for GovernanceUpgradesEventProcessor {
     async fn process_events(
         &mut self,
         storage: &mut StorageProcessor<'_>,
-        client: &W,
+        client: &dyn EthClient,
         events: Vec<Log>,
     ) -> Result<(), Error> {
         let mut upgrades = Vec::new();
@@ -66,7 +66,7 @@ impl<W: EthClient + Sync> EventProcessor<W> for GovernanceUpgradesEventProcessor
                     );
                     continue;
                 };
-                // Scheduler VK is not present in proposal event. It is hardcoded in verifier contract.
+                // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.
                 let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
                     Some(client.scheduler_vk_hash(address).await?)
                 } else {

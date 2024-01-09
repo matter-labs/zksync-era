@@ -155,7 +155,7 @@ impl BatchStatusUpdater {
             };
             request_latency.observe();
 
-            // We could've used any miniblock from the range, all of them share the same info.
+            // We could have used any miniblock from the range, all of them share the same info.
             let request_latency = FETCHER_METRICS.requests[&FetchStage::GetBlockDetails].start();
             let Some(batch_info) = self
                 .client

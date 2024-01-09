@@ -11,7 +11,6 @@ use zk_evm_1_3_1::{
     },
 };
 use zksync_contracts::BaseSystemContracts;
-use zksync_system_constants::MAX_TXS_IN_BLOCK;
 use zksync_types::{
     zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address, Transaction, BOOTLOADER_ADDRESS,
     L1_GAS_PER_PUBDATA_BYTE, MAX_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
@@ -35,8 +34,8 @@ use crate::vm_m6::{
     OracleTools, VmInstance,
 };
 
-// TODO (SMA-1703): move these to config and make them programmatically generatable.
-// fill these values in the similar fasion as other overhead-related constants
+// TODO (SMA-1703): move these to config and make them programmatically generable.
+// fill these values in the similar fashion as other overhead-related constants
 pub const BLOCK_OVERHEAD_GAS: u32 = 1200000;
 pub const BLOCK_OVERHEAD_L1_GAS: u32 = 1000000;
 pub const BLOCK_OVERHEAD_PUBDATA: u32 = BLOCK_OVERHEAD_L1_GAS / L1_GAS_PER_PUBDATA_BYTE;
@@ -82,10 +81,13 @@ pub fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
     ceil_div(eth_price_per_pubdata_byte, base_fee)
 }
 
-pub fn derive_base_fee_and_gas_per_pubdata(l1_gas_price: u64, fair_gas_price: u64) -> (u64, u64) {
+pub(crate) fn derive_base_fee_and_gas_per_pubdata(
+    l1_gas_price: u64,
+    fair_gas_price: u64,
+) -> (u64, u64) {
     let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
 
-    // The baseFee is set in such a way that it is always possible for a transaction to
+    // The `baseFee` is set in such a way that it is always possible for a transaction to
     // publish enough public data while compensating us for it.
     let base_fee = std::cmp::max(
         fair_gas_price,
@@ -106,6 +108,9 @@ impl From<BlockContext> for DerivedBlockContext {
         DerivedBlockContext { context, base_fee }
     }
 }
+
+// The maximal number of transactions in a single batch
+pub(crate) const MAX_TXS_IN_BLOCK: usize = 1024;
 
 // The first 32 slots are reserved for debugging purposes
 pub const DEBUG_SLOTS_OFFSET: usize = 8;
@@ -149,7 +154,7 @@ pub const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
     COMPRESSED_BYTECODES_OFFSET + COMPRESSED_BYTECODES_SLOTS;
 
 // The size of the bootloader memory dedicated to the encodings of transactions
-pub const BOOTLOADER_TX_ENCODING_SPACE: u32 =
+pub(crate) const BOOTLOADER_TX_ENCODING_SPACE: u32 =
     (MAX_HEAP_PAGE_SIZE_IN_WORDS - TX_DESCRIPTION_OFFSET - MAX_TXS_IN_BLOCK) as u32;
 
 // Size of the bootloader tx description in words
@@ -251,12 +256,12 @@ pub fn init_vm_with_gas_limit<S: Storage, H: HistoryMode>(
 }
 
 #[derive(Debug, Clone, Copy)]
-// The block.number/block.timestamp data are stored in the CONTEXT_SYSTEM_CONTRACT.
+// The `block.number` / `block.timestamp` data are stored in the `CONTEXT_SYSTEM_CONTRACT`.
 // The bootloader can support execution in two modes:
-// - "NewBlock" when the new block is created. It is enforced that the block.number is incremented by 1
+// - `NewBlock` when the new block is created. It is enforced that the block.number is incremented by 1
 //   and the timestamp is non-decreasing. Also, the L2->L1 message used to verify the correctness of the previous root hash is sent.
 //   This is the mode that should be used in the state keeper.
-// - "OverrideCurrent" when we need to provide custom block.number and block.timestamp. ONLY to be used in testing/ethCalls.
+// - `OverrideCurrent` when we need to provide custom `block.number` and `block.timestamp`. ONLY to be used in testing / `ethCalls`.
 pub enum BlockContextMode {
     NewBlock(DerivedBlockContext, U256),
     OverrideCurrent(DerivedBlockContext),

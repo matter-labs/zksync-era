@@ -51,15 +51,6 @@ export async function initializeGovernance(args: any[] = []) {
     await utils.spawn(`${baseCommandL1} initialize-governance ${args.join(' ')} | tee initializeGovernance.log`);
 }
 
-export async function initializeL1AllowList(args: any[] = []) {
-    await utils.confirmAction();
-
-    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
-    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/l1-contracts` : `yarn l1-contracts`;
-
-    await utils.spawn(`${baseCommandL1} initialize-allow-list ${args.join(' ')} | tee initializeL1AllowList.log`);
-}
-
 export async function initializeWethToken(args: any[] = []) {
     await utils.confirmAction();
 
@@ -171,8 +162,4 @@ command
 command.command('deploy [deploy-opts...]').allowUnknownOption(true).description('deploy contracts').action(deployL1);
 command.command('build').description('build contracts').action(build);
 command.command('initialize-validator').description('initialize validator').action(initializeValidator);
-command
-    .command('initialize-l1-allow-list-contract')
-    .description('initialize L1 allow list contract')
-    .action(initializeL1AllowList);
 command.command('verify').description('verify L1 contracts').action(verifyL1Contracts);

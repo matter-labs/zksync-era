@@ -43,8 +43,8 @@ impl BlocksDal<'_, '_> {
         Ok(count == 0)
     }
 
-    pub async fn get_sealed_l1_batch_number(&mut self) -> anyhow::Result<L1BatchNumber> {
-        let number = sqlx::query!(
+    pub async fn get_sealed_l1_batch_number(&mut self) -> sqlx::Result<Option<L1BatchNumber>> {
+        let row = sqlx::query!(
             r#"
             SELECT
                 MAX(number) AS "number"
@@ -57,11 +57,9 @@ impl BlocksDal<'_, '_> {
         .instrument("get_sealed_block_number")
         .report_latency()
         .fetch_one(self.storage.conn())
-        .await?
-        .number
-        .context("DAL invocation before genesis")?;
+        .await?;
 
-        Ok(L1BatchNumber(number as u32))
+        Ok(row.number.map(|num| L1BatchNumber(num as u32)))
     }
 
     pub async fn get_sealed_miniblock_number(&mut self) -> sqlx::Result<MiniblockNumber> {
@@ -452,6 +450,7 @@ impl BlocksDal<'_, '_> {
         predicted_block_gas: BlockGasCount,
         events_queue: &[LogQuery],
         storage_refunds: &[u32],
+        predicted_circuits: u32,
     ) -> anyhow::Result<()> {
         let priority_onchain_data: Vec<Vec<u8>> = header
             .priority_ops_onchain_data
@@ -511,6 +510,7 @@ impl BlocksDal<'_, '_> {
                     system_logs,
                     storage_refunds,
                     pubdata_input,
+                    predicted_circuits,
                     created_at,
                     updated_at
                 )
@@ -540,6 +540,7 @@ impl BlocksDal<'_, '_> {
                     $22,
                     $23,
                     $24,
+                    $25,
                     NOW(),
                     NOW()
                 )
@@ -568,6 +569,7 @@ impl BlocksDal<'_, '_> {
             &system_logs,
             &storage_refunds,
             pubdata_input,
+            predicted_circuits as i32,
         )
         .execute(transaction.conn())
         .await?;
@@ -2232,7 +2234,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            l1_batch_number.0 as u32
+            l1_batch_number.0 as i32
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -2252,7 +2254,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            miniblock_number.0 as u32
+            miniblock_number.0 as i32
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -2343,7 +2345,7 @@ mod tests {
         header.l2_to_l1_messages.push(vec![33; 33]);
 
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
+            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
             .await
             .unwrap();
 
@@ -2392,7 +2394,7 @@ mod tests {
             execute: 10,
         };
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], &[])
+            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], 0)
             .await
             .unwrap();
 
@@ -2400,7 +2402,7 @@ mod tests {
         header.timestamp += 100;
         predicted_gas += predicted_gas;
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], &[])
+            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], 0)
             .await
             .unwrap();
 
