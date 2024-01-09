@@ -15,7 +15,7 @@ use zksync_types::{
         system_params::MAX_TX_ERGS_LIMIT,
     },
     IntrinsicSystemGasConstants, ProtocolVersionId, GUARANTEED_PUBDATA_IN_TX,
-    L1_GAS_PER_PUBDATA_BYTE, MAX_GAS_PER_PUBDATA_BYTE_1_4_1, MAX_NEW_FACTORY_DEPS,
+    L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
 
 mod intrinsic_costs;
@@ -71,7 +71,7 @@ pub fn generate_l1_contracts_system_config(gas_constants: &IntrinsicSystemGasCon
         l1_tx_delta_factory_deps_l2_gas: gas_constants.l1_tx_delta_factory_dep_gas,
         l1_tx_delta_factory_deps_pubdata: gas_constants.l1_tx_delta_factory_dep_pubdata,
         max_new_factory_deps: MAX_NEW_FACTORY_DEPS as u32,
-        required_l2_gas_price_per_pubdata: MAX_GAS_PER_PUBDATA_BYTE_1_4_1,
+        required_l2_gas_price_per_pubdata: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
     };
 
     serde_json::to_string_pretty(&l1_contracts_config).unwrap()
