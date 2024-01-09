@@ -4,7 +4,7 @@ use tokio::runtime::Handle;
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
 use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
-use zksync_types::{api, AccountTreeId, L2ChainId, MiniblockNumber};
+use zksync_types::{api, fee_model::BatchFeeInput, AccountTreeId, L2ChainId, MiniblockNumber};
 use zksync_utils::bytecode::{compress_bytecode, hash_bytecode};
 
 use self::vm_metrics::SandboxStage;
@@ -201,8 +201,7 @@ pub(super) async fn get_pubdata_for_factory_deps(
 #[derive(Debug, Clone)]
 pub(crate) struct TxSharedArgs {
     pub operator_account: AccountTreeId,
-    pub l1_gas_price: u64,
-    pub fair_l2_gas_price: u64,
+    pub fee_input: BatchFeeInput,
     pub base_system_contracts: MultiVMBaseSystemContracts,
     pub caches: PostgresStorageCaches,
     pub validation_computational_gas_limit: u32,

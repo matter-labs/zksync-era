@@ -20,6 +20,7 @@ use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, MiniblockExecutionData, MiniblockHasher},
+    fee_model::BatchFeeInput,
     tx::tx_execution_info::ExecutionMetrics,
     Address, L1BatchNumber, L2ChainId, LogQuery, MiniblockNumber, ProtocolVersionId,
     StorageLogQuery, StorageLogQueryType, Timestamp, Transaction, H256, U256,
@@ -70,8 +71,7 @@ pub(super) fn default_l1_batch_env(
         previous_batch_hash: None,
         number: L1BatchNumber(number),
         timestamp,
-        l1_gas_price: 1,
-        fair_l2_gas_price: 1,
+        fee_input: BatchFeeInput::l1_pegged(1, 1),
         fee_account,
         enforced_base_fee: None,
         first_l2_block: L2BlockEnv {

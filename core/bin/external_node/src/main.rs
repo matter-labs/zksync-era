@@ -17,7 +17,7 @@ use zksync_core::{
     },
     block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert},
     consistency_checker::ConsistencyChecker,
-    l1_gas_price::MainNodeGasPriceFetcher,
+    l1_gas_price::MainNodeFeeParamsFetcher,
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     reorg_detector::ReorgDetector,
     setup_sigint_handler,
@@ -124,7 +124,7 @@ async fn init_tasks(
     let (stop_sender, stop_receiver) = watch::channel(false);
     let mut healthchecks: Vec<Box<dyn CheckHealth>> = Vec::new();
     // Create components.
-    let gas_adjuster = Arc::new(MainNodeGasPriceFetcher::new(&main_node_url));
+    let fee_params_fetcher = Arc::new(MainNodeFeeParamsFetcher::new(&main_node_url));
 
     let sync_state = SyncState::new();
     let (action_queue_sender, action_queue) = ActionQueue::new();
@@ -233,7 +233,8 @@ async fn init_tasks(
     let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
     let sk_handle = task::spawn(state_keeper.run());
     let fetcher_handle = tokio::spawn(fetcher.run());
-    let gas_adjuster_handle = tokio::spawn(gas_adjuster.clone().run(stop_receiver.clone()));
+    let fee_params_fetcher_handle =
+        tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
 
     let (tx_sender, vm_barrier, cache_update_handle) = {
         let tx_sender_builder =
@@ -262,7 +263,7 @@ async fn init_tasks(
 
         let tx_sender = tx_sender_builder
             .build(
-                gas_adjuster,
+                fee_params_fetcher,
                 Arc::new(vm_concurrency_limiter),
                 ApiContracts::load_from_disk(), // TODO (BFT-138): Allow to dynamically reload API contracts
                 storage_caches,
@@ -277,7 +278,6 @@ async fn init_tasks(
             .with_filter_limit(config.optional.filters_limit)
             .with_batch_request_size_limit(config.optional.max_batch_request_size)
             .with_response_body_size_limit(config.optional.max_response_body_size())
-            .with_threads(config.required.threads_per_server)
             .with_tx_sender(tx_sender.clone(), vm_barrier.clone())
             .with_sync_state(sync_state.clone())
             .enable_api_namespaces(config.optional.api_namespaces())
@@ -293,7 +293,6 @@ async fn init_tasks(
             .with_batch_request_size_limit(config.optional.max_batch_request_size)
             .with_response_body_size_limit(config.optional.max_response_body_size())
             .with_polling_interval(config.optional.polling_interval())
-            .with_threads(config.required.threads_per_server)
             .with_tx_sender(tx_sender, vm_barrier)
             .with_sync_state(sync_state)
             .enable_api_namespaces(config.optional.api_namespaces())
@@ -321,7 +320,7 @@ async fn init_tasks(
         fetcher_handle,
         updater_handle,
         tree_handle,
-        gas_adjuster_handle,
+        fee_params_fetcher_handle,
     ]);
     task_handles.push(consistency_checker_handle);
 
@@ -484,17 +483,11 @@ async fn main() -> anyhow::Result<()> {
     if let Some(last_correct_batch) = reorg_detector_last_correct_batch {
         tracing::info!("Performing rollback to L1 batch #{last_correct_batch}");
 
-        let block_reverter_connection_pool =
-            ConnectionPool::builder(&config.postgres.database_url, 1)
-                .build()
-                .await
-                .context("failed to build a block reverter connection pool")?;
-
         let reverter = BlockReverter::new(
             config.required.state_cache_path,
             config.required.merkle_tree_path,
             None,
-            block_reverter_connection_pool,
+            connection_pool,
             L1ExecutedBatchesRevert::Allowed,
         );
         reverter

@@ -11,6 +11,7 @@ use zksync_config::configs::{
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
 use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
+use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::MiniblockHeader, fee::TransactionExecutionMetrics, tx::IncludedTxLocation, Address,
     L1BatchNumber, VmEvent, H256, U64,
@@ -42,6 +43,10 @@ struct MockL1GasPriceProvider(u64);
 impl L1GasPriceProvider for MockL1GasPriceProvider {
     fn estimate_effective_gas_price(&self) -> u64 {
         self.0
+    }
+
+    fn estimate_effective_pubdata_price(&self) -> u64 {
+        self.0 * L1_GAS_PER_PUBDATA_BYTE as u64
     }
 }
 
@@ -158,7 +163,6 @@ async fn spawn_server(
         }
     };
     let server_handles = server_builder
-        .with_threads(1)
         .with_polling_interval(POLL_INTERVAL)
         .with_tx_sender(tx_sender, vm_barrier)
         .with_pub_sub_events(pub_sub_events_sender)
