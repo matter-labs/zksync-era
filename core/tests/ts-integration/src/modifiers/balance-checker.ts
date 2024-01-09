@@ -160,7 +160,7 @@ class ShouldChangeBalance extends MatcherModifier {
                 if (this.l1ToL2) {
                     newBalance = newBalance.sub(extractRefundForL1ToL2(receipt, address));
                 } else if (address == receipt.from) {
-                    const change = (await extractFee(receipt, undefined, wallet)).feeAfterRefund;
+                    const change = (await extractFee(receipt, wallet)).feeAfterRefund;
                     newBalance = newBalance.add(change);
                 }
             }
@@ -202,70 +202,25 @@ class ShouldChangeBalance extends MatcherModifier {
  */
 export async function extractFee(
     receipt: zksync.types.TransactionReceipt,
-    from?: string,
-    wallet?: zksync.Wallet
+    wallet: zksync.Wallet
 ): Promise<Fee> {
-    from = from ?? receipt.from;
+    const trace = await wallet!.provider.send('debug_traceTransaction', [receipt.transactionHash]);
 
-    const systemAccountAddress = '0x0000000000000000000000000000000000000000000000000000000000008001';
-    // We need to pad address to represent 256-bit value.
-    const fromAccountAddress = ethers.utils.hexZeroPad(ethers.utils.arrayify(from), 32);
-
-    const apiMode = process.env.EN_API_MODE ?? process.env.API_WEB3_JSON_RPC_API_MODE;
-
-    if (apiMode == 'modern') {
-        const trace = await wallet!.provider.send('debug_traceTransaction', [receipt.transactionHash]);
-
-        if (!trace) {
-            throw {
-                message: `No transaction was found in the following transaction receipt`,
-                receipt
-            };
-        }
-
-        const feeAmount = ethers.BigNumber.from(receipt.effectiveGasPrice).mul(BigNumber.from(trace.gas));
-        const feeAfterRefund = ethers.BigNumber.from(receipt.effectiveGasPrice).mul(BigNumber.from(receipt.gasUsed));
-
-        return {
-            feeBeforeRefund: feeAmount,
-            feeAfterRefund: feeAfterRefund,
-            refund: feeAmount.sub(feeAfterRefund)
-        };
-    } else {
-        const feeLog = receipt.logs.find((log: Log) => {
-            return (
-                log.topics.length == 3 && log.topics[1] == fromAccountAddress && log.topics[2] == systemAccountAddress
-            );
-        });
-
-        if (!feeLog) {
-            throw {
-                message: `No fee log was found in the following transaction receipt`,
-                receipt
-            };
-        }
-
-        const feeAmount = ethers.BigNumber.from(feeLog.data);
-
-        const feeRefund = receipt.logs
-            .filter((log) => {
-                return (
-                    log.topics.length == 3 &&
-                    log.topics[1] == systemAccountAddress &&
-                    log.topics[2] == fromAccountAddress
-                );
-            })
-            .map((log) => ethers.BigNumber.from(log.data))
-            .reduce((prev, cur) => {
-                return prev.add(cur);
-            }, ethers.BigNumber.from(0));
-
-        return {
-            feeBeforeRefund: feeAmount,
-            feeAfterRefund: BigNumber.from(receipt.effectiveGasPrice).mul(BigNumber.from(receipt.gasUsed)),
-            refund: feeRefund
+    if (!trace) {
+        throw {
+            message: `No transaction was found in the following transaction receipt`,
+            receipt
         };
     }
+
+    const feeAmount = ethers.BigNumber.from(receipt.effectiveGasPrice).mul(BigNumber.from(trace.gas));
+    const feeAfterRefund = ethers.BigNumber.from(receipt.effectiveGasPrice).mul(BigNumber.from(receipt.gasUsed));
+
+    return {
+        feeBeforeRefund: feeAmount,
+        feeAfterRefund: feeAfterRefund,
+        refund: feeAmount.sub(feeAfterRefund)
+    };
 }
 
 /**

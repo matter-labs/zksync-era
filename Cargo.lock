@@ -8228,7 +8228,6 @@ dependencies = [
  "anyhow",
  "serde",
  "zksync_basic_types",
- "zksync_types",
 ]
 
 [[package]]

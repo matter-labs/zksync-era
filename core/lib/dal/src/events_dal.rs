@@ -220,7 +220,7 @@ impl EventsDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
-    use zksync_types::{api::ApiMode, Address, L1BatchNumber, ProtocolVersion};
+    use zksync_types::{api::ApiEthTransferEvents, Address, L1BatchNumber, ProtocolVersion};
 
     use super::*;
     use crate::{tests::create_miniblock_header, ConnectionPool};
@@ -294,7 +294,7 @@ mod tests {
 
         let logs = conn
             .events_web3_dal()
-            .get_all_logs(MiniblockNumber(0), ApiMode::Modern)
+            .get_all_logs(MiniblockNumber(0), ApiEthTransferEvents::Disabled)
             .await
             .unwrap();
         assert_eq!(logs.len(), 5);
@@ -317,7 +317,7 @@ mod tests {
 
         let logs = conn
             .events_web3_dal()
-            .get_all_logs(MiniblockNumber(0), ApiMode::EthTransferIncluded)
+            .get_all_logs(MiniblockNumber(0), ApiEthTransferEvents::Enabled)
             .await
             .unwrap();
         assert_eq!(logs.len(), 6);

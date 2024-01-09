@@ -8,7 +8,7 @@ use tokio::{
     time::{interval, Duration},
 };
 use zksync_dal::ConnectionPool;
-use zksync_types::{api::ApiMode, MiniblockNumber, H128, H256};
+use zksync_types::{api::ApiEthTransferEvents, MiniblockNumber, H128, H256};
 use zksync_web3_decl::{
     jsonrpsee::{
         core::{server::SubscriptionMessage, SubscriptionResult},
@@ -52,7 +52,7 @@ struct PubSubNotifier {
     connection_pool: ConnectionPool,
     polling_interval: Duration,
     events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
-    api_mode: ApiMode,
+    api_eth_transfer_events: ApiEthTransferEvents,
 }
 
 impl PubSubNotifier {
@@ -189,7 +189,7 @@ impl PubSubNotifier {
             .await
             .context("access_storage_tagged")?
             .events_web3_dal()
-            .get_all_logs(last_block_number, self.api_mode)
+            .get_all_logs(last_block_number, self.api_eth_transfer_events)
             .await
             .context("events_web3_dal().get_all_logs()")
     }
@@ -398,7 +398,7 @@ impl EthSubscribe {
         connection_pool: ConnectionPool,
         polling_interval: Duration,
         stop_receiver: watch::Receiver<bool>,
-        api_mode: ApiMode,
+        api_eth_transfer_events: ApiEthTransferEvents,
     ) -> Vec<JoinHandle<anyhow::Result<()>>> {
         let mut notifier_tasks = Vec::with_capacity(3);
 
@@ -407,7 +407,7 @@ impl EthSubscribe {
             connection_pool: connection_pool.clone(),
             polling_interval,
             events_sender: self.events_sender.clone(),
-            api_mode,
+            api_eth_transfer_events,
         };
         let notifier_task = tokio::spawn(notifier.notify_blocks(stop_receiver.clone()));
         notifier_tasks.push(notifier_task);
@@ -417,7 +417,7 @@ impl EthSubscribe {
             connection_pool: connection_pool.clone(),
             polling_interval,
             events_sender: self.events_sender.clone(),
-            api_mode,
+            api_eth_transfer_events,
         };
         let notifier_task = tokio::spawn(notifier.notify_txs(stop_receiver.clone()));
         notifier_tasks.push(notifier_task);
@@ -427,7 +427,7 @@ impl EthSubscribe {
             connection_pool,
             polling_interval,
             events_sender: self.events_sender.clone(),
-            api_mode,
+            api_eth_transfer_events,
         };
         let notifier_task = tokio::spawn(notifier.notify_logs(stop_receiver));
 

@@ -23,46 +23,46 @@ use crate::api_server::web3::metrics::SubscriptionType;
 
 #[tokio::test]
 async fn ws_server_can_start() {
-    test_ws_server(WsServerCanStart).await;
+    test_ws_server(WsServerCanStartTest).await;
 }
 
 #[tokio::test]
 async fn basic_subscriptions() {
-    test_ws_server(BasicSubscriptions).await;
+    test_ws_server(BasicSubscriptionsTest).await;
 }
 
-#[test_casing(2, [ApiMode::Modern, ApiMode::EthTransferIncluded])]
+#[test_casing(2, [ApiEthTransferEvents::Disabled, ApiEthTransferEvents::Enabled])]
 #[tokio::test]
-async fn log_subscriptions(mode: ApiMode) {
-    test_ws_server(LogSubscriptions(mode)).await;
+async fn log_subscriptions(mode: ApiEthTransferEvents) {
+    test_ws_server(LogSubscriptionsTest(mode)).await;
 }
 
-#[test_casing(2, [ApiMode::Modern, ApiMode::EthTransferIncluded])]
+#[test_casing(2, [ApiEthTransferEvents::Disabled, ApiEthTransferEvents::Enabled])]
 #[tokio::test]
-async fn log_subscriptions_with_new_block(mode: ApiMode) {
-    test_ws_server(LogSubscriptionsWithNewBlock(mode)).await;
+async fn log_subscriptions_with_new_block(mode: ApiEthTransferEvents) {
+    test_ws_server(LogSubscriptionsWithNewBlockTest(mode)).await;
 }
 
-#[test_casing(2, [ApiMode::Modern, ApiMode::EthTransferIncluded])]
+#[test_casing(2, [ApiEthTransferEvents::Disabled, ApiEthTransferEvents::Enabled])]
 #[tokio::test]
-async fn log_subscriptions_with_many_new_blocks_at_once(mode: ApiMode) {
-    test_ws_server(LogSubscriptionsWithManyBlocks(mode)).await;
+async fn log_subscriptions_with_many_new_blocks_at_once(mode: ApiEthTransferEvents) {
+    test_ws_server(LogSubscriptionsWithManyBlocksTest(mode)).await;
 }
 
-#[test_casing(2, [ApiMode::Modern, ApiMode::EthTransferIncluded])]
+#[test_casing(2, [ApiEthTransferEvents::Disabled, ApiEthTransferEvents::Enabled])]
 #[tokio::test]
-async fn log_subscriptions_with_delay(mode: ApiMode) {
-    test_ws_server(LogSubscriptionsWithDelay(mode)).await;
+async fn log_subscriptions_with_delay(mode: ApiEthTransferEvents) {
+    test_ws_server(LogSubscriptionsWithDelayTest(mode)).await;
 }
 
 #[tokio::test]
 async fn rate_limiting() {
-    test_ws_server(RateLimiting).await;
+    test_ws_server(RateLimitingTest).await;
 }
 
 #[tokio::test]
 async fn batch_rate_limiting() {
-    test_ws_server(BatchGetsRateLimited).await;
+    test_ws_server(BatchGetsRateLimitedTest).await;
 }
 
 #[allow(clippy::needless_pass_by_ref_mut)] // false positive
@@ -118,7 +118,7 @@ trait WsTest {
         pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()>;
 
-    fn api_mode(&self) -> ApiMode;
+    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents;
 
     fn websocket_requests_per_minute_limit(&self) -> Option<NonZeroU32> {
         None
@@ -146,7 +146,7 @@ async fn test_ws_server(test: impl WsTest) {
         pool.clone(),
         stop_receiver,
         test.websocket_requests_per_minute_limit(),
-        test.api_mode(),
+        test.api_eth_transfer_events(),
     )
     .await;
     server_handles.wait_until_ready().await;
@@ -162,10 +162,10 @@ async fn test_ws_server(test: impl WsTest) {
 }
 
 #[derive(Debug)]
-struct WsServerCanStart;
+struct WsServerCanStartTest;
 
 #[async_trait]
-impl WsTest for WsServerCanStart {
+impl WsTest for WsServerCanStartTest {
     async fn test(
         &self,
         client: &WsClient,
@@ -186,16 +186,16 @@ impl WsTest for WsServerCanStart {
         Ok(())
     }
 
-    fn api_mode(&self) -> ApiMode {
-        ApiMode::Modern
+    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents {
+        ApiEthTransferEvents::Disabled
     }
 }
 
 #[derive(Debug)]
-struct BasicSubscriptions;
+struct BasicSubscriptionsTest;
 
 #[async_trait]
-impl WsTest for BasicSubscriptions {
+impl WsTest for BasicSubscriptionsTest {
     async fn test(
         &self,
         client: &WsClient,
@@ -219,7 +219,8 @@ impl WsTest for BasicSubscriptions {
             .await?;
         wait_for_subscription(&mut pub_sub_events, SubscriptionType::Txs).await;
 
-        let (new_miniblock, new_tx_hash) = store_block(pool).await?;
+        let (new_miniblock, new_tx_hash) =
+            store_miniblock(&mut pool.access_storage().await?).await?;
 
         let received_tx_hash = tokio::time::timeout(TEST_TIMEOUT, txs_subscription.next())
             .await
@@ -237,13 +238,13 @@ impl WsTest for BasicSubscriptions {
         Ok(())
     }
 
-    fn api_mode(&self) -> ApiMode {
-        ApiMode::Modern
+    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents {
+        ApiEthTransferEvents::Disabled
     }
 }
 
 #[derive(Debug)]
-struct LogSubscriptions(ApiMode);
+struct LogSubscriptionsTest(ApiEthTransferEvents);
 
 #[derive(Debug)]
 struct Subscriptions {
@@ -294,7 +295,7 @@ impl Subscriptions {
 }
 
 #[async_trait]
-impl WsTest for LogSubscriptions {
+impl WsTest for LogSubscriptionsTest {
     async fn test(
         &self,
         client: &WsClient,
@@ -310,7 +311,7 @@ impl WsTest for LogSubscriptions {
         let mut storage = pool.access_storage().await?;
         let (tx_location, events) = store_events(&mut storage, 1, 0).await?;
 
-        let expected_count = if self.api_mode() == ApiMode::Modern {
+        let expected_count = if self.api_eth_transfer_events() == ApiEthTransferEvents::Disabled {
             6
         } else {
             7
@@ -318,7 +319,8 @@ impl WsTest for LogSubscriptions {
 
         drop(storage);
 
-        let events: Vec<_> = get_expected_events(events.iter().collect(), self.api_mode());
+        let events: Vec<_> =
+            get_expected_events(events.iter().collect(), self.api_eth_transfer_events());
 
         let all_logs = collect_logs(&mut all_logs_subscription, expected_count).await?;
         for (i, log) in all_logs.iter().enumerate() {
@@ -350,7 +352,7 @@ impl WsTest for LogSubscriptions {
         Ok(())
     }
 
-    fn api_mode(&self) -> ApiMode {
+    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents {
         self.0
     }
 }
@@ -371,10 +373,10 @@ async fn collect_logs(
 }
 
 #[derive(Debug)]
-struct LogSubscriptionsWithNewBlock(ApiMode);
+struct LogSubscriptionsWithNewBlockTest(ApiEthTransferEvents);
 
 #[async_trait]
-impl WsTest for LogSubscriptionsWithNewBlock {
+impl WsTest for LogSubscriptionsWithNewBlockTest {
     async fn test(
         &self,
         client: &WsClient,
@@ -390,9 +392,10 @@ impl WsTest for LogSubscriptionsWithNewBlock {
         let mut storage = pool.access_storage().await?;
         let (_, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
-        let events: Vec<_> = get_expected_events(events.iter().collect(), self.api_mode());
+        let events: Vec<_> =
+            get_expected_events(events.iter().collect(), self.api_eth_transfer_events());
 
-        let expected_count = if self.api_mode() == ApiMode::Modern {
+        let expected_count = if self.api_eth_transfer_events() == ApiEthTransferEvents::Disabled {
             6
         } else {
             7
@@ -404,7 +407,8 @@ impl WsTest for LogSubscriptionsWithNewBlock {
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
-        let new_events: Vec<_> = get_expected_events(new_events.iter().collect(), self.api_mode());
+        let new_events: Vec<_> =
+            get_expected_events(new_events.iter().collect(), self.api_eth_transfer_events());
 
         let all_new_logs = collect_logs(&mut all_logs_subscription, expected_count).await?;
         assert_logs_match(&all_new_logs, &new_events);
@@ -417,16 +421,16 @@ impl WsTest for LogSubscriptionsWithNewBlock {
         Ok(())
     }
 
-    fn api_mode(&self) -> ApiMode {
+    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents {
         self.0
     }
 }
 
 #[derive(Debug)]
-struct LogSubscriptionsWithManyBlocks(ApiMode);
+struct LogSubscriptionsWithManyBlocksTest(ApiEthTransferEvents);
 
 #[async_trait]
-impl WsTest for LogSubscriptionsWithManyBlocks {
+impl WsTest for LogSubscriptionsWithManyBlocksTest {
     async fn test(
         &self,
         client: &WsClient,
@@ -443,13 +447,15 @@ impl WsTest for LogSubscriptionsWithManyBlocks {
         let mut storage = pool.access_storage().await?;
         let mut transaction = storage.start_transaction().await?;
         let (_, events) = store_events(&mut transaction, 1, 0).await?;
-        let events: Vec<_> = get_expected_events(events.iter().collect(), self.api_mode());
+        let events: Vec<_> =
+            get_expected_events(events.iter().collect(), self.api_eth_transfer_events());
         let (_, new_events) = store_events(&mut transaction, 2, 4).await?;
-        let new_events: Vec<_> = get_expected_events(new_events.iter().collect(), self.api_mode());
+        let new_events: Vec<_> =
+            get_expected_events(new_events.iter().collect(), self.api_eth_transfer_events());
         transaction.commit().await?;
         drop(storage);
 
-        let expected_count = if self.api_mode() == ApiMode::Modern {
+        let expected_count = if self.api_eth_transfer_events() == ApiEthTransferEvents::Disabled {
             6
         } else {
             7
@@ -468,16 +474,16 @@ impl WsTest for LogSubscriptionsWithManyBlocks {
         Ok(())
     }
 
-    fn api_mode(&self) -> ApiMode {
+    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents {
         self.0
     }
 }
 
 #[derive(Debug)]
-struct LogSubscriptionsWithDelay(ApiMode);
+struct LogSubscriptionsWithDelayTest(ApiEthTransferEvents);
 
 #[async_trait]
-impl WsTest for LogSubscriptionsWithDelay {
+impl WsTest for LogSubscriptionsWithDelayTest {
     async fn test(
         &self,
         client: &WsClient,
@@ -513,9 +519,10 @@ impl WsTest for LogSubscriptionsWithDelay {
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
-        let new_events: Vec<_> = get_expected_events(new_events.iter().collect(), self.api_mode());
+        let new_events: Vec<_> =
+            get_expected_events(new_events.iter().collect(), self.api_eth_transfer_events());
 
-        let expected_count = if self.api_mode() == ApiMode::Modern {
+        let expected_count = if self.api_eth_transfer_events() == ApiEthTransferEvents::Disabled {
             6
         } else {
             7
@@ -530,7 +537,8 @@ impl WsTest for LogSubscriptionsWithDelay {
         all_logs_subscription.unsubscribe().await?;
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 3, 8).await?;
-        let new_events = get_expected_events(new_events.iter().collect(), self.api_mode());
+        let new_events =
+            get_expected_events(new_events.iter().collect(), self.api_eth_transfer_events());
 
         drop(storage);
 
@@ -539,16 +547,16 @@ impl WsTest for LogSubscriptionsWithDelay {
         Ok(())
     }
 
-    fn api_mode(&self) -> ApiMode {
+    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents {
         self.0
     }
 }
 
 #[derive(Debug)]
-struct RateLimiting;
+struct RateLimitingTest;
 
 #[async_trait]
-impl WsTest for RateLimiting {
+impl WsTest for RateLimitingTest {
     async fn test(
         &self,
         client: &WsClient,
@@ -571,8 +579,8 @@ impl WsTest for RateLimiting {
         Ok(())
     }
 
-    fn api_mode(&self) -> ApiMode {
-        ApiMode::Modern
+    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents {
+        ApiEthTransferEvents::Disabled
     }
 
     fn websocket_requests_per_minute_limit(&self) -> Option<NonZeroU32> {
@@ -581,10 +589,10 @@ impl WsTest for RateLimiting {
 }
 
 #[derive(Debug)]
-struct BatchGetsRateLimited;
+struct BatchGetsRateLimitedTest;
 
 #[async_trait]
-impl WsTest for BatchGetsRateLimited {
+impl WsTest for BatchGetsRateLimitedTest {
     async fn test(
         &self,
         client: &WsClient,
@@ -614,8 +622,8 @@ impl WsTest for BatchGetsRateLimited {
         Ok(())
     }
 
-    fn api_mode(&self) -> ApiMode {
-        ApiMode::Modern
+    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents {
+        ApiEthTransferEvents::Disabled
     }
 
     fn websocket_requests_per_minute_limit(&self) -> Option<NonZeroU32> {

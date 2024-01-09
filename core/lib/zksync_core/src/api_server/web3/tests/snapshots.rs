@@ -101,6 +101,10 @@ impl HttpTest for SnapshotBasicsTest {
         }
         Ok(())
     }
+
+    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents {
+        ApiEthTransferEvents::Disabled
+    }
 }
 
 #[tokio::test]

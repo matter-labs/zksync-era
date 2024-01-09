@@ -149,8 +149,8 @@ export function getAvailableApiModes() {
 }
 
 export function checkApiMode() {
-    const apiModeEn = process.env.EN_API_MODE;
-    const apiModeServer = process.env.API_WEB3_JSON_RPC_API_MODE;
+    const apiModeEn = process.env.EN_API_ETH_TRANSFER_EVENTS;
+    const apiModeServer = process.env.API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS;
 
     if (apiModeEn && apiModeServer && apiModeEn !== apiModeServer) {
         console.error(`Api mode mismatch: ${apiModeEn} != ${apiModeServer}.\nPlease, check your .env files.`);
@@ -161,7 +161,7 @@ export function checkApiMode() {
 export function getApiMode(print: boolean) {
     checkApiMode();
 
-    const apiMode = process.env.EN_API_MODE ?? process.env.API_WEB3_JSON_RPC_API_MODE;
+    const apiMode = process.env.EN_API_ETH_TRANSFER_EVENTS ?? process.env.API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS;
 
     if (print) {
         const modes = getAvailableApiModes();
@@ -192,8 +192,8 @@ export function setApiMode(mode: string, print: boolean) {
         process.exit(1);
     }
 
-    modify('EN_API_MODE', `EN_API_MODE=${mode}`);
-    modify('API_WEB3_JSON_RPC_API_MODE', `API_WEB3_JSON_RPC_API_MODE=${mode}`);
+    modify('EN_API_ETH_TRANSFER_EVENTS', `EN_API_ETH_TRANSFER_EVENTS=${mode}`);
+    modify('API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS', `API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS=${mode}`);
 
     getApiMode(print);
 }

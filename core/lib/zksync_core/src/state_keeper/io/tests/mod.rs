@@ -6,7 +6,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
 use zksync_types::{
-    api::ApiMode, block::BlockGasCount, tx::ExecutionMetrics, AccountTreeId, Address,
+    api::ApiEthTransferEvents, block::BlockGasCount, tx::ExecutionMetrics, AccountTreeId, Address,
     L1BatchNumber, MiniblockNumber, ProtocolVersionId, StorageKey, VmEvent, H256, U256,
 };
 use zksync_utils::time::seconds_since_epoch;
@@ -336,7 +336,7 @@ async fn processing_events_when_sealing_miniblock() {
 
     let logs = conn
         .events_web3_dal()
-        .get_all_logs(miniblock_number - 1, ApiMode::Modern)
+        .get_all_logs(miniblock_number - 1, ApiEthTransferEvents::Disabled)
         .await
         .unwrap();
 

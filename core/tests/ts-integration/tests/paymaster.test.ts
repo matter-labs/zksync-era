@@ -321,7 +321,7 @@ async function paidFeeWithPaymaster(
     // Below we're looking for the 1st log, then convert it to the ERC20 log and look for it as well.
     let fee;
     try {
-        fee = await extractFee(receipt, paymaster, wallet);
+        fee = await extractFee(receipt, wallet);
     } catch (e) {
         // No fee was paid by paymaster, test is failed.
         expect(null).fail(errorMessage('Transaction did not have the ETH fee log'));

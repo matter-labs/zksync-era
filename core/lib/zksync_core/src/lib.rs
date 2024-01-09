@@ -436,7 +436,7 @@ pub async fn initialize_components(
                 connection_pool.clone(),
                 replica_connection_pool.clone(),
                 stop_receiver.clone(),
-                storage_caches.clone(),
+                storage_caches,
             )
             .await
             .context("run_ws_api")?;

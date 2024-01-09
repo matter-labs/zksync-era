@@ -2,7 +2,6 @@ use std::{net::SocketAddr, num::NonZeroU32, time::Duration};
 
 use serde::Deserialize;
 use zksync_basic_types::H256;
-use zksync_types::api::ApiMode;
 
 pub use crate::configs::PrometheusConfig;
 
@@ -89,7 +88,7 @@ pub struct Web3JsonRpcConfig {
     /// Tree API url, currently used to proxy `getProof` calls to the tree
     pub tree_api_url: Option<String>,
     /// API mode, currently used to enable/disable filtering ETH Transfer events
-    pub api_mode: ApiMode,
+    pub api_eth_transfer_events: ApiEthTransferEvents,
 }
 
 impl Web3JsonRpcConfig {
@@ -126,7 +125,7 @@ impl Web3JsonRpcConfig {
             max_response_body_size_mb: Default::default(),
             websocket_requests_per_minute_limit: Default::default(),
             tree_api_url: None,
-            api_mode: Default::default(),
+            api_eth_transfer_events: Default::default(),
         }
     }
 
@@ -215,8 +214,8 @@ impl Web3JsonRpcConfig {
         self.tree_api_url.clone()
     }
 
-    pub fn api_mode(&self) -> ApiMode {
-        self.api_mode
+    pub fn api_eth_transfer_events(&self) -> ApiEthTransferEvents {
+        self.api_eth_transfer_events
     }
 }
 
@@ -260,4 +259,13 @@ impl MerkleTreeApiConfig {
     const fn default_port() -> u16 {
         3_072
     }
+}
+
+/// Enum for choosing API mode
+#[derive(Copy, Clone, Debug, PartialEq, Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ApiEthTransferEvents {
+    #[default]
+    Disabled,
+    Enabled,
 }

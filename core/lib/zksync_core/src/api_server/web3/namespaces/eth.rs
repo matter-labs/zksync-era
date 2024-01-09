@@ -1,6 +1,6 @@
 use zksync_types::{
     api::{
-        ApiMode, BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId,
+        ApiEthTransferEvents, BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId,
         TransactionReceipt, TransactionVariant,
     },
     l2::{L2Tx, TransactionType},
@@ -34,12 +34,15 @@ pub const PROTOCOL_VERSION: &str = "zks/1";
 #[derive(Debug)]
 pub struct EthNamespace {
     state: RpcState,
-    api_mode: ApiMode,
+    api_eth_transfer_events: ApiEthTransferEvents,
 }
 
 impl EthNamespace {
-    pub fn new(state: RpcState, api_mode: ApiMode) -> Self {
-        Self { state, api_mode }
+    pub fn new(state: RpcState, api_eth_transfer_events: ApiEthTransferEvents) -> Self {
+        Self {
+            state,
+            api_eth_transfer_events,
+        }
     }
 
     #[tracing::instrument(skip(self))]
@@ -494,7 +497,7 @@ impl EthNamespace {
             .await
             .unwrap()
             .transactions_web3_dal()
-            .get_transaction_receipt(hash, self.api_mode)
+            .get_transaction_receipt(hash, self.api_eth_transfer_events)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err));
 
@@ -820,7 +823,7 @@ impl EthNamespace {
                         .get_log_block_number(
                             &get_logs_filter,
                             self.state.api_config.req_entities_limit,
-                            self.api_mode,
+                            self.api_eth_transfer_events,
                         )
                         .await
                         .map_err(|err| internal_error(METHOD_NAME, err))?
@@ -835,7 +838,11 @@ impl EthNamespace {
 
                 let logs = storage
                     .events_web3_dal()
-                    .get_logs(get_logs_filter, i32::MAX as usize, self.api_mode)
+                    .get_logs(
+                        get_logs_filter,
+                        i32::MAX as usize,
+                        self.api_eth_transfer_events,
+                    )
                     .await
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
                 *from_block = to_block + 1;

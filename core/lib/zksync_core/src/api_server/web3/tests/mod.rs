@@ -14,8 +14,8 @@ use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
 use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
 use zksync_types::{
-    api::ApiMode, block::MiniblockHeader, fee::TransactionExecutionMetrics, tx::IncludedTxLocation,
-    Address, L1BatchNumber, VmEvent, H256, U64,
+    api::ApiEthTransferEvents, block::MiniblockHeader, fee::TransactionExecutionMetrics,
+    tx::IncludedTxLocation, Address, L1BatchNumber, VmEvent, H256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::{core::ClientError as RpcError, http_client::HttpClient, types::error::ErrorCode},
@@ -31,6 +31,7 @@ use crate::{
     utils::testonly::{create_l2_transaction, create_miniblock},
 };
 
+mod snapshots;
 mod ws;
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
@@ -48,24 +49,24 @@ impl L1GasPriceProvider for MockL1GasPriceProvider {
 
 #[tokio::test]
 async fn http_server_basics() {
-    test_http_server(HttpServerBasics).await;
+    test_http_server(HttpServerBasicsTest).await;
 }
 
 #[tokio::test]
 async fn basic_filter_changes() {
-    test_http_server(BasicFilterChanges).await;
+    test_http_server(BasicFilterChangesTest).await;
 }
 
-#[test_casing(2, [ApiMode::Modern, ApiMode::EthTransferIncluded])]
+#[test_casing(2, [ApiEthTransferEvents::Disabled, ApiEthTransferEvents::Enabled])]
 #[tokio::test]
-async fn log_filter_changes(mode: ApiMode) {
-    test_http_server(LogFilterChanges(mode)).await;
+async fn log_filter_changes(mode: ApiEthTransferEvents) {
+    test_http_server(LogFilterChangesTest(mode)).await;
 }
 
-#[test_casing(2, [ApiMode::Modern, ApiMode::EthTransferIncluded])]
+#[test_casing(2, [ApiEthTransferEvents::Disabled, ApiEthTransferEvents::Enabled])]
 #[tokio::test]
-async fn log_filter_changes_with_block_boundaries(mode: ApiMode) {
-    test_http_server(LogFilterChangesWithBlockBoundaries(mode)).await;
+async fn log_filter_changes_with_block_boundaries(mode: ApiEthTransferEvents) {
+    test_http_server(LogFilterChangesWithBlockBoundariesTest(mode)).await;
 }
 
 impl ApiServerHandles {
@@ -105,7 +106,7 @@ pub(crate) async fn spawn_http_server(
     network_config: &NetworkConfig,
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
-    api_mode: ApiMode,
+    api_eth_transfer_events: ApiEthTransferEvents,
 ) -> ApiServerHandles {
     spawn_server(
         ApiTransportLabel::Http,
@@ -113,16 +114,19 @@ pub(crate) async fn spawn_http_server(
         pool,
         stop_receiver,
         None,
-        api_mode,
+        api_eth_transfer_events,
     )
     .await
     .0
 }
 
-fn get_expected_events(events: Vec<&VmEvent>, api_mode: ApiMode) -> Vec<&VmEvent> {
-    match api_mode {
-        ApiMode::EthTransferIncluded => events,
-        ApiMode::Modern => {
+fn get_expected_events(
+    events: Vec<&VmEvent>,
+    api_eth_transfer_events: ApiEthTransferEvents,
+) -> Vec<&VmEvent> {
+    match api_eth_transfer_events {
+        ApiEthTransferEvents::Enabled => events,
+        ApiEthTransferEvents::Disabled => {
             // filter out all the ETH Transfer
             events
                 .into_iter()
@@ -141,7 +145,7 @@ async fn spawn_ws_server(
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
-    api_mode: ApiMode,
+    api_eth_transfer_events: ApiEthTransferEvents,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
     spawn_server(
         ApiTransportLabel::Ws,
@@ -149,7 +153,7 @@ async fn spawn_ws_server(
         pool,
         stop_receiver,
         websocket_requests_per_minute_limit,
-        api_mode,
+        api_eth_transfer_events,
     )
     .await
 }
@@ -160,11 +164,19 @@ async fn spawn_server(
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
-    api_mode: ApiMode,
+    api_eth_transfer_events: ApiEthTransferEvents,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
     let contracts_config = ContractsConfig::for_tests();
     let mut web3_config = Web3JsonRpcConfig::for_tests();
-    web3_config.api_mode = api_mode;
+
+    let api_eth_transfer_events = match api_eth_transfer_events {
+        ApiEthTransferEvents::Enabled => zksync_config::configs::api::ApiEthTransferEvents::Enabled,
+        ApiEthTransferEvents::Disabled => {
+            zksync_config::configs::api::ApiEthTransferEvents::Disabled
+        }
+    };
+
+    web3_config.api_eth_transfer_events = api_eth_transfer_events;
     let state_keeper_config = StateKeeperConfig::for_tests();
     let api_config = InternalApiConfig::new(network_config, &web3_config, &contracts_config);
     let tx_sender_config =
@@ -213,7 +225,7 @@ async fn spawn_server(
 trait HttpTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()>;
 
-    fn api_mode(&self) -> ApiMode;
+    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents;
 }
 
 async fn test_http_server(test: impl HttpTest) {
@@ -236,7 +248,7 @@ async fn test_http_server(test: impl HttpTest) {
         &network_config,
         pool.clone(),
         stop_receiver,
-        test.api_mode(),
+        test.api_eth_transfer_events(),
     )
     .await;
     server_handles.wait_until_ready().await;
@@ -259,8 +271,9 @@ fn assert_logs_match(actual_logs: &[api::Log], expected_logs: &[&VmEvent]) {
     }
 }
 
-async fn store_block(pool: &ConnectionPool) -> anyhow::Result<(MiniblockHeader, H256)> {
-    let mut storage = pool.access_storage().await?;
+async fn store_miniblock(
+    storage: &mut StorageProcessor<'_>,
+) -> anyhow::Result<(MiniblockHeader, H256)> {
     let new_tx = create_l2_transaction(1, 2);
     let new_tx_hash = new_tx.hash();
     let tx_submission_result = storage
@@ -354,10 +367,10 @@ async fn store_events(
 }
 
 #[derive(Debug)]
-struct HttpServerBasics;
+struct HttpServerBasicsTest;
 
 #[async_trait]
-impl HttpTest for HttpServerBasics {
+impl HttpTest for HttpServerBasicsTest {
     async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
         let block_number = client.get_block_number().await?;
         assert_eq!(block_number, U64::from(0));
@@ -373,21 +386,22 @@ impl HttpTest for HttpServerBasics {
         Ok(())
     }
 
-    fn api_mode(&self) -> ApiMode {
-        ApiMode::Modern
+    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents {
+        ApiEthTransferEvents::Disabled
     }
 }
 
 #[derive(Debug)]
-struct BasicFilterChanges;
+struct BasicFilterChangesTest;
 
 #[async_trait]
-impl HttpTest for BasicFilterChanges {
+impl HttpTest for BasicFilterChangesTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
         let block_filter_id = client.new_block_filter().await?;
         let tx_filter_id = client.new_pending_transaction_filter().await?;
 
-        let (new_miniblock, new_tx_hash) = store_block(pool).await?;
+        let (new_miniblock, new_tx_hash) =
+            store_miniblock(&mut pool.access_storage().await?).await?;
 
         let block_filter_changes = client.get_filter_changes(block_filter_id).await?;
         assert_matches!(
@@ -419,16 +433,16 @@ impl HttpTest for BasicFilterChanges {
         Ok(())
     }
 
-    fn api_mode(&self) -> ApiMode {
-        ApiMode::Modern
+    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents {
+        ApiEthTransferEvents::Disabled
     }
 }
 
 #[derive(Debug)]
-struct LogFilterChanges(ApiMode);
+struct LogFilterChangesTest(ApiEthTransferEvents);
 
 #[async_trait]
-impl HttpTest for LogFilterChanges {
+impl HttpTest for LogFilterChangesTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
         let all_logs_filter_id = client.new_filter(Filter::default()).await?;
         let address_filter = Filter {
@@ -446,7 +460,8 @@ impl HttpTest for LogFilterChanges {
         let (_, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
 
-        let events: Vec<_> = get_expected_events(events.iter().collect(), self.api_mode());
+        let events: Vec<_> =
+            get_expected_events(events.iter().collect(), self.api_eth_transfer_events());
 
         let all_logs = client.get_filter_changes(all_logs_filter_id).await?;
         let FilterChanges::Logs(all_logs) = all_logs else {
@@ -474,16 +489,16 @@ impl HttpTest for LogFilterChanges {
         Ok(())
     }
 
-    fn api_mode(&self) -> ApiMode {
+    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents {
         self.0
     }
 }
 
 #[derive(Debug)]
-struct LogFilterChangesWithBlockBoundaries(ApiMode);
+struct LogFilterChangesWithBlockBoundariesTest(ApiEthTransferEvents);
 
 #[async_trait]
-impl HttpTest for LogFilterChangesWithBlockBoundaries {
+impl HttpTest for LogFilterChangesWithBlockBoundariesTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
         let lower_bound_filter = Filter {
             from_block: Some(api::BlockNumber::Number(2.into())),
@@ -505,7 +520,8 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         let mut storage = pool.access_storage().await?;
         let (_, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
-        let events: Vec<_> = get_expected_events(events.iter().collect(), self.api_mode());
+        let events: Vec<_> =
+            get_expected_events(events.iter().collect(), self.api_eth_transfer_events());
 
         let lower_bound_logs = client.get_filter_changes(lower_bound_filter_id).await?;
         assert_matches!(
@@ -530,7 +546,8 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
-        let new_events: Vec<_> = get_expected_events(new_events.iter().collect(), self.api_mode());
+        let new_events: Vec<_> =
+            get_expected_events(new_events.iter().collect(), self.api_eth_transfer_events());
 
         let lower_bound_logs = client.get_filter_changes(lower_bound_filter_id).await?;
         let FilterChanges::Logs(lower_bound_logs) = lower_bound_logs else {
@@ -549,7 +566,8 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         let (_, new_events) = store_events(&mut storage, 3, 8).await?;
         drop(storage);
 
-        let new_events: Vec<_> = get_expected_events(new_events.iter().collect(), self.api_mode());
+        let new_events: Vec<_> =
+            get_expected_events(new_events.iter().collect(), self.api_eth_transfer_events());
 
         let bounded_logs = client.get_filter_changes(bounded_filter_id).await?;
         let FilterChanges::Hashes(bounded_logs) = bounded_logs else {
@@ -571,7 +589,7 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
         Ok(())
     }
 
-    fn api_mode(&self) -> ApiMode {
+    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents {
         self.0
     }
 }

@@ -1,7 +1,7 @@
 use sqlx::Row;
 use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
 use zksync_types::{
-    api::{ApiMode, GetLogsFilter, Log},
+    api::{ApiEthTransferEvents, GetLogsFilter, Log},
     Address, MiniblockNumber, H256,
 };
 
@@ -14,21 +14,21 @@ pub struct EventsWeb3Dal<'a, 'c> {
     pub(crate) storage: &'a mut StorageProcessor<'c>,
 }
 
-pub fn filter_logs_by_api_mode(
+pub fn filter_logs_by_api_eth_transfer_events(
     mut db_logs: Vec<StorageWeb3Log>,
-    api_mode: ApiMode,
+    api_eth_transfer_events: ApiEthTransferEvents,
 ) -> Vec<StorageWeb3Log> {
-    if api_mode == ApiMode::Modern {
+    if api_eth_transfer_events == ApiEthTransferEvents::Disabled {
         db_logs.retain(|log| {
             log.address != L2_ETH_TOKEN_ADDRESS.as_bytes()
                 || log.topic1 != TRANSFER_EVENT_TOPIC.as_bytes()
         });
 
-        if !db_logs.is_empty() {
+        if let Some(first_log) = db_logs.first().cloned() {
             let mut new_event_index_in_block = 0;
             let mut new_event_index_in_tx = 0;
-            let mut current_block = db_logs[0].miniblock_number;
-            let mut current_tx_hash = db_logs[0].tx_hash.clone();
+            let mut current_block = first_log.miniblock_number;
+            let mut current_tx_hash = first_log.tx_hash.clone();
 
             for db_log in &mut db_logs {
                 if db_log.miniblock_number != current_block {
@@ -56,12 +56,12 @@ impl EventsWeb3Dal<'_, '_> {
         &mut self,
         filter: &GetLogsFilter,
         offset: usize,
-        api_mode: ApiMode,
+        api_eth_transfer_events: ApiEthTransferEvents,
     ) -> Result<Option<MiniblockNumber>, SqlxError> {
         {
             let (mut where_sql, mut arg_index) = self.build_get_logs_where_clause(filter);
 
-            if api_mode == ApiMode::Modern {
+            if api_eth_transfer_events == ApiEthTransferEvents::Disabled {
                 where_sql += &format!(
                     " AND NOT (address = ${} AND topic1 = ${})",
                     arg_index,
@@ -92,7 +92,7 @@ impl EventsWeb3Dal<'_, '_> {
                 query = query.bind(topics);
             }
 
-            if api_mode == ApiMode::Modern {
+            if api_eth_transfer_events == ApiEthTransferEvents::Disabled {
                 query = query.bind(L2_ETH_TOKEN_ADDRESS.as_bytes());
                 query = query.bind(TRANSFER_EVENT_TOPIC.as_bytes());
             }
@@ -116,7 +116,7 @@ impl EventsWeb3Dal<'_, '_> {
         &mut self,
         filter: GetLogsFilter,
         limit: usize,
-        api_mode: ApiMode,
+        api_eth_transfer_events: ApiEthTransferEvents,
     ) -> Result<Vec<Log>, SqlxError> {
         {
             let (where_sql, arg_index) = self.build_get_logs_where_clause(&filter);
@@ -161,7 +161,7 @@ impl EventsWeb3Dal<'_, '_> {
                 .fetch_all(self.storage.conn())
                 .await?;
 
-            let logs = filter_logs_by_api_mode(db_logs, api_mode)
+            let logs = filter_logs_by_api_eth_transfer_events(db_logs, api_eth_transfer_events)
                 .into_iter()
                 .map(Into::into)
                 .collect();
@@ -190,7 +190,7 @@ impl EventsWeb3Dal<'_, '_> {
     pub async fn get_all_logs(
         &mut self,
         from_block: MiniblockNumber,
-        api_mode: ApiMode,
+        api_eth_transfer_events: ApiEthTransferEvents,
     ) -> Result<Vec<Log>, SqlxError> {
         {
             let db_logs: Vec<StorageWeb3Log> = sqlx::query_as!(
@@ -244,7 +244,7 @@ impl EventsWeb3Dal<'_, '_> {
             .fetch_all(self.storage.conn())
             .await?;
 
-            let logs = filter_logs_by_api_mode(db_logs, api_mode)
+            let logs = filter_logs_by_api_eth_transfer_events(db_logs, api_eth_transfer_events)
                 .into_iter()
                 .map(Into::into)
                 .collect();

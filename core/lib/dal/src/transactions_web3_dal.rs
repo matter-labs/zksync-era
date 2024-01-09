@@ -1,12 +1,12 @@
 use sqlx::types::chrono::NaiveDateTime;
 use zksync_types::{
-    api, api::ApiMode, Address, L2ChainId, MiniblockNumber, Transaction,
+    api, api::ApiEthTransferEvents, Address, L2ChainId, MiniblockNumber, Transaction,
     ACCOUNT_CODE_STORAGE_ADDRESS, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256, U256, U64,
 };
 use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
 
 use crate::{
-    events_web3_dal::filter_logs_by_api_mode,
+    events_web3_dal::filter_logs_by_api_eth_transfer_events,
     instrument::InstrumentExt,
     models::{
         storage_block::{bind_block_where_sql_params, web3_block_where_sql},
@@ -28,7 +28,7 @@ impl TransactionsWeb3Dal<'_, '_> {
     pub async fn get_transaction_receipt(
         &mut self,
         hash: H256,
-        api_mode: ApiMode,
+        api_eth_transfer_events: ApiEthTransferEvents,
     ) -> Result<Option<api::TransactionReceipt>, SqlxError> {
         {
             let receipt = sqlx::query!(
@@ -164,15 +164,16 @@ impl TransactionsWeb3Dal<'_, '_> {
                     .fetch_all(self.storage.conn())
                     .await?;
 
-                    let logs = filter_logs_by_api_mode(db_logs, api_mode)
-                        .into_iter()
-                        .map(|storage_log| {
-                            let mut log = api::Log::from(storage_log);
-                            log.block_hash = Some(receipt.block_hash);
-                            log.l1_batch_number = receipt.l1_batch_number;
-                            log
-                        })
-                        .collect();
+                    let logs =
+                        filter_logs_by_api_eth_transfer_events(db_logs, api_eth_transfer_events)
+                            .into_iter()
+                            .map(|storage_log| {
+                                let mut log = api::Log::from(storage_log);
+                                log.block_hash = Some(receipt.block_hash);
+                                log.l1_batch_number = receipt.l1_batch_number;
+                                log
+                            })
+                            .collect();
 
                     receipt.logs = logs;
 
