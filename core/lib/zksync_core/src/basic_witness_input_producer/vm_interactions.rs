@@ -74,6 +74,7 @@ pub(super) fn execute_tx<S: WriteStorage>(
     vm.make_snapshot();
     if vm
         .execute_transaction_with_bytecode_compression(tx.clone(), true)
+        .0
         .is_ok()
     {
         vm.pop_snapshot_no_rollback();
@@ -84,6 +85,7 @@ pub(super) fn execute_tx<S: WriteStorage>(
     vm.rollback_to_the_latest_snapshot();
     if vm
         .execute_transaction_with_bytecode_compression(tx.clone(), false)
+        .0
         .is_err()
     {
         return Err(anyhow!("compression can't fail if we don't apply it"));

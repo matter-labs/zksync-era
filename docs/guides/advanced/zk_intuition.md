@@ -62,7 +62,7 @@ pub fn compute_decommitter_circuit_snapshots<
 ...
 ) -> (
     Vec<CodeDecommitterCircuitInstanceWitness<E>>,
-    CodeDecommittmentsDeduplicatorInstanceWitness<E>,
+    CodeDecommitmentsDeduplicatorInstanceWitness<E>,
 )
 ```
 

@@ -60,7 +60,7 @@ structured_input
     .enforce_trivial_head(cs);
 ```
 
-So long as `tail` is some equivalent of the merkel tree root and `head` is an equivalent of the current node hash, we
+So long as `tail` is some equivalent of the merkle tree root and `head` is an equivalent of the current node hash, we
 provide some path witness when we pop elements and require that we properly end up in the root. So we must prove that
 element of head is zero:
 

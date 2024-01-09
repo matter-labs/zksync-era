@@ -41,6 +41,7 @@ pub enum Halt {
     FailedToAppendTransactionToL2Block(String),
     VMPanic,
     TracerCustom(String),
+    FailedToPublishCompressedBytecodes,
 }
 
 impl Display for Halt {
@@ -111,6 +112,9 @@ impl Display for Halt {
             }
             Halt::ValidationOutOfGas => {
                 write!(f, "Validation run out of gas")
+            }
+            Halt::FailedToPublishCompressedBytecodes => {
+                write!(f, "Failed to publish compressed bytecodes")
             }
         }
     }
