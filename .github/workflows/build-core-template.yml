@@ -86,7 +86,7 @@ jobs:
           PLATFORM: ${{ matrix.platforms }}
         run: |
           platform=$(echo $PLATFORM | tr '/' '-')
-          IMAGE_TAG_SUFFIX="test"
+          IMAGE_TAG_SUFFIX=$(git rev-parse --short HEAD)
           ci_run zk docker $DOCKER_ACTION --custom-tag=${tag} --platform=${PLATFORM} $COMPONENT
       - name: Show sccache stats
         if: always()
@@ -128,7 +128,7 @@ jobs:
         run: |
           docker_repositories=("matterlabs/${{ matrix.component.name }}" "us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component.name }}")
           platforms=${{ matrix.component.platform }}
-          IMAGE_TAG_SUFFIX="test"
+          IMAGE_TAG_SUFFIX=$(git rev-parse --short HEAD)
           for repo in "${docker_repositories[@]}"; do
             platform_tags=""
             for platform in ${platforms//,/ }; do
