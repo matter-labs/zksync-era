@@ -107,7 +107,7 @@ mod tests {
     fn from_env() {
         let mut lock = MUTEX.lock();
         let config = r#"
-            API_WEB3_JSON_RPC_HTTP_PORT="3050"\
+            API_WEB3_JSON_RPC_HTTP_PORT="3050"
             API_WEB3_JSON_RPC_HTTP_URL="http://127.0.0.1:3050"
             API_WEB3_JSON_RPC_WS_PORT="3051"
             API_WEB3_JSON_RPC_WS_URL="ws://127.0.0.1:3051"

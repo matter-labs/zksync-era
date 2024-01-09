@@ -218,11 +218,15 @@ async fn spawn_server(
             builder
         }
     };
+
+    let mut namespaces = Namespace::DEFAULT.to_vec();
+    namespaces.push(Namespace::Snapshots);
+
     let server_handles = server_builder
         .with_polling_interval(POLL_INTERVAL)
         .with_tx_sender(tx_sender, vm_barrier)
         .with_pub_sub_events(pub_sub_events_sender)
-        .enable_api_namespaces(Namespace::DEFAULT.to_vec())
+        .enable_api_namespaces(namespaces)
         .build(stop_receiver)
         .await
         .expect("Failed spawning JSON-RPC server");
