@@ -273,9 +273,9 @@ new_lhs.iter().zip(new_rhs).for_each(|(l, r)| {
 Now we update PI output parts and compute a commitment. Then we allocate it as public variables.
 
 ```rust
-let input_committment =
+let input_commitment =
     commit_variable_length_encodable_item(cs, &compact_form, round_function);
-for el in input_committment.iter() {
+for el in input_commitment.iter() {
     let gate = PublicInputGate::new(el.get_variable());
     gate.add_to_cs(cs);
 }
