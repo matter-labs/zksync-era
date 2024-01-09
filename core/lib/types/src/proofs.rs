@@ -36,7 +36,7 @@ pub struct StorageLogMetadata {
     pub merkle_paths: Vec<[u8; HASH_LEN]>,
     pub leaf_hashed_key: U256,
     pub leaf_enumeration_index: u64,
-    // **NB.** For compatibility reasons, `#[serde_as(as = "Bytes")]` attrs are not added below.
+    // **NB.** For compatibility reasons, `#[serde_as(as = "Bytes")]` attributes are not added below.
     pub value_written: [u8; HASH_LEN],
     pub value_read: [u8; HASH_LEN],
 }

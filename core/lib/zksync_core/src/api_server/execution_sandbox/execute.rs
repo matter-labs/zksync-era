@@ -92,7 +92,7 @@ pub(crate) async fn execute_tx_eth_call(
 
     // Protection against infinite-loop eth_calls and alike:
     // limiting the amount of gas the call can use.
-    // We can't use BLOCK_ERGS_LIMIT here since the VM itself has some overhead.
+    // We can't use `BLOCK_ERGS_LIMIT` here since the VM itself has some overhead.
     tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
     let (vm_result, _) = execute_tx_in_sandbox(
         vm_permit,

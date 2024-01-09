@@ -426,7 +426,7 @@ async fn fetcher_basics() {
     );
     let fetcher_task = tokio::spawn(fetcher.run());
 
-    // Check that sync_state is updated.
+    // Check that `sync_state` is updated.
     while sync_state.get_main_node_block() < MiniblockNumber(5) {
         tokio::time::sleep(POLL_INTERVAL).await;
     }

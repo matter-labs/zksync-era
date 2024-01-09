@@ -54,7 +54,7 @@ impl Executor {
     ) -> anyhow::Result<Self> {
         let pool = AccountPool::new(&config).await?;
 
-        // derive l2 main token address
+        // derive L2 main token address
         let l2_main_token = pool
             .master_wallet
             .ethereum(&config.l1_rpc_address)

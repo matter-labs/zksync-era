@@ -288,6 +288,7 @@ async fn test_postgres_backup_recovery(
                 BlockGasCount::default(),
                 &[],
                 &[],
+                0,
             )
             .await
             .unwrap();
@@ -313,7 +314,7 @@ async fn test_postgres_backup_recovery(
     for batch_header in &removed_batches {
         let mut txn = storage.start_transaction().await.unwrap();
         txn.blocks_dal()
-            .insert_l1_batch(batch_header, &[], BlockGasCount::default(), &[], &[])
+            .insert_l1_batch(batch_header, &[], BlockGasCount::default(), &[], &[], 0)
             .await
             .unwrap();
         insert_initial_writes_for_batch(&mut txn, batch_header.number).await;
@@ -496,7 +497,7 @@ pub(super) async fn extend_db_state_from_l1_batch(
 
         storage
             .blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
+            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
             .await
             .unwrap();
         storage

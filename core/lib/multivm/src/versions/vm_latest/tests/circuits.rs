@@ -30,15 +30,14 @@ fn test_circuits() {
     vm.vm.push_transaction(tx);
     let res = vm.vm.inspect(Default::default(), VmExecutionMode::OneTx);
 
-    const EXPECTED_CIRCUITS_USED: f32 = 4.8685;
+    const EXPECTED_CIRCUITS_USED: f32 = 1.5521;
     let delta =
         (res.statistics.estimated_circuits_used - EXPECTED_CIRCUITS_USED) / EXPECTED_CIRCUITS_USED;
 
     if delta.abs() > 0.1 {
         panic!(
-            "Estimation differs from expected result by too much: {}%, expected value: {}",
-            delta * 100.0,
-            res.statistics.estimated_circuits_used
+            "Estimation differs from expected result by too much: {}%",
+            delta * 100.0
         );
     }
 }

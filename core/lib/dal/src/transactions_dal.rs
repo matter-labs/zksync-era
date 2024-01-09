@@ -284,7 +284,7 @@ impl TransactionsDal<'_, '_> {
             // 3) WHERE clause conditions for DO UPDATE block were not met, so the transaction can't be replaced
             // the subquery in RETURNING clause looks into pre-UPDATE state of the table. So if the subquery will return NULL
             // transaction is fresh and was added to db(the second condition of RETURNING clause checks it).
-            // Otherwise, if the subquery won't return NULL it means that there is already tx with such nonce and initiator_address in DB
+            // Otherwise, if the subquery won't return NULL it means that there is already tx with such nonce and `initiator_address` in DB
             // and we can replace it WHERE clause conditions are met.
             // It is worth mentioning that if WHERE clause conditions are not met, None will be returned.
             let query_result = sqlx::query!(
@@ -408,7 +408,7 @@ impl TransactionsDal<'_, '_> {
                     // another tx with the same tx hash is supposed to have the same data
                     // In this case we identify it as Duplicate
                     // Note, this error can happen because of the race condition (tx can be taken by several
-                    // api servers, that simultaneously start execute it and try to inserted to DB)
+                    // API servers, that simultaneously start execute it and try to inserted to DB)
                     if let error::Error::Database(ref error) = err {
                         if let Some(constraint) = error.constraint() {
                             if constraint == "transactions_pkey" {
@@ -597,7 +597,7 @@ impl TransactionsDal<'_, '_> {
                 });
 
             if !l2_hashes.is_empty() {
-                // Update l2 txs
+                // Update L2 txs
 
                 // Due to the current tx replacement model, it's possible that tx has been replaced,
                 // but the original was executed in memory,

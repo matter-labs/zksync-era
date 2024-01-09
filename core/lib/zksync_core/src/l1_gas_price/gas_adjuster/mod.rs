@@ -141,7 +141,7 @@ impl<E: EthInterface> L1TxParamsProvider for GasAdjuster<E> {
 
         // Currently we use an exponential formula.
         // The alternative is a linear one:
-        // let scale_factor = a + b * time_in_mempool as f64;
+        // `let scale_factor = a + b * time_in_mempool as f64;`
         let scale_factor = a * b.powf(time_in_mempool as f64);
         let median = self.statistics.median();
         METRICS.median_base_fee_per_gas.set(median);
@@ -158,11 +158,11 @@ impl<E: EthInterface> L1TxParamsProvider for GasAdjuster<E> {
 
     // Priority fee is set to constant, sourced from config.
     // Reasoning behind this is the following:
-    // High priority_fee means high demand for block space,
-    // which means base_fee will increase, which means priority_fee
+    // High `priority_fee` means high demand for block space,
+    // which means `base_fee` will increase, which means `priority_fee`
     // will decrease. The EIP-1559 mechanism is designed such that
-    // base_fee will balance out priority_fee in such a way that
-    // priority_fee will be a small fraction of the overall fee.
+    // `base_fee` will balance out `priority_fee` in such a way that
+    // `priority_fee` will be a small fraction of the overall fee.
     fn get_priority_fee(&self) -> u64 {
         self.config.default_priority_fee_per_gas
     }
