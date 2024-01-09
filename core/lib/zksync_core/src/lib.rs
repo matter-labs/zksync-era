@@ -1074,7 +1074,6 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
             .http(api_config.web3_json_rpc.http_port)
             .with_last_miniblock_pool(last_miniblock_pool)
             .with_filter_limit(api_config.web3_json_rpc.filters_limit())
-            .with_threads(api_config.web3_json_rpc.http_server_threads())
             .with_tree_api(api_config.web3_json_rpc.tree_api_url())
             .with_batch_request_size_limit(api_config.web3_json_rpc.max_batch_request_size())
             .with_response_body_size_limit(api_config.web3_json_rpc.max_response_body_size())
@@ -1128,7 +1127,6 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
                     .websocket_requests_per_minute_limit(),
             )
             .with_polling_interval(api_config.web3_json_rpc.pubsub_interval())
-            .with_threads(api_config.web3_json_rpc.ws_server_threads())
             .with_tree_api(api_config.web3_json_rpc.tree_api_url())
             .with_tx_sender(tx_sender, vm_barrier)
             .enable_api_namespaces(namespaces);
