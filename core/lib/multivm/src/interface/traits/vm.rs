@@ -87,6 +87,14 @@ pub trait VmInterface<S, H: HistoryMode> {
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs;
 
+    /// Execute next VM step (either next transaction or bootloader or the whole batch)
+    /// with custom tracers and circuit statistic enabled.
+    fn inspect_with_circuit_statistic(
+        &mut self,
+        dispatcher: Self::TracerDispatcher,
+        execution_mode: VmExecutionMode,
+    ) -> VmExecutionResultAndLogs;
+
     /// Get bootloader memory.
     fn get_bootloader_memory(&self) -> BootloaderMemory;
 

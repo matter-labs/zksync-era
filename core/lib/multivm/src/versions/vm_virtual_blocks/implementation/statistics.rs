@@ -41,6 +41,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             // This field will be populated by the `RefundTracer`
             pubdata_published: 0,
             estimated_circuits_used: 0.0,
+            circuit_statistic: Default::default(),
         }
     }
 

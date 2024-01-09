@@ -63,7 +63,16 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         tracer: Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
-        self.inspect_inner(tracer, execution_mode)
+        self.inspect_inner(tracer, execution_mode, false)
+    }
+
+    /// Execute VM with custom tracers and circuit statistic enabled.
+    fn inspect_with_circuit_statistic(
+        &mut self,
+        tracer: Self::TracerDispatcher,
+        execution_mode: VmExecutionMode,
+    ) -> VmExecutionResultAndLogs {
+        self.inspect_inner(tracer, execution_mode, true)
     }
 
     /// Get current state of bootloader memory.
@@ -132,7 +141,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         VmExecutionResultAndLogs,
     ) {
         self.push_transaction_with_compression(tx, with_compression);
-        let result = self.inspect_inner(tracer, VmExecutionMode::OneTx);
+        let result = self.inspect_inner(tracer, VmExecutionMode::OneTx, false);
         if self.has_unpublished_bytecodes() {
             (
                 Err(BytecodeCompressionError::BytecodeCompressionFailed),

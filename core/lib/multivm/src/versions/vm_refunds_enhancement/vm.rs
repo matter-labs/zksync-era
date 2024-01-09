@@ -63,6 +63,15 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         self.inspect_inner(dispatcher, execution_mode)
     }
 
+    /// Execute VM with custom tracers and circuit statistic enabled.
+    fn inspect_with_circuit_statistic(
+        &mut self,
+        dispatcher: Self::TracerDispatcher,
+        execution_mode: VmExecutionMode,
+    ) -> VmExecutionResultAndLogs {
+        self.inspect(dispatcher, execution_mode)
+    }
+
     /// Get current state of bootloader memory.
     fn get_bootloader_memory(&self) -> BootloaderMemory {
         self.bootloader_state.bootloader_memory()

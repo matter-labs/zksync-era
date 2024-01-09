@@ -27,6 +27,7 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult> for crate::interface::Fi
                     gas_used: value.full_result.gas_used,
                     pubdata_published: 0,
                     estimated_circuits_used: 0.0,
+                    circuit_statistic: Default::default(),
                 },
                 refunds: Refunds::default(),
             },
@@ -66,6 +67,7 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult> for crate::interface::Fi
                     gas_used: value.full_result.gas_used,
                     pubdata_published: 0,
                     estimated_circuits_used: 0.0,
+                    circuit_statistic: Default::default(),
                 },
                 refunds: Refunds::default(),
             },
@@ -111,6 +113,7 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult> for crate::interface:
                     gas_used: value.full_result.gas_used,
                     pubdata_published: 0,
                     estimated_circuits_used: 0.0,
+                    circuit_statistic: Default::default(),
                 },
                 refunds: Refunds::default(),
             },
@@ -172,6 +175,7 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult>
                 gas_used: value.full_result.gas_used,
                 pubdata_published: 0,
                 estimated_circuits_used: 0.0,
+                circuit_statistic: Default::default(),
             },
             refunds: Refunds::default(),
         }
@@ -203,6 +207,7 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult>
                 gas_used: value.full_result.gas_used,
                 pubdata_published: 0,
                 estimated_circuits_used: 0.0,
+                circuit_statistic: Default::default(),
             },
             refunds: Refunds::default(),
         }
@@ -245,6 +250,7 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult>
                 gas_used: value.full_result.gas_used,
                 pubdata_published: 0,
                 estimated_circuits_used: 0.0,
+                circuit_statistic: Default::default(),
             },
             refunds: Refunds::default(),
         }
