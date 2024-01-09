@@ -34,6 +34,9 @@ jobs:
             - snapshots-creator
           platforms:
             - linux/amd64
+          include:
+            - components: external-node
+              platforms: linux/arm64
 
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
@@ -84,9 +87,51 @@ jobs:
           PLATFORM: ${{ matrix.platforms }}
         run: |
           ci_run rustup default nightly-2023-08-21
-          ci_run zk docker $DOCKER_ACTION $COMPONENT
+          ci_run zk docker $DOCKER_ACTION --platform=${PLATFORM} $COMPONENT
       - name: Show sccache stats
         if: always()
         run: |
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
+
+  create_manifest:
+    name: Create release manifest
+    runs-on: matterlabs-ci-runner
+    needs: build-images
+    if: ${{ inputs.action == 'push' }}
+    strategy:
+      matrix:
+        component:
+          - name: server-v2
+            platform: linux/amd64
+          - name: external-node
+            platform: linux/amd64,linux/arm64
+          - name: contract-verifier
+            platform: linux/amd64
+          - name: cross-external-nodes-checker
+            platform: linux/amd64
+          - name: snapshots-creator
+            platform: linux/amd64
+    env:
+      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
+      DOCKER_CLI_EXPERIMENTAL: enabled
+    steps:
+      - name: login to Docker registries
+        run: |
+          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+          gcloud auth configure-docker us-docker.pkg.dev -q
+
+      - name: Create Docker manifest
+        run: |
+          docker_repositories=("matterlabs/${{ matrix.component.name }}" "us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component.name }}")
+          platforms=${{ matrix.component.platform }}
+          for repo in "${docker_repositories[@]}"; do
+            repo_tags=""
+            for platform in ${platforms//,/ }; do
+              platform=$(echo $platform | tr '/' '-')
+              repo_tags+=" --amend ${repo}:${IMAGE_TAG_SUFFIX}-${platform}"
+            done
+            echo $repo_tags
+            docker manifest create ${repo}:${IMAGE_TAG_SUFFIX} ${repo_tags}
+            docker manifest push ${repo}:${IMAGE_TAG_SUFFIX}
+          done
