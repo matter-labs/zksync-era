@@ -122,6 +122,9 @@ jobs:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
       DOCKER_CLI_EXPERIMENTAL: enabled
     steps:
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+        with:
+          submodules: "recursive"
       - name: login to Docker registries
         run: |
           docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
@@ -131,6 +134,9 @@ jobs:
         run: |
           docker_repositories=("matterlabs/${{ matrix.component.name }}" "us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component.name }}")
           platforms=${{ matrix.component.platform }}
+          if [[ -z "$IMAGE_TAG_SUFFIX" ]]; then
+            IMAGE_TAG_SUFFIX=$(git rev-parse --short HEAD)
+          fi
           for repo in "${docker_repositories[@]}"; do
             platform_tags=""
             for platform in ${platforms//,/ }; do
