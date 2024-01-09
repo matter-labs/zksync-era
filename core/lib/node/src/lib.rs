@@ -28,9 +28,6 @@ pub trait IntoZkSyncTask: 'static + Send + Sync {
 /// TODO more elaborate docs
 #[async_trait::async_trait]
 pub trait ZkSyncTask: 'static + Send + Sync {
-    // /// Context that can be shared with the `after_finish` and `after_shutdown`
-    // type Context = ();
-
     /// Gets the healthcheck for the task, if it exists.
     /// Guaranteed to be called only once per task.
     fn healtcheck(&mut self) -> Option<Box<dyn CheckHealth>>;
@@ -60,6 +57,7 @@ pub trait ZkSyncTask: 'static + Send + Sync {
 }
 
 struct TaskRepr {
+    name: String,
     task: Option<BoxFuture<'static, anyhow::Result<()>>>,
     after_finish: Option<BoxFuture<'static, ()>>,
     after_node_shutdown: Option<BoxFuture<'static, ()>>,
@@ -67,7 +65,9 @@ struct TaskRepr {
 
 impl fmt::Debug for TaskRepr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("TaskRepr").finish()
+        f.debug_struct("TaskRepr")
+            .field("name", &self.name)
+            .finish_non_exhaustive()
     }
 }
 
@@ -79,7 +79,7 @@ pub struct ZkSyncNode {
     /// There is a note on `dyn Any` below the snippet.
     resources: HashMap<String, Box<dyn Any>>,
     /// Named tasks.
-    tasks: HashMap<String, TaskRepr>,
+    tasks: Vec<TaskRepr>,
     // TODO: healthchecks
 
     // TODO: circuit breakers
@@ -87,17 +87,13 @@ pub struct ZkSyncNode {
     runtime: Runtime,
 }
 
-impl Default for ZkSyncNode {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl ZkSyncNode {
-    pub fn new() -> Self {
-        // TODO: Check that tokio context is not available to make sure that every future is spawned on the dedicated runtime?
-        // TODO: Provide a way to get runtime handle?
-
+    pub fn new() -> anyhow::Result<Self> {
+        if tokio::runtime::Handle::try_current().is_ok() {
+            anyhow::bail!(
+                "Detected a Tokio Runtime. ZkSyncNode manages its own runtime and does not support nested runtimes"
+            );
+        }
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
@@ -106,7 +102,7 @@ impl ZkSyncNode {
         let (stop_sender, stop_receiver) = watch::channel(false);
         let mut self_ = Self {
             resources: HashMap::new(),
-            tasks: HashMap::new(),
+            tasks: Vec::new(),
             stop_sender,
             runtime,
         };
@@ -115,14 +111,16 @@ impl ZkSyncNode {
             resources::stop_receiver::StopReceiverResource::new(stop_receiver),
         );
 
-        self_
+        Ok(self_)
     }
 
-    /// Helper utility allowing to execute asynchrnous code within [`ZkSyncTask::new`].
-    /// This method is intended to only be used to invoke async contstructors, deferring as much async logic as possible
-    /// to [`ZkSyncTask::before_launch`].
-    pub fn block_on<F: std::future::Future>(&self, future: F) -> F::Output {
-        self.runtime.block_on(future)
+    /// Provides access to the runtime used by the node.
+    /// Can be used to execute non-blocking code in the task constructors, or to spawn additional tasks within
+    /// the same runtime.
+    /// If some tasks stores the handle to spawn additional tasks, it is considered responsible for all the
+    /// required cleanup.
+    pub fn runtime_handle(&self) -> &tokio::runtime::Handle {
+        self.runtime.handle()
     }
 
     /// Adds a resource. By default, any resource can be requested by multiple
@@ -153,11 +151,12 @@ impl ZkSyncNode {
         let name = String::from(name.as_ref());
         let task_future = Box::pin(task.run());
         let task_repr = TaskRepr {
+            name,
             task: Some(task_future),
             after_finish,
             after_node_shutdown,
         };
-        self.tasks.insert(name, task_repr);
+        self.tasks.push(task_repr);
     }
 
     /// Runs the system.
@@ -165,43 +164,44 @@ impl ZkSyncNode {
         let rt_handle = self.runtime.handle().clone();
         let join_handles: Vec<_> = self
             .tasks
-            .values_mut()
+            .iter_mut()
             .map(|task| {
-                let task = task
-                    .task
-                    .take()
-                    .expect("Task must be Some prior to running");
+                let task = task.task.take().expect(
+                    "Tasks are created by the node and must be Some prior to calling this method",
+                );
                 rt_handle.spawn(task).fuse()
             })
             .collect();
 
         // Run the tasks until one of them exits.
-        let (resolved, _idx, remaining) = self
+        let (resolved, idx, remaining) = self
             .runtime
             .block_on(futures::future::select_all(join_handles));
+        let task_name = &self.tasks[idx].name;
         let failure = match resolved {
             Ok(Ok(())) => {
-                tracing::info!("Task exited successfully"); // TODO which one
+                tracing::info!("Task {task_name} completed");
                 false
             }
             Ok(Err(err)) => {
-                tracing::error!("Task exited with an error: {err}"); // TODO which one
+                tracing::error!("Task {task_name} exited with an error: {err}");
                 true
             }
             Err(_) => {
-                tracing::error!("Task panicked"); // TODO which one
+                tracing::error!("Task {task_name} panicked");
                 true
             }
         };
 
         // Send stop signal to remaining tasks and wait for them to finish.
+        // Given that we are shutting down, we do not really care about returned values.
         self.stop_sender.send(true).ok();
         self.runtime.block_on(futures::future::join_all(remaining));
 
         // Call after_finish hooks.
         // For this and shutdown hooks we need to use local set, since these futures are not `Send`.
         let local_set = tokio::task::LocalSet::new();
-        let join_handles = self.tasks.values_mut().filter_map(|task| {
+        let join_handles = self.tasks.iter_mut().filter_map(|task| {
             task.after_finish
                 .take()
                 .map(|task| local_set.spawn_local(task))
@@ -209,7 +209,7 @@ impl ZkSyncNode {
         local_set.block_on(&self.runtime, futures::future::join_all(join_handles));
 
         // Call after_node_shutdown hooks.
-        let join_handles = self.tasks.values_mut().filter_map(|task| {
+        let join_handles = self.tasks.iter_mut().filter_map(|task| {
             task.after_node_shutdown
                 .take()
                 .map(|task| local_set.spawn_local(task))
