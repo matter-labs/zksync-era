@@ -12,8 +12,9 @@ use zksync_config::configs::{
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
 use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
-use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
-use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
+use zksync_system_constants::{
+    L1_GAS_PER_PUBDATA_BYTE, L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC,
+};
 use zksync_types::{
     api::ApiEthTransferEvents, block::MiniblockHeader, fee::TransactionExecutionMetrics,
     tx::IncludedTxLocation, Address, L1BatchNumber, VmEvent, H256, U64,
