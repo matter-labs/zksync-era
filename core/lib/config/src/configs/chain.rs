@@ -26,6 +26,25 @@ impl NetworkConfig {
     }
 }
 
+/// An enum that represents the version of the fee model to use.
+///  - `V1`, the first model that was used in zkSync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
+///  Also, the fair L2 gas price is expected to only include the proving/computation price for the operator and not the costs that come from
+///  processing the batch on L1.
+///  - `V2`, the second model that was used in zkSync Era. There the pubdata price might be independent from the L1 gas price. Also,
+///  The fair L2 gas price is expected to both the proving/computation price for the operator and the costs that come from
+///  processing the batch on L1.
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+pub enum FeeModelVersion {
+    V1,
+    V2,
+}
+
+impl Default for FeeModelVersion {
+    fn default() -> Self {
+        Self::V1
+    }
+}
+
 #[derive(Debug, Deserialize, Clone, PartialEq, Default)]
 pub struct StateKeeperConfig {
     /// The max number of slots for txs in a block before it should be sealed by the slots sealer.
@@ -81,6 +100,9 @@ pub struct StateKeeperConfig {
     /// The maximum amount of pubdata that can be used by the batch. Note that if the calldata is used as pubdata, this variable should not exceed 128kb.
     pub max_pubdata_per_batch: u64,
 
+    /// The version of the fee model to use.
+    pub fee_model_version: FeeModelVersion,
+
     /// Max number of computational gas that validation step is allowed to take.
     pub validation_computational_gas_limit: u32,
     pub save_call_traces: bool,
@@ -121,6 +143,7 @@ impl StateKeeperConfig {
             max_gas_per_batch: 200_000_000,
             max_pubdata_per_batch: 100_000,
             minimal_l2_gas_price: 100000000,
+            fee_model_version: FeeModelVersion::V2,
             validation_computational_gas_limit: 300000,
             save_call_traces: true,
             virtual_blocks_interval: 1,

@@ -9423,6 +9423,7 @@ dependencies = [
  "zk_evm 1.4.1",
  "zkevm_test_harness 1.3.3",
  "zksync_basic_types",
+ "zksync_config",
  "zksync_consensus_roles",
  "zksync_contracts",
  "zksync_mini_merkle_tree",

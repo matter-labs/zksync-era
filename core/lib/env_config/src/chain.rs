@@ -37,6 +37,7 @@ impl FromEnv for MempoolConfig {
 #[cfg(test)]
 mod tests {
     use zksync_basic_types::L2ChainId;
+    use zksync_config::configs::chain::FeeModelVersion;
 
     use super::*;
     use crate::test_utils::{addr, EnvMutex};
@@ -86,6 +87,7 @@ mod tests {
             batch_overhead_l1_gas: 800_000,
             max_gas_per_batch: 200_000_000,
             max_pubdata_per_batch: 100_000,
+            fee_model_version: FeeModelVersion::V2,
             validation_computational_gas_limit: 10_000_000,
             save_call_traces: false,
             virtual_blocks_interval: 1,
@@ -118,6 +120,7 @@ mod tests {
             CHAIN_STATE_KEEPER_BATCH_OVERHEAD_L1_GAS="800000"
             CHAIN_STATE_KEEPER_MAX_GAS_PER_BATCH="200000000"
             CHAIN_STATE_KEEPER_MAX_PUBDATA_PER_BATCH="100000"
+            CHAIN_STATE_KEEPER_FEE_MODEL_VERSION="V2"
             CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT="10000000"
             CHAIN_STATE_KEEPER_SAVE_CALL_TRACES="false"
             CHAIN_STATE_KEEPER_UPLOAD_WITNESS_INPUTS_TO_GCS="false"

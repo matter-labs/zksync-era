@@ -16,8 +16,8 @@ use zksync_config::{
     configs::{
         api::{MerkleTreeApiConfig, Web3JsonRpcConfig},
         chain::{
-            CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
-            StateKeeperConfig,
+            CircuitBreakerConfig, FeeModelVersion, MempoolConfig, NetworkConfig,
+            OperationsManagerConfig, StateKeeperConfig,
         },
         contracts::ProverAtGenesis,
         database::{MerkleTreeConfig, MerkleTreeMode},
@@ -697,14 +697,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
 
     let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
         gas_adjuster,
-        FeeModelConfig::V2(FeeModelConfigV2 {
-            minimal_l2_gas_price: state_keeper_config.minimal_l2_gas_price,
-            compute_overhead_part: state_keeper_config.compute_overhead_part,
-            pubdata_overhead_part: state_keeper_config.pubdata_overhead_part,
-            batch_overhead_l1_gas: state_keeper_config.batch_overhead_l1_gas,
-            max_gas_per_batch: state_keeper_config.max_gas_per_batch,
-            max_pubdata_per_batch: state_keeper_config.max_pubdata_per_batch,
-        }),
+        FeeModelConfig::from_state_keeper_config(&state_keeper_config),
     ));
 
     let miniblock_sealer_pool = pool_builder
@@ -1022,14 +1015,7 @@ async fn build_tx_sender(
 
     let batch_fee_input_provider = MainNodeFeeInputProvider::new(
         l1_gas_price_provider,
-        zksync_types::fee_model::FeeModelConfig::V2(FeeModelConfigV2 {
-            minimal_l2_gas_price: state_keeper_config.minimal_l2_gas_price,
-            compute_overhead_part: state_keeper_config.compute_overhead_part,
-            pubdata_overhead_part: state_keeper_config.pubdata_overhead_part,
-            batch_overhead_l1_gas: state_keeper_config.batch_overhead_l1_gas,
-            max_gas_per_batch: state_keeper_config.max_gas_per_batch,
-            max_pubdata_per_batch: state_keeper_config.max_pubdata_per_batch,
-        }),
+        FeeModelConfig::from_state_keeper_config(state_keeper_config),
     );
 
     let tx_sender = tx_sender_builder
