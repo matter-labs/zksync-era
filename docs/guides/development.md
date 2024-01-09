@@ -91,9 +91,9 @@ Currently the following criteria are checked:
 
 ## Spell Checking
 
-In our development workflow, we utilizes a spell checking process to ensure the quality and accuracy of our
-documentation and code comments. This is achieved using two primary tools: `cspell` and `cargo-spellcheck`. This section
-outlines how to use these tools and configure them for your needs.
+In our development workflow, we utilize a spell checking process to ensure the quality and accuracy of our documentation
+and code comments. This is achieved using two primary tools: `cspell` and `cargo-spellcheck`. This section outlines how
+to use these tools and configure them for your needs.
 
 ### Using the Spellcheck Command
 
