@@ -130,7 +130,7 @@ pub(crate) struct InsertionMetadata {
 /// criteria for transaction it wants to fetch.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct L2TxFilter {
-    /// The fee input into the batch
+    /// Batch fee model input. It typically includes things like L1 gas price, L2 fair fee, etc.
     pub fee_input: BatchFeeInput,
     /// Effective fee price for the transaction. The price of 1 gas in wei.
     pub fee_per_gas: u64,

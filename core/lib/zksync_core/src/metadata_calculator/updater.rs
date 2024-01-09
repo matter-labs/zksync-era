@@ -206,7 +206,6 @@ impl TreeUpdater {
             .await
             .unwrap();
 
-        // For the purpose of this function, there is no difference between various pre-boojum versions, so we just default to the latest one.
         // TODO(X): ensure that the protocol version is always available.
         let protocol_version = header
             .protocol_version
