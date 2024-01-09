@@ -85,15 +85,9 @@ jobs:
           COMPONENT: ${{ matrix.components }}
           PLATFORM: ${{ matrix.platforms }}
         run: |
-          ci_run rustup default nightly-2023-08-21        
-          if [[ -z "${IMAGE_TAG_SUFFIX}" ]]; then
-            IMAGE_TAG_SUFFIX=$(git rev-parse --short HEAD)
-            ci_run zk docker $DOCKER_ACTION --platform=${PLATFORM} $COMPONENT
-          else
-            platform=$(echo $PLATFORM | tr '/' '-')
-            tag="${IMAGE_TAG_SUFFIX}-${platform}"
-            ci_run zk docker $DOCKER_ACTION --custom-tag=${tag} --platform=${PLATFORM} $COMPONENT
-          fi
+          platform=$(echo $PLATFORM | tr '/' '-')
+          tag="test-tag-${IMAGE_TAG_SUFFIX}-${platform}"
+          ci_run zk docker $DOCKER_ACTION --custom-tag=${tag} --platform=${PLATFORM} $COMPONENT
       - name: Show sccache stats
         if: always()
         run: |
