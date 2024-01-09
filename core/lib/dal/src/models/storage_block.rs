@@ -530,7 +530,7 @@ impl From<StorageMiniblockHeader> for MiniblockHeader {
         let protocol_version = row.protocol_version.map(|v| (v as u16).try_into().unwrap());
 
         let fee_input = protocol_version
-            .filter(|version: &ProtocolVersionId| version.is_1_4_1())
+            .filter(|version: &ProtocolVersionId| version.is_post_1_4_1())
             .map(|_| {
                 BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
                     fair_pubdata_price: row

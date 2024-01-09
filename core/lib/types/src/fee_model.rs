@@ -86,7 +86,7 @@ impl BatchFeeInput {
         fair_pubdata_price: Option<u64>,
         l1_gas_price: u64,
     ) -> Self {
-        if protocol_version.is_1_4_1() {
+        if protocol_version.is_post_1_4_1() {
             Self::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
                 fair_l2_gas_price,
                 fair_pubdata_price: fair_pubdata_price
