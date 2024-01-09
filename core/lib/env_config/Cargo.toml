@@ -16,6 +16,3 @@ zksync_config = { path = "../../lib/config" }
 anyhow = "1.0"
 serde = "1.0"
 envy = "0.4"
-
-[dev-dependencies]
-zksync_types = { path = "../../lib/types" }
