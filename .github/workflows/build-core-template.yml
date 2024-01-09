@@ -135,16 +135,8 @@ jobs:
               platform=$(echo $platform | tr '/' '-')
               platform_tags+=" --amend ${repo}:${IMAGE_TAG_SUFFIX}-${platform}"
             done
-            docker manifest create \
-              ${repo}:${IMAGE_TAG_SUFFIX} \
-              ${repo}:2.0-${IMAGE_TAG_SUFFIX} \
-              ${repo}:latest \
-              ${repo}:latest2.0 \
-              ${platform_tags}
-  
-            docker manifest push \
-              ${repo}:${IMAGE_TAG_SUFFIX} \
-              ${repo}:2.0-${IMAGE_TAG_SUFFIX} \
-              ${repo}:latest \
-              ${repo}:latest2.0
+            for manifest in "${repo}:${IMAGE_TAG_SUFFIX}" "${repo}:2.0-${IMAGE_TAG_SUFFIX}" "${repo}:latest" "${repo}:latest2.0"; do
+              docker manifest create ${manifest} ${platform_tags}
+              docker manifest push ${manifest}
+            done
           done
