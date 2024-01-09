@@ -12,8 +12,8 @@ use zksync_web3_rs::{
 static ERA_PROVIDER_URL: &str = "http://127.0.0.1:3050";
 static PRIVATE_KEY: &str = "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
 
-static CONTRACT_BIN: &str = include_str!("../Greeter.bin");
-static CONTRACT_ABI: &str = include_str!("../Greeter.abi");
+static CONTRACT_BIN: &str = include_str!("../BytesWriter.bin");
+static CONTRACT_ABI: &str = include_str!("../BytesWriter.abi");
 
 static L1_URL: &str = "http://localhost:8545";
 
@@ -55,7 +55,7 @@ async fn main() {
         let contract_bin = hex::decode(CONTRACT_BIN).unwrap().to_vec();
 
         // DeployRequest sets the parameters for the constructor call and the deployment transaction.
-        let request = DeployRequest::with(abi, contract_bin, vec!["Hey".to_owned()])
+        let request = DeployRequest::with(abi, contract_bin, vec!["0x0016".to_owned()])
             .from(zk_wallet.l2_address());
 
         // Send the deployment transaction and wait until we receive the contract address.
@@ -69,13 +69,13 @@ async fn main() {
     // Call the greet view method:
     {
         let era_provider = zk_wallet.get_era_provider().unwrap();
-        let call_request = CallRequest::new(contract_address, "greet()(string)".to_owned());
+        let call_request = CallRequest::new(contract_address, "readBytes()(bytes)".to_owned());
 
-        let greet = ZKSProvider::call(era_provider.as_ref(), &call_request)
+        let bytes_message = ZKSProvider::call(era_provider.as_ref(), &call_request)
             .await
             .unwrap();
 
-        println!("greet: {}", greet[0]);
+        println!("bytes message: {}", bytes_message[0]);
     }
 
     // Perform a signed transaction calling the setGreeting method
@@ -87,8 +87,8 @@ async fn main() {
             .send_eip712(
                 &zk_wallet.l2_wallet,
                 contract_address,
-                "setGreeting(string)",
-                Some(["Hello".into()].into()),
+                "writeBytes(bytes)",
+                Some(["0x0056".into()].into()),
                 None,
             )
             .await
@@ -98,19 +98,19 @@ async fn main() {
             .unwrap();
 
         println!(
-            "setGreeting transaction hash {:#?}",
+            "writeBytes transaction hash {:#?}",
             receipt.transaction_hash
         );
     };
 
     {
         let era_provider = zk_wallet.get_era_provider().unwrap();
-        let call_request = CallRequest::new(contract_address, "greet()(string)".to_owned());
+        let call_request = CallRequest::new(contract_address, "readBytes()(bytes)".to_owned());
 
-        let greet = ZKSProvider::call(era_provider.as_ref(), &call_request)
+        let bytes_message = ZKSProvider::call(era_provider.as_ref(), &call_request)
             .await
             .unwrap();
 
-        println!("greet: {}", greet[0]);
+        println!("bytes message: {}", bytes_message[0]);
     }
 }
