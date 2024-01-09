@@ -514,6 +514,12 @@ porco
 rosso
 insize
 MLOAD
+sload
+sload
+uadd
+nocallback
+nosync
+swrite
 
 // ETC
 gitter
@@ -817,6 +823,7 @@ compactions
 M6
 compiler_common
 noop
+tokenized
 rustc
 sqlx
 zkevm
@@ -864,3 +871,5 @@ Aggregator
 DecommittmentProcessor
 decommitment
 hardcoded
+plookup
+shivini

@@ -12,14 +12,30 @@ env:
 
 jobs:
   spellcheck:
-    runs-on: ubuntu-latest
+    runs-on: [matterlabs-ci-runner]
     steps:
-      - name: Install cargo-spellcheck
-        uses: taiki-e/install-action@v2
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
-          tool: cargo-spellcheck
+          submodules: "recursive"
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
 
-      - uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac # v4
+      - name: Setup environment
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+          echo IN_DOCKER=1 >> .env
 
-      - name: Run cargo-spellcheck
-        run: cargo spellcheck --cfg=./spellcheck/era.cfg --code 1
+      - name: Start services
+        run: |
+          docker compose up -d zk
+
+      - name: Build zk
+        run: |
+          ci_run zk
+
+      - name: Run spellcheck
+        run: |
+          ci_run zk spellcheck
