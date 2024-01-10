@@ -18,7 +18,7 @@ use zksync_config::{
     GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
 };
 use zksync_core::{
-    genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
+    consensus, genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
     temp_config_store::TempConfigStore, Component, Components,
 };
 use zksync_env_config::FromEnv;
@@ -119,6 +119,7 @@ async fn main() -> anyhow::Result<()> {
         eth_watch_config: ETHWatchConfig::from_env().ok(),
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
         object_store_config: ObjectStoreConfig::from_env().ok(),
+        consensus_config: consensus::SerdeConfig::from_env().ok(),
     };
 
     let postgres_config = configs.postgres_config.clone().context("PostgresConfig")?;

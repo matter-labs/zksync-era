@@ -12,6 +12,7 @@ use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker, CircuitBreaker,
     CircuitBreakerChecker, CircuitBreakerError,
 };
+use zksync_concurrency::{ctx, scope};
 use zksync_config::{
     configs::{
         api::{MerkleTreeApiConfig, Web3JsonRpcConfig},
@@ -230,6 +231,8 @@ pub enum Component {
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
+    /// Component for generating consensus certificates for the miniblocks.
+    Consensus,
 }
 
 #[derive(Debug)]
@@ -503,6 +506,45 @@ pub async fn initialize_components(
         let elapsed = started_at.elapsed();
         APP_METRICS.init_latency[&InitStage::StateKeeper].set(elapsed);
         tracing::info!("initialized State Keeper in {elapsed:?}");
+    }
+
+    if components.contains(&Component::Consensus) {
+        let started_at = Instant::now();
+        tracing::info!("initializing Consensus");
+
+        let mut cfg = configs
+            .consensus_config
+            .clone()
+            .context("consensus_config is missing")?;
+        if cfg.operator_address.is_none() {
+            cfg.operator_address = configs
+                .state_keeper_config
+                .as_ref()
+                .map(|cfg| cfg.fee_account_addr);
+        }
+        let cfg: consensus::MainNodeConfig = cfg.try_into()?;
+        let pool = connection_pool.clone();
+        let mut stop_receiver = stop_receiver.clone();
+        task_futures.push(tokio::spawn(async move {
+            scope::run!(&ctx::root(), |ctx, s| async {
+                s.spawn_bg(async {
+                    // Consensus is a new component.
+                    // For now, in case of error, we just log it and allow the server
+                    // to continue running.
+                    if let Err(err) = cfg.run(ctx, pool).await {
+                        tracing::error!(%err, "Consensus actor failed");
+                    }
+                    Ok(())
+                });
+                let _ = stop_receiver.wait_for(|stop| *stop).await?;
+                Ok(())
+            })
+            .await
+        }));
+
+        let elapsed = started_at.elapsed();
+        APP_METRICS.init_latency[&InitStage::Consensus].set(elapsed);
+        tracing::info!("initialized Consensus in {elapsed:?}");
     }
 
     let main_zksync_contract_address = contracts_config.diamond_proxy_addr;

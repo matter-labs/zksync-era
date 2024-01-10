@@ -21,7 +21,7 @@ pub(crate) mod testonly;
 #[cfg(test)]
 mod tests;
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SerdeText<T: TextFmt>(pub T);
 
 impl<'de, T: TextFmt> serde::Deserialize<'de> for SerdeText<T> {
@@ -34,7 +34,7 @@ impl<'de, T: TextFmt> serde::Deserialize<'de> for SerdeText<T> {
 
 /// Config (shared between main node and external node) which implements `serde` encoding
 /// and therefore can be flattened into env vars.
-#[derive(serde::Deserialize)]
+#[derive(Clone, Debug, serde::Deserialize)]
 pub struct SerdeConfig {
     /// Local socket address to listen for the incoming connections.
     pub server_addr: std::net::SocketAddr,
@@ -119,6 +119,12 @@ pub struct MainNodeConfig {
     pub executor: executor::Config,
     pub validator: executor::ValidatorConfig,
     pub operator_address: Address,
+}
+
+impl zksync_env_config::FromEnv for SerdeConfig {
+    fn from_env() -> anyhow::Result<Self> {
+        zksync_env_config::envy_load("consensus", "CONSENSUS_")
+    }
 }
 
 impl MainNodeConfig {

@@ -17,7 +17,9 @@ zksync_storage = { path = "../../lib/storage" }
 zksync_utils = { path = "../../lib/utils" }
 zksync_types = { path = "../../lib/types" }
 zksync_core = { path = "../../lib/zksync_core" }
+zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5727a3e0b22470bb90092388f9125bcb366df613" }
 vlog = { path = "../../lib/vlog" }
+
 
 anyhow = "1.0"
 clap = { version = "4.2.4", features = ["derive"] }

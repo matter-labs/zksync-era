@@ -15,6 +15,7 @@ zksync_state = { path = "../state" }
 zksync_types = { path = "../types" }
 zksync_dal = { path = "../dal" }
 zksync_config = { path = "../config" }
+zksync_env_config = { path = "../env_config" }
 zksync_utils = { path = "../utils" }
 zksync_contracts = { path = "../contracts" }
 zksync_system_constants = { path = "../../lib/constants" }
