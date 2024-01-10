@@ -372,7 +372,7 @@ pub fn get_finalization_hints(
     key: ProverServiceDataKey,
 ) -> anyhow::Result<FinalizationHintsForProver> {
     let mut key = key;
-    // For NodeAggregation round we have only 1 finalization hints for all circuit type.
+    // For `NodeAggregation` round we have only 1 finalization hints for all circuit type.
     if key.round == AggregationRound::NodeAggregation {
         key.circuit_id = ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8;
     }
