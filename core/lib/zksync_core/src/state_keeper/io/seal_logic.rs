@@ -3,12 +3,17 @@
 
 use std::{
     collections::HashMap,
+    path::Path,
     time::{Duration, Instant},
 };
 
-use c_kzg::{KzgCommitment, Bytes32, KzgProof, Blob};
+use c_kzg::{Blob, Bytes32, KzgCommitment, KzgProof, KzgSettings};
 use itertools::Itertools;
 use multivm::interface::{FinishedL1Batch, L1BatchEnv};
+use zkevm_circuits::eip_4844::{
+    input::{BLOB_CHUNK_SIZE, ELEMENTS_PER_4844_BLOCK},
+    zksync_pubdata_into_ethereum_4844_data,
+};
 use zksync_dal::{blocks_dal::ConsensusBlockFields, StorageProcessor};
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
@@ -16,17 +21,17 @@ use zksync_types::{
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
     l1::L1Tx,
     l2::L2Tx,
-    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log, L2ToL1Log},
+    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     protocol_version::ProtocolUpgradeTx,
     storage_writes_deduplicator::{ModifiedSlot, StorageWritesDeduplicator},
     tx::{
         tx_execution_info::DeduplicatedWritesMetrics, IncludedTxLocation,
         TransactionExecutionResult,
     },
-    zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
+    zkevm_test_harness::{sha3, witness::sort_storage_access::sort_storage_access_queries},
     AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, LogQuery,
     MiniblockNumber, StorageKey, StorageLog, StorageLogQuery, StorageValue, Transaction, VmEvent,
-    CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS, commitment::SerializeCommitment,
+    CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::{h256_to_u256, time::millis_since_epoch, u256_to_h256};
@@ -117,9 +122,12 @@ impl UpdatesManager {
         let l2_to_l1_messages =
             extract_long_l2_to_l1_messages(&finished_batch.final_execution_state.events);
 
-        // let kzg_blob_information = construct_kzg_info(
-        //     pubda
-        // )
+        let kzg_blob_information = construct_kzg_info(
+            finished_batch.pubdata_input.clone().unwrap(),
+            finished_batch.final_execution_state.system_logs.clone(),
+        );
+
+        let (kzg_bytes, blobs, versioned_hashes) = kzg_info_to_bytes(kzg_blob_information);
 
         let l1_batch = L1BatchHeader {
             number: l1_batch_env.number,
@@ -140,6 +148,9 @@ impl UpdatesManager {
             protocol_version: Some(self.protocol_version()),
             system_logs: finished_batch.final_execution_state.system_logs,
             pubdata_input: finished_batch.pubdata_input,
+            kzg_commitment: Some(kzg_bytes),
+            blobs: Some(blobs),
+            versioned_hashes: Some(versioned_hashes),
         };
 
         let events_queue = finished_batch
@@ -661,44 +672,100 @@ fn storage_log_query_write_read_counts(logs: &[StorageLogQuery]) -> (usize, usiz
 }
 
 pub struct KZGInfo {
-    pub blob: Bytes32,
+    pub blob: Blob,
     pub kzg_commitment: KzgCommitment,
     pub opening_point: Bytes32,
     pub opening_value: Bytes32,
     pub proof: KzgProof,
+    pub versioned_hash: Bytes32,
 }
 
-pub const BLOB_SIZE_BYTES: usize = 131_072;
+const BYTES_PER_BLOB: usize = BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK;
 
-fn construct_kzg_info(pubdata: Vec<u8>, system_logs: Vec<u8>) -> Vec<KZGInfo> {
+fn construct_kzg_info(pubdata: Vec<u8>, system_logs: Vec<SystemL2ToL1Log>) -> Option<Vec<KZGInfo>> {
+    let kzg_settings =
+        KzgSettings::load_trusted_setup_file(&Path::new("./trusted_setup.txt")).unwrap();
 
-    let blobs_rolling_commitment = system_logs.chunks(L2ToL1Log::SERIALIZED_SIZE)
-        .map(L2ToL1Log::from_slice)
+    let blob_commitments = system_logs
+        .iter()
+        .map(|log| log.clone().0)
         // 8 in the new value for the system logs that pertains to the blobs rolling hash
-        .filter(|log| log.key == H256::from_low_u64_be(8_u64))
-        .exactly_one()
-        .expect("failed to get blob linear hash from system logs")
-        .value
-        .as_fixed_bytes();
+        .filter(|log| {
+            log.key == H256::from_low_u64_be(8_u64) || log.key == H256::from_low_u64_be(7_u64)
+        })
+        .map(|log| (log.key, log.value))
+        .sorted_by(|a, b| Ord::cmp(&a.0, &b.0))
+        .collect::<Vec<(H256, H256)>>();
 
-    // pubdata -> blob
-    // blob -> polynomial
-    // compute Z
-    // evaluate polynomial at Z for Y
-    // polynomial -> kzg commitment
-    // kzg, z, y -> proof
+    assert_eq!(blob_commitments.len(), 2, "must only be 1 for each log");
+    assert_eq!(blob_commitments[0].0, H256::from_low_u64_be(7_u64));
+    assert_eq!(blob_commitments[1].0, H256::from_low_u64_be(8_u64));
 
     let mut blobs: Vec<Blob> = vec![];
-
-    for i in (0..pubdata.len()).step_by(BLOB_SIZE_BYTES) {
-        let mut blob = [0u8; BLOB_SIZE_BYTES];
-        blob.copy_from_slice(&pubdata[i..i + BLOB_SIZE_BYTES]);
-        blobs.push(Blob::new(blob));
+    for i in (0..pubdata.len()).step_by(BYTES_PER_BLOB) {
+        let mut blob = [0u8; BYTES_PER_BLOB];
+        let (end, len) = if pubdata.len() < i + BYTES_PER_BLOB {
+            (pubdata.len(), pubdata.len())
+        } else {
+            (i + BYTES_PER_BLOB, BYTES_PER_BLOB)
+        };
+        blob[0..len].copy_from_slice(&pubdata[i..end]);
+        let blob = zksync_pubdata_into_ethereum_4844_data(&blob);
+        blobs.push(Blob::new(blob.try_into().unwrap()));
     }
 
-    let polynomials = blobs.iter()
-        .map(|blob| blob);
-    
+    Some(
+        blobs
+            .iter()
+            .zip(blob_commitments.iter())
+            .map(|(blob, (_, commitment))| {
+                use sha3::{Digest, Keccak256};
 
-    vec![]
+                let kzg_commitment =
+                    KzgCommitment::blob_to_kzg_commitment(blob, &kzg_settings).unwrap();
+                let mut hasher = Keccak256::new();
+                hasher.update(kzg_commitment.to_bytes().into_inner());
+                let versioned_hash_bytes = &hasher.finalize_reset();
+                let versioned_hash = Bytes32::from_bytes(versioned_hash_bytes).unwrap();
+
+                hasher.update(versioned_hash_bytes);
+                hasher.update(commitment.as_bytes());
+
+                let opening_point_bytes = &hasher.finalize_reset();
+                let opening_point = Bytes32::from_bytes(opening_point_bytes).unwrap();
+
+                let (proof, opening_value) =
+                    KzgProof::compute_kzg_proof(blob, &opening_point, &kzg_settings).unwrap();
+
+                KZGInfo {
+                    blob: blob.clone(),
+                    kzg_commitment,
+                    opening_point,
+                    opening_value,
+                    proof,
+                    versioned_hash,
+                }
+            })
+            .collect::<Vec<KZGInfo>>(),
+    )
+}
+
+fn kzg_info_to_bytes(kzg_info: Option<Vec<KZGInfo>>) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+    match kzg_info {
+        Some(info) => info.iter().fold(
+            (vec![], vec![], vec![]),
+            |(mut kzg_acc, mut blob_acc, mut versioned_hash_acc), kzg| {
+                kzg_acc.extend(kzg.opening_value.as_slice());
+                kzg_acc.extend(kzg.kzg_commitment.to_bytes().into_inner());
+                kzg_acc.extend(kzg.proof.to_bytes().into_inner());
+
+                blob_acc.extend(kzg.blob.as_slice());
+
+                versioned_hash_acc.extend(kzg.versioned_hash.as_slice());
+
+                (kzg_acc, blob_acc, versioned_hash_acc)
+            },
+        ),
+        None => (vec![], vec![], vec![]),
+    }
 }

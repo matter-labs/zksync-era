@@ -55,15 +55,15 @@ pub(crate) const PRIORITY_TXS_L1_DATA_SLOTS: usize = 2;
 pub const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET: usize =
     PRIORITY_TXS_L1_DATA_OFFSET + PRIORITY_TXS_L1_DATA_SLOTS;
 
-/// One of "worst case" scenarios for the number of state diffs in a batch is when 120kb of pubdata is spent
-/// on repeated writes, that are all zeroed out. In this case, the number of diffs is 120k / 5 = 24k. This means that they will have
-/// accommodate 6528000 bytes of calldata for the uncompressed state diffs. Adding 120k on top leaves us with
-/// roughly 6650000 bytes needed for calldata. 207813 slots are needed to accommodate this amount of data.
-/// We round up to 208000 slots just in case.
-///
-/// In theory though much more calldata could be used (if for instance 1 byte is used for enum index). It is the responsibility of the
-/// operator to ensure that it can form the correct calldata for the L1Messenger.
-pub(crate) const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS: usize = 208000;
+// One of "worst case" scenarios for the number of state diffs in a batch is when 240kb of pubdata is spent
+// on repeated writes, that are all zeroed out. In this case, the number of diffs is 240k / 5 = 48k. This means that they will have
+// accoomdate 13056000 bytes of calldata for the uncompressed state diffs. Adding 120k on top leaves us with
+// roughly 13176000 bytes needed for calldata. 411750 slots are needed to accomodate this amount of data.
+// We round up to 411900 slots just in case.
+//
+// In theory though much more calldata could be used (if for instance 1 byte is used for enum index). It is the responsibility of the
+// operator to ensure that it can form the correct calldata for the L1Messenger.
+pub(crate) const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS: usize = 411900;
 
 pub(crate) const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
     OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET + OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS;

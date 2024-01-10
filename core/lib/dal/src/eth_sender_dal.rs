@@ -151,7 +151,10 @@ impl EthSenderDal<'_, '_> {
                 eth_txs_history.base_fee_per_gas,
                 eth_txs_history.priority_fee_per_gas,
                 eth_txs_history.signed_raw_tx,
-                eth_txs.nonce
+                eth_txs.nonce,
+                eth_txs.blobs,
+                eth_txs.versioned_hashes,
+                eth_txs.blob_base_gas_fee
             FROM
                 eth_txs_history
                 JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
@@ -174,6 +177,9 @@ impl EthSenderDal<'_, '_> {
         tx_type: AggregatedActionType,
         contract_address: Address,
         predicted_gas_cost: u32,
+        blobs: Option<Vec<u8>>,
+        versioned_hashes: Option<Vec<u8>>,
+        blob_base_gas_fee: Option<i64>,
     ) -> sqlx::Result<EthTx> {
         let address = format!("{:#x}", contract_address);
         let eth_tx = sqlx::query_as!(
@@ -186,11 +192,14 @@ impl EthSenderDal<'_, '_> {
                     tx_type,
                     contract_address,
                     predicted_gas_cost,
+                    blobs,
+                    versioned_hashes,
+                    blob_base_gas_fee,
                     created_at,
                     updated_at
                 )
             VALUES
-                ($1, $2, $3, $4, $5, NOW(), NOW())
+                ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
             RETURNING
                 *
             "#,
@@ -198,7 +207,10 @@ impl EthSenderDal<'_, '_> {
             nonce as i64,
             tx_type.to_string(),
             address,
-            predicted_gas_cost as i64
+            predicted_gas_cost as i64,
+            blobs,
+            versioned_hashes,
+            blob_base_gas_fee,
         )
         .fetch_one(self.storage.conn())
         .await?;

@@ -29,7 +29,7 @@ pub struct SystemL2ToL1Log(pub L2ToL1Log);
 impl L2ToL1Log {
     /// Determines the minimum number of items in the Merkle tree built from L2-to-L1 logs
     /// for a certain batch.
-    pub const MIN_L2_L1_LOGS_TREE_SIZE: usize = 2048;
+    pub const MIN_L2_L1_LOGS_TREE_SIZE: usize = 4096;
 
     /// Determines the minimum number of items in the Merkle tree built from L2-to-L1 logs
     /// for a pre-boojum batch.

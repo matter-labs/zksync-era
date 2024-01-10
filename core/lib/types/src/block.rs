@@ -66,6 +66,9 @@ pub struct L1BatchHeader {
     /// Version of protocol used for the L1 batch.
     pub protocol_version: Option<ProtocolVersionId>,
     pub pubdata_input: Option<Vec<u8>>,
+    pub kzg_commitment: Option<Vec<u8>>,
+    pub blobs: Option<Vec<u8>>,
+    pub versioned_hashes: Option<Vec<u8>>,
 }
 
 /// Holder for the miniblock metadata that is not available from transactions themselves.
@@ -123,6 +126,9 @@ impl L1BatchHeader {
             system_logs: vec![],
             protocol_version: Some(protocol_version),
             pubdata_input: Some(vec![]),
+            kzg_commitment: Some(vec![]),
+            blobs: Some(vec![]),
+            versioned_hashes: Some(vec![]),
         }
     }
 

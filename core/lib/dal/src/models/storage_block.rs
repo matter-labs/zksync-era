@@ -51,6 +51,9 @@ pub struct StorageL1BatchHeader {
     pub system_logs: Vec<Vec<u8>>,
     pub compressed_state_diffs: Option<Vec<u8>>,
     pub pubdata_input: Option<Vec<u8>>,
+    pub kzg_info: Option<Vec<u8>>,
+    pub blobs: Option<Vec<u8>>,
+    pub versioned_hashes: Option<Vec<u8>>,
 }
 
 impl From<StorageL1BatchHeader> for L1BatchHeader {
@@ -93,6 +96,9 @@ impl From<StorageL1BatchHeader> for L1BatchHeader {
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
             pubdata_input: l1_batch.pubdata_input,
+            kzg_commitment: l1_batch.kzg_info,
+            blobs: l1_batch.blobs,
+            versioned_hashes: l1_batch.versioned_hashes,
         }
     }
 }
@@ -172,6 +178,10 @@ pub struct StorageL1Batch {
     pub events_queue_commitment: Option<Vec<u8>>,
     pub bootloader_initial_content_commitment: Option<Vec<u8>>,
     pub pubdata_input: Option<Vec<u8>>,
+
+    pub kzg_info: Option<Vec<u8>>,
+    pub blobs: Option<Vec<u8>>,
+    pub versioned_hashes: Option<Vec<u8>>,
 }
 
 impl From<StorageL1Batch> for L1BatchHeader {
@@ -214,6 +224,9 @@ impl From<StorageL1Batch> for L1BatchHeader {
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
             pubdata_input: l1_batch.pubdata_input,
+            kzg_commitment: l1_batch.kzg_info,
+            blobs: l1_batch.blobs,
+            versioned_hashes: l1_batch.versioned_hashes,
         }
     }
 }

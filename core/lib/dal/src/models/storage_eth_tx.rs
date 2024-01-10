@@ -22,6 +22,9 @@ pub struct StorageEthTx {
     pub updated_at: NaiveDateTime,
     // TODO (SMA-1614): remove the field
     pub sent_at_block: Option<i32>,
+    pub blobs: Option<Vec<u8>>,
+    pub versioned_hashes: Option<Vec<u8>>,
+    pub blob_base_gas_fee: Option<i64>,
 }
 
 #[derive(Debug, Default)]
@@ -39,6 +42,9 @@ pub struct StorageTxHistoryToSend {
     pub base_fee_per_gas: i64,
     pub signed_raw_tx: Option<Vec<u8>>,
     pub nonce: i64,
+    pub blobs: Option<Vec<u8>>,
+    pub versioned_hashes: Option<Vec<u8>>,
+    pub blob_base_gas_fee: Option<i64>,
 }
 
 #[derive(Clone, Debug)]

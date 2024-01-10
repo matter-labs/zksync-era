@@ -81,8 +81,8 @@ pub const PRIORITY_OPERATION_L2_TX_TYPE: u8 = 0xff;
 /// Denotes the first byte of the protocol upgrade transaction.
 pub const PROTOCOL_UPGRADE_TX_TYPE: u8 = 0xfe;
 
-/// Denotes the first byte of the `EIP-4844` transaction.
-pub const EIP_4844_TX_TYPE: u8 = 0x03;
+// Denotes the first byte of the `EIP-4844` transaction.
+// pub const EIP_4844_TX_TYPE: u8 = 0x03;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Transaction {

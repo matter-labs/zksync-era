@@ -182,6 +182,16 @@ impl L1BatchWithMetadata {
                 ),
             ])
         } else {
+            // let mut pubdata = self.header
+            //     .kzg_commitment
+            //     .clone()
+            //     .unwrap_or(vec![]);
+            // pubdata.insert(0, 1u8);
+
+            let mut pubdata = self.header.pubdata_input.clone().unwrap();
+
+            pubdata.insert(0, 0u8);
+
             Token::Tuple(vec![
                 Token::Uint(U256::from(self.header.number.0)),
                 Token::Uint(U256::from(self.header.timestamp)),
@@ -209,12 +219,7 @@ impl L1BatchWithMetadata {
                         .to_vec(),
                 ),
                 Token::Bytes(self.metadata.l2_l1_messages_compressed.clone()),
-                Token::Bytes(
-                    self.header
-                        .pubdata_input
-                        .clone()
-                        .unwrap_or(self.construct_pubdata()),
-                ),
+                Token::Bytes(pubdata),
             ])
         }
     }

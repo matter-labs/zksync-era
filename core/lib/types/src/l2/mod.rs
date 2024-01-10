@@ -29,6 +29,7 @@ pub enum TransactionType {
 
     EIP2930Transaction = 1,
     EIP1559Transaction = 2,
+    // EIP4844Transaction = 3,
     // Eip 712 transaction with additional fields specified for zksync
     EIP712Transaction = EIP_712_TX_TYPE as u32,
     PriorityOpTransaction = PRIORITY_OPERATION_L2_TX_TYPE as u32,

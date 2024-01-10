@@ -217,6 +217,7 @@ impl From<StorageTransaction> for L2TxCommonData {
             Some(EIP_712_TX_TYPE) => TransactionType::EIP712Transaction,
             Some(EIP_2930_TX_TYPE) => TransactionType::EIP2930Transaction,
             Some(EIP_1559_TX_TYPE) => TransactionType::EIP1559Transaction,
+            // Some(EIP_4844_TX_TYPE) => TransactionType::EIP4844Transaction,
             Some(0) | None => TransactionType::LegacyTransaction,
             Some(_) => unreachable!("Unsupported tx type"),
         };
