@@ -13,6 +13,11 @@ on:
         description: "Optional suffix to override tag name generation"
         type: string
         required: false
+      contract_version:
+        description: "Version of era-contracts which should be use"
+        type: string
+        required: false
+        default: "main-6250292"
       action:
         description: "Action with docker image"
         type: string
@@ -23,6 +28,7 @@ jobs:
     name: Build and Push Docker Images
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
+      CONTRACT_VERSION: ${{ inputs.contract_version }}
     runs-on: ${{ fromJSON('["matterlabs-ci-runner", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
     strategy:
       matrix:
@@ -52,10 +58,14 @@ jobs:
           echo IN_DOCKER=1 >> .env
 
       - name: Download contracts
-        uses: actions/download-artifact@v4
-        with:
-          name: contracts
-          path: ./contracts/
+        run: |
+          curl -LO https://github.com/matter-labs/era-contracts/releases/download/${CONTRACT_VERSION}/l1-contracts.tar.gz
+          curl -LO https://github.com/matter-labs/era-contracts/releases/download/${CONTRACT_VERSION}/l2-contracts.tar.gz
+          curl -LO https://github.com/matter-labs/era-contracts/releases/download/${CONTRACT_VERSION}/system-contracts.tar.gz
+          
+          tar -xf l1-contracts.tar.gz ./contracts
+          tar -xf l2-contracts.tar.gz ./contracts
+          tar -xf system-contracts.tar.gz ./contracts
 
       - name: start-services
         run: |
