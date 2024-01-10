@@ -2,18 +2,12 @@
 
 // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
 
-use std::{
-    ops,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
-use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_types::{Address, MiniblockNumber};
-
-use crate::utils::{binary_search_with, BinarySearchPredicate};
+use zksync_types::MiniblockNumber;
 
 /// Runs the migration for pending miniblocks.
 pub(crate) async fn migrate_pending_miniblocks(storage: &mut StorageProcessor<'_>) {
@@ -48,7 +42,6 @@ pub(crate) async fn migrate_miniblocks(
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let MigrationOutput {
-        migrated_range,
         miniblocks_affected,
     } = migrate_miniblocks_inner(
         pool,
@@ -59,18 +52,16 @@ pub(crate) async fn migrate_miniblocks(
     )
     .await?;
 
-    tracing::info!(
-        "Finished fee address migration for range {migrated_range:?} with {miniblocks_affected} affected miniblocks"
-    );
+    tracing::info!("Finished fee address migration with {miniblocks_affected} affected miniblocks");
     Ok(())
 }
 
 #[derive(Debug, Default)]
 struct MigrationOutput {
-    migrated_range: Option<ops::RangeInclusive<MiniblockNumber>>,
     miniblocks_affected: u64,
 }
 
+/// It's important for the `chunk_size` to be a constant; this ensures that each chunk is migrated atomically.
 async fn migrate_miniblocks_inner(
     pool: ConnectionPool,
     last_miniblock: MiniblockNumber,
@@ -81,89 +72,77 @@ async fn migrate_miniblocks_inner(
     anyhow::ensure!(chunk_size > 0, "Chunk size must be positive");
 
     let mut storage = pool.access_storage().await?;
-    // Check whether the last miniblock is migrated. If it is, we can finish early.
-    // This will also protect us from running unsupported `BlocksDal` queries after the 2nd DB migration is run
-    // removing `l1_batches.fee_account_address`.
-    if is_fee_address_migrated(&mut storage, last_miniblock).await? {
-        tracing::info!(
-            "All miniblocks in 0..={last_miniblock} have `fee_account_address` migrated"
-        );
+
+    #[allow(deprecated)]
+    let l1_batches_have_fee_account_address = storage
+        .blocks_dal()
+        .check_l1_batches_have_fee_account_address()
+        .await
+        .expect("Failed getting metadata for l1_batches table");
+    if !l1_batches_have_fee_account_address {
+        tracing::info!("`l1_batches.fee_account_address` column is removed; assuming that the migration is complete");
         return Ok(MigrationOutput::default());
     }
 
-    // At this point, we have at least one non-migrated miniblock. Find the non-migrated range
-    // using binary search.
-    let last_migrated_miniblock =
-        binary_search_with(0, last_miniblock.0, MigratedMiniblockSearch(storage)).await?;
-
-    let first_miniblock_to_migrate = if last_migrated_miniblock > 0 {
-        MiniblockNumber(last_migrated_miniblock) + 1
-    } else {
-        MiniblockNumber(0) // If binary search yielded 0, we may have no migrated miniblocks
-    };
-    let mut chunk_start = first_miniblock_to_migrate;
+    let mut chunk_start = MiniblockNumber(0);
     let mut miniblocks_affected = 0;
 
     tracing::info!(
-        "Migrating `fee_account_address` for miniblocks {first_miniblock_to_migrate}..={last_miniblock} \
+        "Migrating `fee_account_address` for miniblocks {chunk_start}..={last_miniblock} \
          in chunks of {chunk_size} miniblocks"
     );
     while chunk_start <= last_miniblock {
         let chunk_end = last_miniblock.min(chunk_start + chunk_size - 1);
         let chunk = chunk_start..=chunk_end;
-        tracing::debug!("Migrating `fee_account_address` for miniblocks chunk {chunk:?}");
 
-        #[allow(deprecated)]
-        let rows_affected = pool
-            .access_storage()
-            .await?
-            .blocks_dal()
-            .copy_fee_account_address_for_miniblocks(chunk.clone())
-            .await
-            .with_context(|| format!("Failed migrating miniblocks chunk {chunk:?}"))?;
-        tracing::debug!("Migrated {rows_affected} miniblocks in chunk {chunk:?}");
-        miniblocks_affected += rows_affected;
+        let mut storage = pool.access_storage().await?;
+        let is_chunk_migrated = is_fee_address_migrated(&mut storage, chunk_start).await?;
+
+        if is_chunk_migrated {
+            tracing::debug!("`fee_account_address` is migrated for chunk {chunk:?}");
+        } else {
+            tracing::debug!("Migrating `fee_account_address` for miniblocks chunk {chunk:?}");
+
+            #[allow(deprecated)]
+            let rows_affected = storage
+                .blocks_dal()
+                .copy_fee_account_address_for_miniblocks(chunk.clone())
+                .await
+                .with_context(|| format!("Failed migrating miniblocks chunk {chunk:?}"))?;
+            tracing::debug!("Migrated {rows_affected} miniblocks in chunk {chunk:?}");
+            miniblocks_affected += rows_affected;
+        }
+        drop(storage);
 
         if *stop_receiver.borrow() {
             tracing::info!("Stop signal received; fee address migration shutting down");
             return Ok(MigrationOutput {
-                migrated_range: Some(first_miniblock_to_migrate..=chunk_end),
                 miniblocks_affected,
             });
         }
-        chunk_start = *chunk.end() + 1;
-        tokio::time::sleep(sleep_interval).await;
+        chunk_start = chunk_end + 1;
+
+        if !is_chunk_migrated {
+            tokio::time::sleep(sleep_interval).await;
+        }
     }
 
     Ok(MigrationOutput {
-        migrated_range: Some(first_miniblock_to_migrate..=last_miniblock),
         miniblocks_affected,
     })
 }
 
+#[allow(deprecated)]
 async fn is_fee_address_migrated(
     storage: &mut StorageProcessor<'_>,
     miniblock: MiniblockNumber,
 ) -> anyhow::Result<bool> {
-    let fee_address = storage
+    storage
         .blocks_dal()
-        .get_fee_address_for_miniblock(miniblock)
+        .is_fee_address_migrated(miniblock)
         .await
         .with_context(|| format!("Failed getting fee address for miniblock #{miniblock}"))?
-        .with_context(|| format!("Miniblock #{miniblock} disappeared"))?;
-    Ok(fee_address != Address::default())
-}
-
-#[derive(Debug)]
-struct MigratedMiniblockSearch<'a>(StorageProcessor<'a>);
-
-#[async_trait]
-impl BinarySearchPredicate for MigratedMiniblockSearch<'_> {
-    type Error = anyhow::Error;
-
-    async fn eval(&mut self, argument: u32) -> Result<bool, Self::Error> {
-        is_fee_address_migrated(&mut self.0, MiniblockNumber(argument)).await
-    }
+        .with_context(|| format!("Miniblock #{miniblock} disappeared"))
 }
 
 #[cfg(test)]
@@ -172,7 +151,7 @@ mod tests {
     use zksync_contracts::BaseSystemContractsHashes;
     use zksync_types::{
         block::{BlockGasCount, L1BatchHeader},
-        L1BatchNumber, ProtocolVersion, ProtocolVersionId,
+        Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId,
     };
 
     use super::*;
@@ -221,6 +200,10 @@ mod tests {
 
     async fn assert_migration(storage: &mut StorageProcessor<'_>) {
         for number in 0..5 {
+            assert!(is_fee_address_migrated(storage, MiniblockNumber(number))
+                .await
+                .unwrap());
+
             let fee_address = storage
                 .blocks_dal()
                 .get_fee_address_for_miniblock(MiniblockNumber(number))
@@ -293,10 +276,6 @@ mod tests {
 
         // Migration should stop after a single chunk.
         assert_eq!(result.miniblocks_affected, u64::from(chunk_size));
-        assert_eq!(
-            result.migrated_range.unwrap(),
-            MiniblockNumber(0)..=MiniblockNumber(chunk_size - 1)
-        );
 
         // Check that migration resumes from the same point.
         let (_stop_sender, stop_receiver) = watch::channel(false);
@@ -311,9 +290,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(result.miniblocks_affected, 3);
-        assert_eq!(
-            result.migrated_range.unwrap(),
-            MiniblockNumber(chunk_size)..=MiniblockNumber(4)
-        );
     }
+
+    // FIXME: test new blocks added during migration
 }

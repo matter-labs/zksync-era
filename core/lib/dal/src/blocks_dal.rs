@@ -2175,6 +2175,22 @@ impl BlocksDal<'_, '_> {
         &mut self,
         number: MiniblockNumber,
     ) -> sqlx::Result<Option<Address>> {
+        let Some(mut fee_account_address) = self.raw_fee_address_for_miniblock(number).await?
+        else {
+            return Ok(None);
+        };
+
+        // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
+        #[allow(deprecated)]
+        self.maybe_load_fee_address(&mut fee_account_address, number)
+            .await?;
+        Ok(Some(fee_account_address))
+    }
+
+    async fn raw_fee_address_for_miniblock(
+        &mut self,
+        number: MiniblockNumber,
+    ) -> sqlx::Result<Option<Address>> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
@@ -2192,12 +2208,7 @@ impl BlocksDal<'_, '_> {
             return Ok(None);
         };
 
-        let mut fee_account_address = Address::from_slice(&row.fee_account_address);
-        // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
-        #[allow(deprecated)]
-        self.maybe_load_fee_address(&mut fee_account_address, number)
-            .await?;
-        Ok(Some(fee_account_address))
+        Ok(Some(Address::from_slice(&row.fee_account_address)))
     }
 
     pub async fn get_virtual_blocks_for_miniblock(
@@ -2256,6 +2267,18 @@ impl BlocksDal<'_, '_> {
 
         *fee_address = Address::from_slice(&row.fee_account_address);
         Ok(())
+    }
+
+    /// Checks whether `fee_account_address` is migrated for the specified miniblock. Returns
+    /// `Ok(None)` if the miniblock doesn't exist.
+    pub async fn is_fee_address_migrated(
+        &mut self,
+        number: MiniblockNumber,
+    ) -> sqlx::Result<Option<bool>> {
+        Ok(self
+            .raw_fee_address_for_miniblock(number)
+            .await?
+            .map(|address| address != Address::default()))
     }
 
     /// Copies `fee_account_address` for pending miniblocks (ones without an associated L1 batch)
@@ -2561,6 +2584,14 @@ mod tests {
                 .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(number))
                 .await
                 .unwrap();
+
+            assert_eq!(
+                conn.blocks_dal()
+                    .is_fee_address_migrated(miniblock.number)
+                    .await
+                    .unwrap(),
+                Some(false)
+            );
         }
 
         // Manually set `fee_account_address` for the inserted L1 batches.
@@ -2592,14 +2623,14 @@ mod tests {
         assert_eq!(rows_affected, 2);
         let first_miniblock_addr = conn
             .blocks_dal()
-            .get_fee_address_for_miniblock(MiniblockNumber(1))
+            .raw_fee_address_for_miniblock(MiniblockNumber(1))
             .await
             .unwrap()
             .expect("No fee address for block #1");
         assert_eq!(first_miniblock_addr, Address::repeat_byte(0x23));
         let second_miniblock_addr = conn
             .blocks_dal()
-            .get_fee_address_for_miniblock(MiniblockNumber(2))
+            .raw_fee_address_for_miniblock(MiniblockNumber(2))
             .await
             .unwrap()
             .expect("No fee address for block #1");
@@ -2607,11 +2638,18 @@ mod tests {
         // The pending miniblock should not be affected.
         let pending_miniblock_addr = conn
             .blocks_dal()
-            .get_fee_address_for_miniblock(MiniblockNumber(3))
+            .raw_fee_address_for_miniblock(MiniblockNumber(3))
             .await
             .unwrap()
             .expect("No fee address for block #3");
         assert_eq!(pending_miniblock_addr, Address::default());
+        assert_eq!(
+            conn.blocks_dal()
+                .is_fee_address_migrated(MiniblockNumber(3))
+                .await
+                .unwrap(),
+            Some(false)
+        );
 
         let rows_affected = conn
             .blocks_dal()
@@ -2622,10 +2660,20 @@ mod tests {
 
         let pending_miniblock_addr = conn
             .blocks_dal()
-            .get_fee_address_for_miniblock(MiniblockNumber(3))
+            .raw_fee_address_for_miniblock(MiniblockNumber(3))
             .await
             .unwrap()
             .expect("No fee address for block #3");
         assert_eq!(pending_miniblock_addr, Address::repeat_byte(0x42));
+
+        for number in 1..=3 {
+            assert_eq!(
+                conn.blocks_dal()
+                    .is_fee_address_migrated(MiniblockNumber(number))
+                    .await
+                    .unwrap(),
+                Some(true)
+            );
+        }
     }
 }
