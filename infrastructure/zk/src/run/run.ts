@@ -56,7 +56,7 @@ export async function tokenInfo(address: string) {
 
 // installs all dependencies
 export async function yarn() {
-    await utils.spawn('yarn');
+    await utils.spawn('yarn install --frozen-lockfile');
 }
 
 export async function deployTestkit(genesisRoot: string) {
@@ -127,7 +127,7 @@ export async function snapshots_creator() {
 export const command = new Command('run').description('run miscellaneous applications').addCommand(dataRestore.command);
 
 command.command('test-accounts').description('print ethereum test accounts').action(testAccounts);
-command.command('yarn').description('install all JS dependencies').action(yarn);
+command.command('yarn install --frozen-lockfile').description('install all JS dependencies').action(yarn);
 command.command('cat-logs [exit_code]').description('print server and prover logs').action(catLogs);
 
 command
