@@ -118,8 +118,12 @@ jobs:
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
 
-  integration-modern-api:
-    runs-on: [matterlabs-ci-runner]
+  integration:
+    strategy:
+      matrix:
+        env: [disabled, enabled]
+
+    runs-on: [ matterlabs-ci-runner ]
 
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
@@ -171,6 +175,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
           ci_run zk init
+          ci_run zk env api-mode ${{ matrix.env }}
 
 
       # `sleep 5` because we need to wait until server started properly
@@ -226,115 +231,10 @@ jobs:
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
 
-  integration-old-api:
-    runs-on: [matterlabs-ci-runner]
-
-    steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
-        with:
-          submodules: "recursive"
-
-      - name: Setup environment
-        run: |
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo IN_DOCKER=1 >> .env
-          echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
-          echo ZKSYNC_DEBUG_LOGS=true >> .env
-
-      - name: Download zksolc/solc and zkvyper/vyper
-        run: |
-          sudo apt update && sudo apt install wget -y
-
-          mkdir -p $(pwd)/etc/solc-bin/0.8.23
-          wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-v0.8.23%2Bcommit.f704f362
-          mv solc-linux-amd64-v0.8.23+commit.f704f362 $(pwd)/etc/solc-bin/0.8.23/solc
-          chmod +x $(pwd)/etc/solc-bin/0.8.23/solc
-
-          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.19
-          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.19
-          mv zksolc-linux-amd64-musl-v1.3.19 $(pwd)/etc/zksolc-bin/v1.3.19/zksolc
-          chmod +x $(pwd)/etc/zksolc-bin/v1.3.19/zksolc
-
-          mkdir -p $(pwd)/etc/vyper-bin/0.3.10
-          wget -O vyper0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10%2Bcommit.91361694.linux
-          mv vyper0.3.10 $(pwd)/etc/vyper-bin/0.3.10/vyper
-          chmod +x $(pwd)/etc/vyper-bin/0.3.10/vyper
-
-          mkdir -p $(pwd)/etc/zkvyper-bin/v1.3.13
-          wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-v1.3.13
-          mv zkvyper-linux-amd64-musl-v1.3.13 $(pwd)/etc/zkvyper-bin/v1.3.13/zkvyper
-          chmod +x $(pwd)/etc/zkvyper-bin/v1.3.13/zkvyper
-
-      - name: Start services
-        run: |
-          ci_localnet_up
-          ci_run sccache --start-server
-
-      - name: Init
-        run: |
-          ci_run git config --global --add safe.directory /usr/src/zksync
-          ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-          ci_run zk
-          ci_run zk init
-          ci_run zk env api-mode eth_transfer_included
-
-      # `sleep 5` because we need to wait until server started properly
-      - name: Run server
-        run: |
-          ci_run zk server &>server.log &
-          ci_run sleep 5
-
-      - name: Run contract verifier
-        run: |
-          ci_run zk contract_verifier &>contract_verifier.log &
-          ci_run sleep 2
-
-      - name: Server integration tests
-        run: ci_run zk test i server
-
-      - name: Fee projection tests
-        run: ci_run zk test i fees
-
-      - name: Run revert test
-        run: |
-          ci_run pkill zksync_server || true
-          ci_run sleep 2
-          ci_run zk test i revert
-
-        # This test should be the last one as soon as it
-        # finished bootloader will be different
-      - name: Run upgrade test
-        run: |
-          ci_run pkill zksync_server || true
-          ci_run sleep 10
-          ci_run zk test i upgrade
-
-      - name: Show server.log logs
-        if: always()
-        run: ci_run cat server.log || true
-
-      - name: Show contract_verifier.log logs
-        if: always()
-        run: ci_run cat contract_verifier.log || true
-
-      - name: Show revert.log logs
-        if: always()
-        run: ci_run cat core/tests/revert-test/revert.log || true
-
-      - name: Show upgrade.log logs
-        if: always()
-        run: ci_run cat core/tests/upgrade-test/upgrade.log || true
-
-      - name: Show sccache logs
-        if: always()
-        run: |
-          ci_run sccache --show-stats
-          ci_run cat /tmp/sccache_log.txt
-
-  external-node-modern:
+  external-node:
+    strategy:
+      matrix:
+        env: [disabled, enabled]
     runs-on: [matterlabs-ci-runner]
 
     steps:
@@ -388,6 +288,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
           ci_run zk init
+          ci_run zk env api-mode ${{ matrix.env }}
 
       # `sleep 30` because we need to wait until server started properly
       - name: Run server
@@ -438,126 +339,6 @@ jobs:
       - name: Show ext-node.log logs
         if: always()
         run: ci_run cat ext-node.log || true
-
-      - name: Show contract_verifier.log logs
-        if: always()
-        run: ci_run cat ext-node.log || true
-
-      - name: Show revert.log logs
-        if: always()
-        run: ci_run cat core/tests/revert-test/revert.log || true
-
-      - name: Show upgrade.log logs
-        if: always()
-        run: ci_run cat core/tests/upgrade-test/upgrade.log || true
-
-      - name: Show sccache logs
-        if: always()
-        run: |
-          ci_run sccache --show-stats
-          ci_run cat /tmp/sccache_log.txt
-
-  external-node-old-api:
-    runs-on: [ matterlabs-ci-runner ]
-
-    steps:
-      - name: Checkout code # Checks out the repository under $GITHUB_WORKSPACE, so the job can access it.
-        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
-        with:
-          submodules: "recursive"
-
-      - name: Setup environment
-        run: |
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo IN_DOCKER=1 >> .env
-          echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
-          echo ZKSYNC_DEBUG_LOGS=true >> .env
-
-      - name: Download zksolc/solc and zkvyper/vyper
-        run: |
-          sudo apt update && sudo apt install wget -y
-
-          mkdir -p $(pwd)/etc/solc-bin/0.8.23
-          wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-v0.8.23%2Bcommit.f704f362
-          mv solc-linux-amd64-v0.8.23+commit.f704f362 $(pwd)/etc/solc-bin/0.8.23/solc
-          chmod +x $(pwd)/etc/solc-bin/0.8.23/solc
-
-          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.19
-          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.19
-          mv zksolc-linux-amd64-musl-v1.3.19 $(pwd)/etc/zksolc-bin/v1.3.19/zksolc
-          chmod +x $(pwd)/etc/zksolc-bin/v1.3.19/zksolc
-
-          mkdir -p $(pwd)/etc/vyper-bin/0.3.10
-          wget -O vyper0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10%2Bcommit.91361694.linux
-          mv vyper0.3.10 $(pwd)/etc/vyper-bin/0.3.10/vyper
-          chmod +x $(pwd)/etc/vyper-bin/0.3.10/vyper
-
-          mkdir -p $(pwd)/etc/zkvyper-bin/v1.3.11
-          wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-v1.3.11
-          mv zkvyper-linux-amd64-musl-v1.3.11 $(pwd)/etc/zkvyper-bin/v1.3.11/zkvyper
-          chmod +x $(pwd)/etc/zkvyper-bin/v1.3.11/zkvyper
-
-      - name: Start services
-        run: |
-          ci_localnet_up
-          ci_run sccache --start-server
-
-      - name: Init
-        run: |
-          ci_run git config --global --add safe.directory /usr/src/zksync
-          ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-          ci_run zk
-          ci_run zk init
-          ci_run zk env api-mode eth_transfer_included
-
-      # `sleep 30` because we need to wait until server started properly
-      - name: Run server
-        run: |
-          ci_run zk server &>server.log &
-          ci_run sleep 30
-
-      - name: Run external node
-        run: |
-          ci_run zk env ext-node-docker
-          ci_run zk db setup
-          ci_run zk external-node &>ext-node.log &
-          ci_run sleep 30
-
-      # TODO(PLA-653): Restore bridge tests for EN.
-      - name: Integration tests
-        run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification|custom-erc20-bridge|snapshots-creator'
-
-      - name: Run Cross EN Checker
-        run: ci_run zk run cross-en-checker
-
-      - name: Run revert test
-        run: |
-          ci_run zk env
-          ci_run zk env docker
-          ci_run pkill zksync_server || true
-          ci_run sleep 2
-          ci_run zk env
-          ci_run zk test i revert
-          # Check that the rollback was performed on the EN
-          ci_run sleep 20
-          ci_run grep -q 'Rollback successfully completed' ext-node.log
-          # Restart the EN
-          ci_run zk server &>>server.log &
-          ci_run sleep 30
-          ZKSYNC_ENV=ext-node-docker ci_run zk external-node &>>ext-node.log &
-          ci_run sleep 30
-
-      - name: Run upgrade test
-        run: |
-          ci_run zk env docker
-          CHECK_EN_URL="http://0.0.0.0:3060" ci_run zk test i upgrade
-
-      - name: Show server.log logs
-        if: always()
-        run: ci_run cat server.log || true
 
       - name: Show contract_verifier.log logs
         if: always()
