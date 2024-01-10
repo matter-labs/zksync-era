@@ -150,7 +150,7 @@ impl EthClient for FakeEthClient {
 fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
     L1Tx {
         execute: Execute {
-            contract_address: Address::repeat_byte(0x11),
+            contract_address: Some(Address::repeat_byte(0x11)),
             calldata: vec![1, 2, 3],
             factory_deps: None,
             value: U256::zero(),
@@ -179,7 +179,7 @@ fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
 fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx {
     ProtocolUpgradeTx {
         execute: Execute {
-            contract_address: Address::repeat_byte(0x11),
+            contract_address: Some(Address::repeat_byte(0x11)),
             calldata: vec![1, 2, 3],
             factory_deps: None,
             value: U256::zero(),
@@ -538,7 +538,7 @@ fn tx_into_log(tx: L1Tx) -> Log {
     let tx_data_token = Token::Tuple(vec![
         Token::Uint(0xff.into()),
         Token::Address(tx.common_data.sender),
-        Token::Address(tx.execute.contract_address),
+        Token::Address(tx.execute.contract_address.unwrap()),
         Token::Uint(tx.common_data.gas_limit),
         Token::Uint(tx.common_data.gas_per_pubdata_limit),
         Token::Uint(tx.common_data.max_fee_per_gas),
@@ -652,7 +652,7 @@ fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
         Token::Tuple(vec![
             Token::Uint(0xfe.into()),
             Token::Address(tx.common_data.sender),
-            Token::Address(tx.execute.contract_address),
+            Token::Address(tx.execute.contract_address.unwrap_or_default()),
             Token::Uint(tx.common_data.gas_limit),
             Token::Uint(tx.common_data.gas_per_pubdata_limit),
             Token::Uint(tx.common_data.max_fee_per_gas),

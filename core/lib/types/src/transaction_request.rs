@@ -84,8 +84,8 @@ impl CallRequestBuilder {
     }
 
     /// Set to address (None allowed for eth_estimateGas)
-    pub fn to(mut self, to: Address) -> Self {
-        self.call_request.to = Some(to);
+    pub fn to(mut self, to: Option<Address>) -> Self {
+        self.call_request.to = to;
         self
     }
 
@@ -789,11 +789,12 @@ impl L2Tx {
         if let Some(deps) = factory_deps.as_ref() {
             validate_factory_deps(deps)?;
         }
+        let to = value
+            .to
+            .ok_or(SerializationTransactionError::ToAddressIsNull)?;
 
         let mut tx = L2Tx::new(
-            value
-                .to
-                .ok_or(SerializationTransactionError::ToAddressIsNull)?,
+            Some(to),
             value.input.0.clone(),
             nonce,
             fee,

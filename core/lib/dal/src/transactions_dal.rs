@@ -56,7 +56,13 @@ type TxLocations = Vec<(MiniblockNumber, Vec<(H256, u32, u16)>)>;
 impl TransactionsDal<'_, '_> {
     pub async fn insert_transaction_l1(&mut self, tx: L1Tx, l1_block_number: L1BlockNumber) {
         {
-            let contract_address = tx.execute.contract_address.as_bytes();
+            let contract_address = tx.execute.contract_address;
+            let unwrapped_contract_address = contract_address.unwrap_or_default();
+            let contract_address_b: &[u8] = if contract_address.is_none() {
+                &[]
+            } else {
+                unwrapped_contract_address.as_bytes()
+            };
             let tx_hash = tx.hash();
             let tx_hash_bytes = tx_hash.as_bytes();
             let json_data = serde_json::to_value(&tx.execute)
@@ -140,7 +146,7 @@ impl TransactionsDal<'_, '_> {
                 serial_id,
                 full_fee,
                 layer_2_tip_fee,
-                contract_address,
+                contract_address_b,
                 l1_block_number.0 as i32,
                 value,
                 empty_address.as_bytes(),
@@ -158,7 +164,13 @@ impl TransactionsDal<'_, '_> {
 
     pub async fn insert_system_transaction(&mut self, tx: ProtocolUpgradeTx) {
         {
-            let contract_address = tx.execute.contract_address.as_bytes().to_vec();
+            let contract_address = tx.execute.contract_address;
+            let unwrapped_contract_address = contract_address.unwrap_or_default();
+            let contract_address_b: &[u8] = if contract_address.is_none() {
+                &[]
+            } else {
+                unwrapped_contract_address.as_bytes()
+            };
             let tx_hash = tx.common_data.hash().0.to_vec();
             let json_data = serde_json::to_value(&tx.execute).unwrap_or_else(|_| {
                 panic!("cannot serialize tx {:?} to json", tx.common_data.hash())
@@ -234,7 +246,7 @@ impl TransactionsDal<'_, '_> {
                 gas_per_pubdata_limit,
                 json_data,
                 upgrade_id,
-                contract_address,
+                contract_address_b,
                 l1_block_number,
                 value,
                 &Address::default().0.to_vec(),
@@ -258,7 +270,13 @@ impl TransactionsDal<'_, '_> {
         {
             let tx_hash = tx.hash();
             let initiator_address = tx.initiator_account();
-            let contract_address = tx.execute.contract_address.as_bytes();
+            let contract_address = tx.execute.contract_address;
+            let unwrapped_contract_address = contract_address.unwrap_or_default();
+            let contract_address_b: &[u8] = if contract_address.is_none() {
+                &[]
+            } else {
+                unwrapped_contract_address.as_bytes()
+            };
             let json_data = serde_json::to_value(&tx.execute)
                 .unwrap_or_else(|_| panic!("cannot serialize tx {:?} to json", tx.hash()));
             let gas_limit = u256_to_big_decimal(tx.common_data.fee.gas_limit);
@@ -382,7 +400,7 @@ impl TransactionsDal<'_, '_> {
                 input_data,
                 &json_data,
                 tx_format,
-                contract_address,
+                contract_address_b,
                 value,
                 &paymaster,
                 &paymaster_input,
@@ -550,9 +568,15 @@ impl TransactionsDal<'_, '_> {
                         }
                         ExecuteTransactionCommon::L2(common_data) => {
                             let data = serde_json::to_value(&transaction.execute).unwrap();
+                            let contract_address = transaction.execute.contract_address;
+                            let unwrapped_contract_address = contract_address.unwrap_or_default();
+                            let contract_address_b: &[u8] = if contract_address.is_none() {
+                                &[]
+                            } else {
+                                unwrapped_contract_address.as_bytes()
+                            };
                             l2_values.push(u256_to_big_decimal(transaction.execute.value));
-                            l2_contract_addresses
-                                .push(transaction.execute.contract_address.as_bytes().to_vec());
+                            l2_contract_addresses.push(contract_address_b.to_vec());
                             l2_paymaster_input
                                 .push(common_data.paymaster_params.paymaster_input.clone());
                             l2_paymaster

@@ -115,7 +115,7 @@ pub fn get_deploy_tx(code: &[u8]) -> Transaction {
         .collect();
 
     let mut signed = L2Tx::new_signed(
-        CONTRACT_DEPLOYER_ADDRESS,
+        Some(CONTRACT_DEPLOYER_ADDRESS),
         calldata,
         Nonce(0),
         Fee {
