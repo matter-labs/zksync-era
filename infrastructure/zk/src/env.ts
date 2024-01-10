@@ -153,7 +153,9 @@ export function checkEthTransferEvents() {
     const EthTransferEventsServer = process.env.API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS;
 
     if (EthTransferEventsEn && EthTransferEventsServer && EthTransferEventsEn !== EthTransferEventsServer) {
-        console.error(`Api mode mismatch: ${EthTransferEventsEn} != ${EthTransferEventsServer}.\nPlease, check your .env files.`);
+        console.error(
+            `Api mode mismatch: ${EthTransferEventsEn} != ${EthTransferEventsServer}.\nPlease, check your .env files.`
+        );
         process.exit(1);
     }
 }
@@ -161,7 +163,8 @@ export function checkEthTransferEvents() {
 export function getEthTransferEvents(print: boolean) {
     checkEthTransferEvents();
 
-    const EthTransferEvents = process.env.EN_API_ETH_TRANSFER_EVENTS ?? process.env.API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS;
+    const EthTransferEvents =
+        process.env.EN_API_ETH_TRANSFER_EVENTS ?? process.env.API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS;
 
     if (print) {
         const modes = getAvailableEthTransferEvents();
