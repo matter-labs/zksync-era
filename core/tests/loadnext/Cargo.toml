@@ -9,7 +9,6 @@ license = "MIT OR Apache-2.0"
 keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 publish = false                                           # We don't want to publish our tests.
-readme = "README.md"
 
 [dependencies]
 zksync = { path = "../../../sdk/zksync-rs", features = ["mint"] }
