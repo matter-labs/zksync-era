@@ -103,6 +103,7 @@ impl PeriodicJob for FriProverStatsReporter {
                     .get_sealed_l1_batch_number()
                     .await
                     .unwrap()
+                    .unwrap()
                     .0 as f64
             }
         };
