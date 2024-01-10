@@ -11,6 +11,7 @@ use tokio::time::sleep;
 use zksync_web3_decl::{
     jsonrpsee::http_client::HttpClientBuilder,
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
+    types::U256,
 };
 use zksync_web3_rs::{
     providers::{Middleware, Provider},
@@ -100,8 +101,18 @@ async fn main() {
     }
 
     // Perform a signed transaction calling the setGreeting method
-    let values = vec![100, 10000, 1000000, 100000000, 1000000000];
+    let values: Vec<i64> = vec![
+        1000000000,
+        10000000000,
+        100000000000,
+        1000000000000,
+        10000000000000,
+    ];
     let mut last_message = String::new(); // Replace with your actual last message
+
+    let mut last_l2_tx_fee = U256::zero();
+    let mut last_l1_max_fee_per_gas = U256::zero();
+
     for &value in &values {
         println!();
         let hex_value = format!("{:0width$X}", value, width = 64);
@@ -155,15 +166,22 @@ async fn main() {
         //     // Update last_gas_per_pubdata with the current value
         //     last_gas_per_pubdata.clone_from(&gas_per_pubdata_formatted);
         // }
-        let mut last_l2_tx_fee = String::new();
-        let l2_transaction_fee_formatted = format!("{:#?}", l2_transaction.fee);
-        if last_l2_tx_fee.is_empty() || last_l2_tx_fee != l2_transaction_fee_formatted {
-            println!("L2 fee: {}", l2_transaction_fee_formatted.green());
 
-            // Update last_gas_per_pubdata with the current value
-            last_l2_tx_fee.clone_from(&l2_transaction_fee_formatted);
+        let l2_tx_fee_formatted = format!("{:#?}", l2_transaction.fee);
+        println!("L2 fee: {}", l2_tx_fee_formatted.green());
+
+        let diff_tx_fee_formatted = format!("{:#?}", l2_transaction.fee.abs_diff(last_l2_tx_fee));
+
+        if l2_transaction.fee.ge(&last_l2_tx_fee) {
+            println!("Diff with last fee: {}", diff_tx_fee_formatted.magenta());
+        } else {
+            println!(
+                "Diff with last fee: {}",
+                ("-".to_owned() + &diff_tx_fee_formatted).magenta()
+            );
         }
 
+        last_l2_tx_fee.clone_from(&l2_transaction.fee);
         // println!("{}", "Getting l1 transaction details with rpc...");
         let l1_transaction = l1_rpc_client
             .get_transaction_by_hash(l2_transaction.eth_commit_tx_hash.unwrap())
@@ -207,13 +225,29 @@ async fn main() {
         //     last_gas_price = gas_price_formatted;
         // }
 
-        let mut last_max_fee_per_gas = String::new();
-        let max_fee_per_gas_formatted = format!("{:#?}", l1_transaction.max_fee_per_gas.unwrap());
+        let l1_max_fee_per_gas = l1_transaction.max_fee_per_gas.unwrap();
+        let l1_max_fee_per_gas_formatted = format!("{:#?}", l1_max_fee_per_gas);
+        println!(
+            "L1 max fee per gas: {}",
+            l1_max_fee_per_gas_formatted.cyan()
+        );
 
-        if last_max_fee_per_gas.is_empty() || last_max_fee_per_gas != max_fee_per_gas_formatted {
-            println!("L1 max fee per gas: {}", max_fee_per_gas_formatted.cyan());
-            last_max_fee_per_gas = max_fee_per_gas_formatted;
+        let diff_l1_max_fee_per_gas_formatted = format!(
+            "{:#?}",
+            l1_max_fee_per_gas.abs_diff(last_l1_max_fee_per_gas)
+        );
+        if l1_max_fee_per_gas.ge(&last_l1_max_fee_per_gas) {
+            println!(
+                "Diff with last fee: {}",
+                diff_l1_max_fee_per_gas_formatted.magenta()
+            );
+        } else {
+            println!(
+                "Diff with last fee: {}",
+                ("-".to_owned() + &diff_l1_max_fee_per_gas_formatted).magenta()
+            );
         }
+        last_l1_max_fee_per_gas.clone_from(&l1_max_fee_per_gas);
         println!()
 
         // let mut last_max_priority_fee_per_gas = String::new();

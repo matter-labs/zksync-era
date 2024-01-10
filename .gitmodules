@@ -1,3 +1,7 @@
 [submodule "contracts"]
 path = contracts
 url = https://github.com/matter-labs/era-contracts.git
+
+[submodule "era-contracts-lambda"]
+path = era-contracts-lambda
+url = https://github.com/matter-labs/era-contracts.git
