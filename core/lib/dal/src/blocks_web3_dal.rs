@@ -567,7 +567,8 @@ impl BlocksWeb3Dal<'_, '_> {
         };
         let mut details = api::BlockDetails::from(storage_block_details);
 
-        #[allow(deprecated)] // FIXME: remove after 2nd phase of `fee_account_address` migration
+        // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
+        #[allow(deprecated)]
         self.storage
             .blocks_dal()
             .maybe_load_fee_address(&mut details.operator_address, details.number)

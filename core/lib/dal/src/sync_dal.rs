@@ -93,7 +93,8 @@ impl SyncDal<'_, '_> {
         };
 
         let mut block = storage_block_details.into_sync_block(transactions)?;
-        #[allow(deprecated)] // FIXME: remove after 2nd phase of `fee_account_address` migration
+        // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
+        #[allow(deprecated)]
         self.storage
             .blocks_dal()
             .maybe_load_fee_address(&mut block.operator_address, block.number)

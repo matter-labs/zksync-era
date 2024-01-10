@@ -727,7 +727,6 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
     )
     .await;
 
-    // FIXME: or is it better to have a separate connection for migration?
     task_futures.push(tokio::spawn(
         state_keeper.run_fee_address_migration(state_keeper_pool),
     ));

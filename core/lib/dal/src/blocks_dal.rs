@@ -726,7 +726,8 @@ impl BlocksDal<'_, '_> {
             return Ok(None);
         };
         let mut header = MiniblockHeader::from(header);
-        #[allow(deprecated)] // FIXME: remove after 2nd phase of `fee_account_address` migration
+        // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
+        #[allow(deprecated)]
         self.maybe_load_fee_address(&mut header.fee_account_address, header.number)
             .await?;
 
@@ -768,7 +769,8 @@ impl BlocksDal<'_, '_> {
             return Ok(None);
         };
         let mut header = MiniblockHeader::from(header);
-        #[allow(deprecated)] // FIXME: remove after 2nd phase of `fee_account_address` migration
+        // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
+        #[allow(deprecated)]
         self.maybe_load_fee_address(&mut header.fee_account_address, header.number)
             .await?;
 
@@ -2191,7 +2193,8 @@ impl BlocksDal<'_, '_> {
         };
 
         let mut fee_account_address = Address::from_slice(&row.fee_account_address);
-        #[allow(deprecated)] // FIXME: remove after 2nd phase of `fee_account_address` migration
+        // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
+        #[allow(deprecated)]
         self.maybe_load_fee_address(&mut fee_account_address, number)
             .await?;
         Ok(Some(fee_account_address))

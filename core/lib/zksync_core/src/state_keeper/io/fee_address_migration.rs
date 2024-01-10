@@ -1,6 +1,6 @@
 //! Temporary module for migrating fee addresses from L1 batches to miniblocks.
 
-// FIXME: remove after 2nd phase of `fee_account_address` migration
+// FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
 
 use std::{
     ops,
