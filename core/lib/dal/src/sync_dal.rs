@@ -92,7 +92,12 @@ impl SyncDal<'_, '_> {
             None
         };
 
-        let block = storage_block_details.into_sync_block(transactions)?;
+        let mut block = storage_block_details.into_sync_block(transactions)?;
+        #[allow(deprecated)] // FIXME: remove after 2nd phase of `fee_account_address` migration
+        self.storage
+            .blocks_dal()
+            .maybe_load_fee_address(&mut block.operator_address, block.number)
+            .await?;
         drop(latency);
         Ok(Some(block))
     }

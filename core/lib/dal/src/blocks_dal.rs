@@ -694,7 +694,7 @@ impl BlocksDal<'_, '_> {
     pub async fn get_last_sealed_miniblock_header(
         &mut self,
     ) -> sqlx::Result<Option<MiniblockHeader>> {
-        Ok(sqlx::query_as!(
+        let header = sqlx::query_as!(
             StorageMiniblockHeader,
             r#"
             SELECT
@@ -720,15 +720,24 @@ impl BlocksDal<'_, '_> {
             "#,
         )
         .fetch_optional(self.storage.conn())
-        .await?
-        .map(Into::into))
+        .await?;
+
+        let Some(header) = header else {
+            return Ok(None);
+        };
+        let mut header = MiniblockHeader::from(header);
+        #[allow(deprecated)] // FIXME: remove after 2nd phase of `fee_account_address` migration
+        self.maybe_load_fee_address(&mut header.fee_account_address, header.number)
+            .await?;
+
+        Ok(Some(header))
     }
 
     pub async fn get_miniblock_header(
         &mut self,
         miniblock_number: MiniblockNumber,
     ) -> sqlx::Result<Option<MiniblockHeader>> {
-        Ok(sqlx::query_as!(
+        let header = sqlx::query_as!(
             StorageMiniblockHeader,
             r#"
             SELECT
@@ -753,8 +762,17 @@ impl BlocksDal<'_, '_> {
             miniblock_number.0 as i64,
         )
         .fetch_optional(self.storage.conn())
-        .await?
-        .map(Into::into))
+        .await?;
+
+        let Some(header) = header else {
+            return Ok(None);
+        };
+        let mut header = MiniblockHeader::from(header);
+        #[allow(deprecated)] // FIXME: remove after 2nd phase of `fee_account_address` migration
+        self.maybe_load_fee_address(&mut header.fee_account_address, header.number)
+            .await?;
+
+        Ok(Some(header))
     }
 
     pub async fn mark_miniblocks_as_executed_in_l1_batch(
@@ -2172,7 +2190,11 @@ impl BlocksDal<'_, '_> {
             return Ok(None);
         };
 
-        Ok(Some(Address::from_slice(&row.fee_account_address)))
+        let mut fee_account_address = Address::from_slice(&row.fee_account_address);
+        #[allow(deprecated)] // FIXME: remove after 2nd phase of `fee_account_address` migration
+        self.maybe_load_fee_address(&mut fee_account_address, number)
+            .await?;
+        Ok(Some(fee_account_address))
     }
 
     pub async fn get_virtual_blocks_for_miniblock(
@@ -2197,7 +2219,42 @@ impl BlocksDal<'_, '_> {
 }
 
 /// Temporary methods for migrating `fee_account_address`.
+#[deprecated(note = "will be removed after the fee address migration is complete")]
 impl BlocksDal<'_, '_> {
+    pub(crate) async fn maybe_load_fee_address(
+        &mut self,
+        fee_address: &mut Address,
+        miniblock_number: MiniblockNumber,
+    ) -> sqlx::Result<()> {
+        if *fee_address != Address::default() {
+            return Ok(());
+        }
+
+        // This clause should be triggered only for non-migrated miniblock rows. After `fee_account_address`
+        // is filled for all miniblocks, it won't be called; thus, `fee_account_address` column could be removed
+        // from `l1_batches` even with this code present.
+        let Some(row) = sqlx::query!(
+            r#"
+            SELECT
+                l1_batches.fee_account_address
+            FROM
+                l1_batches
+                INNER JOIN miniblocks ON miniblocks.l1_batch_number = l1_batches.number
+            WHERE
+                miniblocks.number = $1
+            "#,
+            miniblock_number.0 as i32
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
+        else {
+            return Ok(());
+        };
+
+        *fee_address = Address::from_slice(&row.fee_account_address);
+        Ok(())
+    }
+
     /// Copies `fee_account_address` for pending miniblocks (ones without an associated L1 batch)
     /// from the last L1 batch. Returns the number of affected rows.
     pub async fn copy_fee_account_address_for_pending_miniblocks(&mut self) -> sqlx::Result<u64> {
@@ -2252,11 +2309,8 @@ impl BlocksDal<'_, '_> {
 
         Ok(execution_result.rows_affected())
     }
-}
 
-/// These methods should only be used for tests.
-impl BlocksDal<'_, '_> {
-    /// Sets `fee_account_address` for an L1 batch.
+    /// Sets `fee_account_address` for an L1 batch. Should only be used in tests.
     pub async fn set_l1_batch_fee_address(
         &mut self,
         l1_batch: L1BatchNumber,
@@ -2277,7 +2331,10 @@ impl BlocksDal<'_, '_> {
         .await?;
         Ok(())
     }
+}
 
+/// These methods should only be used for tests.
+impl BlocksDal<'_, '_> {
     // The actual l1 batch hash is only set by the metadata calculator.
     pub async fn set_l1_batch_hash(
         &mut self,
@@ -2439,6 +2496,7 @@ mod tests {
         }
     }
 
+    #[allow(deprecated)] // that's the whole point
     #[tokio::test]
     async fn ensuring_fee_account_address_for_miniblocks() {
         let pool = ConnectionPool::test_pool().await;

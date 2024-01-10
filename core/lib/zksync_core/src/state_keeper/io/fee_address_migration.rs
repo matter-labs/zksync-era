@@ -1,5 +1,7 @@
 //! Temporary module for migrating fee addresses from L1 batches to miniblocks.
 
+// FIXME: remove after 2nd phase of `fee_account_address` migration
+
 use std::{
     ops,
     time::{Duration, Instant},
@@ -19,6 +21,7 @@ pub(crate) async fn migrate_pending_miniblocks(storage: &mut StorageProcessor<'_
     tracing::info!("Started migrating `fee_account_address` for pending miniblocks");
 
     // FIXME: should work after 2nd DB migration (currently, will panic)
+    #[allow(deprecated)]
     let rows_affected = storage
         .blocks_dal()
         .copy_fee_account_address_for_pending_miniblocks()
@@ -100,6 +103,7 @@ async fn migrate_miniblocks_inner(
         let chunk = chunk_start..=chunk_end;
         tracing::debug!("Migrating `fee_account_address` for miniblocks chunk {chunk:?}");
 
+        #[allow(deprecated)]
         let rows_affected = pool
             .access_storage()
             .await?
@@ -188,6 +192,7 @@ mod tests {
                 .insert_l1_batch(&l1_batch, &[], BlockGasCount::default(), &[], &[], 0)
                 .await
                 .unwrap();
+            #[allow(deprecated)]
             storage
                 .blocks_dal()
                 .set_l1_batch_fee_address(
