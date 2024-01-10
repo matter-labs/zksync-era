@@ -609,7 +609,7 @@ async fn generate_witness(
         ),
     }
 
-    let (mut scheduler_witness, block_aux_witness) = tokio::task::spawn_blocking(move || {
+    let make_circuits = tokio::task::spawn_blocking(move || {
         let connection = rt_handle
             .block_on(connection_pool.access_storage())
             .unwrap();
@@ -644,25 +644,30 @@ async fn generate_witness(
             },
         );
         (scheduler_witness, block_witness)
-    })
-    .await
-    .unwrap();
+    });
 
     let mut circuit_urls = vec![];
     let mut recursion_urls = vec![];
 
-    while let Some(x) = receiver.recv().await {
-        match x {
-            Message::Circuit(circuit) => {
-                circuit_urls.push(
-                    save_circuit(block_number, circuit, circuit_urls.len(), object_store).await,
-                );
+    let save_circuits = async {
+        while let Some(x) = receiver.recv().await {
+            match x {
+                Message::Circuit(circuit) => {
+                    circuit_urls.push(
+                        save_circuit(block_number, circuit, circuit_urls.len(), object_store).await,
+                    );
+                }
+                Message::RecursionQueue(circuit_id, queue, inputs) => recursion_urls.push(
+                    save_recursion_queue(block_number, circuit_id, queue, &inputs, object_store)
+                        .await,
+                ),
             }
-            Message::RecursionQueue(circuit_id, queue, inputs) => recursion_urls.push(
-                save_recursion_queue(block_number, circuit_id, queue, &inputs, object_store).await,
-            ),
         }
-    }
+    };
+
+    let (witnesses, ()) = tokio::join!(make_circuits, save_circuits);
+
+    let (mut scheduler_witness, block_aux_witness) = witnesses.unwrap();
 
     scheduler_witness.previous_block_meta_hash =
         previous_batch_with_metadata.metadata.meta_parameters_hash.0;
