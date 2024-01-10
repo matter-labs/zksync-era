@@ -255,14 +255,13 @@ mod tests {
         assert_eq!(result.miniblocks_affected, 0);
     }
 
+    #[test_casing(3, [1, 2, 3])]
     #[tokio::test]
-    async fn stopping_and_resuming_migration() {
+    async fn stopping_and_resuming_migration(chunk_size: u32) {
         let pool = ConnectionPool::test_pool().await;
         let mut storage = pool.access_storage().await.unwrap();
         prepare_storage(&mut storage).await;
-        drop(storage);
 
-        let chunk_size = 2;
         let (_stop_sender, stop_receiver) = watch::channel(true); // signal stop right away
         let result = migrate_miniblocks_inner(
             pool.clone(),
@@ -289,8 +288,54 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(result.miniblocks_affected, 3);
+        assert_eq!(result.miniblocks_affected, 5 - u64::from(chunk_size));
+        assert_migration(&mut storage).await;
     }
 
-    // FIXME: test new blocks added during migration
+    #[test_casing(3, [1, 2, 3])]
+    #[tokio::test]
+    async fn new_blocks_added_during_migration(chunk_size: u32) {
+        let pool = ConnectionPool::test_pool().await;
+        let mut storage = pool.access_storage().await.unwrap();
+        prepare_storage(&mut storage).await;
+
+        let (_stop_sender, stop_receiver) = watch::channel(true); // signal stop right away
+        let result = migrate_miniblocks_inner(
+            pool.clone(),
+            MiniblockNumber(4),
+            chunk_size,
+            Duration::from_secs(1_000),
+            stop_receiver,
+        )
+        .await
+        .unwrap();
+
+        // Migration should stop after a single chunk.
+        assert_eq!(result.miniblocks_affected, u64::from(chunk_size));
+
+        // Insert a new miniblock to the storage with a defined fee account address.
+        let mut miniblock = create_miniblock(5);
+        miniblock.fee_account_address = Address::repeat_byte(1);
+        storage
+            .blocks_dal()
+            .insert_miniblock(&miniblock)
+            .await
+            .unwrap();
+
+        // Resume the migration.
+        let (_stop_sender, stop_receiver) = watch::channel(false);
+        let result = migrate_miniblocks_inner(
+            pool.clone(),
+            MiniblockNumber(5),
+            chunk_size,
+            Duration::ZERO,
+            stop_receiver,
+        )
+        .await
+        .unwrap();
+
+        // The new miniblock should not be affected.
+        assert_eq!(result.miniblocks_affected, 5 - u64::from(chunk_size));
+        assert_migration(&mut storage).await;
+    }
 }
