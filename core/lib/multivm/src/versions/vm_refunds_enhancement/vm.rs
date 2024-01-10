@@ -118,13 +118,19 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         dispatcher: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError> {
+    ) -> (
+        Result<(), BytecodeCompressionError>,
+        VmExecutionResultAndLogs,
+    ) {
         self.push_transaction_with_compression(tx, with_compression);
         let result = self.inspect(dispatcher, VmExecutionMode::OneTx);
         if self.has_unpublished_bytecodes() {
-            Err(BytecodeCompressionError::BytecodeCompressionFailed)
+            (
+                Err(BytecodeCompressionError::BytecodeCompressionFailed),
+                result,
+            )
         } else {
-            Ok(result)
+            (Ok(()), result)
         }
     }
 

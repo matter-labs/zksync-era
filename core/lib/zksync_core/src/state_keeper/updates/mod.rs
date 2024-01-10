@@ -1,4 +1,7 @@
-use multivm::interface::{L1BatchEnv, VmExecutionResultAndLogs};
+use multivm::{
+    interface::{L1BatchEnv, VmExecutionResultAndLogs},
+    utils::get_batch_base_fee,
+};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     block::BlockGasCount, storage_writes_deduplicator::StorageWritesDeduplicator,
@@ -40,9 +43,9 @@ impl UpdatesManager {
     ) -> Self {
         Self {
             batch_timestamp: l1_batch_env.timestamp,
-            l1_gas_price: l1_batch_env.l1_gas_price,
-            fair_l2_gas_price: l1_batch_env.fair_l2_gas_price,
-            base_fee_per_gas: l1_batch_env.base_fee(),
+            l1_gas_price: l1_batch_env.fee_input.l1_gas_price(),
+            fair_l2_gas_price: l1_batch_env.fee_input.fair_l2_gas_price(),
+            base_fee_per_gas: get_batch_base_fee(&l1_batch_env, protocol_version.into()),
             protocol_version,
             base_system_contract_hashes,
             l1_batch: L1BatchUpdates::new(),

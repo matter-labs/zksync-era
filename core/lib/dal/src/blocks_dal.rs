@@ -449,6 +449,7 @@ impl BlocksDal<'_, '_> {
         predicted_block_gas: BlockGasCount,
         events_queue: &[LogQuery],
         storage_refunds: &[u32],
+        predicted_circuits: u32,
     ) -> anyhow::Result<()> {
         let priority_onchain_data: Vec<Vec<u8>> = header
             .priority_ops_onchain_data
@@ -508,6 +509,7 @@ impl BlocksDal<'_, '_> {
                     system_logs,
                     storage_refunds,
                     pubdata_input,
+                    predicted_circuits,
                     created_at,
                     updated_at
                 )
@@ -537,6 +539,7 @@ impl BlocksDal<'_, '_> {
                     $22,
                     $23,
                     $24,
+                    $25,
                     NOW(),
                     NOW()
                 )
@@ -565,6 +568,7 @@ impl BlocksDal<'_, '_> {
             &system_logs,
             &storage_refunds,
             pubdata_input,
+            predicted_circuits as i32,
         )
         .execute(transaction.conn())
         .await?;
@@ -621,8 +625,8 @@ impl BlocksDal<'_, '_> {
             miniblock_header.l1_tx_count as i32,
             miniblock_header.l2_tx_count as i32,
             base_fee_per_gas,
-            miniblock_header.l1_gas_price as i64,
-            miniblock_header.l2_fair_gas_price as i64,
+            miniblock_header.batch_fee_input.l1_gas_price() as i64,
+            miniblock_header.batch_fee_input.fair_l2_gas_price() as i64,
             MAX_GAS_PER_PUBDATA_BYTE as i64,
             miniblock_header
                 .base_system_contracts_hashes
@@ -2151,7 +2155,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            l1_batch_number.0 as u32
+            l1_batch_number.0 as i32
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -2171,7 +2175,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            miniblock_number.0 as u32
+            miniblock_number.0 as i32
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -2262,7 +2266,7 @@ mod tests {
         header.l2_to_l1_messages.push(vec![33; 33]);
 
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
+            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
             .await
             .unwrap();
 
@@ -2311,7 +2315,7 @@ mod tests {
             execute: 10,
         };
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], &[])
+            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], 0)
             .await
             .unwrap();
 
@@ -2319,7 +2323,7 @@ mod tests {
         header.timestamp += 100;
         predicted_gas += predicted_gas;
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], &[])
+            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], 0)
             .await
             .unwrap();
 

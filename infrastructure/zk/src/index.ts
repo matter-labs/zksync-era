@@ -22,6 +22,7 @@ import { command as db } from './database';
 import { command as verifyUpgrade } from './verify-upgrade';
 import { proverCommand } from './prover_setup';
 import { command as status } from './status';
+import { command as spellcheck } from './spellcheck';
 import * as env from './env';
 
 const COMMANDS = [
@@ -48,6 +49,7 @@ const COMMANDS = [
     proverCommand,
     env.command,
     status,
+    spellcheck,
     completion(program as Command)
 ];
 

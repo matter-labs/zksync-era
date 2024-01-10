@@ -1,9 +1,11 @@
 use async_trait::async_trait;
 use zksync_dal::ConnectionPool;
-use zksync_prover_utils::periodic_job::PeriodicJob;
 use zksync_utils::time::seconds_since_epoch;
 
-use crate::metrics::{BlockL1Stage, BlockStage, L1StageLatencyLabel, APP_METRICS};
+use crate::{
+    house_keeper::periodic_job::PeriodicJob,
+    metrics::{BlockL1Stage, BlockStage, L1StageLatencyLabel, APP_METRICS},
+};
 
 #[derive(Debug)]
 pub struct L1BatchMetricsReporter {

@@ -7,12 +7,16 @@ use std::{
 };
 
 use itertools::Itertools;
-use multivm::interface::{FinishedL1Batch, L1BatchEnv};
 use zksync_dal::StorageProcessor;
+use multivm::{
+    interface::{FinishedL1Batch, L1BatchEnv},
+    utils::get_batch_base_fee,
+};
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
     block::{unpack_block_info, L1BatchHeader, MiniblockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
+    fee_model::BatchFeeInput,
     l1::L1Tx,
     l2::L2Tx,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
@@ -126,7 +130,7 @@ impl UpdatesManager {
             l2_to_l1_messages,
             bloom: Default::default(),
             used_contract_hashes: finished_batch.final_execution_state.used_contract_hashes,
-            base_fee_per_gas: l1_batch_env.base_fee(),
+            base_fee_per_gas: get_batch_base_fee(l1_batch_env, self.protocol_version().into()),
             l1_gas_price: self.l1_gas_price(),
             l2_fair_gas_price: self.fair_l2_gas_price(),
             base_system_contracts_hashes: self.base_system_contract_hashes(),
@@ -147,6 +151,10 @@ impl UpdatesManager {
                 self.l1_batch.l1_gas_count,
                 &events_queue,
                 &finished_batch.final_execution_state.storage_refunds,
+                self.l1_batch
+                    .block_execution_metrics
+                    .estimated_circuits_used
+                    .ceil() as u32,
             )
             .await
             .unwrap();
@@ -330,8 +338,7 @@ impl MiniblockSealCommand {
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
             base_fee_per_gas: self.base_fee_per_gas,
-            l1_gas_price: self.l1_gas_price,
-            l2_fair_gas_price: self.fair_l2_gas_price,
+            batch_fee_input: BatchFeeInput::l1_pegged(self.l1_gas_price, self.fair_l2_gas_price),
             base_system_contracts_hashes: self.base_system_contracts_hashes,
             protocol_version: self.protocol_version,
             virtual_blocks: self.miniblock.virtual_blocks,
