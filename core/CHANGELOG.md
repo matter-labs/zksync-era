@@ -1,5 +1,27 @@
 # Changelog
 
+## [19.1.0](https://github.com/matter-labs/zksync-era/compare/core-v19.0.0...core-v19.1.0) (2024-01-10)
+
+
+### Features
+
+* address remaining spelling issues in dev comments and turns on dev_comments in cfg ([#827](https://github.com/matter-labs/zksync-era/issues/827)) ([1fd0afd](https://github.com/matter-labs/zksync-era/commit/1fd0afdcd9b6c344e1f5dac93fda5aa25c106b2f))
+* **core:** removes multiple tokio runtimes and worker number setting. ([#826](https://github.com/matter-labs/zksync-era/issues/826)) ([b8b190f](https://github.com/matter-labs/zksync-era/commit/b8b190f886f1d13602a0b2cc8a2b8525e68b1033))
+* fix spelling in dev comments in `core/lib/*` - continued ([#683](https://github.com/matter-labs/zksync-era/issues/683)) ([0421fe6](https://github.com/matter-labs/zksync-era/commit/0421fe6b3e9629fdad2fb88ad5710200825adc91))
+* fix spelling in dev comments in `core/lib/*` - continued ([#684](https://github.com/matter-labs/zksync-era/issues/684)) ([b46c2e9](https://github.com/matter-labs/zksync-era/commit/b46c2e9cbbcd048647f998810c8d550f8ad0c1f4))
+* fix spelling in dev comments in `core/lib/multivm` - continued  ([#682](https://github.com/matter-labs/zksync-era/issues/682)) ([3839d39](https://github.com/matter-labs/zksync-era/commit/3839d39eb6b6d111ec556948c88d1eb9c6ab5e4a))
+* fix spelling in dev comments in `core/lib/zksync_core` - continued ([#685](https://github.com/matter-labs/zksync-era/issues/685)) ([70c3feb](https://github.com/matter-labs/zksync-era/commit/70c3febbf0445d2e0c22a942eaf643828aee045d))
+* **state-keeper:** circuits seal criterion ([#729](https://github.com/matter-labs/zksync-era/issues/729)) ([c4a86bb](https://github.com/matter-labs/zksync-era/commit/c4a86bbbc5697b5391a517299bbd7a5e882a7314))
+* **state-keeper:** Reject transactions that fail to publish bytecodes ([#832](https://github.com/matter-labs/zksync-era/issues/832)) ([0a010f0](https://github.com/matter-labs/zksync-era/commit/0a010f0a6f6682cedc49cb12ab9f9dfcdbccf68e))
+* **vm:** Add batch input abstraction ([#817](https://github.com/matter-labs/zksync-era/issues/817)) ([997db87](https://github.com/matter-labs/zksync-era/commit/997db872455351a484c3161d0a733a4bc59dd684))
+
+
+### Bug Fixes
+
+* oldest unpicked batch ([#692](https://github.com/matter-labs/zksync-era/issues/692)) ([a6c869d](https://github.com/matter-labs/zksync-era/commit/a6c869d88c64a986405bbdfb15cab88e910d1e03))
+* **state-keeper:** Updates manager keeps track of fictive block metrics ([#843](https://github.com/matter-labs/zksync-era/issues/843)) ([88fd724](https://github.com/matter-labs/zksync-era/commit/88fd7247c377efce703cd1caeffa4ecd61ed0d7f))
+* **vm:** fix circuit tracer ([#837](https://github.com/matter-labs/zksync-era/issues/837)) ([83fc7be](https://github.com/matter-labs/zksync-era/commit/83fc7be3cb9f4d3082b8b9fa8b8f568330bf744f))
+
 ## [19.0.0](https://github.com/matter-labs/zksync-era/compare/core-v18.13.0...core-v19.0.0) (2024-01-05)
 
 
