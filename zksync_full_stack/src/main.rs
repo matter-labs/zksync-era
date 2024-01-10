@@ -1,30 +1,18 @@
 use std::{str::FromStr, time::Duration};
 
-use ethers::{
-    abi::Abi,
-    core::k256::WideBytes,
-    providers::{Http, JsonRpcClient},
-    utils::parse_units,
-};
+use ethers::{abi::Abi, providers::Http, utils::parse_units};
+use loadnext::config::LoadtestConfig;
 use tokio::time::sleep;
 use zksync_web3_decl::{
     jsonrpsee::http_client::HttpClientBuilder,
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 use zksync_web3_rs::{
-    contracts::main_contract::L2CanonicalTransaction,
     providers::{Middleware, Provider},
     signers::{LocalWallet, Signer},
-    zks_provider::{self, ZKSProvider},
+    zks_provider::ZKSProvider,
     zks_wallet::{CallRequest, DeployRequest, DepositRequest},
     ZKSWallet,
-};
-
-use loadnext::{
-    command::TxType,
-    config::{ExecutionConfig, LoadtestConfig},
-    executor::Executor,
-    report_collector::LoadtestResult,
 };
 
 static ERA_PROVIDER_URL: &str = "http://127.0.0.1:3050";
