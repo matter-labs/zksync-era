@@ -11,8 +11,8 @@ import { deployContract, getTestContract, waitForNewL1Batch } from '../src/helpe
 import { shouldOnlyTakeFee } from '../src/modifiers/balance-checker';
 
 import * as ethers from 'ethers';
-import * as zksync from 'zksync-web3';
-import { Provider } from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
+import { Provider } from 'zksync-ethers';
 import { RetryProvider } from '../src/retry-provider';
 
 // TODO: Leave only important ones.

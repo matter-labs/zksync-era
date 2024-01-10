@@ -9,10 +9,10 @@ import { TestMaster } from '../src/index';
 import { shouldChangeTokenBalances } from '../src/modifiers/balance-checker';
 import { L2_ETH_PER_ACCOUNT } from '../src/context-owner';
 
-import * as zksync from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { BigNumberish, BytesLike } from 'ethers';
-import { serialize, hashBytecode } from 'zksync-web3/build/src/utils';
+import { serialize, hashBytecode } from 'zksync-ethers/build/src/utils';
 import { deployOnAnyLocalAddress, ForceDeployment } from '../src/system';
 import { getTestContract } from '../src/helpers';
 

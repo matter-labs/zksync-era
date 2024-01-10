@@ -6,10 +6,10 @@
  * and waiting for the block finalization).
  */
 import { TestMaster } from '../src/index';
-import * as zksync from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { deployContract, getTestContract, scaledGasPrice, waitForNewL1Batch } from '../src/helpers';
-import { getHashedL2ToL1Msg, L1_MESSENGER, L1_MESSENGER_ADDRESS } from 'zksync-web3/build/src/utils';
+import { getHashedL2ToL1Msg, L1_MESSENGER, L1_MESSENGER_ADDRESS } from 'zksync-ethers/build/src/utils';
 
 const SYSTEM_CONFIG = require(`${process.env.ZKSYNC_HOME}/contracts/SystemConfig.json`);
 
@@ -123,7 +123,7 @@ describe('Tests for L1 behavior', () => {
             receipt.l1BatchNumber,
             id,
             {
-                txNumberInBlock: receipt.l1BatchTxIndex,
+                txNumberInBatch: receipt.l1BatchTxIndex,
                 sender: alice.address,
                 data: message
             },

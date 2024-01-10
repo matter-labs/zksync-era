@@ -12,7 +12,7 @@
 import * as utils from 'zk/build/utils';
 import { TestMaster } from '../src/index';
 
-import * as zksync from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
 import { BigNumber, ethers } from 'ethers';
 import { Token } from '../src/types';
 

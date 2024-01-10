@@ -6,7 +6,7 @@ import { TestMaster } from '../src/index';
 import { Token } from '../src/types';
 import { spawn as _spawn } from 'child_process';
 
-import * as zksync from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
 import { L1ERC20BridgeFactory, TransparentUpgradeableProxyFactory } from 'l1-contracts/typechain';

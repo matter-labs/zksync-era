@@ -6,7 +6,7 @@ import { TestMaster } from '../src/index';
 import { shouldChangeETHBalances, shouldOnlyTakeFee } from '../src/modifiers/balance-checker';
 import { checkReceipt } from '../src/modifiers/receipt-check';
 
-import * as zksync from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
 import { BigNumber, BigNumberish, Overrides } from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
 

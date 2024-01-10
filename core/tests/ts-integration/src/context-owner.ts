@@ -199,7 +199,7 @@ export class TestContextOwner {
         const l2ERC20AmountToDeposit = ERC20_PER_ACCOUNT.mul(accountsAmount);
         const wallets = this.createTestWallets(suites);
         await this.distributeL1BaseToken(l2ERC20AmountToDeposit);
-        await this.cancelAllowences();
+        await this.cancelAllowances();
         await this.distributeL1Tokens(wallets, l2ETHAmountToDeposit, l2ERC20AmountToDeposit);
         await this.distributeL2Tokens(wallets);
 
