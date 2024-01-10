@@ -1,6 +1,11 @@
 use std::{str::FromStr, time::Duration};
 
-use ethers::{abi::Abi, providers::Http, utils::parse_units};
+use colored::Colorize;
+use ethers::{
+    abi::{Abi, AbiEncode},
+    providers::Http,
+    utils::parse_units,
+};
 use loadnext::config::LoadtestConfig;
 use tokio::time::sleep;
 use zksync_web3_decl::{
@@ -91,15 +96,15 @@ async fn main() {
             .await
             .unwrap();
 
-        println!("bytes message: {}", bytes_message[0]);
+        println!("Bytes stored in contract: {}", bytes_message[0]);
     }
 
     // Perform a signed transaction calling the setGreeting method
-    let values = vec![1, 10, 100, 1000];
+    let values = vec![1, 100, 1000, 10000, 1000000];
 
     for &value in &values {
         let hex_value = format!("{:0width$X}", value, width = 6);
-        println!("Writing hex value: {}", hex_value);
+        println!("New message to store: {}", hex_value.yellow());
         let receipt = zk_wallet
             .get_era_provider()
             .unwrap()
@@ -117,22 +122,23 @@ async fn main() {
             .unwrap()
             .unwrap();
 
+        let transaction_hash = receipt.transaction_hash;
+        let transaction_hash_formatted = format!("{:#?}", receipt.transaction_hash);
         println!(
-            "writeBytes transaction hash {:#?}",
-            receipt.transaction_hash
+            "storeBytes transaction hash {}",
+            transaction_hash_formatted.green()
         );
 
         let l2_transaction = {
             loop {
-                println!("Getting l2 transaction details with rpc...");
+                //println!("Getting l2 transaction details with rpc...");
                 let l2_transaction = l2_rpc_client
-                    .get_transaction_details(receipt.transaction_hash)
+                    .get_transaction_details(transaction_hash)
                     .await
                     .unwrap()
                     .unwrap();
 
                 if l2_transaction.eth_commit_tx_hash.is_some() {
-                    dbg!(l2_transaction.clone());
                     break l2_transaction.clone();
                 }
 
@@ -140,23 +146,41 @@ async fn main() {
             }
         };
 
+        let gas_per_pubdata_formatted = format!("{:#?}", l2_transaction.gas_per_pubdata);
+        println!("L2: Gas per pubdata: {}", gas_per_pubdata_formatted.red());
+        let l2_transaction_fee_formatted = format!("{:#?}", l2_transaction.fee);
+        println!("L2: Fee: {}", l2_transaction_fee_formatted.red());
+
+        println!("{}", "Getting l1 transaction details with rpc...".yellow());
         let l1_transaction = l1_rpc_client
             .get_transaction_by_hash(l2_transaction.eth_commit_tx_hash.unwrap())
             .await
             .unwrap()
             .unwrap();
 
-        dbg!(l1_transaction.clone());
-    }
+        let l1_transaction_gas_formatted = format!("{:#?}", l1_transaction.gas);
+        println!("Gas: {}", l1_transaction_gas_formatted.yellow());
+        let gas_price_formatted = format!("{:#?}", l1_transaction.gas_price.unwrap());
+        println!("Gas price: {}", gas_price_formatted.yellow());
+        // println!(
+        //     "Max fee per gas: {:#?}",
+        //     l1_transaction.max_fee_per_gas.unwrap()
+        // );
+        // println!(
+        //     "Max priority fee per gas: {:#?}",
+        //     l1_transaction.max_priority_fee_per_gas.unwrap()
+        // );
+        // println!(
+        //     "Eth tx hash: {:#?}",
+        //     l2_transaction.eth_commit_tx_hash.clone().unwrap()
+        // );
+        // let l1_dbg_trace_transaction = l1_rpc_client
+        //     .trace_transaction(l2_transaction.eth_commit_tx_hash.unwrap(), None)
+        //     .await
+        //     .unwrap()
+        //     .unwrap();
 
-    {
-        let era_provider = zk_wallet.get_era_provider().unwrap();
-        let call_request = CallRequest::new(contract_address, "readBytes()(bytes)".to_owned());
-
-        let bytes_message = ZKSProvider::call(era_provider.as_ref(), &call_request)
-            .await
-            .unwrap();
-
-        println!("bytes message: {}", bytes_message[0]);
+        // println!("Gas used: {:#?}", l1_dbg_trace_transaction.gas_used);
+        // println!("Gas: {:#?}", l1_dbg_trace_transaction.gas);
     }
 }
