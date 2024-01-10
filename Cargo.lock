@@ -9876,8 +9876,10 @@ version = "0.1.0"
 dependencies = [
  "ethers",
  "hex",
+ "loadnext",
  "tokio",
  "zksync-web3-rs",
+ "zksync_web3_decl",
 ]
 
 [[package]]

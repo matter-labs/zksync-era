@@ -1,12 +1,30 @@
-use std::str::FromStr;
+use std::{str::FromStr, time::Duration};
 
-use ethers::{abi::Abi, providers::Http, utils::parse_units};
+use ethers::{
+    abi::Abi,
+    core::k256::WideBytes,
+    providers::{Http, JsonRpcClient},
+    utils::parse_units,
+};
+use tokio::time::sleep;
+use zksync_web3_decl::{
+    jsonrpsee::http_client::HttpClientBuilder,
+    namespaces::{EthNamespaceClient, ZksNamespaceClient},
+};
 use zksync_web3_rs::{
+    contracts::main_contract::L2CanonicalTransaction,
     providers::{Middleware, Provider},
     signers::{LocalWallet, Signer},
-    zks_provider::ZKSProvider,
+    zks_provider::{self, ZKSProvider},
     zks_wallet::{CallRequest, DeployRequest, DepositRequest},
     ZKSWallet,
+};
+
+use loadnext::{
+    command::TxType,
+    config::{ExecutionConfig, LoadtestConfig},
+    executor::Executor,
+    report_collector::LoadtestResult,
 };
 
 static ERA_PROVIDER_URL: &str = "http://127.0.0.1:3050";
@@ -36,6 +54,16 @@ async fn main() {
         )
         .unwrap()
     };
+
+    let config = LoadtestConfig::from_env()
+        .expect("Config parameters should be loaded from env or from default values");
+
+    let l1_rpc_client = HttpClientBuilder::default()
+        .build(config.l1_rpc_address)
+        .unwrap();
+    let l2_rpc_client = HttpClientBuilder::default()
+        .build(config.l2_rpc_address)
+        .unwrap();
 
     let deposit_transaction_hash = {
         let amount = parse_units("11", "ether").unwrap();
@@ -79,7 +107,11 @@ async fn main() {
     }
 
     // Perform a signed transaction calling the setGreeting method
-    {
+    let values = vec![1, 10, 100, 1000];
+
+    for &value in &values {
+        let hex_value = format!("{:0width$X}", value, width = 6);
+        println!("Writing hex value: {}", hex_value);
         let receipt = zk_wallet
             .get_era_provider()
             .unwrap()
@@ -88,7 +120,7 @@ async fn main() {
                 &zk_wallet.l2_wallet,
                 contract_address,
                 "writeBytes(bytes)",
-                Some(["0x0056".into()].into()),
+                Some([hex_value].into()),
                 None,
             )
             .await
@@ -101,7 +133,33 @@ async fn main() {
             "writeBytes transaction hash {:#?}",
             receipt.transaction_hash
         );
-    };
+
+        let l2_transaction = {
+            loop {
+                println!("Getting l2 transaction details with rpc...");
+                let l2_transaction = l2_rpc_client
+                    .get_transaction_details(receipt.transaction_hash)
+                    .await
+                    .unwrap()
+                    .unwrap();
+
+                if l2_transaction.eth_commit_tx_hash.is_some() {
+                    dbg!(l2_transaction.clone());
+                    break l2_transaction.clone();
+                }
+
+                sleep(Duration::from_secs(1)).await; // Adjust the duration as needed
+            }
+        };
+
+        let l1_transaction = l1_rpc_client
+            .get_transaction_by_hash(l2_transaction.eth_commit_tx_hash.unwrap())
+            .await
+            .unwrap()
+            .unwrap();
+
+        dbg!(l1_transaction.clone());
+    }
 
     {
         let era_provider = zk_wallet.get_era_provider().unwrap();
