@@ -21,7 +21,6 @@ use zksync_types::{vm_trace::Call, witness_block_state::WitnessBlockState, Trans
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::{
-    gas_tracker::{gas_count_from_metrics, gas_count_from_tx_and_metrics},
     metrics::{InteractionType, TxStage, APP_METRICS},
     state_keeper::{
         metrics::{ExecutorCommand, TxExecutionStage, EXECUTOR_METRICS, KEEPER_METRICS},
@@ -257,13 +256,7 @@ impl BatchExecutorHandle {
         latency.observe();
     }
 
-    pub(super) async fn finish_batch(
-        self,
-    ) -> (
-        FinishedL1Batch,
-        Option<WitnessBlockState>,
-        ExecutionMetricsForCriteria,
-    ) {
+    pub(super) async fn finish_batch(self) -> (FinishedL1Batch, Option<WitnessBlockState>) {
         let (response_sender, response_receiver) = oneshot::channel();
         self.commands
             .send(Command::FinishBatch(response_sender))
@@ -284,13 +277,7 @@ pub(super) enum Command {
     ExecuteTx(Box<Transaction>, oneshot::Sender<TxExecutionResult>),
     StartNextMiniblock(L2BlockEnv, oneshot::Sender<()>),
     RollbackLastTx(oneshot::Sender<()>),
-    FinishBatch(
-        oneshot::Sender<(
-            FinishedL1Batch,
-            Option<WitnessBlockState>,
-            ExecutionMetricsForCriteria,
-        )>,
-    ),
+    FinishBatch(oneshot::Sender<(FinishedL1Batch, Option<WitnessBlockState>)>),
 }
 
 /// Implementation of the "primary" (non-test) batch executor.
@@ -342,13 +329,7 @@ impl BatchExecutor {
                     } else {
                         None
                     };
-                    let block_tip_metrics = Self::get_execution_metrics(
-                        None,
-                        &vm_block_result.block_tip_execution_result,
-                    );
-
-                    resp.send((vm_block_result, witness_block_state, block_tip_metrics))
-                        .unwrap();
+                    resp.send((vm_block_result, witness_block_state)).unwrap();
 
                     // `storage_view` cannot be accessed while borrowed by the VM,
                     // so this is the only point at which storage metrics can be obtained
@@ -406,7 +387,7 @@ impl BatchExecutor {
             };
         }
 
-        let tx_metrics = Self::get_execution_metrics(Some(tx), &tx_result);
+        let tx_metrics = ExecutionMetricsForCriteria::new(Some(tx), &tx_result);
 
         let (bootloader_dry_run_result, bootloader_dry_run_metrics) = self.dryrun_block_tip(vm);
         match &bootloader_dry_run_result.result {
@@ -585,7 +566,7 @@ impl BatchExecutor {
 
         let stage_latency =
             KEEPER_METRICS.tx_execution_time[&TxExecutionStage::DryRunGetExecutionMetrics].start();
-        let metrics = Self::get_execution_metrics(None, &block_tip_result);
+        let metrics = ExecutionMetricsForCriteria::new(None, &block_tip_result);
         stage_latency.observe();
 
         let stage_latency = KEEPER_METRICS.tx_execution_time
@@ -596,21 +577,5 @@ impl BatchExecutor {
         stage_latency.observe();
         total_latency.observe();
         (block_tip_result, metrics)
-    }
-
-    fn get_execution_metrics(
-        tx: Option<&Transaction>,
-        execution_result: &VmExecutionResultAndLogs,
-    ) -> ExecutionMetricsForCriteria {
-        let execution_metrics = execution_result.get_execution_metrics(tx);
-        let l1_gas = match tx {
-            Some(tx) => gas_count_from_tx_and_metrics(tx, &execution_metrics),
-            None => gas_count_from_metrics(&execution_metrics),
-        };
-
-        ExecutionMetricsForCriteria {
-            l1_gas,
-            execution_metrics,
-        }
     }
 }

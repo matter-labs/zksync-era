@@ -242,8 +242,14 @@ pub(crate) fn successful_exec() -> TxExecutionResult {
             statistics: Default::default(),
             refunds: Default::default(),
         }),
-        tx_metrics: ExecutionMetricsForCriteria::default(),
-        bootloader_dry_run_metrics: ExecutionMetricsForCriteria::default(),
+        tx_metrics: ExecutionMetricsForCriteria {
+            l1_gas: Default::default(),
+            execution_metrics: Default::default(),
+        },
+        bootloader_dry_run_metrics: ExecutionMetricsForCriteria {
+            l1_gas: Default::default(),
+            execution_metrics: Default::default(),
+        },
         bootloader_dry_run_result: Box::new(VmExecutionResultAndLogs {
             result: ExecutionResult::Success { output: vec![] },
             logs: Default::default(),
@@ -524,12 +530,7 @@ impl TestBatchExecutor {
                 }
                 Command::FinishBatch(resp) => {
                     // Blanket result, it doesn't really matter.
-                    resp.send((
-                        default_vm_block_result(),
-                        None,
-                        ExecutionMetricsForCriteria::default(),
-                    ))
-                    .unwrap();
+                    resp.send((default_vm_block_result(), None)).unwrap();
                     return;
                 }
             }
@@ -738,7 +739,6 @@ impl StateKeeperIO for TestIO {
         updates_manager: UpdatesManager,
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,
-        _batch_tip_metrics: ExecutionMetricsForCriteria,
     ) -> anyhow::Result<()> {
         let action = self.pop_next_item("seal_l1_batch");
         let ScenarioItem::BatchSeal(_, check_fn) = action else {
@@ -794,12 +794,7 @@ impl L1BatchExecutorBuilder for MockBatchExecutorBuilder {
                     Command::RollbackLastTx(_) => panic!("unexpected rollback"),
                     Command::FinishBatch(resp) => {
                         // Blanket result, it doesn't really matter.
-                        resp.send((
-                            default_vm_block_result(),
-                            None,
-                            ExecutionMetricsForCriteria::default(),
-                        ))
-                        .unwrap();
+                        resp.send((default_vm_block_result(), None)).unwrap();
                         return;
                     }
                 }

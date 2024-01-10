@@ -185,8 +185,7 @@ impl ZkSyncStateKeeper {
                 )
                 .await;
             }
-            let (finished_batch, witness_block_state, batch_tip_metrics) =
-                batch_executor.finish_batch().await;
+            let (finished_batch, witness_block_state) = batch_executor.finish_batch().await;
             let sealed_batch_protocol_version = updates_manager.protocol_version();
             self.io
                 .seal_l1_batch(
@@ -194,7 +193,6 @@ impl ZkSyncStateKeeper {
                     updates_manager,
                     &l1_batch_env,
                     finished_batch,
-                    batch_tip_metrics,
                 )
                 .await
                 .context("seal_l1_batch")?;

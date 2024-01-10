@@ -44,7 +44,6 @@ impl UpdatesManager {
     /// Persists an L1 batch in the storage.
     /// This action includes a creation of an empty "fictive" miniblock that contains
     /// the events generated during the bootloader "tip phase".
-    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn seal_l1_batch(
         mut self,
         storage: &mut StorageProcessor<'_>,
@@ -53,7 +52,6 @@ impl UpdatesManager {
         finished_batch: FinishedL1Batch,
         l2_erc20_bridge_addr: Address,
         consensus: Option<ConsensusBlockFields>,
-        batch_tip_metrics: ExecutionMetricsForCriteria,
     ) {
         let started_at = Instant::now();
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::VmFinalization);
@@ -61,10 +59,14 @@ impl UpdatesManager {
         progress.observe(None);
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FictiveMiniblock);
+        let ExecutionMetricsForCriteria {
+            l1_gas: batch_tip_l1_gas,
+            execution_metrics: batch_tip_execution_metrics,
+        } = ExecutionMetricsForCriteria::new(None, &finished_batch.block_tip_execution_result);
         self.extend_from_fictive_transaction(
             finished_batch.block_tip_execution_result,
-            batch_tip_metrics.l1_gas,
-            batch_tip_metrics.execution_metrics,
+            batch_tip_l1_gas,
+            batch_tip_execution_metrics,
         );
         // Seal fictive miniblock with last events and storage logs.
         let miniblock_command = self.seal_miniblock_command(
