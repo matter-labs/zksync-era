@@ -40,10 +40,6 @@ pub(crate) fn get_batch_base_fee(l1_batch_env: &L1BatchEnv) -> u64 {
     base_fee
 }
 
-pub(crate) fn get_batch_gas_per_pubdata(l1_batch_env: &L1BatchEnv) -> u64 {
-    derive_base_fee_and_gas_per_pubdata(l1_batch_env.fee_input.into_pubdata_independent()).1
-}
-
 /// Changes the fee model output so that the expected gas per pubdata is smaller than or the `tx_gas_per_pubdata_limit`.
 /// This function expects that the currently expected gas per pubdata is greater than the `tx_gas_per_pubdata_limit`.
 pub(crate) fn adjust_pubdata_price_for_tx(

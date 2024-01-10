@@ -13,7 +13,7 @@ use zksync_utils::{address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, 
 
 use crate::vm_latest::{
     constants::{L1_TX_TYPE, MAX_GAS_PER_PUBDATA_BYTE, PRIORITY_TX_MAX_GAS_LIMIT},
-    utils::overhead::get_amortized_overhead,
+    utils::overhead::{derive_overhead, get_amortized_overhead},
 };
 
 /// This structure represents the data that is used by
@@ -211,7 +211,7 @@ impl TransactionData {
             self.reserved_dynamic.len() as u64,
         );
 
-        get_amortized_overhead(encoded_len)
+        derive_overhead(encoded_len)
     }
 
     pub(crate) fn trusted_ergs_limit(&self) -> U256 {

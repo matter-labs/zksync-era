@@ -147,6 +147,10 @@ pub fn deployer_contract() -> Contract {
     load_sys_contract("ContractDeployer")
 }
 
+pub fn l1_messenger_contract() -> Contract {
+    load_sys_contract("L1Messenger")
+}
+
 pub fn eth_contract() -> Contract {
     load_sys_contract("L2EthToken")
 }
