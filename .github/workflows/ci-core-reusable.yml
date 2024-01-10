@@ -146,12 +146,13 @@ jobs:
           wget https://github.com/matter-labs/era-solidity/releases/download/0.8.23-1.0.0/solc-linux-amd64-0.8.23-1.0.0 -O $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0/solc
           chmod +x $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0/solc
           $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0/solc --version
-          cat input.txt | $(pwd)/etc/zksolc-bin/v1.3.21/zksolc --system-mode --solc $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0/solc --standard-json
 
           mkdir -p $(pwd)/etc/zksolc-bin/v1.3.21
           wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.21
           mv zksolc-linux-amd64-musl-v1.3.21 $(pwd)/etc/zksolc-bin/v1.3.21/zksolc
           chmod +x $(pwd)/etc/zksolc-bin/v1.3.21/zksolc
+          
+          cat input.txt | $(pwd)/etc/zksolc-bin/v1.3.21/zksolc --system-mode --solc $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0/solc --standard-json
 
           mkdir -p $(pwd)/etc/vyper-bin/0.3.10
           wget -O vyper0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10%2Bcommit.91361694.linux
