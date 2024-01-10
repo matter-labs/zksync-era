@@ -162,7 +162,7 @@ impl UpdatesManager {
                 self.pending_l1_gas_count(),
                 &events_queue,
                 &finished_batch.final_execution_state.storage_refunds,
-                self.l1_batch.block_execution_metrics.circuit_statistic,
+                self.pending_execution_metrics().circuit_statistic,
             )
             .await
             .unwrap();
