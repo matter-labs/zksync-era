@@ -20,7 +20,17 @@ pub(crate) async fn migrate_pending_miniblocks(storage: &mut StorageProcessor<'_
     let started_at = Instant::now();
     tracing::info!("Started migrating `fee_account_address` for pending miniblocks");
 
-    // FIXME: should work after 2nd DB migration (currently, will panic)
+    #[allow(deprecated)]
+    let l1_batches_have_fee_account_address = storage
+        .blocks_dal()
+        .check_l1_batches_have_fee_account_address()
+        .await
+        .expect("Failed getting metadata for l1_batches table");
+    if !l1_batches_have_fee_account_address {
+        tracing::info!("`l1_batches.fee_account_address` column is removed; assuming that the migration is complete");
+        return;
+    }
+
     #[allow(deprecated)]
     let rows_affected = storage
         .blocks_dal()

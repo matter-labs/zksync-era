@@ -2283,6 +2283,21 @@ impl BlocksDal<'_, '_> {
         Ok(execution_result.rows_affected())
     }
 
+    pub async fn check_l1_batches_have_fee_account_address(&mut self) -> sqlx::Result<bool> {
+        let count = sqlx::query_scalar!(
+            r#"
+            SELECT COUNT(*)
+            FROM information_schema.columns
+            WHERE table_name = 'l1_batches' AND column_name = 'fee_account_address'
+            "#
+        )
+        .fetch_one(self.storage.conn())
+        .await?
+        .unwrap_or(0);
+
+        Ok(count > 0)
+    }
+
     /// Copies `fee_account_address` for miniblocks in the given range from the L1 batch they belong to.
     /// Returns the number of affected rows.
     pub async fn copy_fee_account_address_for_miniblocks(
@@ -2494,6 +2509,18 @@ mod tests {
                 .unwrap();
             assert_eq!(gas, 3 * expected_gas);
         }
+    }
+
+    #[allow(deprecated)] // that's the whole point
+    #[tokio::test]
+    async fn checking_fee_account_address_in_l1_batches() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut conn = pool.access_storage().await.unwrap();
+        assert!(conn
+            .blocks_dal()
+            .check_l1_batches_have_fee_account_address()
+            .await
+            .unwrap());
     }
 
     #[allow(deprecated)] // that's the whole point
