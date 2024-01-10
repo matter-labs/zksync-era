@@ -7,11 +7,11 @@ use std::{
 };
 
 use itertools::Itertools;
-use zksync_dal::StorageProcessor;
 use multivm::{
     interface::{FinishedL1Batch, L1BatchEnv},
     utils::get_batch_base_fee,
 };
+use zksync_dal::StorageProcessor;
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
     block::{unpack_block_info, L1BatchHeader, MiniblockHeader},
