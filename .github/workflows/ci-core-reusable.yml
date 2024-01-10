@@ -146,6 +146,7 @@ jobs:
           wget https://github.com/matter-labs/era-solidity/releases/download/0.8.23-1.0.0/solc-linux-amd64-0.8.23-1.0.0 -O $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0/solc
           chmod +x $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0/solc
           $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0/solc --version
+          cat input.txt | $(pwd)/etc/zksolc-bin/v1.3.21/zksolc --system-mode --solc $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0/solc --standard-json
 
           mkdir -p $(pwd)/etc/zksolc-bin/v1.3.21
           wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.21
