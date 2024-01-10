@@ -2,17 +2,18 @@ name: Workflow template for CI jobs for Core Components
 on:
   workflow_call:
     inputs:
-      compilers:
-        description: 'JSON of required compilers and their versions'
+      era_contract_version:
+        description: "Version of era-contracts which should be use"
         type: string
         required: false
-        default: '[{ "zksolc": ["1.3.14", "1.3.16", "1.3.17", "1.3.1", "1.3.7", "1.3.18", "1.3.19"] } , { "zkvyper": ["1.3.13"] }]'
-
+        default: "main-6250292"
 jobs:
   lint:
     name: lint
     uses: ./.github/workflows/ci-core-lint-reusable.yml
   unit-tests:
+    env:
+      CONTRACT_VERSION: ${{ inputs.era_contract_version }}
     runs-on: [matterlabs-ci-runner]
 
     steps:
@@ -25,24 +26,6 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
-
-      # TODO: Remove when we after upgrade of hardhat-plugins
-      - name: pre-download compiilers
-        run: |
-          # Download needed versions of vyper compiler
-          # Not sanitized due to unconventional path and tags
-          mkdir -p ./hardhat-nodejs/compilers-v2/vyper/linux
-          wget -nv -O ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.linux
-          wget -nv -O ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.3 https://github.com/vyperlang/vyper/releases/download/v0.3.3/vyper.0.3.3+commit.48e326f0.linux
-          chmod +x  ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.10
-          chmod +x  ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.3
-
-          COMPILERS_JSON='${{ inputs.compilers }}'
-          echo "$COMPILERS_JSON" | jq -r '.[] | to_entries[] | .key as $compiler | .value[] | "\(.),\($compiler)"' | while IFS=, read -r version compiler; do
-            mkdir -p "./hardhat-nodejs/compilers-v2/$compiler"
-            wget -nv -O "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}" "https://github.com/matter-labs/${compiler}-bin/releases/download/v${version}/${compiler}-linux-amd64-musl-v${version}"
-            chmod +x "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}"
-          done
 
       - name: Start services
         run: |
@@ -57,8 +40,16 @@ jobs:
           ci_run zk compiler all
           ci_run zk contract build
 
-      - name: Contracts unit tests
-        run: ci_run zk test l1-contracts
+      - name: Download contracts
+        run: |
+          mkdir -p ./contracts
+          curl -LO https://github.com/matter-labs/era-contracts/releases/download/${CONTRACT_VERSION}/l1-contracts.tar.gz
+          curl -LO https://github.com/matter-labs/era-contracts/releases/download/${CONTRACT_VERSION}/l2-contracts.tar.gz
+          curl -LO https://github.com/matter-labs/era-contracts/releases/download/${CONTRACT_VERSION}/system-contracts.tar.gz
+          
+          tar -xf l1-contracts.tar.gz -C ./contracts
+          tar -xf l2-contracts.tar.gz -C ./contracts
+          tar -xf system-contracts.tar.gz -C ./contracts
 
       - name: Rust unit tests
         run: ci_run zk test rust
