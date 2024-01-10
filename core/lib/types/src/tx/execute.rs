@@ -8,7 +8,7 @@ use crate::{web3::ethabi, Address, EIP712TypedStructure, StructBuilder, H256, U2
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Execute {
-    pub contract_address: Address,
+    pub contract_address: Option<Address>,
 
     #[serde(with = "ZeroPrefixHexSerde")]
     pub calldata: Vec<u8>,
@@ -26,7 +26,7 @@ impl EIP712TypedStructure for Execute {
     const TYPE_NAME: &'static str = "Transaction";
 
     fn build_structure<BUILDER: StructBuilder>(&self, builder: &mut BUILDER) {
-        builder.add_member("to", &U256::from(self.contract_address.as_bytes()));
+        builder.add_member("to", &U256::from(self.contract_address.unwrap().as_bytes()));
         builder.add_member("value", &self.value);
         builder.add_member("data", &self.calldata.as_slice());
         // Factory deps are not included into the transaction signature, since they are parsed from the

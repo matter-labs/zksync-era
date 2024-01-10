@@ -139,7 +139,7 @@ pub struct L2Tx {
 impl L2Tx {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        contract_address: Address,
+        contract_address: Option<Address>,
         calldata: Vec<u8>,
         nonce: Nonce,
         fee: Fee,
@@ -171,7 +171,7 @@ impl L2Tx {
 
     #[allow(clippy::too_many_arguments)]
     pub fn new_signed(
-        contract_address: Address,
+        contract_address: Option<Address>,
         calldata: Vec<u8>,
         nonce: Nonce,
         fee: Fee,
@@ -209,7 +209,7 @@ impl L2Tx {
     }
 
     /// Returns recipient account of the transaction.
-    pub fn recipient_account(&self) -> Address {
+    pub fn recipient_account(&self) -> Option<Address> {
         self.execute.contract_address
     }
 
@@ -315,7 +315,7 @@ impl From<L2Tx> for TransactionRequest {
         let mut base_tx_req = TransactionRequest {
             nonce: U256::from(tx.common_data.nonce.0),
             from: Some(tx.common_data.initiator_address),
-            to: Some(tx.recipient_account()),
+            to: tx.recipient_account(),
             value: tx.execute.value,
             gas_price: tx.common_data.fee.max_fee_per_gas,
             max_priority_fee_per_gas: None,
@@ -391,7 +391,7 @@ impl From<L2Tx> for api::Transaction {
             chain_id: U256::from(tx.common_data.extract_chain_id().unwrap_or_default()),
             nonce: U256::from(tx.common_data.nonce.0),
             from: Some(tx.common_data.initiator_address),
-            to: Some(tx.recipient_account()),
+            to: tx.recipient_account(),
             value: tx.execute.value,
             gas_price: Some(tx.common_data.fee.max_fee_per_gas),
             max_priority_fee_per_gas: Some(tx.common_data.fee.max_priority_fee_per_gas),

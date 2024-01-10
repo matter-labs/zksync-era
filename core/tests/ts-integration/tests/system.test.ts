@@ -50,6 +50,21 @@ describe('System behavior checks', () => {
         expect(result_b).toEqual('0x');
     });
 
+    test('Should not support empty to address', async () => {
+        const transaction = {
+            to: undefined,
+            data: '0x'
+        };
+        let errorMessage;
+        try{
+            await alice.sendTransaction(transaction);
+
+        }  catch(e: any){
+            errorMessage = e.error.error.message
+        }
+        expect(errorMessage).toBe("Failed to serialize transaction: toAddressIsNull")
+    });
+
     test('Should check that system contracts and SDK create same CREATE/CREATE2 addresses', async () => {
         const deployerContract = new zksync.Contract(
             zksync.utils.CONTRACT_DEPLOYER_ADDRESS,

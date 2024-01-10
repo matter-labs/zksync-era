@@ -52,7 +52,7 @@ pub(crate) fn mock_l2_transaction() -> L2Tx {
         gas_per_pubdata_limit: U256::from(DEFAULT_GAS_PER_PUBDATA),
     };
     let mut l2_tx = L2Tx::new_signed(
-        Address::random(),
+        Some(Address::random()),
         vec![],
         zksync_types::Nonce(0),
         fee,
@@ -89,7 +89,7 @@ fn mock_l1_execute() -> L1Tx {
     };
 
     let execute = Execute {
-        contract_address: H160::random(),
+        contract_address: Some(H160::random()),
         value: Default::default(),
         calldata: vec![],
         factory_deps: None,

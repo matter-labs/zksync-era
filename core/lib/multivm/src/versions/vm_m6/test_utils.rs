@@ -167,7 +167,7 @@ pub fn mock_loadnext_test_call(
         .expect("failed to encode parameters");
 
     let mut l2_tx = L2Tx::new_signed(
-        contract_address,
+        Some(contract_address),
         calldata,
         nonce,
         fee,
@@ -204,7 +204,7 @@ pub fn mock_loadnext_gas_burn_call(
         .expect("failed to encode parameters");
 
     let mut l2_tx = L2Tx::new_signed(
-        contract_address,
+        Some(contract_address),
         calldata,
         nonce,
         fee,
@@ -237,7 +237,7 @@ pub fn get_create_execute(code: &[u8], calldata: &[u8]) -> Execute {
         .expect("failed to encode parameters");
 
     Execute {
-        contract_address: CONTRACT_DEPLOYER_ADDRESS,
+        contract_address: Some(CONTRACT_DEPLOYER_ADDRESS),
         calldata,
         factory_deps: Some(vec![code.to_vec()]),
         value: U256::zero(),
@@ -271,7 +271,7 @@ pub fn get_deploy_tx(
     let execute = get_create_execute(code, calldata);
 
     let mut signed = L2Tx::new_signed(
-        CONTRACT_DEPLOYER_ADDRESS,
+        Some(CONTRACT_DEPLOYER_ADDRESS),
         execute.calldata,
         nonce,
         fee,
@@ -298,7 +298,7 @@ pub fn get_error_tx(
     let calldata = get_execute_error_calldata();
 
     let mut signed = L2Tx::new_signed(
-        contract_address,
+        Some(contract_address),
         calldata,
         nonce,
         fee,

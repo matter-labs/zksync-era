@@ -261,7 +261,7 @@ impl TryFrom<Log> for L1Tx {
         assert_eq!(tx_type.clone(), U256::from(PRIORITY_OPERATION_L2_TX_TYPE));
 
         let sender = transaction.remove(0).into_address().unwrap();
-        let contract_address = transaction.remove(0).into_address().unwrap();
+        let contract_address = transaction.remove(0).into_address();
 
         let gas_limit = transaction.remove(0).into_uint().unwrap();
 
