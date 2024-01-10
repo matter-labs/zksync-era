@@ -63,9 +63,9 @@ jobs:
           curl -LO https://github.com/matter-labs/era-contracts/releases/download/${CONTRACT_VERSION}/l2-contracts.tar.gz
           curl -LO https://github.com/matter-labs/era-contracts/releases/download/${CONTRACT_VERSION}/system-contracts.tar.gz
           
-          tar -xf l1-contracts.tar.gz ./contracts
-          tar -xf l2-contracts.tar.gz ./contracts
-          tar -xf system-contracts.tar.gz ./contracts
+          tar -xf l1-contracts.tar.gz -C ./contracts
+          tar -xf l2-contracts.tar.gz -C ./contracts
+          tar -xf system-contracts.tar.gz -C ./contracts
 
       - name: start-services
         run: |
