@@ -245,13 +245,13 @@ fn mempool_size() {
 fn filtering() {
     // Filter to find transactions with non-zero `gas_per_pubdata` values.
     let filter_non_zero = L2TxFilter {
-        fee_input: BatchFeeInput::default(),
+        fee_input: Default::default(),
         fee_per_gas: 0u64,
         gas_per_pubdata: 1u32,
     };
     // No-op filter that fetches any transaction.
     let filter_zero = L2TxFilter {
-        fee_input: BatchFeeInput::default(),
+        fee_input: Default::default(),
         fee_per_gas: 0u64,
         gas_per_pubdata: 0u32,
     };
@@ -289,13 +289,13 @@ fn filtering() {
 #[test]
 fn stashed_accounts() {
     let filter_non_zero = L2TxFilter {
-        fee_input: BatchFeeInput::default(),
+        fee_input: Default::default(),
         fee_per_gas: 0u64,
         gas_per_pubdata: 1u32,
     };
     // No-op filter that fetches any transaction.
     let filter_zero = L2TxFilter {
-        fee_input: BatchFeeInput::default(),
+        fee_input: Default::default(),
         fee_per_gas: 0u64,
         gas_per_pubdata: 0u32,
     };

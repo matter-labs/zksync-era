@@ -127,7 +127,6 @@ struct FullApiParams {
     transport: ApiTransport,
     tx_sender: TxSender,
     vm_barrier: VmConcurrencyBarrier,
-    threads: usize,
     polling_interval: Duration,
     namespaces: Vec<Namespace>,
     optional: OptionalApiParams,
@@ -143,7 +142,6 @@ pub struct ApiBuilder {
     transport: Option<ApiTransport>,
     tx_sender: Option<TxSender>,
     vm_barrier: Option<VmConcurrencyBarrier>,
-    threads: Option<usize>,
     // Optional params that may or may not be set using builder methods. We treat `namespaces`
     // specially because we want to output a warning if they are not set.
     namespaces: Option<Vec<Namespace>>,
@@ -162,7 +160,6 @@ impl ApiBuilder {
             transport: None,
             tx_sender: None,
             vm_barrier: None,
-            threads: None,
             namespaces: None,
             optional: OptionalApiParams::default(),
         }
@@ -226,11 +223,6 @@ impl ApiBuilder {
         self
     }
 
-    pub fn with_threads(mut self, threads: usize) -> Self {
-        self.threads = Some(threads);
-        self
-    }
-
     pub fn with_polling_interval(mut self, polling_interval: Duration) -> Self {
         self.polling_interval = polling_interval;
         self
@@ -260,7 +252,6 @@ impl ApiBuilder {
             transport: self.transport.context("API transport not set")?,
             tx_sender: self.tx_sender.context("Transaction sender not set")?,
             vm_barrier: self.vm_barrier.context("VM barrier not set")?,
-            threads: self.threads.context("Number of server threads not set")?,
             polling_interval: self.polling_interval,
             namespaces: self.namespaces.unwrap_or_else(|| {
                 tracing::warn!(
@@ -401,9 +392,9 @@ impl FullApiParams {
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<ApiServerHandles> {
         let transport = self.transport;
-        let (runtime_thread_name, health_check_name) = match transport {
-            ApiTransport::Http(_) => ("jsonrpsee-http-worker", "http_api"),
-            ApiTransport::WebSocket(_) => ("jsonrpsee-ws-worker", "ws_api"),
+        let health_check_name = match transport {
+            ApiTransport::Http(_) => "http_api",
+            ApiTransport::WebSocket(_) => "ws_api",
         };
         let (health_check, health_updater) = ReactiveHealthCheck::new(health_check_name);
         let vm_barrier = self.vm_barrier.clone();
@@ -421,21 +412,12 @@ impl FullApiParams {
         let websocket_requests_per_minute_limit = self.optional.websocket_requests_per_minute_limit;
         let subscriptions_limit = self.optional.subscriptions_limit;
 
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .thread_name(runtime_thread_name)
-            .worker_threads(self.threads)
-            .build()
-            .with_context(|| {
-                format!("Failed creating Tokio runtime for {health_check_name} jsonrpsee server")
-            })?;
-
         let mut tasks = vec![];
         let mut pubsub = None;
         if matches!(transport, ApiTransport::WebSocket(_))
             && self.namespaces.contains(&Namespace::Pubsub)
         {
-            let mut pub_sub = EthSubscribe::new(runtime.handle().clone());
+            let mut pub_sub = EthSubscribe::new();
             if let Some(sender) = &self.optional.pub_sub_events_sender {
                 pub_sub.set_events_sender(sender.clone());
             }
@@ -451,22 +433,18 @@ impl FullApiParams {
         let rpc = self.build_rpc_module(pubsub).await;
         // Start the server in a separate tokio runtime from a dedicated thread.
         let (local_addr_sender, local_addr) = oneshot::channel();
-        let server_task = tokio::task::spawn_blocking(move || {
-            let res = runtime.block_on(Self::run_jsonrpsee_server(
-                rpc,
-                transport,
-                stop_receiver,
-                local_addr_sender,
-                health_updater,
-                vm_barrier,
-                batch_request_config,
-                response_body_size_limit,
-                subscriptions_limit,
-                websocket_requests_per_minute_limit,
-            ));
-            runtime.shutdown_timeout(GRACEFUL_SHUTDOWN_TIMEOUT);
-            res
-        });
+        let server_task = tokio::spawn(Self::run_jsonrpsee_server(
+            rpc,
+            transport,
+            stop_receiver,
+            local_addr_sender,
+            health_updater,
+            vm_barrier,
+            batch_request_config,
+            response_body_size_limit,
+            subscriptions_limit,
+            websocket_requests_per_minute_limit,
+        ));
 
         let local_addr = match local_addr.await {
             Ok(addr) => addr,
