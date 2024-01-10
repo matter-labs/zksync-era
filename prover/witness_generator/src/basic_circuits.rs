@@ -7,36 +7,29 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use multivm::vm_latest::{
-    constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
-};
+use circuit_definitions::aux_definitions::witness_oracle::VmWitnessOracle;
+use circuit_definitions::boojum::implementations::poseidon2::Poseidon2Goldilocks;
+use circuit_definitions::circuit_definitions::base_layer::{ZkSyncBaseLayerStorage, ZkSyncBaseLayerCircuit};
+use circuit_definitions::encodings::recursion_request::RecursionQueueSimulator;
+use circuit_definitions::zkevm_circuits::fsm_input_output::ClosedFormInputCompactFormWitness;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use zkevm_test_harness::{
-    geometry_config::get_geometry_config,
-    toolset::GeometryConfig,
-    witness::full_block_artifact::{
-        BlockBasicCircuits, BlockBasicCircuitsPublicCompactFormsWitnesses,
-        BlockBasicCircuitsPublicInputs,
-    },
+use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::{GoldilocksExt2, GoldilocksField};
+use zksync_prover_fri_types::circuit_definitions::boojum::gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge;
+use zkevm_test_harness::geometry_config::get_geometry_config;
+use zkevm_test_harness::toolset::GeometryConfig;
+use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness;
+use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness;
+use zksync_prover_fri_types::AuxOutputWitnessWrapper;
+
+use crate::storage_oracle::StorageOracle;
+use multivm::vm_latest::{
+    constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::{fri_witness_generator_dal::FriWitnessJobStatus, ConnectionPool};
 use zksync_object_store::{
     Bucket, ClosedFormInputKey, ObjectStore, ObjectStoreFactory, StoredObject,
-};
-use zksync_prover_fri_types::{
-    circuit_definitions::{
-        boojum::{
-            field::goldilocks::{GoldilocksExt2, GoldilocksField},
-            gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge,
-        },
-        zkevm_circuits::scheduler::{
-            block_header::BlockAuxilaryOutputWitness, input::SchedulerCircuitInstanceWitness,
-        },
-        ZkSyncDefaultRoundFunction,
-    },
-    get_current_pod_name, AuxOutputWitnessWrapper,
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_queued_job_processor::JobProcessor;
@@ -48,21 +41,25 @@ use zksync_types::{
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
-use crate::{
-    metrics::WITNESS_GENERATOR_METRICS,
-    precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
-    storage_oracle::StorageOracle,
-    utils::{
-        expand_bootloader_contents, save_base_prover_input_artifacts, ClosedFormInputWrapper,
-        SchedulerPartialInputWrapper,
-    },
+use crate::metrics::WITNESS_GENERATOR_METRICS;
+use crate::precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider;
+use crate::utils::{
+    expand_bootloader_contents, save_circuit, ClosedFormInputWrapper, SchedulerPartialInputWrapper,
 };
 
 pub struct BasicCircuitArtifacts {
-    basic_circuits: BlockBasicCircuits<GoldilocksField, ZkSyncDefaultRoundFunction>,
-    basic_circuits_inputs: BlockBasicCircuitsPublicInputs<GoldilocksField>,
-    per_circuit_closed_form_inputs: BlockBasicCircuitsPublicCompactFormsWitnesses<GoldilocksField>,
-    #[allow(dead_code)]
+    circuits: Vec<
+        ZkSyncBaseLayerCircuit<
+            GoldilocksField,
+            VmWitnessOracle<GoldilocksField>,
+            Poseidon2Goldilocks,
+        >,
+    >,
+    recursion_queues: Vec<(
+        u8,
+        RecursionQueueSimulator<GoldilocksField>,
+        Vec<ClosedFormInputCompactFormWitness<GoldilocksField>>,
+    )>,
     scheduler_witness: SchedulerCircuitInstanceWitness<
         GoldilocksField,
         CircuitGoldilocksPoseidon2Sponge,
@@ -257,7 +254,7 @@ impl JobProcessor for BasicWitnessGenerator {
             None => Ok(()),
             Some(artifacts) => {
                 let blob_started_at = Instant::now();
-                let blob_urls = save_artifacts(
+                let urls = save_artifacts(
                     job_id,
                     artifacts,
                     &*self.object_store,
@@ -269,7 +266,7 @@ impl JobProcessor for BasicWitnessGenerator {
                 WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::BasicCircuits.into()]
                     .observe(blob_started_at.elapsed());
 
-                update_database(&self.prover_connection_pool, started_at, job_id, blob_urls).await;
+                update_database(&self.prover_connection_pool, started_at, job_id, urls).await;
                 Ok(())
             }
         }
@@ -304,16 +301,10 @@ async fn process_basic_circuits_job(
 ) -> BasicCircuitArtifacts {
     let witness_gen_input =
         build_basic_circuits_witness_generator_input(&connection_pool, job, block_number).await;
-    let (
-        basic_circuits,
-        basic_circuits_inputs,
-        per_circuit_closed_form_inputs,
-        scheduler_witness,
-        aux_output_witness,
-    ) = generate_witness(object_store, config, connection_pool, witness_gen_input).await;
+    let (circuits, recursion_queues, scheduler_witness, aux_output_witness) =
+        generate_witness(object_store, config, connection_pool, witness_gen_input).await;
     WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
         .observe(started_at.elapsed());
-
     tracing::info!(
         "Witness generation for block {} is complete in {:?}",
         block_number.0,
@@ -321,9 +312,8 @@ async fn process_basic_circuits_job(
     );
 
     BasicCircuitArtifacts {
-        basic_circuits,
-        basic_circuits_inputs,
-        per_circuit_closed_form_inputs,
+        circuits,
+        recursion_queues,
         scheduler_witness,
         aux_output_witness,
     }
@@ -381,20 +371,6 @@ async fn save_artifacts(
     public_object_store: Option<&dyn ObjectStore>,
     shall_save_to_public_bucket: bool,
 ) -> BlobUrls {
-    let circuit_ids_and_urls = save_base_prover_input_artifacts(
-        block_number,
-        artifacts.basic_circuits,
-        object_store,
-        AggregationRound::BasicCircuits,
-    )
-    .await;
-    let closed_form_inputs_and_urls = save_leaf_aggregation_artifacts(
-        block_number,
-        artifacts.basic_circuits_inputs,
-        artifacts.per_circuit_closed_form_inputs,
-        object_store,
-    )
-    .await;
     let scheduler_witness_url = save_scheduler_artifacts(
         block_number,
         artifacts.scheduler_witness,
@@ -404,6 +380,18 @@ async fn save_artifacts(
         shall_save_to_public_bucket,
     )
     .await;
+
+    let mut circuit_ids_and_urls = Vec::with_capacity(artifacts.circuits.len());
+    for (i, circuit) in artifacts.circuits.into_iter().enumerate() {
+        circuit_ids_and_urls.push(save_circuit(block_number, circuit, i, object_store).await);
+    }
+
+    let mut closed_form_inputs_and_urls = Vec::with_capacity(artifacts.recursion_queues.len());
+    for (circuit_id, queue, inputs) in artifacts.recursion_queues {
+        closed_form_inputs_and_urls.push(
+            save_recursion_queue(block_number, circuit_id, queue, &inputs, object_store).await,
+        );
+    }
 
     BlobUrls {
         circuit_ids_and_urls,
@@ -440,28 +428,25 @@ async fn save_scheduler_artifacts(
     object_store.put(block_number, &wrapper).await.unwrap()
 }
 
-async fn save_leaf_aggregation_artifacts(
+async fn save_recursion_queue(
     block_number: L1BatchNumber,
-    basic_circuits_inputs: BlockBasicCircuitsPublicInputs<GoldilocksField>,
-    per_circuit_closed_form_inputs: BlockBasicCircuitsPublicCompactFormsWitnesses<GoldilocksField>,
+    circuit_id: u8,
+    recursion_queue_simulator: RecursionQueueSimulator<GoldilocksField>,
+    closed_form_inputs: &[ClosedFormInputCompactFormWitness<GoldilocksField>],
     object_store: &dyn ObjectStore,
-) -> Vec<(u8, String, usize)> {
-    let round_function = ZkSyncDefaultRoundFunction::default();
-    let queues = basic_circuits_inputs
-        .into_recursion_queues(per_circuit_closed_form_inputs, &round_function);
-    let mut circuit_id_urls_with_count = Vec::with_capacity(queues.len());
-    for (circuit_id_ref, recursion_queue_simulator, inputs) in queues {
-        let circuit_id = circuit_id_ref as u8;
-        let key = ClosedFormInputKey {
-            block_number,
-            circuit_id,
-        };
-        let basic_circuit_count = inputs.len();
-        let wrapper = ClosedFormInputWrapper(inputs, recursion_queue_simulator);
-        let blob_url = object_store.put(key, &wrapper).await.unwrap();
-        circuit_id_urls_with_count.push((circuit_id, blob_url, basic_circuit_count))
-    }
-    circuit_id_urls_with_count
+) -> (u8, String, usize) {
+    let key = ClosedFormInputKey {
+        block_number,
+        circuit_id,
+    };
+    let basic_circuit_count = closed_form_inputs.len();
+    let closed_form_inputs = closed_form_inputs
+        .iter()
+        .map(|x| ZkSyncBaseLayerStorage::from_inner(circuit_id, x.clone()))
+        .collect();
+    let wrapper = ClosedFormInputWrapper(closed_form_inputs, recursion_queue_simulator);
+    let blob_url = object_store.put(key, &wrapper).await.unwrap();
+    (circuit_id, blob_url, basic_circuit_count)
 }
 
 // If making changes to this method, consider moving this logic to the DAL layer and make
@@ -513,9 +498,18 @@ async fn generate_witness(
     connection_pool: ConnectionPool,
     input: BasicCircuitWitnessGeneratorInput,
 ) -> (
-    BlockBasicCircuits<GoldilocksField, ZkSyncDefaultRoundFunction>,
-    BlockBasicCircuitsPublicInputs<GoldilocksField>,
-    BlockBasicCircuitsPublicCompactFormsWitnesses<GoldilocksField>,
+    Vec<
+        ZkSyncBaseLayerCircuit<
+            GoldilocksField,
+            VmWitnessOracle<GoldilocksField>,
+            Poseidon2Goldilocks,
+        >,
+    >,
+    Vec<(
+        u8,
+        RecursionQueueSimulator<GoldilocksField>,
+        Vec<ClosedFormInputCompactFormWitness<GoldilocksField>>,
+    )>,
     SchedulerCircuitInstanceWitness<
         GoldilocksField,
         CircuitGoldilocksPoseidon2Sponge,
@@ -636,54 +630,53 @@ async fn generate_witness(
     // The following part is CPU-heavy, so we move it to a separate thread.
     let rt_handle = tokio::runtime::Handle::current();
 
-    let (
-        basic_circuits,
-        basic_circuits_public_inputs,
-        basic_circuits_public_compact_witness,
-        mut scheduler_witness,
-        block_aux_witness,
-    ) = tokio::task::spawn_blocking(move || {
-        let connection = rt_handle
-            .block_on(connection_pool.access_storage())
-            .unwrap();
+    let (circuits, queues, mut scheduler_witness, block_aux_witness) =
+        tokio::task::spawn_blocking(move || {
+            let connection = rt_handle
+                .block_on(connection_pool.access_storage())
+                .unwrap();
 
-        let storage = PostgresStorage::new(rt_handle, connection, last_miniblock_number, true);
-        let storage_view = StorageView::new(storage).to_rc_ptr();
+            let storage = PostgresStorage::new(rt_handle, connection, last_miniblock_number, true);
+            let storage_view = StorageView::new(storage).to_rc_ptr();
 
-        let vm_storage_oracle: VmStorageOracle<StorageView<PostgresStorage<'_>>, HistoryDisabled> =
-            VmStorageOracle::new(storage_view.clone());
-        let storage_oracle = StorageOracle::new(vm_storage_oracle, storage_refunds);
+            let vm_storage_oracle: VmStorageOracle<
+                StorageView<PostgresStorage<'_>>,
+                HistoryDisabled,
+            > = VmStorageOracle::new(storage_view.clone());
+            let storage_oracle = StorageOracle::new(vm_storage_oracle, storage_refunds);
 
-        zkevm_test_harness::external_calls::run_with_fixed_params(
-            Address::zero(),
-            BOOTLOADER_ADDRESS,
-            bootloader_code,
-            bootloader_contents,
-            false,
-            account_code_hash,
-            used_bytecodes,
-            Vec::default(),
-            MAX_CYCLES_FOR_TX as usize,
-            geometry_config,
-            storage_oracle,
-            &mut tree,
-        )
-    })
-    .await
-    .unwrap();
+            let mut circuits = vec![];
+            let mut queues = vec![];
+
+            let (scheduler_witness, block_witness) = zkevm_test_harness::external_calls::run(
+                Address::zero(),
+                BOOTLOADER_ADDRESS,
+                bootloader_code,
+                bootloader_contents,
+                false,
+                account_code_hash,
+                used_bytecodes,
+                Vec::default(),
+                MAX_CYCLES_FOR_TX as usize,
+                geometry_config,
+                storage_oracle,
+                &mut tree,
+                |circuit| {
+                    circuits.push(circuit);
+                },
+                |a, b, c| queues.push((a, b, c)),
+            );
+            (circuits, queues, scheduler_witness, block_witness)
+        })
+        .await
+        .unwrap();
 
     scheduler_witness.previous_block_meta_hash =
         previous_batch_with_metadata.metadata.meta_parameters_hash.0;
     scheduler_witness.previous_block_aux_hash =
         previous_batch_with_metadata.metadata.aux_data_hash.0;
 
-    (
-        basic_circuits,
-        basic_circuits_public_inputs,
-        basic_circuits_public_compact_witness,
-        scheduler_witness,
-        block_aux_witness,
-    )
+    (circuits, queues, scheduler_witness, block_aux_witness)
 }
 
 #[allow(clippy::too_many_arguments)]
