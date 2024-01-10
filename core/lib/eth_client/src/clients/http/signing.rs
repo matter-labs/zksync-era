@@ -7,10 +7,7 @@ use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, 
 use zksync_types::{
     web3::{
         self,
-        contract::{
-            tokens::{Detokenize, Tokenize},
-            Options,
-        },
+        contract::{tokens::Detokenize, Options},
         ethabi,
         transports::Http,
         types::{
@@ -24,7 +21,7 @@ use zksync_types::{
 use super::{query::QueryClient, Method, LATENCIES};
 use crate::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
-    BoundEthInterface, EthInterface,
+    BoundEthInterface, CallFunctionArgs, ContractCall, EthInterface, RawTransactionBytes,
 };
 
 /// HTTP-based Ethereum client, backed by a private key to sign transactions.
@@ -47,8 +44,7 @@ impl PKSigningClient {
         let default_priority_fee_per_gas = eth_sender.gas_adjuster.default_priority_fee_per_gas;
         let l1_chain_id = eth_client.chain_id;
 
-        let transport =
-            web3::transports::Http::new(main_node_url).expect("Failed to create transport");
+        let transport = Http::new(main_node_url).expect("Failed to create transport");
         let operator_address = PackedEthSignature::address_from_private_key(&operator_private_key)
             .expect("Failed to get address from private key");
 
@@ -122,7 +118,7 @@ impl<S: EthereumSigner> EthInterface for SigningClient<S> {
         self.query_client.get_gas_price(component).await
     }
 
-    async fn send_raw_tx(&self, tx: Vec<u8>) -> Result<H256, Error> {
+    async fn send_raw_tx(&self, tx: RawTransactionBytes) -> Result<H256, Error> {
         self.query_client.send_raw_tx(tx).await
     }
 
@@ -166,34 +162,11 @@ impl<S: EthereumSigner> EthInterface for SigningClient<S> {
         self.query_client.get_tx(hash, component).await
     }
 
-    #[allow(clippy::too_many_arguments)]
-    async fn call_contract_function<R, A, B, P>(
+    async fn call_contract_function(
         &self,
-        func: &str,
-        params: P,
-        from: A,
-        options: Options,
-        block: B,
-        contract_address: Address,
-        contract_abi: ethabi::Contract,
-    ) -> Result<R, Error>
-    where
-        R: Detokenize + Unpin,
-        A: Into<Option<Address>> + Send,
-        B: Into<Option<BlockId>> + Send,
-        P: Tokenize + Send,
-    {
-        self.query_client
-            .call_contract_function(
-                func,
-                params,
-                from,
-                options,
-                block,
-                contract_address,
-                contract_abi,
-            )
-            .await
+        call: ContractCall,
+    ) -> Result<Vec<ethabi::Token>, Error> {
+        self.query_client.call_contract_function(call).await
     }
 
     async fn tx_receipt(
@@ -253,7 +226,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
             None => self.inner.default_priority_fee_per_gas,
         };
 
-        // Fetch current base fee and add max_priority_fee_per_gas
+        // Fetch current base fee and add `max_priority_fee_per_gas`
         let max_fee_per_gas = match options.max_fee_per_gas {
             Some(max_fee_per_gas) => max_fee_per_gas,
             None => {
@@ -303,7 +276,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         let hash = web3::signing::keccak256(&signed_tx).into();
         latency.observe();
         Ok(SignedCallResult {
-            raw_tx: signed_tx,
+            raw_tx: RawTransactionBytes(signed_tx),
             max_priority_fee_per_gas,
             max_fee_per_gas,
             nonce,
@@ -318,19 +291,11 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         erc20_abi: ethabi::Contract,
     ) -> Result<U256, Error> {
         let latency = LATENCIES.direct[&Method::Allowance].start();
-        let res = self
-            .call_contract_function(
-                "allowance",
-                (self.inner.sender_account, address),
-                None,
-                Options::default(),
-                None,
-                token_address,
-                erc20_abi,
-            )
-            .await?;
+        let args = CallFunctionArgs::new("allowance", (self.inner.sender_account, address))
+            .for_contract(token_address, erc20_abi);
+        let res = self.call_contract_function(args).await?;
         latency.observe();
-        Ok(res)
+        Ok(U256::from_tokens(res)?)
     }
 }
 

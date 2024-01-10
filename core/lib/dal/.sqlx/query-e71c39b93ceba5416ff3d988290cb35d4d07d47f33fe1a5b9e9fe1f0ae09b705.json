@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT\n                    usd_price,\n                    usd_price_updated_at\n                FROM\n                    tokens\n                WHERE\n                    l2_address = $1\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "usd_price",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 1,
+        "name": "usd_price_updated_at",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "e71c39b93ceba5416ff3d988290cb35d4d07d47f33fe1a5b9e9fe1f0ae09b705"
+}

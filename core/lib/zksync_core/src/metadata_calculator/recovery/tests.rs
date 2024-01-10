@@ -14,6 +14,7 @@ use zksync_health_check::{CheckHealth, ReactiveHealthCheck};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},
+    fee_model::BatchFeeInput,
     L1BatchNumber, L2ChainId, ProtocolVersion, ProtocolVersionId, StorageLog,
 };
 use zksync_utils::h256_to_u256;
@@ -27,7 +28,7 @@ use crate::{
             extend_db_state, extend_db_state_from_l1_batch, gen_storage_logs, run_calculator,
             setup_calculator,
         },
-        MetadataCalculator, MetadataCalculatorConfig, MetadataCalculatorModeConfig,
+        MetadataCalculator, MetadataCalculatorConfig,
     },
 };
 
@@ -292,9 +293,8 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
     let calculator_config = MetadataCalculatorConfig::for_main_node(
         &merkle_tree_config,
         &OperationsManagerConfig { delay_interval: 50 },
-        MetadataCalculatorModeConfig::Lightweight,
     );
-    let mut calculator = MetadataCalculator::new(&calculator_config).await;
+    let mut calculator = MetadataCalculator::new(calculator_config, None).await;
     let (delay_sx, mut delay_rx) = mpsc::unbounded_channel();
     calculator.delayer.delay_notifier = delay_sx;
 
@@ -381,8 +381,7 @@ async fn prepare_clean_recovery_snapshot(
         l1_tx_count: 0,
         l2_tx_count: 0,
         base_fee_per_gas: 100,
-        l1_gas_price: 100,
-        l2_fair_gas_price: 100,
+        batch_fee_input: BatchFeeInput::l1_pegged(100, 100),
         base_system_contracts_hashes: Default::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         virtual_blocks: 0,
@@ -401,7 +400,7 @@ async fn prepare_clean_recovery_snapshot(
     );
     storage
         .blocks_dal()
-        .insert_l1_batch(&l1_batch, &[], Default::default(), &[], &[])
+        .insert_l1_batch(&l1_batch, &[], Default::default(), &[], &[], 0)
         .await
         .unwrap();
 

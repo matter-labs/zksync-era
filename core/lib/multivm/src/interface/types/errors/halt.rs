@@ -7,7 +7,7 @@ use super::VmRevertReason;
 /// Differentiates VM-specific issues from contract-related errors.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Halt {
-    // Can only be returned in VerifyAndExecute
+    // Can only be returned in `VerifyAndExecute`
     ValidationFailed(VmRevertReason),
     PaymasterValidationFailed(VmRevertReason),
     PrePaymasterPreparationFailed(VmRevertReason),
@@ -16,7 +16,7 @@ pub enum Halt {
     FailedToChargeFee(VmRevertReason),
     // Emitted when trying to call a transaction from an account that has not
     // been deployed as an account (i.e. the `from` is just a contract).
-    // Can only be returned in VerifyAndExecute
+    // Can only be returned in `VerifyAndExecute`
     FromIsNotAnAccount,
     // Currently cannot be returned. Should be removed when refactoring errors.
     InnerTxError,
@@ -41,6 +41,7 @@ pub enum Halt {
     FailedToAppendTransactionToL2Block(String),
     VMPanic,
     TracerCustom(String),
+    FailedToPublishCompressedBytecodes,
 }
 
 impl Display for Halt {
@@ -111,6 +112,9 @@ impl Display for Halt {
             }
             Halt::ValidationOutOfGas => {
                 write!(f, "Validation run out of gas")
+            }
+            Halt::FailedToPublishCompressedBytecodes => {
+                write!(f, "Failed to publish compressed bytecodes")
             }
         }
     }

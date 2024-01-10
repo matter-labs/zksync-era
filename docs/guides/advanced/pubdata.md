@@ -79,7 +79,7 @@ The 4 main fields to look at here are:
    1. Structure: `num entries as u32 || for each entry: (8 byte id, 32 bytes final value)`
 3. `factoryDeps`: An array of uncompressed bytecodes
 4. `l2ArbitraryLengthMessages` : L2 → L1 Messages
-   1. We don’t need them all, we are just concerned with messages sent from the `Compressor/BytcodeCompressor` contract
+   1. We don’t need them all, we are just concerned with messages sent from the `Compressor/BytecodeCompressor` contract
    2. These messages will follow the compression algorithm outline [here](./bytecode_compression.md)
 
 For the ids on the repeated writes, they are generated as we process the first time keys. For example: if we see

@@ -4,8 +4,8 @@
 //! as well as contracts/SystemConfig.json
 //!
 
-use multivm::vm_latest::constants::BOOTLOADER_TX_ENCODING_SPACE;
-use zksync_types::{ethabi::Address, IntrinsicSystemGasConstants, U256};
+use multivm::utils::get_bootloader_encoding_space;
+use zksync_types::{ethabi::Address, IntrinsicSystemGasConstants, ProtocolVersionId, U256};
 
 use crate::utils::{
     execute_internal_transfer_test, execute_user_txs_in_test_gas_vm, get_l1_tx, get_l1_txs,
@@ -81,7 +81,7 @@ pub(crate) fn l2_gas_constants() -> IntrinsicSystemGasConstants {
         true,
     );
 
-    // This price does not include the overhead for the transaction itself, but rather auxilary parts
+    // This price does not include the overhead for the transaction itself, but rather auxiliary parts
     // that must be done by the transaction and it can not be enforced by the operator to not to accept
     // the transaction if it does not cover the minimal costs.
     let min_l1_tx_price = empty_l1_tx_result.gas_consumed - bootloader_intrinsic_gas;
@@ -107,7 +107,7 @@ pub(crate) fn l2_gas_constants() -> IntrinsicSystemGasConstants {
 
     let delta_from_544_bytes = lengthier_tx_result.gas_consumed - empty_l1_tx_result.gas_consumed;
 
-    // The number of public data per factory dep should not depend on the size/structure of the factory
+    // The number of public data per factory dependencies should not depend on the size/structure of the factory
     // dependency, since the dependency has already been published on L1.
     let tx_with_more_factory_deps_result = execute_user_txs_in_test_gas_vm(
         vec![get_l1_tx(
@@ -129,7 +129,8 @@ pub(crate) fn l2_gas_constants() -> IntrinsicSystemGasConstants {
         tx_with_more_factory_deps_result.pubdata_published - empty_l1_tx_result.pubdata_published;
 
     // The number of the bootloader memory that can be filled up with transactions.
-    let bootloader_tx_memory_size_slots = BOOTLOADER_TX_ENCODING_SPACE;
+    let bootloader_tx_memory_size_slots =
+        get_bootloader_encoding_space(ProtocolVersionId::latest().into());
 
     IntrinsicSystemGasConstants {
         l2_tx_intrinsic_gas,
@@ -179,7 +180,7 @@ fn get_intrinsic_overheads_for_tx_type(tx_generator: &TransactionGenerator) -> I
     let bootloader_intrinsic_pubdata = result_0.pubdata_published;
 
     // For various small reasons the overhead for the first transaction and for all the subsequent ones
-    // might differ a bit, so we will calculate both and will use the maximum one as the result for l2 txs.
+    // might differ a bit, so we will calculate both and will use the maximum one as the result for L2 txs.
 
     let (tx1_intrinsic_gas, tx1_intrinsic_pubdata) = get_intrinsic_price(result_0, result_1);
     let (tx2_intrinsic_gas, tx2_intrinsic_pubdata) = get_intrinsic_price(result_1, result_2);

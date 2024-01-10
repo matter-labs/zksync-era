@@ -38,8 +38,9 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             gas_used: gas_remaining_before - gas_remaining_after,
             computational_gas_used,
             total_log_queries: total_log_queries_count,
-            // This field will be populated by the RefundTracer
+            // This field will be populated by the `RefundTracer`
             pubdata_published: 0,
+            estimated_circuits_used: 0.0,
         }
     }
 

@@ -1,30 +1,32 @@
 //! Tests for the metadata calculator component life cycle.
 
-use std::{future::Future, ops, panic, path::Path, time::Duration};
+use std::{future::Future, ops, panic, path::Path, sync::Arc, time::Duration};
 
 use assert_matches::assert_matches;
 use itertools::Itertools;
 use tempfile::TempDir;
 use tokio::sync::{mpsc, watch};
-use zksync_config::configs::{chain::OperationsManagerConfig, database::MerkleTreeConfig};
-use zksync_contracts::BaseSystemContracts;
+use zksync_config::configs::{
+    chain::OperationsManagerConfig,
+    database::{MerkleTreeConfig, MerkleTreeMode},
+};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::{CheckHealth, HealthStatus};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_types::{
-    block::{BlockGasCount, L1BatchHeader, MiniblockHasher, MiniblockHeader},
+    block::{BlockGasCount, L1BatchHeader},
     proofs::PrepareBasicCircuitsJob,
-    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId,
-    StorageKey, StorageLog, H256,
+    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, StorageKey, StorageLog,
+    H256,
 };
 use zksync_utils::u32_to_h256;
 
-use super::{
-    GenericAsyncTree, L1BatchWithLogs, MetadataCalculator, MetadataCalculatorConfig,
-    MetadataCalculatorModeConfig,
+use super::{GenericAsyncTree, L1BatchWithLogs, MetadataCalculator, MetadataCalculatorConfig};
+use crate::{
+    genesis::{ensure_genesis_state, GenesisParams},
+    utils::testonly::{create_l1_batch, create_miniblock},
 };
-use crate::genesis::{ensure_genesis_state, GenesisParams};
 
 const RUN_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -237,16 +239,12 @@ async fn running_metadata_calculator_with_additional_blocks() {
 async fn shutting_down_calculator() {
     let pool = ConnectionPool::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let (merkle_tree_config, mut operation_config) = create_config(temp_dir.path());
+    let (merkle_tree_config, mut operation_config) =
+        create_config(temp_dir.path(), MerkleTreeMode::Lightweight);
     operation_config.delay_interval = 30_000; // ms; chosen to be larger than `RUN_TIMEOUT`
 
-    let calculator = setup_calculator_with_options(
-        &merkle_tree_config,
-        &operation_config,
-        &pool,
-        MetadataCalculatorModeConfig::Lightweight,
-    )
-    .await;
+    let calculator =
+        setup_calculator_with_options(&merkle_tree_config, &operation_config, &pool, None).await;
 
     reset_db_state(&pool, 5).await;
 
@@ -290,6 +288,7 @@ async fn test_postgres_backup_recovery(
                 BlockGasCount::default(),
                 &[],
                 &[],
+                0,
             )
             .await
             .unwrap();
@@ -315,7 +314,7 @@ async fn test_postgres_backup_recovery(
     for batch_header in &removed_batches {
         let mut txn = storage.start_transaction().await.unwrap();
         txn.blocks_dal()
-            .insert_l1_batch(batch_header, &[], BlockGasCount::default(), &[], &[])
+            .insert_l1_batch(batch_header, &[], BlockGasCount::default(), &[], &[], 0)
             .await
             .unwrap();
         insert_initial_writes_for_batch(&mut txn, batch_header.number).await;
@@ -362,26 +361,28 @@ async fn postgres_backup_recovery_with_excluded_metadata() {
 pub(crate) async fn setup_calculator(
     db_path: &Path,
     pool: &ConnectionPool,
-) -> (MetadataCalculator, Box<dyn ObjectStore>) {
-    let store_factory = &ObjectStoreFactory::mock();
-    let (merkle_tree_config, operation_manager) = create_config(db_path);
-    let mode = MetadataCalculatorModeConfig::Full {
-        store_factory: Some(store_factory),
-    };
+) -> (MetadataCalculator, Arc<dyn ObjectStore>) {
+    let store_factory = ObjectStoreFactory::mock();
+    let store = store_factory.create_store().await;
+    let (merkle_tree_config, operation_manager) = create_config(db_path, MerkleTreeMode::Full);
     let calculator =
-        setup_calculator_with_options(&merkle_tree_config, &operation_manager, pool, mode).await;
+        setup_calculator_with_options(&merkle_tree_config, &operation_manager, pool, Some(store))
+            .await;
     (calculator, store_factory.create_store().await)
 }
 
 async fn setup_lightweight_calculator(db_path: &Path, pool: &ConnectionPool) -> MetadataCalculator {
-    let mode = MetadataCalculatorModeConfig::Lightweight;
-    let (db_config, operation_config) = create_config(db_path);
-    setup_calculator_with_options(&db_config, &operation_config, pool, mode).await
+    let (db_config, operation_config) = create_config(db_path, MerkleTreeMode::Lightweight);
+    setup_calculator_with_options(&db_config, &operation_config, pool, None).await
 }
 
-fn create_config(db_path: &Path) -> (MerkleTreeConfig, OperationsManagerConfig) {
+fn create_config(
+    db_path: &Path,
+    mode: MerkleTreeMode,
+) -> (MerkleTreeConfig, OperationsManagerConfig) {
     let db_config = MerkleTreeConfig {
         path: path_to_string(&db_path.join("new")),
+        mode,
         ..MerkleTreeConfig::default()
     };
 
@@ -395,11 +396,11 @@ async fn setup_calculator_with_options(
     merkle_tree_config: &MerkleTreeConfig,
     operation_config: &OperationsManagerConfig,
     pool: &ConnectionPool,
-    mode: MetadataCalculatorModeConfig<'_>,
+    object_store: Option<Arc<dyn ObjectStore>>,
 ) -> MetadataCalculator {
     let calculator_config =
-        MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_config, mode);
-    let metadata_calculator = MetadataCalculator::new(&calculator_config).await;
+        MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_config);
+    let metadata_calculator = MetadataCalculator::new(calculator_config, object_store).await;
 
     let mut storage = pool.access_storage().await.unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
@@ -487,38 +488,16 @@ pub(super) async fn extend_db_state_from_l1_batch(
 ) {
     assert!(storage.in_transaction(), "must be called in DB transaction");
 
-    let base_system_contracts = BaseSystemContracts::load_from_disk();
     for (idx, batch_logs) in (next_l1_batch.0..).zip(new_logs) {
-        let batch_number = L1BatchNumber(idx);
-        let mut header = L1BatchHeader::new(
-            batch_number,
-            0,
-            Address::default(),
-            base_system_contracts.hashes(),
-            Default::default(),
-        );
-        header.is_finished = true;
-
+        let header = create_l1_batch(idx);
+        let batch_number = header.number;
         // Assumes that L1 batch consists of only one miniblock.
-        let miniblock_number = MiniblockNumber(idx);
-        let miniblock_header = MiniblockHeader {
-            number: miniblock_number,
-            timestamp: header.timestamp,
-            hash: MiniblockHasher::new(miniblock_number, header.timestamp, H256::zero())
-                .finalize(ProtocolVersionId::latest()),
-            l1_tx_count: header.l1_tx_count,
-            l2_tx_count: header.l2_tx_count,
-            base_fee_per_gas: header.base_fee_per_gas,
-            l1_gas_price: 0,
-            l2_fair_gas_price: 0,
-            base_system_contracts_hashes: base_system_contracts.hashes(),
-            protocol_version: Some(ProtocolVersionId::latest()),
-            virtual_blocks: 0,
-        };
+        let miniblock_header = create_miniblock(idx);
+        let miniblock_number = miniblock_header.number;
 
         storage
             .blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
+            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
             .await
             .unwrap();
         storage

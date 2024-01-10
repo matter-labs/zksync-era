@@ -355,8 +355,6 @@ pub struct RequiredENConfig {
     pub ws_port: u16,
     /// Port on which the healthcheck REST server is listening.
     pub healthcheck_port: u16,
-    /// Number of threads per API server
-    pub threads_per_server: usize,
     /// Address of the Ethereum node API.
     /// Intentionally private: use getter method as it manages the missing port.
     eth_client_url: String,
@@ -437,7 +435,7 @@ impl ExternalNodeConfig {
             .context("Unable to fetch required config values from the main node")?;
 
         // We can query them from main node, but it's better to set them explicitly
-        // as well to avoid connecting to wrong envs unintentionally.
+        // as well to avoid connecting to wrong environment variables unintentionally.
         let eth_chain_id = HttpClientBuilder::default()
             .build(required.eth_client_url()?)
             .expect("Unable to build HTTP client for L1 client")

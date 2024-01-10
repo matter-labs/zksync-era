@@ -12,13 +12,14 @@ use zksync_types::{
 use crate::{
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
-        tests::{create_l1_batch_metadata, create_l2_transaction, MockBatchExecutorBuilder},
-        MiniblockSealer, ZkSyncStateKeeper,
+        seal_criteria::NoopSealer, tests::MockBatchExecutorBuilder, MiniblockSealer,
+        ZkSyncStateKeeper,
     },
     sync_layer::{
         sync_action::{ActionQueue, ActionQueueSender, SyncAction},
         ExternalIO, MainNodeClient, SyncState,
     },
+    utils::testonly::{create_l1_batch_metadata, create_l2_transaction},
 };
 
 #[derive(Debug, Default)]
@@ -225,7 +226,7 @@ impl StateKeeperHandle {
     pub async fn push_random_blocks(&mut self, rng: &mut impl Rng, count: usize) {
         for _ in 0..count {
             // 20% chance to seal an L1 batch.
-            // seal_batch() also produces a (fictive) block.
+            // `seal_batch()` also produces a (fictive) block.
             if rng.gen_range(0..100) < 20 {
                 self.seal_batch().await;
             } else {
@@ -355,10 +356,11 @@ impl StateKeeperRunner {
             s.spawn_bg(miniblock_sealer.run());
             s.spawn_bg(run_mock_metadata_calculator(ctx, pool.clone()));
             s.spawn_bg(
-                ZkSyncStateKeeper::without_sealer(
+                ZkSyncStateKeeper::new(
                     stop_receiver,
                     Box::new(io),
                     Box::new(MockBatchExecutorBuilder),
+                    Box::new(NoopSealer),
                 )
                 .run(),
             );

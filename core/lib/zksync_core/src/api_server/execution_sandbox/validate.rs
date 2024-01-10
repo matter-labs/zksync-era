@@ -10,47 +10,16 @@ use multivm::{
     MultiVMTracer,
 };
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_types::{l2::L2Tx, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS, U256};
+use zksync_types::{l2::L2Tx, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS};
 
 use super::{
-    adjust_l1_gas_price_for_tx, apply,
+    apply,
     vm_metrics::{SandboxStage, EXECUTION_METRICS, SANDBOX_METRICS},
     BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
 
 impl TxSharedArgs {
-    pub async fn validate_tx_with_pending_state(
-        mut self,
-        vm_permit: VmPermit,
-        connection_pool: ConnectionPool,
-        tx: L2Tx,
-        computational_gas_limit: u32,
-    ) -> Result<(), ValidationError> {
-        let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
-        let block_args = BlockArgs::pending(&mut connection).await;
-        drop(connection);
-        self.adjust_l1_gas_price(tx.common_data.fee.gas_per_pubdata_limit);
-        self.validate_tx_in_sandbox(
-            connection_pool,
-            vm_permit,
-            tx,
-            block_args,
-            computational_gas_limit,
-        )
-        .await
-    }
-
-    // In order for validation to pass smoothlessly, we need to ensure that block's required gasPerPubdata will be
-    // <= to the one in the transaction itself.
-    pub fn adjust_l1_gas_price(&mut self, gas_per_pubdata_limit: U256) {
-        self.l1_gas_price = adjust_l1_gas_price_for_tx(
-            self.l1_gas_price,
-            self.fair_l2_gas_price,
-            gas_per_pubdata_limit,
-        );
-    }
-
-    async fn validate_tx_in_sandbox(
+    pub(crate) async fn validate_tx_in_sandbox(
         self,
         connection_pool: ConnectionPool,
         vm_permit: VmPermit,
@@ -72,6 +41,7 @@ impl TxSharedArgs {
             let result = apply::apply_vm_in_sandbox(
                 vm_permit,
                 self,
+                true,
                 &execution_args,
                 &connection_pool,
                 tx,
