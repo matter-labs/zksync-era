@@ -15,6 +15,7 @@ healthcheck_port = 3081
 threads_per_server = 128
 l2_chain_id = 270
 l1_chain_id = 9
+
 api_eth_transfer_events="disabled"
 
 req_entities_limit = 10000

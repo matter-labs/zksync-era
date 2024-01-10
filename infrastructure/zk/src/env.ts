@@ -112,19 +112,18 @@ export function load() {
 }
 
 // places the environment logged by `zk init` variables into the .init.env file
-export function modify(variable: string, assignedVariable: string) {
-    const initEnv = 'etc/env/.init.env';
-    if (!fs.existsSync(initEnv)) {
-        fs.writeFileSync(initEnv, assignedVariable);
+export function modify(variable: string, assignedVariable: string, envFile: string = 'etc/env/.init.env') {
+    if (!fs.existsSync(envFile)) {
+        fs.writeFileSync(envFile, assignedVariable);
         return;
     }
 
-    let source = fs.readFileSync(initEnv).toString();
+    let source = fs.readFileSync(envFile).toString();
     if (source.includes(variable)) {
-        utils.replaceInFile(initEnv, `${variable}=.*`, assignedVariable.trim());
+        utils.replaceInFile(envFile, `${variable}=.*`, assignedVariable.trim());
     } else {
         source += `\n${assignedVariable}`;
-        fs.writeFileSync(initEnv, source);
+        fs.writeFileSync(envFile, source);
     }
 
     reload();
@@ -195,8 +194,19 @@ export function setEthTransferEvents(mode: string, print: boolean) {
         process.exit(1);
     }
 
-    modify('EN_API_ETH_TRANSFER_EVENTS', `EN_API_ETH_TRANSFER_EVENTS=${mode}`);
-    modify('API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS', `API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS=${mode}`);
+    if (fs.existsSync('etc/env/ext-node.env')) {
+        modify('EN_API_ETH_TRANSFER_EVENTS', `EN_API_ETH_TRANSFER_EVENTS=${mode}`, 'etc/env/ext-node.env');
+    }
+    if (fs.existsSync('etc/env/ext-node-docker.env')) {
+        modify('EN_API_ETH_TRANSFER_EVENTS', `EN_API_ETH_TRANSFER_EVENTS=${mode}`, 'etc/env/ext-node-docker.env');
+    }
+    if (fs.existsSync('etc/env/dev.env')) {
+        modify(
+            'API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS',
+            `API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS=${mode}`,
+            'etc/env/dev.env'
+        );
+    }
 
     getEthTransferEvents(print);
 }
