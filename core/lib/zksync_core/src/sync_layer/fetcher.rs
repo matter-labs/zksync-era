@@ -7,7 +7,7 @@ use zksync_types::{
     api::en::SyncBlock, block::MiniblockHasher, Address, L1BatchNumber, MiniblockNumber,
     ProtocolVersionId, H256,
 };
-use zksync_web3_decl::jsonrpsee::core::Error as RpcError;
+use zksync_web3_decl::jsonrpsee::core::ClientError as RpcError;
 
 use super::{
     client::{CachingMainNodeClient, MainNodeClient},
@@ -248,7 +248,7 @@ impl MainNodeFetcher {
                     {
                         tracing::warn!("Following transport error occurred: {err}");
                         tracing::info!("Trying again after a delay");
-                        tokio::time::sleep(RETRY_DELAY_INTERVAL).await; // TODO (BFT-100): Implement the fibonacci backoff.
+                        tokio::time::sleep(RETRY_DELAY_INTERVAL).await; // TODO (BFT-100): Implement the Fibonacci back-off.
                     } else {
                         return Err(err.context("Unexpected error in the fetcher"));
                     }

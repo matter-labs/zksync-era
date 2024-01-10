@@ -26,7 +26,7 @@ impl SealCriterion for PubDataBytesCriterion {
         let block_size =
             block_data.execution_metrics.size() + block_data.writes_metrics.size(protocol_version);
         // For backward compatibility, we need to keep calculating the size of the pubdata based
-        // StorageDeduplication metrics. All vm versions
+        // `StorageDeduplication` metrics. All vm versions
         // after vm with virtual blocks will provide the size of the pubdata in the execution metrics.
         let tx_size = if tx_data.execution_metrics.pubdata_published == 0 {
             tx_data.execution_metrics.size() + tx_data.writes_metrics.size(protocol_version)

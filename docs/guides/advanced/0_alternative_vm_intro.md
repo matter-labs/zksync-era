@@ -48,9 +48,9 @@ _Pointers_ are separate type in the VM. It is only possible to:
 
 - Read some value within a pointer.
 - Shrink the pointer by reducing the slice to which pointer points to.
-- Receive the pointer to the returndata/as a calldata.
-- Pointers can be stored only on stack/registers to make sure that the other contracts can not read memory/returndata of
-  contracts they are not supposed to.
+- Receive the pointer to the `returndata` as a calldata.
+- Pointers can be stored only on stack/registers to make sure that the other contracts can not read `memory/returndata`
+  of contracts they are not supposed to.
 - A pointer can be converted to the u256 integer representing it, but an integer can not be converted to a pointer to
   prevent unallowed memory access.
 - It is not possible to return a pointer that points to a memory page with id smaller than the one for the current page.
@@ -63,7 +63,7 @@ For each frame, the following memory areas are allocated:
 
 - _Heap_ (plays the same role as `memory` on Ethereum).
 - _AuxHeap_ (auxiliary heap). It has the same properties as Heap, but it is used for the compiler to encode
-  calldata/copy the returndata from the calls to system contracts to not interfere with the standard Solidity memory
+  calldata/copy the `returndata` from the calls to system contracts to not interfere with the standard Solidity memory
   alignment.
 - _Stack_. Unlike Ethereum, stack is not the primary place to get arguments for opcodes. The biggest difference between
   stack on zkEVM and EVM is that on zkSync stack can be accessed at any location (just like memory). While users do not

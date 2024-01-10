@@ -185,7 +185,7 @@ mod tests {
             );
             storage
                 .blocks_dal()
-                .insert_l1_batch(&l1_batch, &[], BlockGasCount::default(), &[], &[])
+                .insert_l1_batch(&l1_batch, &[], BlockGasCount::default(), &[], &[], 0)
                 .await
                 .unwrap();
             storage

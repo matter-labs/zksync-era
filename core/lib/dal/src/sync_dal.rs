@@ -132,7 +132,7 @@ mod tests {
             ProtocolVersionId::latest(),
         );
         conn.blocks_dal()
-            .insert_l1_batch(&l1_batch_header, &[], BlockGasCount::default(), &[], &[])
+            .insert_l1_batch(&l1_batch_header, &[], BlockGasCount::default(), &[], &[], 0)
             .await
             .unwrap();
         conn.blocks_dal()
@@ -186,8 +186,14 @@ mod tests {
             block.virtual_blocks.unwrap(),
             miniblock_header.virtual_blocks
         );
-        assert_eq!(block.l1_gas_price, miniblock_header.l1_gas_price);
-        assert_eq!(block.l2_fair_gas_price, miniblock_header.l2_fair_gas_price);
+        assert_eq!(
+            block.l1_gas_price,
+            miniblock_header.batch_fee_input.l1_gas_price()
+        );
+        assert_eq!(
+            block.l2_fair_gas_price,
+            miniblock_header.batch_fee_input.fair_l2_gas_price()
+        );
         assert_eq!(block.operator_address, miniblock_header.fee_account_address);
         assert!(block.transactions.is_none());
 
@@ -203,7 +209,7 @@ mod tests {
         l1_batch_header.number = L1BatchNumber(1);
         l1_batch_header.timestamp = 1;
         conn.blocks_dal()
-            .insert_l1_batch(&l1_batch_header, &[], BlockGasCount::default(), &[], &[])
+            .insert_l1_batch(&l1_batch_header, &[], BlockGasCount::default(), &[], &[], 0)
             .await
             .unwrap();
         conn.blocks_dal()

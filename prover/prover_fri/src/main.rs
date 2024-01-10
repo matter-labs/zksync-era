@@ -1,5 +1,5 @@
 #![feature(generic_const_exprs)]
-use std::future::Future;
+use std::{future::Future, sync::Arc};
 
 use anyhow::Context as _;
 use local_ip_address::local_ip;
@@ -9,7 +9,7 @@ use tokio::{
     task::JoinHandle,
 };
 use zksync_config::configs::{
-    fri_prover_group::FriProverGroupConfig, FriProverConfig, PostgresConfig, ProverGroupConfig,
+    fri_prover_group::FriProverGroupConfig, FriProverConfig, PostgresConfig,
 };
 use zksync_dal::ConnectionPool;
 use zksync_env_config::{
@@ -17,8 +17,7 @@ use zksync_env_config::{
     FromEnv,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_prover_fri_utils::get_all_circuit_id_round_tuples_for;
-use zksync_prover_utils::region_fetcher::get_zone;
+use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::CircuitIdRoundTuple,
@@ -39,9 +38,10 @@ async fn graceful_shutdown(port: u16) -> anyhow::Result<impl Future<Output = ()>
         .await
         .context("failed to build a connection pool")?;
     let host = local_ip().context("Failed obtaining local IP address")?;
-    let prover_group_config =
-        ProverGroupConfig::from_env().context("ProverGroupConfig::from_env()")?;
-    let zone = get_zone(&prover_group_config).await.context("get_zone()")?;
+    let zone_url = &FriProverConfig::from_env()
+        .context("FriProverConfig::from_env()")?
+        .zone_read_url;
+    let zone = get_zone(zone_url).await.context("get_zone()")?;
     let address = SocketAddress { host, port };
     Ok(async move {
         pool.access_storage()
@@ -119,13 +119,16 @@ async fn main() -> anyhow::Result<()> {
         circuit_ids_for_round_to_be_proven.clone()
     );
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let pool = ConnectionPool::builder(
-        postgres_config.prover_url()?,
-        postgres_config.max_connections()?,
-    )
-    .build()
-    .await
-    .context("failed to build a connection pool")?;
+
+    // There are 2 threads using the connection pool:
+    // 1. The prover thread, which is used to update the prover job status.
+    // 2. The socket listener thread, which is used to update the prover instance status.
+    const MAX_POOL_SIZE_FOR_PROVER: u32 = 2;
+
+    let pool = ConnectionPool::builder(postgres_config.prover_url()?, MAX_POOL_SIZE_FOR_PROVER)
+        .build()
+        .await
+        .context("failed to build a connection pool")?;
     let port = prover_config.witness_vector_receiver_port;
     let prover_tasks = get_prover_tasks(
         prover_config,
@@ -167,7 +170,7 @@ async fn get_prover_tasks(
     prover_config: FriProverConfig,
     stop_receiver: Receiver<bool>,
     store_factory: ObjectStoreFactory,
-    public_blob_store: Option<Box<dyn ObjectStore>>,
+    public_blob_store: Option<Arc<dyn ObjectStore>>,
     pool: ConnectionPool,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
@@ -201,7 +204,7 @@ async fn get_prover_tasks(
     prover_config: FriProverConfig,
     stop_receiver: Receiver<bool>,
     store_factory: ObjectStoreFactory,
-    public_blob_store: Option<Box<dyn ObjectStore>>,
+    public_blob_store: Option<Arc<dyn ObjectStore>>,
     pool: ConnectionPool,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
@@ -218,9 +221,9 @@ async fn get_prover_tasks(
     let shared_witness_vector_queue = Arc::new(Mutex::new(witness_vector_queue));
     let consumer = shared_witness_vector_queue.clone();
 
-    let prover_group_config =
-        ProverGroupConfig::from_env().context("ProverGroupConfig::from_env()")?;
-    let zone = get_zone(&prover_group_config).await.context("get_zone()")?;
+    let zone = get_zone(&prover_config.zone_read_url)
+        .await
+        .context("get_zone()")?;
     let local_ip = local_ip().context("Failed obtaining local IP address")?;
     let address = SocketAddress {
         host: local_ip,

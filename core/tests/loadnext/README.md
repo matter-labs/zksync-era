@@ -1,6 +1,6 @@
 # Loadnext: loadtest for zkSync
 
-Loadnext is an utility for random stress-testing the zkSync server. It is capable of simulating the behavior of many
+Loadnext is a utility for random stress-testing the zkSync server. It is capable of simulating the behavior of many
 independent users of zkSync network, who are sending quasi-random requests to the server.
 
 The general flow is as follows:
@@ -18,7 +18,7 @@ The general flow is as follows:
 
 It:
 
-- doesn't care whether the server is alive or not. At worst, it will just consider the test failed.
+- doesn't care whether the server is alive or not. In the worst-case scenario, it will simply mark the test as failed.
 - does a unique set of operations for each participating account.
 - sends transactions and priority operations.
 - sends incorrect transactions as well as correct ones and compares the outcome to the expected one.

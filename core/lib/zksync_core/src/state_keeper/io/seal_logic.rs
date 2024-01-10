@@ -13,6 +13,7 @@ use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
     block::{unpack_block_info, L1BatchHeader, MiniblockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
+    fee_model::BatchFeeInput,
     l1::L1Tx,
     l2::L2Tx,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
@@ -129,6 +130,7 @@ impl UpdatesManager {
             base_system_contracts_hashes: self.base_system_contract_hashes(),
             protocol_version: Some(self.protocol_version()),
             system_logs: finished_batch.final_execution_state.system_logs,
+            pubdata_input: finished_batch.pubdata_input,
         };
 
         let events_queue = finished_batch
@@ -143,6 +145,10 @@ impl UpdatesManager {
                 self.l1_batch.l1_gas_count,
                 &events_queue,
                 &finished_batch.final_execution_state.storage_refunds,
+                self.l1_batch
+                    .block_execution_metrics
+                    .estimated_circuits_used
+                    .ceil() as u32,
             )
             .await
             .unwrap();
@@ -327,8 +333,7 @@ impl MiniblockSealCommand {
             l2_tx_count: l2_tx_count as u16,
             fee_account_address: self.fee_account_address,
             base_fee_per_gas: self.base_fee_per_gas,
-            l1_gas_price: self.l1_gas_price,
-            l2_fair_gas_price: self.fair_l2_gas_price,
+            batch_fee_input: BatchFeeInput::l1_pegged(self.l1_gas_price, self.fair_l2_gas_price),
             base_system_contracts_hashes: self.base_system_contracts_hashes,
             protocol_version: self.protocol_version,
             virtual_blocks: self.miniblock.virtual_blocks,

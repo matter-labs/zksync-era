@@ -10,19 +10,19 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 # NVM
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
 # All necessary stuff
-sudo apt-get install build-essential pkg-config cmake clang lldb lld libssl-dev postgresql docker-compose
+sudo apt-get install build-essential pkg-config cmake clang lldb lld libssl-dev postgresql
 # Docker
 sudo usermod -aG docker YOUR_USER
 
 ## You might need to re-connect (due to usermod change).
 
 # Node & yarn
-nvm install node
+nvm install 18
 npm install -g yarn
 yarn set version 1.22.19
 
 # SQL tools
-cargo install sqlx-cli --version 0.5.13
+cargo install sqlx-cli --version 0.7.3
 # Stop default postgres (as we'll use the docker one)
 sudo systemctl stop postgresql
 # Start docker.
@@ -36,7 +36,7 @@ zkSync currently can be launched on any \*nix operating system (e.g. any linux d
 If you're using Windows, then make sure to use WSL 2, since WSL 1 is known to cause troubles.
 
 Additionally, if you are going to use WSL 2, make sure that your project is located in the _linux filesystem_, since
-accessing NTFS partitions from inside of WSL is very slow.
+accessing NTFS partitions from within WSL is very slow.
 
 If you're using MacOS with an ARM processor (e.g. M1/M2), make sure that you are working in the _native_ environment
 (e.g. your terminal and IDE don't run in Rosetta, and your toolchain is native). Trying to work with zkSync code via
@@ -55,9 +55,9 @@ want to only have CLI tool, you need the `docker-ce` package and you can follow
 
 Installing `docker` via `snap` or from the default repository can cause troubles.
 
-You need to install both `docker` and `docker-compose`.
+You need to install both `docker` and `docker compose`.
 
-**Note:** `docker-compose` is installed automatically with `Docker Desktop`.
+**Note:** `docker compose` is installed automatically with `Docker Desktop`.
 
 **Note:** On linux you may encounter the following error when you’ll try to work with `zksync`:
 
@@ -82,7 +82,7 @@ sudo usermod -a -G docker your_user_name
 After that, you should logout and login again (user groups are refreshed after the login). The problem should be solved
 at this step.
 
-If logging out does not help, restarting the computer should.
+If logging out does not resolve the issue, restarting the computer should.
 
 ## `Node` & `Yarn`
 
@@ -90,10 +90,10 @@ If logging out does not help, restarting the computer should.
    `Node.js`, we suggest you to install [nvm](https://github.com/nvm-sh/nvm). It will allow you to update `Node.js`
    version easily in the future (by running `nvm use` in the root of the repository)
 2. Install `yarn` (make sure to get version 1.22.19 - you can change the version by running `yarn set version 1.22.19`).
-   Instructions can be found on the [official site](https://classic.yarnpkg.com/en/docs/install/).  
-   Check if `yarn` is installed by running `yarn -v`. If you face any problems when installing `yarn`, it might be the
-   case that your package manager installed the wrong package.Make sure to thoroughly follow the instructions above on
-   the official website. It contains a lot of troubleshooting guides in it.
+   Instructions can be found on the [official site](https://classic.yarnpkg.com/en/docs/install/). Check if `yarn` is
+   installed by running `yarn -v`. If you face any problems when installing `yarn`, it might be the case that your
+   package manager installed the wrong package.Make sure to thoroughly follow the instructions above on the official
+   website. It contains a lot of troubleshooting guides in it.
 
 ## `Axel`
 
@@ -123,7 +123,7 @@ Make sure the version is higher than `2.17.10`.
 
 In order to compile RocksDB, you must have LLVM available. On debian-based linux it can be installed as follows:
 
-On linux:
+On debian-based linux:
 
 ```bash
 sudo apt-get install build-essential pkg-config cmake clang lldb lld
@@ -144,7 +144,7 @@ On mac:
 brew install openssl
 ```
 
-On linux:
+On debian-based linux:
 
 ```bash
 sudo apt-get install libssl-dev
@@ -196,7 +196,7 @@ On mac:
 brew install postgresql@14
 ```
 
-On linux:
+On debian-based linux:
 
 ```bash
 sudo apt-get install postgresql
@@ -217,15 +217,25 @@ SQLx is a Rust library we use to interact with Postgres, and its CLI is used to 
 features of the library.
 
 ```bash
-cargo install sqlx-cli --version 0.5.13
+cargo install sqlx-cli --version 0.7.3
 ```
 
 ## Solidity compiler `solc`
 
 Install the latest solidity compiler.
 
+On mac:
+
 ```bash
 brew install solidity
+```
+
+On debian-based linux:
+
+```bash
+sudo add-apt-repository ppa:ethereum/ethereum
+sudo apt-get update
+sudo apt-get install solc
 ```
 
 Alternatively, download a [precompiled version](https://github.com/ethereum/solc-bin) and add it to your PATH.

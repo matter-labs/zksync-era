@@ -9,7 +9,7 @@ use tokio::sync::RwLock;
 use zksync::{error::ClientError, operations::SyncTransactionHandle, HttpClient};
 use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 use zksync_types::{api::TransactionReceipt, Address, Nonce, H256, U256, U64};
-use zksync_web3_decl::jsonrpsee::core::Error as CoreError;
+use zksync_web3_decl::jsonrpsee::core::ClientError as CoreError;
 
 use crate::{
     account::tx_command_executor::SubmitResult,
@@ -136,7 +136,7 @@ impl AccountLifespan {
             let is_l1_transaction =
                 matches!(command.command_type, TxType::L1Execute | TxType::Deposit);
             if is_l1_transaction && l1_tx_count >= MAX_L1_TRANSACTIONS {
-                continue; // Skip command to not run out of ethereum on L1
+                continue; // Skip command to not run out of Ethereum on L1
             }
 
             // The new transaction should be sent only if mempool is not full

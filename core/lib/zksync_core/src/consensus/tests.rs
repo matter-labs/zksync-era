@@ -8,7 +8,7 @@ use super::*;
 
 // In the current implementation, consensus certificates are created asynchronously
 // for the miniblocks constructed by the StateKeeper. This means that consensus actor
-// is effectively just backfilling the consensus certificates for the miniblocks in storage.
+// is effectively just back filling the consensus certificates for the miniblocks in storage.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_backfill() {
     const OPERATOR_ADDRESS: Address = Address::repeat_byte(17);

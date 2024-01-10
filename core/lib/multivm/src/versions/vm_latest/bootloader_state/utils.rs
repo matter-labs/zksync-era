@@ -1,4 +1,4 @@
-use zksync_types::U256;
+use zksync_types::{ethabi, U256};
 use zksync_utils::{bytecode::CompressedBytecodeInfo, bytes_to_be_words, h256_to_u256};
 
 use super::tx::BootloaderTx;
@@ -13,7 +13,7 @@ use crate::{
             TX_DESCRIPTION_OFFSET, TX_OPERATOR_L2_BLOCK_INFO_OFFSET,
             TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO, TX_OVERHEAD_OFFSET, TX_TRUSTED_GAS_LIMIT_OFFSET,
         },
-        types::internals::pubdata::PubdataInput,
+        types::internals::PubdataInput,
     },
 };
 
@@ -94,8 +94,8 @@ pub(crate) fn apply_l2_block(
     bootloader_l2_block: &BootloaderL2Block,
     txs_index: usize,
 ) {
-    // Since L2 block infos start from the TX_OPERATOR_L2_BLOCK_INFO_OFFSET and each
-    // L2 block info takes TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO slots, the position where the L2 block info
+    // Since L2 block information start from the `TX_OPERATOR_L2_BLOCK_INFO_OFFSET` and each
+    // L2 block info takes `TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO` slots, the position where the L2 block info
     // for this transaction needs to be written is:
 
     let block_position =
@@ -124,7 +124,12 @@ pub(crate) fn apply_pubdata_to_memory(
     // - The other slot is for the 0x20 offset for the calldata.
     let l1_messenger_pubdata_start_slot = OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET + 2;
 
-    let pubdata = pubdata_information.build_pubdata();
+    // Need to skip first word as it represents array offset
+    // while bootloader expects only [len || data]
+    let pubdata = ethabi::encode(&[ethabi::Token::Bytes(
+        pubdata_information.build_pubdata(true),
+    )])[32..]
+        .to_vec();
 
     assert!(
         pubdata.len() / 32 <= OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS - 2,

@@ -319,7 +319,7 @@ pub(super) struct Delayer {
     delay_interval: Duration,
     // Notifies the tests about the next L1 batch number and tree root hash when the calculator
     // runs out of L1 batches to process. (Since RocksDB is exclusive, we cannot just create
-    // another instance to check these params on the test side without stopping the calc.)
+    // another instance to check these params on the test side without stopping the calculation.)
     #[cfg(test)]
     pub delay_notifier: mpsc::UnboundedSender<(L1BatchNumber, H256)>,
 }
@@ -331,6 +331,10 @@ impl Delayer {
             #[cfg(test)]
             delay_notifier: mpsc::unbounded_channel().0,
         }
+    }
+
+    pub fn delay_interval(&self) -> Duration {
+        self.delay_interval
     }
 
     #[cfg_attr(not(test), allow(unused))] // `tree` is only used in test mode

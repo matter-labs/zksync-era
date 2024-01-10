@@ -1,7 +1,7 @@
 [package]
 name = "zksync_eth_client"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
 repository = "https://github.com/matter-labs/zksync-era"
@@ -10,7 +10,7 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "dd05139b76ab0843443ab3ff730174942c825dae" }
+vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
 zksync_types = { path = "../types" }
 zksync_eth_signer = { path = "../eth_signer" }
 zksync_config = { path = "../config" }
@@ -18,9 +18,10 @@ zksync_contracts = { path = "../contracts" }
 
 jsonrpc-core = "18"
 serde = "1.0.90"
-hex = "0.4"
-anyhow = "1.0"
 thiserror = "1"
-tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"
 tracing = "0.1"
+
+[dev-dependencies]
+static_assertions = "1.1.0"
+tokio = { version = "1", features = ["full"] }

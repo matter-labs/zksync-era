@@ -2,33 +2,47 @@ use std::convert::TryFrom;
 
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{AccountTreeId, L1BatchNumber, MiniblockNumber};
+use zksync_basic_types::{AccountTreeId, L1BatchNumber, MiniblockNumber, H256};
 use zksync_protobuf::{required, ProtoFmt};
 
 use crate::{commitment::L1BatchWithMetadata, Bytes, StorageKey, StorageValue};
 
+/// Information about all snapshots persisted by the node.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AllSnapshots {
+    /// L1 batch numbers for complete snapshots. Ordered by descending number (i.e., 0th element
+    /// corresponds to the newest snapshot).
     pub snapshots_l1_batch_numbers: Vec<L1BatchNumber>,
 }
 
-// used in dal to fetch certain snapshot data
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+/// Storage snapshot metadata. Used in DAL to fetch certain snapshot data.
+#[derive(Debug, Clone)]
 pub struct SnapshotMetadata {
+    /// L1 batch for the snapshot. The data in the snapshot captures node storage at the end of this batch.
     pub l1_batch_number: L1BatchNumber,
+    /// Path to the factory dependencies blob.
     pub factory_deps_filepath: String,
-    pub storage_logs_filepaths: Vec<String>,
+    /// Paths to the storage log blobs. Ordered by the chunk ID. If a certain chunk is not produced yet,
+    /// the corresponding path is `None`.
+    pub storage_logs_filepaths: Vec<Option<String>>,
 }
 
-//contains all data not contained in factory_deps/storage_logs files to perform restore process
+impl SnapshotMetadata {
+    /// Checks whether a snapshot is complete (contains all information to restore from).
+    pub fn is_complete(&self) -> bool {
+        self.storage_logs_filepaths.iter().all(Option::is_some)
+    }
+}
+
+/// Snapshot data returned by using JSON-RPC API.
+/// Contains all data not contained in `factory_deps` / `storage_logs` files to perform restore process.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotHeader {
     pub l1_batch_number: L1BatchNumber,
     pub miniblock_number: MiniblockNumber,
-    //ordered by chunk ids
+    /// Ordered by chunk IDs.
     pub storage_logs_chunks: Vec<SnapshotStorageLogsChunkMetadata>,
     pub factory_deps_filepath: String,
     pub last_l1_batch_with_metadata: L1BatchWithMetadata,
@@ -38,11 +52,11 @@ pub struct SnapshotHeader {
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotStorageLogsChunkMetadata {
     pub chunk_id: u64,
-    // can be either be a file available under http(s) or local filesystem path
+    // can be either be a file available under HTTP(s) or local filesystem path
     pub filepath: String,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotStorageLogsStorageKey {
     pub l1_batch_number: L1BatchNumber,
@@ -171,4 +185,14 @@ impl ProtoFmt for SnapshotStorageLogsChunk {
                 .collect(),
         }
     }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct SnapshotRecoveryStatus {
+    pub l1_batch_number: L1BatchNumber,
+    pub l1_batch_root_hash: H256,
+    pub miniblock_number: MiniblockNumber,
+    pub miniblock_root_hash: H256,
+    pub last_finished_chunk_id: Option<u64>,
+    pub total_chunk_count: u64,
 }

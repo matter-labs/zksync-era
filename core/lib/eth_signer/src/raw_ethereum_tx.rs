@@ -104,7 +104,7 @@ impl Transaction {
         let list_size = if signature.is_some() { 11 } else { 8 };
         stream.begin_list(list_size);
 
-        // append chain_id. from EIP-2930: chainId is defined to be an integer of arbitrary size.
+        // append `chain_id`. from EIP-2930: `chainId` is defined to be an integer of arbitrary size.
         stream.append(&chain_id);
 
         self.rlp_append_legacy(&mut stream);
@@ -123,7 +123,7 @@ impl Transaction {
         let list_size = if signature.is_some() { 12 } else { 9 };
         stream.begin_list(list_size);
 
-        // append chain_id. from EIP-2930: chainId is defined to be an integer of arbitrary size.
+        // append `chain_id`. from EIP-2930: `chainId` is defined to be an integer of arbitrary size.
         stream.append(&chain_id);
 
         stream.append(&self.nonce);

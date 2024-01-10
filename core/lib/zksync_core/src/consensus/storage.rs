@@ -205,7 +205,7 @@ impl SignedBlockStore {
         pool: ConnectionPool,
         genesis: &validator::FinalBlock,
     ) -> anyhow::Result<Self> {
-        // Ensure that genesis block has consensus field set in postgres.
+        // Ensure that genesis block has consensus field set in Postgres.
         let head = {
             let mut storage = storage(ctx, &pool).await.wrap("storage()")?;
             storage.put_block(ctx, genesis).await.wrap("put_block()")?;

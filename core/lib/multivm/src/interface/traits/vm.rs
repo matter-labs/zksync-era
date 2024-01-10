@@ -104,7 +104,10 @@ pub trait VmInterface<S, H: HistoryMode> {
         &mut self,
         tx: Transaction,
         with_compression: bool,
-    ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError> {
+    ) -> (
+        Result<(), BytecodeCompressionError>,
+        VmExecutionResultAndLogs,
+    ) {
         self.inspect_transaction_with_bytecode_compression(
             Self::TracerDispatcher::default(),
             tx,
@@ -118,7 +121,10 @@ pub trait VmInterface<S, H: HistoryMode> {
         tracer: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError>;
+    ) -> (
+        Result<(), BytecodeCompressionError>,
+        VmExecutionResultAndLogs,
+    );
 
     /// Record VM memory metrics.
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics;
@@ -133,6 +139,7 @@ pub trait VmInterface<S, H: HistoryMode> {
             block_tip_execution_result: result,
             final_execution_state: execution_state,
             final_bootloader_memory: Some(bootloader_memory),
+            pubdata_input: None,
         }
     }
 }

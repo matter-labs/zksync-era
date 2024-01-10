@@ -28,7 +28,7 @@ use crate::{
         constants::BOOTLOADER_HEAP_PAGE,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::{traits::VmTracer, utils::VmHook},
-        types::internals::{pubdata::PubdataInput, ZkSyncVmState},
+        types::internals::{PubdataInput, ZkSyncVmState},
         utils::logs::collect_events_and_l1_system_logs_after_timestamp,
         StorageOracle,
     },
@@ -56,7 +56,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
 
 impl<S: WriteStorage> PubdataTracer<S> {
     // Packs part of L1 Messenger total pubdata that corresponds to
-    // L2toL1Logs sent in the block
+    // `L2toL1Logs` sent in the block
     fn get_total_user_logs<H: HistoryMode>(
         &self,
         state: &ZkSyncVmState<S, H>,

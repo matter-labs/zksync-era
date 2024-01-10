@@ -43,8 +43,8 @@ impl BlocksDal<'_, '_> {
         Ok(count == 0)
     }
 
-    pub async fn get_sealed_l1_batch_number(&mut self) -> anyhow::Result<L1BatchNumber> {
-        let number = sqlx::query!(
+    pub async fn get_sealed_l1_batch_number(&mut self) -> sqlx::Result<Option<L1BatchNumber>> {
+        let row = sqlx::query!(
             r#"
             SELECT
                 MAX(number) AS "number"
@@ -55,11 +55,9 @@ impl BlocksDal<'_, '_> {
         .instrument("get_sealed_block_number")
         .report_latency()
         .fetch_one(self.storage.conn())
-        .await?
-        .number
-        .context("DAL invocation before genesis")?;
+        .await?;
 
-        Ok(L1BatchNumber(number as u32))
+        Ok(row.number.map(|num| L1BatchNumber(num as u32)))
     }
 
     pub async fn get_sealed_miniblock_number(&mut self) -> sqlx::Result<MiniblockNumber> {
@@ -80,10 +78,28 @@ impl BlocksDal<'_, '_> {
         Ok(MiniblockNumber(number as u32))
     }
 
+    /// Returns the number of the earliest L1 batch present in the DB, or `None` if there are no L1 batches.
+    pub async fn get_earliest_l1_batch_number(&mut self) -> sqlx::Result<Option<L1BatchNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                MIN(number) AS "number"
+            FROM
+                l1_batches
+            "#
+        )
+        .instrument("get_earliest_l1_batch_number")
+        .report_latency()
+        .fetch_one(self.storage.conn())
+        .await?;
+
+        Ok(row.number.map(|num| L1BatchNumber(num as u32)))
+    }
+
     pub async fn get_last_l1_batch_number_with_metadata(
         &mut self,
-    ) -> anyhow::Result<L1BatchNumber> {
-        let number: i64 = sqlx::query!(
+    ) -> sqlx::Result<Option<L1BatchNumber>> {
+        let row = sqlx::query!(
             r#"
             SELECT
                 MAX(number) AS "number"
@@ -96,10 +112,32 @@ impl BlocksDal<'_, '_> {
         .instrument("get_last_block_number_with_metadata")
         .report_latency()
         .fetch_one(self.storage.conn())
-        .await?
-        .number
-        .context("DAL invocation before genesis")?;
-        Ok(L1BatchNumber(number as u32))
+        .await?;
+
+        Ok(row.number.map(|num| L1BatchNumber(num as u32)))
+    }
+
+    /// Returns the number of the earliest L1 batch with metadata (= state hash) present in the DB,
+    /// or `None` if there are no such L1 batches.
+    pub async fn get_earliest_l1_batch_number_with_metadata(
+        &mut self,
+    ) -> sqlx::Result<Option<L1BatchNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                MIN(number) AS "number"
+            FROM
+                l1_batches
+            WHERE
+                hash IS NOT NULL
+            "#
+        )
+        .instrument("get_earliest_l1_batch_number_with_metadata")
+        .report_latency()
+        .fetch_one(self.storage.conn())
+        .await?;
+
+        Ok(row.number.map(|num| L1BatchNumber(num as u32)))
     }
 
     pub async fn get_l1_batches_for_eth_tx_id(
@@ -123,7 +161,8 @@ impl BlocksDal<'_, '_> {
                 default_aa_code_hash,
                 protocol_version,
                 system_logs,
-                compressed_state_diffs
+                compressed_state_diffs,
+                pubdata_input
             FROM
                 l1_batches
             WHERE
@@ -182,7 +221,8 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 compressed_state_diffs,
                 events_queue_commitment,
-                bootloader_initial_content_commitment
+                bootloader_initial_content_commitment,
+                pubdata_input
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -218,7 +258,8 @@ impl BlocksDal<'_, '_> {
                 default_aa_code_hash,
                 protocol_version,
                 compressed_state_diffs,
-                system_logs
+                system_logs,
+                pubdata_input
             FROM
                 l1_batches
             WHERE
@@ -392,6 +433,7 @@ impl BlocksDal<'_, '_> {
         predicted_block_gas: BlockGasCount,
         events_queue: &[LogQuery],
         storage_refunds: &[u32],
+        predicted_circuits: u32,
     ) -> anyhow::Result<()> {
         let priority_onchain_data: Vec<Vec<u8>> = header
             .priority_ops_onchain_data
@@ -408,6 +450,7 @@ impl BlocksDal<'_, '_> {
             .iter()
             .map(|log| log.0.to_bytes().to_vec())
             .collect::<Vec<Vec<u8>>>();
+        let pubdata_input = header.pubdata_input.clone();
 
         // Serialization should always succeed.
         let initial_bootloader_contents = serde_json::to_value(initial_bootloader_contents)
@@ -442,6 +485,8 @@ impl BlocksDal<'_, '_> {
                     protocol_version,
                     system_logs,
                     storage_refunds,
+                    pubdata_input,
+                    predicted_circuits,
                     created_at,
                     updated_at
                 )
@@ -465,6 +510,8 @@ impl BlocksDal<'_, '_> {
                     $16,
                     $17,
                     $18,
+                    $19,
+                    $20,
                     NOW(),
                     NOW()
                 )
@@ -487,6 +534,8 @@ impl BlocksDal<'_, '_> {
             header.protocol_version.map(|v| v as i32),
             &system_logs,
             &storage_refunds,
+            pubdata_input,
+            predicted_circuits as i32,
         )
         .execute(transaction.conn())
         .await?;
@@ -545,8 +594,8 @@ impl BlocksDal<'_, '_> {
             miniblock_header.l2_tx_count as i32,
             miniblock_header.fee_account_address.as_bytes(),
             base_fee_per_gas,
-            miniblock_header.l1_gas_price as i64,
-            miniblock_header.l2_fair_gas_price as i64,
+            miniblock_header.batch_fee_input.l1_gas_price() as i64,
+            miniblock_header.batch_fee_input.fair_l2_gas_price() as i64,
             MAX_GAS_PER_PUBDATA_BYTE as i64,
             miniblock_header
                 .base_system_contracts_hashes
@@ -961,7 +1010,8 @@ impl BlocksDal<'_, '_> {
                 compressed_state_diffs,
                 system_logs,
                 events_queue_commitment,
-                bootloader_initial_content_commitment
+                bootloader_initial_content_commitment,
+                pubdata_input
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1141,7 +1191,8 @@ impl BlocksDal<'_, '_> {
                 compressed_state_diffs,
                 system_logs,
                 events_queue_commitment,
-                bootloader_initial_content_commitment
+                bootloader_initial_content_commitment,
+                pubdata_input
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1248,7 +1299,8 @@ impl BlocksDal<'_, '_> {
                 compressed_state_diffs,
                 protocol_version,
                 events_queue_commitment,
-                bootloader_initial_content_commitment
+                bootloader_initial_content_commitment,
+                pubdata_input
             FROM
                 (
                     SELECT
@@ -1329,7 +1381,8 @@ impl BlocksDal<'_, '_> {
                         compressed_state_diffs,
                         system_logs,
                         events_queue_commitment,
-                        bootloader_initial_content_commitment
+                        bootloader_initial_content_commitment,
+                        pubdata_input
                     FROM
                         l1_batches
                         LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1462,7 +1515,8 @@ impl BlocksDal<'_, '_> {
                     compressed_state_diffs,
                     system_logs,
                     events_queue_commitment,
-                    bootloader_initial_content_commitment
+                    bootloader_initial_content_commitment,
+                    pubdata_input
                 FROM
                     l1_batches
                     LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1534,7 +1588,8 @@ impl BlocksDal<'_, '_> {
                 compressed_state_diffs,
                 system_logs,
                 events_queue_commitment,
-                bootloader_initial_content_commitment
+                bootloader_initial_content_commitment,
+                pubdata_input
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1616,7 +1671,8 @@ impl BlocksDal<'_, '_> {
                 compressed_state_diffs,
                 system_logs,
                 events_queue_commitment,
-                bootloader_initial_content_commitment
+                bootloader_initial_content_commitment,
+                pubdata_input
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1722,7 +1778,8 @@ impl BlocksDal<'_, '_> {
                 default_aa_code_hash,
                 protocol_version,
                 compressed_state_diffs,
-                system_logs
+                system_logs,
+                pubdata_input
             FROM
                 l1_batches
             ORDER BY
@@ -2107,7 +2164,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            number.0 as u32
+            number.0 as i32
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -2131,7 +2188,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            miniblock_number.0 as u32
+            miniblock_number.0 as i32
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -2297,7 +2354,7 @@ mod tests {
         header.l2_to_l1_messages.push(vec![33; 33]);
 
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
+            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
             .await
             .unwrap();
 
@@ -2341,7 +2398,7 @@ mod tests {
             execute: 10,
         };
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], &[])
+            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], 0)
             .await
             .unwrap();
 
@@ -2349,7 +2406,7 @@ mod tests {
         header.timestamp += 100;
         predicted_gas += predicted_gas;
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], &[])
+            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], 0)
             .await
             .unwrap();
 
@@ -2409,7 +2466,7 @@ mod tests {
                 .await
                 .unwrap();
             conn.blocks_dal()
-                .insert_l1_batch(&l1_batch, &[], BlockGasCount::default(), &[], &[])
+                .insert_l1_batch(&l1_batch, &[], BlockGasCount::default(), &[], &[], 0)
                 .await
                 .unwrap();
             conn.blocks_dal()

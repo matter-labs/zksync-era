@@ -1,12 +1,7 @@
 use std::fmt;
 
-use multivm::vm_latest::constants::{ERGS_PER_CIRCUIT, MAX_CYCLES_FOR_TX};
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_types::{
-    circuit::{GEOMETRY_CONFIG, SCHEDULER_UPPER_BOUND},
-    tx::tx_execution_info::{DeduplicatedWritesMetrics, ExecutionMetrics},
-    ProtocolVersionId,
-};
+use zksync_types::{tx::tx_execution_info::ExecutionMetrics, ProtocolVersionId};
 
 // Local uses
 use crate::state_keeper::seal_criteria::{SealCriterion, SealData, SealResolution};
@@ -15,20 +10,12 @@ use crate::state_keeper::seal_criteria::{SealCriterion, SealData, SealResolution
 // Otherwise witness generation will fail and proof won't be generated.
 
 #[derive(Debug, Default)]
-pub struct RepeatedWritesCriterion;
-#[derive(Debug, Default)]
-pub struct InitialWritesCriterion;
-#[derive(Debug, Default)]
-pub struct MaxCyclesCriterion;
-#[derive(Debug, Default)]
-pub struct ComputationalGasCriterion;
-#[derive(Debug, Default)]
-pub struct L2ToL1LogsCriterion;
+pub struct CircuitsCriterion;
 
 trait MetricExtractor {
     const PROM_METRIC_CRITERION_NAME: &'static str;
     fn limit_per_block(protocol_version: ProtocolVersionId) -> usize;
-    fn extract(metric: &ExecutionMetrics, writes: &DeduplicatedWritesMetrics) -> usize;
+    fn extract(metric: &ExecutionMetrics) -> usize;
 }
 
 impl<T> SealCriterion for T
@@ -51,15 +38,13 @@ where
             * config.close_block_at_geometry_percentage)
             .round();
 
-        if T::extract(&tx_data.execution_metrics, &tx_data.writes_metrics) > reject_bound as usize {
+        if T::extract(&tx_data.execution_metrics) > reject_bound as usize {
             SealResolution::Unexecutable("ZK proof cannot be generated for a transaction".into())
-        } else if T::extract(&block_data.execution_metrics, &block_data.writes_metrics)
+        } else if T::extract(&block_data.execution_metrics)
             >= T::limit_per_block(protocol_version_id)
         {
             SealResolution::ExcludeAndSeal
-        } else if T::extract(&block_data.execution_metrics, &block_data.writes_metrics)
-            > close_bound as usize
-        {
+        } else if T::extract(&block_data.execution_metrics) > close_bound as usize {
             SealResolution::IncludeAndSeal
         } else {
             SealResolution::NoSeal
@@ -71,85 +56,21 @@ where
     }
 }
 
-impl MetricExtractor for RepeatedWritesCriterion {
-    const PROM_METRIC_CRITERION_NAME: &'static str = "repeated_storage_writes";
-
-    fn limit_per_block(protocol_version_id: ProtocolVersionId) -> usize {
-        if protocol_version_id.is_pre_boojum() {
-            GEOMETRY_CONFIG.limit_for_repeated_writes_pubdata_hasher as usize
-        } else {
-            // In boojum there is no limit for repeated writes.
-            usize::MAX
-        }
-    }
-
-    fn extract(_metrics: &ExecutionMetrics, writes: &DeduplicatedWritesMetrics) -> usize {
-        writes.repeated_storage_writes
-    }
-}
-
-impl MetricExtractor for InitialWritesCriterion {
-    const PROM_METRIC_CRITERION_NAME: &'static str = "initial_storage_writes";
-
-    fn limit_per_block(protocol_version_id: ProtocolVersionId) -> usize {
-        if protocol_version_id.is_pre_boojum() {
-            GEOMETRY_CONFIG.limit_for_initial_writes_pubdata_hasher as usize
-        } else {
-            // In boojum there is no limit for initial writes.
-            usize::MAX
-        }
-    }
-
-    fn extract(_metrics: &ExecutionMetrics, writes: &DeduplicatedWritesMetrics) -> usize {
-        writes.initial_storage_writes
-    }
-}
-
-impl MetricExtractor for MaxCyclesCriterion {
-    const PROM_METRIC_CRITERION_NAME: &'static str = "max_cycles";
-
-    fn limit_per_block(_protocol_version_id: ProtocolVersionId) -> usize {
-        MAX_CYCLES_FOR_TX as usize
-    }
-
-    fn extract(metrics: &ExecutionMetrics, _writes: &DeduplicatedWritesMetrics) -> usize {
-        metrics.cycles_used as usize
-    }
-}
-
-impl MetricExtractor for ComputationalGasCriterion {
-    const PROM_METRIC_CRITERION_NAME: &'static str = "computational_gas";
+impl MetricExtractor for CircuitsCriterion {
+    const PROM_METRIC_CRITERION_NAME: &'static str = "circuits";
 
     fn limit_per_block(_protocol_version_id: ProtocolVersionId) -> usize {
         // We subtract constant to take into account that circuits may be not fully filled.
         // This constant should be greater than number of circuits types
         // but we keep it larger to be on the safe side.
-        const MARGIN_NUMBER_OF_CIRCUITS: usize = 100;
-        const MAX_NUMBER_OF_MUTLIINSTANCE_CIRCUITS: usize =
-            SCHEDULER_UPPER_BOUND as usize - MARGIN_NUMBER_OF_CIRCUITS;
+        const MARGIN_NUMBER_OF_CIRCUITS: usize = 10000;
+        const MAX_NUMBER_OF_CIRCUITS: usize = (1 << 14) + (1 << 13) - MARGIN_NUMBER_OF_CIRCUITS;
 
-        MAX_NUMBER_OF_MUTLIINSTANCE_CIRCUITS * ERGS_PER_CIRCUIT as usize
+        MAX_NUMBER_OF_CIRCUITS
     }
 
-    fn extract(metrics: &ExecutionMetrics, _writes: &DeduplicatedWritesMetrics) -> usize {
-        metrics.computational_gas_used as usize
-    }
-}
-
-impl MetricExtractor for L2ToL1LogsCriterion {
-    const PROM_METRIC_CRITERION_NAME: &'static str = "l2_to_l1_logs";
-
-    fn limit_per_block(protocol_version_id: ProtocolVersionId) -> usize {
-        if protocol_version_id.is_pre_boojum() {
-            GEOMETRY_CONFIG.limit_for_l1_messages_merklizer as usize
-        } else {
-            // In boojum there is no limit for L2 to L1 logs.
-            usize::MAX
-        }
-    }
-
-    fn extract(metrics: &ExecutionMetrics, _writes: &DeduplicatedWritesMetrics) -> usize {
-        metrics.l2_to_l1_logs
+    fn extract(metrics: &ExecutionMetrics) -> usize {
+        metrics.estimated_circuits_used.ceil() as usize
     }
 }
 
@@ -167,7 +88,6 @@ mod tests {
 
     fn test_no_seal_block_resolution(
         block_execution_metrics: ExecutionMetrics,
-        block_writes_metrics: DeduplicatedWritesMetrics,
         criterion: &dyn SealCriterion,
         protocol_version: ProtocolVersionId,
     ) {
@@ -178,7 +98,6 @@ mod tests {
             0,
             &SealData {
                 execution_metrics: block_execution_metrics,
-                writes_metrics: block_writes_metrics,
                 ..SealData::default()
             },
             &SealData::default(),
@@ -189,7 +108,6 @@ mod tests {
 
     fn test_include_and_seal_block_resolution(
         block_execution_metrics: ExecutionMetrics,
-        block_writes_metrics: DeduplicatedWritesMetrics,
         criterion: &dyn SealCriterion,
         protocol_version: ProtocolVersionId,
     ) {
@@ -200,7 +118,6 @@ mod tests {
             0,
             &SealData {
                 execution_metrics: block_execution_metrics,
-                writes_metrics: block_writes_metrics,
                 ..SealData::default()
             },
             &SealData::default(),
@@ -211,7 +128,6 @@ mod tests {
 
     fn test_exclude_and_seal_block_resolution(
         block_execution_metrics: ExecutionMetrics,
-        block_writes_metrics: DeduplicatedWritesMetrics,
         criterion: &dyn SealCriterion,
         protocol_version: ProtocolVersionId,
     ) {
@@ -222,7 +138,6 @@ mod tests {
             0,
             &SealData {
                 execution_metrics: block_execution_metrics,
-                writes_metrics: block_writes_metrics,
                 ..SealData::default()
             },
             &SealData::default(),
@@ -233,7 +148,6 @@ mod tests {
 
     fn test_unexecutable_tx_resolution(
         tx_execution_metrics: ExecutionMetrics,
-        tx_writes_metrics: DeduplicatedWritesMetrics,
         criterion: &dyn SealCriterion,
         protocol_version: ProtocolVersionId,
     ) {
@@ -245,7 +159,6 @@ mod tests {
             &SealData::default(),
             &SealData {
                 execution_metrics: tx_execution_metrics,
-                writes_metrics: tx_writes_metrics,
                 ..SealData::default()
             },
             protocol_version,
@@ -260,17 +173,11 @@ mod tests {
     macro_rules! test_scenario_execution_metrics {
         ($criterion: tt, $metric_name: ident, $metric_type: ty, $protocol_version: expr) => {
             let config = get_config();
-            let writes_metrics = DeduplicatedWritesMetrics::default();
             let block_execution_metrics = ExecutionMetrics {
                 $metric_name: ($criterion::limit_per_block($protocol_version) / 2) as $metric_type,
                 ..ExecutionMetrics::default()
             };
-            test_no_seal_block_resolution(
-                block_execution_metrics,
-                writes_metrics,
-                &$criterion,
-                $protocol_version,
-            );
+            test_no_seal_block_resolution(block_execution_metrics, &$criterion, $protocol_version);
 
             let block_execution_metrics = ExecutionMetrics {
                 $metric_name: ($criterion::limit_per_block($protocol_version) - 1) as $metric_type,
@@ -279,7 +186,6 @@ mod tests {
 
             test_include_and_seal_block_resolution(
                 block_execution_metrics,
-                writes_metrics,
                 &$criterion,
                 $protocol_version,
             );
@@ -291,7 +197,6 @@ mod tests {
 
             test_exclude_and_seal_block_resolution(
                 block_execution_metrics,
-                writes_metrics,
                 &$criterion,
                 $protocol_version,
             );
@@ -304,117 +209,16 @@ mod tests {
                 ..ExecutionMetrics::default()
             };
 
-            test_unexecutable_tx_resolution(
-                tx_execution_metrics,
-                writes_metrics,
-                &$criterion,
-                $protocol_version,
-            );
+            test_unexecutable_tx_resolution(tx_execution_metrics, &$criterion, $protocol_version);
         };
-    }
-
-    macro_rules! test_scenario_writes_metrics {
-        ($criterion:tt, $metric_name:ident, $metric_type:ty, $protocol_version:expr) => {
-            let config = get_config();
-            let execution_metrics = ExecutionMetrics::default();
-            let block_writes_metrics = DeduplicatedWritesMetrics {
-                $metric_name: ($criterion::limit_per_block($protocol_version) / 2) as $metric_type,
-                ..Default::default()
-            };
-            test_no_seal_block_resolution(
-                execution_metrics,
-                block_writes_metrics,
-                &$criterion,
-                $protocol_version,
-            );
-
-            let block_writes_metrics = DeduplicatedWritesMetrics {
-                $metric_name: ($criterion::limit_per_block($protocol_version) - 1) as $metric_type,
-                ..Default::default()
-            };
-
-            test_include_and_seal_block_resolution(
-                execution_metrics,
-                block_writes_metrics,
-                &$criterion,
-                $protocol_version,
-            );
-
-            let block_writes_metrics = DeduplicatedWritesMetrics {
-                $metric_name: ($criterion::limit_per_block($protocol_version)) as $metric_type,
-                ..Default::default()
-            };
-
-            test_exclude_and_seal_block_resolution(
-                execution_metrics,
-                block_writes_metrics,
-                &$criterion,
-                $protocol_version,
-            );
-
-            let tx_writes_metrics = DeduplicatedWritesMetrics {
-                $metric_name: ($criterion::limit_per_block($protocol_version) as f64
-                    * config.reject_tx_at_geometry_percentage
-                    + 1f64)
-                    .round() as $metric_type,
-                ..Default::default()
-            };
-
-            test_unexecutable_tx_resolution(
-                execution_metrics,
-                tx_writes_metrics,
-                &$criterion,
-                $protocol_version,
-            );
-        };
-    }
-
-    #[test]
-    fn repeated_writes_seal_criterion() {
-        test_scenario_writes_metrics!(
-            RepeatedWritesCriterion,
-            repeated_storage_writes,
-            usize,
-            ProtocolVersionId::Version17
-        );
-    }
-
-    #[test]
-    fn initial_writes_seal_criterion() {
-        test_scenario_writes_metrics!(
-            InitialWritesCriterion,
-            initial_storage_writes,
-            usize,
-            ProtocolVersionId::Version17
-        );
-    }
-
-    #[test]
-    fn max_cycles_seal_criterion() {
-        test_scenario_execution_metrics!(
-            MaxCyclesCriterion,
-            cycles_used,
-            u32,
-            ProtocolVersionId::Version17
-        );
     }
 
     #[test]
     fn computational_gas_seal_criterion() {
         test_scenario_execution_metrics!(
-            ComputationalGasCriterion,
-            computational_gas_used,
-            u32,
-            ProtocolVersionId::Version17
-        );
-    }
-
-    #[test]
-    fn l2_to_l1_logs_seal_criterion() {
-        test_scenario_execution_metrics!(
-            L2ToL1LogsCriterion,
-            l2_to_l1_logs,
-            usize,
+            CircuitsCriterion,
+            estimated_circuits_used,
+            f32,
             ProtocolVersionId::Version17
         );
     }

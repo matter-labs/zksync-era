@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "dd05139b76ab0843443ab3ff730174942c825dae" }
+vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
 
 zksync_types = { path = "../../core/lib/types" }
 zksync_dal = { path = "../../core/lib/dal" }
@@ -15,7 +15,6 @@ zksync_env_config = { path = "../../core/lib/env_config" }
 prometheus_exporter = { path = "../../core/lib/prometheus_exporter" }
 vlog = { path = "../../core/lib/vlog" }
 zksync_object_store = { path = "../../core/lib/object_store" }
-zksync_prover_utils = { path = "../../core/lib/prover_utils" }
 zksync_queued_job_processor = { path = "../../core/lib/queued_job_processor" }
 zksync_prover_fri_utils = { path = "../prover_fri_utils" }
 zksync_prover_fri_types = { path = "../prover_fri_types" }
@@ -39,6 +38,8 @@ ctrlc = { version = "3.1", features = ["termination"] }
 serde = { version = "1.0", features = ["derive"] }
 async-trait = "0.1"
 local-ip-address = "0.5.0"
+reqwest = { version = "0.11", features = ["blocking"] }
+regex = "1.7.2"
 
 [features]
 default = []
