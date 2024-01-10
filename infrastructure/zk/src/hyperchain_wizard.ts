@@ -77,8 +77,8 @@ async function initHyperchain() {
     // TODO: Think about better implementation
     // PLA:681
     if (isLocalhost) {
-        wrapEnvModify('ETH_CLIENT_WEB3_URL', 'http://geth:8545');
-        wrapEnvModify('DATABASE_URL', 'postgres://postgres:notsecurepassword@postgres:5432/zksync_local');
+        wrapEnvModify('ETH_CLIENT_WEB3_URL', 'http://localhost:8545');
+        wrapEnvModify('DATABASE_URL', 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local');
     }
 
     env.mergeInitToEnv();
