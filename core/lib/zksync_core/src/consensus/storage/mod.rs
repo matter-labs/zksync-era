@@ -162,7 +162,7 @@ impl Cursor {
         let want = self.inner.next_miniblock;
         // Some blocks are missing.
         if number > want {
-            return Err(anyhow::anyhow!("expected {want:?}, got {number:?}").into());
+            return Err(anyhow::anyhow!("expected {want:?}, got {number:?}"));
         }
         // Block already processed.
         if number < want {
