@@ -13,6 +13,8 @@ jobs:
   vm-benchmarks:
     name: Run VM benchmarks
     runs-on: [matterlabs-ci-runner]
+    env:
+      CONTRACT_VERSION: "main-6250292"
 
     steps:
       - uses: actions/checkout@v3
@@ -26,11 +28,21 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
 
+      - name: Download contracts
+        run: |
+          mkdir -p ./contracts
+          curl -LO https://github.com/matter-labs/era-contracts/releases/download/${CONTRACT_VERSION}/l1-contracts.tar.gz
+          curl -LO https://github.com/matter-labs/era-contracts/releases/download/${CONTRACT_VERSION}/l2-contracts.tar.gz
+          curl -LO https://github.com/matter-labs/era-contracts/releases/download/${CONTRACT_VERSION}/system-contracts.tar.gz
+          
+          tar -xf l1-contracts.tar.gz -C ./contracts
+          tar -xf l2-contracts.tar.gz -C ./contracts
+          tar -xf system-contracts.tar.gz -C ./contracts
+
       - name: init
         run: |
           docker compose up -d zk
           ci_run zk
-          ci_run zk compiler system-contracts
 
       - name: run benchmarks
         run: |

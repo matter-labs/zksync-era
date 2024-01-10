@@ -59,8 +59,6 @@ jobs:
           ci_run zk run yarn
           ci_run cp etc/tokens/{test,localhost}.json
           ci_run zk compiler all
-          ci_run zk contract build
-          ci_run zk f yarn run l2-contracts build
 
       - name: update-image
         run: |

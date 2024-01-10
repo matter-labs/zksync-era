@@ -9,7 +9,8 @@ jobs:
   vm-benchmarks:
     name: Run VM benchmarks
     runs-on: [matterlabs-ci-runner]
-
+    env:
+      CONTRACT_VERSION: "main-6250292"
     steps:
       - name: checkout base branch
         uses: actions/checkout@v3
@@ -36,6 +37,17 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
 
+      - name: Download contracts
+        run: |
+          mkdir -p ./contracts
+          curl -LO https://github.com/matter-labs/era-contracts/releases/download/${CONTRACT_VERSION}/l1-contracts.tar.gz
+          curl -LO https://github.com/matter-labs/era-contracts/releases/download/${CONTRACT_VERSION}/l2-contracts.tar.gz
+          curl -LO https://github.com/matter-labs/era-contracts/releases/download/${CONTRACT_VERSION}/system-contracts.tar.gz
+          
+          tar -xf l1-contracts.tar.gz -C ./contracts
+          tar -xf l2-contracts.tar.gz -C ./contracts
+          tar -xf system-contracts.tar.gz -C ./contracts
+
       - name: init
         run: |
           docker compose up -d zk
@@ -44,9 +56,7 @@ jobs:
         shell: bash
         run: |
           ci_run zk
-          ci_run zk compiler system-contracts
           ci_run cargo bench --package vm-benchmark --bench iai | tee base-iai
-          ci_run yarn workspace system-contracts clean
 
       - name: checkout PR
         run: git checkout --force FETCH_HEAD --recurse-submodules
@@ -55,7 +65,6 @@ jobs:
         shell: bash
         run: |
           ci_run zk
-          ci_run zk compiler system-contracts
           ci_run cargo bench --package vm-benchmark --bench iai | tee pr-iai
 
           EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)

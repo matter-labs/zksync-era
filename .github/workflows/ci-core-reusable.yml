@@ -27,19 +27,6 @@ jobs:
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
 
-      - name: Start services
-        run: |
-          ci_localnet_up
-          ci_run sccache --start-server
-
-      - name: Init
-        run: |
-          ci_run zk
-          ci_run zk run yarn
-          ci_run zk db setup
-          ci_run zk compiler all
-          ci_run zk contract build
-
       - name: Download contracts
         run: |
           mkdir -p ./contracts
@@ -51,12 +38,24 @@ jobs:
           tar -xf l2-contracts.tar.gz -C ./contracts
           tar -xf system-contracts.tar.gz -C ./contracts
 
+      - name: Start services
+        run: |
+          ci_localnet_up
+          ci_run sccache --start-server
+
+      - name: Init
+        run: |
+          ci_run zk
+          ci_run zk run yarn
+          ci_run zk db setup
+
       - name: Rust unit tests
         run: ci_run zk test rust
 
   loadtest:
     runs-on: [matterlabs-ci-runner]
-
+    env:
+      CONTRACT_VERSION: ${{ inputs.era_contract_version }}
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
@@ -110,7 +109,8 @@ jobs:
           ci_run cat /tmp/sccache_log.txt
   integration:
     runs-on: [matterlabs-ci-runner]
-
+    env:
+      CONTRACT_VERSION: ${{ inputs.era_contract_version }}
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
