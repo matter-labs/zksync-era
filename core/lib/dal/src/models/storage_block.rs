@@ -339,7 +339,7 @@ pub fn bind_block_where_sql_params<'q>(
     query: Query<'q, Postgres, PgArguments>,
 ) -> Query<'q, Postgres, PgArguments> {
     match block_id {
-        // these block_id types result in `$1` in the query string, which we have to `bind`
+        // these `block_id` types result in `$1` in the query string, which we have to `bind`
         api::BlockId::Hash(block_hash) => query.bind(block_hash.as_bytes()),
         api::BlockId::Number(api::BlockNumber::Number(number)) => {
             query.bind(number.as_u64() as i64)
@@ -515,7 +515,7 @@ pub struct StorageMiniblockHeader {
 
     // The maximal number of virtual blocks that can be created with this miniblock.
     // If this value is greater than zero, then at least 1 will be created, but no more than
-    // min(virtual_blocks, miniblock_number - virtual_block_number), i.e. making sure that virtual blocks
+    // `min(virtual_blocks`, `miniblock_number - virtual_block_number`), i.e. making sure that virtual blocks
     // never go beyond the miniblock they are based on.
     pub virtual_blocks: i64,
 }
@@ -529,8 +529,11 @@ impl From<StorageMiniblockHeader> for MiniblockHeader {
             l1_tx_count: row.l1_tx_count as u16,
             l2_tx_count: row.l2_tx_count as u16,
             base_fee_per_gas: row.base_fee_per_gas.to_u64().unwrap(),
-            l1_gas_price: row.l1_gas_price as u64,
-            l2_fair_gas_price: row.l2_fair_gas_price as u64,
+            // For now, only L1 pegged fee model is supported.
+            batch_fee_input: zksync_types::fee_model::BatchFeeInput::l1_pegged(
+                row.l1_gas_price as u64,
+                row.l2_fair_gas_price as u64,
+            ),
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 row.bootloader_code_hash,
                 row.default_aa_code_hash,

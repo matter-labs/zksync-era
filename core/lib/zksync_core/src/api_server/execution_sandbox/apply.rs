@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 
 use multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv, VmInterface},
+    utils::adjust_pubdata_price_for_tx,
     vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryDisabled},
     VmInstance,
 };
@@ -38,6 +39,10 @@ use super::{
 pub(super) fn apply_vm_in_sandbox<T>(
     vm_permit: VmPermit,
     shared_args: TxSharedArgs,
+    // If `true`, then the batch's L1/pubdata gas price will be adjusted so that the transaction's gas per pubdata limit is <=
+    // to the one in the block. This is often helpful in case we want the transaction validation to work regardless of the
+    // current L1 prices for gas or pubdata.
+    adjust_pubdata_price: bool,
     execution_args: &TxExecutionArgs,
     connection_pool: &ConnectionPool,
     tx: Transaction,
@@ -102,7 +107,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     } else if current_l2_block_info.l2_block_number == 0 {
         // Special case:
         // - For environments, where genesis block was created before virtual block upgrade it doesn't matter what we put here.
-        // - Otherwise, we need to put actual values here. We cannot create next l2 block with block_number=0 and max_virtual_blocks_to_create=0
+        // - Otherwise, we need to put actual values here. We cannot create next L2 block with block_number=0 and `max_virtual_blocks_to_create=0`
         //   because of SystemContext requirements. But, due to intrinsics of SystemContext, block.number still will be resolved to 0.
         L2BlockEnv {
             number: 1,
@@ -175,13 +180,22 @@ pub(super) fn apply_vm_in_sandbox<T>(
 
     let TxSharedArgs {
         operator_account,
-        l1_gas_price,
-        fair_l2_gas_price,
+        fee_input,
         base_system_contracts,
         validation_computational_gas_limit,
         chain_id,
         ..
     } = shared_args;
+
+    let fee_input = if adjust_pubdata_price {
+        adjust_pubdata_price_for_tx(
+            fee_input,
+            tx.gas_per_pubdata_byte_limit(),
+            protocol_version.into(),
+        )
+    } else {
+        fee_input
+    };
 
     let system_env = SystemEnv {
         zk_porter_available: ZKPORTER_IS_AVAILABLE,
@@ -198,8 +212,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
         previous_batch_hash: None,
         number: vm_l1_batch_number,
         timestamp: l1_batch_timestamp,
-        l1_gas_price,
-        fair_l2_gas_price,
+        fee_input,
         fee_account: *operator_account.address(),
         enforced_base_fee: execution_args.enforced_base_fee,
         first_l2_block: next_l2_block_info,

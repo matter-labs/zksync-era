@@ -1,7 +1,8 @@
 # Benchmarking the VM
 
-Currently all benchmarking happens on contract deployment bytecodes. These can execute arbitrary code, so that is
-surprisingly useful. This library can be used to build more complex benchmarks, however.
+Currently all benchmarking happens on contract deployment bytecodes. Since contract deployment bytecodes can execute
+arbitrary code, they are surprisingly useful for benchmarking. This library can be used to build more complex
+benchmarks, however.
 
 ## Benchmarking
 

@@ -9,5 +9,6 @@ setup_load_mode="FromDisk"
 specialized_group_id=100
 witness_vector_generator_thread_count=5
 queue_capacity=10
-witness_vector_receiver_port=4000
+witness_vector_receiver_port=3316
+zone_read_url="http://metadata.google.internal/computeMetadata/v1/instance/zone"
 shall_save_to_public_bucket=true

@@ -8,7 +8,7 @@ use std::{
 use async_trait::async_trait;
 use multivm::{
     interface::{FinishedL1Batch, L1BatchEnv, SystemEnv},
-    vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata,
+    utils::derive_base_fee_and_gas_per_pubdata,
 };
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_dal::ConnectionPool;
@@ -23,7 +23,7 @@ use zksync_types::{
 use zksync_utils::time::millis_since_epoch;
 
 use crate::{
-    l1_gas_price::L1GasPriceProvider,
+    fee_model::BatchFeeModelInputProvider,
     state_keeper::{
         extractors,
         io::{
@@ -46,18 +46,17 @@ use crate::{
 pub(crate) struct MempoolIO {
     mempool: MempoolGuard,
     pool: ConnectionPool,
-    object_store: Box<dyn ObjectStore>,
+    object_store: Arc<dyn ObjectStore>,
     timeout_sealer: TimeoutSealer,
     filter: L2TxFilter,
     current_miniblock_number: MiniblockNumber,
     miniblock_sealer_handle: MiniblockSealerHandle,
     current_l1_batch_number: L1BatchNumber,
     fee_account: Address,
-    fair_l2_gas_price: u64,
     validation_computational_gas_limit: u32,
     delay_interval: Duration,
     // Used to keep track of gas prices to set accepted price per pubdata byte in blocks.
-    l1_gas_price_provider: Arc<dyn L1GasPriceProvider>,
+    batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     l2_erc20_bridge_addr: Address,
     chain_id: L2ChainId,
 
@@ -107,12 +106,10 @@ impl StateKeeperIO for MempoolIO {
         .await?;
         // Initialize the filter for the transactions that come after the pending batch.
         // We use values from the pending block to match the filter with one used before the restart.
-        let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(
-            l1_batch_env.l1_gas_price,
-            l1_batch_env.fair_l2_gas_price,
-        );
+        let (base_fee, gas_per_pubdata) =
+            derive_base_fee_and_gas_per_pubdata(l1_batch_env.fee_input, system_env.version.into());
         self.filter = L2TxFilter {
-            l1_gas_price: l1_batch_env.l1_gas_price,
+            fee_input: l1_batch_env.fee_input,
             fee_per_gas: base_fee,
             gas_per_pubdata: gas_per_pubdata as u32,
         };
@@ -130,26 +127,17 @@ impl StateKeeperIO for MempoolIO {
     ) -> Option<(SystemEnv, L1BatchEnv)> {
         let deadline = Instant::now() + max_wait;
 
+        let prev_l1_batch_hash = self.load_previous_l1_batch_hash().await;
+
+        let MiniblockHeader {
+            timestamp: prev_miniblock_timestamp,
+            hash: prev_miniblock_hash,
+            ..
+        } = self.load_previous_miniblock_header().await;
+
         // Block until at least one transaction in the mempool can match the filter (or timeout happens).
         // This is needed to ensure that block timestamp is not too old.
         for _ in 0..poll_iters(self.delay_interval, max_wait) {
-            // We create a new filter each time, since parameters may change and a previously
-            // ignored transaction in the mempool may be scheduled for the execution.
-            self.filter = l2_tx_filter(self.l1_gas_price_provider.as_ref(), self.fair_l2_gas_price);
-            // We only need to get the root hash when we're certain that we have a new transaction.
-            if !self.mempool.has_next(&self.filter) {
-                tokio::time::sleep(self.delay_interval).await;
-                continue;
-            }
-
-            let prev_l1_batch_hash = self.load_previous_l1_batch_hash().await;
-
-            let MiniblockHeader {
-                timestamp: prev_miniblock_timestamp,
-                hash: prev_miniblock_hash,
-                ..
-            } = self.load_previous_miniblock_header().await;
-
             // We cannot create two L1 batches or miniblocks with the same timestamp (forbidden by the bootloader).
             // Hence, we wait until the current timestamp is larger than the timestamp of the previous miniblock.
             // We can use `timeout_at` since `sleep_past` is cancel-safe; it only uses `sleep()` async calls.
@@ -159,11 +147,10 @@ impl StateKeeperIO for MempoolIO {
             );
             let current_timestamp = current_timestamp.await.ok()?;
 
-            tracing::info!(
-                "(l1_gas_price, fair_l2_gas_price) for L1 batch #{} is ({}, {})",
+            tracing::trace!(
+                "Fee input for L1 batch #{} is {:#?}",
                 self.current_l1_batch_number.0,
-                self.filter.l1_gas_price,
-                self.fair_l2_gas_price
+                self.filter.fee_input
             );
             let mut storage = self.pool.access_storage().await.unwrap();
             let (base_system_contracts, protocol_version) = storage
@@ -171,13 +158,24 @@ impl StateKeeperIO for MempoolIO {
                 .base_system_contracts_by_timestamp(current_timestamp)
                 .await;
 
+            // We create a new filter each time, since parameters may change and a previously
+            // ignored transaction in the mempool may be scheduled for the execution.
+            self.filter = l2_tx_filter(
+                self.batch_fee_input_provider.as_ref(),
+                protocol_version.into(),
+            );
+            // We only need to get the root hash when we're certain that we have a new transaction.
+            if !self.mempool.has_next(&self.filter) {
+                tokio::time::sleep(self.delay_interval).await;
+                continue;
+            }
+
             return Some(l1_batch_params(
                 self.current_l1_batch_number,
                 self.fee_account,
                 current_timestamp,
                 prev_l1_batch_hash,
-                self.filter.l1_gas_price,
-                self.fair_l2_gas_price,
+                self.filter.fee_input,
                 self.current_miniblock_number,
                 prev_miniblock_hash,
                 base_system_contracts,
@@ -399,9 +397,9 @@ impl MempoolIO {
     #[allow(clippy::too_many_arguments)]
     pub(in crate::state_keeper) async fn new(
         mempool: MempoolGuard,
-        object_store: Box<dyn ObjectStore>,
+        object_store: Arc<dyn ObjectStore>,
         miniblock_sealer_handle: MiniblockSealerHandle,
-        l1_gas_price_provider: Arc<dyn L1GasPriceProvider>,
+        batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
         pool: ConnectionPool,
         config: &StateKeeperConfig,
         delay_interval: Duration,
@@ -443,10 +441,9 @@ impl MempoolIO {
             miniblock_sealer_handle,
             current_miniblock_number: last_miniblock_number + 1,
             fee_account: config.fee_account_addr,
-            fair_l2_gas_price: config.fair_l2_gas_price,
             validation_computational_gas_limit,
             delay_interval,
-            l1_gas_price_provider,
+            batch_fee_input_provider,
             l2_erc20_bridge_addr,
             chain_id,
             virtual_blocks_interval: config.virtual_blocks_interval,

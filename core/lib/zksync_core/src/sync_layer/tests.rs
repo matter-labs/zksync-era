@@ -19,9 +19,10 @@ use crate::{
     consensus::testonly::MockMainNodeClient,
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
-        tests::{create_l1_batch_metadata, create_l2_transaction, TestBatchExecutorBuilder},
-        MiniblockSealer, ZkSyncStateKeeper,
+        seal_criteria::NoopSealer, tests::TestBatchExecutorBuilder, MiniblockSealer,
+        ZkSyncStateKeeper,
     },
+    utils::testonly::{create_l1_batch_metadata, create_l2_transaction},
 };
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
@@ -77,10 +78,11 @@ impl StateKeeperHandles {
             batch_executor_base.push_successful_transactions(tx_hashes_in_l1_batch);
         }
 
-        let state_keeper = ZkSyncStateKeeper::without_sealer(
+        let state_keeper = ZkSyncStateKeeper::new(
             stop_receiver,
             Box::new(io),
             Box::new(batch_executor_base),
+            Box::new(NoopSealer),
         );
         Self {
             stop_sender,
@@ -163,8 +165,8 @@ async fn external_io_basics() {
         .unwrap()
         .expect("Miniblock #1 is not persisted");
     assert_eq!(miniblock.timestamp, 1);
-    assert_eq!(miniblock.l1_gas_price, 2);
-    assert_eq!(miniblock.l2_fair_gas_price, 3);
+    assert_eq!(miniblock.batch_fee_input.l1_gas_price(), 2);
+    assert_eq!(miniblock.batch_fee_input.fair_l2_gas_price(), 3);
     assert_eq!(miniblock.l1_tx_count, 0);
     assert_eq!(miniblock.l2_tx_count, 1);
 
@@ -423,7 +425,7 @@ async fn fetcher_basics() {
     );
     let fetcher_task = tokio::spawn(fetcher.run());
 
-    // Check that sync_state is updated.
+    // Check that `sync_state` is updated.
     while sync_state.get_main_node_block() < MiniblockNumber(5) {
         tokio::time::sleep(POLL_INTERVAL).await;
     }

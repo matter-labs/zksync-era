@@ -1,7 +1,7 @@
 use std::{collections::VecDeque, sync::Arc};
 
 use zksync_config::GasAdjusterConfig;
-use zksync_eth_client::clients::mock::MockEthereum;
+use zksync_eth_client::clients::MockEthereum;
 
 use super::{GasAdjuster, GasStatisticsInner};
 

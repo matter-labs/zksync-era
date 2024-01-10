@@ -15,7 +15,7 @@ use crate::vm_m6::{
     storage::{Storage, StoragePtr},
 };
 
-/// The main job of the DecommiterOracle is to implement the DecommittmentProcessor trait - that is
+/// The main job of the DecommiterOracle is to implement the DecommitmentProcessor trait - that is
 /// used by the VM to 'load' bytecodes into memory.
 #[derive(Debug)]
 pub struct DecommitterOracle<const B: bool, S: Storage, H: HistoryMode> {

@@ -76,7 +76,7 @@ supported:
   transactions. The L1 contract ensures that the hash did indeed match the
   [hashes of the priority transactions on L1](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/facets/Executor.sol#L282).
 
-You can also read more on L1->L2 transactions and upgrade transacitons
+You can also read more on L1->L2 transactions and upgrade transactions
 [here](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20L1%E2%86%92L2%20ops%20on%20zkSync.md).
 
 However, as already stated, the bootloader’s memory is not deterministic and the operator is free to put anything it
@@ -129,7 +129,7 @@ Once read, these slots can be used for temporary data.
 - `[7283..40050]` – slots used for compressed bytecodes each in the following format:
   - 32 bytecode hash
   - 32 zeroes (but then it will be modified by the bootloader to contain 28 zeroes and then the 4-byte selector of the
-    `publishCompressedBytecode` function of the `BytecodeCompresor`)
+    `publishCompressedBytecode` function of the `BytecodeCompressor`)
   - The calldata to the bytecode compressor (without the selector).
 - `[40051..40052]` – slots where the hash and the number of current priority ops is stored. More on it in the priority
   operations
@@ -152,9 +152,9 @@ entries. These will not be published to L1, but will be used to verify the corre
 worst-case number of bytes that may be needed for this scratch space is if all the pubdata consists of repeated writes
 (i.e. we’ll need only 4 bytes to include key) that turn into 0 (i.e. they’ll need only 1 byte to describe it). However,
 each of these writes in the uncompressed form will be represented as 272 byte state diff entry and so we get the number
-of diffs is `120k / 5 = 24k`. This means that they will have accoomdate `24k * 272 = 6528000` bytes of calldata for the
+of diffs is `120k / 5 = 24k`. This means that they will have accommodate `24k * 272 = 6528000` bytes of calldata for the
 uncompressed state diffs. Adding 120k on top leaves us with roughly `6650000` bytes needed for calldata. `207813` slots
-are needed to accomodate this amount of data. We round up to `208000` slots to give space for constant-size factors for
+are needed to accommodate this amount of data. We round up to `208000` slots to give space for constant-size factors for
 ABI-encoding, like offsets, lengths, etc.
 
 In theory though much more calldata could be used (if for instance 1 byte is used for enum index). It is the
