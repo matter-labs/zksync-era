@@ -75,7 +75,7 @@ max_pubdata_per_batch=100000
 # - `V2`, the second model that was used in zkSync Era. There the pubdata price might be independent from the L1 gas price. Also,
 # The fair L2 gas price is expected to both the proving/computation price for the operator and the costs that come from
 # processing the batch on L1.
-fee_model_version=V1
+fee_model_version="V1"
 
 # Max number of computational gas that validation step is allowed to take.
 validation_computational_gas_limit=300000
