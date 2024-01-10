@@ -30,7 +30,6 @@ jobs:
             - server-v2
             - external-node
             - contract-verifier
-            - cross-external-nodes-checker
             - snapshots-creator
           platforms:
             - linux/amd64
@@ -107,8 +106,6 @@ jobs:
           - name: external-node
             platform: linux/amd64,linux/arm64
           - name: contract-verifier
-            platform: linux/amd64
-          - name: cross-external-nodes-checker
             platform: linux/amd64
           - name: snapshots-creator
             platform: linux/amd64

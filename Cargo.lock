@@ -1610,24 +1610,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cross_external_nodes_checker"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "ctrlc",
- "envy",
- "futures 0.3.28",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "vlog",
- "zksync_types",
- "zksync_utils",
- "zksync_web3_decl",
-]
-
-[[package]]
 name = "crossbeam"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

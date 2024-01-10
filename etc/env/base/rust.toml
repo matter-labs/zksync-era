@@ -24,7 +24,6 @@ block_sizes_test=info,\
 zksync_object_store=info,\
 en_playground=info,\
 zksync_external_node=info,\
-cross_nodes_checker=debug,\
 zksync_witness_generator=info,\
 zksync_prover_fri=info,\
 zksync_witness_vector_generator=info,\

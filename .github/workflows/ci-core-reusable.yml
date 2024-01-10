@@ -297,9 +297,6 @@ jobs:
       - name: Integration tests
         run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification|custom-erc20-bridge|snapshots-creator'
 
-      - name: Run Cross EN Checker
-        run: ci_run zk run cross-en-checker
-
       - name: Run revert test
         run: |
           ci_run zk env

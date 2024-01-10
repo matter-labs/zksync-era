@@ -48,7 +48,6 @@ zksync_types=info,\
 loadnext=info,\
 vm=info,\
 zksync_external_node=info,\
-cross_nodes_checker=debug,\
 """
 
 # `RUST_BACKTRACE` variable
