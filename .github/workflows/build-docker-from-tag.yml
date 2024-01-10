@@ -59,6 +59,7 @@ jobs:
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      era_contract_version: "main-6250292"
 
   build-push-prover-images:
     name: Build and push image

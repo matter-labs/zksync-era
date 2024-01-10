@@ -13,7 +13,7 @@ on:
         description: "Optional suffix to override tag name generation"
         type: string
         required: false
-      contract_version:
+      era_contract_version:
         description: "Version of era-contracts which should be use"
         type: string
         required: false
@@ -28,7 +28,7 @@ jobs:
     name: Build and Push Docker Images
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
-      CONTRACT_VERSION: ${{ inputs.contract_version }}
+      CONTRACT_VERSION: ${{ inputs.era_contract_version }}
     runs-on: ${{ fromJSON('["matterlabs-ci-runner", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
     strategy:
       matrix:
