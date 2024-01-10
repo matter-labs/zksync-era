@@ -64,15 +64,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for VmInstance<S, H> {
         dispatch_vm!(self.inspect(dispatcher.into(), execution_mode))
     }
 
-    /// Execute next transaction with custom tracers and circuit statistic enabled.
-    fn inspect_with_circuit_statistic(
-        &mut self,
-        dispatcher: Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
-    ) -> VmExecutionResultAndLogs {
-        dispatch_vm!(self.inspect_with_circuit_statistic(dispatcher.into(), execution_mode))
-    }
-
     fn get_bootloader_memory(&self) -> BootloaderMemory {
         dispatch_vm!(self.get_bootloader_memory())
     }

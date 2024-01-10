@@ -1,9 +1,9 @@
 use zk_evm_1_4_0::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
-use zksync_types::U256;
+use zksync_types::{circuit::CircuitStatistic, U256};
 
 use crate::{
-    interface::{types::outputs::CircuitStatistic, VmExecutionStatistics, VmMemoryMetrics},
+    interface::{VmExecutionStatistics, VmMemoryMetrics},
     vm_latest::{tracers::DefaultExecutionTracer, vm::Vm},
     HistoryMode,
 };
@@ -24,8 +24,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         spent_pubdata_counter_before: u32,
         pubdata_published: u32,
         total_log_queries_count: usize,
-        estimated_circuits_used: f32,
-        circuit_statistic: Option<CircuitStatistic>,
+        circuit_statistic: CircuitStatistic,
     ) -> VmExecutionStatistics {
         let computational_gas_used = self.calculate_computational_gas_used(
             tracer,
@@ -42,7 +41,6 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             computational_gas_used,
             total_log_queries: total_log_queries_count,
             pubdata_published,
-            estimated_circuits_used,
             circuit_statistic,
         }
     }

@@ -79,7 +79,6 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         storage: StoragePtr<S>,
         refund_tracer: Option<RefundsTracer<S>>,
         pubdata_tracer: Option<PubdataTracer<S>>,
-        with_circuit_statistic: bool,
     ) -> Self {
         Self {
             tx_has_been_processed: false,
@@ -94,7 +93,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             dispatcher,
             pubdata_tracer,
             ret_from_the_bootloader: None,
-            circuits_tracer: CircuitsTracer::new(with_circuit_statistic),
+            circuits_tracer: CircuitsTracer::new(),
             storage,
             _phantom: PhantomData,
         }

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use zksync_utils::ceil_div;
 
-use crate::U256;
+use crate::{circuit::CircuitStatistic, U256};
 
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "result")]
@@ -24,7 +24,7 @@ pub struct TransactionExecutionMetrics {
     pub computational_gas_used: u32,
     pub total_updated_values_size: usize,
     pub pubdata_published: u32,
-    pub estimated_circuits_used: f32,
+    pub circuit_statistic: CircuitStatistic,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

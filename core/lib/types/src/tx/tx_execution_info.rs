@@ -1,6 +1,7 @@
 use std::ops::{Add, AddAssign};
 
 use crate::{
+    circuit::CircuitStatistic,
     commitment::SerializeCommitment,
     fee::TransactionExecutionMetrics,
     l2_to_l1_log::L2ToL1Log,
@@ -69,7 +70,7 @@ pub struct ExecutionMetrics {
     pub cycles_used: u32,
     pub computational_gas_used: u32,
     pub pubdata_published: u32,
-    pub estimated_circuits_used: f32,
+    pub circuit_statistic: CircuitStatistic,
 }
 
 impl ExecutionMetrics {
@@ -87,7 +88,7 @@ impl ExecutionMetrics {
             cycles_used: tx_metrics.cycles_used,
             computational_gas_used: tx_metrics.computational_gas_used,
             pubdata_published: tx_metrics.pubdata_published,
-            estimated_circuits_used: tx_metrics.estimated_circuits_used,
+            circuit_statistic: tx_metrics.circuit_statistic,
         }
     }
 
@@ -121,7 +122,7 @@ impl Add for ExecutionMetrics {
             cycles_used: self.cycles_used + other.cycles_used,
             computational_gas_used: self.computational_gas_used + other.computational_gas_used,
             pubdata_published: self.pubdata_published + other.pubdata_published,
-            estimated_circuits_used: self.estimated_circuits_used + other.estimated_circuits_used,
+            circuit_statistic: self.circuit_statistic + other.circuit_statistic,
         }
     }
 }

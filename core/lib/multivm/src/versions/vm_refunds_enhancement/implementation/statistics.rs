@@ -40,7 +40,6 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             computational_gas_used,
             total_log_queries: total_log_queries_count,
             pubdata_published,
-            estimated_circuits_used: 0.0,
             circuit_statistic: Default::default(),
         }
     }

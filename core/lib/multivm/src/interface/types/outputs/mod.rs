@@ -3,7 +3,7 @@ pub use self::{
     execution_state::{BootloaderMemory, CurrentExecutionState},
     finished_l1batch::FinishedL1Batch,
     l2_block::L2Block,
-    statistic::{CircuitStatistic, VmExecutionStatistics, VmMemoryMetrics},
+    statistic::{VmExecutionStatistics, VmMemoryMetrics},
 };
 
 mod execution_result;

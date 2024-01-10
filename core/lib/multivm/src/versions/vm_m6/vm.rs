@@ -110,14 +110,6 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         }
     }
 
-    fn inspect_with_circuit_statistic(
-        &mut self,
-        tracer: Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
-    ) -> VmExecutionResultAndLogs {
-        self.inspect(tracer, execution_mode)
-    }
-
     fn get_bootloader_memory(&self) -> BootloaderMemory {
         vec![]
     }

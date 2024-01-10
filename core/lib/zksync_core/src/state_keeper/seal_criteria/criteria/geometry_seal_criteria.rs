@@ -70,12 +70,14 @@ impl MetricExtractor for CircuitsCriterion {
     }
 
     fn extract(metrics: &ExecutionMetrics) -> usize {
-        metrics.estimated_circuits_used.ceil() as usize
+        metrics.circuit_statistic.total()
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use zksync_types::circuit::CircuitStatistic;
+
     use super::*;
 
     fn get_config() -> StateKeeperConfig {
@@ -170,56 +172,61 @@ mod tests {
         );
     }
 
-    macro_rules! test_scenario_execution_metrics {
-        ($criterion: tt, $metric_name: ident, $metric_type: ty, $protocol_version: expr) => {
-            let config = get_config();
-            let block_execution_metrics = ExecutionMetrics {
-                $metric_name: ($criterion::limit_per_block($protocol_version) / 2) as $metric_type,
-                ..ExecutionMetrics::default()
-            };
-            test_no_seal_block_resolution(block_execution_metrics, &$criterion, $protocol_version);
-
-            let block_execution_metrics = ExecutionMetrics {
-                $metric_name: ($criterion::limit_per_block($protocol_version) - 1) as $metric_type,
-                ..ExecutionMetrics::default()
-            };
-
-            test_include_and_seal_block_resolution(
-                block_execution_metrics,
-                &$criterion,
-                $protocol_version,
-            );
-
-            let block_execution_metrics = ExecutionMetrics {
-                $metric_name: ($criterion::limit_per_block($protocol_version)) as $metric_type,
-                ..ExecutionMetrics::default()
-            };
-
-            test_exclude_and_seal_block_resolution(
-                block_execution_metrics,
-                &$criterion,
-                $protocol_version,
-            );
-
-            let tx_execution_metrics = ExecutionMetrics {
-                $metric_name: ($criterion::limit_per_block($protocol_version) as f64
-                    * config.reject_tx_at_geometry_percentage
-                    + 1f64)
-                    .round() as $metric_type,
-                ..ExecutionMetrics::default()
-            };
-
-            test_unexecutable_tx_resolution(tx_execution_metrics, &$criterion, $protocol_version);
-        };
-    }
-
     #[test]
-    fn computational_gas_seal_criterion() {
-        test_scenario_execution_metrics!(
-            CircuitsCriterion,
-            estimated_circuits_used,
-            f32,
-            ProtocolVersionId::Version17
+    fn circuits_seal_criterion() {
+        let config = get_config();
+        let protocol_version = ProtocolVersionId::latest();
+        let block_execution_metrics = ExecutionMetrics {
+            circuit_statistic: CircuitStatistic {
+                main_vm: (CircuitsCriterion::limit_per_block(protocol_version) / 2) as f32,
+                ..CircuitStatistic::default()
+            },
+            ..ExecutionMetrics::default()
+        };
+        test_no_seal_block_resolution(
+            block_execution_metrics,
+            &CircuitsCriterion,
+            protocol_version,
         );
+
+        let block_execution_metrics = ExecutionMetrics {
+            circuit_statistic: CircuitStatistic {
+                main_vm: (CircuitsCriterion::limit_per_block(protocol_version) - 1) as f32,
+                ..CircuitStatistic::default()
+            },
+            ..ExecutionMetrics::default()
+        };
+
+        test_include_and_seal_block_resolution(
+            block_execution_metrics,
+            &CircuitsCriterion,
+            protocol_version,
+        );
+
+        let block_execution_metrics = ExecutionMetrics {
+            circuit_statistic: CircuitStatistic {
+                main_vm: CircuitsCriterion::limit_per_block(protocol_version) as f32,
+                ..CircuitStatistic::default()
+            },
+            ..ExecutionMetrics::default()
+        };
+
+        test_exclude_and_seal_block_resolution(
+            block_execution_metrics,
+            &CircuitsCriterion,
+            protocol_version,
+        );
+
+        let tx_execution_metrics = ExecutionMetrics {
+            circuit_statistic: CircuitStatistic {
+                main_vm: CircuitsCriterion::limit_per_block(protocol_version) as f32
+                    * config.reject_tx_at_geometry_percentage as f32
+                    + 1.0,
+                ..CircuitStatistic::default()
+            },
+            ..ExecutionMetrics::default()
+        };
+
+        test_unexecutable_tx_resolution(tx_execution_metrics, &CircuitsCriterion, protocol_version);
     }
 }

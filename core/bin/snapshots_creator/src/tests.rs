@@ -172,7 +172,14 @@ async fn create_l1_batch(
     );
     header.is_finished = true;
     conn.blocks_dal()
-        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
+        .insert_l1_batch(
+            &header,
+            &[],
+            BlockGasCount::default(),
+            &[],
+            &[],
+            Default::default(),
+        )
         .await
         .unwrap();
     conn.blocks_dal()

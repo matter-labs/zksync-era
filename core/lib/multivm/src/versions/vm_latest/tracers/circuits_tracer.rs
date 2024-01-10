@@ -6,13 +6,11 @@ use zk_evm_1_4_0::{
     zkevm_opcode_defs::{LogOpcode, Opcode, UMAOpcode},
 };
 use zksync_state::{StoragePtr, WriteStorage};
+use zksync_types::circuit::CircuitCycleStatistic;
 
 use super::circuits_capacity::*;
 use crate::{
-    interface::{
-        dyn_tracers::vm_1_4_0::DynTracer, tracer::TracerExecutionStatus,
-        types::outputs::CircuitStatistic,
-    },
+    interface::{dyn_tracers::vm_1_4_0::DynTracer, tracer::TracerExecutionStatus},
     vm_latest::{
         bootloader_state::BootloaderState,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
@@ -24,8 +22,7 @@ use crate::{
 /// Tracer responsible for collecting information about refunds.
 #[derive(Debug)]
 pub(crate) struct CircuitsTracer<S> {
-    pub(crate) estimated_circuits_used: f32,
-    pub(crate) statistics: Option<CircuitStatistic>,
+    pub(crate) statistics: CircuitCycleStatistic,
     last_decommitment_history_entry_checked: Option<usize>,
     last_written_keys_history_entry_checked: Option<usize>,
     last_read_keys_history_entry_checked: Option<usize>,
@@ -34,10 +31,9 @@ pub(crate) struct CircuitsTracer<S> {
 }
 
 impl<S: WriteStorage> CircuitsTracer<S> {
-    pub(crate) fn new(with_circuit_statistic: bool) -> Self {
+    pub(crate) fn new() -> Self {
         Self {
-            estimated_circuits_used: 0.0,
-            statistics: with_circuit_statistic.then(CircuitStatistic::new),
+            statistics: CircuitCycleStatistic::new(),
             last_decommitment_history_entry_checked: None,
             last_written_keys_history_entry_checked: None,
             last_read_keys_history_entry_checked: None,
@@ -55,11 +51,9 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
         _memory: &SimpleMemory<H>,
         _storage: StoragePtr<S>,
     ) {
-        if let Some(s) = &mut self.statistics {
-            s.main_vm += 1;
-        }
+        self.statistics.main_vm_cycles += 1;
 
-        let used = match data.opcode.variant.opcode {
+        match data.opcode.variant.opcode {
             Opcode::Nop(_)
             | Opcode::Add(_)
             | Opcode::Sub(_)
@@ -69,83 +63,46 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
             | Opcode::Binop(_)
             | Opcode::Shift(_)
             | Opcode::Ptr(_) => {
-                if let Some(s) = &mut self.statistics {
-                    s.ram_permutation += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
-                }
-
-                RICH_ADDRESSING_OPCODE_FRACTION
+                self.statistics.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
             }
             Opcode::Context(_) | Opcode::Ret(_) | Opcode::NearCall(_) => {
-                if let Some(s) = &mut self.statistics {
-                    s.ram_permutation += AVERAGE_OPCODE_RAM_CYCLES;
-                }
-
-                AVERAGE_OPCODE_FRACTION
+                self.statistics.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
             }
             Opcode::Log(LogOpcode::StorageRead) => {
-                if let Some(s) = &mut self.statistics {
-                    s.ram_permutation += STORAGE_READ_RAM_CYCLES;
-                    s.log_demuxer += STORAGE_READ_LOG_DEMUXER_CYCLES;
-                    s.storage_sorter += STORAGE_READ_STORAGE_SORTER_CYCLES;
-                }
-
-                STORAGE_READ_BASE_FRACTION
+                self.statistics.ram_permutation_cycles += STORAGE_READ_RAM_CYCLES;
+                self.statistics.log_demuxer_cycles += STORAGE_READ_LOG_DEMUXER_CYCLES;
+                self.statistics.storage_sorter_cycles += STORAGE_READ_STORAGE_SORTER_CYCLES;
             }
             Opcode::Log(LogOpcode::StorageWrite) => {
-                if let Some(s) = &mut self.statistics {
-                    s.ram_permutation += STORAGE_WRITE_RAM_CYCLES;
-                    s.log_demuxer += STORAGE_WRITE_LOG_DEMUXER_CYCLES;
-                    s.storage_sorter += STORAGE_WRITE_STORAGE_SORTER_CYCLES;
-                }
-
-                STORAGE_WRITE_BASE_FRACTION
+                self.statistics.ram_permutation_cycles += STORAGE_WRITE_RAM_CYCLES;
+                self.statistics.log_demuxer_cycles += STORAGE_WRITE_LOG_DEMUXER_CYCLES;
+                self.statistics.storage_sorter_cycles += STORAGE_WRITE_STORAGE_SORTER_CYCLES;
             }
             Opcode::Log(LogOpcode::ToL1Message) | Opcode::Log(LogOpcode::Event) => {
-                if let Some(s) = &mut self.statistics {
-                    s.ram_permutation += EVENT_RAM_CYCLES;
-                    s.log_demuxer += EVENT_LOG_DEMUXER_CYCLES;
-                    s.events_sorter += EVENT_EVENTS_SORTER_CYCLES;
-                }
-
-                EVENT_OR_L1_MESSAGE_FRACTION
+                self.statistics.ram_permutation_cycles += EVENT_RAM_CYCLES;
+                self.statistics.log_demuxer_cycles += EVENT_LOG_DEMUXER_CYCLES;
+                self.statistics.events_sorter_cycles += EVENT_EVENTS_SORTER_CYCLES;
             }
             Opcode::Log(LogOpcode::PrecompileCall) => {
-                if let Some(s) = &mut self.statistics {
-                    s.ram_permutation += PRECOMPILE_RAM_CYCLES;
-                    s.log_demuxer += PRECOMPILE_LOG_DEMUXER_CYCLES;
-                }
-
-                PRECOMPILE_CALL_COMMON_FRACTION
+                self.statistics.ram_permutation_cycles += PRECOMPILE_RAM_CYCLES;
+                self.statistics.log_demuxer_cycles += PRECOMPILE_LOG_DEMUXER_CYCLES;
             }
             Opcode::FarCall(_) => {
-                if let Some(s) = &mut self.statistics {
-                    s.ram_permutation += FAR_CALL_RAM_CYCLES;
-                    s.code_decommitter_sorter += FAR_CALL_CODE_DECOMMITTER_SORTER_CYCLES;
-                    s.storage_sorter += FAR_CALL_STORAGE_SORTER_CYCLES;
-                }
-
-                FAR_CALL_FRACTION
+                self.statistics.ram_permutation_cycles += FAR_CALL_RAM_CYCLES;
+                self.statistics.code_decommitter_sorter_cycles +=
+                    FAR_CALL_CODE_DECOMMITTER_SORTER_CYCLES;
+                self.statistics.storage_sorter_cycles += FAR_CALL_STORAGE_SORTER_CYCLES;
             }
             Opcode::UMA(UMAOpcode::AuxHeapWrite | UMAOpcode::HeapWrite) => {
-                if let Some(s) = &mut self.statistics {
-                    s.ram_permutation += UMA_WRITE_RAM_CYCLES;
-                }
-
-                UMA_WRITE_FRACTION
+                self.statistics.ram_permutation_cycles += UMA_WRITE_RAM_CYCLES;
             }
             Opcode::UMA(
                 UMAOpcode::AuxHeapRead | UMAOpcode::HeapRead | UMAOpcode::FatPointerRead,
             ) => {
-                if let Some(s) = &mut self.statistics {
-                    s.ram_permutation += UMA_READ_RAM_CYCLES;
-                }
-
-                UMA_READ_FRACTION
+                self.statistics.ram_permutation_cycles += UMA_READ_RAM_CYCLES;
             }
             Opcode::Invalid(_) => unreachable!(), // invalid opcodes are never executed
         };
-
-        self.estimated_circuits_used += used;
     }
 }
 
@@ -200,11 +157,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
             // Each cycle of `CodeDecommitter` processes 2 words.
             // If the number of words in bytecode is odd, then number of cycles must be rounded up.
             let decommitter_cycles_used = (bytecode_len + 1) / 2;
-            self.estimated_circuits_used +=
-                (decommitter_cycles_used as f32) * CODE_DECOMMITTER_CYCLE_FRACTION;
-            if let Some(s) = &mut self.statistics {
-                s.code_decommitter += decommitter_cycles_used as u32;
-            }
+            self.statistics.code_decommitter_cycles += decommitter_cycles_used as u32;
         }
         self.last_decommitment_history_entry_checked = Some(history.len());
 
@@ -217,10 +170,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
             // We assume that only insertions may happen during a single VM inspection.
             assert!(history_event.value.is_none());
 
-            self.estimated_circuits_used += 2.0 * STORAGE_APPLICATION_CYCLE_FRACTION;
-            if let Some(s) = &mut self.statistics {
-                s.storage_application_by_writes += 2;
-            }
+            self.statistics.storage_application_cycles += STORAGE_WRITE_STORAGE_APPLICATION_CYCLES;
         }
         self.last_written_keys_history_entry_checked = Some(history.len());
 
@@ -240,10 +190,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
                 .inner()
                 .contains_key(&history_event.key)
             {
-                self.estimated_circuits_used += STORAGE_APPLICATION_CYCLE_FRACTION;
-                if let Some(s) = &mut self.statistics {
-                    s.storage_application_by_reads += 1;
-                }
+                self.statistics.storage_application_cycles +=
+                    STORAGE_READ_STORAGE_APPLICATION_CYCLES;
             }
         }
         self.last_read_keys_history_entry_checked = Some(history.len());
@@ -257,30 +205,17 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
             .precompile_cycles_history
             .inner();
         for (precompile, cycles) in &inner[last_precompile_inner_entry_checked..] {
-            let fraction = match precompile {
+            match precompile {
                 PrecompileAddress::Ecrecover => {
-                    if let Some(s) = &mut self.statistics {
-                        s.ecrecover += *cycles as u32;
-                    }
-
-                    ECRECOVER_CYCLE_FRACTION
+                    self.statistics.ecrecover_cycles += *cycles as u32;
                 }
                 PrecompileAddress::SHA256 => {
-                    if let Some(s) = &mut self.statistics {
-                        s.sha256 += *cycles as u32;
-                    }
-
-                    SHA256_CYCLE_FRACTION
+                    self.statistics.sha256_cycles += *cycles as u32;
                 }
                 PrecompileAddress::Keccak256 => {
-                    if let Some(s) = &mut self.statistics {
-                        s.keccak256 += *cycles as u32;
-                    }
-
-                    KECCAK256_CYCLE_FRACTION
+                    self.statistics.keccak256_cycles += *cycles as u32;
                 }
             };
-            self.estimated_circuits_used += (*cycles as f32) * fraction;
         }
         self.last_precompile_inner_entry_checked = Some(inner.len());
 

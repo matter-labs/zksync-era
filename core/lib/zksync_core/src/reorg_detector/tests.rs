@@ -36,7 +36,14 @@ async fn seal_l1_batch(storage: &mut StorageProcessor<'_>, number: u32, hash: H2
     let header = create_l1_batch(number);
     storage
         .blocks_dal()
-        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
+        .insert_l1_batch(
+            &header,
+            &[],
+            BlockGasCount::default(),
+            &[],
+            &[],
+            Default::default(),
+        )
         .await
         .unwrap();
     storage

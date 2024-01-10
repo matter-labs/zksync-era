@@ -38,8 +38,8 @@ pub(crate) enum TxExecutionResult {
     /// Successful execution of the tx and the block tip dry run.
     Success {
         tx_result: Box<VmExecutionResultAndLogs>,
-        tx_metrics: ExecutionMetricsForCriteria,
-        bootloader_dry_run_metrics: ExecutionMetricsForCriteria,
+        tx_metrics: Box<ExecutionMetricsForCriteria>,
+        bootloader_dry_run_metrics: Box<ExecutionMetricsForCriteria>,
         bootloader_dry_run_result: Box<VmExecutionResultAndLogs>,
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
         call_tracer_result: Vec<Call>,
@@ -210,7 +210,7 @@ impl BatchExecutorHandle {
         let res = response_receiver.await.unwrap();
         let elapsed = latency.observe();
 
-        if let TxExecutionResult::Success { tx_metrics, .. } = res {
+        if let TxExecutionResult::Success { tx_metrics, .. } = &res {
             let gas_per_nanosecond = tx_metrics.execution_metrics.computational_gas_used as f64
                 / elapsed.as_nanos() as f64;
             EXECUTOR_METRICS
@@ -394,8 +394,8 @@ impl BatchExecutor {
         match &bootloader_dry_run_result.result {
             ExecutionResult::Success { .. } => TxExecutionResult::Success {
                 tx_result: Box::new(tx_result),
-                tx_metrics,
-                bootloader_dry_run_metrics,
+                tx_metrics: Box::new(tx_metrics),
+                bootloader_dry_run_metrics: Box::new(bootloader_dry_run_metrics),
                 bootloader_dry_run_result: Box::new(bootloader_dry_run_result),
                 compressed_bytecodes,
                 call_tracer_result,

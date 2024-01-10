@@ -164,7 +164,14 @@ impl Tester {
         let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
         storage
             .blocks_dal()
-            .insert_l1_batch(&batch_header, &[], Default::default(), &[], &[], 0)
+            .insert_l1_batch(
+                &batch_header,
+                &[],
+                Default::default(),
+                &[],
+                &[],
+                Default::default(),
+            )
             .await
             .unwrap();
         storage

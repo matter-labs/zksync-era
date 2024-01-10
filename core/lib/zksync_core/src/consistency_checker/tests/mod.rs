@@ -195,7 +195,14 @@ impl SaveAction<'_> {
             Self::InsertBatch(l1_batch) => {
                 storage
                     .blocks_dal()
-                    .insert_l1_batch(&l1_batch.header, &[], BlockGasCount::default(), &[], &[], 0)
+                    .insert_l1_batch(
+                        &l1_batch.header,
+                        &[],
+                        BlockGasCount::default(),
+                        &[],
+                        &[],
+                        Default::default(),
+                    )
                     .await
                     .unwrap();
             }
