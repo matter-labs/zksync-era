@@ -10,12 +10,9 @@ use zksync_types::{Address, MiniblockNumber};
 #[cfg(test)]
 mod testonly;
 
-use crate::{
-    consensus,
-    sync_layer::{
-        fetcher::{FetchedBlock, FetcherCursor},
-        sync_action::ActionQueueSender,
-    },
+use crate::sync_layer::{
+    fetcher::{FetchedBlock, FetcherCursor},
+    sync_action::ActionQueueSender,
 };
 
 /// Context-aware `zksync_dal::StorageProcessor` wrapper.
@@ -150,6 +147,45 @@ struct Cursor {
     actions: ActionQueueSender,
 }
 
+impl Cursor {
+    /// Advances the cursor by converting the block into actions and pushing them
+    /// to the actions queue.
+    /// Does nothing and returns Ok() if the block has been already processed.
+    /// Returns an error if a block with an earlier block number was expected.
+    async fn advance(&mut self, block: &validator::FinalBlock) -> anyhow::Result<()> {
+        let number = MiniblockNumber(
+            u32::try_from(block.header().number.0)
+                .context("Integer overflow converting block number")?,
+        );
+        let payload =
+            Payload::decode(&block.payload).context("Failed deserializing block payload")?;
+        let want = self.inner.next_miniblock;
+        // Some blocks are missing.
+        if number > want {
+            return Err(anyhow::anyhow!("expected {want:?}, got {number:?}").into());
+        }
+        // Block already processed.
+        if number < want {
+            return Ok(());
+        }
+        let block = FetchedBlock {
+            number,
+            l1_batch_number: payload.l1_batch_number,
+            last_in_batch: payload.last_in_batch,
+            protocol_version: payload.protocol_version,
+            timestamp: payload.timestamp,
+            reference_hash: Some(payload.hash),
+            l1_gas_price: payload.l1_gas_price,
+            l2_fair_gas_price: payload.l2_fair_gas_price,
+            virtual_blocks: payload.virtual_blocks,
+            operator_address: payload.operator_address,
+            transactions: payload.transactions,
+        };
+        self.actions.push_actions(self.inner.advance(block)).await;
+        Ok(())
+    }
+}
+
 /// Wrapper of `ConnectionPool` implementing `ReplicaStore` and `PayloadManager`.
 #[derive(Clone, Debug)]
 pub(super) struct Store {
@@ -161,7 +197,8 @@ pub(super) struct Store {
 #[derive(Debug)]
 pub(super) struct BlockStore {
     inner: Store,
-    cursor: sync::Mutex<Option<Cursor>>,
+    /// Mutex preventing concurrent execution of `store_next_block` calls.
+    store_next_block_mutex: sync::Mutex<Option<Cursor>>,
 }
 
 impl Store {
@@ -177,7 +214,7 @@ impl Store {
     pub fn into_block_store(self) -> BlockStore {
         BlockStore {
             inner: self,
-            cursor: sync::Mutex::new(None),
+            store_next_block_mutex: sync::Mutex::new(None),
         }
     }
 }
@@ -240,7 +277,7 @@ impl BlockStore {
             .new_fetcher_cursor(ctx)
             .await
             .wrap("new_fetcher_cursor()")?;
-        *sync::lock(ctx, &self.cursor).await? = Some(Cursor { inner, actions });
+        *sync::lock(ctx, &self.store_next_block_mutex).await? = Some(Cursor { inner, actions });
         Ok(())
     }
 }
@@ -248,7 +285,6 @@ impl BlockStore {
 #[async_trait::async_trait]
 impl PersistentBlockStore for BlockStore {
     async fn state(&self, ctx: &ctx::Ctx) -> ctx::Result<BlockStoreState> {
-        // Ensure that genesis block has consensus field set in postgres.
         let mut storage = CtxStorage::access(ctx, &self.inner.pool)
             .await
             .wrap("access()")?;
@@ -303,37 +339,9 @@ impl PersistentBlockStore for BlockStore {
         block: &validator::FinalBlock,
     ) -> ctx::Result<()> {
         // This mutex prevents concurrent store_next_block calls.
-        let mut cursor = ctx.wait(self.cursor.lock()).await?;
-        if let Some(cursor) = &mut *cursor {
-            let number = MiniblockNumber(
-                u32::try_from(block.header().number.0)
-                    .context("Integer overflow converting block number")?,
-            );
-            let payload =
-                Payload::decode(&block.payload).context("Failed deserializing block payload")?;
-            let want = cursor.inner.next_miniblock;
-            if want < number {
-                return Err(anyhow::anyhow!("expected {want:?}, got {number:?}").into());
-            }
-            if want == number {
-                let block = FetchedBlock {
-                    number,
-                    l1_batch_number: payload.l1_batch_number,
-                    last_in_batch: payload.last_in_batch,
-                    protocol_version: payload.protocol_version,
-                    timestamp: payload.timestamp,
-                    reference_hash: Some(payload.hash),
-                    l1_gas_price: payload.l1_gas_price,
-                    l2_fair_gas_price: payload.l2_fair_gas_price,
-                    virtual_blocks: payload.virtual_blocks,
-                    operator_address: payload.operator_address,
-                    transactions: payload.transactions,
-                };
-                cursor
-                    .actions
-                    .push_actions(cursor.inner.advance(block))
-                    .await;
-            }
+        let mut guard = ctx.wait(self.store_next_block_mutex.lock()).await?;
+        if let Some(cursor) = &mut *guard {
+            cursor.advance(block).await.context("cursor.advance()")?;
         }
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
         loop {
@@ -414,8 +422,8 @@ impl PayloadManager for Store {
         payload: &validator::Payload,
     ) -> ctx::Result<()> {
         let want = self.propose(ctx, block_number).await?;
-        let want = consensus::Payload::decode(&want).context("Payload::decode(want)")?;
-        let got = consensus::Payload::decode(payload).context("Payload::decode(got)")?;
+        let want = Payload::decode(&want).context("Payload::decode(want)")?;
+        let got = Payload::decode(payload).context("Payload::decode(got)")?;
         if got != want {
             return Err(anyhow::anyhow!("unexpected payload: got {got:?} want {want:?}").into());
         }

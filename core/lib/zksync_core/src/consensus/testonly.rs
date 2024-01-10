@@ -290,7 +290,7 @@ impl StateKeeper {
     }
 
     // Wait for all pushed miniblocks to be produced.
-    pub async fn sync(&self, ctx: &ctx::Ctx) -> ctx::Result<()> {
+    pub async fn wait_for_miniblocks(&self, ctx: &ctx::Ctx) -> ctx::Result<()> {
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
         loop {
             let mut storage = CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
@@ -317,7 +317,7 @@ async fn run_mock_metadata_calculator(ctx: &ctx::Ctx, pool: &ConnectionPool) -> 
             .get_last_l1_batch_number_with_metadata()
             .await
             .context("get_last_l1_batch_number_with_metadata()")?
-            .context("no L1 batchers in Postgres")?
+            .context("no L1 batches in Postgres")?
     };
     while let Ok(()) = ctx.sleep(POLL_INTERVAL).await {
         let mut storage = pool.access_storage().await.context("access_storage()")?;

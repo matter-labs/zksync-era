@@ -7,7 +7,7 @@ use zksync_consensus_storage as storage;
 use super::{BlockStore, CtxStorage};
 
 impl BlockStore {
-    /// Waits for the `want` miniblock to have a certificate.
+    /// Waits for the `number` miniblock to have a certificate.
     pub async fn wait_for_certificate(
         &self,
         ctx: &ctx::Ctx,

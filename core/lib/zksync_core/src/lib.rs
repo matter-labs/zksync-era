@@ -1,8 +1,4 @@
-#![allow(
-    clippy::upper_case_acronyms,
-    clippy::derive_partial_eq_without_eq,
-    clippy::redundant_locals
-)]
+#![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
 
 use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 

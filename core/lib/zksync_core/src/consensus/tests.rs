@@ -60,7 +60,7 @@ async fn test_validator_block_store() {
         let (mut sk, runner) = testonly::StateKeeper::new(pool.clone(), OPERATOR_ADDRESS).await?;
         s.spawn_bg(runner.run(ctx));
         sk.push_random_blocks(rng, 10).await;
-        sk.sync(ctx).await?;
+        sk.wait_for_miniblocks(ctx).await?;
         let range = Range {
             start: validator::BlockNumber(4),
             end: sk.last_block(),
@@ -97,7 +97,9 @@ async fn test_validator() {
 
         // Populate storage with a bunch of blocks.
         sk.push_random_blocks(rng, 5).await;
-        sk.sync(ctx).await.context("sk.sync(<1st phase>)")?;
+        sk.wait_for_miniblocks(ctx)
+            .await
+            .context("sk.wait_for_miniblocks(<1st phase>)")?;
 
         let cfg = ValidatorNode::for_single_validator(&mut ctx.rng());
         let validators = cfg.node.validators.clone();
@@ -107,7 +109,7 @@ async fn test_validator() {
             scope::run!(ctx, |ctx, s| async {
                 // Start consensus actor (in the first iteration it will select a genesis block and
                 // store a cert for it).
-                let cfg = Config {
+                let cfg = MainNodeConfig {
                     executor: cfg.node.clone(),
                     validator: cfg.validator.clone(),
                     operator_address: OPERATOR_ADDRESS,
@@ -164,7 +166,7 @@ async fn test_fetcher() {
     // validator <-> fetcher <-> fetcher <-> ...
     let cfg = ValidatorNode::for_single_validator(rng);
     let validators = cfg.node.validators.clone();
-    let mut cfg = Config {
+    let mut cfg = MainNodeConfig {
         executor: cfg.node,
         validator: cfg.validator,
         operator_address: OPERATOR_ADDRESS,
@@ -259,7 +261,7 @@ async fn test_fetcher_backfill_certs() {
     let rng = &mut ctx.rng();
 
     let cfg = ValidatorNode::for_single_validator(rng);
-    let mut cfg = Config {
+    let mut cfg = MainNodeConfig {
         executor: cfg.node,
         validator: cfg.validator,
         operator_address: OPERATOR_ADDRESS,
@@ -289,7 +291,7 @@ async fn test_fetcher_backfill_certs() {
 
         // Some blocks without certs.
         sk.push_random_blocks(rng, 5).await;
-        sk.sync(ctx).await?;
+        sk.wait_for_miniblocks(ctx).await?;
         Ok(sk.pool)
     })
     .await

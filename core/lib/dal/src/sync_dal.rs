@@ -1,12 +1,9 @@
-use zksync_types::{api::en, Address, MiniblockNumber, Transaction};
+use zksync_types::{api::en, Address, MiniblockNumber};
 
 use crate::{
     instrument::InstrumentExt,
     metrics::MethodLatency,
-    models::{
-        storage_sync::{StorageSyncBlock, SyncBlock},
-        storage_transaction::StorageTransaction,
-    },
+    models::storage_sync::{StorageSyncBlock, SyncBlock},
     StorageProcessor,
 };
 
@@ -70,31 +67,6 @@ impl SyncDal<'_, '_> {
         Ok(Some(block.try_into()?))
     }
 
-    pub(super) async fn sync_block_transactions(
-        &mut self,
-        block_number: MiniblockNumber,
-    ) -> sqlx::Result<Vec<Transaction>> {
-        let transactions = sqlx::query_as!(
-            StorageTransaction,
-            r#"
-            SELECT
-                *
-            FROM
-                transactions
-            WHERE
-                miniblock_number = $1
-            ORDER BY
-                index_in_block
-            "#,
-            block_number.0 as i64
-        )
-        .instrument("sync_dal_sync_block.transactions")
-        .with_arg("block_number", &block_number)
-        .fetch_all(self.storage.conn())
-        .await?;
-        Ok(transactions.into_iter().map(Transaction::from).collect())
-    }
-
     pub async fn sync_block(
         &mut self,
         block_number: MiniblockNumber,
@@ -106,7 +78,12 @@ impl SyncDal<'_, '_> {
             return Ok(None);
         };
         let transactions = if include_transactions {
-            Some(self.sync_block_transactions(block_number).await?)
+            Some(
+                self.storage
+                    .transactions_web3_dal()
+                    .get_raw_miniblock_transactions(block_number)
+                    .await?,
+            )
         } else {
             None
         };
@@ -119,7 +96,7 @@ mod tests {
     use zksync_types::{
         block::{BlockGasCount, L1BatchHeader},
         fee::TransactionExecutionMetrics,
-        L1BatchNumber, ProtocolVersion, ProtocolVersionId,
+        L1BatchNumber, ProtocolVersion, ProtocolVersionId, Transaction,
     };
 
     use super::*;

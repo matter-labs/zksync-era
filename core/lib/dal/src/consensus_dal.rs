@@ -147,8 +147,8 @@ impl ConsensusDal<'_, '_> {
         };
         let transactions = self
             .storage
-            .sync_dal()
-            .sync_block_transactions(block_number)
+            .transactions_web3_dal()
+            .get_raw_miniblock_transactions(block_number)
             .await?;
         Ok(Some(block.into_payload(operator_address, transactions)))
     }
