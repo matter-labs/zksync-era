@@ -679,7 +679,7 @@ impl HttpTest for TransactionCountTest {
             .await?;
             let nonce_log = StorageLog::new_write_log(
                 get_nonce_key(&test_address),
-                H256::from_low_u64_be(nonce.into()),
+                H256::from_low_u64_be((nonce + 1).into()),
             );
             storage
                 .storage_logs_dal()
@@ -707,7 +707,7 @@ impl HttpTest for TransactionCountTest {
             let latest_count = client
                 .get_transaction_count(test_address, Some(number))
                 .await?;
-            assert_eq!(latest_count, 1.into()); // FIXME: shouldn't it be 2?
+            assert_eq!(latest_count, 2.into());
         }
 
         let earliest_block_numbers = [api::BlockNumber::Earliest, 0.into()];
@@ -723,7 +723,7 @@ impl HttpTest for TransactionCountTest {
         let historic_count = client
             .get_transaction_count(test_address, Some(number))
             .await?;
-        assert_eq!(historic_count, 0.into());
+        assert_eq!(historic_count, 1.into());
 
         let number = api::BlockIdVariant::BlockNumber(100.into());
         let error = client
@@ -752,7 +752,7 @@ impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
     fn storage_initialization(&self) -> StorageInitialization {
         let test_address = Address::repeat_byte(11);
         let nonce_log =
-            StorageLog::new_write_log(get_nonce_key(&test_address), H256::from_low_u64_be(2));
+            StorageLog::new_write_log(get_nonce_key(&test_address), H256::from_low_u64_be(3));
         StorageInitialization::Recovery {
             logs: vec![nonce_log],
             factory_deps: HashMap::new(),
@@ -799,7 +799,7 @@ impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
             let latest_count = client
                 .get_transaction_count(test_address, Some(number))
                 .await?;
-            assert_eq!(latest_count, 2.into());
+            assert_eq!(latest_count, 3.into());
         }
         Ok(())
     }
