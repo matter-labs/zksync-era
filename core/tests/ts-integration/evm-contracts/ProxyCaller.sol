@@ -6,6 +6,8 @@ interface ICounterWithParam {
     function increment(uint256 x) external;
 
     function get() external view returns (uint256);
+
+    function getBytes() external returns (bytes memory);
 }
 
 contract ProxyCaller {
@@ -15,5 +17,9 @@ contract ProxyCaller {
 
     function proxyGet(address dest) external view returns (uint256){
         return ICounterWithParam(dest).get();
+    }
+
+    function proxyGetBytes(address dest) external returns(bytes memory returnData){
+        return ICounterWithParam(dest).getBytes();
     }
 }

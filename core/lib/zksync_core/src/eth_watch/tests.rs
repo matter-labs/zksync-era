@@ -537,7 +537,7 @@ fn tx_into_log(tx: L1Tx) -> Log {
     let tx_data_token = Token::Tuple(vec![
         Token::Uint(0xff.into()),
         Token::Address(tx.common_data.sender),
-        Token::Address(tx.execute.contract_address),
+        Token::Address(tx.execute.contract_address.unwrap()),
         Token::Uint(tx.common_data.gas_limit),
         Token::Uint(tx.common_data.gas_per_pubdata_limit),
         Token::Uint(tx.common_data.max_fee_per_gas),

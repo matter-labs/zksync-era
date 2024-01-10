@@ -26,7 +26,7 @@ contract TestEVMCreate {
         deployer.createEVM(_code);
     }
 
-    function create2(bytes32 _salt, bytes calldata _code) external {
-        deployer.create2EVM(_salt, _code);
+    function create2(bytes32 _salt, bytes calldata _code) external payable {
+        deployer.create2EVM{value:msg.value}(_salt, _code);
     }
 }

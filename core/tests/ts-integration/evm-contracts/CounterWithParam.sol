@@ -33,4 +33,8 @@ contract CounterWithParam {
     function get() public view returns (uint256) {
         return value;
     }
+
+    function getBytes() public returns (bytes memory) {
+        return "Testing";
+    }
 }

@@ -27,7 +27,8 @@ const artifacts = {
     constructorRevert: getEVMArtifact('../evm-contracts/ConstructorRevert.sol'),
     uniswapV2Pair: getEVMArtifact('../contracts/uniswap-v2/UniswapV2Factory.sol', 'UniswapV2Pair.sol'),
     uniswapV2Factory: getEVMArtifact('../contracts/uniswap-v2/UniswapV2Factory.sol', 'UniswapV2Factory.sol'),
-    opcodeTest: getEVMArtifact('../evm-contracts/OpcodeTest.sol')
+    opcodeTest: getEVMArtifact('../evm-contracts/OpcodeTest.sol'),
+    selfDestruct: getEVMArtifact('../evm-contracts/SelfDestruct.sol')
 };
 
 const initBytecode = '0x69602a60005260206000f3600052600a6016f3';
@@ -72,7 +73,7 @@ describe('EVM equivalence contract', () => {
                     '0x' + artifacts.counter.evm.deployedBytecode.object
                 );
                 const contract = await factory.deploy(args);
-                await contract.deployTransaction.wait();
+                await contract.deployTransaction.wait()
                 const receipt = await alice.provider.getTransactionReceipt(contract.deployTransaction.hash);
 
                 await assertCreatedCorrectly(deployer, alice.address, expectedBytecodeHash, receipt.logs);
@@ -82,19 +83,39 @@ describe('EVM equivalence contract', () => {
                 expect((await contract.callStatic.get()).toString()).toEqual('2');
             });
 
+            test('Should create2 evm contract from ZKEVM contract', async () => {
+                const salt = ethers.utils.randomBytes(32);
+
+                const expectedBytecodeHash = ethers.utils.keccak256(
+                    '0x' + artifacts.counter.evm.deployedBytecode.object
+                );
+
+                const receipt = await (await evmCreateTester.create2(salt, initBytecode, { gasLimit })).wait();
+
+                await assertCreatedCorrectly(deployer, evmCreateTester.address, expectedBytecodeHash, receipt.logs);
+
+                try {
+                    await (await evmCreateTester.create2(salt, initBytecode, { gasLimit })).wait();
+                } catch (e) {
+                    // Should fail
+                    return;
+                }
+                throw 'Should fail to create2 the same contract with same salt twice';
+            });
+
             test('Should propegate revert in constructor', async () => {
                 const factory = getEVMContractFactory(alice, artifacts.constructorRevert);
-
                 const contract = await factory.deploy({ gasLimit });
-                try {
-                    await contract.deployTransaction.wait();
-                } catch {
-                    // Do nothing, should fail
-                }
-                const receipt = await alice.provider.getTransactionReceipt(contract.deployTransaction.hash);
 
-                expect(receipt.status).toBe(0);
-                await assertContractNotCreated(receipt.logs);
+                let failReason;
+
+                try {
+                    await contract.deployTransaction.wait()
+                } catch (e: any) {
+                    failReason = e.reason;
+                }
+
+                expect(failReason).toBe("transaction failed");
             });
 
             test('Should NOT create evm contract from EOA when `to` is address(0x0)', async () => {
@@ -108,6 +129,35 @@ describe('EVM equivalence contract', () => {
 
                 await assertContractNotCreated(result.logs);
             });
+
+            test('Should SENDALL', async () => {
+                const salt = ethers.utils.randomBytes(32);
+                const selfDestructBytecode = '0x' + artifacts.selfDestruct.evm.bytecode.object;
+                const hash = ethers.utils.keccak256(selfDestructBytecode);
+
+                const selfDestructFactory = getEVMContractFactory(alice, artifacts.selfDestruct);
+                const selfDestructAddress = ethers.utils.getCreate2Address(evmCreateTester.address, salt, hash);
+                const selfDestruct = selfDestructFactory.attach(selfDestructAddress);
+                const beneficiary = testMaster.newEmptyAccount();
+
+                await (
+                    await evmCreateTester.create2(salt, selfDestructBytecode, { value: 1000 })
+                ).wait();
+                expect((await alice.provider.getBalance(selfDestructAddress)).toNumber()).toBe(1000);
+
+                await (await selfDestruct.destroy(beneficiary.address)).wait();
+                expect((await alice.provider.getBalance(beneficiary.address)).toNumber()).toBe(1000);
+
+                let failReason;
+
+                try {
+                    await (await evmCreateTester.create2(salt, selfDestructBytecode)).wait();
+                } catch (e: any) {
+                    failReason = e.error.reason;
+                }
+
+                expect(failReason).toBe("execution reverted: Can't create on existing contract address");
+            });
         });
     });
 
@@ -117,25 +167,30 @@ describe('EVM equivalence contract', () => {
 
             const counterFactory = getEVMContractFactory(alice, artifacts.counter);
             const counterContract = await counterFactory.deploy(args);
+            await counterContract.deployTransaction.wait();
             await alice.provider.getTransactionReceipt(counterContract.deployTransaction.hash);
 
             const proxyCallerFactory = getEVMContractFactory(alice, artifacts.proxyCaller);
             const proxyCallerContract = await proxyCallerFactory.deploy();
+            await proxyCallerContract.deployTransaction.wait();
             await alice.provider.getTransactionReceipt(proxyCallerContract.deployTransaction.hash);
-
-            const getData = (await counterContract.populateTransaction.get()).data;
-            const incrementData = (await counterContract.populateTransaction.increment(1)).data;
 
             expect((await proxyCallerContract.proxyGet(counterContract.address)).toString()).toEqual('1');
 
             await (await proxyCallerContract.executeIncrememt(counterContract.address, 1)).wait();
 
             expect((await proxyCallerContract.proxyGet(counterContract.address)).toString()).toEqual('2');
+
+            expect((await proxyCallerContract.callStatic.proxyGetBytes(counterContract.address)).toString()).toEqual(
+                '0x54657374696e67'
+            );
         });
 
         test('Create opcode works correctly', async () => {
             const creatorFactory = getEVMContractFactory(alice, artifacts.creator);
             const creatorContract = await creatorFactory.deploy();
+            await creatorContract.deployTransaction.wait();
+
             dumpOpcodeLogs(creatorContract.deployTransaction.hash, alice.provider);
 
             const nonce = 1;
@@ -152,6 +207,7 @@ describe('EVM equivalence contract', () => {
 
             const counterFactory = getEVMContractFactory(alice, artifacts.counter);
             const counterContract = await counterFactory.deploy(args);
+            await counterContract.deployTransaction.wait();
 
             dumpOpcodeLogs(counterContract.deployTransaction.hash, alice.provider);
 
@@ -176,6 +232,7 @@ describe('EVM equivalence contract', () => {
         beforeEach(async () => {
             const erc20Factory = getEVMContractFactory(alice, artifacts.erc20);
             evmToken = await erc20Factory.deploy();
+            await evmToken.deployTransaction.wait();
             nativeToken = await deployContract(alice, contracts.erc20, []);
 
             dumpOpcodeLogs(evmToken.deployTransaction.hash, alice.provider);
@@ -270,12 +327,15 @@ describe('EVM equivalence contract', () => {
         beforeEach(async () => {
             const erc20Factory = getEVMContractFactory(alice, artifacts.erc20);
             evmToken1 = await erc20Factory.deploy({ gasLimit });
+            await evmToken1.deployTransaction.wait();
             evmToken2 = await erc20Factory.deploy();
+            await evmToken2.deployTransaction.wait();
 
             const evmUniswapFactoryFactory = getEVMContractFactory(alice, artifacts.uniswapV2Factory);
             evmUniswapFactory = await evmUniswapFactoryFactory.deploy('0x0000000000000000000000000000000000000000', {
                 gasLimit
             });
+            await evmUniswapFactory.deployTransaction.wait()
             nativeUniswapFactory = await deployContract(
                 alice,
                 contracts.uniswapV2Factory,
@@ -624,17 +684,18 @@ const opcodeDataDump: any = {};
 });
 
 async function dumpOpcodeLogs(hash: string, provider: zksync.Provider): Promise<void> {
-    // const logs = (await provider.getTransactionReceipt(hash)).logs;
-    // logs.forEach((log) => {
-    //     if (log.topics[0] === '0x63307236653da06aaa7e128a306b128c594b4cf3b938ef212975ed10dad17515') {
-    //         //Overhead
-    //         overheadDataDump.push(Number(ethers.utils.defaultAbiCoder.decode(['uint256'], log.data).toString()));
-    //     } else if (log.topics[0] === '0xca5a69edf1b934943a56c00605317596b03e2f61c3f633e8657b150f102a3dfa') {
-    //         // Opcode
-    //         const parsed = ethers.utils.defaultAbiCoder.decode(['uint256', 'uint256'], log.data);
-    //         const opcode = Number(parsed[0].toString());
-    //         const cost = Number(parsed[1].toString());
-    //         opcodeDataDump[opcode.toString()].push(cost);
-    //     }
-    // });
+    const logs = (await provider.getTransactionReceipt(hash)).logs;
+    logs.forEach((log) => {
+        if (log.topics[0] === '0x63307236653da06aaa7e128a306b128c594b4cf3b938ef212975ed10dad17515') {
+            //Overhead
+            overheadDataDump.push(Number(ethers.utils.defaultAbiCoder.decode(['uint256'], log.data).toString()));
+        } else if (log.topics[0] === '0xca5a69edf1b934943a56c00605317596b03e2f61c3f633e8657b150f102a3dfa') {
+            // Opcode
+            const parsed = ethers.utils.defaultAbiCoder.decode(['uint256', 'uint256'], log.data);
+            const opcode = Number(parsed[0].toString());
+            const cost = Number(parsed[1].toString());
+
+            opcodeDataDump[opcode.toString()].push(cost);
+        }
+    });
 }
