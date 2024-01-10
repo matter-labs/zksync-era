@@ -278,7 +278,6 @@ async fn init_tasks(
             .with_filter_limit(config.optional.filters_limit)
             .with_batch_request_size_limit(config.optional.max_batch_request_size)
             .with_response_body_size_limit(config.optional.max_response_body_size())
-            .with_threads(config.required.threads_per_server)
             .with_tx_sender(tx_sender.clone(), vm_barrier.clone())
             .with_sync_state(sync_state.clone())
             .enable_api_namespaces(config.optional.api_namespaces())
@@ -294,7 +293,6 @@ async fn init_tasks(
             .with_batch_request_size_limit(config.optional.max_batch_request_size)
             .with_response_body_size_limit(config.optional.max_response_body_size())
             .with_polling_interval(config.optional.polling_interval())
-            .with_threads(config.required.threads_per_server)
             .with_tx_sender(tx_sender, vm_barrier)
             .with_sync_state(sync_state)
             .enable_api_namespaces(config.optional.api_namespaces())
@@ -485,17 +483,11 @@ async fn main() -> anyhow::Result<()> {
     if let Some(last_correct_batch) = reorg_detector_last_correct_batch {
         tracing::info!("Performing rollback to L1 batch #{last_correct_batch}");
 
-        let block_reverter_connection_pool =
-            ConnectionPool::builder(&config.postgres.database_url, 1)
-                .build()
-                .await
-                .context("failed to build a block reverter connection pool")?;
-
         let reverter = BlockReverter::new(
             config.required.state_cache_path,
             config.required.merkle_tree_path,
             None,
-            block_reverter_connection_pool,
+            connection_pool,
             L1ExecutedBatchesRevert::Allowed,
         );
         reverter
