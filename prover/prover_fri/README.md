@@ -108,7 +108,7 @@ Machine specs:
    API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --all_rounds
    ```
 
-   Note that this will automatically open the three ports after the one specified in enviromental variable, in this case
+   Note that this will automatically open the three ports after the one specified in environmental variable, in this case
    3117, 3118 and 3119.
 
 7. Run prover to perform actual proving:
@@ -201,7 +201,7 @@ zk status prover
 ```
 
 This might take a while (around an hour and a half on my machine using the CPU prover), you can check on it once in a
-while. A succesful flow should output something like
+while. A successful flow should output something like
 
 ```
 ==== FRI Prover status ====

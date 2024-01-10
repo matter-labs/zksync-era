@@ -338,7 +338,7 @@
 //                             eth_signature,
 //                             ..
 //                         })) => eth_signature.serialize_packed(),
-//                         _ => panic!("No ChangePubKey ethereum siganture"),
+//                         _ => panic!("No ChangePubKey ethereum signature"),
 //                     };
 //                     assert_eq!(&eth_signature[..], expected_eth_signature.as_slice());
 //                 }
