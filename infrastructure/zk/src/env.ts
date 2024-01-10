@@ -144,35 +144,35 @@ export function mergeInitToEnv() {
     fs.writeFileSync(process.env.ENV_FILE!, output);
 }
 
-export function getAvailableApiModes() {
-    return ['modern', 'eth_transfer_included'];
+export function getAvailableEthTransferEvents() {
+    return ['disabled', 'enabled'];
 }
 
-export function checkApiMode() {
-    const apiModeEn = process.env.EN_API_ETH_TRANSFER_EVENTS;
-    const apiModeServer = process.env.API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS;
+export function checkEthTransferEvents() {
+    const EthTransferEventsEn = process.env.EN_API_ETH_TRANSFER_EVENTS;
+    const EthTransferEventsServer = process.env.API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS;
 
-    if (apiModeEn && apiModeServer && apiModeEn !== apiModeServer) {
-        console.error(`Api mode mismatch: ${apiModeEn} != ${apiModeServer}.\nPlease, check your .env files.`);
+    if (EthTransferEventsEn && EthTransferEventsServer && EthTransferEventsEn !== EthTransferEventsServer) {
+        console.error(`Api mode mismatch: ${EthTransferEventsEn} != ${EthTransferEventsServer}.\nPlease, check your .env files.`);
         process.exit(1);
     }
 }
 
-export function getApiMode(print: boolean) {
-    checkApiMode();
+export function getEthTransferEvents(print: boolean) {
+    checkEthTransferEvents();
 
-    const apiMode = process.env.EN_API_ETH_TRANSFER_EVENTS ?? process.env.API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS;
+    const EthTransferEvents = process.env.EN_API_ETH_TRANSFER_EVENTS ?? process.env.API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS;
 
     if (print) {
-        const modes = getAvailableApiModes();
+        const modes = getAvailableEthTransferEvents();
 
-        if (!apiMode || !modes.includes(apiMode)) {
+        if (!EthTransferEvents || !modes.includes(EthTransferEvents)) {
             console.error('Unknown api mode or api mode is not set.\nPlease, check your .env files.');
             process.exit(1);
         }
 
         for (const mode of modes) {
-            if (mode === apiMode) {
+            if (mode === EthTransferEvents) {
                 console.log(`* ${mode}`);
             } else {
                 console.log(`  ${mode}`);
@@ -180,13 +180,13 @@ export function getApiMode(print: boolean) {
         }
     }
 
-    return apiMode;
+    return EthTransferEvents;
 }
 
-export function setApiMode(mode: string, print: boolean) {
-    checkApiMode();
+export function setEthTransferEvents(mode: string, print: boolean) {
+    checkEthTransferEvents();
 
-    const modes = getAvailableApiModes();
+    const modes = getAvailableEthTransferEvents();
     if (!modes.includes(mode)) {
         console.error(`Unknown api mode: ${mode}.\nPlease, check your .env files.`);
         process.exit(1);
@@ -195,7 +195,7 @@ export function setApiMode(mode: string, print: boolean) {
     modify('EN_API_ETH_TRANSFER_EVENTS', `EN_API_ETH_TRANSFER_EVENTS=${mode}`);
     modify('API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS', `API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS=${mode}`);
 
-    getApiMode(print);
+    getEthTransferEvents(print);
 }
 
 export const command = new Command('env')
@@ -206,9 +206,9 @@ export const command = new Command('env')
     });
 
 command
-    .command('api-mode')
+    .command('eth-transfer-events')
     .arguments('[mode]')
-    .description('get or set api mode')
+    .description('get or set mode for ETH transfer events')
     .action((mode?: string) => {
-        mode ? setApiMode(mode, true) : getApiMode(true);
+        mode ? setEthTransferEvents(mode, true) : getEthTransferEvents(true);
     });
