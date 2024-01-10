@@ -3,7 +3,7 @@ use std::fs;
 use codegen::{Block, Scope};
 use multivm::{
     utils::{get_bootloader_encoding_space, get_bootloader_max_txs_in_batch},
-    vm_latest::constants::{BLOCK_OVERHEAD_L1_GAS, MAX_PUBDATA_PER_BLOCK},
+    vm_latest::constants::MAX_PUBDATA_PER_BLOCK,
 };
 use serde::{Deserialize, Serialize};
 use zksync_types::{
@@ -17,6 +17,10 @@ use zksync_types::{
     IntrinsicSystemGasConstants, ProtocolVersionId, GUARANTEED_PUBDATA_IN_TX,
     L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
+
+// For configs we will use the default value of 800_000k to represent the rough amount of L1 gas
+// needed to cover the batch expenses.
+const BLOCK_OVERHEAD_L1_GAS: u32 = 800_000;
 
 mod intrinsic_costs;
 mod utils;

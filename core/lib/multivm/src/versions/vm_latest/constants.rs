@@ -149,5 +149,3 @@ pub(crate) const TX_SLOT_OVERHEAD_GAS: u32 = 10_000;
 
 /// The amount of gas to be charged for occupying a single byte of the bootloader's memory.
 pub(crate) const TX_MEMORY_OVERHEAD_GAS: u32 = 10;
-
-pub const BLOCK_OVERHEAD_L1_GAS: u32 = 800_000;

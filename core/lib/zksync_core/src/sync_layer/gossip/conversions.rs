@@ -25,7 +25,6 @@ impl FetchedBlock {
             reference_hash: Some(payload.hash),
             l1_gas_price: payload.l1_gas_price,
             l2_fair_gas_price: payload.l2_fair_gas_price,
-            // FIXME: discuss with the team on how to integrate it into the consensus.
             fair_pubdata_price: payload.fair_pubdata_price,
             virtual_blocks: payload.virtual_blocks,
             operator_address: payload.operator_address,
