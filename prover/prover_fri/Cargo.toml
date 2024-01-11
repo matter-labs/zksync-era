@@ -25,8 +25,8 @@ shivini = { git = "https://github.com/matter-labs/era-shivini.git", branch = "ma
     "zksync",
 ] }
 
-zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.1" }
-circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.1", features = [
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", rev = "6db7c01717d157945f0f2939119dbd8a170de6bc" }
+circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", rev = "6db7c01717d157945f0f2939119dbd8a170de6bc", features = [
     "log_tracing",
 ] }
 
