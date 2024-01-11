@@ -2,9 +2,7 @@ use zksync_dal::{connection::ConnectionPoolBuilder, ConnectionPool};
 
 use super::Resource;
 
-pub const RESOURCE_NAME: &str = "common/postgres_pools";
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct PoolsResource {
     master_pool: Option<ConnectionPoolBuilder>,
     replica_pool: Option<ConnectionPoolBuilder>,
@@ -14,6 +12,8 @@ pub struct PoolsResource {
 impl Resource for PoolsResource {}
 
 impl PoolsResource {
+    pub const RESOURCE_NAME: &str = "common/postgres_pools";
+
     pub fn with_master_pool(mut self, master_pool: ConnectionPoolBuilder) -> Self {
         self.master_pool = Some(master_pool);
         self

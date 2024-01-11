@@ -1,7 +1,7 @@
-use std::{any::Any, collections::HashMap, fmt};
+use std::{any::Any, cell::RefCell, collections::HashMap, fmt};
 
 use futures::{future::BoxFuture, FutureExt};
-use resources::Resource;
+use resources::{stop_receiver::StopReceiverResource, Resource};
 use tokio::{runtime::Runtime, sync::watch};
 // Public re-exports from external crate to minimize the required dependencies.
 pub use zksync_health_check::{CheckHealth, ReactiveHealthCheck};
@@ -71,13 +71,21 @@ impl fmt::Debug for TaskRepr {
     }
 }
 
+pub trait ResourceProvider: 'static + Send + Sync + fmt::Debug {
+    /// Resources are expected to be available.
+    /// In case it isn't possible to obtain the resource, the provider is free to either return `None`
+    /// (if it assumes that the node can continue without this resource), or to panic.
+    fn get_resource(&self, name: &str) -> Option<Box<dyn Any>>;
+}
+
 /// "Manager" class of the node. Collects all the resources and tasks,
 /// then runs tasks until completion.
 pub struct ZkSyncNode {
+    resource_provider: Box<dyn ResourceProvider>,
     /// Anything that may be needed by 1 or more tasks to be created.
     /// Think `ConnectionPool`, `TxSender`, `SealManager`, `EthGateway`, `GasAdjuster`.
     /// There is a note on `dyn Any` below the snippet.
-    resources: HashMap<String, Box<dyn Any>>,
+    resources: RefCell<HashMap<String, Box<dyn Any>>>,
     /// Named tasks.
     tasks: Vec<TaskRepr>,
     // TODO: healthchecks
@@ -88,7 +96,7 @@ pub struct ZkSyncNode {
 }
 
 impl ZkSyncNode {
-    pub fn new() -> anyhow::Result<Self> {
+    pub fn new<R: ResourceProvider>(resource_provider: R) -> anyhow::Result<Self> {
         if tokio::runtime::Handle::try_current().is_ok() {
             anyhow::bail!(
                 "Detected a Tokio Runtime. ZkSyncNode manages its own runtime and does not support nested runtimes"
@@ -101,14 +109,15 @@ impl ZkSyncNode {
 
         let (stop_sender, stop_receiver) = watch::channel(false);
         let mut self_ = Self {
-            resources: HashMap::new(),
+            resource_provider: Box::new(resource_provider),
+            resources: RefCell::default(),
             tasks: Vec::new(),
             stop_sender,
             runtime,
         };
         self_.add_resource(
-            resources::stop_receiver::RESOURCE_NAME,
-            resources::stop_receiver::StopReceiverResource::new(stop_receiver),
+            StopReceiverResource::RESOURCE_NAME,
+            StopReceiverResource::new(stop_receiver),
         );
 
         Ok(self_)
@@ -125,17 +134,45 @@ impl ZkSyncNode {
 
     /// Adds a resource. By default, any resource can be requested by multiple
     /// components, thus `T: Clone`. Think `Arc<U>`.
-    pub fn add_resource<T: Resource>(&mut self, name: impl AsRef<str>, resource: T) {
+    fn add_resource<T: Resource>(&mut self, name: impl AsRef<str>, resource: T) {
         self.resources
+            .borrow_mut()
             .insert(name.as_ref().into(), Box::new(resource));
     }
 
     /// To be called in `ZkSyncTask::new(..)`.
     pub fn get_resource<T: Resource>(&self, name: impl AsRef<str>) -> Option<T> {
-        self.resources
-            .get(name.as_ref())
-            .and_then(|resource| resource.downcast_ref::<T>())
-            .cloned()
+        let downcast_clone = |resource: &Box<dyn Any>| {
+            resource
+                .downcast_ref::<T>()
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Resource {} is not of type {}",
+                        name.as_ref(),
+                        std::any::type_name::<T>()
+                    )
+                })
+                .clone()
+        };
+
+        let name = name.as_ref();
+        // Check whether the resource is already available.
+        if let Some(resource) = self.resources.borrow().get(name) {
+            return Some(downcast_clone(resource));
+        }
+
+        // Try to fetch the resource from the provider.
+        if let Some(resource) = self.resource_provider.get_resource(name) {
+            // First, ensure the type matches.
+            let downcasted = downcast_clone(&resource);
+            // Then, add it to the local resources.
+            self.resources.borrow_mut().insert(name.into(), resource);
+            return Some(downcasted);
+        }
+
+        // No such resource.
+        // The requester is allowed to decide whether this is an error or not.
+        None
     }
 
     /// Takes care of task creation.
@@ -161,6 +198,10 @@ impl ZkSyncNode {
 
     /// Runs the system.
     pub fn run(mut self) -> anyhow::Result<()> {
+        if self.tasks.is_empty() {
+            anyhow::bail!("No tasks to run");
+        }
+
         let rt_handle = self.runtime.handle().clone();
         let join_handles: Vec<_> = self
             .tasks

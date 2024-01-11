@@ -30,13 +30,11 @@ impl IntoZkSyncTask for MetadataCalculatorTask {
         config: Self::Config,
     ) -> Result<Box<dyn ZkSyncTask>, TaskInitError> {
         let pools: PoolsResource = node
-            .get_resource(crate::resources::pools::RESOURCE_NAME)
-            .ok_or(TaskInitError::ResourceLacking(
-                crate::resources::pools::RESOURCE_NAME,
-            ))?;
+            .get_resource(PoolsResource::RESOURCE_NAME)
+            .ok_or(TaskInitError::ResourceLacking(PoolsResource::RESOURCE_NAME))?;
         let main_pool = node.runtime_handle().block_on(pools.master_pool()).unwrap();
         let object_store: Option<ObjectStoreResource> =
-            node.get_resource(crate::resources::object_store::RESOURCE_NAME); // OK to be None.
+            node.get_resource(PoolsResource::RESOURCE_NAME); // OK to be None.
 
         if object_store.is_none() {
             // TODO: use internal logging system?
@@ -50,9 +48,9 @@ impl IntoZkSyncTask for MetadataCalculatorTask {
             .block_on(MetadataCalculator::new(config, object_store.map(|os| os.0)));
 
         let stop_receiver: StopReceiverResource = node
-            .get_resource(crate::resources::stop_receiver::RESOURCE_NAME)
+            .get_resource(StopReceiverResource::RESOURCE_NAME)
             .ok_or(TaskInitError::ResourceLacking(
-                crate::resources::stop_receiver::RESOURCE_NAME,
+                StopReceiverResource::RESOURCE_NAME,
             ))?;
         Ok(Box::new(Self {
             metadata_calculator,

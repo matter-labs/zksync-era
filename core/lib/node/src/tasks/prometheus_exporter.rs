@@ -8,25 +8,6 @@ use crate::{
 
 use super::TaskInitError;
 
-/** Reference
-   let prom_config = configs
-       .prometheus_config
-       .clone()
-       .context("prometheus_config")?;
-   let prom_config = PrometheusExporterConfig::pull(prom_config.listener_port);
-
-   let (prometheus_health_check, prometheus_health_updater) =
-       ReactiveHealthCheck::new("prometheus_exporter");
-   healthchecks.push(Box::new(prometheus_health_check));
-   let prometheus_task = prom_config.run(stop_receiver.clone());
-   let prometheus_task = tokio::spawn(async move {
-       prometheus_health_updater.update(HealthStatus::Ready.into());
-       let res = prometheus_task.await;
-       drop(prometheus_health_updater);
-       res
-   });
-*/
-
 #[derive(Debug)]
 pub struct PrometheusExporterTask {
     config: PrometheusExporterConfig,
@@ -46,9 +27,9 @@ impl IntoZkSyncTask for PrometheusExporterTask {
             ReactiveHealthCheck::new("prometheus_exporter");
 
         let stop_receiver: StopReceiverResource = node
-            .get_resource(crate::resources::stop_receiver::RESOURCE_NAME)
+            .get_resource(StopReceiverResource::RESOURCE_NAME)
             .ok_or(TaskInitError::ResourceLacking(
-                crate::resources::stop_receiver::RESOURCE_NAME,
+                StopReceiverResource::RESOURCE_NAME,
             ))?;
 
         Ok(Box::new(Self {
