@@ -1,3 +1,4 @@
+use zksync_types::api::ApiEthTransferEvents;
 use zksync_types::{
     api::{L2ToL1Log, Log},
     web3::types::{Bytes, Index, U256, U64},
@@ -83,6 +84,54 @@ impl From<StorageL2ToL1Log> for L2ToL1Log {
             tx_index_in_l1_batch: Some(log.tx_index_in_l1_batch.into()),
             key: H256::from_slice(&log.key),
             value: H256::from_slice(&log.value),
+        }
+    }
+}
+
+#[derive(sqlx::FromRow, Debug, Clone)]
+pub struct StorageWeb3LogExt {
+    pub address: Vec<u8>,
+    pub topic1: Vec<u8>,
+    pub topic2: Vec<u8>,
+    pub topic3: Vec<u8>,
+    pub topic4: Vec<u8>,
+    pub value: Vec<u8>,
+    pub block_hash: Option<Vec<u8>>,
+    pub miniblock_number: i64,
+    pub l1_batch_number: Option<i64>,
+    pub tx_hash: Vec<u8>,
+    pub tx_index_in_block: i32,
+    pub event_index_in_block: i32,
+    pub event_index_in_tx: i32,
+    pub event_index_in_block_without_eth_transfer: i32,
+    pub event_index_in_tx_without_eth_transfer: i32,
+}
+
+impl StorageWeb3LogExt {
+    pub fn into_storage_log(self, api_eth_transfer_events: ApiEthTransferEvents) -> StorageWeb3Log {
+        let event_index_in_block = match api_eth_transfer_events {
+            ApiEthTransferEvents::Enabled => self.event_index_in_block,
+            ApiEthTransferEvents::Disabled => self.event_index_in_block_without_eth_transfer,
+        };
+        let event_index_in_tx = match api_eth_transfer_events {
+            ApiEthTransferEvents::Enabled => self.event_index_in_tx,
+            ApiEthTransferEvents::Disabled => self.event_index_in_tx_without_eth_transfer,
+        };
+
+        StorageWeb3Log {
+            address: self.address,
+            topic1: self.topic1,
+            topic2: self.topic2,
+            topic3: self.topic3,
+            topic4: self.topic4,
+            value: self.value,
+            block_hash: self.block_hash,
+            miniblock_number: self.miniblock_number,
+            l1_batch_number: self.l1_batch_number,
+            tx_hash: self.tx_hash,
+            tx_index_in_block: self.tx_index_in_block,
+            event_index_in_tx,
+            event_index_in_block,
         }
     }
 }

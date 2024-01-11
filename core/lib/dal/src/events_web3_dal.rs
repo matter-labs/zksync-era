@@ -5,6 +5,7 @@ use zksync_types::{
     Address, MiniblockNumber, H256,
 };
 
+use crate::models::storage_event::StorageWeb3LogExt;
 use crate::{
     instrument::InstrumentExt, models::storage_event::StorageWeb3Log, SqlxError, StorageProcessor,
 };
@@ -15,7 +16,7 @@ pub struct EventsWeb3Dal<'a, 'c> {
 }
 
 pub fn filter_logs_by_api_eth_transfer_events(
-    mut db_logs: Vec<StorageWeb3Log>,
+    mut db_logs: Vec<StorageWeb3LogExt>,
     api_eth_transfer_events: ApiEthTransferEvents,
 ) -> Vec<StorageWeb3Log> {
     if api_eth_transfer_events == ApiEthTransferEvents::Disabled {
@@ -23,29 +24,13 @@ pub fn filter_logs_by_api_eth_transfer_events(
             log.address != L2_ETH_TOKEN_ADDRESS.as_bytes()
                 || log.topic1 != TRANSFER_EVENT_TOPIC.as_bytes()
         });
-
-        if let Some(first_log) = db_logs.first().cloned() {
-            let mut new_event_index_in_block = 0;
-            let mut new_event_index_in_tx = 0;
-            let mut current_block = first_log.miniblock_number;
-            let mut current_tx_hash = first_log.tx_hash.clone();
-
-            for db_log in &mut db_logs {
-                if db_log.miniblock_number != current_block {
-                    current_block = db_log.miniblock_number;
-                    new_event_index_in_block = 0;
-                }
-                if db_log.tx_hash != current_tx_hash {
-                    current_tx_hash = db_log.tx_hash.clone();
-                    new_event_index_in_tx = 0;
-                }
-                db_log.event_index_in_block = new_event_index_in_block;
-                db_log.event_index_in_tx = new_event_index_in_tx;
-                new_event_index_in_block += 1;
-                new_event_index_in_tx += 1;
-            }
-        }
     }
+
+    let db_logs = db_logs
+        .iter()
+        .map(|db_log| db_log.clone().into_storage_log(api_eth_transfer_events))
+        .collect();
+
     db_logs
 }
 
@@ -127,7 +112,9 @@ impl EventsWeb3Dal<'_, '_> {
                     SELECT
                         address, topic1, topic2, topic3, topic4, value,
                         miniblock_number, tx_hash, tx_index_in_block,
-                        event_index_in_block, event_index_in_tx
+                        event_index_in_block, event_index_in_tx,
+                        event_index_in_block_without_eth_transfer,
+                        event_index_in_tx_without_eth_transfer
                     FROM events
                     WHERE {}
                     ORDER BY miniblock_number ASC, event_index_in_block ASC
@@ -153,7 +140,7 @@ impl EventsWeb3Dal<'_, '_> {
 
             query = query.bind(limit as i32);
 
-            let db_logs: Vec<StorageWeb3Log> = query
+            let db_logs: Vec<StorageWeb3LogExt> = query
                 .instrument("get_logs")
                 .report_latency()
                 .with_arg("filter", &filter)
@@ -193,23 +180,17 @@ impl EventsWeb3Dal<'_, '_> {
         api_eth_transfer_events: ApiEthTransferEvents,
     ) -> Result<Vec<Log>, SqlxError> {
         {
-            let db_logs: Vec<StorageWeb3Log> = sqlx::query_as!(
-                StorageWeb3Log,
+            let db_logs: Vec<StorageWeb3LogExt> = sqlx::query_as!(
+                StorageWeb3LogExt,
                 r#"
                 WITH
                     events_select AS (
                         SELECT
-                            address,
-                            topic1,
-                            topic2,
-                            topic3,
-                            topic4,
-                            value,
-                            miniblock_number,
-                            tx_hash,
-                            tx_index_in_block,
-                            event_index_in_block,
-                            event_index_in_tx
+                            address, topic1, topic2, topic3, topic4, value,
+                            miniblock_number, tx_hash, tx_index_in_block,
+                            event_index_in_block, event_index_in_tx,
+                            event_index_in_block_without_eth_transfer,
+                            event_index_in_tx_without_eth_transfer
                         FROM
                             events
                         WHERE
@@ -231,7 +212,9 @@ impl EventsWeb3Dal<'_, '_> {
                     tx_hash AS "tx_hash!",
                     tx_index_in_block AS "tx_index_in_block!",
                     event_index_in_block AS "event_index_in_block!",
-                    event_index_in_tx AS "event_index_in_tx!"
+                    event_index_in_tx AS "event_index_in_tx!",
+                    event_index_in_block_without_eth_transfer AS "event_index_in_block_without_eth_transfer!",
+                    event_index_in_tx_without_eth_transfer AS "event_index_in_tx_without_eth_transfer!"
                 FROM
                     events_select
                     INNER JOIN miniblocks ON events_select.miniblock_number = miniblocks.number

@@ -1,6 +1,7 @@
 use std::fmt;
 
 use sqlx::types::chrono::Utc;
+use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     tx::IncludedTxLocation,
@@ -44,7 +45,9 @@ impl EventsDal<'_, '_> {
                     event_index_in_block, event_index_in_tx,
                     topic1, topic2, topic3, topic4, value,
                     tx_initiator_address,
-                    created_at, updated_at
+                    created_at, updated_at,
+                    event_index_in_block_without_eth_transfer,
+                    event_index_in_tx_without_eth_transfer
                 )
                 FROM STDIN WITH (DELIMITER '|')",
             )
@@ -54,6 +57,7 @@ impl EventsDal<'_, '_> {
         let mut buffer = String::new();
         let now = Utc::now().naive_utc().to_string();
         let mut event_index_in_block = 0_u32;
+        let mut event_index_in_block_without_eth_transfer = 0_u32;
 
         for (tx_location, events) in all_block_events {
             let IncludedTxLocation {
@@ -62,6 +66,7 @@ impl EventsDal<'_, '_> {
                 tx_initiator_address,
             } = tx_location;
 
+            let mut event_index_in_tx_without_eth_transfer = 0_u32;
             for (event_index_in_tx, event) in events.iter().enumerate() {
                 write_str!(
                     &mut buffer,
@@ -82,6 +87,19 @@ impl EventsDal<'_, '_> {
                     r"\\x{value}|\\x{tx_initiator_address:x}|{now}|{now}",
                     value = hex::encode(&event.value)
                 );
+                writeln_str!(
+                    &mut buffer,
+                    "{event_index_in_block_without_eth_transfer}|{event_index_in_tx_without_eth_transfer}",
+                );
+
+                if event.address != L2_ETH_TOKEN_ADDRESS
+                    || event.indexed_topics.len() < 2
+                    || event.indexed_topics[1] != TRANSFER_EVENT_TOPIC
+                {
+                    event_index_in_block_without_eth_transfer += 1;
+                    event_index_in_tx_without_eth_transfer += 1;
+                }
+
                 event_index_in_block += 1;
             }
         }

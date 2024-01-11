@@ -1,0 +1,106 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                        SELECT\n                            address, topic1, topic2, topic3, topic4, value,\n                            miniblock_number, tx_hash, tx_index_in_block,\n                            event_index_in_block, event_index_in_tx,\n                            event_index_in_block_without_eth_transfer,\n                            event_index_in_tx_without_eth_transfer,\n                            NULL::bytea AS \"block_hash\",\n                            NULL::BIGINT AS \"l1_batch_number\"\n                        FROM\n                            events\n                        WHERE\n                            tx_hash = $1\n                        ORDER BY\n                            miniblock_number ASC,\n                            event_index_in_block ASC\n                        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "address",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "topic1",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 2,
+        "name": "topic2",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 3,
+        "name": "topic3",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 4,
+        "name": "topic4",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 5,
+        "name": "value",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 6,
+        "name": "miniblock_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "tx_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 8,
+        "name": "tx_index_in_block",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "event_index_in_block",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "event_index_in_tx",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "event_index_in_block_without_eth_transfer",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 12,
+        "name": "event_index_in_tx_without_eth_transfer",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 13,
+        "name": "block_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 14,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "31d0d5d655ca261963aece86b6715c0f14397ff5671e4b7a69ae7d1988d3c47b"
+}
