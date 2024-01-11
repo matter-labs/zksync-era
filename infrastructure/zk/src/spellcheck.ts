@@ -2,23 +2,25 @@ import { Command } from 'commander';
 import * as utils from './utils';
 
 export async function runSpellCheck(pattern: string, useCargo: boolean, useCSpell: boolean) {
-    const cSpellCommand = `cspell ${pattern} --config=./spellcheck/cspell.json`;
+    // Default commands for cSpell and cargo spellcheck
+    const cSpellCommand = `cspell "${pattern}" --config=./spellcheck/cspell.json`;
     const cargoCommand = `cargo spellcheck --cfg=./spellcheck/era.cfg`;
+    // Necessary to run cargo spellcheck in the prover directory explicitly as
+    // it is not included in the root cargo.toml file
+    const cargoCommandForProver = `cargo spellcheck --cfg=../spellcheck/era.cfg`;
 
     try {
         let results = [];
-        if (!useCargo && !useCSpell) {
-            results = await Promise.all([utils.spawn(cSpellCommand), utils.spawn(cargoCommand)]);
-        } else {
-            // Run cspell if specified
-            if (useCSpell) {
-                results.push(await utils.spawn(cSpellCommand));
-            }
 
-            // Run cargo spellcheck if specified
-            if (useCargo) {
-                results.push(await utils.spawn(cargoCommand));
-            }
+        // Run cspell over all **/*.md files
+        if (useCSpell || (!useCargo && !useCSpell)) {
+            results.push(await utils.spawn(cSpellCommand));
+        }
+
+        // Run cargo spellcheck in core and prover directories
+        if (useCargo || (!useCargo && !useCSpell)) {
+            results.push(await utils.spawn(cargoCommand));
+            results.push(await utils.spawn('cd prover && ' + cargoCommandForProver));
         }
 
         // Check results and exit with error code if any command failed
@@ -33,8 +35,7 @@ export async function runSpellCheck(pattern: string, useCargo: boolean, useCSpel
 }
 
 export const command = new Command('spellcheck')
-    .option('--pattern <pattern>', 'Glob pattern for files to check', 'docs/**/*')
-    .option('--config <config>', 'Path to configuration file', './spellcheck/cspell.json')
+    .option('--pattern <pattern>', 'Glob pattern for files to check', '**/*.md')
     .option('--use-cargo', 'Use cargo spellcheck')
     .option('--use-cspell', 'Use cspell')
     .description('Run spell check on specified files')
