@@ -5,7 +5,7 @@ use std::{fmt, time::Duration};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use tokio::sync::watch::Receiver;
+use tokio::sync::{mpsc, watch};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, api, L1BatchNumber, MiniblockNumber, H256,
@@ -20,6 +20,9 @@ use zksync_web3_decl::{
 
 use super::metrics::{FetchStage, L1BatchStage, FETCHER_METRICS};
 use crate::metrics::EN_METRICS;
+
+#[cfg(test)]
+mod tests;
 
 /// Represents a change in the batch status.
 /// It may be a batch being committed, proven or executed.
@@ -106,6 +109,7 @@ pub struct BatchStatusUpdater {
     last_proven_l1_batch: L1BatchNumber,
     last_committed_l1_batch: L1BatchNumber,
     sleep_interval: Duration,
+    changes_sender: mpsc::UnboundedSender<StatusChanges>,
 }
 
 impl BatchStatusUpdater {
@@ -115,7 +119,14 @@ impl BatchStatusUpdater {
         let client = HttpClientBuilder::default()
             .build(main_node_url)
             .context("Unable to create a main node client")?;
+        Self::from_parts(Box::new(client), pool, Self::DEFAULT_SLEEP_INTERVAL).await
+    }
 
+    async fn from_parts(
+        client: Box<dyn MainNodeClient>,
+        pool: ConnectionPool,
+        sleep_interval: Duration,
+    ) -> anyhow::Result<Self> {
         let mut storage = pool.access_storage_tagged("sync_layer").await?;
         let last_executed_l1_batch = storage
             .blocks_dal()
@@ -135,16 +146,17 @@ impl BatchStatusUpdater {
         drop(storage);
 
         Ok(Self {
-            client: Box::new(client),
+            client,
             pool,
             last_committed_l1_batch,
             last_proven_l1_batch,
             last_executed_l1_batch,
-            sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
+            sleep_interval,
+            changes_sender: mpsc::unbounded_channel().0,
         })
     }
 
-    pub async fn run(mut self, stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, exiting the batch status updater routine");
@@ -344,7 +356,7 @@ impl BatchStatusUpdater {
             .await?
             .number;
 
-        for change in changes.commit {
+        for change in &changes.commit {
             tracing::info!(
                 "Commit status change: number {}, hash {}, happened at {}",
                 change.number,
@@ -368,7 +380,7 @@ impl BatchStatusUpdater {
             self.last_committed_l1_batch = change.number;
         }
 
-        for change in changes.prove {
+        for change in &changes.prove {
             tracing::info!(
                 "Prove status change: number {}, hash {}, happened at {}",
                 change.number,
@@ -392,7 +404,7 @@ impl BatchStatusUpdater {
             self.last_proven_l1_batch = change.number;
         }
 
-        for change in changes.execute.into_iter() {
+        for change in &changes.execute {
             tracing::info!(
                 "Execute status change: number {}, hash {}, happened at {}",
                 change.number,
@@ -418,6 +430,8 @@ impl BatchStatusUpdater {
 
         transaction.commit().await?;
         total_latency.observe();
+
+        self.changes_sender.send(changes).ok();
         Ok(())
     }
 }
