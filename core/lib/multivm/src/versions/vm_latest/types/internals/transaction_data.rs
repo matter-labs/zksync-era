@@ -218,7 +218,7 @@ impl TransactionData {
         if self.tx_type == L1_TX_TYPE {
             // In case we get a users' transactions with unexpected gas limit, we do not let it have more than
             // a certain limit
-            return U256::from(PRIORITY_TX_MAX_GAS_LIMIT);
+            return U256::from(PRIORITY_TX_MAX_GAS_LIMIT).min(self.gas_limit);
         }
 
         // TODO (EVM-66): correctly calculate the trusted gas limit for a transaction
