@@ -351,7 +351,3 @@ function getOverheadForTransaction(encodingLength: ethers.BigNumber): number {
 
     return Math.max(TX_SLOT_OVERHEAD_GAS, TX_LENGTH_BYTE_OVERHEAD_GAS * encodingLength.toNumber());
 }
-
-function ceilDiv(a: ethers.BigNumber, b: ethers.BigNumber): ethers.BigNumber {
-    return a.add(b.sub(1)).div(b);
-}

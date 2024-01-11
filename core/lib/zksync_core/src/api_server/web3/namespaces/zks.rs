@@ -25,12 +25,9 @@ use zksync_web3_decl::{
     types::{Address, Token, H256},
 };
 
-use crate::{
-    api_server::{
-        tree::TreeApiClient,
-        web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, RpcState},
-    },
-    fee_model::BatchFeeModelInputProvider,
+use crate::api_server::{
+    tree::TreeApiClient,
+    web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, RpcState},
 };
 
 #[derive(Debug)]

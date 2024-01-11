@@ -10,8 +10,7 @@ use zksync_types::{
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
 use crate::vm_latest::{
-    tests::tester::InMemoryStorageView, types::internals::ZkSyncVmState,
-    utils::fee::derive_base_fee_and_gas_per_pubdata, HistoryMode, L1BatchEnv,
+    tests::tester::InMemoryStorageView, types::internals::ZkSyncVmState, HistoryMode,
 };
 
 pub(crate) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
@@ -109,8 +108,4 @@ pub(crate) fn read_precompiles_contract() -> Vec<u8> {
     read_bytecode(
         "etc/contracts-test-data/artifacts-zk/contracts/precompiles/precompiles.sol/Precompiles.json",
     )
-}
-
-pub(crate) fn get_batch_gas_per_pubdata(l1_batch_env: &L1BatchEnv) -> u64 {
-    derive_base_fee_and_gas_per_pubdata(l1_batch_env.fee_input.into_pubdata_independent()).1
 }

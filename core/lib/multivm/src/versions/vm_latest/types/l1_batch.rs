@@ -37,7 +37,7 @@ pub(crate) fn bootloader_initial_memory(l1_batch: &L1BatchEnv) -> Vec<(usize, U2
         ),
         (
             EXPECTED_BASE_FEE_SLOT,
-            U256::from(get_batch_base_fee(&l1_batch)),
+            U256::from(get_batch_base_fee(l1_batch)),
         ),
         (SHOULD_SET_NEW_BLOCK_SLOT, should_set_new_block),
     ]

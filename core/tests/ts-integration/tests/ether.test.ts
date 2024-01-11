@@ -7,7 +7,7 @@ import { shouldChangeETHBalances, shouldOnlyTakeFee } from '../src/modifiers/bal
 import { checkReceipt } from '../src/modifiers/receipt-check';
 
 import * as zksync from 'zksync-web3';
-import { BigNumber, Overrides, Wallet } from 'ethers';
+import { BigNumber, Overrides } from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
 
 const ETH_ADDRESS = zksync.utils.ETH_ADDRESS;
