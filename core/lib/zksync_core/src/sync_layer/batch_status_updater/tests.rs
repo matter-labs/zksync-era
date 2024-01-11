@@ -6,7 +6,6 @@ use chrono::TimeZone;
 use test_casing::test_casing;
 use tokio::sync::{watch, Mutex};
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::StorageProcessor;
 use zksync_types::{block::BlockGasCount, Address, L2ChainId, ProtocolVersionId};
 
 use super::*;
@@ -39,30 +38,22 @@ async fn seal_l1_batch(storage: &mut StorageProcessor<'_>, number: L1BatchNumber
     storage.commit().await.unwrap();
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum L1Stage {
-    None,
-    Committed,
-    Proven,
-    Executed,
-}
-
-/// Mapping `L1BatchNumber` -> `L1Stage` for a continuous range of numbers.
+/// Mapping `L1BatchNumber` -> `L1BatchStage` for a continuous range of numbers.
 #[derive(Debug, Clone, PartialEq)]
-struct L1StagesMap {
+struct L1BatchStagesMap {
     first_batch_number: L1BatchNumber,
-    stages: Vec<L1Stage>,
+    stages: Vec<L1BatchStage>,
 }
 
-impl L1StagesMap {
+impl L1BatchStagesMap {
     fn empty(first_batch_number: L1BatchNumber, len: usize) -> Self {
         Self {
             first_batch_number,
-            stages: vec![L1Stage::None; len],
+            stages: vec![L1BatchStage::Open; len],
         }
     }
 
-    fn new(first_batch_number: L1BatchNumber, stages: Vec<L1Stage>) -> Self {
+    fn new(first_batch_number: L1BatchNumber, stages: Vec<L1BatchStage>) -> Self {
         assert!(stages.windows(2).all(|window| {
             let [prev, next] = window else { unreachable!() };
             prev >= next
@@ -73,14 +64,14 @@ impl L1StagesMap {
         }
     }
 
-    fn get(&self, number: L1BatchNumber) -> Option<L1Stage> {
+    fn get(&self, number: L1BatchNumber) -> Option<L1BatchStage> {
         let Some(index) = number.0.checked_sub(self.first_batch_number.0) else {
             return None;
         };
         self.stages.get(index as usize).copied()
     }
 
-    fn iter(&self) -> impl Iterator<Item = (L1BatchNumber, L1Stage)> + '_ {
+    fn iter(&self) -> impl Iterator<Item = (L1BatchNumber, L1BatchStage)> + '_ {
         self.stages
             .iter()
             .enumerate()
@@ -88,12 +79,12 @@ impl L1StagesMap {
     }
 
     fn update(&mut self, changes: &StatusChanges) {
-        self.update_to_stage(&changes.commit, L1Stage::Committed);
-        self.update_to_stage(&changes.prove, L1Stage::Proven);
-        self.update_to_stage(&changes.execute, L1Stage::Executed);
+        self.update_to_stage(&changes.commit, L1BatchStage::Committed);
+        self.update_to_stage(&changes.prove, L1BatchStage::Proven);
+        self.update_to_stage(&changes.execute, L1BatchStage::Executed);
     }
 
-    fn update_to_stage(&mut self, batch_changes: &[BatchStatusChange], target: L1Stage) {
+    fn update_to_stage(&mut self, batch_changes: &[BatchStatusChange], target: L1BatchStage) {
         for change in batch_changes {
             let number = change.number;
             let index = number
@@ -150,7 +141,7 @@ impl L1StagesMap {
     }
 }
 
-fn mock_block_details(number: u32, stage: L1Stage) -> api::BlockDetails {
+fn mock_block_details(number: u32, stage: L1BatchStage) -> api::BlockDetails {
     api::BlockDetails {
         number: MiniblockNumber(number),
         l1_batch_number: L1BatchNumber(number),
@@ -160,12 +151,14 @@ fn mock_block_details(number: u32, stage: L1Stage) -> api::BlockDetails {
             l2_tx_count: 0,
             root_hash: Some(H256::zero()),
             status: api::BlockStatus::Sealed,
-            commit_tx_hash: (stage >= L1Stage::Committed).then(|| H256::repeat_byte(1)),
-            committed_at: (stage >= L1Stage::Committed).then(|| Utc.timestamp_opt(100, 0).unwrap()),
-            prove_tx_hash: (stage >= L1Stage::Proven).then(|| H256::repeat_byte(2)),
-            proven_at: (stage >= L1Stage::Proven).then(|| Utc.timestamp_opt(200, 0).unwrap()),
-            execute_tx_hash: (stage >= L1Stage::Executed).then(|| H256::repeat_byte(3)),
-            executed_at: (stage >= L1Stage::Executed).then(|| Utc.timestamp_opt(300, 0).unwrap()),
+            commit_tx_hash: (stage >= L1BatchStage::Committed).then(|| H256::repeat_byte(1)),
+            committed_at: (stage >= L1BatchStage::Committed)
+                .then(|| Utc.timestamp_opt(100, 0).unwrap()),
+            prove_tx_hash: (stage >= L1BatchStage::Proven).then(|| H256::repeat_byte(2)),
+            proven_at: (stage >= L1BatchStage::Proven).then(|| Utc.timestamp_opt(200, 0).unwrap()),
+            execute_tx_hash: (stage >= L1BatchStage::Executed).then(|| H256::repeat_byte(3)),
+            executed_at: (stage >= L1BatchStage::Executed)
+                .then(|| Utc.timestamp_opt(300, 0).unwrap()),
             l1_gas_price: 1,
             l2_fair_gas_price: 2,
             base_system_contracts_hashes: BaseSystemContractsHashes::default(),
@@ -176,10 +169,10 @@ fn mock_block_details(number: u32, stage: L1Stage) -> api::BlockDetails {
 }
 
 #[derive(Debug)]
-struct MockMainNodeClient(Arc<Mutex<L1StagesMap>>);
+struct MockMainNodeClient(Arc<Mutex<L1BatchStagesMap>>);
 
-impl From<L1StagesMap> for MockMainNodeClient {
-    fn from(map: L1StagesMap) -> Self {
+impl From<L1BatchStagesMap> for MockMainNodeClient {
+    fn from(map: L1BatchStagesMap) -> Self {
         Self(Arc::new(Mutex::new(map)))
     }
 }
@@ -209,15 +202,13 @@ impl MainNodeClient for MockMainNodeClient {
     }
 }
 
-async fn mock_updater(
+fn mock_updater(
     client: MockMainNodeClient,
     pool: ConnectionPool,
 ) -> (BatchStatusUpdater, mpsc::UnboundedReceiver<StatusChanges>) {
     let (changes_sender, changes_receiver) = mpsc::unbounded_channel();
     let mut updater =
-        BatchStatusUpdater::from_parts(Box::new(client), pool, Duration::from_millis(10))
-            .await
-            .unwrap();
+        BatchStatusUpdater::from_parts(Box::new(client), pool, Duration::from_millis(10));
     updater.changes_sender = changes_sender;
     (updater, changes_receiver)
 }
@@ -230,15 +221,15 @@ async fn normal_updater_operation(async_batches: bool) {
     ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
         .await
         .unwrap();
-    let target_batch_stages = L1StagesMap::new(
+    let target_batch_stages = L1BatchStagesMap::new(
         L1BatchNumber(1),
         vec![
-            L1Stage::Executed,
-            L1Stage::Proven,
-            L1Stage::Proven,
-            L1Stage::Committed,
-            L1Stage::Committed,
-            L1Stage::None,
+            L1BatchStage::Executed,
+            L1BatchStage::Proven,
+            L1BatchStage::Proven,
+            L1BatchStage::Committed,
+            L1BatchStage::Committed,
+            L1BatchStage::Open,
         ],
     );
     let batch_numbers: Vec<_> = target_batch_stages
@@ -254,11 +245,7 @@ async fn normal_updater_operation(async_batches: bool) {
     }
 
     let client = MockMainNodeClient::from(target_batch_stages.clone());
-    let (updater, mut changes_receiver) = mock_updater(client, pool.clone()).await;
-    assert_eq!(updater.last_committed_l1_batch, L1BatchNumber(0));
-    assert_eq!(updater.last_proven_l1_batch, L1BatchNumber(0));
-    assert_eq!(updater.last_executed_l1_batch, L1BatchNumber(0));
-
+    let (updater, mut changes_receiver) = mock_updater(client, pool.clone());
     let (stop_sender, stop_receiver) = watch::channel(false);
     let updater_task = tokio::spawn(updater.run(stop_receiver));
 
@@ -276,7 +263,7 @@ async fn normal_updater_operation(async_batches: bool) {
     };
 
     let mut observed_batch_stages =
-        L1StagesMap::empty(L1BatchNumber(1), target_batch_stages.stages.len());
+        L1BatchStagesMap::empty(L1BatchNumber(1), target_batch_stages.stages.len());
     loop {
         let changes = changes_receiver.recv().await.unwrap();
         observed_batch_stages.update(&changes);
@@ -298,19 +285,19 @@ async fn updater_with_gradual_main_node_updates() {
     ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
         .await
         .unwrap();
-    let target_batch_stages = L1StagesMap::new(
+    let target_batch_stages = L1BatchStagesMap::new(
         L1BatchNumber(1),
         vec![
-            L1Stage::Executed,
-            L1Stage::Proven,
-            L1Stage::Proven,
-            L1Stage::Committed,
-            L1Stage::Committed,
-            L1Stage::None,
+            L1BatchStage::Executed,
+            L1BatchStage::Proven,
+            L1BatchStage::Proven,
+            L1BatchStage::Committed,
+            L1BatchStage::Committed,
+            L1BatchStage::Open,
         ],
     );
     let mut observed_batch_stages =
-        L1StagesMap::empty(L1BatchNumber(1), target_batch_stages.stages.len());
+        L1BatchStagesMap::empty(L1BatchNumber(1), target_batch_stages.stages.len());
 
     for (number, _) in target_batch_stages.iter() {
         seal_l1_batch(&mut storage, number).await;
@@ -322,7 +309,11 @@ async fn updater_with_gradual_main_node_updates() {
     let client_map = Arc::clone(&client.0);
     let final_stages = target_batch_stages.clone();
     let storage_task = tokio::spawn(async move {
-        for max_stage in [L1Stage::Committed, L1Stage::Proven, L1Stage::Executed] {
+        for max_stage in [
+            L1BatchStage::Committed,
+            L1BatchStage::Proven,
+            L1BatchStage::Executed,
+        ] {
             let mut client_map = client_map.lock().await;
             for (stage, &final_stage) in client_map.stages.iter_mut().zip(&final_stages.stages) {
                 *stage = final_stage.min(max_stage);
@@ -332,7 +323,7 @@ async fn updater_with_gradual_main_node_updates() {
         }
     });
 
-    let (updater, mut changes_receiver) = mock_updater(client, pool.clone()).await;
+    let (updater, mut changes_receiver) = mock_updater(client, pool.clone());
     let (stop_sender, stop_receiver) = watch::channel(false);
     let updater_task = tokio::spawn(updater.run(stop_receiver));
 
@@ -353,15 +344,12 @@ async fn updater_with_gradual_main_node_updates() {
     test_resuming_updater(pool, target_batch_stages).await;
 }
 
-async fn test_resuming_updater(pool: ConnectionPool, initial_batch_stages: L1StagesMap) {
-    let target_batch_stages = L1StagesMap::new(L1BatchNumber(1), vec![L1Stage::Executed; 6]);
+async fn test_resuming_updater(pool: ConnectionPool, initial_batch_stages: L1BatchStagesMap) {
+    let target_batch_stages =
+        L1BatchStagesMap::new(L1BatchNumber(1), vec![L1BatchStage::Executed; 6]);
 
     let client = MockMainNodeClient::from(target_batch_stages.clone());
-    let (updater, mut changes_receiver) = mock_updater(client, pool.clone()).await;
-    assert_ne!(updater.last_committed_l1_batch, L1BatchNumber(0));
-    assert_ne!(updater.last_proven_l1_batch, L1BatchNumber(0));
-    assert_ne!(updater.last_executed_l1_batch, L1BatchNumber(0));
-
+    let (updater, mut changes_receiver) = mock_updater(client, pool.clone());
     let (stop_sender, stop_receiver) = watch::channel(false);
     let updater_task = tokio::spawn(updater.run(stop_receiver));
 

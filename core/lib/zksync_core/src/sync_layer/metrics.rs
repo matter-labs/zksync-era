@@ -12,7 +12,9 @@ pub(super) enum FetchStage {
     SyncL2Block,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, EncodeLabelValue, EncodeLabelSet,
+)]
 #[metrics(label = "stage", rename_all = "snake_case")]
 pub(super) enum L1BatchStage {
     Open,

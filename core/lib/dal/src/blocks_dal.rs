@@ -1825,6 +1825,7 @@ impl BlocksDal<'_, '_> {
         Ok(Some((H256::from_slice(&hash), row.timestamp as u64)))
     }
 
+    // FIXME: remove
     pub async fn get_newest_l1_batch_header(&mut self) -> sqlx::Result<L1BatchHeader> {
         let last_l1_batch = sqlx::query_as!(
             StorageL1BatchHeader,
