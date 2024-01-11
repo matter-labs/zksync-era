@@ -18,7 +18,7 @@ use zksync_web3_decl::{
     namespaces::ZksNamespaceClient,
 };
 
-use super::metrics::{FetchStage, L1BatchStage, FETCHER_METRICS};
+use super::metrics::{FetchStage, FETCHER_METRICS};
 use crate::{metrics::EN_METRICS, utils::wait_for_l1_batch};
 
 #[cfg(test)]
@@ -138,15 +138,16 @@ impl UpdaterCursor {
 
     fn extract_tx_hash_and_timestamp(
         batch_info: &api::BlockDetails,
-        stage: L1BatchStage,
+        stage: AggregatedActionType,
     ) -> (Option<H256>, Option<DateTime<Utc>>) {
         match stage {
-            L1BatchStage::Open => unreachable!(),
-            L1BatchStage::Committed => {
+            AggregatedActionType::Commit => {
                 (batch_info.base.commit_tx_hash, batch_info.base.committed_at)
             }
-            L1BatchStage::Proven => (batch_info.base.prove_tx_hash, batch_info.base.proven_at),
-            L1BatchStage::Executed => {
+            AggregatedActionType::PublishProofOnchain => {
+                (batch_info.base.prove_tx_hash, batch_info.base.proven_at)
+            }
+            AggregatedActionType::Execute => {
                 (batch_info.base.execute_tx_hash, batch_info.base.executed_at)
             }
         }
@@ -156,17 +157,18 @@ impl UpdaterCursor {
         &mut self,
         status_changes: &mut StatusChanges,
         batch_info: &api::BlockDetails,
-        stage: L1BatchStage,
+        stage: AggregatedActionType,
     ) -> anyhow::Result<()> {
         let (l1_tx_hash, happened_at) = Self::extract_tx_hash_and_timestamp(batch_info, stage);
         let (last_l1_batch, updated_changes) = match stage {
-            L1BatchStage::Open => unreachable!(),
-            L1BatchStage::Committed => (
+            AggregatedActionType::Commit => (
                 &mut self.last_committed_l1_batch,
                 &mut status_changes.commit,
             ),
-            L1BatchStage::Proven => (&mut self.last_proven_l1_batch, &mut status_changes.prove),
-            L1BatchStage::Executed => (
+            AggregatedActionType::PublishProofOnchain => {
+                (&mut self.last_proven_l1_batch, &mut status_changes.prove)
+            }
+            AggregatedActionType::Execute => (
                 &mut self.last_executed_l1_batch,
                 &mut status_changes.execute,
             ),
@@ -188,7 +190,7 @@ impl UpdaterCursor {
             happened_at,
         });
         tracing::info!("Batch {}: committed", batch_info.l1_batch_number);
-        FETCHER_METRICS.l1_batch[&stage].set(batch_info.l1_batch_number.0.into());
+        FETCHER_METRICS.l1_batch[&stage.into()].set(batch_info.l1_batch_number.0.into());
         *last_l1_batch += 1;
         Ok(())
     }
@@ -317,9 +319,9 @@ impl BatchStatusUpdater {
             };
 
             for stage in [
-                L1BatchStage::Committed,
-                L1BatchStage::Proven,
-                L1BatchStage::Executed,
+                AggregatedActionType::Commit,
+                AggregatedActionType::PublishProofOnchain,
+                AggregatedActionType::Execute,
             ] {
                 cursor.update(status_changes, &batch_info, stage)?;
             }

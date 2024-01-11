@@ -11,6 +11,7 @@ use zksync_types::{block::BlockGasCount, Address, L2ChainId, ProtocolVersionId};
 use super::*;
 use crate::{
     genesis::{ensure_genesis_state, GenesisParams},
+    sync_layer::metrics::L1BatchStage,
     utils::testonly::{create_l1_batch, create_miniblock},
 };
 
