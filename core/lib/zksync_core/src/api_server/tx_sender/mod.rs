@@ -17,6 +17,7 @@ use zksync_types::{
     fee::{Fee, TransactionExecutionMetrics},
     fee_model::BatchFeeInput,
     get_code_key, get_intrinsic_constants,
+    l1::is_l1_tx_type,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     utils::storage_key_for_eth_balance,
     AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, Nonce, PackedEthSignature,
@@ -815,7 +816,9 @@ impl TxSender {
         result.into_api_call_result()?;
         self.ensure_tx_executable(tx.clone(), &tx_metrics, false)?;
 
-        let overhead = derive_overhead(
+        // Now, we need to calculate the final overhead for the transaction. We need to take into accoutn the fact
+        // that the migration of 1.4.1 may be still going on.
+        let overhead = derive_pessimistic_overhead(
             suggested_gas_limit,
             gas_per_pubdata_byte as u32,
             tx.encoding_len(),
@@ -923,5 +926,42 @@ impl TxSender {
             return Err(SubmitTxError::Unexecutable(message));
         }
         Ok(())
+    }
+}
+
+/// During switch to the 1.4.1 protocol version, there will be a moment of discrepancy, when while
+/// the L2 has already upgraded to 1.4.1 (and thus suggests smaller overhead), the L1 is still on the previous version.
+///
+/// This might lead to situations when L1->L2 transactions estimated with the new versions would work on the state keeper side,
+/// but they won't even make it there, but the protection mechanisms for L1->L2 transactions will reject them on L1.
+/// TODO(X): remove this function after the upgrade is complete
+fn derive_pessimistic_overhead(
+    gas_limit: u32,
+    gas_price_per_pubdata: u32,
+    encoded_len: usize,
+    tx_type: u8,
+    vm_version: VmVersion,
+) -> u32 {
+    let current_overhead = derive_overhead(
+        gas_limit,
+        gas_price_per_pubdata,
+        encoded_len,
+        tx_type,
+        vm_version,
+    );
+
+    if is_l1_tx_type(tx_type) {
+        // We are in the L1->L2 transaction, so we need to account for the fact that the L1 is still on the previous version.
+        // We assume that the overhead will be the same as for the previous version.
+        let previous_overhead = derive_overhead(
+            gas_limit,
+            gas_price_per_pubdata,
+            encoded_len,
+            tx_type,
+            VmVersion::VmBoojumIntegration,
+        );
+        current_overhead.max(previous_overhead)
+    } else {
+        current_overhead
     }
 }
