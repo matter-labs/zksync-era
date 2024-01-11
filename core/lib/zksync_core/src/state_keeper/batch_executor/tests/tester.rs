@@ -112,6 +112,7 @@ impl Tester {
             l1_batch,
             system_env,
             self.config.upload_witness_inputs_to_gcs,
+            false,
         )
     }
 

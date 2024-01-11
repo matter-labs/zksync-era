@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                UPDATE transactions\n                SET\n                    in_mempool = FALSE\n                FROM\n                    UNNEST($1::bytea[]) AS s (address)\n                WHERE\n                    transactions.in_mempool = TRUE\n                    AND transactions.initiator_address = s.address\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "ByteaArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2eb617f3e34ac5b21f925053a45da2b4afc314a3b3e78b041b44c8a020a0ee12"
+}

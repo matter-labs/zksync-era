@@ -1,12 +1,13 @@
+use std::sync::Arc;
+
 use zksync_config::configs::eth_sender::{ProofLoadingMode, ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::StorageProcessor;
-use zksync_object_store::ObjectStore;
-use zksync_prover_utils::gcs_proof_fetcher::load_wrapped_fri_proofs_for_range;
+use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_types::{
     aggregated_operations::{
         AggregatedActionType, AggregatedOperation, L1BatchCommitOperation, L1BatchExecuteOperation,
-        L1BatchProofOperation,
+        L1BatchProofForL1, L1BatchProofOperation,
     },
     commitment::L1BatchWithMetadata,
     helpers::unix_timestamp_ms,
@@ -25,11 +26,11 @@ pub struct Aggregator {
     proof_criteria: Vec<Box<dyn L1BatchPublishCriterion>>,
     execute_criteria: Vec<Box<dyn L1BatchPublishCriterion>>,
     config: SenderConfig,
-    blob_store: Box<dyn ObjectStore>,
+    blob_store: Arc<dyn ObjectStore>,
 }
 
 impl Aggregator {
-    pub fn new(config: SenderConfig, blob_store: Box<dyn ObjectStore>) -> Self {
+    pub fn new(config: SenderConfig, blob_store: Arc<dyn ObjectStore>) -> Self {
         Self {
             commit_criteria: vec![
                 Box::from(NumberCriterion {
@@ -95,11 +96,15 @@ impl Aggregator {
         protocol_version_id: ProtocolVersionId,
         l1_verifier_config: L1VerifierConfig,
     ) -> Option<AggregatedOperation> {
-        let last_sealed_l1_batch_number = storage
+        let Some(last_sealed_l1_batch_number) = storage
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
-            .unwrap();
+            .unwrap()
+        else {
+            return None; // No L1 batches in Postgres; no operations are ready yet
+        };
+
         if let Some(op) = self
             .get_execute_operations(
                 storage,
@@ -413,4 +418,24 @@ async fn extract_ready_subrange(
             .take_while(|l1_batch| l1_batch.header.number <= last_l1_batch)
             .collect(),
     )
+}
+
+pub async fn load_wrapped_fri_proofs_for_range(
+    from: L1BatchNumber,
+    to: L1BatchNumber,
+    blob_store: &dyn ObjectStore,
+) -> Vec<L1BatchProofForL1> {
+    let mut proofs = Vec::new();
+    for l1_batch_number in from.0..=to.0 {
+        let l1_batch_number = L1BatchNumber(l1_batch_number);
+        match blob_store.get(l1_batch_number).await {
+            Ok(proof) => proofs.push(proof),
+            Err(ObjectStoreError::KeyNotFound(_)) => (), // do nothing, proof is not ready yet
+            Err(err) => panic!(
+                "Failed to load proof for batch {}: {}",
+                l1_batch_number.0, err
+            ),
+        }
+    }
+    proofs
 }

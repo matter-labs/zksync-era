@@ -37,8 +37,8 @@ impl VmTester<HistoryDisabled> {
 /// Currently we support both, but in the future, we should allow only EIP712 transactions to access the AA accounts.
 async fn test_require_eip712() {
     // Use 3 accounts:
-    // - private_address - EOA account, where we have the key
-    // - account_address - AA account, where the contract is deployed
+    // - `private_address` - EOA account, where we have the key
+    // - `account_address` - AA account, where the contract is deployed
     // - beneficiary - an EOA account, where we'll try to transfer the tokens.
     let account_abstraction = Account::random();
     let mut private_account = Account::random();
@@ -56,8 +56,8 @@ async fn test_require_eip712() {
 
     let chain_id: u32 = 270;
 
-    // First, let's set the owners of the AA account to the private_address.
-    // (so that messages signed by private_address, are authorized to act on behalf of the AA account).
+    // First, let's set the owners of the AA account to the `private_address`.
+    // (so that messages signed by `private_address`, are authorized to act on behalf of the AA account).
     let set_owners_function = contract.function("setOwners").unwrap();
     let encoded_input = set_owners_function
         .encode_input(&[Token::Array(vec![Token::Address(private_account.address)])])

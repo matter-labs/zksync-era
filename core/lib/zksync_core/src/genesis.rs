@@ -9,6 +9,7 @@ use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_types::{
     block::{BlockGasCount, DeployedContract, L1BatchHeader, MiniblockHasher, MiniblockHeader},
     commitment::{L1BatchCommitment, L1BatchMetadata},
+    fee_model::BatchFeeInput,
     get_code_key, get_system_context_init_logs,
     protocol_version::{L1VerifierConfig, ProtocolVersion},
     tokens::{TokenInfo, TokenMetadata, ETHEREUM_ADDRESS},
@@ -304,7 +305,7 @@ pub(crate) async fn create_genesis_l1_batch(
         0,
         first_validator_address,
         base_system_contracts.hashes(),
-        ProtocolVersionId::latest(),
+        protocol_version,
     );
     genesis_l1_batch_header.is_finished = true;
 
@@ -315,10 +316,9 @@ pub(crate) async fn create_genesis_l1_batch(
         l1_tx_count: 0,
         l2_tx_count: 0,
         base_fee_per_gas: 0,
-        l1_gas_price: 0,
-        l2_fair_gas_price: 0,
+        batch_fee_input: BatchFeeInput::l1_pegged(0, 0),
         base_system_contracts_hashes: base_system_contracts.hashes(),
-        protocol_version: Some(ProtocolVersionId::latest()),
+        protocol_version: Some(protocol_version),
         virtual_blocks: 0,
     };
 
@@ -336,6 +336,7 @@ pub(crate) async fn create_genesis_l1_batch(
             BlockGasCount::default(),
             &[],
             &[],
+            0,
         )
         .await
         .unwrap();
@@ -458,7 +459,7 @@ mod tests {
     #[tokio::test]
     async fn running_genesis_with_big_chain_id() {
         let pool = ConnectionPool::test_pool().await;
-        let mut conn: StorageProcessor<'_> = pool.access_storage().await.unwrap();
+        let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal().delete_genesis().await.unwrap();
 
         let params = GenesisParams {
@@ -480,5 +481,20 @@ mod tests {
             .await;
         let root_hash = metadata.unwrap().unwrap().metadata.root_hash;
         assert_ne!(root_hash, H256::zero());
+    }
+
+    #[tokio::test]
+    async fn running_genesis_with_non_latest_protocol_version() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut conn = pool.access_storage().await.unwrap();
+        let params = GenesisParams {
+            protocol_version: ProtocolVersionId::Version10,
+            ..GenesisParams::mock()
+        };
+
+        ensure_genesis_state(&mut conn, L2ChainId::max(), &params)
+            .await
+            .unwrap();
+        assert!(!conn.blocks_dal().is_genesis_needed().await.unwrap());
     }
 }

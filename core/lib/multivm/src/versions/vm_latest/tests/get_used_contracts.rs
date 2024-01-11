@@ -29,7 +29,7 @@ fn test_get_used_contracts() {
     assert!(known_bytecodes_without_aa_code(&vm.vm).is_empty());
 
     // create and push and execute some not-empty factory deps transaction with success status
-    // to check that get_used_contracts() updates
+    // to check that `get_used_contracts()` updates
     let contract_code = read_test_contract();
     let mut account = Account::random();
     let tx = account.get_deploy_tx(&contract_code, None, TxType::L1 { serial_id: 0 });
@@ -42,7 +42,7 @@ fn test_get_used_contracts() {
         .get_used_contracts()
         .contains(&h256_to_u256(tx.bytecode_hash)));
 
-    // Note: Default_AA will be in the list of used contracts if l2 tx is used
+    // Note: `Default_AA` will be in the list of used contracts if L2 tx is used
     assert_eq!(
         vm.vm
             .get_used_contracts()
@@ -55,7 +55,7 @@ fn test_get_used_contracts() {
     );
 
     // create push and execute some non-empty factory deps transaction that fails
-    // (known_bytecodes will be updated but we expect get_used_contracts() to not be updated)
+    // (`known_bytecodes` will be updated but we expect `get_used_contracts()` to not be updated)
 
     let calldata = [1, 2, 3];
     let big_calldata: Vec<u8> = calldata

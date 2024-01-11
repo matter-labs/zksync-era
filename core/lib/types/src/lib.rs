@@ -39,6 +39,7 @@ pub mod contract_verification_api;
 pub mod contracts;
 pub mod event;
 pub mod fee;
+pub mod fee_model;
 pub mod l1;
 pub mod l2;
 pub mod l2_to_l1_log;

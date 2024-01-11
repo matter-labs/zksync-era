@@ -73,7 +73,7 @@ describe('EVM equivalence contract', () => {
                     '0x' + artifacts.counter.evm.deployedBytecode.object
                 );
                 const contract = await factory.deploy(args);
-                await contract.deployTransaction.wait()
+                await contract.deployTransaction.wait();
                 const receipt = await alice.provider.getTransactionReceipt(contract.deployTransaction.hash);
 
                 await assertCreatedCorrectly(deployer, alice.address, expectedBytecodeHash, receipt.logs);
@@ -110,12 +110,12 @@ describe('EVM equivalence contract', () => {
                 let failReason;
 
                 try {
-                    await contract.deployTransaction.wait()
+                    await contract.deployTransaction.wait();
                 } catch (e: any) {
                     failReason = e.reason;
                 }
 
-                expect(failReason).toBe("transaction failed");
+                expect(failReason).toBe('transaction failed');
             });
 
             test('Should NOT create evm contract from EOA when `to` is address(0x0)', async () => {
@@ -140,9 +140,7 @@ describe('EVM equivalence contract', () => {
                 const selfDestruct = selfDestructFactory.attach(selfDestructAddress);
                 const beneficiary = testMaster.newEmptyAccount();
 
-                await (
-                    await evmCreateTester.create2(salt, selfDestructBytecode, { value: 1000 })
-                ).wait();
+                await (await evmCreateTester.create2(salt, selfDestructBytecode, { value: 1000 })).wait();
                 expect((await alice.provider.getBalance(selfDestructAddress)).toNumber()).toBe(1000);
 
                 await (await selfDestruct.destroy(beneficiary.address)).wait();
@@ -335,7 +333,7 @@ describe('EVM equivalence contract', () => {
             evmUniswapFactory = await evmUniswapFactoryFactory.deploy('0x0000000000000000000000000000000000000000', {
                 gasLimit
             });
-            await evmUniswapFactory.deployTransaction.wait()
+            await evmUniswapFactory.deployTransaction.wait();
             nativeUniswapFactory = await deployContract(
                 alice,
                 contracts.uniswapV2Factory,

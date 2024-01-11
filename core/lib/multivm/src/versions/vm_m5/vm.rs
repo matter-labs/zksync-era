@@ -161,7 +161,7 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             user_l2_to_l1_logs: l2_to_l1_logs,
             total_log_queries,
             cycles_used: self.vm.state.local_state.monotonic_cycle_counter,
-            // It's not applicable for vm5
+            // It's not applicable for `vm5`
             deduplicated_events_logs: vec![],
             storage_refunds: vec![],
         }
@@ -172,13 +172,16 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         _tracer: Self::TracerDispatcher,
         tx: Transaction,
         _with_compression: bool,
-    ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError> {
+    ) -> (
+        Result<(), BytecodeCompressionError>,
+        VmExecutionResultAndLogs,
+    ) {
         crate::vm_m5::vm_with_bootloader::push_transaction_to_bootloader_memory(
             &mut self.vm,
             &tx,
             self.system_env.execution_mode.glue_into(),
         );
-        Ok(self.execute(VmExecutionMode::OneTx))
+        (Ok(()), self.execute(VmExecutionMode::OneTx))
     }
 
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {

@@ -46,7 +46,7 @@
 | ----------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | [era-bellman-cuda](https://github.com/matter-labs/era-bellman-cuda)           | Cuda implementations for cryptographic functions used by the prover |
 | [era-heavy-ops-service](https://github.com/matter-labs/era-heavy-ops-service) | Main circuit prover that requires GPU to run                        |
-| [era-cicruit_testing](https://github.com/matter-labs/era-circuit_testing)     | ??                                                                  |
+| [era-circuit_testing](https://github.com/matter-labs/era-circuit_testing)     | ??                                                                  |
 
 ### Tools & contract developers
 

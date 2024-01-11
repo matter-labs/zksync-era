@@ -227,7 +227,7 @@ pub fn collect_log_queries_after_timestamp(
 
 /// Receives sorted slice of timestamps.
 /// Returns count of timestamps that are greater than or equal to `from_timestamp`.
-/// Works in O(log(sorted_timestamps.len())).
+/// Works in `O(log(sorted_timestamps.len()))`.
 pub fn precompile_calls_count_after_timestamp(
     sorted_timestamps: &[Timestamp],
     from_timestamp: Timestamp,
@@ -258,8 +258,8 @@ pub fn create_test_block_params() -> (BlockContext, BlockProperties) {
 
 pub fn read_bootloader_test_code(test: &str) -> Vec<u8> {
     read_zbin_bytecode(format!(
-        "contracts/system-contracts/bootloader/tests/artifacts/{}.yul/{}.yul.zbin",
-        test, test
+        "contracts/system-contracts/bootloader/tests/artifacts/{}.yul.zbin",
+        test
     ))
 }
 

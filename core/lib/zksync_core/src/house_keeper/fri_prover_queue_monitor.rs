@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_dal::ConnectionPool;
-use zksync_prover_utils::periodic_job::PeriodicJob;
+
+use crate::house_keeper::periodic_job::PeriodicJob;
 
 #[derive(Debug)]
 pub struct FriProverStatsReporter {
@@ -38,11 +39,11 @@ impl PeriodicJob for FriProverStatsReporter {
 
         for ((circuit_id, aggregation_round), stats) in stats.into_iter() {
             // BEWARE, HERE BE DRAGONS.
-            // In database, the circuit_id stored is the circuit for which the aggregation is done,
+            // In database, the `circuit_id` stored is the circuit for which the aggregation is done,
             // not the circuit which is running.
             // There is a single node level aggregation circuit, which is circuit 2.
             // This can aggregate multiple leaf nodes (which may belong to different circuits).
-            // This reporting is a hacky forced way to use circuit_id 2 which will solve autoscalers.
+            // This reporting is a hacky forced way to use `circuit_id` 2 which will solve auto scalers.
             // A proper fix will be later provided to solve this at database level.
             let circuit_id = if aggregation_round == 2 {
                 2
@@ -90,13 +91,24 @@ impl PeriodicJob for FriProverStatsReporter {
 
         let mut db_conn = self.db_connection_pool.access_storage().await.unwrap();
 
-        if let Some(l1_batch_number) = db_conn
+        let oldest_unpicked_batch = match db_conn
             .proof_generation_dal()
             .get_oldest_unpicked_batch()
             .await
         {
-            metrics::gauge!("fri_prover.oldest_unpicked_batch", l1_batch_number.0 as f64)
-        }
+            Some(l1_batch_number) => l1_batch_number.0 as f64,
+            // if there is no unpicked batch in database, we use sealed batch number as a result
+            None => {
+                db_conn
+                    .blocks_dal()
+                    .get_sealed_l1_batch_number()
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .0 as f64
+            }
+        };
+        metrics::gauge!("fri_prover.oldest_unpicked_batch", oldest_unpicked_batch);
 
         if let Some(l1_batch_number) = db_conn
             .proof_generation_dal()

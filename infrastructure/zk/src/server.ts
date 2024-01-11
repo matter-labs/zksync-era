@@ -59,9 +59,7 @@ async function create_genesis(cmd: string) {
     const genesisRollupLeafIndex = genesisContents.find((line) =>
         line.includes('CONTRACTS_GENESIS_ROLLUP_LEAF_INDEX=')
     );
-    console.log(genesisContents);
     if (genesisRoot == null || !/^CONTRACTS_GENESIS_ROOT=0x[a-fA-F0-9]{64}$/.test(genesisRoot)) {
-        console.log('ERROR IS HEREEEEE 11111111');
         throw Error(`Genesis is not needed (either Postgres DB or tree's Rocks DB is not empty)`);
     }
 
@@ -69,7 +67,6 @@ async function create_genesis(cmd: string) {
         genesisBootloaderHash == null ||
         !/^CHAIN_STATE_KEEPER_BOOTLOADER_HASH=0x[a-fA-F0-9]{64}$/.test(genesisBootloaderHash)
     ) {
-        console.log('ERROR IS HEREEEEE 22222222');
         throw Error(`Genesis is not needed (either Postgres DB or tree's Rocks DB is not empty)`);
     }
 
@@ -77,7 +74,6 @@ async function create_genesis(cmd: string) {
         genesisDefaultAAHash == null ||
         !/^CHAIN_STATE_KEEPER_DEFAULT_AA_HASH=0x[a-fA-F0-9]{64}$/.test(genesisDefaultAAHash)
     ) {
-        console.log('ERROR IS HEREEEEE 33333333');
         throw Error(`Genesis is not needed (either Postgres DB or tree's Rocks DB is not empty)`);
     }
 
@@ -85,7 +81,6 @@ async function create_genesis(cmd: string) {
         genesisBlockCommitment == null ||
         !/^CONTRACTS_GENESIS_BATCH_COMMITMENT=0x[a-fA-F0-9]{64}$/.test(genesisBlockCommitment)
     ) {
-        console.log('ERROR IS HEREEEEE 44444444');
         throw Error(`Genesis is not needed (either Postgres DB or tree's Rocks DB is not empty)`);
     }
 
@@ -93,7 +88,6 @@ async function create_genesis(cmd: string) {
         genesisRollupLeafIndex == null ||
         !/^CONTRACTS_GENESIS_ROLLUP_LEAF_INDEX=([1-9]\d*|0)$/.test(genesisRollupLeafIndex)
     ) {
-        console.log('ERROR IS HEREEEEE 55555555');
         throw Error(`Genesis is not needed (either Postgres DB or tree's Rocks DB is not empty)`);
     }
 

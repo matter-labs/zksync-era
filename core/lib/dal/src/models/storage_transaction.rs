@@ -119,7 +119,7 @@ impl From<StorageTransaction> for L1TxCommonData {
 
         // `tx.hash` represents the transaction hash obtained from the execution results,
         // and it should be exactly the same as the canonical tx hash calculated from the
-        // transaction data, so we don't store it as a separate "canonical_tx_hash" field.
+        // transaction data, so we don't store it as a separate `canonical_tx_hash` field.
         let canonical_tx_hash = H256::from_slice(&tx.hash);
 
         L1TxCommonData {

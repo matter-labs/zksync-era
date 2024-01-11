@@ -60,8 +60,8 @@ pub(crate) fn read_test_contract() -> Vec<u8> {
 
 pub(crate) fn get_bootloader(test: &str) -> SystemContractCode {
     let bootloader_code = read_zbin_bytecode(format!(
-        "contracts/system-contracts/bootloader/tests/artifacts/{}.yul/{}.yul.zbin",
-        test, test
+        "contracts/system-contracts/bootloader/tests/artifacts/{}.yul.zbin",
+        test
     ));
 
     let bootloader_hash = hash_bytecode(&bootloader_code);
@@ -101,5 +101,11 @@ pub(crate) fn read_many_owners_custom_account_contract() -> (Vec<u8>, Contract) 
 pub(crate) fn read_max_depth_contract() -> Vec<u8> {
     read_zbin_bytecode(
         "core/tests/ts-integration/contracts/zkasm/artifacts/deep_stak.zkasm/deep_stak.zkasm.zbin",
+    )
+}
+
+pub(crate) fn read_precompiles_contract() -> Vec<u8> {
+    read_bytecode(
+        "etc/contracts-test-data/artifacts-zk/contracts/precompiles/precompiles.sol/Precompiles.json",
     )
 }
