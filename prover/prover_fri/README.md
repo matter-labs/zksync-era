@@ -27,7 +27,7 @@ from the database and do their part of the pipeline.
 ```mermaid
 flowchart LR
     A["Operator"] --> |Produces block| F[Prover Gateway]
-    F --> |Inserts into DB| B["Postgress DB"]
+    F --> |Inserts into DB| B["Postgres DB"]
     B --> |Retrieves proven block \nafter compression| F
     B --> C["Witness"]
     C --- C1["Basic Circuits"]
@@ -108,8 +108,8 @@ Machine specs:
    API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --all_rounds
    ```
 
-   Note that this will automatically open the three ports after the one specified in enviromental variable, in this case
-   3117, 3118 and 3119.
+   Note that this will automatically open the three ports after the one specified in environmental variable, in this
+   case 3117, 3118 and 3119.
 
 7. Run prover to perform actual proving:
 
@@ -201,7 +201,7 @@ zk status prover
 ```
 
 This might take a while (around an hour and a half on my machine using the CPU prover), you can check on it once in a
-while. A succesful flow should output something like
+while. A successful flow should output something like
 
 ```
 ==== FRI Prover status ====
@@ -211,7 +211,7 @@ Verification key hash on contract is 0x4be443afd605a782b6e56d199df2460a025c81b3d
 Verification key in database is 0x4be443afd605a782b6e56d199df2460a025c81b3dea144e135bece83612563f2
 Verifier hash matches.
 Verifier params on contract are 0x5a3ef282b21e12fe1f4438e5bb158fc5060b160559c5158c6389d62d9fe3d080, 0x72167c43a46cf38875b267d67716edc4563861364a3c03ab7aee73498421e828, 0x0000000000000000000000000000000000000000000000000000000000000000
-Verifcation params match.
+Verification params match.
 Next block that should be verified is: 2
 Checking status of the proofs...
 Proof progress for 1 : 111 successful, 0 failed, 0 in progress, 0 queued.  Compression job status: successful
