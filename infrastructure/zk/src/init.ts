@@ -36,7 +36,7 @@ async function initSetup(initArgs: InitArgs = DEFAULT_ARGS) {
         await announced('Setting up containers', up());
     }
     if (!skipSubmodulesCheckout) {
-        await announced('Checkout submodules', submoduleUpdate());
+        // await announced('Checkout submodules', submoduleUpdate());
     }
 
     await announced('Compiling JS packages', run.yarn());
@@ -280,6 +280,7 @@ export const initHyperCommand = new Command('init-hyper')
             testTokens: { deploy: true, args: [] },
             baseToken: {
                 name: cmd.baseTokenName,
+                // we use zero here to show that it is unspecified. If it is ether it is one.
                 address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
             }
         };
