@@ -110,8 +110,8 @@ async fn main() -> anyhow::Result<()> {
         .protocol_version_for(&vk_commitments)
         .await;
 
-    // If batch_size is none, it means that the job is 'looping forever' (this is the usual setup in local network).
-    // At the same time, we're reading the protocol_version only once at startup - so if there is no protocol version
+    // If `batch_size` is none, it means that the job is 'looping forever' (this is the usual setup in local network).
+    // At the same time, we're reading the `protocol_version` only once at startup - so if there is no protocol version
     // read (this is often due to the fact, that the gateway was started too late, and it didn't put the updated protocol
     // versions into the database) - then the job will simply 'hang forever' and not pick any tasks.
     if opt.batch_size.is_none() && protocol_versions.is_empty() {
@@ -157,7 +157,7 @@ async fn main() -> anyhow::Result<()> {
                 prometheus_config.push_interval(),
             )
         } else {
-            // u16 cast is safe since i is in range [0, 4)
+            // `u16` cast is safe since i is in range [0, 4)
             PrometheusExporterConfig::pull(prometheus_config.listener_port + i as u16)
         };
         let prometheus_task = prometheus_config.run(stop_receiver.clone());
