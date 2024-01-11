@@ -75,24 +75,29 @@ trait MainNodeClient: fmt::Debug + Send + Sync {
     ) -> Result<Option<api::BlockDetails>, ClientError>;
 }
 
-// FIXME: move metrics here
 #[async_trait]
 impl MainNodeClient for HttpClient {
     async fn resolve_l1_batch_to_miniblock(
         &self,
         number: L1BatchNumber,
     ) -> Result<Option<MiniblockNumber>, ClientError> {
-        Ok(self
+        let request_latency = FETCHER_METRICS.requests[&FetchStage::GetMiniblockRange].start();
+        let number = self
             .get_miniblock_range(number)
             .await?
-            .map(|(start, _)| MiniblockNumber(start.as_u32())))
+            .map(|(start, _)| MiniblockNumber(start.as_u32()));
+        request_latency.observe();
+        Ok(number)
     }
 
     async fn block_details(
         &self,
         number: MiniblockNumber,
     ) -> Result<Option<api::BlockDetails>, ClientError> {
-        self.get_block_details(number).await
+        let request_latency = FETCHER_METRICS.requests[&FetchStage::GetBlockDetails].start();
+        let details = self.get_block_details(number).await?;
+        request_latency.observe();
+        Ok(details)
     }
 }
 
@@ -297,14 +302,11 @@ impl BatchStatusUpdater {
         while batch <= last_sealed_batch {
             // While we may receive `None` for the `self.current_l1_batch`, it's OK: open batch is guaranteed to not
             // be sent to L1.
-            let request_latency = FETCHER_METRICS.requests[&FetchStage::GetMiniblockRange].start();
             let miniblock_number = self.client.resolve_l1_batch_to_miniblock(batch).await?;
             let Some(miniblock_number) = miniblock_number else {
                 return Ok(());
             };
-            request_latency.observe();
 
-            let request_latency = FETCHER_METRICS.requests[&FetchStage::GetBlockDetails].start();
             let Some(batch_info) = self.client.block_details(miniblock_number).await? else {
                 // We cannot recover from an external API inconsistency.
                 let err = anyhow::anyhow!(
@@ -313,7 +315,6 @@ impl BatchStatusUpdater {
                 );
                 return Err(err.into());
             };
-            request_latency.observe();
 
             for stage in [
                 L1BatchStage::Committed,
