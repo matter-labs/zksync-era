@@ -60,10 +60,10 @@ export async function deployOnAnyLocalAddress(
 
     const govWallet = ethers.Wallet.fromMnemonic(govMnemonic, "m/44'/60'/0'/0/1").connect(ethProvider);
 
-    const stateTransitionChainContract = await l2Provider.getMainContractAddress();
+    const stateTransitionContract = await l2Provider.getMainContractAddress();
 
-    const stateTransitionChain = new ethers.Contract(stateTransitionChainContract, utils.ZKSYNC_MAIN_ABI, govWallet);
-    const governanceContractAddr = await stateTransitionChain.getGovernor();
+    const stateTransition = new ethers.Contract(stateTransitionContract, utils.ZKSYNC_MAIN_ABI, govWallet);
+    const governanceContractAddr = await stateTransition.getGovernor();
 
     // Encode data for the upgrade call
     const encodedParams = utils.CONTRACT_DEPLOYER.encodeFunctionData('forceDeployOnAddresses', [deployments]);
@@ -81,7 +81,7 @@ export async function deployOnAnyLocalAddress(
     const diamondProxyUpgradeCalldata = ADMIN_FACET_ABI.encodeFunctionData('executeUpgrade', [upgradeParam]);
 
     const call = {
-        target: stateTransitionChainContract,
+        target: stateTransitionContract,
         value: 0,
         data: diamondProxyUpgradeCalldata
     };
@@ -118,7 +118,7 @@ export async function deployOnAnyLocalAddress(
         })
     ).wait();
 
-    const txHash = utils.getL2HashFromPriorityOp(receipt, stateTransitionChainContract);
+    const txHash = utils.getL2HashFromPriorityOp(receipt, stateTransitionContract);
 
     return await l2Provider.waitForTransaction(txHash);
 }

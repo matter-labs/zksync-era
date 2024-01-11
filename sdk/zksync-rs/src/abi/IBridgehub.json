@@ -4,92 +4,15 @@
       "anonymous": false,
       "inputs": [
         {
-          "components": [
-            {
-              "components": [
-                {
-                  "internalType": "address",
-                  "name": "facet",
-                  "type": "address"
-                },
-                {
-                  "internalType": "enum Diamond.Action",
-                  "name": "action",
-                  "type": "uint8"
-                },
-                {
-                  "internalType": "bool",
-                  "name": "isFreezable",
-                  "type": "bool"
-                },
-                {
-                  "internalType": "bytes4[]",
-                  "name": "selectors",
-                  "type": "bytes4[]"
-                }
-              ],
-              "internalType": "struct Diamond.FacetCut[]",
-              "name": "facetCuts",
-              "type": "tuple[]"
-            },
-            {
-              "internalType": "address",
-              "name": "initAddress",
-              "type": "address"
-            },
-            {
-              "internalType": "bytes",
-              "name": "initCalldata",
-              "type": "bytes"
-            }
-          ],
-          "indexed": false,
-          "internalType": "struct Diamond.DiamondCutData",
-          "name": "diamondCut",
-          "type": "tuple"
-        }
-      ],
-      "name": "ExecuteUpgrade",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [],
-      "name": "Freeze",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
           "indexed": true,
-          "internalType": "address",
-          "name": "oldAdmin",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "newAdmin",
-          "type": "address"
-        }
-      ],
-      "name": "NewAdmin",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "uint16",
+          "internalType": "uint64",
           "name": "chainId",
-          "type": "uint16"
+          "type": "uint64"
         },
         {
           "indexed": false,
           "internalType": "address",
-          "name": "stateTransition",
+          "name": "stateTransitionManager",
           "type": "address"
         },
         {
@@ -103,83 +26,6 @@
       "type": "event"
     },
     {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "oldGovernor",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "newGovernor",
-          "type": "address"
-        }
-      ],
-      "name": "NewGovernor",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "oldPendingAdmin",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "newPendingAdmin",
-          "type": "address"
-        }
-      ],
-      "name": "NewPendingAdmin",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "oldPendingGovernor",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "newPendingGovernor",
-          "type": "address"
-        }
-      ],
-      "name": "NewPendingGovernor",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [],
-      "name": "Unfreeze",
-      "type": "event"
-    },
-    {
-      "inputs": [],
-      "name": "acceptAdmin",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "acceptGovernor",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
       "inputs": [
         {
           "internalType": "uint256",
@@ -187,143 +33,7 @@
           "type": "uint256"
         }
       ],
-      "name": "deposit",
-      "outputs": [],
-      "stateMutability": "payable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "components": [
-            {
-              "components": [
-                {
-                  "internalType": "address",
-                  "name": "facet",
-                  "type": "address"
-                },
-                {
-                  "internalType": "enum Diamond.Action",
-                  "name": "action",
-                  "type": "uint8"
-                },
-                {
-                  "internalType": "bool",
-                  "name": "isFreezable",
-                  "type": "bool"
-                },
-                {
-                  "internalType": "bytes4[]",
-                  "name": "selectors",
-                  "type": "bytes4[]"
-                }
-              ],
-              "internalType": "struct Diamond.FacetCut[]",
-              "name": "facetCuts",
-              "type": "tuple[]"
-            },
-            {
-              "internalType": "address",
-              "name": "initAddress",
-              "type": "address"
-            },
-            {
-              "internalType": "bytes",
-              "name": "initCalldata",
-              "type": "bytes"
-            }
-          ],
-          "internalType": "struct Diamond.DiamondCutData",
-          "name": "_diamondCut",
-          "type": "tuple"
-        }
-      ],
-      "name": "executeUpgrade",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "_chainId",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_l2BlockNumber",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_l2MessageIndex",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint16",
-          "name": "_l2TxNumberInBlock",
-          "type": "uint16"
-        },
-        {
-          "internalType": "bytes",
-          "name": "_message",
-          "type": "bytes"
-        },
-        {
-          "internalType": "bytes32[]",
-          "name": "_merkleProof",
-          "type": "bytes32[]"
-        }
-      ],
-      "name": "finalizeEthWithdrawal",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "freezeDiamond",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "_chainId",
-          "type": "uint256"
-        }
-      ],
-      "name": "getChainContract",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getChainImplementation",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getChainProxyAdmin",
+      "name": "baseToken",
       "outputs": [
         {
           "internalType": "address",
@@ -342,96 +52,12 @@
           "type": "uint256"
         }
       ],
-      "name": "getChainStateTransition",
+      "name": "baseTokenBridge",
       "outputs": [
         {
           "internalType": "address",
           "name": "",
           "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getGovernor",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "_stateTransition",
-          "type": "address"
-        }
-      ],
-      "name": "getIsStateTransition",
-      "outputs": [
-        {
-          "internalType": "bool",
-          "name": "",
-          "type": "bool"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getName",
-      "outputs": [
-        {
-          "internalType": "string",
-          "name": "",
-          "type": "string"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getPriorityTxMaxGasLimit",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getTotaStateTransitions",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getTotalChains",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -443,24 +69,14 @@
           "internalType": "uint256",
           "name": "_chainId",
           "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_l2MessageIndex",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_l2TxNumberInBlock",
-          "type": "uint256"
         }
       ],
-      "name": "isEthWithdrawalFinalized",
+      "name": "getZkSyncStateTransition",
       "outputs": [
         {
-          "internalType": "bool",
+          "internalType": "address",
           "name": "",
-          "type": "bool"
+          "type": "address"
         }
       ],
       "stateMutability": "view",
@@ -509,8 +125,33 @@
         },
         {
           "internalType": "address",
-          "name": "_stateTransition",
+          "name": "_stateTransitionManager",
           "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_baseToken",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_baseTokenBridge",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_salt",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "_governor",
+          "type": "address"
+        },
+        {
+          "internalType": "bytes",
+          "name": "_initData",
+          "type": "bytes"
         }
       ],
       "name": "newChain",
@@ -528,11 +169,37 @@
       "inputs": [
         {
           "internalType": "address",
-          "name": "_stateTransition",
+          "name": "_stateTransitionManager",
           "type": "address"
         }
       ],
-      "name": "newStateTransition",
+      "name": "newStateTransitionManager",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_token",
+          "type": "address"
+        }
+      ],
+      "name": "newToken",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_tokenBridge",
+          "type": "address"
+        }
+      ],
+      "name": "newTokenBridge",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -551,7 +218,7 @@
         },
         {
           "internalType": "uint256",
-          "name": "_l2BlockNumber",
+          "name": "_l2BatchNumber",
           "type": "uint256"
         },
         {
@@ -561,7 +228,7 @@
         },
         {
           "internalType": "uint16",
-          "name": "_l2TxNumberInBlock",
+          "name": "_l2TxNumberInBatch",
           "type": "uint16"
         },
         {
@@ -716,44 +383,61 @@
     {
       "inputs": [
         {
-          "internalType": "uint256",
-          "name": "_chainId",
-          "type": "uint256"
-        },
-        {
-          "internalType": "address",
-          "name": "_contractL2",
-          "type": "address"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_l2Value",
-          "type": "uint256"
-        },
-        {
-          "internalType": "bytes",
-          "name": "_calldata",
-          "type": "bytes"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_l2GasLimit",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_l2GasPerPubdataByteLimit",
-          "type": "uint256"
-        },
-        {
-          "internalType": "bytes[]",
-          "name": "_factoryDeps",
-          "type": "bytes[]"
-        },
-        {
-          "internalType": "address",
-          "name": "_refundRecipient",
-          "type": "address"
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "chainId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "address",
+              "name": "payer",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "l2Contract",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "mintValue",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "l2Value",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes",
+              "name": "l2Calldata",
+              "type": "bytes"
+            },
+            {
+              "internalType": "uint256",
+              "name": "l2GasLimit",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "l2GasPerPubdataByteLimit",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes[]",
+              "name": "factoryDeps",
+              "type": "bytes[]"
+            },
+            {
+              "internalType": "address",
+              "name": "refundRecipient",
+              "type": "address"
+            }
+          ],
+          "internalType": "struct IBridgehub.L2TransactionRequest",
+          "name": "_request",
+          "type": "tuple"
         }
       ],
       "name": "requestL2Transaction",
@@ -771,24 +455,11 @@
       "inputs": [
         {
           "internalType": "address",
-          "name": "_newPendingAdmin",
+          "name": "_wethBridge",
           "type": "address"
         }
       ],
-      "name": "setPendingAdmin",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "_newPendingGovernor",
-          "type": "address"
-        }
-      ],
-      "name": "setPendingGovernor",
+      "name": "setWethBridge",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -799,46 +470,87 @@
           "internalType": "uint256",
           "name": "_chainId",
           "type": "uint256"
-        },
+        }
+      ],
+      "name": "stateTransitionManager",
+      "outputs": [
         {
           "internalType": "address",
-          "name": "_proofChainContract",
+          "name": "",
           "type": "address"
         }
       ],
-      "name": "setStateTransitionChainContract",
-      "outputs": [],
-      "stateMutability": "nonpayable",
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_stateTransitionManager",
+          "type": "address"
+        }
+      ],
+      "name": "stateTransitionManagerIsRegistered",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_baseTokenBridge",
+          "type": "address"
+        }
+      ],
+      "name": "tokenBridgeIsRegistered",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_baseToken",
+          "type": "address"
+        }
+      ],
+      "name": "tokenIsRegistered",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
       "type": "function"
     },
     {
       "inputs": [],
-      "name": "unfreezeDiamond",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
+      "name": "wethBridge",
+      "outputs": [
         {
-          "internalType": "uint256",
-          "name": "_chainId",
-          "type": "uint256"
-        },
-        {
-          "internalType": "address",
-          "name": "_to",
+          "internalType": "contract IL1Bridge",
+          "name": "",
           "type": "address"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_amount",
-          "type": "uint256"
         }
       ],
-      "name": "withdrawFunds",
-      "outputs": [],
-      "stateMutability": "nonpayable",
+      "stateMutability": "view",
       "type": "function"
     }
   ]

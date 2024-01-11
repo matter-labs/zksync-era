@@ -26,11 +26,11 @@ pub enum ContractLanguage {
 }
 
 const BRIDGEHUB_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/bridgehub/bridgehub-interfaces/IBridgehub.sol/IBridgehub.json";
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/bridgehub/IBridgehub.sol/IBridgehub.json";
 const STATE_TRANSITION_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/state-transition/state-transition-interfaces/IZkSyncStateTransition.sol/IZkSyncStateTransition.json";
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/state-transition/IStateTransitionManager.sol/IStateTransitionManager.json";
 const STATE_TRANSITION_CHAIN_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/state-transition/chain-interfaces/IStateTransitionChain.sol/IStateTransitionChain.json";
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/state-transition/chain-interfaces/IZkSyncStateTransition.sol/IZkSyncStateTransition.json";
 const DIAMOND_INIT_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/state-transition/chain-interfaces/IDiamondInit.sol/IDiamondInit.json";
 const GOVERNANCE_CONTRACT_FILE: &str =

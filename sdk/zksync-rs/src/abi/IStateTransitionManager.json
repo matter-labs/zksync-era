@@ -1,0 +1,442 @@
+{
+  "abi": [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "_stateTransitionContract",
+          "type": "address"
+        }
+      ],
+      "name": "StateTransitionNewChain",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "bridgehub",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "genesisUpgrade",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "initialCutHash",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "governor",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "genesisUpgrade",
+              "type": "address"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "genesisBatchHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "genesisIndexRepeatedStorageChanges",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "genesisBatchCommitment",
+              "type": "bytes32"
+            },
+            {
+              "components": [
+                {
+                  "components": [
+                    {
+                      "internalType": "address",
+                      "name": "facet",
+                      "type": "address"
+                    },
+                    {
+                      "internalType": "enum Diamond.Action",
+                      "name": "action",
+                      "type": "uint8"
+                    },
+                    {
+                      "internalType": "bool",
+                      "name": "isFreezable",
+                      "type": "bool"
+                    },
+                    {
+                      "internalType": "bytes4[]",
+                      "name": "selectors",
+                      "type": "bytes4[]"
+                    }
+                  ],
+                  "internalType": "struct Diamond.FacetCut[]",
+                  "name": "facetCuts",
+                  "type": "tuple[]"
+                },
+                {
+                  "internalType": "address",
+                  "name": "initAddress",
+                  "type": "address"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "initCalldata",
+                  "type": "bytes"
+                }
+              ],
+              "internalType": "struct Diamond.DiamondCutData",
+              "name": "diamondCut",
+              "type": "tuple"
+            },
+            {
+              "internalType": "uint256",
+              "name": "protocolVersion",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct StateTransitionManagerInitializeData",
+          "name": "_initalizeData",
+          "type": "tuple"
+        }
+      ],
+      "name": "initialize",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "_baseToken",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_baseTokenBridge",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_governor",
+          "type": "address"
+        },
+        {
+          "internalType": "bytes",
+          "name": "_diamondCut",
+          "type": "bytes"
+        }
+      ],
+      "name": "newChain",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "protocolVersion",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "components": [
+                {
+                  "internalType": "address",
+                  "name": "facet",
+                  "type": "address"
+                },
+                {
+                  "internalType": "enum Diamond.Action",
+                  "name": "action",
+                  "type": "uint8"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "isFreezable",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes4[]",
+                  "name": "selectors",
+                  "type": "bytes4[]"
+                }
+              ],
+              "internalType": "struct Diamond.FacetCut[]",
+              "name": "facetCuts",
+              "type": "tuple[]"
+            },
+            {
+              "internalType": "address",
+              "name": "initAddress",
+              "type": "address"
+            },
+            {
+              "internalType": "bytes",
+              "name": "initCalldata",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct Diamond.DiamondCutData",
+          "name": "_cutData",
+          "type": "tuple"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_oldProtocolVersion",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_newProtocolVersion",
+          "type": "uint256"
+        }
+      ],
+      "name": "setNewVersionUpgrade",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "components": [
+                {
+                  "internalType": "address",
+                  "name": "facet",
+                  "type": "address"
+                },
+                {
+                  "internalType": "enum Diamond.Action",
+                  "name": "action",
+                  "type": "uint8"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "isFreezable",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes4[]",
+                  "name": "selectors",
+                  "type": "bytes4[]"
+                }
+              ],
+              "internalType": "struct Diamond.FacetCut[]",
+              "name": "facetCuts",
+              "type": "tuple[]"
+            },
+            {
+              "internalType": "address",
+              "name": "initAddress",
+              "type": "address"
+            },
+            {
+              "internalType": "bytes",
+              "name": "initCalldata",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct Diamond.DiamondCutData",
+          "name": "_cutData",
+          "type": "tuple"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_oldProtocolVersion",
+          "type": "uint256"
+        }
+      ],
+      "name": "setUpgradeDiamondCut",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        }
+      ],
+      "name": "stateTransition",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "storedBatchZero",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "totalChains",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_protocolVersion",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "components": [
+                {
+                  "internalType": "address",
+                  "name": "facet",
+                  "type": "address"
+                },
+                {
+                  "internalType": "enum Diamond.Action",
+                  "name": "action",
+                  "type": "uint8"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "isFreezable",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes4[]",
+                  "name": "selectors",
+                  "type": "bytes4[]"
+                }
+              ],
+              "internalType": "struct Diamond.FacetCut[]",
+              "name": "facetCuts",
+              "type": "tuple[]"
+            },
+            {
+              "internalType": "address",
+              "name": "initAddress",
+              "type": "address"
+            },
+            {
+              "internalType": "bytes",
+              "name": "initCalldata",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct Diamond.DiamondCutData",
+          "name": "_cutData",
+          "type": "tuple"
+        }
+      ],
+      "name": "upgradeChainFromVersion",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_protocolVersion",
+          "type": "uint256"
+        }
+      ],
+      "name": "upgradeCutHash",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ]
+}

@@ -823,7 +823,7 @@ const _abi = [
         type: "address",
       },
     ],
-    name: "setStateTransitionChainContract",
+    name: "setZkSyncStateTransitionContract",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

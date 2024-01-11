@@ -49,7 +49,7 @@ interface IBridgehubInterface extends ethers.utils.Interface {
     "requestL2Transaction(uint256,address,uint256,bytes,uint256,uint256,bytes[],address)": FunctionFragment;
     "setPendingAdmin(address)": FunctionFragment;
     "setPendingGovernor(address)": FunctionFragment;
-    "setStateTransitionChainContract(uint256,address)": FunctionFragment;
+    "setZkSyncStateTransitionContract(uint256,address)": FunctionFragment;
     "unfreezeDiamond()": FunctionFragment;
     "withdrawFunds(uint256,address,uint256)": FunctionFragment;
   };
@@ -210,7 +210,7 @@ interface IBridgehubInterface extends ethers.utils.Interface {
     values: [string]
   ): string;
   encodeFunctionData(
-    functionFragment: "setStateTransitionChainContract",
+    functionFragment: "setZkSyncStateTransitionContract",
     values: [BigNumberish, string]
   ): string;
   encodeFunctionData(
@@ -318,7 +318,7 @@ interface IBridgehubInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "setStateTransitionChainContract",
+    functionFragment: "setZkSyncStateTransitionContract",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -729,13 +729,13 @@ export class IBridgehub extends Contract {
       overrides?: Overrides
     ): Promise<ContractTransaction>;
 
-    setStateTransitionChainContract(
+    setZkSyncStateTransitionContract(
       _chainId: BigNumberish,
       _proofChainContract: string,
       overrides?: Overrides
     ): Promise<ContractTransaction>;
 
-    "setStateTransitionChainContract(uint256,address)"(
+    "setZkSyncStateTransitionContract(uint256,address)"(
       _chainId: BigNumberish,
       _proofChainContract: string,
       overrides?: Overrides
@@ -1064,13 +1064,13 @@ export class IBridgehub extends Contract {
     overrides?: Overrides
   ): Promise<ContractTransaction>;
 
-  setStateTransitionChainContract(
+  setZkSyncStateTransitionContract(
     _chainId: BigNumberish,
     _proofChainContract: string,
     overrides?: Overrides
   ): Promise<ContractTransaction>;
 
-  "setStateTransitionChainContract(uint256,address)"(
+  "setZkSyncStateTransitionContract(uint256,address)"(
     _chainId: BigNumberish,
     _proofChainContract: string,
     overrides?: Overrides
@@ -1396,13 +1396,13 @@ export class IBridgehub extends Contract {
       overrides?: CallOverrides
     ): Promise<void>;
 
-    setStateTransitionChainContract(
+    setZkSyncStateTransitionContract(
       _chainId: BigNumberish,
       _proofChainContract: string,
       overrides?: CallOverrides
     ): Promise<void>;
 
-    "setStateTransitionChainContract(uint256,address)"(
+    "setZkSyncStateTransitionContract(uint256,address)"(
       _chainId: BigNumberish,
       _proofChainContract: string,
       overrides?: CallOverrides
@@ -1763,13 +1763,13 @@ export class IBridgehub extends Contract {
       overrides?: Overrides
     ): Promise<BigNumber>;
 
-    setStateTransitionChainContract(
+    setZkSyncStateTransitionContract(
       _chainId: BigNumberish,
       _proofChainContract: string,
       overrides?: Overrides
     ): Promise<BigNumber>;
 
-    "setStateTransitionChainContract(uint256,address)"(
+    "setZkSyncStateTransitionContract(uint256,address)"(
       _chainId: BigNumberish,
       _proofChainContract: string,
       overrides?: Overrides
@@ -2117,13 +2117,13 @@ export class IBridgehub extends Contract {
       overrides?: Overrides
     ): Promise<PopulatedTransaction>;
 
-    setStateTransitionChainContract(
+    setZkSyncStateTransitionContract(
       _chainId: BigNumberish,
       _proofChainContract: string,
       overrides?: Overrides
     ): Promise<PopulatedTransaction>;
 
-    "setStateTransitionChainContract(uint256,address)"(
+    "setZkSyncStateTransitionContract(uint256,address)"(
       _chainId: BigNumberish,
       _proofChainContract: string,
       overrides?: Overrides

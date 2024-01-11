@@ -32,7 +32,7 @@ use crate::{
 };
 
 const IERC20_INTERFACE: &str = include_str!("../abi/IERC20.json");
-const STATE_TRANSITION_CHAIN_INTERFACE: &str = include_str!("../abi/IStateTransitionChain.json");
+const STATE_TRANSITION_CHAIN_INTERFACE: &str = include_str!("../abi/IZkSyncStateTransition.json");
 const L1_DEFAULT_BRIDGE_INTERFACE: &str = include_str!("../abi/IL1Bridge.json");
 const RAW_ERC20_DEPOSIT_GAS_LIMIT: &str = include_str!("DepositERC20GasLimit.json");
 
