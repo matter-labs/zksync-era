@@ -72,13 +72,13 @@ async fn migrate_miniblocks_inner(
     anyhow::ensure!(chunk_size > 0, "Chunk size must be positive");
 
     let mut storage = pool.access_storage().await?;
-
     #[allow(deprecated)]
     let l1_batches_have_fee_account_address = storage
         .blocks_dal()
         .check_l1_batches_have_fee_account_address()
         .await
         .expect("Failed getting metadata for l1_batches table");
+    drop(storage);
     if !l1_batches_have_fee_account_address {
         tracing::info!("`l1_batches.fee_account_address` column is removed; assuming that the migration is complete");
         return Ok(MigrationOutput::default());
