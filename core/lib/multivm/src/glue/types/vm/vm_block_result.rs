@@ -32,7 +32,12 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult> for crate::interface::Fi
             },
             final_execution_state: CurrentExecutionState {
                 events: value.full_result.events,
-                storage_log_queries: value.full_result.storage_log_queries,
+                storage_log_queries: value
+                    .full_result
+                    .storage_log_queries
+                    .into_iter()
+                    .map(|a| a.glue_into())
+                    .collect(),
                 used_contract_hashes: value.full_result.used_contract_hashes,
                 user_l2_to_l1_logs: value
                     .full_result
@@ -71,7 +76,12 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult> for crate::interface::Fi
             },
             final_execution_state: CurrentExecutionState {
                 events: value.full_result.events,
-                storage_log_queries: value.full_result.storage_log_queries,
+                storage_log_queries: value
+                    .full_result
+                    .storage_log_queries
+                    .into_iter()
+                    .map(GlueInto::glue_into)
+                    .collect(),
                 used_contract_hashes: value.full_result.used_contract_hashes,
                 user_l2_to_l1_logs: value
                     .full_result
@@ -116,7 +126,12 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult> for crate::interface:
             },
             final_execution_state: CurrentExecutionState {
                 events: value.full_result.events,
-                storage_log_queries: value.full_result.storage_log_queries,
+                storage_log_queries: value
+                    .full_result
+                    .storage_log_queries
+                    .into_iter()
+                    .map(|a| a.glue_into())
+                    .collect(),
                 used_contract_hashes: value.full_result.used_contract_hashes,
                 user_l2_to_l1_logs: value
                     .full_result
@@ -161,7 +176,12 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult>
                     .map(UserL2ToL1Log)
                     .collect(),
                 system_l2_to_l1_logs: vec![],
-                storage_logs: value.full_result.storage_log_queries,
+                storage_logs: value
+                    .full_result
+                    .storage_log_queries
+                    .into_iter()
+                    .map(|a| a.glue_into())
+                    .collect(),
                 total_log_queries_count: value.full_result.total_log_queries,
             },
             statistics: VmExecutionStatistics {
@@ -234,7 +254,12 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult>
                     .map(UserL2ToL1Log)
                     .collect(),
                 system_l2_to_l1_logs: vec![],
-                storage_logs: value.full_result.storage_log_queries,
+                storage_logs: value
+                    .full_result
+                    .storage_log_queries
+                    .into_iter()
+                    .map(GlueInto::glue_into)
+                    .collect(),
                 total_log_queries_count: value.full_result.total_log_queries,
             },
             statistics: VmExecutionStatistics {

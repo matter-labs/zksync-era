@@ -22,8 +22,9 @@ use zksync_types::{
     block::{BlockGasCount, MiniblockExecutionData, MiniblockHasher},
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     tx::tx_execution_info::ExecutionMetrics,
-    Address, L1BatchNumber, L2ChainId, LogQuery, MiniblockNumber, ProtocolVersionId,
-    StorageLogQuery, StorageLogQueryType, Timestamp, Transaction, H256, U256,
+    zk_evm_types::{LogQuery, Timestamp},
+    Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, StorageLogQuery,
+    StorageLogQueryType, Transaction, H256, U256,
 };
 
 mod tester;

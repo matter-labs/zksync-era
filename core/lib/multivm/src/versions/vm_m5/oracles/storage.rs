@@ -7,8 +7,8 @@ use zk_evm_1_3_1::{
     zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
 use zksync_types::{
-    utils::storage_key_for_eth_balance, AccountTreeId, Address, StorageKey, StorageLogQuery,
-    StorageLogQueryType, BOOTLOADER_ADDRESS, U256,
+    utils::storage_key_for_eth_balance, AccountTreeId, Address, StorageKey, StorageLogQueryType,
+    BOOTLOADER_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -20,6 +20,7 @@ use crate::{
             AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryRecorder, StorageWrapper,
         },
         storage::{Storage, StoragePtr},
+        utils::StorageLogQuery,
         vm_instance::MultiVMSubversion,
     },
 };
@@ -95,7 +96,7 @@ impl<S: Storage> StorageOracle<S> {
 
         self.frames_stack.push_forward(
             StorageLogQuery {
-                log_query: query.glue_into(),
+                log_query: query,
                 log_type: StorageLogQueryType::Read,
             },
             query.timestamp,
@@ -119,7 +120,7 @@ impl<S: Storage> StorageOracle<S> {
         query.read_value = current_value;
 
         let mut storage_log_query = StorageLogQuery {
-            log_query: query.glue_into(),
+            log_query: query,
             log_type: log_query_type,
         };
         self.frames_stack
@@ -262,7 +263,7 @@ impl<S: Storage> VmStorageOracle for StorageOracle<S> {
                     }
                 };
 
-                let LogQuery { written_value, .. } = query.log_query.glue_into();
+                let LogQuery { written_value, .. } = query.log_query;
                 let key = triplet_to_storage_key(
                     query.log_query.shard_id,
                     query.log_query.address,

@@ -25,8 +25,9 @@ use zksync_types::{
         tx_execution_info::DeduplicatedWritesMetrics, IncludedTxLocation,
         TransactionExecutionResult,
     },
+    zk_evm_types::LogQuery,
     zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
-    AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, LogQuery,
+    AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber,
     MiniblockNumber, ProtocolVersionId, StorageKey, StorageLog, StorageLogQuery, StorageValue,
     Transaction, VmEvent, CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS,
 };
@@ -83,13 +84,24 @@ impl UpdatesManager {
         progress.observe(None);
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::LogDeduplication);
-        let (_, deduped_log_queries) = sort_storage_access_queries(
-            finished_batch
+
+        // To reuse the zkevm_test_harness's log query, we need to convert our `StorageLogQuery` to it and then convert it back
+        let deduped_log_queries: Vec<LogQuery> = sort_storage_access_queries(
+            &finished_batch
                 .final_execution_state
                 .storage_log_queries
                 .iter()
-                .map(|log| &log.log_query),
-        );
+                .map(|log| {
+                    zksync_types::zkevm_test_harness::zk_evm::aux_structures::LogQuery::from(
+                        log.log_query,
+                    )
+                })
+                .collect_vec(),
+        )
+        .1
+        .into_iter()
+        .map(Into::into)
+        .collect();
         progress.observe(deduped_log_queries.len());
 
         let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&self.l1_batch.executed_transactions);

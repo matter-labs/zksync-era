@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use itertools::Itertools;
 use zk_evm_1_3_1::aux_structures::{LogQuery, Timestamp};
 use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
@@ -85,11 +86,21 @@ impl<S: Storage> VmInstance<S> {
                 .forward,
             from_timestamp,
         );
-        let (_, deduplicated_logs) = sort_storage_access_queries(
-            storage_logs
+
+        // To allow calling the vm-1.3.3. method, the 1.3.1's LogQuery had to be converted
+        // to the vm-1.3.3's LogQuery. Now we need to convert it back
+        let deduplicated_logs: Vec<LogQuery> = sort_storage_access_queries(
+            &storage_logs
                 .iter()
-                .map(|log| &GlueInto::<LogQuery>::glue_into(log.log_query)),
-        );
+                .map(|log| {
+                    GlueInto::<zk_evm_1_3_3::aux_structures::LogQuery>::glue_into(log.log_query)
+                })
+                .collect_vec(),
+        )
+        .1
+        .into_iter()
+        .map(GlueInto::<zk_evm_1_3_1::aux_structures::LogQuery>::glue_into)
+        .collect();
 
         deduplicated_logs
             .into_iter()

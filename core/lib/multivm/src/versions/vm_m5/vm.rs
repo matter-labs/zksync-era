@@ -155,7 +155,12 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
 
         CurrentExecutionState {
             events,
-            storage_log_queries: self.vm.get_final_log_queries(),
+            storage_log_queries: self
+                .vm
+                .get_final_log_queries()
+                .into_iter()
+                .map(GlueInto::glue_into)
+                .collect(),
             used_contract_hashes,
             system_logs: vec![],
             user_l2_to_l1_logs: l2_to_l1_logs,

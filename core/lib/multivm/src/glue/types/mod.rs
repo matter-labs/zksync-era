@@ -5,7 +5,22 @@
 //!
 //! This "glue layer" is generally not visible outside of the crate.
 
+use zksync_types::{l2_to_l1_log::L2ToL1Log, zk_evm_types::EventMessage};
+
+use super::GlueInto;
+
 mod vm;
 mod zk_evm_1_3_1;
 mod zk_evm_1_3_3;
+mod zk_evm_1_4_0;
 mod zk_evm_1_4_1;
+
+// pub(crate) trait IntoL2ToL1Log {
+//     fn into_l2_to_l1_log(self) -> L2ToL1Log;
+// }
+
+// impl<T: GlueInto<EventMessage>> IntoL2ToL1Log for T {
+//     fn into_l2_to_l1_log(self) -> L2ToL1Log {
+//         L2ToL1Log::from(self.glue_into())
+//     }
+// }

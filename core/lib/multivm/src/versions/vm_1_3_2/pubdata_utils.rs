@@ -77,11 +77,8 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
             .state
             .storage
             .storage_log_queries_after_timestamp(from_timestamp);
-        let (_, deduplicated_logs) = sort_storage_access_queries(
-            storage_logs
-                .iter()
-                .map(|log| &GlueInto::<LogQuery>::glue_into(log.log_query)),
-        );
+        let (_, deduplicated_logs) =
+            sort_storage_access_queries(storage_logs.iter().map(|log| &log.log_query));
 
         deduplicated_logs
             .into_iter()

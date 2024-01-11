@@ -13,7 +13,7 @@ use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     tx::tx_execution_info::TxExecutionStatus,
     vm_trace::VmExecutionTrace,
-    L1BatchNumber, StorageLogQuery, VmEvent, U256,
+    L1BatchNumber, VmEvent, U256,
 };
 
 use crate::{
@@ -40,6 +40,7 @@ use crate::{
         utils::{
             collect_log_queries_after_timestamp, collect_storage_log_queries_after_timestamp,
             dump_memory_page_using_primitive_value, precompile_calls_count_after_timestamp,
+            StorageLogQuery,
         },
         vm_with_bootloader::{
             BootloaderJobType, DerivedBlockContext, TxExecutionMode, BOOTLOADER_HEAP_PAGE,
@@ -470,7 +471,7 @@ impl<S: Storage> VmInstance<S> {
             events,
             l1_messages
                 .into_iter()
-                .map(|log| L2ToL1Log::from(GlueInto::<zksync_types::EventMessage>::glue_into(log)))
+                .map(|log| From::<zksync_types::zk_evm_types::EventMessage>::from(log.glue_into()))
                 .collect(),
         )
     }
@@ -507,7 +508,7 @@ impl<S: Storage> VmInstance<S> {
             from_timestamp,
         );
         VmExecutionLogs {
-            storage_logs,
+            storage_logs: storage_logs.into_iter().map(GlueInto::glue_into).collect(),
             events,
             user_l2_to_l1_logs: l2_to_l1_logs.into_iter().map(UserL2ToL1Log).collect(),
             system_l2_to_l1_logs: vec![],
@@ -755,7 +756,9 @@ impl<S: Storage> VmInstance<S> {
                 full_result.l2_to_l1_logs = l1_messages
                     .into_iter()
                     .map(|log| {
-                        L2ToL1Log::from(GlueInto::<zksync_types::EventMessage>::glue_into(log))
+                        L2ToL1Log::from(
+                            GlueInto::<zksync_types::zk_evm_types::EventMessage>::glue_into(log),
+                        )
                     })
                     .collect();
                 VmBlockResult {

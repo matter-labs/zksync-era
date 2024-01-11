@@ -7,15 +7,18 @@ use zk_evm_1_3_3::{
 };
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
-    utils::storage_key_for_eth_balance, AccountTreeId, Address, StorageKey, StorageLogQuery,
-    StorageLogQueryType, BOOTLOADER_ADDRESS, U256,
+    utils::storage_key_for_eth_balance, AccountTreeId, Address, StorageKey, StorageLogQueryType,
+    BOOTLOADER_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
 
 use super::OracleWithHistory;
-use crate::vm_1_3_2::history_recorder::{
-    AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
-    HistoryRecorder, StorageWrapper, WithHistory,
+use crate::vm_1_3_2::{
+    history_recorder::{
+        AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
+        HistoryRecorder, StorageWrapper, WithHistory,
+    },
+    utils::StorageLogQuery,
 };
 
 // While the storage does not support different shards, it was decided to write the
@@ -174,7 +177,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             .unwrap_or(&[])
     }
 
-    pub fn get_final_log_queries(&self) -> Vec<StorageLogQuery> {
+    pub(crate) fn get_final_log_queries(&self) -> Vec<StorageLogQuery> {
         assert_eq!(
             self.frames_stack.len(),
             1,

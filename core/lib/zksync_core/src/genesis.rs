@@ -3,6 +3,7 @@
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
 use anyhow::Context as _;
+use itertools::Itertools;
 use multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::StorageProcessor;
@@ -14,9 +15,10 @@ use zksync_types::{
     get_code_key, get_system_context_init_logs,
     protocol_version::{L1VerifierConfig, ProtocolVersion},
     tokens::{TokenInfo, TokenMetadata, ETHEREUM_ADDRESS},
+    zk_evm_types::{LogQuery, Timestamp},
     zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
-    AccountTreeId, Address, L1BatchNumber, L2ChainId, LogQuery, MiniblockNumber, ProtocolVersionId,
-    StorageKey, StorageLog, StorageLogKind, Timestamp, H256,
+    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId,
+    StorageKey, StorageLog, StorageLogKind, H256,
 };
 use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
@@ -224,7 +226,18 @@ async fn insert_system_contracts(
         })
         .collect();
 
-    let (_, deduped_log_queries) = sort_storage_access_queries(&log_queries);
+    let deduped_log_queries: Vec<LogQuery> = sort_storage_access_queries(
+        &log_queries
+            .iter()
+            .map(|log| {
+                zksync_types::zkevm_test_harness::zk_evm::aux_structures::LogQuery::from(*log)
+            })
+            .collect_vec(),
+    )
+    .1
+    .into_iter()
+    .map(Into::into)
+    .collect();
 
     let (deduplicated_writes, protective_reads): (Vec<_>, Vec<_>) = deduped_log_queries
         .into_iter()

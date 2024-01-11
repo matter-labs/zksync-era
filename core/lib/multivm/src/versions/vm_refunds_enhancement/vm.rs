@@ -3,6 +3,7 @@ use zksync_types::{l2_to_l1_log::UserL2ToL1Log, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::{
+    glue::GlueInto,
     interface::{
         BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, L1BatchEnv, L2BlockEnv,
         SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
@@ -89,7 +90,11 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
 
         let l2_to_l1_logs = l1_messages
             .into_iter()
-            .map(|log| UserL2ToL1Log(log.into()))
+            .map(|log| {
+                UserL2ToL1Log(From::<zksync_types::zk_evm_types::EventMessage>::from(
+                    log.glue_into(),
+                ))
+            })
             .collect();
         let total_log_queries = self.state.event_sink.get_log_queries()
             + self
@@ -101,13 +106,22 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
 
         CurrentExecutionState {
             events,
-            storage_log_queries: self.state.storage.get_final_log_queries(),
+            storage_log_queries: self
+                .state
+                .storage
+                .get_final_log_queries()
+                .into_iter()
+                .map(GlueInto::glue_into)
+                .collect(),
             used_contract_hashes: self.get_used_contracts(),
             user_l2_to_l1_logs: l2_to_l1_logs,
             system_logs: vec![],
             total_log_queries,
             cycles_used: self.state.local_state.monotonic_cycle_counter,
-            deduplicated_events_logs,
+            deduplicated_events_logs: deduplicated_events_logs
+                .into_iter()
+                .map(GlueInto::glue_into)
+                .collect(),
             storage_refunds: self.state.storage.returned_refunds.inner().clone(),
         }
     }

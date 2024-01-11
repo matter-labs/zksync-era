@@ -16,6 +16,18 @@ impl GlueFrom<FarCallOpcode_1_3_3> for FarCallOpcode {
     }
 }
 
+impl GlueFrom<zksync_types::zk_evm_types::FarCallOpcode>
+    for zk_evm_1_3_3::zkevm_opcode_defs::FarCallOpcode
+{
+    fn glue_from(value: zksync_types::zk_evm_types::FarCallOpcode) -> Self {
+        match value {
+            zksync_types::zk_evm_types::FarCallOpcode::Normal => Self::Normal,
+            zksync_types::zk_evm_types::FarCallOpcode::Delegate => Self::Delegate,
+            zksync_types::zk_evm_types::FarCallOpcode::Mimic => Self::Mimic,
+        }
+    }
+}
+
 impl GlueFrom<Timestamp_1_3_3> for Timestamp {
     fn glue_from(value: Timestamp_1_3_3) -> Timestamp {
         Timestamp(value.0)
@@ -60,6 +72,21 @@ impl GlueFrom<LogQuery> for LogQuery_1_3_3 {
             rw_flag: value.rw_flag,
             rollback: value.rollback,
             is_service: value.is_service,
+        }
+    }
+}
+
+impl GlueFrom<zk_evm_1_3_3::reference_impls::event_sink::EventMessage>
+    for zksync_types::zk_evm_types::EventMessage
+{
+    fn glue_from(event: zk_evm_1_3_3::reference_impls::event_sink::EventMessage) -> Self {
+        zksync_types::zk_evm_types::EventMessage {
+            shard_id: event.shard_id,
+            is_first: event.is_first,
+            tx_number_in_block: event.tx_number_in_block,
+            address: event.address,
+            key: event.key,
+            value: event.value,
         }
     }
 }

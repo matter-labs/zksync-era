@@ -47,74 +47,80 @@ pub struct LogQuery {
     pub is_service: bool,
 }
 
-// impl From<LogQuery_1_4_0> for LogQuery {
-//     fn from(value: LogQuery_1_4_0) -> Self {
-//         Self {
-//             timestamp: Timestamp(value.timestamp.0),
-//             tx_number_in_block: value.tx_number_in_block,
-//             aux_byte: value.aux_byte,
-//             shard_id: value.shard_id,
-//             address: value.address,
-//             key: value.key,
-//             read_value: value.read_value,
-//             written_value: value.written_value,
-//             rw_flag: value.rw_flag,
-//             rollback: value.rollback,
-//             is_service: value.is_service,
-//         }
-//     }
-// }
-
-// impl From<LogQuery_1_4_1> for LogQuery {
-//     fn from(value: LogQuery_1_4_1) -> Self {
-//         Self {
-//             timestamp: Timestamp(value.timestamp.0),
-//             tx_number_in_block: value.tx_number_in_block,
-//             aux_byte: value.aux_byte,
-//             shard_id: value.shard_id,
-//             address: value.address,
-//             key: value.key,
-//             read_value: value.read_value,
-//             written_value: value.written_value,
-//             rw_flag: value.rw_flag,
-//             rollback: value.rollback,
-//             is_service: value.is_service,
-//         }
-//     }
-// }
-
-impl Into<LogQuery_1_4_0> for LogQuery {
-    fn into(self) -> LogQuery_1_4_0 {
-        LogQuery_1_4_0 {
-            timestamp: Timestamp_1_4_0(self.timestamp.0),
-            tx_number_in_block: self.tx_number_in_block,
-            aux_byte: self.aux_byte,
-            shard_id: self.shard_id,
-            address: self.address,
-            key: self.key,
-            read_value: self.read_value,
-            written_value: self.written_value,
-            rw_flag: self.rw_flag,
-            rollback: self.rollback,
-            is_service: self.is_service,
+impl From<LogQuery> for LogQuery_1_4_0 {
+    fn from(log_query: LogQuery) -> Self {
+        Self {
+            timestamp: Timestamp_1_4_0(log_query.timestamp.0),
+            tx_number_in_block: log_query.tx_number_in_block,
+            aux_byte: log_query.aux_byte,
+            shard_id: log_query.shard_id,
+            address: log_query.address,
+            key: log_query.key,
+            read_value: log_query.read_value,
+            written_value: log_query.written_value,
+            rw_flag: log_query.rw_flag,
+            rollback: log_query.rollback,
+            is_service: log_query.is_service,
         }
     }
 }
 
-impl Into<LogQuery_1_4_1> for LogQuery {
-    fn into(self) -> LogQuery_1_4_1 {
-        LogQuery_1_4_1 {
-            timestamp: Timestamp_1_4_1(self.timestamp.0),
-            tx_number_in_block: self.tx_number_in_block,
-            aux_byte: self.aux_byte,
-            shard_id: self.shard_id,
-            address: self.address,
-            key: self.key,
-            read_value: self.read_value,
-            written_value: self.written_value,
-            rw_flag: self.rw_flag,
-            rollback: self.rollback,
-            is_service: self.is_service,
+impl From<LogQuery_1_4_0> for LogQuery {
+    fn from(log_query: LogQuery_1_4_0) -> Self {
+        Self {
+            timestamp: Timestamp(log_query.timestamp.0),
+            tx_number_in_block: log_query.tx_number_in_block,
+            aux_byte: log_query.aux_byte,
+            shard_id: log_query.shard_id,
+            address: log_query.address,
+            key: log_query.key,
+            read_value: log_query.read_value,
+            written_value: log_query.written_value,
+            rw_flag: log_query.rw_flag,
+            rollback: log_query.rollback,
+            is_service: log_query.is_service,
         }
     }
 }
+
+impl From<LogQuery> for LogQuery_1_4_1 {
+    fn from(log_query: LogQuery) -> Self {
+        Self {
+            timestamp: Timestamp_1_4_1(log_query.timestamp.0),
+            tx_number_in_block: log_query.tx_number_in_block,
+            aux_byte: log_query.aux_byte,
+            shard_id: log_query.shard_id,
+            address: log_query.address,
+            key: log_query.key,
+            read_value: log_query.read_value,
+            written_value: log_query.written_value,
+            rw_flag: log_query.rw_flag,
+            rollback: log_query.rollback,
+            is_service: log_query.is_service,
+        }
+    }
+}
+
+// impl Into<LogQuery_1_4_0> for LogQuery {
+//     fn into(self) -> LogQuery_1_4_0 {
+
+//     }
+// }
+
+// impl Into<LogQuery_1_4_1> for LogQuery {
+//     fn into(self) -> LogQuery_1_4_1 {
+//         LogQuery_1_4_1 {
+//             timestamp: Timestamp_1_4_1(self.timestamp.0),
+//             tx_number_in_block: self.tx_number_in_block,
+//             aux_byte: self.aux_byte,
+//             shard_id: self.shard_id,
+//             address: self.address,
+//             key: self.key,
+//             read_value: self.read_value,
+//             written_value: self.written_value,
+//             rw_flag: self.rw_flag,
+//             rollback: self.rollback,
+//             is_service: self.is_service,
+//         }
+//     }
+// }
