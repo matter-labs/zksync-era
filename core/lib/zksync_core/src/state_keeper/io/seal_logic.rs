@@ -39,6 +39,7 @@ use crate::{
     state_keeper::{
         extractors,
         metrics::{L1BatchSealStage, MiniblockSealStage, L1_BATCH_METRICS, MINIBLOCK_METRICS},
+        types::ExecutionMetricsForCriteria,
         updates::{MiniblockSealCommand, UpdatesManager},
     },
 };
@@ -61,7 +62,15 @@ impl UpdatesManager {
         progress.observe(None);
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FictiveMiniblock);
-        self.extend_from_fictive_transaction(finished_batch.block_tip_execution_result);
+        let ExecutionMetricsForCriteria {
+            l1_gas: batch_tip_l1_gas,
+            execution_metrics: batch_tip_execution_metrics,
+        } = ExecutionMetricsForCriteria::new(None, &finished_batch.block_tip_execution_result);
+        self.extend_from_fictive_transaction(
+            finished_batch.block_tip_execution_result,
+            batch_tip_l1_gas,
+            batch_tip_execution_metrics,
+        );
         // Seal fictive miniblock with last events and storage logs.
         let miniblock_command = self.seal_miniblock_command(
             l1_batch_env.number,
@@ -148,11 +157,10 @@ impl UpdatesManager {
             .insert_l1_batch(
                 &l1_batch,
                 finished_batch.final_bootloader_memory.as_ref().unwrap(),
-                self.l1_batch.l1_gas_count,
+                self.pending_l1_gas_count(),
                 &events_queue,
                 &finished_batch.final_execution_state.storage_refunds,
-                self.l1_batch
-                    .block_execution_metrics
+                self.pending_execution_metrics()
                     .estimated_circuits_used
                     .ceil() as u32,
             )
