@@ -162,9 +162,7 @@ impl UpdatesManager {
                 self.pending_l1_gas_count(),
                 &events_queue,
                 &finished_batch.final_execution_state.storage_refunds,
-                self.pending_execution_metrics()
-                    .estimated_circuits_used
-                    .ceil() as u32,
+                self.pending_execution_metrics().circuit_statistic,
             )
             .await
             .unwrap();
