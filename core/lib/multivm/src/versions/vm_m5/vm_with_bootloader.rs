@@ -36,7 +36,8 @@ use crate::vm_m5::{
 // fill these values in the similar fasion as other overhead-related constants
 pub const BLOCK_OVERHEAD_GAS: u32 = 1200000;
 pub const BLOCK_OVERHEAD_L1_GAS: u32 = 1000000;
-pub const BLOCK_OVERHEAD_PUBDATA: u32 = BLOCK_OVERHEAD_L1_GAS / L1_GAS_PER_PUBDATA_BYTE;
+// pub const BLOCK_OVERHEAD_PUBDATA: u32 = BLOCK_OVERHEAD_L1_GAS / L1_GAS_PER_PUBDATA_BYTE;
+pub const BLOCK_OVERHEAD_PUBDATA: u32 = 0;
 
 pub const MAX_BLOCK_MULTIINSTANCE_GAS_LIMIT: u32 = 300_000_000;
 
