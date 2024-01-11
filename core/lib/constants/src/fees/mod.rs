@@ -35,7 +35,7 @@ pub struct IntrinsicSystemGasConstants {
 
 /// The amount of gas we need to pay for each non-zero pubdata byte.
 /// Note that it is bigger than 16 to account for potential overhead
-pub const L1_GAS_PER_PUBDATA_BYTE: u32 = 0;
+pub const L1_GAS_PER_PUBDATA_BYTE: u32 = 17;
 
 /// The amount of pubdata that is strictly guaranteed to be available for a block
 pub const GUARANTEED_PUBDATA_IN_TX: u32 = 100000;

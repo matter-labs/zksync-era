@@ -3,8 +3,7 @@ pub use zk_evm_1_4_0::zkevm_opcode_defs::system_params::{
     ERGS_PER_CIRCUIT, INITIAL_STORAGE_WRITE_PUBDATA_BYTES, MAX_PUBDATA_PER_BLOCK,
 };
 use zksync_system_constants::{
-    L1_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS, MAX_TXS_IN_BLOCK,
-    USED_BOOTLOADER_MEMORY_WORDS,
+    MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS, MAX_TXS_IN_BLOCK, USED_BOOTLOADER_MEMORY_WORDS,
 };
 
 use crate::vm_latest::old_vm::utils::heap_page_from_base;
@@ -87,8 +86,15 @@ const INITIAL_BASE_PAGE: u32 = 8;
 pub const BOOTLOADER_HEAP_PAGE: u32 = heap_page_from_base(MemoryPage(INITIAL_BASE_PAGE)).0;
 pub const BLOCK_OVERHEAD_GAS: u32 = 1200000;
 pub const BLOCK_OVERHEAD_L1_GAS: u32 = 1000000;
-// pub const BLOCK_OVERHEAD_PUBDATA: u32 = BLOCK_OVERHEAD_L1_GAS / L1_GAS_PER_PUBDATA_BYTE;
-pub const BLOCK_OVERHEAD_PUBDATA: u32 = 0;
+pub const L1_GAS_PER_PUBDATA_BYTE: u32 = match core::option_env!("ETH_SENDER_SENDER_VALIDIUM_MODE")
+{
+    Some(_) => 0,
+    _ => zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE,
+};
+pub const BLOCK_OVERHEAD_PUBDATA: u32 = match core::option_env!("ETH_SENDER_SENDER_VALIDIUM_MODE") {
+    Some(_) => 0,
+    _ => BLOCK_OVERHEAD_L1_GAS / L1_GAS_PER_PUBDATA_BYTE,
+};
 
 /// VM Hooks are used for communication between bootloader and tracers.
 /// The 'type' / 'opcode' is put into VM_HOOK_POSITION slot,
