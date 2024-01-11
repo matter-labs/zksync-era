@@ -1,14 +1,14 @@
 //! Component responsible for updating L1 batch status.
 
-use std::time::Duration;
+use std::{fmt, time::Duration};
 
 use anyhow::Context as _;
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use tokio::sync::watch::Receiver;
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, api::BlockDetails, L1BatchNumber, MiniblockNumber,
-    H256,
+    aggregated_operations::AggregatedActionType, api, L1BatchNumber, MiniblockNumber, H256,
 };
 use zksync_web3_decl::{
     jsonrpsee::{
@@ -58,6 +58,40 @@ impl From<zksync_dal::SqlxError> for UpdaterError {
     }
 }
 
+#[async_trait]
+trait MainNodeClient: fmt::Debug + Send + Sync {
+    /// Returns any miniblock in the specified L1 batch.
+    async fn resolve_l1_batch_to_miniblock(
+        &self,
+        number: L1BatchNumber,
+    ) -> Result<Option<MiniblockNumber>, ClientError>;
+
+    async fn block_details(
+        &self,
+        number: MiniblockNumber,
+    ) -> Result<Option<api::BlockDetails>, ClientError>;
+}
+
+#[async_trait]
+impl MainNodeClient for HttpClient {
+    async fn resolve_l1_batch_to_miniblock(
+        &self,
+        number: L1BatchNumber,
+    ) -> Result<Option<MiniblockNumber>, ClientError> {
+        Ok(self
+            .get_miniblock_range(number)
+            .await?
+            .map(|(start, _)| MiniblockNumber(start.as_u32())))
+    }
+
+    async fn block_details(
+        &self,
+        number: MiniblockNumber,
+    ) -> Result<Option<api::BlockDetails>, ClientError> {
+        self.get_block_details(number).await
+    }
+}
+
 /// Component responsible for fetching the batch status changes, i.e. one that monitors whether the
 /// locally applied batch was committed, proven or executed on L1.
 ///
@@ -66,49 +100,48 @@ impl From<zksync_dal::SqlxError> for UpdaterError {
 /// the module updates the database to mirror the state observable from the main node.
 #[derive(Debug)]
 pub struct BatchStatusUpdater {
-    client: HttpClient,
+    client: Box<dyn MainNodeClient>,
     pool: ConnectionPool,
-
     last_executed_l1_batch: L1BatchNumber,
     last_proven_l1_batch: L1BatchNumber,
     last_committed_l1_batch: L1BatchNumber,
+    sleep_interval: Duration,
 }
 
 impl BatchStatusUpdater {
-    pub async fn new(main_node_url: &str, pool: ConnectionPool) -> Self {
+    const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
+
+    pub async fn new(main_node_url: &str, pool: ConnectionPool) -> anyhow::Result<Self> {
         let client = HttpClientBuilder::default()
             .build(main_node_url)
-            .expect("Unable to create a main node client");
+            .context("Unable to create a main node client")?;
 
-        let mut storage = pool.access_storage_tagged("sync_layer").await.unwrap();
+        let mut storage = pool.access_storage_tagged("sync_layer").await?;
         let last_executed_l1_batch = storage
             .blocks_dal()
             .get_number_of_last_l1_batch_executed_on_eth()
-            .await
-            .unwrap()
+            .await?
             .unwrap_or_default();
         let last_proven_l1_batch = storage
             .blocks_dal()
             .get_number_of_last_l1_batch_proven_on_eth()
-            .await
-            .unwrap()
+            .await?
             .unwrap_or_default();
         let last_committed_l1_batch = storage
             .blocks_dal()
             .get_number_of_last_l1_batch_committed_on_eth()
-            .await
-            .unwrap()
+            .await?
             .unwrap_or_default();
         drop(storage);
 
-        Self {
-            client,
+        Ok(Self {
+            client: Box::new(client),
             pool,
-
             last_committed_l1_batch,
             last_proven_l1_batch,
             last_executed_l1_batch,
-        }
+            sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
+        })
     }
 
     pub async fn run(mut self, stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
@@ -130,8 +163,7 @@ impl BatchStatusUpdater {
             }
 
             if status_changes.is_empty() {
-                const DELAY_INTERVAL: Duration = Duration::from_secs(5);
-                tokio::time::sleep(DELAY_INTERVAL).await;
+                tokio::time::sleep(self.sleep_interval).await;
                 continue;
             }
             self.apply_status_changes(status_changes).await?;
@@ -170,21 +202,17 @@ impl BatchStatusUpdater {
             // While we may receive `None` for the `self.current_l1_batch`, it's OK: open batch is guaranteed to not
             // be sent to L1.
             let request_latency = FETCHER_METRICS.requests[&FetchStage::GetMiniblockRange].start();
-            let Some((start_miniblock, _)) = self.client.get_miniblock_range(batch).await? else {
+            let Some(miniblock_number) = self.client.resolve_l1_batch_to_miniblock(batch).await?
+            else {
                 return Ok(());
             };
             request_latency.observe();
 
-            // We could have used any miniblock from the range, all of them share the same info.
             let request_latency = FETCHER_METRICS.requests[&FetchStage::GetBlockDetails].start();
-            let Some(batch_info) = self
-                .client
-                .get_block_details(MiniblockNumber(start_miniblock.as_u32()))
-                .await?
-            else {
+            let Some(batch_info) = self.client.block_details(miniblock_number).await? else {
                 // We cannot recover from an external API inconsistency.
                 let err = anyhow::anyhow!(
-                    "Node API is inconsistent: miniblock {start_miniblock} was reported to be a part of {batch} L1 batch, \
+                    "Node API is inconsistent: miniblock {miniblock_number} was reported to be a part of {batch} L1 batch, \
                     but API has no information about this miniblock",
                 );
                 return Err(err.into());
@@ -220,7 +248,7 @@ impl BatchStatusUpdater {
 
     fn update_committed_batch(
         status_changes: &mut StatusChanges,
-        batch_info: &BlockDetails,
+        batch_info: &api::BlockDetails,
         last_committed_l1_batch: &mut L1BatchNumber,
     ) -> anyhow::Result<()> {
         // Check whether we have all data for the update.
@@ -248,7 +276,7 @@ impl BatchStatusUpdater {
 
     fn update_proven_batch(
         status_changes: &mut StatusChanges,
-        batch_info: &BlockDetails,
+        batch_info: &api::BlockDetails,
         last_proven_l1_batch: &mut L1BatchNumber,
     ) -> anyhow::Result<()> {
         // Check whether we have all data for the update.
@@ -276,7 +304,7 @@ impl BatchStatusUpdater {
 
     fn update_executed_batch(
         status_changes: &mut StatusChanges,
-        batch_info: &BlockDetails,
+        batch_info: &api::BlockDetails,
         last_executed_l1_batch: &mut L1BatchNumber,
     ) -> anyhow::Result<()> {
         // Check whether we have all data for the update.
