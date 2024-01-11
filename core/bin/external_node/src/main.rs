@@ -7,6 +7,7 @@ use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task, time::sleep};
 use zksync_basic_types::{Address, L2ChainId};
+use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::database::MerkleTreeMode;
 use zksync_core::{
     api_server::{
@@ -169,22 +170,41 @@ async fn init_tasks(
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
-    let fetcher_cursor = {
-        let pool = singleton_pool_builder
-            .build()
-            .await
-            .context("failed to build a connection pool for `MainNodeFetcher`")?;
-        let mut storage = pool.access_storage_tagged("sync_layer").await?;
-        FetcherCursor::new(&mut storage)
-            .await
-            .context("failed to load `MainNodeFetcher` cursor from Postgres")?
+
+    let fetcher_handle = match config.consensus.clone() {
+        None => {
+            let fetcher_cursor = {
+                let pool = singleton_pool_builder
+                    .build()
+                    .await
+                    .context("failed to build a connection pool for `MainNodeFetcher`")?;
+                let mut storage = pool.access_storage_tagged("sync_layer").await?;
+                FetcherCursor::new(&mut storage)
+                    .await
+                    .context("failed to load `MainNodeFetcher` cursor from Postgres")?
+            };
+            let fetcher = fetcher_cursor.into_fetcher(
+                Box::new(main_node_client),
+                action_queue_sender,
+                sync_state.clone(),
+                stop_receiver.clone(),
+            );
+            tokio::spawn(fetcher.run())
+        }
+        Some(cfg) => {
+            let pool = connection_pool.clone();
+            let mut stop_receiver = stop_receiver.clone();
+            tokio::spawn(async move {
+                scope::run!(&ctx::root(), |ctx, s| async move {
+                    s.spawn_bg(cfg.run(ctx, pool, action_queue_sender));
+                    let _ = stop_receiver.wait_for(|stop| *stop).await?;
+                    Ok(())
+                })
+                .await
+                .context("consensus stopped")
+            })
+        }
     };
-    let fetcher = fetcher_cursor.into_fetcher(
-        Box::new(main_node_client),
-        action_queue_sender,
-        sync_state.clone(),
-        stop_receiver.clone(),
-    );
 
     let metadata_calculator_config = MetadataCalculatorConfig {
         db_path: config.required.merkle_tree_path.clone(),
@@ -232,7 +252,6 @@ async fn init_tasks(
 
     let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
     let sk_handle = task::spawn(state_keeper.run());
-    let fetcher_handle = tokio::spawn(fetcher.run());
     let fee_params_fetcher_handle =
         tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
 

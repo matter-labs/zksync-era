@@ -8913,6 +8913,7 @@ dependencies = [
  "vise",
  "vlog",
  "zksync_basic_types",
+ "zksync_concurrency",
  "zksync_config",
  "zksync_contracts",
  "zksync_core",

@@ -4,9 +4,12 @@ use anyhow::Context;
 use serde::Deserialize;
 use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId, MiniblockNumber};
-use zksync_core::api_server::{
-    tx_sender::TxSenderConfig,
-    web3::{state::InternalApiConfig, Namespace},
+use zksync_core::{
+    api_server::{
+        tx_sender::TxSenderConfig,
+        web3::{state::InternalApiConfig, Namespace},
+    },
+    consensus,
 };
 use zksync_types::api::BridgeAddresses;
 use zksync_web3_decl::{
@@ -407,12 +410,13 @@ impl PostgresConfig {
 
 /// External Node Config contains all the configuration required for the EN operation.
 /// It is split into three parts: required, optional and remote for easier navigation.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct ExternalNodeConfig {
     pub required: RequiredENConfig,
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
     pub remote: RemoteENConfig,
+    pub consensus: Option<consensus::FetcherConfig>,
 }
 
 impl ExternalNodeConfig {
@@ -433,7 +437,12 @@ impl ExternalNodeConfig {
         let remote = RemoteENConfig::fetch(&client)
             .await
             .context("Unable to fetch required config values from the main node")?;
-
+        let consensus = envy::prefixed("EN_CONSENSUS_")
+            .from_env::<Option<consensus::SerdeConfig>>()
+            .context("Unable to load consensus config")?
+            .map(|cfg| cfg.try_into())
+            .transpose()
+            .context("consensus config")?;
         // We can query them from main node, but it's better to set them explicitly
         // as well to avoid connecting to wrong environment variables unintentionally.
         let eth_chain_id = HttpClientBuilder::default()
@@ -478,6 +487,7 @@ impl ExternalNodeConfig {
             postgres,
             required,
             optional,
+            consensus,
         })
     }
 }
