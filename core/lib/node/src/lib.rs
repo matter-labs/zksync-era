@@ -2,6 +2,7 @@ use std::{any::Any, cell::RefCell, collections::HashMap, fmt};
 
 use futures::{future::BoxFuture, FutureExt};
 use resources::{stop_receiver::StopReceiverResource, Resource};
+use tasks::TaskInitError;
 use tokio::{runtime::Runtime, sync::watch};
 // Public re-exports from external crate to minimize the required dependencies.
 pub use zksync_health_check::{CheckHealth, ReactiveHealthCheck};
@@ -177,12 +178,12 @@ impl ZkSyncNode {
 
     /// Takes care of task creation.
     /// May do some "registration" stuff for reporting purposes.
-    pub fn add_task<T: IntoZkSyncTask>(
+    pub fn add_task<F: FnOnce(&ZkSyncNode) -> Result<Box<dyn ZkSyncTask>, TaskInitError>>(
         &mut self,
         name: impl AsRef<str>,
-        config: impl Into<T::Config>,
-    ) {
-        let task = T::create(self, config.into()).unwrap(); // TODO: Do not unwrap
+        task_constructor: F,
+    ) -> &mut Self {
+        let task = task_constructor(self).unwrap(); // TODO: Do not unwrap
         let after_finish = task.after_finish();
         let after_node_shutdown = task.after_node_shutdown();
         let name = String::from(name.as_ref());
@@ -194,6 +195,7 @@ impl ZkSyncNode {
             after_node_shutdown,
         };
         self.tasks.push(task_repr);
+        self
     }
 
     /// Runs the system.

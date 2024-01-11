@@ -61,7 +61,7 @@ pub struct MetadataCalculatorConfig {
 }
 
 impl MetadataCalculatorConfig {
-    pub(crate) fn for_main_node(
+    pub fn for_main_node(
         merkle_tree_config: &MerkleTreeConfig,
         operation_config: &OperationsManagerConfig,
     ) -> Self {

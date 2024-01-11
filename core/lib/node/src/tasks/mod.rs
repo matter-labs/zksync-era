@@ -1,8 +1,8 @@
-mod http_api;
-mod metadata_calculator;
-mod prometheus_exporter;
-mod state_keeper;
-mod ws_api;
+pub mod http_api;
+pub mod metadata_calculator;
+pub mod prometheus_exporter;
+pub mod state_keeper;
+pub mod ws_api;
 
 #[derive(thiserror::Error, Debug)]
 pub enum TaskInitError {

@@ -1,7 +1,10 @@
 use zksync_config::PostgresConfig;
 use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;
-use zksync_node::{resources::pools::PoolsResource, ResourceProvider, ZkSyncNode};
+use zksync_node::{
+    resources::pools::PoolsResource, tasks::metadata_calculator::MetadataCalculatorTask,
+    IntoZkSyncTask, ResourceProvider, ZkSyncNode,
+};
 
 fn pools_resource() -> anyhow::Result<PoolsResource> {
     let config = PostgresConfig::from_env()?;
@@ -36,7 +39,19 @@ impl ResourceProvider for MainNodeResourceProvider {
 }
 
 fn main() -> anyhow::Result<()> {
-    let node = ZkSyncNode::new(MainNodeResourceProvider)?;
+    let mut node = ZkSyncNode::new(MainNodeResourceProvider)?;
+
+    let merkle_tree_env_config = zksync_config::DBConfig::from_env()?.merkle_tree;
+    let operations_manager_env_config =
+        zksync_config::configs::chain::OperationsManagerConfig::from_env()?;
+    let metadata_calculator_config =
+        zksync_core::metadata_calculator::MetadataCalculatorConfig::for_main_node(
+            &merkle_tree_env_config,
+            &operations_manager_env_config,
+        );
+    node.add_task("metadata_calculator", |node| {
+        MetadataCalculatorTask::create(node, metadata_calculator_config)
+    });
 
     node.run()?;
 
