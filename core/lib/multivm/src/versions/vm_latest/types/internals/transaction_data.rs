@@ -13,7 +13,7 @@ use zksync_utils::{address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, 
 
 use crate::vm_latest::{
     constants::{L1_TX_TYPE, MAX_GAS_PER_PUBDATA_BYTE, PRIORITY_TX_MAX_GAS_LIMIT},
-    utils::overhead::get_amortized_overhead,
+    utils::overhead::derive_overhead,
 };
 
 /// This structure represents the data that is used by
@@ -62,6 +62,10 @@ impl From<Transaction> for TransactionData {
                     U256::zero()
                 };
 
+                // Ethereum transactions do not sign gas per pubdata limit, and so for them we need to use
+                // some default value. We use the maximum possible value that is allowed by the bootloader
+                // (i.e. we can not use u64::MAX, because the bootloader requires gas per pubdata for such
+                // transactions to be higher than MAX_GAS_PER_PUBDATA_BYTE).
                 let gas_per_pubdata_limit = if common_data.transaction_type.is_ethereum_type() {
                     MAX_GAS_PER_PUBDATA_BYTE.into()
                 } else {
@@ -207,7 +211,7 @@ impl TransactionData {
             self.reserved_dynamic.len() as u64,
         );
 
-        get_amortized_overhead(encoded_len)
+        derive_overhead(encoded_len)
     }
 
     pub(crate) fn trusted_ergs_limit(&self) -> U256 {

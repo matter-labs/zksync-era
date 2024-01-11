@@ -7,7 +7,6 @@ use crate::{
         constants::BOOTLOADER_HEAP_PAGE,
         implementation::bytecode::{bytecode_to_factory_dep, compress_bytecodes},
         types::internals::TransactionData,
-        utils::fee::get_batch_gas_per_pubdata,
         vm::Vm,
     },
     HistoryMode,

@@ -9,6 +9,7 @@ use crate::vm_latest::old_vm::utils::heap_page_from_base;
 /// The size of the bootloader memory in bytes which is used by the protocol.
 /// While the maximal possible size is a lot higher, we restrict ourselves to a certain limit to reduce
 /// the requirements on RAM.
+/// In this version of the VM the used bootloader memory bytes has increased from `2^24`` to `24_000_000`.
 pub(crate) const USED_BOOTLOADER_MEMORY_BYTES: usize = 24_000_000;
 pub(crate) const USED_BOOTLOADER_MEMORY_WORDS: usize = USED_BOOTLOADER_MEMORY_BYTES / 32;
 
@@ -23,7 +24,8 @@ pub(crate) const GUARANTEED_PUBDATA_PER_L1_BATCH: u64 = 2500;
 pub(crate) const MAX_GAS_PER_PUBDATA_BYTE: u64 =
     MAX_L2_TX_GAS_LIMIT / GUARANTEED_PUBDATA_PER_L1_BATCH;
 
-// The maximal number of transactions in a single batch
+// The maximal number of transactions in a single batch.
+// In this version of the VM the limit has been increased from `1024` to to `10000`.
 pub(crate) const MAX_TXS_IN_BATCH: usize = 10000;
 
 /// Max cycles for a single transaction.
@@ -113,11 +115,9 @@ pub const VM_HOOK_POSITION: u32 = RESULT_SUCCESS_FIRST_SLOT - 1;
 pub const VM_HOOK_PARAMS_COUNT: u32 = 2;
 pub const VM_HOOK_PARAMS_START_POSITION: u32 = VM_HOOK_POSITION - VM_HOOK_PARAMS_COUNT;
 
-pub(crate) const MAX_MEM_SIZE_BYTES: u32 = 24000000;
-
 /// Arbitrary space in memory closer to the end of the page
 pub const RESULT_SUCCESS_FIRST_SLOT: u32 =
-    (MAX_MEM_SIZE_BYTES - (MAX_TXS_IN_BATCH as u32) * 32) / 32;
+    ((USED_BOOTLOADER_MEMORY_BYTES as u32) - (MAX_TXS_IN_BATCH as u32) * 32) / 32;
 
 /// How many gas bootloader is allowed to spend within one block.
 /// Note that this value doesn't correspond to the gas limit of any particular transaction
@@ -141,13 +141,30 @@ pub(crate) const TX_OPERATOR_L2_BLOCK_INFO_SLOTS: usize =
 pub(crate) const COMPRESSED_BYTECODES_OFFSET: usize =
     TX_OPERATOR_L2_BLOCK_INFO_OFFSET + TX_OPERATOR_L2_BLOCK_INFO_SLOTS;
 
-/// The maximal gas limit that gets passed into an L1->L2 transaction
-pub(crate) const PRIORITY_TX_MAX_GAS_LIMIT: usize = 72_000_000;
+/// The maximal gas limit that gets passed into an L1->L2 transaction.
+///
+/// It is equal to the `MAX_GAS_PER_TRANSACTION` in the bootloader.
+/// We need to limit the number of gas that can be passed into the L1->L2 transaction due to the fact
+/// that unlike L2 transactions they can not be rejected by the operator and must be executed. In turn,
+/// this means that if a transaction spends more than `MAX_GAS_PER_TRANSACTION`, it use up all the limited resources of a batch.
+///
+/// It the gas limit cap on Mailbox for a priority transactions should generally be low enough to never cross that boundary, since
+/// artificially limiting the gas price is bad UX. However, during the transition between the pre-1.4.1 fee model and the 1.4.1 one,
+/// we need to process such transactions somehow.
+pub(crate) const PRIORITY_TX_MAX_GAS_LIMIT: usize = 80_000_000;
 
 /// The amount of gas to be charged for occupying a single slot of a transaction.
+/// It is roughly equal to 80kk/MAX_TRANSACTIONS_PER_BATCH, i.e. how many gas would an L1->L2 transaction
+/// need to pay to compensate for the batch being closed.
+/// While the derived formula is used for the worst case for L1->L2 transaction, it suits L2 transactions as well
+/// and serves to compensate the operator for the fact that they need to process the transaction. In case batches start
+/// getting often sealed due to the slot limit being reached, the L2 fair gas price will be increased.
 pub(crate) const TX_SLOT_OVERHEAD_GAS: u32 = 10_000;
 
 /// The amount of gas to be charged for occupying a single byte of the bootloader's memory.
+/// It is roughly equal to 80kk/BOOTLOADER_MEMORY_FOR_TXS, i.e. how many gas would an L1->L2 transaction
+/// need to pay to compensate for the batch being closed.
+/// While the derived formula is used for the worst case for L1->L2 transaction, it suits L2 transactions as well
+/// and serves to compensate the operator for the fact that they need to fill up the bootloader memory. In case batches start
+/// getting often sealed due to the memory limit being reached, the L2 fair gas price will be increased.
 pub(crate) const TX_MEMORY_OVERHEAD_GAS: u32 = 10;
-
-pub const BLOCK_OVERHEAD_L1_GAS: u32 = 800_000;
