@@ -8770,6 +8770,7 @@ version = "0.1.0"
 dependencies = [
  "multivm",
  "zkevm_test_harness 1.4.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0)",
+ "zkevm_test_harness 1.4.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
  "zksync_types",
  "zksync_utils",
 ]

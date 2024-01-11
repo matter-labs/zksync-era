@@ -6,9 +6,9 @@ impl GlueFrom<zk_evm_1_3_1::aux_structures::Timestamp> for zksync_types::Timesta
     }
 }
 
-impl GlueFrom<zk_evm_1_3_1::aux_structures::LogQuery> for zksync_types::LogQuery {
+impl GlueFrom<zk_evm_1_3_1::aux_structures::LogQuery> for zksync_types::log_query::LogQuery {
     fn glue_from(query: zk_evm_1_3_1::aux_structures::LogQuery) -> Self {
-        zksync_types::LogQuery {
+        zksync_types::log_query::LogQuery {
             address: query.address,
             key: query.key,
             written_value: query.written_value,
@@ -30,8 +30,8 @@ impl GlueFrom<zksync_types::Timestamp> for zk_evm_1_3_1::aux_structures::Timesta
     }
 }
 
-impl GlueFrom<zksync_types::LogQuery> for zk_evm_1_3_1::aux_structures::LogQuery {
-    fn glue_from(query: zksync_types::LogQuery) -> Self {
+impl GlueFrom<zksync_types::log_query::LogQuery> for zk_evm_1_3_1::aux_structures::LogQuery {
+    fn glue_from(query: zksync_types::log_query::LogQuery) -> Self {
         zk_evm_1_3_1::aux_structures::LogQuery {
             address: query.address,
             key: query.key,

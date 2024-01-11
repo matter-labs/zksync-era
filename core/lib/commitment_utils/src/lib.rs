@@ -1,9 +1,9 @@
 //! Utils for commitment calculation.
 use multivm::utils::get_used_bootloader_memory_bytes;
-use zkevm_test_harness::witness::utils::{
-    events_queue_commitment_fixed, initial_heap_content_commitment_fixed,
-};
-use zksync_types::{LogQuery, ProtocolVersionId, H256, U256};
+// use zkevm_test_harness_14::witness::utils::{
+//     events_queue_commitment_fixed, initial_heap_content_commitment_fixed,
+// };
+use zksync_types::{LogQuery, ProtocolVersionId, VmVersion, H256, U256};
 use zksync_utils::expand_memory_contents;
 
 pub fn events_queue_commitment(

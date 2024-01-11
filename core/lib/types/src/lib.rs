@@ -21,11 +21,7 @@ pub use protocol_version::{ProtocolUpgrade, ProtocolVersion, ProtocolVersionId};
 pub use storage::*;
 pub use tx::{primitives::*, Execute};
 pub use vm_version::VmVersion;
-pub use zk_evm::{
-    aux_structures::{LogQuery, Timestamp},
-    reference_impls::event_sink::EventMessage,
-    zkevm_opcode_defs::FarCallOpcode,
-};
+pub use zk_evm::{reference_impls::event_sink::EventMessage, zkevm_opcode_defs::FarCallOpcode};
 pub use zkevm_test_harness;
 pub use zksync_basic_types::*;
 
@@ -33,7 +29,6 @@ use crate::{l2::TransactionType, protocol_version::ProtocolUpgradeTxCommonData};
 
 pub mod aggregated_operations;
 pub mod block;
-pub mod circuit;
 pub mod commitment;
 pub mod contract_verification_api;
 pub mod contracts;
@@ -43,6 +38,7 @@ pub mod fee_model;
 pub mod l1;
 pub mod l2;
 pub mod l2_to_l1_log;
+pub mod log_query;
 pub mod priority_op_onchain_data;
 pub mod protocol_version;
 pub mod snapshots;
