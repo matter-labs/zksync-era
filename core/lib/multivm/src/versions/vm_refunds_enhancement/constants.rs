@@ -69,12 +69,11 @@ const INITIAL_BASE_PAGE: u32 = 8;
 pub const BOOTLOADER_HEAP_PAGE: u32 = heap_page_from_base(MemoryPage(INITIAL_BASE_PAGE)).0;
 pub const BLOCK_OVERHEAD_GAS: u32 = 1200000;
 pub const BLOCK_OVERHEAD_L1_GAS: u32 = 1000000;
-pub const L1_GAS_PER_PUBDATA_BYTE: u32 = match core::option_env!("ETH_SENDER_SENDER_VALIDIUM_MODE")
-{
+pub const L1_GAS_PER_PUBDATA_BYTE: u32 = match core::option_env!("VALIDIUM_MODE") {
     Some(_) => 0,
     _ => zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE,
 };
-pub const BLOCK_OVERHEAD_PUBDATA: u32 = match core::option_env!("ETH_SENDER_SENDER_VALIDIUM_MODE") {
+pub const BLOCK_OVERHEAD_PUBDATA: u32 = match core::option_env!("VALIDIUM_MODE") {
     Some(_) => 0,
     _ => BLOCK_OVERHEAD_L1_GAS / L1_GAS_PER_PUBDATA_BYTE,
 };

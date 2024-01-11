@@ -51,6 +51,7 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     if (validiumMode) {
         await announced('Setting up validium mode to true');
         process.env.ETH_SENDER_SENDER_VALIDIUM_MODE = 'true';
+        process.env.VALIDIUM_MODE = 'true';
     } else {
         await announced('Setting up validium mode to false');
         process.env.ETH_SENDER_SENDER_VALIDIUM_MODE = 'false';

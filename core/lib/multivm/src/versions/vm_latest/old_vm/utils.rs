@@ -7,7 +7,6 @@ use zk_evm_1_4_0::{
     },
 };
 use zksync_state::WriteStorage;
-use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{Address, U256};
 
 use crate::vm_latest::{
@@ -94,12 +93,6 @@ pub(crate) fn precompile_calls_count_after_timestamp(
     from_timestamp: Timestamp,
 ) -> usize {
     sorted_timestamps.len() - sorted_timestamps.partition_point(|t| *t < from_timestamp)
-}
-
-pub(crate) fn eth_price_per_pubdata_byte(l1_gas_price: u64) -> u64 {
-    // This value will typically be a lot less than u64
-    // unless the gas price on L1 goes beyond tens of millions of gwei
-    l1_gas_price * (L1_GAS_PER_PUBDATA_BYTE as u64)
 }
 
 pub(crate) fn vm_may_have_ended_inner<S: WriteStorage, H: HistoryMode>(

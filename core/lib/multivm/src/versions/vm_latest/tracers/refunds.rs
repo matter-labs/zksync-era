@@ -23,10 +23,7 @@ use crate::{
     vm_latest::{
         bootloader_state::BootloaderState,
         constants::{BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET},
-        old_vm::{
-            events::merge_events, history_recorder::HistoryMode, memory::SimpleMemory,
-            utils::eth_price_per_pubdata_byte,
-        },
+        old_vm::{events::merge_events, history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::{
             traits::VmTracer,
             utils::{
@@ -34,6 +31,7 @@ use crate::{
             },
         },
         types::internals::ZkSyncVmState,
+        utils::fee::eth_price_per_pubdata_byte,
     },
 };
 
