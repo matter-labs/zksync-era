@@ -38,6 +38,7 @@ Cargo.lock
 /etc/env/l2-inits
 !/etc/env/base
 !/etc/env/configs/docker.toml
+!/etc/env/configs/dev.toml
 !/etc/env/configs/ext-node.toml
 !/etc/env/configs/ext-node-docker.toml
 /etc/tokens/localhost.json
