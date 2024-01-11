@@ -5,12 +5,12 @@ use zksync_types::{
 };
 use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
 
-use crate::models::storage_event::StorageWeb3LogExt;
 use crate::{
     events_web3_dal::filter_logs_by_api_eth_transfer_events,
     instrument::InstrumentExt,
     models::{
         storage_block::{bind_block_where_sql_params, web3_block_where_sql},
+        storage_event::StorageWeb3LogExt,
         storage_transaction::{
             extract_web3_transaction, web3_transaction_select_sql, StorageTransaction,
             StorageTransactionDetails,
@@ -136,9 +136,17 @@ impl TransactionsWeb3Dal<'_, '_> {
                         StorageWeb3LogExt,
                         r#"
                         SELECT
-                            address, topic1, topic2, topic3, topic4, value,
-                            miniblock_number, tx_hash, tx_index_in_block,
-                            event_index_in_block, event_index_in_tx,
+                            address,
+                            topic1,
+                            topic2,
+                            topic3,
+                            topic4,
+                            value,
+                            miniblock_number,
+                            tx_hash,
+                            tx_index_in_block,
+                            event_index_in_block,
+                            event_index_in_tx,
                             event_index_in_block_without_eth_transfer,
                             event_index_in_tx_without_eth_transfer,
                             NULL::bytea AS "block_hash",

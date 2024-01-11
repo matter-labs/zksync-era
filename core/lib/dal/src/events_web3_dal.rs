@@ -5,9 +5,10 @@ use zksync_types::{
     Address, MiniblockNumber, H256,
 };
 
-use crate::models::storage_event::StorageWeb3LogExt;
 use crate::{
-    instrument::InstrumentExt, models::storage_event::StorageWeb3Log, SqlxError, StorageProcessor,
+    instrument::InstrumentExt,
+    models::storage_event::{StorageWeb3Log, StorageWeb3LogExt},
+    SqlxError, StorageProcessor,
 };
 
 #[derive(Debug)]
@@ -186,9 +187,17 @@ impl EventsWeb3Dal<'_, '_> {
                 WITH
                     events_select AS (
                         SELECT
-                            address, topic1, topic2, topic3, topic4, value,
-                            miniblock_number, tx_hash, tx_index_in_block,
-                            event_index_in_block, event_index_in_tx,
+                            address,
+                            topic1,
+                            topic2,
+                            topic3,
+                            topic4,
+                            value,
+                            miniblock_number,
+                            tx_hash,
+                            tx_index_in_block,
+                            event_index_in_block,
+                            event_index_in_tx,
                             event_index_in_block_without_eth_transfer,
                             event_index_in_tx_without_eth_transfer
                         FROM

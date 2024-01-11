@@ -1,6 +1,5 @@
-use zksync_types::api::ApiEthTransferEvents;
 use zksync_types::{
-    api::{L2ToL1Log, Log},
+    api::{ApiEthTransferEvents, L2ToL1Log, Log},
     web3::types::{Bytes, Index, U256, U64},
     Address, H256,
 };
