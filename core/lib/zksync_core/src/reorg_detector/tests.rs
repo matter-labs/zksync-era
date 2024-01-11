@@ -10,9 +10,8 @@ use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_dal::StorageProcessor;
 use zksync_types::{
-    block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
-    fee_model::BatchFeeInput,
-    Address, L2ChainId, ProtocolVersion, ProtocolVersionId,
+    block::{BlockGasCount, MiniblockHeader},
+    L2ChainId, ProtocolVersion,
 };
 
 use super::*;

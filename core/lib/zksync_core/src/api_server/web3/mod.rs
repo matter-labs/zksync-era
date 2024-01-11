@@ -40,8 +40,6 @@ use crate::{
         execution_sandbox::VmConcurrencyBarrier, tree::TreeApiHttpClient, tx_sender::TxSender,
         web3::backend_jsonrpsee::batch_limiter_middleware::LimitMiddleware,
     },
-    fee_model::BatchFeeModelInputProvider,
-    l1_gas_price::L1GasPriceProvider,
     sync_layer::SyncState,
 };
 

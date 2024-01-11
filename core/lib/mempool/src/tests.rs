@@ -5,7 +5,6 @@ use std::{
 
 use zksync_types::{
     fee::Fee,
-    fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms,
     l1::{OpProcessingType, PriorityQueueType},
     l2::L2Tx,

@@ -12,7 +12,7 @@ use zksync_system_constants::{PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS}
 use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
     l2_to_l1_log::L2ToL1Log,
-    L1BatchNumber, VmVersion, H256, U256,
+    L1BatchNumber, H256, U256,
 };
 use zksync_utils::{bytecode::bytecode_len_in_bytes, ceil_div_u256, u256_to_h256};
 
@@ -33,7 +33,6 @@ use crate::{
         },
         types::internals::ZkSyncVmState,
         utils::fee::get_batch_base_fee,
-        VmExecutionMode,
     },
 };
 

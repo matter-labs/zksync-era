@@ -5,7 +5,7 @@ use tokio::sync::watch;
 use zksync_config::configs::chain::MempoolConfig;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
-use zksync_types::{ProtocolVersionId, VmVersion};
+use zksync_types::VmVersion;
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
 use crate::{api_server::execution_sandbox::BlockArgs, fee_model::BatchFeeModelInputProvider};
