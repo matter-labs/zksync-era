@@ -9,10 +9,12 @@ use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{
     vm_trace::{Call, CallType},
-    FarCallOpcode, U256,
+    zk_evm_types::FarCallOpcode,
+    U256,
 };
 
 use crate::{
+    glue::GlueInto,
     interface::{
         tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
         VmRevertReason,
@@ -45,7 +47,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
                     .unwrap_or(current_ergs);
 
                 let mut current_call = Call {
-                    r#type: CallType::Call(far_call),
+                    r#type: CallType::Call(far_call.glue_into()),
                     gas: 0,
                     parent_gas,
                     ..Default::default()
@@ -90,7 +92,7 @@ impl CallTracer {
         // Actually it's a call of the constructor.
         // And at this stage caller is user and callee is deployed contract.
         let call_type = if let CallType::Call(far_call) = current_call.r#type {
-            if matches!(far_call, FarCallOpcode::Mimic) {
+            if matches!(far_call.glue_into(), FarCallOpcode::Mimic) {
                 let previous_caller = state
                     .vm_local_state
                     .callstack

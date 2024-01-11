@@ -8,9 +8,29 @@ use zk_evm_1_4_1::{
 };
 use zksync_basic_types::{Address, U256};
 
+#[derive(Clone, Copy)]
+pub struct EventMessage {
+    pub shard_id: u8,
+    pub is_first: bool,
+    pub tx_number_in_block: u16,
+    pub address: Address,
+    pub key: U256,
+    pub value: U256,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(u8)]
+pub enum FarCallOpcode {
+    Normal = 0,
+    Delegate,
+    Mimic,
+}
+
 /// Struct representing the VM timestamp
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub struct Timestamp(u32);
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, PartialOrd, Ord,
+)]
+pub struct Timestamp(pub u32);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct LogQuery {
@@ -27,41 +47,41 @@ pub struct LogQuery {
     pub is_service: bool,
 }
 
-impl From<LogQuery_1_4_0> for LogQuery {
-    fn from(value: LogQuery_1_4_0) -> Self {
-        Self {
-            timestamp: Timestamp(value.timestamp.0),
-            tx_number_in_block: value.tx_number_in_block,
-            aux_byte: value.aux_byte,
-            shard_id: value.shard_id,
-            address: value.address,
-            key: value.key,
-            read_value: value.read_value,
-            written_value: value.written_value,
-            rw_flag: value.rw_flag,
-            rollback: value.rollback,
-            is_service: value.is_service,
-        }
-    }
-}
+// impl From<LogQuery_1_4_0> for LogQuery {
+//     fn from(value: LogQuery_1_4_0) -> Self {
+//         Self {
+//             timestamp: Timestamp(value.timestamp.0),
+//             tx_number_in_block: value.tx_number_in_block,
+//             aux_byte: value.aux_byte,
+//             shard_id: value.shard_id,
+//             address: value.address,
+//             key: value.key,
+//             read_value: value.read_value,
+//             written_value: value.written_value,
+//             rw_flag: value.rw_flag,
+//             rollback: value.rollback,
+//             is_service: value.is_service,
+//         }
+//     }
+// }
 
-impl From<LogQuery_1_4_1> for LogQuery {
-    fn from(value: LogQuery_1_4_1) -> Self {
-        Self {
-            timestamp: Timestamp(value.timestamp.0),
-            tx_number_in_block: value.tx_number_in_block,
-            aux_byte: value.aux_byte,
-            shard_id: value.shard_id,
-            address: value.address,
-            key: value.key,
-            read_value: value.read_value,
-            written_value: value.written_value,
-            rw_flag: value.rw_flag,
-            rollback: value.rollback,
-            is_service: value.is_service,
-        }
-    }
-}
+// impl From<LogQuery_1_4_1> for LogQuery {
+//     fn from(value: LogQuery_1_4_1) -> Self {
+//         Self {
+//             timestamp: Timestamp(value.timestamp.0),
+//             tx_number_in_block: value.tx_number_in_block,
+//             aux_byte: value.aux_byte,
+//             shard_id: value.shard_id,
+//             address: value.address,
+//             key: value.key,
+//             read_value: value.read_value,
+//             written_value: value.written_value,
+//             rw_flag: value.rw_flag,
+//             rollback: value.rollback,
+//             is_service: value.is_service,
+//         }
+//     }
+// }
 
 impl Into<LogQuery_1_4_0> for LogQuery {
     fn into(self) -> LogQuery_1_4_0 {

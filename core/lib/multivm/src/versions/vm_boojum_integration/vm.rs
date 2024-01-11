@@ -7,6 +7,7 @@ use zksync_types::{
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::{
+    glue::GlueInto,
     interface::{
         BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch,
         L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
@@ -114,7 +115,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             system_logs,
             total_log_queries,
             cycles_used: self.state.local_state.monotonic_cycle_counter,
-            deduplicated_events_logs,
+            deduplicated_events_logs: deduplicated_events_logs
+                .into_iter()
+                .map(GlueInto::glue_into)
+                .collect(),
             storage_refunds: self.state.storage.returned_refunds.inner().clone(),
         }
     }

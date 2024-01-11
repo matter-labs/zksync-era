@@ -1,7 +1,9 @@
 use std::collections::HashSet;
 
 use sqlx::types::chrono::Utc;
-use zksync_types::{log_query::LogQuery, AccountTreeId, Address, L1BatchNumber, StorageKey, H256};
+use zksync_types::{
+    zk_evm_types::LogQuery, AccountTreeId, Address, L1BatchNumber, StorageKey, H256,
+};
 use zksync_utils::u256_to_h256;
 
 use crate::StorageProcessor;

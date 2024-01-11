@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use zk_evm_1_3_3::aux_structures::Timestamp;
+use zk_evm_1_3_3::aux_structures::{LogQuery, Timestamp};
 use zksync_state::WriteStorage;
 use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
@@ -9,8 +9,9 @@ use zksync_types::{
 };
 use zksync_utils::bytecode::bytecode_len_in_bytes;
 
-use crate::vm_1_3_2::{
-    history_recorder::HistoryMode, oracles::storage::storage_key_of_log, VmInstance,
+use crate::{
+    glue::GlueInto,
+    vm_1_3_2::{history_recorder::HistoryMode, oracles::storage::storage_key_of_log, VmInstance},
 };
 
 impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
@@ -76,8 +77,11 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
             .state
             .storage
             .storage_log_queries_after_timestamp(from_timestamp);
-        let (_, deduplicated_logs) =
-            sort_storage_access_queries(storage_logs.iter().map(|log| &log.log_query));
+        let (_, deduplicated_logs) = sort_storage_access_queries(
+            storage_logs
+                .iter()
+                .map(|log| &GlueInto::<LogQuery>::glue_into(log.log_query)),
+        );
 
         deduplicated_logs
             .into_iter()

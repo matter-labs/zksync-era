@@ -1,9 +1,11 @@
 use std::marker::PhantomData;
 
+use itertools::Itertools;
 use zk_evm_1_4_0::{
-    aux_structures::Timestamp,
+    aux_structures::{LogQuery, Timestamp},
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
+use zkevm_test_harness_1_4_0::witness::sort_storage_access::sort_storage_access_queries;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     event::{
@@ -11,12 +13,12 @@ use zksync_types::{
         extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages, L1MessengerL2ToL1Log,
     },
     writes::StateDiffRecord,
-    zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
     AccountTreeId, StorageKey, L1_MESSENGER_ADDRESS,
 };
 use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
 
 use crate::{
+    glue::GlueInto,
     interface::{
         dyn_tracers::vm_1_4_0::DynTracer,
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
@@ -119,10 +121,11 @@ impl<S: WriteStorage> PubdataTracer<S> {
     // State diffs needed to be published on L1
     fn get_state_diffs<H: HistoryMode>(storage: &StorageOracle<S, H>) -> Vec<StateDiffRecord> {
         sort_storage_access_queries(
-            storage
+            &storage
                 .storage_log_queries_after_timestamp(Timestamp(0))
                 .iter()
-                .map(|log| &log.log_query),
+                .map(|log| GlueInto::<LogQuery>::glue_into(log.log_query))
+                .collect_vec(),
         )
         .1
         .into_iter()
