@@ -1,17 +1,43 @@
 //! Tests for batch status updater.
 
-use std::collections::HashMap;
+use std::{future, sync::Arc};
 
 use chrono::TimeZone;
-use tokio::sync::watch;
+use test_casing::test_casing;
+use tokio::sync::{watch, Mutex};
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_dal::StorageProcessor;
 use zksync_types::{block::BlockGasCount, Address, L2ChainId, ProtocolVersionId};
 
 use super::*;
 use crate::{
     genesis::{ensure_genesis_state, GenesisParams},
-    utils::testonly::create_l1_batch,
+    utils::testonly::{create_l1_batch, create_miniblock},
 };
+
+async fn seal_l1_batch(storage: &mut StorageProcessor<'_>, number: L1BatchNumber) {
+    let mut storage = storage.start_transaction().await.unwrap();
+    // Insert a mock miniblock so that `get_block_details()` will return values.
+    let miniblock = create_miniblock(number.0);
+    storage
+        .blocks_dal()
+        .insert_miniblock(&miniblock)
+        .await
+        .unwrap();
+
+    let l1_batch = create_l1_batch(number.0);
+    storage
+        .blocks_dal()
+        .insert_l1_batch(&l1_batch, &[], BlockGasCount::default(), &[], &[], 0)
+        .await
+        .unwrap();
+    storage
+        .blocks_dal()
+        .mark_miniblocks_as_executed_in_l1_batch(number)
+        .await
+        .unwrap();
+    storage.commit().await.unwrap();
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum L1Stage {
@@ -21,7 +47,8 @@ enum L1Stage {
     Executed,
 }
 
-#[derive(Debug, PartialEq)]
+/// Mapping `L1BatchNumber` -> `L1Stage` for a continuous range of numbers.
+#[derive(Debug, Clone, PartialEq)]
 struct L1StagesMap {
     first_batch_number: L1BatchNumber,
     stages: Vec<L1Stage>,
@@ -44,6 +71,13 @@ impl L1StagesMap {
             first_batch_number,
             stages,
         }
+    }
+
+    fn get(&self, number: L1BatchNumber) -> Option<L1Stage> {
+        let Some(index) = number.0.checked_sub(self.first_batch_number.0) else {
+            return None;
+        };
+        self.stages.get(index as usize).copied()
     }
 
     fn iter(&self) -> impl Iterator<Item = (L1BatchNumber, L1Stage)> + '_ {
@@ -77,6 +111,43 @@ impl L1StagesMap {
             *stage = target;
         }
     }
+
+    async fn assert_storage(&self, storage: &mut StorageProcessor<'_>) {
+        for (number, stage) in self.iter() {
+            let local_details = storage
+                .blocks_web3_dal()
+                .get_block_details(MiniblockNumber(number.0), Address::zero())
+                .await
+                .unwrap()
+                .unwrap_or_else(|| panic!("no details for block #{number}"));
+            let expected_details = mock_block_details(number.0, stage);
+
+            assert_eq!(
+                local_details.base.commit_tx_hash,
+                expected_details.base.commit_tx_hash
+            );
+            assert_eq!(
+                local_details.base.committed_at,
+                expected_details.base.committed_at
+            );
+            assert_eq!(
+                local_details.base.prove_tx_hash,
+                expected_details.base.prove_tx_hash
+            );
+            assert_eq!(
+                local_details.base.proven_at,
+                expected_details.base.proven_at
+            );
+            assert_eq!(
+                local_details.base.execute_tx_hash,
+                expected_details.base.execute_tx_hash
+            );
+            assert_eq!(
+                local_details.base.executed_at,
+                expected_details.base.executed_at
+            );
+        }
+    }
 }
 
 fn mock_block_details(number: u32, stage: L1Stage) -> api::BlockDetails {
@@ -104,20 +175,12 @@ fn mock_block_details(number: u32, stage: L1Stage) -> api::BlockDetails {
     }
 }
 
-#[derive(Debug, Default)]
-struct MockMainNodeClient {
-    resolve_l1_batch_to_miniblock_responses: HashMap<L1BatchNumber, MiniblockNumber>,
-    block_details_responses: HashMap<MiniblockNumber, api::BlockDetails>,
-}
+#[derive(Debug)]
+struct MockMainNodeClient(Arc<Mutex<L1StagesMap>>);
 
-impl MockMainNodeClient {
-    fn insert_responses(&mut self, batch_stages: &L1StagesMap) {
-        for (number, batch_stage) in batch_stages.iter() {
-            let details = mock_block_details(number.0, batch_stage);
-            self.resolve_l1_batch_to_miniblock_responses
-                .insert(details.l1_batch_number, details.number);
-            self.block_details_responses.insert(details.number, details);
-        }
+impl From<L1StagesMap> for MockMainNodeClient {
+    fn from(map: L1StagesMap) -> Self {
+        Self(Arc::new(Mutex::new(map)))
     }
 }
 
@@ -127,22 +190,109 @@ impl MainNodeClient for MockMainNodeClient {
         &self,
         number: L1BatchNumber,
     ) -> Result<Option<MiniblockNumber>, ClientError> {
-        Ok(self
-            .resolve_l1_batch_to_miniblock_responses
-            .get(&number)
-            .copied())
+        let map = self.0.lock().await;
+        Ok(map
+            .get(number)
+            .is_some()
+            .then_some(MiniblockNumber(number.0)))
     }
 
     async fn block_details(
         &self,
         number: MiniblockNumber,
     ) -> Result<Option<api::BlockDetails>, ClientError> {
-        Ok(self.block_details_responses.get(&number).cloned())
+        let map = self.0.lock().await;
+        let Some(stage) = map.get(L1BatchNumber(number.0)) else {
+            return Ok(None);
+        };
+        Ok(Some(mock_block_details(number.0, stage)))
     }
 }
 
+async fn mock_updater(
+    client: MockMainNodeClient,
+    pool: ConnectionPool,
+) -> (BatchStatusUpdater, mpsc::UnboundedReceiver<StatusChanges>) {
+    let (changes_sender, changes_receiver) = mpsc::unbounded_channel();
+    let mut updater =
+        BatchStatusUpdater::from_parts(Box::new(client), pool, Duration::from_millis(10))
+            .await
+            .unwrap();
+    updater.changes_sender = changes_sender;
+    (updater, changes_receiver)
+}
+
+#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn normal_updater_operation() {
+async fn normal_updater_operation(async_batches: bool) {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.access_storage().await.unwrap();
+    ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+        .await
+        .unwrap();
+    let target_batch_stages = L1StagesMap::new(
+        L1BatchNumber(1),
+        vec![
+            L1Stage::Executed,
+            L1Stage::Proven,
+            L1Stage::Proven,
+            L1Stage::Committed,
+            L1Stage::Committed,
+            L1Stage::None,
+        ],
+    );
+    let batch_numbers: Vec<_> = target_batch_stages
+        .iter()
+        .map(|(number, _)| number)
+        .collect();
+
+    if !async_batches {
+        // Make all L1 batches present in the storage from the start.
+        for &number in &batch_numbers {
+            seal_l1_batch(&mut storage, number).await;
+        }
+    }
+
+    let client = MockMainNodeClient::from(target_batch_stages.clone());
+    let (updater, mut changes_receiver) = mock_updater(client, pool.clone()).await;
+    assert_eq!(updater.last_committed_l1_batch, L1BatchNumber(0));
+    assert_eq!(updater.last_proven_l1_batch, L1BatchNumber(0));
+    assert_eq!(updater.last_executed_l1_batch, L1BatchNumber(0));
+
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let updater_task = tokio::spawn(updater.run(stop_receiver));
+
+    let batches_task = if async_batches {
+        let pool = pool.clone();
+        tokio::spawn(async move {
+            let mut storage = pool.access_storage().await.unwrap();
+            for &number in &batch_numbers {
+                seal_l1_batch(&mut storage, number).await;
+                tokio::time::sleep(Duration::from_millis(15)).await;
+            }
+        })
+    } else {
+        tokio::spawn(future::ready(()))
+    };
+
+    let mut observed_batch_stages =
+        L1StagesMap::empty(L1BatchNumber(1), target_batch_stages.stages.len());
+    loop {
+        let changes = changes_receiver.recv().await.unwrap();
+        observed_batch_stages.update(&changes);
+        if observed_batch_stages == target_batch_stages {
+            break;
+        }
+    }
+
+    batches_task.await.unwrap();
+    target_batch_stages.assert_storage(&mut storage).await;
+    stop_sender.send_replace(true);
+    updater_task.await.unwrap().expect("updater failed");
+}
+
+#[tokio::test]
+async fn updater_with_gradual_main_node_updates() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
@@ -162,29 +312,27 @@ async fn normal_updater_operation() {
     let mut observed_batch_stages =
         L1StagesMap::empty(L1BatchNumber(1), target_batch_stages.stages.len());
 
-    // Make all L1 batches present in the storage from the start.
     for (number, _) in target_batch_stages.iter() {
-        let l1_batch = create_l1_batch(number.0);
-        storage
-            .blocks_dal()
-            .insert_l1_batch(&l1_batch, &[], BlockGasCount::default(), &[], &[], 0)
-            .await
-            .unwrap();
+        seal_l1_batch(&mut storage, number).await;
     }
 
-    let mut client = MockMainNodeClient::default();
-    client.insert_responses(&target_batch_stages);
+    let client = MockMainNodeClient::from(observed_batch_stages.clone());
 
-    let (changes_sender, mut changes_receiver) = mpsc::unbounded_channel();
-    let mut updater =
-        BatchStatusUpdater::from_parts(Box::new(client), pool.clone(), Duration::from_millis(10))
-            .await
-            .unwrap();
-    updater.changes_sender = changes_sender;
-    assert_eq!(updater.last_committed_l1_batch, L1BatchNumber(0));
-    assert_eq!(updater.last_proven_l1_batch, L1BatchNumber(0));
-    assert_eq!(updater.last_executed_l1_batch, L1BatchNumber(0));
+    // Gradually update information provided by the main node.
+    let client_map = Arc::clone(&client.0);
+    let final_stages = target_batch_stages.clone();
+    let storage_task = tokio::spawn(async move {
+        for max_stage in [L1Stage::Committed, L1Stage::Proven, L1Stage::Executed] {
+            let mut client_map = client_map.lock().await;
+            for (stage, &final_stage) in client_map.stages.iter_mut().zip(&final_stages.stages) {
+                *stage = final_stage.min(max_stage);
+            }
+            drop(client_map);
+            tokio::time::sleep(Duration::from_millis(15)).await;
+        }
+    });
 
+    let (updater, mut changes_receiver) = mock_updater(client, pool.clone()).await;
     let (stop_sender, stop_receiver) = watch::channel(false);
     let updater_task = tokio::spawn(updater.run(stop_receiver));
 
@@ -196,6 +344,38 @@ async fn normal_updater_operation() {
         }
     }
 
+    storage_task.await.unwrap();
+    target_batch_stages.assert_storage(&mut storage).await;
+    stop_sender.send_replace(true);
+    updater_task.await.unwrap().expect("updater failed");
+
+    drop(storage);
+    test_resuming_updater(pool, target_batch_stages).await;
+}
+
+async fn test_resuming_updater(pool: ConnectionPool, initial_batch_stages: L1StagesMap) {
+    let target_batch_stages = L1StagesMap::new(L1BatchNumber(1), vec![L1Stage::Executed; 6]);
+
+    let client = MockMainNodeClient::from(target_batch_stages.clone());
+    let (updater, mut changes_receiver) = mock_updater(client, pool.clone()).await;
+    assert_ne!(updater.last_committed_l1_batch, L1BatchNumber(0));
+    assert_ne!(updater.last_proven_l1_batch, L1BatchNumber(0));
+    assert_ne!(updater.last_executed_l1_batch, L1BatchNumber(0));
+
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let updater_task = tokio::spawn(updater.run(stop_receiver));
+
+    let mut observed_batch_stages = initial_batch_stages;
+    loop {
+        let changes = changes_receiver.recv().await.unwrap();
+        observed_batch_stages.update(&changes);
+        if observed_batch_stages == target_batch_stages {
+            break;
+        }
+    }
+
+    let mut storage = pool.access_storage().await.unwrap();
+    target_batch_stages.assert_storage(&mut storage).await;
     stop_sender.send_replace(true);
     updater_task.await.unwrap().expect("updater failed");
 }
