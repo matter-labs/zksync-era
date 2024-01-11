@@ -82,9 +82,9 @@ impl EventsDal<'_, '_> {
                     topic2 = EventTopic(event.indexed_topics.get(2)),
                     topic3 = EventTopic(event.indexed_topics.get(3))
                 );
-                writeln_str!(
+                write_str!(
                     &mut buffer,
-                    r"\\x{value}|\\x{tx_initiator_address:x}|{now}|{now}",
+                    r"\\x{value}|\\x{tx_initiator_address:x}|{now}|{now}|",
                     value = hex::encode(&event.value)
                 );
                 writeln_str!(
@@ -92,9 +92,9 @@ impl EventsDal<'_, '_> {
                     "{event_index_in_block_without_eth_transfer}|{event_index_in_tx_without_eth_transfer}",
                 );
 
-                if event.address != L2_ETH_TOKEN_ADDRESS
-                    || event.indexed_topics.len() < 2
-                    || event.indexed_topics[1] != TRANSFER_EVENT_TOPIC
+                if !(event.address == L2_ETH_TOKEN_ADDRESS
+                    && event.indexed_topics.get(0).is_some()
+                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
                 {
                     event_index_in_block_without_eth_transfer += 1;
                     event_index_in_tx_without_eth_transfer += 1;
