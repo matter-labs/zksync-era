@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n                        SELECT\n                            address, topic1, topic2, topic3, topic4, value,\n                            miniblock_number, tx_hash, tx_index_in_block,\n                            event_index_in_block, event_index_in_tx,\n                            event_index_in_block_without_eth_transfer,\n                            event_index_in_tx_without_eth_transfer,\n                            NULL::bytea AS \"block_hash\",\n                            NULL::BIGINT AS \"l1_batch_number\"\n                        FROM\n                            events\n                        WHERE\n                            tx_hash = $1\n                        ORDER BY\n                            miniblock_number ASC,\n                            event_index_in_block ASC\n                        ",
+  "query": "\n                        SELECT\n                            address,\n                            topic1,\n                            topic2,\n                            topic3,\n                            topic4,\n                            value,\n                            miniblock_number,\n                            tx_hash,\n                            tx_index_in_block,\n                            event_index_in_block,\n                            event_index_in_tx,\n                            event_index_in_block_without_eth_transfer,\n                            event_index_in_tx_without_eth_transfer,\n                            NULL::bytea AS \"block_hash\",\n                            NULL::BIGINT AS \"l1_batch_number\"\n                        FROM\n                            events\n                        WHERE\n                            tx_hash = $1\n                        ORDER BY\n                            miniblock_number ASC,\n                            event_index_in_block ASC\n                        ",
   "describe": {
     "columns": [
       {
@@ -102,5 +102,5 @@
       null
     ]
   },
-  "hash": "31d0d5d655ca261963aece86b6715c0f14397ff5671e4b7a69ae7d1988d3c47b"
+  "hash": "b125f07aec89f9d18c7f61222b5fad85237efd4db5a531f44fdd915a1b5e15b1"
 }
