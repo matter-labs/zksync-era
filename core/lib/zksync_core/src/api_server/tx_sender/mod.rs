@@ -212,6 +212,7 @@ pub struct TxSenderConfig {
     pub max_allowed_l2_tx_gas_limit: u32,
     pub vm_execution_cache_misses_limit: Option<usize>,
     pub validation_computational_gas_limit: u32,
+    pub l1_to_l2_transactions_compatibility_mode: bool,
     pub chain_id: L2ChainId,
 }
 
@@ -229,6 +230,8 @@ impl TxSenderConfig {
             vm_execution_cache_misses_limit: web3_json_config.vm_execution_cache_misses_limit,
             validation_computational_gas_limit: state_keeper_config
                 .validation_computational_gas_limit,
+            l1_to_l2_transactions_compatibility_mode: web3_json_config
+                .l1_to_l2_transactions_compatibility_mode,
             chain_id,
         }
     }
@@ -818,13 +821,27 @@ impl TxSender {
 
         // Now, we need to calculate the final overhead for the transaction. We need to take into accoutn the fact
         // that the migration of 1.4.1 may be still going on.
-        let overhead = derive_pessimistic_overhead(
-            suggested_gas_limit,
-            gas_per_pubdata_byte as u32,
-            tx.encoding_len(),
-            tx.tx_format() as u8,
-            protocol_version.into(),
-        );
+        let overhead = if self
+            .0
+            .sender_config
+            .l1_to_l2_transactions_compatibility_mode
+        {
+            derive_pessimistic_overhead(
+                suggested_gas_limit,
+                gas_per_pubdata_byte as u32,
+                tx.encoding_len(),
+                tx.tx_format() as u8,
+                protocol_version.into(),
+            )
+        } else {
+            derive_overhead(
+                suggested_gas_limit,
+                gas_per_pubdata_byte as u32,
+                tx.encoding_len(),
+                tx.tx_format() as u8,
+                protocol_version.into(),
+            )
+        };
 
         let full_gas_limit =
             match tx_body_gas_limit.overflowing_add(gas_for_bytecodes_pubdata + overhead) {
