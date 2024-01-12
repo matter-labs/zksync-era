@@ -1,5 +1,6 @@
 pub mod object_store;
 pub mod pools;
+pub mod state_keeper;
 pub mod stop_receiver;
 
 /// A marker trait for anything that can be stored (and retrieved) as a resource.
