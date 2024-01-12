@@ -1,11 +1,14 @@
 {
     "language": "en",
     "ignorePaths": [
-        "node_modules/**",
+        "**/CHANGELOG.md",
+        "**/node_modules/**", 
         ".github/**",
         ".firebase/**",
         ".yarn/**",
-        "dist/**"
+        "dist/**",
+        "**/contracts/**",
+        "**/target/**"
     ],
     "dictionaries": [
         "typescript",

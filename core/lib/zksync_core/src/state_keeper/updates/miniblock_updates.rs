@@ -59,13 +59,21 @@ impl MiniblockUpdates {
         }
     }
 
-    pub(crate) fn extend_from_fictive_transaction(&mut self, result: VmExecutionResultAndLogs) {
+    pub(crate) fn extend_from_fictive_transaction(
+        &mut self,
+        result: VmExecutionResultAndLogs,
+        l1_gas_count: BlockGasCount,
+        execution_metrics: ExecutionMetrics,
+    ) {
         self.events.extend(result.logs.events);
         self.storage_logs.extend(result.logs.storage_logs);
         self.user_l2_to_l1_logs
             .extend(result.logs.user_l2_to_l1_logs);
         self.system_l2_to_l1_logs
             .extend(result.logs.system_l2_to_l1_logs);
+
+        self.l1_gas_count += l1_gas_count;
+        self.block_execution_metrics += execution_metrics;
     }
 
     pub(crate) fn extend_from_executed_transaction(

@@ -206,7 +206,7 @@ impl TreeUpdater {
             .await
             .unwrap();
 
-        // TODO(X): ensure that the protocol version is always available.
+        // TODO(PLA-731): ensure that the protocol version is always available.
         let protocol_version = header
             .protocol_version
             .unwrap_or(ProtocolVersionId::last_potentially_undefined());
