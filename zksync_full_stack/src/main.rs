@@ -1,17 +1,12 @@
 use std::{str::FromStr, time::Duration};
 
 use colored::Colorize;
-use ethers::{
-    abi::{Abi, AbiEncode},
-    providers::Http,
-    utils::parse_units,
-};
+use ethers::{abi::Abi, providers::Http, utils::parse_units};
 use loadnext::config::LoadtestConfig;
 use tokio::time::sleep;
 use zksync_web3_decl::{
     jsonrpsee::http_client::HttpClientBuilder,
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
-    types::U256,
 };
 use zksync_web3_rs::{
     providers::{Middleware, Provider},
@@ -24,8 +19,8 @@ use zksync_web3_rs::{
 static ERA_PROVIDER_URL: &str = "http://127.0.0.1:3050";
 static PRIVATE_KEY: &str = "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
 
-static CONTRACT_BIN: &str = include_str!("../BytesWriter.bin");
-static CONTRACT_ABI: &str = include_str!("../BytesWriter.abi");
+static CONTRACT_BIN: &str = include_str!("../ERC20.bin");
+static CONTRACT_ABI: &str = include_str!("../ERC20.abi");
 
 static L1_URL: &str = "http://localhost:8545";
 
@@ -77,8 +72,12 @@ async fn main() {
         let contract_bin = hex::decode(CONTRACT_BIN).unwrap().to_vec();
 
         // DeployRequest sets the parameters for the constructor call and the deployment transaction.
-        let request = DeployRequest::with(abi, contract_bin, vec!["0x0016".to_owned()])
-            .from(zk_wallet.l2_address());
+        let request = DeployRequest::with(
+            abi,
+            contract_bin,
+            vec!["ToniToken".to_owned(), "teth".to_owned()],
+        )
+        .from(zk_wallet.l2_address());
 
         // Send the deployment transaction and wait until we receive the contract address.
         let address = zk_wallet.deploy(&request).await.unwrap();
@@ -88,47 +87,110 @@ async fn main() {
         address
     };
 
-    // Call the greet view method:
     {
         let era_provider = zk_wallet.get_era_provider().unwrap();
-        let call_request = CallRequest::new(contract_address, "readBytes()(bytes)".to_owned());
+        let call_request_name = CallRequest::new(contract_address, "name()(string)".to_owned());
 
-        let bytes_message = ZKSProvider::call(era_provider.as_ref(), &call_request)
+        let name_message = ZKSProvider::call(era_provider.as_ref(), &call_request_name)
             .await
             .unwrap();
 
-        println!("Bytes stored in contract: {}", bytes_message[0]);
+        println!("Token name: {}", name_message[0]);
+
+        let call_request_symbol = CallRequest::new(contract_address, "symbol()(string)".to_owned());
+
+        let symbol_message = ZKSProvider::call(era_provider.as_ref(), &call_request_symbol)
+            .await
+            .unwrap();
+
+        println!("Token symbol: {}", symbol_message[0]);
     }
 
-    // Perform a signed transaction calling the setGreeting method
-    let values: Vec<i64> = vec![
-        1000000000,
-        10000000000,
-        100000000000,
-        1000000000000,
-        10000000000000,
-    ];
-    let mut last_message = String::new(); // Replace with your actual last message
+    println!();
 
-    let mut last_l2_tx_fee = U256::zero();
-    let mut last_l1_max_fee_per_gas = U256::zero();
+    println!("{}", "Mint".bright_magenta());
+    let receipt_mint = zk_wallet
+        .get_era_provider()
+        .unwrap()
+        .clone()
+        .send_eip712(
+            &zk_wallet.l2_wallet,
+            contract_address,
+            "_mint(address, uint256)",
+            Some(
+                [
+                    "bBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB".into(),
+                    "100000".into(),
+                ]
+                .into(),
+            ),
+            None,
+        )
+        .await
+        .unwrap()
+        .await
+        .unwrap()
+        .unwrap();
+
+    let transaction_hash_mint = receipt_mint.transaction_hash;
+    let transaction_hash_formatted_mint = format!("{:#?}", receipt_mint.transaction_hash);
+    println!("transaction hash {}", transaction_hash_formatted_mint);
+    let l2_transaction_mint = {
+        // println!("{}", "Getting l2 transaction details with rpc...");
+        loop {
+            let l2_transaction = l2_rpc_client
+                .get_transaction_details(transaction_hash_mint)
+                .await
+                .unwrap()
+                .unwrap();
+
+            if l2_transaction.eth_commit_tx_hash.is_some() {
+                break l2_transaction.clone();
+            }
+
+            sleep(Duration::from_secs(1)).await; // Adjust the duration as needed
+        }
+    };
+
+    let l2_tx_fee_formatted_mint = format!("{:#?}", l2_transaction_mint.fee);
+    println!("L2 fee: {}", l2_tx_fee_formatted_mint.green());
+
+    let l1_transaction_mint = l1_rpc_client
+        .get_transaction_by_hash(l2_transaction_mint.eth_commit_tx_hash.unwrap())
+        .await
+        .unwrap()
+        .unwrap();
+
+    let l1_max_fee_per_gas_mint = l1_transaction_mint.max_fee_per_gas.unwrap();
+    let l1_max_fee_per_gas_formatted_mint = format!("{:#?}", l1_max_fee_per_gas_mint);
+    println!(
+        "L1 max fee per gas: {}",
+        l1_max_fee_per_gas_formatted_mint.cyan()
+    );
+    println!();
+
+    let values: Vec<&str> = vec![
+        "1000", "2000", "3000", "4000", "5000", "6000", "7000", "8000", "9000", "10000",
+    ];
 
     for &value in &values {
-        println!();
-        let hex_value = format!("{:0width$X}", value, width = 64);
-        if last_message.is_empty() || last_message != hex_value {
-            println!("New message to store: {}", hex_value);
-            last_message.clone_from(&hex_value);
-        }
-        let receipt = zk_wallet
+        println!("Transfer {}", value.bright_magenta());
+        let receipt_transfer = zk_wallet
             .get_era_provider()
             .unwrap()
             .clone()
             .send_eip712(
                 &zk_wallet.l2_wallet,
                 contract_address,
-                "writeBytes(bytes)",
-                Some([hex_value].into()),
+                "_transfer(address, address, uint256)",
+                Some(
+                    [
+                        "bBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB".into(),
+                        "CD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826".into(),
+                        value.into(),
+                    ]
+                    .into(),
+                ),
                 None,
             )
             .await
@@ -137,14 +199,15 @@ async fn main() {
             .unwrap()
             .unwrap();
 
-        let transaction_hash = receipt.transaction_hash;
-        let transaction_hash_formatted = format!("{:#?}", receipt.transaction_hash);
-        println!("storeBytes transaction hash {}", transaction_hash_formatted);
-        let l2_transaction = {
+        let transaction_hash_transfer = receipt_transfer.transaction_hash;
+        let transaction_hash_formatted_transfer =
+            format!("{:#?}", receipt_transfer.transaction_hash);
+        println!("transaction hash {}", transaction_hash_formatted_transfer);
+        let l2_transaction_transfer = {
             // println!("{}", "Getting l2 transaction details with rpc...");
             loop {
                 let l2_transaction = l2_rpc_client
-                    .get_transaction_details(transaction_hash)
+                    .get_transaction_details(transaction_hash_transfer)
                     .await
                     .unwrap()
                     .unwrap();
@@ -157,126 +220,21 @@ async fn main() {
             }
         };
 
-        // let gas_per_pubdata_formatted = format!("{:#?}", l2_transaction.gas_per_pubdata);
-        // let mut last_gas_per_pubdata = String::new(); // Initialize with your actual last value
+        let l2_tx_fee_formatted_transfer = format!("{:#?}", l2_transaction_transfer.fee);
+        println!("L2 fee: {}", l2_tx_fee_formatted_transfer.green());
 
-        // if last_gas_per_pubdata.is_empty() || last_gas_per_pubdata != gas_per_pubdata_formatted {
-        //     println!("L2: Gas per pubdata: {}", gas_per_pubdata_formatted.red());
-
-        //     // Update last_gas_per_pubdata with the current value
-        //     last_gas_per_pubdata.clone_from(&gas_per_pubdata_formatted);
-        // }
-
-        let l2_tx_fee_formatted = format!("{:#?}", l2_transaction.fee);
-        println!("L2 fee: {}", l2_tx_fee_formatted.green());
-
-        let diff_tx_fee_formatted = format!("{:#?}", l2_transaction.fee.abs_diff(last_l2_tx_fee));
-
-        if l2_transaction.fee.ge(&last_l2_tx_fee) {
-            println!("Diff with last fee: {}", diff_tx_fee_formatted.magenta());
-        } else {
-            println!(
-                "Diff with last fee: {}",
-                ("-".to_owned() + &diff_tx_fee_formatted).magenta()
-            );
-        }
-
-        last_l2_tx_fee.clone_from(&l2_transaction.fee);
-        // println!("{}", "Getting l1 transaction details with rpc...");
-        let l1_transaction = l1_rpc_client
-            .get_transaction_by_hash(l2_transaction.eth_commit_tx_hash.unwrap())
+        let l1_transaction_transfer = l1_rpc_client
+            .get_transaction_by_hash(l2_transaction_transfer.eth_commit_tx_hash.unwrap())
             .await
             .unwrap()
             .unwrap();
 
-        // let mut last_l1_transaction_gas = String::new();
-        // let l1_transaction_gas_formatted = format!("{:#?}", l1_transaction.gas);
-
-        // if last_l1_transaction_gas.is_empty()
-        //     || last_l1_transaction_gas != l1_transaction_gas_formatted
-        // {
-        //     println!("Gas: {}", l1_transaction_gas_formatted.yellow());
-        //     last_l1_transaction_gas = l1_transaction_gas_formatted;
-        // }
-
-        // let mut last_gas_price = String::new();
-        // let gas_price_formatted = format!("{:#?}", l1_transaction.gas_price.unwrap());
-
-        // if last_gas_price.is_empty() || last_gas_price != gas_price_formatted {
-        //     println!("Gas price: {}", gas_price_formatted.yellow());
-        //     last_gas_price.clone__from(gas_price_formatted);
-        // }
-
-        // let mut last_l1_transaction_gas = String::new();
-        // let l1_transaction_gas_formatted = format!("{:#?}", l1_transaction.gas);
-
-        // if last_l1_transaction_gas.is_empty()
-        //     || last_l1_transaction_gas != l1_transaction_gas_formatted
-        // {
-        //     println!("Gas: {}", l1_transaction_gas_formatted.yellow());
-        //     last_l1_transaction_gas.clone_from(&l1_transaction_gas_formatted);
-        // }
-
-        // let mut last_gas_price = String::new();
-        // let gas_price_formatted = format!("{:#?}", l1_transaction.gas_price.unwrap());
-
-        // if last_gas_price.is_empty() || last_gas_price != gas_price_formatted {
-        //     println!("Gas price: {}", gas_price_formatted.yellow());
-        //     last_gas_price = gas_price_formatted;
-        // }
-
-        let l1_max_fee_per_gas = l1_transaction.max_fee_per_gas.unwrap();
-        let l1_max_fee_per_gas_formatted = format!("{:#?}", l1_max_fee_per_gas);
+        let l1_max_fee_per_gas_transfer = l1_transaction_transfer.max_fee_per_gas.unwrap();
+        let l1_max_fee_per_gas_formatted_transfer = format!("{:#?}", l1_max_fee_per_gas_transfer);
         println!(
             "L1 max fee per gas: {}",
-            l1_max_fee_per_gas_formatted.cyan()
+            l1_max_fee_per_gas_formatted_transfer.cyan()
         );
-
-        let diff_l1_max_fee_per_gas_formatted = format!(
-            "{:#?}",
-            l1_max_fee_per_gas.abs_diff(last_l1_max_fee_per_gas)
-        );
-        if l1_max_fee_per_gas.ge(&last_l1_max_fee_per_gas) {
-            println!(
-                "Diff with last fee: {}",
-                diff_l1_max_fee_per_gas_formatted.magenta()
-            );
-        } else {
-            println!(
-                "Diff with last fee: {}",
-                ("-".to_owned() + &diff_l1_max_fee_per_gas_formatted).magenta()
-            );
-        }
-        last_l1_max_fee_per_gas.clone_from(&l1_max_fee_per_gas);
-        println!()
-
-        // let mut last_max_priority_fee_per_gas = String::new();
-        // let max_priority_fee_per_gas_formatted =
-        //     format!("{:#?}", l1_transaction.max_priority_fee_per_gas.unwrap());
-
-        // if last_max_priority_fee_per_gas.is_empty()
-        //     || last_max_priority_fee_per_gas != max_priority_fee_per_gas_formatted
-        // {
-        //     println!(
-        //         "Max priority fee per gas: {}",
-        //         max_priority_fee_per_gas_formatted.yellow()
-        //     );
-        //     last_max_priority_fee_per_gas = max_priority_fee_per_gas_formatted;
-        // }
-
-        // let eth_tx_hash = l2_transaction.eth_commit_tx_hash.clone().unwrap();
-        // println!("Eth tx hash: {:#?}", eth_tx_hash);
-
-        // let eth_tx_hash = l2_transaction.eth_commit_tx_hash.clone().unwrap();
-        // println!("Eth tx hash: {:#?}", eth_tx_hash);
-
-        // let l1_dbg_trace_transaction = l1_rpc_client
-        //     .trace_transaction(l2_transaction.eth_commit_tx_hash.unwrap(), None)
-        //     .await
-        //     .unwrap()
-        //     .unwrap();
-
-        // println!("Gas used: {:#?}", l1_dbg_trace_transaction.gas_used);
-        // println!("Gas: {:#?}", l1_dbg_trace_transaction.gas);
+        println!();
     }
 }
