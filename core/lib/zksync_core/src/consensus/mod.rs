@@ -44,9 +44,11 @@ pub struct SerdeConfig {
     pub public_addr: std::net::SocketAddr,
 
     /// Validator private key. Should be set only for the validator node.
+    #[serde(skip)]
     pub validator_key: Option<SerdeText<validator::SecretKey>>,
 
     /// Validators participating in consensus.
+    #[serde(skip)]
     pub validator_set: Vec<SerdeText<validator::PublicKey>>,
 
     /// Key of this node. It uniquely identifies the node.
@@ -55,9 +57,11 @@ pub struct SerdeConfig {
     /// of the `static_inbound` set.
     pub gossip_dynamic_inbound_limit: u64,
     /// Inbound gossip connections that should be unconditionally accepted.
+    #[serde(skip)]
     pub gossip_static_inbound: HashSet<SerdeText<node::PublicKey>>,
     /// Outbound gossip connections that the node should actively try to
     /// establish and maintain.
+    #[serde(skip)]
     pub gossip_static_outbound: HashMap<SerdeText<node::PublicKey>, std::net::SocketAddr>,
 
     pub operator_address: Option<Address>,

@@ -438,10 +438,9 @@ impl ExternalNodeConfig {
             .await
             .context("Unable to fetch required config values from the main node")?;
         let consensus = envy::prefixed("EN_CONSENSUS_")
-            .from_env::<Option<consensus::SerdeConfig>>()
+            .from_env::<consensus::SerdeConfig>()
             .context("Unable to load consensus config")?
-            .map(|cfg| cfg.try_into())
-            .transpose()
+            .try_into()
             .context("consensus config")?;
         // We can query them from main node, but it's better to set them explicitly
         // as well to avoid connecting to wrong environment variables unintentionally.
@@ -487,7 +486,7 @@ impl ExternalNodeConfig {
             postgres,
             required,
             optional,
-            consensus,
+            consensus: Some(consensus),
         })
     }
 }
