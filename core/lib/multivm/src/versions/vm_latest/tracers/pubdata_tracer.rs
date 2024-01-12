@@ -124,7 +124,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
             &storage
                 .storage_log_queries_after_timestamp(Timestamp(0))
                 .iter()
-                .map(|log| GlueInto::<LogQuery>::glue_into(log.log_query))
+                .map(|log| log.log_query)
                 .collect_vec(),
         )
         .1

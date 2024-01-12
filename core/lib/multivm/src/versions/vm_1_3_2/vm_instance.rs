@@ -419,10 +419,7 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
             .collect();
         (
             events,
-            l1_messages
-                .into_iter()
-                .map(|x| From::<zksync_types::zk_evm_types::EventMessage>::from(x.glue_into()))
-                .collect(),
+            l1_messages.into_iter().map(GlueInto::glue_into).collect(),
         )
     }
 
@@ -775,10 +772,8 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
                         e.into_vm_event(L1BatchNumber(self.block_context.context.block_number))
                     })
                     .collect();
-                full_result.l2_to_l1_logs = l1_messages
-                    .into_iter()
-                    .map(|x| From::<zksync_types::zk_evm_types::EventMessage>::from(x.glue_into()))
-                    .collect();
+                full_result.l2_to_l1_logs =
+                    l1_messages.into_iter().map(GlueInto::glue_into).collect();
                 full_result.computational_gas_used = block_tip_result.computational_gas_used;
                 VmBlockResult {
                     full_result,

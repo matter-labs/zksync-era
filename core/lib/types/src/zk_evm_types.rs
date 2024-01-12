@@ -8,15 +8,15 @@ use zk_evm_1_4_1::{
 };
 use zksync_basic_types::{Address, U256};
 
-#[derive(Clone, Copy)]
-pub struct EventMessage {
-    pub shard_id: u8,
-    pub is_first: bool,
-    pub tx_number_in_block: u16,
-    pub address: Address,
-    pub key: U256,
-    pub value: U256,
-}
+// #[derive(Clone, Copy)]
+// pub struct EventMessage {
+//     pub shard_id: u8,
+//     pub is_first: bool,
+//     pub tx_number_in_block: u16,
+//     pub address: Address,
+//     pub key: U256,
+//     pub value: U256,
+// }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
@@ -100,27 +100,3 @@ impl From<LogQuery> for LogQuery_1_4_1 {
         }
     }
 }
-
-// impl Into<LogQuery_1_4_0> for LogQuery {
-//     fn into(self) -> LogQuery_1_4_0 {
-
-//     }
-// }
-
-// impl Into<LogQuery_1_4_1> for LogQuery {
-//     fn into(self) -> LogQuery_1_4_1 {
-//         LogQuery_1_4_1 {
-//             timestamp: Timestamp_1_4_1(self.timestamp.0),
-//             tx_number_in_block: self.tx_number_in_block,
-//             aux_byte: self.aux_byte,
-//             shard_id: self.shard_id,
-//             address: self.address,
-//             key: self.key,
-//             read_value: self.read_value,
-//             written_value: self.written_value,
-//             rw_flag: self.rw_flag,
-//             rollback: self.rollback,
-//             is_service: self.is_service,
-//         }
-//     }
-// }

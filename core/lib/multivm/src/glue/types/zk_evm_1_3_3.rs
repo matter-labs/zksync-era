@@ -3,6 +3,7 @@ use zk_evm_1_3_3::{
     zkevm_opcode_defs::FarCallOpcode as FarCallOpcode_1_3_3,
 };
 use zksync_types::zk_evm_types::{FarCallOpcode, LogQuery, Timestamp};
+use zksync_utils::u256_to_h256;
 
 use crate::glue::{GlueFrom, GlueInto};
 
@@ -77,16 +78,16 @@ impl GlueFrom<LogQuery> for LogQuery_1_3_3 {
 }
 
 impl GlueFrom<zk_evm_1_3_3::reference_impls::event_sink::EventMessage>
-    for zksync_types::zk_evm_types::EventMessage
+    for zksync_types::l2_to_l1_log::L2ToL1Log
 {
     fn glue_from(event: zk_evm_1_3_3::reference_impls::event_sink::EventMessage) -> Self {
-        zksync_types::zk_evm_types::EventMessage {
+        Self {
             shard_id: event.shard_id,
-            is_first: event.is_first,
+            is_service: event.is_first,
             tx_number_in_block: event.tx_number_in_block,
-            address: event.address,
-            key: event.key,
-            value: event.value,
+            sender: event.address,
+            key: u256_to_h256(event.key),
+            value: u256_to_h256(event.value),
         }
     }
 }

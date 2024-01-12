@@ -122,11 +122,9 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         let l2_block = bootloader_state.insert_fictive_l2_block();
         let mut memory = vec![];
         apply_l2_block(&mut memory, l2_block, txs_index);
-        state.memory.populate_page(
-            BOOTLOADER_HEAP_PAGE as usize,
-            memory,
-            current_timestamp.glue_into(),
-        );
+        state
+            .memory
+            .populate_page(BOOTLOADER_HEAP_PAGE as usize, memory, current_timestamp);
         self.final_batch_info_requested = false;
     }
 

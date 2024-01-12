@@ -87,8 +87,8 @@ impl<S: Storage> VmInstance<S> {
             from_timestamp,
         );
 
-        // To allow calling the vm-1.3.3. method, the 1.3.1's LogQuery had to be converted
-        // to the vm-1.3.3's LogQuery. Now we need to convert it back
+        // To allow calling the vm-1.3.3. method, the 1.3.1's LogQuery has to be converted
+        // to the vm-1.3.3's LogQuery. Then, we need to convert it back.
         let deduplicated_logs: Vec<LogQuery> = sort_storage_access_queries(
             &storage_logs
                 .iter()

@@ -67,10 +67,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             .collect();
         (
             events,
-            l1_messages
-                .into_iter()
-                .map(|x| From::<zksync_types::zk_evm_types::EventMessage>::from(x.glue_into()))
-                .collect(),
+            l1_messages.into_iter().map(GlueInto::glue_into).collect(),
         )
     }
 }

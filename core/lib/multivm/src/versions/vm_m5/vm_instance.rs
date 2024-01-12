@@ -469,10 +469,7 @@ impl<S: Storage> VmInstance<S> {
             .collect();
         (
             events,
-            l1_messages
-                .into_iter()
-                .map(|log| From::<zksync_types::zk_evm_types::EventMessage>::from(log.glue_into()))
-                .collect(),
+            l1_messages.into_iter().map(GlueInto::glue_into).collect(),
         )
     }
 
@@ -753,14 +750,8 @@ impl<S: Storage> VmInstance<S> {
                         e.into_vm_event(L1BatchNumber(self.block_context.context.block_number))
                     })
                     .collect();
-                full_result.l2_to_l1_logs = l1_messages
-                    .into_iter()
-                    .map(|log| {
-                        L2ToL1Log::from(
-                            GlueInto::<zksync_types::zk_evm_types::EventMessage>::glue_into(log),
-                        )
-                    })
-                    .collect();
+                full_result.l2_to_l1_logs =
+                    l1_messages.into_iter().map(GlueInto::glue_into).collect();
                 VmBlockResult {
                     full_result,
                     block_tip_result,

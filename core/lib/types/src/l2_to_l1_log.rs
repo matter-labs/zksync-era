@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use zksync_utils::u256_to_h256;
 
-use crate::{commitment::SerializeCommitment, zk_evm_types::EventMessage, Address, H256};
+use crate::{commitment::SerializeCommitment, Address, H256};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, Eq)]
 pub struct L2ToL1Log {
@@ -62,19 +62,17 @@ impl L2ToL1Log {
         res.extend(self.value.as_bytes());
         res
     }
-}
 
-impl From<EventMessage> for L2ToL1Log {
-    fn from(m: EventMessage) -> Self {
-        Self {
-            shard_id: m.shard_id,
-            is_service: m.is_first,
-            tx_number_in_block: m.tx_number_in_block,
-            sender: m.address,
-            key: u256_to_h256(m.key),
-            value: u256_to_h256(m.value),
-        }
-    }
+    // pub fn from_event_message(message: EventMessage) -> Self {
+    //     Self {
+    //         shard_id: message.shard_id,
+    //         is_service: message.is_first,
+    //         tx_number_in_block: message.tx_number_in_block,
+    //         sender: message.address,
+    //         key: u256_to_h256(message.key),
+    //         value: u256_to_h256(message.value),
+    //     }
+    // }
 }
 
 #[cfg(test)]

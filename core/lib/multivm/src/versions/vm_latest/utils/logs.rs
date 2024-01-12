@@ -25,10 +25,7 @@ pub(crate) fn collect_events_and_l1_system_logs_after_timestamp<S: WriteStorage,
         .collect();
     (
         events,
-        l1_messages
-            .into_iter()
-            .map(|x| From::<zksync_types::zk_evm_types::EventMessage>::from(x.glue_into()))
-            .collect(),
+        l1_messages.into_iter().map(GlueInto::glue_into).collect(),
     )
 }
 

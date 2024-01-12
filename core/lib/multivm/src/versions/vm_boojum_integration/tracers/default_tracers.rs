@@ -4,6 +4,7 @@ use std::{
 };
 
 use zk_evm_1_4_0::{
+    aux_structures::Timestamp,
     tracing::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
     },
@@ -12,7 +13,6 @@ use zk_evm_1_4_0::{
     zkevm_opcode_defs::{decoding::EncodingModeProduction, Opcode, RetOpcode},
 };
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::zk_evm_types::Timestamp;
 
 use super::PubdataTracer;
 use crate::{
@@ -122,11 +122,9 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         let l2_block = bootloader_state.insert_fictive_l2_block();
         let mut memory = vec![];
         apply_l2_block(&mut memory, l2_block, txs_index);
-        state.memory.populate_page(
-            BOOTLOADER_HEAP_PAGE as usize,
-            memory,
-            current_timestamp.glue_into(),
-        );
+        state
+            .memory
+            .populate_page(BOOTLOADER_HEAP_PAGE as usize, memory, current_timestamp);
         self.final_batch_info_requested = false;
     }
 

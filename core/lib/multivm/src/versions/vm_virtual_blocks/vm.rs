@@ -90,11 +90,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
 
         let l2_to_l1_logs = l1_messages
             .into_iter()
-            .map(|log| {
-                UserL2ToL1Log(From::<zksync_types::zk_evm_types::EventMessage>::from(
-                    log.glue_into(),
-                ))
-            })
+            .map(|log| UserL2ToL1Log(log.glue_into()))
             .collect();
         let total_log_queries = self.state.event_sink.get_log_queries()
             + self
