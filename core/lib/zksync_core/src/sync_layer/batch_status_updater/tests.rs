@@ -3,7 +3,7 @@
 use std::{future, sync::Arc};
 
 use chrono::TimeZone;
-use test_casing::test_casing;
+use test_casing::{test_casing, Product};
 use tokio::sync::{watch, Mutex};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{block::BlockGasCount, Address, L2ChainId, ProtocolVersionId};
@@ -12,7 +12,7 @@ use super::*;
 use crate::{
     genesis::{ensure_genesis_state, GenesisParams},
     sync_layer::metrics::L1BatchStage,
-    utils::testonly::{create_l1_batch, create_miniblock},
+    utils::testonly::{create_l1_batch, create_miniblock, prepare_empty_recovery_snapshot},
 };
 
 async fn seal_l1_batch(storage: &mut StorageProcessor<'_>, number: L1BatchNumber) {
@@ -40,7 +40,7 @@ async fn seal_l1_batch(storage: &mut StorageProcessor<'_>, number: L1BatchNumber
 }
 
 /// Mapping `L1BatchNumber` -> `L1BatchStage` for a continuous range of numbers.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 struct L1BatchStagesMap {
     first_batch_number: L1BatchNumber,
     stages: Vec<L1BatchStage>,
@@ -169,7 +169,7 @@ fn mock_block_details(number: u32, stage: L1BatchStage) -> api::BlockDetails {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct MockMainNodeClient(Arc<Mutex<L1BatchStagesMap>>);
 
 impl From<L1BatchStagesMap> for MockMainNodeClient {
@@ -203,6 +203,14 @@ impl MainNodeClient for MockMainNodeClient {
     }
 }
 
+fn mock_change(number: L1BatchNumber) -> BatchStatusChange {
+    BatchStatusChange {
+        number,
+        l1_tx_hash: H256::zero(),
+        happened_at: DateTime::default(),
+    }
+}
+
 fn mock_updater(
     client: MockMainNodeClient,
     pool: ConnectionPool,
@@ -214,16 +222,70 @@ fn mock_updater(
     (updater, changes_receiver)
 }
 
-#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn normal_updater_operation(async_batches: bool) {
+async fn updater_cursor_for_storage_with_genesis_block() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
         .await
         .unwrap();
+    for number in [1, 2] {
+        seal_l1_batch(&mut storage, L1BatchNumber(number)).await;
+    }
+
+    let mut cursor = UpdaterCursor::new(&mut storage).await.unwrap();
+    assert_eq!(cursor.last_committed_l1_batch, L1BatchNumber(0));
+    assert_eq!(cursor.last_proven_l1_batch, L1BatchNumber(0));
+    assert_eq!(cursor.last_executed_l1_batch, L1BatchNumber(0));
+
+    let (updater, _) = mock_updater(MockMainNodeClient::default(), pool.clone());
+    let changes = StatusChanges {
+        commit: vec![mock_change(L1BatchNumber(1)), mock_change(L1BatchNumber(2))],
+        prove: vec![mock_change(L1BatchNumber(1))],
+        execute: vec![],
+    };
+    updater
+        .apply_status_changes(&mut cursor, changes)
+        .await
+        .unwrap();
+
+    assert_eq!(cursor.last_committed_l1_batch, L1BatchNumber(2));
+    assert_eq!(cursor.last_proven_l1_batch, L1BatchNumber(1));
+    assert_eq!(cursor.last_executed_l1_batch, L1BatchNumber(0));
+
+    let restored_cursor = UpdaterCursor::new(&mut storage).await.unwrap();
+    assert_eq!(restored_cursor, cursor);
+}
+
+#[tokio::test]
+async fn updater_cursor_after_snapshot_recovery() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.access_storage().await.unwrap();
+    prepare_empty_recovery_snapshot(&mut storage, 23).await;
+
+    let cursor = UpdaterCursor::new(&mut storage).await.unwrap();
+    assert_eq!(cursor.last_committed_l1_batch, L1BatchNumber(23));
+    assert_eq!(cursor.last_proven_l1_batch, L1BatchNumber(23));
+    assert_eq!(cursor.last_executed_l1_batch, L1BatchNumber(23));
+}
+
+#[test_casing(4, Product(([false, true], [false, true])))]
+#[tokio::test]
+async fn normal_updater_operation(snapshot_recovery: bool, async_batches: bool) {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.access_storage().await.unwrap();
+    let first_batch_number = if snapshot_recovery {
+        prepare_empty_recovery_snapshot(&mut storage, 23).await;
+        L1BatchNumber(24)
+    } else {
+        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+            .await
+            .unwrap();
+        L1BatchNumber(1)
+    };
+
     let target_batch_stages = L1BatchStagesMap::new(
-        L1BatchNumber(1),
+        first_batch_number,
         vec![
             L1BatchStage::Executed,
             L1BatchStage::Proven,
@@ -264,7 +326,7 @@ async fn normal_updater_operation(async_batches: bool) {
     };
 
     let mut observed_batch_stages =
-        L1BatchStagesMap::empty(L1BatchNumber(1), target_batch_stages.stages.len());
+        L1BatchStagesMap::empty(first_batch_number, target_batch_stages.stages.len());
     loop {
         let changes = changes_receiver.recv().await.unwrap();
         observed_batch_stages.update(&changes);
@@ -279,15 +341,23 @@ async fn normal_updater_operation(async_batches: bool) {
     updater_task.await.unwrap().expect("updater failed");
 }
 
+#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn updater_with_gradual_main_node_updates() {
+async fn updater_with_gradual_main_node_updates(snapshot_recovery: bool) {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
-        .await
-        .unwrap();
+    let first_batch_number = if snapshot_recovery {
+        prepare_empty_recovery_snapshot(&mut storage, 23).await;
+        L1BatchNumber(24)
+    } else {
+        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+            .await
+            .unwrap();
+        L1BatchNumber(1)
+    };
+
     let target_batch_stages = L1BatchStagesMap::new(
-        L1BatchNumber(1),
+        first_batch_number,
         vec![
             L1BatchStage::Executed,
             L1BatchStage::Proven,
@@ -298,7 +368,7 @@ async fn updater_with_gradual_main_node_updates() {
         ],
     );
     let mut observed_batch_stages =
-        L1BatchStagesMap::empty(L1BatchNumber(1), target_batch_stages.stages.len());
+        L1BatchStagesMap::empty(first_batch_number, target_batch_stages.stages.len());
 
     for (number, _) in target_batch_stages.iter() {
         seal_l1_batch(&mut storage, number).await;
@@ -346,8 +416,10 @@ async fn updater_with_gradual_main_node_updates() {
 }
 
 async fn test_resuming_updater(pool: ConnectionPool, initial_batch_stages: L1BatchStagesMap) {
-    let target_batch_stages =
-        L1BatchStagesMap::new(L1BatchNumber(1), vec![L1BatchStage::Executed; 6]);
+    let target_batch_stages = L1BatchStagesMap::new(
+        initial_batch_stages.first_batch_number,
+        vec![L1BatchStage::Executed; 6],
+    );
 
     let client = MockMainNodeClient::from(target_batch_stages.clone());
     let (updater, mut changes_receiver) = mock_updater(client, pool.clone());

@@ -19,7 +19,7 @@ use zksync_web3_decl::{
 };
 
 use super::metrics::{FetchStage, FETCHER_METRICS};
-use crate::{metrics::EN_METRICS, utils::wait_for_l1_batch};
+use crate::{metrics::EN_METRICS, utils::projected_first_l1_batch};
 
 #[cfg(test)]
 mod tests;
@@ -101,7 +101,7 @@ impl MainNodeClient for HttpClient {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct UpdaterCursor {
     last_executed_l1_batch: L1BatchNumber,
     last_proven_l1_batch: L1BatchNumber,
@@ -109,26 +109,26 @@ struct UpdaterCursor {
 }
 
 impl UpdaterCursor {
-    async fn new(
-        storage: &mut StorageProcessor<'_>,
-        earliest_l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Self> {
-        let default_l1_batch_number = L1BatchNumber(earliest_l1_batch_number.saturating_sub(1));
+    async fn new(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
+        let first_l1_batch_number = projected_first_l1_batch(storage).await?;
+        // Use the snapshot L1 batch, or the genesis batch if we are not using a snapshot.
+        let starting_l1_batch_number = L1BatchNumber(first_l1_batch_number.saturating_sub(1));
+
         let last_executed_l1_batch = storage
             .blocks_dal()
             .get_number_of_last_l1_batch_executed_on_eth()
             .await?
-            .unwrap_or(default_l1_batch_number);
+            .unwrap_or(starting_l1_batch_number);
         let last_proven_l1_batch = storage
             .blocks_dal()
             .get_number_of_last_l1_batch_proven_on_eth()
             .await?
-            .unwrap_or(default_l1_batch_number);
+            .unwrap_or(starting_l1_batch_number);
         let last_committed_l1_batch = storage
             .blocks_dal()
             .get_number_of_last_l1_batch_committed_on_eth()
             .await?
-            .unwrap_or(default_l1_batch_number);
+            .unwrap_or(starting_l1_batch_number);
         Ok(Self {
             last_executed_l1_batch,
             last_proven_l1_batch,
@@ -237,15 +237,9 @@ impl BatchStatusUpdater {
         }
     }
 
-    pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let earliest_l1_batch_number =
-            wait_for_l1_batch(&self.pool, self.sleep_interval, &mut stop_receiver).await?;
-
-        let Some(earliest_l1_batch_number) = earliest_l1_batch_number else {
-            return Ok(()); // Stop signal received
-        };
+    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut storage = self.pool.access_storage_tagged("sync_layer").await?;
-        let mut cursor = UpdaterCursor::new(&mut storage, earliest_l1_batch_number).await?;
+        let mut cursor = UpdaterCursor::new(&mut storage).await?;
         drop(storage);
         tracing::info!("Initialized batch status updater cursor: {cursor:?}");
 
@@ -269,10 +263,10 @@ impl BatchStatusUpdater {
 
             if status_changes.is_empty() {
                 tokio::time::sleep(self.sleep_interval).await;
-                continue;
+            } else {
+                self.apply_status_changes(&mut cursor, status_changes)
+                    .await?;
             }
-            self.apply_status_changes(&mut cursor, status_changes)
-                .await?;
         }
     }
 
@@ -288,14 +282,16 @@ impl BatchStatusUpdater {
         mut cursor: UpdaterCursor,
     ) -> Result<(), UpdaterError> {
         let total_latency = EN_METRICS.update_batch_statuses.start();
-        let last_sealed_batch = self
+        let Some(last_sealed_batch) = self
             .pool
             .access_storage_tagged("sync_layer")
             .await?
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await?
-            .context("L1 batches disappeared from Postgres")?;
+        else {
+            return Ok(()); // No L1 batches in the storage yet; do nothing.
+        };
 
         let mut batch = cursor.last_executed_l1_batch.next();
         // In this loop we try to progress on the batch statuses, utilizing the same request to the node to potentially

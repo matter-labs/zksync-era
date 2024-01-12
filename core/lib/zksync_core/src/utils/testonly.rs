@@ -1,6 +1,7 @@
 //! Test utils.
 
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_dal::StorageProcessor;
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},
@@ -8,8 +9,10 @@ use zksync_types::{
     fee::Fee,
     fee_model::BatchFeeInput,
     l2::L2Tx,
+    snapshots::SnapshotRecoveryStatus,
     transaction_request::PaymasterParams,
-    Address, L1BatchNumber, L2ChainId, MiniblockNumber, Nonce, ProtocolVersionId, H256, U256,
+    Address, L1BatchNumber, L2ChainId, MiniblockNumber, Nonce, ProtocolVersion, ProtocolVersionId,
+    H256, U256,
 };
 
 /// Creates a miniblock header with the specified number and deterministic contents.
@@ -91,4 +94,29 @@ pub(crate) fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u32) -> L
     // that the transaction hash is unique.
     tx.set_input(H256::random().0.to_vec(), H256::random());
     tx
+}
+
+pub(crate) async fn prepare_empty_recovery_snapshot(
+    storage: &mut StorageProcessor<'_>,
+    l1_batch_number: u32,
+) -> SnapshotRecoveryStatus {
+    storage
+        .protocol_versions_dal()
+        .save_protocol_version_with_tx(ProtocolVersion::default())
+        .await;
+
+    let snapshot_recovery = SnapshotRecoveryStatus {
+        l1_batch_number: l1_batch_number.into(),
+        l1_batch_root_hash: H256::zero(),
+        miniblock_number: l1_batch_number.into(),
+        miniblock_root_hash: H256::zero(), // not used
+        last_finished_chunk_id: None,
+        total_chunk_count: 100,
+    };
+    storage
+        .snapshot_recovery_dal()
+        .set_applied_snapshot_status(&snapshot_recovery)
+        .await
+        .unwrap();
+    snapshot_recovery
 }
