@@ -24,6 +24,14 @@ use crate::{metrics::EN_METRICS, utils::projected_first_l1_batch};
 #[cfg(test)]
 mod tests;
 
+fn l1_batch_stage_to_action_str(stage: AggregatedActionType) -> &'static str {
+    match stage {
+        AggregatedActionType::Commit => "committed",
+        AggregatedActionType::PublishProofOnchain => "proven",
+        AggregatedActionType::Execute => "executed",
+    }
+}
+
 /// Represents a change in the batch status.
 /// It may be a batch being committed, proven or executed.
 #[derive(Debug)]
@@ -182,14 +190,16 @@ impl UpdaterCursor {
             return Ok(());
         }
 
-        let happened_at = happened_at
-            .context("Malformed API response: batch is committed, but has no commit timestamp")?;
+        let action_str = l1_batch_stage_to_action_str(stage);
+        let happened_at = happened_at.with_context(|| {
+            format!("Malformed API response: batch is {action_str}, but has no relevant timestamp")
+        })?;
         updated_changes.push(BatchStatusChange {
             number: batch_info.l1_batch_number,
             l1_tx_hash,
             happened_at,
         });
-        tracing::info!("Batch {}: committed", batch_info.l1_batch_number);
+        tracing::info!("Batch {}: {action_str}", batch_info.l1_batch_number);
         FETCHER_METRICS.l1_batch[&stage.into()].set(batch_info.l1_batch_number.0.into());
         *last_l1_batch += 1;
         Ok(())
