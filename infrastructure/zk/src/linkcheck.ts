@@ -4,7 +4,7 @@ import * as utils from './utils';
 export async function runMarkdownLinkCheck(configPath: string) {
     // Command line usage for markdown-link-check suggests using find and xargs for
     // recursive checks. See: `https://github.com/tcort/markdown-link-check?tab=readme-ov-file#check-links-from-a-local-markdown-folder-recursive`
-    const findCommand = `find . -name "*.md" ! -path "*/node_modules/*" ! -path "*/target/release/*" ! -path "*/build/*" -print0`;
+    const findCommand = `find . -name "*.md" ! -path "*/node_modules/*" ! -path "*/target/release/*" ! -path "*/build/*" ! -path "*/contracts/*" -print0`;
     const markdownLinkCheckCommand = `xargs -0 -n1 markdown-link-check --config ${configPath}`;
     const fullCommand = `${findCommand} | ${markdownLinkCheckCommand}`;
 
@@ -18,7 +18,7 @@ export async function runMarkdownLinkCheck(configPath: string) {
 }
 
 export const command = new Command('linkcheck')
-    .option('--config <config>', 'Path to configuration file', './links.json')
+    .option('--config <config>', 'Path to configuration file', './checks-config/links.json')
     .description('Run markdown link check on specified files')
     .action((cmd) => {
         runMarkdownLinkCheck(cmd.config);
