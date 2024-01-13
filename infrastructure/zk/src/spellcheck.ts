@@ -4,10 +4,10 @@ import * as utils from './utils';
 export async function runSpellCheck(pattern: string, useCargo: boolean, useCSpell: boolean) {
     // Default commands for cSpell and cargo spellcheck
     const cSpellCommand = `cspell "${pattern}" --config=./checks-config/cspell.json`;
-    const cargoCommand = `cargo spellcheck --cfg=./checks-config/era.cfg`;
+    const cargoCommand = `cargo spellcheck --cfg=./checks-config/era.cfg --code 1`;
     // Necessary to run cargo spellcheck in the prover directory explicitly as
     // it is not included in the root cargo.toml file
-    const cargoCommandForProver = `cargo spellcheck --cfg=../checks-config/era.cfg`;
+    const cargoCommandForProver = `cargo spellcheck --cfg=../checks-config/era.cfg --code 1`;
 
     try {
         let results = [];
