@@ -1,11 +1,13 @@
 use std::{
     convert::Infallible,
+    future::{self, Future},
     time::{Duration, Instant},
 };
 
 use anyhow::Context as _;
 use multivm::interface::{Halt, L1BatchEnv, SystemEnv};
 use tokio::sync::watch;
+use zksync_dal::ConnectionPool;
 use zksync_types::{
     block::MiniblockExecutionData, l2::TransactionType, protocol_version::ProtocolUpgradeTx,
     storage_writes_deduplicator::StorageWritesDeduplicator, Transaction,
@@ -20,7 +22,7 @@ use super::{
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
 };
-use crate::gas_tracker::gas_count_from_writes;
+use crate::{gas_tracker::gas_count_from_writes, state_keeper::io::event_indexes_migration};
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.
@@ -73,6 +75,22 @@ impl ZkSyncStateKeeper {
             io,
             batch_executor_base,
             sealer,
+        }
+    }
+
+    /// Temporary method to reassign indexes for events in the database.
+    pub fn run_event_indexes_migration(
+        &self,
+        pool: ConnectionPool,
+    ) -> impl Future<Output = anyhow::Result<()>> {
+        let last_miniblock = self.io.current_miniblock_number() - 1;
+        let stop_receiver = self.stop_receiver.clone();
+        async move {
+            event_indexes_migration::migrate_miniblocks(pool, last_miniblock, stop_receiver)
+                .await?;
+            future::pending::<()>().await;
+            // ^ Since this is run as a task, we don't want it to exit on success (this would shut down the node).
+            anyhow::Ok(())
         }
     }
 

@@ -105,6 +105,24 @@ impl EventsWeb3Dal<'_, '_> {
         api_eth_transfer_events: ApiEthTransferEvents,
     ) -> Result<Vec<Log>, SqlxError> {
         {
+            let logs = self
+                .get_raw_logs(filter, limit)
+                .await?
+                .into_iter()
+                .map(|log| log.into_storage_log(api_eth_transfer_events).into())
+                .collect();
+
+            Ok(logs)
+        }
+    }
+
+    // Return raw extended logs for a given filter.
+    pub async fn get_raw_logs(
+        &mut self,
+        filter: GetLogsFilter,
+        limit: usize,
+    ) -> Result<Vec<StorageWeb3LogExt>, SqlxError> {
+        {
             let (where_sql, arg_index) = self.build_get_logs_where_clause(&filter);
 
             let query = format!(
@@ -121,9 +139,8 @@ impl EventsWeb3Dal<'_, '_> {
                     ORDER BY miniblock_number ASC, event_index_in_block ASC
                     LIMIT ${}
                 )
-                SELECT miniblocks.hash as "block_hash", miniblocks.l1_batch_number as "l1_batch_number", events_select.*
+                SELECT events_select.*
                 FROM events_select
-                LEFT JOIN miniblocks ON events_select.miniblock_number = miniblocks.number
                 ORDER BY miniblock_number ASC, event_index_in_block ASC
                 "#,
                 where_sql, arg_index
@@ -149,11 +166,7 @@ impl EventsWeb3Dal<'_, '_> {
                 .fetch_all(self.storage.conn())
                 .await?;
 
-            let logs = filter_logs_by_api_eth_transfer_events(db_logs, api_eth_transfer_events)
-                .into_iter()
-                .map(Into::into)
-                .collect();
-            Ok(logs)
+            Ok(db_logs)
         }
     }
 

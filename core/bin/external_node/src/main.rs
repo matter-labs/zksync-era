@@ -229,7 +229,8 @@ async fn init_tasks(
     let tree_handle = task::spawn(metadata_calculator.run(tree_pool, tree_stop_receiver));
 
     let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
-
+    let event_indexes_migration_handle =
+        task::spawn(state_keeper.run_event_indexes_migration(connection_pool.clone()));
     let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
     let sk_handle = task::spawn(state_keeper.run());
     let fetcher_handle = tokio::spawn(fetcher.run());
@@ -322,8 +323,9 @@ async fn init_tasks(
         updater_handle,
         tree_handle,
         fee_params_fetcher_handle,
+        event_indexes_migration_handle,
+        consistency_checker_handle,
     ]);
-    task_handles.push(consistency_checker_handle);
 
     Ok((task_handles, stop_sender, healthcheck_handle, stop_receiver))
 }

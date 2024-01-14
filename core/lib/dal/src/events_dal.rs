@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, ops};
 
 use sqlx::types::chrono::Utc;
 use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
@@ -57,7 +57,7 @@ impl EventsDal<'_, '_> {
         let mut buffer = String::new();
         let now = Utc::now().naive_utc().to_string();
         let mut event_index_in_block = 0_u32;
-        let mut event_index_in_block_without_eth_transfer = 0_u32;
+        let mut event_index_in_block_without_eth_transfer = 1_u32;
 
         for (tx_location, events) in all_block_events {
             let IncludedTxLocation {
@@ -66,7 +66,7 @@ impl EventsDal<'_, '_> {
                 tx_initiator_address,
             } = tx_location;
 
-            let mut event_index_in_tx_without_eth_transfer = 0_u32;
+            let mut event_index_in_tx_without_eth_transfer = 1_u32;
             for (event_index_in_tx, event) in events.iter().enumerate() {
                 write_str!(
                     &mut buffer,
@@ -232,6 +232,128 @@ impl EventsDal<'_, '_> {
         )
         .fetch_all(self.storage.conn())
         .await
+    }
+}
+
+// Temporary methods for the migration of the event indexes without ETH transfer
+impl EventsDal<'_, '_> {
+    /// Method assigns indexes, that should be present without ETH transfer events for all the events in the given range.
+    /// Note, that indexes are assigned starting from 1 to understand whether indexes were migrated.
+    pub async fn assign_indexes_without_eth_transfer(
+        &mut self,
+        numbers: ops::RangeInclusive<MiniblockNumber>,
+    ) -> sqlx::Result<u64> {
+        let count_eth_transfer_events = self
+            .assign_eth_transfer_event_indexes(numbers.clone())
+            .await?;
+
+        let result = sqlx::query!(
+            r#"
+            UPDATE events
+            SET
+                event_index_in_block_without_eth_transfer = subquery.event_index_in_block_without_eth_transfer,
+                event_index_in_tx_without_eth_transfer = subquery.event_index_in_tx_without_eth_transfer
+            FROM
+                (
+                    SELECT
+                        miniblock_number,
+                        tx_hash,
+                        address,
+                        topic1,
+                        tx_index_in_block,
+                        event_index_in_block,
+                        event_index_in_tx,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY
+                                miniblock_number
+                            ORDER BY
+                                event_index_in_block ASC
+                        ) AS event_index_in_block_without_eth_transfer,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY
+                                tx_hash
+                            ORDER BY
+                                event_index_in_tx ASC
+                        ) AS event_index_in_tx_without_eth_transfer
+                    FROM
+                        events
+                    WHERE
+                        miniblock_number BETWEEN $1 AND $2
+                        AND address <> $3
+                        AND topic1 <> $4
+                ) AS subquery
+            WHERE
+                events.miniblock_number = subquery.miniblock_number
+                AND events.tx_hash = subquery.tx_hash
+                AND events.tx_index_in_block = subquery.tx_index_in_block
+                AND events.event_index_in_block = subquery.event_index_in_block
+                AND events.event_index_in_tx = subquery.event_index_in_tx
+            "#,
+            numbers.start().0 as i64,
+            numbers.end().0 as i64,
+            L2_ETH_TOKEN_ADDRESS.as_bytes(),
+            TRANSFER_EVENT_TOPIC.as_bytes()
+        )
+            .execute(self.storage.conn())
+            .await?;
+
+        Ok(result.rows_affected() + count_eth_transfer_events)
+    }
+    // FIXME: not sure that this is the best way to work, pretty error-prone
+    /// Method that assigns some non-zero index (1) for all the events with ETH transfer.
+    pub async fn assign_eth_transfer_event_indexes(
+        &mut self,
+        numbers: ops::RangeInclusive<MiniblockNumber>,
+    ) -> sqlx::Result<u64> {
+        let result = sqlx::query!(
+            r#"
+            UPDATE events
+            SET
+                event_index_in_block = 1,
+                event_index_in_tx = 1
+            WHERE
+                miniblock_number BETWEEN $1 AND $2
+                AND address = $3
+                AND topic1 = $4
+            "#,
+            numbers.start().0 as i64,
+            numbers.end().0 as i64,
+            L2_ETH_TOKEN_ADDRESS.as_bytes(),
+            TRANSFER_EVENT_TOPIC.as_bytes()
+        )
+        .execute(self.storage.conn())
+        .await?;
+
+        Ok(result.rows_affected())
+    }
+
+    /// Method checks, whether any event in the miniblock has `index_without_eth_transfer` equal to 0, which means that indexes are not migrated.
+    pub async fn are_event_indexes_migrated(
+        &mut self,
+        miniblock: MiniblockNumber,
+    ) -> sqlx::Result<bool> {
+        let result = sqlx::query!(
+            r#"
+            SELECT
+                COUNT(*)
+            FROM
+                events
+            WHERE
+                miniblock_number = $1
+                AND (
+                    event_index_in_block_without_eth_transfer = 0
+                    OR event_index_in_tx_without_eth_transfer = 0
+                )
+            "#,
+            miniblock.0 as i64
+        )
+        .fetch_one(self.storage.conn())
+        .await?;
+
+        // FIXME: i guess better to change/remove the error here
+        let count = result.count.ok_or(sqlx::Error::RowNotFound)?;
+
+        Ok(count == 0)
     }
 }
 

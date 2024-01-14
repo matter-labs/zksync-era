@@ -108,14 +108,22 @@ pub struct StorageWeb3LogExt {
 
 impl StorageWeb3LogExt {
     pub fn into_storage_log(self, api_eth_transfer_events: ApiEthTransferEvents) -> StorageWeb3Log {
-        let event_index_in_block = match api_eth_transfer_events {
+        let mut event_index_in_block = match api_eth_transfer_events {
             ApiEthTransferEvents::Enabled => self.event_index_in_block,
             ApiEthTransferEvents::Disabled => self.event_index_in_block_without_eth_transfer,
         };
-        let event_index_in_tx = match api_eth_transfer_events {
+        let mut event_index_in_tx = match api_eth_transfer_events {
             ApiEthTransferEvents::Enabled => self.event_index_in_tx,
             ApiEthTransferEvents::Disabled => self.event_index_in_tx_without_eth_transfer,
         };
+
+        // Reducing it by 1 here, since we are assigning indexes from 1 in DB to understand, whether indexes are migrated
+        if event_index_in_block > 0 {
+            event_index_in_block = event_index_in_block - 1;
+        }
+        if event_index_in_tx > 0 {
+            event_index_in_tx = event_index_in_tx - 1;
+        }
 
         StorageWeb3Log {
             address: self.address,
@@ -129,8 +137,8 @@ impl StorageWeb3LogExt {
             l1_batch_number: self.l1_batch_number,
             tx_hash: self.tx_hash,
             tx_index_in_block: self.tx_index_in_block,
-            event_index_in_tx,
-            event_index_in_block,
+            event_index_in_tx: event_index_in_tx,
+            event_index_in_block: event_index_in_block,
         }
     }
 }
