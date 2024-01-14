@@ -3,7 +3,6 @@ use multivm::{
     utils::get_batch_base_fee,
 };
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::blocks_dal::ConsensusBlockFields;
 use zksync_types::{
     block::BlockGasCount, storage_writes_deduplicator::StorageWritesDeduplicator,
     tx::tx_execution_info::ExecutionMetrics, vm_trace::Call, Address, L1BatchNumber,
@@ -82,7 +81,6 @@ impl UpdatesManager {
         l1_batch_number: L1BatchNumber,
         miniblock_number: MiniblockNumber,
         l2_erc20_bridge_addr: Address,
-        consensus: Option<ConsensusBlockFields>,
         pre_insert_txs: bool,
     ) -> MiniblockSealCommand {
         MiniblockSealCommand {
@@ -96,7 +94,6 @@ impl UpdatesManager {
             base_system_contracts_hashes: self.base_system_contract_hashes,
             protocol_version: Some(self.protocol_version),
             l2_erc20_bridge_addr,
-            consensus,
             pre_insert_txs,
         }
     }
@@ -183,7 +180,6 @@ pub(crate) struct MiniblockSealCommand {
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub protocol_version: Option<ProtocolVersionId>,
     pub l2_erc20_bridge_addr: Address,
-    pub consensus: Option<ConsensusBlockFields>,
     /// Whether transactions should be pre-inserted to DB.
     /// Should be set to `true` for EN's IO as EN doesn't store transactions in DB
     /// before they are included into miniblocks.
