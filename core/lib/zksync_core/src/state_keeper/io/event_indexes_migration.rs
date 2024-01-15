@@ -105,8 +105,10 @@ mod tests {
     use multivm::zk_evm_1_3_1::ethereum_types::H256;
     use test_casing::test_casing;
     use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
-    use zksync_types::api::GetLogsFilter;
-    use zksync_types::{tx::IncludedTxLocation, Address, L1BatchNumber, ProtocolVersion, VmEvent};
+    use zksync_types::{
+        api::GetLogsFilter, tx::IncludedTxLocation, Address, L1BatchNumber, ProtocolVersion,
+        VmEvent,
+    };
 
     use super::*;
     use crate::utils::testonly::create_miniblock;

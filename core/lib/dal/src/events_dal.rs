@@ -360,8 +360,10 @@ impl EventsDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
-    use zksync_types::api::GetLogsFilter;
-    use zksync_types::{api::ApiEthTransferEvents, Address, L1BatchNumber, ProtocolVersion};
+    use zksync_types::{
+        api::{ApiEthTransferEvents, GetLogsFilter},
+        Address, L1BatchNumber, ProtocolVersion,
+    };
 
     use super::*;
     use crate::{tests::create_miniblock_header, ConnectionPool};
