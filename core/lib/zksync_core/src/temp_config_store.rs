@@ -46,5 +46,5 @@ pub struct TempConfigStore {
     pub eth_watch_config: Option<ETHWatchConfig>,
     pub gas_adjuster_config: Option<GasAdjusterConfig>,
     pub object_store_config: Option<ObjectStoreConfig>,
-    pub consensus_config: Option<consensus::SerdeConfig>,
+    pub consensus_config: Option<consensus::MainNodeConfig>,
 }

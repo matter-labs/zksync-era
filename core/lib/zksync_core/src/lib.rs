@@ -231,8 +231,6 @@ pub enum Component {
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
-    /// Component for generating consensus certificates for the miniblocks.
-    Consensus,
 }
 
 #[derive(Debug)]
@@ -508,21 +506,9 @@ pub async fn initialize_components(
         tracing::info!("initialized State Keeper in {elapsed:?}");
     }
 
-    if components.contains(&Component::Consensus) {
+    if let Some(cfg) = configs.consensus_config.clone(){
         let started_at = Instant::now();
         tracing::info!("initializing Consensus");
-
-        let mut cfg = configs
-            .consensus_config
-            .clone()
-            .context("consensus_config is missing")?;
-        if cfg.operator_address.is_none() {
-            cfg.operator_address = configs
-                .state_keeper_config
-                .as_ref()
-                .map(|cfg| cfg.fee_account_addr);
-        }
-        let cfg: consensus::MainNodeConfig = cfg.try_into()?;
         let pool = connection_pool.clone();
         let mut stop_receiver = stop_receiver.clone();
         task_futures.push(tokio::spawn(async move {

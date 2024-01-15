@@ -17,15 +17,27 @@ zksync_storage = { path = "../../lib/storage" }
 zksync_utils = { path = "../../lib/utils" }
 zksync_types = { path = "../../lib/types" }
 zksync_core = { path = "../../lib/zksync_core" }
-zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5727a3e0b22470bb90092388f9125bcb366df613" }
-vlog = { path = "../../lib/vlog" }
 
+# Consensus dependenices
+zksync_consensus_crypto = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5727a3e0b22470bb90092388f9125bcb366df613" }
+zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5727a3e0b22470bb90092388f9125bcb366df613" }
+zksync_consensus_executor = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5727a3e0b22470bb90092388f9125bcb366df613" }
+zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5727a3e0b22470bb90092388f9125bcb366df613" }
+zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5727a3e0b22470bb90092388f9125bcb366df613" }
+
+vlog = { path = "../../lib/vlog" }
 
 anyhow = "1.0"
 clap = { version = "4.2.4", features = ["derive"] }
+prost = "0.12.1"
+serde_json = "1.0"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 futures = "0.3"
+
+[build-dependencies]
+zksync_protobuf_build = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5727a3e0b22470bb90092388f9125bcb366df613" }
+
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator = "0.5"

@@ -8560,7 +8560,6 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_crypto"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5727a3e0b22470bb90092388f9125bcb366df613#5727a3e0b22470bb90092388f9125bcb366df613"
 dependencies = [
  "anyhow",
  "blst",
@@ -8750,7 +8749,6 @@ dependencies = [
  "num 0.3.1",
  "once_cell",
  "prometheus_exporter",
- "prost",
  "rand 0.8.5",
  "reqwest",
  "serde",
@@ -8784,7 +8782,6 @@ dependencies = [
  "zksync_merkle_tree",
  "zksync_mini_merkle_tree",
  "zksync_object_store",
- "zksync_protobuf",
  "zksync_queued_job_processor",
  "zksync_state",
  "zksync_storage",
@@ -9059,14 +9056,21 @@ dependencies = [
  "anyhow",
  "clap 4.4.6",
  "futures 0.3.28",
+ "prost",
+ "serde_json",
  "tikv-jemallocator",
  "tokio",
  "tracing",
  "vlog",
  "zksync_concurrency",
  "zksync_config",
+ "zksync_consensus_crypto",
+ "zksync_consensus_executor",
+ "zksync_consensus_roles",
  "zksync_core",
  "zksync_env_config",
+ "zksync_protobuf",
+ "zksync_protobuf_build",
  "zksync_storage",
  "zksync_types",
  "zksync_utils",

@@ -18,12 +18,15 @@ use zksync_config::{
     GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
 };
 use zksync_core::{
-    consensus, genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
+    genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
     temp_config_store::TempConfigStore, Component, Components,
 };
 use zksync_env_config::FromEnv;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
+
+mod config;
+mod proto;
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -93,7 +96,7 @@ async fn main() -> anyhow::Result<()> {
     // Right now, we are trying to deserialize all the configs that may be needed by `zksync_core`.
     // "May" is the key word here, since some configs are only used by certain component configuration,
     // hence we are using `Option`s.
-    let configs: TempConfigStore = TempConfigStore {
+    let mut configs: TempConfigStore = TempConfigStore {
         postgres_config: PostgresConfig::from_env().ok(),
         health_check_config: HealthCheckConfig::from_env().ok(),
         merkle_tree_api_config: MerkleTreeApiConfig::from_env().ok(),
@@ -119,8 +122,11 @@ async fn main() -> anyhow::Result<()> {
         eth_watch_config: ETHWatchConfig::from_env().ok(),
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
         object_store_config: ObjectStoreConfig::from_env().ok(),
-        consensus_config: consensus::SerdeConfig::from_env().ok(),
+        consensus_config: None,
     };
+    if let Some(operator_address) = configs.state_keeper_config.as_ref().map(|cfg| cfg.fee_account_addr) {
+        configs.consensus_config = config::read_consensus_config(operator_address).context("read_consensus_config()")?;
+    }
 
     let postgres_config = configs.postgres_config.clone().context("PostgresConfig")?;
 

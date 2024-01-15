@@ -90,6 +90,12 @@ impl RemoteENConfig {
     }
 }
 
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub enum BlockFetcher {
+    ServerAPI,
+    Consensus,
+}
+
 /// This part of the external node config is completely optional to provide.
 /// It can tweak limits of the API, delay intervals of certain components, etc.
 /// If any of the fields are not provided, the default values will be used.
@@ -198,6 +204,9 @@ pub struct OptionalENConfig {
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
     #[serde(default = "OptionalENConfig::default_miniblock_seal_queue_capacity")]
     pub miniblock_seal_queue_capacity: usize,
+
+    #[serde(default = "OptionalENConfig::default_block_fetcher")]
+    pub block_fetcher: BlockFetcher,
 }
 
 impl OptionalENConfig {
@@ -300,6 +309,10 @@ impl OptionalENConfig {
         10
     }
 
+    const fn default_block_fetcher() -> BlockFetcher {
+        BlockFetcher::ServerAPI
+    }
+
     pub fn polling_interval(&self) -> Duration {
         Duration::from_millis(self.polling_interval)
     }
@@ -348,6 +361,7 @@ impl OptionalENConfig {
         self.max_response_body_size_mb * BYTES_IN_MEGABYTE
     }
 }
+
 
 /// This part of the external node config is required for its operation.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -437,11 +451,15 @@ impl ExternalNodeConfig {
         let remote = RemoteENConfig::fetch(&client)
             .await
             .context("Unable to fetch required config values from the main node")?;
-        let consensus = envy::prefixed("EN_CONSENSUS_")
-            .from_env::<consensus::SerdeConfig>()
-            .context("Unable to load consensus config")?
-            .try_into()
-            .context("consensus config")?;
+        let consensus = if optional.block_fetcher == BlockFetcher::Consensus {
+            Some(envy::prefixed("EN_CONSENSUS_")
+                .from_env::<consensus::SerdeConfig>()
+                .context("Unable to load consensus config")?
+                .try_into()
+                .context("consensus config")?)
+        } else {
+            None
+        };
         // We can query them from main node, but it's better to set them explicitly
         // as well to avoid connecting to wrong environment variables unintentionally.
         let eth_chain_id = HttpClientBuilder::default()
@@ -486,7 +504,7 @@ impl ExternalNodeConfig {
             postgres,
             required,
             optional,
-            consensus: Some(consensus),
+            consensus,
         })
     }
 }
