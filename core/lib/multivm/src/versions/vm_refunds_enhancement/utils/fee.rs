@@ -1,8 +1,14 @@
 //! Utility functions for vm
-use zksync_system_constants::MAX_GAS_PER_PUBDATA_BYTE;
+use zksync_system_constants::{L1_GAS_PER_PUBDATA_BYTE, MAX_GAS_PER_PUBDATA_BYTE};
 use zksync_utils::ceil_div;
 
-use crate::vm_refunds_enhancement::old_vm::utils::eth_price_per_pubdata_byte;
+pub(crate) fn eth_price_per_pubdata_byte(l1_gas_price: u64) -> u64 {
+    // This value will typically be a lot less than u64
+    // unless the gas price on L1 goes beyond tens of millions of gwei
+    // TODO: make this check only once
+    let validium_mode = std::env::var("ETH_SENDER_SENDER_VALIDIUM_MODE") == Ok("true".to_string());
+    l1_gas_price * (L1_GAS_PER_PUBDATA_BYTE as u64) * (!validium_mode as u64)
+}
 
 /// Calculates the amount of gas required to publish one byte of pubdata
 pub fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {

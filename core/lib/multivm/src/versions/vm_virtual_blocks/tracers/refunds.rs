@@ -23,7 +23,7 @@ use crate::{
         constants::{BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET},
         old_vm::{
             events::merge_events, history_recorder::HistoryMode, memory::SimpleMemory,
-            oracles::storage::storage_key_of_log, utils::eth_price_per_pubdata_byte,
+            oracles::storage::storage_key_of_log,
         },
         tracers::{
             traits::{ExecutionEndTracer, ExecutionProcessing, VmTracer},
@@ -32,6 +32,7 @@ use crate::{
             },
         },
         types::internals::ZkSyncVmState,
+        utils::fee::eth_price_per_pubdata_byte,
     },
 };
 
