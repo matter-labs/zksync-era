@@ -2,7 +2,8 @@
 
 use std::collections::HashSet;
 
-use zksync_types::block::BlockGasCount;
+use zksync_dal::StorageProcessor;
+use zksync_types::{block::BlockGasCount, MiniblockNumber};
 use zksync_web3_decl::namespaces::SnapshotsNamespaceClient;
 
 use super::*;

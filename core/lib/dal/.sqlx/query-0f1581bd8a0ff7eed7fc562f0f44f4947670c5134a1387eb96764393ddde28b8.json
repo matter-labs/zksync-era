@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE events\n            SET\n                event_index_in_block_without_eth_transfer = subquery.event_index_in_block_without_eth_transfer,\n                event_index_in_tx_without_eth_transfer = subquery.event_index_in_tx_without_eth_transfer\n            FROM\n                (\n                    SELECT\n                        miniblock_number,\n                        tx_hash,\n                        address,\n                        topic1,\n                        tx_index_in_block,\n                        event_index_in_block,\n                        event_index_in_tx,\n                        ROW_NUMBER() OVER (\n                            PARTITION BY\n                                miniblock_number\n                            ORDER BY\n                                event_index_in_block ASC\n                        ) AS event_index_in_block_without_eth_transfer,\n                        ROW_NUMBER() OVER (\n                            PARTITION BY\n                                tx_hash\n                            ORDER BY\n                                event_index_in_tx ASC\n                        ) AS event_index_in_tx_without_eth_transfer\n                    FROM\n                        events\n                    WHERE\n                        miniblock_number BETWEEN $1 AND $2\n                        AND address <> $3\n                        AND topic1 <> $4\n                ) AS subquery\n            WHERE\n                events.miniblock_number = subquery.miniblock_number\n                AND events.tx_hash = subquery.tx_hash\n                AND events.tx_index_in_block = subquery.tx_index_in_block\n                AND events.event_index_in_block = subquery.event_index_in_block\n                AND events.event_index_in_tx = subquery.event_index_in_tx\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Bytea",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0f1581bd8a0ff7eed7fc562f0f44f4947670c5134a1387eb96764393ddde28b8"
+}

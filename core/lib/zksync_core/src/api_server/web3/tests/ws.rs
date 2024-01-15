@@ -1,25 +1,26 @@
 //! WS-related tests.
 
+use std::num::NonZeroU32;
+
 use async_trait::async_trait;
 use jsonrpsee::core::{client::ClientT, params::BatchRequestBuilder, ClientError};
 use reqwest::StatusCode;
 use test_casing::test_casing;
-use tokio::sync::watch;
-use zksync_config::configs::chain::NetworkConfig;
+use tokio::sync::mpsc;
 use zksync_dal::ConnectionPool;
 use zksync_types::{api, Address, L1BatchNumber, H256, U64};
 use zksync_web3_decl::{
     jsonrpsee::{
         core::client::{Subscription, SubscriptionClientT},
         rpc_params,
-        ws_client::{WsClient, WsClientBuilder},
+        ws_client::WsClient,
     },
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
     types::{BlockHeader, PubSubFilter},
 };
 
 use super::*;
-use crate::api_server::web3::metrics::SubscriptionType;
+use crate::api_server::web3::{metrics::SubscriptionType, pubsub::PubSubEvent};
 
 #[tokio::test]
 async fn ws_server_can_start() {
@@ -63,102 +64,6 @@ async fn rate_limiting() {
 #[tokio::test]
 async fn batch_rate_limiting() {
     test_ws_server(BatchGetsRateLimitedTest).await;
-}
-
-#[allow(clippy::needless_pass_by_ref_mut)] // false positive
-async fn wait_for_subscription(
-    events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
-    sub_type: SubscriptionType,
-) {
-    let wait_future = tokio::time::timeout(TEST_TIMEOUT, async {
-        loop {
-            let event = events
-                .recv()
-                .await
-                .expect("Events emitter unexpectedly dropped");
-            if matches!(event, PubSubEvent::Subscribed(ty) if ty == sub_type) {
-                break;
-            } else {
-                tracing::trace!(?event, "Skipping event");
-            }
-        }
-    });
-    wait_future
-        .await
-        .expect("Timed out waiting for subscription")
-}
-
-#[allow(clippy::needless_pass_by_ref_mut)] // false positive
-async fn wait_for_notifier(
-    events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
-    sub_type: SubscriptionType,
-) {
-    let wait_future = tokio::time::timeout(TEST_TIMEOUT, async {
-        loop {
-            let event = events
-                .recv()
-                .await
-                .expect("Events emitter unexpectedly dropped");
-            if matches!(event, PubSubEvent::NotifyIterationFinished(ty) if ty == sub_type) {
-                break;
-            } else {
-                tracing::trace!(?event, "Skipping event");
-            }
-        }
-    });
-    wait_future.await.expect("Timed out waiting for notifier")
-}
-
-#[async_trait]
-trait WsTest {
-    async fn test(
-        &self,
-        client: &WsClient,
-        pool: &ConnectionPool,
-        pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
-    ) -> anyhow::Result<()>;
-
-    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents;
-
-    fn websocket_requests_per_minute_limit(&self) -> Option<NonZeroU32> {
-        None
-    }
-}
-
-async fn test_ws_server(test: impl WsTest) {
-    let pool = ConnectionPool::test_pool().await;
-    let network_config = NetworkConfig::for_tests();
-    let mut storage = pool.access_storage().await.unwrap();
-    if storage.blocks_dal().is_genesis_needed().await.unwrap() {
-        ensure_genesis_state(
-            &mut storage,
-            network_config.zksync_network_id,
-            &GenesisParams::mock(),
-        )
-        .await
-        .unwrap();
-    }
-    drop(storage);
-
-    let (stop_sender, stop_receiver) = watch::channel(false);
-    let (server_handles, pub_sub_events) = spawn_ws_server(
-        &network_config,
-        pool.clone(),
-        stop_receiver,
-        test.websocket_requests_per_minute_limit(),
-        test.api_eth_transfer_events(),
-    )
-    .await;
-    server_handles.wait_until_ready().await;
-
-    let client = WsClientBuilder::default()
-        .build(format!("ws://{}", server_handles.local_addr))
-        .await
-        .unwrap();
-    test.test(&client, &pool, pub_sub_events).await.unwrap();
-
-    stop_sender.send_replace(true);
-    server_handles.shutdown().await;
 }
 
 #[derive(Debug)]

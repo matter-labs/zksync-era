@@ -139,8 +139,9 @@ impl EventsWeb3Dal<'_, '_> {
                     ORDER BY miniblock_number ASC, event_index_in_block ASC
                     LIMIT ${}
                 )
-                SELECT events_select.*
+                SELECT miniblocks.hash as "block_hash", miniblocks.l1_batch_number as "l1_batch_number", events_select.*
                 FROM events_select
+                LEFT JOIN miniblocks ON events_select.miniblock_number = miniblocks.number
                 ORDER BY miniblock_number ASC, event_index_in_block ASC
                 "#,
                 where_sql, arg_index
