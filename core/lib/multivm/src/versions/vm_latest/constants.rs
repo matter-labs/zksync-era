@@ -154,7 +154,7 @@ pub(crate) const COMPRESSED_BYTECODES_OFFSET: usize =
 pub(crate) const PRIORITY_TX_MAX_GAS_LIMIT: usize = 80_000_000;
 
 /// The amount of gas to be charged for occupying a single slot of a transaction.
-/// It is roughly equal to 80kk/MAX_TRANSACTIONS_PER_BATCH, i.e. how many gas would an L1->L2 transaction
+/// It is roughly equal to `80kk/MAX_TRANSACTIONS_PER_BATCH`, i.e. how many gas would an L1->L2 transaction
 /// need to pay to compensate for the batch being closed.
 /// While the derived formula is used for the worst case for L1->L2 transaction, it suits L2 transactions as well
 /// and serves to compensate the operator for the fact that they need to process the transaction. In case batches start
@@ -162,7 +162,7 @@ pub(crate) const PRIORITY_TX_MAX_GAS_LIMIT: usize = 80_000_000;
 pub(crate) const TX_SLOT_OVERHEAD_GAS: u32 = 10_000;
 
 /// The amount of gas to be charged for occupying a single byte of the bootloader's memory.
-/// It is roughly equal to 80kk/BOOTLOADER_MEMORY_FOR_TXS, i.e. how many gas would an L1->L2 transaction
+/// It is roughly equal to `80kk/BOOTLOADER_MEMORY_FOR_TXS`, i.e. how many gas would an L1->L2 transaction
 /// need to pay to compensate for the batch being closed.
 /// While the derived formula is used for the worst case for L1->L2 transaction, it suits L2 transactions as well
 /// and serves to compensate the operator for the fact that they need to fill up the bootloader memory. In case batches start
