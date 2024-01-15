@@ -598,6 +598,11 @@ mod tests {
             .save_events(MiniblockNumber(1), &all_events)
             .await;
 
+        conn.events_dal()
+            .remove_event_indexes_without_eth_transfer(MiniblockNumber(0)..=MiniblockNumber(1))
+            .await
+            .unwrap();
+
         assert!(conn
             .events_dal()
             .are_event_indexes_migrated(MiniblockNumber(0))
