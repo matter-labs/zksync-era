@@ -82,7 +82,7 @@ async fn test_validator_block_store() {
 
 // In the current implementation, consensus certificates are created asynchronously
 // for the miniblocks constructed by the StateKeeper. This means that consensus actor
-// is effectively just backfilling the consensus certificates for the miniblocks in storage.
+// is effectively just back filling the consensus certificates for the miniblocks in storage.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_validator() {
     zksync_concurrency::testonly::abort_on_panic();
@@ -253,7 +253,7 @@ async fn test_fetcher() {
     .unwrap();
 }
 
-// Test fetcher backfilling missing certs.
+// Test fetcher back filling missing certs.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_fetcher_backfill_certs() {
     zksync_concurrency::testonly::abort_on_panic();
