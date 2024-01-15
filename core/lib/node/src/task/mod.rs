@@ -1,7 +1,7 @@
 use futures::future::BoxFuture;
 use zksync_health_check::CheckHealth;
 
-use crate::node::ZkSyncNode;
+use crate::node::NodeContext;
 
 pub mod metadata_calculator;
 pub mod prometheus_exporter;
@@ -14,7 +14,7 @@ pub trait IntoZkSyncTask: 'static + Send + Sync {
     ///
     /// If additional preparations are required, they should be done in `before_launch`.
     fn create(
-        node: &ZkSyncNode,
+        node: &NodeContext<'_>,
         config: Self::Config,
     ) -> Result<Box<dyn ZkSyncTask>, TaskInitError>;
 }

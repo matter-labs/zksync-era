@@ -2,35 +2,30 @@ use zksync_config::PostgresConfig;
 use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;
 use zksync_node::{
-    node::ZkSyncNode, resource::pools::PoolsResource, resource::ResourceProvider,
+    node::ZkSyncNode, resource::pools::MasterPoolResource, resource::ResourceProvider,
     task::metadata_calculator::MetadataCalculatorTask, task::IntoZkSyncTask,
 };
-
-fn pools_resource() -> anyhow::Result<PoolsResource> {
-    let config = PostgresConfig::from_env()?;
-    let mut master_pool = ConnectionPool::builder(config.master_url()?, config.max_connections()?);
-    master_pool.set_statement_timeout(config.statement_timeout());
-    let mut replica_pool =
-        ConnectionPool::builder(config.replica_url()?, config.max_connections()?);
-    replica_pool.set_statement_timeout(config.statement_timeout());
-    let mut prover_pool = ConnectionPool::builder(config.prover_url()?, config.max_connections()?);
-    prover_pool.set_statement_timeout(config.statement_timeout());
-    let pools = PoolsResource::default()
-        .with_master_pool(master_pool)
-        .with_replica_pool(replica_pool)
-        .with_prover_pool(prover_pool);
-
-    Ok(pools)
-}
 
 #[derive(Debug)]
 struct MainNodeResourceProvider;
 
+impl MainNodeResourceProvider {
+    fn master_pool_resource() -> anyhow::Result<MasterPoolResource> {
+        let config = PostgresConfig::from_env()?;
+        let mut master_pool =
+            ConnectionPool::builder(config.master_url()?, config.max_connections()?);
+        master_pool.set_statement_timeout(config.statement_timeout());
+
+        Ok(MasterPoolResource::new(master_pool))
+    }
+}
+
 impl ResourceProvider for MainNodeResourceProvider {
     fn get_resource(&self, name: &str) -> Option<Box<dyn std::any::Any>> {
         match name {
-            PoolsResource::RESOURCE_NAME => {
-                let resource = pools_resource().expect("Failed to create pools resource");
+            MasterPoolResource::RESOURCE_NAME => {
+                let resource =
+                    Self::master_pool_resource().expect("Failed to create pools resource");
                 Some(Box::new(resource) as Box<dyn std::any::Any>)
             }
             _ => None,

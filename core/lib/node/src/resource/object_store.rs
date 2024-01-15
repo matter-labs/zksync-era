@@ -4,6 +4,7 @@ use zksync_object_store::ObjectStore;
 
 use super::Resource;
 
+/// Wrapper for the object store.
 #[derive(Debug, Clone)]
 pub struct ObjectStoreResource(pub Arc<dyn ObjectStore>);
 

@@ -2,78 +2,68 @@ use zksync_dal::{connection::ConnectionPoolBuilder, ConnectionPool};
 
 use super::Resource;
 
-#[derive(Debug, Clone, Default)]
-pub struct PoolsResource {
-    master_pool: Option<ConnectionPoolBuilder>,
-    replica_pool: Option<ConnectionPoolBuilder>,
-    prover_pool: Option<ConnectionPoolBuilder>,
+/// Represents a connection pool to the master database.
+#[derive(Debug, Clone)]
+pub struct MasterPoolResource(ConnectionPoolBuilder);
+
+impl Resource for MasterPoolResource {}
+
+impl MasterPoolResource {
+    pub const RESOURCE_NAME: &str = "common/master_pool";
+
+    pub fn new(builder: ConnectionPoolBuilder) -> Self {
+        Self(builder)
+    }
+
+    pub async fn get(&self) -> anyhow::Result<ConnectionPool> {
+        self.0.build().await
+    }
+
+    pub async fn get_singleton(&self) -> anyhow::Result<ConnectionPool> {
+        self.0.build_singleton().await
+    }
 }
 
-impl Resource for PoolsResource {}
+/// Represents a connection pool to the replica database.
+#[derive(Debug, Clone)]
+pub struct ReplicaPoolResource(ConnectionPoolBuilder);
 
-impl PoolsResource {
-    pub const RESOURCE_NAME: &str = "common/postgres_pools";
+impl Resource for ReplicaPoolResource {}
 
-    pub fn with_master_pool(mut self, master_pool: ConnectionPoolBuilder) -> Self {
-        self.master_pool = Some(master_pool);
-        self
+impl ReplicaPoolResource {
+    pub const RESOURCE_NAME: &str = "common/replica_pool";
+
+    pub fn new(builder: ConnectionPoolBuilder) -> Self {
+        Self(builder)
     }
 
-    pub fn with_replica_pool(mut self, replica_pool: ConnectionPoolBuilder) -> Self {
-        self.replica_pool = Some(replica_pool);
-        self
+    pub async fn get(&self) -> anyhow::Result<ConnectionPool> {
+        self.0.build().await
     }
 
-    pub fn with_prover_pool(mut self, prover_pool: ConnectionPoolBuilder) -> Self {
-        self.prover_pool = Some(prover_pool);
-        self
+    pub async fn get_singleton(&self) -> anyhow::Result<ConnectionPool> {
+        self.0.build_singleton().await
+    }
+}
+
+/// Represents a connection pool to the prover database.
+#[derive(Debug, Clone)]
+pub struct ProverPoolResource(ConnectionPoolBuilder);
+
+impl Resource for ProverPoolResource {}
+
+impl ProverPoolResource {
+    pub const RESOURCE_NAME: &str = "common/prover_pool";
+
+    pub fn new(builder: ConnectionPoolBuilder) -> Self {
+        Self(builder)
     }
 
-    pub async fn master_pool(&self) -> anyhow::Result<ConnectionPool> {
-        self.master_pool
-            .as_ref()
-            .map(|builder| builder.build())
-            .expect("master pool is not initialized")
-            .await
+    pub async fn get(&self) -> anyhow::Result<ConnectionPool> {
+        self.0.build().await
     }
 
-    pub async fn master_pool_singleton(&self) -> anyhow::Result<ConnectionPool> {
-        self.master_pool
-            .as_ref()
-            .map(|builder| builder.build_singleton())
-            .expect("master pool is not initialized")
-            .await
-    }
-
-    pub async fn replica_pool(&self) -> anyhow::Result<ConnectionPool> {
-        self.replica_pool
-            .as_ref()
-            .map(|builder| builder.build())
-            .expect("replica pool is not initialized")
-            .await
-    }
-
-    pub async fn replica_pool_singleton(&self) -> anyhow::Result<ConnectionPool> {
-        self.replica_pool
-            .as_ref()
-            .map(|builder| builder.build_singleton())
-            .expect("replica pool is not initialized")
-            .await
-    }
-
-    pub async fn prover_pool(&self) -> anyhow::Result<ConnectionPool> {
-        self.prover_pool
-            .as_ref()
-            .map(|builder| builder.build())
-            .expect("prover pool is not initialized")
-            .await
-    }
-
-    pub async fn prover_pool_singleton(&self) -> anyhow::Result<ConnectionPool> {
-        self.prover_pool
-            .as_ref()
-            .map(|builder| builder.build_singleton())
-            .expect("prover pool is not initialized")
-            .await
+    pub async fn get_singleton(&self) -> anyhow::Result<ConnectionPool> {
+        self.0.build_singleton().await
     }
 }

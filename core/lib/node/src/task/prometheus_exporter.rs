@@ -2,7 +2,7 @@ use prometheus_exporter::PrometheusExporterConfig;
 use tokio::sync::watch;
 use zksync_health_check::{CheckHealth, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 
-use crate::{node::ZkSyncNode, resource::stop_receiver::StopReceiverResource};
+use crate::{node::NodeContext, resource::stop_receiver::StopReceiverResource};
 
 use super::{IntoZkSyncTask, TaskInitError, ZkSyncTask};
 
@@ -18,7 +18,7 @@ impl IntoZkSyncTask for PrometheusExporterTask {
     type Config = PrometheusExporterConfig;
 
     fn create(
-        node: &ZkSyncNode,
+        node: &NodeContext<'_>,
         config: Self::Config,
     ) -> Result<Box<dyn ZkSyncTask>, TaskInitError> {
         let (prometheus_health_check, prometheus_health_updater) =

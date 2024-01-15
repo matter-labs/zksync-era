@@ -2,6 +2,9 @@ use tokio::sync::watch;
 
 use super::Resource;
 
+/// Represents a receiver for the stop signal.
+/// This signal is sent when the node is shutting down.
+/// Every task is expected to listen to this signal and stop its execution when it is received.
 #[derive(Debug, Clone)]
 pub struct StopReceiverResource(pub watch::Receiver<bool>);
 

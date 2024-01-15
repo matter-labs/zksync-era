@@ -6,9 +6,9 @@ use zksync_health_check::CheckHealth;
 use zksync_storage::RocksDB;
 
 use crate::{
-    node::ZkSyncNode,
+    node::NodeContext,
     resource::{
-        object_store::ObjectStoreResource, pools::PoolsResource,
+        object_store::ObjectStoreResource, pools::MasterPoolResource,
         stop_receiver::StopReceiverResource,
     },
 };
@@ -26,15 +26,15 @@ impl IntoZkSyncTask for MetadataCalculatorTask {
     type Config = MetadataCalculatorConfig;
 
     fn create(
-        node: &ZkSyncNode,
+        node: &NodeContext<'_>,
         config: Self::Config,
     ) -> Result<Box<dyn ZkSyncTask>, TaskInitError> {
-        let pools: PoolsResource = node
-            .get_resource(PoolsResource::RESOURCE_NAME)
-            .ok_or(TaskInitError::ResourceLacking(PoolsResource::RESOURCE_NAME))?;
-        let main_pool = node.runtime_handle().block_on(pools.master_pool()).unwrap();
+        let pool: MasterPoolResource = node.get_resource(MasterPoolResource::RESOURCE_NAME).ok_or(
+            TaskInitError::ResourceLacking(MasterPoolResource::RESOURCE_NAME),
+        )?;
+        let main_pool = node.runtime_handle().block_on(pool.get()).unwrap();
         let object_store: Option<ObjectStoreResource> =
-            node.get_resource(PoolsResource::RESOURCE_NAME); // OK to be None.
+            node.get_resource(ObjectStoreResource::RESOURCE_NAME); // OK to be None.
 
         if object_store.is_none() {
             // TODO: use internal logging system?
