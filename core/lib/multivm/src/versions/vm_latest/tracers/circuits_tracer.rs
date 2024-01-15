@@ -143,7 +143,7 @@ impl<S: WriteStorage, H: HistoryMode> CircuitsTracer<S, H> {
         }
     }
 
-    fn trace_decommitments(&mut self, state: &mut ZkSyncVmState<S, H>) {
+    fn trace_decommitments(&mut self, state: &ZkSyncVmState<S, H>) {
         let last_decommitment_history_entry_checked = self
             .last_decommitment_history_entry_checked
             .expect("Value must be set during init");
@@ -170,7 +170,7 @@ impl<S: WriteStorage, H: HistoryMode> CircuitsTracer<S, H> {
         self.last_decommitment_history_entry_checked = Some(history.len());
     }
 
-    fn trace_storage_writes(&mut self, state: &mut ZkSyncVmState<S, H>) {
+    fn trace_storage_writes(&mut self, state: &ZkSyncVmState<S, H>) {
         let last_writes_history_entry_checked = self
             .last_written_keys_history_entry_checked
             .expect("Value must be set during init");
@@ -184,7 +184,7 @@ impl<S: WriteStorage, H: HistoryMode> CircuitsTracer<S, H> {
         self.last_written_keys_history_entry_checked = Some(history.len());
     }
 
-    fn trace_storage_reads(&mut self, state: &mut ZkSyncVmState<S, H>) {
+    fn trace_storage_reads(&mut self, state: &ZkSyncVmState<S, H>) {
         let last_reads_history_entry_checked = self
             .last_read_keys_history_entry_checked
             .expect("Value must be set during init");
@@ -207,7 +207,7 @@ impl<S: WriteStorage, H: HistoryMode> CircuitsTracer<S, H> {
         self.last_read_keys_history_entry_checked = Some(history.len());
     }
 
-    fn trace_precompile_calls(&mut self, state: &mut ZkSyncVmState<S, H>) {
+    fn trace_precompile_calls(&mut self, state: &ZkSyncVmState<S, H>) {
         let last_precompile_inner_entry_checked = self
             .last_precompile_inner_entry_checked
             .expect("Value must be set during init");
