@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE events\n            SET\n                event_index_in_block_without_eth_transfer = 1,\n                event_index_in_tx_without_eth_transfer = 1\n            WHERE\n                miniblock_number BETWEEN $1 AND $2\n                AND address = $3\n                AND topic1 = $4\n                AND (\n                    event_index_in_tx_without_eth_transfer = 0\n                    OR event_index_in_block_without_eth_transfer = 0\n                )\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Bytea",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b9b373baf110e39ef77a5fa70c56309ee092636d5291e7b117c1c28d95fbc1a7"
+}

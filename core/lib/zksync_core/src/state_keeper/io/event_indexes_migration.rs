@@ -61,7 +61,6 @@ async fn migrate_miniblocks_inner(
         } else {
             tracing::debug!("Migrating event indexes for miniblocks chunk {chunk:?}");
 
-            #[allow(deprecated)]
             let rows_affected = storage
                 .events_dal()
                 .assign_indexes_without_eth_transfer(chunk.clone())
@@ -197,6 +196,13 @@ mod tests {
         for number in 0..5 {
             store_events(storage, number, 0).await.unwrap();
         }
+
+        // Remove indexes here to understand that migration works correctly.
+        storage
+            .events_dal()
+            .remove_event_indexes_without_eth_transfer(MiniblockNumber(0)..=MiniblockNumber(5))
+            .await
+            .unwrap();
     }
 
     async fn assert_migration(storage: &mut StorageProcessor<'_>) {
@@ -231,7 +237,7 @@ mod tests {
                     assert_eq!(log.event_index_in_tx_without_eth_transfer, i as i32 + 1);
                 } else {
                     assert_eq!(log.event_index_in_block_without_eth_transfer, i as i32);
-                    assert_eq!(log.event_index_in_tx_without_eth_transfer, (i - 3) as i32);
+                    assert_eq!(log.event_index_in_tx_without_eth_transfer, i as i32);
                 }
             }
         }
@@ -243,6 +249,21 @@ mod tests {
         let pool = ConnectionPool::test_pool().await;
         let mut storage = pool.access_storage().await.unwrap();
         prepare_storage(&mut storage).await;
+
+        let raw_logs = storage
+            .events_web3_dal()
+            .get_raw_logs(
+                GetLogsFilter {
+                    from_block: 0.into(),
+                    to_block: 4.into(),
+                    addresses: vec![],
+                    topics: vec![],
+                },
+                1000,
+            )
+            .await
+            .unwrap();
+
         drop(storage);
 
         let (_stop_sender, stop_receiver) = watch::channel(false);
@@ -256,7 +277,7 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(result.events_affected, 5);
+        assert_eq!(result.events_affected, raw_logs.len() as u64);
 
         // Check that all blocks are migrated.
         let mut storage = pool.access_storage().await.unwrap();
@@ -296,7 +317,7 @@ mod tests {
         .unwrap();
 
         // Migration should stop after a single chunk.
-        assert_eq!(result.events_affected, u64::from(chunk_size));
+        assert_eq!(result.events_affected, u64::from(chunk_size) * 7);
 
         // Check that migration resumes from the same point.
         let (_stop_sender, stop_receiver) = watch::channel(false);
@@ -310,7 +331,7 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(result.events_affected, 5 - u64::from(chunk_size));
+        assert_eq!(result.events_affected, (5 - u64::from(chunk_size)) * 7);
         assert_migration(&mut storage).await;
     }
 
@@ -333,15 +354,9 @@ mod tests {
         .unwrap();
 
         // Migration should stop after a single chunk.
-        assert_eq!(result.events_affected, u64::from(chunk_size));
+        assert_eq!(result.events_affected, u64::from(chunk_size) * 7);
 
-        // Insert a new miniblock to the storage with a defined fee account address.
-        let miniblock = create_miniblock(5);
-        storage
-            .blocks_dal()
-            .insert_miniblock(&miniblock)
-            .await
-            .unwrap();
+        // Insert a new miniblock with new events into storage, indexes are assigned automatically
         store_events(&mut storage, 5, 0).await.unwrap();
 
         // Resume the migration.
@@ -357,7 +372,7 @@ mod tests {
         .unwrap();
 
         // The new miniblock should not be affected.
-        assert_eq!(result.events_affected, 5 - u64::from(chunk_size));
+        assert_eq!(result.events_affected, (5 - u64::from(chunk_size)) * 7);
         assert_migration(&mut storage).await;
     }
 }

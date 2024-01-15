@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE events\n            SET\n                event_index_in_block_without_eth_transfer = 0,\n                event_index_in_tx_without_eth_transfer = 0\n            WHERE\n                miniblock_number BETWEEN $1 AND $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "48e4ff54d0468d8c21454715dd05d7e43044051f7bcd718c3a49a5f462c1703b"
+}

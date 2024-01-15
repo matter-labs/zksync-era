@@ -143,8 +143,8 @@ impl StorageWeb3LogExt {
             l1_batch_number: self.l1_batch_number,
             tx_hash: self.tx_hash,
             tx_index_in_block: self.tx_index_in_block,
-            event_index_in_tx: event_index_in_tx,
-            event_index_in_block: event_index_in_block,
+            event_index_in_tx,
+            event_index_in_block,
         }
     }
 }

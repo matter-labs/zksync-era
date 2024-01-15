@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE events\n            SET\n                event_index_in_block_without_eth_transfer = subquery.event_index_in_block_without_eth_transfer,\n                event_index_in_tx_without_eth_transfer = subquery.event_index_in_tx_without_eth_transfer\n            FROM\n                (\n                    SELECT\n                        miniblock_number,\n                        tx_hash,\n                        address,\n                        topic1,\n                        tx_index_in_block,\n                        event_index_in_block,\n                        event_index_in_tx,\n                        ROW_NUMBER() OVER (\n                            PARTITION BY\n                                miniblock_number\n                            ORDER BY\n                                event_index_in_block ASC\n                        ) AS event_index_in_block_without_eth_transfer,\n                        ROW_NUMBER() OVER (\n                            PARTITION BY\n                                miniblock_number,\n                                tx_hash\n                            ORDER BY\n                                event_index_in_tx ASC\n                        ) AS event_index_in_tx_without_eth_transfer\n                    FROM\n                        events\n                    WHERE\n                        miniblock_number BETWEEN $1 AND $2\n                        AND NOT (address = $3 AND topic1 = $4)\n                        AND (\n                            event_index_in_tx_without_eth_transfer = 0\n                            OR event_index_in_block_without_eth_transfer = 0\n                        )\n                ) AS subquery\n            WHERE\n                events.miniblock_number = subquery.miniblock_number\n                AND events.tx_hash = subquery.tx_hash\n                AND events.tx_index_in_block = subquery.tx_index_in_block\n                AND events.event_index_in_block = subquery.event_index_in_block\n                AND events.event_index_in_tx = subquery.event_index_in_tx\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Bytea",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a2318a7e7f24a8d9cc3651ba87af9e9bf766acea0cbfe50e4a7dda8b846fc451"
+}

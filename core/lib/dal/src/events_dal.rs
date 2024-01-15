@@ -271,6 +271,7 @@ impl EventsDal<'_, '_> {
                         ) AS event_index_in_block_without_eth_transfer,
                         ROW_NUMBER() OVER (
                             PARTITION BY
+                                miniblock_number,
                                 tx_hash
                             ORDER BY
                                 event_index_in_tx ASC
@@ -279,8 +280,14 @@ impl EventsDal<'_, '_> {
                         events
                     WHERE
                         miniblock_number BETWEEN $1 AND $2
-                        AND address <> $3
-                        AND topic1 <> $4
+                        AND NOT (
+                            address = $3
+                            AND topic1 = $4
+                        )
+                        AND (
+                            event_index_in_tx_without_eth_transfer = 0
+                            OR event_index_in_block_without_eth_transfer = 0
+                        )
                 ) AS subquery
             WHERE
                 events.miniblock_number = subquery.miniblock_number
@@ -315,6 +322,10 @@ impl EventsDal<'_, '_> {
                 miniblock_number BETWEEN $1 AND $2
                 AND address = $3
                 AND topic1 = $4
+                AND (
+                    event_index_in_tx_without_eth_transfer = 0
+                    OR event_index_in_block_without_eth_transfer = 0
+                )
             "#,
             numbers.start().0 as i64,
             numbers.end().0 as i64,
@@ -354,6 +365,30 @@ impl EventsDal<'_, '_> {
         let count = result.count.ok_or(sqlx::Error::RowNotFound)?;
 
         Ok(count == 0)
+    }
+
+    /// Method sets `index_without_eth_transfer` equal to 0, which means that indexes are not migrated.
+    /// Should be used only in tests!!!
+    pub async fn remove_event_indexes_without_eth_transfer(
+        &mut self,
+        numbers: ops::RangeInclusive<MiniblockNumber>,
+    ) -> sqlx::Result<u64> {
+        let result = sqlx::query!(
+            r#"
+            UPDATE events
+            SET
+                event_index_in_block_without_eth_transfer = 0,
+                event_index_in_tx_without_eth_transfer = 0
+            WHERE
+                miniblock_number BETWEEN $1 AND $2
+            "#,
+            numbers.start().0 as i64,
+            numbers.end().0 as i64,
+        )
+        .execute(self.storage.conn())
+        .await?;
+
+        Ok(result.rows_affected())
     }
 }
 
@@ -563,13 +598,11 @@ mod tests {
             .save_events(MiniblockNumber(1), &all_events)
             .await;
 
-        assert_eq!(
-            conn.events_dal()
-                .are_event_indexes_migrated(MiniblockNumber(0))
-                .await
-                .unwrap(),
-            true
-        );
+        assert!(conn
+            .events_dal()
+            .are_event_indexes_migrated(MiniblockNumber(0))
+            .await
+            .unwrap());
 
         let count = conn
             .events_dal()
