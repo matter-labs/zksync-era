@@ -62,7 +62,7 @@ pub fn compute_decommitter_circuit_snapshots<
 ...
 ) -> (
     Vec<CodeDecommitterCircuitInstanceWitness<E>>,
-    CodeDecommittmentsDeduplicatorInstanceWitness<E>,
+    CodeDecommitmentsDeduplicatorInstanceWitness<E>,
 )
 ```
 
@@ -143,7 +143,7 @@ version 1.4.0.
 [bellman repo]: https://github.com/matter-labs/bellman
 [bellman cuda repo]: https://github.com/matter-labs/era-bellman-cuda
 [example ecrecover circuit]:
-  https://github.com/matter-labs/sync_vm/blob/683ade0bbb445f3e2ceb82dd3f4346a0c5d16a78/src/glue/ecrecover_circuit/mod.rs#L157
+  https://github.com/matter-labs/era-sync_vm/blob/v1.3.2/src/glue/ecrecover_circuit/mod.rs#L157
 [zksync core witness]:
   https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/witness_generator/mod.rs
 [separate witness binary]: https://github.com/matter-labs/zksync-era/blob/main/prover/witness_generator/src/main.rs

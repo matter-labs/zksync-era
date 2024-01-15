@@ -4,7 +4,7 @@ use std::{cmp, sync::Arc, time::Instant};
 
 use multivm::{
     interface::VmExecutionResultAndLogs,
-    utils::{adjust_l1_gas_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead},
+    utils::{adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead},
     vm_latest::constants::{BLOCK_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK},
 };
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
@@ -13,6 +13,7 @@ use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     fee::{Fee, TransactionExecutionMetrics},
+    fee_model::BatchFeeInput,
     get_code_key, get_intrinsic_constants,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     utils::storage_key_for_eth_balance,
@@ -32,7 +33,7 @@ use crate::{
         },
         tx_sender::result::ApiCallResult,
     },
-    l1_gas_price::L1GasPriceProvider,
+    fee_model::BatchFeeModelInputProvider,
     metrics::{TxStage, APP_METRICS},
     state_keeper::seal_criteria::{ConditionalSealer, NoopSealer, SealData},
 };
@@ -166,7 +167,7 @@ impl TxSenderBuilder {
 
     pub async fn build(
         self,
-        l1_gas_price_source: Arc<dyn L1GasPriceProvider>,
+        batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
         vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
         api_contracts: ApiContracts,
         storage_caches: PostgresStorageCaches,
@@ -183,7 +184,7 @@ impl TxSenderBuilder {
             sender_config: self.config,
             master_connection_pool: self.master_connection_pool,
             replica_connection_pool: self.replica_connection_pool,
-            l1_gas_price_source,
+            batch_fee_input_provider,
             api_contracts,
             proxy: self.proxy,
             vm_concurrency_limiter,
@@ -234,7 +235,7 @@ pub struct TxSenderInner {
     pub master_connection_pool: Option<ConnectionPool>,
     pub replica_connection_pool: ConnectionPool,
     // Used to keep track of gas prices for the fee ticker.
-    pub l1_gas_price_source: Arc<dyn L1GasPriceProvider>,
+    pub batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     pub(super) api_contracts: ApiContracts,
     /// Optional transaction proxy to be used for transaction submission.
     pub(super) proxy: Option<TxProxy>,
@@ -283,7 +284,7 @@ impl TxSender {
         let block_args = BlockArgs::pending(&mut connection).await;
         drop(connection);
 
-        let (_, tx_metrics) = execute_tx_in_sandbox(
+        let (_, tx_metrics, published_bytecodes) = execute_tx_in_sandbox(
             vm_permit.clone(),
             shared_args.clone(),
             true,
@@ -317,6 +318,10 @@ impl TxSender {
 
         if let Err(err) = validation_result {
             return Err(err.into());
+        }
+
+        if !published_bytecodes {
+            return Err(SubmitTxError::FailedToPublishCompressedBytecodes);
         }
 
         let stage_started_at = Instant::now();
@@ -377,8 +382,7 @@ impl TxSender {
     fn shared_args(&self) -> TxSharedArgs {
         TxSharedArgs {
             operator_account: AccountTreeId::new(self.0.sender_config.fee_account_addr),
-            l1_gas_price: self.0.l1_gas_price_source.estimate_effective_gas_price(),
-            fair_l2_gas_price: self.0.sender_config.fair_l2_gas_price,
+            fee_input: self.0.batch_fee_input_provider.get_batch_fee_input(),
             base_system_contracts: self.0.api_contracts.eth_call.clone(),
             caches: self.storage_caches(),
             validation_computational_gas_limit: self
@@ -550,7 +554,7 @@ impl TxSender {
         mut tx: Transaction,
         gas_per_pubdata_byte: u64,
         tx_gas_limit: u32,
-        l1_gas_price: u64,
+        fee_input: BatchFeeInput,
         block_args: BlockArgs,
         base_fee: u64,
         vm_version: VmVersion,
@@ -584,11 +588,11 @@ impl TxSender {
             }
         }
 
-        let shared_args = self.shared_args_for_gas_estimate(l1_gas_price);
+        let shared_args = self.shared_args_for_gas_estimate(fee_input);
         let vm_execution_cache_misses_limit = self.0.sender_config.vm_execution_cache_misses_limit;
         let execution_args =
             TxExecutionArgs::for_gas_estimate(vm_execution_cache_misses_limit, &tx, base_fee);
-        let (exec_result, tx_metrics) = execute_tx_in_sandbox(
+        let (exec_result, tx_metrics, _) = execute_tx_in_sandbox(
             vm_permit,
             shared_args,
             true,
@@ -603,12 +607,11 @@ impl TxSender {
         (exec_result, tx_metrics)
     }
 
-    fn shared_args_for_gas_estimate(&self, l1_gas_price: u64) -> TxSharedArgs {
+    fn shared_args_for_gas_estimate(&self, fee_input: BatchFeeInput) -> TxSharedArgs {
         let config = &self.0.sender_config;
         TxSharedArgs {
             operator_account: AccountTreeId::new(config.fee_account_addr),
-            l1_gas_price,
-            fair_l2_gas_price: config.fair_l2_gas_price,
+            fee_input,
             // We want to bypass the computation gas limit check for gas estimation
             validation_computational_gas_limit: BLOCK_GAS_LIMIT,
             base_system_contracts: self.0.api_contracts.estimate_gas.clone(),
@@ -641,26 +644,21 @@ impl TxSender {
             .unwrap_or(ProtocolVersionId::last_pre_boojum());
         drop(connection);
 
-        let l1_gas_price = {
-            let effective_gas_price = self.0.l1_gas_price_source.estimate_effective_gas_price();
-            let current_l1_gas_price =
-                ((effective_gas_price as f64) * self.0.sender_config.gas_price_scale_factor) as u64;
-
-            // In order for execution to pass smoothly, we need to ensure that block's required `gasPerPubdata` will be
-            // <= to the one in the transaction itself.
-            adjust_l1_gas_price_for_tx(
-                current_l1_gas_price,
-                self.0.sender_config.fair_l2_gas_price,
+        let fee_input = {
+            // For now, both L1 gas price and pubdata price are scaled with the same coefficient
+            let fee_input = self.0.batch_fee_input_provider.get_batch_fee_input_scaled(
+                self.0.sender_config.gas_price_scale_factor,
+                self.0.sender_config.gas_price_scale_factor,
+            );
+            adjust_pubdata_price_for_tx(
+                fee_input,
                 tx.gas_per_pubdata_byte_limit(),
                 protocol_version.into(),
             )
         };
 
-        let (base_fee, gas_per_pubdata_byte) = derive_base_fee_and_gas_per_pubdata(
-            l1_gas_price,
-            self.0.sender_config.fair_l2_gas_price,
-            protocol_version.into(),
-        );
+        let (base_fee, gas_per_pubdata_byte) =
+            derive_base_fee_and_gas_per_pubdata(fee_input, protocol_version.into());
         match &mut tx.common_data {
             ExecuteTransactionCommon::L2(common_data) => {
                 common_data.fee.max_fee_per_gas = base_fee.into();
@@ -766,7 +764,7 @@ impl TxSender {
                     tx.clone(),
                     gas_per_pubdata_byte,
                     try_gas_limit,
-                    l1_gas_price,
+                    fee_input,
                     block_args,
                     base_fee,
                     protocol_version.into(),
@@ -805,7 +803,7 @@ impl TxSender {
                 tx.clone(),
                 gas_per_pubdata_byte,
                 suggested_gas_limit,
-                l1_gas_price,
+                fee_input,
                 block_args,
                 base_fee,
                 protocol_version.into(),
@@ -865,9 +863,6 @@ impl TxSender {
     }
 
     pub async fn gas_price(&self) -> u64 {
-        let gas_price = self.0.l1_gas_price_source.estimate_effective_gas_price();
-        let l1_gas_price = (gas_price as f64 * self.0.sender_config.gas_price_scale_factor).round();
-
         let mut connection = self
             .0
             .replica_connection_pool
@@ -885,8 +880,11 @@ impl TxSender {
         drop(connection);
 
         let (base_fee, _) = derive_base_fee_and_gas_per_pubdata(
-            l1_gas_price as u64,
-            self.0.sender_config.fair_l2_gas_price,
+            // For now, both the L1 gas price and the L1 pubdata price are scaled with the same coefficient
+            self.0.batch_fee_input_provider.get_batch_fee_input_scaled(
+                self.0.sender_config.gas_price_scale_factor,
+                self.0.sender_config.gas_price_scale_factor,
+            ),
             protocol_version.into(),
         );
         base_fee

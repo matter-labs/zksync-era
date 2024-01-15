@@ -1,68 +1,82 @@
-use zksync_types::{VmVersion, U256};
+use zksync_types::{fee_model::BatchFeeInput, VmVersion, U256};
+
+use crate::vm_latest::L1BatchEnv;
 
 /// Calculates the base fee and gas per pubdata for the given L1 gas price.
 pub fn derive_base_fee_and_gas_per_pubdata(
-    l1_gas_price: u64,
-    fair_gas_price: u64,
+    batch_fee_input: BatchFeeInput,
     vm_version: VmVersion,
 ) -> (u64, u64) {
     match vm_version {
         VmVersion::M5WithRefunds | VmVersion::M5WithoutRefunds => {
             crate::vm_m5::vm_with_bootloader::derive_base_fee_and_gas_per_pubdata(
-                l1_gas_price,
-                fair_gas_price,
+                batch_fee_input.into_l1_pegged(),
             )
         }
         VmVersion::M6Initial | VmVersion::M6BugWithCompressionFixed => {
             crate::vm_m6::vm_with_bootloader::derive_base_fee_and_gas_per_pubdata(
-                l1_gas_price,
-                fair_gas_price,
+                batch_fee_input.into_l1_pegged(),
             )
         }
         VmVersion::Vm1_3_2 => {
             crate::vm_1_3_2::vm_with_bootloader::derive_base_fee_and_gas_per_pubdata(
-                l1_gas_price,
-                fair_gas_price,
+                batch_fee_input.into_l1_pegged(),
             )
         }
         VmVersion::VmVirtualBlocks => {
             crate::vm_virtual_blocks::utils::fee::derive_base_fee_and_gas_per_pubdata(
-                l1_gas_price,
-                fair_gas_price,
+                batch_fee_input.into_l1_pegged(),
             )
         }
         VmVersion::VmVirtualBlocksRefundsEnhancement => {
             crate::vm_refunds_enhancement::utils::fee::derive_base_fee_and_gas_per_pubdata(
-                l1_gas_price,
-                fair_gas_price,
+                batch_fee_input.into_l1_pegged(),
             )
         }
         VmVersion::VmBoojumIntegration => {
             crate::vm_boojum_integration::utils::fee::derive_base_fee_and_gas_per_pubdata(
-                l1_gas_price,
-                fair_gas_price,
+                batch_fee_input.into_l1_pegged(),
             )
         }
     }
 }
 
-/// Changes the fee model output so that the expected gas per pubdata is smaller than or the `tx_gas_per_pubdata_limit`.
-pub fn adjust_l1_gas_price_for_tx(
-    l1_gas_price: u64,
-    fair_l2_gas_price: u64,
+pub fn get_batch_base_fee(l1_batch_env: &L1BatchEnv, vm_version: VmVersion) -> u64 {
+    match vm_version {
+        VmVersion::M5WithRefunds | VmVersion::M5WithoutRefunds => {
+            crate::vm_m5::vm_with_bootloader::get_batch_base_fee(l1_batch_env)
+        }
+        VmVersion::M6Initial | VmVersion::M6BugWithCompressionFixed => {
+            crate::vm_m6::vm_with_bootloader::get_batch_base_fee(l1_batch_env)
+        }
+        VmVersion::Vm1_3_2 => crate::vm_1_3_2::vm_with_bootloader::get_batch_base_fee(l1_batch_env),
+        VmVersion::VmVirtualBlocks => {
+            crate::vm_virtual_blocks::utils::fee::get_batch_base_fee(l1_batch_env)
+        }
+        VmVersion::VmVirtualBlocksRefundsEnhancement => {
+            crate::vm_refunds_enhancement::utils::fee::get_batch_base_fee(l1_batch_env)
+        }
+        VmVersion::VmBoojumIntegration => {
+            crate::vm_boojum_integration::utils::fee::get_batch_base_fee(l1_batch_env)
+        }
+    }
+}
+
+/// Changes the batch fee input so that the expected gas per pubdata is smaller than or the `tx_gas_per_pubdata_limit`.
+pub fn adjust_pubdata_price_for_tx(
+    batch_fee_input: BatchFeeInput,
     tx_gas_per_pubdata_limit: U256,
     vm_version: VmVersion,
-) -> u64 {
-    if U256::from(
-        derive_base_fee_and_gas_per_pubdata(l1_gas_price, fair_l2_gas_price, vm_version).1,
-    ) <= tx_gas_per_pubdata_limit
+) -> BatchFeeInput {
+    if U256::from(derive_base_fee_and_gas_per_pubdata(batch_fee_input, vm_version).1)
+        <= tx_gas_per_pubdata_limit
     {
-        return l1_gas_price;
+        return batch_fee_input;
     }
 
     // The latest VM supports adjusting the pubdata price for all the types of the fee models.
-    crate::vm_latest::utils::fee::adjust_l1_gas_price_for_tx(
-        fair_l2_gas_price,
+    crate::vm_latest::utils::fee::adjust_pubdata_price_for_tx(
+        batch_fee_input,
         tx_gas_per_pubdata_limit,
     )
 }

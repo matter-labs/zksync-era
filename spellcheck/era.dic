@@ -306,6 +306,7 @@ tokenomics
 validator
 validator's
 validator
+Validators
 CHAINID
 PREVRANDAO
 ECDSA
@@ -514,6 +515,15 @@ porco
 rosso
 insize
 MLOAD
+sload
+sload
+uadd
+nocallback
+nosync
+swrite
+Devs
+insta
+NFTF
 
 // ETC
 gitter
@@ -610,6 +620,7 @@ gluk
 emilluta
 
 // Programming related words
+backfill
 bytecode
 bytecodes
 impl
@@ -785,6 +796,7 @@ HealthCheck
 readonly
 upgrader
 startup
+BFT
 PingCAP
 witgen
 ok
@@ -817,6 +829,7 @@ compactions
 M6
 compiler_common
 noop
+tokenized
 rustc
 sqlx
 zkevm
@@ -864,3 +877,5 @@ Aggregator
 DecommittmentProcessor
 decommitment
 hardcoded
+plookup
+shivini
