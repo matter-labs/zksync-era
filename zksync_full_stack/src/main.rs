@@ -1,4 +1,9 @@
-use std::{str::FromStr, time::Duration, fs::OpenOptions, io::Write, io::Error};
+use std::{
+    fs::OpenOptions,
+    io::{Error, Write},
+    str::FromStr,
+    time::Duration,
+};
 
 use colored::Colorize;
 use ethers::{abi::Abi, providers::Http, utils::parse_units};
@@ -26,12 +31,11 @@ static L1_URL: &str = "http://localhost:8545";
 
 static REPORT_PATH: &str = "report.csv";
 
-
 fn initialize_report() -> Result<(), Error> {
     let file = OpenOptions::new()
         .write(true)
-        .truncate(true)  // Trunca el archivo (borra su contenido)
-        .create(true)    // Crea el archivo si no existe
+        .truncate(true) // Trunca el archivo (borra su contenido)
+        .create(true) // Crea el archivo si no existe
         .open(REPORT_PATH);
 
     match file {
@@ -41,10 +45,7 @@ fn initialize_report() -> Result<(), Error> {
 }
 
 fn write_line_to_report(operation: &str, value: &str, l2_fee: &str, l1_max_fee_per_gas: &str) {
-    let mut file = OpenOptions::new()
-        .append(true)
-        .open(REPORT_PATH)
-        .unwrap();
+    let mut file = OpenOptions::new().append(true).open(REPORT_PATH).unwrap();
 
     writeln!(file, "{operation},{value},{l2_fee},{l1_max_fee_per_gas}").unwrap();
 }
@@ -192,14 +193,19 @@ async fn main() {
 
     let l1_max_fee_per_gas_mint = l1_transaction_mint.max_fee_per_gas.unwrap();
     let l1_max_fee_per_gas_formatted_mint = format!("{:#?}", l1_max_fee_per_gas_mint);
-    
+
     println!(
         "L1 max fee per gas: {}",
         l1_max_fee_per_gas_formatted_mint.cyan()
     );
     println!();
 
-    write_line_to_report("Mint", "nill", &l2_tx_fee_formatted_mint, &l1_max_fee_per_gas_formatted_mint);
+    write_line_to_report(
+        "Mint",
+        "nill",
+        &l2_tx_fee_formatted_mint,
+        &l1_max_fee_per_gas_formatted_mint,
+    );
 
     let values: Vec<&str> = vec![
         "1000", "2000", "3000", "4000", "5000", "6000", "7000", "8000", "9000", "10000",
@@ -269,6 +275,11 @@ async fn main() {
         );
         println!();
 
-        write_line_to_report("Transfer", &value, &l2_tx_fee_formatted_mint, &l1_max_fee_per_gas_formatted_mint);
+        write_line_to_report(
+            "Transfer",
+            &value,
+            &l2_tx_fee_formatted_mint,
+            &l1_max_fee_per_gas_formatted_mint,
+        );
     }
 }
