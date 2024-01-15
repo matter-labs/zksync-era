@@ -49,6 +49,9 @@ blake2 = "0.10"
 # `ethereum-types` version used in `parity-crypto`
 ethereum_types_old = { package = "ethereum-types", version = "0.12.0" }
 
+c-kzg = { git = "https://github.com/ethereum/c-kzg-4844.git", rev = "e266280d88f006b23925c5062476b316d5407cb1" }
+zkevm_circuits = { git = "https://github.com/matter-labs/zkevm_circuits.git", rev = "f7c610e2ba15e6e426a6f474b722f095c5921dbe" }
+
 [dev-dependencies]
 secp256k1 = { version = "0.27", features = ["recovery"] }
 tokio = { version = "1", features = ["rt", "macros"] }

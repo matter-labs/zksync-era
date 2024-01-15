@@ -801,6 +801,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "bindgen"
+version = "0.66.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2b84e06fc203107bfbad243f4aba2af864eb7db3b1cf46ea0a023b0b433d2a7"
+dependencies = [
+ "bitflags 2.4.1",
+ "cexpr",
+ "clang-sys",
+ "lazy_static",
+ "lazycell",
+ "log",
+ "peeking_take_while",
+ "prettyplease",
+ "proc-macro2 1.0.69",
+ "quote 1.0.33",
+ "regex",
+ "rustc-hash",
+ "shlex",
+ "syn 2.0.38",
+ "which",
+]
+
+[[package]]
 name = "bit-vec"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1139,6 +1162,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "c-kzg"
+version = "0.1.0"
+source = "git+https://github.com/ethereum/c-kzg-4844.git?rev=e266280d88f006b23925c5062476b316d5407cb1#e266280d88f006b23925c5062476b316d5407cb1"
+dependencies = [
+ "bindgen 0.66.1",
+ "blst",
+ "cc",
+ "glob",
+ "hex",
+ "libc",
+ "serde",
+]
+
+[[package]]
 name = "camino"
 version = "1.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1322,7 +1359,7 @@ dependencies = [
  "serde",
  "snark_wrapper",
  "zk_evm 1.4.1",
- "zkevm_circuits 1.4.1",
+ "zkevm_circuits 1.4.1 (git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.4.1)",
 ]
 
 [[package]]
@@ -3801,7 +3838,7 @@ version = "0.11.0+8.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3386f101bcb4bd252d8e9d2fb41ec3b0862a15a62b478c355b2982efa469e3e"
 dependencies = [
- "bindgen",
+ "bindgen 0.65.1",
  "bzip2-sys",
  "cc",
  "glob",
@@ -8597,6 +8634,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "zkevm_circuits"
+version = "1.4.1"
+source = "git+https://github.com/matter-labs/zkevm_circuits.git?rev=f7c610e2ba15e6e426a6f474b722f095c5921dbe#f7c610e2ba15e6e426a6f474b722f095c5921dbe"
+dependencies = [
+ "arrayvec 0.7.4",
+ "bincode",
+ "boojum",
+ "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum.git?branch=main)",
+ "derivative",
+ "hex",
+ "itertools 0.10.5",
+ "rand 0.4.6",
+ "rand 0.8.5",
+ "seq-macro",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "zkevm_opcode_defs 1.4.1",
+]
+
+[[package]]
 name = "zkevm_opcode_defs"
 version = "1.3.1"
 source = "git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.3.1#00d4ad2292bd55374a0fa10fe11686d7a109d8a0"
@@ -9400,6 +9458,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "c-kzg",
  "chrono",
  "codegen 0.1.0",
  "ethereum-types 0.12.1",
@@ -9420,6 +9479,7 @@ dependencies = [
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zk_evm 1.4.0",
  "zk_evm 1.4.1",
+ "zkevm_circuits 1.4.1 (git+https://github.com/matter-labs/zkevm_circuits.git?rev=f7c610e2ba15e6e426a6f474b722f095c5921dbe)",
  "zkevm_test_harness 1.3.3",
  "zksync_basic_types",
  "zksync_config",
