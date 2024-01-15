@@ -265,7 +265,8 @@ impl BlockReverter {
         transaction
             .storage_logs_dal()
             .rollback_storage(last_miniblock_to_keep)
-            .await;
+            .await
+            .expect("failed rolling back storage");
         tracing::info!("rolling back storage logs...");
         transaction
             .storage_logs_dal()

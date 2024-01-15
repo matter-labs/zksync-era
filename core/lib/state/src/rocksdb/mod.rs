@@ -257,8 +257,11 @@ impl RocksdbStorage {
             let storage_logs = storage
                 .storage_logs_dal()
                 .get_touched_slots_for_l1_batch(current_l1_batch_number)
-                .await;
-            self.apply_storage_logs(storage_logs, storage).await;
+                .await
+                .with_context(|| {
+                    format!("failed loading touched slots for L1 batch {current_l1_batch_number}")
+                })?;
+            self.apply_storage_logs(storage_logs, storage).await?;
 
             tracing::debug!("Loading factory deps for L1 batch {current_l1_batch_number}");
             let factory_deps = storage
@@ -292,7 +295,7 @@ impl RocksdbStorage {
             if *stop_receiver.borrow() {
                 return Err(RocksdbUpdateError::Interrupted);
             }
-            self.save_missing_enum_indices(storage).await;
+            self.save_missing_enum_indices(storage).await?;
         }
         Ok(())
     }
@@ -301,12 +304,12 @@ impl RocksdbStorage {
         &mut self,
         storage_logs: HashMap<StorageKey, H256>,
         storage: &mut StorageProcessor<'_>,
-    ) {
+    ) -> anyhow::Result<()> {
         let db = self.db.clone();
         let processed_logs =
             tokio::task::spawn_blocking(move || Self::process_transaction_logs(&db, storage_logs))
                 .await
-                .unwrap();
+                .context("panicked processing storage logs")?;
 
         let (logs_with_known_indices, logs_with_unknown_indices): (Vec<_>, Vec<_>) = processed_logs
             .into_iter()
@@ -322,10 +325,11 @@ impl RocksdbStorage {
         let enum_indices_and_batches = storage
             .storage_logs_dal()
             .get_l1_batches_and_indices_for_initial_writes(&keys_with_unknown_indices)
-            .await;
-        assert_eq!(
-            keys_with_unknown_indices.len(),
-            enum_indices_and_batches.len()
+            .await
+            .context("failed getting enumeration indices for storage logs")?;
+        anyhow::ensure!(
+            keys_with_unknown_indices.len() == enum_indices_and_batches.len(),
+            "Inconsistent Postgres data: not all new storage logs have enumeration indices"
         );
         self.pending_patch.state = logs_with_known_indices
             .into_iter()
@@ -335,14 +339,18 @@ impl RocksdbStorage {
                     .map(|(key, value)| (key, (value, enum_indices_and_batches[&key].1))),
             )
             .collect();
+        Ok(())
     }
 
-    async fn save_missing_enum_indices(&self, storage: &mut StorageProcessor<'_>) {
+    async fn save_missing_enum_indices(
+        &self,
+        storage: &mut StorageProcessor<'_>,
+    ) -> anyhow::Result<()> {
         let (true, Some(start_from)) = (
             self.enum_index_migration_chunk_size > 0,
             self.enum_migration_start_from().await,
         ) else {
-            return;
+            return Ok(());
         };
 
         let started_at = Instant::now();
@@ -373,7 +381,8 @@ impl RocksdbStorage {
         let enum_indices_and_batches = storage
             .storage_logs_dal()
             .get_l1_batches_and_indices_for_initial_writes(&keys)
-            .await;
+            .await
+            .context("failed getting enumeration indices for storage logs")?;
         assert_eq!(keys.len(), enum_indices_and_batches.len());
         let key_count = keys.len();
 
@@ -411,15 +420,16 @@ impl RocksdbStorage {
                 }
             }
             db.write(write_batch)
-                .expect("failed to save state data into rocksdb");
+                .context("failed saving enum indices to RocksDB")
         })
         .await
-        .unwrap();
+        .context("panicked while saving enum indices to RocksDB")??;
 
         tracing::info!(
             "RocksDB enum index migration chunk took {:?}, migrated {key_count} keys",
             started_at.elapsed()
         );
+        Ok(())
     }
 
     fn read_value_inner(&self, key: &StorageKey) -> Option<StorageValue> {
@@ -468,7 +478,8 @@ impl RocksdbStorage {
         let logs = connection
             .storage_logs_dal()
             .get_storage_logs_for_revert(last_l1_batch_to_keep)
-            .await;
+            .await
+            .context("failed getting logs for rollback")?;
         tracing::info!("Got {} logs, took {:?}", logs.len(), stage_start.elapsed());
 
         tracing::info!("Getting number of last miniblock for L1 batch #{last_l1_batch_to_keep}...");
@@ -491,7 +502,10 @@ impl RocksdbStorage {
         let factory_deps = connection
             .storage_dal()
             .get_factory_deps_for_revert(last_miniblock_to_keep)
-            .await;
+            .await
+            .with_context(|| {
+                format!("failed fetching factory deps for miniblock #{last_miniblock_to_keep}")
+            })?;
         tracing::info!(
             "Got {} factory deps, took {:?}",
             factory_deps.len(),

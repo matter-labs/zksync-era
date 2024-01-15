@@ -222,7 +222,8 @@ async fn prepare_postgres(
             let expected_l1_batches_and_indices = conn
                 .storage_logs_dal()
                 .get_l1_batches_and_indices_for_initial_writes(&hashed_keys)
-                .await;
+                .await
+                .unwrap();
 
             let logs = logs.into_iter().map(|log| {
                 let (l1_batch_number_of_initial_write, enumeration_index) =

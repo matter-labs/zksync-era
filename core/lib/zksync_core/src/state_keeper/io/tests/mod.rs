@@ -259,7 +259,8 @@ async fn processing_storage_logs_when_sealing_miniblock() {
     let touched_slots = conn
         .storage_logs_dal()
         .get_touched_slots_for_l1_batch(l1_batch_number)
-        .await;
+        .await
+        .unwrap();
 
     // Keys that are only read must not be written to `storage_logs`.
     let account = AccountTreeId::default();

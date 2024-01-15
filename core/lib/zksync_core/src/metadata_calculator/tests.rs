@@ -528,6 +528,7 @@ async fn insert_initial_writes_for_batch(
         .storage_logs_dal()
         .get_touched_slots_for_l1_batch(l1_batch_number)
         .await
+        .unwrap()
         .into_iter()
         .filter_map(|(key, value)| (!value.is_zero()).then_some(key))
         .collect();
@@ -633,7 +634,8 @@ async fn deduplication_works_as_expected() {
     let initial_writes = storage
         .storage_logs_dal()
         .get_l1_batches_and_indices_for_initial_writes(&hashed_keys)
-        .await;
+        .await
+        .unwrap();
     assert_eq!(initial_writes.len(), hashed_keys.len());
     assert!(initial_writes
         .values()
@@ -652,7 +654,8 @@ async fn deduplication_works_as_expected() {
     let initial_writes = storage
         .storage_logs_dal()
         .get_l1_batches_and_indices_for_initial_writes(&hashed_keys)
-        .await;
+        .await
+        .unwrap();
     assert_eq!(initial_writes.len(), hashed_keys.len());
     assert!(initial_writes
         .values()
@@ -661,7 +664,8 @@ async fn deduplication_works_as_expected() {
     let initial_writes = storage
         .storage_logs_dal()
         .get_l1_batches_and_indices_for_initial_writes(&new_hashed_keys)
-        .await;
+        .await
+        .unwrap();
     assert_eq!(initial_writes.len(), new_hashed_keys.len());
     assert!(initial_writes
         .values()
@@ -677,7 +681,8 @@ async fn deduplication_works_as_expected() {
     let initial_writes = storage
         .storage_logs_dal()
         .get_l1_batches_and_indices_for_initial_writes(&no_op_hashed_keys)
-        .await;
+        .await
+        .unwrap();
     assert!(initial_writes.is_empty());
 
     let updated_logs: Vec<_> = no_op_logs
@@ -694,7 +699,8 @@ async fn deduplication_works_as_expected() {
     let initial_writes = storage
         .storage_logs_dal()
         .get_l1_batches_and_indices_for_initial_writes(&no_op_hashed_keys)
-        .await;
+        .await
+        .unwrap();
     assert_eq!(initial_writes.len(), no_op_hashed_keys.len() / 2);
     for key in no_op_hashed_keys.iter().step_by(2) {
         assert_eq!(initial_writes[key].0, L1BatchNumber(4));

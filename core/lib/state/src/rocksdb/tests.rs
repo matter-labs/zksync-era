@@ -217,7 +217,7 @@ async fn rocksdb_enum_index_migration() {
     assert_eq!(start_from, Some(H256::zero()));
 
     // Migrate the first half.
-    storage.save_missing_enum_indices(&mut conn).await;
+    storage.save_missing_enum_indices(&mut conn).await.unwrap();
     for key in ordered_keys_to_migrate.iter().take(10) {
         let expected_index = enum_indices[&key.hashed_key()];
         assert_eq!(storage.get_enumeration_index(key), Some(expected_index));
@@ -228,7 +228,7 @@ async fn rocksdb_enum_index_migration() {
     assert!(non_migrated_state_value.enum_index.is_none());
 
     // Migrate the second half.
-    storage.save_missing_enum_indices(&mut conn).await;
+    storage.save_missing_enum_indices(&mut conn).await.unwrap();
     for key in ordered_keys_to_migrate.iter().skip(10) {
         let expected_index = enum_indices[&key.hashed_key()];
         assert_eq!(storage.get_enumeration_index(key), Some(expected_index));
@@ -239,7 +239,7 @@ async fn rocksdb_enum_index_migration() {
     assert!(start_from.is_some());
 
     // Check that migration will be marked as completed after the next iteration.
-    storage.save_missing_enum_indices(&mut conn).await;
+    storage.save_missing_enum_indices(&mut conn).await.unwrap();
     let start_from = storage.enum_migration_start_from().await;
     assert!(start_from.is_none());
 }

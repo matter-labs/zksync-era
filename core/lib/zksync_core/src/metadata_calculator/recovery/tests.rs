@@ -109,7 +109,8 @@ async fn prepare_recovery_snapshot(
     let genesis_logs = storage
         .storage_logs_dal()
         .get_touched_slots_for_l1_batch(L1BatchNumber(0))
-        .await;
+        .await
+        .unwrap();
     let genesis_logs = genesis_logs
         .into_iter()
         .map(|(key, value)| StorageLog::new_write_log(key, value));

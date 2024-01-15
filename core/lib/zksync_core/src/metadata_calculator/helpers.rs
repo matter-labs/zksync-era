@@ -383,7 +383,8 @@ impl L1BatchWithLogs {
         let mut touched_slots = storage
             .storage_logs_dal()
             .get_touched_slots_for_l1_batch(l1_batch_number)
-            .await;
+            .await
+            .unwrap();
         touched_slots_latency.observe_with_count(touched_slots.len());
 
         let leaf_indices_latency = METRICS.start_load_stage(LoadChangesStage::LoadLeafIndices);
@@ -392,7 +393,8 @@ impl L1BatchWithLogs {
         let l1_batches_for_initial_writes = storage
             .storage_logs_dal()
             .get_l1_batches_and_indices_for_initial_writes(&hashed_keys_for_writes)
-            .await;
+            .await
+            .unwrap();
         leaf_indices_latency.observe_with_count(hashed_keys_for_writes.len());
 
         let mut storage_logs = BTreeMap::new();
@@ -461,7 +463,8 @@ mod tests {
             let touched_slots = storage
                 .storage_logs_dal()
                 .get_touched_slots_for_l1_batch(l1_batch_number)
-                .await;
+                .await
+                .unwrap();
 
             let mut storage_logs = BTreeMap::new();
 
@@ -473,11 +476,13 @@ mod tests {
             let previous_values = storage
                 .storage_logs_dal()
                 .get_previous_storage_values(&hashed_keys, l1_batch_number)
-                .await;
+                .await
+                .unwrap();
             let l1_batches_for_initial_writes = storage
                 .storage_logs_dal()
                 .get_l1_batches_and_indices_for_initial_writes(&hashed_keys)
-                .await;
+                .await
+                .unwrap();
 
             for storage_key in protective_reads {
                 let previous_value = previous_values[&storage_key.hashed_key()].unwrap_or_default();
