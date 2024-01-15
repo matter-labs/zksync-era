@@ -6,11 +6,11 @@ use super::Resource;
 #[derive(Debug, Clone)]
 pub struct MasterPoolResource(ConnectionPoolBuilder);
 
-impl Resource for MasterPoolResource {}
+impl Resource for MasterPoolResource {
+    const RESOURCE_NAME: &'static str = "common/master_pool";
+}
 
 impl MasterPoolResource {
-    pub const RESOURCE_NAME: &str = "common/master_pool";
-
     pub fn new(builder: ConnectionPoolBuilder) -> Self {
         Self(builder)
     }
@@ -28,11 +28,11 @@ impl MasterPoolResource {
 #[derive(Debug, Clone)]
 pub struct ReplicaPoolResource(ConnectionPoolBuilder);
 
-impl Resource for ReplicaPoolResource {}
+impl Resource for ReplicaPoolResource {
+    const RESOURCE_NAME: &'static str = "common/replica_pool";
+}
 
 impl ReplicaPoolResource {
-    pub const RESOURCE_NAME: &str = "common/replica_pool";
-
     pub fn new(builder: ConnectionPoolBuilder) -> Self {
         Self(builder)
     }
@@ -50,11 +50,11 @@ impl ReplicaPoolResource {
 #[derive(Debug, Clone)]
 pub struct ProverPoolResource(ConnectionPoolBuilder);
 
-impl Resource for ProverPoolResource {}
+impl Resource for ProverPoolResource {
+    const RESOURCE_NAME: &'static str = "common/prover_pool";
+}
 
 impl ProverPoolResource {
-    pub const RESOURCE_NAME: &str = "common/prover_pool";
-
     pub fn new(builder: ConnectionPoolBuilder) -> Self {
         Self(builder)
     }

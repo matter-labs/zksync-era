@@ -1,39 +1,30 @@
 use prometheus_exporter::PrometheusExporterConfig;
-use tokio::sync::watch;
 use zksync_health_check::{CheckHealth, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 
 use super::{IntoZkSyncTask, TaskInitError, ZkSyncTask};
-use crate::{node::NodeContext, resource::stop_receiver::StopReceiverResource};
+use crate::node::{NodeContext, StopReceiver};
 
 #[derive(Debug)]
 pub struct PrometheusExporterTask {
     config: PrometheusExporterConfig,
     prometheus_health_check: Option<ReactiveHealthCheck>,
     prometheus_health_updater: HealthUpdater,
-    stop_receiver: watch::Receiver<bool>,
 }
 
 impl IntoZkSyncTask for PrometheusExporterTask {
     type Config = PrometheusExporterConfig;
 
     fn create(
-        node: &NodeContext<'_>,
+        _node: &NodeContext<'_>,
         config: Self::Config,
     ) -> Result<Box<dyn ZkSyncTask>, TaskInitError> {
         let (prometheus_health_check, prometheus_health_updater) =
             ReactiveHealthCheck::new("prometheus_exporter");
 
-        let stop_receiver: StopReceiverResource = node
-            .get_resource(StopReceiverResource::RESOURCE_NAME)
-            .ok_or(TaskInitError::ResourceLacking(
-                StopReceiverResource::RESOURCE_NAME,
-            ))?;
-
         Ok(Box::new(Self {
             config,
             prometheus_health_check: Some(prometheus_health_check),
             prometheus_health_updater,
-            stop_receiver: stop_receiver.0,
         }))
     }
 }
@@ -46,8 +37,8 @@ impl ZkSyncTask for PrometheusExporterTask {
             .map(|c| Box::new(c) as Box<dyn CheckHealth>)
     }
 
-    async fn run(self: Box<Self>) -> anyhow::Result<()> {
-        let prometheus_task = self.config.run(self.stop_receiver);
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        let prometheus_task = self.config.run(stop_receiver.0);
         self.prometheus_health_updater
             .update(HealthStatus::Ready.into());
         let res = prometheus_task.await;

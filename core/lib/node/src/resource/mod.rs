@@ -2,11 +2,18 @@ use std::{any::Any, fmt};
 
 pub mod object_store;
 pub mod pools;
-pub mod stop_receiver;
 
 /// A marker trait for anything that can be stored (and retrieved) as a resource.
 /// Requires `Clone` since the same resource may be requested by several tasks.
-pub trait Resource: 'static + Clone + std::any::Any {}
+pub trait Resource: 'static + Clone + std::any::Any {
+    /// Unique identifier of the resource.
+    /// Used to fetch the resource from the provider.
+    ///
+    /// It is recommended to name resources in form of `<scope>/<name>`, where `<scope>` is the name of the task
+    /// that will use this resource, or 'common' in case it is used by several tasks, and `<name>` is the name
+    /// of the resource itself.
+    const RESOURCE_NAME: &'static str;
+}
 
 /// An entitity that knows how to initialize resources.
 ///
@@ -23,5 +30,6 @@ pub trait ResourceProvider: 'static + Send + Sync + fmt::Debug {
     /// In case it isn't possible to obtain the resource (for example, if some error occurred during initialization),
     /// the provider is free to either return `None` (if it assumes that the node can continue without this resource),
     /// or to panic.
+    // Note: we have to use `Box<dyn Any>` here, since we can't use `Box<dyn Resource>` due to it not being object-safe.
     fn get_resource(&self, name: &str) -> Option<Box<dyn Any>>;
 }

@@ -4,7 +4,7 @@ use zksync_env_config::FromEnv;
 use zksync_node::{
     healthcheck::IntoHealthCheckTask,
     node::ZkSyncNode,
-    resource::{pools::MasterPoolResource, ResourceProvider},
+    resource::{pools::MasterPoolResource, Resource, ResourceProvider},
     task::{
         healtcheck_server::HealthCheckTask, metadata_calculator::MetadataCalculatorTask,
         IntoZkSyncTask,

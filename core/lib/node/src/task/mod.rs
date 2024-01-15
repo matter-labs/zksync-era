@@ -1,7 +1,7 @@
 use futures::future::BoxFuture;
 use zksync_health_check::CheckHealth;
 
-use crate::node::NodeContext;
+use crate::node::{NodeContext, StopReceiver};
 
 pub mod healtcheck_server;
 pub mod metadata_calculator;
@@ -36,7 +36,7 @@ pub trait ZkSyncTask: 'static + Send + Sync {
     /// If the task returns an error, the node will spawn an error-level log message and will return a non-zero exit code.
     ///
     /// Each task is expected to perform the required cleanup after receiving the stop signal (e.g. make sure that spawned sub-tasks are awaited).
-    async fn run(self: Box<Self>) -> anyhow::Result<()>;
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()>;
 
     /// Asynchronous hook that will be called after *each task* has finished their cleanup.
     /// It is guaranteed that no other task is running at this point, e.g. `ZkSyncNode` will invoke
