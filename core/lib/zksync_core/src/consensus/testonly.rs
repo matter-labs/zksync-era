@@ -141,7 +141,7 @@ impl MainNodeClient for MockMainNodeClient {
 
 /// Fake StateKeeper for tests.
 pub(super) struct StateKeeper {
-    // Batch of the last_block.
+    // Batch of the `last_block`.
     last_batch: L1BatchNumber,
     last_block: MiniblockNumber,
     // timestamp of the last block.

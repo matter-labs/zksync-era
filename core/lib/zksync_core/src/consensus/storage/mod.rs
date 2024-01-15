@@ -339,7 +339,7 @@ impl PersistentBlockStore for BlockStore {
         ctx: &ctx::Ctx,
         block: &validator::FinalBlock,
     ) -> ctx::Result<()> {
-        // This mutex prevents concurrent store_next_block calls.
+        // This mutex prevents concurrent `store_next_block` calls.
         let mut guard = ctx.wait(self.store_next_block_mutex.lock()).await?;
         if let Some(cursor) = &mut *guard {
             cursor.advance(block).await.context("cursor.advance()")?;
