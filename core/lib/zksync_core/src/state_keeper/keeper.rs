@@ -163,7 +163,8 @@ impl ZkSyncStateKeeper {
                 system_env.clone(),
                 &self.stop_receiver,
             )
-            .await;
+            .await
+            .ok_or(Error::Canceled)?;
 
         self.restore_state(&batch_executor, &mut updates_manager, pending_miniblocks)
             .await?;
@@ -219,7 +220,8 @@ impl ZkSyncStateKeeper {
                     system_env.clone(),
                     &self.stop_receiver,
                 )
-                .await;
+                .await
+                .ok_or(Error::Canceled)?;
 
             let version_changed = system_env.version != sealed_batch_protocol_version;
 

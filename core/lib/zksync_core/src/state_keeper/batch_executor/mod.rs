@@ -76,7 +76,7 @@ pub trait L1BatchExecutorBuilder: 'static + Send + Sync + fmt::Debug {
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> BatchExecutorHandle;
+    ) -> Option<BatchExecutorHandle>;
 }
 
 /// The default implementation of [`L1BatchExecutorBuilder`].
@@ -120,18 +120,22 @@ impl L1BatchExecutorBuilder for MainBatchExecutorBuilder {
         &mut self,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
-        _stop_receiver: &watch::Receiver<bool>,
-    ) -> BatchExecutorHandle {
-        let mut secondary_storage = RocksdbStorage::new(self.state_keeper_db_path.as_ref()).await;
+        stop_receiver: &watch::Receiver<bool>,
+    ) -> Option<BatchExecutorHandle> {
+        let mut secondary_storage =
+            RocksdbStorage::builder(self.state_keeper_db_path.as_ref()).await;
         secondary_storage.enable_enum_index_migration(self.enum_index_migration_chunk_size);
         let mut conn = self
             .pool
             .access_storage_tagged("state_keeper")
             .await
             .unwrap();
-        secondary_storage.update_from_postgres(&mut conn).await;
+        let secondary_storage = secondary_storage
+            .synchronize(&mut conn, stop_receiver)
+            .await
+            .expect("Failed synchronizing secondary state keeper storage")?;
 
-        BatchExecutorHandle::new(
+        Some(BatchExecutorHandle::new(
             self.save_call_traces,
             self.max_allowed_tx_gas_limit,
             secondary_storage,
@@ -139,7 +143,7 @@ impl L1BatchExecutorBuilder for MainBatchExecutorBuilder {
             system_env,
             self.upload_witness_inputs_to_gcs,
             self.optional_bytecode_compression,
-        )
+        ))
     }
 }
 

@@ -13,7 +13,7 @@ use crate::test_utils::{
 #[tokio::test]
 async fn rocksdb_storage_basics() {
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = RocksdbStorage::new(dir.path()).await;
+    let mut storage = RocksdbStorage::new(dir.path().to_path_buf()).await;
     let mut storage_logs: HashMap<_, _> = gen_storage_logs(0..20)
         .into_iter()
         .map(|log| (log.key, log.value))
@@ -48,6 +48,16 @@ async fn rocksdb_storage_basics() {
     }
 }
 
+async fn sync_test_storage(dir: &TempDir, conn: &mut StorageProcessor<'_>) -> RocksdbStorage {
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    RocksdbStorage::builder(dir.path())
+        .await
+        .synchronize(conn, &stop_receiver)
+        .await
+        .unwrap()
+        .expect("Storage synchronization unexpectedly stopped")
+}
+
 #[tokio::test]
 async fn rocksdb_storage_syncing_with_postgres() {
     let pool = ConnectionPool::test_pool().await;
@@ -58,8 +68,7 @@ async fn rocksdb_storage_syncing_with_postgres() {
     create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = RocksdbStorage::new(dir.path()).await;
-    storage.update_from_postgres(&mut conn).await;
+    let mut storage = sync_test_storage(&dir, &mut conn).await;
 
     assert_eq!(storage.l1_batch_number().await, Some(L1BatchNumber(2)));
     for log in &storage_logs {
@@ -109,8 +118,7 @@ async fn rocksdb_storage_revert() {
     create_l1_batch(&mut conn, L1BatchNumber(2), &inserted_storage_logs).await;
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = RocksdbStorage::new(dir.path()).await;
-    storage.update_from_postgres(&mut conn).await;
+    let mut storage = sync_test_storage(&dir, &mut conn).await;
 
     // Perform some sanity checks before the revert.
     assert_eq!(storage.l1_batch_number().await, Some(L1BatchNumber(3)));
@@ -130,7 +138,7 @@ async fn rocksdb_storage_revert() {
         }
     }
 
-    storage.rollback(&mut conn, L1BatchNumber(1)).await;
+    storage.rollback(&mut conn, L1BatchNumber(1)).await.unwrap();
     assert_eq!(storage.l1_batch_number().await, Some(L1BatchNumber(2)));
     {
         for log in &inserted_storage_logs {
@@ -169,8 +177,7 @@ async fn rocksdb_enum_index_migration() {
         .collect();
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = RocksdbStorage::new(dir.path()).await;
-    storage.update_from_postgres(&mut conn).await;
+    let mut storage = sync_test_storage(&dir, &mut conn).await;
 
     assert_eq!(storage.l1_batch_number().await, Some(L1BatchNumber(2)));
     // Check that enum indices are correct after syncing with Postgres.
@@ -204,7 +211,7 @@ async fn rocksdb_enum_index_migration() {
         .sorted_by_key(StorageKey::hashed_key)
         .collect();
 
-    storage.enable_enum_index_migration(10);
+    storage.enum_index_migration_chunk_size = 10;
     let start_from = storage.enum_migration_start_from().await;
     assert_eq!(start_from, Some(H256::zero()));
 
@@ -244,7 +251,7 @@ async fn low_level_snapshot_recovery() {
         prepare_postgres_for_snapshot_recovery(&mut conn).await;
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = RocksdbStorage::new(dir.path()).await;
+    let mut storage = RocksdbStorage::new(dir.path().to_path_buf()).await;
     let next_l1_batch = storage.ensure_ready(&mut conn).await.unwrap();
     assert_eq!(next_l1_batch, snapshot_recovery.l1_batch_number + 1);
     assert_eq!(
@@ -304,8 +311,7 @@ async fn recovering_from_snapshot_and_following_logs() {
     create_l1_batch(&mut conn, snapshot_recovery.l1_batch_number + 2, &[]).await;
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = RocksdbStorage::new(dir.path()).await;
-    storage.update_from_postgres(&mut conn).await;
+    let mut storage = sync_test_storage(&dir, &mut conn).await;
 
     for (i, log) in new_storage_logs.iter().enumerate() {
         assert_eq!(storage.read_value(&log.key), log.value);
