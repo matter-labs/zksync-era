@@ -95,6 +95,7 @@ export async function lightweightInit() {
     await announced('Deploying L1 verifier', contract.deployVerifier([]));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromBinary());
+    await announced('Deploying localhost ERC20 tokens', run.deployERC20('dev', '', '', '', []));
     await announced('Deploying L1 contracts', contract.redeployL1([]));
     await announced('Initializing validator', contract.initializeValidator());
     await announced('Deploying L2 contracts', contract.deployL2([], true, false));
