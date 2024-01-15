@@ -187,7 +187,7 @@ impl ProtoFmt for Payload {
             l1_gas_price: *required(&message.l1_gas_price).context("l1_gas_price")?,
             l2_fair_gas_price: *required(&message.l2_fair_gas_price)
                 .context("l2_fair_gas_price")?,
-            fair_pubdata_price: message.fair_pubdata_price.map(|v| v.into()),
+            fair_pubdata_price: message.fair_pubdata_price,
             virtual_blocks: *required(&message.virtual_blocks).context("virtual_blocks")?,
             operator_address: required(&message.operator_address)
                 .and_then(|a| parse_h160(a))
