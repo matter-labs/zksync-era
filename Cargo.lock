@@ -8993,6 +8993,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "vlog",
  "zksync_config",
  "zksync_core",
  "zksync_dal",

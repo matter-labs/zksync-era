@@ -39,6 +39,12 @@ impl ResourceProvider for MainNodeResourceProvider {
 }
 
 fn main() -> anyhow::Result<()> {
+    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
+    let log_format = vlog::log_format_from_env();
+    let _guard = vlog::ObservabilityBuilder::new()
+        .with_log_format(log_format)
+        .build();
+
     let mut node = ZkSyncNode::new(MainNodeResourceProvider)?;
 
     let merkle_tree_env_config = zksync_config::DBConfig::from_env()?.merkle_tree;

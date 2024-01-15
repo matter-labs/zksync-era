@@ -28,3 +28,4 @@ tokio = { version = "1", features = ["rt"] }
 
 [dev-dependencies]
 zksync_env_config = { path = "../env_config" }
+vlog = { path = "../vlog" }
