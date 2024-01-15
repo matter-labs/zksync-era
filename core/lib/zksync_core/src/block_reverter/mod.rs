@@ -209,7 +209,7 @@ impl BlockReverter {
         tracing::info!("opening DB with state keeper cache...");
         let mut sk_cache = RocksdbStorage::new(self.state_keeper_cache_path.as_ref());
 
-        if sk_cache.l1_batch_number() > last_l1_batch_to_keep + 1 {
+        if sk_cache.l1_batch_number().await > Some(last_l1_batch_to_keep + 1) {
             let mut storage = self.connection_pool.access_storage().await.unwrap();
             tracing::info!("rolling back state keeper cache...");
             sk_cache.rollback(&mut storage, last_l1_batch_to_keep).await;

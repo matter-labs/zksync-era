@@ -15,7 +15,7 @@ pub const IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID: u32 = 270;
 /// In-memory storage.
 #[derive(Debug, Default, Clone)]
 pub struct InMemoryStorage {
-    pub(crate) state: HashMap<StorageKey, (StorageValue, u64)>,
+    pub(crate) state: HashMap<H256, (StorageValue, u64)>,
     pub(crate) factory_deps: HashMap<H256, Vec<u8>>,
     last_enum_index_set: u64,
 }
@@ -68,7 +68,7 @@ impl InMemoryStorage {
         let state: HashMap<_, _> = state_without_indices
             .into_iter()
             .enumerate()
-            .map(|(idx, (key, value))| (key, (value, idx as u64 + 1)))
+            .map(|(idx, (key, value))| (key.hashed_key(), (value, idx as u64 + 1)))
             .collect();
 
         let factory_deps = contracts
@@ -86,7 +86,7 @@ impl InMemoryStorage {
 
     /// Sets the storage `value` at the specified `key`.
     pub fn set_value(&mut self, key: StorageKey, value: StorageValue) {
-        match self.state.entry(key) {
+        match self.state.entry(key.hashed_key()) {
             Entry::Occupied(mut entry) => {
                 entry.get_mut().0 = value;
             }
@@ -101,24 +101,19 @@ impl InMemoryStorage {
     pub fn store_factory_dep(&mut self, hash: H256, bytecode: Vec<u8>) {
         self.factory_deps.insert(hash, bytecode);
     }
-
-    /// Get internal state of the storage.
-    pub fn get_state(&self) -> &HashMap<StorageKey, (StorageValue, u64)> {
-        &self.state
-    }
 }
 
 impl ReadStorage for &InMemoryStorage {
     fn read_value(&mut self, key: &StorageKey) -> StorageValue {
         self.state
-            .get(key)
+            .get(&key.hashed_key())
             .map(|(value, _)| value)
             .copied()
             .unwrap_or_default()
     }
 
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        !self.state.contains_key(key)
+        !self.state.contains_key(&key.hashed_key())
     }
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
@@ -126,7 +121,7 @@ impl ReadStorage for &InMemoryStorage {
     }
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
-        self.state.get(key).map(|(_, idx)| *idx)
+        self.state.get(&key.hashed_key()).map(|(_, idx)| *idx)
     }
 }
 
