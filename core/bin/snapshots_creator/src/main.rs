@@ -19,7 +19,6 @@ use zksync_object_store::ObjectStoreFactory;
 
 use crate::creator::SnapshotCreator;
 
-mod chunking;
 mod creator;
 mod metrics;
 #[cfg(test)]

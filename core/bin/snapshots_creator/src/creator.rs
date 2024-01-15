@@ -9,19 +9,16 @@ use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_object_store::ObjectStore;
 use zksync_types::{
     snapshots::{
-        SnapshotFactoryDependencies, SnapshotMetadata, SnapshotStorageLogsChunk,
-        SnapshotStorageLogsStorageKey,
+        uniform_hashed_keys_chunk, SnapshotFactoryDependencies, SnapshotMetadata,
+        SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
     },
     L1BatchNumber, MiniblockNumber,
 };
 use zksync_utils::ceil_div;
 
+use crate::metrics::{FactoryDepsStage, StorageChunkStage, METRICS};
 #[cfg(test)]
 use crate::tests::HandleEvent;
-use crate::{
-    chunking::get_chunk_hashed_keys_range,
-    metrics::{FactoryDepsStage, StorageChunkStage, METRICS},
-};
 
 /// Encapsulates progress of creating a particular storage snapshot.
 #[derive(Debug)]
@@ -91,7 +88,7 @@ impl SnapshotCreator {
             return Ok(());
         }
 
-        let hashed_keys_range = get_chunk_hashed_keys_range(chunk_id, chunk_count);
+        let hashed_keys_range = uniform_hashed_keys_chunk(chunk_id, chunk_count);
         let mut conn = self.connect_to_replica().await?;
 
         let latency =

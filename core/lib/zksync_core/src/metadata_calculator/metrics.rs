@@ -197,7 +197,7 @@ pub(super) enum ChunkRecoveryStage {
 #[metrics(prefix = "server_metadata_calculator_recovery")]
 pub(super) struct MetadataCalculatorRecoveryMetrics {
     /// Number of chunks recovered.
-    pub recovered_chunk_count: Gauge<usize>,
+    pub recovered_chunk_count: Gauge<u64>,
     /// Latency of a tree recovery stage (not related to the recovery of a particular chunk;
     /// those metrics are tracked in the `chunk_latency` histogram).
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
