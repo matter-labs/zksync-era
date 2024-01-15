@@ -15,8 +15,9 @@ async fn rocksdb_storage_basics() {
         .into_iter()
         .map(|log| (log.key, log.value))
         .collect();
-    let changed_keys = storage.process_transaction_logs(storage_logs.clone());
+    let changed_keys = RocksdbStorage::process_transaction_logs(&storage.db, storage_logs.clone());
     storage.pending_patch.state = changed_keys
+        .into_iter()
         .map(|(key, state_value)| (key.hashed_key(), (state_value.value, 1))) // enum index doesn't matter in the test
         .collect();
     storage.save(Some(L1BatchNumber(0))).await;
@@ -31,8 +32,9 @@ async fn rocksdb_storage_basics() {
     for log in storage_logs.values_mut().step_by(2) {
         *log = StorageValue::zero();
     }
-    let changed_keys = storage.process_transaction_logs(storage_logs.clone());
+    let changed_keys = RocksdbStorage::process_transaction_logs(&storage.db, storage_logs.clone());
     storage.pending_patch.state = changed_keys
+        .into_iter()
         .map(|(key, state_value)| (key.hashed_key(), (state_value.value, 1))) // enum index doesn't matter in the test
         .collect();
     storage.save(Some(L1BatchNumber(1))).await;
@@ -172,10 +174,7 @@ async fn rocksdb_enum_index_migration() {
     for log in &storage_logs {
         let expected_index = enum_indices[&log.key.hashed_key()];
         assert_eq!(
-            storage
-                .read_state_value(log.key.hashed_key())
-                .unwrap()
-                .enum_index,
+            storage.get_enumeration_index(&log.key),
             Some(expected_index)
         );
     }
@@ -210,31 +209,18 @@ async fn rocksdb_enum_index_migration() {
     storage.save_missing_enum_indices(&mut conn).await;
     for key in ordered_keys_to_migrate.iter().take(10) {
         let expected_index = enum_indices[&key.hashed_key()];
-        assert_eq!(
-            storage
-                .read_state_value(key.hashed_key())
-                .unwrap()
-                .enum_index,
-            Some(expected_index)
-        );
+        assert_eq!(storage.get_enumeration_index(key), Some(expected_index));
     }
-    assert!(storage
-        .read_state_value(ordered_keys_to_migrate[10].hashed_key())
-        .unwrap()
-        .enum_index
-        .is_none());
+    let non_migrated_state_value =
+        RocksdbStorage::read_state_value(&storage.db, ordered_keys_to_migrate[10].hashed_key())
+            .unwrap();
+    assert!(non_migrated_state_value.enum_index.is_none());
 
     // Migrate the second half.
     storage.save_missing_enum_indices(&mut conn).await;
     for key in ordered_keys_to_migrate.iter().skip(10) {
         let expected_index = enum_indices[&key.hashed_key()];
-        assert_eq!(
-            storage
-                .read_state_value(key.hashed_key())
-                .unwrap()
-                .enum_index,
-            Some(expected_index)
-        );
+        assert_eq!(storage.get_enumeration_index(key), Some(expected_index));
     }
 
     // 20 keys were processed but we haven't checked that no keys to migrate are left.

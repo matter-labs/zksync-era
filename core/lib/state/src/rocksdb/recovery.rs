@@ -10,7 +10,7 @@ use zksync_types::{
 };
 use zksync_utils::u256_to_h256;
 
-use super::RocksdbStorage;
+use super::{RocksdbStorage, StateValue};
 
 impl RocksdbStorage {
     /// Ensures that this storage is ready for normal operation (i.e., updates by L1 batch).
@@ -101,8 +101,10 @@ impl RocksdbStorage {
             };
 
             // Check whether the chunk is already recovered.
-            // FIXME: wrap in `spawn_blocking`
-            if let Some(state_value) = self.read_state_value(u256_to_h256(chunk_start.key)) {
+            let state_value = self
+                .read_state_value_async(u256_to_h256(chunk_start.key))
+                .await;
+            if let Some(state_value) = state_value {
                 anyhow::ensure!(
                     state_value.value == chunk_start.value && state_value.enum_index == Some(chunk_start.leaf_index),
                     "Mismatch between entry for key {:0>64x} in Postgres snapshot for miniblock #{snapshot_miniblock} \
@@ -124,7 +126,17 @@ impl RocksdbStorage {
                 })?;
             }
         }
+
+        tracing::info!("All chunks recovered; finalizing recovery process");
+        self.save(Some(snapshot_recovery.l1_batch_number + 1)).await;
         Ok(())
+    }
+
+    async fn read_state_value_async(&self, hashed_key: H256) -> Option<StateValue> {
+        let db = self.db.clone();
+        tokio::task::spawn_blocking(move || Self::read_state_value(&db, hashed_key))
+            .await
+            .unwrap()
     }
 
     // TODO: metrics?

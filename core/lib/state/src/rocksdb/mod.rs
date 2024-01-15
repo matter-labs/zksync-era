@@ -206,8 +206,14 @@ impl RocksdbStorage {
         storage_logs: HashMap<StorageKey, H256>,
         storage: &mut StorageProcessor<'_>,
     ) {
-        let (logs_with_known_indices, logs_with_unknown_indices): (Vec<_>, Vec<_>) = self
-            .process_transaction_logs(storage_logs)
+        let db = self.db.clone();
+        let processed_logs =
+            tokio::task::spawn_blocking(move || Self::process_transaction_logs(&db, storage_logs))
+                .await
+                .unwrap();
+
+        let (logs_with_known_indices, logs_with_unknown_indices): (Vec<_>, Vec<_>) = processed_logs
+            .into_iter()
             .partition_map(|(key, StateValue { value, enum_index })| match enum_index {
                 Some(index) => Either::Left((key.hashed_key(), (value, index))),
                 None => Either::Right((key.hashed_key(), value)),
@@ -248,93 +254,105 @@ impl RocksdbStorage {
             "RocksDB enum index migration is not finished, starting from key {start_from:0>64x}"
         );
 
-        let mut write_batch = self.db.new_write_batch();
-        let (keys, values): (Vec<_>, Vec<_>) = self
-            .db
-            .from_iterator_cf(StateKeeperColumnFamily::State, start_from.as_bytes())
-            .filter_map(|(key, value)| {
-                if Self::is_special_key(&key) {
-                    return None;
-                }
-                let state_value = StateValue::deserialize(&value);
-                (state_value.enum_index.is_none())
-                    .then(|| (H256::from_slice(&key), state_value.value))
-            })
-            .take(self.enum_index_migration_chunk_size)
-            .unzip();
+        let db = self.db.clone();
+        let enum_index_migration_chunk_size = self.enum_index_migration_chunk_size;
+        let (keys, values): (Vec<_>, Vec<_>) = tokio::task::spawn_blocking(move || {
+            db.from_iterator_cf(StateKeeperColumnFamily::State, start_from.as_bytes())
+                .filter_map(|(key, value)| {
+                    if Self::is_special_key(&key) {
+                        return None;
+                    }
+                    let state_value = StateValue::deserialize(&value);
+                    state_value
+                        .enum_index
+                        .is_none()
+                        .then(|| (H256::from_slice(&key), state_value.value))
+                })
+                .take(enum_index_migration_chunk_size)
+                .unzip()
+        })
+        .await
+        .unwrap();
+
         let enum_indices_and_batches = storage
             .storage_logs_dal()
             .get_l1_batches_and_indices_for_initial_writes(&keys)
             .await;
         assert_eq!(keys.len(), enum_indices_and_batches.len());
+        let key_count = keys.len();
 
-        for (key, value) in keys.iter().zip(values) {
-            let index = enum_indices_and_batches[key].1;
-            write_batch.put_cf(
-                StateKeeperColumnFamily::State,
-                key.as_bytes(),
-                &StateValue::new(value, Some(index)).serialize(),
-            );
-        }
-
-        let next_key = keys
-            .last()
-            .and_then(|last_key| h256_to_u256(*last_key).checked_add(U256::one()))
-            .map(u256_to_h256);
-        match (next_key, keys.len()) {
-            (Some(next_key), keys_len) if keys_len == self.enum_index_migration_chunk_size => {
+        let db = self.db.clone();
+        tokio::task::spawn_blocking(move || {
+            let mut write_batch = db.new_write_batch();
+            for (key, value) in keys.iter().zip(values) {
+                let index = enum_indices_and_batches[key].1;
                 write_batch.put_cf(
                     StateKeeperColumnFamily::State,
-                    Self::ENUM_INDEX_MIGRATION_CURSOR,
-                    next_key.as_bytes(),
+                    key.as_bytes(),
+                    &StateValue::new(value, Some(index)).serialize(),
                 );
             }
-            _ => {
-                write_batch.put_cf(
-                    StateKeeperColumnFamily::State,
-                    Self::ENUM_INDEX_MIGRATION_CURSOR,
-                    &[],
-                );
-                tracing::info!("RocksDB enum index migration finished");
-            }
-        }
 
-        // FIXME: wrap in `spawn_blocking`
-        self.db
-            .write(write_batch)
-            .expect("failed to save state data into rocksdb");
+            let next_key = keys
+                .last()
+                .and_then(|last_key| h256_to_u256(*last_key).checked_add(U256::one()))
+                .map(u256_to_h256);
+            match (next_key, keys.len()) {
+                (Some(next_key), keys_len) if keys_len == enum_index_migration_chunk_size => {
+                    write_batch.put_cf(
+                        StateKeeperColumnFamily::State,
+                        Self::ENUM_INDEX_MIGRATION_CURSOR,
+                        next_key.as_bytes(),
+                    );
+                }
+                _ => {
+                    write_batch.put_cf(
+                        StateKeeperColumnFamily::State,
+                        Self::ENUM_INDEX_MIGRATION_CURSOR,
+                        &[],
+                    );
+                    tracing::info!("RocksDB enum index migration finished");
+                }
+            }
+            db.write(write_batch)
+                .expect("failed to save state data into rocksdb");
+        })
+        .await
+        .unwrap();
+
         tracing::info!(
-            "RocksDB enum index migration chunk took {:?}, migrated {} keys",
-            started_at.elapsed(),
-            keys.len()
+            "RocksDB enum index migration chunk took {:?}, migrated {key_count} keys",
+            started_at.elapsed()
         );
     }
 
     fn read_value_inner(&self, key: &StorageKey) -> Option<StorageValue> {
-        self.read_state_value(key.hashed_key())
-            .map(|state_value| state_value.value)
+        Self::read_state_value(&self.db, key.hashed_key()).map(|state_value| state_value.value)
     }
 
-    fn read_state_value(&self, hashed_key: H256) -> Option<StateValue> {
+    fn read_state_value(
+        db: &RocksDB<StateKeeperColumnFamily>,
+        hashed_key: H256,
+    ) -> Option<StateValue> {
         let cf = StateKeeperColumnFamily::State;
-        self.db
-            .get_cf(cf, &Self::serialize_state_key(hashed_key))
+        db.get_cf(cf, &Self::serialize_state_key(hashed_key))
             .expect("failed to read rocksdb state value")
             .map(|value| StateValue::deserialize(&value))
     }
 
     /// Returns storage logs to apply.
     fn process_transaction_logs(
-        &self,
+        db: &RocksDB<StateKeeperColumnFamily>,
         updates: HashMap<StorageKey, H256>,
-    ) -> impl Iterator<Item = (StorageKey, StateValue)> + '_ {
-        updates.into_iter().filter_map(|(key, new_value)| {
-            if let Some(state_value) = self.read_state_value(key.hashed_key()) {
+    ) -> Vec<(StorageKey, StateValue)> {
+        let it = updates.into_iter().filter_map(move |(key, new_value)| {
+            if let Some(state_value) = Self::read_state_value(db, key.hashed_key()) {
                 Some((key, StateValue::new(new_value, state_value.enum_index)))
             } else {
                 (!new_value.is_zero()).then_some((key, StateValue::new(new_value, None)))
             }
-        })
+        });
+        it.collect()
     }
 
     /// Stores a factory dependency with the specified `hash` and `bytecode`.
@@ -516,7 +534,7 @@ impl ReadStorage for RocksdbStorage {
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
         // Can safely unwrap here since it indicates that the migration has not yet ended and boojum will
         // only be deployed when the migration is finished.
-        self.read_state_value(key.hashed_key())
+        Self::read_state_value(&self.db, key.hashed_key())
             .map(|state_value| state_value.enum_index.unwrap())
     }
 }
