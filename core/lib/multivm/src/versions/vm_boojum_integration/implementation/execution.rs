@@ -1,7 +1,5 @@
 use zk_evm_1_4_0::aux_structures::Timestamp;
-use zkevm_test_harness_1_4_0::geometry_config::get_geometry_config;
 use zksync_state::WriteStorage;
-use zksync_types::circuit::CircuitStatistic;
 
 use crate::{
     interface::{
@@ -11,7 +9,8 @@ use crate::{
     vm_boojum_integration::{
         old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
         tracers::{
-            dispatcher::TracerDispatcher, DefaultExecutionTracer, PubdataTracer, RefundsTracer,
+            circuits_capacity::circuit_statistic_from_cycles, dispatcher::TracerDispatcher,
+            DefaultExecutionTracer, PubdataTracer, RefundsTracer,
         },
         vm::Vm,
     },
@@ -82,10 +81,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             spent_pubdata_counter_before,
             pubdata_published,
             logs.total_log_queries_count,
-            CircuitStatistic::from_cycles(
-                tx_tracer.circuits_tracer.statistics,
-                get_geometry_config(),
-            ),
+            circuit_statistic_from_cycles(tx_tracer.circuits_tracer.statistics),
         );
         let result = tx_tracer.result_tracer.into_result();
 

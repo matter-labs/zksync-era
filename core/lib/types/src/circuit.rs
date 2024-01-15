@@ -1,9 +1,6 @@
 use std::ops::Add;
 
 use serde::{Deserialize, Serialize};
-use zkevm_test_harness_1_4_0::{geometry_config::get_geometry_config, toolset::GeometryConfig};
-
-pub const GEOMETRY_CONFIG: GeometryConfig = get_geometry_config();
 
 /// Holds information about number of cycles used per circuit type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -44,30 +41,6 @@ pub struct CircuitStatistic {
 }
 
 impl CircuitStatistic {
-    pub fn from_cycles(cycles: CircuitCycleStatistic, geometry: GeometryConfig) -> Self {
-        Self {
-            main_vm: cycles.main_vm_cycles as f32 / geometry.cycles_per_vm_snapshot as f32,
-            ram_permutation: cycles.ram_permutation_cycles as f32
-                / geometry.cycles_per_ram_permutation as f32,
-            storage_application: cycles.storage_application_cycles as f32
-                / geometry.cycles_per_storage_application as f32,
-            storage_sorter: cycles.storage_sorter_cycles as f32
-                / geometry.cycles_per_storage_sorter as f32,
-            code_decommitter: cycles.code_decommitter_cycles as f32
-                / geometry.cycles_per_code_decommitter as f32,
-            code_decommitter_sorter: cycles.code_decommitter_sorter_cycles as f32
-                / geometry.cycles_code_decommitter_sorter as f32,
-            log_demuxer: cycles.log_demuxer_cycles as f32 / geometry.cycles_per_log_demuxer as f32,
-            events_sorter: cycles.events_sorter_cycles as f32
-                / geometry.cycles_per_events_or_l1_messages_sorter as f32,
-            keccak256: cycles.keccak256_cycles as f32
-                / geometry.cycles_per_keccak256_circuit as f32,
-            ecrecover: cycles.ecrecover_cycles as f32
-                / geometry.cycles_per_ecrecover_circuit as f32,
-            sha256: cycles.sha256_cycles as f32 / geometry.cycles_per_sha256_circuit as f32,
-        }
-    }
-
     /// Rounds up numbers and adds them.
     pub fn total(&self) -> usize {
         self.main_vm.ceil() as usize

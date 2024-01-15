@@ -52,7 +52,6 @@ fn test_circuits() {
 
     const EXPECTED_CIRCUITS_USED: f32 = 4.6363;
     let delta = (statistic.total_f32() - EXPECTED_CIRCUITS_USED) / EXPECTED_CIRCUITS_USED;
-    println!("{}", statistic.total_f32());
 
     if delta.abs() > 0.1 {
         panic!(

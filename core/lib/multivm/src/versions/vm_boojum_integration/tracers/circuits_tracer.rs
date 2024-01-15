@@ -21,29 +21,16 @@ use crate::{
 
 /// Tracer responsible for collecting information about refunds.
 #[derive(Debug)]
-pub(crate) struct CircuitsTracer<S> {
+pub(crate) struct CircuitsTracer<S, H> {
     pub(crate) statistics: CircuitCycleStatistic,
     last_decommitment_history_entry_checked: Option<usize>,
     last_written_keys_history_entry_checked: Option<usize>,
     last_read_keys_history_entry_checked: Option<usize>,
     last_precompile_inner_entry_checked: Option<usize>,
-    _phantom_data: PhantomData<S>,
+    _phantom_data: PhantomData<(S, H)>,
 }
 
-impl<S: WriteStorage> CircuitsTracer<S> {
-    pub(crate) fn new() -> Self {
-        Self {
-            statistics: CircuitCycleStatistic::new(),
-            last_decommitment_history_entry_checked: None,
-            last_written_keys_history_entry_checked: None,
-            last_read_keys_history_entry_checked: None,
-            last_precompile_inner_entry_checked: None,
-            _phantom_data: Default::default(),
-        }
-    }
-}
-
-impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CircuitsTracer<S> {
+impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CircuitsTracer<S, H> {
     fn before_execution(
         &mut self,
         _state: VmLocalStateData<'_>,
@@ -106,7 +93,7 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S, H> {
     fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
         self.last_decommitment_history_entry_checked = Some(
             state
@@ -135,7 +122,28 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
         state: &mut ZkSyncVmState<S, H>,
         _bootloader_state: &mut BootloaderState,
     ) -> TracerExecutionStatus {
-        // Trace decommitments.
+        self.trace_decommitments(state);
+        self.trace_storage_writes(state);
+        self.trace_storage_reads(state);
+        self.trace_precompile_calls(state);
+
+        TracerExecutionStatus::Continue
+    }
+}
+
+impl<S: WriteStorage, H: HistoryMode> CircuitsTracer<S, H> {
+    pub(crate) fn new() -> Self {
+        Self {
+            statistics: CircuitCycleStatistic::new(),
+            last_decommitment_history_entry_checked: None,
+            last_written_keys_history_entry_checked: None,
+            last_read_keys_history_entry_checked: None,
+            last_precompile_inner_entry_checked: None,
+            _phantom_data: Default::default(),
+        }
+    }
+
+    fn trace_decommitments(&mut self, state: &mut ZkSyncVmState<S, H>) {
         let last_decommitment_history_entry_checked = self
             .last_decommitment_history_entry_checked
             .expect("Value must be set during init");
@@ -160,8 +168,9 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
             self.statistics.code_decommitter_cycles += decommitter_cycles_used as u32;
         }
         self.last_decommitment_history_entry_checked = Some(history.len());
+    }
 
-        // Process storage writes.
+    fn trace_storage_writes(&mut self, state: &mut ZkSyncVmState<S, H>) {
         let last_writes_history_entry_checked = self
             .last_written_keys_history_entry_checked
             .expect("Value must be set during init");
@@ -173,8 +182,9 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
             self.statistics.storage_application_cycles += STORAGE_WRITE_STORAGE_APPLICATION_CYCLES;
         }
         self.last_written_keys_history_entry_checked = Some(history.len());
+    }
 
-        // Process storage reads.
+    fn trace_storage_reads(&mut self, state: &mut ZkSyncVmState<S, H>) {
         let last_reads_history_entry_checked = self
             .last_read_keys_history_entry_checked
             .expect("Value must be set during init");
@@ -195,8 +205,9 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
             }
         }
         self.last_read_keys_history_entry_checked = Some(history.len());
+    }
 
-        // Process precompiles.
+    fn trace_precompile_calls(&mut self, state: &mut ZkSyncVmState<S, H>) {
         let last_precompile_inner_entry_checked = self
             .last_precompile_inner_entry_checked
             .expect("Value must be set during init");
@@ -218,7 +229,5 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
             };
         }
         self.last_precompile_inner_entry_checked = Some(inner.len());
-
-        TracerExecutionStatus::Continue
     }
 }
