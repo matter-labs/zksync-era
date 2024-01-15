@@ -5,6 +5,7 @@ use zksync_dal::ConnectionPool;
 use zksync_health_check::CheckHealth;
 use zksync_storage::RocksDB;
 
+use super::{IntoZkSyncTask, TaskInitError, ZkSyncTask};
 use crate::{
     node::NodeContext,
     resource::{
@@ -12,8 +13,6 @@ use crate::{
         stop_receiver::StopReceiverResource,
     },
 };
-
-use super::{IntoZkSyncTask, TaskInitError, ZkSyncTask};
 
 #[derive(Debug)]
 pub struct MetadataCalculatorTask {

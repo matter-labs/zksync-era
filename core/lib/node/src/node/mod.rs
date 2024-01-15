@@ -1,11 +1,13 @@
 use std::{any::Any, cell::RefCell, collections::HashMap, fmt};
 
-use crate::resource::ResourceProvider;
-use crate::resource::{stop_receiver::StopReceiverResource, Resource};
-use crate::task::{TaskInitError, ZkSyncTask};
 use futures::{future::BoxFuture, FutureExt};
 use tokio::{runtime::Runtime, sync::watch};
 use zksync_health_check::CheckHealth;
+
+use crate::{
+    resource::{stop_receiver::StopReceiverResource, Resource, ResourceProvider},
+    task::{TaskInitError, ZkSyncTask},
+};
 
 /// An interface to the node's resources provided to the tasks during initialization.
 /// Provides the ability to fetch required resources, and also gives access to the Tokio runtime used by the node.
@@ -138,16 +140,18 @@ impl ZkSyncNode {
         Ok(self_)
     }
 
-    /// Adds a resource. By default, any resource can be requested by multiple
-    /// components, thus `T: Clone`. Think `Arc<U>`.
+    /// Stores a resource in the internal cache.
     fn add_resource<T: Resource>(&mut self, name: impl AsRef<str>, resource: T) {
         self.resources
             .borrow_mut()
             .insert(name.as_ref().into(), Box::new(resource));
     }
 
-    /// Takes care of task creation.
-    /// May do some "registration" stuff for reporting purposes.
+    /// Adds a task to the node.
+    ///
+    /// The task is not created at this point, instead, the constructor is stored in the node
+    /// and will be invoked during [`ZkSyncNode::run`] method. Any error returned by the constructor
+    /// will prevent the node from starting and will be propagated by the [`ZkSyncNode::run`] method.
     pub fn add_task<
         F: FnOnce(&NodeContext<'_>) -> Result<Box<dyn ZkSyncTask>, TaskInitError> + 'static,
     >(
@@ -157,6 +161,34 @@ impl ZkSyncNode {
     ) -> &mut Self {
         self.task_constructors
             .push((name.as_ref().into(), Box::new(task_constructor)));
+        self
+    }
+
+    /// Adds a healtcheck task to the node.
+    ///
+    /// Healtcheck task is treated as any other task, with the following differences:
+    /// - It is given the list of healthchecks of all the other tasks.
+    /// - Its own healtcheck is ignored (the task is expected to handle its own checks itself).
+    /// - There may be only one healthcheck task per node.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the healthcheck task is already set.
+    pub fn with_healthcheck<
+        F: FnOnce(
+                &NodeContext<'_>,
+                Vec<Box<dyn CheckHealth>>,
+            ) -> Result<Box<dyn ZkSyncTask>, TaskInitError>
+            + 'static,
+    >(
+        mut self,
+        healthcheck_task_constructor: F,
+    ) -> Self {
+        assert!(
+            self.healthcheck_task_constructor.is_none(),
+            "Healthcheck task is already set"
+        );
+        self.healthcheck_task_constructor = Some(Box::new(healthcheck_task_constructor));
         self
     }
 
