@@ -3,10 +3,12 @@ use std::{collections::HashMap, ops, time::Instant};
 use sqlx::{types::chrono::Utc, Row};
 use zksync_types::{
     get_code_key, AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, StorageLog,
-    FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256, U256,
+    FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256,
 };
 
-use crate::{instrument::InstrumentExt, models::storage_log::StorageTreeEntry, StorageProcessor};
+use crate::{
+    instrument::InstrumentExt, models::storage_log::StorageRecoveryLogEntry, StorageProcessor,
+};
 
 #[derive(Debug)]
 pub struct StorageLogsDal<'a, 'c> {
@@ -531,7 +533,7 @@ impl StorageLogsDal<'_, '_> {
         &mut self,
         miniblock_number: MiniblockNumber,
         key_ranges: &[ops::RangeInclusive<H256>],
-    ) -> sqlx::Result<Vec<Option<StorageTreeEntry>>> {
+    ) -> sqlx::Result<Vec<Option<StorageRecoveryLogEntry>>> {
         let (start_keys, end_keys): (Vec<_>, Vec<_>) = key_ranges
             .iter()
             .map(|range| (range.start().as_bytes(), range.end().as_bytes()))
@@ -574,8 +576,8 @@ impl StorageLogsDal<'_, '_> {
         .await?;
 
         let rows = rows.into_iter().map(|row| {
-            Some(StorageTreeEntry {
-                key: U256::from_little_endian(row.hashed_key.as_ref()?),
+            Some(StorageRecoveryLogEntry {
+                key: H256::from_slice(row.hashed_key.as_ref()?),
                 value: H256::from_slice(row.value.as_ref()?),
                 leaf_index: row.index? as u64,
             })
@@ -589,7 +591,7 @@ impl StorageLogsDal<'_, '_> {
         &mut self,
         miniblock_number: MiniblockNumber,
         key_range: ops::RangeInclusive<H256>,
-    ) -> sqlx::Result<Vec<StorageTreeEntry>> {
+    ) -> sqlx::Result<Vec<StorageRecoveryLogEntry>> {
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -613,8 +615,8 @@ impl StorageLogsDal<'_, '_> {
         .fetch_all(self.storage.conn())
         .await?;
 
-        let rows = rows.into_iter().map(|row| StorageTreeEntry {
-            key: U256::from_little_endian(&row.hashed_key),
+        let rows = rows.into_iter().map(|row| StorageRecoveryLogEntry {
+            key: H256::from_slice(&row.hashed_key),
             value: H256::from_slice(&row.value),
             leaf_index: row.index as u64,
         });
@@ -716,12 +718,6 @@ mod tests {
 
     use super::*;
     use crate::{tests::create_miniblock_header, ConnectionPool};
-
-    fn u256_to_h256_reversed(value: U256) -> H256 {
-        let mut bytes = [0_u8; 32];
-        value.to_little_endian(&mut bytes);
-        H256(bytes)
-    }
 
     async fn insert_miniblock(conn: &mut StorageProcessor<'_>, number: u32, logs: Vec<StorageLog>) {
         let mut header = L1BatchHeader::new(
@@ -974,10 +970,7 @@ mod tests {
                 .iter()
                 .find(|&key| key_range.contains(key));
             if let Some(chunk_start) = chunk_start {
-                assert_eq!(
-                    u256_to_h256_reversed(chunk_start.key),
-                    *expected_start_key.unwrap()
-                );
+                assert_eq!(chunk_start.key, *expected_start_key.unwrap());
                 assert_ne!(chunk_start.value, H256::zero());
                 assert_ne!(chunk_start.leaf_index, 0);
             } else {
@@ -1027,7 +1020,7 @@ mod tests {
         assert_eq!(
             tree_entries
                 .iter()
-                .map(|entry| u256_to_h256_reversed(entry.key))
+                .map(|entry| entry.key)
                 .collect::<Vec<_>>(),
             sorted_hashed_keys
         );
@@ -1040,7 +1033,7 @@ mod tests {
             .unwrap();
         assert!(!tree_entries.is_empty() && tree_entries.len() < 10);
         for entry in &tree_entries {
-            assert!(key_range.contains(&u256_to_h256_reversed(entry.key)));
+            assert!(key_range.contains(&entry.key));
         }
     }
 }

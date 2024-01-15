@@ -301,7 +301,7 @@ impl AsyncTreeRecovery {
             .filter_map(|(i, &start)| Some((i, start?)));
         let start_keys = existing_starts
             .clone()
-            .map(|(_, start_entry)| start_entry.key)
+            .map(|(_, start_entry)| start_entry.tree_key())
             .collect();
         let tree_entries = self.entries(start_keys).await;
 
@@ -373,7 +373,7 @@ impl AsyncTreeRecovery {
         let all_entries = all_entries
             .into_iter()
             .map(|entry| TreeEntry {
-                key: entry.key,
+                key: entry.tree_key(),
                 value: entry.value,
                 leaf_index: entry.leaf_index,
             })

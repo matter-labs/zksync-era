@@ -8,12 +8,15 @@ use zksync_types::{
     snapshots::{uniform_hashed_keys_chunk, SnapshotRecoveryStatus},
     L1BatchNumber, MiniblockNumber, H256,
 };
-use zksync_utils::u256_to_h256;
 
 use super::{RocksdbStorage, StateValue};
 
 impl RocksdbStorage {
     /// Ensures that this storage is ready for normal operation (i.e., updates by L1 batch).
+    ///
+    /// # Return value
+    ///
+    /// Returns the next L1 batch that should be fed to the storage.
     pub(super) async fn ensure_ready(
         &mut self,
         storage: &mut StorageProcessor<'_>,
@@ -31,7 +34,7 @@ impl RocksdbStorage {
                 self.recover_from_snapshot(storage, &snapshot_recovery)
                     .await
                     .context("failed recovering from snapshot")?;
-                snapshot_recovery.l1_batch_number
+                snapshot_recovery.l1_batch_number + 1
             } else {
                 // No recovery snapshot; we're initializing the cache from the genesis
                 L1BatchNumber(0)
@@ -101,9 +104,7 @@ impl RocksdbStorage {
             };
 
             // Check whether the chunk is already recovered.
-            let state_value = self
-                .read_state_value_async(u256_to_h256(chunk_start.key))
-                .await;
+            let state_value = self.read_state_value_async(chunk_start.key).await;
             if let Some(state_value) = state_value {
                 anyhow::ensure!(
                     state_value.value == chunk_start.value && state_value.enum_index == Some(chunk_start.leaf_index),
@@ -160,7 +161,7 @@ impl RocksdbStorage {
 
         self.pending_patch.state = all_entries
             .into_iter()
-            .map(|entry| (u256_to_h256(entry.key), (entry.value, entry.leaf_index)))
+            .map(|entry| (entry.key, (entry.value, entry.leaf_index)))
             .collect();
         self.save(None).await;
 

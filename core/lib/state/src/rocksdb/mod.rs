@@ -477,7 +477,6 @@ impl RocksdbStorage {
     /// # Panics
     ///
     /// Panics on RocksDB errors.
-    // FIXME: propagate errors
     pub async fn l1_batch_number(&self) -> Option<L1BatchNumber> {
         let cf = StateKeeperColumnFamily::State;
         let db = self.db.clone();

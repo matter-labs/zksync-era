@@ -5,7 +5,10 @@ use zksync_dal::ConnectionPool;
 use zksync_types::{MiniblockNumber, StorageLog};
 
 use super::*;
-use crate::test_utils::{create_l1_batch, create_miniblock, gen_storage_logs, prepare_postgres};
+use crate::test_utils::{
+    create_l1_batch, create_miniblock, gen_storage_logs, prepare_postgres,
+    prepare_postgres_for_snapshot_recovery,
+};
 
 #[tokio::test]
 async fn rocksdb_storage_basics() {
@@ -231,4 +234,100 @@ async fn rocksdb_enum_index_migration() {
     storage.save_missing_enum_indices(&mut conn).await;
     let start_from = storage.enum_migration_start_from();
     assert!(start_from.is_none());
+}
+
+#[tokio::test]
+async fn low_level_snapshot_recovery() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut conn = pool.access_storage().await.unwrap();
+    let (snapshot_recovery, mut storage_logs) =
+        prepare_postgres_for_snapshot_recovery(&mut conn).await;
+
+    let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
+    let mut storage = RocksdbStorage::new(dir.path());
+    let next_l1_batch = storage.ensure_ready(&mut conn).await.unwrap();
+    assert_eq!(next_l1_batch, snapshot_recovery.l1_batch_number + 1);
+    assert_eq!(
+        storage.l1_batch_number().await,
+        Some(snapshot_recovery.l1_batch_number + 1)
+    );
+
+    // Sort logs in the same order as enum indices are assigned (by full `StorageKey`).
+    storage_logs.sort_unstable_by_key(|log| log.key);
+    for (i, log) in storage_logs.iter().enumerate() {
+        assert_eq!(storage.read_value(&log.key), log.value);
+        let expected_index = i as u64 + 1;
+        assert_eq!(
+            storage.get_enumeration_index(&log.key),
+            Some(expected_index)
+        );
+    }
+}
+
+#[tokio::test]
+async fn recovering_from_snapshot_and_following_logs() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut conn = pool.access_storage().await.unwrap();
+    let (snapshot_recovery, mut storage_logs) =
+        prepare_postgres_for_snapshot_recovery(&mut conn).await;
+
+    // Add some more storage logs.
+    let new_storage_logs = gen_storage_logs(500..600);
+    create_miniblock(
+        &mut conn,
+        snapshot_recovery.miniblock_number + 1,
+        new_storage_logs.clone(),
+    )
+    .await;
+    create_l1_batch(
+        &mut conn,
+        snapshot_recovery.l1_batch_number + 1,
+        &new_storage_logs,
+    )
+    .await;
+
+    let updated_storage_logs: Vec<_> = storage_logs
+        .iter()
+        .step_by(3)
+        .copied()
+        .map(|mut log| {
+            log.value = H256::repeat_byte(0xff);
+            log
+        })
+        .collect();
+    create_miniblock(
+        &mut conn,
+        snapshot_recovery.miniblock_number + 2,
+        updated_storage_logs.clone(),
+    )
+    .await;
+    create_l1_batch(&mut conn, snapshot_recovery.l1_batch_number + 2, &[]).await;
+
+    let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
+    let mut storage = RocksdbStorage::new(dir.path());
+    storage.update_from_postgres(&mut conn).await;
+
+    for (i, log) in new_storage_logs.iter().enumerate() {
+        assert_eq!(storage.read_value(&log.key), log.value);
+        let expected_index = (i + storage_logs.len()) as u64 + 1;
+        assert_eq!(
+            storage.get_enumeration_index(&log.key),
+            Some(expected_index)
+        );
+        assert!(!storage.is_write_initial(&log.key));
+    }
+
+    for log in &updated_storage_logs {
+        assert_eq!(storage.read_value(&log.key), log.value);
+        assert!(storage.get_enumeration_index(&log.key).unwrap() <= storage_logs.len() as u64);
+    }
+    storage_logs.sort_unstable_by_key(|log| log.key);
+    for (i, log) in storage_logs.iter().enumerate() {
+        let expected_index = i as u64 + 1;
+        assert_eq!(
+            storage.get_enumeration_index(&log.key),
+            Some(expected_index)
+        );
+        assert!(!storage.is_write_initial(&log.key));
+    }
 }

@@ -5,6 +5,7 @@ use std::ops;
 use zksync_dal::StorageProcessor;
 use zksync_types::{
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
+    snapshots::SnapshotRecoveryStatus,
     AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersion, StorageKey,
     StorageLog, H256,
 };
@@ -117,4 +118,41 @@ pub(crate) async fn create_l1_batch(
     conn.storage_logs_dedup_dal()
         .insert_initial_writes(l1_batch_number, &written_keys)
         .await;
+}
+
+pub(crate) async fn prepare_postgres_for_snapshot_recovery(
+    conn: &mut StorageProcessor<'_>,
+) -> (SnapshotRecoveryStatus, Vec<StorageLog>) {
+    conn.protocol_versions_dal()
+        .save_protocol_version_with_tx(ProtocolVersion::default())
+        .await;
+
+    let snapshot_recovery = SnapshotRecoveryStatus {
+        l1_batch_number: L1BatchNumber(23),
+        l1_batch_root_hash: H256::zero(), // not used
+        miniblock_number: MiniblockNumber(42),
+        miniblock_root_hash: H256::zero(), // not used
+        last_finished_chunk_id: None,
+        total_chunk_count: 100,
+    };
+    conn.snapshot_recovery_dal()
+        .set_applied_snapshot_status(&snapshot_recovery)
+        .await
+        .unwrap();
+
+    // FIXME (): don't store miniblock / L1 batch once the corresponding foreign keys are removed
+    let snapshot_storage_logs = gen_storage_logs(100..200);
+    create_miniblock(
+        conn,
+        snapshot_recovery.miniblock_number,
+        snapshot_storage_logs.clone(),
+    )
+    .await;
+    create_l1_batch(
+        conn,
+        snapshot_recovery.l1_batch_number,
+        &snapshot_storage_logs,
+    )
+    .await;
+    (snapshot_recovery, snapshot_storage_logs)
 }
