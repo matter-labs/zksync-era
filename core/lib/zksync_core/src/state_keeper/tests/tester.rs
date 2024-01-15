@@ -452,6 +452,7 @@ impl L1BatchExecutorBuilder for TestBatchExecutorBuilder {
         &mut self,
         _l1batch_params: L1BatchEnv,
         _system_env: SystemEnv,
+        _stop_receiver: &watch::Receiver<bool>,
     ) -> BatchExecutorHandle {
         let (commands_sender, commands_receiver) = mpsc::channel(1);
 
@@ -782,6 +783,7 @@ impl L1BatchExecutorBuilder for MockBatchExecutorBuilder {
         &mut self,
         _l1batch_params: L1BatchEnv,
         _system_env: SystemEnv,
+        _stop_receiver: &watch::Receiver<bool>,
     ) -> BatchExecutorHandle {
         let (send, recv) = mpsc::channel(1);
         let handle = tokio::task::spawn(async {

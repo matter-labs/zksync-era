@@ -13,7 +13,7 @@ use crate::test_utils::{
 #[tokio::test]
 async fn rocksdb_storage_basics() {
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = RocksdbStorage::new(dir.path());
+    let mut storage = RocksdbStorage::new(dir.path()).await;
     let mut storage_logs: HashMap<_, _> = gen_storage_logs(0..20)
         .into_iter()
         .map(|log| (log.key, log.value))
@@ -58,7 +58,7 @@ async fn rocksdb_storage_syncing_with_postgres() {
     create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = RocksdbStorage::new(dir.path());
+    let mut storage = RocksdbStorage::new(dir.path()).await;
     storage.update_from_postgres(&mut conn).await;
 
     assert_eq!(storage.l1_batch_number().await, Some(L1BatchNumber(2)));
@@ -109,7 +109,7 @@ async fn rocksdb_storage_revert() {
     create_l1_batch(&mut conn, L1BatchNumber(2), &inserted_storage_logs).await;
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = RocksdbStorage::new(dir.path());
+    let mut storage = RocksdbStorage::new(dir.path()).await;
     storage.update_from_postgres(&mut conn).await;
 
     // Perform some sanity checks before the revert.
@@ -169,7 +169,7 @@ async fn rocksdb_enum_index_migration() {
         .collect();
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = RocksdbStorage::new(dir.path());
+    let mut storage = RocksdbStorage::new(dir.path()).await;
     storage.update_from_postgres(&mut conn).await;
 
     assert_eq!(storage.l1_batch_number().await, Some(L1BatchNumber(2)));
@@ -205,7 +205,7 @@ async fn rocksdb_enum_index_migration() {
         .collect();
 
     storage.enable_enum_index_migration(10);
-    let start_from = storage.enum_migration_start_from();
+    let start_from = storage.enum_migration_start_from().await;
     assert_eq!(start_from, Some(H256::zero()));
 
     // Migrate the first half.
@@ -227,12 +227,12 @@ async fn rocksdb_enum_index_migration() {
     }
 
     // 20 keys were processed but we haven't checked that no keys to migrate are left.
-    let start_from = storage.enum_migration_start_from();
+    let start_from = storage.enum_migration_start_from().await;
     assert!(start_from.is_some());
 
     // Check that migration will be marked as completed after the next iteration.
     storage.save_missing_enum_indices(&mut conn).await;
-    let start_from = storage.enum_migration_start_from();
+    let start_from = storage.enum_migration_start_from().await;
     assert!(start_from.is_none());
 }
 
@@ -244,7 +244,7 @@ async fn low_level_snapshot_recovery() {
         prepare_postgres_for_snapshot_recovery(&mut conn).await;
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = RocksdbStorage::new(dir.path());
+    let mut storage = RocksdbStorage::new(dir.path()).await;
     let next_l1_batch = storage.ensure_ready(&mut conn).await.unwrap();
     assert_eq!(next_l1_batch, snapshot_recovery.l1_batch_number + 1);
     assert_eq!(
@@ -304,7 +304,7 @@ async fn recovering_from_snapshot_and_following_logs() {
     create_l1_batch(&mut conn, snapshot_recovery.l1_batch_number + 2, &[]).await;
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = RocksdbStorage::new(dir.path());
+    let mut storage = RocksdbStorage::new(dir.path()).await;
     storage.update_from_postgres(&mut conn).await;
 
     for (i, log) in new_storage_logs.iter().enumerate() {

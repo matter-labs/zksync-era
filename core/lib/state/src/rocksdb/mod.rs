@@ -117,13 +117,22 @@ impl RocksdbStorage {
     }
 
     /// Creates a new storage with the provided RocksDB `path`.
-    pub fn new(path: &Path) -> Self {
-        let db = RocksDB::new(path);
-        Self {
-            db,
-            pending_patch: InMemoryStorage::default(),
-            enum_index_migration_chunk_size: 100,
-        }
+    ///
+    /// # Panics
+    ///
+    /// Panics on RocksDB I/O errors.
+    pub async fn new(path: &Path) -> Self {
+        let path = path.to_path_buf();
+        tokio::task::spawn_blocking(move || {
+            let db = RocksDB::new(&path);
+            Self {
+                db,
+                pending_patch: InMemoryStorage::default(),
+                enum_index_migration_chunk_size: 100,
+            }
+        })
+        .await
+        .unwrap()
     }
 
     /// Enables enum indices migration.
@@ -196,7 +205,7 @@ impl RocksdbStorage {
 
         assert!(self.enum_index_migration_chunk_size > 0);
         // Enum indices must be at the storage. Run migration till the end.
-        while self.enum_migration_start_from().is_some() {
+        while self.enum_migration_start_from().await.is_some() {
             self.save_missing_enum_indices(storage).await;
         }
     }
@@ -242,9 +251,9 @@ impl RocksdbStorage {
     }
 
     async fn save_missing_enum_indices(&self, storage: &mut StorageProcessor<'_>) {
-        let (Some(start_from), true) = (
-            self.enum_migration_start_from(),
+        let (true, Some(start_from)) = (
             self.enum_index_migration_chunk_size > 0,
+            self.enum_migration_start_from().await,
         ) else {
             return;
         };
@@ -498,16 +507,20 @@ impl RocksdbStorage {
             .estimated_number_of_entries(StateKeeperColumnFamily::State)
     }
 
-    fn enum_migration_start_from(&self) -> Option<H256> {
-        let value = self
-            .db
-            .get_cf(
+    async fn enum_migration_start_from(&self) -> Option<H256> {
+        let db = self.db.clone();
+        let value = tokio::task::spawn_blocking(move || {
+            db.get_cf(
                 StateKeeperColumnFamily::State,
                 Self::ENUM_INDEX_MIGRATION_CURSOR,
             )
-            .expect("failed to read `ENUM_INDEX_MIGRATION_CURSOR`");
+            .expect("failed to read `ENUM_INDEX_MIGRATION_CURSOR`")
+        })
+        .await
+        .unwrap();
+
         match value {
-            Some(v) if v.is_empty() => None,
+            Some(value) if value.is_empty() => None,
             Some(cursor) => Some(H256::from_slice(&cursor)),
             None => Some(H256::zero()),
         }

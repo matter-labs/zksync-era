@@ -12,7 +12,7 @@ use multivm::{
 };
 use once_cell::sync::OnceCell;
 use tokio::{
-    sync::{mpsc, oneshot},
+    sync::{mpsc, oneshot, watch},
     task::JoinHandle,
 };
 use zksync_dal::ConnectionPool;
@@ -75,6 +75,7 @@ pub trait L1BatchExecutorBuilder: 'static + Send + Sync + fmt::Debug {
         &mut self,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
+        stop_receiver: &watch::Receiver<bool>,
     ) -> BatchExecutorHandle;
 }
 
@@ -119,8 +120,9 @@ impl L1BatchExecutorBuilder for MainBatchExecutorBuilder {
         &mut self,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
+        _stop_receiver: &watch::Receiver<bool>,
     ) -> BatchExecutorHandle {
-        let mut secondary_storage = RocksdbStorage::new(self.state_keeper_db_path.as_ref());
+        let mut secondary_storage = RocksdbStorage::new(self.state_keeper_db_path.as_ref()).await;
         secondary_storage.enable_enum_index_migration(self.enum_index_migration_chunk_size);
         let mut conn = self
             .pool
@@ -128,7 +130,6 @@ impl L1BatchExecutorBuilder for MainBatchExecutorBuilder {
             .await
             .unwrap();
         secondary_storage.update_from_postgres(&mut conn).await;
-        drop(conn);
 
         BatchExecutorHandle::new(
             self.save_call_traces,

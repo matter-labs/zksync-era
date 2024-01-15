@@ -93,13 +93,12 @@ impl Tester {
             self.config.validation_computational_gas_limit,
         );
 
-        let mut secondary_storage = RocksdbStorage::new(self.db_dir.path());
+        let mut secondary_storage = RocksdbStorage::new(self.db_dir.path()).await;
         let mut conn = self
             .pool
             .access_storage_tagged("state_keeper")
             .await
             .unwrap();
-
         secondary_storage.update_from_postgres(&mut conn).await;
         drop(conn);
 
