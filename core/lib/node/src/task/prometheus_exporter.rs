@@ -2,11 +2,9 @@ use prometheus_exporter::PrometheusExporterConfig;
 use tokio::sync::watch;
 use zksync_health_check::{CheckHealth, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 
-use crate::{
-    resources::stop_receiver::StopReceiverResource, IntoZkSyncTask, ZkSyncNode, ZkSyncTask,
-};
+use crate::{node::ZkSyncNode, resource::stop_receiver::StopReceiverResource};
 
-use super::TaskInitError;
+use super::{IntoZkSyncTask, TaskInitError, ZkSyncTask};
 
 #[derive(Debug)]
 pub struct PrometheusExporterTask {

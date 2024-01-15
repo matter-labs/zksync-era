@@ -2,8 +2,8 @@ use zksync_config::PostgresConfig;
 use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;
 use zksync_node::{
-    resources::pools::PoolsResource, tasks::metadata_calculator::MetadataCalculatorTask,
-    IntoZkSyncTask, ResourceProvider, ZkSyncNode,
+    node::ZkSyncNode, resource::pools::PoolsResource, resource::ResourceProvider,
+    task::metadata_calculator::MetadataCalculatorTask, task::IntoZkSyncTask,
 };
 
 fn pools_resource() -> anyhow::Result<PoolsResource> {

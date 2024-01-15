@@ -6,14 +6,14 @@ use zksync_health_check::CheckHealth;
 use zksync_storage::RocksDB;
 
 use crate::{
-    resources::{
+    node::ZkSyncNode,
+    resource::{
         object_store::ObjectStoreResource, pools::PoolsResource,
         stop_receiver::StopReceiverResource,
     },
-    IntoZkSyncTask, ZkSyncNode, ZkSyncTask,
 };
 
-use super::TaskInitError;
+use super::{IntoZkSyncTask, TaskInitError, ZkSyncTask};
 
 #[derive(Debug)]
 pub struct MetadataCalculatorTask {
