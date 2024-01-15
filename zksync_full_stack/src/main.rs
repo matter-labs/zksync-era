@@ -1,4 +1,4 @@
-use std::{str::FromStr, time::Duration};
+use std::{str::FromStr, time::Duration, fs::OpenOptions, io::Write, io::Error};
 
 use colored::Colorize;
 use ethers::{abi::Abi, providers::Http, utils::parse_units};
@@ -24,8 +24,37 @@ static CONTRACT_ABI: &str = include_str!("../ERC20.abi");
 
 static L1_URL: &str = "http://localhost:8545";
 
+static REPORT_PATH: &str = "report.csv";
+
+
+fn initialize_report() -> Result<(), Error> {
+    let file = OpenOptions::new()
+        .write(true)
+        .truncate(true)  // Trunca el archivo (borra su contenido)
+        .create(true)    // Crea el archivo si no existe
+        .open(REPORT_PATH);
+
+    match file {
+        Ok(mut f) => writeln!(f, "operation,Value,l2_fee,l1_max_fee_per_gas"),
+        Err(e) => Err(e),
+    }
+}
+
+fn write_line_to_report(operation: &str, value: &str, l2_fee: &str, l1_max_fee_per_gas: &str) {
+    let mut file = OpenOptions::new()
+        .append(true)
+        .open(REPORT_PATH)
+        .unwrap();
+
+    writeln!(file, "{operation},{value},{l2_fee},{l1_max_fee_per_gas}").unwrap();
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
+    match initialize_report() {
+        Ok(_) => println!("Report CSV created."),
+        Err(e) => println!("Error initializing the CSV report: {}", e),
+    }
     let l1_provider =
         Provider::<Http>::try_from(L1_URL).expect("Could not instantiate L1 Provider");
     let zk_wallet = {
@@ -163,11 +192,14 @@ async fn main() {
 
     let l1_max_fee_per_gas_mint = l1_transaction_mint.max_fee_per_gas.unwrap();
     let l1_max_fee_per_gas_formatted_mint = format!("{:#?}", l1_max_fee_per_gas_mint);
+    
     println!(
         "L1 max fee per gas: {}",
         l1_max_fee_per_gas_formatted_mint.cyan()
     );
     println!();
+
+    write_line_to_report("Mint", "nill", &l2_tx_fee_formatted_mint, &l1_max_fee_per_gas_formatted_mint);
 
     let values: Vec<&str> = vec![
         "1000", "2000", "3000", "4000", "5000", "6000", "7000", "8000", "9000", "10000",
@@ -236,5 +268,7 @@ async fn main() {
             l1_max_fee_per_gas_formatted_transfer.cyan()
         );
         println!();
+
+        write_line_to_report("Transfer", &value, &l2_tx_fee_formatted_mint, &l1_max_fee_per_gas_formatted_mint);
     }
 }
