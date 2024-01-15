@@ -200,8 +200,19 @@ impl ZkSyncNode {
         let mut tasks = Vec::new();
         let mut healthchecks = Vec::new();
 
+        let mut errors: Vec<(String, TaskInitError)> = Vec::new();
+
         for (name, task_constructor) in task_constructors {
-            let mut task = task_constructor(&NodeContext::new(&self)).unwrap(); // TODO: Do not unwrap
+            let mut task = match task_constructor(&NodeContext::new(&self)) {
+                Ok(task) => task,
+                Err(err) => {
+                    // We don't want to bail on the first error, since it'll provide worse DevEx:
+                    // People likely want to fix as much problems as they can in one go, rather than have
+                    // to fix them one by one.
+                    errors.push((name, err));
+                    continue;
+                }
+            };
             let healthcheck = task.healtcheck();
             let after_node_shutdown = task.after_node_shutdown();
             let task_future = Box::pin(task.run());
@@ -216,13 +227,25 @@ impl ZkSyncNode {
             }
         }
 
+        // Report all the errors we've met during the init.
+        if !errors.is_empty() {
+            for (task, error) in errors {
+                tracing::error!("Task {task} can't be initialized: {error}");
+            }
+            anyhow::bail!("One or more task weren't able to start");
+        }
+
         if tasks.is_empty() {
             anyhow::bail!("No tasks to run");
         }
 
         // Initialize the healthcheck task, if any.
         if let Some(healthcheck_constructor) = self.healthcheck_task_constructor.take() {
-            let healthcheck_task = healthcheck_constructor(&NodeContext::new(&self), healthchecks)?;
+            let healthcheck_task = healthcheck_constructor(&NodeContext::new(&self), healthchecks)
+                .map_err(|err| {
+                    tracing::error!("Healthcheck task can't be initialized: {err}");
+                    anyhow::format_err!("Healtcheck task can't be initialized: {err}")
+                })?;
             // We don't call `healthcheck_task.healtcheck()` here, as we expect it to know its own health.
             let after_node_shutdown = healthcheck_task.after_node_shutdown();
             let task_future = Box::pin(healthcheck_task.run());
@@ -251,7 +274,7 @@ impl ZkSyncNode {
         let (resolved, idx, remaining) = self
             .runtime
             .block_on(futures::future::select_all(join_handles));
-        let task_name = &tasks[idx].name;
+        let task_name = tasks[idx].name.clone();
         let failure = match resolved {
             Ok(Ok(())) => {
                 tracing::info!("Task {task_name} completed");
@@ -282,7 +305,7 @@ impl ZkSyncNode {
         local_set.block_on(&self.runtime, futures::future::join_all(join_handles));
 
         if failure {
-            anyhow::bail!("Task failed"); // TODO elaborate
+            anyhow::bail!("Task {task_name} failed");
         } else {
             Ok(())
         }
