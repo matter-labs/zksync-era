@@ -1,4 +1,3 @@
-use futures::future::BoxFuture;
 use tokio::sync::watch;
 use zksync_core::metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig};
 use zksync_dal::ConnectionPool;
@@ -66,17 +65,16 @@ impl ZkSyncTask for MetadataCalculatorTask {
     }
 
     async fn run(self: Box<Self>) -> anyhow::Result<()> {
-        self.metadata_calculator
+        let result = self
+            .metadata_calculator
             .run(self.main_pool, self.stop_receiver)
-            .await
-    }
+            .await;
 
-    fn after_finish(&self) -> Option<BoxFuture<'static, ()>> {
-        // We need to make sure that there are no instances of RocksDB left running.
-        Some(Box::pin(async {
-            tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
-                .await
-                .unwrap();
-        }))
+        // Wait for all the instances of RocksDB to be destroyed.
+        tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
+            .await
+            .unwrap();
+
+        result
     }
 }

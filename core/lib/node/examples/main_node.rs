@@ -2,9 +2,13 @@ use zksync_config::PostgresConfig;
 use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;
 use zksync_node::{
+    healthcheck::IntoHealthCheckTask,
     node::ZkSyncNode,
     resource::{pools::MasterPoolResource, ResourceProvider},
-    task::{metadata_calculator::MetadataCalculatorTask, IntoZkSyncTask},
+    task::{
+        healtcheck_server::HealthCheckTask, metadata_calculator::MetadataCalculatorTask,
+        IntoZkSyncTask,
+    },
 };
 
 #[derive(Debug)]
@@ -47,6 +51,11 @@ fn main() -> anyhow::Result<()> {
         );
     node.add_task("metadata_calculator", |node| {
         MetadataCalculatorTask::create(node, metadata_calculator_config)
+    });
+
+    let healthcheck_config = zksync_config::ApiConfig::from_env()?.healthcheck;
+    node.with_healthcheck(move |node, healthchecks| {
+        HealthCheckTask::create(node, healthchecks, healthcheck_config)
     });
 
     node.run()?;
