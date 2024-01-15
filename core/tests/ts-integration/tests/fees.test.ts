@@ -46,7 +46,6 @@ const L1_GAS_PRICES_TO_TEST = process.env.CI
 testFees('Test fees', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
-    let bob: zksync.Wallet;
 
     let tokenDetails: Token;
     let aliceErc20: zksync.Contract;
@@ -54,7 +53,6 @@ testFees('Test fees', () => {
     beforeAll(() => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
-        bob = testMaster.newEmptyAccount();
 
         tokenDetails = testMaster.environment().erc20Token;
         aliceErc20 = new ethers.Contract(tokenDetails.l1Address, zksync.utils.IERC20, alice.ethWallet());

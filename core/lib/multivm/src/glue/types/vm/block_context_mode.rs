@@ -1,4 +1,3 @@
-use zksync_types::VmVersion;
 use zksync_utils::h256_to_u256;
 
 use crate::glue::GlueFrom;

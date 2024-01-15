@@ -1,4 +1,4 @@
-use zksync_types::{VmVersion, U256};
+use zksync_types::U256;
 use zksync_utils::{address_to_u256, h256_to_u256};
 
 use crate::{interface::L1BatchEnv, vm_latest::utils::fee::get_batch_base_fee};
@@ -19,8 +19,6 @@ pub(crate) fn bootloader_initial_memory(l1_batch: &L1BatchEnv) -> Vec<(usize, U2
         .map(|prev_block_hash| (h256_to_u256(prev_block_hash), U256::one()))
         .unwrap_or_default();
 
-    let fee_input = l1_batch.fee_input.into_l1_pegged();
-
     vec![
         (
             OPERATOR_ADDRESS_SLOT,
@@ -39,7 +37,7 @@ pub(crate) fn bootloader_initial_memory(l1_batch: &L1BatchEnv) -> Vec<(usize, U2
         ),
         (
             EXPECTED_BASE_FEE_SLOT,
-            U256::from(get_batch_base_fee(&l1_batch)),
+            U256::from(get_batch_base_fee(l1_batch)),
         ),
         (SHOULD_SET_NEW_BLOCK_SLOT, should_set_new_block),
     ]

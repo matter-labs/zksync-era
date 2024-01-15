@@ -16,8 +16,8 @@ use zksync_config::{
     configs::{
         api::{MerkleTreeApiConfig, Web3JsonRpcConfig},
         chain::{
-            CircuitBreakerConfig, FeeModelVersion, MempoolConfig, NetworkConfig,
-            OperationsManagerConfig, StateKeeperConfig,
+            CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
+            StateKeeperConfig,
         },
         contracts::ProverAtGenesis,
         database::{MerkleTreeConfig, MerkleTreeMode},
@@ -35,7 +35,7 @@ use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
-    fee_model::{FeeModelConfig, FeeModelConfigV1, FeeModelConfigV2},
+    fee_model::FeeModelConfig,
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
     web3::contract::tokens::Detokenize,
@@ -77,7 +77,7 @@ use crate::{
 pub mod api_server;
 pub mod basic_witness_input_producer;
 pub mod block_reverter;
-mod consensus;
+pub mod consensus;
 pub mod consistency_checker;
 pub mod eth_sender;
 pub mod eth_watch;

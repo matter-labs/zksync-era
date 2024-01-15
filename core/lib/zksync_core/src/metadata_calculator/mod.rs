@@ -193,7 +193,7 @@ impl MetadataCalculator {
     ) -> L1BatchMetadata {
         // The commitment generation pre-boojum is the same for all the version, so in case the version is not present, we just supply the
         // last pre-boojum version.
-        // TODO(X): make sure that protocol version is not an Option
+        // TODO(PLA-731): make sure that protocol version is not an Option
         let protocol_version = header
             .protocol_version
             .unwrap_or(ProtocolVersionId::last_potentially_undefined());

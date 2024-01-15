@@ -753,8 +753,7 @@ mod tests {
         expected_outputs: ExpectedOutput,
     }
 
-    // TODO(X): restore this test
-    // #[test]
+    #[test]
     fn commitment_test() {
         let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
         let path = std::path::Path::new(&zksync_home)

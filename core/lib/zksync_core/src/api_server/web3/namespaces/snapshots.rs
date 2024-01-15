@@ -4,9 +4,8 @@ use zksync_types::{
 };
 use zksync_web3_decl::error::Web3Error;
 
-use crate::{
-    api_server::web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, state::RpcState},
-    fee_model::BatchFeeModelInputProvider,
+use crate::api_server::web3::{
+    backend_jsonrpsee::internal_error, metrics::API_METRICS, state::RpcState,
 };
 
 #[derive(Debug, Clone)]

@@ -9,8 +9,8 @@ use zksync_types::{
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     l2::L2Tx,
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
-    Address, Execute, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2ChainId, MiniblockNumber,
-    PriorityOpId, ProtocolVersion, ProtocolVersionId, H160, H256, U256,
+    Address, Execute, L1BlockNumber, L1TxCommonData, L2ChainId, MiniblockNumber, PriorityOpId,
+    ProtocolVersionId, H160, H256, U256,
 };
 
 use crate::{

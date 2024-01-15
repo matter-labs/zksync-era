@@ -1,22 +1,20 @@
 //! Utility functions for vm
 use zksync_types::{
-    fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
+    fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     U256,
 };
 use zksync_utils::ceil_div;
 
-use crate::vm_latest::{
-    constants::MAX_GAS_PER_PUBDATA_BYTE, old_vm::utils::eth_price_per_pubdata_byte, L1BatchEnv,
-};
+use crate::vm_latest::{constants::MAX_GAS_PER_PUBDATA_BYTE, L1BatchEnv};
 
 /// Calculates the base fee and gas per pubdata for the given L1 gas price.
 pub(crate) fn derive_base_fee_and_gas_per_pubdata(
     fee_input: PubdataIndependentBatchFeeModelInput,
 ) -> (u64, u64) {
     let PubdataIndependentBatchFeeModelInput {
-        l1_gas_price,
         fair_l2_gas_price,
         fair_pubdata_price,
+        ..
     } = fee_input;
 
     // The `baseFee` is set in such a way that it is always possible for a transaction to

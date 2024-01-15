@@ -12,7 +12,7 @@ use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
     l2_to_l1_log::L2ToL1Log,
     zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
-    L1BatchNumber, StorageKey, VmVersion, U256,
+    L1BatchNumber, StorageKey, U256,
 };
 use zksync_utils::{bytecode::bytecode_len_in_bytes, ceil_div_u256, u256_to_h256};
 

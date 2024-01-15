@@ -299,7 +299,7 @@ fn get_circuits(
 
     let previous_enumeration_index = tree.next_enumeration_index();
     let previous_root = tree.root();
-    // simualate content hash
+    // simulate content hash
 
     let mut hasher = Keccak256::new();
     hasher.update(previous_enumeration_index.to_be_bytes());

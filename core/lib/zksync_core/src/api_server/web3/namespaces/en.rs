@@ -1,10 +1,7 @@
 use zksync_types::{api::en::SyncBlock, MiniblockNumber};
 use zksync_web3_decl::error::Web3Error;
 
-use crate::{
-    api_server::web3::{backend_jsonrpsee::internal_error, state::RpcState},
-    fee_model::BatchFeeModelInputProvider,
-};
+use crate::api_server::web3::{backend_jsonrpsee::internal_error, state::RpcState};
 
 /// Namespace for External Node unique methods.
 /// Main use case for it is the EN synchronization.

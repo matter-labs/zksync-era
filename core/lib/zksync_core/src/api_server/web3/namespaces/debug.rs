@@ -215,7 +215,7 @@ impl DebugNamespace {
     fn shared_args(&self) -> TxSharedArgs {
         TxSharedArgs {
             operator_account: AccountTreeId::default(),
-            fee_input: self.batch_fee_input.clone(),
+            fee_input: self.batch_fee_input,
             base_system_contracts: self.api_contracts.eth_call.clone(),
             caches: self.storage_caches.clone(),
             validation_computational_gas_limit: BLOCK_GAS_LIMIT,
