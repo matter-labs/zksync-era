@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use rayon::prelude::*;
-use zksync_storage::{db::NamedColumnFamily, rocksdb::DBPinnableSlice, RocksDB};
+use zksync_storage::{db::NamedColumnFamily, rocksdb, rocksdb::DBPinnableSlice, RocksDB};
 
 use crate::{
     errors::{DeserializeError, ErrorContext},
@@ -66,8 +66,12 @@ impl RocksDBWrapper {
     const MANIFEST_KEY: &'static [u8] = &[0];
 
     /// Creates a new wrapper, initializing RocksDB at the specified directory.
-    pub fn new(path: &Path) -> Self {
-        Self::from(RocksDB::new(path))
+    ///
+    /// # Errors
+    ///
+    /// Propagates RocksDB I/O errors.
+    pub fn new(path: &Path) -> Result<Self, rocksdb::Error> {
+        Ok(Self::from(RocksDB::new(path)?))
     }
 
     /// Sets the chunk size for multi-get operations. The requested keys will be split
@@ -295,7 +299,7 @@ mod tests {
     #[test]
     fn garbage_is_removed_on_db_reverts() {
         let dir = TempDir::new().expect("failed creating temporary dir for RocksDB");
-        let mut db = RocksDBWrapper::new(dir.path());
+        let mut db = RocksDBWrapper::new(dir.path()).unwrap();
 
         // Insert some data to the database.
         let mut expected_keys = HashSet::new();

@@ -93,8 +93,8 @@ impl MetadataCalculator {
     pub async fn new(
         config: MetadataCalculatorConfig,
         object_store: Option<Arc<dyn ObjectStore>>,
-    ) -> Self {
-        assert!(
+    ) -> anyhow::Result<Self> {
+        anyhow::ensure!(
             config.max_l1_batches_per_iter > 0,
             "Maximum L1 batches per iteration is misconfigured to be 0; please update it to positive value"
         );
@@ -106,18 +106,18 @@ impl MetadataCalculator {
             config.stalled_writes_timeout,
             config.multi_get_chunk_size,
         )
-        .await;
+        .await?;
         let tree = GenericAsyncTree::new(db, config.mode).await;
 
         let (_, health_updater) = ReactiveHealthCheck::new("tree");
-        Self {
+        Ok(Self {
             tree,
             tree_reader: watch::channel(None).0,
             object_store,
             delayer: Delayer::new(config.delay_interval),
             health_updater,
             max_l1_batches_per_iter: config.max_l1_batches_per_iter,
-        }
+        })
     }
 
     /// Returns a health check for this calculator.

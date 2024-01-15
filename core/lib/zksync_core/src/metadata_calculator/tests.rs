@@ -400,7 +400,9 @@ async fn setup_calculator_with_options(
 ) -> MetadataCalculator {
     let calculator_config =
         MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_config);
-    let metadata_calculator = MetadataCalculator::new(calculator_config, object_store).await;
+    let metadata_calculator = MetadataCalculator::new(calculator_config, object_store)
+        .await
+        .unwrap();
 
     let mut storage = pool.access_storage().await.unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {

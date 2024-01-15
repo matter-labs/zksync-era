@@ -195,21 +195,25 @@ impl RocksdbStorage {
 
     /// Creates a new storage builder with the provided RocksDB `path`.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics on RocksDB I/O errors.
-    pub async fn builder(path: &Path) -> RocksbStorageBuilder {
-        RocksbStorageBuilder(Self::new(path.to_path_buf()).await)
+    /// Propagates RocksDB I/O errors.
+    pub async fn builder(path: &Path) -> anyhow::Result<RocksbStorageBuilder> {
+        Self::new(path.to_path_buf())
+            .await
+            .map(RocksbStorageBuilder)
     }
 
-    async fn new(path: PathBuf) -> Self {
-        tokio::task::spawn_blocking(move || Self {
-            db: RocksDB::new(&path),
-            pending_patch: InMemoryStorage::default(),
-            enum_index_migration_chunk_size: 100,
+    async fn new(path: PathBuf) -> anyhow::Result<Self> {
+        tokio::task::spawn_blocking(move || {
+            Ok(Self {
+                db: RocksDB::new(&path).context("failed initializing state keeper RocksDB")?,
+                pending_patch: InMemoryStorage::default(),
+                enum_index_migration_chunk_size: 100,
+            })
         })
         .await
-        .unwrap()
+        .context("panicked initializing state keeper RocksDB")?
     }
 
     async fn update_from_postgres(
@@ -220,7 +224,7 @@ impl RocksdbStorage {
         let mut current_l1_batch_number = self
             .ensure_ready(storage)
             .await
-            .expect("failed initializing RocksDB cache");
+            .context("failed initializing RocksDB cache")?;
 
         let latency = METRICS.update.start();
         let Some(latest_l1_batch_number) = storage
@@ -234,11 +238,13 @@ impl RocksdbStorage {
         };
         tracing::debug!("Loading storage for l1 batch number {latest_l1_batch_number}");
 
-        assert!(
-            current_l1_batch_number <= latest_l1_batch_number + 1,
-            "L1 batch number in state keeper cache ({current_l1_batch_number}) is greater than \
-             the last sealed L1 batch number in Postgres ({latest_l1_batch_number})"
-        );
+        if current_l1_batch_number > latest_l1_batch_number + 1 {
+            let err = anyhow::anyhow!(
+                "L1 batch number in state keeper cache ({current_l1_batch_number}) is greater than \
+                 the last sealed L1 batch number in Postgres ({latest_l1_batch_number})"
+            );
+            return Err(err.into());
+        }
 
         while current_l1_batch_number <= latest_l1_batch_number {
             if *stop_receiver.borrow() {
@@ -267,7 +273,9 @@ impl RocksdbStorage {
             }
 
             current_l1_batch_number += 1;
-            self.save(Some(current_l1_batch_number)).await;
+            self.save(Some(current_l1_batch_number))
+                .await
+                .with_context(|| format!("failed saving L1 batch #{current_l1_batch_number}"))?;
         }
 
         latency.observe();
@@ -521,11 +529,11 @@ impl RocksdbStorage {
                 .context("failed to save state data into RocksDB")
         })
         .await
-        .context("RocksDB panicked during revert")?
+        .context("panicked during revert")?
     }
 
     /// Saves the pending changes to RocksDB. Must be executed on a Tokio thread.
-    async fn save(&mut self, l1_batch_number: Option<L1BatchNumber>) {
+    async fn save(&mut self, l1_batch_number: Option<L1BatchNumber>) -> anyhow::Result<()> {
         let pending_patch = mem::take(&mut self.pending_patch);
 
         let db = self.db.clone();
@@ -552,9 +560,11 @@ impl RocksdbStorage {
                 batch.put_cf(cf, &hash.to_fixed_bytes(), value.as_ref());
             }
             db.write(batch)
-                .expect("failed to save state data into rocksdb");
+                .context("failed to save state data into RocksDB")
         });
-        save_task.await.unwrap();
+        save_task
+            .await
+            .context("panicked when saving state data into RocksDB")?
     }
 
     /// Returns the last processed l1 batch number + 1.

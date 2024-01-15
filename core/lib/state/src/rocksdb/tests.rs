@@ -13,7 +13,7 @@ use crate::test_utils::{
 #[tokio::test]
 async fn rocksdb_storage_basics() {
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = RocksdbStorage::new(dir.path().to_path_buf()).await;
+    let mut storage = RocksdbStorage::new(dir.path().to_path_buf()).await.unwrap();
     let mut storage_logs: HashMap<_, _> = gen_storage_logs(0..20)
         .into_iter()
         .map(|log| (log.key, log.value))
@@ -23,7 +23,7 @@ async fn rocksdb_storage_basics() {
         .into_iter()
         .map(|(key, state_value)| (key.hashed_key(), (state_value.value, 1))) // enum index doesn't matter in the test
         .collect();
-    storage.save(Some(L1BatchNumber(0))).await;
+    storage.save(Some(L1BatchNumber(0))).await.unwrap();
     {
         for (key, value) in &storage_logs {
             assert!(!storage.is_write_initial(key));
@@ -40,7 +40,7 @@ async fn rocksdb_storage_basics() {
         .into_iter()
         .map(|(key, state_value)| (key.hashed_key(), (state_value.value, 1))) // enum index doesn't matter in the test
         .collect();
-    storage.save(Some(L1BatchNumber(1))).await;
+    storage.save(Some(L1BatchNumber(1))).await.unwrap();
 
     for (key, value) in &storage_logs {
         assert!(!storage.is_write_initial(key));
@@ -52,6 +52,7 @@ async fn sync_test_storage(dir: &TempDir, conn: &mut StorageProcessor<'_>) -> Ro
     let (_stop_sender, stop_receiver) = watch::channel(false);
     RocksdbStorage::builder(dir.path())
         .await
+        .expect("Failed initializing RocksDB")
         .synchronize(conn, &stop_receiver)
         .await
         .unwrap()
@@ -251,7 +252,7 @@ async fn low_level_snapshot_recovery() {
         prepare_postgres_for_snapshot_recovery(&mut conn).await;
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = RocksdbStorage::new(dir.path().to_path_buf()).await;
+    let mut storage = RocksdbStorage::new(dir.path().to_path_buf()).await.unwrap();
     let next_l1_batch = storage.ensure_ready(&mut conn).await.unwrap();
     assert_eq!(next_l1_batch, snapshot_recovery.l1_batch_number + 1);
     assert_eq!(

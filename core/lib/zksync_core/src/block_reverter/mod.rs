@@ -189,7 +189,7 @@ impl BlockReverter {
         path: &Path,
         storage_root_hash: H256,
     ) {
-        let db = RocksDB::new(path);
+        let db = RocksDB::new(path).expect("Failed initializing RocksDB for Merkle tree");
         let mut tree = ZkSyncTree::new_lightweight(db.into());
 
         if tree.next_l1_batch_number() <= last_l1_batch_to_keep {
@@ -207,7 +207,9 @@ impl BlockReverter {
     /// Reverts blocks in the state keeper cache.
     async fn rollback_state_keeper_cache(&self, last_l1_batch_to_keep: L1BatchNumber) {
         tracing::info!("opening DB with state keeper cache...");
-        let sk_cache = RocksdbStorage::builder(self.state_keeper_cache_path.as_ref()).await;
+        let sk_cache = RocksdbStorage::builder(self.state_keeper_cache_path.as_ref())
+            .await
+            .expect("Failed initializing state keeper cache");
 
         if sk_cache.l1_batch_number().await > Some(last_l1_batch_to_keep + 1) {
             let mut storage = self.connection_pool.access_storage().await.unwrap();

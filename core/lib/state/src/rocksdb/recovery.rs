@@ -71,7 +71,9 @@ impl RocksdbStorage {
         for (bytecode_hash, bytecode) in factory_deps {
             self.store_factory_dep(bytecode_hash, bytecode);
         }
-        self.save(None).await;
+        self.save(None)
+            .await
+            .context("failed saving factory deps")?;
 
         let snapshot_miniblock = snapshot_recovery.miniblock_number;
         let log_count = storage
@@ -129,7 +131,8 @@ impl RocksdbStorage {
         }
 
         tracing::info!("All chunks recovered; finalizing recovery process");
-        self.save(Some(snapshot_recovery.l1_batch_number + 1)).await;
+        self.save(Some(snapshot_recovery.l1_batch_number + 1))
+            .await?;
         Ok(())
     }
 
@@ -163,7 +166,9 @@ impl RocksdbStorage {
             .into_iter()
             .map(|entry| (entry.key, (entry.value, entry.leaf_index)))
             .collect();
-        self.save(None).await;
+        self.save(None)
+            .await
+            .context("failed saving storage logs chunk")?;
 
         tracing::info!("Recovered hashed key chunk {key_chunk:?}");
         Ok(())

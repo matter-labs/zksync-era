@@ -131,7 +131,7 @@ mod rocksdb {
     #[test_casing(8, test_casing::Product((RecoveryKind::ALL, [6, 10, 17, 42])))]
     fn recovery_in_chunks(kind: RecoveryKind, chunk_size: usize) {
         let temp_dir = TempDir::new().unwrap();
-        let db = RocksDBWrapper::new(temp_dir.path());
+        let db = RocksDBWrapper::new(temp_dir.path()).unwrap();
         test_recovery_in_chunks(db, kind, chunk_size);
     }
 }

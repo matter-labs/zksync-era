@@ -55,7 +55,8 @@ async fn create_tree_recovery(path: PathBuf, l1_batch: L1BatchNumber) -> AsyncTr
         Duration::ZERO, // writes should never be stalled in tests
         500,
     )
-    .await;
+    .await
+    .unwrap();
     AsyncTreeRecovery::new(db, l1_batch.0.into(), MerkleTreeMode::Full)
 }
 
@@ -252,7 +253,9 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
         &merkle_tree_config,
         &OperationsManagerConfig { delay_interval: 50 },
     );
-    let mut calculator = MetadataCalculator::new(calculator_config, None).await;
+    let mut calculator = MetadataCalculator::new(calculator_config, None)
+        .await
+        .unwrap();
     let (delay_sx, mut delay_rx) = mpsc::unbounded_channel();
     calculator.delayer.delay_notifier = delay_sx;
 

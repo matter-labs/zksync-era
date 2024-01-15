@@ -122,8 +122,9 @@ impl L1BatchExecutorBuilder for MainBatchExecutorBuilder {
         system_env: SystemEnv,
         stop_receiver: &watch::Receiver<bool>,
     ) -> Option<BatchExecutorHandle> {
-        let mut secondary_storage =
-            RocksdbStorage::builder(self.state_keeper_db_path.as_ref()).await;
+        let mut secondary_storage = RocksdbStorage::builder(self.state_keeper_db_path.as_ref())
+            .await
+            .expect("Failed initializing state keeper storage");
         secondary_storage.enable_enum_index_migration(self.enum_index_migration_chunk_size);
         let mut conn = self
             .pool

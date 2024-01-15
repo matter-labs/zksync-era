@@ -550,7 +550,7 @@ mod rocksdb {
     impl Harness {
         fn new() -> Self {
             let dir = TempDir::new().expect("failed creating temporary dir for RocksDB");
-            let db = RocksDBWrapper::new(dir.path());
+            let db = RocksDBWrapper::new(dir.path()).unwrap();
             Self { db, dir }
         }
     }
@@ -661,7 +661,7 @@ mod rocksdb {
         tree.extend(vec![TreeEntry::new(U256::zero(), 1, H256::zero())]);
         drop(tree);
 
-        let db = RocksDBWrapper::new(dir.path());
+        let db = RocksDBWrapper::new(dir.path()).unwrap();
         MerkleTree::with_hasher(db, ());
     }
 }
