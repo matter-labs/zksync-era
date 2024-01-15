@@ -309,8 +309,8 @@ impl EventsDal<'_, '_> {
             r#"
             UPDATE events
             SET
-                event_index_in_block = 1,
-                event_index_in_tx = 1
+                event_index_in_block_without_eth_transfer = 1,
+                event_index_in_tx_without_eth_transfer = 1
             WHERE
                 miniblock_number BETWEEN $1 AND $2
                 AND address = $3
@@ -360,6 +360,7 @@ impl EventsDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
+    use zksync_types::api::GetLogsFilter;
     use zksync_types::{api::ApiEthTransferEvents, Address, L1BatchNumber, ProtocolVersion};
 
     use super::*;
@@ -398,30 +399,30 @@ mod tests {
             tx_initiator_address: Address::default(),
         };
         let first_events = vec![create_vm_event(0, 0), create_vm_event(1, 4)];
+
         let second_location = IncludedTxLocation {
             tx_hash: H256([2; 32]),
             tx_index_in_miniblock: 1,
             tx_initiator_address: Address::default(),
         };
-        let second_events = vec![
-            create_vm_event(2, 2),
-            create_vm_event(3, 3),
-            create_vm_event(4, 4),
-        ];
+        // ETH Transfer event, that should be filtered out
+        let second_events = vec![VmEvent {
+            location: (L1BatchNumber(1), 5),
+            address: L2_ETH_TOKEN_ADDRESS,
+            indexed_topics: vec![TRANSFER_EVENT_TOPIC],
+            value: vec![5],
+        }];
 
         let third_location = IncludedTxLocation {
             tx_hash: H256([3; 32]),
             tx_index_in_miniblock: 2,
             tx_initiator_address: Address::default(),
         };
-
-        // ETH Transfer event, that should be filtered out
-        let third_events = vec![VmEvent {
-            location: (L1BatchNumber(1), 5),
-            address: L2_ETH_TOKEN_ADDRESS,
-            indexed_topics: vec![TRANSFER_EVENT_TOPIC],
-            value: vec![5],
-        }];
+        let third_events = vec![
+            create_vm_event(2, 2),
+            create_vm_event(3, 3),
+            create_vm_event(4, 4),
+        ];
 
         let all_events = vec![
             (first_location, first_events.iter().collect()),
@@ -437,12 +438,13 @@ mod tests {
             .get_all_logs(MiniblockNumber(0), ApiEthTransferEvents::Disabled)
             .await
             .unwrap();
+
         assert_eq!(logs.len(), 5);
         for (i, log) in logs.iter().enumerate() {
             let (expected_tx_index, expected_topics) = if i < first_events.len() {
                 (0_u64, &first_events[i].indexed_topics)
             } else {
-                (1_u64, &second_events[i - first_events.len()].indexed_topics)
+                (2_u64, &third_events[i - first_events.len()].indexed_topics)
             };
             let i = i as u8;
 
@@ -460,7 +462,150 @@ mod tests {
             .get_all_logs(MiniblockNumber(0), ApiEthTransferEvents::Enabled)
             .await
             .unwrap();
+
         assert_eq!(logs.len(), 6);
+        for (i, log) in logs.iter().enumerate() {
+            let (expected_tx_index, expected_topics) = if i < first_events.len() {
+                (0_u64, &first_events[i].indexed_topics)
+            } else if i < first_events.len() + second_events.len() {
+                (1_u64, &second_events[i - first_events.len()].indexed_topics)
+            } else {
+                (
+                    2_u64,
+                    &third_events[i - first_events.len() - second_events.len()].indexed_topics,
+                )
+            };
+            assert_eq!(log.block_number, Some(1_u64.into()));
+            assert_eq!(log.l1_batch_number, None);
+
+            if i < first_events.len() {
+                assert_eq!(log.address, Address::repeat_byte(i as u8));
+                assert_eq!(log.data.0, [i as u8]);
+            } else if i < first_events.len() + second_events.len() {
+                assert_eq!(log.address, L2_ETH_TOKEN_ADDRESS);
+                assert_eq!(log.data.0, [5u8]);
+            } else {
+                assert_eq!(log.address, Address::repeat_byte((i - 1) as u8));
+                assert_eq!(log.data.0, [(i - 1) as u8]);
+            }
+
+            assert_eq!(log.transaction_index, Some(expected_tx_index.into()));
+            assert_eq!(log.log_index, Some(i.into()));
+            assert_eq!(log.topics, *expected_topics);
+        }
+    }
+
+    #[tokio::test]
+    async fn assign_indexes_without_eth_transfer() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut conn = pool.access_storage().await.unwrap();
+        conn.events_dal().rollback_events(MiniblockNumber(0)).await;
+        conn.blocks_dal()
+            .delete_miniblocks(MiniblockNumber(0))
+            .await
+            .unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .await;
+        conn.blocks_dal()
+            .insert_miniblock(&create_miniblock_header(1))
+            .await
+            .unwrap();
+
+        let first_location = IncludedTxLocation {
+            tx_hash: H256([1; 32]),
+            tx_index_in_miniblock: 0,
+            tx_initiator_address: Address::default(),
+        };
+        let first_events = vec![create_vm_event(0, 0), create_vm_event(1, 4)];
+
+        let second_location = IncludedTxLocation {
+            tx_hash: H256([2; 32]),
+            tx_index_in_miniblock: 1,
+            tx_initiator_address: Address::default(),
+        };
+        // ETH Transfer event, that should be filtered out
+        let second_events = vec![
+            VmEvent {
+                location: (L1BatchNumber(1), 5),
+                address: L2_ETH_TOKEN_ADDRESS,
+                indexed_topics: vec![TRANSFER_EVENT_TOPIC],
+                value: vec![5],
+            },
+            VmEvent {
+                location: (L1BatchNumber(1), 6),
+                address: L2_ETH_TOKEN_ADDRESS,
+                indexed_topics: vec![TRANSFER_EVENT_TOPIC],
+                value: vec![5],
+            },
+        ];
+
+        let third_location = IncludedTxLocation {
+            tx_hash: H256([3; 32]),
+            tx_index_in_miniblock: 2,
+            tx_initiator_address: Address::default(),
+        };
+        let third_events = vec![
+            create_vm_event(2, 2),
+            create_vm_event(3, 3),
+            create_vm_event(4, 4),
+        ];
+
+        let all_events = vec![
+            (first_location, first_events.iter().collect()),
+            (second_location, second_events.iter().collect()),
+            (third_location, third_events.iter().collect()),
+        ];
+
+        conn.events_dal()
+            .save_events(MiniblockNumber(1), &all_events)
+            .await;
+
+        assert_eq!(
+            conn.events_dal()
+                .are_event_indexes_migrated(MiniblockNumber(0))
+                .await
+                .unwrap(),
+            true
+        );
+
+        let count = conn
+            .events_dal()
+            .assign_indexes_without_eth_transfer(MiniblockNumber(0)..=MiniblockNumber(1))
+            .await
+            .unwrap();
+        assert_eq!(count, 7);
+
+        let filter = GetLogsFilter {
+            from_block: MiniblockNumber(0),
+            to_block: MiniblockNumber(1),
+            topics: vec![],
+            addresses: vec![],
+        };
+
+        let raw_logs = conn
+            .events_web3_dal()
+            .get_raw_logs(filter, 1000)
+            .await
+            .unwrap();
+
+        for (i, log) in raw_logs.iter().enumerate() {
+            if log.address == L2_ETH_TOKEN_ADDRESS.as_bytes()
+                && log.topic1 == TRANSFER_EVENT_TOPIC.as_bytes()
+            {
+                assert_eq!(log.event_index_in_block_without_eth_transfer, 1);
+                assert_eq!(log.event_index_in_tx_without_eth_transfer, 1);
+            } else if i < first_events.len() {
+                assert_eq!(log.event_index_in_block_without_eth_transfer, i as i32 + 1);
+                assert_eq!(log.event_index_in_tx_without_eth_transfer, i as i32 + 1);
+            } else {
+                assert_eq!(log.event_index_in_block_without_eth_transfer, i as i32 - 1);
+                assert_eq!(
+                    log.event_index_in_tx_without_eth_transfer,
+                    (i - first_events.len() - 1) as i32
+                );
+            }
+        }
     }
 
     fn create_l2_to_l1_log(tx_number_in_block: u16, index: u8) -> UserL2ToL1Log {

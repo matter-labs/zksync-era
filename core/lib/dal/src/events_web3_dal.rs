@@ -105,14 +105,13 @@ impl EventsWeb3Dal<'_, '_> {
         api_eth_transfer_events: ApiEthTransferEvents,
     ) -> Result<Vec<Log>, SqlxError> {
         {
-            let logs = self
-                .get_raw_logs(filter, limit)
-                .await?
-                .into_iter()
-                .map(|log| log.into_storage_log(api_eth_transfer_events).into())
-                .collect();
-
-            Ok(logs)
+            let raw_logs = self.get_raw_logs(filter, limit).await?;
+            Ok(
+                filter_logs_by_api_eth_transfer_events(raw_logs, api_eth_transfer_events)
+                    .into_iter()
+                    .map(Into::into)
+                    .collect(),
+            )
         }
     }
 

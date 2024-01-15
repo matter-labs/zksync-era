@@ -99,42 +99,17 @@ async fn are_event_indexes_migrated(
         .await
         .with_context(|| format!("Failed getting event indexes for miniblock #{miniblock}"))
 }
-/*
+
 #[cfg(test)]
 mod tests {
-    use assert_matches::assert_matches;
     use multivm::zk_evm_1_3_1::ethereum_types::H256;
     use test_casing::test_casing;
-    use zksync_dal::transactions_dal::L2TxSubmissionResult;
     use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
-    use zksync_types::{
-        block::{BlockGasCount, MiniblockHeader},
-        fee::TransactionExecutionMetrics,
-        tx::IncludedTxLocation,
-        Address, L1BatchNumber, ProtocolVersion, VmEvent,
-    };
+    use zksync_types::api::GetLogsFilter;
+    use zksync_types::{tx::IncludedTxLocation, Address, L1BatchNumber, ProtocolVersion, VmEvent};
 
     use super::*;
-    use crate::utils::testonly::{create_l1_batch, create_l2_transaction, create_miniblock};
-
-    async fn store_miniblock(
-        storage: &mut StorageProcessor<'_>,
-    ) -> anyhow::Result<(MiniblockHeader, H256)> {
-        let new_tx = create_l2_transaction(1, 2);
-        let new_tx_hash = new_tx.hash();
-        let tx_submission_result = storage
-            .transactions_dal()
-            .insert_transaction_l2(new_tx, TransactionExecutionMetrics::default())
-            .await;
-        assert_matches!(tx_submission_result, L2TxSubmissionResult::Added);
-
-        let new_miniblock = create_miniblock(1);
-        storage
-            .blocks_dal()
-            .insert_miniblock(&new_miniblock)
-            .await?;
-        Ok((new_miniblock, new_tx_hash))
-    }
+    use crate::utils::testonly::create_miniblock;
 
     async fn store_events(
         storage: &mut StorageProcessor<'_>,
@@ -218,33 +193,7 @@ mod tests {
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
         for number in 0..5 {
-            let miniblock = create_miniblock(number);
-            storage
-                .blocks_dal()
-                .insert_miniblock(&miniblock)
-                .await
-                .unwrap();
-
-            let l1_batch = create_l1_batch(number);
-            storage
-                .blocks_dal()
-                .insert_l1_batch(&l1_batch, &[], BlockGasCount::default(), &[], &[], 0)
-                .await
-                .unwrap();
-            #[allow(deprecated)]
-            storage
-                .blocks_dal()
-                .set_l1_batch_fee_address(
-                    l1_batch.number,
-                    Address::from_low_u64_be(u64::from(number) + 1),
-                )
-                .await
-                .unwrap();
-            storage
-                .blocks_dal()
-                .mark_miniblocks_as_executed_in_l1_batch(l1_batch.number)
-                .await
-                .unwrap();
+            store_events(storage, number, 0).await.unwrap();
         }
     }
 
@@ -254,14 +203,35 @@ mod tests {
                 .await
                 .unwrap());
 
-            let fee_address = storage
-                .blocks_dal()
-                .get_fee_address_for_miniblock(MiniblockNumber(number))
+            let filter = GetLogsFilter {
+                from_block: number.into(),
+                to_block: number.into(),
+                addresses: vec![],
+                topics: vec![],
+            };
+
+            let raw_logs = storage
+                .events_web3_dal()
+                .get_raw_logs(filter, 1000)
                 .await
-                .unwrap()
-                .expect("no fee address");
-            let expected_address = Address::from_low_u64_be(u64::from(number) + 1);
-            assert_eq!(fee_address, expected_address);
+                .unwrap();
+
+            assert_eq!(raw_logs.len(), 7);
+
+            for (i, log) in raw_logs.iter().enumerate() {
+                if log.address == L2_ETH_TOKEN_ADDRESS.as_bytes()
+                    && log.topic1 == TRANSFER_EVENT_TOPIC.as_bytes()
+                {
+                    assert_eq!(log.event_index_in_block_without_eth_transfer, 1);
+                    assert_eq!(log.event_index_in_tx_without_eth_transfer, 1);
+                } else if i < 4 {
+                    assert_eq!(log.event_index_in_block_without_eth_transfer, i as i32 + 1);
+                    assert_eq!(log.event_index_in_tx_without_eth_transfer, i as i32 + 1);
+                } else {
+                    assert_eq!(log.event_index_in_block_without_eth_transfer, i as i32);
+                    assert_eq!(log.event_index_in_tx_without_eth_transfer, (i - 3) as i32);
+                }
+            }
         }
     }
 
@@ -302,7 +272,7 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(result.miniblocks_affected, 0);
+        assert_eq!(result.events_affected, 0);
     }
 
     #[test_casing(3, [1, 2, 3])]
@@ -324,7 +294,7 @@ mod tests {
         .unwrap();
 
         // Migration should stop after a single chunk.
-        assert_eq!(result.miniblocks_affected, u64::from(chunk_size));
+        assert_eq!(result.events_affected, u64::from(chunk_size));
 
         // Check that migration resumes from the same point.
         let (_stop_sender, stop_receiver) = watch::channel(false);
@@ -338,7 +308,7 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(result.miniblocks_affected, 5 - u64::from(chunk_size));
+        assert_eq!(result.events_affected, 5 - u64::from(chunk_size));
         assert_migration(&mut storage).await;
     }
 
@@ -361,16 +331,16 @@ mod tests {
         .unwrap();
 
         // Migration should stop after a single chunk.
-        assert_eq!(result.miniblocks_affected, u64::from(chunk_size));
+        assert_eq!(result.events_affected, u64::from(chunk_size));
 
         // Insert a new miniblock to the storage with a defined fee account address.
-        let mut miniblock = create_miniblock(5);
-        miniblock.fee_account_address = Address::repeat_byte(1);
+        let miniblock = create_miniblock(5);
         storage
             .blocks_dal()
             .insert_miniblock(&miniblock)
             .await
             .unwrap();
+        store_events(&mut storage, 5, 0).await.unwrap();
 
         // Resume the migration.
         let (_stop_sender, stop_receiver) = watch::channel(false);
@@ -385,7 +355,7 @@ mod tests {
         .unwrap();
 
         // The new miniblock should not be affected.
-        assert_eq!(result.miniblocks_affected, 5 - u64::from(chunk_size));
+        assert_eq!(result.events_affected, 5 - u64::from(chunk_size));
         assert_migration(&mut storage).await;
     }
-}*/
+}

@@ -142,6 +142,7 @@ impl HttpTest for LogFilterChangesTest {
         let FilterChanges::Logs(all_logs) = all_logs else {
             panic!("Unexpected getFilterChanges output: {:?}", all_logs);
         };
+
         assert_logs_match(&all_logs, &events);
 
         let address_logs = client.get_filter_changes(address_filter_id).await?;
