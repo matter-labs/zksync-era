@@ -376,7 +376,7 @@ impl TransactionsWeb3Dal<'_, '_> {
     pub async fn get_raw_miniblock_transactions(
         &mut self,
         miniblock: MiniblockNumber,
-    ) -> Result<Vec<Transaction>, SqlxError> {
+    ) -> sqlx::Result<Vec<Transaction>> {
         let rows = sqlx::query_as!(
             StorageTransaction,
             r#"

@@ -266,7 +266,6 @@ impl StateKeeperIO for MempoolIO {
             self.current_l1_batch_number,
             self.current_miniblock_number,
             self.l2_erc20_bridge_addr,
-            None,
             false,
         );
         self.miniblock_sealer_handle.submit(command).await;
@@ -317,7 +316,6 @@ impl StateKeeperIO for MempoolIO {
                 l1_batch_env,
                 finished_batch,
                 self.l2_erc20_bridge_addr,
-                None,
             )
             .await;
         self.current_miniblock_number += 1; // Due to fictive miniblock being sealed.
@@ -427,7 +425,7 @@ impl MempoolIO {
             .get_sealed_miniblock_number()
             .await
             .unwrap()
-            .expect("empty storage not supported"); // FIXME: handle empty storage
+            .expect("empty storage not supported"); // FIXME (PLA-703): handle empty storage
 
         drop(storage);
 
