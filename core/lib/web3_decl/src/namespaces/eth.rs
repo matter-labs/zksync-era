@@ -3,7 +3,7 @@ use jsonrpsee::{
     proc_macros::rpc,
 };
 use zksync_types::{
-    api::{BlockIdVariant, BlockNumber, Transaction, TransactionVariant},
+    api::{BlockId, BlockIdVariant, BlockNumber, Transaction, TransactionVariant},
     transaction_request::CallRequest,
     Address, H256,
 };
@@ -85,6 +85,9 @@ pub trait EthNamespace {
         &self,
         block_number: BlockNumber,
     ) -> RpcResult<Option<U256>>;
+
+    #[method(name = "getBlockReceipts")]
+    async fn get_block_receipts(&self, block_id: BlockId) -> RpcResult<Vec<TransactionReceipt>>;
 
     #[method(name = "getBlockTransactionCountByHash")]
     async fn get_block_transaction_count_by_hash(

@@ -177,6 +177,12 @@ impl From<H256> for TransactionId {
     }
 }
 
+impl From<(BlockId, Index)> for TransactionId {
+    fn from((block_id, index): (BlockId, Index)) -> Self {
+        TransactionId::Block(block_id, index)
+    }
+}
+
 /// A struct with the proof for the L2->L1 log in a specific block.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]

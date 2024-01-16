@@ -319,6 +319,39 @@ impl EthNamespace {
         Ok(tx_count?.map(|(_, count)| count))
     }
 
+    pub async fn get_block_receipts_impl(
+        &self,
+        block_id: BlockId,
+    ) -> Result<Vec<TransactionReceipt>, Web3Error> {
+        const METHOD_NAME: &str = "get_block_receipts";
+
+        let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
+
+        let transaction_count = self
+            .get_block_transaction_count_impl(block_id)
+            .await?
+            .ok_or(Web3Error::NoBlock)?;
+
+        let mut receipts = Vec::with_capacity(transaction_count.as_usize());
+
+        for index in 0..transaction_count.as_usize() {
+            let transaction = self
+                .get_transaction_impl(TransactionId::Block(block_id, index.into()))
+                .await?
+                .ok_or(Web3Error::NoTransaction)?;
+
+            receipts.push(
+                self.get_transaction_receipt_impl(transaction.hash)
+                    .await?
+                    .ok_or(Web3Error::NoTransaction)?,
+            );
+        }
+
+        method_latency.observe_without_diff();
+
+        Ok(receipts)
+    }
+
     #[tracing::instrument(skip(self))]
     pub async fn get_code_impl(
         &self,
