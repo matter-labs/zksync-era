@@ -31,7 +31,7 @@ impl IntoZkSyncTask for PrometheusExporterTask {
 
 #[async_trait::async_trait]
 impl ZkSyncTask for PrometheusExporterTask {
-    fn healtcheck(&mut self) -> Option<Box<dyn CheckHealth>> {
+    fn healthcheck(&mut self) -> Option<Box<dyn CheckHealth>> {
         self.prometheus_health_check
             .take()
             .map(|c| Box::new(c) as Box<dyn CheckHealth>)

@@ -41,8 +41,8 @@ impl IntoHealthCheckTask for HealthCheckTask {
 
 #[async_trait::async_trait]
 impl ZkSyncTask for HealthCheckTask {
-    fn healtcheck(&mut self) -> Option<Box<dyn zksync_health_check::CheckHealth>> {
-        // Not needed for the healtcheck server.
+    fn healthcheck(&mut self) -> Option<Box<dyn zksync_health_check::CheckHealth>> {
+        // Not needed for the healthcheck server.
         None
     }
 

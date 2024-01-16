@@ -28,7 +28,7 @@ type HealthCheckTaskConstructor = Box<
 /// Initialization flow:
 /// - Node instance is created with access to the resource provider.
 /// - Task constructors are added to the node. At this step, tasks are not created yet.
-/// - Optionally, a healtcheck task constructor is also added.
+/// - Optionally, a healthcheck task constructor is also added.
 /// - Once the `run` method is invoked, node
 ///   - attempts to create every task. If there are no tasks, or at least task
 ///     constructor fails, the node will return an error.
@@ -107,19 +107,19 @@ impl ZkSyncNode {
         self
     }
 
-    /// Returns `true` if the healtcheck task is already set.
+    /// Returns `true` if the healthcheck task is already set.
     pub fn has_healthcheck_task(&self) -> bool {
         self.healthcheck_task_constructor.is_some()
     }
 
-    /// Adds a healtcheck task to the node.
+    /// Adds a healthcheck task to the node.
     ///
-    /// Healtcheck task is treated as any other task, with the following differences:
+    /// Healthcheck task is treated as any other task, with the following differences:
     /// - It is given the list of healthchecks of all the other tasks.
-    /// - Its own healtcheck is ignored (the task is expected to handle its own checks itself).
+    /// - Its own healthcheck is ignored (the task is expected to handle its own checks itself).
     /// - There may be only one healthcheck task per node.
     ///
-    /// If the healtcheck task is already set, the provided one will override it.
+    /// If the healthcheck task is already set, the provided one will override it.
     pub fn with_healthcheck<
         F: FnOnce(
                 &NodeContext<'_>,
@@ -155,7 +155,7 @@ impl ZkSyncNode {
                     continue;
                 }
             };
-            let healthcheck = task.healtcheck();
+            let healthcheck = task.healthcheck();
             let after_node_shutdown = task.after_node_shutdown();
             let task_future = Box::pin(task.run(self.stop_receiver.clone()));
             let task_repr = TaskRepr {

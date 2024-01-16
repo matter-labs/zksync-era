@@ -15,7 +15,7 @@ pub trait Resource: 'static + Clone + std::any::Any {
     const RESOURCE_NAME: &'static str;
 }
 
-/// An entitity that knows how to initialize resources.
+/// An entity that knows how to initialize resources.
 ///
 /// It exists to simplify the initialization process, as both tasks and *resources* can depend on other resources,
 /// and by having an entity that can initialize the resource on demand we can avoid the need to provide resources

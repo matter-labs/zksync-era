@@ -1,4 +1,4 @@
-//! # ZK Stack node intitialization framework.
+//! # ZK Stack node initialization framework.
 //!
 //! ## Introduction
 //!

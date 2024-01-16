@@ -49,7 +49,7 @@ impl IntoZkSyncTask for MetadataCalculatorTask {
 
 #[async_trait::async_trait]
 impl ZkSyncTask for MetadataCalculatorTask {
-    fn healtcheck(&mut self) -> Option<Box<dyn CheckHealth>> {
+    fn healthcheck(&mut self) -> Option<Box<dyn CheckHealth>> {
         Some(Box::new(self.metadata_calculator.tree_health_check()))
     }
 

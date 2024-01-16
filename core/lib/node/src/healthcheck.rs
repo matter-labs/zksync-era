@@ -6,8 +6,8 @@ use crate::{
     task::{TaskInitError, ZkSyncTask},
 };
 
-/// Constructor for the healtcheck task.
-/// Generally equivalent to `IntoZkSyncTask`, but also accepts the list of healthcecks as an argument.
+/// Constructor for the healthcheck task.
+/// Generally equivalent to `IntoZkSyncTask`, but also accepts the list of healthchecks as an argument.
 pub trait IntoHealthCheckTask: 'static + Send + Sync {
     type Config: 'static + Send + Sync;
 

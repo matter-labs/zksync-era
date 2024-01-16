@@ -21,7 +21,7 @@ pub trait IntoZkSyncTask: 'static + Send + Sync {
     type Config: 'static + Send + Sync;
 
     /// Creates a new task.
-    /// `NodeContext` provides an interface to the utilities that task may need, e.g. the runtime handle to perform asyncronous
+    /// `NodeContext` provides an interface to the utilities that task may need, e.g. the runtime handle to perform asynchronous
     /// calls, or access to the resources.
     fn create(
         node: &NodeContext<'_>,
@@ -34,7 +34,7 @@ pub trait IntoZkSyncTask: 'static + Send + Sync {
 pub trait ZkSyncTask: 'static + Send + Sync {
     /// Gets the healthcheck for the task, if it exists.
     /// Guaranteed to be called only once per task.
-    fn healtcheck(&mut self) -> Option<Box<dyn CheckHealth>>;
+    fn healthcheck(&mut self) -> Option<Box<dyn CheckHealth>>;
 
     /// Runs the task.
     ///
