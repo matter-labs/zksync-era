@@ -38,6 +38,8 @@ members = [
     "core/lib/multivm",
     "core/lib/vm_utils",
     "core/lib/web3_decl",
+    "core/lib/test_account",
+    "core/lib/snapshots_applier",
 
     # Test infrastructure
     "core/tests/test_account",

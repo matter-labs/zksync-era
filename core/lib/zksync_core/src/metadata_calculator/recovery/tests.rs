@@ -124,8 +124,8 @@ async fn prepare_recovery_snapshot_with_genesis(
         l1_batch_root_hash,
         miniblock_number: MiniblockNumber(1),
         miniblock_root_hash: H256::zero(), // not used
-        last_finished_chunk_id: Some(0),
-        total_chunk_count: 1,
+        storage_logs_chunks_ids_to_process: vec![],
+        storage_logs_chunks_ids_already_processed: vec![],
     }
 }
 
@@ -313,4 +313,77 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
 
     stop_sender.send_replace(true);
     calculator_task.await.expect("calculator panicked").unwrap();
+}
+
+/// Prepares a recovery snapshot without performing genesis.
+async fn prepare_clean_recovery_snapshot(
+    storage: &mut StorageProcessor<'_>,
+    snapshot_logs: &[StorageLog],
+) -> SnapshotRecoveryStatus {
+    let written_keys: Vec<_> = snapshot_logs.iter().map(|log| log.key).collect();
+    let tree_instructions: Vec<_> = snapshot_logs
+        .iter()
+        .enumerate()
+        .map(|(i, log)| TreeInstruction::write(log.key, i as u64 + 1, log.value))
+        .collect();
+    let l1_batch_root_hash = ZkSyncTree::process_genesis_batch(&tree_instructions).root_hash;
+
+    storage
+        .protocol_versions_dal()
+        .save_protocol_version_with_tx(ProtocolVersion::default())
+        .await;
+    // TODO (PLA-596): Don't insert L1 batches / miniblocks once the relevant foreign keys are removed
+    let miniblock = MiniblockHeader {
+        number: MiniblockNumber(23),
+        timestamp: 23,
+        hash: H256::zero(),
+        l1_tx_count: 0,
+        l2_tx_count: 0,
+        base_fee_per_gas: 100,
+        batch_fee_input: BatchFeeInput::l1_pegged(100, 100),
+        base_system_contracts_hashes: Default::default(),
+        protocol_version: Some(ProtocolVersionId::latest()),
+        virtual_blocks: 0,
+    };
+    storage
+        .blocks_dal()
+        .insert_miniblock(&miniblock)
+        .await
+        .unwrap();
+    let l1_batch = L1BatchHeader::new(
+        L1BatchNumber(23),
+        23,
+        Default::default(),
+        Default::default(),
+        ProtocolVersionId::latest(),
+    );
+    storage
+        .blocks_dal()
+        .insert_l1_batch(&l1_batch, &[], Default::default(), &[], &[], 0)
+        .await
+        .unwrap();
+
+    storage
+        .storage_logs_dedup_dal()
+        .insert_initial_writes(l1_batch.number, &written_keys)
+        .await;
+    storage
+        .storage_logs_dal()
+        .insert_storage_logs(miniblock.number, &[(H256::zero(), snapshot_logs.to_vec())])
+        .await;
+
+    let snapshot_recovery = SnapshotRecoveryStatus {
+        l1_batch_number: l1_batch.number,
+        l1_batch_root_hash,
+        miniblock_number: miniblock.number,
+        miniblock_root_hash: H256::zero(), // not used
+        storage_logs_chunks_ids_to_process: vec![],
+        storage_logs_chunks_ids_already_processed: vec![],
+    };
+    storage
+        .snapshot_recovery_dal()
+        .set_applied_snapshot_status(&snapshot_recovery)
+        .await
+        .unwrap();
+    snapshot_recovery
 }

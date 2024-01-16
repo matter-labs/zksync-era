@@ -1,0 +1,25 @@
+[package]
+name = "zksync_snapshots_applier"
+version = "0.1.0"
+edition = "2018"
+authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
+homepage = "https://zksync.io/"
+repository = "https://github.com/matter-labs/zksync-era"
+license = "MIT OR Apache-2.0"
+keywords = ["blockchain", "zksync"]
+categories = ["cryptography"]
+
+
+[dependencies]
+zksync_dal = { path = "../../lib/dal" }
+zksync_types = { path = "../../lib/types" }
+zksync_object_store = { path = "../../lib/object_store" }
+zksync_core = { path = "../../lib/zksync_core" }
+zksync_web3_decl = { path = "../../lib/web3_decl" }
+zksync_utils = { path = "../../lib/utils" }
+
+anyhow = "1.0"
+async-trait = "0.1"
+tokio = { version = "1", features = ["time"] }
+tracing = "0.1"
+thiserror = "1.0"

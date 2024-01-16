@@ -2,8 +2,8 @@ use std::{collections::HashMap, ops, time::Instant};
 
 use sqlx::{types::chrono::Utc, Row};
 use zksync_types::{
-    get_code_key, AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, StorageLog,
-    FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256,
+    get_code_key, snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber,
+    MiniblockNumber, StorageKey, StorageLog, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256,
 };
 
 pub use crate::models::storage_log::StorageRecoveryLogEntry;
@@ -66,6 +66,47 @@ impl StorageLogsDal<'_, '_> {
         }
         copy.send(buffer.as_bytes()).await.unwrap();
         copy.finish().await.unwrap();
+    }
+
+    pub async fn insert_storage_logs_from_snapshot(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+        snapshot_storage_logs: &[SnapshotStorageLog],
+    ) -> sqlx::Result<()> {
+        let mut copy = self
+            .storage
+            .conn()
+            .copy_in_raw(
+                "COPY storage_logs(
+                    hashed_key, address, key, value, operation_number, tx_hash, miniblock_number,
+                    created_at, updated_at
+                )
+                FROM STDIN WITH (DELIMITER '|')",
+            )
+            .await
+            .unwrap();
+
+        let mut buffer = String::new();
+        let now = Utc::now().naive_utc().to_string();
+        for log in snapshot_storage_logs.iter() {
+            write_str!(
+                &mut buffer,
+                r"\\x{hashed_key:x}|\\x{address:x}|\\x{key:x}|\\x{value:x}|",
+                hashed_key = log.key.hashed_key(),
+                address = log.key.address(),
+                key = log.key.key(),
+                value = log.value
+            );
+            writeln_str!(
+                &mut buffer,
+                r"{}|\\x{:x}|{miniblock_number}|{now}|{now}",
+                log.enumeration_index,
+                H256::zero()
+            );
+        }
+        copy.send(buffer.as_bytes()).await?;
+        copy.finish().await?;
+        Ok(())
     }
 
     pub async fn append_storage_logs(

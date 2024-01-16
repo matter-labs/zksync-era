@@ -49,7 +49,7 @@ pub struct SnapshotHeader {
     pub last_l1_batch_with_metadata: L1BatchWithMetadata,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotStorageLogsChunkMetadata {
     pub chunk_id: u64,
@@ -194,8 +194,8 @@ pub struct SnapshotRecoveryStatus {
     pub l1_batch_root_hash: H256,
     pub miniblock_number: MiniblockNumber,
     pub miniblock_root_hash: H256,
-    pub last_finished_chunk_id: Option<u64>,
-    pub total_chunk_count: u64,
+    pub storage_logs_chunks_ids_to_process: Vec<u64>,
+    pub storage_logs_chunks_ids_already_processed: Vec<u64>,
 }
 
 /// Returns a chunk of `hashed_keys` with 0-based index `chunk_id` among `count`. Chunks do not intersect and jointly cover
