@@ -198,6 +198,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInstance<S, H> {
                     crate::vm_boojum_integration::Vm::new(l1_batch_env, system_env, storage_view);
                 VmInstance::VmBoojumIntegration(vm)
             }
+            VmVersion::Vm1_5_0 => {
+                let vm = crate::vm_1_5_0::Vm::new(l1_batch_env, system_env, storage_view);
+                VmInstance::Vm1_5_0(vm)
+            }
         }
     }
 }
