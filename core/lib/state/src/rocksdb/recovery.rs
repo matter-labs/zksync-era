@@ -10,7 +10,10 @@ use zksync_types::{
     L1BatchNumber, MiniblockNumber, H256,
 };
 
-use super::{RocksdbStorage, RocksdbSyncError, StateValue};
+use super::{
+    metrics::{ChunkRecoveryStage, RecoveryStage, RECOVERY_METRICS},
+    RocksdbStorage, RocksdbSyncError, StateValue,
+};
 
 impl RocksdbStorage {
     /// Ensures that this storage is ready for normal operation (i.e., updates by L1 batch).
@@ -66,21 +69,27 @@ impl RocksdbStorage {
         tracing::info!("Recovering secondary storage from snapshot: {snapshot_recovery:?}");
 
         // We don't expect that many factory deps; that's why we recover factory deps in any case.
+        let latency = RECOVERY_METRICS.latency[&RecoveryStage::LoadFactoryDeps].start();
         let factory_deps = storage
             .blocks_dal()
             .get_l1_batch_factory_deps(snapshot_recovery.l1_batch_number)
             .await
             .context("Failed getting factory dependencies")?;
+        let latency = latency.observe();
         tracing::info!(
-            "Loaded {} factory dependencies from the snapshot",
+            "Loaded {} factory dependencies from the snapshot in {latency:?}",
             factory_deps.len()
         );
+
+        let latency = RECOVERY_METRICS.latency[&RecoveryStage::SaveFactoryDeps].start();
         for (bytecode_hash, bytecode) in factory_deps {
             self.store_factory_dep(bytecode_hash, bytecode);
         }
         self.save(None)
             .await
             .context("failed saving factory deps")?;
+        let latency = latency.observe();
+        tracing::info!("Saved factory dependencies to RocksDB in {latency:?}");
 
         if *stop_receiver.borrow() {
             return Err(RocksdbSyncError::Interrupted);
@@ -99,6 +108,7 @@ impl RocksdbStorage {
             "Estimated the number of chunks for recovery based on {log_count} logs: {chunk_count}"
         );
 
+        let latency = RECOVERY_METRICS.latency[&RecoveryStage::LoadChunkStarts].start();
         let key_chunks: Vec<_> = (0..chunk_count)
             .map(|chunk_id| uniform_hashed_keys_chunk(chunk_id, chunk_count))
             .collect();
@@ -107,15 +117,20 @@ impl RocksdbStorage {
             .get_chunk_starts_for_miniblock(snapshot_miniblock, &key_chunks)
             .await
             .context("Failed getting chunk starts")?;
+        let latency = latency.observe();
+        tracing::info!("Loaded {chunk_count} chunk starts in {latency:?}");
 
+        RECOVERY_METRICS.recovered_chunk_count.set(0);
         for ((chunk_id, key_chunk), chunk_start) in
             (0..chunk_count).zip(key_chunks).zip(chunk_starts)
         {
             if *stop_receiver.borrow() {
                 return Err(RocksdbSyncError::Interrupted);
             }
+
             let Some(chunk_start) = chunk_start else {
                 tracing::info!("Chunk {chunk_id} (hashed key range {key_chunk:?}) doesn't have entries in Postgres; skipping");
+                RECOVERY_METRICS.recovered_chunk_count.inc_by(1);
                 continue;
             };
 
@@ -149,6 +164,7 @@ impl RocksdbStorage {
                 #[cfg(test)]
                 (self.listener.on_logs_chunk_recovered)(chunk_id);
             }
+            RECOVERY_METRICS.recovered_chunk_count.inc_by(1);
         }
 
         tracing::info!("All chunks recovered; finalizing recovery process");
@@ -164,13 +180,13 @@ impl RocksdbStorage {
             .unwrap()
     }
 
-    // TODO: metrics?
     async fn recover_logs_chunk(
         &mut self,
         storage: &mut StorageProcessor<'_>,
         snapshot_miniblock: MiniblockNumber,
         key_chunk: ops::RangeInclusive<H256>,
     ) -> anyhow::Result<()> {
+        let latency = RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::LoadEntries].start();
         let all_entries = storage
             .storage_logs_dal()
             .get_tree_entries_for_miniblock(snapshot_miniblock, key_chunk.clone())
@@ -178,11 +194,13 @@ impl RocksdbStorage {
             .with_context(|| {
                 format!("Failed getting entries for chunk {key_chunk:?} in snapshot for miniblock #{snapshot_miniblock}")
             })?;
+        let latency = latency.observe();
         tracing::debug!(
-            "Loaded {} log entries for chunk {key_chunk:?}",
+            "Loaded {} log entries for chunk {key_chunk:?} in {latency:?}",
             all_entries.len()
         );
 
+        let latency = RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::SaveEntries].start();
         self.pending_patch.state = all_entries
             .into_iter()
             .map(|entry| (entry.key, (entry.value, entry.leaf_index)))
@@ -190,6 +208,8 @@ impl RocksdbStorage {
         self.save(None)
             .await
             .context("failed saving storage logs chunk")?;
+        let latency = latency.observe();
+        tracing::debug!("Saved logs chunk {key_chunk:?} to RocksDB in {latency:?}");
 
         tracing::info!("Recovered hashed key chunk {key_chunk:?}");
         Ok(())
