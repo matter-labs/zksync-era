@@ -1,3 +1,7 @@
+//! An incomplete example of how node initialization looks like.
+//! This example defines a `ResourceProvider` that works using the main node env config, and
+//! initializes a single task with a health check server.
+
 use zksync_config::PostgresConfig;
 use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;

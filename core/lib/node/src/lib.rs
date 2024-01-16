@@ -4,7 +4,7 @@
 //!
 //! This crate provides core abstractions that allow one to compose a ZK Stack node.
 //! Main concepts used in this crate are:
-//! - [`Task`](task::ZkSyncTask) - a unit of work that can be executed by the node.
+//! - [`ZkSyncTask`](task::ZkSyncTask) - a unit of work that can be executed by the node.
 //! - [`Resource`](resource::Resource) - a piece of logic that can be shared between tasks. Most resources are
 //!   represented by generic interfaces and also serve as points of customization for tasks.
 //! - [`ResourceProvider`](resource::ResourceProvider) - a trait that allows one to provide resources to the node.
