@@ -23,5 +23,7 @@ tracing = "0.1"
 itertools = "0.10.3"
 
 [dev-dependencies]
+assert_matches = "1.5.0"
 rand = "0.8.5"
 tempfile = "3.0.2"
+test-casing = "0.1.2"

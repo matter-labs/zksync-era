@@ -3,13 +3,14 @@
 use std::ops;
 
 use anyhow::Context as _;
+use tokio::sync::watch;
 use zksync_dal::StorageProcessor;
 use zksync_types::{
     snapshots::{uniform_hashed_keys_chunk, SnapshotRecoveryStatus},
     L1BatchNumber, MiniblockNumber, H256,
 };
 
-use super::{RocksdbStorage, StateValue};
+use super::{RocksdbStorage, RocksdbSyncError, StateValue};
 
 impl RocksdbStorage {
     /// Ensures that this storage is ready for normal operation (i.e., updates by L1 batch).
@@ -20,7 +21,9 @@ impl RocksdbStorage {
     pub(super) async fn ensure_ready(
         &mut self,
         storage: &mut StorageProcessor<'_>,
-    ) -> anyhow::Result<L1BatchNumber> {
+        desired_log_chunk_size: u64,
+        stop_receiver: &watch::Receiver<bool>,
+    ) -> Result<L1BatchNumber, RocksdbSyncError> {
         Ok(if let Some(number) = self.l1_batch_number().await {
             number
         } else {
@@ -31,9 +34,13 @@ impl RocksdbStorage {
                 .await
                 .context("failed getting snapshot recovery info")?;
             if let Some(snapshot_recovery) = snapshot_recovery {
-                self.recover_from_snapshot(storage, &snapshot_recovery)
-                    .await
-                    .context("failed recovering from snapshot")?;
+                self.recover_from_snapshot(
+                    storage,
+                    &snapshot_recovery,
+                    desired_log_chunk_size,
+                    stop_receiver,
+                )
+                .await?;
                 snapshot_recovery.l1_batch_number + 1
             } else {
                 // No recovery snapshot; we're initializing the cache from the genesis
@@ -42,7 +49,6 @@ impl RocksdbStorage {
         })
     }
 
-    // FIXME: `stop_receiver`?
     /// # Important
     ///
     /// `Self::L1_BATCH_NUMBER_KEY` must be set at the very end of the process. If it is set earlier, recovery is not fault-tolerant
@@ -51,11 +57,12 @@ impl RocksdbStorage {
         &mut self,
         storage: &mut StorageProcessor<'_>,
         snapshot_recovery: &SnapshotRecoveryStatus,
-    ) -> anyhow::Result<()> {
-        /// This is intentionally not configurable because chunks must be the same for the entire recovery
-        /// (i.e., not changed after a node restart).
-        const DESIRED_CHUNK_SIZE: u64 = 200_000;
-
+        desired_log_chunk_size: u64,
+        stop_receiver: &watch::Receiver<bool>,
+    ) -> Result<(), RocksdbSyncError> {
+        if *stop_receiver.borrow() {
+            return Err(RocksdbSyncError::Interrupted);
+        }
         tracing::info!("Recovering secondary storage from snapshot: {snapshot_recovery:?}");
 
         // We don't expect that many factory deps; that's why we recover factory deps in any case.
@@ -75,6 +82,10 @@ impl RocksdbStorage {
             .await
             .context("failed saving factory deps")?;
 
+        if *stop_receiver.borrow() {
+            return Err(RocksdbSyncError::Interrupted);
+        }
+
         let snapshot_miniblock = snapshot_recovery.miniblock_number;
         let log_count = storage
             .storage_logs_dal()
@@ -83,7 +94,7 @@ impl RocksdbStorage {
             .with_context(|| {
                 format!("Failed getting number of logs for miniblock #{snapshot_miniblock}")
             })?;
-        let chunk_count = zksync_utils::ceil_div(log_count, DESIRED_CHUNK_SIZE);
+        let chunk_count = zksync_utils::ceil_div(log_count, desired_log_chunk_size);
         tracing::info!(
             "Estimated the number of chunks for recovery based on {log_count} logs: {chunk_count}"
         );
@@ -100,6 +111,9 @@ impl RocksdbStorage {
         for ((chunk_id, key_chunk), chunk_start) in
             (0..chunk_count).zip(key_chunks).zip(chunk_starts)
         {
+            if *stop_receiver.borrow() {
+                return Err(RocksdbSyncError::Interrupted);
+            }
             let Some(chunk_start) = chunk_start else {
                 tracing::info!("Chunk {chunk_id} (hashed key range {key_chunk:?}) doesn't have entries in Postgres; skipping");
                 continue;
@@ -108,12 +122,16 @@ impl RocksdbStorage {
             // Check whether the chunk is already recovered.
             let state_value = self.read_state_value_async(chunk_start.key).await;
             if let Some(state_value) = state_value {
-                anyhow::ensure!(
-                    state_value.value == chunk_start.value && state_value.enum_index == Some(chunk_start.leaf_index),
-                    "Mismatch between entry for key {:0>64x} in Postgres snapshot for miniblock #{snapshot_miniblock} \
-                     ({chunk_start:?}) and RocksDB cache ({state_value:?}); the recovery procedure may be corrupted",
-                    chunk_start.key
-                );
+                if state_value.value != chunk_start.value
+                    || state_value.enum_index != Some(chunk_start.leaf_index)
+                {
+                    let err = anyhow::anyhow!(
+                        "Mismatch between entry for key {:0>64x} in Postgres snapshot for miniblock #{snapshot_miniblock} \
+                         ({chunk_start:?}) and RocksDB cache ({state_value:?}); the recovery procedure may be corrupted",
+                        chunk_start.key
+                    );
+                    return Err(err.into());
+                }
                 tracing::info!("Chunk {chunk_id} (hashed key range {key_chunk:?}) is already recovered; skipping");
             } else {
                 self.recover_logs_chunk(
@@ -127,6 +145,9 @@ impl RocksdbStorage {
                         "failed recovering logs chunk {chunk_id} (hashed key range {key_chunk:?})"
                     )
                 })?;
+
+                #[cfg(test)]
+                (self.listener.on_logs_chunk_recovered)(chunk_id);
             }
         }
 

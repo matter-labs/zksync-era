@@ -36,6 +36,8 @@ use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256, U256};
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use self::metrics::METRICS;
+#[cfg(test)]
+use self::tests::RocksdbStorageEventListener;
 use crate::{InMemoryStorage, ReadStorage};
 
 mod metrics;
@@ -109,12 +111,12 @@ impl StateValue {
 
 /// Error emitted when [`RocksdbStorage`] is being updated.
 #[derive(Debug)]
-enum RocksdbUpdateError {
+enum RocksdbSyncError {
     Internal(anyhow::Error),
     Interrupted,
 }
 
-impl From<anyhow::Error> for RocksdbUpdateError {
+impl From<anyhow::Error> for RocksdbSyncError {
     fn from(err: anyhow::Error) -> Self {
         Self::Internal(err)
     }
@@ -126,6 +128,9 @@ pub struct RocksdbStorage {
     db: RocksDB<StateKeeperColumnFamily>,
     pending_patch: InMemoryStorage,
     enum_index_migration_chunk_size: usize,
+    /// Test-only listeners to events produced by the storage.
+    #[cfg(test)]
+    listener: RocksdbStorageEventListener,
 }
 
 /// Builder of [`RocksdbStorage`]. The storage data is inaccessible until the storage is [`Self::synchronize()`]d
@@ -166,8 +171,8 @@ impl RocksbStorageBuilder {
         let mut inner = self.0;
         match inner.update_from_postgres(storage, stop_receiver).await {
             Ok(()) => Ok(Some(inner)),
-            Err(RocksdbUpdateError::Interrupted) => Ok(None),
-            Err(RocksdbUpdateError::Internal(err)) => Err(err),
+            Err(RocksdbSyncError::Interrupted) => Ok(None),
+            Err(RocksdbSyncError::Internal(err)) => Err(err),
         }
     }
 
@@ -188,6 +193,11 @@ impl RocksbStorageBuilder {
 impl RocksdbStorage {
     const L1_BATCH_NUMBER_KEY: &'static [u8] = b"block_number";
     const ENUM_INDEX_MIGRATION_CURSOR: &'static [u8] = b"enum_index_migration_cursor";
+
+    /// Desired size of log chunks loaded from Postgres during snapshot recovery.
+    /// This is intentionally not configurable because chunks must be the same for the entire recovery
+    /// (i.e., not changed after a node restart).
+    const DESIRED_LOG_CHUNK_SIZE: u64 = 200_000;
 
     fn is_special_key(key: &[u8]) -> bool {
         key == Self::L1_BATCH_NUMBER_KEY || key == Self::ENUM_INDEX_MIGRATION_CURSOR
@@ -210,6 +220,8 @@ impl RocksdbStorage {
                 db: RocksDB::new(&path).context("failed initializing state keeper RocksDB")?,
                 pending_patch: InMemoryStorage::default(),
                 enum_index_migration_chunk_size: 100,
+                #[cfg(test)]
+                listener: RocksdbStorageEventListener::default(),
             })
         })
         .await
@@ -220,11 +232,10 @@ impl RocksdbStorage {
         &mut self,
         storage: &mut StorageProcessor<'_>,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<(), RocksdbUpdateError> {
+    ) -> Result<(), RocksdbSyncError> {
         let mut current_l1_batch_number = self
-            .ensure_ready(storage)
-            .await
-            .context("failed initializing RocksDB cache")?;
+            .ensure_ready(storage, Self::DESIRED_LOG_CHUNK_SIZE, stop_receiver)
+            .await?;
 
         let latency = METRICS.update.start();
         let Some(latest_l1_batch_number) = storage
@@ -248,7 +259,7 @@ impl RocksdbStorage {
 
         while current_l1_batch_number <= latest_l1_batch_number {
             if *stop_receiver.borrow() {
-                return Err(RocksdbUpdateError::Interrupted);
+                return Err(RocksdbSyncError::Interrupted);
             }
             let current_lag = latest_l1_batch_number.0 - current_l1_batch_number.0 + 1;
             METRICS.lag.set(current_lag.into());
@@ -279,6 +290,8 @@ impl RocksdbStorage {
             self.save(Some(current_l1_batch_number))
                 .await
                 .with_context(|| format!("failed saving L1 batch #{current_l1_batch_number}"))?;
+            #[cfg(test)]
+            (self.listener.on_l1_batch_synced)(current_l1_batch_number - 1);
         }
 
         latency.observe();
@@ -293,7 +306,7 @@ impl RocksdbStorage {
         // Enum indices must be at the storage. Run migration till the end.
         while self.enum_migration_start_from().await.is_some() {
             if *stop_receiver.borrow() {
-                return Err(RocksdbUpdateError::Interrupted);
+                return Err(RocksdbSyncError::Interrupted);
             }
             self.save_missing_enum_indices(storage).await?;
         }

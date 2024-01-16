@@ -1,6 +1,10 @@
 //! Tests for [`RocksdbStorage`].
 
+use std::fmt;
+
+use assert_matches::assert_matches;
 use tempfile::TempDir;
+use test_casing::test_casing;
 use zksync_dal::ConnectionPool;
 use zksync_types::{MiniblockNumber, StorageLog};
 
@@ -9,6 +13,30 @@ use crate::test_utils::{
     create_l1_batch, create_miniblock, gen_storage_logs, prepare_postgres,
     prepare_postgres_for_snapshot_recovery,
 };
+
+pub(super) struct RocksdbStorageEventListener {
+    /// Called when an L1 batch is synced.
+    pub on_l1_batch_synced: Box<dyn FnMut(L1BatchNumber) + Send + Sync>,
+    /// Called when an storage logs chunk is recovered from a snapshot.
+    pub on_logs_chunk_recovered: Box<dyn FnMut(u64) + Send + Sync>,
+}
+
+impl fmt::Debug for RocksdbStorageEventListener {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("RocksdbStorageEventListener")
+            .finish_non_exhaustive()
+    }
+}
+
+impl Default for RocksdbStorageEventListener {
+    fn default() -> Self {
+        Self {
+            on_l1_batch_synced: Box::new(|_| { /* do nothing */ }),
+            on_logs_chunk_recovered: Box::new(|_| { /* do nothing */ }),
+        }
+    }
+}
 
 #[tokio::test]
 async fn rocksdb_storage_basics() {
@@ -74,6 +102,56 @@ async fn rocksdb_storage_syncing_with_postgres() {
     assert_eq!(storage.l1_batch_number().await, Some(L1BatchNumber(2)));
     for log in &storage_logs {
         assert_eq!(storage.read_value(&log.key), log.value);
+    }
+}
+
+#[tokio::test]
+async fn rocksdb_storage_syncing_fault_tolerance() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut conn = pool.access_storage().await.unwrap();
+    prepare_postgres(&mut conn).await;
+    let storage_logs = gen_storage_logs(100..200);
+    for (i, block_logs) in storage_logs.chunks(20).enumerate() {
+        let number = u32::try_from(i).unwrap() + 1;
+        create_miniblock(&mut conn, MiniblockNumber(number), block_logs.to_vec()).await;
+        create_l1_batch(&mut conn, L1BatchNumber(number), block_logs).await;
+    }
+
+    let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let mut storage = RocksdbStorage::builder(dir.path())
+        .await
+        .expect("Failed initializing RocksDB");
+    let mut expected_l1_batch_number = L1BatchNumber(0);
+    storage.0.listener.on_l1_batch_synced = Box::new(move |number| {
+        assert_eq!(number, expected_l1_batch_number);
+        expected_l1_batch_number += 1;
+        if number == L1BatchNumber(2) {
+            stop_sender.send_replace(true);
+        }
+    });
+    let storage = storage
+        .synchronize(&mut conn, &stop_receiver)
+        .await
+        .unwrap();
+    assert!(storage.is_none());
+
+    // Resume storage syncing and check that it completes.
+    let storage = RocksdbStorage::builder(dir.path())
+        .await
+        .expect("Failed initializing RocksDB");
+    assert_eq!(storage.l1_batch_number().await, Some(L1BatchNumber(3)));
+
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let mut storage = storage
+        .synchronize(&mut conn, &stop_receiver)
+        .await
+        .unwrap()
+        .expect("Storage synchronization unexpectedly stopped");
+    assert_eq!(storage.l1_batch_number().await, Some(L1BatchNumber(6)));
+    for log in &storage_logs {
+        assert_eq!(storage.read_value(&log.key), log.value);
+        assert!(!storage.is_write_initial(&log.key));
     }
 }
 
@@ -244,8 +322,9 @@ async fn rocksdb_enum_index_migration() {
     assert!(start_from.is_none());
 }
 
+#[test_casing(4, [RocksdbStorage::DESIRED_LOG_CHUNK_SIZE, 20, 5, 1])]
 #[tokio::test]
-async fn low_level_snapshot_recovery() {
+async fn low_level_snapshot_recovery(log_chunk_size: u64) {
     let pool = ConnectionPool::test_pool().await;
     let mut conn = pool.access_storage().await.unwrap();
     let (snapshot_recovery, mut storage_logs) =
@@ -253,7 +332,11 @@ async fn low_level_snapshot_recovery() {
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
     let mut storage = RocksdbStorage::new(dir.path().to_path_buf()).await.unwrap();
-    let next_l1_batch = storage.ensure_ready(&mut conn).await.unwrap();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let next_l1_batch = storage
+        .ensure_ready(&mut conn, log_chunk_size, &stop_receiver)
+        .await
+        .unwrap();
     assert_eq!(next_l1_batch, snapshot_recovery.l1_batch_number + 1);
     assert_eq!(
         storage.l1_batch_number().await,
@@ -335,6 +418,48 @@ async fn recovering_from_snapshot_and_following_logs() {
             storage.get_enumeration_index(&log.key),
             Some(expected_index)
         );
+        assert!(!storage.is_write_initial(&log.key));
+    }
+}
+
+#[tokio::test]
+async fn recovery_fault_tolerance() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut conn = pool.access_storage().await.unwrap();
+    let (_, storage_logs) = prepare_postgres_for_snapshot_recovery(&mut conn).await;
+    let log_chunk_size = storage_logs.len() as u64 / 5;
+
+    let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
+    let mut storage = RocksdbStorage::new(dir.path().to_path_buf()).await.unwrap();
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let mut synced_chunk_count = 0_u64;
+    storage.listener.on_logs_chunk_recovered = Box::new(move |chunk_id| {
+        assert_eq!(chunk_id, synced_chunk_count);
+        synced_chunk_count += 1;
+        if synced_chunk_count == 2 {
+            stop_sender.send_replace(true);
+        }
+    });
+
+    let err = storage
+        .ensure_ready(&mut conn, log_chunk_size, &stop_receiver)
+        .await
+        .unwrap_err();
+    assert_matches!(err, RocksdbSyncError::Interrupted);
+    drop(storage);
+
+    // Resume recovery and check that no chunks are recovered twice.
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let mut storage = RocksdbStorage::new(dir.path().to_path_buf()).await.unwrap();
+    storage.listener.on_logs_chunk_recovered = Box::new(|chunk_id| {
+        assert!(chunk_id >= 2);
+    });
+    storage
+        .ensure_ready(&mut conn, log_chunk_size, &stop_receiver)
+        .await
+        .unwrap();
+    for log in &storage_logs {
+        assert_eq!(storage.read_value(&log.key), log.value);
         assert!(!storage.is_write_initial(&log.key));
     }
 }

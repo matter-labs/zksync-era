@@ -9075,10 +9075,12 @@ name = "zksync_state"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "itertools 0.10.5",
  "mini-moka",
  "rand 0.8.5",
  "tempfile",
+ "test-casing",
  "tokio",
  "tracing",
  "vise",
