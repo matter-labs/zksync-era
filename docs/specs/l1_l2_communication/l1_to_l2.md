@@ -87,7 +87,7 @@ been complete.
 The upgrade transactions are processed just like with priority transactions, with only the following differences:
 
 - We can have only one upgrade transaction per batch & this transaction must be the first transaction in the batch.
-- The system contracts upgrade transaction is not appended to `priorityOperationsRollingHash` and doesn’t increment
+- The system contracts upgrade transaction is not appended to `priorityOperationsRollingHash` and doesn't increment
   `numberOfPriorityTransactions`. Instead, its hash is calculated via a system L2→L1 log _before_ it gets executed.
   Note, that it is an important property. More on it [below](#security-considerations).
 
@@ -108,7 +108,7 @@ In a very rare event when the team needs to revert the batch with the upgrade on
 [reset](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/facets/Executor.sol#L412).
 
 Note, however, that we do not “remember” that certain batches had a version before the upgrade, i.e. if the reverted
-batches will have to be reexecuted, the upgrade transaction must still be present there, even if some of the deleted
+batches will have to be re-executed, the upgrade transaction must still be present there, even if some of the deleted
 batches were committed before the upgrade and thus didn’t contain the transaction.
 
 ### Execute

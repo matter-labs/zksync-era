@@ -19,8 +19,6 @@ pub const MAX_BYTES_PER_PACKED_SLOT: u64 = 65;
 pub static GAS_PER_SLOT: Lazy<BigUint> =
     Lazy::new(|| BigUint::from(MAX_BYTES_PER_PACKED_SLOT) * BigUint::from(GAS_PER_PUBDATA_BYTE));
 
-pub const MAX_TXS_IN_BLOCK: usize = 1024;
-
 pub const MAX_NEW_FACTORY_DEPS: usize = 32;
 
 pub const PAD_MSG_BEFORE_HASH_BITS_LEN: usize = 736;

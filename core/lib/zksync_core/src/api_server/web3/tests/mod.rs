@@ -8,13 +8,13 @@ use zksync_config::configs::{
     chain::{NetworkConfig, StateKeeperConfig},
     ContractsConfig,
 };
-use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
 use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
+use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::MiniblockHeader, fee::TransactionExecutionMetrics, tx::IncludedTxLocation, Address,
-    L1BatchNumber, ProtocolVersionId, VmEvent, H256, U64,
+    L1BatchNumber, VmEvent, H256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::{core::ClientError as RpcError, http_client::HttpClient, types::error::ErrorCode},
@@ -26,20 +26,27 @@ use super::{metrics::ApiTransportLabel, *};
 use crate::{
     api_server::tx_sender::TxSenderConfig,
     genesis::{ensure_genesis_state, GenesisParams},
-    state_keeper::tests::create_l2_transaction,
+    l1_gas_price::L1GasPriceProvider,
+    utils::testonly::{create_l2_transaction, create_miniblock},
 };
 
+mod snapshots;
 mod ws;
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 /// Mock [`L1GasPriceProvider`] that returns a constant value.
+#[derive(Debug)]
 struct MockL1GasPriceProvider(u64);
 
 impl L1GasPriceProvider for MockL1GasPriceProvider {
     fn estimate_effective_gas_price(&self) -> u64 {
         self.0
+    }
+
+    fn estimate_effective_pubdata_price(&self) -> u64 {
+        self.0 * L1_GAS_PER_PUBDATA_BYTE as u64
     }
 }
 
@@ -63,16 +70,19 @@ impl ApiServerHandles {
     pub(crate) async fn shutdown(self) {
         let stop_server = async {
             for task in self.tasks {
-                // FIXME(PLA-481): avoid these errors (by spawning notifier tasks on server runtime?)
-                if let Err(err) = task.await.expect("Server panicked") {
-                    let err = err.root_cause().to_string();
-                    assert!(err.contains("Tokio 1.x context was found"));
-                }
+                let task_result = task.await.unwrap_or_else(|err| {
+                    if err.is_cancelled() {
+                        Ok(())
+                    } else {
+                        panic!("Server panicked: {err:?}");
+                    }
+                });
+                task_result.expect("Server task returned an error");
             }
         };
         tokio::time::timeout(TEST_TIMEOUT, stop_server)
             .await
-            .unwrap();
+            .expect(format!("panicking at {}", chrono::Utc::now()).as_str());
     }
 }
 
@@ -136,6 +146,9 @@ async fn spawn_server(
     .await;
     let (pub_sub_events_sender, pub_sub_events_receiver) = mpsc::unbounded_channel();
 
+    let mut namespaces = Namespace::DEFAULT.to_vec();
+    namespaces.push(Namespace::Snapshots);
+
     let server_builder = match transport {
         ApiTransportLabel::Http => ApiBuilder::jsonrpsee_backend(api_config, pool).http(0),
         ApiTransportLabel::Ws => {
@@ -150,11 +163,10 @@ async fn spawn_server(
         }
     };
     let server_handles = server_builder
-        .with_threads(1)
         .with_polling_interval(POLL_INTERVAL)
         .with_tx_sender(tx_sender, vm_barrier)
         .with_pub_sub_events(pub_sub_events_sender)
-        .enable_api_namespaces(Namespace::DEFAULT.to_vec())
+        .enable_api_namespaces(namespaces)
         .build(stop_receiver)
         .await
         .expect("Failed spawning JSON-RPC server");
@@ -203,24 +215,9 @@ fn assert_logs_match(actual_logs: &[api::Log], expected_logs: &[&VmEvent]) {
     }
 }
 
-fn create_miniblock(number: u32) -> MiniblockHeader {
-    MiniblockHeader {
-        number: MiniblockNumber(number),
-        timestamp: number.into(),
-        hash: H256::from_low_u64_be(number.into()),
-        l1_tx_count: 0,
-        l2_tx_count: 0,
-        base_fee_per_gas: 100,
-        l1_gas_price: 100,
-        l2_fair_gas_price: 100,
-        base_system_contracts_hashes: BaseSystemContractsHashes::default(),
-        protocol_version: Some(ProtocolVersionId::latest()),
-        virtual_blocks: 1,
-    }
-}
-
-async fn store_block(pool: &ConnectionPool) -> anyhow::Result<(MiniblockHeader, H256)> {
-    let mut storage = pool.access_storage().await?;
+async fn store_miniblock(
+    storage: &mut StorageProcessor<'_>,
+) -> anyhow::Result<(MiniblockHeader, H256)> {
     let new_tx = create_l2_transaction(1, 2);
     let new_tx_hash = new_tx.hash();
     let tx_submission_result = storage
@@ -293,10 +290,10 @@ async fn store_events(
 }
 
 #[derive(Debug)]
-struct HttpServerBasics;
+struct HttpServerBasicsTest;
 
 #[async_trait]
-impl HttpTest for HttpServerBasics {
+impl HttpTest for HttpServerBasicsTest {
     async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
         let block_number = client.get_block_number().await?;
         assert_eq!(block_number, U64::from(0));
@@ -315,19 +312,20 @@ impl HttpTest for HttpServerBasics {
 
 #[tokio::test]
 async fn http_server_basics() {
-    test_http_server(HttpServerBasics).await;
+    test_http_server(HttpServerBasicsTest).await;
 }
 
 #[derive(Debug)]
-struct BasicFilterChanges;
+struct BasicFilterChangesTest;
 
 #[async_trait]
-impl HttpTest for BasicFilterChanges {
+impl HttpTest for BasicFilterChangesTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
         let block_filter_id = client.new_block_filter().await?;
         let tx_filter_id = client.new_pending_transaction_filter().await?;
 
-        let (new_miniblock, new_tx_hash) = store_block(pool).await?;
+        let (new_miniblock, new_tx_hash) =
+            store_miniblock(&mut pool.access_storage().await?).await?;
 
         let block_filter_changes = client.get_filter_changes(block_filter_id).await?;
         assert_matches!(
@@ -362,14 +360,14 @@ impl HttpTest for BasicFilterChanges {
 
 #[tokio::test]
 async fn basic_filter_changes() {
-    test_http_server(BasicFilterChanges).await;
+    test_http_server(BasicFilterChangesTest).await;
 }
 
 #[derive(Debug)]
-struct LogFilterChanges;
+struct LogFilterChangesTest;
 
 #[async_trait]
-impl HttpTest for LogFilterChanges {
+impl HttpTest for LogFilterChangesTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
         let all_logs_filter_id = client.new_filter(Filter::default()).await?;
         let address_filter = Filter {
@@ -417,14 +415,14 @@ impl HttpTest for LogFilterChanges {
 
 #[tokio::test]
 async fn log_filter_changes() {
-    test_http_server(LogFilterChanges).await;
+    test_http_server(LogFilterChangesTest).await;
 }
 
 #[derive(Debug)]
-struct LogFilterChangesWithBlockBoundaries;
+struct LogFilterChangesWithBlockBoundariesTest;
 
 #[async_trait]
-impl HttpTest for LogFilterChangesWithBlockBoundaries {
+impl HttpTest for LogFilterChangesWithBlockBoundariesTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
         let lower_bound_filter = Filter {
             from_block: Some(api::BlockNumber::Number(2.into())),
@@ -514,5 +512,5 @@ impl HttpTest for LogFilterChangesWithBlockBoundaries {
 
 #[tokio::test]
 async fn log_filter_changes_with_block_boundaries() {
-    test_http_server(LogFilterChangesWithBlockBoundaries).await;
+    test_http_server(LogFilterChangesWithBlockBoundariesTest).await;
 }

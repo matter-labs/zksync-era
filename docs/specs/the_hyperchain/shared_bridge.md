@@ -77,8 +77,8 @@ be able to leverage them when available).
 - `BridgehubMailbox` routes messages to the Diamond proxy’s Mailbox facet based on chainID
 
   - Same as the current zkEVM
-    [Mailbox](https://github.com/matter-labs/era-contracts/blob/main/ethereum/contracts/zksync/facets/Mailbox.sol), just
-    with chainId,
+    [Mailbox](https://github.com/matter-labs/era-contracts/blob/main/l1-contracts/contracts/zksync/facets/Mailbox.sol),
+    just with chainId,
   - Ether needs to be deposited and withdrawn from here.
   - This is where L2 transactions can be requested.
 
@@ -119,8 +119,8 @@ be able to leverage them when available).
 
 - Some assets have to be natively supported (ETH, WETH) and it also makes sense to support some generally accepted token
   standards (ERC20 tokens), as this makes it easy to bridge those tokens (and ensures a single version of them exists on
-  the hyperchain). These cannonical asset contracts are deployed from L1 by a bridge shared by all hyperchains. This is
-  where assets are locked on L1. These bridges use the Bridgehub to communicate with all hyperchains. Currently, these
+  the hyperchain). These canonical asset contracts are deployed from L1 by a bridge shared by all hyperchains. This is
+  where assets are locked on L1. These bridges use the BridgeHub to communicate with all hyperchains. Currently, these
   bridges are the `WETH` and `ERC20` bridges.
 
   - The pair on L2 is deployed from L1. The hash of the factory dependencies is stored on L1, and when a hyperchain

@@ -7,12 +7,16 @@ use std::{
 };
 
 use itertools::Itertools;
-use multivm::interface::{FinishedL1Batch, L1BatchEnv};
-use zksync_dal::{blocks_dal::ConsensusBlockFields, StorageProcessor};
+use multivm::{
+    interface::{FinishedL1Batch, L1BatchEnv},
+    utils::get_batch_base_fee,
+};
+use zksync_dal::StorageProcessor;
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
     block::{unpack_block_info, L1BatchHeader, MiniblockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
+    fee_model::BatchFeeInput,
     l1::L1Tx,
     l2::L2Tx,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
@@ -35,6 +39,7 @@ use crate::{
     state_keeper::{
         extractors,
         metrics::{L1BatchSealStage, MiniblockSealStage, L1_BATCH_METRICS, MINIBLOCK_METRICS},
+        types::ExecutionMetricsForCriteria,
         updates::{MiniblockSealCommand, UpdatesManager},
     },
 };
@@ -50,7 +55,6 @@ impl UpdatesManager {
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,
         l2_erc20_bridge_addr: Address,
-        consensus: Option<ConsensusBlockFields>,
     ) {
         let started_at = Instant::now();
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::VmFinalization);
@@ -58,13 +62,20 @@ impl UpdatesManager {
         progress.observe(None);
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FictiveMiniblock);
-        self.extend_from_fictive_transaction(finished_batch.block_tip_execution_result);
+        let ExecutionMetricsForCriteria {
+            l1_gas: batch_tip_l1_gas,
+            execution_metrics: batch_tip_execution_metrics,
+        } = ExecutionMetricsForCriteria::new(None, &finished_batch.block_tip_execution_result);
+        self.extend_from_fictive_transaction(
+            finished_batch.block_tip_execution_result,
+            batch_tip_l1_gas,
+            batch_tip_execution_metrics,
+        );
         // Seal fictive miniblock with last events and storage logs.
         let miniblock_command = self.seal_miniblock_command(
             l1_batch_env.number,
             current_miniblock_number,
             l2_erc20_bridge_addr,
-            consensus,
             false, // fictive miniblocks don't have txs, so it's fine to pass `false` here.
         );
         miniblock_command.seal_inner(&mut transaction, true).await;
@@ -128,7 +139,7 @@ impl UpdatesManager {
             l2_to_l1_messages,
             bloom: Default::default(),
             used_contract_hashes: finished_batch.final_execution_state.used_contract_hashes,
-            base_fee_per_gas: l1_batch_env.base_fee(),
+            base_fee_per_gas: get_batch_base_fee(l1_batch_env, self.protocol_version().into()),
             l1_gas_price: self.l1_gas_price(),
             l2_fair_gas_price: self.fair_l2_gas_price(),
             base_system_contracts_hashes: self.base_system_contract_hashes(),
@@ -146,9 +157,12 @@ impl UpdatesManager {
             .insert_l1_batch(
                 &l1_batch,
                 finished_batch.final_bootloader_memory.as_ref().unwrap(),
-                self.l1_batch.l1_gas_count,
+                self.pending_l1_gas_count(),
                 &events_queue,
                 &finished_batch.final_execution_state.storage_refunds,
+                self.pending_execution_metrics()
+                    .estimated_circuits_used
+                    .ceil() as u32,
             )
             .await
             .unwrap();
@@ -332,8 +346,7 @@ impl MiniblockSealCommand {
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
             base_fee_per_gas: self.base_fee_per_gas,
-            l1_gas_price: self.l1_gas_price,
-            l2_fair_gas_price: self.fair_l2_gas_price,
+            batch_fee_input: BatchFeeInput::l1_pegged(self.l1_gas_price, self.fair_l2_gas_price),
             base_system_contracts_hashes: self.base_system_contracts_hashes,
             protocol_version: self.protocol_version,
             virtual_blocks: self.miniblock.virtual_blocks,
@@ -436,18 +449,6 @@ impl MiniblockSealCommand {
             .save_user_l2_to_l1_logs(miniblock_number, &user_l2_to_l1_logs)
             .await;
         progress.observe(user_l2_to_l1_log_count);
-
-        let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::InsertConsensus, is_fictive);
-        // We want to add miniblock consensus fields atomically with the miniblock data so that we
-        // don't need to deal with corner cases (e.g., a miniblock w/o consensus fields).
-        if let Some(consensus) = &self.consensus {
-            transaction
-                .blocks_dal()
-                .set_miniblock_consensus_fields(self.miniblock_number, consensus)
-                .await
-                .unwrap();
-        }
-        progress.observe(None);
 
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::CommitMiniblock, is_fictive);
         let current_l2_virtual_block_info = transaction

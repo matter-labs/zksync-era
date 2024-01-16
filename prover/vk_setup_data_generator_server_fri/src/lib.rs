@@ -59,6 +59,7 @@ use {shivini::cs::GpuSetup, std::alloc::Global};
 
 pub mod commitment_utils;
 pub mod utils;
+pub mod vk_commitment_helper;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(
@@ -371,7 +372,7 @@ pub fn get_finalization_hints(
     key: ProverServiceDataKey,
 ) -> anyhow::Result<FinalizationHintsForProver> {
     let mut key = key;
-    // For NodeAggregation round we have only 1 finalization hints for all circuit type.
+    // For `NodeAggregation` round we have only 1 finalization hints for all circuit type.
     if key.round == AggregationRound::NodeAggregation {
         key.circuit_id = ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8;
     }

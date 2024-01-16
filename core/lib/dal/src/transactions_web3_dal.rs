@@ -124,7 +124,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                     root: block_hash,
                     logs_bloom: Default::default(),
                     // Even though the Rust SDK recommends us to supply "None" for legacy transactions
-                    // we always supply some number anyway to have the same behaviour as most popular RPCs
+                    // we always supply some number anyway to have the same behavior as most popular RPCs
                     transaction_type: Some(tx_type),
                 }
             });
@@ -387,7 +387,7 @@ impl TransactionsWeb3Dal<'_, '_> {
     pub async fn get_raw_miniblock_transactions(
         &mut self,
         miniblock: MiniblockNumber,
-    ) -> Result<Vec<Transaction>, SqlxError> {
+    ) -> sqlx::Result<Vec<Transaction>> {
         let rows = sqlx::query_as!(
             StorageTransaction,
             r#"

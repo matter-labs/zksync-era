@@ -195,14 +195,13 @@ transmitted to L1 for final verification.
   https://github.com/matter-labs/zksync-era/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/vm/src/vm.rs#L81
 [log_queries]:
   https://github.com/matter-labs/era-zk_evm_abstractions/blob/15a2af404902d5f10352e3d1fac693cc395fcff9/src/queries.rs#L30C2-L30C2
-[aux_bytes]:
-  https://github.com/matter-labs/zkevm_opcode_defs/blob/780ce4129a95ab9a68abf0d60c156ee8df6008c2/src/system_params.rs#L37C39-L37C39
+[aux_bytes]: https://github.com/matter-labs/era-zkevm_opcode_defs/blob/v1.3.2/src/system_params.rs#L37C39-L37C39
 [event_sink]:
   https://github.com/matter-labs/zksync-era/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/vm/src/event_sink.rs#L116
 [log_writing_in_vm]: https://github.com/matter-labs/era-zk_evm/blob/v1.3.2/src/opcodes/execution/log.rs
-[log_opcode]: https://github.com/matter-labs/zkevm_opcode_defs/blob/v1.3.2/src/definitions/log.rs#L16
+[log_opcode]: https://github.com/matter-labs/era-zkevm_opcode_defs/blob/v1.3.2/src/definitions/log.rs#L16
 [zkevm_assembly_parse]:
-  https://github.com/matter-labs/zkEVM-assembly/blob/fcfeb51e45544a629d4279b3455def847dcc2505/src/assembly/instruction/log.rs#L32
+  https://github.com/matter-labs/era-zkEVM-assembly/blob/v1.3.2/src/assembly/instruction/log.rs#L32
 [executor_sol]:
   https://github.com/matter-labs/era-contracts/blob/3a4506522aaef81485d8abb96f5a6394bd2ba69e/ethereum/contracts/zksync/facets/Executor.sol#L26
 [mainet_executor]: https://etherscan.io/address/0x389a081BCf20e5803288183b929F08458F1d863D

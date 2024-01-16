@@ -10,8 +10,8 @@ bytecode is chunked into opcodes (which have a size of 8 bytes), assigned a 2 by
 sequence (indexes) are verified and sent to L1. This process is split into 2 different parts: (1)
 [the server side operator](https://github.com/matter-labs/zksync-era/blob/main/core/lib/utils/src/bytecode.rs#L31)
 handling the compression and (2)
-[the system contract](https://github.com/matter-labs/era-system-contracts/blob/main/contracts/BytecodeCompressor.sol)
-verifying that the compression is correct before sending to L1.
+[the system contract](https://github.com/matter-labs/era-system-contracts/blob/main/contracts/Compressor.sol) verifying
+that the compression is correct before sending to L1.
 
 ## Example
 
@@ -31,7 +31,7 @@ Dictionary would be:
 3 -> 0xC (count: 1)
 ```
 
-Note that '1' maps to '0xD', as it occurs twice, and first occurrence is earlier than first occurence of 0xB, that also
+Note that '1' maps to '0xD', as it occurs twice, and first occurrence is earlier than first occurrence of 0xB, that also
 occurs twice.
 
 Compressed bytecode:

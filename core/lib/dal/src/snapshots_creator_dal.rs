@@ -93,7 +93,7 @@ impl SnapshotsCreatorDal<'_, '_> {
             ),
             value: H256::from_slice(&row.value),
             l1_batch_number_of_initial_write: L1BatchNumber(row.l1_batch_number as u32),
-            enumeration_index: row.index.unwrap() as u64,
+            enumeration_index: row.index as u64,
         })
         .collect();
         Ok(storage_logs)

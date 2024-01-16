@@ -46,7 +46,6 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     await announced('Running server genesis setup', server.genesisFromSources());
     await announced('Deploying L1 contracts', contract.redeployL1(governorPrivateKeyArgs));
     await announced('Initializing validator', contract.initializeValidator(governorPrivateKeyArgs));
-    await announced('Initialize L1 allow list', contract.initializeL1AllowList(governorPrivateKeyArgs));
     await announced(
         'Deploying L2 contracts',
         contract.deployL2(
@@ -59,13 +58,7 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     if (deployerL2ContractInput.includeL2WETH) {
         await announced('Initializing L2 WETH token', contract.initializeWethToken(governorPrivateKeyArgs));
     }
-    await announced(
-        'Initializing governance',
-        contract.initializeGovernance([
-            ...governorPrivateKeyArgs,
-            !deployerL2ContractInput.includeL2WETH ? ['--skip-weth-bridge'] : []
-        ])
-    );
+    await announced('Initializing governance', contract.initializeGovernance(governorPrivateKeyArgs));
 }
 
 // A smaller version of `init` that "resets" the localhost environment, for which `init` was already called before.
@@ -83,7 +76,6 @@ export async function reinit() {
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
     await announced('Deploying L1 contracts', contract.redeployL1([]));
-    await announced('Initializing L1 Allow list', contract.initializeL1AllowList());
     await announced('Deploying L2 contracts', contract.deployL2([], true, true));
     await announced('Initializing L2 WETH token', contract.initializeWethToken());
     await announced('Initializing governance', contract.initializeGovernance());
@@ -97,9 +89,9 @@ export async function lightweightInit() {
     await announced('Deploying L1 verifier', contract.deployVerifier([]));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromBinary());
+    await announced('Deploying localhost ERC20 tokens', run.deployERC20('dev', '', '', '', []));
     await announced('Deploying L1 contracts', contract.redeployL1([]));
     await announced('Initializing validator', contract.initializeValidator());
-    await announced('Initializing L1 Allow list', contract.initializeL1AllowList());
     await announced('Deploying L2 contracts', contract.deployL2([], true, false));
     await announced('Initializing governance', contract.initializeGovernance());
 }

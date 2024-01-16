@@ -7,11 +7,11 @@ use super::{BootloaderErrorCode, VmRevertReason};
 // Reasons why the transaction executed inside the bootloader could fail.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TxRevertReason {
-    // Can only be returned in EthCall execution mode (=ExecuteOnly)
+    // Can only be returned in EthCall execution mode `(=ExecuteOnly)`
     EthCall(VmRevertReason),
     // Returned when the execution of an L2 transaction has failed
     TxReverted(VmRevertReason),
-    // Can only be returned in VerifyAndExecute
+    // Can only be returned in `VerifyAndExecute`
     ValidationFailed(VmRevertReason),
     PaymasterValidationFailed(VmRevertReason),
     PrePaymasterPreparationFailed(VmRevertReason),
@@ -20,7 +20,7 @@ pub enum TxRevertReason {
     FailedToChargeFee(VmRevertReason),
     // Emitted when trying to call a transaction from an account that has not
     // been deployed as an account (i.e. the `from` is just a contract).
-    // Can only be returned in VerifyAndExecute
+    // Can only be returned in `VerifyAndExecute`
     FromIsNotAnAccount,
     // Currently cannot be returned. Should be removed when refactoring errors.
     InnerTxError,
@@ -101,7 +101,7 @@ impl TxRevertReason {
             BootloaderErrorCode::UnacceptablePubdataPrice => {
                 Self::UnexpectedVMBehavior("UnacceptablePubdataPrice".to_owned())
             }
-            // This is different from AccountTxValidationFailed error in a way that it means that
+            // This is different from `AccountTxValidationFailed` error in a way that it means that
             // the error was not produced by the account itself, but for some other unknown reason (most likely not enough gas)
             BootloaderErrorCode::TxValidationError => Self::ValidationFailed(revert_reason),
             // Note, that `InnerTxError` is derived only after the actual tx execution, so

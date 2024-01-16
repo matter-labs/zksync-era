@@ -9,10 +9,6 @@ on:
         description: "DOCKERHUB_TOKEN"
         required: true
     inputs:
-      image_tag:
-        description: "Tag of a built image to deploy"
-        type: string
-        required: true
       image_tag_suffix:
         description: "Optional suffix to override tag name generation"
         type: string
@@ -22,27 +18,26 @@ on:
         type: string
         default: "push"
         required: false
-      compilers:
-        description: 'JSON of required compilers and their versions'
-        type: string
-        required: false
-        default: '[{ "zksolc": ["1.3.14", "1.3.16", "1.3.17", "1.3.1", "1.3.7", "1.3.18"] } , { "zkvyper": ["1.3.13"] }]'
-
 jobs:
   build-images:
     name: Build and Push Docker Images
     env:
-      image_tag: ${{ inputs.image_tag }}
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
-    runs-on: [matterlabs-ci-runner]
+    runs-on: ${{ fromJSON('["matterlabs-ci-runner", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
     strategy:
       matrix:
-        component:
-          - server-v2
-          - external-node
-          - contract-verifier
-          - cross-external-nodes-checker
-          - snapshots-creator
+          components:
+            - server-v2
+            - external-node
+            - contract-verifier
+            - cross-external-nodes-checker
+            - snapshots-creator
+          platforms:
+            - linux/amd64
+          include:
+            - components: external-node
+              platforms: linux/arm64
+
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
@@ -56,23 +51,11 @@ jobs:
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
 
-      # TODO: Remove after when we can upgrade hardhat-plugins
-      - name: pre-download compiilers
-        run: |
-          # Download needed versions of vyper compiler
-          # Not sanitized due to unconventional path and tags
-          mkdir -p ./hardhat-nodejs/compilers-v2/vyper/linux
-          wget -nv -O ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.linux
-          wget -nv -O ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.3 https://github.com/vyperlang/vyper/releases/download/v0.3.3/vyper.0.3.3+commit.48e326f0.linux
-          chmod +x  ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.10
-          chmod +x  ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.3
-
-          COMPILERS_JSON='${{ inputs.compilers }}'
-          echo "$COMPILERS_JSON" | jq -r '.[] | to_entries[] | .key as $compiler | .value[] | "\(.),\($compiler)"' | while IFS=, read -r version compiler; do
-            mkdir -p "./hardhat-nodejs/compilers-v2/$compiler"
-            wget -nv -O "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}" "https://github.com/matter-labs/${compiler}-bin/releases/download/v${version}/${compiler}-linux-amd64-musl-v${version}"
-            chmod +x "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}"
-          done
+      - name: Download contracts
+        uses: actions/download-artifact@v4
+        with:
+          name: contracts
+          path: ./contracts/
 
       - name: start-services
         run: |
@@ -87,30 +70,71 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-          ci_run zk
-          ci_run zk clean --all
-          ci_run zk run yarn
-          ci_run cp etc/tokens/{test,localhost}.json
-          ci_run zk compiler all
-          ci_run zk contract build
-          ci_run zk f yarn run l2-contracts build
+          ci_run zk || true
+          ci_run yarn zk build
           ci_run curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
       - name: login to Docker registries
-        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
         run: |
           ci_run docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-          ci_run gcloud auth configure-docker us-docker.pkg.dev,asia-docker.pkg.dev,europe-docker.pkg.dev -q
+          ci_run gcloud auth configure-docker us-docker.pkg.dev -q
 
       - name: update-images
         env:
           DOCKER_ACTION: ${{ inputs.action }}
-          COMPONENT: ${{ matrix.component }}
+          COMPONENT: ${{ matrix.components }}
+          PLATFORM: ${{ matrix.platforms }}
         run: |
           ci_run rustup default nightly-2023-08-21
-          ci_run zk docker $DOCKER_ACTION $COMPONENT
+          platform=$(echo $PLATFORM | tr '/' '-')
+          ci_run zk docker $DOCKER_ACTION --custom-tag=${IMAGE_TAG_SUFFIX} --platform=${PLATFORM} $COMPONENT
       - name: Show sccache stats
         if: always()
         run: |
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
+
+  create_manifest:
+    name: Create release manifest
+    runs-on: matterlabs-ci-runner
+    needs: build-images
+    if: ${{ inputs.action == 'push' }}
+    strategy:
+      matrix:
+        component:
+          - name: server-v2
+            platform: linux/amd64
+          - name: external-node
+            platform: linux/amd64,linux/arm64
+          - name: contract-verifier
+            platform: linux/amd64
+          - name: cross-external-nodes-checker
+            platform: linux/amd64
+          - name: snapshots-creator
+            platform: linux/amd64
+    env:
+      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
+    steps:
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+        with:
+          submodules: "recursive"
+      - name: login to Docker registries
+        run: |
+          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+          gcloud auth configure-docker us-docker.pkg.dev -q
+
+      - name: Create Docker manifest
+        run: |
+          docker_repositories=("matterlabs/${{ matrix.component.name }}" "us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component.name }}")
+          platforms=${{ matrix.component.platform }}
+          for repo in "${docker_repositories[@]}"; do
+            platform_tags=""
+            for platform in ${platforms//,/ }; do
+              platform=$(echo $platform | tr '/' '-')
+              platform_tags+=" --amend ${repo}:${IMAGE_TAG_SUFFIX}-${platform}"
+            done
+            for manifest in "${repo}:${IMAGE_TAG_SUFFIX}" "${repo}:2.0-${IMAGE_TAG_SUFFIX}" "${repo}:latest" "${repo}:latest2.0"; do
+              docker manifest create ${manifest} ${platform_tags}
+              docker manifest push ${manifest}
+            done
+          done

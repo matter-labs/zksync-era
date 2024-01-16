@@ -9,6 +9,7 @@ use zksync_types::{
         ProtocolVersion, StorageProof, TransactionDetails,
     },
     fee::Fee,
+    fee_model::FeeParams,
     l1::L1Tx,
     l2::L2Tx,
     l2_to_l1_log::L2ToL1Log,
@@ -24,29 +25,18 @@ use zksync_web3_decl::{
     types::{Address, Token, H256},
 };
 
-use crate::{
-    api_server::{
-        tree::TreeApiClient,
-        web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, RpcState},
-    },
-    l1_gas_price::L1GasPriceProvider,
+use crate::api_server::{
+    tree::TreeApiClient,
+    web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, RpcState},
 };
 
 #[derive(Debug)]
-pub struct ZksNamespace<G> {
-    pub state: RpcState<G>,
+pub struct ZksNamespace {
+    pub state: RpcState,
 }
 
-impl<G> Clone for ZksNamespace<G> {
-    fn clone(&self) -> Self {
-        Self {
-            state: self.state.clone(),
-        }
-    }
-}
-
-impl<G: L1GasPriceProvider> ZksNamespace<G> {
-    pub fn new(state: RpcState<G>) -> Self {
+impl ZksNamespace {
+    pub fn new(state: RpcState) -> Self {
         Self { state }
     }
 
@@ -593,11 +583,29 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .state
             .tx_sender
             .0
-            .l1_gas_price_source
-            .estimate_effective_gas_price();
+            .batch_fee_input_provider
+            .get_batch_fee_input()
+            .l1_gas_price();
 
         method_latency.observe();
         gas_price.into()
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn get_fee_params_impl(&self) -> FeeParams {
+        const METHOD_NAME: &str = "get_fee_params";
+
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
+        let fee_model_params = self
+            .state
+            .tx_sender
+            .0
+            .batch_fee_input_provider
+            .get_fee_model_params();
+
+        method_latency.observe();
+
+        fee_model_params
     }
 
     #[tracing::instrument(skip(self))]

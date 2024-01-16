@@ -178,7 +178,7 @@ async fn main() -> anyhow::Result<()> {
 
     let contract_verifier = ContractVerifier::new(verifier_config, pool);
     let tasks = vec![
-        // todo PLA-335: Leftovers after the prover DB split.
+        // TODO PLA-335: Leftovers after the prover DB split.
         // The prover connection pool is not used by the contract verifier, but we need to pass it
         // since `JobProcessor` trait requires it.
         tokio::spawn(contract_verifier.run(stop_receiver.clone(), opt.jobs_number)),

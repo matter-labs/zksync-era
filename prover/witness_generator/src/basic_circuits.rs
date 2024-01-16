@@ -88,7 +88,7 @@ pub struct BasicWitnessGeneratorJob {
 pub struct BasicWitnessGenerator {
     config: Arc<FriWitnessGeneratorConfig>,
     object_store: Arc<dyn ObjectStore>,
-    public_blob_store: Option<Box<dyn ObjectStore>>,
+    public_blob_store: Option<Arc<dyn ObjectStore>>,
     connection_pool: ConnectionPool,
     prover_connection_pool: ConnectionPool,
     protocol_versions: Vec<FriProtocolVersionId>,
@@ -98,14 +98,14 @@ impl BasicWitnessGenerator {
     pub async fn new(
         config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
-        public_blob_store: Option<Box<dyn ObjectStore>>,
+        public_blob_store: Option<Arc<dyn ObjectStore>>,
         connection_pool: ConnectionPool,
         prover_connection_pool: ConnectionPool,
         protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {
             config: Arc::new(config),
-            object_store: store_factory.create_store().await.into(),
+            object_store: store_factory.create_store().await,
             public_blob_store,
             connection_pool,
             prover_connection_pool,
@@ -558,7 +558,7 @@ async fn generate_witness(
     let hashes: HashSet<H256> = input
         .used_bytecodes_hashes
         .iter()
-        // SMA-1555: remove this hack once updated to the latest version of zkevm_test_harness
+        // SMA-1555: remove this hack once updated to the latest version of `zkevm_test_harness`
         .filter(|&&hash| hash != h256_to_u256(header.base_system_contracts_hashes.bootloader))
         .map(|hash| u256_to_h256(*hash))
         .collect();

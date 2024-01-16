@@ -7,6 +7,7 @@ use zksync_types::{
         TransactionDetails,
     },
     fee::Fee,
+    fee_model::FeeParams,
     transaction_request::CallRequest,
     Address, L1BatchNumber, MiniblockNumber, H256, U256, U64,
 };
@@ -16,13 +17,10 @@ use zksync_web3_decl::{
     types::Token,
 };
 
-use crate::{
-    api_server::web3::{backend_jsonrpsee::into_jsrpc_error, ZksNamespace},
-    l1_gas_price::L1GasPriceProvider,
-};
+use crate::api_server::web3::{backend_jsonrpsee::into_jsrpc_error, ZksNamespace};
 
 #[async_trait]
-impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceServer for ZksNamespace<G> {
+impl ZksNamespaceServer for ZksNamespace {
     async fn estimate_fee(&self, req: CallRequest) -> RpcResult<Fee> {
         self.estimate_fee_impl(req).await.map_err(into_jsrpc_error)
     }
@@ -143,6 +141,10 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceServer for ZksNa
 
     async fn get_l1_gas_price(&self) -> RpcResult<U64> {
         Ok(self.get_l1_gas_price_impl())
+    }
+
+    async fn get_fee_params(&self) -> RpcResult<FeeParams> {
+        Ok(self.get_fee_params_impl())
     }
 
     async fn get_protocol_version(
