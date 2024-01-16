@@ -8,6 +8,7 @@ use zksync_consensus_storage as storage;
 use zksync_consensus_storage::PersistentBlockStore as _;
 use zksync_consensus_utils::no_copy::NoCopy;
 use zksync_dal::{connection::TestTemplate, ConnectionPool};
+use zksync_protobuf::testonly::test_encode_random;
 use zksync_types::Address;
 
 use super::*;
@@ -324,4 +325,11 @@ async fn test_fetcher_backfill_certs() {
     })
     .await
     .unwrap();
+}
+
+#[test]
+fn test_schema_encoding() {
+    let ctx = ctx::test_root(&ctx::RealClock);
+    let rng = &mut ctx.rng();
+    test_encode_random::<_, config::Config>(rng);
 }

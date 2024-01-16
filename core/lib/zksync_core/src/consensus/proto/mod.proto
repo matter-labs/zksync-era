@@ -3,7 +3,8 @@
 // Here is the list of string-encoded types and their corresponding string formats:
 //
 // IpAddr - TCP socket address, encoded as a string of the form "IP:port".
-//   Both IPv4 and IPv6 are supported.
+//   Both IPv4 and IPv6 are supported
+//   (note that opening IPv6 ports may not work depending on the VM capabilities).
 //   examples: "203.0.113.7:3456", "[2001:DB8::1]:4567"
 //
 // ValidatorPublicKey - public key of the validator (consensus participant) of the form "validator:public:<signature scheme>:<hex encoded key material>"
@@ -15,7 +16,13 @@
 //   example: "node:public:ed25519:d36607699a0a3fbe3de16947928cf299484219ff62ca20f387795b0859dbe501"
 syntax = "proto3";
 
-package zksync.server;
+package zksync.core.consensus;
+
+// (public key, ip address) of a gossip network node. 
+message NodeAddr {
+  optional string key = 1; // [required] NodePublicKey
+  optional string addr = 2; // [required] IpAddr
+}
 
 message ConsensusConfig {
   // IP:port to listen on, for incoming TCP connections.
@@ -23,12 +30,21 @@ message ConsensusConfig {
   optional string server_addr = 1; // required; IpAddr
   
   // Public IP:port to advertise, should forward to server_addr.
+  // Can be `127.0.0.1:<port>` for local tests.
   optional string public_addr = 2; // required; IpAddr
-  
+ 
+  // Public keys of all validators.
+  // Currently it has to be a singleton with a public key corresponding to secret key in CONSENSUS_VALIDATOR_KEY env var.
+  repeated string validators = 5; // [required] ValidatorPublicKey
+
   // Inbound connections that should be unconditionally accepted on the gossip network.
   repeated string gossip_static_inbound = 3; // NodePublicKey
   
   // Limit on the number of gossip network inbound connections outside
   // of the `gossip_static_inbound` set.
   optional uint64 gossip_dynamic_inbound_limit = 4; // required
+
+  // Outbound gossip network connections that the node should actively try to
+  // establish and maintain.
+  repeated NodeAddr gossip_static_outbound = 10;
 }

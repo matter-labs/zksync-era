@@ -4,6 +4,7 @@ use anyhow::Context;
 use serde::Deserialize;
 use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId, MiniblockNumber};
+use zksync_consensus_roles::node;
 use zksync_core::{
     api_server::{
         tx_sender::TxSenderConfig,
@@ -204,9 +205,6 @@ pub struct OptionalENConfig {
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
     #[serde(default = "OptionalENConfig::default_miniblock_seal_queue_capacity")]
     pub miniblock_seal_queue_capacity: usize,
-
-    #[serde(default = "OptionalENConfig::default_block_fetcher")]
-    pub block_fetcher: BlockFetcher,
 }
 
 impl OptionalENConfig {
@@ -307,10 +305,6 @@ impl OptionalENConfig {
 
     const fn default_miniblock_seal_queue_capacity() -> usize {
         10
-    }
-
-    const fn default_block_fetcher() -> BlockFetcher {
-        BlockFetcher::ServerAPI
     }
 
     pub fn polling_interval(&self) -> Duration {
@@ -421,6 +415,24 @@ impl PostgresConfig {
     }
 }
 
+fn read_operator_address() -> anyhow::Result<Address> {
+    Ok(std::env::var("EN_OPERATOR_ADDR")?.parse()?)
+}
+
+pub(crate) fn read_consensus_config() -> anyhow::Result<Option<consensus::FetcherConfig>> {
+    let Ok(path) = std::env::var("EN_CONSENSUS_CONFIG_PATH") else {
+        return Ok(None);
+    };
+    let cfg = std::fs::read_to_string(&path).context(path)?;
+    let cfg: consensus::config::Config =
+        consensus::config::decode_json(&cfg).context("failed decoding JSON")?;
+    let node_key: node::SecretKey = consensus::config::read_secret("CONSENSUS_NODE_KEY")?;
+    Ok(Some(consensus::FetcherConfig {
+        executor: cfg.executor_config(node_key),
+        operator_address: read_operator_address().context("read_operator_address()")?,
+    }))
+}
+
 /// External Node Config contains all the configuration required for the EN operation.
 /// It is split into three parts: required, optional and remote for easier navigation.
 #[derive(Debug, Clone)]
@@ -450,17 +462,6 @@ impl ExternalNodeConfig {
         let remote = RemoteENConfig::fetch(&client)
             .await
             .context("Unable to fetch required config values from the main node")?;
-        let consensus = if optional.block_fetcher == BlockFetcher::Consensus {
-            Some(
-                envy::prefixed("EN_CONSENSUS_")
-                    .from_env::<consensus::SerdeConfig>()
-                    .context("Unable to load consensus config")?
-                    .try_into()
-                    .context("consensus config")?,
-            )
-        } else {
-            None
-        };
         // We can query them from main node, but it's better to set them explicitly
         // as well to avoid connecting to wrong environment variables unintentionally.
         let eth_chain_id = HttpClientBuilder::default()
@@ -505,7 +506,7 @@ impl ExternalNodeConfig {
             postgres,
             required,
             optional,
-            consensus,
+            consensus: read_consensus_config().context("read_consensus_config()")?,
         })
     }
 }

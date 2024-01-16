@@ -1,8 +1,11 @@
 //! Utilities for testing the consensus module.
 use anyhow::Context as _;
-use rand::Rng;
+use rand::{
+    distributions::{Distribution, Standard},
+    Rng,
+};
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
-use zksync_consensus_roles::validator;
+use zksync_consensus_roles::{node, validator};
 use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
@@ -12,6 +15,7 @@ use zksync_types::{
 
 use crate::{
     consensus::{
+        config::Config,
         storage::{BlockStore, CtxStorage},
         Store,
     },
@@ -26,6 +30,29 @@ use crate::{
     },
     utils::testonly::{create_l1_batch_metadata, create_l2_transaction},
 };
+
+fn make_addr<R: Rng + ?Sized>(rng: &mut R) -> std::net::SocketAddr {
+    std::net::SocketAddr::new(std::net::IpAddr::from(rng.gen::<[u8; 16]>()), rng.gen())
+}
+
+fn make_node_key<R: Rng + ?Sized>(rng: &mut R) -> node::PublicKey {
+    rng.gen::<node::SecretKey>().public()
+}
+
+impl Distribution<Config> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Config {
+        Config {
+            server_addr: make_addr(rng),
+            public_addr: make_addr(rng),
+            validators: rng.gen(),
+            gossip_dynamic_inbound_limit: rng.gen(),
+            gossip_static_inbound: (0..3).map(|_| make_node_key(rng)).collect(),
+            gossip_static_outbound: (0..5)
+                .map(|_| (make_node_key(rng), make_addr(rng)))
+                .collect(),
+        }
+    }
+}
 
 #[derive(Debug, Default)]
 pub(crate) struct MockMainNodeClient {

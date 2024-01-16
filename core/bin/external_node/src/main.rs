@@ -196,12 +196,15 @@ async fn init_tasks(
             let mut stop_receiver = stop_receiver.clone();
             tokio::spawn(async move {
                 scope::run!(&ctx::root(), |ctx, s| async move {
-                    s.spawn_bg(cfg.run(ctx, pool, action_queue_sender));
+                    s.spawn_bg(async {
+                        let res = cfg.run(ctx, pool, action_queue_sender).await;
+                        tracing::info!("Consensus actor stopped");
+                        res
+                    });
                     let _ = stop_receiver.wait_for(|stop| *stop).await?;
                     Ok(())
                 })
                 .await
-                .context("consensus stopped")
             })
         }
     };
