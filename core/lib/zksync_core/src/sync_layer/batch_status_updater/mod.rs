@@ -5,7 +5,9 @@ use std::{fmt, time::Duration};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use tokio::sync::{mpsc, watch};
+#[cfg(test)]
+use tokio::sync::mpsc;
+use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
     aggregated_operations::AggregatedActionType, api, L1BatchNumber, MiniblockNumber, H256,
@@ -109,6 +111,7 @@ impl MainNodeClient for HttpClient {
     }
 }
 
+/// Cursors for the last executed / proven / committed L1 batch numbers.
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct UpdaterCursor {
     last_executed_l1_batch: L1BatchNumber,
@@ -119,7 +122,9 @@ struct UpdaterCursor {
 impl UpdaterCursor {
     async fn new(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
         let first_l1_batch_number = projected_first_l1_batch(storage).await?;
-        // Use the snapshot L1 batch, or the genesis batch if we are not using a snapshot.
+        // Use the snapshot L1 batch, or the genesis batch if we are not using a snapshot. Technically, the snapshot L1 batch
+        // is not necessarily proven / executed yet, but since it and earlier batches are not stored, it serves
+        // a natural lower boundary for the cursor.
         let starting_l1_batch_number = L1BatchNumber(first_l1_batch_number.saturating_sub(1));
 
         let last_executed_l1_batch = storage
@@ -165,10 +170,25 @@ impl UpdaterCursor {
         &mut self,
         status_changes: &mut StatusChanges,
         batch_info: &api::BlockDetails,
+    ) -> anyhow::Result<()> {
+        for stage in [
+            AggregatedActionType::Commit,
+            AggregatedActionType::PublishProofOnchain,
+            AggregatedActionType::Execute,
+        ] {
+            self.update_stage(status_changes, batch_info, stage)?;
+        }
+        Ok(())
+    }
+
+    fn update_stage(
+        &mut self,
+        status_changes: &mut StatusChanges,
+        batch_info: &api::BlockDetails,
         stage: AggregatedActionType,
     ) -> anyhow::Result<()> {
         let (l1_tx_hash, happened_at) = Self::extract_tx_hash_and_timestamp(batch_info, stage);
-        let (last_l1_batch, updated_changes) = match stage {
+        let (last_l1_batch, changes_to_update) = match stage {
             AggregatedActionType::Commit => (
                 &mut self.last_committed_l1_batch,
                 &mut status_changes.commit,
@@ -194,7 +214,7 @@ impl UpdaterCursor {
         let happened_at = happened_at.with_context(|| {
             format!("Malformed API response: batch is {action_str}, but has no relevant timestamp")
         })?;
-        updated_changes.push(BatchStatusChange {
+        changes_to_update.push(BatchStatusChange {
             number: batch_info.l1_batch_number,
             l1_tx_hash,
             happened_at,
@@ -211,12 +231,16 @@ impl UpdaterCursor {
 ///
 /// In essence, it keeps track of the last batch number per status, and periodically polls the main
 /// node on these batches in order to see whether the status has changed. If some changes were picked up,
-/// the module updates the database to mirror the state observable from the main node.
+/// the module updates the database to mirror the state observable from the main node. This is required for other components
+/// (e.g., the API server and the consistency checker) to function properly. E.g., the API server returns commit / prove / execute
+/// L1 transaction information in `zks_getBlockDetails` and `zks_getL1BatchDetails` RPC methods.
 #[derive(Debug)]
 pub struct BatchStatusUpdater {
     client: Box<dyn MainNodeClient>,
     pool: ConnectionPool,
     sleep_interval: Duration,
+    /// Test-only sender of status changes each time they are produced and applied to the storage.
+    #[cfg(test)]
     changes_sender: mpsc::UnboundedSender<StatusChanges>,
 }
 
@@ -243,6 +267,7 @@ impl BatchStatusUpdater {
             client,
             pool,
             sleep_interval,
+            #[cfg(test)]
             changes_sender: mpsc::unbounded_channel().0,
         }
     }
@@ -281,7 +306,6 @@ impl BatchStatusUpdater {
     }
 
     /// Goes through the already fetched batches trying to update their statuses.
-    /// Returns a collection of the status updates grouped by the operation type.
     ///
     /// Fetched changes are capped by the last locally applied batch number, so
     /// it's safe to assume that every status change can safely be applied (no status
@@ -324,13 +348,7 @@ impl BatchStatusUpdater {
                 return Err(err.into());
             };
 
-            for stage in [
-                AggregatedActionType::Commit,
-                AggregatedActionType::PublishProofOnchain,
-                AggregatedActionType::Execute,
-            ] {
-                cursor.update(status_changes, &batch_info, stage)?;
-            }
+            cursor.update(status_changes, &batch_info)?;
 
             // Check whether we can skip a part of the range.
             if batch_info.base.commit_tx_hash.is_none() {
@@ -445,6 +463,7 @@ impl BatchStatusUpdater {
         transaction.commit().await?;
         total_latency.observe();
 
+        #[cfg(test)]
         self.changes_sender.send(changes).ok();
         Ok(())
     }
