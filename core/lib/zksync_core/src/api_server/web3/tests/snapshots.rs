@@ -2,7 +2,6 @@
 
 use std::collections::HashSet;
 
-use zksync_types::block::BlockGasCount;
 use zksync_web3_decl::namespaces::SnapshotsNamespaceClient;
 
 use super::*;
@@ -13,17 +12,7 @@ async fn seal_l1_batch(
     number: L1BatchNumber,
 ) -> anyhow::Result<()> {
     let header = create_l1_batch(number.0);
-    storage
-        .blocks_dal()
-        .insert_l1_batch(
-            &header,
-            &[],
-            BlockGasCount::default(),
-            &[],
-            &[],
-            Default::default(),
-        )
-        .await?;
+    storage.blocks_dal().insert_mock_l1_batch(&header).await?;
     storage
         .blocks_dal()
         .mark_miniblocks_as_executed_in_l1_batch(number)

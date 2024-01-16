@@ -2287,6 +2287,18 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
+    pub async fn insert_mock_l1_batch(&mut self, header: &L1BatchHeader) -> anyhow::Result<()> {
+        self.insert_l1_batch(
+            header,
+            &[],
+            Default::default(),
+            &[],
+            &[],
+            Default::default(),
+        )
+        .await
+    }
+
     /// Deletes all miniblocks and L1 batches, including the genesis ones. Should only be used in tests.
     pub async fn delete_genesis(&mut self) -> anyhow::Result<()> {
         self.delete_miniblocks_inner(None)
@@ -2346,14 +2358,7 @@ mod tests {
         header.l2_to_l1_messages.push(vec![33; 33]);
 
         conn.blocks_dal()
-            .insert_l1_batch(
-                &header,
-                &[],
-                BlockGasCount::default(),
-                &[],
-                &[],
-                Default::default(),
-            )
+            .insert_mock_l1_batch(&header)
             .await
             .unwrap();
 

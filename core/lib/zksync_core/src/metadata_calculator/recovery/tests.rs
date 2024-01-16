@@ -400,14 +400,7 @@ async fn prepare_clean_recovery_snapshot(
     );
     storage
         .blocks_dal()
-        .insert_l1_batch(
-            &l1_batch,
-            &[],
-            Default::default(),
-            &[],
-            &[],
-            Default::default(),
-        )
+        .insert_mock_l1_batch(&l1_batch)
         .await
         .unwrap();
 

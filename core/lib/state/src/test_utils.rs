@@ -4,7 +4,7 @@ use std::ops;
 
 use zksync_dal::StorageProcessor;
 use zksync_types::{
-    block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
+    block::{L1BatchHeader, MiniblockHeader},
     AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersion, StorageKey,
     StorageLog, H256,
 };
@@ -104,14 +104,7 @@ pub(crate) async fn create_l1_batch(
     );
     header.is_finished = true;
     conn.blocks_dal()
-        .insert_l1_batch(
-            &header,
-            &[],
-            BlockGasCount::default(),
-            &[],
-            &[],
-            Default::default(),
-        )
+        .insert_mock_l1_batch(&header)
         .await
         .unwrap();
     conn.blocks_dal()

@@ -104,9 +104,8 @@ impl SyncDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        block::{BlockGasCount, L1BatchHeader},
-        fee::TransactionExecutionMetrics,
-        L1BatchNumber, ProtocolVersion, ProtocolVersionId,
+        block::L1BatchHeader, fee::TransactionExecutionMetrics, L1BatchNumber, ProtocolVersion,
+        ProtocolVersionId,
     };
 
     use super::*;
@@ -136,14 +135,7 @@ mod tests {
             ProtocolVersionId::latest(),
         );
         conn.blocks_dal()
-            .insert_l1_batch(
-                &l1_batch_header,
-                &[],
-                BlockGasCount::default(),
-                &[],
-                &[],
-                Default::default(),
-            )
+            .insert_mock_l1_batch(&l1_batch_header)
             .await
             .unwrap();
         conn.blocks_dal()
@@ -218,14 +210,7 @@ mod tests {
         l1_batch_header.number = L1BatchNumber(1);
         l1_batch_header.timestamp = 1;
         conn.blocks_dal()
-            .insert_l1_batch(
-                &l1_batch_header,
-                &[],
-                BlockGasCount::default(),
-                &[],
-                &[],
-                Default::default(),
-            )
+            .insert_mock_l1_batch(&l1_batch_header)
             .await
             .unwrap();
         conn.blocks_dal()

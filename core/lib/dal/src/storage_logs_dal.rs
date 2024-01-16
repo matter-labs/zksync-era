@@ -709,10 +709,7 @@ impl StorageLogsDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_contracts::BaseSystemContractsHashes;
-    use zksync_types::{
-        block::{BlockGasCount, L1BatchHeader},
-        ProtocolVersion, ProtocolVersionId,
-    };
+    use zksync_types::{block::L1BatchHeader, ProtocolVersion, ProtocolVersionId};
 
     use super::*;
     use crate::{tests::create_miniblock_header, ConnectionPool};
@@ -733,14 +730,7 @@ mod tests {
         );
         header.is_finished = true;
         conn.blocks_dal()
-            .insert_l1_batch(
-                &header,
-                &[],
-                BlockGasCount::default(),
-                &[],
-                &[],
-                Default::default(),
-            )
+            .insert_mock_l1_batch(&header)
             .await
             .unwrap();
         conn.blocks_dal()
