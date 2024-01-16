@@ -140,7 +140,7 @@ pub(crate) async fn prepare_postgres_for_snapshot_recovery(
         .await
         .unwrap();
 
-    // FIXME (): don't store miniblock / L1 batch once the corresponding foreign keys are removed
+    // FIXME (PLA-589): don't store miniblock / L1 batch once the corresponding foreign keys are removed
     let snapshot_storage_logs = gen_storage_logs(100..200);
     create_miniblock(
         conn,

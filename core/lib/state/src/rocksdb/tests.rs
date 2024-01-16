@@ -356,6 +356,34 @@ async fn low_level_snapshot_recovery(log_chunk_size: u64) {
 }
 
 #[tokio::test]
+async fn recovering_factory_deps_from_snapshot() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut conn = pool.access_storage().await.unwrap();
+    let (snapshot_recovery, _) = prepare_postgres_for_snapshot_recovery(&mut conn).await;
+
+    let mut all_factory_deps = HashMap::new();
+    for number in 0..snapshot_recovery.miniblock_number.0 {
+        let bytecode_hash = H256::from_low_u64_be(number.into());
+        let bytecode = vec![u8::try_from(number).unwrap(); 1_024];
+        all_factory_deps.insert(bytecode_hash, bytecode.clone());
+
+        let number = MiniblockNumber(number);
+        // FIXME (PLA-589): don't store miniblocks once the corresponding foreign keys are removed
+        create_miniblock(&mut conn, number, vec![]).await;
+        conn.storage_dal()
+            .insert_factory_deps(number, &HashMap::from([(bytecode_hash, bytecode)]))
+            .await;
+    }
+
+    let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
+    let mut storage = sync_test_storage(&dir, &mut conn).await;
+
+    for (bytecode_hash, bytecode) in &all_factory_deps {
+        assert_eq!(storage.load_factory_dep(*bytecode_hash).unwrap(), *bytecode);
+    }
+}
+
+#[tokio::test]
 async fn recovering_from_snapshot_and_following_logs() {
     let pool = ConnectionPool::test_pool().await;
     let mut conn = pool.access_storage().await.unwrap();

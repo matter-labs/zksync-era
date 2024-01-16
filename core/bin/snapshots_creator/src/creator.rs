@@ -9,8 +9,8 @@ use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_object_store::ObjectStore;
 use zksync_types::{
     snapshots::{
-        uniform_hashed_keys_chunk, SnapshotFactoryDependencies, SnapshotMetadata,
-        SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
+        uniform_hashed_keys_chunk, SnapshotFactoryDependencies, SnapshotFactoryDependency,
+        SnapshotMetadata, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
     },
     L1BatchNumber, MiniblockNumber,
 };
@@ -163,6 +163,12 @@ impl SnapshotCreator {
         tracing::info!("Saving factory deps to GCS...");
         let latency =
             METRICS.factory_deps_processing_duration[&FactoryDepsStage::SaveToGcs].start();
+        let factory_deps = factory_deps
+            .into_iter()
+            .map(|(_, bytecode)| SnapshotFactoryDependency {
+                bytecode: bytecode.into(),
+            })
+            .collect();
         let factory_deps = SnapshotFactoryDependencies { factory_deps };
         let filename = self
             .blob_store

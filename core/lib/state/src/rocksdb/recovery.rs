@@ -71,8 +71,8 @@ impl RocksdbStorage {
         // We don't expect that many factory deps; that's why we recover factory deps in any case.
         let latency = RECOVERY_METRICS.latency[&RecoveryStage::LoadFactoryDeps].start();
         let factory_deps = storage
-            .blocks_dal()
-            .get_l1_batch_factory_deps(snapshot_recovery.l1_batch_number)
+            .snapshots_creator_dal()
+            .get_all_factory_deps(snapshot_recovery.miniblock_number)
             .await
             .context("Failed getting factory dependencies")?;
         let latency = latency.observe();
