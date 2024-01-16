@@ -1,9 +1,9 @@
-use zksync_types::{api::en::SyncBlock, MiniblockNumber, Transaction};
+use zksync_types::{api::en, MiniblockNumber};
 
 use crate::{
     instrument::InstrumentExt,
     metrics::MethodLatency,
-    models::{storage_sync::StorageSyncBlock, storage_transaction::StorageTransaction},
+    models::storage_sync::{StorageSyncBlock, SyncBlock},
     StorageProcessor,
 };
 
@@ -14,13 +14,11 @@ pub struct SyncDal<'a, 'c> {
 }
 
 impl SyncDal<'_, '_> {
-    pub async fn sync_block(
+    pub(super) async fn sync_block_inner(
         &mut self,
         block_number: MiniblockNumber,
-        include_transactions: bool,
     ) -> anyhow::Result<Option<SyncBlock>> {
-        let latency = MethodLatency::new("sync_dal_sync_block");
-        let storage_block_details = sqlx::query_as!(
+        let Some(block) = sqlx::query_as!(
             StorageSyncBlock,
             r#"
             SELECT
@@ -49,7 +47,6 @@ impl SyncDal<'_, '_> {
                 miniblocks.default_aa_code_hash,
                 miniblocks.virtual_blocks,
                 miniblocks.hash,
-                miniblocks.consensus,
                 miniblocks.protocol_version AS "protocol_version!",
                 miniblocks.fee_account_address AS "fee_account_address!"
             FROM
@@ -62,45 +59,41 @@ impl SyncDal<'_, '_> {
         .instrument("sync_dal_sync_block.block")
         .with_arg("block_number", &block_number)
         .fetch_optional(self.storage.conn())
-        .await?;
-
-        let Some(storage_block_details) = storage_block_details else {
+        .await?
+        else {
             return Ok(None);
         };
-        let transactions = if include_transactions {
-            let transactions = sqlx::query_as!(
-                StorageTransaction,
-                r#"
-                SELECT
-                    *
-                FROM
-                    transactions
-                WHERE
-                    miniblock_number = $1
-                ORDER BY
-                    index_in_block
-                "#,
-                block_number.0 as i64
-            )
-            .instrument("sync_dal_sync_block.transactions")
-            .with_arg("block_number", &block_number)
-            .fetch_all(self.storage.conn())
-            .await?;
 
-            Some(transactions.into_iter().map(Transaction::from).collect())
-        } else {
-            None
-        };
-
-        let mut block = storage_block_details.into_sync_block(transactions)?;
+        let mut block = SyncBlock::try_from(block)?;
         // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
         #[allow(deprecated)]
         self.storage
             .blocks_dal()
-            .maybe_load_fee_address(&mut block.operator_address, block.number)
+            .maybe_load_fee_address(&mut block.fee_account_address, block.number)
             .await?;
-        drop(latency);
         Ok(Some(block))
+    }
+
+    pub async fn sync_block(
+        &mut self,
+        block_number: MiniblockNumber,
+        include_transactions: bool,
+    ) -> anyhow::Result<Option<en::SyncBlock>> {
+        let _latency = MethodLatency::new("sync_dal_sync_block");
+        let Some(block) = self.sync_block_inner(block_number).await? else {
+            return Ok(None);
+        };
+        let transactions = if include_transactions {
+            let transactions = self
+                .storage
+                .transactions_web3_dal()
+                .get_raw_miniblock_transactions(block_number)
+                .await?;
+            Some(transactions)
+        } else {
+            None
+        };
+        Ok(Some(block.into_api(transactions)))
     }
 }
 
@@ -109,7 +102,7 @@ mod tests {
     use zksync_types::{
         block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
         fee::TransactionExecutionMetrics,
-        Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId,
+        Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, Transaction,
     };
 
     use super::*;

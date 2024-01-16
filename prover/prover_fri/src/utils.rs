@@ -192,7 +192,7 @@ mod tests {
 
         let result = get_setup_data_key(key);
 
-        // Check if the circuit_id has been changed to NodeLayerCircuit's id
+        // Check if the `circuit_id` has been changed to `NodeLayerCircuit's` id
         assert_eq!(expected, result);
     }
 

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                miniblocks.number,\n                COALESCE(\n                    miniblocks.l1_batch_number,\n                    (\n                        SELECT\n                            (MAX(number) + 1)\n                        FROM\n                            l1_batches\n                    )\n                ) AS \"l1_batch_number!\",\n                (\n                    SELECT\n                        MAX(m2.number)\n                    FROM\n                        miniblocks m2\n                    WHERE\n                        miniblocks.l1_batch_number = m2.l1_batch_number\n                ) AS \"last_batch_miniblock?\",\n                miniblocks.timestamp,\n                miniblocks.l1_gas_price,\n                miniblocks.l2_fair_gas_price,\n                miniblocks.bootloader_code_hash,\n                miniblocks.default_aa_code_hash,\n                miniblocks.virtual_blocks,\n                miniblocks.hash,\n                miniblocks.consensus,\n                miniblocks.protocol_version AS \"protocol_version!\",\n                miniblocks.fee_account_address AS \"fee_account_address!\"\n            FROM\n                miniblocks\n            WHERE\n                miniblocks.number = $1\n            ",
+  "query": "\n            SELECT\n                miniblocks.number,\n                COALESCE(\n                    miniblocks.l1_batch_number,\n                    (\n                        SELECT\n                            (MAX(number) + 1)\n                        FROM\n                            l1_batches\n                    )\n                ) AS \"l1_batch_number!\",\n                (\n                    SELECT\n                        MAX(m2.number)\n                    FROM\n                        miniblocks m2\n                    WHERE\n                        miniblocks.l1_batch_number = m2.l1_batch_number\n                ) AS \"last_batch_miniblock?\",\n                miniblocks.timestamp,\n                miniblocks.l1_gas_price,\n                miniblocks.l2_fair_gas_price,\n                miniblocks.bootloader_code_hash,\n                miniblocks.default_aa_code_hash,\n                miniblocks.virtual_blocks,\n                miniblocks.hash,\n                miniblocks.protocol_version AS \"protocol_version!\",\n                miniblocks.fee_account_address AS \"fee_account_address!\"\n            FROM\n                miniblocks\n            WHERE\n                miniblocks.number = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -55,16 +55,11 @@
       },
       {
         "ordinal": 10,
-        "name": "consensus",
-        "type_info": "Jsonb"
-      },
-      {
-        "ordinal": 11,
         "name": "protocol_version!",
         "type_info": "Int4"
       },
       {
-        "ordinal": 12,
+        "ordinal": 11,
         "name": "fee_account_address!",
         "type_info": "Bytea"
       }
@@ -86,9 +81,8 @@
       false,
       false,
       true,
-      true,
       false
     ]
   },
-  "hash": "0511e0139fc6c9b406b8c7e580f57a81a4e781d2d776568bd7bfe19f6883fafb"
+  "hash": "fe340b787030e30d5af1ccc1eb0b533809d66e818dac124456fe1251c425af84"
 }
