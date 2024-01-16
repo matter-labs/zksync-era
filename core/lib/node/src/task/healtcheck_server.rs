@@ -1,12 +1,13 @@
 use std::fmt;
 
+use zksync_config::configs::api::HealthCheckConfig;
+use zksync_core::api_server::healthcheck::HealthCheckHandle;
+
 use crate::{
     healthcheck::{CheckHealth, IntoHealthCheckTask},
     node::{NodeContext, StopReceiver},
     task::ZkSyncTask,
 };
-use zksync_config::configs::api::HealthCheckConfig;
-use zksync_core::api_server::healthcheck::HealthCheckHandle;
 
 pub struct HealthCheckTask {
     config: HealthCheckConfig,

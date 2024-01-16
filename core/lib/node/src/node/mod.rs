@@ -4,12 +4,11 @@ use futures::{future::BoxFuture, FutureExt};
 use tokio::{runtime::Runtime, sync::watch};
 use zksync_health_check::CheckHealth;
 
+pub use self::{context::NodeContext, stop_receiver::StopReceiver};
 use crate::{
     resource::ResourceProvider,
     task::{TaskInitError, ZkSyncTask},
 };
-
-pub use self::{context::NodeContext, stop_receiver::StopReceiver};
 
 mod context;
 mod stop_receiver;
@@ -62,7 +61,6 @@ pub struct ZkSyncNode {
 
 impl fmt::Debug for ZkSyncNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // TODO: Provide better impl
         f.debug_struct("ZkSyncNode").finish_non_exhaustive()
     }
 }
@@ -216,7 +214,7 @@ impl ZkSyncNode {
             .collect();
 
         // Run the tasks until one of them exits.
-        // TODO: wrap every task into a timeout to prevent hanging.
+        // TODO (QIT-24): wrap every task into a timeout to prevent hanging.
         let (resolved, idx, remaining) = self
             .runtime
             .block_on(futures::future::select_all(join_handles));
