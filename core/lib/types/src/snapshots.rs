@@ -196,7 +196,6 @@ pub struct SnapshotRecoveryStatus {
     pub miniblock_root_hash: H256,
     pub last_finished_chunk_id: Option<u64>,
     pub total_chunk_count: u64,
-    // FIXME: add l1_batch_timestamp, miniblock_timestamp, protocol_version
 }
 
 /// Returns a chunk of `hashed_keys` with 0-based index `chunk_id` among `count`. Chunks do not intersect and jointly cover
