@@ -201,10 +201,11 @@ async fn init_tasks(
                         tracing::info!("Consensus actor stopped");
                         res
                     });
-                    let _ = stop_receiver.wait_for(|stop| *stop).await?;
+                    ctx.wait(stop_receiver.wait_for(|stop| *stop)).await??;
                     Ok(())
                 })
                 .await
+                .context("consensus actor")
             })
         }
     };

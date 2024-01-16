@@ -76,12 +76,6 @@ impl FetcherConfig {
         pool: ConnectionPool,
         actions: ActionQueueSender,
     ) -> anyhow::Result<()> {
-        tracing::info!(
-            "Starting gossip fetcher with {:?} and node key {:?}",
-            self.executor,
-            self.executor.node_key.public(),
-        );
-
         scope::run!(ctx, |ctx, s| async {
             let store = Store::new(pool, self.operator_address);
             let mut block_store = store.clone().into_block_store();

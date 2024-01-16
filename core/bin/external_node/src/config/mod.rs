@@ -426,7 +426,7 @@ pub(crate) fn read_consensus_config() -> anyhow::Result<Option<consensus::Fetche
     let cfg = std::fs::read_to_string(&path).context(path)?;
     let cfg: consensus::config::Config =
         consensus::config::decode_json(&cfg).context("failed decoding JSON")?;
-    let node_key: node::SecretKey = consensus::config::read_secret("CONSENSUS_NODE_KEY")?;
+    let node_key: node::SecretKey = consensus::config::read_secret("EN_CONSENSUS_NODE_KEY")?;
     Ok(Some(consensus::FetcherConfig {
         executor: cfg.executor_config(node_key),
         operator_address: read_operator_address().context("read_operator_address()")?,
