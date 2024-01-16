@@ -39,10 +39,9 @@ type HealthCheckTaskConstructor = Box<
 ///   - calls `after_node_shutdown` hook for every task that has provided it.
 ///   - returns the result of the task that has finished.
 pub struct ZkSyncNode {
+    /// Primary source of resources for tasks.
     resource_provider: Box<dyn ResourceProvider>,
-    /// Anything that may be needed by 1 or more tasks to be created.
-    /// Think `ConnectionPool`, `TxSender`, `SealManager`, `EthGateway`, `GasAdjuster`.
-    /// There is a note on `dyn Any` below the snippet.
+    /// Cache of resources that have been requested at least by one task.
     resources: RefCell<HashMap<String, Box<dyn Any>>>,
     /// List of task constructors.
     task_constructors: Vec<(String, TaskConstructor)>,
@@ -108,6 +107,11 @@ impl ZkSyncNode {
         self
     }
 
+    /// Returns `true` if the healtcheck task is already set.
+    pub fn has_healthcheck_task(&self) -> bool {
+        self.healthcheck_task_constructor.is_some()
+    }
+
     /// Adds a healtcheck task to the node.
     ///
     /// Healtcheck task is treated as any other task, with the following differences:
@@ -115,9 +119,7 @@ impl ZkSyncNode {
     /// - Its own healtcheck is ignored (the task is expected to handle its own checks itself).
     /// - There may be only one healthcheck task per node.
     ///
-    /// # Panics
-    ///
-    /// Panics if the healthcheck task is already set.
+    /// If the healtcheck task is already set, the provided one will override it.
     pub fn with_healthcheck<
         F: FnOnce(
                 &NodeContext<'_>,
@@ -128,10 +130,6 @@ impl ZkSyncNode {
         &mut self,
         healthcheck_task_constructor: F,
     ) -> &mut Self {
-        assert!(
-            self.healthcheck_task_constructor.is_none(),
-            "Healthcheck task is already set"
-        );
         self.healthcheck_task_constructor = Some(Box::new(healthcheck_task_constructor));
         self
     }

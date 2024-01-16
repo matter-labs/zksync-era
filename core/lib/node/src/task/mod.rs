@@ -21,7 +21,8 @@ pub trait IntoZkSyncTask: 'static + Send + Sync {
     type Config: 'static + Send + Sync;
 
     /// Creates a new task.
-    /// `NodeContext` argument provides access
+    /// `NodeContext` provides an interface to the utilities that task may need, e.g. the runtime handle to perform asyncronous
+    /// calls, or access to the resources.
     fn create(
         node: &NodeContext<'_>,
         config: Self::Config,
@@ -64,7 +65,9 @@ pub trait ZkSyncTask: 'static + Send + Sync {
     }
 }
 
+/// An error that can occur during the task initialization.
 #[derive(thiserror::Error, Debug)]
+#[non_exhaustive]
 pub enum TaskInitError {
     #[error("Resource {0} is not provided")]
     ResourceLacking(&'static str),

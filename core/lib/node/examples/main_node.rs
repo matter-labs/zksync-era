@@ -15,6 +15,12 @@ use zksync_node::{
     },
 };
 
+/// Resource provider for the main node.
+/// It defines which resources the tasks will receive. This particular provider is stateless, e.g. it always uses
+/// the main node env config, and always knows which resources to provide.
+/// The resource provider can be dynamic, however. For example, we can define a resource provider which may use
+/// different config load scheme (e.g. env variables / protobuf / yaml / toml), and which resources to provide
+/// (e.g. decide whether we need MempoolIO or ExternalIO depending on some config).
 #[derive(Debug)]
 struct MainNodeResourceProvider;
 
@@ -35,7 +41,7 @@ impl ResourceProvider for MainNodeResourceProvider {
             MasterPoolResource::RESOURCE_NAME => {
                 let resource =
                     Self::master_pool_resource().expect("Failed to create pools resource");
-                Some(Box::new(resource) as Box<dyn std::any::Any>)
+                Some(Box::new(resource))
             }
             _ => None,
         }
@@ -49,8 +55,12 @@ fn main() -> anyhow::Result<()> {
         .with_log_format(log_format)
         .build();
 
+    // Create the node with specified resource provider. We don't need to add any resourced explicitly,
+    // the task will request what they actually need. The benefit here is that we won't instantiate resources
+    // that are not used, which would be complex otherwise, since the task set is often dynamic.
     let mut node = ZkSyncNode::new(MainNodeResourceProvider)?;
 
+    // Add the metadata calculator task.
     let merkle_tree_env_config = zksync_config::DBConfig::from_env()?.merkle_tree;
     let operations_manager_env_config =
         zksync_config::configs::chain::OperationsManagerConfig::from_env()?;
@@ -63,11 +73,13 @@ fn main() -> anyhow::Result<()> {
         MetadataCalculatorTask::create(node, metadata_calculator_config)
     });
 
+    // Add the healthcheck server.
     let healthcheck_config = zksync_config::ApiConfig::from_env()?.healthcheck;
     node.with_healthcheck(move |node, healthchecks| {
         HealthCheckTask::create(node, healthchecks, healthcheck_config)
     });
 
+    // Run the node until completion.
     node.run()?;
 
     Ok(())
