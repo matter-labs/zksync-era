@@ -306,6 +306,7 @@ tokenomics
 validator
 validator's
 validator
+Validators
 CHAINID
 PREVRANDAO
 ECDSA
@@ -520,6 +521,9 @@ uadd
 nocallback
 nosync
 swrite
+Devs
+insta
+NFTF
 
 // ETC
 gitter
@@ -616,6 +620,7 @@ gluk
 emilluta
 
 // Programming related words
+backfill
 bytecode
 bytecodes
 impl
@@ -791,6 +796,7 @@ HealthCheck
 readonly
 upgrader
 startup
+BFT
 PingCAP
 witgen
 ok
