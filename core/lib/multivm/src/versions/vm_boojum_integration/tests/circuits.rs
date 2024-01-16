@@ -42,12 +42,12 @@ fn test_circuits() {
     assert!(statistic.log_demuxer > f32::EPSILON);
     assert!(statistic.events_sorter > f32::EPSILON);
     assert!(statistic.keccak256 > f32::EPSILON);
-    // Single ecrecover should be used to validate tx signature.
+    // Single `ecrecover` should be used to validate tx signature.
     assert_eq!(
         statistic.ecrecover,
         1.0 / get_geometry_config().cycles_per_ecrecover_circuit as f32
     );
-    // SHA256 shouldn't be used.
+    // `sha256` shouldn't be used.
     assert_eq!(statistic.sha256, 0.0);
 
     const EXPECTED_CIRCUITS_USED: f32 = 4.6363;
