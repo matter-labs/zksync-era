@@ -124,8 +124,13 @@ async fn main() -> anyhow::Result<()> {
         object_store_config: ObjectStoreConfig::from_env().ok(),
         consensus_config: None,
     };
-    if let Some(operator_address) = configs.state_keeper_config.as_ref().map(|cfg| cfg.fee_account_addr) {
-        configs.consensus_config = config::read_consensus_config(operator_address).context("read_consensus_config()")?;
+    if let Some(operator_address) = configs
+        .state_keeper_config
+        .as_ref()
+        .map(|cfg| cfg.fee_account_addr)
+    {
+        configs.consensus_config =
+            config::read_consensus_config(operator_address).context("read_consensus_config()")?;
     }
 
     let postgres_config = configs.postgres_config.clone().context("PostgresConfig")?;

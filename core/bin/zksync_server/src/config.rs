@@ -1,12 +1,14 @@
-use zksync_consensus_roles::{validator,node};
+use std::collections::{HashMap, HashSet};
+
+use anyhow::Context as _;
 use zksync_consensus_crypto::{read_required_text, Text, TextFmt};
 use zksync_consensus_executor as executor;
-use zksync_protobuf::{required, ProtoFmt};
+use zksync_consensus_roles::{node, validator};
 use zksync_core::consensus;
+use zksync_protobuf::{required, ProtoFmt};
 use zksync_types::Address;
-use std::collections::{HashSet,HashMap};
+
 use crate::proto;
-use anyhow::Context as _;
 
 /// Decodes a proto message from json for arbitrary ProtoFmt.
 fn decode_json<T: ProtoFmt>(json: &str) -> anyhow::Result<T> {
@@ -18,18 +20,25 @@ fn decode_json<T: ProtoFmt>(json: &str) -> anyhow::Result<T> {
 
 /// Decodes a secret of type T from an env var with name var_name.
 /// It makes sure that the error message doesn't contain the secret.
-fn read_secret<T:TextFmt>(var_name: &str) -> anyhow::Result<T> {
-    let raw = std::env::var(var_name).map_err(|_|anyhow::anyhow!("{var_name} not set"))?;
-    Text::new(&raw).decode().map_err(|_|anyhow::anyhow!("{var_name} has invalid format"))
+fn read_secret<T: TextFmt>(var_name: &str) -> anyhow::Result<T> {
+    let raw = std::env::var(var_name).map_err(|_| anyhow::anyhow!("{var_name} not set"))?;
+    Text::new(&raw)
+        .decode()
+        .map_err(|_| anyhow::anyhow!("{var_name} has invalid format"))
 }
 
-pub(crate) fn read_consensus_config(operator_address: Address) -> anyhow::Result<Option<consensus::MainNodeConfig>> {
-    let Ok(path) = std::env::var("CONSENSUS_CONFIG_PATH") else { return Ok(None) };
-    let cfg = std::fs::read_to_string(path).context("failed reading file")?;
-    let cfg : ConsensusConfig = decode_json(&cfg).context("failed decoding JSON")?;
-    let validator_key : validator::SecretKey = read_secret("CONSENSUS_VALIDATOR_KEY")?;
-    let node_key : node::SecretKey = read_secret("CONSENSUS_NODE_KEY")?;
-    let validators = validator::ValidatorSet::new([validator_key.public()]).context("validatorSet::new()")?;
+pub(crate) fn read_consensus_config(
+    operator_address: Address,
+) -> anyhow::Result<Option<consensus::MainNodeConfig>> {
+    let Ok(path) = std::env::var("CONSENSUS_CONFIG_PATH") else {
+        return Ok(None);
+    };
+    let cfg = std::fs::read_to_string(&path).context(path)?;
+    let cfg: ConsensusConfig = decode_json(&cfg).context("failed decoding JSON")?;
+    let validator_key: validator::SecretKey = read_secret("CONSENSUS_VALIDATOR_KEY")?;
+    let node_key: node::SecretKey = read_secret("CONSENSUS_NODE_KEY")?;
+    let validators =
+        validator::ValidatorSet::new([validator_key.public()]).context("validatorSet::new()")?;
     Ok(Some(consensus::MainNodeConfig {
         executor: executor::Config {
             server_addr: cfg.server_addr,

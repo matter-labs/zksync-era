@@ -362,7 +362,6 @@ impl OptionalENConfig {
     }
 }
 
-
 /// This part of the external node config is required for its operation.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct RequiredENConfig {
@@ -452,11 +451,13 @@ impl ExternalNodeConfig {
             .await
             .context("Unable to fetch required config values from the main node")?;
         let consensus = if optional.block_fetcher == BlockFetcher::Consensus {
-            Some(envy::prefixed("EN_CONSENSUS_")
-                .from_env::<consensus::SerdeConfig>()
-                .context("Unable to load consensus config")?
-                .try_into()
-                .context("consensus config")?)
+            Some(
+                envy::prefixed("EN_CONSENSUS_")
+                    .from_env::<consensus::SerdeConfig>()
+                    .context("Unable to load consensus config")?
+                    .try_into()
+                    .context("consensus config")?,
+            )
         } else {
             None
         };

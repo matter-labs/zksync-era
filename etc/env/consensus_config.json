@@ -1,0 +1,6 @@
+{
+  "server_addr": "127.0.0.1:3054",
+  "public_addr": "127.0.0.1:3054",
+  "gossip_static_inbound": [],
+  "gossip_dynamic_inbound_limit": 1
+}

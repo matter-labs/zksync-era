@@ -506,7 +506,7 @@ pub async fn initialize_components(
         tracing::info!("initialized State Keeper in {elapsed:?}");
     }
 
-    if let Some(cfg) = configs.consensus_config.clone(){
+    if let Some(cfg) = configs.consensus_config.clone() {
         let started_at = Instant::now();
         tracing::info!("initializing Consensus");
         let pool = connection_pool.clone();
@@ -515,10 +515,12 @@ pub async fn initialize_components(
             scope::run!(&ctx::root(), |ctx, s| async {
                 s.spawn_bg(async {
                     // Consensus is a new component.
-                    // For now, in case of error, we just log it and allow the server
+                    // For now in case of error we just log it and allow the server
                     // to continue running.
                     if let Err(err) = cfg.run(ctx, pool).await {
                         tracing::error!(%err, "Consensus actor failed");
+                    } else {
+                        tracing::info!("Consensus actor stopped");
                     }
                     Ok(())
                 });

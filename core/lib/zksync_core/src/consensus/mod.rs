@@ -7,7 +7,7 @@
 use zksync_concurrency::{ctx, error::Wrap as _, scope};
 //use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_executor as executor;
-use zksync_consensus_roles::{/*node,*/ validator};
+use zksync_consensus_roles::validator;
 use zksync_consensus_storage::BlockStore;
 use zksync_dal::ConnectionPool;
 use zksync_types::Address;
