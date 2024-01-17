@@ -4,6 +4,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+
 use zksync_core::sync_layer::MainNodeClient;
 use zksync_types::{snapshots::SnapshotHeader, MiniblockNumber, H256};
 use zksync_web3_decl::{
@@ -137,8 +138,8 @@ mod snapshots_applier_tests {
                     H256::random(),
                 ),
                 value: StorageValue::random(),
-                l1_batch_number_of_initial_write: L1BatchNumber(1),
-                enumeration_index: x,
+                l1_batch_number_of_initial_write: l1_batch_number,
+                enumeration_index: x + chunk_id * logs_per_chunk,
             })
             .collect()
     }
@@ -147,7 +148,7 @@ mod snapshots_applier_tests {
         let pool = ConnectionPool::test_pool().await;
         let object_store_factory = ObjectStoreFactory::mock();
         let object_store = Box::new(object_store_factory.create_store().await);
-        let mut client = Box::new(MockMainNodeClient::default());
+        let mut client = Box::<MockMainNodeClient>::default();
         let miniblock_number = MiniblockNumber(1234);
         let l1_batch_number = L1BatchNumber(123);
         let l1_root_hash = H256::random();
@@ -170,7 +171,7 @@ mod snapshots_applier_tests {
             };
             let chunk_key = SnapshotStorageLogsStorageKey {
                 l1_batch_number,
-                chunk_id: chunk_id,
+                chunk_id,
             };
             object_store
                 .put(chunk_key, &chunk_storage_logs)

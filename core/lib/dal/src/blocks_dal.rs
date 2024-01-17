@@ -1816,13 +1816,22 @@ impl BlocksDal<'_, '_> {
         &mut self,
         last_batch_to_keep: L1BatchNumber,
     ) -> sqlx::Result<()> {
+        self.delete_initial_writes_inner(Some(last_batch_to_keep))
+            .await
+    }
+
+    pub async fn delete_initial_writes_inner(
+        &mut self,
+        last_batch_to_keep: Option<L1BatchNumber>,
+    ) -> sqlx::Result<()> {
+        let block_number = last_batch_to_keep.map_or(-1, |number| number.0 as i64);
         sqlx::query!(
             r#"
             DELETE FROM initial_writes
             WHERE
                 l1_batch_number > $1
             "#,
-            last_batch_to_keep.0 as i64
+            block_number
         )
         .execute(self.storage.conn())
         .await?;
@@ -2197,6 +2206,9 @@ impl BlocksDal<'_, '_> {
         self.delete_l1_batches_inner(None)
             .await
             .context("delete_l1_batches_inner()")?;
+        self.delete_initial_writes_inner(None)
+            .await
+            .context("delete_initial_writes_inner()")?;
         Ok(())
     }
 }

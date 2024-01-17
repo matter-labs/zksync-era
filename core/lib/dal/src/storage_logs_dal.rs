@@ -1,5 +1,6 @@
 use std::{collections::HashMap, ops, time::Instant};
 
+use anyhow::Context;
 use sqlx::{types::chrono::Utc, Row};
 use zksync_types::{
     get_code_key, get_code_key,
@@ -558,15 +559,16 @@ impl StorageLogsDal<'_, '_> {
                 address,
                 key,
                 value,
-                operation_number AS "operation_number: i64",
+                operation_number,
                 tx_hash,
-                miniblock_number AS "miniblock_number: i64"
+                miniblock_number
             FROM
                 storage_logs
             "#
         )
         .fetch_all(self.storage.conn())
         .await
+        .context("get_all_storage_logs_for_tests")
         .unwrap();
         rows.into_iter()
             .map(|row| StorageLogDbRow {
@@ -595,6 +597,7 @@ impl StorageLogsDal<'_, '_> {
         )
         .fetch_all(self.storage.conn())
         .await
+        .context("get_all_initial_writes_for_tests")
         .unwrap();
 
         rows.into_iter()

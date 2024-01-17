@@ -2,6 +2,7 @@ use std::{collections::HashMap, fmt};
 
 use anyhow::Error;
 use async_trait::async_trait;
+
 use zksync_core::sync_layer::MainNodeClient;
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
@@ -207,7 +208,7 @@ impl<'a> SnapshotsApplier<'a> {
         tracing::info!("Loading {} storage logs into postgres", storage_logs.len());
         storage
             .storage_logs_dedup_dal()
-            .insert_initial_writes_from_snapshot(&storage_logs)
+            .insert_initial_writes_from_snapshot(storage_logs)
             .await?;
         Ok(())
     }
@@ -256,6 +257,15 @@ impl<'a> SnapshotsApplier<'a> {
         self.applied_snapshot_status
             .storage_logs_chunks_ids_already_processed
             .push(chunk_id);
+        let index_to_remove = self
+            .applied_snapshot_status
+            .storage_logs_chunks_ids_to_process
+            .iter()
+            .position(|x| *x == chunk_id)
+            .unwrap();
+        self.applied_snapshot_status
+            .storage_logs_chunks_ids_to_process
+            .remove(index_to_remove);
         storage
             .snapshot_recovery_dal()
             .set_applied_snapshot_status(&self.applied_snapshot_status)
