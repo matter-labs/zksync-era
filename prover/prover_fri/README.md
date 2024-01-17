@@ -253,6 +253,3 @@ finalization hints if the circuit changes. Below steps can be used to perform ci
    [build-docker-from-tag.yml](../../.github/workflows/build-docker-from-tag.yml) and in
    [fri-gpu-prover-integration-test.yml](https://github.com/matter-labs/zksync-2-dev/blob/main/.github/workflows/fri-gpu-prover-integration-test.yml),
    make sure to only do it from `FRI prover` not old.
-9. Run the GPU integration test
-   [workflow](https://github.com/matter-labs/zksync-2-dev/blob/main/.github/workflows/fri-gpu-prover-integration-test.yml)
-   against the PR to verify the GPU prover is working fine with new circuits.
