@@ -96,7 +96,7 @@ pub fn governance_contract() -> Contract {
     load_contract_if_present(GOVERNANCE_CONTRACT_FILE).expect("Governance contract not found")
 }
 
-pub fn state_transition_contract() -> Contract {
+pub fn state_transition_manager_contract() -> Contract {
     load_contract(STATE_TRANSITION_CONTRACT_FILE)
 }
 
