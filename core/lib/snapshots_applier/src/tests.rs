@@ -69,11 +69,11 @@ mod snapshots_applier_tests {
         block::L1BatchHeader,
         commitment::{L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata},
         snapshots::{
-            SnapshotFactoryDependencies, SnapshotHeader, SnapshotRecoveryStatus,
-            SnapshotStorageLog, SnapshotStorageLogsChunk, SnapshotStorageLogsChunkMetadata,
-            SnapshotStorageLogsStorageKey,
+            SnapshotFactoryDependencies, SnapshotFactoryDependency, SnapshotHeader,
+            SnapshotRecoveryStatus, SnapshotStorageLog, SnapshotStorageLogsChunk,
+            SnapshotStorageLogsChunkMetadata, SnapshotStorageLogsStorageKey,
         },
-        AccountTreeId, L1BatchNumber, MiniblockNumber, StorageKey, StorageValue, H160, H256,
+        AccountTreeId, Bytes, L1BatchNumber, MiniblockNumber, StorageKey, StorageValue, H160, H256,
     };
 
     use crate::{tests::MockMainNodeClient, SnapshotsApplier};
@@ -152,23 +152,31 @@ mod snapshots_applier_tests {
         let l1_batch_number = L1BatchNumber(123);
         let l1_root_hash = H256::random();
         let l2_root_hash = H256::random();
+        let factory_dep_bytes: Vec<u8> = (0..32).collect();
         let factory_deps = SnapshotFactoryDependencies {
-            factory_deps: vec![],
+            factory_deps: vec![SnapshotFactoryDependency {
+                bytecode: Bytes::from(factory_dep_bytes),
+            }],
         };
         object_store
             .put(l1_batch_number, &factory_deps)
             .await
             .unwrap();
 
-        for chunk_id in (0..2) {
-            let storage_logs = SnapshotStorageLogsChunk {
+        let mut all_snapshot_storage_logs: Vec<SnapshotStorageLog> = vec![];
+        for chunk_id in 0..2 {
+            let mut chunk_storage_logs = SnapshotStorageLogsChunk {
                 storage_logs: random_storage_logs(l1_batch_number, chunk_id, 10),
             };
-            let key = SnapshotStorageLogsStorageKey {
+            let chunk_key = SnapshotStorageLogsStorageKey {
                 l1_batch_number,
                 chunk_id: chunk_id,
             };
-            object_store.put(key, &storage_logs).await.unwrap();
+            object_store
+                .put(chunk_key, &chunk_storage_logs)
+                .await
+                .unwrap();
+            all_snapshot_storage_logs.append(&mut chunk_storage_logs.storage_logs);
         }
 
         let snapshot_header = SnapshotHeader {
@@ -209,6 +217,20 @@ mod snapshots_applier_tests {
         };
 
         let current_db_status = recovery_dal.get_applied_snapshot_status().await.unwrap();
-        assert_eq!(current_db_status.unwrap(), expected_status)
+        assert_eq!(current_db_status.unwrap(), expected_status);
+
+        let all_initial_writes = storage
+            .storage_logs_dal()
+            .get_all_initial_writes_for_tests()
+            .await;
+
+        assert_eq!(all_initial_writes.len(), all_snapshot_storage_logs.len());
+
+        let all_storage_logs = storage
+            .storage_logs_dal()
+            .get_all_storage_logs_for_tests()
+            .await;
+
+        assert_eq!(all_storage_logs.len(), all_snapshot_storage_logs.len());
     }
 }

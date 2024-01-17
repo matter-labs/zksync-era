@@ -211,7 +211,8 @@ impl ExternalIO {
                         self.current_miniblock_number,
                         &HashMap::from_iter([(contract.hash, be_words_to_bytes(&contract.code))]),
                     )
-                    .await;
+                    .await
+                    .unwrap();
                 contract
             }
         }

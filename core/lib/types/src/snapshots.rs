@@ -6,7 +6,7 @@ use zksync_basic_types::{AccountTreeId, L1BatchNumber, MiniblockNumber, H256};
 use zksync_protobuf::{required, ProtoFmt};
 use zksync_utils::u256_to_h256;
 
-use crate::{commitment::L1BatchWithMetadata, Bytes, StorageKey, StorageValue, U256};
+use crate::{commitment::L1BatchWithMetadata, Bytes, StorageKey, StorageValue, H160, U256};
 
 /// Information about all snapshots persisted by the node.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -196,6 +196,26 @@ pub struct SnapshotRecoveryStatus {
     pub miniblock_root_hash: H256,
     pub storage_logs_chunks_ids_to_process: Vec<u64>,
     pub storage_logs_chunks_ids_already_processed: Vec<u64>,
+}
+
+// Used only in tests
+#[derive(Debug, PartialEq)]
+pub struct InitialWriteDbRow {
+    pub hashed_key: H256,
+    pub l1_batch_number: L1BatchNumber,
+    pub index: u64,
+}
+
+// Used only in tests
+#[derive(Debug, PartialEq)]
+pub struct StorageLogDbRow {
+    pub hashed_key: H256,
+    pub address: H160,
+    pub key: H256,
+    pub value: H256,
+    pub operation_number: u64,
+    pub tx_hash: H256,
+    pub miniblock_number: MiniblockNumber,
 }
 
 /// Returns a chunk of `hashed_keys` with 0-based index `chunk_id` among `count`. Chunks do not intersect and jointly cover

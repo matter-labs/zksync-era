@@ -33,6 +33,10 @@ pub(crate) async fn prepare_postgres(conn: &mut StorageProcessor<'_>) {
         .delete_l1_batches(L1BatchNumber(0))
         .await
         .unwrap();
+    conn.blocks_dal()
+        .delete_initial_writes(L1BatchNumber(0))
+        .await
+        .unwrap();
 }
 
 pub(crate) fn gen_storage_logs(indices: ops::Range<u64>) -> Vec<StorageLog> {

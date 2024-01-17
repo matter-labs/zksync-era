@@ -459,6 +459,11 @@ pub(crate) async fn reset_db_state(pool: &ConnectionPool, num_batches: usize) {
         .await
         .unwrap();
     storage
+        .blocks_dal()
+        .delete_initial_writes(L1BatchNumber(0))
+        .await
+        .unwrap();
+    storage
         .basic_witness_input_producer_dal()
         .delete_all_jobs()
         .await
@@ -614,6 +619,11 @@ async fn remove_l1_batches(
     storage
         .blocks_dal()
         .delete_l1_batches(last_l1_batch_to_keep)
+        .await
+        .unwrap();
+    storage
+        .blocks_dal()
+        .delete_initial_writes(last_l1_batch_to_keep)
         .await
         .unwrap();
     batch_headers

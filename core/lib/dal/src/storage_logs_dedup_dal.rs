@@ -59,8 +59,7 @@ impl StorageLogsDedupDal<'_, '_> {
                 "COPY initial_writes (hashed_key, index, l1_batch_number, created_at, updated_at) \
                 FROM STDIN WITH (DELIMITER '|')",
             )
-            .await
-            .unwrap();
+            .await?;
 
         let mut bytes: Vec<u8> = Vec::new();
         let now = Utc::now().naive_utc().to_string();
