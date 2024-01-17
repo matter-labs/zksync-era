@@ -121,12 +121,12 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean, inc
 
     await utils.spawn(`${baseCommandL1} erc20-deploy-on-chain ${args.join(' ')} | tee deployL2.log`);
 
-    if (includePaymaster) {
-        await utils.spawn(`${baseCommandL2} deploy-testnet-paymaster ${args.join(' ')} | tee -a deployL2.log`);
-    }
-
     if (includeWETH) {
         await utils.spawn(`${baseCommandL1} weth-deploy-on-chain ${args.join(' ')} | tee -a deployL2.log`);
+    }
+
+    if (includePaymaster) {
+        await utils.spawn(`${baseCommandL2} deploy-testnet-paymaster ${args.join(' ')} | tee -a deployL2.log`);
     }
 
     await utils.spawn(`${baseCommandL2} deploy-force-deploy-upgrader ${args.join(' ')} | tee -a deployL2.log`);

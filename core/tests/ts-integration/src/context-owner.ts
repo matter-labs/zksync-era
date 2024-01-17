@@ -149,8 +149,7 @@ export class TestContextOwner {
     }
 
     /**
-     * Checks if there are any pending transactions initiated from the main wallet.
-     * If such transactions are found, cancels them by sending blank ones with exaggregated fee allowance.
+     * Sets allowances to 0 for tokens. We do this so we can predict nonces accurately.
      */
     private async cancelAllowances() {
         this.reporter.startAction(`Cancelling allowances transactions`);
