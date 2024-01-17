@@ -556,13 +556,13 @@ pub struct GetLogsFilter {
 
 /// Result of debugging block
 /// For some reasons geth returns result as {result: DebugCall}
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ResultDebugCall {
     pub result: DebugCall,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum DebugCallType {
     Call,
     Create,
@@ -608,7 +608,7 @@ impl From<Call> for DebugCall {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone, Debug)]
 pub struct ProtocolVersion {
     /// Protocol version ID
     pub version_id: u16,
@@ -622,19 +622,19 @@ pub struct ProtocolVersion {
     pub l2_system_upgrade_tx_hash: Option<H256>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum SupportedTracers {
     CallTracer,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct CallTracerConfig {
     pub only_top_call: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TracerConfig {
     pub tracer: SupportedTracers,
