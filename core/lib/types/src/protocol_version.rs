@@ -83,7 +83,7 @@ impl ProtocolVersionId {
         }
     }
 
-    // It is possible that some ENs do not store protocol versions for versions below 9.
+    // It is possible that some external nodes do not store protocol versions for versions below 9.
     // That's why we assume that whenever a protocol version is not present, version 9 is to be used.
     pub fn last_potentially_undefined() -> Self {
         Self::Version9
