@@ -357,9 +357,9 @@ async fn test_miniblock_and_l1_batch_processing(
         .create_test_mempool_io(pool.clone(), miniblock_sealer_capacity)
         .await;
 
-    let l1_batch_env = default_l1_batch_env(0, 1, Address::random());
+    let l1_batch_env = default_l1_batch_env(1, 1, Address::random());
     let mut updates = UpdatesManager::new(
-        l1_batch_env,
+        l1_batch_env.clone(),
         BaseSystemContractsHashes::default(),
         ProtocolVersionId::latest(),
     );
@@ -380,8 +380,6 @@ async fn test_miniblock_and_l1_batch_processing(
     });
 
     let finished_batch = default_vm_block_result();
-
-    let l1_batch_env = default_l1_batch_env(1, 1, Address::random());
     mempool
         .seal_l1_batch(None, updates, &l1_batch_env, finished_batch)
         .await

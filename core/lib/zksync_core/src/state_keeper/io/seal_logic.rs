@@ -40,14 +40,15 @@ use crate::{
         extractors,
         metrics::{L1BatchSealStage, MiniblockSealStage, L1_BATCH_METRICS, MINIBLOCK_METRICS},
         types::ExecutionMetricsForCriteria,
-        updates::{MiniblockSealCommand, UpdatesManager},
+        updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
     },
 };
 
 impl UpdatesManager {
     /// Persists an L1 batch in the storage.
     /// This action includes a creation of an empty "fictive" miniblock that contains
-    /// the events generated during the bootloader "tip phase".
+    /// the events generated during the bootloader "tip phase". Returns updates for this fictive miniblock.
+    #[must_use = "fictive miniblock must be used to update I/O params"]
     pub(crate) async fn seal_l1_batch(
         mut self,
         storage: &mut StorageProcessor<'_>,
@@ -55,7 +56,7 @@ impl UpdatesManager {
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,
         l2_erc20_bridge_addr: Address,
-    ) {
+    ) -> MiniblockUpdates {
         let started_at = Instant::now();
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::VmFinalization);
         let mut transaction = storage.start_transaction().await.unwrap();
@@ -245,6 +246,7 @@ impl UpdatesManager {
             l1_batch_env.timestamp,
             &writes_metrics,
         );
+        miniblock_command.miniblock
     }
 
     fn report_l1_batch_metrics(

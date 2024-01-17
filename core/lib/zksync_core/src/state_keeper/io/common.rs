@@ -172,6 +172,7 @@ pub(crate) async fn load_pending_batch(
 pub(crate) struct IoCursor {
     pub next_miniblock: MiniblockNumber,
     pub prev_miniblock_hash: H256,
+    pub prev_miniblock_timestamp: u64,
     pub l1_batch: L1BatchNumber,
 }
 
@@ -192,13 +193,11 @@ impl IoCursor {
             .context("Failed getting sealed miniblock header")?
             .context("No miniblocks sealed")?;
 
-        let next_miniblock = last_miniblock_header.number + 1;
-        let prev_miniblock_hash = last_miniblock_header.hash;
-        let next_l1_batch = last_sealed_l1_batch_number + 1;
         Ok(Self {
-            next_miniblock,
-            prev_miniblock_hash,
-            l1_batch: next_l1_batch,
+            next_miniblock: last_miniblock_header.number + 1,
+            prev_miniblock_hash: last_miniblock_header.hash,
+            prev_miniblock_timestamp: last_miniblock_header.timestamp,
+            l1_batch: last_sealed_l1_batch_number + 1,
         })
     }
 }

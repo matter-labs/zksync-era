@@ -15,9 +15,8 @@ use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
 use zksync_object_store::ObjectStore;
 use zksync_types::{
-    block::MiniblockHeader, protocol_version::ProtocolUpgradeTx,
-    witness_block_state::WitnessBlockState, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
-    ProtocolVersionId, Transaction, U256,
+    protocol_version::ProtocolUpgradeTx, witness_block_state::WitnessBlockState, Address,
+    L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256, U256,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::time::millis_since_epoch;
@@ -33,7 +32,7 @@ use crate::{
         mempool_actor::l2_tx_filter,
         metrics::KEEPER_METRICS,
         seal_criteria::{IoSealCriteria, TimeoutSealer},
-        updates::UpdatesManager,
+        updates::{MiniblockUpdates, UpdatesManager},
         MempoolGuard,
     },
 };
@@ -50,6 +49,8 @@ pub(crate) struct MempoolIO {
     timeout_sealer: TimeoutSealer,
     filter: L2TxFilter,
     current_miniblock_number: MiniblockNumber,
+    prev_miniblock_hash: H256,
+    prev_miniblock_timestamp: u64,
     miniblock_sealer_handle: MiniblockSealerHandle,
     current_l1_batch_number: L1BatchNumber,
     fee_account: Address,
@@ -126,14 +127,7 @@ impl StateKeeperIO for MempoolIO {
         max_wait: Duration,
     ) -> Option<(SystemEnv, L1BatchEnv)> {
         let deadline = Instant::now() + max_wait;
-
         let prev_l1_batch_hash = self.load_previous_l1_batch_hash().await;
-
-        let MiniblockHeader {
-            timestamp: prev_miniblock_timestamp,
-            hash: prev_miniblock_hash,
-            ..
-        } = self.load_previous_miniblock_header().await;
 
         // Block until at least one transaction in the mempool can match the filter (or timeout happens).
         // This is needed to ensure that block timestamp is not too old.
@@ -143,7 +137,7 @@ impl StateKeeperIO for MempoolIO {
             // We can use `timeout_at` since `sleep_past` is cancel-safe; it only uses `sleep()` async calls.
             let current_timestamp = tokio::time::timeout_at(
                 deadline.into(),
-                sleep_past(prev_miniblock_timestamp, self.current_miniblock_number),
+                sleep_past(self.prev_miniblock_timestamp, self.current_miniblock_number),
             );
             let current_timestamp = current_timestamp.await.ok()?;
 
@@ -177,7 +171,7 @@ impl StateKeeperIO for MempoolIO {
                 prev_l1_batch_hash,
                 self.filter.fee_input,
                 self.current_miniblock_number,
-                prev_miniblock_hash,
+                self.prev_miniblock_hash,
                 base_system_contracts,
                 self.validation_computational_gas_limit,
                 protocol_version,
@@ -269,7 +263,7 @@ impl StateKeeperIO for MempoolIO {
             false,
         );
         self.miniblock_sealer_handle.submit(command).await;
-        self.current_miniblock_number += 1;
+        self.update_miniblock_fields(&updates_manager.miniblock);
     }
 
     async fn seal_l1_batch(
@@ -309,7 +303,7 @@ impl StateKeeperIO for MempoolIO {
         let pool = self.pool.clone();
         let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
 
-        updates_manager
+        let fictive_miniblock = updates_manager
             .seal_l1_batch(
                 &mut storage,
                 self.current_miniblock_number,
@@ -318,7 +312,7 @@ impl StateKeeperIO for MempoolIO {
                 self.l2_erc20_bridge_addr,
             )
             .await;
-        self.current_miniblock_number += 1; // Due to fictive miniblock being sealed.
+        self.update_miniblock_fields(&fictive_miniblock);
         self.current_l1_batch_number += 1;
         Ok(())
     }
@@ -428,6 +422,8 @@ impl MempoolIO {
             current_l1_batch_number: cursor.l1_batch,
             miniblock_sealer_handle,
             current_miniblock_number: cursor.next_miniblock,
+            prev_miniblock_hash: cursor.prev_miniblock_hash,
+            prev_miniblock_timestamp: cursor.prev_miniblock_timestamp,
             fee_account: config.fee_account_addr,
             validation_computational_gas_limit,
             delay_interval,
@@ -437,6 +433,16 @@ impl MempoolIO {
             virtual_blocks_interval: config.virtual_blocks_interval,
             virtual_blocks_per_miniblock: config.virtual_blocks_per_miniblock,
         })
+    }
+
+    fn update_miniblock_fields(&mut self, miniblock: &MiniblockUpdates) {
+        assert_eq!(
+            miniblock.number, self.current_miniblock_number.0,
+            "Attempted to seal a miniblock with unexpected number"
+        );
+        self.current_miniblock_number += 1;
+        self.prev_miniblock_hash = miniblock.get_miniblock_hash();
+        self.prev_miniblock_timestamp = miniblock.timestamp;
     }
 
     async fn load_previous_l1_batch_hash(&self) -> U256 {
@@ -461,24 +467,6 @@ impl MempoolIO {
             self.current_l1_batch_number
         );
         batch_hash
-    }
-
-    // FIXME: won't work with snapshot recovery; track locally?
-    async fn load_previous_miniblock_header(&self) -> MiniblockHeader {
-        let load_latency = KEEPER_METRICS.load_previous_miniblock_header.start();
-        let mut storage = self
-            .pool
-            .access_storage_tagged("state_keeper")
-            .await
-            .unwrap();
-        let miniblock_header = storage
-            .blocks_dal()
-            .get_miniblock_header(self.current_miniblock_number - 1)
-            .await
-            .unwrap()
-            .expect("Previous miniblock must be sealed and header saved to DB");
-        load_latency.observe();
-        miniblock_header
     }
 
     /// "virtual_blocks_per_miniblock" will be created either if the miniblock_number % virtual_blocks_interval == 0 or

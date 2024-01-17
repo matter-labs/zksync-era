@@ -1,7 +1,6 @@
 use std::{collections::HashMap, convert::TryInto, iter::FromIterator, time::Duration};
 
 use async_trait::async_trait;
-use futures::future;
 use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::ConnectionPool;
@@ -27,7 +26,7 @@ use crate::{
         },
         metrics::KEEPER_METRICS,
         seal_criteria::IoSealCriteria,
-        updates::UpdatesManager,
+        updates::{MiniblockUpdates, UpdatesManager},
     },
 };
 
@@ -47,6 +46,7 @@ pub struct ExternalIO {
 
     current_l1_batch_number: L1BatchNumber,
     current_miniblock_number: MiniblockNumber,
+    prev_miniblock_hash: H256,
     actions: ActionQueue,
     sync_state: SyncState,
     main_node_client: Box<dyn MainNodeClient>,
@@ -87,6 +87,7 @@ impl ExternalIO {
             pool,
             current_l1_batch_number: cursor.l1_batch,
             current_miniblock_number: cursor.next_miniblock,
+            prev_miniblock_hash: cursor.prev_miniblock_hash,
             actions,
             sync_state,
             main_node_client,
@@ -94,6 +95,19 @@ impl ExternalIO {
             validation_computational_gas_limit,
             chain_id,
         })
+    }
+
+    fn update_miniblock_fields(&mut self, miniblock: &MiniblockUpdates) {
+        assert_eq!(
+            miniblock.number, self.current_miniblock_number.0,
+            "Attempted to seal a miniblock with unexpected number"
+        );
+        // Mimic the metric emitted by the main node to reuse existing Grafana charts.
+        APP_METRICS.block_number[&BlockStage::Sealed].set(self.current_l1_batch_number.0.into());
+        self.sync_state
+            .set_local_block(self.current_miniblock_number);
+        self.current_miniblock_number += 1;
+        self.prev_miniblock_hash = miniblock.get_miniblock_hash();
     }
 
     async fn load_previous_l1_batch_hash(&self) -> U256 {
@@ -104,19 +118,6 @@ impl ExternalIO {
                 .await;
         wait_latency.observe();
         hash
-    }
-
-    // FIXME: won't work with snapshot recovery; track locally?
-    async fn load_previous_miniblock_hash(&self) -> H256 {
-        let prev_miniblock_number = self.current_miniblock_number - 1;
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
-        let header = storage
-            .blocks_dal()
-            .get_miniblock_header(prev_miniblock_number)
-            .await
-            .unwrap()
-            .unwrap_or_else(|| panic!("Miniblock #{prev_miniblock_number} is missing"));
-        header.hash
     }
 
     async fn load_base_system_contracts_by_version_id(
@@ -311,14 +312,11 @@ impl StateKeeperIO for ExternalIO {
                         number, self.current_l1_batch_number,
                         "Batch number mismatch"
                     );
-                    tracing::info!("Getting previous L1 batch hash and miniblock hash");
-                    let (previous_l1_batch_hash, previous_miniblock_hash) = future::join(
-                        self.load_previous_l1_batch_hash(),
-                        self.load_previous_miniblock_hash(),
-                    )
-                    .await;
+                    tracing::info!("Getting previous L1 batch hash");
+                    let previous_l1_batch_hash = self.load_previous_l1_batch_hash().await;
                     tracing::info!(
-                        "Previous L1 batch hash: {previous_l1_batch_hash}, previous miniblock hash: {previous_miniblock_hash}"
+                        "Previous L1 batch hash: {previous_l1_batch_hash}, previous miniblock hash: {:?}",
+                        self.prev_miniblock_hash
                     );
 
                     let base_system_contracts = self
@@ -331,7 +329,7 @@ impl StateKeeperIO for ExternalIO {
                         previous_l1_batch_hash,
                         BatchFeeInput::l1_pegged(l1_gas_price, l2_fair_gas_price),
                         miniblock_number,
-                        previous_miniblock_hash,
+                        self.prev_miniblock_hash,
                         base_system_contracts,
                         self.validation_computational_gas_limit,
                         protocol_version,
@@ -457,7 +455,7 @@ impl StateKeeperIO for ExternalIO {
         self.sync_state
             .set_local_block(self.current_miniblock_number);
         tracing::info!("Miniblock {} is sealed", self.current_miniblock_number);
-        self.current_miniblock_number += 1;
+        self.update_miniblock_fields(&updates_manager.miniblock);
     }
 
     async fn seal_l1_batch(
@@ -479,26 +477,19 @@ impl StateKeeperIO for ExternalIO {
         self.miniblock_sealer_handle.wait_for_all_commands().await;
 
         let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
-        let mut transaction = storage.start_transaction().await.unwrap();
-        updates_manager
+        let fictive_miniblock = updates_manager
             .seal_l1_batch(
-                &mut transaction,
+                &mut storage,
                 self.current_miniblock_number,
                 l1_batch_env,
                 finished_batch,
                 self.l2_erc20_bridge_addr,
             )
             .await;
-        transaction.commit().await.unwrap();
+        drop(storage);
 
+        self.update_miniblock_fields(&fictive_miniblock);
         tracing::info!("Batch {} is sealed", self.current_l1_batch_number);
-
-        // Mimic the metric emitted by the main node to reuse existing Grafana charts.
-        APP_METRICS.block_number[&BlockStage::Sealed].set(self.current_l1_batch_number.0.into());
-
-        self.sync_state
-            .set_local_block(self.current_miniblock_number);
-        self.current_miniblock_number += 1; // Due to fictive miniblock being sealed.
         self.current_l1_batch_number += 1;
         Ok(())
     }

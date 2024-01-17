@@ -508,6 +508,7 @@ async fn fetcher_with_real_server() {
         cursor: IoCursor {
             next_miniblock: MiniblockNumber(1),
             prev_miniblock_hash: genesis_miniblock_hash,
+            prev_miniblock_timestamp: 0,
             l1_batch: L1BatchNumber(0),
         },
         actions: actions_sender,
