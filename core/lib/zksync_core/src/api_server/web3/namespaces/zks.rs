@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::TryInto};
+use std::{collections::HashMap, convert::TryInto, fs::File, io::BufReader, str::FromStr};
 
 use bigdecimal::{BigDecimal, Zero};
 use zksync_dal::StorageProcessor;
@@ -15,9 +15,9 @@ use zksync_types::{
     l2_to_l1_log::L2ToL1Log,
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
-    AccountTreeId, L1BatchNumber, MiniblockNumber, StorageKey, Transaction, L1_MESSENGER_ADDRESS,
-    L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
-    U64,
+    AccountTreeId, L1BatchNumber, MiniblockNumber, StorageKey, Transaction, H160,
+    L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE,
+    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 use zksync_utils::{address_to_h256, ratio_to_big_decimal_normalized};
 use zksync_web3_decl::{
@@ -123,6 +123,28 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
     #[tracing::instrument(skip(self))]
     pub fn get_main_contract_impl(&self) -> Address {
         self.state.api_config.diamond_proxy_addr
+    }
+
+    #[tracing::instrument(skip_all)]
+    pub fn get_native_token_address_impl(&self) -> Result<Address, Web3Error> {
+        const METHOD_NAME: &str = "get_native_token_address";
+        const NATIVE_ERC20_FILE_PATH: &str = "etc/tokens/native_erc20.json";
+
+        // read the address from the native_erc20.json file.
+        // in the future it should be read from .init.env file
+        let native_erc20_file = File::open(NATIVE_ERC20_FILE_PATH)
+            .map_err(|_err| internal_error(METHOD_NAME, "unable to read native_erc20.json file"))?;
+        let native_erc20_json: serde_json::Value =
+            serde_json::from_reader(BufReader::new(native_erc20_file)).map_err(|_err| {
+                internal_error(METHOD_NAME, "unable to read native_erc20.json file")
+            })?;
+
+        let native_erc20_address = native_erc20_json
+            .get("address")
+            .and_then(|addr| addr.as_str())
+            .ok_or_else(|| internal_error(METHOD_NAME, "address not found in json"))?;
+
+        H160::from_str(native_erc20_address).map_err(|err| internal_error(METHOD_NAME, err))
     }
 
     #[tracing::instrument(skip(self))]

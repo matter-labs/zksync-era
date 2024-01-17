@@ -33,6 +33,9 @@ pub trait ZksNamespaceT {
     #[rpc(name = "zks_getMainContract")]
     fn get_main_contract(&self) -> BoxFuture<Result<Address>>;
 
+    #[rpc(name = "zks_getNativeTokenAddress")]
+    fn get_native_token_address(&self) -> BoxFuture<Result<Address>>;
+
     #[rpc(name = "zks_getTestnetPaymaster")]
     fn get_testnet_paymaster(&self) -> BoxFuture<Result<Option<Address>>>;
 
@@ -140,6 +143,15 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceT for ZksNamespa
     fn get_main_contract(&self) -> BoxFuture<Result<Address>> {
         let self_ = self.clone();
         Box::pin(async move { Ok(self_.get_main_contract_impl()) })
+    }
+
+    fn get_native_token_address(&self) -> BoxFuture<Result<Address>> {
+        let self_ = self.clone();
+        Box::pin(async move {
+            self_
+                .get_native_token_address_impl()
+                .map_err(into_jsrpc_error)
+        })
     }
 
     fn get_miniblock_range(&self, batch: L1BatchNumber) -> BoxFuture<Result<Option<(U64, U64)>>> {
