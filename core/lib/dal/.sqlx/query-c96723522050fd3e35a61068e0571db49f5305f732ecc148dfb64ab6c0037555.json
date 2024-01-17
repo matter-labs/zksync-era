@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n                snapshot_recovery (\n                    l1_batch_number,\n                    l1_batch_timestamp,\n                    l1_batch_root_hash,\n                    miniblock_number,\n                    miniblock_timestamp,\n                    miniblock_hash,\n                    protocol_version,\n                    last_finished_chunk_id,\n                    total_chunk_count,\n                    updated_at,\n                    created_at\n                )\n            VALUES\n                ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())\n            ON CONFLICT (l1_batch_number) DO\n            UPDATE\n            SET\n                l1_batch_number = excluded.l1_batch_number,\n                l1_batch_timestamp = excluded.l1_batch_timestamp,\n                l1_batch_root_hash = excluded.l1_batch_root_hash,\n                miniblock_number = excluded.miniblock_number,\n                miniblock_timestamp = excluded.miniblock_timestamp,\n                miniblock_hash = excluded.miniblock_hash,\n                protocol_version = excluded.protocol_version,\n                last_finished_chunk_id = excluded.last_finished_chunk_id,\n                total_chunk_count = excluded.total_chunk_count,\n                updated_at = excluded.updated_at\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Bytea",
+        "Int8",
+        "Int8",
+        "Bytea",
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c96723522050fd3e35a61068e0571db49f5305f732ecc148dfb64ab6c0037555"
+}

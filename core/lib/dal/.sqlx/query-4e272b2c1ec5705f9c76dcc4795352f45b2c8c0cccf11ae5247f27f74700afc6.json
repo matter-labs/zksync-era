@@ -1,0 +1,68 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                l1_batch_number,\n                l1_batch_timestamp,\n                l1_batch_root_hash,\n                miniblock_number,\n                miniblock_timestamp,\n                miniblock_hash,\n                protocol_version,\n                last_finished_chunk_id,\n                total_chunk_count\n            FROM\n                snapshot_recovery\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "l1_batch_timestamp",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "l1_batch_root_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 3,
+        "name": "miniblock_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "miniblock_timestamp",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "miniblock_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 6,
+        "name": "protocol_version",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "last_finished_chunk_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "total_chunk_count",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "4e272b2c1ec5705f9c76dcc4795352f45b2c8c0cccf11ae5247f27f74700afc6"
+}
