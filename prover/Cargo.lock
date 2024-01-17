@@ -7314,7 +7314,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.4.1"
-source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.4.1#e2dcd2ed43d553accf6e4a9f1077b92785001539"
+source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.4.1#70234e99c2492740226b9f40091e7fccc7ef28e9"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
