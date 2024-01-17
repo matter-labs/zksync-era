@@ -113,7 +113,7 @@ impl EthNamespaceServer for EthNamespace {
     }
 
     async fn get_block_receipts(&self, block_id: BlockId) -> RpcResult<Vec<TransactionReceipt>> {
-        self.get_block_receipts_impl(block_id.into())
+        self.get_block_receipts_impl(block_id)
             .await
             .map_err(into_jsrpc_error)
     }

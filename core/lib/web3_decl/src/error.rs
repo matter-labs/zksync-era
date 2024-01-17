@@ -7,8 +7,6 @@ use zksync_types::api::SerializationTransactionError;
 pub enum Web3Error {
     #[error("Block with such an ID doesn't exist yet")]
     NoBlock,
-    #[error("Transaction with such an ID doesn't exist yet")]
-    NoTransaction,
     #[error("Request timeout")]
     RequestTimeout,
     #[error("Internal error")]

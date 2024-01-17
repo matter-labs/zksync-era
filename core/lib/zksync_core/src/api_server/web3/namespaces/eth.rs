@@ -338,12 +338,12 @@ impl EthNamespace {
             let transaction = self
                 .get_transaction_impl(TransactionId::Block(block_id, index.into()))
                 .await?
-                .ok_or(Web3Error::NoTransaction)?;
+                .ok_or(Web3Error::InternalError)?;
 
             receipts.push(
                 self.get_transaction_receipt_impl(transaction.hash)
                     .await?
-                    .ok_or(Web3Error::NoTransaction)?,
+                    .ok_or(Web3Error::InternalError)?,
             );
         }
 
