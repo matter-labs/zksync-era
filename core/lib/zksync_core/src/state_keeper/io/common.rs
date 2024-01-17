@@ -178,7 +178,6 @@ pub(crate) struct IoCursor {
 
 impl IoCursor {
     /// Loads the cursor from Postgres.
-    // FIXME: unit tests
     pub async fn new(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
         let last_sealed_l1_batch_number = storage
             .blocks_dal()
@@ -233,7 +232,14 @@ impl IoCursor {
 
 #[cfg(test)]
 mod tests {
+    use zksync_dal::ConnectionPool;
+    use zksync_types::block::MiniblockHasher;
+
     use super::*;
+    use crate::{
+        genesis::{ensure_genesis_state, GenesisParams},
+        utils::testonly::{create_miniblock, prepare_empty_recovery_snapshot},
+    };
 
     #[test]
     #[rustfmt::skip] // One-line formatting looks better here.
@@ -243,5 +249,69 @@ mod tests {
         assert_eq!(poll_iters(Duration::from_millis(100), Duration::from_millis(101)), 2);
         assert_eq!(poll_iters(Duration::from_millis(100), Duration::from_millis(200)), 2);
         assert_eq!(poll_iters(Duration::from_millis(100), Duration::from_millis(201)), 3);
+    }
+
+    #[tokio::test]
+    async fn creating_io_cursor_with_genesis() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut storage = pool.access_storage().await.unwrap();
+        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+            .await
+            .unwrap();
+
+        let cursor = IoCursor::new(&mut storage).await.unwrap();
+        assert_eq!(cursor.l1_batch, L1BatchNumber(1));
+        assert_eq!(cursor.next_miniblock, MiniblockNumber(1));
+        assert_eq!(cursor.prev_miniblock_timestamp, 0);
+        assert_eq!(
+            cursor.prev_miniblock_hash,
+            MiniblockHasher::legacy_hash(MiniblockNumber(0))
+        );
+
+        let miniblock = create_miniblock(1);
+        storage
+            .blocks_dal()
+            .insert_miniblock(&miniblock)
+            .await
+            .unwrap();
+
+        let cursor = IoCursor::new(&mut storage).await.unwrap();
+        assert_eq!(cursor.l1_batch, L1BatchNumber(1));
+        assert_eq!(cursor.next_miniblock, MiniblockNumber(2));
+        assert_eq!(cursor.prev_miniblock_timestamp, miniblock.timestamp);
+        assert_eq!(cursor.prev_miniblock_hash, miniblock.hash);
+    }
+
+    #[tokio::test]
+    async fn creating_io_cursor_with_snapshot_recovery() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut storage = pool.access_storage().await.unwrap();
+        let snapshot_recovery = prepare_empty_recovery_snapshot(&mut storage, 23).await;
+
+        let cursor = IoCursor::new(&mut storage).await.unwrap();
+        assert_eq!(cursor.l1_batch, L1BatchNumber(24));
+        assert_eq!(
+            cursor.next_miniblock,
+            snapshot_recovery.miniblock_number + 1
+        );
+        assert_eq!(
+            cursor.prev_miniblock_timestamp,
+            snapshot_recovery.miniblock_timestamp
+        );
+        assert_eq!(cursor.prev_miniblock_hash, snapshot_recovery.miniblock_hash);
+
+        // Add a miniblock so that we have miniblocks (but not an L1 batch) in the storage.
+        let miniblock = create_miniblock(snapshot_recovery.miniblock_number.0 + 1);
+        storage
+            .blocks_dal()
+            .insert_miniblock(&miniblock)
+            .await
+            .unwrap();
+
+        let cursor = IoCursor::new(&mut storage).await.unwrap();
+        assert_eq!(cursor.l1_batch, L1BatchNumber(24));
+        assert_eq!(cursor.next_miniblock, miniblock.number + 1);
+        assert_eq!(cursor.prev_miniblock_timestamp, miniblock.timestamp);
+        assert_eq!(cursor.prev_miniblock_hash, miniblock.hash);
     }
 }
