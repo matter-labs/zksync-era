@@ -107,9 +107,12 @@ pub(crate) async fn prepare_empty_recovery_snapshot(
 
     let snapshot_recovery = SnapshotRecoveryStatus {
         l1_batch_number: l1_batch_number.into(),
+        l1_batch_timestamp: l1_batch_number.into(),
         l1_batch_root_hash: H256::zero(),
         miniblock_number: l1_batch_number.into(),
-        miniblock_root_hash: H256::zero(), // not used
+        miniblock_timestamp: l1_batch_number.into(),
+        miniblock_hash: H256::zero(), // not used
+        protocol_version: ProtocolVersionId::latest(),
         last_finished_chunk_id: None,
         total_chunk_count: 100,
     };

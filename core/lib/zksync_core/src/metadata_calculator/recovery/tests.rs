@@ -162,9 +162,12 @@ async fn prepare_recovery_snapshot(
 
     SnapshotRecoveryStatus {
         l1_batch_number: L1BatchNumber(1),
+        l1_batch_timestamp: 1,
         l1_batch_root_hash,
         miniblock_number: MiniblockNumber(1),
-        miniblock_root_hash: H256::zero(), // not used
+        miniblock_timestamp: 1,
+        miniblock_hash: H256::zero(), // not used
+        protocol_version: ProtocolVersionId::latest(),
         last_finished_chunk_id: Some(0),
         total_chunk_count: 1,
     }
@@ -415,9 +418,12 @@ async fn prepare_clean_recovery_snapshot(
 
     let snapshot_recovery = SnapshotRecoveryStatus {
         l1_batch_number: l1_batch.number,
+        l1_batch_timestamp: l1_batch.timestamp,
         l1_batch_root_hash,
         miniblock_number: miniblock.number,
-        miniblock_root_hash: H256::zero(), // not used
+        miniblock_timestamp: miniblock.timestamp,
+        miniblock_hash: H256::zero(), // not used
+        protocol_version: l1_batch.protocol_version.unwrap(),
         last_finished_chunk_id: None,
         total_chunk_count: 100,
     };

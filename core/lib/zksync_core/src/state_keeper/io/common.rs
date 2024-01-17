@@ -178,27 +178,56 @@ pub(crate) struct IoCursor {
 
 impl IoCursor {
     /// Loads the cursor from Postgres.
+    // FIXME: unit tests
     pub async fn new(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
-        // TODO (PLA-703): Support no L1 batches / miniblocks in the storage
         let last_sealed_l1_batch_number = storage
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
-            .context("Failed getting sealed L1 batch number")?
-            .context("No L1 batches sealed")?;
+            .context("Failed getting sealed L1 batch number")?;
         let last_miniblock_header = storage
             .blocks_dal()
             .get_last_sealed_miniblock_header()
             .await
-            .context("Failed getting sealed miniblock header")?
-            .context("No miniblocks sealed")?;
+            .context("Failed getting sealed miniblock header")?;
 
-        Ok(Self {
-            next_miniblock: last_miniblock_header.number + 1,
-            prev_miniblock_hash: last_miniblock_header.hash,
-            prev_miniblock_timestamp: last_miniblock_header.timestamp,
-            l1_batch: last_sealed_l1_batch_number + 1,
-        })
+        if let (Some(l1_batch_number), Some(miniblock_header)) =
+            (last_sealed_l1_batch_number, &last_miniblock_header)
+        {
+            Ok(Self {
+                next_miniblock: miniblock_header.number + 1,
+                prev_miniblock_hash: miniblock_header.hash,
+                prev_miniblock_timestamp: miniblock_header.timestamp,
+                l1_batch: l1_batch_number + 1,
+            })
+        } else {
+            let snapshot_recovery = storage
+                .snapshot_recovery_dal()
+                .get_applied_snapshot_status()
+                .await
+                .context("Failed getting snapshot recovery info")?
+                .context("Postgres contains neither blocks nor snapshot recovery info")?;
+            let l1_batch =
+                last_sealed_l1_batch_number.unwrap_or(snapshot_recovery.l1_batch_number) + 1;
+
+            let (next_miniblock, prev_miniblock_hash, prev_miniblock_timestamp);
+            if let Some(miniblock_header) = &last_miniblock_header {
+                next_miniblock = miniblock_header.number + 1;
+                prev_miniblock_hash = miniblock_header.hash;
+                prev_miniblock_timestamp = miniblock_header.timestamp;
+            } else {
+                next_miniblock = snapshot_recovery.miniblock_number + 1;
+                prev_miniblock_hash = snapshot_recovery.miniblock_hash;
+                prev_miniblock_timestamp = snapshot_recovery.miniblock_timestamp;
+            }
+
+            Ok(Self {
+                next_miniblock,
+                prev_miniblock_hash,
+                prev_miniblock_timestamp,
+                l1_batch,
+            })
+        }
     }
 }
 
