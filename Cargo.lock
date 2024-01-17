@@ -6511,7 +6511,6 @@ dependencies = [
  "zksync_env_config",
  "zksync_object_store",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]

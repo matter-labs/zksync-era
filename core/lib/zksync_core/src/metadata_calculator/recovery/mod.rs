@@ -149,7 +149,7 @@ impl SnapshotParameters {
     }
 
     fn chunk_count(&self) -> u64 {
-        zksync_utils::ceil_div(self.log_count, Self::DESIRED_CHUNK_SIZE)
+        self.log_count.div_ceil(Self::DESIRED_CHUNK_SIZE)
     }
 }
 

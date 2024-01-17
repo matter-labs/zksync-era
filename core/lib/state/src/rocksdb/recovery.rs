@@ -103,7 +103,7 @@ impl RocksdbStorage {
             .with_context(|| {
                 format!("Failed getting number of logs for miniblock #{snapshot_miniblock}")
             })?;
-        let chunk_count = zksync_utils::ceil_div(log_count, desired_log_chunk_size);
+        let chunk_count = log_count.div_ceil(desired_log_chunk_size);
         tracing::info!(
             "Estimated the number of chunks for recovery based on {log_count} logs: {chunk_count}"
         );

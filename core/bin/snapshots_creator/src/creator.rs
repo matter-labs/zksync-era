@@ -14,7 +14,6 @@ use zksync_types::{
     },
     L1BatchNumber, MiniblockNumber,
 };
-use zksync_utils::ceil_div;
 
 use crate::metrics::{FactoryDepsStage, StorageChunkStage, METRICS};
 #[cfg(test)]
@@ -219,8 +218,9 @@ impl SnapshotCreator {
             .await?;
         let chunk_size = config.storage_logs_chunk_size;
         // We force the minimum number of chunks to avoid situations where only one chunk is created in tests.
-        let chunk_count =
-            ceil_div(distinct_storage_logs_keys_count, chunk_size).max(min_chunk_count);
+        let chunk_count = distinct_storage_logs_keys_count
+            .div_ceil(chunk_size)
+            .max(min_chunk_count);
 
         tracing::info!(
             "Selected storage logs chunking for L1 batch {l1_batch_number}: \
