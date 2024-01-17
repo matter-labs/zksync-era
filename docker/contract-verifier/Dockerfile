@@ -20,11 +20,11 @@ RUN cargo build --release
 
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y curl libpq5 ca-certificates wget python3 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y curl libpq5 ca-certificates wget python3 jq && rm -rf /var/lib/apt/lists/*
 
 # install zksolc 1.3.x
-RUN skip_versions="v1.3.12 v1.3.15" && \
-    for VERSION in $(seq -f "v1.3.%g" 0 19); do \
+RUN skip_versions="v1.3.12 v1.3.15 v1.3.20" && \
+    for VERSION in $(seq -f "v1.3.%g" 0 22); do \
     if echo " $skip_versions " | grep -q -w " $VERSION "; then \
     continue; \
     fi; \
