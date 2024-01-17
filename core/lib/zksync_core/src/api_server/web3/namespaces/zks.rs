@@ -125,15 +125,21 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         self.state.api_config.diamond_proxy_addr
     }
 
+    /// Returns the address of the native token used in the network.
+    /// If the network does not have a native ERC20 token, it returns 0.
+    /// That means that ETH is the native token.
     #[tracing::instrument(skip_all)]
     pub fn get_native_token_address_impl(&self) -> Result<Address, Web3Error> {
         const METHOD_NAME: &str = "get_native_token_address";
         const NATIVE_ERC20_FILE_PATH: &str = "etc/tokens/native_erc20.json";
 
         // read the address from the native_erc20.json file.
-        // in the future it should be read from .init.env file
-        let native_erc20_file = File::open(NATIVE_ERC20_FILE_PATH)
-            .map_err(|_err| internal_error(METHOD_NAME, "unable to read native_erc20.json file"))?;
+        // in the future it should be read from .init.env file.
+        // If the file is not found, it assumes that ETH is the native token and returns 0.
+        let native_erc20_file = match File::open(NATIVE_ERC20_FILE_PATH) {
+            Ok(file) => file,
+            Err(_) => return Ok(Address::zero()),
+        };
         let native_erc20_json: serde_json::Value =
             serde_json::from_reader(BufReader::new(native_erc20_file)).map_err(|_err| {
                 internal_error(METHOD_NAME, "unable to read native_erc20.json file")
