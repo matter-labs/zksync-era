@@ -27,6 +27,7 @@ jobs:
       # TODO: Remove after when we can upgrade hardhat-plugins
       - name: pre-download compiilers
         run: |
+          curl -s https://api.github.com/repos/matter-labs/era-solidity/releases?per_page=200
           # Download needed versions of vyper compiler
           # Not sanitized due to unconventional path and tags
           mkdir -p ./hardhat-nodejs/compilers-v2/vyper/linux
