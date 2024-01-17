@@ -2,8 +2,9 @@
 
 use std::time::Duration;
 
+use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::L1BatchNumber;
 
 #[cfg(test)]
@@ -71,6 +72,19 @@ pub(crate) async fn wait_for_l1_batch_with_metadata(
             .await
             .ok();
     }
+}
+
+/// Returns the projected number of the first locally available L1 batch. The L1 batch is **not**
+/// guaranteed to be present in the storage!
+pub(crate) async fn projected_first_l1_batch(
+    storage: &mut StorageProcessor<'_>,
+) -> anyhow::Result<L1BatchNumber> {
+    let snapshot_recovery = storage
+        .snapshot_recovery_dal()
+        .get_applied_snapshot_status()
+        .await
+        .context("failed getting snapshot recovery status")?;
+    Ok(snapshot_recovery.map_or(L1BatchNumber(0), |recovery| recovery.l1_batch_number + 1))
 }
 
 #[cfg(test)]
