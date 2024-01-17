@@ -72,6 +72,10 @@ pub trait IntoVmBoojumIntegrationTracer<S: WriteStorage, H: HistoryMode> {
     ) -> Box<dyn crate::vm_boojum_integration::VmTracer<S, H::VmBoojumIntegration>>;
 }
 
+pub trait IntoVm1_5_0<S: WriteStorage, H: HistoryMode> {
+    fn vm_1_5_0(&self) -> Box<dyn crate::vm_1_5_0::VmTracer<S, H::VmBoojumIntegration>>;
+}
+
 impl<S, T, H> IntoLatestTracer<S, H> for T
 where
     S: WriteStorage,
@@ -125,6 +129,17 @@ where
     }
 }
 
+impl<S, T, H> IntoVm1_5_0<S, H> for T
+where
+    S: WriteStorage,
+    H: HistoryMode,
+    T: crate::vm_1_5_0::VmTracer<S, H::Vm1_5_0> + Clone + 'static,
+{
+    fn vm_1_5_0(&self) -> Box<dyn crate::vm_1_5_0::VmTracer<S, H::Vm1_5_0>> {
+        Box::new(self.clone())
+    }
+}
+
 impl<S, H, T> MultiVMTracer<S, H> for T
 where
     S: WriteStorage,
@@ -132,6 +147,7 @@ where
     T: IntoLatestTracer<S, H>
         + IntoVmVirtualBlocksTracer<S, H>
         + IntoVmRefundsEnhancementTracer<S, H>
-        + IntoVmBoojumIntegrationTracer<S, H>,
+        + IntoVmBoojumIntegrationTracer<S, H>
+        + IntoVm1_5_0<S, H>,
 {
 }

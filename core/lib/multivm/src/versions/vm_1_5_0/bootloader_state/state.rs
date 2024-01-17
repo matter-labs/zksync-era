@@ -7,7 +7,7 @@ use zksync_utils::bytecode::CompressedBytecodeInfo;
 use super::{tx::BootloaderTx, utils::apply_pubdata_to_memory};
 use crate::{
     interface::{BootloaderMemory, L2BlockEnv, TxExecutionMode},
-    vm_boojum_integration::{
+    vm_1_5_0::{
         bootloader_state::{
             l2_block::BootloaderL2Block,
             snapshot::BootloaderStateSnapshot,

@@ -23,7 +23,7 @@ use crate::{
         types::inputs::L1BatchEnv,
         VmExecutionMode,
     },
-    vm_boojum_integration::{
+    vm_1_5_0::{
         bootloader_state::{utils::apply_pubdata_to_memory, BootloaderState},
         constants::BOOTLOADER_HEAP_PAGE,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},

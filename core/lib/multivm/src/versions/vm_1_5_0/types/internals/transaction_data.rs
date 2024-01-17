@@ -11,7 +11,7 @@ use zksync_types::{
 };
 use zksync_utils::{address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
 
-use crate::vm_boojum_integration::utils::overhead::{get_amortized_overhead, OverheadCoefficients};
+use crate::vm_1_5_0::utils::overhead::{get_amortized_overhead, OverheadCoefficients};
 
 /// This structure represents the data that is used by
 /// the Bootloader to describe the transaction.

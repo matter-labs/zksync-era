@@ -5,7 +5,7 @@ use crate::{
         CurrentExecutionState, ExecutionResult, Halt, TxRevertReason, VmExecutionMode,
         VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason,
     },
-    vm_boojum_integration::{tests::tester::vm_tester::VmTester, HistoryEnabled},
+    vm_1_5_0::{tests::tester::vm_tester::VmTester, HistoryEnabled},
 };
 
 #[derive(Debug, Clone)]

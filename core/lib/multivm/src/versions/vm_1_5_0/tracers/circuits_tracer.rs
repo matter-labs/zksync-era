@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use zk_evm_1_4_0::{
+use zk_evm_1_5_0::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zk_evm_abstractions::precompiles::PrecompileAddress,
     zkevm_opcode_defs::{LogOpcode, Opcode, UMAOpcode},
@@ -10,7 +10,7 @@ use zksync_state::{StoragePtr, WriteStorage};
 use super::circuits_capacity::*;
 use crate::{
     interface::{dyn_tracers::vm_1_4_0::DynTracer, tracer::TracerExecutionStatus},
-    vm_boojum_integration::{
+    vm_1_5_0::{
         bootloader_state::BootloaderState,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::traits::VmTracer,
@@ -63,6 +63,9 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
             Opcode::Context(_) | Opcode::Ret(_) | Opcode::NearCall(_) => AVERAGE_OPCODE_FRACTION,
             Opcode::Log(LogOpcode::StorageRead) => STORAGE_READ_BASE_FRACTION,
             Opcode::Log(LogOpcode::StorageWrite) => STORAGE_WRITE_BASE_FRACTION,
+            Opcode::Log(LogOpcode::TransientStorageRead) => STORAGE_READ_BASE_FRACTION,
+            Opcode::Log(LogOpcode::TransientStorageWrite) => STORAGE_WRITE_BASE_FRACTION,
+            Opcode::Log(LogOpcode::Decommit) => STORAGE_WRITE_BASE_FRACTION, // TODO is this right?
             Opcode::Log(LogOpcode::ToL1Message) | Opcode::Log(LogOpcode::Event) => {
                 EVENT_OR_L1_MESSAGE_FRACTION
             }

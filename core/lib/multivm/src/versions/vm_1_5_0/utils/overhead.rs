@@ -1,9 +1,9 @@
-use zk_evm_1_4_0::zkevm_opcode_defs::system_params::MAX_TX_ERGS_LIMIT;
+use zk_evm_1_5_0::zkevm_opcode_defs::system_params::MAX_TX_ERGS_LIMIT;
 use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{l1::is_l1_tx_type, U256};
 use zksync_utils::ceil_div_u256;
 
-use crate::vm_boojum_integration::constants::{
+use crate::vm_1_5_0::constants::{
     BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA, BOOTLOADER_TX_ENCODING_SPACE, MAX_TXS_IN_BLOCK,
 };
 

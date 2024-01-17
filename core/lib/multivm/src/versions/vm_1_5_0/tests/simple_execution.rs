@@ -1,6 +1,6 @@
 use crate::{
     interface::{ExecutionResult, VmExecutionMode, VmInterface},
-    vm_boojum_integration::{
+    vm_1_5_0::{
         tests::tester::{TxType, VmTesterBuilder},
         HistoryDisabled,
     },

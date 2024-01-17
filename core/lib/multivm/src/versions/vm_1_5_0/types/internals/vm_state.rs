@@ -1,4 +1,4 @@
-use zk_evm_1_4_0::{
+use zk_evm_1_5_0::{
     aux_structures::{MemoryPage, Timestamp},
     block_properties::BlockProperties,
     vm_state::{CallStackEntry, PrimitiveValue, VmState},
@@ -19,7 +19,7 @@ use zksync_utils::h256_to_u256;
 
 use crate::{
     interface::{L1BatchEnv, L2Block, SystemEnv},
-    vm_boojum_integration::{
+    vm_1_5_0::{
         bootloader_state::BootloaderState,
         constants::BOOTLOADER_HEAP_PAGE,
         old_vm::{
@@ -131,6 +131,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
                 system_env.base_system_smart_contracts.default_aa.hash,
             ),
             zkporter_is_available: system_env.zk_porter_available,
+            evm_simulator_code_hash: todo!(),
         },
     );
 
@@ -156,6 +157,8 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         is_static: false,
         is_local_frame: false,
         context_u128_value: 0,
+        total_pubdata_spent: 0,
+        stipend: 0,
     };
 
     // We consider the contract that is being run as a bootloader

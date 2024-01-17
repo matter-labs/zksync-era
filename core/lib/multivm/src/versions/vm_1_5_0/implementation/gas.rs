@@ -1,7 +1,7 @@
 use zksync_state::WriteStorage;
 
 use crate::{
-    vm_boojum_integration::{tracers::DefaultExecutionTracer, vm::Vm},
+    vm_1_5_0::{tracers::DefaultExecutionTracer, vm::Vm},
     HistoryMode,
 };
 
@@ -20,7 +20,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
 
     pub(crate) fn calculate_computational_gas_used(
         &self,
-        tracer: &DefaultExecutionTracer<S, H::VmBoojumIntegration>,
+        tracer: &DefaultExecutionTracer<S, H::Vm1_5_0>,
         gas_remaining_before: u32,
         spent_pubdata_counter_before: u32,
     ) -> u32 {

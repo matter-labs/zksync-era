@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::vm_boojum_integration::old_vm::history_recorder::{
+use crate::vm_1_5_0::old_vm::history_recorder::{
     AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
     HistoryRecorder, StorageWrapper, WithHistory,
 };

@@ -11,7 +11,7 @@ use zksync_types::{
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_boojum_integration::{
+    vm_1_5_0::{
         tests::{
             tester::{Account, VmTester, VmTesterBuilder},
             utils::read_many_owners_custom_account_contract,

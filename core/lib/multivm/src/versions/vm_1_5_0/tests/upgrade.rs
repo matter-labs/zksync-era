@@ -18,7 +18,7 @@ use crate::{
         ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterface,
         VmInterfaceHistoryEnabled,
     },
-    vm_boojum_integration::{
+    vm_1_5_0::{
         tests::{tester::VmTesterBuilder, utils::verify_required_storage},
         HistoryEnabled,
     },

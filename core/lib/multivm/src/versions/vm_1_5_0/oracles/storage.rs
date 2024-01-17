@@ -17,7 +17,7 @@ use zksync_types::{
 };
 use zksync_utils::u256_to_h256;
 
-use crate::vm_boojum_integration::old_vm::{
+use crate::vm_1_5_0::old_vm::{
     history_recorder::{
         AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
         HistoryRecorder, StorageWrapper, VectorHistoryEvent, WithHistory,

@@ -38,6 +38,9 @@ pub fn derive_base_fee_and_gas_per_pubdata(
                 batch_fee_input.into_l1_pegged(),
             )
         }
+        VmVersion::Vm1_5_0 => crate::vm_1_5_0::utils::fee::derive_base_fee_and_gas_per_pubdata(
+            batch_fee_input.into_l1_pegged(),
+        ),
     }
 }
 
@@ -59,6 +62,7 @@ pub fn get_batch_base_fee(l1_batch_env: &L1BatchEnv, vm_version: VmVersion) -> u
         VmVersion::VmBoojumIntegration => {
             crate::vm_boojum_integration::utils::fee::get_batch_base_fee(l1_batch_env)
         }
+        VmVersion::Vm1_5_0 => crate::vm_1_5_0::utils::fee::get_batch_base_fee(l1_batch_env),
     }
 }
 
@@ -136,6 +140,12 @@ pub fn derive_overhead(
                 ),
             )
         }
+        VmVersion::Vm1_5_0 => crate::vm_1_5_0::utils::overhead::derive_overhead(
+            gas_limit,
+            gas_price_per_pubdata,
+            encoded_len,
+            crate::vm_1_5_0::utils::overhead::OverheadCoefficients::from_tx_type(tx_type),
+        ),
     }
 }
 
@@ -157,6 +167,7 @@ pub fn get_bootloader_encoding_space(version: VmVersion) -> u32 {
         VmVersion::VmBoojumIntegration => {
             crate::vm_boojum_integration::constants::BOOTLOADER_TX_ENCODING_SPACE
         }
+        VmVersion::Vm1_5_0 => crate::vm_1_5_0::constants::BOOTLOADER_TX_ENCODING_SPACE,
     }
 }
 
@@ -174,5 +185,6 @@ pub fn get_bootloader_max_txs_in_batch(version: VmVersion) -> usize {
             crate::vm_refunds_enhancement::constants::MAX_TXS_IN_BLOCK
         }
         VmVersion::VmBoojumIntegration => crate::vm_boojum_integration::constants::MAX_TXS_IN_BLOCK,
+        VmVersion::Vm1_5_0 => crate::vm_1_5_0::constants::MAX_TXS_IN_BLOCK,
     }
 }

@@ -8,7 +8,7 @@ use crate::{
         dyn_tracers::vm_1_4_0::DynTracer,
         tracer::{TracerExecutionStatus, VmExecutionStopReason},
     },
-    vm_boojum_integration::{
+    vm_1_5_0::{
         BootloaderState, HistoryMode, SimpleMemory, TracerPointer, VmTracer, ZkSyncVmState,
     },
 };

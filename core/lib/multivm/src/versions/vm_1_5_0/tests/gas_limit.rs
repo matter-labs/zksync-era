@@ -2,7 +2,7 @@ use zksync_types::{fee::Fee, Execute};
 
 use crate::{
     interface::{TxExecutionMode, VmInterface},
-    vm_boojum_integration::{
+    vm_1_5_0::{
         constants::{BOOTLOADER_HEAP_PAGE, TX_DESCRIPTION_OFFSET, TX_GAS_LIMIT_OFFSET},
         tests::tester::VmTesterBuilder,
         HistoryDisabled,

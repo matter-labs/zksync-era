@@ -52,6 +52,14 @@ impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>>
 }
 
 impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>>
+    for crate::vm_1_5_0::TracerDispatcher<S, H::Vm1_5_0>
+{
+    fn from(value: TracerDispatcher<S, H>) -> Self {
+        Self::new(value.tracers.into_iter().map(|x| x.vm_1_5_0()).collect())
+    }
+}
+
+impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>>
     for crate::vm_refunds_enhancement::TracerDispatcher<S, H::VmVirtualBlocksRefundsEnhancement>
 {
     fn from(value: TracerDispatcher<S, H>) -> Self {

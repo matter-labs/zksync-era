@@ -10,9 +10,7 @@ use zksync_state::WriteStorage;
 use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{Address, U256};
 
-use crate::vm_boojum_integration::{
-    old_vm::memory::SimpleMemory, types::internals::ZkSyncVmState, HistoryMode,
-};
+use crate::vm_1_5_0::{old_vm::memory::SimpleMemory, types::internals::ZkSyncVmState, HistoryMode};
 
 #[derive(Debug, Clone)]
 pub(crate) enum VmExecutionResult {

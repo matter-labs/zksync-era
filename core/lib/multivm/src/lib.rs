@@ -5,10 +5,11 @@
 pub use zk_evm_1_3_1;
 pub use zk_evm_1_3_3;
 pub use zk_evm_1_4_0;
+pub use zk_evm_1_5_0;
 pub use zksync_types::vm_version::VmVersion;
 
 pub use self::versions::{
-    vm_1_3_2, vm_boojum_integration, vm_latest, vm_m5, vm_m6, vm_refunds_enhancement,
+    vm_1_3_2, vm_1_5_0, vm_boojum_integration, vm_latest, vm_m5, vm_m6, vm_refunds_enhancement,
     vm_virtual_blocks,
 };
 pub use crate::{

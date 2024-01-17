@@ -15,7 +15,7 @@ use crate::{
     interface::{
         L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
     },
-    vm_boojum_integration::{
+    vm_1_5_0::{
         constants::BLOCK_GAS_LIMIT,
         tests::{
             tester::{Account, TxType},

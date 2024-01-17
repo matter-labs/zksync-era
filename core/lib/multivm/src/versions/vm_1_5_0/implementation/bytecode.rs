@@ -6,7 +6,7 @@ use zksync_utils::{
     bytes_to_be_words,
 };
 
-use crate::{interface::VmInterface, vm_boojum_integration::Vm, HistoryMode};
+use crate::{interface::VmInterface, vm_1_5_0::Vm, HistoryMode};
 
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     /// Checks the last transaction has successfully published compressed bytecodes and returns `true` if there is at least one is still unknown.

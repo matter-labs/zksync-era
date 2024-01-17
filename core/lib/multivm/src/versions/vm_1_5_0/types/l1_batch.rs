@@ -1,7 +1,7 @@
 use zksync_types::U256;
 use zksync_utils::{address_to_u256, h256_to_u256};
 
-use crate::{interface::L1BatchEnv, vm_boojum_integration::utils::fee::get_batch_base_fee};
+use crate::{interface::L1BatchEnv, vm_1_5_0::utils::fee::get_batch_base_fee};
 
 const OPERATOR_ADDRESS_SLOT: usize = 0;
 const PREV_BLOCK_HASH_SLOT: usize = 1;

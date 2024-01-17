@@ -6,7 +6,7 @@ use zksync_types::{Address, Execute};
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
     tracers::CallTracer,
-    vm_boojum_integration::{
+    vm_1_5_0::{
         constants::BLOCK_GAS_LIMIT,
         tests::{
             tester::VmTesterBuilder,

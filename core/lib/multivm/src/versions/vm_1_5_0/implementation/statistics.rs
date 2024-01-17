@@ -4,7 +4,7 @@ use zksync_types::U256;
 
 use crate::{
     interface::{VmExecutionStatistics, VmMemoryMetrics},
-    vm_boojum_integration::{tracers::DefaultExecutionTracer, vm::Vm},
+    vm_1_5_0::{tracers::DefaultExecutionTracer, vm::Vm},
     HistoryMode,
 };
 
@@ -18,7 +18,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         &self,
         timestamp_initial: Timestamp,
         cycles_initial: u32,
-        tracer: &DefaultExecutionTracer<S, H::VmBoojumIntegration>,
+        tracer: &DefaultExecutionTracer<S, H::Vm1_5_0>,
         gas_remaining_before: u32,
         gas_remaining_after: u32,
         spent_pubdata_counter_before: u32,

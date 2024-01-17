@@ -18,7 +18,7 @@ use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
     interface::{ExecutionResult, Halt, L2BlockEnv, TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_boojum_integration::{
+    vm_1_5_0::{
         constants::{
             BOOTLOADER_HEAP_PAGE, TX_OPERATOR_L2_BLOCK_INFO_OFFSET,
             TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,

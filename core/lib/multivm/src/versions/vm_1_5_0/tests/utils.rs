@@ -9,7 +9,7 @@ use zksync_types::{
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
-use crate::vm_boojum_integration::{
+use crate::vm_1_5_0::{
     tests::tester::InMemoryStorageView, types::internals::ZkSyncVmState, HistoryMode,
 };
 

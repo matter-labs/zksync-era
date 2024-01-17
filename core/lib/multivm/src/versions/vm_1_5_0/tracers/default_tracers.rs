@@ -22,7 +22,7 @@ use crate::{
         types::tracer::TracerExecutionStatus,
         Halt, VmExecutionMode,
     },
-    vm_boojum_integration::{
+    vm_1_5_0::{
         bootloader_state::{utils::apply_l2_block, BootloaderState},
         constants::BOOTLOADER_HEAP_PAGE,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},

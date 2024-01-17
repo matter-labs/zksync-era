@@ -5,7 +5,7 @@ use zksync_state::WriteStorage;
 use zksync_types::{StorageKey, StorageLogQuery, StorageValue, U256};
 
 use crate::{
-    vm_boojum_integration::{
+    vm_1_5_0::{
         old_vm::{
             event_sink::InMemoryEventSink,
             history_recorder::{AppDataFrameManagerWithHistory, HistoryRecorder},

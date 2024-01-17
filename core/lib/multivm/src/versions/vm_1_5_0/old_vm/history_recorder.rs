@@ -773,7 +773,7 @@ mod tests {
     use zk_evm_1_4_0::{aux_structures::Timestamp, vm_state::PrimitiveValue};
     use zksync_types::U256;
 
-    use crate::vm_boojum_integration::{
+    use crate::vm_1_5_0::{
         old_vm::history_recorder::{HistoryRecorder, MemoryWrapper},
         HistoryDisabled,
     };

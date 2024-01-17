@@ -3,9 +3,7 @@ use zksync_system_constants::MAX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::fee_model::L1PeggedBatchFeeModelInput;
 use zksync_utils::ceil_div;
 
-use crate::{
-    vm_boojum_integration::old_vm::utils::eth_price_per_pubdata_byte, vm_latest::L1BatchEnv,
-};
+use crate::{vm_1_5_0::old_vm::utils::eth_price_per_pubdata_byte, vm_latest::L1BatchEnv};
 
 /// Calculates the amount of gas required to publish one byte of pubdata
 pub fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
