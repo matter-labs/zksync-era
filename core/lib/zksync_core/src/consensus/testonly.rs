@@ -363,7 +363,7 @@ impl StateKeeperRunner {
                 u32::MAX,
                 L2ChainId::default(),
             )
-            .await;
+            .await?;
             s.spawn_bg(miniblock_sealer.run());
             s.spawn_bg(run_mock_metadata_calculator(ctx, &self.pool));
             s.spawn_bg(

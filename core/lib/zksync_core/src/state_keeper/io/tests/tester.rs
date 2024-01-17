@@ -112,7 +112,8 @@ impl Tester {
             BLOCK_GAS_LIMIT,
             L2ChainId::from(270),
         )
-        .await;
+        .await
+        .unwrap();
 
         (io, mempool)
     }

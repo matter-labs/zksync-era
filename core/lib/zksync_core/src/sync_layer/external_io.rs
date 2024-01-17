@@ -22,7 +22,7 @@ use crate::{
     state_keeper::{
         extractors,
         io::{
-            common::{l1_batch_params, load_pending_batch, poll_iters},
+            common::{l1_batch_params, load_pending_batch, poll_iters, IoCursor},
             MiniblockParams, MiniblockSealerHandle, PendingBatchData, StateKeeperIO,
         },
         metrics::KEEPER_METRICS,
@@ -69,42 +69,31 @@ impl ExternalIO {
         l2_erc20_bridge_addr: Address,
         validation_computational_gas_limit: u32,
         chain_id: L2ChainId,
-    ) -> Self {
-        let mut storage = pool.access_storage_tagged("sync_layer").await.unwrap();
-        // TODO (PLA-703): Support no L1 batches / miniblocks in the storage
-        let last_sealed_l1_batch_number = storage
-            .blocks_dal()
-            .get_sealed_l1_batch_number()
-            .await
-            .unwrap()
-            .expect("No L1 batches sealed");
-        let last_miniblock_number = storage
-            .blocks_dal()
-            .get_sealed_miniblock_number()
-            .await
-            .unwrap();
+    ) -> anyhow::Result<Self> {
+        let mut storage = pool.access_storage_tagged("sync_layer").await?;
+        let cursor = IoCursor::new(&mut storage).await?;
         drop(storage);
 
         tracing::info!(
             "Initialized the ExternalIO: current L1 batch number {}, current miniblock number {}",
-            last_sealed_l1_batch_number + 1,
-            last_miniblock_number + 1,
+            cursor.l1_batch,
+            cursor.next_miniblock,
         );
 
-        sync_state.set_local_block(last_miniblock_number);
+        sync_state.set_local_block(MiniblockNumber(cursor.next_miniblock.saturating_sub(1)));
 
-        Self {
+        Ok(Self {
             miniblock_sealer_handle,
             pool,
-            current_l1_batch_number: last_sealed_l1_batch_number + 1,
-            current_miniblock_number: last_miniblock_number + 1,
+            current_l1_batch_number: cursor.l1_batch,
+            current_miniblock_number: cursor.next_miniblock,
             actions,
             sync_state,
             main_node_client,
             l2_erc20_bridge_addr,
             validation_computational_gas_limit,
             chain_id,
-        }
+        })
     }
 
     async fn load_previous_l1_batch_hash(&self) -> U256 {
@@ -117,6 +106,7 @@ impl ExternalIO {
         hash
     }
 
+    // FIXME: won't work with snapshot recovery; track locally?
     async fn load_previous_miniblock_hash(&self) -> H256 {
         let prev_miniblock_number = self.current_miniblock_number - 1;
         let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();

@@ -67,7 +67,8 @@ pub(crate) async fn create_state_keeper(
         state_keeper_config.validation_computational_gas_limit,
         network_config.zksync_network_id,
     )
-    .await;
+    .await
+    .expect("Failed initializing main node I/O for state keeper");
 
     let sealer = SequencerSealer::new(state_keeper_config);
     ZkSyncStateKeeper::new(

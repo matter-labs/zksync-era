@@ -26,8 +26,9 @@ use zksync_core::{
         MiniblockSealer, MiniblockSealerHandle, ZkSyncStateKeeper,
     },
     sync_layer::{
-        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, fetcher::FetcherCursor,
-        genesis::perform_genesis_if_needed, ActionQueue, MainNodeClient, SyncState,
+        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
+        fetcher::MainNodeFetcher, genesis::perform_genesis_if_needed, ActionQueue, MainNodeClient,
+        SyncState,
     },
 };
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
@@ -56,7 +57,7 @@ async fn build_state_keeper(
     miniblock_sealer_handle: MiniblockSealerHandle,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
-) -> ZkSyncStateKeeper {
+) -> anyhow::Result<ZkSyncStateKeeper> {
     // These config values are used on the main node, and depending on these values certain transactions can
     // be *rejected* (that is, not included into the block). However, external node only mirrors what the main
     // node has already executed, so we can safely set these values to the maximum possible values - if the main
@@ -77,9 +78,9 @@ async fn build_state_keeper(
             true,
         ));
 
-    let main_node_url = config.required.main_node_url().unwrap();
+    let main_node_url = config.required.main_node_url()?;
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
-        .expect("Failed creating JSON-RPC client for main node");
+        .context("Failed creating JSON-RPC client for main node")?;
     let io = ExternalIO::new(
         miniblock_sealer_handle,
         connection_pool,
@@ -90,14 +91,15 @@ async fn build_state_keeper(
         validation_computational_gas_limit,
         chain_id,
     )
-    .await;
+    .await
+    .context("Failed initializing I/O for external node state keeper")?;
 
-    ZkSyncStateKeeper::new(
+    Ok(ZkSyncStateKeeper::new(
         stop_receiver,
         Box::new(io),
         batch_executor_base,
         Box::new(NoopSealer),
-    )
+    ))
 }
 
 async fn init_tasks(
@@ -164,27 +166,27 @@ async fn init_tasks(
         stop_receiver.clone(),
         config.remote.l2_chain_id,
     )
-    .await;
+    .await?;
 
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
-    let fetcher_cursor = {
+    let fetcher = {
         let pool = singleton_pool_builder
             .build()
             .await
             .context("failed to build a connection pool for `MainNodeFetcher`")?;
         let mut storage = pool.access_storage_tagged("sync_layer").await?;
-        FetcherCursor::new(&mut storage)
-            .await
-            .context("failed to load `MainNodeFetcher` cursor from Postgres")?
+        MainNodeFetcher::new(
+            &mut storage,
+            Box::new(main_node_client),
+            action_queue_sender,
+            sync_state.clone(),
+            stop_receiver.clone(),
+        )
+        .await
+        .context("failed initializing main node fetcher")?
     };
-    let fetcher = fetcher_cursor.into_fetcher(
-        Box::new(main_node_client),
-        action_queue_sender,
-        sync_state.clone(),
-        stop_receiver.clone(),
-    );
 
     let metadata_calculator_config = MetadataCalculatorConfig {
         db_path: config.required.merkle_tree_path.clone(),

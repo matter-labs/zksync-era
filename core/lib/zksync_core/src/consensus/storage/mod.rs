@@ -10,9 +10,9 @@ use zksync_types::{Address, MiniblockNumber};
 #[cfg(test)]
 mod testonly;
 
-use crate::sync_layer::{
-    fetcher::{FetchedBlock, FetcherCursor},
-    sync_action::ActionQueueSender,
+use crate::{
+    state_keeper::io::common::IoCursor,
+    sync_layer::{fetcher::FetchedBlock, sync_action::ActionQueueSender},
 };
 
 /// Context-aware `zksync_dal::StorageProcessor` wrapper.
@@ -136,14 +136,14 @@ impl<'a> CtxStorage<'a> {
     }
 
     /// Wrapper for `FetcherCursor::new()`.
-    pub async fn new_fetcher_cursor(&mut self, ctx: &ctx::Ctx) -> ctx::Result<FetcherCursor> {
-        Ok(ctx.wait(FetcherCursor::new(&mut self.0)).await??)
+    pub async fn new_fetcher_cursor(&mut self, ctx: &ctx::Ctx) -> ctx::Result<IoCursor> {
+        Ok(ctx.wait(IoCursor::for_fetcher(&mut self.0)).await??)
     }
 }
 
 #[derive(Debug)]
 struct Cursor {
-    inner: FetcherCursor,
+    inner: IoCursor,
     actions: ActionQueueSender,
 }
 

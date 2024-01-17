@@ -13,15 +13,16 @@ use zksync_types::{
     Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256,
 };
 
-use super::{fetcher::FetcherCursor, sync_action::SyncAction, *};
+use super::{sync_action::SyncAction, *};
 use crate::{
     api_server::web3::tests::spawn_http_server,
     consensus::testonly::MockMainNodeClient,
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
-        seal_criteria::NoopSealer, tests::TestBatchExecutorBuilder, MiniblockSealer,
-        ZkSyncStateKeeper,
+        io::common::IoCursor, seal_criteria::NoopSealer, tests::TestBatchExecutorBuilder,
+        MiniblockSealer, ZkSyncStateKeeper,
     },
+    sync_layer::{client::CachingMainNodeClient, fetcher::MainNodeFetcher},
     utils::testonly::{create_l1_batch_metadata, create_l2_transaction},
 };
 
@@ -70,7 +71,8 @@ impl StateKeeperHandles {
             u32::MAX,
             L2ChainId::default(),
         )
-        .await;
+        .await
+        .unwrap();
 
         let (stop_sender, stop_receiver) = watch::channel(false);
         let mut batch_executor_base = TestBatchExecutorBuilder::default();
@@ -400,10 +402,6 @@ async fn fetcher_basics() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     ensure_genesis(&mut storage).await;
-    let fetcher_cursor = FetcherCursor::new(&mut storage).await.unwrap();
-    assert_eq!(fetcher_cursor.l1_batch, L1BatchNumber(0));
-    assert_eq!(fetcher_cursor.next_miniblock, MiniblockNumber(1));
-    drop(storage);
 
     let mut mock_client = MockMainNodeClient::default();
     mock_client.push_l1_batch(0);
@@ -414,12 +412,19 @@ async fn fetcher_basics() {
     let (actions_sender, mut actions) = ActionQueue::new();
     let (stop_sender, stop_receiver) = watch::channel(false);
     let sync_state = SyncState::default();
-    let fetcher = fetcher_cursor.into_fetcher(
+    let fetcher = MainNodeFetcher::new(
+        &mut storage,
         Box::new(mock_client),
         actions_sender,
         sync_state.clone(),
         stop_receiver,
-    );
+    )
+    .await
+    .unwrap();
+    drop(storage);
+
+    assert_eq!(fetcher.cursor.l1_batch, L1BatchNumber(0));
+    assert_eq!(fetcher.cursor.next_miniblock, MiniblockNumber(1));
     let fetcher_task = tokio::spawn(fetcher.run());
 
     // Check that `sync_state` is updated.
@@ -498,17 +503,17 @@ async fn fetcher_with_real_server() {
     let sync_state = SyncState::default();
     let (actions_sender, mut actions) = ActionQueue::new();
     let client = <dyn MainNodeClient>::json_rpc(&format!("http://{server_addr}/")).unwrap();
-    let fetcher_cursor = FetcherCursor {
-        next_miniblock: MiniblockNumber(1),
-        prev_miniblock_hash: genesis_miniblock_hash,
-        l1_batch: L1BatchNumber(0),
-    };
-    let fetcher = fetcher_cursor.into_fetcher(
-        Box::new(client),
-        actions_sender,
-        sync_state.clone(),
+    let fetcher = MainNodeFetcher {
+        client: CachingMainNodeClient::new(Box::new(client)),
+        cursor: IoCursor {
+            next_miniblock: MiniblockNumber(1),
+            prev_miniblock_hash: genesis_miniblock_hash,
+            l1_batch: L1BatchNumber(0),
+        },
+        actions: actions_sender,
+        sync_state: sync_state.clone(),
         stop_receiver,
-    );
+    };
     let fetcher_task = tokio::spawn(fetcher.run());
 
     // Check generated actions.

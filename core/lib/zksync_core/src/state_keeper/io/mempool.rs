@@ -27,7 +27,7 @@ use crate::{
     state_keeper::{
         extractors,
         io::{
-            common::{l1_batch_params, load_pending_batch, poll_iters},
+            common::{l1_batch_params, load_pending_batch, poll_iters, IoCursor},
             MiniblockParams, MiniblockSealerHandle, PendingBatchData, StateKeeperIO,
         },
         mempool_actor::l2_tx_filter,
@@ -404,42 +404,30 @@ impl MempoolIO {
         l2_erc20_bridge_addr: Address,
         validation_computational_gas_limit: u32,
         chain_id: L2ChainId,
-    ) -> Self {
-        assert!(
+    ) -> anyhow::Result<Self> {
+        anyhow::ensure!(
             config.virtual_blocks_interval > 0,
             "Virtual blocks interval must be positive"
         );
-        assert!(
+        anyhow::ensure!(
             config.virtual_blocks_per_miniblock > 0,
             "Virtual blocks per miniblock must be positive"
         );
 
-        let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
-        // TODO (PLA-703): Support no L1 batches / miniblocks in the storage
-        let last_sealed_l1_batch_number = storage
-            .blocks_dal()
-            .get_sealed_l1_batch_number()
-            .await
-            .unwrap()
-            .expect("No L1 batches sealed");
-        let last_miniblock_number = storage
-            .blocks_dal()
-            .get_sealed_miniblock_number()
-            .await
-            .unwrap();
-
+        let mut storage = pool.access_storage_tagged("state_keeper").await?;
+        let cursor = IoCursor::new(&mut storage).await?;
         drop(storage);
 
-        Self {
+        Ok(Self {
             mempool,
             object_store,
             pool,
             timeout_sealer: TimeoutSealer::new(config),
             filter: L2TxFilter::default(),
             // ^ Will be initialized properly on the first newly opened batch
-            current_l1_batch_number: last_sealed_l1_batch_number + 1,
+            current_l1_batch_number: cursor.l1_batch,
             miniblock_sealer_handle,
-            current_miniblock_number: last_miniblock_number + 1,
+            current_miniblock_number: cursor.next_miniblock,
             fee_account: config.fee_account_addr,
             validation_computational_gas_limit,
             delay_interval,
@@ -448,7 +436,7 @@ impl MempoolIO {
             chain_id,
             virtual_blocks_interval: config.virtual_blocks_interval,
             virtual_blocks_per_miniblock: config.virtual_blocks_per_miniblock,
-        }
+        })
     }
 
     async fn load_previous_l1_batch_hash(&self) -> U256 {
@@ -475,6 +463,7 @@ impl MempoolIO {
         batch_hash
     }
 
+    // FIXME: won't work with snapshot recovery; track locally?
     async fn load_previous_miniblock_header(&self) -> MiniblockHeader {
         let load_latency = KEEPER_METRICS.load_previous_miniblock_header.start();
         let mut storage = self
