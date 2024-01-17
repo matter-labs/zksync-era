@@ -28,15 +28,15 @@ pub(super) use self::{proxy::TxProxy, result::SubmitTxError};
 use crate::{
     api_server::{
         execution_sandbox::{
-            get_pubdata_for_factory_deps, BlockArgs, SubmitTxStage, TransactionExecutor,
-            TxExecutionArgs, TxSharedArgs, VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
+            get_pubdata_for_factory_deps, BlockArgs, BlockStartInfo, SubmitTxStage,
+            TransactionExecutor, TxExecutionArgs, TxSharedArgs, VmConcurrencyLimiter, VmPermit,
+            SANDBOX_METRICS,
         },
         tx_sender::result::ApiCallResult,
     },
     fee_model::BatchFeeModelInputProvider,
     metrics::{TxStage, APP_METRICS},
     state_keeper::seal_criteria::{ConditionalSealer, NoopSealer, SealData},
-    utils::BlockStartInfo,
 };
 
 mod proxy;

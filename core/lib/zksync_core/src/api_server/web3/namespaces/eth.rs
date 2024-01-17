@@ -268,7 +268,7 @@ impl EthNamespace {
         };
         let method_latency = API_METRICS.start_block_call(method_name, block_id);
 
-        self.state.check_pruned_block(block_id)?;
+        self.state.start_info.ensure_not_pruned(block_id)?;
         let block = self
             .state
             .connection_pool
@@ -301,7 +301,7 @@ impl EthNamespace {
         const METHOD_NAME: &str = "get_block_transaction_count";
 
         let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
-        self.state.check_pruned_block(block_id)?;
+        self.state.start_info.ensure_not_pruned(block_id)?;
         let tx_count = self
             .state
             .connection_pool

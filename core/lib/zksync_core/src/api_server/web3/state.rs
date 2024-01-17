@@ -21,14 +21,53 @@ use zksync_web3_decl::{error::Web3Error, types::Filter};
 use super::metrics::{FilterType, FILTER_METRICS};
 use crate::{
     api_server::{
-        execution_sandbox::BlockArgs,
+        execution_sandbox::{BlockArgs, BlockArgsError, BlockStartInfo},
         tree::TreeApiHttpClient,
         tx_sender::TxSender,
         web3::{backend_jsonrpsee::internal_error, TypedFilter},
     },
     sync_layer::SyncState,
-    utils::BlockStartInfo,
 };
+
+#[derive(Debug)]
+pub(super) enum PruneQuery {
+    BlockId(api::BlockId),
+    L1Batch(L1BatchNumber),
+}
+
+impl From<api::BlockId> for PruneQuery {
+    fn from(id: api::BlockId) -> Self {
+        Self::BlockId(id)
+    }
+}
+
+impl From<MiniblockNumber> for PruneQuery {
+    fn from(number: MiniblockNumber) -> Self {
+        Self::BlockId(api::BlockId::Number(number.0.into()))
+    }
+}
+
+impl From<L1BatchNumber> for PruneQuery {
+    fn from(number: L1BatchNumber) -> Self {
+        Self::L1Batch(number)
+    }
+}
+
+impl BlockStartInfo {
+    pub(super) fn ensure_not_pruned(&self, query: impl Into<PruneQuery>) -> Result<(), Web3Error> {
+        match query.into() {
+            PruneQuery::BlockId(id) => self
+                .ensure_not_pruned_block(id)
+                .map_err(Web3Error::PrunedBlock),
+            PruneQuery::L1Batch(number) => {
+                if number < self.first_l1_batch {
+                    return Err(Web3Error::PrunedL1Batch(self.first_l1_batch));
+                }
+                Ok(())
+            }
+        }
+    }
+}
 
 /// Configuration values for the API.
 /// This structure is detached from `ZkSyncConfig`, since different node types (main, external, etc)
@@ -184,39 +223,13 @@ impl RpcState {
         }
     }
 
-    /// Returns an error if the provided `block` is known to be pruned.
-    pub(crate) fn check_pruned_block(&self, block: api::BlockId) -> Result<(), Web3Error> {
-        let first_local_miniblock = self.start_info.first_miniblock;
-        match block {
-            api::BlockId::Number(api::BlockNumber::Number(number))
-                if number < first_local_miniblock.0.into() =>
-            {
-                Err(Web3Error::PrunedBlock(first_local_miniblock))
-            }
-            api::BlockId::Number(api::BlockNumber::Earliest)
-                if first_local_miniblock > MiniblockNumber(0) =>
-            {
-                Err(Web3Error::PrunedBlock(first_local_miniblock))
-            }
-            _ => Ok(()),
-        }
-    }
-
-    pub(crate) fn check_pruned_l1_batch(&self, number: L1BatchNumber) -> Result<(), Web3Error> {
-        let first_local_l1_batch = self.start_info.first_l1_batch;
-        if number < first_local_l1_batch {
-            return Err(Web3Error::PrunedL1Batch(first_local_l1_batch));
-        }
-        Ok(())
-    }
-
     pub(crate) async fn resolve_block(
         &self,
         connection: &mut StorageProcessor<'_>,
         block: api::BlockId,
         method_name: &'static str,
     ) -> Result<MiniblockNumber, Web3Error> {
-        self.check_pruned_block(block)?;
+        self.start_info.ensure_not_pruned(block)?;
         let result = connection.blocks_web3_dal().resolve_block_id(block).await;
         result
             .map_err(|err| internal_error(method_name, err))?
@@ -229,11 +242,13 @@ impl RpcState {
         block: api::BlockId,
         method_name: &'static str,
     ) -> Result<BlockArgs, Web3Error> {
-        self.check_pruned_block(block)?;
-        BlockArgs::new(connection, block)
+        BlockArgs::new(connection, block, self.start_info)
             .await
-            .map_err(|err| internal_error(method_name, err))?
-            .ok_or(Web3Error::NoBlock)
+            .map_err(|err| match err {
+                BlockArgsError::Pruned(number) => Web3Error::PrunedBlock(number),
+                BlockArgsError::Missing => Web3Error::NoBlock,
+                BlockArgsError::Database(err) => internal_error(method_name, err),
+            })
     }
 
     pub async fn resolve_filter_block_number(

@@ -330,7 +330,6 @@ impl BlockArgs {
                 .get_last_sealed_miniblock_header()
                 .await?
                 .context("no miniblocks in storage")?;
-            // TODO: no miniblocks can be supported (requires snapshot miniblock timestamp)
 
             vm_l1_batch_number = match sealed_l1_batch_number {
                 Some(number) => number + 1,

@@ -35,11 +35,12 @@ use self::{
 };
 use crate::{
     api_server::{
-        execution_sandbox::VmConcurrencyBarrier, tree::TreeApiHttpClient, tx_sender::TxSender,
+        execution_sandbox::{BlockStartInfo, VmConcurrencyBarrier},
+        tree::TreeApiHttpClient,
+        tx_sender::TxSender,
         web3::backend_jsonrpsee::batch_limiter_middleware::LimitMiddleware,
     },
     sync_layer::SyncState,
-    utils::BlockStartInfo,
 };
 
 pub mod backend_jsonrpsee;

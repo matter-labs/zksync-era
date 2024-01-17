@@ -24,7 +24,7 @@ use super::{
     metrics::{SubscriptionType, PUB_SUB_METRICS},
     namespaces::eth::EVENT_TOPIC_NUMBER_LIMIT,
 };
-use crate::utils::BlockStartInfo;
+use crate::api_server::execution_sandbox::BlockStartInfo;
 
 const BROADCAST_CHANNEL_CAPACITY: usize = 1024;
 const SUBSCRIPTION_SINK_SEND_TIMEOUT: Duration = Duration::from_secs(1);

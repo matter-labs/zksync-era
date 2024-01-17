@@ -4,7 +4,6 @@ use bigdecimal::{BigDecimal, Zero};
 use zksync_dal::StorageProcessor;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
-    api,
     api::{
         BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof, Proof,
         ProtocolVersion, StorageProof, TransactionDetails,
@@ -246,8 +245,7 @@ impl ZksNamespace {
         const METHOD_NAME: &str = "get_l2_to_l1_msg_proof";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        self.state
-            .check_pruned_block(api::BlockId::Number(block_number.0.into()))?;
+        self.state.start_info.ensure_not_pruned(block_number)?;
         let mut storage = self.access_storage(METHOD_NAME).await?;
         let Some(l1_batch_number) = storage
             .blocks_web3_dal()
@@ -420,7 +418,7 @@ impl ZksNamespace {
         const METHOD_NAME: &str = "get_miniblock_range";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        self.state.check_pruned_l1_batch(batch)?;
+        self.state.start_info.ensure_not_pruned(batch)?;
         let mut storage = self.access_storage(METHOD_NAME).await?;
         let minmax = storage
             .blocks_web3_dal()
@@ -441,8 +439,7 @@ impl ZksNamespace {
         const METHOD_NAME: &str = "get_block_details";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        self.state
-            .check_pruned_block(api::BlockId::Number(block_number.0.into()))?;
+        self.state.start_info.ensure_not_pruned(block_number)?;
         let mut storage = self.access_storage(METHOD_NAME).await?;
         let block_details = storage
             .blocks_web3_dal()
@@ -465,8 +462,7 @@ impl ZksNamespace {
         const METHOD_NAME: &str = "get_raw_block_transactions";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        self.state
-            .check_pruned_block(api::BlockId::Number(block_number.0.into()))?;
+        self.state.start_info.ensure_not_pruned(block_number)?;
         let mut storage = self.access_storage(METHOD_NAME).await?;
         let transactions = storage
             .transactions_web3_dal()
@@ -518,7 +514,7 @@ impl ZksNamespace {
         const METHOD_NAME: &str = "get_l1_batch";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        self.state.check_pruned_l1_batch(batch_number)?;
+        self.state.start_info.ensure_not_pruned(batch_number)?;
         let mut storage = self.access_storage(METHOD_NAME).await?;
         let l1_batch = storage
             .blocks_web3_dal()
@@ -616,7 +612,7 @@ impl ZksNamespace {
     ) -> Result<Proof, Web3Error> {
         const METHOD_NAME: &str = "get_proofs";
 
-        self.state.check_pruned_l1_batch(l1_batch_number)?;
+        self.state.start_info.ensure_not_pruned(l1_batch_number)?;
         let hashed_keys = keys
             .iter()
             .map(|key| StorageKey::new(AccountTreeId::new(address), *key).hashed_key_u256())
