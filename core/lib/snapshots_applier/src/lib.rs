@@ -2,8 +2,6 @@ use std::{collections::HashMap, fmt};
 
 use anyhow::Error;
 use async_trait::async_trait;
-
-use zksync_core::sync_layer::MainNodeClient;
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_types::{
@@ -11,14 +9,10 @@ use zksync_types::{
         SnapshotFactoryDependencies, SnapshotHeader, SnapshotRecoveryStatus, SnapshotStorageLog,
         SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
     },
-    zkevm_test_harness::k256::pkcs8::der::EncodeValue,
     MiniblockNumber, H256,
 };
 use zksync_utils::bytecode::hash_bytecode;
-use zksync_web3_decl::{
-    jsonrpsee::core::ClientError as RpcError,
-    namespaces::{EthNamespaceClient, ZksNamespaceClient},
-};
+use zksync_web3_decl::jsonrpsee::core::ClientError as RpcError;
 
 use crate::SnapshotApplierError::*;
 

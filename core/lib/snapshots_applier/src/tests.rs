@@ -4,13 +4,8 @@ use std::{
 };
 
 use async_trait::async_trait;
-
-use zksync_core::sync_layer::MainNodeClient;
 use zksync_types::{snapshots::SnapshotHeader, MiniblockNumber, H256};
-use zksync_web3_decl::{
-    jsonrpsee::core::ClientError as RpcError,
-    namespaces::{EthNamespaceClient, ZksNamespaceClient},
-};
+use zksync_web3_decl::jsonrpsee::core::ClientError as RpcError;
 
 use crate::SnapshotsApplierMainNodeClient;
 
