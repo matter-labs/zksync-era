@@ -3,7 +3,7 @@ use std::{env, time::Duration};
 use anyhow::Context;
 use serde::Deserialize;
 use url::Url;
-use zksync_basic_types::{Address, L1ChainId, L2ChainId, MiniblockNumber};
+use zksync_basic_types::{Address, L1ChainId, L2ChainId};
 use zksync_core::api_server::{
     tx_sender::TxSenderConfig,
     web3::{state::InternalApiConfig, Namespace},
@@ -11,7 +11,7 @@ use zksync_core::api_server::{
 use zksync_types::api::BridgeAddresses;
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
-    namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
+    namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
 #[cfg(test)]
@@ -30,8 +30,6 @@ pub struct RemoteENConfig {
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l2_chain_id: L2ChainId,
     pub l1_chain_id: L1ChainId,
-
-    pub fair_l2_gas_price: u64,
 }
 
 impl RemoteENConfig {
@@ -63,15 +61,6 @@ impl RemoteENConfig {
                 .context("Failed to fetch L1 chain ID")?
                 .as_u64(),
         );
-        let current_miniblock = client
-            .get_block_number()
-            .await
-            .context("Failed to fetch block number")?;
-        let block_header = client
-            .sync_l2_block(MiniblockNumber(current_miniblock.as_u32()), false)
-            .await
-            .context("Failed to fetch last miniblock header")?
-            .expect("Block is known to exist");
 
         Ok(Self {
             diamond_proxy_addr,
@@ -82,7 +71,6 @@ impl RemoteENConfig {
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
             l2_chain_id,
             l1_chain_id,
-            fair_l2_gas_price: block_header.l2_fair_gas_price,
         })
     }
 }
@@ -527,7 +515,6 @@ impl From<ExternalNodeConfig> for TxSenderConfig {
                 .unwrap(),
             gas_price_scale_factor: config.optional.gas_price_scale_factor,
             max_nonce_ahead: config.optional.max_nonce_ahead,
-            fair_l2_gas_price: config.remote.fair_l2_gas_price,
             vm_execution_cache_misses_limit: config.optional.vm_execution_cache_misses_limit,
             // We set these values to the maximum since we don't know the actual values
             // and they will be enforced by the main node anyway.

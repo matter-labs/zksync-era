@@ -1,3 +1,4 @@
+use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
         BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
@@ -8,8 +9,7 @@ use zksync_types::{
     utils::decompose_full_nonce,
     web3,
     web3::types::{FeeHistory, SyncInfo, SyncState},
-    AccountTreeId, Bytes, MiniblockNumber, StorageKey, H256, L2_ETH_TOKEN_ADDRESS,
-    MAX_GAS_PER_PUBDATA_BYTE, U256,
+    AccountTreeId, Bytes, MiniblockNumber, StorageKey, H256, L2_ETH_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
@@ -82,6 +82,7 @@ impl EthNamespace {
             .await
             .map_err(|err| internal_error("eth_call", err))?
             .ok_or(Web3Error::NoBlock)?;
+
         drop(connection);
 
         let tx = L2Tx::from_request(request.into(), self.state.api_config.max_tx_size)?;
@@ -114,7 +115,7 @@ impl EthNamespace {
 
         if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
             if eip712_meta.gas_per_pubdata == U256::zero() {
-                eip712_meta.gas_per_pubdata = MAX_GAS_PER_PUBDATA_BYTE.into();
+                eip712_meta.gas_per_pubdata = DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE.into();
             }
         }
 

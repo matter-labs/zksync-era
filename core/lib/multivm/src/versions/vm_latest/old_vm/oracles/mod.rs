@@ -1,4 +1,4 @@
-use zk_evm_1_4_0::aux_structures::Timestamp;
+use zk_evm_1_4_1::aux_structures::Timestamp;
 
 pub(crate) mod decommitter;
 pub(crate) mod precompile;

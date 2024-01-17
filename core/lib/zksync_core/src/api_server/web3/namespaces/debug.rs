@@ -4,13 +4,14 @@ use multivm::{interface::ExecutionResult, vm_latest::constants::BLOCK_GAS_LIMIT}
 use once_cell::sync::OnceCell;
 use zksync_dal::ConnectionPool;
 use zksync_state::PostgresStorageCaches;
+use zksync_system_constants::MAX_ENCODED_TX_SIZE;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
     fee_model::BatchFeeInput,
     l2::L2Tx,
     transaction_request::CallRequest,
     vm_trace::Call,
-    AccountTreeId, L2ChainId, H256, USED_BOOTLOADER_MEMORY_BYTES,
+    AccountTreeId, L2ChainId, H256,
 };
 use zksync_web3_decl::error::Web3Error;
 
@@ -30,7 +31,7 @@ use crate::api_server::{
 #[derive(Debug, Clone)]
 pub struct DebugNamespace {
     connection_pool: ConnectionPool,
-    fair_l2_gas_price: u64,
+    batch_fee_input: BatchFeeInput,
     api_contracts: ApiContracts,
     vm_execution_cache_misses_limit: Option<usize>,
     vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
@@ -46,7 +47,15 @@ impl DebugNamespace {
         let api_contracts = ApiContracts::load_from_disk();
         Self {
             connection_pool: state.connection_pool,
-            fair_l2_gas_price: sender_config.fair_l2_gas_price,
+            // For now, the same scaling is used for both the L1 gas price and the pubdata price
+            batch_fee_input: state
+                .tx_sender
+                .0
+                .batch_fee_input_provider
+                .get_batch_fee_input_scaled(
+                    sender_config.gas_price_scale_factor,
+                    sender_config.gas_price_scale_factor,
+                ),
             api_contracts,
             vm_execution_cache_misses_limit: sender_config.vm_execution_cache_misses_limit,
             vm_concurrency_limiter: state.tx_sender.vm_concurrency_limiter(),
@@ -147,7 +156,7 @@ impl DebugNamespace {
             .ok_or(Web3Error::NoBlock)?;
         drop(connection);
 
-        let tx = L2Tx::from_request(request.into(), USED_BOOTLOADER_MEMORY_BYTES)?;
+        let tx = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE)?;
 
         let shared_args = self.shared_args();
         let vm_permit = self.vm_concurrency_limiter.acquire().await;
@@ -206,7 +215,7 @@ impl DebugNamespace {
     fn shared_args(&self) -> TxSharedArgs {
         TxSharedArgs {
             operator_account: AccountTreeId::default(),
-            fee_input: BatchFeeInput::l1_pegged(100_000, self.fair_l2_gas_price),
+            fee_input: self.batch_fee_input,
             base_system_contracts: self.api_contracts.eth_call.clone(),
             caches: self.storage_caches.clone(),
             validation_computational_gas_limit: BLOCK_GAS_LIMIT,

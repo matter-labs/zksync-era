@@ -382,6 +382,7 @@ async fn prepare_clean_recovery_snapshot(
         l2_tx_count: 0,
         base_fee_per_gas: 100,
         batch_fee_input: BatchFeeInput::l1_pegged(100, 100),
+        gas_per_pubdata_limit: 100,
         base_system_contracts_hashes: Default::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         virtual_blocks: 0,

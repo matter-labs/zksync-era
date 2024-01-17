@@ -35,7 +35,7 @@ use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
-    fee_model::FeeModelConfigV1,
+    fee_model::FeeModelConfig,
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
     web3::contract::tokens::Detokenize,
@@ -697,9 +697,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
 
     let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
         gas_adjuster,
-        zksync_types::fee_model::FeeModelConfig::V1(FeeModelConfigV1 {
-            minimal_l2_gas_price: state_keeper_config.fair_l2_gas_price,
-        }),
+        FeeModelConfig::from_state_keeper_config(&state_keeper_config),
     ));
 
     let miniblock_sealer_pool = pool_builder
@@ -1017,9 +1015,7 @@ async fn build_tx_sender(
 
     let batch_fee_input_provider = MainNodeFeeInputProvider::new(
         l1_gas_price_provider,
-        zksync_types::fee_model::FeeModelConfig::V1(FeeModelConfigV1 {
-            minimal_l2_gas_price: state_keeper_config.fair_l2_gas_price,
-        }),
+        FeeModelConfig::from_state_keeper_config(state_keeper_config),
     );
 
     let tx_sender = tx_sender_builder
@@ -1034,7 +1030,7 @@ async fn build_tx_sender(
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
+async fn run_http_api<G: L1GasPriceProvider>(
     postgres_config: &PostgresConfig,
     tx_sender_config: &TxSenderConfig,
     state_keeper_config: &StateKeeperConfig,

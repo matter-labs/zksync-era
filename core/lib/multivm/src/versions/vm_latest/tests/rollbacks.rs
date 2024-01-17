@@ -5,7 +5,7 @@ use zksync_types::{get_nonce_key, Execute, U256};
 
 use crate::{
     interface::{
-        dyn_tracers::vm_1_4_0::DynTracer,
+        dyn_tracers::vm_1_4_1::DynTracer,
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceHistoryEnabled,
     },

@@ -4,7 +4,8 @@ use multivm::{
 };
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
-    block::BlockGasCount, storage_writes_deduplicator::StorageWritesDeduplicator,
+    block::BlockGasCount, fee_model::BatchFeeInput,
+    storage_writes_deduplicator::StorageWritesDeduplicator,
     tx::tx_execution_info::ExecutionMetrics, vm_trace::Call, Address, L1BatchNumber,
     MiniblockNumber, ProtocolVersionId, Transaction,
 };
@@ -25,8 +26,7 @@ pub mod miniblock_updates;
 #[derive(Debug, Clone, PartialEq)]
 pub struct UpdatesManager {
     batch_timestamp: u64,
-    l1_gas_price: u64,
-    fair_l2_gas_price: u64,
+    batch_fee_input: BatchFeeInput,
     base_fee_per_gas: u64,
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
@@ -43,8 +43,7 @@ impl UpdatesManager {
     ) -> Self {
         Self {
             batch_timestamp: l1_batch_env.timestamp,
-            l1_gas_price: l1_batch_env.fee_input.l1_gas_price(),
-            fair_l2_gas_price: l1_batch_env.fee_input.fair_l2_gas_price(),
+            batch_fee_input: l1_batch_env.fee_input,
             base_fee_per_gas: get_batch_base_fee(&l1_batch_env, protocol_version.into()),
             protocol_version,
             base_system_contract_hashes,
@@ -69,11 +68,11 @@ impl UpdatesManager {
     }
 
     pub(crate) fn l1_gas_price(&self) -> u64 {
-        self.l1_gas_price
+        self.batch_fee_input.l1_gas_price()
     }
 
     pub(crate) fn fair_l2_gas_price(&self) -> u64 {
-        self.fair_l2_gas_price
+        self.batch_fee_input.fair_l2_gas_price()
     }
 
     pub(crate) fn seal_miniblock_command(
@@ -88,8 +87,7 @@ impl UpdatesManager {
             miniblock_number,
             miniblock: self.miniblock.clone(),
             first_tx_index: self.l1_batch.executed_transactions.len(),
-            l1_gas_price: self.l1_gas_price,
-            fair_l2_gas_price: self.fair_l2_gas_price,
+            fee_input: self.batch_fee_input,
             base_fee_per_gas: self.base_fee_per_gas,
             base_system_contracts_hashes: self.base_system_contract_hashes,
             protocol_version: Some(self.protocol_version),
@@ -174,8 +172,7 @@ pub(crate) struct MiniblockSealCommand {
     pub miniblock_number: MiniblockNumber,
     pub miniblock: MiniblockUpdates,
     pub first_tx_index: usize,
-    pub l1_gas_price: u64,
-    pub fair_l2_gas_price: u64,
+    pub fee_input: BatchFeeInput,
     pub base_fee_per_gas: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub protocol_version: Option<ProtocolVersionId>,

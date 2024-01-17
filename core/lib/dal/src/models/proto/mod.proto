@@ -17,6 +17,7 @@ message Payload {
   optional uint64 timestamp = 3; // required; seconds since UNIX epoch
   optional uint64 l1_gas_price = 4; // required; gwei
   optional uint64 l2_fair_gas_price = 5; // required; gwei
+  optional uint64 fair_pubdata_price = 11; // required since 1.4.1; gwei
   optional uint32 virtual_blocks = 6; // required
   optional bytes operator_address = 7; // required; H160
   repeated Transaction transactions = 8;

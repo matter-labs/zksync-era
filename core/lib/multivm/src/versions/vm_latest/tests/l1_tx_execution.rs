@@ -1,9 +1,11 @@
-use zksync_system_constants::BOOTLOADER_ADDRESS;
+use ethabi::Token;
+use zksync_contracts::l1_messenger_contract;
+use zksync_system_constants::{BOOTLOADER_ADDRESS, L1_MESSENGER_ADDRESS};
 use zksync_types::{
     get_code_key, get_known_code_key,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     storage_writes_deduplicator::StorageWritesDeduplicator,
-    U256,
+    Execute, ExecuteTransactionCommon, U256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -136,4 +138,52 @@ fn test_l1_tx_execution() {
     let res = StorageWritesDeduplicator::apply_on_empty_state(&result.logs.storage_logs);
     // There are only basic initial writes
     assert_eq!(res.initial_storage_writes - basic_initial_writes, 2);
+}
+
+#[test]
+fn test_l1_tx_execution_high_gas_limit() {
+    // In this test, we try to execute an L1->L2 transaction with a high gas limit.
+    // Usually priority transactions with dangerously gas limit should even pass the checks on the L1,
+    // however, they might pass during the transition period to the new fee model, so we check that we can safely process those.
+
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_empty_in_memory_storage()
+        .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_random_rich_accounts(1)
+        .build();
+
+    let account = &mut vm.rich_accounts[0];
+
+    let l1_messenger = l1_messenger_contract();
+
+    let contract_function = l1_messenger.function("sendToL1").unwrap();
+    let params = [
+        // Even a message of size 100k should not be able to be sent by a priority transaction
+        Token::Bytes(vec![0u8; 100_000]),
+    ];
+    let calldata = contract_function.encode_input(&params).unwrap();
+
+    let mut tx = account.get_l1_tx(
+        Execute {
+            contract_address: L1_MESSENGER_ADDRESS,
+            value: 0.into(),
+            factory_deps: None,
+            calldata,
+        },
+        0,
+    );
+
+    if let ExecuteTransactionCommon::L1(data) = &mut tx.common_data {
+        // Using some large gas limit
+        data.gas_limit = 300_000_000.into();
+    } else {
+        unreachable!()
+    };
+
+    vm.vm.push_transaction(tx);
+
+    let res = vm.vm.execute(VmExecutionMode::OneTx);
+
+    assert!(res.result.is_failed(), "The transaction should've failed");
 }

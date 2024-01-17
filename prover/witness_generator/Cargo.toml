@@ -29,11 +29,11 @@ vk_setup_data_generator_server_fri = { path = "../vk_setup_data_generator_server
 zksync_prover_fri_types = { path = "../prover_fri_types" }
 zksync_prover_fri_utils = { path = "../prover_fri_utils" }
 
-zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0" }
-circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0", features = [
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.1" }
+circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.1", features = [
     "log_tracing",
 ] }
-zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.4.0" }
+zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.4.1" }
 
 anyhow = "1.0"
 tracing = "0.1"

@@ -1,5 +1,6 @@
+use zk_evm_1_4_1::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
-use zksync_types::{l2_to_l1_log::L2ToL1Log, Timestamp, VmEvent};
+use zksync_types::{l2_to_l1_log::L2ToL1Log, VmEvent};
 
 use crate::{
     interface::L1BatchEnv,

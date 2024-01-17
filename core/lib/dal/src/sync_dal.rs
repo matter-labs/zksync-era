@@ -43,6 +43,7 @@ impl SyncDal<'_, '_> {
                 miniblocks.timestamp,
                 miniblocks.l1_gas_price,
                 miniblocks.l2_fair_gas_price,
+                miniblocks.fair_pubdata_price,
                 miniblocks.bootloader_code_hash,
                 miniblocks.default_aa_code_hash,
                 miniblocks.virtual_blocks,

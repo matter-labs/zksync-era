@@ -3,7 +3,7 @@ use std::{
     marker::PhantomData,
 };
 
-use zk_evm_1_4_0::{
+use zk_evm_1_4_1::{
     tracing::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
     },
@@ -16,9 +16,10 @@ use zksync_types::Timestamp;
 
 use super::PubdataTracer;
 use crate::{
+    glue::GlueInto,
     interface::{
         tracer::{TracerExecutionStopReason, VmExecutionStopReason},
-        traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
+        traits::tracers::dyn_tracers::vm_1_4_1::DynTracer,
         types::tracer::TracerExecutionStatus,
         Halt, VmExecutionMode,
     },
@@ -121,9 +122,11 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         let l2_block = bootloader_state.insert_fictive_l2_block();
         let mut memory = vec![];
         apply_l2_block(&mut memory, l2_block, txs_index);
-        state
-            .memory
-            .populate_page(BOOTLOADER_HEAP_PAGE as usize, memory, current_timestamp);
+        state.memory.populate_page(
+            BOOTLOADER_HEAP_PAGE as usize,
+            memory,
+            current_timestamp.glue_into(),
+        );
         self.final_batch_info_requested = false;
     }
 
@@ -238,7 +241,7 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
         memory: &Self::SupportedMemory,
     ) {
         if let VmExecutionMode::Bootloader = self.execution_mode {
-            let (next_opcode, _, _) = zk_evm_1_4_0::vm_state::read_and_decode(
+            let (next_opcode, _, _) = zk_evm_1_4_1::vm_state::read_and_decode(
                 state.vm_local_state,
                 memory,
                 &mut DummyTracer,

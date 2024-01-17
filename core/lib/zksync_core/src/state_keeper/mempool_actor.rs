@@ -5,7 +5,7 @@ use tokio::sync::watch;
 use zksync_config::configs::chain::MempoolConfig;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
-use zksync_types::{ProtocolVersionId, VmVersion};
+use zksync_types::VmVersion;
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
 use crate::{api_server::execution_sandbox::BlockArgs, fee_model::BatchFeeModelInputProvider};
@@ -78,13 +78,11 @@ impl<G: BatchFeeModelInputProvider> MempoolFetcher<G> {
             let mempool_info = self.mempool.get_mempool_info();
 
             let latest_miniblock = BlockArgs::pending(&mut storage).await;
-
-            let protocol_version = storage
-                .blocks_dal()
-                .get_miniblock_protocol_version_id(latest_miniblock.resolved_block_number())
+            let protocol_version = latest_miniblock
+                .resolve_block_info(&mut storage)
                 .await
                 .unwrap()
-                .unwrap_or_else(ProtocolVersionId::latest);
+                .protocol_version;
 
             let l2_tx_filter = l2_tx_filter(
                 self.batch_fee_input_provider.as_ref(),
