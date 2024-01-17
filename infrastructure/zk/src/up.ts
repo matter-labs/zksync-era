@@ -44,7 +44,7 @@ export async function up(composeFile?: string) {
 
 export const command = new Command('up')
     .description('start development containers')
-    .option('--docker-file', 'path to a custom docker file')
+    .option('--docker-file <dockerFile>', 'path to a custom docker file')
     .action(async (cmd) => {
         await up(cmd.dockerFile);
     });
