@@ -122,7 +122,8 @@ Whenever anyone wants to do a non-zero value call, they need to call `MsgValueSi
 - Pass `value` and whether the call should be marked with `isSystem` in the first extra abi params.
 - Pass the address of the callee in the second extraAbiParam.
 
-More information on the extraAbiParams can be read [here](#flags-for-calls).
+More information on the extraAbiParams can be read
+[here](../../guides/advanced/0_alternative_vm_intro.md#flags-for-calls).
 
 ## KnownCodeStorage
 
@@ -145,7 +146,7 @@ It is the responsibility of the [ContractDeployer](#contractdeployer--immutables
 those code hashes that are known.
 
 The KnownCodesStorage contract is also responsible for ensuring that all the “known” bytecode hashes are also
-[valid](#bytecode-validity).
+[valid](../../guides/advanced/0_alternative_vm_intro.md#bytecode-validity).
 
 ## ContractDeployer & ImmutableSimulator
 
@@ -204,7 +205,8 @@ On Ethereum, the constructor is only part of the initCode that gets executed dur
 returns the deployment code of the contract. On zkSync, there is no separation between deployed code and constructor
 code. The constructor is always a part of the deployment code of the contract. In order to protect it from being called,
 the compiler-generated contracts invoke constructor only if the `isConstructor` flag provided (it is only available for
-the system contracts). You can read more about flags [here](#flags-for-calls).
+the system contracts). You can read more about flags
+[here](../../guides/advanced/0_alternative_vm_intro.md#flags-for-calls).
 
 After execution, the constructor must return an array of:
 
@@ -226,7 +228,8 @@ address.
 
 Whenever a contract needs to access a value of some immutable, they call the
 `ImmutableSimulator.getImmutable(getCodeAddress(), index)`. Note that on zkSync it is possible to get the current
-execution address (you can read more about `getCodeAddress()` [here](#zksync-specific-opcodes).
+execution address you can read more about `getCodeAddress()`
+[here](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/advanced/0_alternative_vm_intro.md#zkevm-specific-opcodes).
 
 ### **Return value of the deployment methods**
 

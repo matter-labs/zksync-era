@@ -7,7 +7,7 @@ use crate::api_server::web3::{backend_jsonrpsee::internal_error, state::RpcState
 /// Main use case for it is the EN synchronization.
 #[derive(Debug)]
 pub struct EnNamespace {
-    pub state: RpcState,
+    state: RpcState,
 }
 
 impl EnNamespace {
@@ -21,12 +21,14 @@ impl EnNamespace {
         block_number: MiniblockNumber,
         include_transactions: bool,
     ) -> Result<Option<SyncBlock>, Web3Error> {
+        const METHOD_NAME: &str = "en_syncL2Block";
+
         let mut storage = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap();
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
         storage
             .sync_dal()
             .sync_block(
@@ -35,6 +37,6 @@ impl EnNamespace {
                 include_transactions,
             )
             .await
-            .map_err(|err| internal_error("en_syncL2Block", err))
+            .map_err(|err| internal_error(METHOD_NAME, err))
     }
 }

@@ -568,7 +568,7 @@ pub enum DebugCallType {
     Create,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DebugCall {
     pub r#type: DebugCallType,

@@ -57,7 +57,7 @@ is described in more detail in
 
 The process of turning code into constraints is called arithmetization. Our arithmetization is based on a variation of
 “Plonk”. The details are abstracted away from the circuits, but if you’d like to learn more, read about Plonk in
-[Vitalik’s blog](https://vitalik.ca/general/2019/09/22/plonk.html) or the
+[Vitalik’s blog](https://vitalik.eth.limo/general/2019/09/22/plonk.html) or the
 [Plonky2 paper](https://github.com/mir-protocol/plonky2/blob/main/plonky2/plonky2.pdf).
 
 More details of our proving system can be found in the [Redshift Paper](https://eprint.iacr.org/2019/1400.pdf).

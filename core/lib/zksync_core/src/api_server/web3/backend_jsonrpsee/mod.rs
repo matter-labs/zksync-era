@@ -2,7 +2,7 @@
 //! Consists mostly of boilerplate code implementing the `jsonrpsee` server traits for the corresponding
 //! namespace structures defined in `zksync_core`.
 
-use std::{error::Error, fmt};
+use std::fmt;
 
 use zksync_web3_decl::{
     error::Web3Error,
@@ -14,15 +14,13 @@ use crate::api_server::web3::metrics::API_METRICS;
 pub mod batch_limiter_middleware;
 pub mod namespaces;
 
-pub fn from_std_error(e: impl Error) -> ErrorObjectOwned {
-    ErrorObjectOwned::owned(ErrorCode::InternalError.code(), e.to_string(), Some(()))
-}
-
 pub fn into_jsrpc_error(err: Web3Error) -> ErrorObjectOwned {
     ErrorObjectOwned::owned(
         match err {
             Web3Error::InternalError | Web3Error::NotImplemented => ErrorCode::InternalError.code(),
             Web3Error::NoBlock
+            | Web3Error::PrunedBlock(_)
+            | Web3Error::PrunedL1Batch(_)
             | Web3Error::NoSuchFunction
             | Web3Error::RLPError(_)
             | Web3Error::InvalidTransactionData(_)
