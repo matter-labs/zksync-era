@@ -143,7 +143,7 @@ export const command = new Command('facets').description('Deploy facets and gene
 
 command
     .command('deploy-all')
-    .description('Deploy all facets')
+    .description('Deploy all facets and generate facet cuts')
     .option('--private-key <private-key>')
     .option('--l1rpc <l1Rpc>')
     .option('--gas-price <gas-price>')
