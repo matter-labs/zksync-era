@@ -4,7 +4,8 @@ use zksync_contracts::{
 };
 use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, PrivateKeySigner};
 use zksync_system_constants::{
-    CONTRACT_DEPLOYER_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
+    CONTRACT_DEPLOYER_ADDRESS, DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE,
+    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
 use zksync_types::{
     fee::Fee,
@@ -94,7 +95,7 @@ impl Account {
             gas_limit: U256::from(2000000000u32),
             max_fee_per_gas: U256::from(BASE_FEE),
             max_priority_fee_per_gas: U256::from(100),
-            gas_per_pubdata_limit: U256::from(MAX_GAS_PER_PUBDATA_BYTE),
+            gas_per_pubdata_limit: U256::from(DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE),
         }
     }
 

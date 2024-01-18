@@ -4,7 +4,7 @@
 
 pub use zk_evm_1_3_1;
 pub use zk_evm_1_3_3;
-pub use zk_evm_1_4_0;
+pub use zk_evm_1_4_1;
 pub use zksync_types::vm_version::VmVersion;
 
 pub use self::versions::{

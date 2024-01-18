@@ -1,4 +1,4 @@
-use zk_evm_1_4_0::{
+use zk_evm_1_4_1::{
     aux_structures::MemoryPage,
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{

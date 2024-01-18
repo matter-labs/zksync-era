@@ -17,6 +17,7 @@ pubsub_polling_interval=200
 threads_per_server=128
 max_nonce_ahead=50
 gas_price_scale_factor=1.2
+l1_to_l2_transactions_compatibility_mode=true
 request_timeout=10
 account_pks=[
     "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",

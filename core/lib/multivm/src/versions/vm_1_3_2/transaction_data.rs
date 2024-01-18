@@ -10,8 +10,10 @@ use zksync_utils::{
     address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, ceil_div_u256, h256_to_u256,
 };
 
+use super::vm_with_bootloader::MAX_TXS_IN_BLOCK;
 use crate::vm_1_3_2::vm_with_bootloader::{
-    BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA, BOOTLOADER_TX_ENCODING_SPACE, MAX_TXS_IN_BLOCK,
+    BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA, BOOTLOADER_TX_ENCODING_SPACE,
+    MAX_GAS_PER_PUBDATA_BYTE,
 };
 
 // This structure represents the data that is used by
@@ -58,12 +60,22 @@ impl From<Transaction> for TransactionData {
                     U256::zero()
                 };
 
+                // Ethereum transactions do not sign gas per pubdata limit, and so for them we need to use
+                // some default value. We use the maximum possible value that is allowed by the bootloader
+                // (i.e. we can not use u64::MAX, because the bootloader requires gas per pubdata for such
+                // transactions to be higher than `MAX_GAS_PER_PUBDATA_BYTE`).
+                let gas_per_pubdata_limit = if common_data.transaction_type.is_ethereum_type() {
+                    MAX_GAS_PER_PUBDATA_BYTE.into()
+                } else {
+                    common_data.fee.gas_per_pubdata_limit
+                };
+
                 TransactionData {
                     tx_type: (common_data.transaction_type as u32) as u8,
                     from: common_data.initiator_address,
                     to: execute_tx.execute.contract_address,
                     gas_limit: common_data.fee.gas_limit,
-                    pubdata_price_limit: common_data.fee.gas_per_pubdata_limit,
+                    pubdata_price_limit: gas_per_pubdata_limit,
                     max_fee_per_gas: common_data.fee.max_fee_per_gas,
                     max_priority_fee_per_gas: common_data.fee.max_priority_fee_per_gas,
                     paymaster: common_data.paymaster_params.paymaster,
