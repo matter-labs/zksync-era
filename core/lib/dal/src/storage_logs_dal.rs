@@ -6,9 +6,8 @@ use zksync_types::{
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256,
 };
 
-use crate::{
-    instrument::InstrumentExt, models::storage_log::StorageRecoveryLogEntry, StorageProcessor,
-};
+pub use crate::models::storage_log::StorageRecoveryLogEntry;
+use crate::{instrument::InstrumentExt, StorageProcessor};
 
 #[derive(Debug)]
 pub struct StorageLogsDal<'a, 'c> {
