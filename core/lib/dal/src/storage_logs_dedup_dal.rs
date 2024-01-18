@@ -64,10 +64,9 @@ impl StorageLogsDedupDal<'_, '_> {
         let mut bytes: Vec<u8> = Vec::new();
         let now = Utc::now().naive_utc().to_string();
         for log in snapshot_storage_logs.iter() {
-            let hashed_key_str = format!("\\\\x{}", hex::encode(log.key.hashed_key().0));
             let row = format!(
-                "{}|{}|{}|{}|{}\n",
-                hashed_key_str,
+                "\\\\x{:x}|{}|{}|{}|{}\n",
+                log.key.hashed_key(),
                 log.enumeration_index,
                 log.l1_batch_number_of_initial_write,
                 now,
