@@ -1,9 +1,9 @@
 use std::marker::PhantomData;
-use zk_evm_1_4_0::{
+
+use zk_evm_1_4_1::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
-
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     event::{
@@ -14,24 +14,24 @@ use zksync_types::{
     zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
     AccountTreeId, StorageKey, L1_MESSENGER_ADDRESS,
 };
-use zksync_utils::u256_to_h256;
-use zksync_utils::{h256_to_u256, u256_to_bytes_be};
+use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
 
-use crate::vm_latest::{
-    old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
-    types::internals::pubdata::PubdataInput,
-};
-use crate::{vm_latest::constants::BOOTLOADER_HEAP_PAGE, vm_latest::StorageOracle};
-
-use crate::interface::dyn_tracers::vm_1_4_0::DynTracer;
-use crate::interface::tracer::{TracerExecutionStatus, TracerExecutionStopReason};
-use crate::interface::types::inputs::L1BatchEnv;
-use crate::vm_latest::tracers::{traits::VmTracer, utils::VmHook};
-use crate::vm_latest::types::internals::ZkSyncVmState;
-use crate::vm_latest::utils::logs::collect_events_and_l1_system_logs_after_timestamp;
 use crate::{
-    interface::VmExecutionMode,
-    vm_latest::bootloader_state::{utils::apply_pubdata_to_memory, BootloaderState},
+    interface::{
+        dyn_tracers::vm_1_4_1::DynTracer,
+        tracer::{TracerExecutionStatus, TracerExecutionStopReason},
+        types::inputs::L1BatchEnv,
+        VmExecutionMode,
+    },
+    vm_latest::{
+        bootloader_state::{utils::apply_pubdata_to_memory, BootloaderState},
+        constants::BOOTLOADER_HEAP_PAGE,
+        old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
+        tracers::{traits::VmTracer, utils::VmHook},
+        types::internals::{PubdataInput, ZkSyncVmState},
+        utils::logs::collect_events_and_l1_system_logs_after_timestamp,
+        StorageOracle,
+    },
 };
 
 /// Tracer responsible for collecting information about refunds.
@@ -56,7 +56,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
 
 impl<S: WriteStorage> PubdataTracer<S> {
     // Packs part of L1 Messenger total pubdata that corresponds to
-    // L2toL1Logs sent in the block
+    // `L2toL1Logs` sent in the block
     fn get_total_user_logs<H: HistoryMode>(
         &self,
         state: &ZkSyncVmState<S, H>,

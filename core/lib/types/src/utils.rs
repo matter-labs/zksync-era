@@ -1,10 +1,10 @@
-use crate::system_contracts::DEPLOYMENT_NONCE_INCREMENT;
-use crate::L2_ETH_TOKEN_ADDRESS;
-use crate::{web3::signing::keccak256, AccountTreeId, StorageKey, U256};
-
 use zksync_basic_types::{Address, H256};
-
 use zksync_utils::{address_to_h256, u256_to_h256};
+
+use crate::{
+    system_contracts::DEPLOYMENT_NONCE_INCREMENT, web3::signing::keccak256, AccountTreeId,
+    StorageKey, L2_ETH_TOKEN_ADDRESS, U256,
+};
 
 /// Transforms the *full* account nonce into an *account* nonce.
 /// Full nonce is a composite one: it includes both account nonce (number of transactions
@@ -48,7 +48,7 @@ pub fn storage_key_for_standard_token_balance(
     token_contract: AccountTreeId,
     address: &Address,
 ) -> StorageKey {
-    // We have different implementation of the standard erc20 contract and native
+    // We have different implementation of the standard ERC20 contract and native
     // eth contract. The key for the balance is different for each.
     let key = if token_contract.address() == &L2_ETH_TOKEN_ADDRESS {
         key_for_eth_balance(address)
@@ -79,10 +79,11 @@ pub fn deployed_address_create(sender: Address, deploy_nonce: U256) -> Address {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use crate::{
         utils::storage_key_for_standard_token_balance, AccountTreeId, Address, StorageKey, H256,
     };
-    use std::str::FromStr;
 
     #[test]
     fn test_storage_key_for_eth_token() {

@@ -1,28 +1,27 @@
-// #![deny(unreachable_pub)]
 #![deny(unused_crate_dependencies)]
 #![warn(unused_extern_crates)]
 #![warn(unused_imports)]
 
+pub use zk_evm_1_3_1;
+pub use zk_evm_1_3_3;
+pub use zk_evm_1_4_1;
+pub use zksync_types::vm_version::VmVersion;
+
+pub use self::versions::{
+    vm_1_3_2, vm_boojum_integration, vm_latest, vm_m5, vm_m6, vm_refunds_enhancement,
+    vm_virtual_blocks,
+};
 pub use crate::{
     glue::{
         history_mode::HistoryMode,
-        tracers::{MultiVmTracerPointer, MultivmTracer},
+        tracers::{MultiVMTracer, MultiVmTracerPointer},
     },
     vm_instance::VmInstance,
 };
-pub use zksync_types::vm_version::VmVersion;
 
 mod glue;
-
-mod vm_instance;
-
 pub mod interface;
 pub mod tracers;
+pub mod utils;
 pub mod versions;
-
-pub use versions::vm_1_3_2;
-pub use versions::vm_latest;
-pub use versions::vm_m5;
-pub use versions::vm_m6;
-pub use versions::vm_refunds_enhancement;
-pub use versions::vm_virtual_blocks;
+mod vm_instance;

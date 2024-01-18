@@ -3,17 +3,18 @@
 //! Careful: some of the methods are reading the contracts based on the ZKSYNC_HOME environment variable.
 
 #![allow(clippy::derive_partial_eq_without_eq)]
+
+use std::{
+    fs::{self, File},
+    path::{Path, PathBuf},
+};
+
 use ethabi::{
     ethereum_types::{H256, U256},
     Contract, Function,
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use std::{
-    fs::{self, File},
-    path::{Path, PathBuf},
-};
-
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
 
 pub mod test_contracts;
@@ -25,19 +26,19 @@ pub enum ContractLanguage {
 }
 
 const GOVERNANCE_CONTRACT_FILE: &str =
-    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/governance/IGovernance.sol/IGovernance.json";
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/governance/IGovernance.sol/IGovernance.json";
 const ZKSYNC_CONTRACT_FILE: &str =
-    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/zksync/interfaces/IZkSync.sol/IZkSync.json";
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/interfaces/IZkSync.sol/IZkSync.json";
 const MULTICALL3_CONTRACT_FILE: &str =
-    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/dev-contracts/Multicall3.sol/Multicall3.json";
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/dev-contracts/Multicall3.sol/Multicall3.json";
 const VERIFIER_CONTRACT_FILE: &str =
-    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/zksync/Verifier.sol/Verifier.json";
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/Verifier.sol/Verifier.json";
 const IERC20_CONTRACT_FILE: &str =
-    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/common/interfaces/IERC20.sol/IERC20.json";
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/common/interfaces/IERC20.sol/IERC20.json";
 const FAIL_ON_RECEIVE_CONTRACT_FILE: &str =
-    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/zksync/dev-contracts/FailOnReceive.sol/FailOnReceive.json";
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/dev-contracts/FailOnReceive.sol/FailOnReceive.json";
 const L2_BRIDGE_CONTRACT_FILE: &str =
-    "contracts/zksync/artifacts-zk/cache-zk/solpp-generated-contracts/bridge/interfaces/IL2Bridge.sol/IL2Bridge.json";
+    "contracts/l2-contracts/artifacts-zk/contracts-preprocessed/bridge/interfaces/IL2Bridge.sol/IL2Bridge.json";
 const LOADNEXT_CONTRACT_FILE: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/LoadnextContract.json";
 const LOADNEXT_SIMPLE_CONTRACT_FILE: &str =
@@ -69,7 +70,7 @@ pub fn load_contract<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Contract {
 
 pub fn load_sys_contract(contract_name: &str) -> Contract {
     load_contract(format!(
-        "etc/system-contracts/artifacts-zk/cache-zk/solpp-generated-contracts/{0}.sol/{0}.json",
+        "contracts/system-contracts/artifacts-zk/contracts-preprocessed/{0}.sol/{0}.json",
         contract_name
     ))
 }
@@ -146,6 +147,10 @@ pub fn deployer_contract() -> Contract {
     load_sys_contract("ContractDeployer")
 }
 
+pub fn l1_messenger_contract() -> Contract {
+    load_sys_contract("L1Messenger")
+}
+
 pub fn eth_contract() -> Contract {
     load_sys_contract("L2EthToken")
 }
@@ -189,17 +194,17 @@ pub static DEFAULT_SYSTEM_CONTRACTS_REPO: Lazy<SystemContractsRepo> =
 /// fetching contracts that are located there.
 /// As most of the static methods in this file, is loading data based on ZKSYNC_HOME environment variable.
 pub struct SystemContractsRepo {
-    // Path to the root of the system contracts repo.
+    // Path to the root of the system contracts repository.
     pub root: PathBuf,
 }
 
 impl SystemContractsRepo {
-    /// Returns the default system contracts repo with directory based on the ZKSYNC_HOME environment variable.
+    /// Returns the default system contracts repository with directory based on the ZKSYNC_HOME environment variable.
     pub fn from_env() -> Self {
         let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
         let zksync_home = PathBuf::from(zksync_home);
         SystemContractsRepo {
-            root: zksync_home.join("etc/system-contracts"),
+            root: zksync_home.join("contracts/system-contracts"),
         }
     }
     pub fn read_sys_contract_bytecode(
@@ -210,11 +215,11 @@ impl SystemContractsRepo {
     ) -> Vec<u8> {
         match lang {
             ContractLanguage::Sol => read_bytecode_from_path(self.root.join(format!(
-                "artifacts-zk/cache-zk/solpp-generated-contracts/{0}{1}.sol/{1}.json",
+                "artifacts-zk/contracts-preprocessed/{0}{1}.sol/{1}.json",
                 directory, name
             ))),
             ContractLanguage::Yul => read_zbin_bytecode_from_path(self.root.join(format!(
-                "contracts/{0}artifacts/{1}.yul/{1}.yul.zbin",
+                "contracts-preprocessed/{0}artifacts/{1}.yul.zbin",
                 directory, name
             ))),
         }
@@ -223,8 +228,8 @@ impl SystemContractsRepo {
 
 pub fn read_bootloader_code(bootloader_type: &str) -> Vec<u8> {
     read_zbin_bytecode(format!(
-        "etc/system-contracts/bootloader/build/artifacts/{}.yul/{}.yul.zbin",
-        bootloader_type, bootloader_type
+        "contracts/system-contracts/bootloader/build/artifacts/{}.yul.zbin",
+        bootloader_type
     ))
 }
 
@@ -336,7 +341,7 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
-    /// BaseSystemContracts with playground bootloader - used for handling 'eth_calls'.
+    /// BaseSystemContracts with playground bootloader - used for handling eth_calls.
     pub fn playground() -> Self {
         let bootloader_bytecode = read_playground_batch_bootloader_bytecode();
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
@@ -364,7 +369,19 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
-    /// BaseSystemContracts with playground bootloader - used for handling 'eth_calls'.
+    pub fn playground_post_allowlist_removal() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode("etc/multivm_bootloaders/vm_remove_allowlist/playground_batch.yul/playground_batch.yul.zbin");
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn playground_post_1_4_1() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_1_4_1/playground_batch.yul/playground_batch.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    /// BaseSystemContracts with playground bootloader - used for handling eth_calls.
     pub fn estimate_gas() -> Self {
         let bootloader_bytecode = read_bootloader_code("fee_estimate");
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
@@ -394,6 +411,20 @@ impl BaseSystemContracts {
     pub fn estimate_gas_post_boojum() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_boojum_integration/fee_estimate.yul/fee_estimate.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn estimate_gas_post_allowlist_removal() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_remove_allowlist/fee_estimate.yul/fee_estimate.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn estimate_gas_post_1_4_1() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_1_4_1/fee_estimate.yul/fee_estimate.yul.zbin",
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }

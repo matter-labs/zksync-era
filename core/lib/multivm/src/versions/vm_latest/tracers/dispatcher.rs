@@ -1,12 +1,17 @@
-use crate::interface::dyn_tracers::vm_1_4_0::DynTracer;
-use crate::interface::tracer::{TracerExecutionStatus, VmExecutionStopReason};
-use crate::vm_latest::{
-    BootloaderState, HistoryMode, SimpleMemory, TracerPointer, VmTracer, ZkSyncVmState,
-};
-use zk_evm_1_4_0::tracing::{
+use zk_evm_1_4_1::tracing::{
     AfterDecodingData, AfterExecutionData, BeforeExecutionData, VmLocalStateData,
 };
 use zksync_state::{StoragePtr, WriteStorage};
+
+use crate::{
+    interface::{
+        dyn_tracers::vm_1_4_1::DynTracer,
+        tracer::{TracerExecutionStatus, VmExecutionStopReason},
+    },
+    vm_latest::{
+        BootloaderState, HistoryMode, SimpleMemory, TracerPointer, VmTracer, ZkSyncVmState,
+    },
+};
 
 /// Tracer dispatcher is a tracer that can dispatch calls to multiple tracers.
 pub struct TracerDispatcher<S: WriteStorage, H: HistoryMode> {

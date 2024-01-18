@@ -1,11 +1,11 @@
 //! Testing harness for the batch executor.
 //! Contains helper functionality to initialize test context and perform tests without too much boilerplate.
 
+use multivm::{
+    interface::{L1BatchEnv, SystemEnv},
+    vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
+};
 use tempfile::TempDir;
-
-use multivm::interface::{L1BatchEnv, SystemEnv};
-use multivm::vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES;
-
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
 use zksync_dal::ConnectionPool;
@@ -19,13 +19,15 @@ use zksync_types::{
 };
 use zksync_utils::u256_to_h256;
 
-use crate::genesis::create_genesis_l1_batch;
-use crate::state_keeper::{
-    batch_executor::BatchExecutorHandle,
-    tests::{default_l1_batch_env, default_system_env, BASE_SYSTEM_CONTRACTS},
+use crate::{
+    genesis::create_genesis_l1_batch,
+    state_keeper::{
+        batch_executor::BatchExecutorHandle,
+        tests::{default_l1_batch_env, default_system_env, BASE_SYSTEM_CONTRACTS},
+    },
 };
 
-const DEFAULT_GAS_PER_PUBDATA: u32 = 100;
+const DEFAULT_GAS_PER_PUBDATA: u32 = 10000;
 const CHAIN_ID: u32 = 270;
 
 /// Representation of configuration parameters used by the state keeper.
@@ -110,6 +112,7 @@ impl Tester {
             l1_batch,
             system_env,
             self.config.upload_witness_inputs_to_gcs,
+            false,
         )
     }
 

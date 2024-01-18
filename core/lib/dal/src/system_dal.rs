@@ -9,7 +9,7 @@ pub struct SystemDal<'a, 'c> {
 impl SystemDal<'_, '_> {
     pub async fn get_replication_lag_sec(&mut self) -> u32 {
         // NOTE: lag (seconds) has a special meaning here
-        // (it is not the same that replay_lag/write_lag/flush_lag from pg_stat_replication view)
+        // (it is not the same that `replay_lag/write_lag/flush_lag` from `pg_stat_replication` view)
         // and it is only useful when synced column is false,
         // because lag means how many seconds elapsed since the last action was committed.
         let pg_row = sqlx::query(

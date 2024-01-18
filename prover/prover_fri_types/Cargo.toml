@@ -8,7 +8,7 @@ edition = "2021"
 zksync_object_store = { path = "../../core/lib/object_store" }
 zksync_types = { path = "../../core/lib/types" }
 
-circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0", features = [
+circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.1", features = [
     "log_tracing",
 ] }
 

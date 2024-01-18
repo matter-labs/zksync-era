@@ -1,23 +1,21 @@
-use anyhow::Context;
-use std::sync::Arc;
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 
+use anyhow::Context;
+use async_trait::async_trait;
+use multivm::interface::{L2BlockEnv, VmInterface};
+use tokio::{runtime::Handle, task::JoinHandle};
 use zksync_dal::{basic_witness_input_producer_dal::JOB_MAX_ATTEMPT, ConnectionPool};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::witness_block_state::WitnessBlockState;
-use zksync_types::{L1BatchNumber, L2ChainId};
+use zksync_types::{witness_block_state::WitnessBlockState, L1BatchNumber, L2ChainId};
 
-use async_trait::async_trait;
-use multivm::interface::{L2BlockEnv, VmInterface};
-use tokio::runtime::Handle;
-use tokio::task::JoinHandle;
+use self::{
+    metrics::METRICS,
+    vm_interactions::{create_vm, execute_tx},
+};
 
 mod metrics;
 mod vm_interactions;
-
-use self::metrics::METRICS;
-use self::vm_interactions::{create_vm, execute_tx};
 
 /// Component that extracts all data (from DB) necessary to run a Basic Witness Generator.
 /// Does this by rerunning an entire L1Batch and extracting information from both the VM run and DB.
@@ -39,7 +37,7 @@ impl BasicWitnessInputProducer {
     ) -> anyhow::Result<Self> {
         Ok(BasicWitnessInputProducer {
             connection_pool,
-            object_store: store_factory.create_store().await.into(),
+            object_store: store_factory.create_store().await,
             l2_chain_id,
         })
     }
@@ -192,10 +190,6 @@ impl JobProcessor for BasicWitnessInputProducer {
             .mark_job_as_successful(job_id, started_at, &object_path)
             .await
             .context("failed to mark job as successful for BasicWitnessInputProducer")?;
-        transaction
-            .witness_generator_dal()
-            .mark_witness_inputs_job_as_queued(job_id)
-            .await;
         transaction
             .commit()
             .await

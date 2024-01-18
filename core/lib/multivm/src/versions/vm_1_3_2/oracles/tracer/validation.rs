@@ -1,15 +1,5 @@
 use std::{collections::HashSet, fmt::Display, marker::PhantomData};
 
-use crate::vm_1_3_2::{
-    errors::VmRevertReasonParsingResult,
-    history_recorder::HistoryMode,
-    memory::SimpleMemory,
-    oracles::tracer::{
-        utils::{computational_gas_price, print_debug_if_needed, VmHook},
-        ExecutionEndTracer, PendingRefundTracer, PubdataSpentTracer,
-    },
-};
-
 use zk_evm_1_3_3::{
     tracing::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
@@ -17,8 +7,6 @@ use zk_evm_1_3_3::{
     zkevm_opcode_defs::{ContextOpcode, FarCallABI, LogOpcode, Opcode},
 };
 use zksync_state::{StoragePtr, WriteStorage};
-
-use crate::vm_1_3_2::oracles::tracer::{utils::get_calldata_page_via_abi, StorageInvocationTracer};
 use zksync_system_constants::{
     ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS,
     KECCAK256_PRECOMPILE_ADDRESS, L2_ETH_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS,
@@ -29,6 +17,18 @@ use zksync_types::{
 };
 use zksync_utils::{
     be_bytes_to_safe_address, h256_to_account_address, u256_to_account_address, u256_to_h256,
+};
+
+use crate::vm_1_3_2::{
+    errors::VmRevertReasonParsingResult,
+    history_recorder::HistoryMode,
+    memory::SimpleMemory,
+    oracles::tracer::{
+        utils::{
+            computational_gas_price, get_calldata_page_via_abi, print_debug_if_needed, VmHook,
+        },
+        ExecutionEndTracer, PendingRefundTracer, PubdataSpentTracer, StorageInvocationTracer,
+    },
 };
 
 #[derive(Debug, Clone, Eq, PartialEq, Copy)]
@@ -100,7 +100,7 @@ fn touches_allowed_context(address: Address, key: U256) -> bool {
         return false;
     }
 
-    // Only chain_id is allowed to be touched.
+    // Only `chain_id` is allowed to be touched.
     key == U256::from(0u32)
 }
 
@@ -223,7 +223,7 @@ impl<S: WriteStorage, H: HistoryMode> ValidationTracer<S, H> {
             return true;
         }
 
-        // The pair of MSG_VALUE_SIMULATOR_ADDRESS & L2_ETH_TOKEN_ADDRESS simulates the behavior of transfering ETH
+        // The pair of `MSG_VALUE_SIMULATOR_ADDRESS` & `L2_ETH_TOKEN_ADDRESS` simulates the behavior of transferring ETH
         // that is safe for the DDoS protection rules.
         if valid_eth_token_call(address, msg_sender) {
             return true;
@@ -267,20 +267,20 @@ impl<S: WriteStorage, H: HistoryMode> ValidationTracer<S, H> {
         let (potential_address_bytes, potential_position_bytes) = calldata.split_at(32);
         let potential_address = be_bytes_to_safe_address(potential_address_bytes);
 
-        // If the validation_address is equal to the potential_address,
-        // then it is a request that could be used for mapping of kind mapping(address => ...).
+        // If the `validation_address` is equal to the `potential_address`,
+        // then it is a request that could be used for mapping of kind `mapping(address => ...)`.
         //
-        // If the potential_position_bytes were already allowed before, then this keccak might be used
-        // for ERC-20 allowance or any other of mapping(address => mapping(...))
+        // If the `potential_position_bytes` were already allowed before, then this keccak might be used
+        // for ERC-20 allowance or any other of `mapping(address => mapping(...))`
         if potential_address == Some(validated_address)
             || self
                 .auxilary_allowed_slots
                 .contains(&H256::from_slice(potential_position_bytes))
         {
-            // This is request that could be used for mapping of kind mapping(address => ...)
+            // This is request that could be used for mapping of kind `mapping(address => ...)`
 
             // We could theoretically wait for the slot number to be returned by the
-            // keccak256 precompile itself, but this would complicate the code even further
+            // `keccak256` precompile itself, but this would complicate the code even further
             // so let's calculate it here.
             let slot = keccak256(calldata);
 

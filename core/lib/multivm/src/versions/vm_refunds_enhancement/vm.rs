@@ -1,20 +1,22 @@
-use crate::HistoryMode;
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::l2_to_l1_log::UserL2ToL1Log;
-use zksync_types::Transaction;
+use zksync_types::{l2_to_l1_log::UserL2ToL1Log, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
-use crate::vm_refunds_enhancement::old_vm::events::merge_events;
-
-use crate::interface::{
-    BootloaderMemory, CurrentExecutionState, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
-    VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
+use crate::{
+    interface::{
+        BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, L1BatchEnv, L2BlockEnv,
+        SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+        VmInterfaceHistoryEnabled, VmMemoryMetrics,
+    },
+    vm_latest::HistoryEnabled,
+    vm_refunds_enhancement::{
+        bootloader_state::BootloaderState,
+        old_vm::events::merge_events,
+        tracers::dispatcher::TracerDispatcher,
+        types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState},
+    },
+    HistoryMode,
 };
-use crate::interface::{BytecodeCompressionError, VmMemoryMetrics};
-use crate::vm_latest::HistoryEnabled;
-use crate::vm_refunds_enhancement::bootloader_state::BootloaderState;
-use crate::vm_refunds_enhancement::tracers::dispatcher::TracerDispatcher;
-use crate::vm_refunds_enhancement::types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState};
 
 /// Main entry point for Virtual Machine integration.
 /// The instance should process only one l1 batch
@@ -116,13 +118,19 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         dispatcher: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError> {
+    ) -> (
+        Result<(), BytecodeCompressionError>,
+        VmExecutionResultAndLogs,
+    ) {
         self.push_transaction_with_compression(tx, with_compression);
         let result = self.inspect(dispatcher, VmExecutionMode::OneTx);
         if self.has_unpublished_bytecodes() {
-            Err(BytecodeCompressionError::BytecodeCompressionFailed)
+            (
+                Err(BytecodeCompressionError::BytecodeCompressionFailed),
+                result,
+            )
         } else {
-            Ok(result)
+            (Ok(()), result)
         }
     }
 
@@ -131,7 +139,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     }
 }
 
-/// Methods of vm, which required some history manipullations
+/// Methods of vm, which required some history manipulations
 impl<S: WriteStorage> VmInterfaceHistoryEnabled<S> for Vm<S, HistoryEnabled> {
     /// Create snapshot of current vm state and push it into the memory
     fn make_snapshot(&mut self) {

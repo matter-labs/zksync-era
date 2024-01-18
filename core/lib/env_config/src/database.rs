@@ -1,5 +1,6 @@
-use anyhow::Context as _;
 use std::env;
+
+use anyhow::Context as _;
 use zksync_config::{DBConfig, PostgresConfig};
 
 use crate::{envy_load, FromEnv};
@@ -26,11 +27,11 @@ impl FromEnv for PostgresConfig {
             .ok()
             .map(|val| val.parse().context("failed to parse DATABASE_POOL_SIZE"))
             .transpose()?;
-        let statement_timeout_sec = env::var("DATABASE_STATEMENT_TIMEOUT")
+        let statement_timeout_sec = env::var("DATABASE_STATEMENT_TIMEOUT_SEC")
             .ok()
             .map(|val| {
                 val.parse()
-                    .context("failed to parse DATABASE_STATEMENT_TIMEOUT")
+                    .context("failed to parse DATABASE_STATEMENT_TIMEOUT_SEC")
             })
             .transpose()?;
 
@@ -46,6 +47,8 @@ impl FromEnv for PostgresConfig {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use zksync_config::configs::database::MerkleTreeMode;
 
     use super::*;
@@ -58,29 +61,23 @@ mod tests {
         let mut lock = MUTEX.lock();
         let config = r#"
             DATABASE_STATE_KEEPER_DB_PATH="/db/state_keeper"
-            DATABASE_MERKLE_TREE_BACKUP_PATH="/db/backups"
             DATABASE_MERKLE_TREE_PATH="/db/tree"
             DATABASE_MERKLE_TREE_MODE=lightweight
             DATABASE_MERKLE_TREE_MULTI_GET_CHUNK_SIZE=250
             DATABASE_MERKLE_TREE_MEMTABLE_CAPACITY_MB=512
             DATABASE_MERKLE_TREE_STALLED_WRITES_TIMEOUT_SEC=60
             DATABASE_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER=50
-            DATABASE_BACKUP_COUNT=5
-            DATABASE_BACKUP_INTERVAL_MS=60000
         "#;
         lock.set_env(config);
 
         let db_config = DBConfig::from_env().unwrap();
         assert_eq!(db_config.state_keeper_db_path, "/db/state_keeper");
         assert_eq!(db_config.merkle_tree.path, "/db/tree");
-        assert_eq!(db_config.merkle_tree.backup_path, "/db/backups");
         assert_eq!(db_config.merkle_tree.mode, MerkleTreeMode::Lightweight);
         assert_eq!(db_config.merkle_tree.multi_get_chunk_size, 250);
         assert_eq!(db_config.merkle_tree.max_l1_batches_per_iter, 50);
         assert_eq!(db_config.merkle_tree.memtable_capacity_mb, 512);
         assert_eq!(db_config.merkle_tree.stalled_writes_timeout_sec, 60);
-        assert_eq!(db_config.backup_count, 5);
-        assert_eq!(db_config.backup_interval().as_secs(), 60);
     }
 
     #[test]
@@ -96,22 +93,17 @@ mod tests {
             "DATABASE_MERKLE_TREE_MEMTABLE_CAPACITY_MB",
             "DATABASE_MERKLE_TREE_STALLED_WRITES_TIMEOUT_SEC",
             "DATABASE_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER",
-            "DATABASE_BACKUP_COUNT",
-            "DATABASE_BACKUP_INTERVAL_MS",
         ]);
 
         let db_config = DBConfig::from_env().unwrap();
         assert_eq!(db_config.state_keeper_db_path, "./db/state_keeper");
         assert_eq!(db_config.merkle_tree.path, "./db/lightweight-new");
-        assert_eq!(db_config.merkle_tree.backup_path, "./db/backups");
         assert_eq!(db_config.merkle_tree.mode, MerkleTreeMode::Full);
         assert_eq!(db_config.merkle_tree.multi_get_chunk_size, 500);
         assert_eq!(db_config.merkle_tree.max_l1_batches_per_iter, 20);
         assert_eq!(db_config.merkle_tree.block_cache_size_mb, 128);
         assert_eq!(db_config.merkle_tree.memtable_capacity_mb, 256);
         assert_eq!(db_config.merkle_tree.stalled_writes_timeout_sec, 30);
-        assert_eq!(db_config.backup_count, 5);
-        assert_eq!(db_config.backup_interval().as_secs(), 60);
 
         // Check that new env variable for Merkle tree path is supported
         lock.set_env("DATABASE_MERKLE_TREE_PATH=/db/tree/main");
@@ -129,5 +121,27 @@ mod tests {
         lock.set_env("DATABASE_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER=50");
         let db_config = DBConfig::from_env().unwrap();
         assert_eq!(db_config.merkle_tree.max_l1_batches_per_iter, 50);
+    }
+
+    #[test]
+    fn postgres_from_env() {
+        let mut lock = MUTEX.lock();
+        let config = r#"
+            DATABASE_URL=postgres://postgres@localhost/zksync_local
+            DATABASE_POOL_SIZE=50
+            DATABASE_STATEMENT_TIMEOUT_SEC=300
+        "#;
+        lock.set_env(config);
+
+        let postgres_config = PostgresConfig::from_env().unwrap();
+        assert_eq!(
+            postgres_config.master_url().unwrap(),
+            "postgres://postgres@localhost/zksync_local"
+        );
+        assert_eq!(postgres_config.max_connections().unwrap(), 50);
+        assert_eq!(
+            postgres_config.statement_timeout(),
+            Some(Duration::from_secs(300))
+        );
     }
 }

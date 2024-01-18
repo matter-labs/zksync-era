@@ -1,5 +1,6 @@
-use crate::{CircuitBreaker, CircuitBreakerError};
 use zksync_dal::ConnectionPool;
+
+use crate::{CircuitBreaker, CircuitBreakerError};
 
 #[derive(Debug)]
 pub struct FailedL1TransactionChecker {

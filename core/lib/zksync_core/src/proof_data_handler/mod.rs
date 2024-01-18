@@ -1,8 +1,7 @@
-use crate::proof_data_handler::request_processor::RequestProcessor;
+use std::{net::SocketAddr, sync::Arc};
+
 use anyhow::Context as _;
-use axum::extract::Path;
-use axum::{routing::post, Json, Router};
-use std::net::SocketAddr;
+use axum::{extract::Path, routing::post, Json, Router};
 use tokio::sync::watch;
 use zksync_config::{
     configs::{proof_data_handler::ProtocolVersionLoadingMode, ProofDataHandlerConfig},
@@ -15,6 +14,8 @@ use zksync_types::{
     prover_server_api::{ProofGenerationDataRequest, SubmitProofRequest},
     H256,
 };
+
+use crate::proof_data_handler::request_processor::RequestProcessor;
 
 mod request_processor;
 
@@ -33,7 +34,7 @@ fn fri_l1_verifier_config(contracts_config: &ContractsConfig) -> L1VerifierConfi
 pub(crate) async fn run_server(
     config: ProofDataHandlerConfig,
     contracts_config: ContractsConfig,
-    blob_store: Box<dyn ObjectStore>,
+    blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool,
     mut stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {

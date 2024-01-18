@@ -3,23 +3,23 @@
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
 use structopt::StructOpt;
-use tokio::{sync::oneshot, sync::watch};
-
-use crate::generator::WitnessVectorGenerator;
-use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
+use tokio::sync::{oneshot, watch};
 use zksync_config::configs::{
-    FriProverConfig, FriWitnessVectorGeneratorConfig, PostgresConfig, ProverGroupConfig,
+    fri_prover_group::FriProverGroupConfig, FriProverConfig, FriWitnessVectorGeneratorConfig,
+    PostgresConfig,
 };
 use zksync_dal::ConnectionPool;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prover_fri_utils::get_all_circuit_id_round_tuples_for;
-use zksync_prover_utils::region_fetcher::get_zone;
+use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
+use crate::generator::WitnessVectorGenerator;
+
 mod generator;
+mod metrics;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -27,7 +27,7 @@ mod generator;
     about = "Tool for generating witness vectors for circuits"
 )]
 struct Opt {
-    /// Number of times witness_vector_generator should be run.
+    /// Number of times `witness_vector_generator` should be run.
     #[structopt(short = "n", long = "n_iterations")]
     number_of_iterations: Option<usize>,
 }
@@ -57,13 +57,10 @@ async fn main() -> anyhow::Result<()> {
     let exporter_config = PrometheusExporterConfig::pull(config.prometheus_listener_port);
 
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let pool = ConnectionPool::builder(
-        postgres_config.prover_url()?,
-        postgres_config.max_connections()?,
-    )
-    .build()
-    .await
-    .context("failed to build a connection pool")?;
+    let pool = ConnectionPool::singleton(postgres_config.prover_url()?)
+        .build()
+        .await
+        .context("failed to build a connection pool")?;
     let object_store_config =
         ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;
     let blob_store = ObjectStoreFactory::new(object_store_config.0)
@@ -75,11 +72,10 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_default();
     let circuit_ids_for_round_to_be_proven =
         get_all_circuit_id_round_tuples_for(circuit_ids_for_round_to_be_proven);
-    let prover_group_config =
-        ProverGroupConfig::from_env().context("ProverGroupConfig::from_env()")?;
-    let zone = get_zone(&prover_group_config).await.context("get_zone()")?;
-    let vk_commitments = get_cached_commitments();
     let fri_prover_config = FriProverConfig::from_env().context("FriProverConfig::from_env()")?;
+    let zone_url = &fri_prover_config.zone_read_url;
+    let zone = get_zone(zone_url).await.context("get_zone()")?;
+    let vk_commitments = get_cached_commitments();
     let witness_vector_generator = WitnessVectorGenerator::new(
         blob_store,
         pool,

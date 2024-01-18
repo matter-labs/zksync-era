@@ -1,11 +1,10 @@
 //! Application-wide metrics.
 
-use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
-
 use std::{fmt, time::Duration};
 
+use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
 use zksync_dal::transactions_dal::L2TxSubmissionResult;
-use zksync_types::{aggregated_operations::AggregatedActionType, proofs::AggregationRound};
+use zksync_types::aggregated_operations::AggregatedActionType;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage")]
@@ -17,9 +16,7 @@ pub(crate) enum InitStage {
     EthWatcher,
     EthTxAggregator,
     EthTxManager,
-    DataFetcher,
     Tree,
-    WitnessGenerator(AggregationRound),
     BasicWitnessInputProducer,
 }
 
@@ -33,9 +30,7 @@ impl fmt::Display for InitStage {
             Self::EthWatcher => formatter.write_str("eth_watcher"),
             Self::EthTxAggregator => formatter.write_str("eth_tx_aggregator"),
             Self::EthTxManager => formatter.write_str("eth_tx_manager"),
-            Self::DataFetcher => formatter.write_str("data_fetchers"),
             Self::Tree => formatter.write_str("tree"),
-            Self::WitnessGenerator(round) => write!(formatter, "witness_generator_{round:?}"),
             Self::BasicWitnessInputProducer => formatter.write_str("basic_witness_input_producer"),
         }
     }
@@ -62,7 +57,6 @@ pub(crate) enum BlockStage {
     Sealed,
     Tree,
     MetadataCalculated,
-    MerkleProofCalculated,
     L1 {
         l1_stage: BlockL1Stage,
         tx_type: AggregatedActionType,
@@ -75,7 +69,6 @@ impl fmt::Display for BlockStage {
             Self::Sealed => formatter.write_str("sealed"),
             Self::Tree => formatter.write_str("tree"),
             Self::MetadataCalculated => formatter.write_str("metadata_calculated"),
-            Self::MerkleProofCalculated => formatter.write_str("merkle_proof_calculated"),
             Self::L1 { l1_stage, tx_type } => {
                 let l1_stage = match l1_stage {
                     BlockL1Stage::Saved => "save", // not "saved" for backward compatibility
@@ -180,9 +173,9 @@ pub(crate) struct ExternalNodeMetrics {
     pub synced: Gauge<u64>,
     /// Current sync lag of the external node.
     pub sync_lag: Gauge<u64>,
-    /// Number of the last L1 batch checked by the reorg detector or consistency checker.
+    /// Number of the last L1 batch checked by the re-org detector or consistency checker.
     pub last_correct_batch: Family<CheckerComponent, Gauge<u64>>,
-    /// Number of the last miniblock checked by the reorg detector or consistency checker.
+    /// Number of the last miniblock checked by the re-org detector or consistency checker.
     pub last_correct_miniblock: Family<CheckerComponent, Gauge<u64>>,
 }
 

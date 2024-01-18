@@ -30,7 +30,7 @@ export class TestMaster {
 
         const contextStr = process.env.ZKSYNC_JEST_TEST_CONTEXT;
         if (!contextStr) {
-            throw new Error('Test context was not initalized; unable to load context environment variable');
+            throw new Error('Test context was not initialized; unable to load context environment variable');
         }
 
         const context = JSON.parse(contextStr) as TestContext;

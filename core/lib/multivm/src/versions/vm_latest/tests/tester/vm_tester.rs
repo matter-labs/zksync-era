@@ -1,28 +1,32 @@
 use std::marker::PhantomData;
+
 use zksync_contracts::BaseSystemContracts;
 use zksync_state::{InMemoryStorage, StoragePtr, StorageView, WriteStorage};
-
-use zksync_types::block::legacy_miniblock_hash;
-use zksync_types::helpers::unix_timestamp_ms;
-use zksync_types::utils::{deployed_address_create, storage_key_for_eth_balance};
 use zksync_types::{
-    get_code_key, get_is_account_key, Address, L1BatchNumber, L2ChainId, MiniblockNumber, Nonce,
-    ProtocolVersionId, U256,
+    block::MiniblockHasher,
+    fee_model::BatchFeeInput,
+    get_code_key, get_is_account_key,
+    helpers::unix_timestamp_ms,
+    utils::{deployed_address_create, storage_key_for_eth_balance},
+    Address, L1BatchNumber, L2ChainId, MiniblockNumber, Nonce, ProtocolVersionId, U256,
 };
-use zksync_utils::bytecode::hash_bytecode;
-use zksync_utils::u256_to_h256;
+use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
-use crate::vm_latest::constants::BLOCK_GAS_LIMIT;
-
-use crate::interface::{
-    L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
+use crate::{
+    interface::{
+        L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
+    },
+    vm_latest::{
+        constants::BLOCK_GAS_LIMIT,
+        tests::{
+            tester::{Account, TxType},
+            utils::read_test_contract,
+        },
+        utils::l2_blocks::load_last_l2_block,
+        Vm,
+    },
+    HistoryMode,
 };
-use crate::vm_latest::tests::tester::Account;
-use crate::vm_latest::tests::tester::TxType;
-use crate::vm_latest::tests::utils::read_test_contract;
-use crate::vm_latest::utils::l2_blocks::load_last_l2_block;
-use crate::vm_latest::Vm;
-use crate::HistoryMode;
 
 pub(crate) type InMemoryStorageView = StorageView<InMemoryStorage>;
 
@@ -73,7 +77,7 @@ impl<H: HistoryMode> VmTester<H> {
 
         if !self.custom_contracts.is_empty() {
             println!("Inserting custom contracts is not yet supported")
-            // insert_contracts(&mut self.storage, &self.custom_contracts);
+            // `insert_contracts(&mut self.storage, &self.custom_contracts);`
         }
 
         let mut l1_batch = self.vm.batch_env.clone();
@@ -81,7 +85,7 @@ impl<H: HistoryMode> VmTester<H> {
             let last_l2_block = load_last_l2_block(self.storage.clone()).unwrap_or(L2Block {
                 number: 0,
                 timestamp: 0,
-                hash: legacy_miniblock_hash(MiniblockNumber(0)),
+                hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
             });
             l1_batch.first_l2_block = L2BlockEnv {
                 number: last_l2_block.number + 1,
@@ -248,14 +252,16 @@ pub(crate) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
         previous_batch_hash: None,
         number,
         timestamp,
-        l1_gas_price: 50_000_000_000,   // 50 gwei
-        fair_l2_gas_price: 250_000_000, // 0.25 gwei
+        fee_input: BatchFeeInput::l1_pegged(
+            50_000_000_000, // 50 gwei
+            250_000_000,    // 0.25 gwei
+        ),
         fee_account: Address::random(),
         enforced_base_fee: None,
         first_l2_block: L2BlockEnv {
             number: 1,
             timestamp,
-            prev_block_hash: legacy_miniblock_hash(MiniblockNumber(0)),
+            prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
             max_virtual_blocks_to_create: 100,
         },
     }

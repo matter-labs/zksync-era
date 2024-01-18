@@ -1,21 +1,17 @@
-use crate::vm_latest::old_vm::memory::SimpleMemory;
-
-use crate::vm_latest::types::internals::ZkSyncVmState;
-use crate::vm_latest::HistoryMode;
-
-use zk_evm_1_4_0::zkevm_opcode_defs::decoding::{
-    AllowedPcOrImm, EncodingModeProduction, VmEncodingMode,
-};
-use zk_evm_1_4_0::zkevm_opcode_defs::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER;
-use zk_evm_1_4_0::{
+use zk_evm_1_4_1::{
     aux_structures::{MemoryPage, Timestamp},
     vm_state::PrimitiveValue,
-    zkevm_opcode_defs::FatPointer,
+    zkevm_opcode_defs::{
+        decoding::{AllowedPcOrImm, EncodingModeProduction, VmEncodingMode},
+        FatPointer, RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
+    },
 };
 use zksync_state::WriteStorage;
-use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
-
 use zksync_types::{Address, U256};
+
+use crate::vm_latest::{
+    old_vm::memory::SimpleMemory, types::internals::ZkSyncVmState, HistoryMode,
+};
 
 #[derive(Debug, Clone)]
 pub(crate) enum VmExecutionResult {
@@ -99,12 +95,6 @@ pub(crate) fn precompile_calls_count_after_timestamp(
     sorted_timestamps.len() - sorted_timestamps.partition_point(|t| *t < from_timestamp)
 }
 
-pub(crate) fn eth_price_per_pubdata_byte(l1_gas_price: u64) -> u64 {
-    // This value will typically be a lot less than u64
-    // unless the gas price on L1 goes beyond tens of millions of gwei
-    l1_gas_price * (L1_GAS_PER_PUBDATA_BYTE as u64)
-}
-
 pub(crate) fn vm_may_have_ended_inner<S: WriteStorage, H: HistoryMode>(
     vm: &ZkSyncVmState<S, H>,
 ) -> Option<VmExecutionResult> {
@@ -125,7 +115,7 @@ pub(crate) fn vm_may_have_ended_inner<S: WriteStorage, H: HistoryMode>(
         }
         (false, _) => None,
         (true, l) if l == outer_eh_location => {
-            // check r1,r2,r3
+            // check `r1,r2,r3`
             if vm.local_state.flags.overflow_or_less_than_flag {
                 Some(VmExecutionResult::Panic)
             } else {

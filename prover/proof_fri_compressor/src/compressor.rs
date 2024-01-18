@@ -1,31 +1,39 @@
+use std::{sync::Arc, time::Instant};
+
 use anyhow::Context as _;
 use async_trait::async_trait;
-use std::time::Instant;
 use tokio::task::JoinHandle;
-
 use zkevm_test_harness::proof_wrapper_utils::{wrap_proof, WrapperConfig};
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
-use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::GoldilocksField;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::{
-    ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
+use zksync_prover_fri_types::{
+    circuit_definitions::{
+        boojum::field::goldilocks::GoldilocksField,
+        circuit_definitions::recursion_layer::{
+            ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
+        },
+        zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness,
+    },
+    get_current_pod_name, AuxOutputWitnessWrapper, FriProofWrapper,
 };
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness;
-use zksync_prover_fri_types::{get_current_pod_name, AuxOutputWitnessWrapper, FriProofWrapper};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::aggregated_operations::L1BatchProofForL1;
-use zksync_types::zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncVerificationKey;
-use zksync_types::zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::{
-    ZkSyncCircuit, ZkSyncProof,
+use zksync_types::{
+    aggregated_operations::L1BatchProofForL1,
+    zkevm_test_harness::{
+        abstract_zksync_circuit::concrete_circuits::{
+            ZkSyncCircuit, ZkSyncProof, ZkSyncVerificationKey,
+        },
+        bellman::{bn256::Bn256, plonk::better_better_cs::proof::Proof},
+        witness::oracle::VmWitnessOracle,
+    },
+    L1BatchNumber,
 };
-use zksync_types::zkevm_test_harness::bellman::bn256::Bn256;
-use zksync_types::zkevm_test_harness::bellman::plonk::better_better_cs::proof::Proof;
-use zksync_types::zkevm_test_harness::witness::oracle::VmWitnessOracle;
-use zksync_types::L1BatchNumber;
 use zksync_vk_setup_data_server_fri::{get_recursive_layer_vk_for_circuit_type, get_snark_vk};
 
+use crate::metrics::METRICS;
+
 pub struct ProofCompressor {
-    blob_store: Box<dyn ObjectStore>,
+    blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool,
     compression_mode: u8,
     verify_wrapper_proof: bool,
@@ -34,7 +42,7 @@ pub struct ProofCompressor {
 
 impl ProofCompressor {
     pub fn new(
-        blob_store: Box<dyn ObjectStore>,
+        blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool,
         compression_mode: u8,
         verify_wrapper_proof: bool,
@@ -124,13 +132,13 @@ impl JobProcessor for ProofCompressor {
             "Started proof compression for L1 batch: {:?}",
             l1_batch_number
         );
-        let started_at = Instant::now();
+        let observer = METRICS.blob_fetch_time.start();
+
         let fri_proof: FriProofWrapper = self.blob_store.get(fri_proof_id)
             .await.with_context(|| format!("Failed to get fri proof from blob store for {l1_batch_number} with id {fri_proof_id}"))?;
-        metrics::histogram!(
-            "prover_fri.proof_fri_compressor.blob_fetch_time",
-            started_at.elapsed(),
-        );
+
+        observer.observe();
+
         let scheduler_proof = match fri_proof {
             FriProofWrapper::Base(_) => anyhow::bail!("Must be a scheduler proof not base layer"),
             FriProofWrapper::Recursive(proof) => proof,
@@ -166,10 +174,7 @@ impl JobProcessor for ProofCompressor {
         started_at: Instant,
         artifacts: Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>,
     ) -> anyhow::Result<()> {
-        metrics::histogram!(
-            "prover_fri.proof_fri_compressor.compression_time",
-            started_at.elapsed(),
-        );
+        METRICS.compression_time.observe(started_at.elapsed());
         tracing::info!(
             "Finished fri proof compression for job: {job_id} took: {:?}",
             started_at.elapsed()
@@ -192,10 +197,10 @@ impl JobProcessor for ProofCompressor {
             .put(job_id, &l1_batch_proof)
             .await
             .context("Failed to save converted l1_batch_proof")?;
-        metrics::histogram!(
-            "prover_fri.proof_fri_compressor.blob_save_time",
-            blob_save_started_at.elapsed(),
-        );
+        METRICS
+            .blob_save_time
+            .observe(blob_save_started_at.elapsed());
+
         self.pool
             .access_storage()
             .await

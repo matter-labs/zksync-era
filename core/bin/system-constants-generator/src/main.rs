@@ -1,23 +1,29 @@
 use std::fs;
 
+use codegen::{Block, Scope};
+use multivm::{
+    utils::{get_bootloader_encoding_space, get_bootloader_max_txs_in_batch},
+    vm_latest::constants::MAX_PUBDATA_PER_BLOCK,
+};
 use serde::{Deserialize, Serialize};
 use zksync_types::{
-    IntrinsicSystemGasConstants, GUARANTEED_PUBDATA_IN_TX, L1_GAS_PER_PUBDATA_BYTE,
-    MAX_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, MAX_TXS_IN_BLOCK,
+    zkevm_test_harness::zk_evm::zkevm_opcode_defs::{
+        circuit_prices::{
+            ECRECOVER_CIRCUIT_COST_IN_ERGS, KECCAK256_CIRCUIT_COST_IN_ERGS,
+            SHA256_CIRCUIT_COST_IN_ERGS,
+        },
+        system_params::MAX_TX_ERGS_LIMIT,
+    },
+    IntrinsicSystemGasConstants, ProtocolVersionId, GUARANTEED_PUBDATA_IN_TX,
+    L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
+
+// For configs we will use the default value of `800_000` to represent the rough amount of L1 gas
+// needed to cover the batch expenses.
+const BLOCK_OVERHEAD_L1_GAS: u32 = 800_000;
 
 mod intrinsic_costs;
 mod utils;
-
-use codegen::Block;
-use codegen::Scope;
-use multivm::vm_latest::constants::{
-    BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_L1_GAS, BOOTLOADER_TX_ENCODING_SPACE, MAX_PUBDATA_PER_BLOCK,
-};
-use zksync_types::zkevm_test_harness::zk_evm::zkevm_opcode_defs::circuit_prices::{
-    ECRECOVER_CIRCUIT_COST_IN_ERGS, KECCAK256_CIRCUIT_COST_IN_ERGS, SHA256_CIRCUIT_COST_IN_ERGS,
-};
-use zksync_types::zkevm_test_harness::zk_evm::zkevm_opcode_defs::system_params::MAX_TX_ERGS_LIMIT;
 
 // Params needed for L1 contracts
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
@@ -28,7 +34,6 @@ struct L1SystemConfig {
     priority_tx_max_pubdata: u32,
     fair_l2_gas_price: u64,
     l1_gas_per_pubdata_byte: u32,
-    block_overhead_l2_gas: u32,
     block_overhead_l1_gas: u32,
     max_transactions_in_block: u32,
     bootloader_tx_encoding_space: u32,
@@ -54,11 +59,13 @@ pub fn generate_l1_contracts_system_config(gas_constants: &IntrinsicSystemGasCon
         priority_tx_max_pubdata: (L1_TX_DECREASE * (MAX_PUBDATA_PER_BLOCK as f64)) as u32,
         fair_l2_gas_price: FAIR_L2_GAS_PRICE_ON_L1_CONTRACT,
         l1_gas_per_pubdata_byte: L1_GAS_PER_PUBDATA_BYTE,
-        block_overhead_l2_gas: BLOCK_OVERHEAD_GAS,
         block_overhead_l1_gas: BLOCK_OVERHEAD_L1_GAS,
-        max_transactions_in_block: MAX_TXS_IN_BLOCK as u32,
-        bootloader_tx_encoding_space: BOOTLOADER_TX_ENCODING_SPACE,
-
+        max_transactions_in_block: get_bootloader_max_txs_in_batch(
+            ProtocolVersionId::latest().into(),
+        ) as u32,
+        bootloader_tx_encoding_space: get_bootloader_encoding_space(
+            ProtocolVersionId::latest().into(),
+        ),
         l1_tx_intrinsic_l2_gas: gas_constants.l1_tx_intrinsic_gas,
         l1_tx_intrinsic_pubdata: gas_constants.l1_tx_intrinsic_pubdata,
         l1_tx_min_l2_gas_base: gas_constants.l1_tx_min_gas_base,
@@ -66,7 +73,7 @@ pub fn generate_l1_contracts_system_config(gas_constants: &IntrinsicSystemGasCon
         l1_tx_delta_factory_deps_l2_gas: gas_constants.l1_tx_delta_factory_dep_gas,
         l1_tx_delta_factory_deps_pubdata: gas_constants.l1_tx_delta_factory_dep_pubdata,
         max_new_factory_deps: MAX_NEW_FACTORY_DEPS as u32,
-        required_l2_gas_price_per_pubdata: MAX_GAS_PER_PUBDATA_BYTE,
+        required_l2_gas_price_per_pubdata: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
     };
 
     serde_json::to_string_pretty(&l1_contracts_config).unwrap()
@@ -79,7 +86,6 @@ struct L2SystemConfig {
     guaranteed_pubdata_bytes: u32,
     max_pubdata_per_block: u32,
     max_transactions_in_block: u32,
-    block_overhead_l2_gas: u32,
     block_overhead_l1_gas: u32,
     l2_tx_intrinsic_gas: u32,
     l2_tx_intrinsic_pubdata: u32,
@@ -97,15 +103,18 @@ pub fn generate_l2_contracts_system_config(gas_constants: &IntrinsicSystemGasCon
     let l2_contracts_config = L2SystemConfig {
         guaranteed_pubdata_bytes: GUARANTEED_PUBDATA_IN_TX,
         max_pubdata_per_block: MAX_PUBDATA_PER_BLOCK,
-        max_transactions_in_block: MAX_TXS_IN_BLOCK as u32,
-        block_overhead_l2_gas: BLOCK_OVERHEAD_GAS,
+        max_transactions_in_block: get_bootloader_max_txs_in_batch(
+            ProtocolVersionId::latest().into(),
+        ) as u32,
         block_overhead_l1_gas: BLOCK_OVERHEAD_L1_GAS,
         l2_tx_intrinsic_gas: gas_constants.l2_tx_intrinsic_gas,
         l2_tx_intrinsic_pubdata: gas_constants.l2_tx_intrinsic_pubdata,
         l1_tx_intrinsic_l2_gas: gas_constants.l1_tx_intrinsic_gas,
         l1_tx_intrinsic_pubdata: gas_constants.l1_tx_intrinsic_pubdata,
         max_gas_per_transaction: MAX_TX_ERGS_LIMIT,
-        bootloader_memory_for_txs: BOOTLOADER_TX_ENCODING_SPACE,
+        bootloader_memory_for_txs: get_bootloader_encoding_space(
+            ProtocolVersionId::latest().into(),
+        ),
         refund_gas: gas_constants.l2_tx_gas_for_refund_transfer,
         keccak_round_cost_gas: KECCAK256_CIRCUIT_COST_IN_ERGS,
         sha256_round_cost_gas: SHA256_CIRCUIT_COST_IN_ERGS,
@@ -222,7 +231,10 @@ fn update_l1_system_constants(intrinsic_gas_constants: &IntrinsicSystemGasConsta
 
 fn update_l2_system_constants(intrinsic_gas_constants: &IntrinsicSystemGasConstants) {
     let l2_system_config = generate_l2_contracts_system_config(intrinsic_gas_constants);
-    save_file("etc/system-contracts/SystemConfig.json", l2_system_config);
+    save_file(
+        "contracts/system-contracts/SystemConfig.json",
+        l2_system_config,
+    );
 }
 
 fn main() {

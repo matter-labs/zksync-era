@@ -10,11 +10,14 @@
  *
  */
 import * as utils from 'zk/build/utils';
+import * as fs from 'fs';
 import { TestMaster } from '../src/index';
 
 import * as zksync from 'zksync-web3';
 import { BigNumber, ethers } from 'ethers';
 import { Token } from '../src/types';
+
+const logs = fs.createWriteStream('fees.log', { flags: 'a' });
 
 // Unless `RUN_FEE_TEST` is provided, skip the test suit
 const testFees = process.env.RUN_FEE_TEST ? describe : describe.skip;
@@ -73,11 +76,31 @@ testFees('Test fees', () => {
             })
         ).wait();
 
-        let reports = ['ETH transfer:\n\n', 'ERC20 transfer:\n\n'];
+        // Warming up slots for the receiver
+        await (
+            await alice.sendTransaction({
+                to: receiver,
+                value: BigNumber.from(1)
+            })
+        ).wait();
+
+        await (
+            await alice.sendTransaction({
+                data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, BigNumber.from(1)]),
+                to: tokenDetails.l2Address
+            })
+        ).wait();
+
+        let reports = [
+            'ETH transfer (to new):\n\n',
+            'ETH transfer (to old):\n\n',
+            'ERC20 transfer (to new):\n\n',
+            'ERC20 transfer (to old):\n\n'
+        ];
         for (const gasPrice of L1_GAS_PRICES_TO_TEST) {
             reports = await appendResults(
                 alice,
-                [feeTestL1Receipt, feeTestL1ReceiptERC20],
+                [feeTestL1Receipt, feeTestL1Receipt, feeTestL1ReceiptERC20, feeTestL1ReceiptERC20],
                 // We always regenerate new addresses for transaction requests in order to estimate the cost for a new account
                 [
                     {
@@ -85,10 +108,18 @@ testFees('Test fees', () => {
                         value: BigNumber.from(1)
                     },
                     {
+                        to: receiver,
+                        value: BigNumber.from(1)
+                    },
+                    {
                         data: aliceErc20.interface.encodeFunctionData('transfer', [
                             ethers.Wallet.createRandom().address,
                             BigNumber.from(1)
                         ]),
+                        to: tokenDetails.l2Address
+                    },
+                    {
+                        data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, BigNumber.from(1)]),
                         to: tokenDetails.l2Address
                     }
                 ],
@@ -147,7 +178,9 @@ async function updateReport(
     const estimatedPrice = estimatedL2GasPrice.mul(estimatedL2GasLimit);
 
     const balanceBefore = await sender.getBalance();
-    await (await sender.sendTransaction(transactionRequest)).wait();
+    const transaction = await sender.sendTransaction(transactionRequest);
+    console.log(`Sending transaction: ${transaction.hash}`);
+    await transaction.wait();
     const balanceAfter = await sender.getBalance();
     const balanceDiff = balanceBefore.sub(balanceAfter);
 
@@ -190,12 +223,13 @@ async function setInternalL1GasPrice(provider: zksync.Provider, newPrice?: strin
     } catch (_) {}
 
     // Run server in background.
-    let command = 'zk server --components api,tree,eth,data_fetcher,state_keeper';
+    let command = 'zk server --components api,tree,eth,state_keeper';
     command = `DATABASE_MERKLE_TREE_MODE=full ${command}`;
     if (newPrice) {
-        command = `ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_L1_GAS_PRICE=${newPrice} ${command}`;
+        // We need to ensure that each transaction gets into its own batch for more fair comparison.
+        command = `CHAIN_STATE_KEEPER_TRANSACTION_SLOTS=1 ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_L1_GAS_PRICE=${newPrice} ${command}`;
     }
-    const zkSyncServer = utils.background(command, 'ignore');
+    const zkSyncServer = utils.background(command, [null, logs, logs]);
 
     if (disconnect) {
         zkSyncServer.unref();

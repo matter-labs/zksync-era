@@ -47,19 +47,23 @@
 //! let result = vm.execute(multivm::interface::VmExecutionMode::Batch);
 //! ```
 
-use crate::interface::types::errors::BytecodeCompressionError;
-use crate::interface::types::inputs::{L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode};
-use crate::interface::types::outputs::{
-    BootloaderMemory, CurrentExecutionState, VmExecutionResultAndLogs,
-};
-
-use crate::interface::{FinishedL1Batch, VmMemoryMetrics};
-use crate::tracers::TracerDispatcher;
-use crate::vm_latest::HistoryEnabled;
-use crate::HistoryMode;
 use zksync_state::StoragePtr;
 use zksync_types::Transaction;
 use zksync_utils::bytecode::CompressedBytecodeInfo;
+
+use crate::{
+    interface::{
+        types::{
+            errors::BytecodeCompressionError,
+            inputs::{L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode},
+            outputs::{BootloaderMemory, CurrentExecutionState, VmExecutionResultAndLogs},
+        },
+        FinishedL1Batch, VmMemoryMetrics,
+    },
+    tracers::TracerDispatcher,
+    vm_latest::HistoryEnabled,
+    HistoryMode,
+};
 
 pub trait VmInterface<S, H: HistoryMode> {
     type TracerDispatcher: Default + From<TracerDispatcher<S, H>>;
@@ -100,7 +104,10 @@ pub trait VmInterface<S, H: HistoryMode> {
         &mut self,
         tx: Transaction,
         with_compression: bool,
-    ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError> {
+    ) -> (
+        Result<(), BytecodeCompressionError>,
+        VmExecutionResultAndLogs,
+    ) {
         self.inspect_transaction_with_bytecode_compression(
             Self::TracerDispatcher::default(),
             tx,
@@ -114,7 +121,10 @@ pub trait VmInterface<S, H: HistoryMode> {
         tracer: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError>;
+    ) -> (
+        Result<(), BytecodeCompressionError>,
+        VmExecutionResultAndLogs,
+    );
 
     /// Record VM memory metrics.
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics;
@@ -129,6 +139,7 @@ pub trait VmInterface<S, H: HistoryMode> {
             block_tip_execution_result: result,
             final_execution_state: execution_state,
             final_bootloader_memory: Some(bootloader_memory),
+            pubdata_input: None,
         }
     }
 }

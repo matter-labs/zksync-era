@@ -20,8 +20,8 @@ jobs:
 
       - name: Start services
         run: |
-          docker-compose -f docker-compose-runner.yml pull
-          docker-compose -f docker-compose-runner.yml up --build -d zk
+          mkdir -p ./volumes/postgres
+          docker compose up -d zk postgres
           ci_run sccache --start-server
 
       - name: Setup db
@@ -37,4 +37,3 @@ jobs:
           ci_run zk lint ts --check
           ci_run zk lint md --check
           ci_run zk db check-sqlx-data
-

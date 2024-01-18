@@ -1,43 +1,51 @@
-use std::convert::TryFrom;
-use std::fmt::Debug;
+use std::{convert::TryFrom, fmt::Debug};
 
-use zk_evm_1_3_3::aux_structures::Timestamp;
-use zk_evm_1_3_3::vm_state::{PrimitiveValue, VmLocalState, VmState};
-use zk_evm_1_3_3::witness_trace::DummyTracer;
-use zk_evm_1_3_3::zkevm_opcode_defs::decoding::{
-    AllowedPcOrImm, EncodingModeProduction, VmEncodingMode,
+use zk_evm_1_3_3::{
+    aux_structures::Timestamp,
+    vm_state::{PrimitiveValue, VmLocalState, VmState},
+    witness_trace::DummyTracer,
+    zkevm_opcode_defs::{
+        decoding::{AllowedPcOrImm, EncodingModeProduction, VmEncodingMode},
+        definitions::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
+    },
 };
-use zk_evm_1_3_3::zkevm_opcode_defs::definitions::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER;
 use zksync_state::WriteStorage;
-use zksync_system_constants::MAX_TXS_IN_BLOCK;
-use zksync_types::l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log};
-use zksync_types::tx::tx_execution_info::TxExecutionStatus;
-use zksync_types::vm_trace::{Call, VmExecutionTrace, VmTrace};
-use zksync_types::{L1BatchNumber, StorageLogQuery, VmEvent, H256, U256};
+use zksync_types::{
+    l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
+    tx::tx_execution_info::TxExecutionStatus,
+    vm_trace::{Call, VmExecutionTrace, VmTrace},
+    L1BatchNumber, StorageLogQuery, VmEvent, H256, U256,
+};
 
-use crate::interface::types::outputs::VmExecutionLogs;
-use crate::vm_1_3_2::bootloader_state::BootloaderState;
-use crate::vm_1_3_2::errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult};
-use crate::vm_1_3_2::event_sink::InMemoryEventSink;
-use crate::vm_1_3_2::events::merge_events;
-use crate::vm_1_3_2::history_recorder::{HistoryEnabled, HistoryMode};
-use crate::vm_1_3_2::memory::SimpleMemory;
-use crate::vm_1_3_2::oracles::decommitter::DecommitterOracle;
-use crate::vm_1_3_2::oracles::precompile::PrecompilesProcessorWithHistory;
-use crate::vm_1_3_2::oracles::storage::StorageOracle;
-use crate::vm_1_3_2::oracles::tracer::{
-    BootloaderTracer, ExecutionEndTracer, OneTxTracer, PendingRefundTracer, PubdataSpentTracer,
-    StorageInvocationTracer, TransactionResultTracer, ValidationError, ValidationTracer,
-    ValidationTracerParams,
-};
-use crate::vm_1_3_2::oracles::OracleWithHistory;
-use crate::vm_1_3_2::utils::{
-    calculate_computational_gas_used, dump_memory_page_using_primitive_value,
-    precompile_calls_count_after_timestamp,
-};
-use crate::vm_1_3_2::vm_with_bootloader::{
-    BootloaderJobType, DerivedBlockContext, TxExecutionMode, BOOTLOADER_HEAP_PAGE,
-    OPERATOR_REFUNDS_OFFSET,
+use crate::{
+    interface::types::outputs::VmExecutionLogs,
+    vm_1_3_2::{
+        bootloader_state::BootloaderState,
+        errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult},
+        event_sink::InMemoryEventSink,
+        events::merge_events,
+        history_recorder::{HistoryEnabled, HistoryMode},
+        memory::SimpleMemory,
+        oracles::{
+            decommitter::DecommitterOracle,
+            precompile::PrecompilesProcessorWithHistory,
+            storage::StorageOracle,
+            tracer::{
+                BootloaderTracer, ExecutionEndTracer, OneTxTracer, PendingRefundTracer,
+                PubdataSpentTracer, StorageInvocationTracer, TransactionResultTracer,
+                ValidationError, ValidationTracer, ValidationTracerParams,
+            },
+            OracleWithHistory,
+        },
+        utils::{
+            calculate_computational_gas_used, dump_memory_page_using_primitive_value,
+            precompile_calls_count_after_timestamp,
+        },
+        vm_with_bootloader::{
+            BootloaderJobType, DerivedBlockContext, TxExecutionMode, BOOTLOADER_HEAP_PAGE,
+            OPERATOR_REFUNDS_OFFSET,
+        },
+    },
 };
 
 pub type ZkSyncVmState<S, H> = VmState<
@@ -85,7 +93,7 @@ pub struct VmExecutionResult {
     pub l2_to_l1_logs: Vec<L2ToL1Log>,
     pub return_data: Vec<u8>,
 
-    /// Value denoting the amount of gas spent withing VM invocation.
+    /// Value denoting the amount of gas spent within VM invocation.
     /// Note that return value represents the difference between the amount of gas
     /// available to VM before and after execution.
     ///
@@ -153,6 +161,7 @@ pub enum VmExecutionStopReason {
     TracerRequestedStop,
 }
 
+use super::vm_with_bootloader::MAX_TXS_IN_BLOCK;
 use crate::vm_1_3_2::utils::VmExecutionResult as NewVmExecutionResult;
 
 fn vm_may_have_ended_inner<S: WriteStorage, H: HistoryMode>(
@@ -175,7 +184,7 @@ fn vm_may_have_ended_inner<S: WriteStorage, H: HistoryMode>(
         }
         (false, _) => None,
         (true, l) if l == outer_eh_location => {
-            // check r1,r2,r3
+            // check `r1,r2,r3`
             if vm.local_state.flags.overflow_or_less_than_flag {
                 Some(NewVmExecutionResult::Panic)
             } else {
@@ -208,7 +217,7 @@ fn vm_may_have_ended<H: HistoryMode, S: WriteStorage>(
         NewVmExecutionResult::Ok(data) => {
             Some(VmExecutionResult {
                 // The correct `events` value for this field should be set separately
-                // later on based on the information inside the event_sink oracle.
+                // later on based on the information inside the `event_sink` oracle.
                 events: vec![],
                 storage_log_queries: vm.state.storage.get_final_log_queries(),
                 used_contract_hashes: vm.get_used_contracts(),
@@ -364,7 +373,7 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
         }
     }
 
-    /// Removes the latest snapshot without rollbacking to it.
+    /// Removes the latest snapshot without rolling it back.
     /// This function expects that there is at least one snapshot present.
     pub fn pop_snapshot_no_rollback(&mut self) {
         self.snapshots.pop().unwrap();
@@ -481,8 +490,8 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
                 );
             }
 
-            // This means that the bootloader has informed the system (usually via VMHooks) - that some gas
-            // should be refunded back (see askOperatorForRefund in bootloader.yul for details).
+            // This means that the bootloader has informed the system (usually via `VMHooks`) - that some gas
+            // should be refunded back (see `askOperatorForRefund` in `bootloader.yul` for details).
             if let Some(bootloader_refund) = tracer.requested_refund() {
                 assert!(
                     operator_refund.is_none(),
@@ -578,8 +587,8 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
     /// Panics if there are no new transactions in bootloader.
     /// Internally uses the OneTxTracer to stop the VM when the last opcode from the transaction is reached.
     // Err when transaction is rejected.
-    // Ok(status: TxExecutionStatus::Success) when the transaction succeeded
-    // Ok(status: TxExecutionStatus::Failure) when the transaction failed.
+    // `Ok(status: TxExecutionStatus::Success)` when the transaction succeeded
+    // `Ok(status: TxExecutionStatus::Failure)` when the transaction failed.
     // Note that failed transactions are considered properly processed and are included in blocks
     pub fn execute_next_tx(
         &mut self,
@@ -639,7 +648,7 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
                             revert_reason: None,
                             // getting contracts used during this transaction
                             // at least for now the number returned here is always <= to the number
-                            // of the code hashes actually used by the transaction, since it might've
+                            // of the code hashes actually used by the transaction, since it might have
                             // reused bytecode hashes from some of the previous ones.
                             contracts_used: self
                                 .state
@@ -904,8 +913,8 @@ impl<S: WriteStorage> VmInstance<S, HistoryEnabled> {
     pub fn save_current_vm_as_snapshot(&mut self) {
         self.snapshots.push(VmSnapshot {
             // Vm local state contains O(1) various parameters (registers/etc).
-            // The only "expensive" copying here is copying of the callstack.
-            // It will take O(callstack_depth) to copy it.
+            // The only "expensive" copying here is copying of the call stack.
+            // It will take `O(callstack_depth)` to copy it.
             // So it is generally recommended to get snapshots of the bootloader frame,
             // where the depth is 1.
             local_state: self.state.local_state.clone(),

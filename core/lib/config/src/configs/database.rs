@@ -1,7 +1,7 @@
+use std::time::Duration;
+
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
-
-use std::time::Duration;
 
 /// Mode of operation for the Merkle tree.
 ///
@@ -23,9 +23,6 @@ pub struct MerkleTreeConfig {
     /// Path to the RocksDB data directory for Merkle tree.
     #[serde(default = "MerkleTreeConfig::default_path")]
     pub path: String,
-    /// Path to merkle tree backup directory.
-    #[serde(default = "MerkleTreeConfig::default_backup_path")]
-    pub backup_path: String,
     /// Operation mode for the Merkle tree. If not specified, the full mode will be used.
     #[serde(default)]
     pub mode: MerkleTreeMode,
@@ -53,7 +50,6 @@ impl Default for MerkleTreeConfig {
     fn default() -> Self {
         Self {
             path: Self::default_path(),
-            backup_path: Self::default_backup_path(),
             mode: MerkleTreeMode::default(),
             multi_get_chunk_size: Self::default_multi_get_chunk_size(),
             block_cache_size_mb: Self::default_block_cache_size_mb(),
@@ -67,10 +63,6 @@ impl Default for MerkleTreeConfig {
 impl MerkleTreeConfig {
     fn default_path() -> String {
         "./db/lightweight-new".to_owned() // named this way for legacy reasons
-    }
-
-    fn default_backup_path() -> String {
-        "./db/backups".to_owned()
     }
 
     const fn default_multi_get_chunk_size() -> usize {
@@ -120,29 +112,11 @@ pub struct DBConfig {
     // ^ Filled in separately in `Self::from_env()`. We cannot use `serde(flatten)` because it
     // doesn't work with 'envy`.
     pub merkle_tree: MerkleTreeConfig,
-    /// Number of backups to keep.
-    #[serde(default = "DBConfig::default_backup_count")]
-    pub backup_count: usize,
-    /// Time interval between performing backups.
-    #[serde(default = "DBConfig::default_backup_interval_ms")]
-    pub backup_interval_ms: u64,
 }
 
 impl DBConfig {
     fn default_state_keeper_db_path() -> String {
         "./db/state_keeper".to_owned()
-    }
-
-    const fn default_backup_count() -> usize {
-        5
-    }
-
-    const fn default_backup_interval_ms() -> u64 {
-        60_000
-    }
-
-    pub fn backup_interval(&self) -> Duration {
-        Duration::from_millis(self.backup_interval_ms)
     }
 }
 

@@ -11,7 +11,7 @@ pub(crate) mod history_mode;
 pub mod tracers;
 mod types;
 
-/// This trait is a workaround on the Rust'c [orphan rule](orphan_rule).
+/// This trait is a workaround on the Rust's [orphan rule](orphan_rule).
 /// We need to convert a lot of types that come from two different versions of some crate,
 /// and `From`/`Into` traits are natural way of doing so. Unfortunately, we can't implement an
 /// external trait on a pair of external types, so we're unable to use these traits.
@@ -29,7 +29,7 @@ pub trait GlueInto<T>: Sized {
     fn glue_into(self) -> T;
 }
 
-// Blaknet `GlueInto` impl for any type that implements `GlueFrom`.
+// Blanket `GlueInto` impl for any type that implements `GlueFrom`.
 impl<T, U> GlueInto<U> for T
 where
     U: GlueFrom<T>,

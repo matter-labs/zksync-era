@@ -1,18 +1,18 @@
-use multivm::interface::{ExecutionResult, L2BlockEnv, VmExecutionResultAndLogs};
-use multivm::vm_latest::TransactionVmExt;
 use std::collections::HashMap;
-use zksync_types::l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log};
 
+use multivm::{
+    interface::{ExecutionResult, L2BlockEnv, VmExecutionResultAndLogs},
+    vm_latest::TransactionVmExt,
+};
 use zksync_types::{
-    block::{legacy_miniblock_hash, miniblock_hash, BlockGasCount},
+    block::{BlockGasCount, MiniblockHasher},
     event::extract_bytecodes_marked_as_known,
-    tx::tx_execution_info::TxExecutionStatus,
-    tx::{ExecutionMetrics, TransactionExecutionResult},
+    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
     vm_trace::Call,
     MiniblockNumber, ProtocolVersionId, StorageLogQuery, Transaction, VmEvent, H256,
 };
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
-use zksync_utils::concat_and_hash;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MiniblockUpdates {
@@ -29,9 +29,8 @@ pub struct MiniblockUpdates {
     pub timestamp: u64,
     pub number: u32,
     pub prev_block_hash: H256,
-    pub txs_rolling_hash: H256,
     pub virtual_blocks: u32,
-    pub protocol_version: Option<ProtocolVersionId>,
+    pub protocol_version: ProtocolVersionId,
 }
 
 impl MiniblockUpdates {
@@ -40,7 +39,7 @@ impl MiniblockUpdates {
         number: u32,
         prev_block_hash: H256,
         virtual_blocks: u32,
-        protocol_version: Option<ProtocolVersionId>,
+        protocol_version: ProtocolVersionId,
     ) -> Self {
         Self {
             executed_transactions: vec![],
@@ -55,19 +54,26 @@ impl MiniblockUpdates {
             timestamp,
             number,
             prev_block_hash,
-            txs_rolling_hash: H256::zero(),
             virtual_blocks,
             protocol_version,
         }
     }
 
-    pub(crate) fn extend_from_fictive_transaction(&mut self, result: VmExecutionResultAndLogs) {
+    pub(crate) fn extend_from_fictive_transaction(
+        &mut self,
+        result: VmExecutionResultAndLogs,
+        l1_gas_count: BlockGasCount,
+        execution_metrics: ExecutionMetrics,
+    ) {
         self.events.extend(result.logs.events);
         self.storage_logs.extend(result.logs.storage_logs);
         self.user_l2_to_l1_logs
             .extend(result.logs.user_l2_to_l1_logs);
         self.system_l2_to_l1_logs
             .extend(result.logs.system_l2_to_l1_logs);
+
+        self.l1_gas_count += l1_gas_count;
+        self.block_execution_metrics += execution_metrics;
     }
 
     pub(crate) fn extend_from_executed_transaction(
@@ -124,11 +130,8 @@ impl MiniblockUpdates {
         self.l1_gas_count += tx_l1_gas_this_tx;
         self.block_execution_metrics += execution_metrics;
         self.txs_encoding_size += tx.bootloader_encoding_size();
-
         self.storage_logs
             .extend(tx_execution_result.logs.storage_logs);
-
-        self.txs_rolling_hash = concat_and_hash(self.txs_rolling_hash, tx.hash());
 
         self.executed_transactions.push(TransactionExecutionResult {
             hash: tx.hash(),
@@ -145,15 +148,15 @@ impl MiniblockUpdates {
 
     /// Calculates miniblock hash based on the protocol version.
     pub(crate) fn get_miniblock_hash(&self) -> H256 {
-        match self.protocol_version {
-            Some(id) if id >= ProtocolVersionId::Version13 => miniblock_hash(
-                MiniblockNumber(self.number),
-                self.timestamp,
-                self.prev_block_hash,
-                self.txs_rolling_hash,
-            ),
-            _ => legacy_miniblock_hash(MiniblockNumber(self.number)),
+        let mut digest = MiniblockHasher::new(
+            MiniblockNumber(self.number),
+            self.timestamp,
+            self.prev_block_hash,
+        );
+        for tx in &self.executed_transactions {
+            digest.push_tx_hash(tx.hash);
         }
+        digest.finalize(self.protocol_version)
     }
 
     pub(crate) fn get_miniblock_env(&self) -> L2BlockEnv {
@@ -168,14 +171,15 @@ impl MiniblockUpdates {
 
 #[cfg(test)]
 mod tests {
+    use multivm::vm_latest::TransactionVmExt;
+
     use super::*;
     use crate::state_keeper::tests::{create_execution_result, create_transaction};
-    use multivm::vm_latest::TransactionVmExt;
 
     #[test]
     fn apply_empty_l2_tx() {
         let mut accumulator =
-            MiniblockUpdates::new(0, 0, H256::random(), 0, Some(ProtocolVersionId::latest()));
+            MiniblockUpdates::new(0, 0, H256::random(), 0, ProtocolVersionId::latest());
         let tx = create_transaction(10, 100);
         let bootloader_encoding_size = tx.bootloader_encoding_size();
         accumulator.extend_from_executed_transaction(

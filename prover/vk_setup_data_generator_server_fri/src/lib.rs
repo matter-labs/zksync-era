@@ -1,61 +1,65 @@
 #![feature(generic_const_exprs)]
 #![feature(allocator_api)]
 
+use std::{fs, fs::File, io::Read};
+
 use anyhow::Context as _;
 use circuit_definitions::circuit_definitions::aux_layer::{
     ZkSyncCompressionLayerStorageType, ZkSyncSnarkWrapperVK,
 };
-use std::fs;
-use std::fs::File;
-use std::io::Read;
-use zksync_prover_fri_types::circuit_definitions::aux_definitions::witness_oracle::VmWitnessOracle;
-use zksync_prover_fri_types::circuit_definitions::boojum::algebraic_props::round_function::AbsorptionModeOverwrite;
-use zksync_prover_fri_types::circuit_definitions::boojum::algebraic_props::sponge::GenericAlgebraicSponge;
-
-use zksync_prover_fri_types::circuit_definitions::boojum::cs::implementations::hints::{
-    DenseVariablesCopyHint, DenseWitnessCopyHint,
-};
-use zksync_prover_fri_types::circuit_definitions::boojum::cs::implementations::polynomial_storage::{
-    SetupBaseStorage, SetupStorage,
-};
-use zksync_prover_fri_types::circuit_definitions::boojum::cs::implementations::setup::FinalizationHintsForProver;
-use zksync_prover_fri_types::circuit_definitions::boojum::cs::implementations::verifier::VerificationKey;
-use zksync_prover_fri_types::circuit_definitions::boojum::cs::oracle::merkle_tree::MerkleTreeWithCap;
-use zksync_prover_fri_types::circuit_definitions::boojum::cs::oracle::TreeHasher;
-use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::GoldilocksField;
-use zksync_prover_fri_types::circuit_definitions::boojum::field::{PrimeField, SmallField};
-
-use zksync_prover_fri_types::circuit_definitions::boojum::field::traits::field_like::PrimeFieldLikeVectorized;
-use zksync_prover_fri_types::circuit_definitions::boojum::implementations::poseidon2::Poseidon2Goldilocks;
-use zksync_prover_fri_types::circuit_definitions::boojum::worker::Worker;
-
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::base_layer::{
-    ZkSyncBaseLayerCircuit, ZkSyncBaseLayerVerificationKey,
-};
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::{
-    ZkSyncRecursionLayerStorageType, ZkSyncRecursionLayerVerificationKey,
-};
-use zksync_prover_fri_types::circuit_definitions::{
-    ZkSyncDefaultRoundFunction, BASE_LAYER_CAP_SIZE, BASE_LAYER_FRI_LDE_FACTOR,
-};
-
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use zkevm_test_harness::prover_utils::create_base_layer_setup_data;
 use zksync_config::configs::FriProverConfig;
 use zksync_env_config::FromEnv;
-use zksync_types::proofs::AggregationRound;
-use zksync_types::zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
-use zksync_types::zkevm_test_harness::bellman::bn256::Bn256;
-use zksync_types::zkevm_test_harness::bellman::plonk::better_better_cs::setup::VerificationKey as SnarkVerificationKey;
-use zksync_types::zkevm_test_harness::witness::oracle::VmWitnessOracle as SnarkWitnessOracle;
+use zksync_prover_fri_types::{
+    circuit_definitions::{
+        aux_definitions::witness_oracle::VmWitnessOracle,
+        boojum::{
+            algebraic_props::{
+                round_function::AbsorptionModeOverwrite, sponge::GenericAlgebraicSponge,
+            },
+            cs::{
+                implementations::{
+                    hints::{DenseVariablesCopyHint, DenseWitnessCopyHint},
+                    polynomial_storage::{SetupBaseStorage, SetupStorage},
+                    setup::FinalizationHintsForProver,
+                    verifier::VerificationKey,
+                },
+                oracle::{merkle_tree::MerkleTreeWithCap, TreeHasher},
+            },
+            field::{
+                goldilocks::GoldilocksField, traits::field_like::PrimeFieldLikeVectorized,
+                PrimeField, SmallField,
+            },
+            implementations::poseidon2::Poseidon2Goldilocks,
+            worker::Worker,
+        },
+        circuit_definitions::{
+            base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerVerificationKey},
+            recursion_layer::{
+                ZkSyncRecursionLayerStorageType, ZkSyncRecursionLayerVerificationKey,
+            },
+        },
+        ZkSyncDefaultRoundFunction, BASE_LAYER_CAP_SIZE, BASE_LAYER_FRI_LDE_FACTOR,
+    },
+    ProverServiceDataKey,
+};
+use zksync_types::{
+    proofs::AggregationRound,
+    zkevm_test_harness::{
+        abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
+        bellman::{
+            bn256::Bn256, plonk::better_better_cs::setup::VerificationKey as SnarkVerificationKey,
+        },
+        witness::oracle::VmWitnessOracle as SnarkWitnessOracle,
+    },
+};
+#[cfg(feature = "gpu")]
+use {shivini::cs::GpuSetup, std::alloc::Global};
 
 pub mod commitment_utils;
 pub mod utils;
-
-use zksync_prover_fri_types::ProverServiceDataKey;
-#[cfg(feature = "gpu")]
-use {shivini::cs::GpuSetup, std::alloc::Global};
+pub mod vk_commitment_helper;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(
@@ -368,7 +372,7 @@ pub fn get_finalization_hints(
     key: ProverServiceDataKey,
 ) -> anyhow::Result<FinalizationHintsForProver> {
     let mut key = key;
-    // For NodeAggregation round we have only 1 finalization hints for all circuit type.
+    // For `NodeAggregation` round we have only 1 finalization hints for all circuit type.
     if key.round == AggregationRound::NodeAggregation {
         key.circuit_id = ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8;
     }

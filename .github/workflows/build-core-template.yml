@@ -9,10 +9,6 @@ on:
         description: "DOCKERHUB_TOKEN"
         required: true
     inputs:
-      image_tag:
-        description: "Tag of a built image to deploy"
-        type: string
-        required: true
       image_tag_suffix:
         description: "Optional suffix to override tag name generation"
         type: string
@@ -22,21 +18,26 @@ on:
         type: string
         default: "push"
         required: false
-
 jobs:
   build-images:
     name: Build and Push Docker Images
     env:
-      image_tag: ${{ inputs.image_tag }}
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
-    runs-on: [matterlabs-ci-runner]
+    runs-on: ${{ fromJSON('["matterlabs-ci-runner", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
     strategy:
       matrix:
-        component:
-          - server-v2
-          - external-node
-          - contract-verifier
-          - cross-external-nodes-checker
+          components:
+            - server-v2
+            - external-node
+            - contract-verifier
+            - cross-external-nodes-checker
+            - snapshots-creator
+          platforms:
+            - linux/amd64
+          include:
+            - components: external-node
+              platforms: linux/arm64
+
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
@@ -50,42 +51,90 @@ jobs:
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
 
+      - name: Download contracts
+        uses: actions/download-artifact@v4
+        with:
+          name: contracts
+          path: ./contracts/
+
       - name: start-services
         run: |
           echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
-          docker-compose -f docker-compose-runner.yml up -d zk geth postgres
+          mkdir -p ./volumes/postgres
+          docker compose up -d zk postgres
           ci_run sccache --start-server
 
       - name: init
         run: |
           ci_run git config --global --add safe.directory /usr/src/zksync
           ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
-          ci_run git config --global --add safe.directory /usr/src/zksync/etc/system-contracts
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-          ci_run zk
-          ci_run zk clean --all
-          ci_run zk run yarn
-          ci_run cp etc/tokens/{test,localhost}.json
-          ci_run zk compiler all
-          ci_run zk contract build
-          ci_run zk f yarn run l2-contracts build
+          ci_run zk || true
+          ci_run yarn zk build
           ci_run curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
       - name: login to Docker registries
-        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
         run: |
           ci_run docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-          ci_run gcloud auth configure-docker us-docker.pkg.dev,asia-docker.pkg.dev,europe-docker.pkg.dev -q
+          ci_run gcloud auth configure-docker us-docker.pkg.dev -q
 
       - name: update-images
         env:
           DOCKER_ACTION: ${{ inputs.action }}
-          COMPONENT: ${{ matrix.component }}
+          COMPONENT: ${{ matrix.components }}
+          PLATFORM: ${{ matrix.platforms }}
         run: |
           ci_run rustup default nightly-2023-08-21
-          ci_run zk docker $DOCKER_ACTION $COMPONENT -- --public
+          platform=$(echo $PLATFORM | tr '/' '-')
+          ci_run zk docker $DOCKER_ACTION --custom-tag=${IMAGE_TAG_SUFFIX} --platform=${PLATFORM} $COMPONENT
       - name: Show sccache stats
         if: always()
         run: |
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
+
+  create_manifest:
+    name: Create release manifest
+    runs-on: matterlabs-ci-runner
+    needs: build-images
+    if: ${{ inputs.action == 'push' }}
+    strategy:
+      matrix:
+        component:
+          - name: server-v2
+            platform: linux/amd64
+          - name: external-node
+            platform: linux/amd64,linux/arm64
+          - name: contract-verifier
+            platform: linux/amd64
+          - name: cross-external-nodes-checker
+            platform: linux/amd64
+          - name: snapshots-creator
+            platform: linux/amd64
+    env:
+      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
+    steps:
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+        with:
+          submodules: "recursive"
+      - name: login to Docker registries
+        run: |
+          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+          gcloud auth configure-docker us-docker.pkg.dev -q
+
+      - name: Create Docker manifest
+        run: |
+          docker_repositories=("matterlabs/${{ matrix.component.name }}" "us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component.name }}")
+          platforms=${{ matrix.component.platform }}
+          for repo in "${docker_repositories[@]}"; do
+            platform_tags=""
+            for platform in ${platforms//,/ }; do
+              platform=$(echo $platform | tr '/' '-')
+              platform_tags+=" --amend ${repo}:${IMAGE_TAG_SUFFIX}-${platform}"
+            done
+            for manifest in "${repo}:${IMAGE_TAG_SUFFIX}" "${repo}:2.0-${IMAGE_TAG_SUFFIX}" "${repo}:latest" "${repo}:latest2.0"; do
+              docker manifest create ${manifest} ${platform_tags}
+              docker manifest push ${manifest}
+            done
+          done

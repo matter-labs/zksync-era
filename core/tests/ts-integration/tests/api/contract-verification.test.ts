@@ -9,11 +9,12 @@ import { sleep } from 'zksync-web3/build/src/utils';
 // Regular expression to match ISO dates.
 const DATE_REGEX = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{6})?/;
 
-const ZKSOLC_VERSION = 'v1.3.16';
-const SOLC_VERSION = '0.8.21';
+const ZKSOLC_VERSION = 'v1.3.21';
+const SOLC_VERSION = '0.8.23';
+const ZK_VM_SOLC_VERSION = 'zkVM-0.8.23-1.0.0';
 
 const ZKVYPER_VERSION = 'v1.3.13';
-const VYPER_VERSION = '0.3.3';
+const VYPER_VERSION = '0.3.10';
 
 type HttpMethod = 'POST' | 'GET';
 
@@ -58,6 +59,32 @@ describe('Tests for the contract verification API', () => {
                 sourceCode: getContractSource('counter/counter.sol'),
                 compilerZksolcVersion: ZKSOLC_VERSION,
                 compilerSolcVersion: SOLC_VERSION,
+                optimizationUsed: true,
+                constructorArguments,
+                isSystem: true
+            };
+            let requestId = await query('POST', '/contract_verification', undefined, requestBody);
+
+            await expectVerifyRequestToSucceed(requestId, requestBody);
+        });
+
+        test('should test zkVM solc contract verification', async () => {
+            let artifact = contracts.counter;
+            // TODO: use plugin compilation when it's ready instead of pre-compiled bytecode.
+            artifact.bytecode = fs.readFileSync(
+                `${process.env.ZKSYNC_HOME}/core/tests/ts-integration/contracts/counter/zkVM_bytecode.txt`,
+                'utf8'
+            );
+
+            const counterContract = await deployContract(alice, artifact, []);
+            const constructorArguments = counterContract.interface.encodeDeploy([]);
+
+            const requestBody = {
+                contractAddress: counterContract.address,
+                contractName: 'contracts/counter/counter.sol:Counter',
+                sourceCode: getContractSource('counter/counter.sol'),
+                compilerZksolcVersion: ZKSOLC_VERSION,
+                compilerSolcVersion: ZK_VM_SOLC_VERSION,
                 optimizationUsed: true,
                 constructorArguments,
                 isSystem: true

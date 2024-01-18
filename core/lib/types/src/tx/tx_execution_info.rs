@@ -1,14 +1,15 @@
-use crate::fee::TransactionExecutionMetrics;
-use crate::l2_to_l1_log::L2ToL1Log;
+use std::ops::{Add, AddAssign};
+
 use crate::{
     commitment::SerializeCommitment,
+    fee::TransactionExecutionMetrics,
+    l2_to_l1_log::L2ToL1Log,
     writes::{
         InitialStorageWrite, RepeatedStorageWrite, BYTES_PER_DERIVED_KEY,
         BYTES_PER_ENUMERATION_INDEX,
     },
     ProtocolVersionId,
 };
-use std::ops::{Add, AddAssign};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum TxExecutionStatus {
@@ -68,6 +69,7 @@ pub struct ExecutionMetrics {
     pub cycles_used: u32,
     pub computational_gas_used: u32,
     pub pubdata_published: u32,
+    pub estimated_circuits_used: f32,
 }
 
 impl ExecutionMetrics {
@@ -85,6 +87,7 @@ impl ExecutionMetrics {
             cycles_used: tx_metrics.cycles_used,
             computational_gas_used: tx_metrics.computational_gas_used,
             pubdata_published: tx_metrics.pubdata_published,
+            estimated_circuits_used: tx_metrics.estimated_circuits_used,
         }
     }
 
@@ -118,6 +121,7 @@ impl Add for ExecutionMetrics {
             cycles_used: self.cycles_used + other.cycles_used,
             computational_gas_used: self.computational_gas_used + other.computational_gas_used,
             pubdata_published: self.pubdata_published + other.pubdata_published,
+            estimated_circuits_used: self.estimated_circuits_used + other.estimated_circuits_used,
         }
     }
 }

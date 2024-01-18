@@ -1,12 +1,12 @@
-use crate::vm_m5::storage::Storage;
-use crate::vm_m5::vm_instance::VmInstance;
-use crate::vm_m5::vm_with_bootloader::{
-    eth_price_per_pubdata_byte, BOOTLOADER_HEAP_PAGE, TX_GAS_LIMIT_OFFSET,
-};
 use zk_evm_1_3_1::aux_structures::Timestamp;
-
 use zksync_types::U256;
 use zksync_utils::ceil_div_u256;
+
+use crate::vm_m5::{
+    storage::Storage,
+    vm_instance::VmInstance,
+    vm_with_bootloader::{eth_price_per_pubdata_byte, BOOTLOADER_HEAP_PAGE, TX_GAS_LIMIT_OFFSET},
+};
 
 impl<S: Storage> VmInstance<S> {
     pub(crate) fn tx_body_refund(
@@ -75,7 +75,7 @@ impl<S: Storage> VmInstance<S> {
     ) -> u32 {
         // TODO (SMA-1715): Make users pay for the block overhead
         0
-
+        // ```
         // let pubdata_published = self.pubdata_published(from_timestamp);
         //
         // let total_gas_spent = gas_remaining_before - self.gas_remaining();
@@ -120,6 +120,7 @@ impl<S: Storage> VmInstance<S> {
         //     );
         //     0
         // }
+        // ```
     }
 
     // TODO (SMA-1715): Make users pay for the block overhead
@@ -133,39 +134,39 @@ impl<S: Storage> VmInstance<S> {
         _l2_l1_logs: usize,
     ) -> u32 {
         0
-
+        // ```
         // let overhead_for_block_gas = U256::from(crate::transaction_data::block_overhead_gas(
         //     gas_per_pubdata_byte_limit,
         // ));
-
+        //
         // let encoded_len = U256::from(encoded_len);
         // let pubdata_published = U256::from(pubdata_published);
         // let gas_spent_on_computation = U256::from(gas_spent_on_computation);
         // let number_of_decommitment_requests = U256::from(number_of_decommitment_requests);
         // let l2_l1_logs = U256::from(l2_l1_logs);
-
+        //
         // let tx_slot_overhead = ceil_div_u256(overhead_for_block_gas, MAX_TXS_IN_BLOCK.into());
-
+        //
         // let overhead_for_length = ceil_div_u256(
         //     encoded_len * overhead_for_block_gas,
         //     BOOTLOADER_TX_ENCODING_SPACE.into(),
         // );
-
+        //
         // let actual_overhead_for_pubdata = ceil_div_u256(
         //     pubdata_published * overhead_for_block_gas,
         //     MAX_PUBDATA_PER_BLOCK.into(),
         // );
-
+        //
         // let actual_gas_limit_overhead = ceil_div_u256(
         //     gas_spent_on_computation * overhead_for_block_gas,
         //     MAX_BLOCK_MULTIINSTANCE_GAS_LIMIT.into(),
         // );
-
+        //
         // let code_decommitter_sorter_circuit_overhead = ceil_div_u256(
         //     number_of_decommitment_requests * overhead_for_block_gas,
         //     GEOMETRY_CONFIG.limit_for_code_decommitter_sorter.into(),
         // );
-
+        //
         // let l1_l2_logs_overhead = ceil_div_u256(
         //     l2_l1_logs * overhead_for_block_gas,
         //     std::cmp::min(
@@ -174,7 +175,7 @@ impl<S: Storage> VmInstance<S> {
         //     )
         //     .into(),
         // );
-
+        //
         // let overhead = vec![
         //     tx_slot_overhead,
         //     overhead_for_length,
@@ -186,8 +187,9 @@ impl<S: Storage> VmInstance<S> {
         // .into_iter()
         // .max()
         // .unwrap();
-
+        //
         // overhead.as_u32()
+        // ```
     }
 
     pub(crate) fn get_tx_gas_limit(&self, tx_index: usize) -> u32 {

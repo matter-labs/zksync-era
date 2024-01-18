@@ -1,17 +1,15 @@
-// Built-in uses
 use std::convert::{TryFrom, TryInto};
 
-// External uses
 use rlp::{DecoderError, Rlp, RlpStream};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use zksync_basic_types::H256;
+use zksync_system_constants::{DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE, MAX_ENCODED_TX_SIZE};
+use zksync_utils::{
+    bytecode::{hash_bytecode, validate_bytecode, InvalidBytecodeError},
+    concat_and_hash, u256_to_h256,
+};
 
-use zksync_system_constants::{MAX_GAS_PER_PUBDATA_BYTE, USED_BOOTLOADER_MEMORY_BYTES};
-use zksync_utils::bytecode::{hash_bytecode, validate_bytecode, InvalidBytecodeError};
-use zksync_utils::{concat_and_hash, u256_to_h256};
-
-// Local uses
 use super::{EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE};
 use crate::{
     fee::Fee,
@@ -60,7 +58,7 @@ pub struct CallRequest {
     /// Access list
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub access_list: Option<AccessList>,
-    /// Eip712 meta
+    /// EIP712 meta
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub eip712_meta: Option<Eip712Meta>,
 }
@@ -97,7 +95,7 @@ impl CallRequestBuilder {
         self
     }
 
-    /// Set transfered value (None for no transfer)
+    /// Set transferred, value (None for no transfer)
     pub fn gas_price(mut self, gas_price: U256) -> Self {
         self.call_request.gas_price = Some(gas_price);
         self
@@ -113,7 +111,7 @@ impl CallRequestBuilder {
         self
     }
 
-    /// Set transfered value (None for no transfer)
+    /// Set transferred, value (None for no transfer)
     pub fn value(mut self, value: U256) -> Self {
         self.call_request.value = Some(value);
         self
@@ -177,7 +175,7 @@ pub enum SerializationTransactionError {
     AccessListsNotSupported,
     #[error("nonce has max value")]
     TooBigNonce,
-    /// TooHighGas is a sanity error to avoid extremely big numbers specified
+    /// Sanity check error to avoid extremely big numbers specified
     /// to gas and pubdata price.
     #[error("{0}")]
     TooHighGas(String),
@@ -444,7 +442,7 @@ impl TransactionRequest {
         match self.transaction_type {
             // EIP-2930 (0x01)
             Some(x) if x == EIP_2930_TX_TYPE.into() => {
-                // rlp_opt(rlp, &self.chain_id);
+                // `rlp_opt(rlp, &self.chain_id);`
                 rlp.append(&chain_id);
                 rlp.append(&self.nonce);
                 rlp.append(&self.gas_price);
@@ -456,7 +454,7 @@ impl TransactionRequest {
             }
             // EIP-1559 (0x02)
             Some(x) if x == EIP_1559_TX_TYPE.into() => {
-                // rlp_opt(rlp, &self.chain_id);
+                // `rlp_opt(rlp, &self.chain_id);`
                 rlp.append(&chain_id);
                 rlp.append(&self.nonce);
                 rlp_opt(rlp, &self.max_priority_fee_per_gas);
@@ -745,8 +743,8 @@ impl TransactionRequest {
             }
             meta.gas_per_pubdata
         } else {
-            // For transactions that don't support corresponding field, a default is chosen.
-            U256::from(MAX_GAS_PER_PUBDATA_BYTE)
+            // For transactions that don't support corresponding field, a maximal default value is chosen.
+            DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE.into()
         };
 
         let max_priority_fee_per_gas = self.max_priority_fee_per_gas.unwrap_or(self.gas_price);
@@ -823,7 +821,7 @@ impl L2Tx {
 
     /// Ensures that encoded transaction size is not greater than `max_tx_size`.
     fn check_encoded_size(&self, max_tx_size: usize) -> Result<(), SerializationTransactionError> {
-        // since abi_encoding_len returns 32-byte words multiplication on 32 is needed
+        // since `abi_encoding_len` returns 32-byte words multiplication on 32 is needed
         let tx_size = self.abi_encoding_len() * 32;
         if tx_size > max_tx_size {
             return Err(SerializationTransactionError::OversizedData(
@@ -884,7 +882,7 @@ impl TryFrom<CallRequest> for L1Tx {
     type Error = SerializationTransactionError;
     fn try_from(tx: CallRequest) -> Result<Self, Self::Error> {
         // L1 transactions have no limitations on the transaction size.
-        let tx: L2Tx = L2Tx::from_request(tx.into(), USED_BOOTLOADER_MEMORY_BYTES)?;
+        let tx: L2Tx = L2Tx::from_request(tx.into(), MAX_ENCODED_TX_SIZE)?;
 
         // Note, that while the user has theoretically provided the fee for ETH on L1,
         // the payment to the operator as well as refunds happen on L2 and so all the ETH
@@ -892,7 +890,7 @@ impl TryFrom<CallRequest> for L1Tx {
         let total_needed_eth =
             tx.execute.value + tx.common_data.fee.max_fee_per_gas * tx.common_data.fee.gas_limit;
 
-        // Note, that we do not set refund_recipient here, to keep it explicitly 0,
+        // Note, that we do not set `refund_recipient` here, to keep it explicitly 0,
         // so that during fee estimation it is taken into account that the refund recipient may be a different address
         let common_data = L1TxCommonData {
             sender: tx.common_data.initiator_address,
@@ -947,13 +945,14 @@ pub fn validate_factory_deps(
 
 #[cfg(test)]
 mod tests {
+    use secp256k1::SecretKey;
+
     use super::*;
     use crate::web3::{
         api::Namespace,
         transports::test::TestTransport,
         types::{TransactionParameters, H256, U256},
     };
-    use secp256k1::SecretKey;
 
     #[tokio::test]
     async fn decode_real_tx() {
@@ -1397,7 +1396,7 @@ mod tests {
         let random_tx_max_size = 1_000_000; // bytes
         let private_key = H256::random();
         let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
-        // choose some number that devides on 8 and is > 1_000_000
+        // choose some number that divides on 8 and is `> 1_000_000`
         let factory_dep = vec![2u8; 1600000];
         let factory_deps: Vec<Vec<u8>> = factory_dep.chunks(32).map(|s| s.into()).collect();
         let mut tx = TransactionRequest {
@@ -1489,21 +1488,15 @@ mod tests {
             access_list: None,
             eip712_meta: None,
         };
-        let l2_tx = L2Tx::from_request(
-            call_request_with_nonce.clone().into(),
-            USED_BOOTLOADER_MEMORY_BYTES,
-        )
-        .unwrap();
+        let l2_tx = L2Tx::from_request(call_request_with_nonce.clone().into(), MAX_ENCODED_TX_SIZE)
+            .unwrap();
         assert_eq!(l2_tx.nonce(), Nonce(123u32));
 
         let mut call_request_without_nonce = call_request_with_nonce;
         call_request_without_nonce.nonce = None;
 
-        let l2_tx = L2Tx::from_request(
-            call_request_without_nonce.into(),
-            USED_BOOTLOADER_MEMORY_BYTES,
-        )
-        .unwrap();
+        let l2_tx =
+            L2Tx::from_request(call_request_without_nonce.into(), MAX_ENCODED_TX_SIZE).unwrap();
         assert_eq!(l2_tx.nonce(), Nonce(0u32));
     }
 }

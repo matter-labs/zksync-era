@@ -3,12 +3,14 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use multivm::interface::VmExecutionResultAndLogs;
 use zksync_mempool::{L2TxFilter, MempoolInfo, MempoolStore};
 use zksync_types::{
     block::BlockGasCount, tx::ExecutionMetrics, Address, Nonce, PriorityOpId, Transaction,
 };
 
 use super::metrics::StateKeeperGauges;
+use crate::gas_tracker::{gas_count_from_metrics, gas_count_from_tx_and_metrics};
 
 #[derive(Debug, Clone)]
 pub struct MempoolGuard(Arc<Mutex<MempoolStore>>);
@@ -63,4 +65,22 @@ impl MempoolGuard {
 pub struct ExecutionMetricsForCriteria {
     pub l1_gas: BlockGasCount,
     pub execution_metrics: ExecutionMetrics,
+}
+
+impl ExecutionMetricsForCriteria {
+    pub fn new(
+        tx: Option<&Transaction>,
+        execution_result: &VmExecutionResultAndLogs,
+    ) -> ExecutionMetricsForCriteria {
+        let execution_metrics = execution_result.get_execution_metrics(tx);
+        let l1_gas = match tx {
+            Some(tx) => gas_count_from_tx_and_metrics(tx, &execution_metrics),
+            None => gas_count_from_metrics(&execution_metrics),
+        };
+
+        ExecutionMetricsForCriteria {
+            l1_gas,
+            execution_metrics,
+        }
+    }
 }

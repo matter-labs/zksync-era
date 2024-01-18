@@ -1,13 +1,15 @@
-use crate::error::{RpcSignerError, SignerError};
-use crate::json_rpc_signer::messages::JsonRpcRequest;
-use crate::raw_ethereum_tx::TransactionParameters;
-use crate::EthereumSigner;
-
 use jsonrpc_core::types::response::Output;
-use zksync_types::tx::primitives::PackedEthSignature;
-use zksync_types::{Address, EIP712TypedStructure, Eip712Domain, H256};
-
 use serde_json::Value;
+use zksync_types::{
+    tx::primitives::PackedEthSignature, Address, EIP712TypedStructure, Eip712Domain, H256,
+};
+
+use crate::{
+    error::{RpcSignerError, SignerError},
+    json_rpc_signer::messages::JsonRpcRequest,
+    raw_ethereum_tx::TransactionParameters,
+    EthereumSigner,
+};
 
 pub fn is_signature_from_address(
     signature: &PackedEthSignature,
@@ -85,7 +87,7 @@ impl EthereumSigner for JsonRpcSigner {
         }
     }
 
-    /// Signs typed struct using ethereum private key by EIP-712 signature standard.
+    /// Signs typed struct using Ethereum private key by EIP-712 signature standard.
     /// Result of this function is the equivalent of RPC calling `eth_signTypedData`.
     async fn sign_typed_data<S: EIP712TypedStructure + Sync>(
         &self,
@@ -169,7 +171,7 @@ impl JsonRpcSigner {
             None => AddressOrIndex::Index(0),
         };
 
-        // EthereumSigner can support many different addresses,
+        // `EthereumSigner` can support many different addresses,
         // we define only the one we need by the index
         // of receiving from the server or by the address itself.
         signer.detect_address(address_or_index).await?;
@@ -192,7 +194,7 @@ impl JsonRpcSigner {
         self.address.ok_or(SignerError::DefineAddress)
     }
 
-    /// Specifies the Ethreum address which sets the address for which all other requests will be processed.
+    /// Specifies the Ethereum address which sets the address for which all other requests will be processed.
     /// If the address has already been set, then it will all the same change to a new one.
     pub async fn detect_address(
         &mut self,
@@ -325,12 +327,13 @@ impl JsonRpcSigner {
 }
 
 mod messages {
-    use crate::raw_ethereum_tx::TransactionParameters;
     use hex::encode;
     use serde::{Deserialize, Serialize};
     use zksync_types::{
         eip712_signature::utils::get_eip712_json, Address, EIP712TypedStructure, Eip712Domain,
     };
+
+    use crate::raw_ethereum_tx::TransactionParameters;
 
     #[derive(Debug, Serialize, Deserialize)]
     pub struct JsonRpcRequest {
@@ -376,7 +379,7 @@ mod messages {
             Self::create("eth_sign", params)
         }
 
-        /// Signs typed struct using ethereum private key by EIP-712 signature standard.
+        /// Signs typed struct using Ethereum private key by EIP-712 signature standard.
         /// The address to sign with must be unlocked.
         pub fn sign_typed_data<S: EIP712TypedStructure + Sync>(
             address: Address,
@@ -429,7 +432,6 @@ mod messages {
 
 #[cfg(test)]
 mod tests {
-    use crate::raw_ethereum_tx::TransactionParameters;
     use actix_web::{
         post,
         web::{self, Data},
@@ -439,11 +441,10 @@ mod tests {
     use jsonrpc_core::{Failure, Id, Output, Success, Version};
     use parity_crypto::publickey::{Generator, KeyPair, Random};
     use serde_json::json;
-
     use zksync_types::{tx::primitives::PackedEthSignature, Address};
 
     use super::{is_signature_from_address, messages::JsonRpcRequest};
-    use crate::{EthereumSigner, JsonRpcSigner};
+    use crate::{raw_ethereum_tx::TransactionParameters, EthereumSigner, JsonRpcSigner};
 
     #[post("/")]
     async fn index(req: web::Json<JsonRpcRequest>, state: web::Data<State>) -> impl Responder {

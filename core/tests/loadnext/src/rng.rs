@@ -1,7 +1,6 @@
 use std::convert::TryInto;
 
 use rand::{rngs::SmallRng, seq::SliceRandom, thread_rng, RngCore, SeedableRng};
-
 use zksync::web3::signing::keccak256;
 use zksync_types::H256;
 
@@ -46,7 +45,7 @@ impl LoadtestRng {
         // We chain the current seed bytes and the Ethereum private key together,
         // and then calculate the hash of this data.
         // This way we obtain a derived seed, unique for each wallet, which will result in
-        // an uniques set of operations for each account.
+        // an unique set of operations for each account.
         let input_bytes: Vec<u8> = self
             .seed
             .iter()

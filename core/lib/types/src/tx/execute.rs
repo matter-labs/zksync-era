@@ -1,7 +1,8 @@
-use crate::{web3::ethabi, Address, EIP712TypedStructure, StructBuilder, H256, U256};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use zksync_utils::ZeroPrefixHexSerde;
+
+use crate::{web3::ethabi, Address, EIP712TypedStructure, StructBuilder, H256, U256};
 
 /// `Execute` transaction executes a previously deployed smart contract in the L2 rollup.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -30,7 +31,7 @@ impl EIP712TypedStructure for Execute {
         builder.add_member("data", &self.calldata.as_slice());
         // Factory deps are not included into the transaction signature, since they are parsed from the
         // transaction metadata.
-        // Note that for the deploy transactions all the dependencies are implicitly included into the "calldataHash"
+        // Note that for the deploy transactions all the dependencies are implicitly included into the `calldataHash`
         // field, because the deps are referenced in the bytecode of the "main" contract bytecode.
     }
 }

@@ -1,26 +1,28 @@
 #[cfg(feature = "gpu")]
 pub mod gpu_socket_listener {
+    use std::{net::SocketAddr, time::Instant};
+
+    use anyhow::Context as _;
     use shivini::synthesis_utils::{
         init_base_layer_cs_for_repeated_proving, init_recursive_layer_cs_for_repeated_proving,
     };
-    use std::net::SocketAddr;
-    use std::time::Instant;
+    use tokio::{
+        io::copy,
+        net::{TcpListener, TcpStream},
+        sync::watch,
+    };
     use zksync_dal::ConnectionPool;
-    use zksync_types::proofs::AggregationRound;
-    use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
+    use zksync_object_store::bincode;
+    use zksync_prover_fri_types::{CircuitWrapper, ProverServiceDataKey, WitnessVectorArtifacts};
+    use zksync_types::proofs::{AggregationRound, GpuProverInstanceStatus, SocketAddress};
     use zksync_vk_setup_data_server_fri::{
         get_finalization_hints, get_round_for_recursive_circuit_type,
     };
 
-    use crate::utils::{GpuProverJob, ProvingAssembly, SharedWitnessVectorQueue};
-    use anyhow::Context as _;
-    use tokio::sync::watch;
-    use tokio::{
-        io::copy,
-        net::{TcpListener, TcpStream},
+    use crate::{
+        metrics::METRICS,
+        utils::{GpuProverJob, ProvingAssembly, SharedWitnessVectorQueue},
     };
-    use zksync_object_store::bincode;
-    use zksync_prover_fri_types::{CircuitWrapper, ProverServiceDataKey, WitnessVectorArtifacts};
 
     pub(crate) struct SocketListener {
         address: SocketAddress,
@@ -88,9 +90,9 @@ pub mod gpu_socket_listener {
                     .await
                     .context("could not accept connection")?
                     .0;
-                tracing::trace!(
-                    "Received new assembly send connection, waited for {}ms.",
-                    now.elapsed().as_millis()
+                tracing::info!(
+                    "Received new witness vector generator connection, waited for {:?}.",
+                    now.elapsed()
                 );
 
                 self.handle_incoming_file(stream)
@@ -108,35 +110,43 @@ pub mod gpu_socket_listener {
                 .await
                 .context("Failed reading from stream")?;
             let file_size_in_gb = assembly.len() / (1024 * 1024 * 1024);
-            tracing::trace!(
-                "Read file of size: {}GB from stream took: {} seconds",
+            tracing::info!(
+                "Read file of size: {}GB from stream after {:?}",
                 file_size_in_gb,
-                started_at.elapsed().as_secs()
+                started_at.elapsed()
             );
-            metrics::histogram!(
-                    "prover_fri.prover_fri.witness_vector_blob_time",
-                    started_at.elapsed(),
-                    "blob_size_in_gb" => file_size_in_gb.to_string(),
-            );
+
+            METRICS.witness_vector_blob_time[&(file_size_in_gb as u64)]
+                .observe(started_at.elapsed());
+
             let witness_vector = bincode::deserialize::<WitnessVectorArtifacts>(&assembly)
                 .context("Failed deserializing witness vector")?;
+            tracing::info!(
+                "Deserialized witness vector after {:?}",
+                started_at.elapsed()
+            );
             let assembly = generate_assembly_for_repeated_proving(
                 witness_vector.prover_job.circuit_wrapper.clone(),
                 witness_vector.prover_job.job_id,
                 witness_vector.prover_job.setup_data_key.circuit_id,
             )
             .context("generate_assembly_for_repeated_proving()")?;
+            tracing::info!("Generated assembly after {:?}", started_at.elapsed());
             let gpu_prover_job = GpuProverJob {
                 witness_vector_artifacts: witness_vector,
                 assembly,
             };
-            // acquiring lock from queue and updating db must be done atomically otherwise it results in TOCTTOU
+            // acquiring lock from queue and updating db must be done atomically otherwise it results in `TOCTTOU`
             // Time-of-Check to Time-of-Use
             let mut queue = self.queue.lock().await;
 
             queue
                 .add(gpu_prover_job)
                 .map_err(|err| anyhow::anyhow!("Failed saving witness vector to queue: {err}"))?;
+            tracing::info!(
+                "Added witness vector to queue after {:?}",
+                started_at.elapsed()
+            );
             let status = if queue.capacity() == queue.size() {
                 GpuProverInstanceStatus::Full
             } else {
@@ -150,6 +160,11 @@ pub mod gpu_socket_listener {
                 .fri_gpu_prover_queue_dal()
                 .update_prover_instance_status(self.address.clone(), status, self.zone.clone())
                 .await;
+            tracing::info!(
+                "Marked prover as {:?} after {:?}",
+                status,
+                started_at.elapsed()
+            );
             Ok(())
         }
     }
@@ -185,11 +200,9 @@ pub mod gpu_socket_listener {
             job_id,
             started_at.elapsed()
         );
-        metrics::histogram!(
-                "prover_fri.prover.gpu_assembly_generation_time",
-                started_at.elapsed(),
-                "circuit_type" => circuit_id.to_string()
-        );
+
+        METRICS.gpu_assembly_generation_time[&circuit_id.to_string()].observe(started_at.elapsed());
+
         Ok(cs)
     }
 }

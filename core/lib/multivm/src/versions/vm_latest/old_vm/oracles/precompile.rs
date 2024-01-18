@@ -1,14 +1,13 @@
-use zk_evm_1_4_0::{
-    abstractions::Memory,
-    abstractions::PrecompileCyclesWitness,
-    abstractions::PrecompilesProcessor,
+use std::convert::TryFrom;
+
+use zk_evm_1_4_1::{
+    abstractions::{Memory, PrecompileCyclesWitness, PrecompilesProcessor},
     aux_structures::{LogQuery, MemoryQuery, Timestamp},
-    zk_evm_abstractions::precompiles::DefaultPrecompilesProcessor,
+    zk_evm_abstractions::precompiles::{ecrecover, keccak256, sha256, PrecompileAddress},
 };
 
-use crate::vm_latest::old_vm::history_recorder::{HistoryEnabled, HistoryMode, HistoryRecorder};
-
 use super::OracleWithHistory;
+use crate::vm_latest::old_vm::history_recorder::{HistoryEnabled, HistoryMode, HistoryRecorder};
 
 /// Wrap of DefaultPrecompilesProcessor that store queue
 /// of timestamp when precompiles are called to be executed.
@@ -16,40 +15,44 @@ use super::OracleWithHistory;
 /// saving timestamps allows us to check the exact number
 /// of log queries, that were used during the tx execution.
 #[derive(Debug, Clone)]
-pub struct PrecompilesProcessorWithHistory<const B: bool, H: HistoryMode> {
+pub struct PrecompilesProcessorWithHistory<H: HistoryMode> {
     pub timestamp_history: HistoryRecorder<Vec<Timestamp>, H>,
-    pub default_precompiles_processor: DefaultPrecompilesProcessor<B>,
+    pub precompile_cycles_history: HistoryRecorder<Vec<(PrecompileAddress, usize)>, H>,
 }
 
-impl<const B: bool, H: HistoryMode> Default for PrecompilesProcessorWithHistory<B, H> {
+impl<H: HistoryMode> Default for PrecompilesProcessorWithHistory<H> {
     fn default() -> Self {
         Self {
             timestamp_history: Default::default(),
-            default_precompiles_processor: DefaultPrecompilesProcessor,
+            precompile_cycles_history: Default::default(),
         }
     }
 }
 
-impl<const B: bool> OracleWithHistory for PrecompilesProcessorWithHistory<B, HistoryEnabled> {
+impl OracleWithHistory for PrecompilesProcessorWithHistory<HistoryEnabled> {
     fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
         self.timestamp_history.rollback_to_timestamp(timestamp);
+        self.precompile_cycles_history
+            .rollback_to_timestamp(timestamp);
     }
 }
 
-impl<const B: bool, H: HistoryMode> PrecompilesProcessorWithHistory<B, H> {
+impl<H: HistoryMode> PrecompilesProcessorWithHistory<H> {
     pub fn get_timestamp_history(&self) -> &Vec<Timestamp> {
         self.timestamp_history.inner()
     }
 
     pub fn delete_history(&mut self) {
         self.timestamp_history.delete_history();
+        self.precompile_cycles_history.delete_history();
     }
 }
 
-impl<const B: bool, H: HistoryMode> PrecompilesProcessor for PrecompilesProcessorWithHistory<B, H> {
+impl<H: HistoryMode> PrecompilesProcessor for PrecompilesProcessorWithHistory<H> {
     fn start_frame(&mut self) {
-        self.default_precompiles_processor.start_frame();
+        // there are no precompiles to rollback, do nothing
     }
+
     fn execute_precompile<M: Memory>(
         &mut self,
         monotonic_cycle_counter: u32,
@@ -63,13 +66,47 @@ impl<const B: bool, H: HistoryMode> PrecompilesProcessor for PrecompilesProcesso
         // where operations and timestamp have different types.
         self.timestamp_history
             .push(query.timestamp, query.timestamp);
-        self.default_precompiles_processor.execute_precompile(
-            monotonic_cycle_counter,
-            query,
-            memory,
-        )
+
+        let address_low = u16::from_le_bytes([query.address.0[19], query.address.0[18]]);
+        if let Ok(precompile_address) = PrecompileAddress::try_from(address_low) {
+            let rounds = match precompile_address {
+                PrecompileAddress::Keccak256 => {
+                    // pure function call, non-revertable
+                    keccak256::keccak256_rounds_function::<M, false>(
+                        monotonic_cycle_counter,
+                        query,
+                        memory,
+                    )
+                    .0
+                }
+                PrecompileAddress::SHA256 => {
+                    // pure function call, non-revertable
+                    sha256::sha256_rounds_function::<M, false>(
+                        monotonic_cycle_counter,
+                        query,
+                        memory,
+                    )
+                    .0
+                }
+                PrecompileAddress::Ecrecover => {
+                    // pure function call, non-revertable
+                    ecrecover::ecrecover_function::<M, false>(
+                        monotonic_cycle_counter,
+                        query,
+                        memory,
+                    )
+                    .0
+                }
+            };
+
+            self.precompile_cycles_history
+                .push((precompile_address, rounds), query.timestamp);
+        };
+
+        None
     }
+
     fn finish_frame(&mut self, _panicked: bool) {
-        self.default_precompiles_processor.finish_frame(_panicked);
+        // there are no revertible precompile yes, so we are ok
     }
 }

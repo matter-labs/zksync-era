@@ -1,9 +1,9 @@
-use serde::Deserialize;
+use std::{net::SocketAddr, num::NonZeroU32, time::Duration};
 
-use std::{net::SocketAddr, time::Duration};
+use serde::Deserialize;
+use zksync_basic_types::H256;
 
 pub use crate::configs::PrometheusConfig;
-use zksync_basic_types::H256;
 
 /// API configuration.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -38,15 +38,11 @@ pub struct Web3JsonRpcConfig {
     pub subscriptions_limit: Option<u32>,
     /// Interval between polling db for pubsub (in ms).
     pub pubsub_polling_interval: Option<u64>,
-    /// number of threads per server
-    pub threads_per_server: u32,
     /// Tx nonce: how far ahead from the committed nonce can it be.
     pub max_nonce_ahead: u32,
     /// The multiplier to use when suggesting gas price. Should be higher than one,
     /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block
     pub gas_price_scale_factor: f64,
-    /// Inbound transaction limit used for throttling
-    pub transactions_per_sec_limit: Option<u32>,
     /// Timeout for requests (in s)
     pub request_timeout: Option<u64>,
     /// Private keys for accounts managed by node
@@ -55,9 +51,17 @@ pub struct Web3JsonRpcConfig {
     pub estimate_gas_scale_factor: f64,
     /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
     pub estimate_gas_acceptable_overestimation: u32,
+    /// Whether to use the compatibility mode for gas estimation for L1->L2 transactions.
+    /// During the migration to the 1.4.1 fee model, there will be a period, when the server
+    /// will already have the 1.4.1 fee model, while the L1 contracts will still expect the transactions
+    /// to use the previous fee model with much higher overhead.
+    ///
+    /// When set to `true`, the API will ensure to return gasLimit is high enough overhead for both the old
+    /// and the new fee model when estimating L1->L2 transactions.  
+    pub l1_to_l2_transactions_compatibility_mode: bool,
     ///  Max possible size of an ABI encoded tx (in bytes).
     pub max_tx_size: usize,
-    /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the api server panics.
+    /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the API server panics.
     /// This is a temporary solution to mitigate API request resulting in thousands of DB queries.
     pub vm_execution_cache_misses_limit: Option<usize>,
     /// Max number of VM instances to be concurrently spawned by the API server.
@@ -71,12 +75,6 @@ pub struct Web3JsonRpcConfig {
     /// Latest values cache size in MiBs. The default value is 128 MiB. If set to 0, the latest
     /// values cache will be disabled.
     pub latest_values_cache_size_mb: Option<usize>,
-    /// Override value for the amount of threads used for HTTP RPC server.
-    /// If not set, the value from `threads_per_server` is used.
-    pub http_threads: Option<u32>,
-    /// Override value for the amount of threads used for WebSocket RPC server.
-    /// If not set, the value from `threads_per_server` is used.
-    pub ws_threads: Option<u32>,
     /// Limit for fee history block range.
     pub fee_history_limit: Option<u64>,
     /// Maximum number of requests in a single batch JSON RPC request. Default is 500.
@@ -86,7 +84,7 @@ pub struct Web3JsonRpcConfig {
     /// Maximum number of requests per minute for the WebSocket server.
     /// The value is per active connection.
     /// Note: For HTTP, rate limiting is expected to be configured on the infra level.
-    pub websocket_requests_per_minute_limit: Option<u32>,
+    pub websocket_requests_per_minute_limit: Option<NonZeroU32>,
     /// Tree API url, currently used to proxy `getProof` calls to the tree
     pub tree_api_url: Option<String>,
 }
@@ -105,22 +103,19 @@ impl Web3JsonRpcConfig {
             filters_limit: Some(10000),
             subscriptions_limit: Some(10000),
             pubsub_polling_interval: Some(200),
-            threads_per_server: 1,
             max_nonce_ahead: 50,
             gas_price_scale_factor: 1.2,
-            transactions_per_sec_limit: Default::default(),
             request_timeout: Default::default(),
             account_pks: Default::default(),
             estimate_gas_scale_factor: 1.2,
             estimate_gas_acceptable_overestimation: 1000,
+            l1_to_l2_transactions_compatibility_mode: true,
             max_tx_size: 1000000,
             vm_execution_cache_misses_limit: Default::default(),
             vm_concurrency_limit: Default::default(),
             factory_deps_cache_size_mb: Default::default(),
             initial_writes_cache_size_mb: Default::default(),
             latest_values_cache_size_mb: Default::default(),
-            http_threads: Default::default(),
-            ws_threads: Default::default(),
             fee_history_limit: Default::default(),
             max_batch_request_size: Default::default(),
             max_response_body_size_mb: Default::default(),
@@ -183,14 +178,6 @@ impl Web3JsonRpcConfig {
         self.latest_values_cache_size_mb.unwrap_or(128) * super::BYTES_IN_MEGABYTE
     }
 
-    pub fn http_server_threads(&self) -> usize {
-        self.http_threads.unwrap_or(self.threads_per_server) as usize
-    }
-
-    pub fn ws_server_threads(&self) -> usize {
-        self.ws_threads.unwrap_or(self.threads_per_server) as usize
-    }
-
     pub fn fee_history_limit(&self) -> u64 {
         self.fee_history_limit.unwrap_or(1024)
     }
@@ -204,9 +191,10 @@ impl Web3JsonRpcConfig {
         self.max_response_body_size_mb.unwrap_or(10) * super::BYTES_IN_MEGABYTE
     }
 
-    pub fn websocket_requests_per_minute_limit(&self) -> u32 {
+    pub fn websocket_requests_per_minute_limit(&self) -> NonZeroU32 {
         // The default limit is chosen to be reasonably permissive.
-        self.websocket_requests_per_minute_limit.unwrap_or(6000)
+        self.websocket_requests_per_minute_limit
+            .unwrap_or(NonZeroU32::new(6000).unwrap())
     }
 
     pub fn tree_api_url(&self) -> Option<String> {
@@ -232,8 +220,6 @@ pub struct ContractVerificationApiConfig {
     pub port: u16,
     /// URL to access REST server.
     pub url: String,
-    /// number of threads per server
-    pub threads_per_server: u32,
 }
 
 impl ContractVerificationApiConfig {

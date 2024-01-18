@@ -1,18 +1,19 @@
 //! Tests not tied to the zksync domain.
 
-use rand::{rngs::StdRng, seq::SliceRandom, Rng, SeedableRng};
-use test_casing::test_casing;
-
 use std::{cmp, mem};
 
+use rand::{rngs::StdRng, seq::SliceRandom, Rng, SeedableRng};
+use test_casing::test_casing;
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
-    Database, HashTree, MerkleTree, PatchSet, Patched, TreeInstruction, TreeLogEntry,
+    Database, HashTree, MerkleTree, PatchSet, Patched, TreeEntry, TreeInstruction, TreeLogEntry,
     TreeRangeDigest,
 };
 use zksync_types::{AccountTreeId, Address, StorageKey, H256, U256};
 
-use crate::common::{compute_tree_hash, convert_to_writes, generate_key_value_pairs, KVS_AND_HASH};
+use crate::common::{
+    compute_tree_hash, convert_to_writes, generate_key_value_pairs, ENTRIES_AND_HASH,
+};
 
 #[test]
 fn compute_tree_hash_works_correctly() {
@@ -25,7 +26,7 @@ fn compute_tree_hash_works_correctly() {
     let address: Address = "4b3af74f66ab1f0da3f2e4ec7a3cb99baf1af7b2".parse().unwrap();
     let key = StorageKey::new(AccountTreeId::new(address), H256::zero());
     let key = key.hashed_key_u256();
-    let hash = compute_tree_hash([(key, H256([1; 32]))].into_iter());
+    let hash = compute_tree_hash([TreeEntry::new(key, 1, H256([1; 32]))].into_iter());
     assert_eq!(hash, EXPECTED_HASH);
 }
 
@@ -59,7 +60,7 @@ fn output_proofs_are_computed_correctly_on_empty_tree(kv_count: u64) {
 
     let reads = instructions
         .iter()
-        .map(|(key, _)| (*key, TreeInstruction::Read));
+        .map(|instr| TreeInstruction::Read(instr.key()));
     let mut reads: Vec<_> = reads.collect();
     reads.shuffle(&mut rng);
     let output = tree.extend_with_proofs(reads.clone());
@@ -77,25 +78,26 @@ fn entry_proofs_are_computed_correctly_on_empty_tree(kv_count: u64) {
     let expected_hash = compute_tree_hash(kvs.iter().copied());
     tree.extend(kvs.clone());
 
-    let existing_keys: Vec<_> = kvs.iter().map(|(key, _)| *key).collect();
+    let existing_keys: Vec<_> = kvs.iter().map(|entry| entry.key).collect();
     let entries = tree.entries_with_proofs(0, &existing_keys).unwrap();
     assert_eq!(entries.len(), existing_keys.len());
-    for ((key, value), entry) in kvs.iter().zip(entries) {
-        entry.verify(&Blake2Hasher, *key, expected_hash);
-        assert_eq!(entry.base.value_hash, *value);
+    for (input_entry, entry) in kvs.iter().zip(entries) {
+        entry.verify(&Blake2Hasher, expected_hash);
+        assert_eq!(entry.base, *input_entry);
     }
 
     // Test some keys adjacent to existing ones.
-    let adjacent_keys = kvs.iter().flat_map(|(key, _)| {
+    let adjacent_keys = kvs.iter().flat_map(|entry| {
+        let key = entry.key;
         [
-            *key ^ (U256::one() << rng.gen_range(0..256)),
-            *key ^ (U256::one() << rng.gen_range(0..256)),
-            *key ^ (U256::one() << rng.gen_range(0..256)),
+            key ^ (U256::one() << rng.gen_range(0..256)),
+            key ^ (U256::one() << rng.gen_range(0..256)),
+            key ^ (U256::one() << rng.gen_range(0..256)),
         ]
     });
     let random_keys = generate_key_value_pairs(kv_count..(kv_count * 2))
         .into_iter()
-        .map(|(key, _)| key);
+        .map(|entry| entry.key);
     let mut missing_keys: Vec<_> = adjacent_keys.chain(random_keys).collect();
     missing_keys.shuffle(&mut rng);
 
@@ -103,7 +105,8 @@ fn entry_proofs_are_computed_correctly_on_empty_tree(kv_count: u64) {
     assert_eq!(entries.len(), missing_keys.len());
     for (key, entry) in missing_keys.iter().zip(entries) {
         assert!(entry.base.is_empty());
-        entry.verify(&Blake2Hasher, *key, expected_hash);
+        assert_eq!(entry.base.key, *key);
+        entry.verify(&Blake2Hasher, expected_hash);
     }
 }
 
@@ -117,10 +120,13 @@ fn proofs_are_computed_correctly_for_mixed_instructions() {
     let output = tree.extend(kvs.clone());
     let old_root_hash = output.root_hash;
 
-    let reads = kvs.iter().map(|(key, _)| (*key, TreeInstruction::Read));
+    let reads = kvs.iter().map(|entry| TreeInstruction::Read(entry.key));
     let mut instructions: Vec<_> = reads.collect();
     // Overwrite all keys in the tree.
-    let writes: Vec<_> = kvs.iter().map(|(key, _)| (*key, H256::zero())).collect();
+    let writes: Vec<_> = kvs
+        .iter()
+        .map(|entry| entry.with_value(H256::zero()))
+        .collect();
     let expected_hash = compute_tree_hash(writes.iter().copied());
     instructions.extend(convert_to_writes(&writes));
     instructions.shuffle(&mut rng);
@@ -145,7 +151,7 @@ fn proofs_are_computed_correctly_for_missing_keys() {
     let mut instructions = convert_to_writes(&kvs);
     let missing_reads = generate_key_value_pairs(20..50)
         .into_iter()
-        .map(|(key, _)| (key, TreeInstruction::Read));
+        .map(|entry| TreeInstruction::Read(entry.key));
     instructions.extend(missing_reads);
     instructions.shuffle(&mut rng);
 
@@ -161,7 +167,7 @@ fn proofs_are_computed_correctly_for_missing_keys() {
 }
 
 fn test_intermediate_commits(db: &mut impl Database, chunk_size: usize) {
-    let (kvs, expected_hash) = &*KVS_AND_HASH;
+    let (kvs, expected_hash) = &*ENTRIES_AND_HASH;
     let mut final_hash = H256::zero();
     let mut tree = MerkleTree::new(db);
     for chunk in kvs.chunks(chunk_size) {
@@ -172,7 +178,7 @@ fn test_intermediate_commits(db: &mut impl Database, chunk_size: usize) {
 
     let latest_version = tree.latest_version().unwrap();
     for version in 0..=latest_version {
-        tree.verify_consistency(version).unwrap();
+        tree.verify_consistency(version, true).unwrap();
     }
 }
 
@@ -183,7 +189,7 @@ fn root_hash_is_computed_correctly_with_intermediate_commits(chunk_size: usize) 
 
 #[test_casing(6, [3, 5, 10, 17, 28, 42])]
 fn output_proofs_are_computed_correctly_with_intermediate_commits(chunk_size: usize) {
-    let (kvs, expected_hash) = &*KVS_AND_HASH;
+    let (kvs, expected_hash) = &*ENTRIES_AND_HASH;
 
     let mut tree = MerkleTree::new(PatchSet::default());
     let mut root_hash = Blake2Hasher.empty_subtree_hash(256);
@@ -198,8 +204,8 @@ fn output_proofs_are_computed_correctly_with_intermediate_commits(chunk_size: us
 
 #[test_casing(4, [10, 17, 28, 42])]
 fn entry_proofs_are_computed_correctly_with_intermediate_commits(chunk_size: usize) {
-    let (kvs, _) = &*KVS_AND_HASH;
-    let all_keys: Vec<_> = kvs.iter().map(|(key, _)| *key).collect();
+    let (kvs, _) = &*ENTRIES_AND_HASH;
+    let all_keys: Vec<_> = kvs.iter().map(|entry| entry.key).collect();
     let mut tree = MerkleTree::new(PatchSet::default());
     let mut root_hashes = vec![];
     for chunk in kvs.chunks(chunk_size) {
@@ -210,8 +216,9 @@ fn entry_proofs_are_computed_correctly_with_intermediate_commits(chunk_size: usi
         let entries = tree.entries_with_proofs(version as u64, &all_keys).unwrap();
         assert_eq!(entries.len(), all_keys.len());
         for (i, (key, entry)) in all_keys.iter().zip(entries).enumerate() {
+            assert_eq!(entry.base.key, *key);
             assert_eq!(entry.base.is_empty(), i >= (version + 1) * chunk_size);
-            entry.verify(&Blake2Hasher, *key, output.root_hash);
+            entry.verify(&Blake2Hasher, output.root_hash);
         }
     }
 
@@ -220,14 +227,15 @@ fn entry_proofs_are_computed_correctly_with_intermediate_commits(chunk_size: usi
         let entries = tree.entries_with_proofs(version as u64, &all_keys).unwrap();
         assert_eq!(entries.len(), all_keys.len());
         for (i, (key, entry)) in all_keys.iter().zip(entries).enumerate() {
+            assert_eq!(entry.base.key, *key);
             assert_eq!(entry.base.is_empty(), i >= (version + 1) * chunk_size);
-            entry.verify(&Blake2Hasher, *key, root_hash);
+            entry.verify(&Blake2Hasher, root_hash);
         }
     }
 }
 
 fn test_accumulated_commits<DB: Database>(db: DB, chunk_size: usize) -> DB {
-    let (kvs, expected_hash) = &*KVS_AND_HASH;
+    let (kvs, expected_hash) = &*ENTRIES_AND_HASH;
     let mut db = Patched::new(db);
     let mut final_hash = H256::zero();
     for chunk in kvs.chunks(chunk_size) {
@@ -242,7 +250,7 @@ fn test_accumulated_commits<DB: Database>(db: DB, chunk_size: usize) -> DB {
     let tree = MerkleTree::new(&mut db);
     let latest_version = tree.latest_version().unwrap();
     for version in 0..=latest_version {
-        tree.verify_consistency(version).unwrap();
+        tree.verify_consistency(version, true).unwrap();
     }
     db
 }
@@ -253,9 +261,12 @@ fn accumulating_commits(chunk_size: usize) {
 }
 
 fn test_root_hash_computing_with_reverts(db: &mut impl Database) {
-    let (kvs, expected_hash) = &*KVS_AND_HASH;
+    let (kvs, expected_hash) = &*ENTRIES_AND_HASH;
     let (initial_update, final_update) = kvs.split_at(75);
-    let key_updates: Vec<_> = kvs.iter().map(|(key, _)| (*key, H256([255; 32]))).collect();
+    let key_updates: Vec<_> = kvs
+        .iter()
+        .map(|entry| entry.with_value(H256([255; 32])))
+        .collect();
     let key_inserts = generate_key_value_pairs(100..200);
 
     let mut tree = MerkleTree::new(db);
@@ -300,7 +311,7 @@ fn test_root_hash_computing_with_key_updates(db: impl Database) {
     // Overwrite some `kvs` entries and add some new ones.
     let changed_kvs = kvs.iter_mut().enumerate().filter_map(|(i, kv)| {
         if i % 3 == 1 {
-            kv.1 = H256::from_low_u64_be((i + 100) as u64);
+            *kv = kv.with_value(H256::from_low_u64_be((i + 100) as u64));
             return Some(*kv);
         }
         None
@@ -361,12 +372,12 @@ fn root_hash_is_computed_correctly_with_key_updates() {
 fn proofs_are_computed_correctly_with_key_updates(updated_keys: usize) {
     const RNG_SEED: u64 = 1_234;
 
-    let (kvs, expected_hash) = &*KVS_AND_HASH;
+    let (kvs, expected_hash) = &*ENTRIES_AND_HASH;
     let mut rng = StdRng::seed_from_u64(RNG_SEED);
 
     let old_instructions: Vec<_> = kvs[..updated_keys]
         .iter()
-        .map(|(key, _)| (*key, TreeInstruction::Write(H256([255; 32]))))
+        .map(|entry| TreeInstruction::Write(entry.with_value(H256([255; 32]))))
         .collect();
     // Move the updated keys to the random places in the `kvs` vector.
     let mut writes = convert_to_writes(kvs);
@@ -386,11 +397,11 @@ fn proofs_are_computed_correctly_with_key_updates(updated_keys: usize) {
     assert_eq!(output.root_hash(), Some(*expected_hash));
     output.verify_proofs(&Blake2Hasher, root_hash, &instructions);
 
-    let keys: Vec<_> = kvs.iter().map(|(key, _)| *key).collect();
+    let keys: Vec<_> = kvs.iter().map(|entry| entry.key).collect();
     let proofs = tree.entries_with_proofs(1, &keys).unwrap();
-    for ((key, value), proof) in kvs.iter().zip(proofs) {
-        assert_eq!(proof.base.value_hash, *value);
-        proof.verify(&Blake2Hasher, *key, *expected_hash);
+    for (entry, proof) in kvs.iter().zip(proofs) {
+        assert_eq!(proof.base, *entry);
+        proof.verify(&Blake2Hasher, *expected_hash);
     }
 }
 
@@ -417,7 +428,11 @@ fn test_root_hash_equals_to_previous_implementation(db: &mut impl Database) {
         })
     });
     let values = (0..100).map(H256::from_low_u64_be);
-    let kvs: Vec<_> = keys.zip(values).collect();
+    let kvs: Vec<_> = keys
+        .zip(values)
+        .enumerate()
+        .map(|(idx, (key, value))| TreeEntry::new(key, idx as u64 + 1, value))
+        .collect();
 
     let expected_hash = compute_tree_hash(kvs.iter().copied());
     assert_eq!(expected_hash, PREV_IMPL_HASH);
@@ -437,13 +452,13 @@ fn root_hash_equals_to_previous_implementation() {
 
 #[test_casing(7, [2, 3, 5, 10, 17, 28, 42])]
 fn range_proofs_with_multiple_existing_items(range_size: usize) {
-    let (kvs, expected_hash) = &*KVS_AND_HASH;
+    let (kvs, expected_hash) = &*ENTRIES_AND_HASH;
     assert!(range_size >= 2 && range_size <= kvs.len());
 
     let mut tree = MerkleTree::new(PatchSet::default());
     tree.extend(kvs.clone());
 
-    let mut sorted_keys: Vec<_> = kvs.iter().map(|(key, _)| *key).collect();
+    let mut sorted_keys: Vec<_> = kvs.iter().map(|entry| entry.key).collect();
     sorted_keys.sort_unstable();
 
     for start_idx in 0..(sorted_keys.len() - range_size) {
@@ -460,10 +475,10 @@ fn range_proofs_with_multiple_existing_items(range_size: usize) {
         let other_entries = tree.entries(0, other_keys).unwrap();
 
         let mut range = TreeRangeDigest::new(&Blake2Hasher, *first_key, &first_entry);
-        for (key, entry) in other_keys.iter().zip(other_entries) {
-            range.update(*key, entry);
+        for entry in other_entries {
+            range.update(entry);
         }
-        let range_hash = range.finalize(*last_key, &last_entry);
+        let range_hash = range.finalize(&last_entry);
         assert_eq!(range_hash, *expected_hash);
     }
 }
@@ -479,7 +494,7 @@ fn range_proofs_with_random_ranges() {
     const RNG_SEED: u64 = 321;
 
     let mut rng = StdRng::seed_from_u64(RNG_SEED);
-    let (kvs, expected_hash) = &*KVS_AND_HASH;
+    let (kvs, expected_hash) = &*ENTRIES_AND_HASH;
     let mut tree = MerkleTree::new(PatchSet::default());
     tree.extend(kvs.clone());
 
@@ -493,9 +508,9 @@ fn range_proofs_with_random_ranges() {
         }
 
         // Find out keys falling into the range.
-        let keys_in_range = kvs
-            .iter()
-            .filter_map(|&(key, _)| (key > start_key && key < end_key).then_some(key));
+        let keys_in_range = kvs.iter().filter_map(|entry| {
+            (entry.key > start_key && entry.key < end_key).then_some(entry.key)
+        });
         let mut keys_in_range: Vec<_> = keys_in_range.collect();
         keys_in_range.sort_unstable();
         println!("Proving range with {} keys", keys_in_range.len());
@@ -506,25 +521,25 @@ fn range_proofs_with_random_ranges() {
         let other_entries = tree.entries(0, &keys_in_range).unwrap();
 
         let mut range = TreeRangeDigest::new(&Blake2Hasher, start_key, &first_entry);
-        for (key, entry) in keys_in_range.iter().zip(other_entries) {
-            range.update(*key, entry);
+        for entry in other_entries {
+            range.update(entry);
         }
-        let range_hash = range.finalize(end_key, &last_entry);
+        let range_hash = range.finalize(&last_entry);
         assert_eq!(range_hash, *expected_hash);
     }
 }
 
 /// RocksDB-specific tests.
 mod rocksdb {
+    use std::collections::BTreeMap;
+
     use serde::{Deserialize, Serialize};
     use serde_with::{hex::Hex, serde_as};
     use tempfile::TempDir;
-
-    use std::collections::BTreeMap;
-
-    use super::*;
     use zksync_merkle_tree::{MerkleTreeColumnFamily, MerkleTreePruner, RocksDBWrapper};
     use zksync_storage::RocksDB;
+
+    use super::*;
 
     #[derive(Debug)]
     struct Harness {
@@ -633,7 +648,7 @@ mod rocksdb {
     fn tree_tags_mismatch() {
         let Harness { mut db, dir: _dir } = Harness::new();
         let mut tree = MerkleTree::new(&mut db);
-        tree.extend(vec![(U256::zero(), H256::zero())]);
+        tree.extend(vec![TreeEntry::new(U256::zero(), 1, H256::zero())]);
 
         MerkleTree::with_hasher(&mut db, ());
     }
@@ -643,7 +658,7 @@ mod rocksdb {
     fn tree_tags_mismatch_with_cold_restart() {
         let Harness { db, dir } = Harness::new();
         let mut tree = MerkleTree::new(db);
-        tree.extend(vec![(U256::zero(), H256::zero())]);
+        tree.extend(vec![TreeEntry::new(U256::zero(), 1, H256::zero())]);
         drop(tree);
 
         let db = RocksDBWrapper::new(dir.path());

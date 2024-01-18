@@ -1,12 +1,13 @@
-use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
-
 use std::time::Duration;
 
 use multivm::interface::{VmExecutionResultAndLogs, VmMemoryMetrics};
+use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
 use zksync_state::StorageViewMetrics;
-use zksync_types::event::{extract_long_l2_to_l1_messages, extract_published_bytecodes};
-use zksync_types::fee::TransactionExecutionMetrics;
-use zksync_types::storage_writes_deduplicator::StorageWritesDeduplicator;
+use zksync_types::{
+    event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
+    fee::TransactionExecutionMetrics,
+    storage_writes_deduplicator::StorageWritesDeduplicator,
+};
 use zksync_utils::bytecode::bytecode_len_in_bytes;
 
 use crate::metrics::InteractionType;
@@ -239,5 +240,6 @@ pub(super) fn collect_tx_execution_metrics(
         computational_gas_used: result.statistics.computational_gas_used,
         total_updated_values_size: writes_metrics.total_updated_values_size,
         pubdata_published: result.statistics.pubdata_published,
+        estimated_circuits_used: result.statistics.estimated_circuits_used,
     }
 }

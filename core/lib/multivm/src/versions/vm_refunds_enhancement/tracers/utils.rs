@@ -5,7 +5,6 @@ use zk_evm_1_3_3::{
         FarCallABI, FarCallForwardPageType, FatPointer, LogOpcode, Opcode, UMAOpcode,
     },
 };
-
 use zksync_system_constants::{
     ECRECOVER_PRECOMPILE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS,
     L1_MESSENGER_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
@@ -13,13 +12,15 @@ use zksync_system_constants::{
 use zksync_types::U256;
 use zksync_utils::u256_to_h256;
 
-use crate::vm_refunds_enhancement::constants::{
-    BOOTLOADER_HEAP_PAGE, VM_HOOK_PARAMS_COUNT, VM_HOOK_PARAMS_START_POSITION, VM_HOOK_POSITION,
-};
-use crate::vm_refunds_enhancement::old_vm::{
-    history_recorder::HistoryMode,
-    memory::SimpleMemory,
-    utils::{aux_heap_page_from_base, heap_page_from_base},
+use crate::vm_refunds_enhancement::{
+    constants::{
+        BOOTLOADER_HEAP_PAGE, VM_HOOK_PARAMS_COUNT, VM_HOOK_PARAMS_START_POSITION, VM_HOOK_POSITION,
+    },
+    old_vm::{
+        history_recorder::HistoryMode,
+        memory::SimpleMemory,
+        utils::{aux_heap_page_from_base, heap_page_from_base},
+    },
 };
 
 #[derive(Clone, Debug, Copy)]
@@ -54,7 +55,7 @@ impl VmHook {
 
         let value = data.src1_value.value;
 
-        // Only UMA opcodes in the bootloader serve for vm hooks
+        // Only `UMA` opcodes in the bootloader serve for vm hooks
         if !matches!(opcode_variant.opcode, Opcode::UMA(UMAOpcode::HeapWrite))
             || heap_page != BOOTLOADER_HEAP_PAGE
             || fat_ptr.offset != VM_HOOK_POSITION * 32
@@ -94,7 +95,7 @@ pub(crate) fn get_debug_log<H: HistoryMode>(
     let msg = String::from_utf8(msg).expect("Invalid debug message");
     let data = U256::from_big_endian(&data);
 
-    // For long data, it is better to use hex-encoding for greater readibility
+    // For long data, it is better to use hex-encoding for greater readability
     let data_str = if data > U256::from(u64::max_value()) {
         let mut bytes = [0u8; 32];
         data.to_big_endian(&mut bytes);
@@ -109,7 +110,7 @@ pub(crate) fn get_debug_log<H: HistoryMode>(
 }
 
 /// Reads the memory slice represented by the fat pointer.
-/// Note, that the fat pointer must point to the accesible memory (i.e. not cleared up yet).
+/// Note, that the fat pointer must point to the accessible memory (i.e. not cleared up yet).
 pub(crate) fn read_pointer<H: HistoryMode>(
     memory: &SimpleMemory<H>,
     pointer: FatPointer,

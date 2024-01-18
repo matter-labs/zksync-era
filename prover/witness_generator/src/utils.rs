@@ -1,29 +1,36 @@
-use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::GoldilocksExt2;
-use zksync_prover_fri_types::circuit_definitions::boojum::gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::base_layer::{
-    ZkSyncBaseLayerClosedFormInput,
+use multivm::utils::get_used_bootloader_memory_bytes;
+use zkevm_test_harness::{
+    boojum::field::goldilocks::GoldilocksField, witness::full_block_artifact::BlockBasicCircuits,
 };
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::{
-    ZkSyncRecursiveLayerCircuit,
-};
-
-use zksync_prover_fri_types::circuit_definitions::encodings::recursion_request::RecursionQueueSimulator;
-
-use zkevm_test_harness::boojum::field::goldilocks::GoldilocksField;
-use zkevm_test_harness::witness::full_block_artifact::BlockBasicCircuits;
 use zksync_object_store::{
     serialize_using_bincode, AggregationsKey, Bucket, ClosedFormInputKey, FriCircuitKey,
     ObjectStore, StoredObject,
 };
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness;
-use zksync_prover_fri_types::circuit_definitions::ZkSyncDefaultRoundFunction;
-use zksync_prover_fri_types::{CircuitWrapper, FriProofWrapper};
-use zksync_system_constants::USED_BOOTLOADER_MEMORY_BYTES;
-use zksync_types::proofs::AggregationRound;
-use zksync_types::{L1BatchNumber, U256};
+use zksync_prover_fri_types::{
+    circuit_definitions::{
+        boojum::{
+            field::goldilocks::GoldilocksExt2,
+            gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge,
+        },
+        circuit_definitions::{
+            base_layer::ZkSyncBaseLayerClosedFormInput,
+            recursion_layer::ZkSyncRecursiveLayerCircuit,
+        },
+        encodings::recursion_request::RecursionQueueSimulator,
+        zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness,
+        ZkSyncDefaultRoundFunction,
+    },
+    CircuitWrapper, FriProofWrapper,
+};
+use zksync_types::{proofs::AggregationRound, L1BatchNumber, ProtocolVersionId, U256};
 
-pub fn expand_bootloader_contents(packed: &[(usize, U256)]) -> Vec<u8> {
-    let mut result = vec![0u8; USED_BOOTLOADER_MEMORY_BYTES];
+pub fn expand_bootloader_contents(
+    packed: &[(usize, U256)],
+    protocol_version: ProtocolVersionId,
+) -> Vec<u8> {
+    let full_length = get_used_bootloader_memory_bytes(protocol_version.into());
+
+    let mut result = vec![0u8; full_length];
 
     for (offset, value) in packed {
         value.to_big_endian(&mut result[(offset * 32)..(offset + 1) * 32]);

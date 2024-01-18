@@ -1,9 +1,48 @@
 #!/usr/bin/env bash
 
+RED='\033[0;31m'
+WHITE_BOLD='\033[1;37m'
+NC='\033[0m' # No Color
+
+# checks that the current directory that user is in, is inside the $ZKSYNC_HOME.
+# We depend on this variable in multiple places - so running from a different directory might have
+# some surprising side effects (like loading wrong binaries etc).
+check_subdirectory() {
+    if [[ -z "$ZKSYNC_HOME" ]]; then
+        echo -e "${RED}Error: ZKSYNC_HOME is not set.${NC}"
+        return 1
+    fi
+
+    ZKSYNC_HOME_ABS=$(realpath "$ZKSYNC_HOME")
+    CURRENT_DIR_ABS=$(realpath .)
+
+    if [[ "$CURRENT_DIR_ABS" != "$ZKSYNC_HOME_ABS"* ]]; then
+        echo -e "${RED}Warning: You are not in a subdirectory of ZKSYNC_HOME ($ZKSYNC_HOME_ABS).${NC}"
+        return 1
+    fi
+    return 0
+}
+
+
+# Currently many parts of our zk typescript are checked & verified with yarn v1.22.19 - and might fail with newer versions of yarn.
+check_yarn_version() {
+    desired_version="1.22"
+    installed_version=$(yarn --version | cut -d'.' -f1,2)
+
+    if [ "$installed_version" != "$desired_version" ]; then
+        echo -e "${RED}Warning: Yarn is not at the desired version ($desired_version). Installed version is ($installed_version).${NC}"
+        echo -e "This might cause errors - we recommend to run: ${WHITE_BOLD} yarn set version $desired_version.${NC}"
+    fi
+}
+
+# We must do these checks here, in the shell script, otherwise people console will be flooded with errors
+# and it will be hard for them to see what went wrong.
+check_subdirectory
+check_yarn_version
 cd $ZKSYNC_HOME
 yarn && yarn zk build
-    
-if [ -n "$1" ]; then
+
+if [ ! -z "$1" ]; then
     # can't start this with yarn since it has quirks with `--` as an argument
     node -- $ZKSYNC_HOME/infrastructure/zk/build/index.js "$@"
 fi

@@ -1,15 +1,3 @@
-use super::utils::{computational_gas_price, print_debug_if_needed};
-use crate::vm_m6::{
-    history_recorder::HistoryMode,
-    memory::SimpleMemory,
-    oracles::tracer::{
-        utils::{gas_spent_on_bytecodes_and_long_messages_this_opcode, VmHook},
-        BootloaderTracer, ExecutionEndTracer, PendingRefundTracer, PubdataSpentTracer,
-    },
-    vm_instance::get_vm_hook_params,
-};
-
-use crate::vm_m6::oracles::tracer::{CallTracer, StorageInvocationTracer};
 use zk_evm_1_3_1::{
     abstractions::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
@@ -18,8 +6,20 @@ use zk_evm_1_3_1::{
 };
 use zksync_types::vm_trace::Call;
 
+use super::utils::{computational_gas_price, print_debug_if_needed};
+use crate::vm_m6::{
+    history_recorder::HistoryMode,
+    memory::SimpleMemory,
+    oracles::tracer::{
+        utils::{gas_spent_on_bytecodes_and_long_messages_this_opcode, VmHook},
+        BootloaderTracer, CallTracer, ExecutionEndTracer, PendingRefundTracer, PubdataSpentTracer,
+        StorageInvocationTracer,
+    },
+    vm_instance::get_vm_hook_params,
+};
+
 /// Allows any opcodes, but tells the VM to end the execution once the tx is over.
-// Internally depeds on Bootloader's VMHooks to get the notification once the transaction is finished.
+// Internally depends on Bootloader's `VMHooks` to get the notification once the transaction is finished.
 #[derive(Debug)]
 pub struct OneTxTracer<H: HistoryMode> {
     tx_has_been_processed: bool,

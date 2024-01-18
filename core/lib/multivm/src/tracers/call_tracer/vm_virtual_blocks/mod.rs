@@ -1,20 +1,23 @@
-use zk_evm_1_3_3::tracing::{AfterExecutionData, VmLocalStateData};
-use zk_evm_1_3_3::zkevm_opcode_defs::{
-    FarCallABI, FatPointer, Opcode, RetOpcode, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER,
-    RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
+use zk_evm_1_3_3::{
+    tracing::{AfterExecutionData, VmLocalStateData},
+    zkevm_opcode_defs::{
+        FarCallABI, FatPointer, Opcode, RetOpcode, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER,
+        RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
+    },
 };
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
-use zksync_types::vm_trace::{Call, CallType};
-use zksync_types::FarCallOpcode;
-use zksync_types::U256;
-
-use crate::interface::{
-    dyn_tracers::vm_1_3_3::DynTracer, VmExecutionResultAndLogs, VmRevertReason,
+use zksync_types::{
+    vm_trace::{Call, CallType},
+    FarCallOpcode, U256,
 };
-use crate::tracers::call_tracer::{CallTracer, FarcallAndNearCallCount};
-use crate::vm_virtual_blocks::{
-    ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory, VmTracer,
+
+use crate::{
+    interface::{dyn_tracers::vm_1_3_3::DynTracer, VmExecutionResultAndLogs, VmRevertReason},
+    tracers::call_tracer::CallTracer,
+    vm_virtual_blocks::{
+        ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory, VmTracer,
+    },
 };
 
 impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
@@ -27,9 +30,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
     ) {
         match data.opcode.variant.opcode {
             Opcode::NearCall(_) => {
-                if let Some(last) = self.stack.last_mut() {
-                    last.near_calls_after += 1;
-                }
+                self.increase_near_call_count();
             }
             Opcode::FarCall(far_call) => {
                 // We use parent gas for properly calculating gas used in the trace.
@@ -50,10 +51,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
                 };
 
                 self.handle_far_call_op_code_virtual_blocks(state, data, memory, &mut current_call);
-                self.stack.push(FarcallAndNearCallCount {
-                    farcall: current_call,
-                    near_calls_after: 0,
-                });
+                self.push_call_and_update_stats(current_call, 0);
             }
             Opcode::Ret(ret_code) => {
                 self.handle_ret_op_code_virtual_blocks(state, data, memory, ret_code);
@@ -140,7 +138,7 @@ impl CallTracer {
         let fat_data_pointer =
             state.vm_local_state.registers[RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER as usize];
 
-        // if fat_data_pointer is not a pointer then there is no output
+        // if `fat_data_pointer` is not a pointer then there is no output
         let output = if fat_data_pointer.is_pointer {
             let fat_data_pointer = FatPointer::from_u256(fat_data_pointer.value);
             if !fat_data_pointer.is_trivial() {
@@ -187,7 +185,7 @@ impl CallTracer {
 
         if current_call.near_calls_after > 0 {
             current_call.near_calls_after -= 1;
-            self.stack.push(current_call);
+            self.push_call_and_update_stats(current_call.farcall, current_call.near_calls_after);
             return;
         }
 
@@ -203,7 +201,7 @@ impl CallTracer {
         if let Some(parent_call) = self.stack.last_mut() {
             parent_call.farcall.calls.push(current_call.farcall);
         } else {
-            self.stack.push(current_call);
+            self.push_call_and_update_stats(current_call.farcall, current_call.near_calls_after);
         }
     }
 }

@@ -1,28 +1,17 @@
 use zksync_types::{api::en::SyncBlock, MiniblockNumber};
 use zksync_web3_decl::error::Web3Error;
 
-use crate::{
-    api_server::{web3::backend_jsonrpc::error::internal_error, web3::state::RpcState},
-    l1_gas_price::L1GasPriceProvider,
-};
+use crate::api_server::web3::{backend_jsonrpsee::internal_error, state::RpcState};
 
 /// Namespace for External Node unique methods.
 /// Main use case for it is the EN synchronization.
 #[derive(Debug)]
-pub struct EnNamespace<G> {
-    pub state: RpcState<G>,
+pub struct EnNamespace {
+    state: RpcState,
 }
 
-impl<G> Clone for EnNamespace<G> {
-    fn clone(&self) -> Self {
-        Self {
-            state: self.state.clone(),
-        }
-    }
-}
-
-impl<G: L1GasPriceProvider> EnNamespace<G> {
-    pub fn new(state: RpcState<G>) -> Self {
+impl EnNamespace {
+    pub fn new(state: RpcState) -> Self {
         Self { state }
     }
 
@@ -32,12 +21,14 @@ impl<G: L1GasPriceProvider> EnNamespace<G> {
         block_number: MiniblockNumber,
         include_transactions: bool,
     ) -> Result<Option<SyncBlock>, Web3Error> {
+        const METHOD_NAME: &str = "en_syncL2Block";
+
         let mut storage = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap();
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
         storage
             .sync_dal()
             .sync_block(
@@ -46,6 +37,6 @@ impl<G: L1GasPriceProvider> EnNamespace<G> {
                 include_transactions,
             )
             .await
-            .map_err(|err| internal_error("en_syncL2Block", err))
+            .map_err(|err| internal_error(METHOD_NAME, err))
     }
 }

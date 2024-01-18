@@ -1,21 +1,24 @@
-use crate::glue::GlueInto;
-use crate::vm_m6::errors::VmRevertReason;
-use crate::vm_m6::history_recorder::HistoryMode;
-use crate::vm_m6::memory::SimpleMemory;
-use std::convert::TryFrom;
-use std::marker::PhantomData;
-use std::mem;
-use zk_evm_1_3_1::abstractions::{
-    AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
-};
-use zk_evm_1_3_1::zkevm_opcode_defs::FatPointer;
-use zk_evm_1_3_1::zkevm_opcode_defs::{
-    FarCallABI, FarCallOpcode, Opcode, RetOpcode, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER,
-    RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
+use std::{convert::TryFrom, marker::PhantomData, mem};
+
+use zk_evm_1_3_1::{
+    abstractions::{
+        AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
+    },
+    zkevm_opcode_defs::{
+        FarCallABI, FarCallOpcode, FatPointer, Opcode, RetOpcode,
+        CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER, RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
+    },
 };
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
-use zksync_types::vm_trace::{Call, CallType};
-use zksync_types::U256;
+use zksync_types::{
+    vm_trace::{Call, CallType},
+    U256,
+};
+
+use crate::{
+    glue::GlueInto,
+    vm_m6::{errors::VmRevertReason, history_recorder::HistoryMode, memory::SimpleMemory},
+};
 
 /// NOTE Auto implementing clone for this tracer can cause stack overflow.
 /// This is because of the stack field which is a Vec with nested vecs inside.
@@ -95,7 +98,7 @@ impl<H: HistoryMode> Tracer for CallTracer<H> {
 }
 
 impl<H: HistoryMode> CallTracer<H> {
-    /// We use parent gas for propery calculation of gas used in the trace.
+    /// We use parent gas for property calculation of gas used in the trace.
     /// This method updates parent gas for the current call.
     fn update_parent_gas(&mut self, state: &VmLocalStateData<'_>, current_call: &mut Call) {
         let current = state.vm_local_state.callstack.current;
@@ -186,7 +189,7 @@ impl<H: HistoryMode> CallTracer<H> {
         let fat_data_pointer =
             state.vm_local_state.registers[RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER as usize];
 
-        // if fat_data_pointer is not a pointer then there is no output
+        // if `fat_data_pointer` is not a pointer then there is no output
         let output = if fat_data_pointer.is_pointer {
             let fat_data_pointer = FatPointer::from_u256(fat_data_pointer.value);
             if !fat_data_pointer.is_trivial() {
@@ -253,8 +256,8 @@ impl<H: HistoryMode> CallTracer<H> {
 
     // Filter all near calls from the call stack
     // Important that the very first call is near call
-    // And this NearCall includes several Normal or Mimic calls
-    // So we return all childrens of this NearCall
+    // And this `NearCall` includes several Normal or Mimic calls
+    // So we return all children of this `NearCall`
     pub fn extract_calls(&mut self) -> Vec<Call> {
         if let Some(current_call) = self.stack.pop() {
             filter_near_call(current_call)
@@ -265,7 +268,7 @@ impl<H: HistoryMode> CallTracer<H> {
 }
 
 // Filter all near calls from the call stack
-// Normally wr are not interested in NearCall, because it's just a wrapper for internal calls
+// Normally we are not interested in `NearCall`, because it's just a wrapper for internal calls
 fn filter_near_call(mut call: Call) -> Vec<Call> {
     let mut calls = vec![];
     let original_calls = std::mem::take(&mut call.calls);
@@ -283,9 +286,12 @@ fn filter_near_call(mut call: Call) -> Vec<Call> {
 
 #[cfg(test)]
 mod tests {
-    use crate::glue::GlueInto;
-    use crate::vm_m6::oracles::tracer::call::{filter_near_call, Call, CallType};
     use zk_evm_1_3_1::zkevm_opcode_defs::FarCallOpcode;
+
+    use crate::{
+        glue::GlueInto,
+        vm_m6::oracles::tracer::call::{filter_near_call, Call, CallType},
+    };
 
     #[test]
     fn test_filter_near_calls() {

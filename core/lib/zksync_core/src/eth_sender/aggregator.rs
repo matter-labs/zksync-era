@@ -1,12 +1,13 @@
+use std::sync::Arc;
+
 use zksync_config::configs::eth_sender::{ProofLoadingMode, ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::StorageProcessor;
-use zksync_object_store::ObjectStore;
-use zksync_prover_utils::gcs_proof_fetcher::load_wrapped_fri_proofs_for_range;
+use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_types::{
     aggregated_operations::{
         AggregatedActionType, AggregatedOperation, L1BatchCommitOperation, L1BatchExecuteOperation,
-        L1BatchProofOperation,
+        L1BatchProofForL1, L1BatchProofOperation,
     },
     commitment::L1BatchWithMetadata,
     helpers::unix_timestamp_ms,
@@ -25,11 +26,11 @@ pub struct Aggregator {
     proof_criteria: Vec<Box<dyn L1BatchPublishCriterion>>,
     execute_criteria: Vec<Box<dyn L1BatchPublishCriterion>>,
     config: SenderConfig,
-    blob_store: Box<dyn ObjectStore>,
+    blob_store: Arc<dyn ObjectStore>,
 }
 
 impl Aggregator {
-    pub fn new(config: SenderConfig, blob_store: Box<dyn ObjectStore>) -> Self {
+    pub fn new(config: SenderConfig, blob_store: Arc<dyn ObjectStore>) -> Self {
         Self {
             commit_criteria: vec![
                 Box::from(NumberCriterion {
@@ -91,16 +92,19 @@ impl Aggregator {
     pub async fn get_next_ready_operation(
         &mut self,
         storage: &mut StorageProcessor<'_>,
-        prover_storage: &mut StorageProcessor<'_>,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version_id: ProtocolVersionId,
         l1_verifier_config: L1VerifierConfig,
     ) -> Option<AggregatedOperation> {
-        let last_sealed_l1_batch_number = storage
+        let Some(last_sealed_l1_batch_number) = storage
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
-            .unwrap();
+            .unwrap()
+        else {
+            return None; // No L1 batches in Postgres; no operations are ready yet
+        };
+
         if let Some(op) = self
             .get_execute_operations(
                 storage,
@@ -113,7 +117,6 @@ impl Aggregator {
         } else if let Some(op) = self
             .get_proof_operation(
                 storage,
-                prover_storage,
                 *self.config.aggregated_proof_sizes.iter().max().unwrap(),
                 last_sealed_l1_batch_number,
                 l1_verifier_config,
@@ -223,7 +226,6 @@ impl Aggregator {
 
     async fn load_real_proof_operation(
         storage: &mut StorageProcessor<'_>,
-        prover_storage: &mut StorageProcessor<'_>,
         l1_verifier_config: L1VerifierConfig,
         proof_loading_mode: &ProofLoadingMode,
         blob_store: &dyn ObjectStore,
@@ -259,10 +261,7 @@ impl Aggregator {
         }
         let proofs = match proof_loading_mode {
             ProofLoadingMode::OldProofFromDb => {
-                prover_storage
-                    .prover_dal()
-                    .get_final_proofs_for_blocks(batch_to_prove, batch_to_prove)
-                    .await
+                unreachable!("OldProofFromDb is not supported anymore")
             }
             ProofLoadingMode::FriProofFromGcs => {
                 load_wrapped_fri_proofs_for_range(batch_to_prove, batch_to_prove, blob_store).await
@@ -338,7 +337,6 @@ impl Aggregator {
     async fn get_proof_operation(
         &mut self,
         storage: &mut StorageProcessor<'_>,
-        prover_storage: &mut StorageProcessor<'_>,
         limit: usize,
         last_sealed_l1_batch: L1BatchNumber,
         l1_verifier_config: L1VerifierConfig,
@@ -347,7 +345,6 @@ impl Aggregator {
             ProofSendingMode::OnlyRealProofs => {
                 Self::load_real_proof_operation(
                     storage,
-                    prover_storage,
                     l1_verifier_config,
                     &self.config.proof_loading_mode,
                     &*self.blob_store,
@@ -373,7 +370,6 @@ impl Aggregator {
                 // if there is a sampled proof then send it, otherwise check for skipped ones.
                 if let Some(op) = Self::load_real_proof_operation(
                     storage,
-                    prover_storage,
                     l1_verifier_config,
                     &self.config.proof_loading_mode,
                     &*self.blob_store,
@@ -422,4 +418,24 @@ async fn extract_ready_subrange(
             .take_while(|l1_batch| l1_batch.header.number <= last_l1_batch)
             .collect(),
     )
+}
+
+pub async fn load_wrapped_fri_proofs_for_range(
+    from: L1BatchNumber,
+    to: L1BatchNumber,
+    blob_store: &dyn ObjectStore,
+) -> Vec<L1BatchProofForL1> {
+    let mut proofs = Vec::new();
+    for l1_batch_number in from.0..=to.0 {
+        let l1_batch_number = L1BatchNumber(l1_batch_number);
+        match blob_store.get(l1_batch_number).await {
+            Ok(proof) => proofs.push(proof),
+            Err(ObjectStoreError::KeyNotFound(_)) => (), // do nothing, proof is not ready yet
+            Err(err) => panic!(
+                "Failed to load proof for batch {}: {}",
+                l1_batch_number.0, err
+            ),
+        }
+    }
+    proofs
 }

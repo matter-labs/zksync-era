@@ -1,12 +1,12 @@
 use zk_evm_1_3_3::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
-
-use crate::HistoryMode;
 use zksync_types::U256;
 
-use crate::interface::{VmExecutionStatistics, VmMemoryMetrics};
-use crate::vm_refunds_enhancement::tracers::DefaultExecutionTracer;
-use crate::vm_refunds_enhancement::vm::Vm;
+use crate::{
+    interface::{VmExecutionStatistics, VmMemoryMetrics},
+    vm_refunds_enhancement::{tracers::DefaultExecutionTracer, vm::Vm},
+    HistoryMode,
+};
 
 /// Module responsible for observing the VM behavior, i.e. calculating the statistics of the VM runs
 /// or reporting the VM memory usage.
@@ -40,10 +40,11 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             computational_gas_used,
             total_log_queries: total_log_queries_count,
             pubdata_published,
+            estimated_circuits_used: 0.0,
         }
     }
 
-    /// Returns the hashes the bytecodes that have been decommitted by the decomittment processor.
+    /// Returns the hashes the bytecodes that have been decommitted by the decommitment processor.
     pub(crate) fn get_used_contracts(&self) -> Vec<U256> {
         self.state
             .decommittment_processor

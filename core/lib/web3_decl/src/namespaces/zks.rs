@@ -2,18 +2,18 @@ use std::collections::HashMap;
 
 use bigdecimal::BigDecimal;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
-
 use zksync_types::{
     api::{
         BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
         TransactionDetails,
     },
     fee::Fee,
+    fee_model::FeeParams,
     transaction_request::CallRequest,
     Address, L1BatchNumber, MiniblockNumber, H256, U256, U64,
 };
 
-use crate::types::{Filter, Log, Token};
+use crate::types::Token;
 
 #[cfg_attr(
     all(feature = "client", feature = "server"),
@@ -105,14 +105,14 @@ pub trait ZksNamespace {
     #[method(name = "getL1GasPrice")]
     async fn get_l1_gas_price(&self) -> RpcResult<U64>;
 
+    #[method(name = "getFeeParams")]
+    async fn get_fee_params(&self) -> RpcResult<FeeParams>;
+
     #[method(name = "getProtocolVersion")]
     async fn get_protocol_version(
         &self,
         version_id: Option<u16>,
     ) -> RpcResult<Option<ProtocolVersion>>;
-
-    #[method(name = "getLogsWithVirtualBlocks")]
-    async fn get_logs_with_virtual_blocks(&self, filter: Filter) -> RpcResult<Vec<Log>>;
 
     #[method(name = "getProof")]
     async fn get_proof(

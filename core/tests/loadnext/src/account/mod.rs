@@ -1,18 +1,16 @@
-use futures::{channel::mpsc, SinkExt};
 use std::{
     collections::VecDeque,
     sync::Arc,
     time::{Duration, Instant},
 };
+
+use futures::{channel::mpsc, SinkExt};
 use tokio::sync::RwLock;
-
 use zksync::{error::ClientError, operations::SyncTransactionHandle, HttpClient};
-use zksync_types::{api::TransactionReceipt, Address, Nonce, H256, U256, U64};
-use zksync_web3_decl::jsonrpsee::core::Error as CoreError;
-
 use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
+use zksync_types::{api::TransactionReceipt, Address, Nonce, H256, U256, U64};
+use zksync_web3_decl::jsonrpsee::core::ClientError as CoreError;
 
-use crate::utils::format_gwei;
 use crate::{
     account::tx_command_executor::SubmitResult,
     account_pool::{AddressPool, TestWallet},
@@ -20,6 +18,7 @@ use crate::{
     config::{LoadtestConfig, RequestLimiters},
     constants::{MAX_L1_TRANSACTIONS, POLLING_INTERVAL},
     report::{Report, ReportBuilder, ReportLabel},
+    utils::format_gwei,
 };
 
 mod api_request_executor;
@@ -59,7 +58,7 @@ pub struct AccountLifespan {
     contract_execution_params: LoadnextContractExecutionParams,
     /// Pool of account addresses, used to generate commands.
     addresses: AddressPool,
-    /// Successful transactions, required for requesting api
+    /// Successful transactions, required for requesting API
     successfully_sent_txs: Arc<RwLock<Vec<H256>>>,
     /// L1 ERC-20 token used in the test.
     main_l1_token: Address,
@@ -137,7 +136,7 @@ impl AccountLifespan {
             let is_l1_transaction =
                 matches!(command.command_type, TxType::L1Execute | TxType::Deposit);
             if is_l1_transaction && l1_tx_count >= MAX_L1_TRANSACTIONS {
-                continue; // Skip command to not run out of ethereum on L1
+                continue; // Skip command to not run out of Ethereum on L1
             }
 
             // The new transaction should be sent only if mempool is not full
@@ -222,7 +221,7 @@ impl AccountLifespan {
         expected_outcome: &ExpectedOutcome,
     ) -> ReportLabel {
         match expected_outcome {
-            ExpectedOutcome::TxSucceed if transaction_receipt.status == Some(U64::one()) => {
+            ExpectedOutcome::TxSucceed if transaction_receipt.status == U64::one() => {
                 // If it was a successful `DeployContract` transaction, set the contract
                 // address for subsequent usage by `Execute`.
                 if let Some(address) = transaction_receipt.contract_address {
@@ -233,7 +232,7 @@ impl AccountLifespan {
                 // Transaction succeed and it should have.
                 ReportLabel::done()
             }
-            ExpectedOutcome::TxRejected if transaction_receipt.status == Some(U64::zero()) => {
+            ExpectedOutcome::TxRejected if transaction_receipt.status == U64::zero() => {
                 // Transaction failed and it should have.
                 ReportLabel::done()
             }

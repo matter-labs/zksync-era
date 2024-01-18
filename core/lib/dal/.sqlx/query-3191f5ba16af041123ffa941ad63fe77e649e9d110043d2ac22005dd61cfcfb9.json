@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                timestamp\n            FROM\n                miniblocks\n            WHERE\n                (\n                    $1::BIGINT IS NULL\n                    AND l1_batch_number IS NULL\n                )\n                OR (l1_batch_number = $1::BIGINT)\n            ORDER BY\n                number\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "timestamp",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3191f5ba16af041123ffa941ad63fe77e649e9d110043d2ac22005dd61cfcfb9"
+}

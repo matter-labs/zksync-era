@@ -1,9 +1,5 @@
 use tokio::sync::mpsc;
-
-use zksync_types::{
-    block::ConsensusBlockFields, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId,
-    Transaction, H256,
-};
+use zksync_types::{Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction};
 
 use super::metrics::QUEUE_METRICS;
 
@@ -55,7 +51,7 @@ impl ActionQueueSender {
                         return Err(format!("Unexpected Tx: {:?}", actions));
                     }
                 }
-                SyncAction::SealMiniblock(_) | SyncAction::SealBatch { .. } => {
+                SyncAction::SealMiniblock | SyncAction::SealBatch { .. } => {
                     if !opened || miniblock_sealed {
                         return Err(format!("Unexpected SealMiniblock/SealBatch: {:?}", actions));
                     }
@@ -133,11 +129,11 @@ pub(crate) enum SyncAction {
         timestamp: u64,
         l1_gas_price: u64,
         l2_fair_gas_price: u64,
+        fair_pubdata_price: Option<u64>,
         operator_address: Address,
         protocol_version: ProtocolVersionId,
         // Miniblock number and virtual blocks count.
         first_miniblock_info: (MiniblockNumber, u32),
-        prev_miniblock_hash: H256,
     },
     Miniblock {
         number: MiniblockNumber,
@@ -149,13 +145,11 @@ pub(crate) enum SyncAction {
     /// that they are sealed, but at the same time the next miniblock may not exist yet.
     /// By having a dedicated action for that we prevent a situation where the miniblock is kept open on the EN until
     /// the next one is sealed on the main node.
-    SealMiniblock(Option<ConsensusBlockFields>),
+    SealMiniblock,
     /// Similarly to `SealMiniblock` we must be able to seal the batch even if there is no next miniblock yet.
     SealBatch {
         /// Virtual blocks count for the fictive miniblock.
         virtual_blocks: u32,
-        /// Consensus-related fields for the fictive miniblock.
-        consensus: Option<ConsensusBlockFields>,
     },
 }
 
@@ -177,10 +171,10 @@ mod tests {
             timestamp: 1,
             l1_gas_price: 1,
             l2_fair_gas_price: 1,
+            fair_pubdata_price: Some(1),
             operator_address: Default::default(),
             protocol_version: ProtocolVersionId::latest(),
             first_miniblock_info: (1.into(), 1),
-            prev_miniblock_hash: H256::default(),
         }
     }
 
@@ -209,14 +203,11 @@ mod tests {
     }
 
     fn seal_miniblock() -> SyncAction {
-        SyncAction::SealMiniblock(None)
+        SyncAction::SealMiniblock
     }
 
     fn seal_batch() -> SyncAction {
-        SyncAction::SealBatch {
-            virtual_blocks: 1,
-            consensus: None,
-        }
+        SyncAction::SealBatch { virtual_blocks: 1 }
     }
 
     #[test]
@@ -251,7 +242,7 @@ mod tests {
             // Unexpected tx
             (vec![tx()], "Unexpected Tx"),
             (vec![open_batch(), seal_miniblock(), tx()], "Unexpected Tx"),
-            // Unexpected OpenBatch/Miniblock
+            // Unexpected `OpenBatch/Miniblock`
             (
                 vec![miniblock(), miniblock()],
                 "Unexpected OpenBatch/Miniblock",
@@ -264,7 +255,7 @@ mod tests {
                 vec![open_batch(), miniblock()],
                 "Unexpected OpenBatch/Miniblock",
             ),
-            // Unexpected SealMiniblock
+            // Unexpected `SealMiniblock`
             (vec![seal_miniblock()], "Unexpected SealMiniblock"),
             (
                 vec![miniblock(), seal_miniblock(), seal_miniblock()],

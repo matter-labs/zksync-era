@@ -1,3 +1,4 @@
+use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
         BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
@@ -8,8 +9,7 @@ use zksync_types::{
     utils::decompose_full_nonce,
     web3,
     web3::types::{FeeHistory, SyncInfo, SyncState},
-    AccountTreeId, Bytes, MiniblockNumber, StorageKey, H256, L2_ETH_TOKEN_ADDRESS,
-    MAX_GAS_PER_PUBDATA_BYTE, U256,
+    AccountTreeId, Bytes, MiniblockNumber, StorageKey, H256, L2_ETH_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
@@ -17,38 +17,23 @@ use zksync_web3_decl::{
     types::{Address, Block, Filter, FilterChanges, Log, U64},
 };
 
-use crate::{
-    api_server::{
-        execution_sandbox::BlockArgs,
-        web3::{
-            backend_jsonrpc::error::internal_error,
-            metrics::{BlockCallObserver, API_METRICS},
-            resolve_block,
-            state::RpcState,
-            TypedFilter,
-        },
-    },
-    l1_gas_price::L1GasPriceProvider,
+use crate::api_server::web3::{
+    backend_jsonrpsee::internal_error,
+    metrics::{BlockCallObserver, API_METRICS},
+    state::RpcState,
+    TypedFilter,
 };
 
 pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;
 pub const PROTOCOL_VERSION: &str = "zks/1";
 
 #[derive(Debug)]
-pub struct EthNamespace<G> {
-    state: RpcState<G>,
+pub struct EthNamespace {
+    state: RpcState,
 }
 
-impl<G> Clone for EthNamespace<G> {
-    fn clone(&self) -> Self {
-        Self {
-            state: self.state.clone(),
-        }
-    }
-}
-
-impl<G: L1GasPriceProvider> EthNamespace<G> {
-    pub fn new(state: RpcState<G>) -> Self {
+impl EthNamespace {
+    pub fn new(state: RpcState) -> Self {
         Self { state }
     }
 
@@ -57,20 +42,21 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         const METHOD_NAME: &str = "get_block_number";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let block_number = self
+        let mut storage = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
-            .blocks_web3_dal()
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
+        let block_number = storage
+            .blocks_dal()
             .get_sealed_miniblock_number()
             .await
-            .map(|n| U64::from(n.0))
-            .map_err(|err| internal_error(METHOD_NAME, err));
+            .map_err(|err| internal_error(METHOD_NAME, err))?
+            .ok_or(Web3Error::NoBlock)?;
 
         method_latency.observe();
-        block_number
+        Ok(block_number.0.into())
     }
 
     #[tracing::instrument(skip(self, request, block_id))]
@@ -88,11 +74,12 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap();
-        let block_args = BlockArgs::new(&mut connection, block_id)
-            .await
-            .map_err(|err| internal_error("eth_call", err))?
-            .ok_or(Web3Error::NoBlock)?;
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
+        let block_args = self
+            .state
+            .resolve_block_args(&mut connection, block_id, METHOD_NAME)
+            .await?;
+
         drop(connection);
 
         let tx = L2Tx::from_request(request.into(), self.state.api_config.max_tx_size)?;
@@ -125,7 +112,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 
         if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
             if eip712_meta.gas_per_pubdata == U256::zero() {
-                eip712_meta.gas_per_pubdata = MAX_GAS_PER_PUBDATA_BYTE.into();
+                eip712_meta.gas_per_pubdata = DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE.into();
             }
         }
 
@@ -147,7 +134,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
 
-        tx.common_data.fee.max_fee_per_gas = self.state.tx_sender.gas_price().into();
+        tx.common_data.fee.max_fee_per_gas = self.state.tx_sender.gas_price().await.into();
         tx.common_data.fee.max_priority_fee_per_gas = tx.common_data.fee.max_fee_per_gas;
 
         // Modify the l1 gas price with the scale factor
@@ -167,11 +154,11 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn gas_price_impl(&self) -> Result<U256, Web3Error> {
+    pub async fn gas_price_impl(&self) -> Result<U256, Web3Error> {
         const METHOD_NAME: &str = "gas_price";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let price = self.state.tx_sender.gas_price();
+        let price = self.state.tx_sender.gas_price().await;
         method_latency.observe();
         Ok(price.into())
     }
@@ -191,8 +178,11 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap();
-        let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
+        let block_number = self
+            .state
+            .resolve_block(&mut connection, block_id, METHOD_NAME)
+            .await?;
         let balance = connection
             .storage_web3_dal()
             .standard_token_historical_balance(
@@ -219,10 +209,6 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     #[tracing::instrument(skip(self, filter))]
     pub async fn get_logs_impl(&self, mut filter: Filter) -> Result<Vec<Log>, Web3Error> {
         const METHOD_NAME: &str = "get_logs";
-
-        if self.state.logs_translator_enabled {
-            return self.state.translate_get_logs(filter).await;
-        }
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
         self.state.resolve_filter_block_hash(&mut filter).await?;
@@ -283,12 +269,13 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         };
         let method_latency = API_METRICS.start_block_call(method_name, block_id);
 
+        self.state.start_info.ensure_not_pruned(block_id)?;
         let block = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
+            .map_err(|err| internal_error(method_name, err))?
             .blocks_web3_dal()
             .get_block_by_web3_block_id(
                 block_id,
@@ -315,12 +302,13 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         const METHOD_NAME: &str = "get_block_transaction_count";
 
         let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
+        self.state.start_info.ensure_not_pruned(block_id)?;
         let tx_count = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
+            .map_err(|err| internal_error(METHOD_NAME, err))?
             .blocks_web3_dal()
             .get_block_tx_count(block_id)
             .await
@@ -350,7 +338,10 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .access_storage_tagged("api")
             .await
             .unwrap();
-        let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
+        let block_number = self
+            .state
+            .resolve_block(&mut connection, block_id, METHOD_NAME)
+            .await?;
         let contract_code = connection
             .storage_web3_dal()
             .get_contract_code_unchecked(address, block_number)
@@ -384,7 +375,10 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .access_storage_tagged("api")
             .await
             .unwrap();
-        let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
+        let block_number = self
+            .state
+            .resolve_block(&mut connection, block_id, METHOD_NAME)
+            .await?;
         let value = connection
             .storage_web3_dal()
             .get_historical_value_unchecked(&storage_key, block_number)
@@ -416,35 +410,34 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .await
             .unwrap();
 
-        let (full_nonce, block_number) = match block_id {
-            BlockId::Number(BlockNumber::Pending) => {
-                let nonce = connection
-                    .transactions_web3_dal()
-                    .next_nonce_by_initiator_account(address)
-                    .await
-                    .map_err(|err| internal_error(method_name, err));
-                (nonce, None)
-            }
-            _ => {
-                let block_number = resolve_block(&mut connection, block_id, method_name).await?;
-                let nonce = connection
-                    .storage_web3_dal()
-                    .get_address_historical_nonce(address, block_number)
-                    .await
-                    .map_err(|err| internal_error(method_name, err));
-                (nonce, Some(block_number))
-            }
-        };
+        let block_number = self
+            .state
+            .resolve_block(&mut connection, block_id, method_name)
+            .await?;
+        let full_nonce = connection
+            .storage_web3_dal()
+            .get_address_historical_nonce(address, block_number)
+            .await
+            .map_err(|err| internal_error(method_name, err))?;
 
         // TODO (SMA-1612): currently account nonce is returning always, but later we will
         //  return account nonce for account abstraction and deployment nonce for non account abstraction.
         //  Strip off deployer nonce part.
-        let account_nonce = full_nonce.map(|nonce| decompose_full_nonce(nonce).0);
+        let (mut account_nonce, _) = decompose_full_nonce(full_nonce);
 
-        let block_diff =
-            block_number.map_or(0, |number| self.state.last_sealed_miniblock.diff(number));
+        if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+            let account_nonce_u64 = u64::try_from(account_nonce)
+                .map_err(|err| internal_error(method_name, anyhow::anyhow!(err)))?;
+            account_nonce = connection
+                .transactions_web3_dal()
+                .next_nonce_by_initiator_account(address, account_nonce_u64)
+                .await
+                .map_err(|err| internal_error(method_name, err))?;
+        }
+
+        let block_diff = self.state.last_sealed_miniblock.diff(block_number);
         method_latency.observe(block_diff);
-        account_nonce
+        Ok(account_nonce)
     }
 
     #[tracing::instrument(skip(self))]
@@ -501,7 +494,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         const METHOD_NAME: &str = "get_transaction_receipt";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let mut receipt = self
+        let receipt = self
             .state
             .connection_pool
             .access_storage_tagged("api")
@@ -512,31 +505,6 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .await
             .map_err(|err| internal_error(METHOD_NAME, err));
 
-        if let Some(proxy) = &self.state.tx_sender.0.proxy {
-            // We're running an external node
-            if matches!(receipt, Ok(None)) {
-                // If the transaction is not in the db, query main node.
-                // Because it might be the case that it got rejected in state keeper
-                // and won't be synced back to us, but we still want to return a receipt.
-                // We want to only forward these kinds of receipts because otherwise
-                // clients will assume that the transaction they got the receipt for
-                // was already processed on the EN (when it was not),
-                // and will think that the state has already been updated on the EN (when it was not).
-                if let Ok(Some(main_node_receipt)) = proxy
-                    .request_tx_receipt(hash)
-                    .await
-                    .map_err(|err| internal_error(METHOD_NAME, err))
-                {
-                    if main_node_receipt.status == Some(0.into())
-                        && main_node_receipt.block_number.is_none()
-                    {
-                        // Transaction was rejected in state-keeper.
-                        receipt = Ok(Some(main_node_receipt));
-                    }
-                }
-            }
-        }
-
         method_latency.observe();
         receipt
     }
@@ -546,25 +514,30 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         const METHOD_NAME: &str = "new_block_filter";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let mut conn = self
+        let mut storage = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
-        let last_block_number = conn
-            .blocks_web3_dal()
+        let last_block_number = storage
+            .blocks_dal()
             .get_sealed_miniblock_number()
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
-        drop(conn);
+        let next_block_number = match last_block_number {
+            Some(number) => number + 1,
+            // If we don't have miniblocks in the storage, use the first projected miniblock number as the cursor
+            None => self.state.start_info.first_miniblock,
+        };
+        drop(storage);
 
         let idx = self
             .state
             .installed_filters
             .lock()
             .await
-            .add(TypedFilter::Blocks(last_block_number));
+            .add(TypedFilter::Blocks(next_block_number));
         method_latency.observe();
         Ok(idx)
     }
@@ -724,8 +697,10 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .access_storage_tagged("api")
             .await
             .unwrap();
-        let newest_miniblock =
-            resolve_block(&mut connection, BlockId::Number(newest_block), METHOD_NAME).await?;
+        let newest_miniblock = self
+            .state
+            .resolve_block(&mut connection, BlockId::Number(newest_block), METHOD_NAME)
+            .await?;
 
         let mut base_fee_per_gas = connection
             .blocks_web3_dal()
@@ -773,14 +748,19 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
                 let (block_hashes, last_block_number) = conn
                     .blocks_web3_dal()
-                    .get_block_hashes_after(*from_block, self.state.api_config.req_entities_limit)
+                    .get_block_hashes_since(*from_block, self.state.api_config.req_entities_limit)
                     .await
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
-                *from_block = last_block_number.unwrap_or(*from_block);
+
+                *from_block = match last_block_number {
+                    Some(last_block_number) => last_block_number + 1,
+                    None => *from_block,
+                };
+
                 FilterChanges::Hashes(block_hashes)
             }
 
-            TypedFilter::PendingTransactions(from_timestamp) => {
+            TypedFilter::PendingTransactions(from_timestamp_excluded) => {
                 let mut conn = self
                     .state
                     .connection_pool
@@ -790,12 +770,14 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                 let (tx_hashes, last_timestamp) = conn
                     .transactions_web3_dal()
                     .get_pending_txs_hashes_after(
-                        *from_timestamp,
+                        *from_timestamp_excluded,
                         Some(self.state.api_config.req_entities_limit),
                     )
                     .await
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
-                *from_timestamp = last_timestamp.unwrap_or(*from_timestamp);
+
+                *from_timestamp_excluded = last_timestamp.unwrap_or(*from_timestamp_excluded);
+
                 FilterChanges::Hashes(tx_hashes)
             }
 
@@ -816,16 +798,26 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                 } else {
                     vec![]
                 };
-                let get_logs_filter = GetLogsFilter {
-                    from_block: *from_block,
-                    to_block: filter.to_block,
-                    addresses,
-                    topics,
-                };
-                let to_block = self
+
+                let mut to_block = self
                     .state
                     .resolve_filter_block_number(filter.to_block)
                     .await?;
+
+                if matches!(filter.to_block, Some(BlockNumber::Number(_))) {
+                    to_block = to_block.min(
+                        self.state
+                            .resolve_filter_block_number(Some(BlockNumber::Latest))
+                            .await?,
+                    );
+                }
+
+                let get_logs_filter = GetLogsFilter {
+                    from_block: *from_block,
+                    to_block,
+                    addresses,
+                    topics,
+                };
 
                 let mut storage = self
                     .state
@@ -859,11 +851,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     .get_logs(get_logs_filter, i32::MAX as usize)
                     .await
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
-                *from_block = logs
-                    .last()
-                    .map(|log| MiniblockNumber(log.block_number.unwrap().as_u32()))
-                    .unwrap_or(*from_block);
-                // FIXME: why is `from_block` not updated?
+                *from_block = to_block + 1;
                 FilterChanges::Logs(logs)
             }
         };
@@ -876,7 +864,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 // They are moved into a separate `impl` block so they don't make the actual implementation noisy.
 // This `impl` block contains methods that we *have* to implement for compliance, but don't really
 // make sense in terms of L2.
-impl<E> EthNamespace<E> {
+impl EthNamespace {
     pub fn coinbase_impl(&self) -> Address {
         // There is no coinbase account.
         Address::default()

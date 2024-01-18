@@ -1,9 +1,6 @@
-use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
-
 use std::collections::HashMap;
 
-use crate::interface::dyn_tracers::vm_1_3_3::DynTracer;
-use crate::interface::{L1BatchEnv, Refunds, VmExecutionResultAndLogs};
+use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 use zk_evm_1_3_3::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
@@ -17,23 +14,27 @@ use zksync_types::{
     zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
     L1BatchNumber, StorageKey, U256,
 };
-use zksync_utils::bytecode::bytecode_len_in_bytes;
-use zksync_utils::{ceil_div_u256, u256_to_h256};
+use zksync_utils::{bytecode::bytecode_len_in_bytes, ceil_div_u256, u256_to_h256};
 
-use crate::vm_virtual_blocks::bootloader_state::BootloaderState;
-use crate::vm_virtual_blocks::constants::{
-    BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET,
+use crate::{
+    interface::{dyn_tracers::vm_1_3_3::DynTracer, L1BatchEnv, Refunds, VmExecutionResultAndLogs},
+    vm_virtual_blocks::{
+        bootloader_state::BootloaderState,
+        constants::{BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET},
+        old_vm::{
+            events::merge_events, history_recorder::HistoryMode, memory::SimpleMemory,
+            oracles::storage::storage_key_of_log, utils::eth_price_per_pubdata_byte,
+        },
+        tracers::{
+            traits::{ExecutionEndTracer, ExecutionProcessing, VmTracer},
+            utils::{
+                gas_spent_on_bytecodes_and_long_messages_this_opcode, get_vm_hook_params, VmHook,
+            },
+        },
+        types::internals::ZkSyncVmState,
+        utils::fee::get_batch_base_fee,
+    },
 };
-use crate::vm_virtual_blocks::old_vm::{
-    events::merge_events, history_recorder::HistoryMode, memory::SimpleMemory,
-    oracles::storage::storage_key_of_log, utils::eth_price_per_pubdata_byte,
-};
-use crate::vm_virtual_blocks::tracers::utils::gas_spent_on_bytecodes_and_long_messages_this_opcode;
-use crate::vm_virtual_blocks::tracers::{
-    traits::{ExecutionEndTracer, ExecutionProcessing, VmTracer},
-    utils::{get_vm_hook_params, VmHook},
-};
-use crate::vm_virtual_blocks::types::internals::ZkSyncVmState;
 
 /// Tracer responsible for collecting information about refunds.
 #[derive(Debug, Clone)]
@@ -109,13 +110,14 @@ impl RefundsTracer {
             });
 
         // For now, bootloader charges only for base fee.
-        let effective_gas_price = self.l1_batch.base_fee();
+        let effective_gas_price = get_batch_base_fee(&self.l1_batch);
 
         let bootloader_eth_price_per_pubdata_byte =
             U256::from(effective_gas_price) * U256::from(current_ergs_per_pubdata_byte);
 
-        let fair_eth_price_per_pubdata_byte =
-            U256::from(eth_price_per_pubdata_byte(self.l1_batch.l1_gas_price));
+        let fair_eth_price_per_pubdata_byte = U256::from(eth_price_per_pubdata_byte(
+            self.l1_batch.fee_input.l1_gas_price(),
+        ));
 
         // For now, L1 originated transactions are allowed to pay less than fair fee per pubdata,
         // so we should take it into account.
@@ -125,7 +127,7 @@ impl RefundsTracer {
         );
 
         let fair_fee_eth = U256::from(gas_spent_on_computation)
-            * U256::from(self.l1_batch.fair_l2_gas_price)
+            * U256::from(self.l1_batch.fee_input.fair_l2_gas_price())
             + U256::from(pubdata_published) * eth_price_per_pubdata_byte_for_calculation;
         let pre_paid_eth = U256::from(tx_gas_limit) * U256::from(effective_gas_price);
         let refund_eth = pre_paid_eth.checked_sub(fair_fee_eth).unwrap_or_else(|| {
@@ -208,8 +210,8 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for RefundsTrace
         #[vise::register]
         static METRICS: vise::Global<RefundMetrics> = vise::Global::new();
 
-        // This means that the bootloader has informed the system (usually via VMHooks) - that some gas
-        // should be refunded back (see askOperatorForRefund in bootloader.yul for details).
+        // This means that the bootloader has informed the system (usually via `VMHooks`) - that some gas
+        // should be refunded back (see `askOperatorForRefund` in `bootloader.yul` for details).
         if let Some(bootloader_refund) = self.requested_refund() {
             assert!(
                 self.operator_refund.is_none(),

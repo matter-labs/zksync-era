@@ -1,34 +1,40 @@
 use zk_evm_1_3_3::{
-    aux_structures::MemoryPage,
-    aux_structures::Timestamp,
+    aux_structures::{MemoryPage, Timestamp},
     block_properties::BlockProperties,
     vm_state::{CallStackEntry, PrimitiveValue, VmState},
     witness_trace::DummyTracer,
     zkevm_opcode_defs::{
         system_params::{BOOTLOADER_MAX_MEMORY, INITIAL_FRAME_FORMAL_EH_LOCATION},
-        FatPointer, BOOTLOADER_CALLDATA_PAGE,
+        FatPointer, BOOTLOADER_BASE_PAGE, BOOTLOADER_CALLDATA_PAGE, BOOTLOADER_CODE_PAGE,
+        STARTING_BASE_PAGE, STARTING_TIMESTAMP,
     },
-};
-
-use crate::interface::{L1BatchEnv, L2Block, SystemEnv};
-use zk_evm_1_3_3::zkevm_opcode_defs::{
-    BOOTLOADER_BASE_PAGE, BOOTLOADER_CODE_PAGE, STARTING_BASE_PAGE, STARTING_TIMESTAMP,
 };
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::BOOTLOADER_ADDRESS;
-use zksync_types::block::legacy_miniblock_hash;
-use zksync_types::{zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address, MiniblockNumber};
+use zksync_types::{
+    block::MiniblockHasher, zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address,
+    MiniblockNumber,
+};
 use zksync_utils::h256_to_u256;
 
-use crate::vm_refunds_enhancement::bootloader_state::BootloaderState;
-use crate::vm_refunds_enhancement::constants::BOOTLOADER_HEAP_PAGE;
-use crate::vm_refunds_enhancement::old_vm::{
-    event_sink::InMemoryEventSink, history_recorder::HistoryMode, memory::SimpleMemory,
-    oracles::decommitter::DecommitterOracle, oracles::precompile::PrecompilesProcessorWithHistory,
+use crate::{
+    interface::{L1BatchEnv, L2Block, SystemEnv},
+    vm_refunds_enhancement::{
+        bootloader_state::BootloaderState,
+        constants::BOOTLOADER_HEAP_PAGE,
+        old_vm::{
+            event_sink::InMemoryEventSink,
+            history_recorder::HistoryMode,
+            memory::SimpleMemory,
+            oracles::{
+                decommitter::DecommitterOracle, precompile::PrecompilesProcessorWithHistory,
+            },
+        },
+        oracles::storage::StorageOracle,
+        types::l1_batch::bootloader_initial_memory,
+        utils::l2_blocks::{assert_next_block, load_last_l2_block},
+    },
 };
-use crate::vm_refunds_enhancement::oracles::storage::StorageOracle;
-use crate::vm_refunds_enhancement::types::l1_batch::bootloader_initial_memory;
-use crate::vm_refunds_enhancement::utils::l2_blocks::{assert_next_block, load_last_l2_block};
 
 pub type ZkSyncVmState<S, H> = VmState<
     StorageOracle<S, H>,
@@ -67,7 +73,9 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         L2Block {
             number: l1_batch_env.first_l2_block.number.saturating_sub(1),
             timestamp: 0,
-            hash: legacy_miniblock_hash(MiniblockNumber(l1_batch_env.first_l2_block.number) - 1),
+            hash: MiniblockHasher::legacy_hash(
+                MiniblockNumber(l1_batch_env.first_l2_block.number) - 1,
+            ),
         }
     };
 

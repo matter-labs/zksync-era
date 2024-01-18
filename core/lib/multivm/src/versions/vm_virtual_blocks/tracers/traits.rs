@@ -1,12 +1,15 @@
-use crate::interface::dyn_tracers::vm_1_3_3::DynTracer;
-use crate::interface::tracer::VmExecutionStopReason;
-use crate::interface::VmExecutionResultAndLogs;
 use zksync_state::WriteStorage;
 
-use crate::vm_virtual_blocks::bootloader_state::BootloaderState;
-use crate::vm_virtual_blocks::old_vm::history_recorder::HistoryMode;
-use crate::vm_virtual_blocks::old_vm::memory::SimpleMemory;
-use crate::vm_virtual_blocks::types::internals::ZkSyncVmState;
+use crate::{
+    interface::{
+        dyn_tracers::vm_1_3_3::DynTracer, tracer::VmExecutionStopReason, VmExecutionResultAndLogs,
+    },
+    vm_virtual_blocks::{
+        bootloader_state::BootloaderState,
+        old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
+        types::internals::ZkSyncVmState,
+    },
+};
 
 pub type TracerPointer<S, H> = Box<dyn VmTracer<S, H>>;
 /// Run tracer for collecting data during the vm execution cycles

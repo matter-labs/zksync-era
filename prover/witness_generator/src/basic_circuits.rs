@@ -1,53 +1,61 @@
-use std::hash::Hash;
-use std::sync::Arc;
 use std::{
     collections::{hash_map::DefaultHasher, HashMap, HashSet},
-    hash::Hasher,
+    hash::{Hash, Hasher},
+    sync::Arc,
     time::Instant,
 };
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use zksync_prover_fri_types::circuit_definitions::ZkSyncDefaultRoundFunction;
-use rand::Rng;
-use serde::{Deserialize, Serialize};
-use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::{GoldilocksExt2, GoldilocksField};
-use zksync_prover_fri_types::circuit_definitions::boojum::gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge;
-use zkevm_test_harness::geometry_config::get_geometry_config;
-use zkevm_test_harness::toolset::GeometryConfig;
-use zkevm_test_harness::witness::full_block_artifact::{
-    BlockBasicCircuits, BlockBasicCircuitsPublicCompactFormsWitnesses,
-    BlockBasicCircuitsPublicInputs,
-};
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness;
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness;
-use zksync_prover_fri_types::{AuxOutputWitnessWrapper, get_current_pod_name};
-
-use crate::storage_oracle::StorageOracle;
 use multivm::vm_latest::{
     constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
 };
+use rand::Rng;
+use serde::{Deserialize, Serialize};
+use zkevm_test_harness::{
+    geometry_config::get_geometry_config,
+    toolset::GeometryConfig,
+    witness::full_block_artifact::{
+        BlockBasicCircuits, BlockBasicCircuitsPublicCompactFormsWitnesses,
+        BlockBasicCircuitsPublicInputs,
+    },
+};
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_dal::fri_witness_generator_dal::FriWitnessJobStatus;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{fri_witness_generator_dal::FriWitnessJobStatus, ConnectionPool};
 use zksync_object_store::{
     Bucket, ClosedFormInputKey, ObjectStore, ObjectStoreFactory, StoredObject,
+};
+use zksync_prover_fri_types::{
+    circuit_definitions::{
+        boojum::{
+            field::goldilocks::{GoldilocksExt2, GoldilocksField},
+            gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge,
+        },
+        zkevm_circuits::scheduler::{
+            block_header::BlockAuxilaryOutputWitness, input::SchedulerCircuitInstanceWitness,
+        },
+        ZkSyncDefaultRoundFunction,
+    },
+    get_current_pod_name, AuxOutputWitnessWrapper,
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::{PostgresStorage, StorageView};
-use zksync_types::proofs::AggregationRound;
-use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::{
-    proofs::{BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
-    Address, L1BatchNumber, BOOTLOADER_ADDRESS, H256, U256,
+    proofs::{AggregationRound, BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
+    protocol_version::FriProtocolVersionId,
+    Address, L1BatchNumber, ProtocolVersionId, BOOTLOADER_ADDRESS, H256, U256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
-use crate::precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider;
-use crate::utils::{
-    expand_bootloader_contents, save_base_prover_input_artifacts, ClosedFormInputWrapper,
-    SchedulerPartialInputWrapper,
+use crate::{
+    metrics::WITNESS_GENERATOR_METRICS,
+    precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
+    storage_oracle::StorageOracle,
+    utils::{
+        expand_bootloader_contents, save_base_prover_input_artifacts, ClosedFormInputWrapper,
+        SchedulerPartialInputWrapper,
+    },
 };
 
 pub struct BasicCircuitArtifacts {
@@ -80,7 +88,7 @@ pub struct BasicWitnessGeneratorJob {
 pub struct BasicWitnessGenerator {
     config: Arc<FriWitnessGeneratorConfig>,
     object_store: Arc<dyn ObjectStore>,
-    public_blob_store: Option<Box<dyn ObjectStore>>,
+    public_blob_store: Option<Arc<dyn ObjectStore>>,
     connection_pool: ConnectionPool,
     prover_connection_pool: ConnectionPool,
     protocol_versions: Vec<FriProtocolVersionId>,
@@ -90,14 +98,14 @@ impl BasicWitnessGenerator {
     pub async fn new(
         config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
-        public_blob_store: Option<Box<dyn ObjectStore>>,
+        public_blob_store: Option<Arc<dyn ObjectStore>>,
         connection_pool: ConnectionPool,
         prover_connection_pool: ConnectionPool,
         protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {
             config: Arc::new(config),
-            object_store: store_factory.create_store().await.into(),
+            object_store: store_factory.create_store().await,
             public_blob_store,
             connection_pool,
             prover_connection_pool,
@@ -124,7 +132,7 @@ impl BasicWitnessGenerator {
             // We get value higher than `blocks_proving_percentage` with prob = `1 - blocks_proving_percentage`.
             // In this case job should be skipped.
             if threshold > blocks_proving_percentage && !shall_force_process_block {
-                metrics::counter!("server.witness_generator_fri.skipped_blocks", 1);
+                WITNESS_GENERATOR_METRICS.skipped_blocks.inc();
                 tracing::info!(
                     "Skipping witness generation for block {}, blocks_proving_percentage: {}",
                     block_number.0,
@@ -146,7 +154,7 @@ impl BasicWitnessGenerator {
             }
         }
 
-        metrics::counter!("server.witness_generator_fri.sampled_blocks", 1);
+        WITNESS_GENERATOR_METRICS.sampled_blocks.inc();
         tracing::info!(
             "Starting witness generation of type {:?} for block {}",
             AggregationRound::BasicCircuits,
@@ -196,11 +204,10 @@ impl JobProcessor for BasicWitnessGenerator {
                 );
                 let started_at = Instant::now();
                 let job = get_artifacts(block_number, &*self.object_store).await;
-                metrics::histogram!(
-                    "prover_fri.witness_generation.blob_fetch_time",
-                    started_at.elapsed(),
-                    "aggregation_round" => format!("{:?}", AggregationRound::BasicCircuits),
-                );
+
+                WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::BasicCircuits.into()]
+                    .observe(started_at.elapsed());
+
                 Ok(Some((block_number, job)))
             }
             None => Ok(None),
@@ -258,11 +265,10 @@ impl JobProcessor for BasicWitnessGenerator {
                     self.config.shall_save_to_public_bucket,
                 )
                 .await;
-                metrics::histogram!(
-                    "prover_fri.witness_generation.blob_save_time",
-                    blob_started_at.elapsed(),
-                    "aggregation_round" => format!("{:?}", AggregationRound::BasicCircuits),
-                );
+
+                WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::BasicCircuits.into()]
+                    .observe(blob_started_at.elapsed());
+
                 update_database(&self.prover_connection_pool, started_at, job_id, blob_urls).await;
                 Ok(())
             }
@@ -305,11 +311,9 @@ async fn process_basic_circuits_job(
         scheduler_witness,
         aux_output_witness,
     ) = generate_witness(object_store, config, connection_pool, witness_gen_input).await;
-    metrics::histogram!(
-        "prover_fri.witness_generation.witness_generation_time",
-        started_at.elapsed(),
-        "aggregation_round" => format!("{:?}", AggregationRound::BasicCircuits),
-    );
+    WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
+        .observe(started_at.elapsed());
+
     tracing::info!(
         "Witness generation for block {} is complete in {:?}",
         block_number.0,
@@ -527,6 +531,10 @@ async fn generate_witness(
         .unwrap()
         .unwrap();
 
+    let protocol_version = header
+        .protocol_version
+        .unwrap_or(ProtocolVersionId::last_potentially_undefined());
+
     let previous_batch_with_metadata = connection
         .blocks_dal()
         .get_l1_batch_metadata(zksync_types::L1BatchNumber(
@@ -548,13 +556,14 @@ async fn generate_witness(
         .await
         .expect("Default aa bytecode should exist");
     let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
-    let bootloader_contents = expand_bootloader_contents(&input.initial_heap_content);
+    let bootloader_contents =
+        expand_bootloader_contents(&input.initial_heap_content, protocol_version);
     let account_code_hash = h256_to_u256(header.base_system_contracts_hashes.default_aa);
 
     let hashes: HashSet<H256> = input
         .used_bytecodes_hashes
         .iter()
-        // SMA-1555: remove this hack once updated to the latest version of zkevm_test_harness
+        // SMA-1555: remove this hack once updated to the latest version of `zkevm_test_harness`
         .filter(|&&hash| hash != h256_to_u256(header.base_system_contracts_hashes.bootloader))
         .map(|hash| u256_to_h256(*hash))
         .collect();

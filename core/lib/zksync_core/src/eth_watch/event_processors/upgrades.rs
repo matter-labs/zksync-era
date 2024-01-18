@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+
 use zksync_dal::StorageProcessor;
 use zksync_types::{web3::types::Log, ProtocolUpgrade, ProtocolVersionId, H256};
 
@@ -28,11 +29,11 @@ impl UpgradesEventProcessor {
 }
 
 #[async_trait::async_trait]
-impl<W: EthClient + Sync> EventProcessor<W> for UpgradesEventProcessor {
+impl EventProcessor for UpgradesEventProcessor {
     async fn process_events(
         &mut self,
         storage: &mut StorageProcessor<'_>,
-        client: &W,
+        client: &dyn EthClient,
         events: Vec<Log>,
     ) -> Result<(), Error> {
         let mut upgrades = Vec::new();
@@ -42,7 +43,7 @@ impl<W: EthClient + Sync> EventProcessor<W> for UpgradesEventProcessor {
         {
             let upgrade = ProtocolUpgrade::try_from(event)
                 .map_err(|err| Error::LogParse(format!("{:?}", err)))?;
-            // Scheduler VK is not present in proposal event. It is hardcoded in verifier contract.
+            // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.
             let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
                 Some(client.scheduler_vk_hash(address).await?)
             } else {

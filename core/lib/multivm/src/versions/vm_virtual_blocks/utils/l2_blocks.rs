@@ -1,14 +1,16 @@
-use crate::interface::{L2Block, L2BlockEnv};
 use zksync_state::{ReadStorage, StoragePtr};
 use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_HASHES_POSITION,
     SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
     SYSTEM_CONTEXT_STORED_L2_BLOCK_HASHES,
 };
-use zksync_types::block::unpack_block_info;
-use zksync_types::web3::signing::keccak256;
-use zksync_types::{AccountTreeId, MiniblockNumber, StorageKey, H256, U256};
+use zksync_types::{
+    block::unpack_block_info, web3::signing::keccak256, AccountTreeId, MiniblockNumber, StorageKey,
+    H256, U256,
+};
 use zksync_utils::{h256_to_u256, u256_to_h256};
+
+use crate::interface::{L2Block, L2BlockEnv};
 
 pub(crate) fn get_l2_block_hash_key(block_number: u32) -> StorageKey {
     let position = h256_to_u256(SYSTEM_CONTEXT_CURRENT_L2_BLOCK_HASHES_POSITION)
@@ -66,7 +68,7 @@ pub fn load_last_l2_block<S: ReadStorage>(storage: StoragePtr<S>) -> Option<L2Bl
         return None;
     }
 
-    // Get prev block hash
+    // Get previous block hash
     let position = get_l2_block_hash_key(block_number - 1);
     let prev_block_hash = storage_ptr.read_value(&position);
 
