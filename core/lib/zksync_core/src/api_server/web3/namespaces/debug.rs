@@ -2,8 +2,6 @@ use std::sync::Arc;
 
 use multivm::{interface::ExecutionResult, vm_latest::constants::BLOCK_GAS_LIMIT};
 use once_cell::sync::OnceCell;
-use zksync_dal::ConnectionPool;
-use zksync_state::PostgresStorageCaches;
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
@@ -11,7 +9,7 @@ use zksync_types::{
     l2::L2Tx,
     transaction_request::CallRequest,
     vm_trace::Call,
-    AccountTreeId, L2ChainId, H256,
+    AccountTreeId, H256,
 };
 use zksync_web3_decl::error::Web3Error;
 
