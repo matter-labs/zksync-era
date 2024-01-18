@@ -66,7 +66,6 @@ mod snapshots_applier_tests {
             virtual_blocks: None,
             hash: Some(root_hash),
             protocol_version: Default::default(),
-            consensus: None,
         }
     }
 

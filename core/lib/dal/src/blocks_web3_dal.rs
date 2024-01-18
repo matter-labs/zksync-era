@@ -766,11 +766,10 @@ mod tests {
             l1_batch_root_hash: H256::zero(),
             miniblock_number: MiniblockNumber(42),
             miniblock_root_hash: H256::zero(),
-            last_finished_chunk_id: None,
-            total_chunk_count: 100,
+            storage_logs_chunks_processed: (0..100).map(|_| true).collect(),
         };
         conn.snapshot_recovery_dal()
-            .set_applied_snapshot_status(&snapshot_recovery)
+            .insert_initial_recovery_status(&snapshot_recovery)
             .await
             .unwrap();
 
