@@ -10,7 +10,7 @@ use zksync_web3_decl::{
     types::{Filter, FilterChanges},
 };
 
-use crate::api_server::web3::tests::utils::*;
+use self::utils::*;
 
 mod snapshots;
 mod utils;

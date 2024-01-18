@@ -52,7 +52,6 @@ struct PubSubNotifier {
     connection_pool: ConnectionPool,
     polling_interval: Duration,
     events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
-    api_eth_transfer_events: ApiEthTransferEvents,
 }
 
 impl PubSubNotifier {
@@ -159,7 +158,12 @@ impl PubSubNotifier {
             .context("get_pending_txs_hashes_after()")
     }
 
-    async fn notify_logs(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    async fn notify_logs(
+        self,
+        stop_receiver: watch::Receiver<bool>,
+
+        api_eth_transfer_events: ApiEthTransferEvents,
+    ) -> anyhow::Result<()> {
         let mut last_block_number = self.sealed_miniblock_number().await?;
         let mut timer = interval(self.polling_interval);
         loop {
@@ -170,7 +174,9 @@ impl PubSubNotifier {
             timer.tick().await;
 
             let db_latency = PUB_SUB_METRICS.db_poll_latency[&SubscriptionType::Logs].start();
-            let new_logs = self.new_logs(last_block_number).await?;
+            let new_logs = self
+                .new_logs(last_block_number, api_eth_transfer_events)
+                .await?;
             db_latency.observe();
 
             if let Some(last_log) = new_logs.last() {
@@ -183,13 +189,17 @@ impl PubSubNotifier {
         Ok(())
     }
 
-    async fn new_logs(&self, last_block_number: MiniblockNumber) -> anyhow::Result<Vec<Log>> {
+    async fn new_logs(
+        &self,
+        last_block_number: MiniblockNumber,
+        api_eth_transfer_events: ApiEthTransferEvents,
+    ) -> anyhow::Result<Vec<Log>> {
         self.connection_pool
             .access_storage_tagged("api")
             .await
             .context("access_storage_tagged")?
             .events_web3_dal()
-            .get_all_logs(last_block_number, self.api_eth_transfer_events)
+            .get_all_logs(last_block_number, api_eth_transfer_events)
             .await
             .context("events_web3_dal().get_all_logs()")
     }
@@ -407,7 +417,6 @@ impl EthSubscribe {
             connection_pool: connection_pool.clone(),
             polling_interval,
             events_sender: self.events_sender.clone(),
-            api_eth_transfer_events,
         };
         let notifier_task = tokio::spawn(notifier.notify_blocks(stop_receiver.clone()));
         notifier_tasks.push(notifier_task);
@@ -417,7 +426,6 @@ impl EthSubscribe {
             connection_pool: connection_pool.clone(),
             polling_interval,
             events_sender: self.events_sender.clone(),
-            api_eth_transfer_events,
         };
         let notifier_task = tokio::spawn(notifier.notify_txs(stop_receiver.clone()));
         notifier_tasks.push(notifier_task);
@@ -427,9 +435,9 @@ impl EthSubscribe {
             connection_pool,
             polling_interval,
             events_sender: self.events_sender.clone(),
-            api_eth_transfer_events,
         };
-        let notifier_task = tokio::spawn(notifier.notify_logs(stop_receiver));
+        let notifier_task =
+            tokio::spawn(notifier.notify_logs(stop_receiver, api_eth_transfer_events));
 
         notifier_tasks.push(notifier_task);
         notifier_tasks

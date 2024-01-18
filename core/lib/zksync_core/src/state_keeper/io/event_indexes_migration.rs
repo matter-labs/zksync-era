@@ -7,7 +7,7 @@ use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::MiniblockNumber;
 
-/// Runs the migration for non-pending miniblocks. Should be run as a background task.
+/// Runs the migration for miniblocks. Should be run as a background task.
 pub(crate) async fn migrate_miniblocks(
     pool: ConnectionPool,
     last_miniblock: MiniblockNumber,

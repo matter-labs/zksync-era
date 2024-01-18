@@ -93,8 +93,7 @@ impl EventsDal<'_, '_> {
                 );
 
                 if !(event.address == L2_ETH_TOKEN_ADDRESS
-                    && event.indexed_topics.get(0).is_some()
-                    && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
+                    && event.indexed_topics.get(0) == Some(TRANSFER_EVENT_TOPIC))
                 {
                     event_index_in_block_without_eth_transfer += 1;
                     event_index_in_tx_without_eth_transfer += 1;
@@ -301,14 +300,14 @@ impl EventsDal<'_, '_> {
             L2_ETH_TOKEN_ADDRESS.as_bytes(),
             TRANSFER_EVENT_TOPIC.as_bytes()
         )
-            .execute(self.storage.conn())
-            .await?;
+        .execute(self.storage.conn())
+        .await?;
 
         Ok(result.rows_affected() + count_eth_transfer_events)
     }
     // FIXME: not sure that this is the best way to work, pretty error-prone
     /// Method that assigns some non-zero index (1) for all the events with ETH transfer.
-    pub async fn assign_eth_transfer_event_indexes(
+    async fn assign_eth_transfer_event_indexes(
         &mut self,
         numbers: ops::RangeInclusive<MiniblockNumber>,
     ) -> sqlx::Result<u64> {
