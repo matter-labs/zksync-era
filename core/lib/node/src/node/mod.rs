@@ -2,7 +2,6 @@ use std::{any::Any, cell::RefCell, collections::HashMap, fmt};
 
 use futures::{future::BoxFuture, FutureExt};
 use tokio::{runtime::Runtime, sync::watch};
-use zksync_health_check::CheckHealth;
 
 pub use self::{context::NodeContext, stop_receiver::StopReceiver};
 use crate::{
@@ -15,12 +14,6 @@ mod stop_receiver;
 
 type TaskConstructor =
     Box<dyn FnOnce(&NodeContext<'_>) -> Result<Box<dyn ZkSyncTask>, TaskInitError>>;
-type HealthCheckTaskConstructor = Box<
-    dyn FnOnce(
-        &NodeContext<'_>,
-        Vec<Box<dyn CheckHealth>>,
-    ) -> Result<Box<dyn ZkSyncTask>, TaskInitError>,
->;
 
 /// "Manager" class of the node. Collects all the resources and tasks,
 /// then runs tasks until completion.
@@ -48,8 +41,6 @@ pub struct ZkSyncNode {
     resource_collections: RefCell<HashMap<String, Box<dyn Any>>>,
     /// List of task constructors.
     task_constructors: Vec<(String, TaskConstructor)>,
-    /// Optional constructor for the healthcheck task.
-    healthcheck_task_constructor: Option<HealthCheckTaskConstructor>,
 
     /// Sender used to signal that the wiring is complete.
     wired_sender: watch::Sender<bool>,
@@ -86,7 +77,6 @@ impl ZkSyncNode {
             resources: RefCell::default(),
             resource_collections: RefCell::default(),
             task_constructors: Vec::new(),
-            healthcheck_task_constructor: None,
             wired_sender,
             stop_sender,
             runtime,
@@ -112,45 +102,17 @@ impl ZkSyncNode {
         self
     }
 
-    /// Returns `true` if the healthcheck task is already set.
-    pub fn has_healthcheck_task(&self) -> bool {
-        self.healthcheck_task_constructor.is_some()
-    }
-
-    /// Adds a healthcheck task to the node.
-    ///
-    /// Healthcheck task is treated as any other task, with the following differences:
-    /// - It is given the list of healthchecks of all the other tasks.
-    /// - Its own healthcheck is ignored (the task is expected to handle its own checks itself).
-    /// - There may be only one healthcheck task per node.
-    ///
-    /// If the healthcheck task is already set, the provided one will override it.
-    pub fn with_healthcheck<
-        F: FnOnce(
-                &NodeContext<'_>,
-                Vec<Box<dyn CheckHealth>>,
-            ) -> Result<Box<dyn ZkSyncTask>, TaskInitError>
-            + 'static,
-    >(
-        &mut self,
-        healthcheck_task_constructor: F,
-    ) -> &mut Self {
-        self.healthcheck_task_constructor = Some(Box::new(healthcheck_task_constructor));
-        self
-    }
-
     /// Runs the system.
     pub fn run(mut self) -> anyhow::Result<()> {
         // Initialize tasks.
         let task_constructors = std::mem::take(&mut self.task_constructors);
 
         let mut tasks = Vec::new();
-        let mut healthchecks = Vec::new();
 
         let mut errors: Vec<(String, TaskInitError)> = Vec::new();
 
         for (name, task_constructor) in task_constructors {
-            let mut task = match task_constructor(&NodeContext::new(&self)) {
+            let task = match task_constructor(&NodeContext::new(&self)) {
                 Ok(task) => task,
                 Err(err) => {
                     // We don't want to bail on the first error, since it'll provide worse DevEx:
@@ -160,7 +122,6 @@ impl ZkSyncNode {
                     continue;
                 }
             };
-            let healthcheck = task.healthcheck();
             let after_node_shutdown = task.after_node_shutdown();
             let task_future = Box::pin(task.run(StopReceiver(self.stop_sender.subscribe())));
             let task_repr = TaskRepr {
@@ -169,9 +130,6 @@ impl ZkSyncNode {
                 after_node_shutdown,
             };
             tasks.push(task_repr);
-            if let Some(healthcheck) = healthcheck {
-                healthchecks.push(healthcheck);
-            }
         }
 
         // Report all the errors we've met during the init.
@@ -184,25 +142,6 @@ impl ZkSyncNode {
 
         if tasks.is_empty() {
             anyhow::bail!("No tasks to run");
-        }
-
-        // Initialize the healthcheck task, if any.
-        if let Some(healthcheck_constructor) = self.healthcheck_task_constructor.take() {
-            let healthcheck_task = healthcheck_constructor(&NodeContext::new(&self), healthchecks)
-                .map_err(|err| {
-                    tracing::error!("Healthcheck task can't be initialized: {err}");
-                    anyhow::format_err!("Healtcheck task can't be initialized: {err}")
-                })?;
-            // We don't call `healthcheck_task.healtcheck()` here, as we expect it to know its own health.
-            let after_node_shutdown = healthcheck_task.after_node_shutdown();
-            let task_future =
-                Box::pin(healthcheck_task.run(StopReceiver(self.stop_sender.subscribe())));
-            let task_repr = TaskRepr {
-                name: "healthcheck".into(),
-                task: Some(task_future),
-                after_node_shutdown,
-            };
-            tasks.push(task_repr);
         }
 
         // Wiring is now complete.

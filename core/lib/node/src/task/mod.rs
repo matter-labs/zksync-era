@@ -5,7 +5,6 @@
 //! [`ZkSyncTask`], which provides an interface for `ZkSyncNode` to implement the task lifecycle.
 
 use futures::future::BoxFuture;
-use zksync_health_check::CheckHealth;
 
 use crate::node::{NodeContext, StopReceiver};
 
@@ -28,10 +27,6 @@ pub trait IntoZkSyncTask: 'static + Send + Sync {
 /// A task implementation.
 #[async_trait::async_trait]
 pub trait ZkSyncTask: 'static + Send + Sync {
-    /// Gets the healthcheck for the task, if it exists.
-    /// Guaranteed to be called only once per task.
-    fn healthcheck(&mut self) -> Option<Box<dyn CheckHealth>>;
-
     /// Runs the task.
     ///
     /// Once any of the task returns, the node will shutdown.

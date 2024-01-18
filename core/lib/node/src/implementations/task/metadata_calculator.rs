@@ -10,6 +10,8 @@ use crate::{
     task::{IntoZkSyncTask, TaskInitError, ZkSyncTask},
 };
 
+use super::healtcheck_server::HealthCheckTask;
+
 #[derive(Debug)]
 pub struct MetadataCalculatorTask {
     metadata_calculator: MetadataCalculator,
@@ -41,6 +43,13 @@ impl IntoZkSyncTask for MetadataCalculatorTask {
             .runtime_handle()
             .block_on(MetadataCalculator::new(config, object_store.map(|os| os.0)));
 
+        let healthchecks = node.get_resource_collection::<Box<dyn CheckHealth>>(
+            HealthCheckTask::HEALTHCHECK_COLLECTION_NAME,
+        );
+        healthchecks
+            .push(Box::new(metadata_calculator.tree_health_check()))
+            .expect("Wiring stage");
+
         Ok(Box::new(Self {
             metadata_calculator,
             main_pool,
@@ -50,10 +59,6 @@ impl IntoZkSyncTask for MetadataCalculatorTask {
 
 #[async_trait::async_trait]
 impl ZkSyncTask for MetadataCalculatorTask {
-    fn healthcheck(&mut self) -> Option<Box<dyn CheckHealth>> {
-        Some(Box::new(self.metadata_calculator.tree_health_check()))
-    }
-
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         let result = self
             .metadata_calculator

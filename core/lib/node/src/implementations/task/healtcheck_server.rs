@@ -4,14 +4,19 @@ use zksync_config::configs::api::HealthCheckConfig;
 use zksync_core::api_server::healthcheck::HealthCheckHandle;
 
 use crate::{
-    healthcheck::{CheckHealth, IntoHealthCheckTask},
+    healthcheck::CheckHealth,
     node::{NodeContext, StopReceiver},
-    task::{TaskInitError, ZkSyncTask},
+    resource::ResourceCollection,
+    task::{IntoZkSyncTask, TaskInitError, ZkSyncTask},
 };
 
 pub struct HealthCheckTask {
     config: HealthCheckConfig,
-    healthchecks: Vec<Box<dyn CheckHealth>>,
+    healthchecks: ResourceCollection<Box<dyn CheckHealth>>,
+}
+
+impl HealthCheckTask {
+    pub const HEALTHCHECK_COLLECTION_NAME: &'static str = "collection/healthchecks";
 }
 
 impl fmt::Debug for HealthCheckTask {
@@ -22,14 +27,16 @@ impl fmt::Debug for HealthCheckTask {
     }
 }
 
-impl IntoHealthCheckTask for HealthCheckTask {
+impl IntoZkSyncTask for HealthCheckTask {
     type Config = HealthCheckConfig;
 
     fn create(
-        _node: &NodeContext<'_>,
-        healthchecks: Vec<Box<dyn CheckHealth>>,
+        node: &NodeContext<'_>,
         config: Self::Config,
     ) -> Result<Box<dyn ZkSyncTask>, TaskInitError> {
+        let healthchecks =
+            node.get_resource_collection::<Box<dyn CheckHealth>>(Self::HEALTHCHECK_COLLECTION_NAME);
+
         let self_ = Self {
             config,
             healthchecks,
@@ -41,13 +48,10 @@ impl IntoHealthCheckTask for HealthCheckTask {
 
 #[async_trait::async_trait]
 impl ZkSyncTask for HealthCheckTask {
-    fn healthcheck(&mut self) -> Option<Box<dyn zksync_health_check::CheckHealth>> {
-        // Not needed for the healthcheck server.
-        None
-    }
-
     async fn run(mut self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        let handle = HealthCheckHandle::spawn_server(self.config.bind_addr(), self.healthchecks);
+        let healthchecks = self.healthchecks.resolve().await?;
+
+        let handle = HealthCheckHandle::spawn_server(self.config.bind_addr(), healthchecks);
         stop_receiver.0.changed().await?;
         handle.stop().await;
 

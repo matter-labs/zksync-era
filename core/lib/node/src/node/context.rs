@@ -108,14 +108,14 @@ impl<'a> NodeContext<'a> {
     }
 
     /// Gets an existing resource collection or creates a new one.
-    pub fn get_resource_collection<T: Resource>(&self, name: &str) -> ResourceCollection<T> {
+    pub fn get_resource_collection<T>(&self, name: &str) -> ResourceCollection<T> {
         let downcast_clone = |resource: &Box<dyn Any>| {
             resource
                 .downcast_ref::<ResourceCollection<T>>()
                 .unwrap_or_else(|| {
                     panic!(
                         "Resource collection {} is not of type {}",
-                        T::RESOURCE_NAME,
+                        name,
                         std::any::type_name::<T>()
                     )
                 })

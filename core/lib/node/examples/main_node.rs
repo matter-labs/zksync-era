@@ -6,7 +6,6 @@ use zksync_config::PostgresConfig;
 use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;
 use zksync_node::{
-    healthcheck::IntoHealthCheckTask,
     implementations::{
         resource::pools::MasterPoolResource,
         task::{healtcheck_server::HealthCheckTask, metadata_calculator::MetadataCalculatorTask},
@@ -76,8 +75,8 @@ fn main() -> anyhow::Result<()> {
 
     // Add the healthcheck server.
     let healthcheck_config = zksync_config::ApiConfig::from_env()?.healthcheck;
-    node.with_healthcheck(move |node, healthchecks| {
-        HealthCheckTask::create(node, healthchecks, healthcheck_config)
+    node.add_task("healthcheck_server", |node| {
+        HealthCheckTask::create(node, healthcheck_config)
     });
 
     // Run the node until completion.

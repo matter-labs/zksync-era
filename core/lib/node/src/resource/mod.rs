@@ -5,6 +5,7 @@ use std::{
 };
 
 use thiserror::Error;
+use tokio::sync::watch;
 
 /// A marker trait for anything that can be stored (and retrieved) as a resource.
 /// Requires `Clone` since the same resource may be requested by several tasks.
@@ -45,7 +46,9 @@ pub trait ResourceProvider: 'static + Send + Sync + fmt::Debug {
 /// new elements, and the collection can be resolved into a vector of resources.
 ///
 /// Collections are meant to be consumed by a single task: if multiple tasks will try to resolve the
-/// same collection, the first one to do so will succeed, and the rest will receive an error.
+/// same collection, the first one to do so will succeed, and the rest will receive an error. If you need a
+/// collection that will be used by multiple tasks, consider creating a dedicated resource which would wrap
+/// some collection, like `Arc<RwLock<T>>`.
 ///
 /// Note that the collection type doesn't have to implement the [Resource] trait, since it is the collection
 /// itself that is a resource, not the elements it contains.
@@ -54,9 +57,12 @@ pub trait ResourceProvider: 'static + Send + Sync + fmt::Debug {
 /// other task to consume. For example, tasks may register their healtchecks, and then healtcheck task will observe
 /// all the provided healtchecks.
 pub struct ResourceCollection<T: 'static> {
+    /// Collection of the resources.
     resources: Arc<RwLock<Vec<T>>>,
+    /// Whether someone took the value from this collection.
     resolved: Arc<AtomicBool>,
-    wired: tokio::sync::watch::Receiver<bool>,
+    /// Whether the wiring process has been completed.
+    wired: watch::Receiver<bool>,
 }
 
 impl<T> Clone for ResourceCollection<T> {
@@ -78,7 +84,7 @@ pub enum ResourceCollectionError {
 }
 
 impl<T: 'static> ResourceCollection<T> {
-    pub(crate) fn new(wired: tokio::sync::watch::Receiver<bool>) -> Self {
+    pub(crate) fn new(wired: watch::Receiver<bool>) -> Self {
         Self {
             resources: Default::default(),
             resolved: Default::default(),
@@ -86,7 +92,7 @@ impl<T: 'static> ResourceCollection<T> {
         }
     }
 
-    pub fn push(&mut self, resource: T) -> Result<(), ResourceCollectionError> {
+    pub fn push(&self, resource: T) -> Result<(), ResourceCollectionError> {
         // This check is sufficient, since no task is guaranteed to be running when the value changes.
         if *self.wired.borrow() {
             return Err(ResourceCollectionError::AlreadyWired);
