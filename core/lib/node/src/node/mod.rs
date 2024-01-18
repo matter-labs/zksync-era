@@ -36,8 +36,13 @@ pub struct ZkSyncNode {
     resource_provider: Box<dyn ResourceProvider>,
     /// Cache of resources that have been requested at least by one task.
     resources: RefCell<HashMap<String, Box<dyn Any>>>,
+    /// List of lazy resources.
+    // Note: Internally stored as `Box<dyn Any>` to erase the type a resource is parameterized with.
+    // TODO (QIT-25): May contain names present in other collections. Names should be globally unique.
+    lazy_resources: RefCell<HashMap<String, Box<dyn Any>>>,
     /// Resource collections that tasks would fill.
     // Note: Internally stored as `Box<dyn Any>` to erase the type a collection is parameterized with.
+    // TODO (QIT-25): May contain names present in other collections. Names should be globally unique.
     resource_collections: RefCell<HashMap<String, Box<dyn Any>>>,
     /// List of task constructors.
     task_constructors: Vec<(String, TaskConstructor)>,
@@ -75,6 +80,7 @@ impl ZkSyncNode {
         let self_ = Self {
             resource_provider: Box::new(resource_provider),
             resources: RefCell::default(),
+            lazy_resources: RefCell::default(),
             resource_collections: RefCell::default(),
             task_constructors: Vec::new(),
             wired_sender,
@@ -119,7 +125,7 @@ impl ZkSyncNode {
                 }
             };
             let after_node_shutdown = task.after_node_shutdown();
-            let task_future = Box::pin(task.run(StopReceiver(self.stop_sender.subscribe())));
+            let task_future = Box::pin(task.run(self.stop_receiver()));
             let task_repr = TaskRepr {
                 name,
                 task: Some(task_future),
@@ -195,6 +201,10 @@ impl ZkSyncNode {
         } else {
             Ok(())
         }
+    }
+
+    pub(crate) fn stop_receiver(&self) -> StopReceiver {
+        StopReceiver(self.stop_sender.subscribe())
     }
 }
 

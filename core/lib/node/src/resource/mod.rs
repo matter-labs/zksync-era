@@ -2,6 +2,7 @@ use std::{any::Any, fmt};
 
 pub use self::resource_collection::ResourceCollection;
 
+pub mod lazy_resource;
 pub mod resource_collection;
 
 /// A marker trait for anything that can be stored (and retrieved) as a resource.

@@ -4,7 +4,7 @@ use thiserror::Error;
 
 use crate::{
     node::ZkSyncNode,
-    resource::{Resource, ResourceCollection},
+    resource::{lazy_resource::LazyResource, Resource, ResourceCollection},
 };
 
 #[derive(Debug, Error)]
@@ -78,6 +78,38 @@ impl<'a> NodeContext<'a> {
         None
     }
 
+    /// Returns a handle to a lazy resource.
+    /// Lazy resource are always available, and expected to be initialized by one of the tasks
+    /// that requests it.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if the resource with the specified name exists, but is not of the requested type.
+    pub fn get_lazy_resource<T: Resource>(&self) -> LazyResource<T> {
+        let downcast_clone = |resource: &Box<dyn Any>| {
+            resource
+                .downcast_ref::<LazyResource<T>>()
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Lazy resource {} is not of type {}",
+                        T::RESOURCE_NAME,
+                        std::any::type_name::<T>()
+                    )
+                })
+                .clone()
+        };
+
+        let name = T::RESOURCE_NAME;
+        let mut handle = self.node.lazy_resources.borrow_mut();
+        if let Some(resource) = handle.get(name) {
+            return downcast_clone(resource);
+        }
+
+        let resource = LazyResource::new(self.node.stop_receiver());
+        handle.insert(name.into(), Box::new(resource.clone()));
+        resource
+    }
+
     /// Adds a new resource to the node.
     /// Returns an error if the resource with the same name is already added.
     pub fn add_resource<T: Resource>(&self, resource: T) -> Result<(), NodeContextError> {
@@ -108,6 +140,10 @@ impl<'a> NodeContext<'a> {
     }
 
     /// Gets an existing resource collection or creates a new one.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if the resource collection with the specified name exists, but is not of the requested type.
     pub fn get_resource_collection<T>(&self, name: &str) -> ResourceCollection<T> {
         let downcast_clone = |resource: &Box<dyn Any>| {
             resource
