@@ -37,7 +37,6 @@ use zksync_utils::{h256_to_u256, time::millis_since_epoch, u256_to_h256};
 use crate::{
     metrics::{BlockStage, MiniblockStage, APP_METRICS},
     state_keeper::{
-        extractors,
         metrics::{L1BatchSealStage, MiniblockSealStage, L1_BATCH_METRICS, MINIBLOCK_METRICS},
         types::ExecutionMetricsForCriteria,
         updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
@@ -114,20 +113,8 @@ impl UpdatesManager {
         );
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertL1BatchHeader);
-        let (_prev_hash, prev_timestamp) =
-            extractors::wait_for_prev_l1_batch_params(&mut transaction, l1_batch_env.number).await;
-        assert!(
-            prev_timestamp < l1_batch_env.timestamp,
-            "Cannot seal L1 batch #{}: Timestamp of previous L1 batch ({}) >= provisional L1 batch timestamp ({}), \
-             meaning that L1 batch will be rejected by the bootloader",
-            l1_batch_env.number,
-            extractors::display_timestamp(prev_timestamp),
-            extractors::display_timestamp(l1_batch_env.timestamp)
-        );
-
         let l2_to_l1_messages =
             extract_long_l2_to_l1_messages(&finished_batch.final_execution_state.events);
-
         let l1_batch = L1BatchHeader {
             number: l1_batch_env.number,
             is_finished: true,

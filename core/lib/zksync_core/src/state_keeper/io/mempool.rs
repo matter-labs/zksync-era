@@ -5,6 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use anyhow::Context as _;
 use async_trait::async_trait;
 use multivm::{
     interface::{FinishedL1Batch, L1BatchEnv, SystemEnv},
@@ -16,7 +17,7 @@ use zksync_mempool::L2TxFilter;
 use zksync_object_store::ObjectStore;
 use zksync_types::{
     protocol_version::ProtocolUpgradeTx, witness_block_state::WitnessBlockState, Address,
-    L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256, U256,
+    L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::time::millis_since_epoch;
@@ -26,7 +27,7 @@ use crate::{
     state_keeper::{
         extractors,
         io::{
-            common::{l1_batch_params, load_pending_batch, poll_iters, IoCursor},
+            common::{l1_batch_params, poll_iters, IoCursor, L1BatchParamsProvider},
             MiniblockParams, MiniblockSealerHandle, PendingBatchData, StateKeeperIO,
         },
         mempool_actor::l2_tx_filter,
@@ -51,6 +52,7 @@ pub(crate) struct MempoolIO {
     current_miniblock_number: MiniblockNumber,
     prev_miniblock_hash: H256,
     prev_miniblock_timestamp: u64,
+    l1_batch_params_provider: L1BatchParamsProvider,
     miniblock_sealer_handle: MiniblockSealerHandle,
     current_l1_batch_number: L1BatchNumber,
     fee_account: Address,
@@ -93,18 +95,40 @@ impl StateKeeperIO for MempoolIO {
             .await
             .unwrap();
 
+        let pending_miniblock_header = self
+            .l1_batch_params_provider
+            .load_first_miniblock_in_batch(&mut storage, self.current_l1_batch_number)
+            .await
+            .with_context(|| {
+                format!(
+                    "failed loading first miniblock for L1 batch #{}",
+                    self.current_l1_batch_number
+                )
+            })
+            .unwrap()?;
+        let pending_batch_data = self
+            .l1_batch_params_provider
+            .load_pending_batch(
+                &mut storage,
+                &pending_miniblock_header,
+                self.fee_account,
+                self.validation_computational_gas_limit,
+                self.chain_id,
+            )
+            .await
+            .with_context(|| {
+                format!(
+                    "failed loading pending L1 batch #{}",
+                    self.current_l1_batch_number
+                )
+            })
+            .unwrap();
+
         let PendingBatchData {
             l1_batch_env,
             system_env,
             pending_miniblocks,
-        } = load_pending_batch(
-            &mut storage,
-            self.current_l1_batch_number,
-            self.fee_account,
-            self.validation_computational_gas_limit,
-            self.chain_id,
-        )
-        .await?;
+        } = pending_batch_data;
         // Initialize the filter for the transactions that come after the pending batch.
         // We use values from the pending block to match the filter with one used before the restart.
         let (base_fee, gas_per_pubdata) =
@@ -409,7 +433,12 @@ impl MempoolIO {
         );
 
         let mut storage = pool.access_storage_tagged("state_keeper").await?;
-        let cursor = IoCursor::new(&mut storage).await?;
+        let cursor = IoCursor::new(&mut storage)
+            .await
+            .context("failed initializing I/O cursor")?;
+        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut storage)
+            .await
+            .context("failed initializing L1 batch params provider")?;
         drop(storage);
 
         Ok(Self {
@@ -424,6 +453,7 @@ impl MempoolIO {
             current_miniblock_number: cursor.next_miniblock,
             prev_miniblock_hash: cursor.prev_miniblock_hash,
             prev_miniblock_timestamp: cursor.prev_miniblock_timestamp,
+            l1_batch_params_provider,
             fee_account: config.fee_account_addr,
             validation_computational_gas_limit,
             delay_interval,
@@ -445,7 +475,7 @@ impl MempoolIO {
         self.prev_miniblock_timestamp = miniblock.timestamp;
     }
 
-    async fn load_previous_l1_batch_hash(&self) -> U256 {
+    async fn load_previous_l1_batch_hash(&self) -> H256 {
         tracing::info!(
             "Getting previous L1 batch hash for L1 batch #{}",
             self.current_l1_batch_number
@@ -457,13 +487,19 @@ impl MempoolIO {
             .access_storage_tagged("state_keeper")
             .await
             .unwrap();
-        let (batch_hash, _) =
-            extractors::wait_for_prev_l1_batch_params(&mut storage, self.current_l1_batch_number)
-                .await;
+        let prev_l1_batch_number = self.current_l1_batch_number - 1;
+        let (batch_hash, _) = self
+            .l1_batch_params_provider
+            .wait_for_l1_batch_params(&mut storage, prev_l1_batch_number)
+            .await
+            .with_context(|| {
+                format!("error waiting for params for L1 batch #{prev_l1_batch_number}")
+            })
+            .unwrap();
 
         wait_latency.observe();
         tracing::info!(
-            "Got previous L1 batch hash: {batch_hash:0>64x} for L1 batch #{}",
+            "Got previous L1 batch hash: {batch_hash:?} for L1 batch #{}",
             self.current_l1_batch_number
         );
         batch_hash

@@ -11,6 +11,7 @@ use zksync_types::{
     l2::L2Tx,
     snapshots::SnapshotRecoveryStatus,
     transaction_request::PaymasterParams,
+    tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
     Address, L1BatchNumber, L2ChainId, MiniblockNumber, Nonce, ProtocolVersion, ProtocolVersionId,
     H256, U256,
 };
@@ -94,6 +95,20 @@ pub(crate) fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u32) -> L
     // that the transaction hash is unique.
     tx.set_input(H256::random().0.to_vec(), H256::random());
     tx
+}
+
+pub(crate) fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
+    TransactionExecutionResult {
+        hash: transaction.hash(),
+        transaction: transaction.into(),
+        execution_info: ExecutionMetrics::default(),
+        execution_status: TxExecutionStatus::Success,
+        refunded_gas: 0,
+        operator_suggested_refund: 0,
+        compressed_bytecodes: vec![],
+        call_traces: vec![],
+        revert_reason: None,
+    }
 }
 
 pub(crate) async fn prepare_empty_recovery_snapshot(

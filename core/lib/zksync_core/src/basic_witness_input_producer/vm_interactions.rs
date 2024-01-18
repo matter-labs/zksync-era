@@ -9,7 +9,7 @@ use zksync_dal::StorageProcessor;
 use zksync_state::{PostgresStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{L1BatchNumber, L2ChainId, Transaction};
 
-use crate::state_keeper::io::common::load_l1_batch_params;
+use crate::state_keeper::io::common::L1BatchParamsProvider;
 
 pub(super) type VmAndStorage<'a> = (
     VmInstance<StorageView<PostgresStorage<'a>>, HistoryEnabled>,
@@ -22,19 +22,16 @@ pub(super) fn create_vm(
     mut connection: StorageProcessor<'_>,
     l2_chain_id: L2ChainId,
 ) -> anyhow::Result<VmAndStorage> {
-    let prev_l1_batch_number = l1_batch_number - 1;
-    let (_, miniblock_number) = rt_handle
+    let l1_batch_params_provider = rt_handle
+        .block_on(L1BatchParamsProvider::new(&mut connection))
+        .context("failed initializing L1 batch params provider")?;
+    let first_miniblock_in_batch = rt_handle
         .block_on(
-            connection
-                .blocks_dal()
-                .get_miniblock_range_of_l1_batch(prev_l1_batch_number),
-        )?
-        .with_context(|| {
-            format!(
-                "l1_batch_number {l1_batch_number:?} must have a previous miniblock to start from"
-            )
-        })?;
-
+            l1_batch_params_provider
+                .load_first_miniblock_in_batch(&mut connection, l1_batch_number),
+        )
+        .with_context(|| format!("failed loading first miniblock in L1 batch #{l1_batch_number}"))?
+        .with_context(|| format!("no miniblocks persisted for L1 batch #{l1_batch_number}"))?;
     let fee_account_addr = rt_handle
         .block_on(
             connection
@@ -49,17 +46,24 @@ pub(super) fn create_vm(
     // All batches ran by BasicWitnessInputProducer have already been executed by State Keeper.
     // This means we don't want to reject any execution, therefore we're using MAX as an allow all.
     let validation_computational_gas_limit = u32::MAX;
+
     let (system_env, l1_batch_env) = rt_handle
-        .block_on(load_l1_batch_params(
+        .block_on(l1_batch_params_provider.load_l1_batch_params(
             &mut connection,
-            l1_batch_number,
+            &first_miniblock_in_batch,
             fee_account_addr,
             validation_computational_gas_limit,
             l2_chain_id,
         ))
         .context("expected miniblock to be executed and sealed")?;
 
-    let pg_storage = PostgresStorage::new(rt_handle.clone(), connection, miniblock_number, true);
+    let storage_miniblock_number = first_miniblock_in_batch.number() - 1;
+    let pg_storage = PostgresStorage::new(
+        rt_handle.clone(),
+        connection,
+        storage_miniblock_number,
+        true,
+    );
     let storage_view = StorageView::new(pg_storage).to_rc_ptr();
     let vm = VmInstance::new(l1_batch_env, system_env, storage_view.clone());
 

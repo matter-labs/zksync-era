@@ -1,5 +1,6 @@
 use std::{collections::HashMap, convert::TryInto, iter::FromIterator, time::Duration};
 
+use anyhow::Context as _;
 use async_trait::async_trait;
 use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
@@ -7,7 +8,7 @@ use zksync_dal::ConnectionPool;
 use zksync_types::{
     ethabi::Address, fee_model::BatchFeeInput, protocol_version::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, L1BatchNumber, L2ChainId, MiniblockNumber,
-    ProtocolVersionId, Transaction, H256, U256,
+    ProtocolVersionId, Transaction, H256,
 };
 use zksync_utils::{be_words_to_bytes, bytes_to_be_words};
 
@@ -19,9 +20,8 @@ use super::{
 use crate::{
     metrics::{BlockStage, APP_METRICS},
     state_keeper::{
-        extractors,
         io::{
-            common::{l1_batch_params, load_pending_batch, poll_iters, IoCursor},
+            common::{l1_batch_params, poll_iters, IoCursor, L1BatchParamsProvider},
             MiniblockParams, MiniblockSealerHandle, PendingBatchData, StateKeeperIO,
         },
         metrics::KEEPER_METRICS,
@@ -47,6 +47,7 @@ pub struct ExternalIO {
     current_l1_batch_number: L1BatchNumber,
     current_miniblock_number: MiniblockNumber,
     prev_miniblock_hash: H256,
+    l1_batch_params_provider: L1BatchParamsProvider,
     actions: ActionQueue,
     sync_state: SyncState,
     main_node_client: Box<dyn MainNodeClient>,
@@ -71,7 +72,12 @@ impl ExternalIO {
         chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         let mut storage = pool.access_storage_tagged("sync_layer").await?;
-        let cursor = IoCursor::new(&mut storage).await?;
+        let cursor = IoCursor::new(&mut storage)
+            .await
+            .context("failed initializing I/O cursor")?;
+        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut storage)
+            .await
+            .context("failed initializing L1 batch params provider")?;
         drop(storage);
 
         tracing::info!(
@@ -88,6 +94,7 @@ impl ExternalIO {
             current_l1_batch_number: cursor.l1_batch,
             current_miniblock_number: cursor.next_miniblock,
             prev_miniblock_hash: cursor.prev_miniblock_hash,
+            l1_batch_params_provider,
             actions,
             sync_state,
             main_node_client,
@@ -110,12 +117,18 @@ impl ExternalIO {
         self.prev_miniblock_hash = miniblock.get_miniblock_hash();
     }
 
-    async fn load_previous_l1_batch_hash(&self) -> U256 {
+    async fn load_previous_l1_batch_hash(&self) -> H256 {
         let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
         let wait_latency = KEEPER_METRICS.wait_for_prev_hash_time.start();
-        let (hash, _) =
-            extractors::wait_for_prev_l1_batch_params(&mut storage, self.current_l1_batch_number)
-                .await;
+        let prev_l1_batch_number = self.current_l1_batch_number - 1;
+        let (hash, _) = self
+            .l1_batch_params_provider
+            .wait_for_l1_batch_params(&mut storage, prev_l1_batch_number)
+            .await
+            .with_context(|| {
+                format!("error waiting for params for L1 batch #{prev_l1_batch_number}")
+            })
+            .unwrap();
         wait_latency.observe();
         hash
     }
@@ -248,48 +261,54 @@ impl StateKeeperIO for ExternalIO {
                 )
             })
             .fee_account_address;
-        let pending_miniblock_number = {
-            let (_, last_miniblock_number_included_in_l1_batch) = storage
-                .blocks_dal()
-                .get_miniblock_range_of_l1_batch(self.current_l1_batch_number - 1)
-                .await
-                .unwrap()
-                .unwrap();
-            last_miniblock_number_included_in_l1_batch + 1
-        };
-        let pending_miniblock_header = storage
-            .blocks_dal()
-            .get_miniblock_header(pending_miniblock_number)
+        let mut pending_miniblock_header = self
+            .l1_batch_params_provider
+            .load_first_miniblock_in_batch(&mut storage, self.current_l1_batch_number)
             .await
+            .with_context(|| {
+                format!(
+                    "failed loading first miniblock for L1 batch #{}",
+                    self.current_l1_batch_number
+                )
+            })
             .unwrap()?;
-
-        if pending_miniblock_header.protocol_version.is_none() {
+        if !pending_miniblock_header.has_protocol_version() {
             // Fetch protocol version ID for pending miniblocks to know which VM to use to re-execute them.
             let sync_block = self
                 .main_node_client
-                .fetch_l2_block(pending_miniblock_header.number, false)
+                .fetch_l2_block(pending_miniblock_header.number(), false)
                 .await
                 .expect("Failed to fetch block from the main node")
                 .expect("Block must exist");
             // Loading base system contracts will insert protocol version in the database if it's not present there.
-            let _ = self
-                .load_base_system_contracts_by_version_id(sync_block.protocol_version)
+            self.load_base_system_contracts_by_version_id(sync_block.protocol_version)
                 .await;
             storage
                 .blocks_dal()
                 .set_protocol_version_for_pending_miniblocks(sync_block.protocol_version)
                 .await
                 .unwrap();
+            pending_miniblock_header.set_protocol_version(sync_block.protocol_version);
         }
 
-        load_pending_batch(
-            &mut storage,
-            self.current_l1_batch_number,
-            fee_account,
-            self.validation_computational_gas_limit,
-            self.chain_id,
-        )
-        .await
+        let data = self
+            .l1_batch_params_provider
+            .load_pending_batch(
+                &mut storage,
+                &pending_miniblock_header,
+                fee_account,
+                self.validation_computational_gas_limit,
+                self.chain_id,
+            )
+            .await
+            .with_context(|| {
+                format!(
+                    "failed loading data for pending L1 batch #{}",
+                    self.current_l1_batch_number
+                )
+            })
+            .unwrap();
+        Some(data)
     }
 
     async fn wait_for_new_batch_params(
