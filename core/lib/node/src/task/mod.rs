@@ -19,8 +19,11 @@ pub trait IntoZkSyncTask: 'static + Send + Sync {
     type Config: 'static + Send + Sync;
 
     /// Creates a new task.
+    ///
     /// `NodeContext` provides an interface to the utilities that task may need, e.g. the runtime handle to perform asynchronous
     /// calls, or access to the resources.
+    ///
+    /// It is OK to invoke blocking code during this method (e.g. call `node.runtime_handle().block_on(...)`).
     fn create(
         node: NodeContext<'_>,
         config: Self::Config,
@@ -65,6 +68,6 @@ pub trait ZkSyncTask: 'static + Send + Sync {
 pub enum TaskInitError {
     #[error("Resource {0} is not provided")]
     ResourceLacking(&'static str),
-    #[error("Internal error: {0}")]
+    #[error(transparent)]
     Internal(#[from] anyhow::Error),
 }
