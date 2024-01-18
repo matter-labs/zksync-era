@@ -46,7 +46,8 @@ impl<'a> CtxStorage<'a> {
         let number = ctx
             .wait(self.0.blocks_dal().get_sealed_miniblock_number())
             .await?
-            .context("sqlx")?;
+            .context("sqlx")?
+            .context("no miniblocks in storage")?; // FIXME (PLA-703): handle empty storage
         Ok(validator::BlockNumber(number.0.into()))
     }
 

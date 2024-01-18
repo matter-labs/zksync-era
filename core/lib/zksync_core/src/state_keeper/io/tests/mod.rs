@@ -400,14 +400,14 @@ async fn test_miniblock_and_l1_batch_processing(
             .get_sealed_miniblock_number()
             .await
             .unwrap(),
-        MiniblockNumber(2) // + fictive miniblock
+        Some(MiniblockNumber(2)) // + fictive miniblock
     );
     let l1_batch_header = conn
         .blocks_dal()
         .get_l1_batch_header(L1BatchNumber(1))
         .await
         .unwrap()
-        .unwrap();
+        .expect("No L1 batch #1");
     assert_eq!(l1_batch_header.l2_tx_count, 1);
     assert!(l1_batch_header.is_finished);
 }

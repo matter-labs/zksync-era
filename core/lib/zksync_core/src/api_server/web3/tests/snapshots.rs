@@ -2,32 +2,9 @@
 
 use std::collections::HashSet;
 
-use zksync_types::block::BlockGasCount;
 use zksync_web3_decl::namespaces::SnapshotsNamespaceClient;
 
 use super::*;
-use crate::utils::testonly::{create_l1_batch, create_l1_batch_metadata};
-
-async fn seal_l1_batch(
-    storage: &mut StorageProcessor<'_>,
-    number: L1BatchNumber,
-) -> anyhow::Result<()> {
-    let header = create_l1_batch(number.0);
-    storage
-        .blocks_dal()
-        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
-        .await?;
-    storage
-        .blocks_dal()
-        .mark_miniblocks_as_executed_in_l1_batch(number)
-        .await?;
-    let metadata = create_l1_batch_metadata(number.0);
-    storage
-        .blocks_dal()
-        .save_l1_batch_metadata(number, &metadata, H256::zero(), false)
-        .await?;
-    Ok(())
-}
 
 #[derive(Debug)]
 struct SnapshotBasicsTest {
@@ -52,7 +29,12 @@ impl SnapshotBasicsTest {
 impl HttpTest for SnapshotBasicsTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
         let mut storage = pool.access_storage().await.unwrap();
-        store_miniblock(&mut storage).await?;
+        store_miniblock(
+            &mut storage,
+            MiniblockNumber(1),
+            &[execute_l2_transaction(create_l2_transaction(1, 2))],
+        )
+        .await?;
         seal_l1_batch(&mut storage, L1BatchNumber(1)).await?;
         storage
             .snapshots_dal()
