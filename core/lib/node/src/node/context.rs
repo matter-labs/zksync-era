@@ -2,7 +2,10 @@ use std::any::Any;
 
 use thiserror::Error;
 
-use crate::{node::ZkSyncNode, resource::Resource};
+use crate::{
+    node::ZkSyncNode,
+    resource::{Resource, ResourceCollection},
+};
 
 #[derive(Debug, Error)]
 pub enum NodeContextError {
@@ -102,5 +105,30 @@ impl<'a> NodeContext<'a> {
             .borrow_mut()
             .insert(T::RESOURCE_NAME.into(), Box::new(resource.clone()));
         resource
+    }
+
+    /// Gets an existing resource collection or creates a new one.
+    pub fn get_resource_collection<T: Resource>(&self, name: &str) -> ResourceCollection<T> {
+        let downcast_clone = |resource: &Box<dyn Any>| {
+            resource
+                .downcast_ref::<ResourceCollection<T>>()
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Resource collection {} is not of type {}",
+                        T::RESOURCE_NAME,
+                        std::any::type_name::<T>()
+                    )
+                })
+                .clone()
+        };
+
+        let mut handle = self.node.resource_collections.borrow_mut();
+        if let Some(collection) = handle.get(name) {
+            return downcast_clone(collection);
+        }
+
+        let collection = ResourceCollection::new(self.node.wired_sender.subscribe());
+        handle.insert(name.into(), Box::new(collection.clone()) as Box<dyn Any>);
+        collection
     }
 }

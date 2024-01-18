@@ -43,15 +43,18 @@ pub struct ZkSyncNode {
     resource_provider: Box<dyn ResourceProvider>,
     /// Cache of resources that have been requested at least by one task.
     resources: RefCell<HashMap<String, Box<dyn Any>>>,
+    /// Resource collections that tasks would fill.
+    // Note: Internally stored as `Box<dyn Any>` to erase the type a collection is parameterized with.
+    resource_collections: RefCell<HashMap<String, Box<dyn Any>>>,
     /// List of task constructors.
     task_constructors: Vec<(String, TaskConstructor)>,
     /// Optional constructor for the healthcheck task.
     healthcheck_task_constructor: Option<HealthCheckTaskConstructor>,
 
+    /// Sender used to signal that the wiring is complete.
+    wired_sender: watch::Sender<bool>,
     /// Sender used to stop the tasks.
     stop_sender: watch::Sender<bool>,
-    /// Stop receiver to be shared with tasks.
-    stop_receiver: StopReceiver,
     /// Tokio runtime used to spawn tasks.
     /// During the node initialization the implicit tokio context is not available, so tasks
     /// are expected to use the handle provided by [`NodeContext`].
@@ -76,14 +79,16 @@ impl ZkSyncNode {
             .build()
             .unwrap();
 
-        let (stop_sender, stop_receiver) = watch::channel(false);
+        let (stop_sender, _stop_receiver) = watch::channel(false);
+        let (wired_sender, _wired_receiver) = watch::channel(false);
         let self_ = Self {
             resource_provider: Box::new(resource_provider),
             resources: RefCell::default(),
+            resource_collections: RefCell::default(),
             task_constructors: Vec::new(),
             healthcheck_task_constructor: None,
+            wired_sender,
             stop_sender,
-            stop_receiver: StopReceiver(stop_receiver),
             runtime,
         };
 
@@ -157,7 +162,7 @@ impl ZkSyncNode {
             };
             let healthcheck = task.healthcheck();
             let after_node_shutdown = task.after_node_shutdown();
-            let task_future = Box::pin(task.run(self.stop_receiver.clone()));
+            let task_future = Box::pin(task.run(StopReceiver(self.stop_sender.subscribe())));
             let task_repr = TaskRepr {
                 name,
                 task: Some(task_future),
@@ -190,7 +195,8 @@ impl ZkSyncNode {
                 })?;
             // We don't call `healthcheck_task.healtcheck()` here, as we expect it to know its own health.
             let after_node_shutdown = healthcheck_task.after_node_shutdown();
-            let task_future = Box::pin(healthcheck_task.run(self.stop_receiver.clone()));
+            let task_future =
+                Box::pin(healthcheck_task.run(StopReceiver(self.stop_sender.subscribe())));
             let task_repr = TaskRepr {
                 name: "healthcheck".into(),
                 task: Some(task_future),
@@ -198,6 +204,9 @@ impl ZkSyncNode {
             };
             tasks.push(task_repr);
         }
+
+        // Wiring is now complete.
+        self.wired_sender.send(true).ok();
 
         // Prepare tasks for running.
         let rt_handle = self.runtime.handle().clone();
