@@ -194,8 +194,7 @@ pub struct SnapshotRecoveryStatus {
     pub l1_batch_root_hash: H256,
     pub miniblock_number: MiniblockNumber,
     pub miniblock_root_hash: H256,
-    pub storage_logs_chunks_ids_to_process: Vec<u64>,
-    pub storage_logs_chunks_ids_already_processed: Vec<u64>,
+    pub storage_logs_chunks_processed: Vec<bool>,
 }
 
 // Used only in tests

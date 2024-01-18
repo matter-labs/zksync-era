@@ -89,8 +89,7 @@ impl StorageLogsDal<'_, '_> {
                 )
                 FROM STDIN WITH (DELIMITER '|')",
             )
-            .await
-            .unwrap();
+            .await?;
 
         let mut buffer = String::new();
         let now = Utc::now().naive_utc().to_string();

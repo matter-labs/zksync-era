@@ -1,8 +1,7 @@
 ALTER TABLE snapshot_recovery ADD COLUMN last_finished_chunk_id NOT NULL;
 ALTER TABLE snapshot_recovery ADD COLUMN total_chunk_count NOT NULL;
 
-ALTER TABLE snapshot_recovery DROP COLUMN storage_logs_chunks_ids_to_process;
-ALTER TABLE snapshot_recovery DROP COLUMN storage_logs_chunks_ids_already_processed;
+ALTER TABLE snapshot_recovery DROP COLUMN storage_logs_chunks_processed;
 
 ALTER TABLE factory_deps ADD CONSTRAINT factory_deps_miniblock_number_fkey
     FOREIGN KEY (miniblock_number) REFERENCES miniblocks (number);

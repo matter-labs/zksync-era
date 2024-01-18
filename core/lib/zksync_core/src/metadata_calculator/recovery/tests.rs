@@ -124,8 +124,7 @@ async fn prepare_recovery_snapshot_with_genesis(
         l1_batch_root_hash,
         miniblock_number: MiniblockNumber(1),
         miniblock_root_hash: H256::zero(), // not used
-        storage_logs_chunks_ids_to_process: vec![],
-        storage_logs_chunks_ids_already_processed: vec![],
+        storage_logs_chunks_processed: vec![],
     }
 }
 
@@ -377,12 +376,11 @@ async fn prepare_clean_recovery_snapshot(
         l1_batch_root_hash,
         miniblock_number: miniblock.number,
         miniblock_root_hash: H256::zero(), // not used
-        storage_logs_chunks_ids_to_process: vec![],
-        storage_logs_chunks_ids_already_processed: vec![],
+        storage_logs_chunks_processed: vec![],
     };
     storage
         .snapshot_recovery_dal()
-        .set_applied_snapshot_status(&snapshot_recovery)
+        .insert_initial_recovery_status(&snapshot_recovery)
         .await
         .unwrap();
     snapshot_recovery

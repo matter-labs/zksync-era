@@ -1,55 +1,28 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::collections::HashMap;
 
 use async_trait::async_trait;
-use zksync_types::{snapshots::SnapshotHeader, MiniblockNumber, H256};
+use zksync_types::{api::en::SyncBlock, snapshots::SnapshotHeader, MiniblockNumber, H256};
 use zksync_web3_decl::jsonrpsee::core::ClientError as RpcError;
 
 use crate::SnapshotsApplierMainNodeClient;
 
 #[derive(Debug, Default)]
 struct MockMainNodeClient {
-    miniblock_hash_responses: HashMap<MiniblockNumber, H256>,
+    fetch_l2_block_responses: HashMap<MiniblockNumber, SyncBlock>,
     fetch_newest_snapshot_response: Option<SnapshotHeader>,
-    error_kind: Arc<Mutex<Option<RpcErrorKind>>>,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum RpcErrorKind {
-    Transient,
-    Fatal,
-}
-
-impl From<RpcErrorKind> for RpcError {
-    fn from(kind: RpcErrorKind) -> Self {
-        match kind {
-            RpcErrorKind::Transient => Self::RequestTimeout,
-            RpcErrorKind::Fatal => Self::HttpNotImplemented,
-        }
-    }
 }
 
 #[async_trait]
 impl SnapshotsApplierMainNodeClient for MockMainNodeClient {
-    async fn miniblock_hash(&self, number: MiniblockNumber) -> Result<Option<H256>, RpcError> {
-        if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
-            return Err(error_kind.into());
-        }
-
-        if let Some(response) = self.miniblock_hash_responses.get(&number) {
-            Ok(Some(*response))
+    async fn fetch_l2_block(&self, number: MiniblockNumber) -> Result<Option<SyncBlock>, RpcError> {
+        if let Some(response) = self.fetch_l2_block_responses.get(&number) {
+            Ok(Some((*response).clone()))
         } else {
             Ok(None)
         }
     }
 
     async fn fetch_newest_snapshot(&self) -> Result<Option<SnapshotHeader>, RpcError> {
-        if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
-            return Err(error_kind.into());
-        }
-
         if let Some(response) = self.fetch_newest_snapshot_response.clone() {
             Ok(Some(response))
         } else {
@@ -62,6 +35,7 @@ mod snapshots_applier_tests {
     use zksync_dal::ConnectionPool;
     use zksync_object_store::ObjectStoreFactory;
     use zksync_types::{
+        api::en::SyncBlock,
         block::L1BatchHeader,
         commitment::{L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata},
         snapshots::{
@@ -73,6 +47,28 @@ mod snapshots_applier_tests {
     };
 
     use crate::{tests::MockMainNodeClient, SnapshotsApplier};
+
+    fn miniblock_metadata(
+        miniblock_number: MiniblockNumber,
+        l1_batch_number: L1BatchNumber,
+        root_hash: H256,
+    ) -> SyncBlock {
+        SyncBlock {
+            number: miniblock_number,
+            l1_batch_number: l1_batch_number,
+            last_in_batch: true,
+            timestamp: 0,
+            l1_gas_price: 0,
+            l2_fair_gas_price: 0,
+            base_system_contracts_hashes: Default::default(),
+            operator_address: Default::default(),
+            transactions: None,
+            virtual_blocks: None,
+            hash: Some(root_hash),
+            protocol_version: Default::default(),
+            consensus: None,
+        }
+    }
 
     fn l1_block_metadata(l1_batch_number: L1BatchNumber, root_hash: H256) -> L1BatchWithMetadata {
         L1BatchWithMetadata {
@@ -138,8 +134,9 @@ mod snapshots_applier_tests {
             })
             .collect()
     }
+
     #[tokio::test]
-    async fn initial_recovery_status_is_set_correctly() {
+    async fn snapshots_creator_can_successfully_recover_db() {
         let pool = ConnectionPool::test_pool().await;
         let object_store_factory = ObjectStoreFactory::mock();
         let object_store = Box::new(object_store_factory.create_store().await);
@@ -192,9 +189,10 @@ mod snapshots_applier_tests {
             factory_deps_filepath: "some_filepath".to_string(),
         };
         client.fetch_newest_snapshot_response = Some(snapshot_header);
-        client
-            .miniblock_hash_responses
-            .insert(miniblock_number, l2_root_hash);
+        client.fetch_l2_block_responses.insert(
+            miniblock_number,
+            miniblock_metadata(miniblock_number, l1_batch_number, l2_root_hash),
+        );
 
         SnapshotsApplier::load_snapshot(&pool, client, object_store)
             .await
@@ -208,8 +206,7 @@ mod snapshots_applier_tests {
             l1_batch_root_hash: l1_root_hash,
             miniblock_number,
             miniblock_root_hash: l2_root_hash,
-            storage_logs_chunks_ids_to_process: vec![],
-            storage_logs_chunks_ids_already_processed: vec![0, 1],
+            storage_logs_chunks_processed: vec![true, true],
         };
 
         let current_db_status = recovery_dal.get_applied_snapshot_status().await.unwrap();
