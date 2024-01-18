@@ -577,7 +577,7 @@ impl StorageLogsDal<'_, '_> {
                 value: H256::from_slice(&row.value),
                 operation_number: row.operation_number as u64,
                 tx_hash: H256::from_slice(&row.tx_hash),
-                miniblock_number: MiniblockNumber(row.miniblock_number as u32), // Assuming MiniblockNumber can be constructed from u32
+                miniblock_number: MiniblockNumber(row.miniblock_number as u32),
             })
             .collect()
     }
