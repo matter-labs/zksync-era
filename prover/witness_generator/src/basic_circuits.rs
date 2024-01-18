@@ -44,7 +44,7 @@ use zksync_state::{PostgresStorage, StorageView};
 use zksync_types::{
     proofs::{AggregationRound, BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
     protocol_version::FriProtocolVersionId,
-    Address, L1BatchNumber, BOOTLOADER_ADDRESS, H256, U256,
+    Address, L1BatchNumber, ProtocolVersionId, BOOTLOADER_ADDRESS, H256, U256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
