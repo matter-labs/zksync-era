@@ -240,7 +240,7 @@ impl MerkleTreeApiConfig {
     }
 }
 
-/// Enum for choosing API mode
+/// API mode with respect to ETH Transfer events
 #[derive(Copy, Clone, Debug, PartialEq, Default, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ApiEthTransferEvents {

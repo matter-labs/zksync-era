@@ -121,7 +121,7 @@ jobs:
   integration:
     strategy:
       matrix:
-        env: [disabled, enabled]
+        transfer-events: [disabled, enabled]
 
     runs-on: [ matterlabs-ci-runner ]
 
@@ -175,7 +175,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
           ci_run zk init
-          ci_run zk env eth-transfer-events ${{ matrix.env }}
+          ci_run zk env eth-transfer-events ${{ matrix.transfer-events }}
 
 
       # `sleep 5` because we need to wait until server started properly
@@ -234,7 +234,7 @@ jobs:
   external-node:
     strategy:
       matrix:
-        env: [disabled, enabled]
+        transfer-events: [disabled, enabled]
     runs-on: [matterlabs-ci-runner]
 
     steps:
@@ -288,7 +288,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
           ci_run zk init
-          ci_run zk env eth-transfer-events ${{ matrix.env }}
+          ci_run zk env eth-transfer-events ${{ matrix.transfer-events }}
 
       # `sleep 30` because we need to wait until server started properly
       - name: Run server

@@ -6,33 +6,12 @@ use zksync_types::{
 };
 
 use crate::{
-    instrument::InstrumentExt,
-    models::storage_event::{StorageWeb3Log, StorageWeb3LogExt},
-    SqlxError, StorageProcessor,
+    instrument::InstrumentExt, models::storage_event::StorageWeb3Log, SqlxError, StorageProcessor,
 };
 
 #[derive(Debug)]
 pub struct EventsWeb3Dal<'a, 'c> {
     pub(crate) storage: &'a mut StorageProcessor<'c>,
-}
-
-pub fn filter_logs_by_api_eth_transfer_events(
-    mut db_logs: Vec<StorageWeb3LogExt>,
-    api_eth_transfer_events: ApiEthTransferEvents,
-) -> Vec<StorageWeb3Log> {
-    if api_eth_transfer_events == ApiEthTransferEvents::Disabled {
-        db_logs.retain(|log| {
-            log.address != L2_ETH_TOKEN_ADDRESS.as_bytes()
-                || log.topic1 != TRANSFER_EVENT_TOPIC.as_bytes()
-        });
-    }
-
-    let db_logs = db_logs
-        .iter()
-        .map(|db_log| db_log.clone().into_storage_log(api_eth_transfer_events))
-        .collect();
-
-    db_logs
 }
 
 impl EventsWeb3Dal<'_, '_> {
@@ -105,13 +84,15 @@ impl EventsWeb3Dal<'_, '_> {
         api_eth_transfer_events: ApiEthTransferEvents,
     ) -> Result<Vec<Log>, SqlxError> {
         {
-            let raw_logs = self.get_raw_logs(filter, limit).await?;
-            Ok(
-                filter_logs_by_api_eth_transfer_events(raw_logs, api_eth_transfer_events)
-                    .into_iter()
-                    .map(Into::into)
-                    .collect(),
-            )
+            let logs = self
+                .get_raw_logs(filter, limit)
+                .await?
+                .into_iter()
+                .filter_map(|log| log.maybe_into_extended_storage_log(api_eth_transfer_events))
+                .map(Into::into)
+                .collect();
+
+            Ok(logs)
         }
     }
 
@@ -120,7 +101,7 @@ impl EventsWeb3Dal<'_, '_> {
         &mut self,
         filter: GetLogsFilter,
         limit: usize,
-    ) -> Result<Vec<StorageWeb3LogExt>, SqlxError> {
+    ) -> Result<Vec<StorageWeb3Log>, SqlxError> {
         {
             let (where_sql, arg_index) = self.build_get_logs_where_clause(&filter);
 
@@ -158,7 +139,7 @@ impl EventsWeb3Dal<'_, '_> {
 
             query = query.bind(limit as i32);
 
-            let db_logs: Vec<StorageWeb3LogExt> = query
+            let db_logs: Vec<StorageWeb3Log> = query
                 .instrument("get_logs")
                 .report_latency()
                 .with_arg("filter", &filter)
@@ -194,8 +175,8 @@ impl EventsWeb3Dal<'_, '_> {
         api_eth_transfer_events: ApiEthTransferEvents,
     ) -> Result<Vec<Log>, SqlxError> {
         {
-            let db_logs: Vec<StorageWeb3LogExt> = sqlx::query_as!(
-                StorageWeb3LogExt,
+            let db_logs: Vec<StorageWeb3Log> = sqlx::query_as!(
+                StorageWeb3Log,
                 r#"
                 WITH
                     events_select AS (
@@ -249,8 +230,9 @@ impl EventsWeb3Dal<'_, '_> {
             .fetch_all(self.storage.conn())
             .await?;
 
-            let logs = filter_logs_by_api_eth_transfer_events(db_logs, api_eth_transfer_events)
+            let logs = db_logs
                 .into_iter()
+                .filter_map(|log| log.maybe_into_extended_storage_log(api_eth_transfer_events))
                 .map(Into::into)
                 .collect();
 

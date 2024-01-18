@@ -6,11 +6,10 @@ use zksync_types::{
 use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
 
 use crate::{
-    events_web3_dal::filter_logs_by_api_eth_transfer_events,
     instrument::InstrumentExt,
     models::{
         storage_block::{bind_block_where_sql_params, web3_block_where_sql},
-        storage_event::StorageWeb3LogExt,
+        storage_event::StorageWeb3Log,
         storage_transaction::{
             extract_web3_transaction, web3_transaction_select_sql, StorageTransaction,
             StorageTransactionDetails,
@@ -132,8 +131,8 @@ impl TransactionsWeb3Dal<'_, '_> {
             });
             match receipt {
                 Some(mut receipt) => {
-                    let db_logs: Vec<StorageWeb3LogExt> = sqlx::query_as!(
-                        StorageWeb3LogExt,
+                    let db_logs: Vec<StorageWeb3Log> = sqlx::query_as!(
+                        StorageWeb3Log,
                         r#"
                         SELECT
                             address,
@@ -166,16 +165,18 @@ impl TransactionsWeb3Dal<'_, '_> {
                     .fetch_all(self.storage.conn())
                     .await?;
 
-                    let logs =
-                        filter_logs_by_api_eth_transfer_events(db_logs, api_eth_transfer_events)
-                            .into_iter()
-                            .map(|storage_log| {
-                                let mut log = api::Log::from(storage_log);
-                                log.block_hash = Some(receipt.block_hash);
-                                log.l1_batch_number = receipt.l1_batch_number;
-                                log
-                            })
-                            .collect();
+                    let logs = db_logs
+                        .into_iter()
+                        .filter_map(|log| {
+                            log.maybe_into_extended_storage_log(api_eth_transfer_events)
+                        })
+                        .map(|storage_log| {
+                            let mut log = api::Log::from(storage_log);
+                            log.block_hash = Some(receipt.block_hash);
+                            log.l1_batch_number = receipt.l1_batch_number;
+                            log
+                        })
+                        .collect();
 
                     receipt.logs = logs;
 
