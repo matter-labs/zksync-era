@@ -45,23 +45,24 @@ async fn test_filter_initialization() {
 #[tokio::test]
 async fn test_filter_with_pending_batch() {
     let connection_pool = ConnectionPool::test_pool().await;
-    let tester = Tester::new();
-
+    let mut tester = Tester::new();
     tester.genesis(&connection_pool).await;
 
     // Insert a sealed batch so there will be a `prev_l1_batch_state_root`.
     // These gas values are random and don't matter for filter calculation as there will be a
     // pending batch the filter will be based off of.
-    tester
+    let tx_result = tester
         .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
-    tester.insert_sealed_batch(&connection_pool, 1).await;
+    tester
+        .insert_sealed_batch(&connection_pool, 1, &[tx_result])
+        .await;
 
     // Inserting a pending miniblock that isn't included in a sealed batch means there is a pending batch.
     // The gas values are randomly chosen but so affect filter values calculation.
 
     let fee_input = BatchFeeInput::l1_pegged(100, 1000);
-
+    tester.set_timestamp(2);
     tester
         .insert_miniblock(&connection_pool, 2, 10, fee_input)
         .await;
@@ -90,10 +91,12 @@ async fn test_filter_with_no_pending_batch() {
 
     // Insert a sealed batch so there will be a `prev_l1_batch_state_root`.
     // These gas values are random and don't matter for filter calculation.
-    tester
+    let tx_result = tester
         .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
-    tester.insert_sealed_batch(&connection_pool, 1).await;
+    tester
+        .insert_sealed_batch(&connection_pool, 1, &[tx_result])
+        .await;
 
     // Create a copy of the tx filter that the mempool will use.
     let want_filter = l2_tx_filter(
@@ -130,13 +133,15 @@ async fn test_timestamps_are_distinct(
     tester.genesis(&connection_pool).await;
 
     tester.set_timestamp(prev_miniblock_timestamp);
-    tester
+    let tx_result = tester
         .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
     if delay_prev_miniblock_compared_to_batch {
         tester.set_timestamp(prev_miniblock_timestamp - 1);
     }
-    tester.insert_sealed_batch(&connection_pool, 1).await;
+    tester
+        .insert_sealed_batch(&connection_pool, 1, &[tx_result])
+        .await;
 
     let (mut mempool, mut guard) = tester.create_test_mempool_io(connection_pool, 1).await;
     // Insert a transaction to trigger L1 batch creation.

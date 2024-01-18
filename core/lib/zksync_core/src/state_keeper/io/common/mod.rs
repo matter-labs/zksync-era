@@ -393,7 +393,8 @@ impl L1BatchParamsProvider {
             .context("no pending miniblocks; was `first_miniblock_in_batch` loaded for a correct L1 batch number?")?;
         anyhow::ensure!(
             first_pending_miniblock.number == first_miniblock_in_batch.header.number,
-            "Invalid `first_miniblock_in_batch` supplied: its L1 batch #{} is not pending",
+            "Invalid `first_miniblock_in_batch` supplied: its L1 batch #{} is not pending; \
+             first pending miniblock: {first_pending_miniblock:?}, first miniblock in batch: {first_miniblock_in_batch:?}",
             first_miniblock_in_batch.l1_batch_number
         );
         Ok(PendingBatchData {
