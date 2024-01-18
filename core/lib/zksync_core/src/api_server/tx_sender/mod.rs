@@ -819,7 +819,7 @@ impl TxSender {
         result.into_api_call_result()?;
         self.ensure_tx_executable(tx.clone(), &tx_metrics, false)?;
 
-        // Now, we need to calculate the final overhead for the transaction. We need to take into accoutn the fact
+        // Now, we need to calculate the final overhead for the transaction. We need to take into account the fact
         // that the migration of 1.4.1 may be still going on.
         let overhead = if self
             .0
