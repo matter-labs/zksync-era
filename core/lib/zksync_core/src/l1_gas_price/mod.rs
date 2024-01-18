@@ -1,6 +1,5 @@
 //! This module determines the fees to pay in txs containing blocks submitted to the L1.
 
-pub use gas_adjuster::erc_20_fetcher;
 use std::fmt;
 
 pub use gas_adjuster::GasAdjuster;

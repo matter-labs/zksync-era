@@ -1,6 +1,5 @@
-use serde::Deserialize;
-use serde::Serialize;
-use zksync_eth_client::types::Error;
+use serde::{Deserialize, Serialize};
+use zksync_eth_client::Error;
 #[derive(Deserialize, Serialize, Debug)]
 struct EthValue {
     eth: serde_json::value::Number,

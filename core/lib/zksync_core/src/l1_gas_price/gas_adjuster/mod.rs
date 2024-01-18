@@ -2,7 +2,7 @@
 
 use std::{
     collections::VecDeque,
-    sync::{Arc, RwLock},
+    sync::{atomic::AtomicU64, Arc, RwLock},
 };
 
 use tokio::sync::watch;
@@ -10,9 +10,10 @@ use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::{Error, EthInterface};
 use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 
-use self::metrics::METRICS;
+use self::{erc_20_fetcher::get_erc_20_value_in_wei, metrics::METRICS};
 use super::{L1GasPriceProvider, L1TxParamsProvider};
 use crate::state_keeper::metrics::KEEPER_METRICS;
+pub mod erc_20_fetcher;
 
 mod metrics;
 #[cfg(test)]

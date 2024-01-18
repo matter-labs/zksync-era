@@ -942,7 +942,7 @@ impl TxSender {
             ),
             protocol_version.into(),
         );
-        base_fee * self.0.l1_gas_price_source.get_erc20_conversion_rate()
+        base_fee * self.0.batch_fee_input_provider.get_erc20_conversion_rate()
     }
 
     fn ensure_tx_executable(

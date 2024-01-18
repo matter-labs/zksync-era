@@ -17,8 +17,7 @@ use zksync_types::{
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
     AccountTreeId, L1BatchNumber, MiniblockNumber, StorageKey, Transaction, H160,
-    L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE,
-    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
+    L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 use zksync_utils::{address_to_h256, ratio_to_big_decimal_normalized};
 use zksync_web3_decl::{
@@ -676,7 +675,7 @@ impl ZksNamespace {
             self.state
                 .tx_sender
                 .0
-                .l1_gas_price_source
+                .batch_fee_input_provider
                 .get_erc20_conversion_rate(),
         ))
     }

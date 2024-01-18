@@ -51,7 +51,7 @@ export async function deployERC20(
     } else if (command == 'new') {
         let destinationFile = 'native_erc20';
         await utils.spawn(
-            `yarn --silent --cwd contracts/l1-contracts deploy-erc20 add --token-name ${name} --symbol ${symbol} --decimals ${decimals}`
+            `yarn --silent --cwd contracts/l1-contracts deploy-erc20 add --token-name ${name} --symbol ${symbol} --decimals ${decimals} > ./etc/tokens/${destinationFile}.json`
         );
     }
 }
@@ -68,7 +68,7 @@ export async function approve() {
     }
 
     await utils.spawn(
-        `yarn --silent --cwd contracts/ethereum deploy-erc20 approve --token-address ${address} --spender-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR}`
+        `yarn --silent --cwd contracts/l1-contracts deploy-erc20 approve --token-address ${address} --spender-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR}`
     );
 }
 

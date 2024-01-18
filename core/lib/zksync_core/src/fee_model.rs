@@ -44,6 +44,8 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
 
     /// Returns the fee model parameters.
     fn get_fee_model_params(&self) -> FeeParams;
+
+    fn get_erc20_conversion_rate(&self) -> u64;
 }
 
 /// The struct that represents the batch fee input provider to be used in the main node of the server, i.e.
@@ -68,6 +70,10 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
                 l1_pubdata_price: self.provider.estimate_effective_pubdata_price(),
             }),
         }
+    }
+
+    fn get_erc20_conversion_rate(&self) -> u64 {
+        todo!()
     }
 }
 

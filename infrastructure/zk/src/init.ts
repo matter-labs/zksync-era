@@ -18,8 +18,14 @@ const success = chalk.green;
 const timestamp = chalk.grey;
 
 export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
-    const { skipSubmodulesCheckout, skipEnvSetup, testTokens, governorPrivateKeyArgs, deployerL2ContractInput, nativeERC20 } =
-        initArgs;
+    const {
+        skipSubmodulesCheckout,
+        skipEnvSetup,
+        testTokens,
+        governorPrivateKeyArgs,
+        deployerL2ContractInput,
+        nativeERC20
+    } = initArgs;
 
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
