@@ -2,6 +2,7 @@
 
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::StorageProcessor;
+use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},
@@ -12,8 +13,10 @@ use zksync_types::{
     snapshots::SnapshotRecoveryStatus,
     transaction_request::PaymasterParams,
     Address, L1BatchNumber, L2ChainId, MiniblockNumber, Nonce, ProtocolVersion, ProtocolVersionId,
-    H256, U256,
+    StorageLog, H256, U256,
 };
+
+use crate::l1_gas_price::L1GasPriceProvider;
 
 /// Creates a miniblock header with the specified number and deterministic contents.
 pub(crate) fn create_miniblock(number: u32) -> MiniblockHeader {
@@ -96,6 +99,71 @@ pub(crate) fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u32) -> L
     tx
 }
 
+/// Prepares a recovery snapshot without performing genesis.
+pub(crate) async fn prepare_recovery_snapshot(
+    storage: &mut StorageProcessor<'_>,
+    l1_batch_number: u32,
+    snapshot_logs: &[StorageLog],
+) -> SnapshotRecoveryStatus {
+    let mut storage = storage.start_transaction().await.unwrap();
+
+    let written_keys: Vec<_> = snapshot_logs.iter().map(|log| log.key).collect();
+    let tree_instructions: Vec<_> = snapshot_logs
+        .iter()
+        .enumerate()
+        .map(|(i, log)| TreeInstruction::write(log.key, i as u64 + 1, log.value))
+        .collect();
+    let l1_batch_root_hash = ZkSyncTree::process_genesis_batch(&tree_instructions).root_hash;
+
+    storage
+        .protocol_versions_dal()
+        .save_protocol_version_with_tx(ProtocolVersion::default())
+        .await;
+    // TODO (PLA-596): Don't insert L1 batches / miniblocks once the relevant foreign keys are removed
+    let miniblock = create_miniblock(l1_batch_number);
+    storage
+        .blocks_dal()
+        .insert_miniblock(&miniblock)
+        .await
+        .unwrap();
+    let l1_batch = create_l1_batch(l1_batch_number);
+    storage
+        .blocks_dal()
+        .insert_l1_batch(&l1_batch, &[], Default::default(), &[], &[], 0)
+        .await
+        .unwrap();
+
+    storage
+        .storage_logs_dedup_dal()
+        .insert_initial_writes(l1_batch.number, &written_keys)
+        .await;
+    storage
+        .storage_logs_dal()
+        .insert_storage_logs(miniblock.number, &[(H256::zero(), snapshot_logs.to_vec())])
+        .await;
+    storage
+        .storage_dal()
+        .apply_storage_logs(&[(H256::zero(), snapshot_logs.to_vec())])
+        .await;
+
+    let snapshot_recovery = SnapshotRecoveryStatus {
+        l1_batch_number: l1_batch.number,
+        l1_batch_root_hash,
+        miniblock_number: miniblock.number,
+        miniblock_root_hash: H256::zero(), // not used
+        last_finished_chunk_id: None,
+        total_chunk_count: 100,
+    };
+    storage
+        .snapshot_recovery_dal()
+        .set_applied_snapshot_status(&snapshot_recovery)
+        .await
+        .unwrap();
+    storage.commit().await.unwrap();
+    snapshot_recovery
+}
+
+// TODO (PLA-596): Replace with `prepare_recovery_snapshot(.., &[])`
 pub(crate) async fn prepare_empty_recovery_snapshot(
     storage: &mut StorageProcessor<'_>,
     l1_batch_number: u32,
@@ -119,4 +187,18 @@ pub(crate) async fn prepare_empty_recovery_snapshot(
         .await
         .unwrap();
     snapshot_recovery
+}
+
+/// Mock [`L1GasPriceProvider`] that returns a constant value.
+#[derive(Debug)]
+pub(crate) struct MockL1GasPriceProvider(pub u64);
+
+impl L1GasPriceProvider for MockL1GasPriceProvider {
+    fn estimate_effective_gas_price(&self) -> u64 {
+        self.0
+    }
+
+    fn estimate_effective_pubdata_price(&self) -> u64 {
+        self.0 * u64::from(zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE)
+    }
 }

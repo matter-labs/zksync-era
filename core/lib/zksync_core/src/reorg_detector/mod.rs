@@ -254,8 +254,11 @@ impl ReorgDetector {
                 .get_last_l1_batch_number_with_metadata()
                 .await?
                 .context("L1 batches table unexpectedly emptied")?;
-            let sealed_miniblock_number =
-                storage.blocks_dal().get_sealed_miniblock_number().await?;
+            let sealed_miniblock_number = storage
+                .blocks_dal()
+                .get_sealed_miniblock_number()
+                .await?
+                .context("miniblocks table unexpectedly emptied")?;
             drop(storage);
 
             tracing::trace!(
