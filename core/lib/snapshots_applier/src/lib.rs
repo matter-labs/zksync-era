@@ -198,7 +198,7 @@ impl<'a> SnapshotsApplier<'a> {
 
     async fn create_fresh_recovery_status(
         main_node_client: Box<dyn SnapshotsApplierMainNodeClient>,
-    ) -> Result<SnapshotRecoveryStatus, SnapshotsApplierError> {
+    ) -> anyhow::Result<SnapshotRecoveryStatus> {
         let snapshot_response = main_node_client.fetch_newest_snapshot().await?;
 
         let snapshot = snapshot_response.ok_or(SnapshotsApplierError::Canceled(
@@ -237,7 +237,7 @@ impl<'a> SnapshotsApplier<'a> {
     async fn recover_factory_deps(
         &mut self,
         storage: &mut StorageProcessor<'_>,
-    ) -> anyhow::Result<(), SnapshotsApplierError> {
+    ) -> anyhow::Result<()> {
         let latency = METRICS.initial_stage_duration[&InitialStage::ApplyFactoryDeps].start();
 
         let factory_deps: SnapshotFactoryDependencies = self
@@ -268,7 +268,7 @@ impl<'a> SnapshotsApplier<'a> {
         &mut self,
         storage_logs: &[SnapshotStorageLog],
         storage: &mut StorageProcessor<'_>,
-    ) -> Result<(), SnapshotsApplierError> {
+    ) -> anyhow::Result<()> {
         tracing::info!("Loading {} storage logs into postgres", storage_logs.len());
         storage
             .storage_logs_dedup_dal()
@@ -280,7 +280,7 @@ impl<'a> SnapshotsApplier<'a> {
         &mut self,
         storage_logs: &[SnapshotStorageLog],
         storage: &mut StorageProcessor<'_>,
-    ) -> Result<(), SnapshotsApplierError> {
+    ) -> anyhow::Result<()> {
         storage
             .storage_logs_dal()
             .insert_storage_logs_from_snapshot(
@@ -291,10 +291,7 @@ impl<'a> SnapshotsApplier<'a> {
         Ok(())
     }
 
-    async fn recover_storage_logs_single_chunk(
-        &mut self,
-        chunk_id: u64,
-    ) -> Result<(), SnapshotsApplierError> {
+    async fn recover_storage_logs_single_chunk(&mut self, chunk_id: u64) -> anyhow::Result<()> {
         let latency =
             METRICS.storage_logs_chunks_duration[&StorageLogsChunksStage::LoadFromGcs].start();
 
@@ -341,7 +338,7 @@ impl<'a> SnapshotsApplier<'a> {
         Ok(())
     }
 
-    pub async fn recover_storage_logs(mut self) -> Result<(), SnapshotsApplierError> {
+    pub async fn recover_storage_logs(mut self) -> anyhow::Result<()> {
         for chunk_id in 0..self
             .applied_snapshot_status
             .storage_logs_chunks_processed
