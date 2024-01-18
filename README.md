@@ -18,7 +18,7 @@ The following questions will be answered by the following resources:
 | How can I run the project?                              | [launch.md](docs/guides/launch.md)             |
 | What is the logical project structure and architecture? | [architecture.md](docs/guides/architecture.md) |
 | Where can I find protocol specs?                        | [specs](docs/specs/README.md)                  |
-| Where can I find developer docs?                        | [docs](https://v2-docs.zksync.io/dev/)         |
+| Where can I find developer docs?                        | [docs](https://era.zksync.io/docs/)            |
 
 ## Policies
 
@@ -30,7 +30,7 @@ The following questions will be answered by the following resources:
 zkSync Era is distributed under the terms of either
 
 - Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or <https://opensource.org/license/mit/>)
 
 at your option.
 
