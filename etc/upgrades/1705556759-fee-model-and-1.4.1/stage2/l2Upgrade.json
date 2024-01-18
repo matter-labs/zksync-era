@@ -1,0 +1,107 @@
+{
+  "systemContracts": [
+    {
+      "name": "AccountCodeStorage",
+      "bytecodeHashes": [
+        "0x01000075bc9de2129f5d58efa04515bbf24610645546eab19192d7f94a23f83e"
+      ],
+      "address": "0x0000000000000000000000000000000000008002"
+    },
+    {
+      "name": "NonceHolder",
+      "bytecodeHashes": [
+        "0x010000e5eef000fb93f3b7f746149d0f467fe99e0f628aa76520b18321eeb7b3"
+      ],
+      "address": "0x0000000000000000000000000000000000008003"
+    },
+    {
+      "name": "KnownCodesStorage",
+      "bytecodeHashes": [
+        "0x0100007d88348c8092dd260d3ba1b90da3d693c5d416b7078b2faca348e2f3a8"
+      ],
+      "address": "0x0000000000000000000000000000000000008004"
+    },
+    {
+      "name": "ImmutableSimulator",
+      "bytecodeHashes": [
+        "0x0100003ddb0142c77e7e36c37910cd90b07e48bb952168e66c79519953d32d57"
+      ],
+      "address": "0x0000000000000000000000000000000000008005"
+    },
+    {
+      "name": "ContractDeployer",
+      "bytecodeHashes": [
+        "0x01000555b2471aa863b7da5360cc0d2459a8aa5ad9feb6ad8ea5666aee0b5f4c"
+      ],
+      "address": "0x0000000000000000000000000000000000008006"
+    },
+    {
+      "name": "L1Messenger",
+      "bytecodeHashes": [
+        "0x0100028d5519113834685985178f33d36dd855e0b0835e2dad3892ddc3244d80"
+      ],
+      "address": "0x0000000000000000000000000000000000008008"
+    },
+    {
+      "name": "MsgValueSimulator",
+      "bytecodeHashes": [
+        "0x01000063cb83b923ab1e67bb7944c6493286ba7c1c5614c0cb17155c5eef82d9"
+      ],
+      "address": "0x0000000000000000000000000000000000008009"
+    },
+    {
+      "name": "L2EthToken",
+      "bytecodeHashes": [
+        "0x010001014336cee5c792682bf2c2079807e643c491d879c07de9dea482a78e39"
+      ],
+      "address": "0x000000000000000000000000000000000000800a"
+    },
+    {
+      "name": "SystemContext",
+      "bytecodeHashes": [
+        "0x01000181b1c963c230c8521d78a0a650cf7c1879cc6b38e9315035c5596cd914"
+      ],
+      "address": "0x000000000000000000000000000000000000800b"
+    },
+    {
+      "name": "BootloaderUtilities",
+      "bytecodeHashes": [
+        "0x010007c96884dfd5de1a2e02616564c057e67c423d31c589df25bf25b08dd3d6"
+      ],
+      "address": "0x000000000000000000000000000000000000800c"
+    },
+    {
+      "name": "Compressor",
+      "bytecodeHashes": [
+        "0x01000167b75441cbdf3edc039678e2e57bb28d87ca3b76c88ba153be0e65f366"
+      ],
+      "address": "0x000000000000000000000000000000000000800e"
+    },
+    {
+      "name": "ComplexUpgrader",
+      "bytecodeHashes": [
+        "0x010000553156325702c61297c4ebe6171f7d64845d548311e0fe88792cd86841"
+      ],
+      "address": "0x000000000000000000000000000000000000800f"
+    },
+    {
+      "name": "Keccak256",
+      "bytecodeHashes": [
+        "0x0100000fb004b644efe76e9ef3ba89dfa3eaac946e3fa19f8a046ed27465eeef"
+      ],
+      "address": "0x0000000000000000000000000000000000008010"
+    }
+  ],
+  "defaultAA": {
+    "name": "DefaultAccount",
+    "bytecodeHashes": [
+      "0x0100055b7a8be90522251be8be1a186464d056462973502ac8a0437c85e4d2a9"
+    ]
+  },
+  "bootloader": {
+    "name": "Bootloader",
+    "bytecodeHashes": [
+      "0x010007ed0e328b940e241f7666a6303b7ffd4e3fd7e8c154d6e7556befe6cd6d"
+    ]
+  }
+}
