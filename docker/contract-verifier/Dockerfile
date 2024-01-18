@@ -21,8 +21,6 @@ RUN cargo build --release
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates wget python3 jq && rm -rf /var/lib/apt/lists/*
-RUN curl -s https://api.github.com/repos/matter-labs/era-solidity/releases?per_page=200
-RUN curl -s https://api.github.com/repos/matter-labs/era-solidity/releases?per_page=200 | jq -r '.[].tag_name'
 
 # install zksolc 1.3.x
 RUN skip_versions="v1.3.12 v1.3.15 v1.3.20" && \

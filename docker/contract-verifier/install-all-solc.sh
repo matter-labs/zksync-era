@@ -1,3 +1,5 @@
+set -e
+
 # Installs all solc versions from the github repo
 wget -O list.txt https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/list.txt
 
@@ -20,7 +22,7 @@ do
 done
 
 # Download zkVM solc
-for version in $(curl -s https://api.github.com/repos/matter-labs/era-solidity/releases?per_page=200 | jq -r '.[].tag_name')
+for version in $(curl -s --request GET --url "https://api.github.com/repos/matter-labs/era-solidity/releases?per_page=200" --header "Authorization: Bearer $GITHUB_TOKEN" | jq -r '.[].tag_name')
 do
     mkdir -p etc/solc-bin/zkVM-$version/
     wget https://github.com/matter-labs/era-solidity/releases/download/$version/solc-linux-amd64-$version -O etc/solc-bin/zkVM-$version/solc

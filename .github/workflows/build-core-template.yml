@@ -8,6 +8,9 @@ on:
       DOCKERHUB_TOKEN:
         description: "DOCKERHUB_TOKEN"
         required: true
+      GITHUB_TOKEN:
+        description: "GITHUB_TOKEN"
+        required: true
     inputs:
       image_tag_suffix:
         description: "Optional suffix to override tag name generation"
@@ -23,6 +26,7 @@ jobs:
     name: Build and Push Docker Images
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     runs-on: ${{ fromJSON('["matterlabs-ci-runner", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
     strategy:
       matrix:
@@ -87,7 +91,7 @@ jobs:
         run: |
           ci_run rustup default nightly-2023-08-21
           platform=$(echo $PLATFORM | tr '/' '-')
-          ci_run zk docker $DOCKER_ACTION --custom-tag=${IMAGE_TAG_SUFFIX} --platform=${PLATFORM} $COMPONENT
+          PASSED_ENV_VARS=GITHUB_TOKEN ci_run zk docker $DOCKER_ACTION --custom-tag=${IMAGE_TAG_SUFFIX} --platform=${PLATFORM} $COMPONENT
       - name: Show sccache stats
         if: always()
         run: |
