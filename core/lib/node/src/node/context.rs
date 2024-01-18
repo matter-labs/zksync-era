@@ -1,6 +1,14 @@
 use std::any::Any;
 
+use thiserror::Error;
+
 use crate::{node::ZkSyncNode, resource::Resource};
+
+#[derive(Debug, Error)]
+pub enum NodeContextError {
+    #[error("Resource with the specified name is already added")]
+    ResourceAlreadyAdded,
+}
 
 /// An interface to the node's resources provided to the tasks during initialization.
 /// Provides the ability to fetch required resources, and also gives access to the Tokio runtime used by the node.
@@ -65,5 +73,34 @@ impl<'a> NodeContext<'a> {
         // No such resource.
         // The requester is allowed to decide whether this is an error or not.
         None
+    }
+
+    /// Adds a new resource to the node.
+    /// Returns an error if the resource with the same name is already added.
+    pub fn add_resource<T: Resource>(&self, resource: T) -> Result<(), NodeContextError> {
+        let name = T::RESOURCE_NAME;
+        let mut handle = self.node.resources.borrow_mut();
+        if handle.get(name).is_some() {
+            return Err(NodeContextError::ResourceAlreadyAdded);
+        }
+
+        handle.insert(name.into(), Box::new(resource));
+        Ok(())
+    }
+
+    /// Attempts to retrieve the resource with the specified name.
+    /// If the resource is not available, it is created using the provided closure.
+    pub fn get_resource_or_insert_with<T: Resource, F: FnOnce() -> T>(&self, f: F) -> T {
+        if let Some(resource) = self.get_resource::<T>() {
+            return resource;
+        }
+
+        // No such resource, insert a new one.
+        let resource = f();
+        self.node
+            .resources
+            .borrow_mut()
+            .insert(T::RESOURCE_NAME.into(), Box::new(resource.clone()));
+        resource
     }
 }
