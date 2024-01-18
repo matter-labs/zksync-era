@@ -28,6 +28,7 @@ impl fmt::Debug for HealthCheckTask {
 }
 
 impl IntoZkSyncTask for HealthCheckTask {
+    const NAME: &'static str = "healthcheck_server";
     type Config = HealthCheckConfig;
 
     fn create(

@@ -12,7 +12,6 @@ use zksync_node::{
     },
     node::ZkSyncNode,
     resource::{Resource, ResourceProvider},
-    task::IntoZkSyncTask,
 };
 
 /// Resource provider for the main node.
@@ -69,15 +68,11 @@ fn main() -> anyhow::Result<()> {
             &merkle_tree_env_config,
             &operations_manager_env_config,
         );
-    node.add_task("metadata_calculator", |node| {
-        MetadataCalculatorTask::create(node, metadata_calculator_config)
-    });
+    node.add_task::<MetadataCalculatorTask>(metadata_calculator_config);
 
     // Add the healthcheck server.
     let healthcheck_config = zksync_config::ApiConfig::from_env()?.healthcheck;
-    node.add_task("healthcheck_server", |node| {
-        HealthCheckTask::create(node, healthcheck_config)
-    });
+    node.add_task::<HealthCheckTask>(healthcheck_config);
 
     // Run the node until completion.
     node.run()?;

@@ -6,7 +6,7 @@ use tokio::{runtime::Runtime, sync::watch};
 pub use self::{context::NodeContext, stop_receiver::StopReceiver};
 use crate::{
     resource::ResourceProvider,
-    task::{TaskInitError, ZkSyncTask},
+    task::{IntoZkSyncTask, TaskInitError, ZkSyncTask},
 };
 
 mod context;
@@ -90,15 +90,11 @@ impl ZkSyncNode {
     /// The task is not created at this point, instead, the constructor is stored in the node
     /// and will be invoked during [`ZkSyncNode::run`] method. Any error returned by the constructor
     /// will prevent the node from starting and will be propagated by the [`ZkSyncNode::run`] method.
-    pub fn add_task<
-        F: FnOnce(&NodeContext<'_>) -> Result<Box<dyn ZkSyncTask>, TaskInitError> + 'static,
-    >(
-        &mut self,
-        name: impl AsRef<str>,
-        task_constructor: F,
-    ) -> &mut Self {
+    pub fn add_task<T: IntoZkSyncTask>(&mut self, config: T::Config) -> &mut Self {
+        let task_constructor =
+            move |node_context: &NodeContext<'_>| T::create(node_context, config);
         self.task_constructors
-            .push((name.as_ref().into(), Box::new(task_constructor)));
+            .push((T::NAME.into(), Box::new(task_constructor)));
         self
     }
 

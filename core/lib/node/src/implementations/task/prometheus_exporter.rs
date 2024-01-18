@@ -13,6 +13,7 @@ pub struct PrometheusExporterTask {
 }
 
 impl IntoZkSyncTask for PrometheusExporterTask {
+    const NAME: &'static str = "prometheus_exporter";
     type Config = PrometheusExporterConfig;
 
     fn create(

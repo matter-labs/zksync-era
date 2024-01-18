@@ -19,6 +19,7 @@ pub struct MetadataCalculatorTask {
 }
 
 impl IntoZkSyncTask for MetadataCalculatorTask {
+    const NAME: &'static str = "metadata_calculator";
     type Config = MetadataCalculatorConfig;
 
     fn create(

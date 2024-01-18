@@ -11,6 +11,9 @@ use crate::node::{NodeContext, StopReceiver};
 /// Factory that can create a task.
 // Note: This have to be a separate trait, since `ZkSyncTask` has to be object-safe.
 pub trait IntoZkSyncTask: 'static + Send + Sync {
+    /// Unique name of the task.
+    const NAME: &'static str;
+
     /// Config type for the task.
     /// It is highly recommended for tasks to have dedicated configs, not shared with other tasks and resources.
     type Config: 'static + Send + Sync;
