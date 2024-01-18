@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use zksync_types::{api::en::SyncBlock, snapshots::SnapshotHeader, MiniblockNumber, H256};
+use zksync_types::{api::en::SyncBlock, snapshots::SnapshotHeader, MiniblockNumber};
 use zksync_web3_decl::jsonrpsee::core::ClientError as RpcError;
 
 use crate::SnapshotsApplierMainNodeClient;
@@ -55,7 +55,7 @@ mod snapshots_applier_tests {
     ) -> SyncBlock {
         SyncBlock {
             number: miniblock_number,
-            l1_batch_number: l1_batch_number,
+            l1_batch_number,
             last_in_batch: true,
             timestamp: 0,
             l1_gas_price: 0,
