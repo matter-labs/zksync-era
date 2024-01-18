@@ -220,7 +220,7 @@ async fn init_tasks(
             .await
             .context("failed to build a connection pool for BatchStatusUpdater")?,
     )
-    .await;
+    .context("failed initializing batch status updater")?;
 
     // Run the components.
     let tree_stop_receiver = stop_receiver.clone();

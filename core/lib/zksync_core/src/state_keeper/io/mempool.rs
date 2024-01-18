@@ -266,7 +266,6 @@ impl StateKeeperIO for MempoolIO {
             self.current_l1_batch_number,
             self.current_miniblock_number,
             self.l2_erc20_bridge_addr,
-            None,
             false,
         );
         self.miniblock_sealer_handle.submit(command).await;
@@ -317,7 +316,6 @@ impl StateKeeperIO for MempoolIO {
                 l1_batch_env,
                 finished_batch,
                 self.l2_erc20_bridge_addr,
-                None,
             )
             .await;
         self.current_miniblock_number += 1; // Due to fictive miniblock being sealed.
@@ -417,11 +415,13 @@ impl MempoolIO {
         );
 
         let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
-        let last_sealed_l1_batch_header = storage
+        // TODO (PLA-703): Support no L1 batches / miniblocks in the storage
+        let last_sealed_l1_batch_number = storage
             .blocks_dal()
-            .get_newest_l1_batch_header()
+            .get_sealed_l1_batch_number()
             .await
-            .unwrap();
+            .unwrap()
+            .expect("No L1 batches sealed");
         let last_miniblock_number = storage
             .blocks_dal()
             .get_sealed_miniblock_number()
@@ -437,7 +437,7 @@ impl MempoolIO {
             timeout_sealer: TimeoutSealer::new(config),
             filter: L2TxFilter::default(),
             // ^ Will be initialized properly on the first newly opened batch
-            current_l1_batch_number: last_sealed_l1_batch_header.number + 1,
+            current_l1_batch_number: last_sealed_l1_batch_number + 1,
             miniblock_sealer_handle,
             current_miniblock_number: last_miniblock_number + 1,
             fee_account: config.fee_account_addr,
