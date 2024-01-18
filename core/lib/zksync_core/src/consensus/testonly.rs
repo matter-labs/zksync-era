@@ -299,6 +299,7 @@ impl StateKeeper {
     // Wait for all pushed miniblocks to be produced.
     pub async fn wait_for_miniblocks(&self, ctx: &ctx::Ctx) -> ctx::Result<()> {
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
+
         loop {
             let mut storage = CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
             if storage

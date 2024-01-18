@@ -12,11 +12,7 @@ use zksync_config::configs::{
 };
 use zksync_health_check::{CheckHealth, ReactiveHealthCheck};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
-use zksync_types::{
-    block::{L1BatchHeader, MiniblockHeader},
-    fee_model::BatchFeeInput,
-    L1BatchNumber, L2ChainId, ProtocolVersion, ProtocolVersionId, StorageLog,
-};
+use zksync_types::{L1BatchNumber, L2ChainId, StorageLog};
 use zksync_utils::h256_to_u256;
 
 use super::*;
@@ -30,6 +26,7 @@ use crate::{
         },
         MetadataCalculator, MetadataCalculatorConfig,
     },
+    utils::testonly::prepare_recovery_snapshot,
 };
 
 #[test]
@@ -103,7 +100,7 @@ async fn create_tree_recovery(path: PathBuf, l1_batch: L1BatchNumber) -> AsyncTr
 async fn basic_recovery_workflow() {
     let pool = ConnectionPool::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let snapshot_recovery = prepare_recovery_snapshot(&pool, &temp_dir).await;
+    let snapshot_recovery = prepare_recovery_snapshot_with_genesis(&pool, &temp_dir).await;
     let snapshot = SnapshotParameters::new(&pool, &snapshot_recovery)
         .await
         .unwrap();
@@ -134,7 +131,7 @@ async fn basic_recovery_workflow() {
     }
 }
 
-async fn prepare_recovery_snapshot(
+async fn prepare_recovery_snapshot_with_genesis(
     pool: &ConnectionPool,
     temp_dir: &TempDir,
 ) -> SnapshotRecoveryStatus {
@@ -213,7 +210,7 @@ impl HandleRecoveryEvent for TestEventListener {
 async fn recovery_fault_tolerance(chunk_count: usize) {
     let pool = ConnectionPool::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let snapshot_recovery = prepare_recovery_snapshot(&pool, &temp_dir).await;
+    let snapshot_recovery = prepare_recovery_snapshot_with_genesis(&pool, &temp_dir).await;
 
     let tree_path = temp_dir.path().join("recovery");
     let tree = create_tree_recovery(tree_path.clone(), L1BatchNumber(1)).await;
@@ -283,7 +280,7 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
     // Emulate the recovered view of Postgres. Unlike with previous tests, we don't perform genesis.
     let snapshot_logs = gen_storage_logs(100..300, 1).pop().unwrap();
     let mut storage = pool.access_storage().await.unwrap();
-    let snapshot_recovery = prepare_clean_recovery_snapshot(&mut storage, &snapshot_logs).await;
+    let snapshot_recovery = prepare_recovery_snapshot(&mut storage, 23, &snapshot_logs).await;
 
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let merkle_tree_config = MerkleTreeConfig {
@@ -354,78 +351,4 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
 
     stop_sender.send_replace(true);
     calculator_task.await.expect("calculator panicked").unwrap();
-}
-
-/// Prepares a recovery snapshot without performing genesis.
-async fn prepare_clean_recovery_snapshot(
-    storage: &mut StorageProcessor<'_>,
-    snapshot_logs: &[StorageLog],
-) -> SnapshotRecoveryStatus {
-    let written_keys: Vec<_> = snapshot_logs.iter().map(|log| log.key).collect();
-    let tree_instructions: Vec<_> = snapshot_logs
-        .iter()
-        .enumerate()
-        .map(|(i, log)| TreeInstruction::write(log.key, i as u64 + 1, log.value))
-        .collect();
-    let l1_batch_root_hash = ZkSyncTree::process_genesis_batch(&tree_instructions).root_hash;
-
-    storage
-        .protocol_versions_dal()
-        .save_protocol_version_with_tx(ProtocolVersion::default())
-        .await;
-    // TODO (PLA-596): Don't insert L1 batches / miniblocks once the relevant foreign keys are removed
-    let miniblock = MiniblockHeader {
-        number: MiniblockNumber(23),
-        timestamp: 23,
-        hash: H256::zero(),
-        l1_tx_count: 0,
-        l2_tx_count: 0,
-        base_fee_per_gas: 100,
-        batch_fee_input: BatchFeeInput::l1_pegged(100, 100),
-        gas_per_pubdata_limit: 100,
-        base_system_contracts_hashes: Default::default(),
-        protocol_version: Some(ProtocolVersionId::latest()),
-        virtual_blocks: 0,
-    };
-    storage
-        .blocks_dal()
-        .insert_miniblock(&miniblock)
-        .await
-        .unwrap();
-    let l1_batch = L1BatchHeader::new(
-        L1BatchNumber(23),
-        23,
-        Default::default(),
-        Default::default(),
-        ProtocolVersionId::latest(),
-    );
-    storage
-        .blocks_dal()
-        .insert_l1_batch(&l1_batch, &[], Default::default(), &[], &[], 0)
-        .await
-        .unwrap();
-
-    storage
-        .storage_logs_dedup_dal()
-        .insert_initial_writes(l1_batch.number, &written_keys)
-        .await;
-    storage
-        .storage_logs_dal()
-        .insert_storage_logs(miniblock.number, &[(H256::zero(), snapshot_logs.to_vec())])
-        .await;
-
-    let snapshot_recovery = SnapshotRecoveryStatus {
-        l1_batch_number: l1_batch.number,
-        l1_batch_root_hash,
-        miniblock_number: miniblock.number,
-        miniblock_root_hash: H256::zero(), // not used
-        last_finished_chunk_id: None,
-        total_chunk_count: 100,
-    };
-    storage
-        .snapshot_recovery_dal()
-        .set_applied_snapshot_status(&snapshot_recovery)
-        .await
-        .unwrap();
-    snapshot_recovery
 }

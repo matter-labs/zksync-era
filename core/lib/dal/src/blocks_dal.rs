@@ -60,8 +60,8 @@ impl BlocksDal<'_, '_> {
         Ok(row.number.map(|num| L1BatchNumber(num as u32)))
     }
 
-    pub async fn get_sealed_miniblock_number(&mut self) -> sqlx::Result<MiniblockNumber> {
-        let number: i64 = sqlx::query!(
+    pub async fn get_sealed_miniblock_number(&mut self) -> sqlx::Result<Option<MiniblockNumber>> {
+        let row = sqlx::query!(
             r#"
             SELECT
                 MAX(number) AS "number"
@@ -72,10 +72,9 @@ impl BlocksDal<'_, '_> {
         .instrument("get_sealed_miniblock_number")
         .report_latency()
         .fetch_one(self.storage.conn())
-        .await?
-        .number
-        .unwrap_or(0);
-        Ok(MiniblockNumber(number as u32))
+        .await?;
+
+        Ok(row.number.map(|number| MiniblockNumber(number as u32)))
     }
 
     /// Returns the number of the earliest L1 batch present in the DB, or `None` if there are no L1 batches.

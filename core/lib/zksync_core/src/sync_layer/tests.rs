@@ -498,8 +498,13 @@ async fn fetcher_with_real_server() {
     // Start the API server.
     let network_config = NetworkConfig::for_tests();
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let server_handles =
-        spawn_http_server(&network_config, pool.clone(), stop_receiver.clone()).await;
+    let server_handles = spawn_http_server(
+        &network_config,
+        pool.clone(),
+        Default::default(),
+        stop_receiver.clone(),
+    )
+    .await;
     server_handles.wait_until_ready().await;
     let server_addr = &server_handles.local_addr;
 

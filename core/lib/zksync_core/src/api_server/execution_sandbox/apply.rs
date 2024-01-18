@@ -8,13 +8,14 @@
 
 use std::time::{Duration, Instant};
 
+use anyhow::Context as _;
 use multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv, VmInterface},
     utils::adjust_pubdata_price_for_tx,
     vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryDisabled},
     VmInstance,
 };
-use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_state::{PostgresStorage, ReadStorage, StorageView, WriteStorage};
 use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
@@ -34,6 +35,7 @@ use super::{
     vm_metrics::{self, SandboxStage, SANDBOX_METRICS},
     BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
+use crate::utils::projected_first_l1_batch;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn apply_vm_in_sandbox<T>(
@@ -317,56 +319,48 @@ impl BlockArgs {
     pub(crate) async fn resolve_block_info(
         &self,
         connection: &mut StorageProcessor<'_>,
-    ) -> Result<ResolvedBlockInfo, SqlxError> {
-        let (state_l2_block_number, vm_l1_batch_number, l1_batch_timestamp) =
-            if self.is_pending_miniblock() {
-                let sealed_l1_batch_number = connection
-                    .blocks_web3_dal()
-                    .get_sealed_l1_batch_number()
-                    .await?;
-                let sealed_miniblock_header = connection
-                    .blocks_dal()
-                    .get_last_sealed_miniblock_header()
-                    .await
-                    .unwrap()
-                    .expect("At least one miniblock must exist");
+    ) -> anyhow::Result<ResolvedBlockInfo> {
+        let (state_l2_block_number, vm_l1_batch_number, l1_batch_timestamp);
 
-                // Timestamp of the next L1 batch must be greater than the timestamp of the last miniblock.
-                let l1_batch_timestamp =
-                    seconds_since_epoch().max(sealed_miniblock_header.timestamp + 1);
-                (
-                    sealed_miniblock_header.number,
-                    sealed_l1_batch_number + 1,
-                    l1_batch_timestamp,
-                )
-            } else {
-                let l1_batch_number = connection
-                    .storage_web3_dal()
-                    .resolve_l1_batch_number_of_miniblock(self.resolved_block_number)
-                    .await?
-                    .expected_l1_batch();
-                let l1_batch_timestamp = self.l1_batch_timestamp_s.unwrap_or_else(|| {
-                    panic!(
+        if self.is_pending_miniblock() {
+            let sealed_l1_batch_number =
+                connection.blocks_dal().get_sealed_l1_batch_number().await?;
+            let sealed_miniblock_header = connection
+                .blocks_dal()
+                .get_last_sealed_miniblock_header()
+                .await?
+                .context("no miniblocks in storage")?;
+
+            vm_l1_batch_number = match sealed_l1_batch_number {
+                Some(number) => number + 1,
+                None => projected_first_l1_batch(connection).await?,
+            };
+            state_l2_block_number = sealed_miniblock_header.number;
+            // Timestamp of the next L1 batch must be greater than the timestamp of the last miniblock.
+            l1_batch_timestamp = seconds_since_epoch().max(sealed_miniblock_header.timestamp + 1);
+        } else {
+            vm_l1_batch_number = connection
+                .storage_web3_dal()
+                .resolve_l1_batch_number_of_miniblock(self.resolved_block_number)
+                .await?
+                .expected_l1_batch();
+            l1_batch_timestamp = self.l1_batch_timestamp_s.unwrap_or_else(|| {
+                panic!(
                     "L1 batch timestamp is `None`, `block_id`: {:?}, `resolved_block_number`: {}",
                     self.block_id, self.resolved_block_number.0
                 );
-                });
-
-                (
-                    self.resolved_block_number,
-                    l1_batch_number,
-                    l1_batch_timestamp,
-                )
-            };
+            });
+            state_l2_block_number = self.resolved_block_number;
+        };
 
         // Blocks without version specified are considered to be of `Version9`.
         // TODO: remove `unwrap_or` when protocol version ID will be assigned for each block.
         let protocol_version = connection
             .blocks_dal()
             .get_miniblock_protocol_version_id(state_l2_block_number)
-            .await
-            .unwrap()
+            .await?
             .unwrap_or(ProtocolVersionId::last_potentially_undefined());
+
         Ok(ResolvedBlockInfo {
             state_l2_block_number,
             vm_l1_batch_number,
