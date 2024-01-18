@@ -48,6 +48,8 @@ node_key="node:secret:ed25519:d56de77c738326c305c64c25bffe1cc94ea7c639cf71ca3ff9
 # Here we use TOML multiline strings: newlines will be trimmed.
 log="""\
 warn,\
+zksync_consensus_bft=info,\
+zksync_consensus_network=debug,\
 zksync_core=debug,\
 zksync_dal=info,\
 zksync_eth_client=info,\
