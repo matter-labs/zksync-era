@@ -1,4 +1,4 @@
-use std::{any::Any, cell::RefCell, collections::HashMap, fmt};
+use std::{any::Any, collections::HashMap, fmt};
 
 use futures::{future::BoxFuture, FutureExt};
 use tokio::{runtime::Runtime, sync::watch};
@@ -13,7 +13,7 @@ mod context;
 mod stop_receiver;
 
 type TaskConstructor =
-    Box<dyn FnOnce(&NodeContext<'_>) -> Result<Box<dyn ZkSyncTask>, TaskInitError>>;
+    Box<dyn FnOnce(NodeContext<'_>) -> Result<Box<dyn ZkSyncTask>, TaskInitError>>;
 
 /// "Manager" class of the node. Collects all the resources and tasks,
 /// then runs tasks until completion.
@@ -35,15 +35,15 @@ pub struct ZkSyncNode {
     /// Primary source of resources for tasks.
     resource_provider: Box<dyn ResourceProvider>,
     /// Cache of resources that have been requested at least by one task.
-    resources: RefCell<HashMap<String, Box<dyn Any>>>,
+    resources: HashMap<String, Box<dyn Any>>,
     /// List of lazy resources.
     // Note: Internally stored as `Box<dyn Any>` to erase the type a resource is parameterized with.
     // TODO (QIT-25): May contain names present in other collections. Names should be globally unique.
-    lazy_resources: RefCell<HashMap<String, Box<dyn Any>>>,
+    lazy_resources: HashMap<String, Box<dyn Any>>,
     /// Resource collections that tasks would fill.
     // Note: Internally stored as `Box<dyn Any>` to erase the type a collection is parameterized with.
     // TODO (QIT-25): May contain names present in other collections. Names should be globally unique.
-    resource_collections: RefCell<HashMap<String, Box<dyn Any>>>,
+    resource_collections: HashMap<String, Box<dyn Any>>,
     /// List of task constructors.
     task_constructors: Vec<(String, TaskConstructor)>,
 
@@ -79,9 +79,9 @@ impl ZkSyncNode {
         let (wired_sender, _wired_receiver) = watch::channel(false);
         let self_ = Self {
             resource_provider: Box::new(resource_provider),
-            resources: RefCell::default(),
-            lazy_resources: RefCell::default(),
-            resource_collections: RefCell::default(),
+            resources: HashMap::default(),
+            lazy_resources: HashMap::default(),
+            resource_collections: HashMap::default(),
             task_constructors: Vec::new(),
             wired_sender,
             stop_sender,
@@ -97,8 +97,7 @@ impl ZkSyncNode {
     /// and will be invoked during [`ZkSyncNode::run`] method. Any error returned by the constructor
     /// will prevent the node from starting and will be propagated by the [`ZkSyncNode::run`] method.
     pub fn add_task<T: IntoZkSyncTask>(&mut self, config: T::Config) -> &mut Self {
-        let task_constructor =
-            move |node_context: &NodeContext<'_>| T::create(node_context, config);
+        let task_constructor = move |node_context: NodeContext<'_>| T::create(node_context, config);
         self.task_constructors
             .push((T::NAME.into(), Box::new(task_constructor)));
         self
@@ -114,7 +113,7 @@ impl ZkSyncNode {
         let mut errors: Vec<(String, TaskInitError)> = Vec::new();
 
         for (name, task_constructor) in task_constructors {
-            let task = match task_constructor(&NodeContext::new(&self)) {
+            let task = match task_constructor(NodeContext::new(&mut self)) {
                 Ok(task) => task,
                 Err(err) => {
                     // We don't want to bail on the first error, since it'll provide worse DevEx:

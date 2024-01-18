@@ -17,7 +17,7 @@ impl IntoZkSyncTask for PrometheusExporterTask {
     type Config = PrometheusExporterConfig;
 
     fn create(
-        node: &NodeContext<'_>,
+        mut node: NodeContext<'_>,
         config: Self::Config,
     ) -> Result<Box<dyn ZkSyncTask>, TaskInitError> {
         let (prometheus_health_check, prometheus_health_updater) =

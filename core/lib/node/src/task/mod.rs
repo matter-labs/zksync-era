@@ -22,7 +22,7 @@ pub trait IntoZkSyncTask: 'static + Send + Sync {
     /// `NodeContext` provides an interface to the utilities that task may need, e.g. the runtime handle to perform asynchronous
     /// calls, or access to the resources.
     fn create(
-        node: &NodeContext<'_>,
+        node: NodeContext<'_>,
         config: Self::Config,
     ) -> Result<Box<dyn ZkSyncTask>, TaskInitError>;
 }

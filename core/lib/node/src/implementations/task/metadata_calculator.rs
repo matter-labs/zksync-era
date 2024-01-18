@@ -23,7 +23,7 @@ impl IntoZkSyncTask for MetadataCalculatorTask {
     type Config = MetadataCalculatorConfig;
 
     fn create(
-        node: &NodeContext<'_>,
+        mut node: NodeContext<'_>,
         config: Self::Config,
     ) -> Result<Box<dyn ZkSyncTask>, TaskInitError> {
         let pool =

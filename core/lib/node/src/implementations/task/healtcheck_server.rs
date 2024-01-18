@@ -32,7 +32,7 @@ impl IntoZkSyncTask for HealthCheckTask {
     type Config = HealthCheckConfig;
 
     fn create(
-        node: &NodeContext<'_>,
+        mut node: NodeContext<'_>,
         config: Self::Config,
     ) -> Result<Box<dyn ZkSyncTask>, TaskInitError> {
         let healthchecks =
