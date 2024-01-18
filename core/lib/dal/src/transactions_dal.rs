@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt, time::Duration};
 
-use anyhow::Context;
+use anyhow::Context as _;
 use bigdecimal::BigDecimal;
 use itertools::Itertools;
 use sqlx::{error, types::chrono::NaiveDateTime};
@@ -1168,7 +1168,7 @@ impl TransactionsDal<'_, '_> {
         .fetch_all(self.storage.conn())
         .await?;
 
-        self.get_miniblocks_to_execute(transactions).await
+        self.map_transactions_to_execution_data(transactions).await
     }
 
     /// Returns miniblocks with their transactions to be used in VM execution.
@@ -1196,10 +1196,10 @@ impl TransactionsDal<'_, '_> {
         .fetch_all(self.storage.conn())
         .await?;
 
-        self.get_miniblocks_to_execute(transactions).await
+        self.map_transactions_to_execution_data(transactions).await
     }
 
-    async fn get_miniblocks_to_execute(
+    async fn map_transactions_to_execution_data(
         &mut self,
         transactions: Vec<StorageTransaction>,
     ) -> anyhow::Result<Vec<MiniblockExecutionData>> {
@@ -1217,14 +1217,10 @@ impl TransactionsDal<'_, '_> {
         if transactions_by_miniblock.is_empty() {
             return Ok(Vec::new());
         }
-        let from_miniblock = transactions_by_miniblock
-            .first()
-            .context("No first transaction found for miniblock")?
-            .0;
-        let to_miniblock = transactions_by_miniblock
-            .last()
-            .context("No last transaction found for miniblock")?
-            .0;
+        let from_miniblock = transactions_by_miniblock.first().unwrap().0;
+        let to_miniblock = transactions_by_miniblock.last().unwrap().0;
+        // `unwrap()`s are safe; `transactions_by_miniblock` is not empty as checked above
+
         let miniblock_data = sqlx::query!(
             r#"
             SELECT
@@ -1243,9 +1239,15 @@ impl TransactionsDal<'_, '_> {
         .fetch_all(self.storage.conn())
         .await?;
 
-        let prev_hashes = sqlx::query!(
+        anyhow::ensure!(
+            miniblock_data.len() == transactions_by_miniblock.len(),
+            "Not enough miniblock data retrieved"
+        );
+
+        let prev_miniblock_hashes = sqlx::query!(
             r#"
             SELECT
+                number,
                 hash
             FROM
                 miniblocks
@@ -1260,31 +1262,57 @@ impl TransactionsDal<'_, '_> {
         .fetch_all(self.storage.conn())
         .await?;
 
-        assert_eq!(
-            miniblock_data.len(),
-            transactions_by_miniblock.len(),
-            "Not enough miniblock data retrieved"
-        );
-        assert_eq!(
-            prev_hashes.len(),
-            transactions_by_miniblock.len(),
-            "Not enough previous hashes retrieved"
-        );
-
-        Ok(transactions_by_miniblock
+        let prev_miniblock_hashes: HashMap<_, _> = prev_miniblock_hashes
             .into_iter()
-            .zip(miniblock_data)
-            .zip(prev_hashes)
-            .map(
-                |(((number, txs), miniblock_data_row), prev_hash_row)| MiniblockExecutionData {
-                    number,
-                    timestamp: miniblock_data_row.timestamp as u64,
-                    prev_block_hash: H256::from_slice(&prev_hash_row.hash),
-                    virtual_blocks: miniblock_data_row.virtual_blocks as u32,
-                    txs,
-                },
-            )
-            .collect())
+            .map(|row| {
+                (
+                    MiniblockNumber(row.number as u32),
+                    H256::from_slice(&row.hash),
+                )
+            })
+            .collect();
+
+        let mut data = Vec::with_capacity(transactions_by_miniblock.len());
+        let it = transactions_by_miniblock.into_iter().zip(miniblock_data);
+        for ((number, txs), miniblock_row) in it {
+            let prev_miniblock_number = number - 1;
+            let prev_block_hash = match prev_miniblock_hashes.get(&prev_miniblock_number) {
+                Some(hash) => *hash,
+                None => {
+                    // Can occur after snapshot recovery; the first previous miniblock may not be present
+                    // in the storage.
+                    let row = sqlx::query!(
+                        r#"
+                        SELECT
+                            miniblock_hash
+                        FROM
+                            snapshot_recovery
+                        WHERE
+                            miniblock_number = $1
+                        "#,
+                        prev_miniblock_number.0 as i32
+                    )
+                    .fetch_optional(self.storage.conn())
+                    .await?
+                    .with_context(|| {
+                        format!(
+                            "miniblock #{prev_miniblock_number} is not in storage, and its hash is not \
+                             in snapshot recovery data"
+                        )
+                    })?;
+                    H256::from_slice(&row.miniblock_hash)
+                }
+            };
+
+            data.push(MiniblockExecutionData {
+                number,
+                timestamp: miniblock_row.timestamp as u64,
+                prev_block_hash,
+                virtual_blocks: miniblock_row.virtual_blocks as u32,
+                txs,
+            });
+        }
+        Ok(data)
     }
 
     pub async fn get_tx_locations(&mut self, l1_batch_number: L1BatchNumber) -> TxLocations {
