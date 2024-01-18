@@ -1,10 +1,11 @@
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_health_check::{CheckHealth, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 
-use crate::node::{NodeContext, StopReceiver};
-use crate::task::{IntoZkSyncTask, TaskInitError, ZkSyncTask};
-
 use super::healtcheck_server::HealthCheckTask;
+use crate::{
+    node::{NodeContext, StopReceiver},
+    task::{IntoZkSyncTask, TaskInitError, ZkSyncTask},
+};
 
 #[derive(Debug)]
 pub struct PrometheusExporterTask {

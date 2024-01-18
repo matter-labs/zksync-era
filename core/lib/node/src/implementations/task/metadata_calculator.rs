@@ -3,14 +3,13 @@ use zksync_dal::ConnectionPool;
 use zksync_health_check::CheckHealth;
 use zksync_storage::RocksDB;
 
+use super::healtcheck_server::HealthCheckTask;
 use crate::{
     implementations::resource::{object_store::ObjectStoreResource, pools::MasterPoolResource},
     node::{NodeContext, StopReceiver},
     resource::Resource,
     task::{IntoZkSyncTask, TaskInitError, ZkSyncTask},
 };
-
-use super::healtcheck_server::HealthCheckTask;
 
 #[derive(Debug)]
 pub struct MetadataCalculatorTask {

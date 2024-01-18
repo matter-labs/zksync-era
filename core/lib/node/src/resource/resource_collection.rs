@@ -21,9 +21,9 @@ use tokio::sync::watch;
 /// Note that the collection type doesn't have to implement the [Resource] trait, since it is the collection
 /// itself that is a resource, not the elements it contains.
 ///
-/// The purpose of this container is to allow different tasks to register their resource in a single place for som
-/// other task to consume. For example, tasks may register their healtchecks, and then healtcheck task will observe
-/// all the provided healtchecks.
+/// The purpose of this container is to allow different tasks to register their resource in a single place for some
+/// other task to consume. For example, tasks may register their healthchecks, and then healthcheck task will observe
+/// all the provided healthchecks.
 pub struct ResourceCollection<T: 'static> {
     /// Collection of the resources.
     resources: Arc<RwLock<Vec<T>>>,
@@ -82,7 +82,7 @@ impl<T: 'static> ResourceCollection<T> {
     }
 
     pub async fn resolve(mut self) -> Result<Vec<T>, ResourceCollectionError> {
-        // Guratanteed not to hang on server shutdown, since the node will change the value before any task is
+        // Guaranteed not to hang on server shutdown, since the node will change the value before any task is
         // actually spawned (per framework rules). For most cases, this check will resolve immediately, unless
         // some tasks would spawn something from the `IntoZkSyncTask` impl.
         self.wired

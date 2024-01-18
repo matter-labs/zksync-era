@@ -3,9 +3,8 @@ use std::sync::{Arc, Mutex};
 use thiserror::Error;
 use tokio::sync::watch;
 
-use crate::node::StopReceiver;
-
 use super::Resource;
+use crate::node::StopReceiver;
 
 /// A lazy resource represent a resource that isn't available at the time when the tasks start.
 /// Normally it's used to represent the resources that should be provided by one task to another one.
