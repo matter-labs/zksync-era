@@ -405,7 +405,15 @@ impl PayloadManager for Store {
                 .await
                 .wrap("payload()")?
             {
-                return Ok(payload.encode());
+                let encoded_payload = payload.encode();
+                if encoded_payload.0.len() > 1 << 20 {
+                    tracing::warn!(
+                        "large payload ({}B) with {} transactions",
+                        encoded_payload.0.len(),
+                        payload.transactions.len()
+                    );
+                }
+                return Ok(encoded_payload);
             }
             drop(storage);
             ctx.sleep(POLL_INTERVAL).await?;

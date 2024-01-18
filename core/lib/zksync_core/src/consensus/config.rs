@@ -9,7 +9,7 @@ use zksync_protobuf::{required, ProtoFmt};
 
 use crate::consensus::proto;
 
-/// Decodes a proto message from json for arbitrary ProtoFmt.
+/// Decodes a proto message from json for arbitrary `ProtoFmt`.
 pub fn decode_json<T: ProtoFmt>(json: &str) -> anyhow::Result<T> {
     let mut d = serde_json::Deserializer::from_str(json);
     let p: T = zksync_protobuf::serde::deserialize(&mut d)?;
@@ -17,7 +17,7 @@ pub fn decode_json<T: ProtoFmt>(json: &str) -> anyhow::Result<T> {
     Ok(p)
 }
 
-/// Decodes a secret of type T from an env var with name var_name.
+/// Decodes a secret of type T from an env var with name `var_name`.
 /// It makes sure that the error message doesn't contain the secret.
 pub fn read_secret<T: TextFmt>(var_name: &str) -> anyhow::Result<T> {
     let raw = std::env::var(var_name).map_err(|_| anyhow::anyhow!("{var_name} not set"))?;

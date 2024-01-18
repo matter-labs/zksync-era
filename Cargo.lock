@@ -8512,7 +8512,7 @@ dependencies = [
 [[package]]
 name = "zksync_concurrency"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=660ad0cf2b87479254931e7185f6604961476438#660ad0cf2b87479254931e7185f6604961476438"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=e79eb4a863ddc9bc1bcf37101a340901b1d809fd#e79eb4a863ddc9bc1bcf37101a340901b1d809fd"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -8539,7 +8539,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_bft"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=660ad0cf2b87479254931e7185f6604961476438#660ad0cf2b87479254931e7185f6604961476438"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=e79eb4a863ddc9bc1bcf37101a340901b1d809fd#e79eb4a863ddc9bc1bcf37101a340901b1d809fd"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8560,7 +8560,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_crypto"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=660ad0cf2b87479254931e7185f6604961476438#660ad0cf2b87479254931e7185f6604961476438"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=e79eb4a863ddc9bc1bcf37101a340901b1d809fd#e79eb4a863ddc9bc1bcf37101a340901b1d809fd"
 dependencies = [
  "anyhow",
  "blst",
@@ -8578,7 +8578,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_executor"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=660ad0cf2b87479254931e7185f6604961476438#660ad0cf2b87479254931e7185f6604961476438"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=e79eb4a863ddc9bc1bcf37101a340901b1d809fd#e79eb4a863ddc9bc1bcf37101a340901b1d809fd"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -8597,7 +8597,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_network"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=660ad0cf2b87479254931e7185f6604961476438#660ad0cf2b87479254931e7185f6604961476438"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=e79eb4a863ddc9bc1bcf37101a340901b1d809fd#e79eb4a863ddc9bc1bcf37101a340901b1d809fd"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8621,7 +8621,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_roles"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=660ad0cf2b87479254931e7185f6604961476438#660ad0cf2b87479254931e7185f6604961476438"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=e79eb4a863ddc9bc1bcf37101a340901b1d809fd#e79eb4a863ddc9bc1bcf37101a340901b1d809fd"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -8641,7 +8641,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_storage"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=660ad0cf2b87479254931e7185f6604961476438#660ad0cf2b87479254931e7185f6604961476438"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=e79eb4a863ddc9bc1bcf37101a340901b1d809fd#e79eb4a863ddc9bc1bcf37101a340901b1d809fd"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8659,7 +8659,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_sync_blocks"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=660ad0cf2b87479254931e7185f6604961476438#660ad0cf2b87479254931e7185f6604961476438"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=e79eb4a863ddc9bc1bcf37101a340901b1d809fd#e79eb4a863ddc9bc1bcf37101a340901b1d809fd"
 dependencies = [
  "anyhow",
  "thiserror",
@@ -8674,7 +8674,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_utils"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=660ad0cf2b87479254931e7185f6604961476438#660ad0cf2b87479254931e7185f6604961476438"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=e79eb4a863ddc9bc1bcf37101a340901b1d809fd#e79eb4a863ddc9bc1bcf37101a340901b1d809fd"
 dependencies = [
  "thiserror",
  "zksync_concurrency",
@@ -9011,7 +9011,7 @@ dependencies = [
 [[package]]
 name = "zksync_protobuf"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=660ad0cf2b87479254931e7185f6604961476438#660ad0cf2b87479254931e7185f6604961476438"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=e79eb4a863ddc9bc1bcf37101a340901b1d809fd#e79eb4a863ddc9bc1bcf37101a340901b1d809fd"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -9029,7 +9029,7 @@ dependencies = [
 [[package]]
 name = "zksync_protobuf_build"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=660ad0cf2b87479254931e7185f6604961476438#660ad0cf2b87479254931e7185f6604961476438"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=e79eb4a863ddc9bc1bcf37101a340901b1d809fd#e79eb4a863ddc9bc1bcf37101a340901b1d809fd"
 dependencies = [
  "anyhow",
  "heck 0.4.1",
