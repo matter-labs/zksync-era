@@ -1,6 +1,6 @@
 import { getCryptoFileName, getUpgradePath, VerifierParams } from '../utils';
 import fs from 'fs';
-import { BytesLike } from 'ethers';
+import {BytesLike, ethers} from 'ethers';
 import { Command } from 'commander';
 import { deployVerifier } from './deployer';
 
@@ -13,7 +13,7 @@ function saveVerificationKeys(
     recursionNodeLevelVkHash = recursionNodeLevelVkHash ?? process.env.CONTRACTS_FRI_RECURSION_NODE_LEVEL_VK_HASH;
     recursionLeafLevelVkHash = recursionLeafLevelVkHash ?? process.env.CONTRACTS_FRI_RECURSION_LEAF_LEVEL_VK_HASH;
     recursionCircuitsSetVksHash =
-        recursionCircuitsSetVksHash ?? process.env.CONTRACTS_FRI_RECURSION_SCHEDULER_LEVEL_VK_HASH;
+        recursionCircuitsSetVksHash ?? ethers.constants.HashZero;
     const verificationParams: VerifierParams = {
         recursionNodeLevelVkHash,
         recursionLeafLevelVkHash,
