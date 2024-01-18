@@ -122,6 +122,9 @@ pub trait ZksNamespaceT {
         keys: Vec<H256>,
         l1_batch_number: L1BatchNumber,
     ) -> BoxFuture<Result<Proof>>;
+
+    #[rpc(name = "zks_getConversionRate")]
+    fn get_conversion_rate(&self) -> BoxFuture<Result<U64>>;
 }
 
 impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceT for ZksNamespace<G> {
@@ -339,6 +342,16 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceT for ZksNamespa
         Box::pin(async move {
             self_
                 .get_proofs_impl(address, keys.clone(), l1_batch_number)
+                .await
+                .map_err(into_jsrpc_error)
+        })
+    }
+
+    fn get_conversion_rate(&self) -> BoxFuture<Result<U64>> {
+        let self_ = self.clone();
+        Box::pin(async move {
+            self_
+                .get_conversion_rate_impl()
                 .await
                 .map_err(into_jsrpc_error)
         })

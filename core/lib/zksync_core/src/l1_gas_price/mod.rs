@@ -1,6 +1,7 @@
 //! This module determines the fees to pay in txs containing blocks submitted to the L1.
 
 pub use gas_adjuster::bounded_gas_adjuster::BoundedGasAdjuster;
+pub use gas_adjuster::erc_20_fetcher;
 pub use gas_adjuster::GasAdjuster;
 pub use main_node_fetcher::MainNodeGasPriceFetcher;
 pub use singleton::GasAdjusterSingleton;
@@ -15,6 +16,8 @@ pub trait L1GasPriceProvider {
     /// Returns a best guess of a realistic value for the L1 gas price.
     /// Return value is in wei.
     fn estimate_effective_gas_price(&self) -> u64;
+
+    fn get_erc20_conversion_rate(&self) -> u64;
 }
 
 /// Extended version of `L1GasPriceProvider` that can provide parameters

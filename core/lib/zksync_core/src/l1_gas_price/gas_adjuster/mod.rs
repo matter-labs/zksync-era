@@ -1,5 +1,6 @@
 //! This module determines the fees to pay in txs containing blocks submitted to the L1.
 
+use ::metrics::atomics::AtomicU64;
 use tokio::sync::watch;
 
 use std::{
@@ -11,11 +12,11 @@ use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::{types::Error, EthInterface};
 
 pub mod bounded_gas_adjuster;
+pub mod erc_20_fetcher;
 mod metrics;
 #[cfg(test)]
 mod tests;
-
-use self::metrics::METRICS;
+use self::{erc_20_fetcher::get_erc_20_value_in_wei, metrics::METRICS};
 use super::{L1GasPriceProvider, L1TxParamsProvider};
 
 /// This component keeps track of the median base_fee from the last `max_base_fee_samples` blocks.
@@ -25,6 +26,7 @@ pub struct GasAdjuster<E> {
     pub(super) statistics: GasStatistics,
     pub(super) config: GasAdjusterConfig,
     eth_client: E,
+    erc_20_value_in_wei: AtomicU64,
 }
 
 impl<E: EthInterface> GasAdjuster<E> {
@@ -44,6 +46,7 @@ impl<E: EthInterface> GasAdjuster<E> {
             statistics: GasStatistics::new(config.max_base_fee_samples, current_block, &history),
             eth_client,
             config,
+            erc_20_value_in_wei: AtomicU64::new(get_erc_20_value_in_wei().await),
         })
     }
 
@@ -78,6 +81,12 @@ impl<E: EthInterface> GasAdjuster<E> {
                 .set(*history.last().unwrap());
             self.statistics.add_samples(&history);
         }
+
+        self.erc_20_value_in_wei.store(
+            erc_20_fetcher::get_erc_20_value_in_wei().await,
+            std::sync::atomic::Ordering::Relaxed,
+        );
+
         Ok(())
     }
 
@@ -92,7 +101,8 @@ impl<E: EthInterface> GasAdjuster<E> {
                 tracing::warn!("Cannot add the base fee to gas statistics: {}", err);
             }
 
-            tokio::time::sleep(self.config.poll_period()).await;
+            // tokio::time::sleep(self.config.poll_period()).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(100_000_000)).await;
         }
         Ok(())
     }
@@ -109,6 +119,13 @@ impl<E: EthInterface> L1GasPriceProvider for GasAdjuster<E> {
         let effective_gas_price = self.get_base_fee(0) + self.get_priority_fee();
 
         (self.config.internal_l1_pricing_multiplier * effective_gas_price as f64) as u64
+    }
+
+    /// TODO: This is for an easy refactor to test things,
+    /// let's discuss where this should actually be.
+    fn get_erc20_conversion_rate(&self) -> u64 {
+        self.erc_20_value_in_wei
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 }
 

@@ -707,4 +707,15 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             storage_proof,
         })
     }
+
+    #[tracing::instrument(skip_all)]
+    pub async fn get_conversion_rate_impl(&self) -> Result<U64, Web3Error> {
+        Ok(U64::from(
+            self.state
+                .tx_sender
+                .0
+                .l1_gas_price_source
+                .get_erc20_conversion_rate(),
+        ))
+    }
 }

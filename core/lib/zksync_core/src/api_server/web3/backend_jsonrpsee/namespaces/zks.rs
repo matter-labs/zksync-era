@@ -174,4 +174,10 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceServer for ZksNa
             .await
             .map_err(into_jsrpc_error)
     }
+
+    async fn get_conversion_rate(&self) -> RpcResult<U64> {
+        self.get_conversion_rate_impl()
+            .await
+            .map_err(into_jsrpc_error)
+    }
 }

@@ -40,4 +40,7 @@ impl<G: L1GasPriceProvider> L1GasPriceProvider for BoundedGasAdjuster<G> {
         }
         default_gas_price
     }
+    fn get_erc20_conversion_rate(&self) -> u64 {
+        self.default_gas_adjuster.get_erc20_conversion_rate()
+    }
 }

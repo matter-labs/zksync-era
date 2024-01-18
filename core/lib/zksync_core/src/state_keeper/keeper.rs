@@ -138,7 +138,10 @@ impl ZkSyncStateKeeper {
                 }
             }
         };
-
+        println!("Before multiplying by l2 gas price");
+        // l1_batch_env.fair_l2_gas_price *=
+        //     crate::l1_gas_price::erc_20_fetcher::get_erc_20_value_in_wei().await;
+        println!("Price of l2 gas: {}", l1_batch_env.fair_l2_gas_price);
         let protocol_version = system_env.version;
         let mut updates_manager = UpdatesManager::new(
             l1_batch_env.clone(),

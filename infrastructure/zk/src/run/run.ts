@@ -58,13 +58,13 @@ export async function deployERC20(
 
 export async function approve() {
     let path = `${process.env.ZKSYNC_HOME}/etc/tokens/native_erc20.json`;
-    let rawData = fs.readFileSync(path, "utf8");
-    let address = "0x52312AD6f01657413b2eaE9287f6B9ADaD93D5FE";
+    let rawData = fs.readFileSync(path, 'utf8');
+    let address = '0x52312AD6f01657413b2eaE9287f6B9ADaD93D5FE';
     try {
         let jsonConfig = JSON.parse(rawData);
         address = jsonConfig.address;
     } catch (_e) {
-        address = "0x52312AD6f01657413b2eaE9287f6B9ADaD93D5FE";
+        address = '0x52312AD6f01657413b2eaE9287f6B9ADaD93D5FE';
     }
 
     await utils.spawn(

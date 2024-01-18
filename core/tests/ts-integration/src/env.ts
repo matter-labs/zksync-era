@@ -75,7 +75,7 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
     // wBTC is chosen because it has decimals different from ETH (8 instead of 18).
     // Using this token will help us to detect decimals-related errors.
     // but if it's not available, we'll use the first token from the list.
-    let token = tokens.find((token: { symbol: string }) => token.symbol == 'wBTC')!;
+    let token = tokens.find((token: { symbol: string }) => token.symbol == 'LBC')!;
     if (!token) {
         token = tokens[0];
     }
@@ -83,13 +83,13 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
 
     // `waitForServer` is expected to be executed. Otherwise this call may throw.
     const l2TokenAddress = await new zksync.Wallet(
-        mainWalletPK,
+        '0xe131bc3f481277a8f73d680d9ba404cc6f959e64296e0914dded403030d4f705',
         new zksync.Provider(l2NodeUrl),
         ethers.getDefaultProvider(l1NodeUrl)
     ).l2TokenAddress(token.address);
 
     const l2WethAddress = await new zksync.Wallet(
-        mainWalletPK,
+        '0xe131bc3f481277a8f73d680d9ba404cc6f959e64296e0914dded403030d4f705',
         new zksync.Provider(l2NodeUrl),
         ethers.getDefaultProvider(l1NodeUrl)
     ).l2TokenAddress(weth.address);

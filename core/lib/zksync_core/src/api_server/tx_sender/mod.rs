@@ -883,7 +883,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             l1_gas_price as u64,
             self.0.sender_config.fair_l2_gas_price,
         );
-        base_fee
+        base_fee * self.0.l1_gas_price_source.get_erc20_conversion_rate()
     }
 
     fn ensure_tx_executable(

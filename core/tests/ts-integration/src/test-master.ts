@@ -64,7 +64,11 @@ export class TestMaster {
             this.l2Provider.pollingInterval = 5000;
         }
 
-        this.mainWallet = new zksync.Wallet(suiteWalletPK, this.l2Provider, this.l1Provider);
+        this.mainWallet = new zksync.Wallet(
+            '0xe131bc3f481277a8f73d680d9ba404cc6f959e64296e0914dded403030d4f705',
+            this.l2Provider,
+            this.l1Provider
+        );
     }
 
     /**

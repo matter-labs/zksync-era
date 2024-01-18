@@ -41,7 +41,9 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> EthNamespaceServer for EthNa
     }
 
     async fn gas_price(&self) -> RpcResult<U256> {
-        self.gas_price_impl().map_err(into_jsrpc_error)
+        let gas_price = self.gas_price_impl().map_err(into_jsrpc_error);
+        println!("The gas price: {:?}", gas_price);
+        return gas_price;
     }
 
     async fn new_filter(&self, filter: Filter) -> RpcResult<U256> {

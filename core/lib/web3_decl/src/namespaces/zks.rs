@@ -121,4 +121,7 @@ pub trait ZksNamespace {
         keys: Vec<H256>,
         l1_batch_number: L1BatchNumber,
     ) -> RpcResult<Proof>;
+
+    #[method(name = "getConversionRate")]
+    async fn get_conversion_rate(&self) -> RpcResult<U64>;
 }

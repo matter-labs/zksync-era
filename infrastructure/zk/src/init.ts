@@ -68,7 +68,7 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
 
     if (nativeERC20) {
         await announced('Approving Proxy Contract for deployer deposits', run.approve());
-    }   
+    }
 
     await announced(
         'Deploying L2 contracts',
