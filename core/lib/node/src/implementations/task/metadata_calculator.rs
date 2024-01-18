@@ -4,8 +4,9 @@ use zksync_health_check::CheckHealth;
 use zksync_storage::RocksDB;
 
 use crate::{
+    implementations::resource::{object_store::ObjectStoreResource, pools::MasterPoolResource},
     node::{NodeContext, StopReceiver},
-    resource::{object_store::ObjectStoreResource, pools::MasterPoolResource, Resource},
+    resource::Resource,
     task::{IntoZkSyncTask, TaskInitError, ZkSyncTask},
 };
 

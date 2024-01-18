@@ -1,8 +1,5 @@
 use std::{any::Any, fmt};
 
-pub mod object_store;
-pub mod pools;
-
 /// A marker trait for anything that can be stored (and retrieved) as a resource.
 /// Requires `Clone` since the same resource may be requested by several tasks.
 pub trait Resource: 'static + Clone + std::any::Any {

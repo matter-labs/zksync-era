@@ -1,6 +1,6 @@
 use zksync_dal::{connection::ConnectionPoolBuilder, ConnectionPool};
 
-use super::Resource;
+use crate::resource::Resource;
 
 /// Represents a connection pool to the master database.
 #[derive(Debug, Clone)]

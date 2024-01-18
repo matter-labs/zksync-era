@@ -7,12 +7,13 @@ use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;
 use zksync_node::{
     healthcheck::IntoHealthCheckTask,
-    node::ZkSyncNode,
-    resource::{pools::MasterPoolResource, Resource, ResourceProvider},
-    task::{
-        healtcheck_server::HealthCheckTask, metadata_calculator::MetadataCalculatorTask,
-        IntoZkSyncTask,
+    implementations::{
+        resource::pools::MasterPoolResource,
+        task::{healtcheck_server::HealthCheckTask, metadata_calculator::MetadataCalculatorTask},
     },
+    node::ZkSyncNode,
+    resource::{Resource, ResourceProvider},
+    task::IntoZkSyncTask,
 };
 
 /// Resource provider for the main node.

@@ -9,10 +9,6 @@ use zksync_health_check::CheckHealth;
 
 use crate::node::{NodeContext, StopReceiver};
 
-pub mod healtcheck_server;
-pub mod metadata_calculator;
-pub mod prometheus_exporter;
-
 /// Factory that can create a task.
 // Note: This have to be a separate trait, since `ZkSyncTask` has to be object-safe.
 pub trait IntoZkSyncTask: 'static + Send + Sync {

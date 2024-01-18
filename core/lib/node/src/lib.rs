@@ -19,6 +19,7 @@
 //! - Run it.
 
 pub mod healthcheck;
+pub mod implementations;
 pub mod node;
 pub mod resource;
 pub mod task;

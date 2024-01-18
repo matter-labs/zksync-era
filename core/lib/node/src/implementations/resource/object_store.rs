@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use zksync_object_store::ObjectStore;
 
-use super::Resource;
+use crate::resource::Resource;
 
 /// Wrapper for the object store.
 #[derive(Debug, Clone)]

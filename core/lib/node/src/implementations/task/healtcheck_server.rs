@@ -6,7 +6,7 @@ use zksync_core::api_server::healthcheck::HealthCheckHandle;
 use crate::{
     healthcheck::{CheckHealth, IntoHealthCheckTask},
     node::{NodeContext, StopReceiver},
-    task::ZkSyncTask,
+    task::{TaskInitError, ZkSyncTask},
 };
 
 pub struct HealthCheckTask {
@@ -29,7 +29,7 @@ impl IntoHealthCheckTask for HealthCheckTask {
         _node: &NodeContext<'_>,
         healthchecks: Vec<Box<dyn CheckHealth>>,
         config: Self::Config,
-    ) -> Result<Box<dyn super::ZkSyncTask>, super::TaskInitError> {
+    ) -> Result<Box<dyn ZkSyncTask>, TaskInitError> {
         let self_ = Self {
             config,
             healthchecks,
