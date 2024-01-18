@@ -1746,46 +1746,6 @@ impl BlocksDal<'_, '_> {
         Ok(Some((H256::from_slice(&hash), row.timestamp as u64)))
     }
 
-    pub async fn get_newest_l1_batch_header(&mut self) -> sqlx::Result<L1BatchHeader> {
-        let last_l1_batch = sqlx::query_as!(
-            StorageL1BatchHeader,
-            r#"
-            SELECT
-                number,
-                l1_tx_count,
-                l2_tx_count,
-                timestamp,
-                is_finished,
-                fee_account_address,
-                l2_to_l1_logs,
-                l2_to_l1_messages,
-                bloom,
-                priority_ops_onchain_data,
-                used_contract_hashes,
-                base_fee_per_gas,
-                l1_gas_price,
-                l2_fair_gas_price,
-                bootloader_code_hash,
-                default_aa_code_hash,
-                protocol_version,
-                compressed_state_diffs,
-                system_logs,
-                pubdata_input
-            FROM
-                l1_batches
-            ORDER BY
-                number DESC
-            LIMIT
-                1
-            "#
-        )
-        .instrument("get_newest_l1_batch_header")
-        .fetch_one(self.storage.conn())
-        .await?;
-
-        Ok(last_l1_batch.into())
-    }
-
     pub async fn get_l1_batch_metadata(
         &mut self,
         number: L1BatchNumber,

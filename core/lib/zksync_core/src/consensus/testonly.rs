@@ -183,11 +183,20 @@ impl StateKeeper {
                 .await
                 .context("ensure_genesis_state()")?;
         }
-        let last_batch = storage
+
+        let last_l1_batch_number = storage
             .blocks_dal()
-            .get_newest_l1_batch_header()
+            .get_sealed_l1_batch_number()
             .await
-            .context("get_newest_l1_batch_header()")?;
+            .context("get_sealed_l1_batch_number()")?
+            .context("no L1 batches in storage")?;
+        let last_miniblock_header = storage
+            .blocks_dal()
+            .get_last_sealed_miniblock_header()
+            .await
+            .context("get_last_sealed_miniblock_header()")?
+            .context("no miniblocks in storage")?;
+
         let pending_batch = storage
             .blocks_dal()
             .pending_batch_exists()
@@ -196,13 +205,9 @@ impl StateKeeper {
         let (actions_sender, actions_queue) = ActionQueue::new();
         Ok((
             Self {
-                last_batch: last_batch.number + if pending_batch { 1 } else { 0 },
-                last_block: storage
-                    .blocks_dal()
-                    .get_sealed_miniblock_number()
-                    .await
-                    .context("get_sealed_miniblock_number()")?,
-                last_timestamp: last_batch.timestamp,
+                last_batch: last_l1_batch_number + if pending_batch { 1 } else { 0 },
+                last_block: last_miniblock_header.number,
+                last_timestamp: last_miniblock_header.timestamp,
                 batch_sealed: !pending_batch,
                 fee_per_gas: 10,
                 gas_per_pubdata: 100,
