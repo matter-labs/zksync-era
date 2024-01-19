@@ -808,11 +808,11 @@ mod tests {
         insert_miniblock(conn, 2, logs).await;
 
         let value = conn.storage_dal().get_by_key(&key).await.unwrap();
-        assert_eq!(value, H256::repeat_byte(0xff));
+        assert_eq!(value, Some(H256::repeat_byte(0xff)));
         let value = conn.storage_dal().get_by_key(&second_key).await.unwrap();
-        assert_eq!(value, H256::zero());
+        assert_eq!(value, Some(H256::zero()));
         let value = conn.storage_dal().get_by_key(&new_key).await.unwrap();
-        assert_eq!(value, H256::repeat_byte(0xfe));
+        assert_eq!(value, Some(H256::repeat_byte(0xfe)));
 
         let prev_keys = vec![key.hashed_key(), new_key.hashed_key(), H256::zero()];
         let prev_values = conn
@@ -829,11 +829,11 @@ mod tests {
             .await;
 
         let value = conn.storage_dal().get_by_key(&key).await.unwrap();
-        assert_eq!(value, H256::repeat_byte(3));
+        assert_eq!(value, Some(H256::repeat_byte(3)));
         let value = conn.storage_dal().get_by_key(&second_key).await.unwrap();
-        assert_eq!(value, H256::repeat_byte(2));
-        let value = conn.storage_dal().get_by_key(&new_key).await;
-        assert!(value.is_none());
+        assert_eq!(value, Some(H256::repeat_byte(2)));
+        let value = conn.storage_dal().get_by_key(&new_key).await.unwrap();
+        assert_eq!(value, None);
     }
 
     #[tokio::test]

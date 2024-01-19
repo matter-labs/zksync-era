@@ -63,10 +63,15 @@ impl<G: BatchFeeModelInputProvider> MempoolFetcher<G> {
                 let removed_txs = storage
                     .transactions_dal()
                     .remove_stuck_txs(stuck_tx_timeout)
-                    .await;
+                    .await
+                    .context("failed removing stuck transactions")?;
                 tracing::info!("Number of stuck txs was removed: {removed_txs}");
             }
-            storage.transactions_dal().reset_mempool().await;
+            storage
+                .transactions_dal()
+                .reset_mempool()
+                .await
+                .context("failed resetting mempool")?;
         }
 
         loop {
@@ -95,13 +100,14 @@ impl<G: BatchFeeModelInputProvider> MempoolFetcher<G> {
             let (transactions, nonces) = storage
                 .transactions_dal()
                 .sync_mempool(
-                    mempool_info.stashed_accounts,
-                    mempool_info.purged_accounts,
+                    &mempool_info.stashed_accounts,
+                    &mempool_info.purged_accounts,
                     l2_tx_filter.gas_per_pubdata,
                     l2_tx_filter.fee_per_gas,
                     self.sync_batch_size,
                 )
-                .await;
+                .await
+                .context("failed syncing mempool")?;
             drop(storage);
 
             let all_transactions_loaded = transactions.len() < self.sync_batch_size;

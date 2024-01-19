@@ -856,184 +856,171 @@ impl TransactionsDal<'_, '_> {
         }
     }
 
-    pub async fn remove_stuck_txs(&mut self, stuck_tx_timeout: Duration) -> usize {
-        {
-            let stuck_tx_timeout = pg_interval_from_duration(stuck_tx_timeout);
-            sqlx::query!(
-                r#"
-                DELETE FROM transactions
-                WHERE
-                    miniblock_number IS NULL
-                    AND received_at < NOW() - $1::INTERVAL
-                    AND is_priority = FALSE
-                    AND error IS NULL
-                RETURNING
-                    hash
-                "#,
-                stuck_tx_timeout
-            )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .len()
-        }
+    pub async fn remove_stuck_txs(&mut self, stuck_tx_timeout: Duration) -> sqlx::Result<usize> {
+        let stuck_tx_timeout = pg_interval_from_duration(stuck_tx_timeout);
+        let rows = sqlx::query!(
+            r#"
+            DELETE FROM transactions
+            WHERE
+                miniblock_number IS NULL
+                AND received_at < NOW() - $1::INTERVAL
+                AND is_priority = FALSE
+                AND error IS NULL
+            RETURNING
+                hash
+            "#,
+            stuck_tx_timeout
+        )
+        .fetch_all(self.storage.conn())
+        .await?;
+
+        Ok(rows.len())
     }
 
-    /// Fetches new updates for mempool
-    /// Returns new transactions and current nonces for related accounts
-    /// Latter is only used to bootstrap mempool for given account
+    /// Fetches new updates for mempool. Returns new transactions and current nonces for related accounts;
+    /// the latter are only used to bootstrap mempool for given account.
     pub async fn sync_mempool(
         &mut self,
-        stashed_accounts: Vec<Address>,
-        purged_accounts: Vec<Address>,
+        stashed_accounts: &[Address],
+        purged_accounts: &[Address],
         gas_per_pubdata: u32,
         fee_per_gas: u64,
         limit: usize,
-    ) -> (Vec<Transaction>, HashMap<Address, Nonce>) {
-        {
-            let stashed_addresses: Vec<_> =
-                stashed_accounts.into_iter().map(|a| a.0.to_vec()).collect();
-            sqlx::query!(
-                r#"
-                UPDATE transactions
-                SET
-                    in_mempool = FALSE
-                FROM
-                    UNNEST($1::bytea[]) AS s (address)
-                WHERE
-                    transactions.in_mempool = TRUE
-                    AND transactions.initiator_address = s.address
-                "#,
-                &stashed_addresses,
-            )
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
+    ) -> sqlx::Result<(Vec<Transaction>, HashMap<Address, Nonce>)> {
+        let stashed_addresses: Vec<_> = stashed_accounts.iter().map(Address::as_bytes).collect();
+        sqlx::query!(
+            r#"
+            UPDATE transactions
+            SET
+                in_mempool = FALSE
+            FROM
+                UNNEST($1::bytea[]) AS s (address)
+            WHERE
+                transactions.in_mempool = TRUE
+                AND transactions.initiator_address = s.address
+            "#,
+            &stashed_addresses as &[&[u8]],
+        )
+        .execute(self.storage.conn())
+        .await?;
 
-            let purged_addresses: Vec<_> =
-                purged_accounts.into_iter().map(|a| a.0.to_vec()).collect();
-            sqlx::query!(
-                r#"
-                DELETE FROM transactions
-                WHERE
-                    in_mempool = TRUE
-                    AND initiator_address = ANY ($1)
-                "#,
-                &purged_addresses[..]
-            )
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
+        let purged_addresses: Vec<_> = purged_accounts.iter().map(Address::as_bytes).collect();
+        sqlx::query!(
+            r#"
+            DELETE FROM transactions
+            WHERE
+                in_mempool = TRUE
+                AND initiator_address = ANY ($1)
+            "#,
+            &purged_addresses as &[&[u8]]
+        )
+        .execute(self.storage.conn())
+        .await?;
 
-            // Note, that transactions are updated in order of their hashes to avoid deadlocks with other UPDATE queries.
-            let transactions = sqlx::query_as!(
-                StorageTransaction,
-                r#"
-                UPDATE transactions
-                SET
-                    in_mempool = TRUE
-                FROM
-                    (
-                        SELECT
-                            hash
-                        FROM
-                            (
-                                SELECT
-                                    hash
-                                FROM
-                                    transactions
-                                WHERE
-                                    miniblock_number IS NULL
-                                    AND in_mempool = FALSE
-                                    AND error IS NULL
-                                    AND (
-                                        is_priority = TRUE
-                                        OR (
-                                            max_fee_per_gas >= $2
-                                            AND gas_per_pubdata_limit >= $3
-                                        )
+        // Note, that transactions are updated in order of their hashes to avoid deadlocks with other UPDATE queries.
+        let transactions = sqlx::query_as!(
+            StorageTransaction,
+            r#"
+            UPDATE transactions
+            SET
+                in_mempool = TRUE
+            FROM
+                (
+                    SELECT
+                        hash
+                    FROM
+                        (
+                            SELECT
+                                hash
+                            FROM
+                                transactions
+                            WHERE
+                                miniblock_number IS NULL
+                                AND in_mempool = FALSE
+                                AND error IS NULL
+                                AND (
+                                    is_priority = TRUE
+                                    OR (
+                                        max_fee_per_gas >= $2
+                                        AND gas_per_pubdata_limit >= $3
                                     )
-                                    AND tx_format != $4
-                                ORDER BY
-                                    is_priority DESC,
-                                    priority_op_id,
-                                    received_at
-                                LIMIT
-                                    $1
-                            ) AS subquery1
-                        ORDER BY
-                            hash
-                    ) AS subquery2
-                WHERE
-                    transactions.hash = subquery2.hash
-                RETURNING
-                    transactions.*
-                "#,
-                limit as i32,
-                BigDecimal::from(fee_per_gas),
-                BigDecimal::from(gas_per_pubdata),
-                PROTOCOL_UPGRADE_TX_TYPE as i32,
-            )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap();
+                                )
+                                AND tx_format != $4
+                            ORDER BY
+                                is_priority DESC,
+                                priority_op_id,
+                                received_at
+                            LIMIT
+                                $1
+                        ) AS subquery1
+                    ORDER BY
+                        hash
+                ) AS subquery2
+            WHERE
+                transactions.hash = subquery2.hash
+            RETURNING
+                transactions.*
+            "#,
+            limit as i32,
+            BigDecimal::from(fee_per_gas),
+            BigDecimal::from(gas_per_pubdata),
+            PROTOCOL_UPGRADE_TX_TYPE as i32,
+        )
+        .fetch_all(self.storage.conn())
+        .await?;
 
-            let nonce_keys: HashMap<_, _> = transactions
-                .iter()
-                .map(|tx| {
-                    let address = Address::from_slice(&tx.initiator_address);
-                    let nonce_key = get_nonce_key(&address).hashed_key();
-                    (nonce_key, address)
-                })
-                .collect();
+        let nonce_keys: HashMap<_, _> = transactions
+            .iter()
+            .map(|tx| {
+                let address = Address::from_slice(&tx.initiator_address);
+                let nonce_key = get_nonce_key(&address).hashed_key();
+                (nonce_key, address)
+            })
+            .collect();
 
-            let storage_keys: Vec<_> = nonce_keys.keys().map(|key| key.0.to_vec()).collect();
-            let nonces: HashMap<_, _> = sqlx::query!(
-                r#"
-                SELECT
-                    hashed_key,
-                    value AS "value!"
-                FROM
-                    storage
-                WHERE
-                    hashed_key = ANY ($1)
-                "#,
-                &storage_keys,
-            )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
+        let storage_keys: Vec<_> = nonce_keys.keys().map(H256::as_bytes).collect();
+        let nonce_rows = sqlx::query!(
+            r#"
+            SELECT
+                hashed_key,
+                value AS "value!"
+            FROM
+                storage
+            WHERE
+                hashed_key = ANY ($1)
+            "#,
+            &storage_keys as &[&[u8]],
+        )
+        .fetch_all(self.storage.conn())
+        .await?;
+
+        let nonces = nonce_rows
             .into_iter()
             .map(|row| {
                 let nonce_key = H256::from_slice(&row.hashed_key);
                 let nonce = Nonce(h256_to_u32(H256::from_slice(&row.value)));
-
-                (*nonce_keys.get(&nonce_key).unwrap(), nonce)
+                (nonce_keys[&nonce_key], nonce)
             })
             .collect();
-
-            (
-                transactions.into_iter().map(|tx| tx.into()).collect(),
-                nonces,
-            )
-        }
+        Ok((
+            transactions.into_iter().map(|tx| tx.into()).collect(),
+            nonces,
+        ))
     }
 
-    pub async fn reset_mempool(&mut self) {
-        {
-            sqlx::query!(
-                r#"
-                UPDATE transactions
-                SET
-                    in_mempool = FALSE
-                WHERE
-                    in_mempool = TRUE
-                "#
-            )
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
-        }
+    pub async fn reset_mempool(&mut self) -> sqlx::Result<()> {
+        sqlx::query!(
+            r#"
+            UPDATE transactions
+            SET
+                in_mempool = FALSE
+            WHERE
+                in_mempool = TRUE
+            "#
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
     }
 
     pub async fn get_last_processed_l1_block(&mut self) -> Option<L1BlockNumber> {

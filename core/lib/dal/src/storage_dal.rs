@@ -222,10 +222,9 @@ impl StorageDal<'_, '_> {
     }
 
     /// Gets the current storage value at the specified `key`.
-    pub async fn get_by_key(&mut self, key: &StorageKey) -> Option<H256> {
+    pub async fn get_by_key(&mut self, key: &StorageKey) -> sqlx::Result<Option<H256>> {
         let hashed_key = key.hashed_key();
-
-        sqlx::query!(
+        let row = sqlx::query!(
             r#"
             SELECT
                 value
@@ -240,9 +239,9 @@ impl StorageDal<'_, '_> {
         .report_latency()
         .with_arg("key", &hashed_key)
         .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| H256::from_slice(&row.value))
+        .await?;
+
+        Ok(row.map(|row| H256::from_slice(&row.value)))
     }
 
     /// Removes all factory deps with a miniblock number strictly greater than the specified `block_number`.
@@ -284,8 +283,8 @@ mod tests {
         conn.storage_dal().apply_storage_logs(&updates).await;
 
         let first_value = conn.storage_dal().get_by_key(&first_key).await.unwrap();
-        assert_eq!(first_value, H256::repeat_byte(1));
+        assert_eq!(first_value, Some(H256::repeat_byte(1)));
         let second_value = conn.storage_dal().get_by_key(&second_key).await.unwrap();
-        assert_eq!(second_value, H256::repeat_byte(2));
+        assert_eq!(second_value, Some(H256::repeat_byte(2)));
     }
 }

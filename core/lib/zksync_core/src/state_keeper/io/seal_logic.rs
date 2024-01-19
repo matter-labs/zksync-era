@@ -462,6 +462,7 @@ impl MiniblockSealCommand {
                 CURRENT_VIRTUAL_BLOCK_INFO_POSITION,
             ))
             .await
+            .expect("failed getting virtual block info from VM state")
             .unwrap_or_default();
         let (current_l2_virtual_block_number, _) =
             unpack_block_info(h256_to_u256(current_l2_virtual_block_info));

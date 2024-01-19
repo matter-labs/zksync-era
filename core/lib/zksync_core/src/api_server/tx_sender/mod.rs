@@ -574,7 +574,7 @@ impl TxSender {
             .await?
             .storage_dal()
             .get_by_key(&eth_balance_key)
-            .await
+            .await?
             .unwrap_or_default();
         Ok(h256_to_u256(balance))
     }
@@ -704,15 +704,20 @@ impl TxSender {
         }
 
         let hashed_key = get_code_key(&tx.initiator_account());
-        // if the default account does not have enough funds
-        // for transferring tx.value, without taking into account the fee,
-        // there is no sense to estimate the fee
+        // If the default account does not have enough funds for transferring `tx.value`, without taking into account the fee,
+        // there is no sense to estimate the fee.
         let account_code_hash = self
             .acquire_replica_connection()
             .await?
             .storage_dal()
             .get_by_key(&hashed_key)
             .await
+            .with_context(|| {
+                format!(
+                    "failed getting code hash for account {:?}",
+                    tx.initiator_account()
+                )
+            })?
             .unwrap_or_default();
 
         if !tx.is_l1()
