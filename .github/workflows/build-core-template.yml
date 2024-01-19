@@ -8,9 +8,6 @@ on:
       DOCKERHUB_TOKEN:
         description: "DOCKERHUB_TOKEN"
         required: true
-      GH_TOKEN:
-        description: "GH_TOKEN"
-        required: true
     inputs:
       image_tag_suffix:
         description: "Optional suffix to override tag name generation"
@@ -26,7 +23,6 @@ jobs:
     name: Build and Push Docker Images
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
-      GH_TOKEN: ${{ secrets.GH_TOKEN }}
     runs-on: ${{ fromJSON('["matterlabs-ci-runner", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
     strategy:
       matrix:
@@ -54,7 +50,6 @@ jobs:
           echo $(pwd)/bin >> $GITHUB_PATH
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
-          echo GH_TOKEN=${{ secrets.GH_TOKEN }} >> .env
 
       - name: Download contracts
         uses: actions/download-artifact@v4
@@ -92,8 +87,7 @@ jobs:
         run: |
           ci_run rustup default nightly-2023-08-21
           platform=$(echo $PLATFORM | tr '/' '-')
-          curl -s --request GET --url "https://api.github.com/repos/matter-labs/era-solidity/releases?per_page=200" --header "Authorization: Bearer $GH_TOKEN"
-          PASSED_ENV_VARS="GH_TOKEN" ci_run zk docker $DOCKER_ACTION --custom-tag=${IMAGE_TAG_SUFFIX} --platform=${PLATFORM} $COMPONENT
+          ci_run zk docker $DOCKER_ACTION --custom-tag=${IMAGE_TAG_SUFFIX} --platform=${PLATFORM} $COMPONENT
       - name: Show sccache stats
         if: always()
         run: |
