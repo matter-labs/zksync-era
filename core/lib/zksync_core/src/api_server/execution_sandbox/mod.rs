@@ -1,8 +1,8 @@
 use std::{sync::Arc, time::Duration};
 
-use anyhow::Context;
+use anyhow::Context as _;
 use tokio::runtime::Handle;
-use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
 use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
 use zksync_types::{
@@ -149,15 +149,15 @@ impl VmConcurrencyLimiter {
 
 async fn get_pending_state(
     connection: &mut StorageProcessor<'_>,
-) -> (api::BlockId, MiniblockNumber) {
+) -> anyhow::Result<(api::BlockId, MiniblockNumber)> {
     let block_id = api::BlockId::Number(api::BlockNumber::Pending);
     let resolved_block_number = connection
         .blocks_web3_dal()
         .resolve_block_id(block_id)
         .await
-        .unwrap()
-        .expect("Pending block should be present");
-    (block_id, resolved_block_number)
+        .with_context(|| format!("failed resolving block ID {block_id:?}"))?
+        .context("pending block should always be present in Postgres")?;
+    Ok((block_id, resolved_block_number))
 }
 
 /// Returns the number of the pubdata that the transaction will spend on factory deps.
@@ -166,14 +166,17 @@ pub(super) async fn get_pubdata_for_factory_deps(
     connection_pool: &ConnectionPool,
     factory_deps: &[Vec<u8>],
     storage_caches: PostgresStorageCaches,
-) -> u32 {
+) -> anyhow::Result<u32> {
     if factory_deps.is_empty() {
-        return 0; // Shortcut for the common case allowing to not acquire DB connections etc.
+        return Ok(0); // Shortcut for the common case allowing to not acquire DB connections etc.
     }
 
-    let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
-    let (_, block_number) = get_pending_state(&mut connection).await;
-    drop(connection);
+    let mut storage = connection_pool
+        .access_storage_tagged("api")
+        .await
+        .context("failed acquiring DB connection")?;
+    let (_, block_number) = get_pending_state(&mut storage).await?;
+    drop(storage);
 
     let rt_handle = Handle::current();
     let connection_pool = connection_pool.clone();
@@ -181,7 +184,7 @@ pub(super) async fn get_pubdata_for_factory_deps(
     tokio::task::spawn_blocking(move || {
         let connection = rt_handle
             .block_on(connection_pool.access_storage_tagged("api"))
-            .unwrap();
+            .context("failed acquiring DB connection")?;
         let storage = PostgresStorage::new(rt_handle, connection, block_number, false)
             .with_caches(storage_caches);
         let mut storage_view = StorageView::new(storage);
@@ -198,10 +201,10 @@ pub(super) async fn get_pubdata_for_factory_deps(
             };
             length as u32 + PUBLISH_BYTECODE_OVERHEAD
         });
-        effective_lengths.sum()
+        anyhow::Ok(effective_lengths.sum())
     })
     .await
-    .unwrap()
+    .context("computing pubdata dependencies size panicked")?
 }
 
 /// Arguments for VM execution not specific to a particular transaction.
@@ -268,7 +271,7 @@ pub(crate) enum BlockArgsError {
     #[error("Block is missing, but can appear in the future")]
     Missing,
     #[error("Database error")]
-    Database(#[from] SqlxError),
+    Database(#[from] anyhow::Error),
 }
 
 /// Information about a block provided to VM.
@@ -280,13 +283,13 @@ pub(crate) struct BlockArgs {
 }
 
 impl BlockArgs {
-    pub(crate) async fn pending(connection: &mut StorageProcessor<'_>) -> Self {
-        let (block_id, resolved_block_number) = get_pending_state(connection).await;
-        Self {
+    pub(crate) async fn pending(connection: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
+        let (block_id, resolved_block_number) = get_pending_state(connection).await?;
+        Ok(Self {
             block_id,
             resolved_block_number,
             l1_batch_timestamp_s: None,
-        }
+        })
     }
 
     /// Loads block information from DB.
@@ -303,25 +306,30 @@ impl BlockArgs {
             .map_err(BlockArgsError::Pruned)?;
 
         if block_id == api::BlockId::Number(api::BlockNumber::Pending) {
-            return Ok(BlockArgs::pending(connection).await);
+            return Ok(BlockArgs::pending(connection).await?);
         }
 
         let resolved_block_number = connection
             .blocks_web3_dal()
             .resolve_block_id(block_id)
-            .await?;
+            .await
+            .with_context(|| format!("failed resolving block ID {block_id:?}"))?;
         let Some(resolved_block_number) = resolved_block_number else {
             return Err(BlockArgsError::Missing);
         };
 
-        let l1_batch_number = connection
+        let l1_batch = connection
             .storage_web3_dal()
             .resolve_l1_batch_number_of_miniblock(resolved_block_number)
-            .await?;
+            .await
+            .with_context(|| {
+                format!("failed resolving L1 batch number of miniblock #{resolved_block_number}")
+            })?;
         let l1_batch_timestamp_s = connection
             .blocks_web3_dal()
-            .get_expected_l1_batch_timestamp(&l1_batch_number)
-            .await?;
+            .get_expected_l1_batch_timestamp(&l1_batch)
+            .await
+            .with_context(|| format!("failed getting timestamp for {l1_batch:?}"))?;
         if l1_batch_timestamp_s.is_none() {
             // Can happen after snapshot recovery if no miniblocks are persisted yet. In this case,
             // we cannot proceed; the issue will be resolved shortly.

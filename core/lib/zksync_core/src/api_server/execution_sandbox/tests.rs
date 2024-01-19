@@ -22,7 +22,7 @@ async fn creating_block_args() {
         .await
         .unwrap();
 
-    let pending_block_args = BlockArgs::pending(&mut storage).await;
+    let pending_block_args = BlockArgs::pending(&mut storage).await.unwrap();
     assert_eq!(
         pending_block_args.block_id,
         api::BlockId::Number(api::BlockNumber::Pending)
@@ -69,7 +69,7 @@ async fn creating_block_args_after_snapshot_recovery() {
     let mut storage = pool.access_storage().await.unwrap();
     let snapshot_recovery = prepare_empty_recovery_snapshot(&mut storage, 23).await;
 
-    let pending_block_args = BlockArgs::pending(&mut storage).await;
+    let pending_block_args = BlockArgs::pending(&mut storage).await.unwrap();
     assert_eq!(
         pending_block_args.block_id,
         api::BlockId::Number(api::BlockNumber::Pending)
