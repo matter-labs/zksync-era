@@ -143,6 +143,7 @@ async fn create_miniblock(
         l1_tx_count: 0,
         l2_tx_count: 0,
         base_fee_per_gas: 0,
+        gas_per_pubdata_limit: 0,
         batch_fee_input: Default::default(),
         base_system_contracts_hashes: Default::default(),
         protocol_version: Some(Default::default()),

@@ -18,6 +18,7 @@ pub trait L1GasPriceProvider: fmt::Debug + 'static + Send + Sync {
     fn estimate_effective_gas_price(&self) -> u64;
 
     /// Returns a best guess of a realistic value for the L1 pubdata price.
+    /// Note that starting with EIP4844 it will become independent from the gas price.
     /// Return value is in wei.
     fn estimate_effective_pubdata_price(&self) -> u64;
 }

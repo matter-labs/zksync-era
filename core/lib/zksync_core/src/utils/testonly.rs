@@ -1,5 +1,6 @@
 //! Test utils.
 
+use multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::StorageProcessor;
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
@@ -29,6 +30,7 @@ pub(crate) fn create_miniblock(number: u32) -> MiniblockHeader {
         l2_tx_count: 0,
         base_fee_per_gas: 100,
         batch_fee_input: BatchFeeInput::l1_pegged(100, 100),
+        gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(ProtocolVersionId::latest().into()),
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         virtual_blocks: 1,

@@ -1,4 +1,4 @@
-use zk_evm_1_4_0::{
+use zk_evm_1_4_1::{
     aux_structures::{MemoryPage, Timestamp},
     block_properties::BlockProperties,
     vm_state::{CallStackEntry, PrimitiveValue, VmState},

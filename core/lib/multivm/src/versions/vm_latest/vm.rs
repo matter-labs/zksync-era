@@ -7,6 +7,7 @@ use zksync_types::{
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::{
+    glue::GlueInto,
     interface::{
         BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch,
         L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
@@ -27,7 +28,7 @@ use crate::{
 pub struct Vm<S: WriteStorage, H: HistoryMode> {
     pub(crate) bootloader_state: BootloaderState,
     // Current state and oracles of virtual machine
-    pub(crate) state: ZkSyncVmState<S, H::VmLatest>,
+    pub(crate) state: ZkSyncVmState<S, H::Vm1_4_1>,
     pub(crate) storage: StoragePtr<S>,
     pub(crate) system_env: SystemEnv,
     pub(crate) batch_env: L1BatchEnv,
@@ -37,7 +38,7 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
-    type TracerDispatcher = TracerDispatcher<S, H::VmLatest>;
+    type TracerDispatcher = TracerDispatcher<S, H::Vm1_4_1>;
 
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
@@ -114,7 +115,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             system_logs,
             total_log_queries,
             cycles_used: self.state.local_state.monotonic_cycle_counter,
-            deduplicated_events_logs,
+            deduplicated_events_logs: deduplicated_events_logs
+                .into_iter()
+                .map(GlueInto::glue_into)
+                .collect(),
             storage_refunds: self.state.storage.returned_refunds.inner().clone(),
         }
     }

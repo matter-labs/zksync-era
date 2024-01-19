@@ -42,15 +42,16 @@ pub enum ProtocolVersionId {
     Version18,
     Version19,
     Version20,
+    Version21,
 }
 
 impl ProtocolVersionId {
     pub fn latest() -> Self {
-        Self::Version19
+        Self::Version20
     }
 
     pub fn next() -> Self {
-        Self::Version20
+        Self::Version21
     }
 
     /// Returns VM version to be used by API for this protocol version.
@@ -77,16 +78,27 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version18 => VmVersion::VmBoojumIntegration,
             ProtocolVersionId::Version19 => VmVersion::VmBoojumIntegration,
-            ProtocolVersionId::Version20 => VmVersion::VmBoojumIntegration,
+            ProtocolVersionId::Version20 => VmVersion::Vm1_4_1,
+            ProtocolVersionId::Version21 => VmVersion::Vm1_4_1,
         }
     }
 
-    pub fn is_pre_boojum(&self) -> bool {
-        self < &ProtocolVersionId::Version18
+    // It is possible that some external nodes do not store protocol versions for versions below 9.
+    // That's why we assume that whenever a protocol version is not present, version 9 is to be used.
+    pub fn last_potentially_undefined() -> Self {
+        Self::Version9
     }
 
-    pub fn last_pre_boojum() -> Self {
-        ProtocolVersionId::Version17
+    pub fn is_pre_boojum(&self) -> bool {
+        self <= &Self::Version17
+    }
+
+    pub fn is_1_4_0(&self) -> bool {
+        self >= &ProtocolVersionId::Version18 && self < &ProtocolVersionId::Version20
+    }
+
+    pub fn is_post_1_4_1(&self) -> bool {
+        self >= &ProtocolVersionId::Version20
     }
 }
 
@@ -701,7 +713,8 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version18 => VmVersion::VmBoojumIntegration,
             ProtocolVersionId::Version19 => VmVersion::VmBoojumIntegration,
-            ProtocolVersionId::Version20 => VmVersion::VmBoojumIntegration,
+            ProtocolVersionId::Version20 => VmVersion::Vm1_4_1,
+            ProtocolVersionId::Version21 => VmVersion::Vm1_4_1,
         }
     }
 }

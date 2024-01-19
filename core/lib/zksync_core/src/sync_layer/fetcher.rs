@@ -34,6 +34,7 @@ pub(crate) struct FetchedBlock {
     pub reference_hash: Option<H256>,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
+    pub fair_pubdata_price: Option<u64>,
     pub virtual_blocks: u32,
     pub operator_address: Address,
     pub transactions: Vec<zksync_types::Transaction>,
@@ -62,6 +63,7 @@ impl TryFrom<SyncBlock> for FetchedBlock {
             reference_hash: block.hash,
             l1_gas_price: block.l1_gas_price,
             l2_fair_gas_price: block.l2_fair_gas_price,
+            fair_pubdata_price: block.fair_pubdata_price,
             virtual_blocks: block.virtual_blocks.unwrap_or(0),
             operator_address: block.operator_address,
             transactions: block
@@ -122,6 +124,7 @@ impl IoCursor {
                 timestamp: block.timestamp,
                 l1_gas_price: block.l1_gas_price,
                 l2_fair_gas_price: block.l2_fair_gas_price,
+                fair_pubdata_price: block.fair_pubdata_price,
                 operator_address: block.operator_address,
                 protocol_version: block.protocol_version,
                 // `block.virtual_blocks` can be `None` only for old VM versions where it's not used, so it's fine to provide any number.
