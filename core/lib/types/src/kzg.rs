@@ -30,14 +30,14 @@ pub struct KzgInfo {
 }
 
 impl KzgInfo {
-    /// Size of KzgInfo is equal to size(blob) + size(kzg_commitment) + size(bytes32) + size(bytes32) + size(kzg_proof) + size(bytes32) + size(kzg_proof)
+    /// Size of `KzgInfo` is equal to size(blob) + size(`kzg_commitment`) + size(bytes32) + size(bytes32) + size(`kzg_proof`) + size(bytes32) + size(`kzg_proof`)
     const SERIALIZED_SIZE: usize = 131_072 + 48 + 32 + 32 + 48 + 32 + 48;
 
     /// Returns the bytes necessary for pubdata commitment part of batch commitments when blobs are used.
     /// Return format: opening point (16 bytes) || claimed value (32 bytes) || commitment (48 bytes) || opening proof (48 bytes))
     pub fn to_pubdata_commitment(&self) -> [u8; BYTES_PER_PUBDATA_COMMITMENT] {
         let mut res = [0u8; BYTES_PER_PUBDATA_COMMITMENT];
-        // The crypto team/batchCommitment expects the opening point to be 16 bytes
+        // The crypto team/batch commitment expects the opening point to be 16 bytes
         let mut truncated_opening_point = [0u8; 16];
         truncated_opening_point.copy_from_slice(&self.opening_point.as_slice()[16..]);
         res[0..16].copy_from_slice(&truncated_opening_point);
@@ -47,7 +47,7 @@ impl KzgInfo {
         res
     }
 
-    /// Deserializes `Self::SERIALIZED_SIZE` bytes into KzgInfo struct
+    /// Deserializes `Self::SERIALIZED_SIZE` bytes into `KzgInfo` struct
     pub fn from_slice(data: &[u8]) -> Self {
         assert_eq!(data.len(), Self::SERIALIZED_SIZE);
 
@@ -128,14 +128,14 @@ impl KzgInfo {
 
     /// Construct all the KZG info we need for turning a piece of zksync pubdata into a 4844 blob.
     /// The information we need is:
-    ///     1. zksync blob <- pad_right(pubdata)
+    ///     1. zksync blob <- `pad_right`(pubdata)
     ///     2. linear hash <- hash(zksync blob)
-    ///     3. 4844 blob <- zksync_pubdata_into_ethereum_4844_data(zksync blob)
-    ///     4. 4844 kzg commitment <- blob_to_kzg_commitment(4844 blob)
-    ///     5. versioned hash <- hash(4844 kzg commitment)
+    ///     3. 4844 blob <- `zksync_pubdata_into_ethereum_4844_data`(zksync blob)
+    ///     4. 4844 `kzg` commitment <- `blob_to_kzg_commitment`(4844 blob)
+    ///     5. versioned hash <- hash(4844 `kzg` commitment)
     ///     6. opening point <- keccak(linear hash || versioned hash)[16..]
-    ///     7. opening value, opening proof <- compute_kzg_proof(4844)
-    ///     8. blob proof <- compute_blob_kzg_proof(blob, 4844 kzg commitment)
+    ///     7. opening value, opening proof <- `compute_kzg_proof`(4844)
+    ///     8. blob proof <- `compute_blob_kzg_proof`(blob, 4844 `kzg` commitment)
     pub fn new(kzg_settings: &KzgSettings, pubdata: Vec<u8>) -> Self {
         assert!(pubdata.len() <= BYTES_PER_BLOB_ZK_SYNC);
 
@@ -149,7 +149,7 @@ impl KzgInfo {
         let bytes_4844 = zksync_pubdata_into_ethereum_4844_data(&zksync_blob);
         let blob = Blob::new(bytes_4844.try_into().unwrap());
 
-        let kzg_commitment = KzgCommitment::blob_to_kzg_commitment(&blob, &kzg_settings).unwrap();
+        let kzg_commitment = KzgCommitment::blob_to_kzg_commitment(&blob, kzg_settings).unwrap();
 
         let mut sha256_hasher = Sha256::new();
         sha256_hasher.update(kzg_commitment.to_bytes().into_inner());
@@ -166,10 +166,10 @@ impl KzgInfo {
         let opening_point = Bytes32::from_bytes(&opening_point).unwrap();
 
         let (opening_proof, opening_value) =
-            KzgProof::compute_kzg_proof(&blob, &opening_point, &kzg_settings).unwrap();
+            KzgProof::compute_kzg_proof(&blob, &opening_point, kzg_settings).unwrap();
 
         let blob_proof =
-            KzgProof::compute_blob_kzg_proof(&blob, &kzg_commitment.to_bytes(), &kzg_settings)
+            KzgProof::compute_blob_kzg_proof(&blob, &kzg_commitment.to_bytes(), kzg_settings)
                 .unwrap();
 
         Self {
