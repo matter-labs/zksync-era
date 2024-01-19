@@ -33,13 +33,6 @@ impl KzgInfo {
     /// Size of KzgInfo is equal to size(blob) + size(kzg_commitment) + size(bytes32) + size(bytes32) + size(kzg_proof) + size(bytes32) + size(kzg_proof)
     const SERIALIZED_SIZE: usize = 131_072 + 48 + 32 + 32 + 48 + 32 + 48;
 
-    /// Load in local kzg settings file at trusted_setup.txt
-    pub fn kzg_settings() -> KzgSettings {
-        let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
-        let path = std::path::Path::new(&zksync_home).join("trusted_setup.txt");
-        KzgSettings::load_trusted_setup_file(&path).unwrap()
-    }
-
     /// Returns the bytes necessary for pubdata commitment part of batch commitments when blobs are used.
     /// Return format: opening point (16 bytes) || claimed value (32 bytes) || commitment (48 bytes) || opening proof (48 bytes))
     pub fn to_pubdata_commitment(&self) -> [u8; BYTES_PER_PUBDATA_COMMITMENT] {
@@ -143,9 +136,7 @@ impl KzgInfo {
     ///     6. opening point <- keccak(linear hash || versioned hash)[16..]
     ///     7. opening value, opening proof <- compute_kzg_proof(4844)
     ///     8. blob proof <- compute_blob_kzg_proof(blob, 4844 kzg commitment)
-    pub fn new(pubdata: Vec<u8>) -> Self {
-        let kzg_settings = Self::kzg_settings();
-
+    pub fn new(kzg_settings: &KzgSettings, pubdata: Vec<u8>) -> Self {
         assert!(pubdata.len() <= BYTES_PER_BLOB_ZK_SYNC);
 
         let mut zksync_blob = [0u8; BYTES_PER_BLOB_ZK_SYNC];
@@ -207,6 +198,7 @@ impl KzgInfo {
 
 #[cfg(test)]
 mod tests {
+    use c_kzg::KzgSettings;
     use serde::{Deserialize, Serialize};
     use serde_with::serde_as;
 
@@ -276,7 +268,11 @@ mod tests {
         let contents = std::fs::read_to_string(path).unwrap();
         let kzg_test: KzgTest = serde_json::from_str(&contents).unwrap();
 
-        let kzg_info = KzgInfo::new(kzg_test.pubdata);
+        let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
+        let path = std::path::Path::new(&zksync_home).join("trusted_setup.txt");
+        let kzg_settings = KzgSettings::load_trusted_setup_file(&path).unwrap();
+
+        let kzg_info = KzgInfo::new(&kzg_settings, kzg_test.pubdata);
 
         assert_eq!(
             kzg_test.expected_outputs,
@@ -300,7 +296,7 @@ mod tests {
             &kzg_info.opening_point,
             &kzg_info.opening_value,
             &kzg_info.opening_proof,
-            &KzgInfo::kzg_settings(),
+            &kzg_settings,
         );
 
         assert!(point_proof_verify.is_ok());
@@ -310,7 +306,7 @@ mod tests {
             &kzg_info.blob,
             &kzg_info.kzg_commitment,
             &kzg_info.blob_proof,
-            &KzgInfo::kzg_settings(),
+            &kzg_settings,
         );
 
         assert!(blob_proof_verify.is_ok());
