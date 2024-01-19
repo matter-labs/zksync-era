@@ -1,7 +1,7 @@
-use sqlx::types::chrono::NaiveDateTime;
+use sqlx::{types::chrono::NaiveDateTime, Error};
 use zksync_types::{
-    api, Address, L2ChainId, MiniblockNumber, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
-    FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256, U256, U64,
+    api, api::TransactionReceipt, Address, L2ChainId, MiniblockNumber, Transaction,
+    ACCOUNT_CODE_STORAGE_ADDRESS, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256, U256, U64,
 };
 use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
 
@@ -24,13 +24,23 @@ pub struct TransactionsWeb3Dal<'a, 'c> {
 }
 
 impl TransactionsWeb3Dal<'_, '_> {
-    pub async fn get_transaction_receipt(
+    pub async fn get_transaction_receipts(
         &mut self,
-        hash: H256,
-    ) -> Result<Option<api::TransactionReceipt>, SqlxError> {
-        {
-            let receipt = sqlx::query!(
-                r#"
+        hashes: Vec<H256>,
+    ) -> Result<Vec<TransactionReceipt>, SqlxError> {
+        let mut receipts = Vec::new();
+
+        let mut in_clause = "(";
+        for i in 0..hashes.len() {
+            in_clause.push_str(&format!("${}", i + 3));
+            if i != hashes.len() - 1 {
+                in_clause.push_str(", ");
+            }
+        }
+        in_clause.push_str(")");
+
+        let query = format!(
+            r#"
                 WITH
                     sl AS (
                         SELECT
@@ -39,7 +49,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                             storage_logs
                         WHERE
                             storage_logs.address = $1
-                            AND storage_logs.tx_hash = $2
+                            AND storage_logs.tx_hash IN {}
                         ORDER BY
                             storage_logs.miniblock_number DESC,
                             storage_logs.operation_number DESC
@@ -65,18 +75,25 @@ impl TransactionsWeb3Dal<'_, '_> {
                 FROM
                     transactions
                     JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
-                    LEFT JOIN sl ON sl.value != $3
+                    LEFT JOIN sl ON sl.value != $2
                 WHERE
-                    transactions.hash = $2
+                    transactions.hash IN {}
                 "#,
-                ACCOUNT_CODE_STORAGE_ADDRESS.as_bytes(),
-                hash.as_bytes(),
-                FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes()
-            )
-            .instrument("get_transaction_receipt")
-            .with_arg("hash", &hash)
-            .fetch_optional(self.storage.conn())
+            in_clause
+        );
+
+        let mut query = sqlx::query(&query);
+        query = query.bind(ACCOUNT_CODE_STORAGE_ADDRESS.as_bytes());
+        query = query.bind(FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes());
+
+        for hash in hashes {
+            query = query.bind(hash.as_bytes());
+        }
+
+        let receipt_vec: Vec<TransactionReceipt> = query
+            .fetch_all(self.storage.conn())
             .await?
+            .into_iter()
             .map(|db_row| {
                 let status = db_row.error.map(|_| U64::zero()).unwrap_or_else(U64::one);
 
@@ -84,7 +101,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                 let transaction_index = db_row.index_in_block.map(U64::from).unwrap_or_default();
 
                 let block_hash = H256::from_slice(&db_row.block_hash);
-                api::TransactionReceipt {
+                TransactionReceipt {
                     transaction_hash: H256::from_slice(&db_row.tx_hash),
                     transaction_index,
                     block_hash,
@@ -127,8 +144,11 @@ impl TransactionsWeb3Dal<'_, '_> {
                     // we always supply some number anyway to have the same behavior as most popular RPCs
                     transaction_type: Some(tx_type),
                 }
-            });
-            match receipt {
+            })
+            .collect();
+
+        for receipt in receipt_vec {
+            let receipt = match receipt {
                 Some(mut receipt) => {
                     let logs: Vec<_> = sqlx::query_as!(
                         StorageWeb3Log,
@@ -184,11 +204,13 @@ impl TransactionsWeb3Dal<'_, '_> {
                         .collect();
                     receipt.l2_to_l1_logs = l2_to_l1_logs;
 
-                    Ok(Some(receipt))
+                    Some(receipt)
                 }
-                None => Ok(None),
-            }
+                None => None,
+            };
+            receipts.push(receipt);
         }
+        Ok(receipts)
     }
 
     pub async fn get_transaction(

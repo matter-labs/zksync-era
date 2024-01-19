@@ -181,8 +181,11 @@ async fn external_io_basics() {
 
     let tx_receipt = storage
         .transactions_web3_dal()
-        .get_transaction_receipt(tx_hash)
+        .get_transaction_receipts(vec![tx_hash])
         .await
+        .unwrap()
+        .get(0)
+        .cloned()
         .unwrap()
         .expect("Transaction not persisted");
     assert_eq!(tx_receipt.block_number, 1.into());

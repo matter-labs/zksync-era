@@ -337,17 +337,32 @@ impl EthNamespace {
 
         let mut receipts = Vec::with_capacity(transaction_count.as_usize());
 
-        for index in 0..transaction_count.as_usize() {
-            let transaction = self
-                .get_transaction_impl(TransactionId::Block(block_id, index.into()))
-                .await?
-                .ok_or(Web3Error::InternalError)?;
+        let block = self
+            .state
+            .connection_pool
+            .access_storage_tagged("api")
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?
+            .blocks_web3_dal()
+            .get_block_by_web3_block_id(block_id, false, self.state.api_config.l2_chain_id)
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
 
-            receipts.push(
-                self.get_transaction_receipt_impl(transaction.hash)
-                    .await?
-                    .ok_or(Web3Error::InternalError)?,
-            );
+        if let Some(block) = block {
+            for transaction in block.transactions {
+                if let TransactionVariant::Hash(hash) = transaction {
+                    let receipt =
+                        self.get_transaction_receipt_impl(hash)
+                            .await?
+                            .ok_or_else(|| {
+                                internal_error(
+                                    METHOD_NAME,
+                                    anyhow::anyhow!("Transaction with hash {hash:?} disappeared"),
+                                )
+                            })?;
+                    receipts.push(receipt);
+                }
+            }
         }
 
         method_latency.observe_without_diff();
@@ -527,19 +542,27 @@ impl EthNamespace {
         const METHOD_NAME: &str = "get_transaction_receipt";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let receipt = self
+        let receipts = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
             .unwrap()
             .transactions_web3_dal()
-            .get_transaction_receipt(hash)
+            .get_transaction_receipts(vec![hash])
             .await
             .map_err(|err| internal_error(METHOD_NAME, err));
 
         method_latency.observe();
-        receipt
+
+        let receipt = receipts?.into_iter().next().ok_or_else(|| {
+            internal_error(
+                METHOD_NAME,
+                anyhow::anyhow!("No receipt found for transaction {hash:?}"),
+            )
+        })?;
+
+        Ok(receipt)
     }
 
     #[tracing::instrument(skip(self))]
