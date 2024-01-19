@@ -48,9 +48,9 @@ impl KzgInfo {
         let mut truncated_opening_point = [0u8; 16];
         truncated_opening_point.copy_from_slice(&self.opening_point.as_slice()[16..]);
         res[0..16].copy_from_slice(&truncated_opening_point);
-        res[16..48].copy_from_slice(&self.opening_value.as_slice());
-        res[48..96].copy_from_slice(&self.kzg_commitment.as_slice());
-        res[96..144].copy_from_slice(&self.opening_proof.as_slice());
+        res[16..48].copy_from_slice(self.opening_value.as_slice());
+        res[48..96].copy_from_slice(self.kzg_commitment.as_slice());
+        res[96..144].copy_from_slice(self.opening_proof.as_slice());
         res
     }
 
@@ -161,7 +161,7 @@ impl KzgInfo {
         let kzg_commitment = KzgCommitment::blob_to_kzg_commitment(&blob, &kzg_settings).unwrap();
 
         let mut sha256_hasher = Sha256::new();
-        sha256_hasher.update(&kzg_commitment.to_bytes().into_inner());
+        sha256_hasher.update(kzg_commitment.to_bytes().into_inner());
         let mut versioned_hash_bytes = sha256_hasher.finalize();
         versioned_hash_bytes[0] = VERSIONED_HASH_VERSION_KZG;
         let versioned_hash = Bytes32::from_bytes(&versioned_hash_bytes).unwrap();
