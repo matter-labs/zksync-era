@@ -284,7 +284,6 @@ impl TxSender {
             .context("failed acquiring connection to replica DB")
     }
 
-    // TODO (PLA-725): propagate DB errors instead of panicking
     #[tracing::instrument(skip(self, tx))]
     pub async fn submit_tx(&self, tx: L2Tx) -> Result<L2TxSubmissionResult, SubmitTxError> {
         let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::Validate].start();
@@ -299,7 +298,7 @@ impl TxSender {
         let block_args = BlockArgs::pending(&mut connection).await?;
         drop(connection);
 
-        let (_, tx_metrics, published_bytecodes) = self
+        let execution_output = self
             .0
             .executor
             .execute_tx_in_sandbox(
@@ -312,12 +311,12 @@ impl TxSender {
                 block_args,
                 vec![],
             )
-            .await;
+            .await?;
 
         tracing::info!(
             "Submit tx {:?} with execution metrics {:?}",
             tx.hash(),
-            tx_metrics
+            execution_output.metrics
         );
         stage_latency.observe();
 
@@ -340,13 +339,12 @@ impl TxSender {
         if let Err(err) = validation_result {
             return Err(err.into());
         }
-
-        if !published_bytecodes {
+        if !execution_output.are_published_bytecodes_ok {
             return Err(SubmitTxError::FailedToPublishCompressedBytecodes);
         }
 
         let stage_started_at = Instant::now();
-        self.ensure_tx_executable(tx.clone().into(), &tx_metrics, true)?;
+        self.ensure_tx_executable(tx.clone().into(), &execution_output.metrics, true)?;
 
         if let Some(proxy) = &self.0.proxy {
             // We're running an external node: we have to proxy the transaction to the main node.
@@ -380,7 +378,7 @@ impl TxSender {
             .await
             .unwrap()
             .transactions_dal()
-            .insert_transaction_l2(tx, tx_metrics)
+            .insert_transaction_l2(tx, execution_output.metrics)
             .await;
 
         APP_METRICS.processed_txs[&TxStage::Mempool(submission_res_handle)].inc();
@@ -592,7 +590,7 @@ impl TxSender {
         block_args: BlockArgs,
         base_fee: u64,
         vm_version: VmVersion,
-    ) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics) {
+    ) -> anyhow::Result<(VmExecutionResultAndLogs, TransactionExecutionMetrics)> {
         let gas_limit_with_overhead = tx_gas_limit
             + derive_overhead(
                 tx_gas_limit,
@@ -626,7 +624,7 @@ impl TxSender {
         let vm_execution_cache_misses_limit = self.0.sender_config.vm_execution_cache_misses_limit;
         let execution_args =
             TxExecutionArgs::for_gas_estimate(vm_execution_cache_misses_limit, &tx, base_fee);
-        let (exec_result, tx_metrics, _) = self
+        let execution_output = self
             .0
             .executor
             .execute_tx_in_sandbox(
@@ -639,9 +637,8 @@ impl TxSender {
                 block_args,
                 vec![],
             )
-            .await;
-
-        (exec_result, tx_metrics)
+            .await?;
+        Ok((execution_output.vm, execution_output.metrics))
     }
 
     fn shared_args_for_gas_estimate(&self, fee_input: BatchFeeInput) -> TxSharedArgs {
@@ -792,7 +789,7 @@ impl TxSender {
             // gas limit will make the transaction successful
             let iteration_started_at = Instant::now();
             let try_gas_limit = gas_for_bytecodes_pubdata + mid;
-            let (result, _execution_metrics) = self
+            let (result, _) = self
                 .estimate_gas_step(
                     vm_permit.clone(),
                     tx.clone(),
@@ -803,7 +800,8 @@ impl TxSender {
                     base_fee,
                     protocol_version.into(),
                 )
-                .await;
+                .await
+                .context("estimate_gas step failed")?;
 
             if result.result.is_failed() {
                 lower_bound = mid + 1;
@@ -842,7 +840,8 @@ impl TxSender {
                 base_fee,
                 protocol_version.into(),
             )
-            .await;
+            .await
+            .context("final estimate_gas step failed")?;
 
         result.into_api_call_result()?;
         self.ensure_tx_executable(tx.clone(), &tx_metrics, false)?;
@@ -910,7 +909,7 @@ impl TxSender {
                 vm_execution_cache_misses_limit,
                 vec![],
             )
-            .await
+            .await?
             .into_api_call_result()
     }
 

@@ -175,7 +175,8 @@ impl DebugNamespace {
                 self.sender_config().vm_execution_cache_misses_limit,
                 custom_tracers,
             )
-            .await;
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
 
         let (output, revert_reason) = match result.result {
             ExecutionResult::Success { output, .. } => (output, None),

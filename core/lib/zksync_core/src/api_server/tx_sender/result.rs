@@ -1,11 +1,8 @@
-use multivm::{
-    interface::{ExecutionResult, VmExecutionResultAndLogs},
-    tracers::validator::ValidationError,
-};
+use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use thiserror::Error;
 use zksync_types::{l2::error::TxCheckError, U256};
 
-use crate::api_server::execution_sandbox::SandboxExecutionError;
+use crate::api_server::execution_sandbox::{SandboxExecutionError, ValidationError};
 
 /// Errors that con occur submitting a transaction or estimating gas for its execution.
 #[derive(Debug, Error)]
@@ -150,7 +147,10 @@ impl From<SandboxExecutionError> for SubmitTxError {
 
 impl From<ValidationError> for SubmitTxError {
     fn from(err: ValidationError) -> Self {
-        Self::ValidationFailed(err.to_string())
+        match err {
+            ValidationError::Internal(err) => Self::Internal(err),
+            ValidationError::Vm(err) => Self::ValidationFailed(err.to_string()),
+        }
     }
 }
 

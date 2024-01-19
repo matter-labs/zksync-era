@@ -15,6 +15,7 @@ pub(super) use self::{
     error::SandboxExecutionError,
     execute::{TransactionExecutor, TxExecutionArgs},
     tracers::ApiTracer,
+    validate::ValidationError,
     vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
 };
 use super::tx_sender::MultiVMBaseSystemContracts;
