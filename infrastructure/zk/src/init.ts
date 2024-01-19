@@ -103,7 +103,6 @@ export async function initHyperchain(initArgs: InitArgs = DEFAULT_ARGS) {
             deployerL2ContractInput.includeL2WETH
         )
     );
-// <<<<<<< HEAD
     await announced(
         'Initializing governance of chain',
         contract.initializeGovernanceChain([
@@ -111,13 +110,6 @@ export async function initHyperchain(initArgs: InitArgs = DEFAULT_ARGS) {
             !deployerL2ContractInput.includeL2WETH ? ['--skip-weth-bridge'] : []
         ])
     );
-// =======
-//
-//     if (deployerL2ContractInput.includeL2WETH) {
-//         await announced('Initializing L2 WETH token', contract.initializeWethToken(governorPrivateKeyArgs));
-//     }
-//     await announced('Initializing governance', contract.initializeGovernance(governorPrivateKeyArgs));
-// >>>>>>> origin/main
 }
 
 // A smaller version of `init` that "resets" the localhost environment, for which `init` was already called before.

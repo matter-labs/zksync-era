@@ -506,6 +506,7 @@ pub async fn initialize_components(
     }
 
     let state_transition_chain_contract = contracts_config.diamond_proxy_addr;
+    let state_transition_manager_contract = contracts_config.state_transition_proxy_addr;
     if components.contains(&Component::EthWatcher) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-Watcher");
@@ -524,6 +525,7 @@ pub async fn initialize_components(
                 eth_watch_pool,
                 Box::new(query_client.clone()),
                 state_transition_chain_contract,
+                state_transition_manager_contract,
                 governance,
                 stop_receiver.clone(),
             )

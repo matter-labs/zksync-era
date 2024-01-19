@@ -59,7 +59,7 @@ fn build_commit_tx_input_data(batches: &[L1BatchWithMetadata]) -> Vec<u8> {
 
 fn create_mock_checker(client: MockEthereum, pool: ConnectionPool) -> ConsistencyChecker {
     ConsistencyChecker {
-        contract: zksync_contracts::zksync_contract(),
+        contract: zksync_contracts::state_transition_chain_contract(),
         max_batches_to_recheck: 100,
         sleep_interval: Duration::from_millis(10),
         l1_client: Box::new(client),
@@ -77,7 +77,7 @@ impl UpdateCheckedBatch for mpsc::UnboundedSender<L1BatchNumber> {
 
 #[test]
 fn build_commit_tx_input_data_is_correct() {
-    let contract = zksync_contracts::zksync_contract();
+    let contract = zksync_contracts::state_transition_chain_contract();
     let commit_function = contract.function("commitBatches").unwrap();
     let batches = vec![
         create_l1_batch_with_metadata(1),
@@ -99,7 +99,7 @@ fn build_commit_tx_input_data_is_correct() {
 
 #[test]
 fn extracting_commit_data_for_boojum_batch() {
-    let contract = zksync_contracts::zksync_contract();
+    let contract = zksync_contracts::state_transition_chain_contract();
     let commit_function = contract.function("commitBatches").unwrap();
     // Calldata taken from the commit transaction for `https://sepolia.explorer.zksync.io/batch/4470`;
     // `https://sepolia.etherscan.io/tx/0x300b9115037028b1f8aa2177abf98148c3df95c9b04f95a4e25baf4dfee7711f`
@@ -129,7 +129,7 @@ fn extracting_commit_data_for_boojum_batch() {
 
 #[test]
 fn extracting_commit_data_for_multiple_batches() {
-    let contract = zksync_contracts::zksync_contract();
+    let contract = zksync_contracts::state_transition_chain_contract();
     let commit_function = contract.function("commitBatches").unwrap();
     // Calldata taken from the commit transaction for `https://explorer.zksync.io/batch/351000`;
     // `https://etherscan.io/tx/0xbd8dfe0812df0da534eb95a2d2a4382d65a8172c0b648a147d60c1c2921227fd`
