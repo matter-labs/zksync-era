@@ -70,7 +70,7 @@ override getDeployTransaction(..) {
 }
 ```
 
-Also `ContractDeployer` adding a special prefix for all the new contract addresses. This means that contract addesses
+Also `ContractDeployer` adding a special prefix for all the new contract addresses. This means that contract addresses
 WILL be different on `zkSync` and Ethereum (and also leaves us the possibility of adding Ethereum addresses in the
 future if needed).
 
