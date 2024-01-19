@@ -1,5 +1,6 @@
 use std::{fmt, sync::Arc};
 
+use zksync_dal::ConnectionPool;
 use zksync_types::{
     fee_model::{
         BatchFeeInput, FeeModelConfig, FeeModelConfigV2, FeeParams, FeeParamsV1, FeeParamsV2,
@@ -78,14 +79,58 @@ impl MainNodeFeeInputProvider {
     }
 }
 
+/// The fee model provider to be used in the API. It returns the maximal batch fee input between the projected main node one and
+/// the one from the last sealed miniblock.
+#[derive(Debug)]
 pub(crate) struct ApiFeeInputProvider {
-    l1_gas_price_provider: Arc<dyn L1GasPriceProvider>,
-    config: FeeModelConfig,
+    inner: MainNodeFeeInputProvider,
+    connection_pool: ConnectionPool,
 }
 
-// impl BatchFeeModelInputProvider for ApiFeeInputProvider {
+impl ApiFeeInputProvider {
+    pub fn new(
+        provider: Arc<dyn L1GasPriceProvider>,
+        config: FeeModelConfig,
+        connection_pool: ConnectionPool,
+    ) -> Self {
+        Self {
+            inner: MainNodeFeeInputProvider::new(provider, config),
+            connection_pool,
+        }
+    }
+}
 
-// }
+#[async_trait::async_trait]
+impl BatchFeeModelInputProvider for ApiFeeInputProvider {
+    async fn get_batch_fee_input_scaled(
+        &self,
+        l1_gas_price_scale_factor: f64,
+        l1_pubdata_price_scale_factor: f64,
+    ) -> BatchFeeInput {
+        let inner_input = self
+            .inner
+            .get_batch_fee_input_scaled(l1_gas_price_scale_factor, l1_pubdata_price_scale_factor)
+            .await;
+        let last_miniblock_params = self
+            .connection_pool
+            .access_storage_tagged("api_fee_input_provider")
+            .await
+            .unwrap()
+            .blocks_dal()
+            .get_last_sealed_miniblock_header()
+            .await
+            .unwrap();
+
+        last_miniblock_params
+            .map(|header| inner_input.stricter(header.batch_fee_input))
+            .unwrap_or(inner_input)
+    }
+
+    /// Returns the fee model parameters.
+    fn get_fee_model_params(&self) -> FeeParams {
+        self.inner.get_fee_model_params()
+    }
+}
 
 /// Calculates the batch fee input based on the main node parameters.
 /// This function uses the `V1` fee model, i.e. where the pubdata price does not include the proving costs.
