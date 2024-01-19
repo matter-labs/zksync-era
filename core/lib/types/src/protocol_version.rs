@@ -42,19 +42,20 @@ pub enum ProtocolVersionId {
     Version18,
     Version19,
     Version20,
+    Version21,
     // kl todo delete local vm verion
     Local,
 }
 
 impl ProtocolVersionId {
     pub fn latest() -> Self {
-        // Self::Version19
+        // Self::Version20
         // kl todo delete local vm verion
         Self::Local
     }
 
     pub fn next() -> Self {
-        Self::Version20
+        Self::Version21
     }
 
     /// Returns VM version to be used by API for this protocol version.
@@ -81,14 +82,29 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version18 => VmVersion::VmBoojumIntegration,
             ProtocolVersionId::Version19 => VmVersion::VmBoojumIntegration,
-            ProtocolVersionId::Version20 => VmVersion::VmBoojumIntegration,
+            ProtocolVersionId::Version20 => VmVersion::Vm1_4_1,
+            ProtocolVersionId::Version21 => VmVersion::Vm1_4_1,
             // kl todo delete local vm verion
             ProtocolVersionId::Local => VmVersion::Local,
         }
     }
 
+    // It is possible that some external nodes do not store protocol versions for versions below 9.
+    // That's why we assume that whenever a protocol version is not present, version 9 is to be used.
+    pub fn last_potentially_undefined() -> Self {
+        Self::Version9
+    }
+
     pub fn is_pre_boojum(&self) -> bool {
-        self < &ProtocolVersionId::Version18
+        self <= &Self::Version17
+    }
+
+    pub fn is_1_4_0(&self) -> bool {
+        self >= &ProtocolVersionId::Version18 && self < &ProtocolVersionId::Version20
+    }
+
+    pub fn is_post_1_4_1(&self) -> bool {
+        self >= &ProtocolVersionId::Version20
     }
 }
 
@@ -247,11 +263,11 @@ impl TryFrom<Log> for ProtocolUpgrade {
         };
 
         let transaction_param_type = ParamType::Tuple(vec![
-            ParamType::Uint(256),                                     // txType
+            ParamType::Uint(256),                                     // `txType`
             ParamType::Uint(256),                                     // sender
             ParamType::Uint(256),                                     // to
             ParamType::Uint(256),                                     // gasLimit
-            ParamType::Uint(256),                                     // gasPerPubdataLimit
+            ParamType::Uint(256),                                     // `gasPerPubdataLimit`
             ParamType::Uint(256),                                     // maxFeePerGas
             ParamType::Uint(256),                                     // maxPriorityFeePerGas
             ParamType::Uint(256),                                     // paymaster
@@ -262,7 +278,7 @@ impl TryFrom<Log> for ProtocolUpgrade {
             ParamType::Bytes,                                         // signature
             ParamType::Array(Box::new(ParamType::Uint(256))),         // factory deps
             ParamType::Bytes,                                         // paymaster input
-            ParamType::Bytes,                                         // reservedDynamic
+            ParamType::Bytes,                                         // `reservedDynamic`
         ]);
         let verifier_params_type = ParamType::Tuple(vec![
             ParamType::FixedBytes(32),
@@ -309,6 +325,111 @@ impl TryFrom<Log> for ProtocolUpgrade {
 
         let tx = ProtocolUpgradeTx::decode_tx(transaction, eth_hash, eth_block, factory_deps);
 
+        // <<<<<<< HEAD
+        // =======
+        //             let tx_type = transaction.remove(0).into_uint().unwrap();
+        //             if tx_type == PROTOCOL_UPGRADE_TX_TYPE.into() {
+        //                 // There is an upgrade tx. Decoding it.
+        //                 let sender = transaction.remove(0).into_uint().unwrap();
+        //                 let sender = u256_to_account_address(&sender);
+        //
+        //                 let contract_address = transaction.remove(0).into_uint().unwrap();
+        //                 let contract_address = u256_to_account_address(&contract_address);
+        //
+        //                 let gas_limit = transaction.remove(0).into_uint().unwrap();
+        //
+        //                 let gas_per_pubdata_limit = transaction.remove(0).into_uint().unwrap();
+        //
+        //                 let max_fee_per_gas = transaction.remove(0).into_uint().unwrap();
+        //
+        //                 let max_priority_fee_per_gas = transaction.remove(0).into_uint().unwrap();
+        //                 assert_eq!(max_priority_fee_per_gas, U256::zero());
+        //
+        //                 let paymaster = transaction.remove(0).into_uint().unwrap();
+        //                 let paymaster = u256_to_account_address(&paymaster);
+        //                 assert_eq!(paymaster, Address::zero());
+        //
+        //                 let upgrade_id = transaction.remove(0).into_uint().unwrap();
+        //
+        //                 let msg_value = transaction.remove(0).into_uint().unwrap();
+        //
+        //                 let reserved = transaction
+        //                     .remove(0)
+        //                     .into_fixed_array()
+        //                     .unwrap()
+        //                     .into_iter()
+        //                     .map(|token| token.into_uint().unwrap())
+        //                     .collect::<Vec<_>>();
+        //                 assert_eq!(reserved.len(), 4);
+        //
+        //                 let to_mint = reserved[0];
+        //                 let refund_recipient = u256_to_account_address(&reserved[1]);
+        //
+        //                 // All other reserved fields should be zero
+        //                 for item in reserved.iter().skip(2) {
+        //                     assert_eq!(item, &U256::zero());
+        //                 }
+        //
+        //                 let calldata = transaction.remove(0).into_bytes().unwrap();
+        //
+        //                 let signature = transaction.remove(0).into_bytes().unwrap();
+        //                 assert_eq!(signature.len(), 0);
+        //
+        //                 let _factory_deps_hashes = transaction.remove(0).into_array().unwrap();
+        //
+        //                 let paymaster_input = transaction.remove(0).into_bytes().unwrap();
+        //                 assert_eq!(paymaster_input.len(), 0);
+        //
+        //                 // TODO (SMA-1621): check that `reservedDynamic` are constructed correctly.
+        //                 let reserved_dynamic = transaction.remove(0).into_bytes().unwrap();
+        //                 assert_eq!(reserved_dynamic.len(), 0);
+        //
+        //                 let eth_hash = event
+        //                     .transaction_hash
+        //                     .expect("Event transaction hash is missing");
+        //                 let eth_block = event
+        //                     .block_number
+        //                     .expect("Event block number is missing")
+        //                     .as_u64();
+        //
+        //                 let common_data = ProtocolUpgradeTxCommonData {
+        //                     canonical_tx_hash,
+        //                     sender,
+        //                     upgrade_id: (upgrade_id.as_u32() as u16).try_into().unwrap(),
+        //                     to_mint,
+        //                     refund_recipient,
+        //                     gas_limit,
+        //                     max_fee_per_gas,
+        //                     gas_per_pubdata_limit,
+        //                     eth_hash,
+        //                     eth_block,
+        //                 };
+        //
+        //                 let factory_deps = factory_deps
+        //                     .into_iter()
+        //                     .map(|t| t.into_bytes().unwrap())
+        //                     .collect();
+        //
+        //                 let execute = Execute {
+        //                     contract_address,
+        //                     calldata: calldata.to_vec(),
+        //                     factory_deps: Some(factory_deps),
+        //                     value: msg_value,
+        //                 };
+        //
+        //                 Some(ProtocolUpgradeTx {
+        //                     common_data,
+        //                     execute,
+        //                     received_timestamp_ms: unix_timestamp_ms(),
+        //                 })
+        //             } else if tx_type == U256::zero() {
+        //                 // There is no upgrade tx.
+        //                 None
+        //             } else {
+        //                 panic!("Unexpected tx type {} when decoding upgrade", tx_type);
+        //             }
+        //         };
+        // >>>>>>> origin/main
         let bootloader_code_hash = H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
         let default_account_code_hash =
             H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
@@ -779,7 +900,8 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version18 => VmVersion::VmBoojumIntegration,
             ProtocolVersionId::Version19 => VmVersion::VmBoojumIntegration,
-            ProtocolVersionId::Version20 => VmVersion::VmBoojumIntegration,
+            ProtocolVersionId::Version20 => VmVersion::Vm1_4_1,
+            ProtocolVersionId::Version21 => VmVersion::Vm1_4_1,
             // kl todo delete local vm verion
             ProtocolVersionId::Local => VmVersion::Local,
         }

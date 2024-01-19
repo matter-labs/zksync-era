@@ -7,12 +7,6 @@ use zksync_contracts::BaseSystemContractsHashes;
 
 use crate::ProtocolVersionId;
 
-/// Protobuf-encoded consensus-related L2 block (= miniblock) fields.
-/// See `zksync_dal::models::storage_sync::ConsensusBlockFields`.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(transparent)]
-pub struct ConsensusBlockFields(pub zksync_basic_types::Bytes);
-
 /// Representation of the L2 block, as needed for the EN synchronization.
 /// This structure has several fields that describe *L1 batch* rather than
 /// *L2 block*, thus they are the same for all the L2 blocks in the batch.
@@ -34,6 +28,8 @@ pub struct SyncBlock {
     pub l1_gas_price: u64,
     /// L2 gas price used as VM parameter for the L1 batch corresponding to this L2 block.
     pub l2_fair_gas_price: u64,
+    /// The pubdata price used as VM parameter for the L1 batch corresponding to this L2 block.
+    pub fair_pubdata_price: Option<u64>,
     /// Hashes of the base system contracts used in for the L1 batch corresponding to this L2 block.
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     /// Address of the operator account who produced for the L1 batch corresponding to this L2 block.
@@ -48,7 +44,4 @@ pub struct SyncBlock {
     pub hash: Option<H256>,
     /// Version of the protocol used for this block.
     pub protocol_version: ProtocolVersionId,
-    /// Consensus-related information about the block. Not present if consensus is not enabled
-    /// for the environment.
-    pub consensus: Option<ConsensusBlockFields>,
 }

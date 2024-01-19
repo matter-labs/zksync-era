@@ -137,7 +137,7 @@ impl BinarySparseStorageTree<256, 32, 32, 8, 32, Blake2s256, ZkSyncStorageLeaf>
             "insert_leaf enumeration index mismatch",
         );
 
-        // reset is_get_leaf_invoked for the next get/insert invocation
+        // reset `is_get_leaf_invoked` for the next get/insert invocation
         self.is_get_leaf_invoked = false;
 
         // if this insert was in fact the very first insert, it should bump the `next_enumeration_index`
@@ -219,7 +219,7 @@ impl BinarySparseStorageTree<256, 32, 32, 8, 32, Blake2s256, ZkSyncStorageLeaf>
         root: &[u8; 32],
         query: &LeafQuery<256, 32, 32, 32, ZkSyncStorageLeaf>,
     ) -> bool {
-        //copied from zkevm_test_harness/src/witness/tree/mod.rs with minor changes
+        //copied from `zkevm_test_harness/src/witness/tree/mod.rs` with minor changes
         tracing::trace!(
             "invoked verify_inclusion. Index: {:?}, root: {:?})",
             query.index,

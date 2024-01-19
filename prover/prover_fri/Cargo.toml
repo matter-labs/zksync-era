@@ -15,19 +15,18 @@ zksync_env_config = { path = "../../core/lib/env_config" }
 prometheus_exporter = { path = "../../core/lib/prometheus_exporter" }
 vlog = { path = "../../core/lib/vlog" }
 zksync_object_store = { path = "../../core/lib/object_store" }
-zksync_prover_utils = { path = "../../core/lib/prover_utils" }
 zksync_queued_job_processor = { path = "../../core/lib/queued_job_processor" }
 zksync_prover_fri_utils = { path = "../prover_fri_utils" }
 zksync_prover_fri_types = { path = "../prover_fri_types" }
 zksync_utils = { path = "../../core/lib/utils" }
 vk_setup_data_generator_server_fri = { path = "../vk_setup_data_generator_server_fri" }
-shivini = { git = "https://github.com/matter-labs/era-shivini.git", branch = "main", optional = true, features = [
+shivini = { git = "https://github.com/matter-labs/era-shivini.git", branch = "v1.4.1", optional = true, features = [
     "circuit_definitions",
     "zksync",
 ] }
 
-zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0" }
-circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0", features = [
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.1" }
+circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.1", features = [
     "log_tracing",
 ] }
 
@@ -39,6 +38,8 @@ ctrlc = { version = "3.1", features = ["termination"] }
 serde = { version = "1.0", features = ["derive"] }
 async-trait = "0.1"
 local-ip-address = "0.5.0"
+reqwest = { version = "0.11", features = ["blocking"] }
+regex = "1.7.2"
 
 [features]
 default = []

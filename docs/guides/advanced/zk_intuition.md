@@ -62,7 +62,7 @@ pub fn compute_decommitter_circuit_snapshots<
 ...
 ) -> (
     Vec<CodeDecommitterCircuitInstanceWitness<E>>,
-    CodeDecommittmentsDeduplicatorInstanceWitness<E>,
+    CodeDecommitmentsDeduplicatorInstanceWitness<E>,
 )
 ```
 
@@ -139,15 +139,13 @@ version 1.4.0.
 
 [witness_example]:
   https://github.com/matter-labs/era-zkevm_test_harness/tree/main/src/witness/individual_circuits/decommit_code.rs#L24
-[verifier]: https://github.com/matter-labs/era-contracts/blob/main/ethereum/contracts/zksync/Verifier.sol
+[verifier]: https://github.com/matter-labs/era-contracts/blob/main/l1-contracts/contracts/zksync/Verifier.sol
 [bellman repo]: https://github.com/matter-labs/bellman
 [bellman cuda repo]: https://github.com/matter-labs/era-bellman-cuda
 [example ecrecover circuit]:
-  https://github.com/matter-labs/sync_vm/blob/683ade0bbb445f3e2ceb82dd3f4346a0c5d16a78/src/glue/ecrecover_circuit/mod.rs#L157
-[zksync core witness]:
-  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/witness_generator/mod.rs
+  https://github.com/matter-labs/era-sync_vm/blob/v1.3.2/src/glue/ecrecover_circuit/mod.rs#L157
 [separate witness binary]: https://github.com/matter-labs/zksync-era/blob/main/prover/witness_generator/src/main.rs
 [zkevm_test_harness witness]:
-  https://github.com/matter-labs/zkevm_test_harness/blob/0c17bc7baa4e0b64634d414942ef4200d8613bbd/src/external_calls.rs#L575
-[heavy_ops_service repo]: https://github.com/matter-labs/heavy-ops-service/tree/v1.3.2
+  https://github.com/matter-labs/era-zkevm_test_harness/blob/fb47657ae3b6ff6e4bb5199964d3d37212978200/src/external_calls.rs#L579
+[heavy_ops_service repo]: https://github.com/matter-labs/era-heavy-ops-service
 [franklin repo]: https://github.com/matter-labs/franklin-crypto

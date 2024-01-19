@@ -1,7 +1,7 @@
 //! Implementation of "executing" methods, e.g. `eth_call`.
 
 use multivm::{
-    interface::{TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface},
+    interface::{TxExecutionMode, VmExecutionResultAndLogs, VmInterface},
     tracers::StorageInvocations,
     vm_latest::constants::ETH_CALL_GAS_LIMIT,
     MultiVMTracer,
@@ -13,6 +13,8 @@ use zksync_types::{
     PackedEthSignature, Transaction, U256,
 };
 
+#[cfg(test)]
+use super::testonly::MockTransactionExecutor;
 use super::{apply, vm_metrics, ApiTracer, BlockArgs, TxSharedArgs, VmPermit};
 
 #[derive(Debug)]
@@ -73,115 +75,120 @@ impl TxExecutionArgs {
     }
 }
 
-pub(crate) async fn execute_tx_eth_call(
-    vm_permit: VmPermit,
-    shared_args: TxSharedArgs,
-    connection_pool: ConnectionPool,
-    mut tx: L2Tx,
-    block_args: BlockArgs,
-    vm_execution_cache_misses_limit: Option<usize>,
-    custom_tracers: Vec<ApiTracer>,
-) -> VmExecutionResultAndLogs {
-    let enforced_base_fee = tx.common_data.fee.max_fee_per_gas.as_u64();
-    let execution_args =
-        TxExecutionArgs::for_eth_call(enforced_base_fee, vm_execution_cache_misses_limit);
+/// Executor of transactions.
+#[derive(Debug)]
+pub(crate) enum TransactionExecutor {
+    Real,
+    #[cfg(test)]
+    Mock(MockTransactionExecutor),
+}
 
-    if tx.common_data.signature.is_empty() {
-        tx.common_data.signature = PackedEthSignature::default().serialize_packed().into();
+impl TransactionExecutor {
+    /// This method assumes that (block with number `resolved_block_number` is present in DB)
+    /// or (`block_id` is `pending` and block with number `resolved_block_number - 1` is present in DB)
+    #[allow(clippy::too_many_arguments)]
+    #[tracing::instrument(skip_all)]
+    pub async fn execute_tx_in_sandbox(
+        &self,
+        vm_permit: VmPermit,
+        shared_args: TxSharedArgs,
+        // If `true`, then the batch's L1/pubdata gas price will be adjusted so that the transaction's gas per pubdata limit is <=
+        // to the one in the block. This is often helpful in case we want the transaction validation to work regardless of the
+        // current L1 prices for gas or pubdata.
+        adjust_pubdata_price: bool,
+        execution_args: TxExecutionArgs,
+        connection_pool: ConnectionPool,
+        tx: Transaction,
+        block_args: BlockArgs,
+        custom_tracers: Vec<ApiTracer>,
+    ) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics, bool) {
+        #[cfg(test)]
+        if let Self::Mock(mock_executor) = self {
+            return mock_executor.execute_tx(&tx);
+        }
+
+        let total_factory_deps = tx
+            .execute
+            .factory_deps
+            .as_ref()
+            .map_or(0, |deps| deps.len() as u16);
+
+        let (published_bytecodes, execution_result) = tokio::task::spawn_blocking(move || {
+            let span = span!(Level::DEBUG, "execute_in_sandbox").entered();
+            let result = apply::apply_vm_in_sandbox(
+                vm_permit,
+                shared_args,
+                adjust_pubdata_price,
+                &execution_args,
+                &connection_pool,
+                tx,
+                block_args,
+                |vm, tx| {
+                    let storage_invocation_tracer =
+                        StorageInvocations::new(execution_args.missed_storage_invocation_limit);
+                    let custom_tracers: Vec<_> = custom_tracers
+                        .into_iter()
+                        .map(|tracer| tracer.into_boxed())
+                        .chain(vec![storage_invocation_tracer.into_tracer_pointer()])
+                        .collect();
+                    vm.inspect_transaction_with_bytecode_compression(
+                        custom_tracers.into(),
+                        tx,
+                        true,
+                    )
+                },
+            );
+            span.exit();
+            result
+        })
+        .await
+        .unwrap();
+
+        let tx_execution_metrics =
+            vm_metrics::collect_tx_execution_metrics(total_factory_deps, &execution_result);
+        (
+            execution_result,
+            tx_execution_metrics,
+            published_bytecodes.is_ok(),
+        )
     }
 
-    // Protection against infinite-loop eth_calls and alike:
-    // limiting the amount of gas the call can use.
-    // We can't use BLOCK_ERGS_LIMIT here since the VM itself has some overhead.
-    tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
-    let (vm_result, _) = execute_tx_in_sandbox(
-        vm_permit,
-        shared_args,
-        execution_args,
-        connection_pool,
-        tx.into(),
-        block_args,
-        custom_tracers,
-    )
-    .await;
+    #[allow(clippy::too_many_arguments)]
+    pub async fn execute_tx_eth_call(
+        &self,
+        vm_permit: VmPermit,
+        shared_args: TxSharedArgs,
+        connection_pool: ConnectionPool,
+        mut tx: L2Tx,
+        block_args: BlockArgs,
+        vm_execution_cache_misses_limit: Option<usize>,
+        custom_tracers: Vec<ApiTracer>,
+    ) -> VmExecutionResultAndLogs {
+        let enforced_base_fee = tx.common_data.fee.max_fee_per_gas.as_u64();
+        let execution_args =
+            TxExecutionArgs::for_eth_call(enforced_base_fee, vm_execution_cache_misses_limit);
 
-    vm_result
-}
+        if tx.common_data.signature.is_empty() {
+            tx.common_data.signature = PackedEthSignature::default().serialize_packed().into();
+        }
 
-#[tracing::instrument(skip_all)]
-pub(crate) async fn execute_tx_with_pending_state(
-    vm_permit: VmPermit,
-    mut shared_args: TxSharedArgs,
-    execution_args: TxExecutionArgs,
-    connection_pool: ConnectionPool,
-    tx: Transaction,
-) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics) {
-    let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
-    let block_args = BlockArgs::pending(&mut connection).await;
-    drop(connection);
-    // In order for execution to pass smoothlessly, we need to ensure that block's required gasPerPubdata will be
-    // <= to the one in the transaction itself.
-    shared_args.adjust_l1_gas_price(tx.gas_per_pubdata_byte_limit());
+        // Protection against infinite-loop eth_calls and alike:
+        // limiting the amount of gas the call can use.
+        // We can't use `BLOCK_ERGS_LIMIT` here since the VM itself has some overhead.
+        tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
+        let (vm_result, ..) = self
+            .execute_tx_in_sandbox(
+                vm_permit,
+                shared_args,
+                false,
+                execution_args,
+                connection_pool,
+                tx.into(),
+                block_args,
+                custom_tracers,
+            )
+            .await;
 
-    execute_tx_in_sandbox(
-        vm_permit,
-        shared_args,
-        execution_args,
-        connection_pool,
-        tx,
-        block_args,
-        vec![],
-    )
-    .await
-}
-
-/// This method assumes that (block with number `resolved_block_number` is present in DB)
-/// or (`block_id` is `pending` and block with number `resolved_block_number - 1` is present in DB)
-#[allow(clippy::too_many_arguments)]
-#[tracing::instrument(skip_all)]
-async fn execute_tx_in_sandbox(
-    vm_permit: VmPermit,
-    shared_args: TxSharedArgs,
-    execution_args: TxExecutionArgs,
-    connection_pool: ConnectionPool,
-    tx: Transaction,
-    block_args: BlockArgs,
-    custom_tracers: Vec<ApiTracer>,
-) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics) {
-    let total_factory_deps = tx
-        .execute
-        .factory_deps
-        .as_ref()
-        .map_or(0, |deps| deps.len() as u16);
-
-    let execution_result = tokio::task::spawn_blocking(move || {
-        let span = span!(Level::DEBUG, "execute_in_sandbox").entered();
-        let result = apply::apply_vm_in_sandbox(
-            vm_permit,
-            shared_args,
-            &execution_args,
-            &connection_pool,
-            tx,
-            block_args,
-            |vm, tx| {
-                vm.push_transaction(tx);
-                let storage_invocation_tracer =
-                    StorageInvocations::new(execution_args.missed_storage_invocation_limit);
-                let custom_tracers: Vec<_> = custom_tracers
-                    .into_iter()
-                    .map(|tracer| tracer.into_boxed())
-                    .chain(vec![storage_invocation_tracer.into_tracer_pointer()])
-                    .collect();
-                vm.inspect(custom_tracers.into(), VmExecutionMode::OneTx)
-            },
-        );
-        span.exit();
-        result
-    })
-    .await
-    .unwrap();
-
-    let tx_execution_metrics =
-        vm_metrics::collect_tx_execution_metrics(total_factory_deps, &execution_result);
-    (execution_result, tx_execution_metrics)
+        vm_result
+    }
 }

@@ -17,8 +17,9 @@ zk # installs and builds zk itself
 zk init
 ```
 
-If you face any other problems with the `zk init` command, go to the [Troubleshooting](#Troubleshooting) section at the
-end of this file. There are solutions for some common error cases.
+If you face any other problems with the `zk init` command, go to the
+[Troubleshooting](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/launch.md#troubleshooting) section at
+the end of this file. There are solutions for some common error cases.
 
 To completely reset the dev environment:
 
@@ -110,29 +111,6 @@ zk f cargo +nightly run --features gpu --release --bin zksync_prover
 cargo run --release --bin zksync_verification_key_generator
 
 
-```
-
-## Running the setup key generator on machine with GPU
-
-- uncomment `"core/bin/setup_key_generator_and_server",` from root `Cargo.toml` file.
-- ensure that the setup_2^26.key in the current directory, the file can be downloaded from
-  <https://universal-setup.ams3.digitaloceanspaces.com/setup_2^26.key>
-
-```shell
-export BELLMAN_CUDA_DIR=$PWD
-# To generate setup key for specific circuit type[0 - 17], 2 below corresponds to circuit type 2.
-cargo +nightly run --features gpu --release --bin zksync_setup_key_generator -- --numeric-circuit 2
-```
-
-## Running the setup key generator on machine without GPU
-
-- uncomment `"core/bin/setup_key_generator_and_server",` from root `Cargo.toml` file.
-- ensure that the setup_2^26.key in the current directory, the file can be downloaded from
-  <https://universal-setup.ams3.digitaloceanspaces.com/setup_2^26.key>
-
-```shell
-# To generate setup key for specific circuit type[0 - 17], 2 below corresponds to circuit type 2.
-cargo +nightly run --release --bin zksync_setup_key_generator -- --numeric-circuit 2
 ```
 
 ## Generating binary verification keys for existing json verification keys

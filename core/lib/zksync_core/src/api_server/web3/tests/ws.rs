@@ -44,9 +44,9 @@ async fn wait_for_subscription(
 }
 
 #[allow(clippy::needless_pass_by_ref_mut)] // false positive
-async fn wait_for_notifier(
+async fn wait_for_notifiers(
     events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
-    sub_type: SubscriptionType,
+    sub_types: &[SubscriptionType],
 ) {
     let wait_future = tokio::time::timeout(TEST_TIMEOUT, async {
         loop {
@@ -54,18 +54,67 @@ async fn wait_for_notifier(
                 .recv()
                 .await
                 .expect("Events emitter unexpectedly dropped");
-            if matches!(event, PubSubEvent::NotifyIterationFinished(ty) if ty == sub_type) {
+            if matches!(event, PubSubEvent::NotifyIterationFinished(ty) if sub_types.contains(&ty))
+            {
                 break;
             } else {
                 tracing::trace!(?event, "Skipping event");
             }
         }
     });
-    wait_future.await.expect("Timed out waiting for notifier")
+    wait_future.await.expect("Timed out waiting for notifier");
+}
+
+#[tokio::test]
+async fn notifiers_start_after_snapshot_recovery() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.access_storage().await.unwrap();
+    prepare_empty_recovery_snapshot(&mut storage, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK)
+        .await;
+
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let (events_sender, mut events_receiver) = mpsc::unbounded_channel();
+    let mut subscribe_logic = EthSubscribe::new();
+    subscribe_logic.set_events_sender(events_sender);
+    let notifier_handles =
+        subscribe_logic.spawn_notifiers(pool.clone(), POLL_INTERVAL, stop_receiver);
+    assert!(!notifier_handles.is_empty());
+
+    // Wait a little doing nothing and check that notifier tasks are still active (i.e., have not panicked).
+    tokio::time::sleep(POLL_INTERVAL).await;
+    for handle in &notifier_handles {
+        assert!(!handle.is_finished());
+    }
+
+    // Emulate creating the first miniblock; check that notifiers react to it.
+    let first_local_miniblock = MiniblockNumber(StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1);
+    store_miniblock(&mut storage, first_local_miniblock, &[])
+        .await
+        .unwrap();
+
+    wait_for_notifiers(
+        &mut events_receiver,
+        &[
+            SubscriptionType::Blocks,
+            SubscriptionType::Txs,
+            SubscriptionType::Logs,
+        ],
+    )
+    .await;
+
+    stop_sender.send_replace(true);
+    for handle in notifier_handles {
+        handle.await.unwrap().expect("Notifier task failed");
+    }
 }
 
 #[async_trait]
-trait WsTest {
+trait WsTest: Send + Sync {
+    /// Prepares the storage before the server is started. The default implementation performs genesis.
+    fn storage_initialization(&self) -> StorageInitialization {
+        StorageInitialization::Genesis
+    }
+
     async fn test(
         &self,
         client: &WsClient,
@@ -82,15 +131,10 @@ async fn test_ws_server(test: impl WsTest) {
     let pool = ConnectionPool::test_pool().await;
     let network_config = NetworkConfig::for_tests();
     let mut storage = pool.access_storage().await.unwrap();
-    if storage.blocks_dal().is_genesis_needed().await.unwrap() {
-        ensure_genesis_state(
-            &mut storage,
-            network_config.zksync_network_id,
-            &GenesisParams::mock(),
-        )
+    test.storage_initialization()
+        .prepare_storage(&network_config, &mut storage)
         .await
-        .unwrap();
-    }
+        .expect("Failed preparing storage for test");
     drop(storage);
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -114,10 +158,10 @@ async fn test_ws_server(test: impl WsTest) {
 }
 
 #[derive(Debug)]
-struct WsServerCanStart;
+struct WsServerCanStartTest;
 
 #[async_trait]
-impl WsTest for WsServerCanStart {
+impl WsTest for WsServerCanStartTest {
     async fn test(
         &self,
         client: &WsClient,
@@ -141,14 +185,24 @@ impl WsTest for WsServerCanStart {
 
 #[tokio::test]
 async fn ws_server_can_start() {
-    test_ws_server(WsServerCanStart).await;
+    test_ws_server(WsServerCanStartTest).await;
 }
 
 #[derive(Debug)]
-struct BasicSubscriptions;
+struct BasicSubscriptionsTest {
+    snapshot_recovery: bool,
+}
 
 #[async_trait]
-impl WsTest for BasicSubscriptions {
+impl WsTest for BasicSubscriptionsTest {
+    fn storage_initialization(&self) -> StorageInitialization {
+        if self.snapshot_recovery {
+            StorageInitialization::empty_recovery()
+        } else {
+            StorageInitialization::Genesis
+        }
+    }
+
     async fn test(
         &self,
         client: &WsClient,
@@ -157,8 +211,11 @@ impl WsTest for BasicSubscriptions {
     ) -> anyhow::Result<()> {
         // Wait for the notifiers to get initialized so that they don't skip notifications
         // for the created subscriptions.
-        wait_for_notifier(&mut pub_sub_events, SubscriptionType::Blocks).await;
-        wait_for_notifier(&mut pub_sub_events, SubscriptionType::Txs).await;
+        wait_for_notifiers(
+            &mut pub_sub_events,
+            &[SubscriptionType::Blocks, SubscriptionType::Txs],
+        )
+        .await;
 
         let params = rpc_params!["newHeads"];
         let mut blocks_subscription = client
@@ -172,7 +229,16 @@ impl WsTest for BasicSubscriptions {
             .await?;
         wait_for_subscription(&mut pub_sub_events, SubscriptionType::Txs).await;
 
-        let (new_miniblock, new_tx_hash) = store_block(pool).await?;
+        let mut storage = pool.access_storage().await?;
+        let tx_result = execute_l2_transaction(create_l2_transaction(1, 2));
+        let new_tx_hash = tx_result.hash;
+        let miniblock_number = MiniblockNumber(if self.snapshot_recovery {
+            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1
+        } else {
+            1
+        });
+        let new_miniblock = store_miniblock(&mut storage, miniblock_number, &[tx_result]).await?;
+        drop(storage);
 
         let received_tx_hash = tokio::time::timeout(TEST_TIMEOUT, txs_subscription.next())
             .await
@@ -181,11 +247,17 @@ impl WsTest for BasicSubscriptions {
         assert_eq!(received_tx_hash, new_tx_hash);
         let received_block_header = tokio::time::timeout(TEST_TIMEOUT, blocks_subscription.next())
             .await
-            .context("Timed out waiting for new block hash")?
+            .context("Timed out waiting for new block header")?
             .context("New blocks subscription terminated")??;
-        assert_eq!(received_block_header.number, Some(1.into()));
+        assert_eq!(
+            received_block_header.number,
+            Some(new_miniblock.number.0.into())
+        );
         assert_eq!(received_block_header.hash, Some(new_miniblock.hash));
-        assert_eq!(received_block_header.timestamp, 1.into());
+        assert_eq!(
+            received_block_header.timestamp,
+            new_miniblock.timestamp.into()
+        );
         blocks_subscription.unsubscribe().await?;
         Ok(())
     }
@@ -193,27 +265,40 @@ impl WsTest for BasicSubscriptions {
 
 #[tokio::test]
 async fn basic_subscriptions() {
-    test_ws_server(BasicSubscriptions).await;
+    test_ws_server(BasicSubscriptionsTest {
+        snapshot_recovery: false,
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn basic_subscriptions_after_snapshot_recovery() {
+    test_ws_server(BasicSubscriptionsTest {
+        snapshot_recovery: true,
+    })
+    .await;
 }
 
 #[derive(Debug)]
-struct LogSubscriptions;
+struct LogSubscriptionsTest {
+    snapshot_recovery: bool,
+}
 
 #[derive(Debug)]
-struct Subscriptions {
+struct LogSubscriptions {
     all_logs_subscription: Subscription<api::Log>,
     address_subscription: Subscription<api::Log>,
     topic_subscription: Subscription<api::Log>,
 }
 
-impl Subscriptions {
+impl LogSubscriptions {
     async fn new(
         client: &WsClient,
         pub_sub_events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<Self> {
         // Wait for the notifier to get initialized so that it doesn't skip notifications
         // for the created subscriptions.
-        wait_for_notifier(pub_sub_events, SubscriptionType::Logs).await;
+        wait_for_notifiers(pub_sub_events, &[SubscriptionType::Logs]).await;
 
         let params = rpc_params!["logs"];
         let all_logs_subscription = client
@@ -248,21 +333,34 @@ impl Subscriptions {
 }
 
 #[async_trait]
-impl WsTest for LogSubscriptions {
+impl WsTest for LogSubscriptionsTest {
+    fn storage_initialization(&self) -> StorageInitialization {
+        if self.snapshot_recovery {
+            StorageInitialization::empty_recovery()
+        } else {
+            StorageInitialization::Genesis
+        }
+    }
+
     async fn test(
         &self,
         client: &WsClient,
         pool: &ConnectionPool,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
-        let Subscriptions {
+        let LogSubscriptions {
             mut all_logs_subscription,
             mut address_subscription,
             mut topic_subscription,
-        } = Subscriptions::new(client, &mut pub_sub_events).await?;
+        } = LogSubscriptions::new(client, &mut pub_sub_events).await?;
 
         let mut storage = pool.access_storage().await?;
-        let (tx_location, events) = store_events(&mut storage, 1, 0).await?;
+        let miniblock_number = if self.snapshot_recovery {
+            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1
+        } else {
+            1
+        };
+        let (tx_location, events) = store_events(&mut storage, miniblock_number, 0).await?;
         drop(storage);
         let events: Vec<_> = events.iter().collect();
 
@@ -271,7 +369,7 @@ impl WsTest for LogSubscriptions {
             assert_eq!(log.transaction_index, Some(0.into()));
             assert_eq!(log.log_index, Some(i.into()));
             assert_eq!(log.transaction_hash, Some(tx_location.tx_hash));
-            assert_eq!(log.block_number, Some(1.into()));
+            assert_eq!(log.block_number, Some(miniblock_number.into()));
         }
         assert_logs_match(&all_logs, &events);
 
@@ -281,7 +379,7 @@ impl WsTest for LogSubscriptions {
         let topic_logs = collect_logs(&mut topic_subscription, 2).await?;
         assert_logs_match(&topic_logs, &[events[1], events[3]]);
 
-        wait_for_notifier(&mut pub_sub_events, SubscriptionType::Logs).await;
+        wait_for_notifiers(&mut pub_sub_events, &[SubscriptionType::Logs]).await;
 
         // Check that no new notifications were sent to subscribers.
         tokio::time::timeout(POLL_INTERVAL, all_logs_subscription.next())
@@ -314,25 +412,36 @@ async fn collect_logs(
 
 #[tokio::test]
 async fn log_subscriptions() {
-    test_ws_server(LogSubscriptions).await;
+    test_ws_server(LogSubscriptionsTest {
+        snapshot_recovery: false,
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn log_subscriptions_after_snapshot_recovery() {
+    test_ws_server(LogSubscriptionsTest {
+        snapshot_recovery: true,
+    })
+    .await;
 }
 
 #[derive(Debug)]
-struct LogSubscriptionsWithNewBlock;
+struct LogSubscriptionsWithNewBlockTest;
 
 #[async_trait]
-impl WsTest for LogSubscriptionsWithNewBlock {
+impl WsTest for LogSubscriptionsWithNewBlockTest {
     async fn test(
         &self,
         client: &WsClient,
         pool: &ConnectionPool,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
-        let Subscriptions {
+        let LogSubscriptions {
             mut all_logs_subscription,
             mut address_subscription,
             ..
-        } = Subscriptions::new(client, &mut pub_sub_events).await?;
+        } = LogSubscriptions::new(client, &mut pub_sub_events).await?;
 
         let mut storage = pool.access_storage().await?;
         let (_, events) = store_events(&mut storage, 1, 0).await?;
@@ -362,25 +471,25 @@ impl WsTest for LogSubscriptionsWithNewBlock {
 
 #[tokio::test]
 async fn log_subscriptions_with_new_block() {
-    test_ws_server(LogSubscriptionsWithNewBlock).await;
+    test_ws_server(LogSubscriptionsWithNewBlockTest).await;
 }
 
 #[derive(Debug)]
-struct LogSubscriptionsWithManyBlocks;
+struct LogSubscriptionsWithManyBlocksTest;
 
 #[async_trait]
-impl WsTest for LogSubscriptionsWithManyBlocks {
+impl WsTest for LogSubscriptionsWithManyBlocksTest {
     async fn test(
         &self,
         client: &WsClient,
         pool: &ConnectionPool,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
-        let Subscriptions {
+        let LogSubscriptions {
             mut all_logs_subscription,
             mut address_subscription,
             ..
-        } = Subscriptions::new(client, &mut pub_sub_events).await?;
+        } = LogSubscriptions::new(client, &mut pub_sub_events).await?;
 
         // Add two blocks in the storage atomically.
         let mut storage = pool.access_storage().await?;
@@ -408,14 +517,14 @@ impl WsTest for LogSubscriptionsWithManyBlocks {
 
 #[tokio::test]
 async fn log_subscriptions_with_many_new_blocks_at_once() {
-    test_ws_server(LogSubscriptionsWithManyBlocks).await;
+    test_ws_server(LogSubscriptionsWithManyBlocksTest).await;
 }
 
 #[derive(Debug)]
-struct LogSubscriptionsWithDelay;
+struct LogSubscriptionsWithDelayTest;
 
 #[async_trait]
-impl WsTest for LogSubscriptionsWithDelay {
+impl WsTest for LogSubscriptionsWithDelayTest {
     async fn test(
         &self,
         client: &WsClient,
@@ -430,7 +539,7 @@ impl WsTest for LogSubscriptionsWithDelay {
         while pub_sub_events.try_recv().is_ok() {
             // Drain all existing pub-sub events.
         }
-        wait_for_notifier(&mut pub_sub_events, SubscriptionType::Logs).await;
+        wait_for_notifiers(&mut pub_sub_events, &[SubscriptionType::Logs]).await;
 
         let params = rpc_params!["logs"];
         let mut all_logs_subscription = client
@@ -472,14 +581,14 @@ impl WsTest for LogSubscriptionsWithDelay {
 
 #[tokio::test]
 async fn log_subscriptions_with_delay() {
-    test_ws_server(LogSubscriptionsWithDelay).await;
+    test_ws_server(LogSubscriptionsWithDelayTest).await;
 }
 
 #[derive(Debug)]
-struct RateLimiting;
+struct RateLimitingTest;
 
 #[async_trait]
-impl WsTest for RateLimiting {
+impl WsTest for RateLimitingTest {
     async fn test(
         &self,
         client: &WsClient,
@@ -509,14 +618,14 @@ impl WsTest for RateLimiting {
 
 #[tokio::test]
 async fn rate_limiting() {
-    test_ws_server(RateLimiting).await;
+    test_ws_server(RateLimitingTest).await;
 }
 
 #[derive(Debug)]
-struct BatchGetsRateLimited;
+struct BatchGetsRateLimitedTest;
 
 #[async_trait]
-impl WsTest for BatchGetsRateLimited {
+impl WsTest for BatchGetsRateLimitedTest {
     async fn test(
         &self,
         client: &WsClient,
@@ -553,5 +662,5 @@ impl WsTest for BatchGetsRateLimited {
 
 #[tokio::test]
 async fn batch_rate_limiting() {
-    test_ws_server(BatchGetsRateLimited).await;
+    test_ws_server(BatchGetsRateLimitedTest).await;
 }

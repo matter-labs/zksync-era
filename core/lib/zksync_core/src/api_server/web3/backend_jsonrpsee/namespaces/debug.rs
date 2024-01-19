@@ -21,6 +21,7 @@ impl DebugNamespaceServer for DebugNamespace {
             .await
             .map_err(into_jsrpc_error)
     }
+
     async fn trace_block_by_hash(
         &self,
         hash: H256,
@@ -30,6 +31,7 @@ impl DebugNamespaceServer for DebugNamespace {
             .await
             .map_err(into_jsrpc_error)
     }
+
     async fn trace_call(
         &self,
         request: CallRequest,
@@ -40,11 +42,14 @@ impl DebugNamespaceServer for DebugNamespace {
             .await
             .map_err(into_jsrpc_error)
     }
+
     async fn trace_transaction(
         &self,
         tx_hash: H256,
         options: Option<TracerConfig>,
     ) -> RpcResult<Option<DebugCall>> {
-        Ok(self.debug_trace_transaction_impl(tx_hash, options).await)
+        self.debug_trace_transaction_impl(tx_hash, options)
+            .await
+            .map_err(into_jsrpc_error)
     }
 }

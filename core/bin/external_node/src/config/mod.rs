@@ -3,7 +3,7 @@ use std::{env, time::Duration};
 use anyhow::Context;
 use serde::Deserialize;
 use url::Url;
-use zksync_basic_types::{Address, L1ChainId, L2ChainId, MiniblockNumber};
+use zksync_basic_types::{Address, L1ChainId, L2ChainId};
 use zksync_core::api_server::{
     tx_sender::TxSenderConfig,
     web3::{state::InternalApiConfig, Namespace},
@@ -11,7 +11,7 @@ use zksync_core::api_server::{
 use zksync_types::api::BridgeAddresses;
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
-    namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
+    namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
 #[cfg(test)]
@@ -31,8 +31,6 @@ pub struct RemoteENConfig {
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l2_chain_id: L2ChainId,
     pub l1_chain_id: L1ChainId,
-
-    pub fair_l2_gas_price: u64,
 }
 
 impl RemoteENConfig {
@@ -68,15 +66,6 @@ impl RemoteENConfig {
                 .context("Failed to fetch L1 chain ID")?
                 .as_u64(),
         );
-        let current_miniblock = client
-            .get_block_number()
-            .await
-            .context("Failed to fetch block number")?;
-        let block_header = client
-            .sync_l2_block(MiniblockNumber(current_miniblock.as_u32()), false)
-            .await
-            .context("Failed to fetch last miniblock header")?
-            .expect("Block is known to exist");
 
         Ok(Self {
             bridgehub_proxy_addr,
@@ -88,7 +77,6 @@ impl RemoteENConfig {
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
             l2_chain_id,
             l1_chain_id,
-            fair_l2_gas_price: block_header.l2_fair_gas_price,
         })
     }
 }
@@ -160,6 +148,15 @@ pub struct OptionalENConfig {
     /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
     #[serde(default = "OptionalENConfig::default_estimate_gas_acceptable_overestimation")]
     pub estimate_gas_acceptable_overestimation: u32,
+    /// Whether to use the compatibility mode for gas estimation for L1->L2 transactions.
+    /// During the migration to the 1.4.1 fee model, there will be a period, when the server
+    /// will already have the 1.4.1 fee model, while the L1 contracts will still expect the transactions
+    /// to use the previous fee model with much higher overhead.
+    ///
+    /// When set to `true`, the API will ensure to return gasLimit is high enough overhead for both the old
+    /// and the new fee model when estimating L1->L2 transactions.  
+    #[serde(default = "OptionalENConfig::default_l1_to_l2_transactions_compatibility_mode")]
+    pub l1_to_l2_transactions_compatibility_mode: bool,
     /// The multiplier to use when suggesting gas price. Should be higher than one,
     /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block
     #[serde(default = "OptionalENConfig::default_gas_price_scale_factor")]
@@ -230,6 +227,10 @@ impl OptionalENConfig {
 
     const fn default_estimate_gas_acceptable_overestimation() -> u32 {
         1_000
+    }
+
+    const fn default_l1_to_l2_transactions_compatibility_mode() -> bool {
+        true
     }
 
     const fn default_gas_price_scale_factor() -> f64 {
@@ -361,8 +362,6 @@ pub struct RequiredENConfig {
     pub ws_port: u16,
     /// Port on which the healthcheck REST server is listening.
     pub healthcheck_port: u16,
-    /// Number of threads per API server
-    pub threads_per_server: usize,
     /// Address of the Ethereum node API.
     /// Intentionally private: use getter method as it manages the missing port.
     eth_client_url: String,
@@ -443,7 +442,7 @@ impl ExternalNodeConfig {
             .context("Unable to fetch required config values from the main node")?;
 
         // We can query them from main node, but it's better to set them explicitly
-        // as well to avoid connecting to wrong envs unintentionally.
+        // as well to avoid connecting to wrong environment variables unintentionally.
         let eth_chain_id = HttpClientBuilder::default()
             .build(required.eth_client_url()?)
             .expect("Unable to build HTTP client for L1 client")
@@ -536,13 +535,15 @@ impl From<ExternalNodeConfig> for TxSenderConfig {
                 .unwrap(),
             gas_price_scale_factor: config.optional.gas_price_scale_factor,
             max_nonce_ahead: config.optional.max_nonce_ahead,
-            fair_l2_gas_price: config.remote.fair_l2_gas_price,
             vm_execution_cache_misses_limit: config.optional.vm_execution_cache_misses_limit,
             // We set these values to the maximum since we don't know the actual values
             // and they will be enforced by the main node anyway.
             max_allowed_l2_tx_gas_limit: u32::MAX,
             validation_computational_gas_limit: u32::MAX,
             chain_id: config.remote.l2_chain_id,
+            l1_to_l2_transactions_compatibility_mode: config
+                .optional
+                .l1_to_l2_transactions_compatibility_mode,
         }
     }
 }

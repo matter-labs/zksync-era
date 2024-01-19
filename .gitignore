@@ -27,7 +27,6 @@ todo
 
 Cargo.lock
 !/Cargo.lock
-!/core/bin/verification_key_generator_and_server/Cargo.lock
 !/infrastructure/zksync-crypto/Cargo.lock
 !/prover/Cargo.lock
 

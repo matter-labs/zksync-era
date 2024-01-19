@@ -3,6 +3,7 @@
 use std::time::Instant;
 
 use anyhow::{anyhow, Context as _};
+use futures::{channel::mpsc, executor::block_on, SinkExt};
 use prometheus_exporter::PrometheusExporterConfig;
 use structopt::StructOpt;
 use tokio::sync::watch;
@@ -13,7 +14,6 @@ use zksync_config::{
 use zksync_dal::ConnectionPool;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prover_utils::get_stop_signal_receiver;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{proofs::AggregationRound, web3::futures::StreamExt};
 use zksync_utils::wait_for_tasks::wait_for_tasks;
@@ -110,8 +110,8 @@ async fn main() -> anyhow::Result<()> {
         .protocol_version_for(&vk_commitments)
         .await;
 
-    // If batch_size is none, it means that the job is 'looping forever' (this is the usual setup in local network).
-    // At the same time, we're reading the protocol_version only once at startup - so if there is no protocol version
+    // If `batch_size` is none, it means that the job is 'looping forever' (this is the usual setup in local network).
+    // At the same time, we're reading the `protocol_version` only once at startup - so if there is no protocol version
     // read (this is often due to the fact, that the gateway was started too late, and it didn't put the updated protocol
     // versions into the database) - then the job will simply 'hang forever' and not pick any tasks.
     if opt.batch_size.is_none() && protocol_versions.is_empty() {
@@ -157,7 +157,7 @@ async fn main() -> anyhow::Result<()> {
                 prometheus_config.push_interval(),
             )
         } else {
-            // u16 cast is safe since i is in range [0, 4)
+            // `u16` cast is safe since i is in range [0, 4)
             PrometheusExporterConfig::pull(prometheus_config.listener_port + i as u16)
         };
         let prometheus_task = prometheus_config.run(stop_receiver.clone());
@@ -229,7 +229,11 @@ async fn main() -> anyhow::Result<()> {
         SERVER_METRICS.init_latency[&(*round).into()].set(started_at.elapsed());
     }
 
-    let mut stop_signal_receiver = get_stop_signal_receiver();
+    let (mut stop_signal_sender, mut stop_signal_receiver) = mpsc::channel(256);
+    ctrlc::set_handler(move || {
+        block_on(stop_signal_sender.send(true)).expect("Ctrl+C signal send");
+    })
+    .expect("Error setting Ctrl+C handler");
     let graceful_shutdown = None::<futures::future::Ready<()>>;
     let tasks_allowed_to_finish = true;
     tokio::select! {

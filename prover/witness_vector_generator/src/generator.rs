@@ -1,4 +1,7 @@
-use std::time::{Duration, Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -24,7 +27,7 @@ use zksync_vk_setup_data_server_fri::get_finalization_hints;
 use crate::metrics::METRICS;
 
 pub struct WitnessVectorGenerator {
-    blob_store: Box<dyn ObjectStore>,
+    blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
     zone: String,
@@ -35,7 +38,7 @@ pub struct WitnessVectorGenerator {
 
 impl WitnessVectorGenerator {
     pub fn new(
-        blob_store: Box<dyn ObjectStore>,
+        blob_store: Arc<dyn ObjectStore>,
         prover_connection_pool: ConnectionPool,
         circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
         zone: String,
@@ -242,7 +245,7 @@ async fn handle_send_result(
                  reason: {err}"
             );
 
-            // mark prover instance in gpu_prover_queue dead
+            // mark prover instance in `gpu_prover_queue` dead
             pool.access_storage()
                 .await
                 .unwrap()

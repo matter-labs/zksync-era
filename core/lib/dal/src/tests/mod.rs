@@ -2,22 +2,21 @@ use std::time::Duration;
 
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
-    block::{L1BatchHeader, MiniblockHasher, MiniblockHeader},
+    block::{MiniblockHasher, MiniblockHeader},
     fee::{Fee, TransactionExecutionMetrics},
+    fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     l2::L2Tx,
-    proofs::AggregationRound,
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
-    Address, Execute, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2ChainId, MiniblockNumber,
-    PriorityOpId, ProtocolVersion, ProtocolVersionId, H160, H256, MAX_GAS_PER_PUBDATA_BYTE, U256,
+    Address, Execute, L1BlockNumber, L1TxCommonData, L2ChainId, MiniblockNumber, PriorityOpId,
+    ProtocolVersionId, H160, H256, U256,
 };
 
 use crate::{
     blocks_dal::BlocksDal,
     connection::ConnectionPool,
     protocol_versions_dal::ProtocolVersionsDal,
-    prover_dal::{GetProverJobsParams, ProverDal},
     transactions_dal::{L2TxSubmissionResult, TransactionsDal},
     transactions_web3_dal::TransactionsWeb3Dal,
 };
@@ -33,13 +32,13 @@ pub(crate) fn create_miniblock_header(number: u32) -> MiniblockHeader {
     let protocol_version = ProtocolVersionId::default();
     MiniblockHeader {
         number,
-        timestamp: 0,
+        timestamp: number.0.into(),
         hash: MiniblockHasher::new(number, 0, H256::zero()).finalize(protocol_version),
         l1_tx_count: 0,
         l2_tx_count: 0,
+        gas_per_pubdata_limit: 100,
         base_fee_per_gas: 100,
-        l1_gas_price: 100,
-        l2_fair_gas_price: 100,
+        batch_fee_input: BatchFeeInput::l1_pegged(100, 100),
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(protocol_version),
         virtual_blocks: 1,
@@ -81,7 +80,7 @@ fn mock_l1_execute() -> L1Tx {
         full_fee: U256::zero(),
         gas_limit: U256::from(100_100),
         max_fee_per_gas: U256::from(1u32),
-        gas_per_pubdata_limit: MAX_GAS_PER_PUBDATA_BYTE.into(),
+        gas_per_pubdata_limit: 100.into(),
         op_processing_type: OpProcessingType::Common,
         priority_queue_type: PriorityQueueType::Deque,
         eth_hash: H256::random(),
@@ -255,145 +254,4 @@ async fn remove_stuck_txs() {
         .await
         .unwrap()
         .unwrap();
-}
-
-fn create_circuits() -> Vec<(&'static str, String)> {
-    vec![
-        ("Main VM", "1_0_Main VM_BasicCircuits.bin".to_owned()),
-        ("SHA256", "1_1_SHA256_BasicCircuits.bin".to_owned()),
-        (
-            "Code decommitter",
-            "1_2_Code decommitter_BasicCircuits.bin".to_owned(),
-        ),
-        (
-            "Log demuxer",
-            "1_3_Log demuxer_BasicCircuits.bin".to_owned(),
-        ),
-    ]
-}
-
-#[tokio::test]
-async fn test_duplicate_insert_prover_jobs() {
-    let connection_pool = ConnectionPool::test_pool().await;
-    let storage = &mut connection_pool.access_storage().await.unwrap();
-    storage
-        .protocol_versions_dal()
-        .save_protocol_version_with_tx(Default::default())
-        .await;
-    storage
-        .protocol_versions_dal()
-        .save_prover_protocol_version(Default::default())
-        .await;
-    let block_number = 1;
-    let header = L1BatchHeader::new(
-        L1BatchNumber(block_number),
-        0,
-        Default::default(),
-        Default::default(),
-        Default::default(),
-    );
-    storage
-        .blocks_dal()
-        .insert_l1_batch(&header, &[], Default::default(), &[], &[])
-        .await
-        .unwrap();
-
-    let mut prover_dal = ProverDal { storage };
-    let circuits = create_circuits();
-    let l1_batch_number = L1BatchNumber(block_number);
-    prover_dal
-        .insert_prover_jobs(
-            l1_batch_number,
-            circuits.clone(),
-            AggregationRound::BasicCircuits,
-            ProtocolVersionId::latest() as i32,
-        )
-        .await;
-
-    // try inserting the same jobs again to ensure it does not panic
-    prover_dal
-        .insert_prover_jobs(
-            l1_batch_number,
-            circuits.clone(),
-            AggregationRound::BasicCircuits,
-            ProtocolVersionId::latest() as i32,
-        )
-        .await;
-
-    let prover_jobs_params = GetProverJobsParams {
-        statuses: None,
-        blocks: Some(std::ops::Range {
-            start: l1_batch_number,
-            end: l1_batch_number + 1,
-        }),
-        limit: None,
-        desc: false,
-        round: None,
-    };
-    let jobs = prover_dal.get_jobs(prover_jobs_params).await.unwrap();
-    assert_eq!(circuits.len(), jobs.len());
-}
-
-#[tokio::test]
-async fn test_requeue_prover_jobs() {
-    let connection_pool = ConnectionPool::test_pool().await;
-    let storage = &mut connection_pool.access_storage().await.unwrap();
-    let protocol_version = ProtocolVersion::default();
-    storage
-        .protocol_versions_dal()
-        .save_protocol_version_with_tx(protocol_version)
-        .await;
-    storage
-        .protocol_versions_dal()
-        .save_prover_protocol_version(Default::default())
-        .await;
-    let block_number = 1;
-    let header = L1BatchHeader::new(
-        L1BatchNumber(block_number),
-        0,
-        Default::default(),
-        Default::default(),
-        ProtocolVersionId::latest(),
-    );
-    storage
-        .blocks_dal()
-        .insert_l1_batch(&header, &[], Default::default(), &[], &[])
-        .await
-        .unwrap();
-
-    let mut prover_dal = ProverDal { storage };
-    let circuits = create_circuits();
-    let l1_batch_number = L1BatchNumber(block_number);
-    prover_dal
-        .insert_prover_jobs(
-            l1_batch_number,
-            circuits,
-            AggregationRound::BasicCircuits,
-            ProtocolVersionId::latest() as i32,
-        )
-        .await;
-
-    // take all jobs from prover_job table
-    for _ in 1..=4 {
-        let job = prover_dal
-            .get_next_prover_job(&[ProtocolVersionId::latest()])
-            .await;
-        assert!(job.is_some());
-    }
-    let job = prover_dal
-        .get_next_prover_job(&[ProtocolVersionId::latest()])
-        .await;
-    assert!(job.is_none());
-    // re-queue jobs
-    let stuck_jobs = prover_dal
-        .requeue_stuck_jobs(Duration::from_secs(0), 10)
-        .await;
-    assert_eq!(4, stuck_jobs.len());
-    // re-check that all jobs can be taken again
-    for _ in 1..=4 {
-        let job = prover_dal
-            .get_next_prover_job(&[ProtocolVersionId::latest()])
-            .await;
-        assert!(job.is_some());
-    }
 }

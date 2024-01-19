@@ -24,7 +24,7 @@ use crate::{
         compress_state_diffs, InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord,
         PADDED_ENCODED_STORAGE_DIFF_LEN_BYTES,
     },
-    H256, KNOWN_CODES_STORAGE_ADDRESS, U256,
+    ProtocolVersionId, H256, KNOWN_CODES_STORAGE_ADDRESS, U256,
 };
 
 /// Type that can be serialized for commitment.
@@ -130,24 +130,34 @@ impl L1BatchWithMetadata {
         })
     }
 
+    /// Encodes L1Batch into `StorageBatchInfo` (see `IExecutor.sol`)
     pub fn l1_header_data(&self) -> Token {
         Token::Tuple(vec![
+            // `batchNumber`
             Token::Uint(U256::from(self.header.number.0)),
+            // `batchHash`
             Token::FixedBytes(self.metadata.root_hash.as_bytes().to_vec()),
+            // `indexRepeatedStorageChanges`
             Token::Uint(U256::from(self.metadata.rollup_last_leaf_index)),
+            // `numberOfLayer1Txs`
             Token::Uint(U256::from(self.header.l1_tx_count)),
+            // `priorityOperationsHash`
             Token::FixedBytes(
                 self.header
                     .priority_ops_onchain_data_hash()
                     .as_bytes()
                     .to_vec(),
             ),
+            // `l2LogsTreeRoot`
             Token::FixedBytes(self.metadata.l2_l1_merkle_root.as_bytes().to_vec()),
+            // timestamp
             Token::Uint(U256::from(self.header.timestamp)),
+            // commitment
             Token::FixedBytes(self.metadata.commitment.as_bytes().to_vec()),
         ])
     }
 
+    /// Encodes the L1Batch into CommitBatchInfo (see IExecutor.sol).
     pub fn l1_commit_data(&self) -> Token {
         if self.header.protocol_version.unwrap().is_pre_boojum() {
             Token::Tuple(vec![
@@ -182,17 +192,24 @@ impl L1BatchWithMetadata {
             ])
         } else {
             Token::Tuple(vec![
+                // `batchNumber`
                 Token::Uint(U256::from(self.header.number.0)),
+                // `timestamp`
                 Token::Uint(U256::from(self.header.timestamp)),
+                // `indexRepeatedStorageChanges`
                 Token::Uint(U256::from(self.metadata.rollup_last_leaf_index)),
+                // `newStateRoot`
                 Token::FixedBytes(self.metadata.merkle_root_hash.as_bytes().to_vec()),
+                // `numberOfLayer1Txs`
                 Token::Uint(U256::from(self.header.l1_tx_count)),
+                // `priorityOperationsHash`
                 Token::FixedBytes(
                     self.header
                         .priority_ops_onchain_data_hash()
                         .as_bytes()
                         .to_vec(),
                 ),
+                // `bootloaderHeapInitialContentsHash`
                 Token::FixedBytes(
                     self.metadata
                         .bootloader_initial_content_commitment
@@ -200,6 +217,7 @@ impl L1BatchWithMetadata {
                         .as_bytes()
                         .to_vec(),
                 ),
+                // `eventsQueueStateHash`
                 Token::FixedBytes(
                     self.metadata
                         .events_queue_commitment
@@ -207,7 +225,9 @@ impl L1BatchWithMetadata {
                         .as_bytes()
                         .to_vec(),
                 ),
+                // `systemLogs`
                 Token::Bytes(self.metadata.l2_l1_messages_compressed.clone()),
+                // `totalL2ToL1Pubdata`
                 Token::Bytes(
                     self.header
                         .pubdata_input
@@ -234,7 +254,7 @@ impl L1BatchWithMetadata {
             res.extend(l2_to_l1_log.0.to_bytes());
         }
 
-        // Process and Pack Msgs
+        // Process and Pack Messages
         res.extend((self.header.l2_to_l1_messages.len() as u32).to_be_bytes());
         for msg in &self.header.l2_to_l1_messages {
             res.extend((msg.len() as u32).to_be_bytes());
@@ -326,7 +346,7 @@ struct L1BatchAuxiliaryOutput {
     l2_l1_logs_merkle_root: H256,
 
     // Once cut over to boojum, these fields are no longer required as their values
-    // are covered by state_diffs_compressed and its hash.
+    // are covered by `state_diffs_compressed` and its hash.
     // Task to remove: PLA-640
     initial_writes_compressed: Vec<u8>,
     initial_writes_hash: H256,
@@ -335,16 +355,12 @@ struct L1BatchAuxiliaryOutput {
 
     // The fields below are necessary for boojum.
     system_logs_compressed: Vec<u8>,
-    #[allow(dead_code)]
     system_logs_linear_hash: H256,
-    #[allow(dead_code)]
     state_diffs_hash: H256,
     state_diffs_compressed: Vec<u8>,
-    #[allow(dead_code)]
     bootloader_heap_hash: H256,
-    #[allow(dead_code)]
     events_state_queue_hash: H256,
-    is_pre_boojum: bool,
+    protocol_version: ProtocolVersionId,
 }
 
 impl L1BatchAuxiliaryOutput {
@@ -357,7 +373,7 @@ impl L1BatchAuxiliaryOutput {
         state_diffs: Vec<StateDiffRecord>,
         bootloader_heap_hash: H256,
         events_state_queue_hash: H256,
-        is_pre_boojum: bool,
+        protocol_version: ProtocolVersionId,
     ) -> Self {
         let state_diff_hash_from_logs = system_logs.iter().find_map(|log| {
             if log.0.key == u256_to_h256(STATE_DIFF_HASH_KEY.into()) {
@@ -381,7 +397,7 @@ impl L1BatchAuxiliaryOutput {
             repeated_writes_compressed,
             system_logs_compressed,
             state_diffs_packed,
-        ) = if is_pre_boojum {
+        ) = if protocol_version.is_pre_boojum() {
             (
                 pre_boojum_serialize_commitments(&l2_l1_logs),
                 pre_boojum_serialize_commitments(&initial_writes),
@@ -407,7 +423,7 @@ impl L1BatchAuxiliaryOutput {
         let repeated_writes_hash = H256::from(keccak256(&repeated_writes_compressed));
         let state_diffs_hash = H256::from(keccak256(&(state_diffs_packed)));
 
-        let serialized_logs = if is_pre_boojum {
+        let serialized_logs = if protocol_version.is_pre_boojum() {
             &l2_l1_logs_compressed[4..]
         } else {
             &l2_l1_logs_compressed
@@ -417,7 +433,7 @@ impl L1BatchAuxiliaryOutput {
             .chunks(UserL2ToL1Log::SERIALIZED_SIZE)
             .map(|chunk| <[u8; UserL2ToL1Log::SERIALIZED_SIZE]>::try_from(chunk).unwrap());
         // ^ Skip first 4 bytes of the serialized logs (i.e., the number of logs).
-        let min_tree_size = if is_pre_boojum {
+        let min_tree_size = if protocol_version.is_pre_boojum() {
             L2ToL1Log::PRE_BOOJUM_MIN_L2_L1_LOGS_TREE_SIZE
         } else {
             L2ToL1Log::MIN_L2_L1_LOGS_TREE_SIZE
@@ -456,7 +472,7 @@ impl L1BatchAuxiliaryOutput {
 
             bootloader_heap_hash,
             events_state_queue_hash,
-            is_pre_boojum,
+            protocol_version,
         }
     }
 
@@ -465,16 +481,27 @@ impl L1BatchAuxiliaryOutput {
         const SERIALIZED_SIZE: usize = 128;
         let mut result = Vec::with_capacity(SERIALIZED_SIZE);
 
-        if self.is_pre_boojum {
+        if self.protocol_version.is_pre_boojum() {
             result.extend(self.l2_l1_logs_merkle_root.as_bytes());
             result.extend(self.l2_l1_logs_linear_hash.as_bytes());
             result.extend(self.initial_writes_hash.as_bytes());
             result.extend(self.repeated_writes_hash.as_bytes());
+        } else if self.protocol_version.is_1_4_0() {
+            result.extend(self.system_logs_linear_hash.as_bytes());
+            result.extend(self.state_diffs_hash.as_bytes());
+            result.extend(self.bootloader_heap_hash.as_bytes());
+            result.extend(self.events_state_queue_hash.as_bytes());
         } else {
             result.extend(self.system_logs_linear_hash.as_bytes());
             result.extend(self.state_diffs_hash.as_bytes());
             result.extend(self.bootloader_heap_hash.as_bytes());
             result.extend(self.events_state_queue_hash.as_bytes());
+
+            // For now, we are using zeroes as commitments to the KZG pubdata.
+            result.extend(H256::zero().as_bytes());
+            result.extend(H256::zero().as_bytes());
+            result.extend(H256::zero().as_bytes());
+            result.extend(H256::zero().as_bytes());
         }
         result
     }
@@ -569,7 +596,7 @@ impl L1BatchCommitment {
         state_diffs: Vec<StateDiffRecord>,
         bootloader_heap_hash: H256,
         events_state_queue_hash: H256,
-        is_pre_boojum: bool,
+        protocol_version: ProtocolVersionId,
     ) -> Self {
         let meta_parameters = L1BatchMetaParameters {
             zkporter_is_available: ZKPORTER_IS_AVAILABLE,
@@ -584,7 +611,7 @@ impl L1BatchCommitment {
                         last_leaf_index: rollup_last_leaf_index,
                         root_hash: rollup_root_hash,
                     },
-                    // Despite the fact that zk_porter is not available we have to add params about it.
+                    // Despite the fact that `zk_porter` is not available we have to add params about it.
                     RootState {
                         last_leaf_index: 0,
                         root_hash: H256::zero(),
@@ -599,7 +626,7 @@ impl L1BatchCommitment {
                 state_diffs,
                 bootloader_heap_hash,
                 events_state_queue_hash,
-                is_pre_boojum,
+                protocol_version,
             ),
             meta_parameters,
         }
@@ -676,7 +703,7 @@ mod tests {
         },
         l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
         writes::{InitialStorageWrite, RepeatedStorageWrite},
-        H256, U256,
+        ProtocolVersionId, H256, U256,
     };
 
     #[serde_as]
@@ -758,7 +785,7 @@ mod tests {
             vec![],
             H256::zero(),
             H256::zero(),
-            false,
+            ProtocolVersionId::latest(),
         );
 
         let commitment = L1BatchCommitment {

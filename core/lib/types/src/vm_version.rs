@@ -8,6 +8,7 @@ pub enum VmVersion {
     VmVirtualBlocks,
     VmVirtualBlocksRefundsEnhancement,
     VmBoojumIntegration,
+    Vm1_4_1,
     // kl todo delete local vm verion
     Local,
 }

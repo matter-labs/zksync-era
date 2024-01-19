@@ -1,16 +1,109 @@
 //! Lower-level tests for the snapshot creator component.
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+};
 
 use rand::{thread_rng, Rng};
 use zksync_dal::StorageProcessor;
+use zksync_object_store::ObjectStore;
 use zksync_types::{
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
-    snapshots::{SnapshotFactoryDependency, SnapshotStorageLog},
-    AccountTreeId, Address, ProtocolVersion, StorageKey, StorageLog, H256,
+    snapshots::{
+        SnapshotFactoryDependencies, SnapshotFactoryDependency, SnapshotStorageLog,
+        SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
+    },
+    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersion, StorageKey,
+    StorageLog, H256,
 };
 
 use super::*;
+
+const TEST_CONFIG: SnapshotsCreatorConfig = SnapshotsCreatorConfig {
+    storage_logs_chunk_size: 1_000_000,
+    concurrent_queries_count: 10,
+};
+const SEQUENTIAL_TEST_CONFIG: SnapshotsCreatorConfig = SnapshotsCreatorConfig {
+    storage_logs_chunk_size: 1_000_000,
+    concurrent_queries_count: 1,
+};
+
+#[derive(Debug)]
+struct TestEventListener {
+    stop_after_chunk_count: usize,
+    processed_chunk_count: AtomicUsize,
+}
+
+impl TestEventListener {
+    fn new(stop_after_chunk_count: usize) -> Self {
+        Self {
+            stop_after_chunk_count,
+            processed_chunk_count: AtomicUsize::new(0),
+        }
+    }
+}
+
+impl HandleEvent for TestEventListener {
+    fn on_chunk_started(&self) -> TestBehavior {
+        let should_stop =
+            self.processed_chunk_count.load(Ordering::SeqCst) >= self.stop_after_chunk_count;
+        TestBehavior::new(should_stop)
+    }
+
+    fn on_chunk_saved(&self) {
+        self.processed_chunk_count.fetch_add(1, Ordering::SeqCst);
+    }
+}
+
+impl SnapshotCreator {
+    fn for_tests(blob_store: Arc<dyn ObjectStore>, pool: ConnectionPool) -> Self {
+        Self {
+            blob_store,
+            master_pool: pool.clone(),
+            replica_pool: pool,
+            event_listener: Box::new(()),
+        }
+    }
+
+    fn stop_after_chunk_count(self, stop_after_chunk_count: usize) -> Self {
+        Self {
+            event_listener: Box::new(TestEventListener::new(stop_after_chunk_count)),
+            ..self
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct TestBehavior {
+    should_exit: bool,
+}
+
+impl TestBehavior {
+    fn new(should_exit: bool) -> Self {
+        Self { should_exit }
+    }
+
+    pub fn should_exit(&self) -> bool {
+        self.should_exit
+    }
+}
+
+pub(crate) trait HandleEvent: fmt::Debug {
+    fn on_chunk_started(&self) -> TestBehavior {
+        TestBehavior::new(false)
+    }
+
+    fn on_chunk_saved(&self) {
+        // Do nothing
+    }
+}
+
+impl HandleEvent for () {}
 
 fn gen_storage_logs(rng: &mut impl Rng, count: usize) -> Vec<StorageLog> {
     (0..count)
@@ -50,8 +143,8 @@ async fn create_miniblock(
         l1_tx_count: 0,
         l2_tx_count: 0,
         base_fee_per_gas: 0,
-        l1_gas_price: 0,
-        l2_fair_gas_price: 0,
+        gas_per_pubdata_limit: 0,
+        batch_fee_input: Default::default(),
         base_system_contracts_hashes: Default::default(),
         protocol_version: Some(Default::default()),
         virtual_blocks: 0,
@@ -80,7 +173,7 @@ async fn create_l1_batch(
     );
     header.is_finished = true;
     conn.blocks_dal()
-        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
+        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
         .await
         .unwrap();
     conn.blocks_dal()
@@ -159,12 +252,17 @@ async fn persisting_snapshot_metadata() {
     let mut conn = pool.access_storage().await.unwrap();
     prepare_postgres(&mut rng, &mut conn, 10).await;
 
-    run(object_store, pool.clone(), pool.clone(), MIN_CHUNK_COUNT)
+    SnapshotCreator::for_tests(object_store, pool.clone())
+        .run(TEST_CONFIG, MIN_CHUNK_COUNT)
         .await
         .unwrap();
 
     // Check snapshot metadata in Postgres.
-    let snapshots = conn.snapshots_dal().get_all_snapshots().await.unwrap();
+    let snapshots = conn
+        .snapshots_dal()
+        .get_all_complete_snapshots()
+        .await
+        .unwrap();
     assert_eq!(snapshots.snapshots_l1_batch_numbers.len(), 1);
     let snapshot_l1_batch_number = snapshots.snapshots_l1_batch_numbers[0];
     assert_eq!(snapshot_l1_batch_number, L1BatchNumber(8));
@@ -183,7 +281,11 @@ async fn persisting_snapshot_metadata() {
         MIN_CHUNK_COUNT as usize
     );
     for path in &snapshot_metadata.storage_logs_filepaths {
-        let path = path.strip_prefix("storage_logs_snapshots/").unwrap();
+        let path = path
+            .as_ref()
+            .unwrap()
+            .strip_prefix("storage_logs_snapshots/")
+            .unwrap();
         assert!(path.ends_with(".proto.gzip"));
     }
 }
@@ -194,12 +296,11 @@ async fn persisting_snapshot_factory_deps() {
     let mut rng = thread_rng();
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
-
-    // Insert some data to Postgres.
     let mut conn = pool.access_storage().await.unwrap();
     let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
 
-    run(object_store, pool.clone(), pool.clone(), MIN_CHUNK_COUNT)
+    SnapshotCreator::for_tests(object_store, pool.clone())
+        .run(TEST_CONFIG, MIN_CHUNK_COUNT)
         .await
         .unwrap();
     let snapshot_l1_batch_number = L1BatchNumber(8);
@@ -217,17 +318,24 @@ async fn persisting_snapshot_logs() {
     let mut rng = thread_rng();
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
-
-    // Insert some data to Postgres.
     let mut conn = pool.access_storage().await.unwrap();
     let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
 
-    run(object_store, pool.clone(), pool.clone(), MIN_CHUNK_COUNT)
+    SnapshotCreator::for_tests(object_store, pool.clone())
+        .run(TEST_CONFIG, MIN_CHUNK_COUNT)
         .await
         .unwrap();
     let snapshot_l1_batch_number = L1BatchNumber(8);
 
     let object_store = object_store_factory.create_store().await;
+    assert_storage_logs(&*object_store, snapshot_l1_batch_number, &expected_outputs).await;
+}
+
+async fn assert_storage_logs(
+    object_store: &dyn ObjectStore,
+    snapshot_l1_batch_number: L1BatchNumber,
+    expected_outputs: &ExpectedOutputs,
+) {
     let mut actual_logs = HashSet::new();
     for chunk_id in 0..MIN_CHUNK_COUNT {
         let key = SnapshotStorageLogsStorageKey {
@@ -238,4 +346,115 @@ async fn persisting_snapshot_logs() {
         actual_logs.extend(chunk.storage_logs.into_iter());
     }
     assert_eq!(actual_logs, expected_outputs.storage_logs);
+}
+
+#[tokio::test]
+async fn recovery_workflow() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut rng = thread_rng();
+    let object_store_factory = ObjectStoreFactory::mock();
+    let object_store = object_store_factory.create_store().await;
+    let mut conn = pool.access_storage().await.unwrap();
+    let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
+
+    SnapshotCreator::for_tests(object_store, pool.clone())
+        .stop_after_chunk_count(0)
+        .run(SEQUENTIAL_TEST_CONFIG, MIN_CHUNK_COUNT)
+        .await
+        .unwrap();
+
+    let snapshot_l1_batch_number = L1BatchNumber(8);
+    let snapshot_metadata = conn
+        .snapshots_dal()
+        .get_snapshot_metadata(snapshot_l1_batch_number)
+        .await
+        .unwrap()
+        .expect("No snapshot metadata");
+    assert!(snapshot_metadata
+        .storage_logs_filepaths
+        .iter()
+        .all(Option::is_none));
+
+    let object_store = object_store_factory.create_store().await;
+    let SnapshotFactoryDependencies { factory_deps } =
+        object_store.get(snapshot_l1_batch_number).await.unwrap();
+    let actual_deps: HashSet<_> = factory_deps.into_iter().collect();
+    assert_eq!(actual_deps, expected_outputs.deps);
+
+    // Process 2 storage log chunks, then stop.
+    SnapshotCreator::for_tests(object_store, pool.clone())
+        .stop_after_chunk_count(2)
+        .run(SEQUENTIAL_TEST_CONFIG, MIN_CHUNK_COUNT)
+        .await
+        .unwrap();
+
+    let snapshot_metadata = conn
+        .snapshots_dal()
+        .get_snapshot_metadata(snapshot_l1_batch_number)
+        .await
+        .unwrap()
+        .expect("No snapshot metadata");
+    assert_eq!(
+        snapshot_metadata
+            .storage_logs_filepaths
+            .iter()
+            .flatten()
+            .count(),
+        2
+    );
+
+    // Process the remaining chunks.
+    let object_store = object_store_factory.create_store().await;
+    SnapshotCreator::for_tests(object_store, pool.clone())
+        .run(SEQUENTIAL_TEST_CONFIG, MIN_CHUNK_COUNT)
+        .await
+        .unwrap();
+
+    let object_store = object_store_factory.create_store().await;
+    assert_storage_logs(&*object_store, snapshot_l1_batch_number, &expected_outputs).await;
+}
+
+#[tokio::test]
+async fn recovery_workflow_with_varying_chunk_size() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut rng = thread_rng();
+    let object_store_factory = ObjectStoreFactory::mock();
+    let object_store = object_store_factory.create_store().await;
+    let mut conn = pool.access_storage().await.unwrap();
+    let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
+
+    SnapshotCreator::for_tests(object_store, pool.clone())
+        .stop_after_chunk_count(2)
+        .run(SEQUENTIAL_TEST_CONFIG, MIN_CHUNK_COUNT)
+        .await
+        .unwrap();
+
+    let snapshot_l1_batch_number = L1BatchNumber(8);
+    let snapshot_metadata = conn
+        .snapshots_dal()
+        .get_snapshot_metadata(snapshot_l1_batch_number)
+        .await
+        .unwrap()
+        .expect("No snapshot metadata");
+    assert_eq!(
+        snapshot_metadata
+            .storage_logs_filepaths
+            .iter()
+            .flatten()
+            .count(),
+        2
+    );
+
+    let config_with_other_size = SnapshotsCreatorConfig {
+        storage_logs_chunk_size: 1, // << should be ignored
+        ..SEQUENTIAL_TEST_CONFIG
+    };
+    let object_store = object_store_factory.create_store().await;
+    SnapshotCreator::for_tests(object_store, pool.clone())
+        .run(config_with_other_size, MIN_CHUNK_COUNT)
+        .await
+        .unwrap();
+
+    let object_store = object_store_factory.create_store().await;
+    assert_storage_logs(&*object_store, snapshot_l1_batch_number, &expected_outputs).await;
 }

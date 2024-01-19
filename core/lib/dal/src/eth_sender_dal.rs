@@ -211,7 +211,7 @@ impl EthSenderDal<'_, '_> {
         base_fee_per_gas: u64,
         priority_fee_per_gas: u64,
         tx_hash: H256,
-        raw_signed_tx: Vec<u8>,
+        raw_signed_tx: &[u8],
     ) -> anyhow::Result<Option<u32>> {
         let priority_fee_per_gas =
             i64::try_from(priority_fee_per_gas).context("Can't convert u64 to i64")?;
@@ -237,7 +237,7 @@ impl EthSenderDal<'_, '_> {
             RETURNING
                 id
             "#,
-            eth_tx_id as u32,
+            eth_tx_id as i32,
             base_fee_per_gas,
             priority_fee_per_gas,
             tx_hash,

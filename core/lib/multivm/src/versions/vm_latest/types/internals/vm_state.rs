@@ -1,4 +1,4 @@
-use zk_evm_1_4_0::{
+use zk_evm_1_4_1::{
     aux_structures::{MemoryPage, Timestamp},
     block_properties::BlockProperties,
     vm_state::{CallStackEntry, PrimitiveValue, VmState},
@@ -40,7 +40,7 @@ pub type ZkSyncVmState<S, H> = VmState<
     StorageOracle<S, H>,
     SimpleMemory<H>,
     InMemoryEventSink<H>,
-    PrecompilesProcessorWithHistory<false, H>,
+    PrecompilesProcessorWithHistory<H>,
     DecommitterOracle<false, S, H>,
     DummyTracer,
 >;
@@ -84,7 +84,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
     let storage_oracle: StorageOracle<S, H> = StorageOracle::new(storage.clone());
     let mut memory = SimpleMemory::default();
     let event_sink = InMemoryEventSink::default();
-    let precompiles_processor = PrecompilesProcessorWithHistory::<false, H>::default();
+    let precompiles_processor = PrecompilesProcessorWithHistory::<H>::default();
     let mut decommittment_processor: DecommitterOracle<false, S, H> =
         DecommitterOracle::new(storage);
 

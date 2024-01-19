@@ -4,6 +4,7 @@ use std::{
 };
 
 use anyhow::Context as _;
+use circuit_definitions::circuit_definitions::recursion_layer::scheduler::SchedulerCircuit;
 use itertools::Itertools;
 use zkevm_test_harness::{
     compute_setups::{generate_base_layer_vks_and_proofs, generate_recursive_layer_vks_and_proofs},
@@ -38,9 +39,8 @@ use zksync_prover_fri_types::circuit_definitions::{
         recursion_layer::{
             base_circuit_type_into_recursive_leaf_circuit_type,
             leaf_layer::ZkSyncLeafLayerRecursiveCircuit,
-            node_layer::ZkSyncNodeLayerRecursiveCircuit, scheduler::SchedulerCircuit,
-            ZkSyncRecursionLayerStorageType, ZkSyncRecursionProof, ZkSyncRecursiveLayerCircuit,
-            RECURSION_ARITY, SCHEDULER_CAPACITY,
+            node_layer::ZkSyncNodeLayerRecursiveCircuit, ZkSyncRecursionLayerStorageType,
+            ZkSyncRecursionProof, ZkSyncRecursiveLayerCircuit, RECURSION_ARITY, SCHEDULER_CAPACITY,
         },
     },
     recursion_layer_proof_config, zk_evm,
@@ -193,6 +193,9 @@ pub fn get_scheduler_circuit() -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
         witness: scheduler_witness,
         config,
         transcript_params: (),
+        eip4844_proof_config: None,
+        eip4844_vk: None,
+        eip4844_vk_fixed_parameters: None,
         _marker: std::marker::PhantomData,
     };
     Ok(ZkSyncRecursiveLayerCircuit::SchedulerCircuit(
@@ -296,7 +299,7 @@ fn get_circuits(
 
     let previous_enumeration_index = tree.next_enumeration_index();
     let previous_root = tree.root();
-    // simualate content hash
+    // simulate content hash
 
     let mut hasher = Keccak256::new();
     hasher.update(previous_enumeration_index.to_be_bytes());

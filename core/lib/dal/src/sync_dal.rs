@@ -1,9 +1,9 @@
-use zksync_types::{api::en::SyncBlock, Address, MiniblockNumber, Transaction};
+use zksync_types::{api::en, Address, MiniblockNumber};
 
 use crate::{
     instrument::InstrumentExt,
     metrics::MethodLatency,
-    models::{storage_sync::StorageSyncBlock, storage_transaction::StorageTransaction},
+    models::storage_sync::{StorageSyncBlock, SyncBlock},
     StorageProcessor,
 };
 
@@ -14,14 +14,11 @@ pub struct SyncDal<'a, 'c> {
 }
 
 impl SyncDal<'_, '_> {
-    pub async fn sync_block(
+    pub(super) async fn sync_block_inner(
         &mut self,
         block_number: MiniblockNumber,
-        current_operator_address: Address,
-        include_transactions: bool,
     ) -> anyhow::Result<Option<SyncBlock>> {
-        let latency = MethodLatency::new("sync_dal_sync_block");
-        let storage_block_details = sqlx::query_as!(
+        let Some(block) = sqlx::query_as!(
             StorageSyncBlock,
             r#"
             SELECT
@@ -46,11 +43,11 @@ impl SyncDal<'_, '_> {
                 miniblocks.timestamp,
                 miniblocks.l1_gas_price,
                 miniblocks.l2_fair_gas_price,
+                miniblocks.fair_pubdata_price,
                 miniblocks.bootloader_code_hash,
                 miniblocks.default_aa_code_hash,
                 miniblocks.virtual_blocks,
                 miniblocks.hash,
-                miniblocks.consensus,
                 miniblocks.protocol_version AS "protocol_version!",
                 l1_batches.fee_account_address AS "fee_account_address?"
             FROM
@@ -64,40 +61,34 @@ impl SyncDal<'_, '_> {
         .instrument("sync_dal_sync_block.block")
         .with_arg("block_number", &block_number)
         .fetch_optional(self.storage.conn())
-        .await?;
+        .await?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(block.try_into()?))
+    }
 
-        let Some(storage_block_details) = storage_block_details else {
+    pub async fn sync_block(
+        &mut self,
+        block_number: MiniblockNumber,
+        current_operator_address: Address,
+        include_transactions: bool,
+    ) -> anyhow::Result<Option<en::SyncBlock>> {
+        let _latency = MethodLatency::new("sync_dal_sync_block");
+        let Some(block) = self.sync_block_inner(block_number).await? else {
             return Ok(None);
         };
         let transactions = if include_transactions {
-            let transactions = sqlx::query_as!(
-                StorageTransaction,
-                r#"
-                SELECT
-                    *
-                FROM
-                    transactions
-                WHERE
-                    miniblock_number = $1
-                ORDER BY
-                    index_in_block
-                "#,
-                block_number.0 as i64
+            Some(
+                self.storage
+                    .transactions_web3_dal()
+                    .get_raw_miniblock_transactions(block_number)
+                    .await?,
             )
-            .instrument("sync_dal_sync_block.transactions")
-            .with_arg("block_number", &block_number)
-            .fetch_all(self.storage.conn())
-            .await?;
-
-            Some(transactions.into_iter().map(Transaction::from).collect())
         } else {
             None
         };
-
-        let block =
-            storage_block_details.into_sync_block(current_operator_address, transactions)?;
-        drop(latency);
-        Ok(Some(block))
+        Ok(Some(block.into_api(current_operator_address, transactions)))
     }
 }
 
@@ -106,7 +97,7 @@ mod tests {
     use zksync_types::{
         block::{BlockGasCount, L1BatchHeader},
         fee::TransactionExecutionMetrics,
-        L1BatchNumber, ProtocolVersion, ProtocolVersionId,
+        L1BatchNumber, ProtocolVersion, ProtocolVersionId, Transaction,
     };
 
     use super::*;
@@ -136,7 +127,7 @@ mod tests {
             ProtocolVersionId::latest(),
         );
         conn.blocks_dal()
-            .insert_l1_batch(&l1_batch_header, &[], BlockGasCount::default(), &[], &[])
+            .insert_l1_batch(&l1_batch_header, &[], BlockGasCount::default(), &[], &[], 0)
             .await
             .unwrap();
         conn.blocks_dal()
@@ -188,8 +179,14 @@ mod tests {
             block.virtual_blocks.unwrap(),
             miniblock_header.virtual_blocks
         );
-        assert_eq!(block.l1_gas_price, miniblock_header.l1_gas_price);
-        assert_eq!(block.l2_fair_gas_price, miniblock_header.l2_fair_gas_price);
+        assert_eq!(
+            block.l1_gas_price,
+            miniblock_header.batch_fee_input.l1_gas_price()
+        );
+        assert_eq!(
+            block.l2_fair_gas_price,
+            miniblock_header.batch_fee_input.fair_l2_gas_price()
+        );
         assert_eq!(block.operator_address, operator_address);
         assert!(block.transactions.is_none());
 
@@ -205,7 +202,7 @@ mod tests {
         l1_batch_header.number = L1BatchNumber(1);
         l1_batch_header.timestamp = 1;
         conn.blocks_dal()
-            .insert_l1_batch(&l1_batch_header, &[], BlockGasCount::default(), &[], &[])
+            .insert_l1_batch(&l1_batch_header, &[], BlockGasCount::default(), &[], &[], 0)
             .await
             .unwrap();
         conn.blocks_dal()

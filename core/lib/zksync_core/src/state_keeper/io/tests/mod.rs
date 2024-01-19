@@ -1,25 +1,31 @@
 use std::time::Duration;
 
 use futures::FutureExt;
-use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
+use multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
 use zksync_types::{
-    block::BlockGasCount, tx::ExecutionMetrics, AccountTreeId, Address, L1BatchNumber,
-    MiniblockNumber, ProtocolVersionId, StorageKey, VmEvent, H256, U256,
+    block::BlockGasCount,
+    fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
+    tx::ExecutionMetrics,
+    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, StorageKey, VmEvent,
+    H256, U256,
 };
 use zksync_utils::time::seconds_since_epoch;
 
 use self::tester::Tester;
-use crate::state_keeper::{
-    io::{MiniblockParams, MiniblockSealer, StateKeeperIO},
-    mempool_actor::l2_tx_filter,
-    tests::{
-        create_execution_result, create_l1_batch_metadata, create_transaction,
-        create_updates_manager, default_l1_batch_env, default_vm_block_result, Query,
+use crate::{
+    state_keeper::{
+        io::{MiniblockParams, MiniblockSealer, StateKeeperIO},
+        mempool_actor::l2_tx_filter,
+        tests::{
+            create_execution_result, create_transaction, create_updates_manager,
+            default_l1_batch_env, default_vm_block_result, Query,
+        },
+        updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
     },
-    updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
+    utils::testonly::create_l1_batch_metadata,
 };
 
 mod tester;
@@ -46,25 +52,25 @@ async fn test_filter_with_pending_batch() {
 
     tester.genesis(&connection_pool).await;
 
-    // Insert a sealed batch so there will be a prev_l1_batch_state_root.
+    // Insert a sealed batch so there will be a `prev_l1_batch_state_root`.
     // These gas values are random and don't matter for filter calculation as there will be a
     // pending batch the filter will be based off of.
     tester
-        .insert_miniblock(&connection_pool, 1, 5, 55, 555)
+        .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
     tester.insert_sealed_batch(&connection_pool, 1).await;
 
     // Inserting a pending miniblock that isn't included in a sealed batch means there is a pending batch.
     // The gas values are randomly chosen but so affect filter values calculation.
-    let (give_l1_gas_price, give_fair_l2_gas_price) = (100, 1000);
+
+    let fee_input = BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+        l1_gas_price: 100,
+        fair_l2_gas_price: 1000,
+        fair_pubdata_price: 500,
+    });
+
     tester
-        .insert_miniblock(
-            &connection_pool,
-            2,
-            10,
-            give_l1_gas_price,
-            give_fair_l2_gas_price,
-        )
+        .insert_miniblock(&connection_pool, 2, 10, fee_input)
         .await;
 
     let (mut mempool, _) = tester.create_test_mempool_io(connection_pool, 1).await;
@@ -73,33 +79,33 @@ async fn test_filter_with_pending_batch() {
 
     mempool.load_pending_batch().await;
     let (want_base_fee, want_gas_per_pubdata) =
-        derive_base_fee_and_gas_per_pubdata(give_l1_gas_price, give_fair_l2_gas_price);
+        derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
     let want_filter = L2TxFilter {
-        l1_gas_price: give_l1_gas_price,
+        fee_input,
         fee_per_gas: want_base_fee,
         gas_per_pubdata: want_gas_per_pubdata as u32,
     };
     assert_eq!(mempool.filter(), &want_filter);
 }
 
-/// Ensure that MempoolIO.filter is modified correctly if there is no pending batch.
+/// Ensure that `MempoolIO.filter` is modified correctly if there is no pending batch.
 #[tokio::test]
 async fn test_filter_with_no_pending_batch() {
     let connection_pool = ConnectionPool::test_pool().await;
     let tester = Tester::new();
     tester.genesis(&connection_pool).await;
 
-    // Insert a sealed batch so there will be a prev_l1_batch_state_root.
+    // Insert a sealed batch so there will be a `prev_l1_batch_state_root`.
     // These gas values are random and don't matter for filter calculation.
     tester
-        .insert_miniblock(&connection_pool, 1, 5, 55, 555)
+        .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
     tester.insert_sealed_batch(&connection_pool, 1).await;
 
     // Create a copy of the tx filter that the mempool will use.
     let want_filter = l2_tx_filter(
-        &tester.create_gas_adjuster().await,
-        tester.fair_l2_gas_price(),
+        &tester.create_batch_fee_input_provider().await,
+        ProtocolVersionId::latest().into(),
     );
 
     // Create a mempool without pending batch and ensure that filter is not initialized just yet.
@@ -132,7 +138,7 @@ async fn test_timestamps_are_distinct(
 
     tester.set_timestamp(prev_miniblock_timestamp);
     tester
-        .insert_miniblock(&connection_pool, 1, 5, 55, 555)
+        .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
     if delay_prev_miniblock_compared_to_batch {
         tester.set_timestamp(prev_miniblock_timestamp - 1);
@@ -142,8 +148,8 @@ async fn test_timestamps_are_distinct(
     let (mut mempool, mut guard) = tester.create_test_mempool_io(connection_pool, 1).await;
     // Insert a transaction to trigger L1 batch creation.
     let tx_filter = l2_tx_filter(
-        &tester.create_gas_adjuster().await,
-        tester.fair_l2_gas_price(),
+        &tester.create_batch_fee_input_provider().await,
+        ProtocolVersionId::latest().into(),
     );
     tester.insert_tx(&mut guard, tx_filter.fee_per_gas, tx_filter.gas_per_pubdata);
 
@@ -234,13 +240,15 @@ async fn processing_storage_logs_when_sealing_miniblock() {
         miniblock_number: MiniblockNumber(3),
         miniblock,
         first_tx_index: 0,
-        l1_gas_price: 100,
-        fair_l2_gas_price: 100,
+        fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+            l1_gas_price: 100,
+            fair_l2_gas_price: 100,
+            fair_pubdata_price: 100,
+        }),
         base_fee_per_gas: 10,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         l2_erc20_bridge_addr: Address::default(),
-        consensus: None,
         pre_insert_txs: false,
     };
     let mut conn = connection_pool
@@ -311,13 +319,15 @@ async fn processing_events_when_sealing_miniblock() {
         miniblock_number,
         miniblock,
         first_tx_index: 0,
-        l1_gas_price: 100,
-        fair_l2_gas_price: 100,
+        fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+            l1_gas_price: 100,
+            fair_l2_gas_price: 100,
+            fair_pubdata_price: 100,
+        }),
         base_fee_per_gas: 10,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         l2_erc20_bridge_addr: Address::default(),
-        consensus: None,
         pre_insert_txs: false,
     };
     let mut conn = pool.access_storage_tagged("state_keeper").await.unwrap();
@@ -397,14 +407,14 @@ async fn test_miniblock_and_l1_batch_processing(
             .get_sealed_miniblock_number()
             .await
             .unwrap(),
-        MiniblockNumber(2) // + fictive miniblock
+        Some(MiniblockNumber(2)) // + fictive miniblock
     );
     let l1_batch_header = conn
         .blocks_dal()
         .get_l1_batch_header(L1BatchNumber(1))
         .await
         .unwrap()
-        .unwrap();
+        .expect("No L1 batch #1");
     assert_eq!(l1_batch_header.l2_tx_count, 1);
     assert!(l1_batch_header.is_finished);
 }
@@ -432,7 +442,6 @@ async fn miniblock_sealer_handle_blocking() {
         L1BatchNumber(1),
         MiniblockNumber(1),
         Address::default(),
-        None,
         false,
     );
     sealer_handle.submit(seal_command).await;
@@ -442,7 +451,6 @@ async fn miniblock_sealer_handle_blocking() {
         L1BatchNumber(1),
         MiniblockNumber(2),
         Address::default(),
-        None,
         false,
     );
     {
@@ -472,7 +480,6 @@ async fn miniblock_sealer_handle_blocking() {
         L1BatchNumber(2),
         MiniblockNumber(3),
         Address::default(),
-        None,
         false,
     );
     sealer_handle.submit(seal_command).await;
@@ -493,7 +500,6 @@ async fn miniblock_sealer_handle_parallel_processing() {
             L1BatchNumber(1),
             MiniblockNumber(i),
             Address::default(),
-            None,
             false,
         );
         sealer_handle.submit(seal_command).await;

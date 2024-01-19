@@ -1,4 +1,4 @@
-use zk_evm_1_4_0::{
+use zk_evm_1_4_1::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{ContextOpcode, FarCallABI, LogOpcode, Opcode},
 };
@@ -11,7 +11,7 @@ use zksync_utils::{h256_to_account_address, u256_to_account_address, u256_to_h25
 
 use crate::{
     interface::{
-        traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
+        traits::tracers::dyn_tracers::vm_1_4_1::DynTracer,
         types::tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         Halt,
     },
@@ -33,7 +33,7 @@ impl<H: HistoryMode> ValidationTracer<H> {
         &mut self,
         state: VmLocalStateData<'_>,
         data: BeforeExecutionData,
-        memory: &SimpleMemory<H::VmBoojumIntegration>,
+        memory: &SimpleMemory<H::Vm1_4_1>,
         storage: StoragePtr<S>,
     ) -> ValidationRoundResult {
         if self.computational_gas_used > self.computational_gas_limit {
@@ -127,14 +127,14 @@ impl<H: HistoryMode> ValidationTracer<H> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H::VmBoojumIntegration>>
+impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H::Vm1_4_1>>
     for ValidationTracer<H>
 {
     fn before_execution(
         &mut self,
         state: VmLocalStateData<'_>,
         data: BeforeExecutionData,
-        memory: &SimpleMemory<H::VmBoojumIntegration>,
+        memory: &SimpleMemory<H::Vm1_4_1>,
         storage: StoragePtr<S>,
     ) {
         // For now, we support only validations for users.
@@ -182,10 +182,10 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H::VmBoojumInteg
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H::VmBoojumIntegration> for ValidationTracer<H> {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H::Vm1_4_1> for ValidationTracer<H> {
     fn finish_cycle(
         &mut self,
-        _state: &mut ZkSyncVmState<S, H::VmBoojumIntegration>,
+        _state: &mut ZkSyncVmState<S, H::Vm1_4_1>,
         _bootloader_state: &mut BootloaderState,
     ) -> TracerExecutionStatus {
         if self.should_stop_execution {

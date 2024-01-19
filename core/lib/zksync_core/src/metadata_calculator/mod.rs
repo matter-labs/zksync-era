@@ -3,6 +3,7 @@
 
 use std::{
     future::{self, Future},
+    sync::Arc,
     time::Duration,
 };
 
@@ -14,11 +15,11 @@ use zksync_config::configs::{
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_merkle_tree::domain::TreeMetadata;
-use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_object_store::ObjectStore;
 use zksync_types::{
     block::L1BatchHeader,
     commitment::{L1BatchCommitment, L1BatchMetadata},
-    H256,
+    ProtocolVersionId, H256,
 };
 
 pub(crate) use self::helpers::{AsyncTreeReader, L1BatchWithLogs, MerkleTreeInfo};
@@ -36,36 +37,13 @@ mod recovery;
 pub(crate) mod tests;
 mod updater;
 
-/// Part of [`MetadataCalculator`] related to the operation mode of the Merkle tree.
-#[derive(Debug, Clone, Copy)]
-pub enum MetadataCalculatorModeConfig<'a> {
-    /// In this mode, `MetadataCalculator` computes Merkle tree root hashes and some auxiliary information
-    /// for L1 batches, but not witness inputs.
-    Lightweight,
-    /// In this mode, `MetadataCalculator` will compute commitments and witness inputs for all storage operations
-    /// and optionally put witness inputs into the object store as provided by `store_factory` (e.g., GCS).
-    Full {
-        store_factory: Option<&'a ObjectStoreFactory>,
-    },
-}
-
-impl MetadataCalculatorModeConfig<'_> {
-    fn to_mode(self) -> MerkleTreeMode {
-        if matches!(self, Self::Full { .. }) {
-            MerkleTreeMode::Full
-        } else {
-            MerkleTreeMode::Lightweight
-        }
-    }
-}
-
 /// Configuration of [`MetadataCalculator`].
 #[derive(Debug)]
-pub struct MetadataCalculatorConfig<'a> {
+pub struct MetadataCalculatorConfig {
     /// Filesystem path to the RocksDB instance that stores the tree.
-    pub db_path: &'a str,
+    pub db_path: String,
     /// Configuration of the Merkle tree mode.
-    pub mode: MetadataCalculatorModeConfig<'a>,
+    pub mode: MerkleTreeMode,
     /// Interval between polling Postgres for updates if no progress was made by the tree.
     pub delay_interval: Duration,
     /// Maximum number of L1 batches to get from Postgres on a single update iteration.
@@ -82,15 +60,14 @@ pub struct MetadataCalculatorConfig<'a> {
     pub stalled_writes_timeout: Duration,
 }
 
-impl<'a> MetadataCalculatorConfig<'a> {
+impl MetadataCalculatorConfig {
     pub(crate) fn for_main_node(
-        merkle_tree_config: &'a MerkleTreeConfig,
-        operation_config: &'a OperationsManagerConfig,
-        mode: MetadataCalculatorModeConfig<'a>,
+        merkle_tree_config: &MerkleTreeConfig,
+        operation_config: &OperationsManagerConfig,
     ) -> Self {
         Self {
-            db_path: &merkle_tree_config.path,
-            mode,
+            db_path: merkle_tree_config.path.clone(),
+            mode: merkle_tree_config.mode,
             delay_interval: operation_config.delay_interval(),
             max_l1_batches_per_iter: merkle_tree_config.max_l1_batches_per_iter,
             multi_get_chunk_size: merkle_tree_config.multi_get_chunk_size,
@@ -105,7 +82,7 @@ impl<'a> MetadataCalculatorConfig<'a> {
 pub struct MetadataCalculator {
     tree: GenericAsyncTree,
     tree_reader: watch::Sender<Option<AsyncTreeReader>>,
-    object_store: Option<Box<dyn ObjectStore>>,
+    object_store: Option<Arc<dyn ObjectStore>>,
     delayer: Delayer,
     health_updater: HealthUpdater,
     max_l1_batches_per_iter: usize,
@@ -113,30 +90,24 @@ pub struct MetadataCalculator {
 
 impl MetadataCalculator {
     /// Creates a calculator with the specified `config`.
-    pub async fn new(config: &MetadataCalculatorConfig<'_>) -> Self {
+    pub async fn new(
+        config: MetadataCalculatorConfig,
+        object_store: Option<Arc<dyn ObjectStore>>,
+    ) -> Self {
         assert!(
             config.max_l1_batches_per_iter > 0,
             "Maximum L1 batches per iteration is misconfigured to be 0; please update it to positive value"
         );
 
-        let mode = config.mode.to_mode();
-        let object_store = match config.mode {
-            MetadataCalculatorModeConfig::Full { store_factory } => match store_factory {
-                Some(f) => Some(f.create_store().await),
-                None => None,
-            },
-            MetadataCalculatorModeConfig::Lightweight => None,
-        };
-
         let db = create_db(
-            config.db_path.into(),
+            config.db_path.clone().into(),
             config.block_cache_capacity,
             config.memtable_capacity,
             config.stalled_writes_timeout,
             config.multi_get_chunk_size,
         )
         .await;
-        let tree = GenericAsyncTree::new(db, mode).await;
+        let tree = GenericAsyncTree::new(db, config.mode).await;
 
         let (_, health_updater) = ReactiveHealthCheck::new("tree");
         Self {
@@ -220,10 +191,12 @@ impl MetadataCalculator {
         events_queue_commitment: Option<H256>,
         bootloader_initial_content_commitment: Option<H256>,
     ) -> L1BatchMetadata {
-        let is_pre_boojum = header
+        // The commitment generation pre-boojum is the same for all the version, so in case the version is not present, we just supply the
+        // last pre-boojum version.
+        // TODO(PLA-731): make sure that protocol version is not an Option
+        let protocol_version = header
             .protocol_version
-            .map(|v| v.is_pre_boojum())
-            .unwrap_or(true);
+            .unwrap_or(ProtocolVersionId::last_potentially_undefined());
 
         let merkle_root_hash = tree_metadata.root_hash;
 
@@ -239,12 +212,12 @@ impl MetadataCalculator {
             tree_metadata.state_diffs,
             bootloader_initial_content_commitment.unwrap_or_default(),
             events_queue_commitment.unwrap_or_default(),
-            is_pre_boojum,
+            protocol_version,
         );
         let commitment_hash = commitment.hash();
         tracing::trace!("L1 batch commitment: {commitment:?}");
 
-        let l2_l1_messages_compressed = if is_pre_boojum {
+        let l2_l1_messages_compressed = if protocol_version.is_pre_boojum() {
             commitment.l2_l1_logs_compressed().to_vec()
         } else {
             commitment.system_logs_compressed().to_vec()

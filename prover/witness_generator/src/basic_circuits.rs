@@ -44,7 +44,7 @@ use zksync_state::{PostgresStorage, StorageView};
 use zksync_types::{
     proofs::{AggregationRound, BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
     protocol_version::FriProtocolVersionId,
-    Address, L1BatchNumber, BOOTLOADER_ADDRESS, H256, U256,
+    Address, L1BatchNumber, ProtocolVersionId, BOOTLOADER_ADDRESS, H256, U256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
@@ -88,7 +88,7 @@ pub struct BasicWitnessGeneratorJob {
 pub struct BasicWitnessGenerator {
     config: Arc<FriWitnessGeneratorConfig>,
     object_store: Arc<dyn ObjectStore>,
-    public_blob_store: Option<Box<dyn ObjectStore>>,
+    public_blob_store: Option<Arc<dyn ObjectStore>>,
     connection_pool: ConnectionPool,
     prover_connection_pool: ConnectionPool,
     protocol_versions: Vec<FriProtocolVersionId>,
@@ -98,14 +98,14 @@ impl BasicWitnessGenerator {
     pub async fn new(
         config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
-        public_blob_store: Option<Box<dyn ObjectStore>>,
+        public_blob_store: Option<Arc<dyn ObjectStore>>,
         connection_pool: ConnectionPool,
         prover_connection_pool: ConnectionPool,
         protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {
             config: Arc::new(config),
-            object_store: store_factory.create_store().await.into(),
+            object_store: store_factory.create_store().await,
             public_blob_store,
             connection_pool,
             prover_connection_pool,
@@ -531,6 +531,10 @@ async fn generate_witness(
         .unwrap()
         .unwrap();
 
+    let protocol_version = header
+        .protocol_version
+        .unwrap_or(ProtocolVersionId::last_potentially_undefined());
+
     let previous_batch_with_metadata = connection
         .blocks_dal()
         .get_l1_batch_metadata(zksync_types::L1BatchNumber(
@@ -552,13 +556,14 @@ async fn generate_witness(
         .await
         .expect("Default aa bytecode should exist");
     let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
-    let bootloader_contents = expand_bootloader_contents(&input.initial_heap_content);
+    let bootloader_contents =
+        expand_bootloader_contents(&input.initial_heap_content, protocol_version);
     let account_code_hash = h256_to_u256(header.base_system_contracts_hashes.default_aa);
 
     let hashes: HashSet<H256> = input
         .used_bytecodes_hashes
         .iter()
-        // SMA-1555: remove this hack once updated to the latest version of zkevm_test_harness
+        // SMA-1555: remove this hack once updated to the latest version of `zkevm_test_harness`
         .filter(|&&hash| hash != h256_to_u256(header.base_system_contracts_hashes.bootloader))
         .map(|hash| u256_to_h256(*hash))
         .collect();

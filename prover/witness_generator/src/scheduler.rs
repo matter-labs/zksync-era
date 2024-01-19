@@ -1,4 +1,4 @@
-use std::{convert::TryInto, time::Instant};
+use std::{convert::TryInto, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -51,7 +51,7 @@ pub struct SchedulerWitnessGeneratorJob {
 #[derive(Debug)]
 pub struct SchedulerWitnessGenerator {
     config: FriWitnessGeneratorConfig,
-    object_store: Box<dyn ObjectStore>,
+    object_store: Arc<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool,
     protocol_versions: Vec<FriProtocolVersionId>,
 }
@@ -91,6 +91,9 @@ impl SchedulerWitnessGenerator {
             witness: job.scheduler_witness,
             config,
             transcript_params: (),
+            eip4844_proof_config: None,
+            eip4844_vk: None,
+            eip4844_vk_fixed_parameters: None,
             _marker: std::marker::PhantomData,
         };
         WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::Scheduler.into()]

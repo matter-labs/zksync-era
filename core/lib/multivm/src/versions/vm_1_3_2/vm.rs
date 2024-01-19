@@ -162,7 +162,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         _tracer: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError> {
+    ) -> (
+        Result<(), BytecodeCompressionError>,
+        VmExecutionResultAndLogs,
+    ) {
         self.last_tx_compressed_bytecodes = vec![];
         let bytecodes = if with_compression {
             let deps = tx.execute.factory_deps.as_deref().unwrap_or_default();
@@ -201,17 +204,31 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         };
 
         // Even that call tracer is supported here, we don't use it.
-        let result = self.vm.execute_next_tx(
-            self.system_env.default_validation_computational_gas_limit,
-            false,
-        );
+        let result = match self.system_env.execution_mode {
+            TxExecutionMode::VerifyExecute => self
+                .vm
+                .execute_next_tx(
+                    self.system_env.default_validation_computational_gas_limit,
+                    false,
+                )
+                .glue_into(),
+            TxExecutionMode::EstimateFee | TxExecutionMode::EthCall => self
+                .vm
+                .execute_till_block_end(
+                    crate::vm_1_3_2::vm_with_bootloader::BootloaderJobType::TransactionExecution,
+                )
+                .glue_into(),
+        };
         if bytecodes
             .iter()
             .any(|info| !self.vm.is_bytecode_known(info))
         {
-            Err(crate::interface::BytecodeCompressionError::BytecodeCompressionFailed)
+            (
+                Err(BytecodeCompressionError::BytecodeCompressionFailed),
+                result,
+            )
         } else {
-            Ok(result.glue_into())
+            (Ok(()), result)
         }
     }
 

@@ -27,7 +27,7 @@ use crate::{
     },
 };
 
-const DEFAULT_GAS_PER_PUBDATA: u32 = 100;
+const DEFAULT_GAS_PER_PUBDATA: u32 = 10000;
 const CHAIN_ID: u32 = 270;
 
 /// Representation of configuration parameters used by the state keeper.
@@ -112,6 +112,7 @@ impl Tester {
             l1_batch,
             system_env,
             self.config.upload_witness_inputs_to_gcs,
+            false,
         )
     }
 

@@ -2,7 +2,7 @@
 
 ## zkEVM clarifier
 
-[Back to ToC](../../README.md)
+[Back to ToC](../../specs/README.md)
 
 The zkSync zkEVM plays a fundamentally different role in the zkStack than the EVM does in Ethereum. The EVM is used to
 execute code in Ethereum's state transition function. This STF needs a client to implement and run it. Ethereum has a
@@ -41,16 +41,18 @@ Unlike EVM, which is stack machine, zkEVM has 16 registers. Instead of receiving
 receiving a _pointer_ in its first register *(*basically a packed struct with 4 elements: the memory page id, start and
 length of the slice to which it points to*)* to the calldata page of the parent. Similarly, a transaction can receive
 some other additional data within its registers at the start of the program: whether the transaction should invoke the
-constructor ([more about deployments here](#contractdeployer--immutablesimulator)), whether the transaction has
-`isSystem` flag, etc. The meaning of each of these flags will be expanded further in this section.
+constructor
+[more about deployments here](https://github.com/matter-labs/zksync-era/blob/main/docs/specs/zk_evm/system_contracts.md#contractdeployer--immutablesimulator),
+whether the transaction has `isSystem` flag, etc. The meaning of each of these flags will be expanded further in this
+section.
 
 _Pointers_ are separate type in the VM. It is only possible to:
 
 - Read some value within a pointer.
 - Shrink the pointer by reducing the slice to which pointer points to.
-- Receive the pointer to the returndata/as a calldata.
-- Pointers can be stored only on stack/registers to make sure that the other contracts can not read memory/returndata of
-  contracts they are not supposed to.
+- Receive the pointer to the `returndata` as a calldata.
+- Pointers can be stored only on stack/registers to make sure that the other contracts can not read `memory/returndata`
+  of contracts they are not supposed to.
 - A pointer can be converted to the u256 integer representing it, but an integer can not be converted to a pointer to
   prevent unallowed memory access.
 - It is not possible to return a pointer that points to a memory page with id smaller than the one for the current page.
@@ -63,7 +65,7 @@ For each frame, the following memory areas are allocated:
 
 - _Heap_ (plays the same role as `memory` on Ethereum).
 - _AuxHeap_ (auxiliary heap). It has the same properties as Heap, but it is used for the compiler to encode
-  calldata/copy the returndata from the calls to system contracts to not interfere with the standard Solidity memory
+  calldata/copy the `returndata` from the calls to system contracts to not interfere with the standard Solidity memory
   alignment.
 - _Stack_. Unlike Ethereum, stack is not the primary place to get arguments for opcodes. The biggest difference between
   stack on zkEVM and EVM is that on zkSync stack can be accessed at any location (just like memory). While users do not
@@ -160,7 +162,9 @@ result in `revert(0,0)`.
 Note, that currently we do not have access to the `tx_counter` within VM (i.e. for now it is possible to increment it
 and it will be automatically used for logs such as `event`s as well as system logs produced by `to_l1`, but we can not
 read it). We need to read it to publish the _user_ L2→L1 logs, so `increment_tx_counter` is always accompanied by the
-corresponding call to the [SystemContext](#systemcontext) contract.
+corresponding call to the
+[SystemContext](https://github.com/matter-labs/zksync-era/blob/main/docs/specs/zk_evm/system_contracts.md#systemcontext)
+contract.
 
 More on the difference between system and user logs can be read
 [here](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20pubdata%20in%20Boojum.md). -
@@ -195,11 +199,11 @@ the start of execution:
   to the call. Currently, two flags are supported: 0-th bit: `isConstructor` flag. This flag can only be set by system
   contracts and denotes whether the account should execute its constructor logic. Note, unlike Ethereum, there is no
   separation on constructor & deployment bytecode. More on that can be read
-  [here](#contractdeployer--immutablesimulator). 1-st bit: `isSystem` flag. Whether the call intends a system contracts’
-  function. While most of the system contracts’ functions are relatively harmless, accessing some with calldata only may
-  break the invariants of Ethereum, e.g. if the system contract uses `mimic_call`: no one expects that by calling a
-  contract some operations may be done out of the name of the caller. This flag can be only set if the callee is in
-  kernel space.
+  [here](https://github.com/matter-labs/zksync-era/blob/main/docs/specs/zk_evm/system_contracts.md#contractdeployer--immutablesimulator).
+  1-st bit: `isSystem` flag. Whether the call intends a system contracts’ function. While most of the system contracts’
+  functions are relatively harmless, accessing some with calldata only may break the invariants of Ethereum, e.g. if the
+  system contract uses `mimic_call`: no one expects that by calling a contract some operations may be done out of the
+  name of the caller. This flag can be only set if the callee is in kernel space.
 - The rest r3..r12 registers are non-empty only if the `isSystem` flag is set. There may be arbitrary values passed,
   which we call `extraAbiParams`.
 
@@ -284,7 +288,7 @@ On zkSync the bytecode hashes are stored in the following format:
 
 - The 0th byte denotes the version of the format. Currently the only version that is used is “1”.
 - The 1st byte is `0` for deployed contracts’ code and `1` for the contract code
-  [that is being constructed](#constructing-vs-non-constructing-code-hash).
+  [that is being constructed](https://github.com/matter-labs/zksync-era/blob/main/docs/specs/zk_evm/system_contracts.md#constructing-vs-non-constructing-code-hash).
 - The 2nd and 3rd bytes denote the length of the contract in 32-byte words as big-endian 2-byte number.
 - The next 28 bytes are the last 28 bytes of the sha256 hash of the contract’s bytecode.
 
@@ -302,5 +306,6 @@ Note, that it does not have to consist of only correct opcodes. In case the VM e
 simply revert (similar to how EVM would treat them).
 
 A call to a contract with invalid bytecode can not be proven. That is why it is **essential** that no contract with
-invalid bytecode is ever deployed on zkSync. It is the job of the [KnownCodesStorage](#knowncodestorage) to ensure that
-all allowed bytecodes in the system are valid.
+invalid bytecode is ever deployed on zkSync. It is the job of the
+[KnownCodesStorage](https://github.com/matter-labs/zksync-era/blob/main/docs/specs/zk_evm/system_contracts.md#knowncodestorage)
+to ensure that all allowed bytecodes in the system are valid.

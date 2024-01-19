@@ -1,4 +1,4 @@
-use zk_evm_1_4_0::{
+use zk_evm_1_4_1::{
     tracing::{AfterExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{
         FarCallABI, FatPointer, Opcode, RetOpcode, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER,
@@ -13,8 +13,9 @@ use zksync_types::{
 };
 
 use crate::{
+    glue::GlueInto,
     interface::{
-        tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
+        tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_4_1::DynTracer,
         VmRevertReason,
     },
     tracers::call_tracer::CallTracer,
@@ -45,7 +46,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
                     .unwrap_or(current_ergs);
 
                 let mut current_call = Call {
-                    r#type: CallType::Call(far_call),
+                    r#type: CallType::Call(far_call.glue_into()),
                     gas: 0,
                     parent_gas,
                     ..Default::default()
@@ -139,7 +140,7 @@ impl CallTracer {
         let fat_data_pointer =
             state.vm_local_state.registers[RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER as usize];
 
-        // if fat_data_pointer is not a pointer then there is no output
+        // if `fat_data_pointer` is not a pointer then there is no output
         let output = if fat_data_pointer.is_pointer {
             let fat_data_pointer = FatPointer::from_u256(fat_data_pointer.value);
             if !fat_data_pointer.is_trivial() {

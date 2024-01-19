@@ -64,6 +64,9 @@ impl From<Halt> for SandboxExecutionError {
             Halt::ValidationOutOfGas => Self::AccountValidationFailed(
                 "The validation of the transaction ran out of gas".to_string(),
             ),
+            Halt::FailedToPublishCompressedBytecodes => {
+                Self::UnexpectedVMBehavior("Failed to publish compressed bytecodes".to_string())
+            }
         }
     }
 }

@@ -201,13 +201,10 @@ transmitted to L1 for final verification.
 [log_writing_in_vm]: https://github.com/matter-labs/era-zk_evm/blob/v1.3.2/src/opcodes/execution/log.rs
 [log_opcode]: https://github.com/matter-labs/era-zkevm_opcode_defs/blob/v1.3.2/src/definitions/log.rs#L16
 [zkevm_assembly_parse]:
-  https://github.com/matter-labs/zkEVM-assembly/blob/fcfeb51e45544a629d4279b3455def847dcc2505/src/assembly/instruction/log.rs#L32
+  https://github.com/matter-labs/era-zkEVM-assembly/blob/v1.3.2/src/assembly/instruction/log.rs#L32
 [executor_sol]:
   https://github.com/matter-labs/era-contracts/blob/3a4506522aaef81485d8abb96f5a6394bd2ba69e/ethereum/contracts/state-transition/chain-deps/facets/Executor.sol#L26
 [mainet_executor]: https://etherscan.io/address/0x389a081BCf20e5803288183b929F08458F1d863D
-
-[sepolia_tx]:
-[0x18c2a113d18c53237a4056403047ff9fafbf772cb83ccd44bb5b607f8108a64c](https://sepolia.etherscan.io/tx/0x18c2a113d18c53237a4056403047ff9fafbf772cb83ccd44bb5b607f8108a64c)
-
+[sepolia_tx]: https://sepolia.etherscan.io/tx/0x18c2a113d18c53237a4056403047ff9fafbf772cb83ccd44bb5b607f8108a64c
 [mailbox_log_inclusion]:
   https://github.com/matter-labs/era-contracts/blob/3a4506522aaef81485d8abb96f5a6394bd2ba69e/ethereum/contracts/zksync/facets/Mailbox.sol#L54

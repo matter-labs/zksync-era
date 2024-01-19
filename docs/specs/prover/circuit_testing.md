@@ -27,7 +27,7 @@ constraint system. Next, we define a helper function:
 To help run the test, we have a helper function called configure that returns a builder. The builder knows all of the
 gates and gate placement strategy, which will be useful for setting up the constraint system.
 
-![Contest(6).png](<./img/img/circuit_testing/Contest(6).png>)
+![Contest(6).png](<./img/circuit_testing/Contest(6).png>)
 
 The constaint system is almost ready! We still need to add the lookup tables for common boolean functions:
 
@@ -49,7 +49,7 @@ We have to use special integer types because we are working in a finite field.
 The constants here are specific to the curve used, and are described in detail by code comments in the
 ecrecover_precompile_inner_routine.
 
-Finally we can call the ecrecover_precompile_innner_routine:
+Finally we can call the ecrecover_precompile_inner_routine:
 
 ![Contest(11).png](<./img/circuit_testing/Contest(11).png>)
 

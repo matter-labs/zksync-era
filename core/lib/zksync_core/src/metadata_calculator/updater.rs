@@ -1,6 +1,6 @@
 //! Tree updater trait and its implementations.
 
-use std::{ops, time::Instant};
+use std::{ops, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use futures::{future, FutureExt};
@@ -11,7 +11,9 @@ use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
-use zksync_types::{block::L1BatchHeader, writes::InitialStorageWrite, L1BatchNumber, H256, U256};
+use zksync_types::{
+    block::L1BatchHeader, writes::InitialStorageWrite, L1BatchNumber, ProtocolVersionId, H256, U256,
+};
 
 use super::{
     helpers::{AsyncTree, Delayer, L1BatchWithLogs},
@@ -24,14 +26,14 @@ use crate::utils::wait_for_l1_batch;
 pub(super) struct TreeUpdater {
     tree: AsyncTree,
     max_l1_batches_per_iter: usize,
-    object_store: Option<Box<dyn ObjectStore>>,
+    object_store: Option<Arc<dyn ObjectStore>>,
 }
 
 impl TreeUpdater {
     pub fn new(
         tree: AsyncTree,
         max_l1_batches_per_iter: usize,
-        object_store: Option<Box<dyn ObjectStore>>,
+        object_store: Option<Arc<dyn ObjectStore>>,
     ) -> Self {
         Self {
             tree,
@@ -204,14 +206,14 @@ impl TreeUpdater {
             .await
             .unwrap();
 
-        let is_pre_boojum = header
+        // TODO(PLA-731): ensure that the protocol version is always available.
+        let protocol_version = header
             .protocol_version
-            .map(|v| v.is_pre_boojum())
-            .unwrap_or(true);
-        let events_queue_commitment = (!is_pre_boojum).then(|| {
+            .unwrap_or(ProtocolVersionId::last_potentially_undefined());
+        let events_queue_commitment = (!protocol_version.is_pre_boojum()).then(|| {
             let events_queue =
                 events_queue.expect("Events queue is required for post-boojum batch");
-            events_queue_commitment(&events_queue, is_pre_boojum)
+            events_queue_commitment(&events_queue, protocol_version)
                 .expect("Events queue commitment is required for post-boojum batch")
         });
         events_queue_commitment_latency.observe();
@@ -225,7 +227,7 @@ impl TreeUpdater {
             .unwrap()
             .unwrap();
         let bootloader_initial_content_commitment =
-            bootloader_initial_content_commitment(&initial_bootloader_contents, is_pre_boojum);
+            bootloader_initial_content_commitment(&initial_bootloader_contents, protocol_version);
         bootloader_commitment_latency.observe();
 
         (
@@ -239,11 +241,15 @@ impl TreeUpdater {
         mut storage: StorageProcessor<'_>,
         next_l1_batch_to_seal: &mut L1BatchNumber,
     ) {
-        let last_sealed_l1_batch = storage
+        let Some(last_sealed_l1_batch) = storage
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
-            .unwrap();
+            .unwrap()
+        else {
+            tracing::trace!("No L1 batches to seal: Postgres storage is empty");
+            return;
+        };
         let last_requested_l1_batch =
             next_l1_batch_to_seal.0 + self.max_l1_batches_per_iter as u32 - 1;
         let last_requested_l1_batch = last_requested_l1_batch.min(last_sealed_l1_batch.0);
@@ -300,7 +306,7 @@ impl TreeUpdater {
 
         tracing::info!(
             "Initialized metadata calculator with {max_batches_per_iter} max L1 batches per iteration. \
-             Next L1 batch for Merkle tree: {next_l1_batch_to_seal}, current Postgres L1 batch: {current_db_batch}, \
+             Next L1 batch for Merkle tree: {next_l1_batch_to_seal}, current Postgres L1 batch: {current_db_batch:?}, \
              last L1 batch with metadata: {last_l1_batch_with_metadata:?}",
             max_batches_per_iter = self.max_l1_batches_per_iter
         );

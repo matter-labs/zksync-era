@@ -13,10 +13,6 @@ on:
         description: "ERA_BELLMAN_CUDA_RELEASE"
         type: string
         required: true
-      image_tag:
-        description: "Tag of a built image to deploy"
-        type: string
-        required: true
       image_tag_suffix:
         description: "Optional suffix to override tag name generation"
         type: string
@@ -41,7 +37,6 @@ jobs:
   build-images:
     name: Build and Push Docker Images
     env:
-      image_tag: ${{ inputs.image_tag }}
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
       RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
       ERA_BELLMAN_CUDA_RELEASE: ${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}
@@ -93,7 +88,7 @@ jobs:
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
         run: |
           ci_run docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-          ci_run gcloud auth configure-docker us-docker.pkg.dev,asia-docker.pkg.dev,europe-docker.pkg.dev -q
+          ci_run gcloud auth configure-docker us-docker.pkg.dev -q
 
       # We need to run this only when ERA_BELLMAN_CUDA_RELEASE is not available
       # In our case it happens only when PR is created from fork
@@ -180,3 +175,41 @@ jobs:
         run: |
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
+  
+  copy-images:
+    name: Copy images between docker registries
+    env:
+      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
+    runs-on: matterlabs-ci-runner
+    needs: build-images
+    if: ${{ inputs.action == 'push' }}
+    strategy:
+      matrix:
+        component:
+          - witness-vector-generator
+    steps:
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to us-central1 GAR
+        run: |
+          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev
+
+      - name: Login and push to Asia GAR
+        run: |
+          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://asia-docker.pkg.dev
+          docker buildx imagetools create \
+            --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }} \
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }}
+
+      - name: Login and push to Europe GAR
+        run: |
+          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://europe-docker.pkg.dev
+          docker buildx imagetools create \
+            --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }} \
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }}
+          

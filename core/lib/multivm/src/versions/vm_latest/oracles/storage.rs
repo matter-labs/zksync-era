@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use zk_evm_1_4_0::{
+use zk_evm_1_4_1::{
     abstractions::{RefundType, RefundedAmounts, Storage as VmStorageOracle},
     aux_structures::{LogQuery, Timestamp},
     zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
@@ -17,12 +17,15 @@ use zksync_types::{
 };
 use zksync_utils::u256_to_h256;
 
-use crate::vm_latest::old_vm::{
-    history_recorder::{
-        AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
-        HistoryRecorder, StorageWrapper, VectorHistoryEvent, WithHistory,
+use crate::{
+    glue::GlueInto,
+    vm_latest::old_vm::{
+        history_recorder::{
+            AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
+            HistoryRecorder, StorageWrapper, VectorHistoryEvent, WithHistory,
+        },
+        oracles::OracleWithHistory,
     },
-    oracles::OracleWithHistory,
 };
 
 // While the storage does not support different shards, it was decided to write the
@@ -53,12 +56,17 @@ pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
     pub(crate) paid_changes: HistoryRecorder<HashMap<StorageKey, u32>, H>,
 
     // The map that contains all the first values read from storage for each slot.
-    // While formally it does not have to be rollbackable, we still do it to avoid memory bloat
+    // While formally it does not have to be capable of rolling back, we still do it to avoid memory bloat
     // for unused slots.
     pub(crate) initial_values: HistoryRecorder<HashMap<StorageKey, U256>, H>,
 
     // Storage refunds that oracle has returned in `estimate_refunds_for_write`.
     pub(crate) returned_refunds: HistoryRecorder<Vec<u32>, H>,
+
+    // Keeps track of storage keys that were ever written to.
+    pub(crate) written_keys: HistoryRecorder<HashMap<StorageKey, ()>, HistoryEnabled>,
+    // Keeps track of storage keys that were ever read.
+    pub(crate) read_keys: HistoryRecorder<HashMap<StorageKey, ()>, HistoryEnabled>,
 }
 
 impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
@@ -69,6 +77,8 @@ impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
         self.paid_changes.rollback_to_timestamp(timestamp);
         self.initial_values.rollback_to_timestamp(timestamp);
         self.returned_refunds.rollback_to_timestamp(timestamp);
+        self.written_keys.rollback_to_timestamp(timestamp);
+        self.read_keys.rollback_to_timestamp(timestamp);
     }
 }
 
@@ -81,6 +91,8 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             paid_changes: Default::default(),
             initial_values: Default::default(),
             returned_refunds: Default::default(),
+            written_keys: Default::default(),
+            read_keys: Default::default(),
         }
     }
 
@@ -91,6 +103,8 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         self.paid_changes.delete_history();
         self.initial_values.delete_history();
         self.returned_refunds.delete_history();
+        self.written_keys.delete_history();
+        self.read_keys.delete_history();
     }
 
     fn is_storage_key_free(&self, key: &StorageKey) -> bool {
@@ -108,8 +122,12 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         }
     }
 
-    pub fn read_value(&mut self, mut query: LogQuery) -> LogQuery {
+    fn read_value(&mut self, mut query: LogQuery) -> LogQuery {
         let key = triplet_to_storage_key(query.shard_id, query.address, query.key);
+
+        if !self.read_keys.inner().contains_key(&key) {
+            self.read_keys.insert(key, (), query.timestamp);
+        }
         let current_value = self.storage.read_from_storage(&key);
 
         query.read_value = current_value;
@@ -118,7 +136,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
 
         self.frames_stack.push_forward(
             Box::new(StorageLogQuery {
-                log_query: query,
+                log_query: query.glue_into(),
                 log_type: StorageLogQueryType::Read,
             }),
             query.timestamp,
@@ -127,8 +145,11 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         query
     }
 
-    pub fn write_value(&mut self, query: LogQuery) -> LogQuery {
+    fn write_value(&mut self, query: LogQuery) -> LogQuery {
         let key = triplet_to_storage_key(query.shard_id, query.address, query.key);
+        if !self.written_keys.inner().contains_key(&key) {
+            self.written_keys.insert(key, (), query.timestamp);
+        }
         let current_value =
             self.storage
                 .write_to_storage(key, query.written_value, query.timestamp);
@@ -143,7 +164,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         self.set_initial_value(&key, current_value, query.timestamp);
 
         let mut storage_log_query = StorageLogQuery {
-            log_query: query,
+            log_query: query.glue_into(),
             log_type: log_query_type,
         };
         self.frames_stack
@@ -194,7 +215,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             let required_pubdata =
                 self.base_price_for_write(&key, first_slot_value, current_slot_value);
 
-            // We assume that "prepaid_for_slot" represents both the number of pubdata published and the number of bytes paid by the previous transactions
+            // We assume that `prepaid_for_slot` represents both the number of pubdata published and the number of bytes paid by the previous transactions
             // as they should be identical.
             let prepaid_for_slot = self
                 .pre_paid_changes
@@ -274,9 +295,9 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
     ) -> &[Box<StorageLogQuery>] {
         let logs = self.frames_stack.forward().current_frame();
 
-        // Select all of the last elements where l.log_query.timestamp >= from_timestamp.
+        // Select all of the last elements where `l.log_query.timestamp >= from_timestamp`.
         // Note, that using binary search here is dangerous, because the logs are not sorted by timestamp.
-        logs.rsplit(|l| l.log_query.timestamp < from_timestamp)
+        logs.rsplit(|l| l.log_query.timestamp < from_timestamp.glue_into())
             .next()
             .unwrap_or(&[])
     }
@@ -322,6 +343,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         _monotonic_cycle_counter: u32,
         mut query: LogQuery,
     ) -> LogQuery {
+        // ```
         // tracing::trace!(
         //     "execute partial query cyc {:?} addr {:?} key {:?}, rw {:?}, wr {:?}, tx {:?}",
         //     _monotonic_cycle_counter,
@@ -331,6 +353,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         //     query.written_value,
         //     query.tx_number_in_block
         // );
+        // ```
         assert!(!query.rollback);
         if query.rw_flag {
             // The number of bytes that have been compensated by the user to perform this write
@@ -411,7 +434,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
                     }
                 };
 
-                let LogQuery { written_value, .. } = query.log_query;
+                let LogQuery { written_value, .. } = query.log_query.glue_into();
                 let key = triplet_to_storage_key(
                     query.log_query.shard_id,
                     query.log_query.address,
@@ -425,7 +448,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
                 );
 
                 // Additional validation that the current value was correct
-                // Unwrap is safe because the return value from write_inner is the previous value in this leaf.
+                // Unwrap is safe because the return value from `write_inner` is the previous value in this leaf.
                 // It is impossible to set leaf value to `None`
                 assert_eq!(current_value, written_value);
             }
@@ -439,7 +462,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
 
 /// Returns the number of bytes needed to publish a slot.
 // Since we need to publish the state diffs onchain, for each of the updated storage slot
-// we basically need to publish the following pair: (<storage_key, compressed_new_value>).
+// we basically need to publish the following pair: `(<storage_key, compressed_new_value>)`.
 // For key we use the following optimization:
 //   - The first time we publish it, we use 32 bytes.
 //         Then, we remember a 8-byte id for this slot and assign it to it. We call this initial write.

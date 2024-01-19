@@ -124,7 +124,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                     root: block_hash,
                     logs_bloom: Default::default(),
                     // Even though the Rust SDK recommends us to supply "None" for legacy transactions
-                    // we always supply some number anyway to have the same behaviour as most popular RPCs
+                    // we always supply some number anyway to have the same behavior as most popular RPCs
                     transaction_type: Some(tx_type),
                 }
             });
@@ -321,23 +321,12 @@ impl TransactionsWeb3Dal<'_, '_> {
         Ok((hashes, last_loc))
     }
 
+    /// `committed_next_nonce` should equal the nonce for `initiator_address` in the storage.
     pub async fn next_nonce_by_initiator_account(
         &mut self,
         initiator_address: Address,
+        committed_next_nonce: u64,
     ) -> Result<U256, SqlxError> {
-        let latest_block_number = self
-            .storage
-            .blocks_web3_dal()
-            .resolve_block_id(api::BlockId::Number(api::BlockNumber::Latest))
-            .await?
-            .expect("Failed to get `latest` nonce");
-        let latest_nonce = self
-            .storage
-            .storage_web3_dal()
-            .get_address_historical_nonce(initiator_address, latest_block_number)
-            .await?
-            .as_u64();
-
         // Get nonces of non-rejected transactions, starting from the 'latest' nonce.
         // `latest` nonce is used, because it is guaranteed that there are no gaps before it.
         // `(miniblock_number IS NOT NULL OR error IS NULL)` is the condition that filters non-rejected transactions.
@@ -361,7 +350,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                 nonce
             "#,
             initiator_address.as_bytes(),
-            latest_nonce as i64
+            committed_next_nonce as i64
         )
         .fetch_all(self.storage.conn())
         .await?
@@ -370,7 +359,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         .collect();
 
         // Find pending nonce as the first "gap" in nonces.
-        let mut pending_nonce = latest_nonce;
+        let mut pending_nonce = committed_next_nonce;
         for nonce in non_rejected_nonces {
             if pending_nonce == nonce {
                 pending_nonce += 1;
@@ -387,7 +376,7 @@ impl TransactionsWeb3Dal<'_, '_> {
     pub async fn get_raw_miniblock_transactions(
         &mut self,
         miniblock: MiniblockNumber,
-    ) -> Result<Vec<Transaction>, SqlxError> {
+    ) -> sqlx::Result<Vec<Transaction>> {
         let rows = sqlx::query_as!(
             StorageTransaction,
             r#"
@@ -411,8 +400,10 @@ impl TransactionsWeb3Dal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use zksync_types::{
-        block::MiniblockHasher, fee::TransactionExecutionMetrics, l2::L2Tx, ProtocolVersion,
+        block::MiniblockHasher, fee::TransactionExecutionMetrics, l2::L2Tx, Nonce, ProtocolVersion,
         ProtocolVersionId,
     };
 
@@ -535,5 +526,103 @@ mod tests {
             .unwrap();
         assert_eq!(raw_txs.len(), 1);
         assert_eq!(raw_txs[0].hash(), tx_hash);
+    }
+
+    #[tokio::test]
+    async fn getting_next_nonce_by_initiator_account() {
+        let connection_pool = ConnectionPool::test_pool().await;
+        let mut conn = connection_pool.access_storage().await.unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .await;
+
+        let initiator = Address::repeat_byte(1);
+        let next_nonce = conn
+            .transactions_web3_dal()
+            .next_nonce_by_initiator_account(initiator, 0)
+            .await
+            .unwrap();
+        assert_eq!(next_nonce, 0.into());
+
+        let mut tx_by_nonce = HashMap::new();
+        for nonce in [0, 1, 4] {
+            let mut tx = mock_l2_transaction();
+            // Changing transaction fields invalidates its signature, but it's OK for test purposes
+            tx.common_data.nonce = Nonce(nonce);
+            tx.common_data.initiator_address = initiator;
+            tx_by_nonce.insert(nonce, tx.clone());
+            conn.transactions_dal()
+                .insert_transaction_l2(tx, TransactionExecutionMetrics::default())
+                .await;
+        }
+
+        let next_nonce = conn
+            .transactions_web3_dal()
+            .next_nonce_by_initiator_account(initiator, 0)
+            .await
+            .unwrap();
+        assert_eq!(next_nonce, 2.into());
+
+        // Reject the transaction with nonce 1, so that it'd be not taken into account.
+        conn.transactions_dal()
+            .mark_tx_as_rejected(tx_by_nonce[&1].hash(), "oops")
+            .await;
+        let next_nonce = conn
+            .transactions_web3_dal()
+            .next_nonce_by_initiator_account(initiator, 0)
+            .await
+            .unwrap();
+        assert_eq!(next_nonce, 1.into());
+
+        // Include transactions in a miniblock (including the rejected one), so that they are taken into account again.
+        let mut miniblock = create_miniblock_header(1);
+        miniblock.l2_tx_count = 2;
+        conn.blocks_dal()
+            .insert_miniblock(&miniblock)
+            .await
+            .unwrap();
+        let executed_txs = [
+            mock_execution_result(tx_by_nonce[&0].clone()),
+            mock_execution_result(tx_by_nonce[&1].clone()),
+        ];
+        conn.transactions_dal()
+            .mark_txs_as_executed_in_miniblock(miniblock.number, &executed_txs, 1.into())
+            .await;
+
+        let next_nonce = conn
+            .transactions_web3_dal()
+            .next_nonce_by_initiator_account(initiator, 0)
+            .await
+            .unwrap();
+        assert_eq!(next_nonce, 2.into());
+    }
+
+    #[tokio::test]
+    async fn getting_next_nonce_by_initiator_account_after_snapshot_recovery() {
+        // Emulate snapshot recovery: no transactions with past nonces are present in the storage
+        let connection_pool = ConnectionPool::test_pool().await;
+        let mut conn = connection_pool.access_storage().await.unwrap();
+        let initiator = Address::repeat_byte(1);
+        let next_nonce = conn
+            .transactions_web3_dal()
+            .next_nonce_by_initiator_account(initiator, 1)
+            .await
+            .unwrap();
+        assert_eq!(next_nonce, 1.into());
+
+        let mut tx = mock_l2_transaction();
+        // Changing transaction fields invalidates its signature, but it's OK for test purposes
+        tx.common_data.nonce = Nonce(1);
+        tx.common_data.initiator_address = initiator;
+        conn.transactions_dal()
+            .insert_transaction_l2(tx, TransactionExecutionMetrics::default())
+            .await;
+
+        let next_nonce = conn
+            .transactions_web3_dal()
+            .next_nonce_by_initiator_account(initiator, 1)
+            .await
+            .unwrap();
+        assert_eq!(next_nonce, 2.into());
     }
 }

@@ -27,7 +27,7 @@ from the database and do their part of the pipeline.
 ```mermaid
 flowchart LR
     A["Operator"] --> |Produces block| F[Prover Gateway]
-    F --> |Inserts into DB| B["Postgress DB"]
+    F --> |Inserts into DB| B["Postgres DB"]
     B --> |Retrieves proven block \nafter compression| F
     B --> C["Witness"]
     C --- C1["Basic Circuits"]
@@ -43,8 +43,9 @@ flowchart LR
 
 ### Prerequisites
 
-Make sure these dependencies are installed and available on your machine: [Installing dependencies](./setup-dev.md) Once
-that is done, before starting, make sure you go into the root of the repository, then run
+Make sure these dependencies are installed and available on your machine:
+[Installing dependencies](../../docs/guides/setup-dev.md) Once that is done, before starting, make sure you go into the
+root of the repository, then run
 
 ```
 export ZKSYNC_HOME=$(pwd)
@@ -108,8 +109,8 @@ Machine specs:
    API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --all_rounds
    ```
 
-   Note that this will automatically open the three ports after the one specified in enviromental variable, in this case
-   3117, 3118 and 3119.
+   Note that this will automatically open the three ports after the one specified in environmental variable, in this
+   case 3117, 3118 and 3119.
 
 7. Run prover to perform actual proving:
 
@@ -201,7 +202,7 @@ zk status prover
 ```
 
 This might take a while (around an hour and a half on my machine using the CPU prover), you can check on it once in a
-while. A succesful flow should output something like
+while. A successful flow should output something like
 
 ```
 ==== FRI Prover status ====
@@ -211,7 +212,7 @@ Verification key hash on contract is 0x4be443afd605a782b6e56d199df2460a025c81b3d
 Verification key in database is 0x4be443afd605a782b6e56d199df2460a025c81b3dea144e135bece83612563f2
 Verifier hash matches.
 Verifier params on contract are 0x5a3ef282b21e12fe1f4438e5bb158fc5060b160559c5158c6389d62d9fe3d080, 0x72167c43a46cf38875b267d67716edc4563861364a3c03ab7aee73498421e828, 0x0000000000000000000000000000000000000000000000000000000000000000
-Verifcation params match.
+Verification params match.
 Next block that should be verified is: 2
 Checking status of the proofs...
 Proof progress for 1 : 111 successful, 0 failed, 0 in progress, 0 queued.  Compression job status: successful
@@ -231,8 +232,8 @@ Performing circuit upgrade requires crypto library to be updated and generating 
 finalization hints if the circuit changes. Below steps can be used to perform circuit upgrade:
 
 1. checkout if the circuit geometry has changed in the new version of the circuit by running the
-   [workflow](https://github.com/matter-labs/zkevm_test_harness/actions/workflows/geometry-config-generator.yml) in
-   harness and merge the generated PR.
+   [workflow](https://github.com/matter-labs/era-zkevm_test_harness/blob/v1.4.0/.github/workflows/.github/workflows/geometry-config-generator.yml)
+   in harness and merge the generated PR.
 2. update the relevant crypto dependencies(boojum, zkevm_circuit, harness, etc) in `Cargo.lock`, for example:
    `cargo update -p zkevm_test_harness@1.4.0`
 3. prepare an PR with the updated dependencies [sample PR](https://github.com/matter-labs/zksync-2-dev/pull/2481).
@@ -250,8 +251,5 @@ finalization hints if the circuit changes. Below steps can be used to perform ci
    PR to generate the gpu setup data.
 8. Once the setup data generation workflows are successful, update the PR with `setup_keys_id` id in
    [build-docker-from-tag.yml](../../.github/workflows/build-docker-from-tag.yml) and in
-   [fri-gpu-prover-integration-test.yml](../../.github/workflows/fri-gpu-prover-integration-test.yml), make sure to only
-   do it from `FRI prover` not old.
-9. Run the GPU integration test
-   [workflow](https://github.com/matter-labs/zksync-era/actions/workflows/fri-gpu-prover-integration-test.yml) against
-   the PR to verify the GPU prover is working fine with new circuits.
+   [fri-gpu-prover-integration-test.yml](https://github.com/matter-labs/zksync-2-dev/blob/main/.github/workflows/fri-gpu-prover-integration-test.yml),
+   make sure to only do it from `FRI prover` not old.

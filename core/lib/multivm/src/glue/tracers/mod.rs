@@ -37,7 +37,10 @@ use crate::HistoryMode;
 pub type MultiVmTracerPointer<S, H> = Box<dyn MultiVMTracer<S, H>>;
 
 pub trait MultiVMTracer<S: WriteStorage, H: HistoryMode>:
-    IntoLatestTracer<S, H> + IntoVmVirtualBlocksTracer<S, H> + IntoVmRefundsEnhancementTracer<S, H>
+    IntoLatestTracer<S, H>
+    + IntoVmVirtualBlocksTracer<S, H>
+    + IntoVmRefundsEnhancementTracer<S, H>
+    + IntoVmBoojumIntegrationTracer<S, H>
 {
     fn into_tracer_pointer(self) -> MultiVmTracerPointer<S, H>
     where
@@ -48,7 +51,7 @@ pub trait MultiVMTracer<S: WriteStorage, H: HistoryMode>:
 }
 
 pub trait IntoLatestTracer<S: WriteStorage, H: HistoryMode> {
-    fn latest(&self) -> crate::vm_latest::TracerPointer<S, H::VmBoojumIntegration>;
+    fn latest(&self) -> crate::vm_latest::TracerPointer<S, H::Vm1_4_1>;
 }
 
 pub trait IntoVmVirtualBlocksTracer<S: WriteStorage, H: HistoryMode> {
@@ -63,13 +66,19 @@ pub trait IntoVmRefundsEnhancementTracer<S: WriteStorage, H: HistoryMode> {
     ) -> Box<dyn crate::vm_refunds_enhancement::VmTracer<S, H::VmVirtualBlocksRefundsEnhancement>>;
 }
 
+pub trait IntoVmBoojumIntegrationTracer<S: WriteStorage, H: HistoryMode> {
+    fn vm_boojum_integration(
+        &self,
+    ) -> Box<dyn crate::vm_boojum_integration::VmTracer<S, H::VmBoojumIntegration>>;
+}
+
 impl<S, T, H> IntoLatestTracer<S, H> for T
 where
     S: WriteStorage,
     H: HistoryMode,
-    T: crate::vm_latest::VmTracer<S, H::VmBoojumIntegration> + Clone + 'static,
+    T: crate::vm_latest::VmTracer<S, H::Vm1_4_1> + Clone + 'static,
 {
-    fn latest(&self) -> crate::vm_latest::TracerPointer<S, H::VmBoojumIntegration> {
+    fn latest(&self) -> crate::vm_latest::TracerPointer<S, H::Vm1_4_1> {
         Box::new(self.clone())
     }
 }
@@ -103,12 +112,26 @@ where
     }
 }
 
+impl<S, T, H> IntoVmBoojumIntegrationTracer<S, H> for T
+where
+    S: WriteStorage,
+    H: HistoryMode,
+    T: crate::vm_boojum_integration::VmTracer<S, H::VmBoojumIntegration> + Clone + 'static,
+{
+    fn vm_boojum_integration(
+        &self,
+    ) -> Box<dyn crate::vm_boojum_integration::VmTracer<S, H::VmBoojumIntegration>> {
+        Box::new(self.clone())
+    }
+}
+
 impl<S, H, T> MultiVMTracer<S, H> for T
 where
     S: WriteStorage,
     H: HistoryMode,
     T: IntoLatestTracer<S, H>
         + IntoVmVirtualBlocksTracer<S, H>
-        + IntoVmRefundsEnhancementTracer<S, H>,
+        + IntoVmRefundsEnhancementTracer<S, H>
+        + IntoVmBoojumIntegrationTracer<S, H>,
 {
 }

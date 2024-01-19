@@ -11,11 +11,9 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
     commitment::{L1BatchMetadata, L1BatchWithMetadata},
-    Address, L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256,
-    MAX_GAS_PER_PUBDATA_BYTE, U256,
+    Address, L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256, U256,
 };
 
-pub use crate::models::storage_sync::ConsensusBlockFields;
 use crate::{
     instrument::InstrumentExt,
     models::storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageMiniblockHeader},
@@ -43,8 +41,8 @@ impl BlocksDal<'_, '_> {
         Ok(count == 0)
     }
 
-    pub async fn get_sealed_l1_batch_number(&mut self) -> anyhow::Result<L1BatchNumber> {
-        let number = sqlx::query!(
+    pub async fn get_sealed_l1_batch_number(&mut self) -> sqlx::Result<Option<L1BatchNumber>> {
+        let row = sqlx::query!(
             r#"
             SELECT
                 MAX(number) AS "number"
@@ -57,15 +55,13 @@ impl BlocksDal<'_, '_> {
         .instrument("get_sealed_block_number")
         .report_latency()
         .fetch_one(self.storage.conn())
-        .await?
-        .number
-        .context("DAL invocation before genesis")?;
+        .await?;
 
-        Ok(L1BatchNumber(number as u32))
+        Ok(row.number.map(|num| L1BatchNumber(num as u32)))
     }
 
-    pub async fn get_sealed_miniblock_number(&mut self) -> sqlx::Result<MiniblockNumber> {
-        let number: i64 = sqlx::query!(
+    pub async fn get_sealed_miniblock_number(&mut self) -> sqlx::Result<Option<MiniblockNumber>> {
+        let row = sqlx::query!(
             r#"
             SELECT
                 MAX(number) AS "number"
@@ -76,10 +72,9 @@ impl BlocksDal<'_, '_> {
         .instrument("get_sealed_miniblock_number")
         .report_latency()
         .fetch_one(self.storage.conn())
-        .await?
-        .number
-        .unwrap_or(0);
-        Ok(MiniblockNumber(number as u32))
+        .await?;
+
+        Ok(row.number.map(|number| MiniblockNumber(number as u32)))
     }
 
     /// Returns the number of the earliest L1 batch present in the DB, or `None` if there are no L1 batches.
@@ -452,6 +447,7 @@ impl BlocksDal<'_, '_> {
         predicted_block_gas: BlockGasCount,
         events_queue: &[LogQuery],
         storage_refunds: &[u32],
+        predicted_circuits: u32,
     ) -> anyhow::Result<()> {
         let priority_onchain_data: Vec<Vec<u8>> = header
             .priority_ops_onchain_data
@@ -511,6 +507,7 @@ impl BlocksDal<'_, '_> {
                     system_logs,
                     storage_refunds,
                     pubdata_input,
+                    predicted_circuits,
                     created_at,
                     updated_at
                 )
@@ -540,6 +537,7 @@ impl BlocksDal<'_, '_> {
                     $22,
                     $23,
                     $24,
+                    $25,
                     NOW(),
                     NOW()
                 )
@@ -568,6 +566,7 @@ impl BlocksDal<'_, '_> {
             &system_logs,
             &storage_refunds,
             pubdata_input,
+            predicted_circuits as i32,
         )
         .execute(transaction.conn())
         .await?;
@@ -595,6 +594,7 @@ impl BlocksDal<'_, '_> {
     ) -> anyhow::Result<()> {
         let base_fee_per_gas = BigDecimal::from_u64(miniblock_header.base_fee_per_gas)
             .context("base_fee_per_gas should fit in u64")?;
+
         sqlx::query!(
             r#"
             INSERT INTO
@@ -612,11 +612,12 @@ impl BlocksDal<'_, '_> {
                     default_aa_code_hash,
                     protocol_version,
                     virtual_blocks,
+                    fair_pubdata_price,
                     created_at,
                     updated_at
                 )
             VALUES
-                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())
+                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
             "#,
             miniblock_header.number.0 as i64,
             miniblock_header.timestamp as i64,
@@ -624,9 +625,9 @@ impl BlocksDal<'_, '_> {
             miniblock_header.l1_tx_count as i32,
             miniblock_header.l2_tx_count as i32,
             base_fee_per_gas,
-            miniblock_header.l1_gas_price as i64,
-            miniblock_header.l2_fair_gas_price as i64,
-            MAX_GAS_PER_PUBDATA_BYTE as i64,
+            miniblock_header.batch_fee_input.l1_gas_price() as i64,
+            miniblock_header.batch_fee_input.fair_l2_gas_price() as i64,
+            miniblock_header.gas_per_pubdata_limit as i64,
             miniblock_header
                 .base_system_contracts_hashes
                 .bootloader
@@ -637,87 +638,10 @@ impl BlocksDal<'_, '_> {
                 .as_bytes(),
             miniblock_header.protocol_version.map(|v| v as i32),
             miniblock_header.virtual_blocks as i64,
+            miniblock_header.batch_fee_input.fair_pubdata_price() as i64,
         )
         .execute(self.storage.conn())
         .await?;
-        Ok(())
-    }
-
-    /// Fetches the number of the last miniblock with consensus fields set.
-    /// Miniblocks with Consensus fields set constitute a prefix of sealed miniblocks,
-    /// so it is enough to traverse the miniblocks in descending order to find the last
-    /// with consensus fields.
-    ///
-    /// If better efficiency is needed we can add an index on "miniblocks without consensus fields".
-    pub async fn get_last_miniblock_number_with_consensus_fields(
-        &mut self,
-    ) -> anyhow::Result<Option<MiniblockNumber>> {
-        let Some(row) = sqlx::query!(
-            r#"
-            SELECT
-                number
-            FROM
-                miniblocks
-            WHERE
-                consensus IS NOT NULL
-            ORDER BY
-                number DESC
-            LIMIT
-                1
-            "#
-        )
-        .fetch_optional(self.storage.conn())
-        .await?
-        else {
-            return Ok(None);
-        };
-        Ok(Some(MiniblockNumber(row.number.try_into()?)))
-    }
-
-    /// Checks whether the specified miniblock has consensus field set.
-    pub async fn has_consensus_fields(&mut self, number: MiniblockNumber) -> sqlx::Result<bool> {
-        Ok(sqlx::query!(
-            r#"
-            SELECT
-                COUNT(*) AS "count!"
-            FROM
-                miniblocks
-            WHERE
-                number = $1
-                AND consensus IS NOT NULL
-            "#,
-            number.0 as i64
-        )
-        .fetch_one(self.storage.conn())
-        .await?
-        .count
-            > 0)
-    }
-
-    /// Sets consensus-related fields for the specified miniblock.
-    pub async fn set_miniblock_consensus_fields(
-        &mut self,
-        miniblock_number: MiniblockNumber,
-        consensus: &ConsensusBlockFields,
-    ) -> anyhow::Result<()> {
-        let result = sqlx::query!(
-            r#"
-            UPDATE miniblocks
-            SET
-                consensus = $2
-            WHERE
-                number = $1
-            "#,
-            miniblock_number.0 as i64,
-            zksync_protobuf::serde::serialize(consensus, serde_json::value::Serializer).unwrap(),
-        )
-        .execute(self.storage.conn())
-        .await?;
-
-        anyhow::ensure!(
-            result.rows_affected() == 1,
-            "Miniblock #{miniblock_number} is not present in Postgres"
-        );
         Ok(())
     }
 
@@ -736,10 +660,12 @@ impl BlocksDal<'_, '_> {
                 base_fee_per_gas,
                 l1_gas_price,
                 l2_fair_gas_price,
+                gas_per_pubdata_limit,
                 bootloader_code_hash,
                 default_aa_code_hash,
                 protocol_version,
-                virtual_blocks
+                virtual_blocks,
+                fair_pubdata_price
             FROM
                 miniblocks
             ORDER BY
@@ -769,10 +695,12 @@ impl BlocksDal<'_, '_> {
                 base_fee_per_gas,
                 l1_gas_price,
                 l2_fair_gas_price,
+                gas_per_pubdata_limit,
                 bootloader_code_hash,
                 default_aa_code_hash,
                 protocol_version,
-                virtual_blocks
+                virtual_blocks,
+                fair_pubdata_price
             FROM
                 miniblocks
             WHERE
@@ -1823,46 +1751,6 @@ impl BlocksDal<'_, '_> {
         Ok(Some((H256::from_slice(&hash), row.timestamp as u64)))
     }
 
-    pub async fn get_newest_l1_batch_header(&mut self) -> sqlx::Result<L1BatchHeader> {
-        let last_l1_batch = sqlx::query_as!(
-            StorageL1BatchHeader,
-            r#"
-            SELECT
-                number,
-                l1_tx_count,
-                l2_tx_count,
-                timestamp,
-                is_finished,
-                fee_account_address,
-                l2_to_l1_logs,
-                l2_to_l1_messages,
-                bloom,
-                priority_ops_onchain_data,
-                used_contract_hashes,
-                base_fee_per_gas,
-                l1_gas_price,
-                l2_fair_gas_price,
-                bootloader_code_hash,
-                default_aa_code_hash,
-                protocol_version,
-                compressed_state_diffs,
-                system_logs,
-                pubdata_input
-            FROM
-                l1_batches
-            ORDER BY
-                number DESC
-            LIMIT
-                1
-            "#
-        )
-        .instrument("get_newest_l1_batch_header")
-        .fetch_one(self.storage.conn())
-        .await?;
-
-        Ok(last_l1_batch.into())
-    }
-
     pub async fn get_l1_batch_metadata(
         &mut self,
         number: L1BatchNumber,
@@ -2232,7 +2120,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            l1_batch_number.0 as u32
+            l1_batch_number.0 as i32
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -2252,7 +2140,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            miniblock_number.0 as u32
+            miniblock_number.0 as i32
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -2343,7 +2231,7 @@ mod tests {
         header.l2_to_l1_messages.push(vec![33; 33]);
 
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
+            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
             .await
             .unwrap();
 
@@ -2392,7 +2280,7 @@ mod tests {
             execute: 10,
         };
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], &[])
+            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], 0)
             .await
             .unwrap();
 
@@ -2400,7 +2288,7 @@ mod tests {
         header.timestamp += 100;
         predicted_gas += predicted_gas;
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], &[])
+            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], 0)
             .await
             .unwrap();
 

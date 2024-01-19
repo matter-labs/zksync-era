@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use zk_evm_1_4_0::{
+use zk_evm_1_4_1::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
@@ -18,7 +18,7 @@ use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
 
 use crate::{
     interface::{
-        dyn_tracers::vm_1_4_0::DynTracer,
+        dyn_tracers::vm_1_4_1::DynTracer,
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         types::inputs::L1BatchEnv,
         VmExecutionMode,
@@ -56,7 +56,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
 
 impl<S: WriteStorage> PubdataTracer<S> {
     // Packs part of L1 Messenger total pubdata that corresponds to
-    // L2toL1Logs sent in the block
+    // `L2toL1Logs` sent in the block
     fn get_total_user_logs<H: HistoryMode>(
         &self,
         state: &ZkSyncVmState<S, H>,

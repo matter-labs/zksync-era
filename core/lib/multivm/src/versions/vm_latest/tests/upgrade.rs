@@ -1,4 +1,4 @@
-use zk_evm_1_4_0::aux_structures::Timestamp;
+use zk_evm_1_4_1::aux_structures::Timestamp;
 use zksync_contracts::{deployer_contract, load_contract, load_sys_contract, read_bytecode};
 use zksync_state::WriteStorage;
 use zksync_test_account::TxType;
@@ -45,7 +45,7 @@ fn test_protocol_upgrade_is_first() {
     let protocol_upgrade_transaction = get_forced_deploy_tx(&[ForceDeployment {
         // The bytecode hash to put on an address
         bytecode_hash,
-        // The address on which to deploy the bytecodehash to
+        // The address on which to deploy the bytecode hash to
         address: H160::random(),
         // Whether to run the constructor on the force deployment
         call_constructor: false,
@@ -59,7 +59,7 @@ fn test_protocol_upgrade_is_first() {
     let another_protocol_upgrade_transaction = get_forced_deploy_tx(&[ForceDeployment {
         // The bytecode hash to put on an address
         bytecode_hash,
-        // The address on which to deploy the bytecodehash to
+        // The address on which to deploy the bytecode hash to
         address: H160::random(),
         // Whether to run the constructor on the force deployment
         call_constructor: false,
@@ -141,7 +141,7 @@ fn test_force_deploy_upgrade() {
     let transaction = get_forced_deploy_tx(&[ForceDeployment {
         // The bytecode hash to put on an address
         bytecode_hash,
-        // The address on which to deploy the bytecodehash to
+        // The address on which to deploy the bytecode hash to
         address: address_to_deploy,
         // Whether to run the constructor on the force deployment
         call_constructor: false,
@@ -180,7 +180,7 @@ fn test_complex_upgrader() {
     let msg_sender_test_hash = hash_bytecode(&read_msg_sender_test());
 
     // Let's assume that the bytecode for the implementation of the complex upgrade
-    // is already deployed in some address in userspace
+    // is already deployed in some address in user space
     let upgrade_impl = H160::random();
     let account_code_key = get_code_key(&upgrade_impl);
 
@@ -240,7 +240,7 @@ fn test_complex_upgrader() {
 struct ForceDeployment {
     // The bytecode hash to put on an address
     bytecode_hash: H256,
-    // The address on which to deploy the bytecodehash to
+    // The address on which to deploy the bytecode hash to
     address: Address,
     // Whether to run the constructor on the force deployment
     call_constructor: bool,
@@ -295,8 +295,8 @@ fn get_forced_deploy_tx(deployment: &[ForceDeployment]) -> Transaction {
 
 // Returns the transaction that performs a complex protocol upgrade.
 // The first param is the address of the implementation of the complex upgrade
-// in user-space, while the next 3 params are params of the implenentaiton itself
-// For the explanatation for the parameters, please refer to:
+// in user-space, while the next 3 params are params of the implementation itself
+// For the explanation for the parameters, please refer to:
 // etc/contracts-test-data/complex-upgrade/complex-upgrade.sol
 fn get_complex_upgrade_tx(
     implementation_address: Address,

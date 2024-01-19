@@ -254,8 +254,11 @@ impl ReorgDetector {
                 .get_last_l1_batch_number_with_metadata()
                 .await?
                 .context("L1 batches table unexpectedly emptied")?;
-            let sealed_miniblock_number =
-                storage.blocks_dal().get_sealed_miniblock_number().await?;
+            let sealed_miniblock_number = storage
+                .blocks_dal()
+                .get_sealed_miniblock_number()
+                .await?
+                .context("miniblocks table unexpectedly emptied")?;
             drop(storage);
 
             tracing::trace!(
@@ -267,12 +270,12 @@ impl ReorgDetector {
             let miniblock_hashes_match =
                 self.miniblock_hashes_match(sealed_miniblock_number).await?;
 
-            // The only event that triggers reorg detection and node rollback is if the
+            // The only event that triggers re-org detection and node rollback is if the
             // hash mismatch at the same block height is detected, be it miniblocks or batches.
             //
             // In other cases either there is only a height mismatch which means that one of
             // the nodes needs to do catching up; however, it is not certain that there is actually
-            // a reorg taking place.
+            // a re-org taking place.
             if root_hashes_match && miniblock_hashes_match {
                 self.block_updater
                     .update_correct_block(sealed_miniblock_number, sealed_l1_batch_number);

@@ -30,10 +30,24 @@ impl<S: WriteStorage, H: HistoryMode> Default for TracerDispatcher<S, H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>>
-    for crate::vm_latest::TracerDispatcher<S, H::VmBoojumIntegration>
+    for crate::vm_latest::TracerDispatcher<S, H::Vm1_4_1>
 {
     fn from(value: TracerDispatcher<S, H>) -> Self {
         Self::new(value.tracers.into_iter().map(|x| x.latest()).collect())
+    }
+}
+
+impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>>
+    for crate::vm_boojum_integration::TracerDispatcher<S, H::VmBoojumIntegration>
+{
+    fn from(value: TracerDispatcher<S, H>) -> Self {
+        Self::new(
+            value
+                .tracers
+                .into_iter()
+                .map(|x| x.vm_boojum_integration())
+                .collect(),
+        )
     }
 }
 

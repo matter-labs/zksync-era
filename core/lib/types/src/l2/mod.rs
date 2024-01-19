@@ -26,13 +26,24 @@ pub mod error;
 pub enum TransactionType {
     // Native ECDSA Transaction
     LegacyTransaction = 0,
-
     EIP2930Transaction = 1,
     EIP1559Transaction = 2,
-    // Eip 712 transaction with additional fields specified for zksync
+    // EIP 712 transaction with additional fields specified for zkSync
     EIP712Transaction = EIP_712_TX_TYPE as u32,
     PriorityOpTransaction = PRIORITY_OPERATION_L2_TX_TYPE as u32,
     ProtocolUpgradeTransaction = PROTOCOL_UPGRADE_TX_TYPE as u32,
+}
+
+impl TransactionType {
+    /// Returns whether a transaction type is an Ethereum transaction type.
+    pub fn is_ethereum_type(&self) -> bool {
+        matches!(
+            self,
+            TransactionType::LegacyTransaction
+                | TransactionType::EIP2930Transaction
+                | TransactionType::EIP1559Transaction
+        )
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -289,7 +300,7 @@ impl L2Tx {
 fn signature_to_vrs(signature: &[u8], tx_type: u32) -> (Option<U64>, Option<U256>, Option<U256>) {
     let signature = if tx_type == LEGACY_TX_TYPE as u32 {
         // Note that we use `deserialize_packed_no_v_check` here, because we want to preserve the original `v` value.
-        // This is needed due to inconsistent behaviour on Ethereum where the `v` value is >= 27 for legacy transactions
+        // This is needed due to inconsistent behavior on Ethereum where the `v` value is >= 27 for legacy transactions
         // and is either 0 or 1 for other ones.
         PackedEthSignature::deserialize_packed_no_v_check(signature)
     } else {

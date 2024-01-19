@@ -86,7 +86,7 @@ pub struct Variable(pub(crate) u64);
 ```
 
 which is represented in the current Field. Variable is quite diverse, and to have "good" alignment and size we manually
-do encoding management to be able to represent it as both copiable variable or witness.
+do encoding management to be able to represent it as both copyable variable or witness.
 
 The implementation of this circuit type itself is similar. We can also divide them into classes as main and dependent:
 Such type like U8-U512 decoding inside functions to Num<F> for using them in logical operations. As mentioned above, the
@@ -120,7 +120,7 @@ As you see, you can allocate both with and without witnesses.
 
 ## Hash function
 
-In gadgets we have a lot of hast implementation:
+In gadgets we have a lot of hash implementation:
 
 - blake2s
 - keccak256
@@ -151,7 +151,7 @@ And here is the main functions:
 
 ```rust
 fn push(&mut self, value: Element) {
- // increment lenght
+ // increment length
  // head - hash(head, value)
  // witness.push_back(value.witness)
 }

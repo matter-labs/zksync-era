@@ -29,11 +29,11 @@ impl SetChainIDEventProcessor {
 }
 
 #[async_trait::async_trait]
-impl<W: EthClient + Sync> EventProcessor<W> for SetChainIDEventProcessor {
+impl EventProcessor for SetChainIDEventProcessor {
     async fn process_events(
         &mut self,
         storage: &mut StorageProcessor<'_>,
-        _client: &W,
+        client: &dyn EthClient,
         events: Vec<Log>,
     ) -> Result<(), Error> {
         let mut upgrades = Vec::new();

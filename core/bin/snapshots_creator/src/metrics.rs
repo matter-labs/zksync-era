@@ -24,7 +24,7 @@ pub(crate) struct SnapshotsCreatorMetrics {
     /// Number of chunks in the most recently generated snapshot. Set when a snapshot generation starts.
     pub storage_logs_chunks_count: Gauge<u64>,
     /// Number of chunks left to process for the snapshot being currently generated.
-    pub storage_logs_chunks_left_to_process: Gauge<u64>,
+    pub storage_logs_chunks_left_to_process: Gauge<usize>,
     /// Total latency of snapshot generation.
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
     pub snapshot_generation_duration: Histogram<Duration>,

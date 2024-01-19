@@ -17,6 +17,7 @@ use crate::eth_watch::{
     client::EthClient, event_processors::upgrades::UPGRADE_PROPOSAL_SIGNATURE, EthWatch,
 };
 
+#[derive(Debug)]
 struct FakeEthClientData {
     transactions: HashMap<u64, Vec<Log>>,
     diamond_upgrades: HashMap<u64, Vec<Log>>,
@@ -67,7 +68,7 @@ impl FakeEthClientData {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct FakeEthClient {
     inner: Arc<RwLock<FakeEthClientData>>,
 }
@@ -208,7 +209,7 @@ async fn test_normal_operation_l1_txs() {
     let mut watcher = EthWatch::new(
         Address::default(),
         None,
-        client.clone(),
+        Box::new(client.clone()),
         &connection_pool,
         std::time::Duration::from_nanos(1),
     )
@@ -256,7 +257,7 @@ async fn test_normal_operation_upgrades() {
     let mut watcher = EthWatch::new(
         Address::default(),
         None,
-        client.clone(),
+        Box::new(client.clone()),
         &connection_pool,
         std::time::Duration::from_nanos(1),
     )
@@ -317,7 +318,7 @@ async fn test_gap_in_upgrades() {
     let mut watcher = EthWatch::new(
         Address::default(),
         None,
-        client.clone(),
+        Box::new(client.clone()),
         &connection_pool,
         std::time::Duration::from_nanos(1),
     )
@@ -356,7 +357,7 @@ async fn test_normal_operation_governance_upgrades() {
     let mut watcher = EthWatch::new(
         Address::default(),
         Some(governance_contract()),
-        client.clone(),
+        Box::new(client.clone()),
         &connection_pool,
         std::time::Duration::from_nanos(1),
     )
@@ -418,7 +419,7 @@ async fn test_gap_in_single_batch() {
     let mut watcher = EthWatch::new(
         Address::default(),
         None,
-        client.clone(),
+        Box::new(client.clone()),
         &connection_pool,
         std::time::Duration::from_nanos(1),
     )
@@ -448,7 +449,7 @@ async fn test_gap_between_batches() {
     let mut watcher = EthWatch::new(
         Address::default(),
         None,
-        client.clone(),
+        Box::new(client.clone()),
         &connection_pool,
         std::time::Duration::from_nanos(1),
     )
@@ -483,7 +484,7 @@ async fn test_overlapping_batches() {
     let mut watcher = EthWatch::new(
         Address::default(),
         None,
-        client.clone(),
+        Box::new(client.clone()),
         &connection_pool,
         std::time::Duration::from_nanos(1),
     )

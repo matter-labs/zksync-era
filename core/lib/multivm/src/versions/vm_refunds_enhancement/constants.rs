@@ -2,12 +2,29 @@ use zk_evm_1_3_3::aux_structures::MemoryPage;
 pub use zk_evm_1_3_3::zkevm_opcode_defs::system_params::{
     ERGS_PER_CIRCUIT, INITIAL_STORAGE_WRITE_PUBDATA_BYTES, MAX_PUBDATA_PER_BLOCK,
 };
-use zksync_system_constants::{
-    L1_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS, MAX_TXS_IN_BLOCK,
-    USED_BOOTLOADER_MEMORY_WORDS,
-};
+use zksync_system_constants::{L1_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS};
 
 use crate::vm_refunds_enhancement::old_vm::utils::heap_page_from_base;
+
+/// The size of the bootloader memory in bytes which is used by the protocol.
+/// While the maximal possible size is a lot higher, we restrict ourselves to a certain limit to reduce
+/// the requirements on RAM.
+pub(crate) const USED_BOOTLOADER_MEMORY_BYTES: usize = 1 << 24;
+pub(crate) const USED_BOOTLOADER_MEMORY_WORDS: usize = USED_BOOTLOADER_MEMORY_BYTES / 32;
+
+// This the number of pubdata such that it should be always possible to publish
+// from a single transaction. Note, that these pubdata bytes include only bytes that are
+// to be published inside the body of transaction (i.e. excluding of factory deps).
+pub(crate) const GUARANTEED_PUBDATA_PER_L1_BATCH: u64 = 4000;
+
+// The users should always be able to provide `MAX_GAS_PER_PUBDATA_BYTE` gas per pubdata in their
+// transactions so that they are able to send at least `GUARANTEED_PUBDATA_PER_L1_BATCH` bytes per
+// transaction.
+pub(crate) const MAX_GAS_PER_PUBDATA_BYTE: u64 =
+    MAX_L2_TX_GAS_LIMIT / GUARANTEED_PUBDATA_PER_L1_BATCH;
+
+// The maximal number of transactions in a single batch
+pub(crate) const MAX_TXS_IN_BLOCK: usize = 1024;
 
 /// Max cycles for a single transaction.
 pub const MAX_CYCLES_FOR_TX: u32 = u32::MAX;
@@ -52,7 +69,7 @@ pub(crate) const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
     COMPRESSED_BYTECODES_OFFSET + COMPRESSED_BYTECODES_SLOTS;
 
 /// The size of the bootloader memory dedicated to the encodings of transactions
-pub const BOOTLOADER_TX_ENCODING_SPACE: u32 =
+pub(crate) const BOOTLOADER_TX_ENCODING_SPACE: u32 =
     (USED_BOOTLOADER_MEMORY_WORDS - TX_DESCRIPTION_OFFSET - MAX_TXS_IN_BLOCK) as u32;
 
 // Size of the bootloader tx description in words

@@ -11,10 +11,10 @@ use zk_evm_1_3_1::{
     },
 };
 use zksync_contracts::BaseSystemContracts;
-use zksync_system_constants::MAX_TXS_IN_BLOCK;
+use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{
-    zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address, Transaction, BOOTLOADER_ADDRESS,
-    L1_GAS_PER_PUBDATA_BYTE, MAX_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
+    fee_model::L1PeggedBatchFeeModelInput, zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER,
+    Address, Transaction, BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::{
     address_to_u256,
@@ -23,20 +23,23 @@ use zksync_utils::{
     misc::ceil_div,
 };
 
-use crate::vm_m6::{
-    bootloader_state::BootloaderState,
-    history_recorder::HistoryMode,
-    storage::Storage,
-    transaction_data::{TransactionData, L1_TX_TYPE},
-    utils::{
-        code_page_candidate_from_base, heap_page_from_base, BLOCK_GAS_LIMIT, INITIAL_BASE_PAGE,
+use crate::{
+    vm_latest::L1BatchEnv,
+    vm_m6::{
+        bootloader_state::BootloaderState,
+        history_recorder::HistoryMode,
+        storage::Storage,
+        transaction_data::{TransactionData, L1_TX_TYPE},
+        utils::{
+            code_page_candidate_from_base, heap_page_from_base, BLOCK_GAS_LIMIT, INITIAL_BASE_PAGE,
+        },
+        vm_instance::{MultiVMSubversion, ZkSyncVmState},
+        OracleTools, VmInstance,
     },
-    vm_instance::{MultiVMSubversion, ZkSyncVmState},
-    OracleTools, VmInstance,
 };
 
-// TODO (SMA-1703): move these to config and make them programmatically generatable.
-// fill these values in the similar fasion as other overhead-related constants
+// TODO (SMA-1703): move these to config and make them programmatically generable.
+// fill these values in the similar fashion as other overhead-related constants
 pub const BLOCK_OVERHEAD_GAS: u32 = 1200000;
 pub const BLOCK_OVERHEAD_L1_GAS: u32 = 1000000;
 pub const BLOCK_OVERHEAD_PUBDATA: u32 = BLOCK_OVERHEAD_L1_GAS / L1_GAS_PER_PUBDATA_BYTE;
@@ -58,7 +61,11 @@ pub struct BlockContext {
 
 impl BlockContext {
     pub fn block_gas_price_per_pubdata(&self) -> u64 {
-        derive_base_fee_and_gas_per_pubdata(self.l1_gas_price, self.fair_l2_gas_price).1
+        derive_base_fee_and_gas_per_pubdata(L1PeggedBatchFeeModelInput {
+            l1_gas_price: self.l1_gas_price,
+            fair_l2_gas_price: self.fair_l2_gas_price,
+        })
+        .1
     }
 }
 
@@ -76,36 +83,75 @@ pub(crate) fn eth_price_per_pubdata_byte(l1_gas_price: u64) -> u64 {
     l1_gas_price * (L1_GAS_PER_PUBDATA_BYTE as u64)
 }
 
-pub fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
+pub(crate) fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
     let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
 
     ceil_div(eth_price_per_pubdata_byte, base_fee)
 }
 
-pub fn derive_base_fee_and_gas_per_pubdata(l1_gas_price: u64, fair_gas_price: u64) -> (u64, u64) {
+pub(crate) fn derive_base_fee_and_gas_per_pubdata(
+    fee_input: L1PeggedBatchFeeModelInput,
+) -> (u64, u64) {
+    let L1PeggedBatchFeeModelInput {
+        l1_gas_price,
+        fair_l2_gas_price,
+    } = fee_input;
+
     let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
 
-    // The baseFee is set in such a way that it is always possible for a transaction to
+    // The `baseFee` is set in such a way that it is always possible for a transaction to
     // publish enough public data while compensating us for it.
     let base_fee = std::cmp::max(
-        fair_gas_price,
+        fair_l2_gas_price,
         ceil_div(eth_price_per_pubdata_byte, MAX_GAS_PER_PUBDATA_BYTE),
     );
 
     (
         base_fee,
-        base_fee_to_gas_per_pubdata(l1_gas_price, base_fee),
+        base_fee_to_gas_per_pubdata(fee_input.l1_gas_price, base_fee),
     )
+}
+
+pub(crate) fn get_batch_base_fee(l1_batch_env: &L1BatchEnv) -> u64 {
+    if let Some(base_fee) = l1_batch_env.enforced_base_fee {
+        return base_fee;
+    }
+    let (base_fee, _) =
+        derive_base_fee_and_gas_per_pubdata(l1_batch_env.fee_input.into_l1_pegged());
+    base_fee
 }
 
 impl From<BlockContext> for DerivedBlockContext {
     fn from(context: BlockContext) -> Self {
-        let base_fee =
-            derive_base_fee_and_gas_per_pubdata(context.l1_gas_price, context.fair_l2_gas_price).0;
+        let base_fee = derive_base_fee_and_gas_per_pubdata(L1PeggedBatchFeeModelInput {
+            l1_gas_price: context.l1_gas_price,
+            fair_l2_gas_price: context.fair_l2_gas_price,
+        })
+        .0;
 
         DerivedBlockContext { context, base_fee }
     }
 }
+
+/// The size of the bootloader memory in bytes which is used by the protocol.
+/// While the maximal possible size is a lot higher, we restrict ourselves to a certain limit to reduce
+/// the requirements on RAM.
+pub(crate) const USED_BOOTLOADER_MEMORY_BYTES: usize = 1 << 24;
+pub(crate) const USED_BOOTLOADER_MEMORY_WORDS: usize = USED_BOOTLOADER_MEMORY_BYTES / 32;
+
+// This the number of pubdata such that it should be always possible to publish
+// from a single transaction. Note, that these pubdata bytes include only bytes that are
+// to be published inside the body of transaction (i.e. excluding of factory deps).
+pub(crate) const GUARANTEED_PUBDATA_PER_L1_BATCH: u64 = 4000;
+
+// The users should always be able to provide `MAX_GAS_PER_PUBDATA_BYTE` gas per pubdata in their
+// transactions so that they are able to send at least `GUARANTEED_PUBDATA_PER_L1_BATCH` bytes per
+// transaction.
+pub(crate) const MAX_GAS_PER_PUBDATA_BYTE: u64 =
+    MAX_L2_TX_GAS_LIMIT / GUARANTEED_PUBDATA_PER_L1_BATCH;
+
+// The maximal number of transactions in a single batch
+pub(crate) const MAX_TXS_IN_BLOCK: usize = 1024;
 
 // The first 32 slots are reserved for debugging purposes
 pub const DEBUG_SLOTS_OFFSET: usize = 8;
@@ -149,7 +195,7 @@ pub const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
     COMPRESSED_BYTECODES_OFFSET + COMPRESSED_BYTECODES_SLOTS;
 
 // The size of the bootloader memory dedicated to the encodings of transactions
-pub const BOOTLOADER_TX_ENCODING_SPACE: u32 =
+pub(crate) const BOOTLOADER_TX_ENCODING_SPACE: u32 =
     (MAX_HEAP_PAGE_SIZE_IN_WORDS - TX_DESCRIPTION_OFFSET - MAX_TXS_IN_BLOCK) as u32;
 
 // Size of the bootloader tx description in words
@@ -251,12 +297,12 @@ pub fn init_vm_with_gas_limit<S: Storage, H: HistoryMode>(
 }
 
 #[derive(Debug, Clone, Copy)]
-// The block.number/block.timestamp data are stored in the CONTEXT_SYSTEM_CONTRACT.
+// The `block.number` / `block.timestamp` data are stored in the `CONTEXT_SYSTEM_CONTRACT`.
 // The bootloader can support execution in two modes:
-// - "NewBlock" when the new block is created. It is enforced that the block.number is incremented by 1
+// - `NewBlock` when the new block is created. It is enforced that the block.number is incremented by 1
 //   and the timestamp is non-decreasing. Also, the L2->L1 message used to verify the correctness of the previous root hash is sent.
 //   This is the mode that should be used in the state keeper.
-// - "OverrideCurrent" when we need to provide custom block.number and block.timestamp. ONLY to be used in testing/ethCalls.
+// - `OverrideCurrent` when we need to provide custom `block.number` and `block.timestamp`. ONLY to be used in testing / `ethCalls`.
 pub enum BlockContextMode {
     NewBlock(DerivedBlockContext, U256),
     OverrideCurrent(DerivedBlockContext),
