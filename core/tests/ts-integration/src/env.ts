@@ -48,9 +48,12 @@ export async function waitForServer() {
  */
 export async function loadTestEnvironment(): Promise<TestEnvironment> {
     const network = process.env.CHAIN_ETH_NETWORK || 'localhost';
+    const nativeErc20Testing = process.env.NATIVE_ERC20_ADDRESS ? true : false; // if set, we assume user wants to test native erc20 tokens
 
     let mainWalletPK;
-    if (network == 'localhost') {
+    if (nativeErc20Testing) {
+        mainWalletPK = '0xe131bc3f481277a8f73d680d9ba404cc6f959e64296e0914dded403030d4f705';
+    } else if (network == 'localhost') {
         const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant`);
         const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
         mainWalletPK = ethers.Wallet.fromMnemonic(ethTestConfig.test_mnemonic as string, "m/44'/60'/0'/0/0").privateKey;
@@ -75,7 +78,13 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
     // wBTC is chosen because it has decimals different from ETH (8 instead of 18).
     // Using this token will help us to detect decimals-related errors.
     // but if it's not available, we'll use the first token from the list.
-    let token = tokens.find((token: { symbol: string }) => token.symbol == 'LBC')!;
+    let token = undefined;
+    if (nativeErc20Testing) {
+        const nativeToken = getNativeTokens();
+        token = nativeToken;
+    } else {
+        token = tokens.find((token: { symbol: string }) => token.symbol == 'wBTC')!;
+    }
     if (!token) {
         token = tokens[0];
     }
@@ -83,13 +92,13 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
 
     // `waitForServer` is expected to be executed. Otherwise this call may throw.
     const l2TokenAddress = await new zksync.Wallet(
-        '0xe131bc3f481277a8f73d680d9ba404cc6f959e64296e0914dded403030d4f705',
+        mainWalletPK,
         new zksync.Provider(l2NodeUrl),
         ethers.getDefaultProvider(l1NodeUrl)
     ).l2TokenAddress(token.address);
 
     const l2WethAddress = await new zksync.Wallet(
-        '0xe131bc3f481277a8f73d680d9ba404cc6f959e64296e0914dded403030d4f705',
+        mainWalletPK,
         new zksync.Provider(l2NodeUrl),
         ethers.getDefaultProvider(l1NodeUrl)
     ).l2TokenAddress(weth.address);
@@ -114,7 +123,8 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
             decimals: weth.decimals,
             l1Address: weth.address,
             l2Address: l2WethAddress
-        }
+        },
+        nativeErc20Testing
     };
 }
 
@@ -137,6 +147,15 @@ type L1Token = {
 
 function getTokens(network: string): L1Token[] {
     const configPath = `${process.env.ZKSYNC_HOME}/etc/tokens/${network}.json`;
+    return JSON.parse(
+        fs.readFileSync(configPath, {
+            encoding: 'utf-8'
+        })
+    );
+}
+
+function getNativeTokens(): L1Token {
+    const configPath = `${process.env.ZKSYNC_HOME}/etc/tokens/native_erc20.json`;
     return JSON.parse(
         fs.readFileSync(configPath, {
             encoding: 'utf-8'

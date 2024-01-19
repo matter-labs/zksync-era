@@ -49,6 +49,10 @@ export interface TestEnvironment {
      * Description of the WETH token used in the tests.
      */
     wethToken: Token;
+    /**
+     * Flag indicating whether the tests are being run against the native ERC20 implementation.
+     */
+    nativeErc20Testing: boolean;
 }
 
 /**
