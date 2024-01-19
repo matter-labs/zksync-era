@@ -1,8 +1,10 @@
 use std::convert::TryInto;
 
 use c_kzg::{Blob, Bytes32, Bytes48, KzgCommitment, KzgProof, KzgSettings, BYTES_PER_BLOB};
-use zk_evm::sha2::Sha256;
-use zk_evm::sha3::{Digest, Keccak256};
+use zk_evm::{
+    sha2::Sha256,
+    sha3::{Digest, Keccak256},
+};
 use zkevm_circuits::eip_4844::{
     input::{BLOB_CHUNK_SIZE, ELEMENTS_PER_4844_BLOCK},
     zksync_pubdata_into_ethereum_4844_data,

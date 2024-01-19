@@ -50,7 +50,7 @@ blake2 = "0.10"
 ethereum_types_old = { package = "ethereum-types", version = "0.12.0" }
 
 c-kzg = { git = "https://github.com/ethereum/c-kzg-4844.git", rev = "e266280d88f006b23925c5062476b316d5407cb1" }
-zkevm_circuits = { git = "https://github.com/matter-labs/zkevm_circuits.git", rev = "42daa283a9d7bd601286061d31b7c9f90b969cde" }
+zkevm_circuits = { git = "https://github.com/matter-labs/era-zkevm_circuits.git", rev = "1ad655514b69edcb6ad70205a1f6bd7f89a39e72" }
 
 [dev-dependencies]
 secp256k1 = { version = "0.27", features = ["recovery"] }
