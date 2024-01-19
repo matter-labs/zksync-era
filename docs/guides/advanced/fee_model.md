@@ -120,7 +120,8 @@ cent.
 | `compute_overhead_part` | 0.5                  | 0.7                      | 1                  | 1            |
 | `batch_overhead_l1_gas` | 1'000'000            | 1'000'000                | 1'000'000          | 1'400'000    |
 
-The cost of l1 batch overhead is higher for DA, as it has to cover the additional costs of checking on L1 if DA actually got the data.
+The cost of l1 batch overhead is higher for DA, as it has to cover the additional costs of checking on L1 if DA actually
+got the data.
 
 ## L1 vs L2 pricing
 
