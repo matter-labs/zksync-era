@@ -24,8 +24,8 @@ do
 done
 
 # Download zkVM solc
-curl -s --request GET --url "https://api.github.com/repos/matter-labs/era-solidity/releases?per_page=200" --header "Authorization: Bearer $GH_TOKEN"
-for version in $(curl -s --request GET --url "https://api.github.com/repos/matter-labs/era-solidity/releases?per_page=200" --header "Authorization: Bearer $GH_TOKEN" | jq -r '.[].tag_name')
+curl --fail -s --request GET --url "https://api.github.com/repos/matter-labs/era-solidity/releases?per_page=200" --header "Authorization: Bearer $GH_TOKEN"
+for version in $(curl --fail -s --request GET --url "https://api.github.com/repos/matter-labs/era-solidity/releases?per_page=200" --header "Authorization: Bearer $GH_TOKEN" | jq -r '.[].tag_name')
 do
     mkdir -p etc/solc-bin/zkVM-$version/
     wget https://github.com/matter-labs/era-solidity/releases/download/$version/solc-linux-amd64-$version -O etc/solc-bin/zkVM-$version/solc
