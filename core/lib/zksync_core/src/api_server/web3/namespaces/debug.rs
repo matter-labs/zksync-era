@@ -38,7 +38,8 @@ impl DebugNamespace {
                 .get_batch_fee_input_scaled(
                     state.api_config.estimate_gas_scale_factor,
                     state.api_config.estimate_gas_scale_factor,
-                ),
+                )
+                .await,
             state,
             api_contracts,
         }

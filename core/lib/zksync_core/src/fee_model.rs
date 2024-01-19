@@ -12,10 +12,11 @@ use zksync_utils::ceil_div_u256;
 use crate::l1_gas_price::L1GasPriceProvider;
 
 /// Trait responsible for providing fee info for a batch
+#[async_trait::async_trait]
 pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
     /// Returns the batch fee with scaling applied. This may be used to account for the fact that the L1 gas and pubdata prices may fluctuate, esp.
     /// in API methods that should return values that are valid for some period of time after the estimation was done.
-    fn get_batch_fee_input_scaled(
+    async fn get_batch_fee_input_scaled(
         &self,
         l1_gas_price_scale_factor: f64,
         l1_pubdata_price_scale_factor: f64,
@@ -38,8 +39,8 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
     }
 
     /// Returns the batch fee input as-is, i.e. without any scaling for the L1 gas and pubdata prices.
-    fn get_batch_fee_input(&self) -> BatchFeeInput {
-        self.get_batch_fee_input_scaled(1.0, 1.0)
+    async fn get_batch_fee_input(&self) -> BatchFeeInput {
+        self.get_batch_fee_input_scaled(1.0, 1.0).await
     }
 
     /// Returns the fee model parameters.
@@ -76,6 +77,15 @@ impl MainNodeFeeInputProvider {
         Self { provider, config }
     }
 }
+
+pub(crate) struct ApiFeeInputProvider {
+    l1_gas_price_provider: Arc<dyn L1GasPriceProvider>,
+    config: FeeModelConfig,
+}
+
+// impl BatchFeeModelInputProvider for ApiFeeInputProvider {
+
+// }
 
 /// Calculates the batch fee input based on the main node parameters.
 /// This function uses the `V1` fee model, i.e. where the pubdata price does not include the proving costs.

@@ -542,7 +542,7 @@ impl ZksNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_l1_gas_price_impl(&self) -> U64 {
+    pub async fn get_l1_gas_price_impl(&self) -> U64 {
         const METHOD_NAME: &str = "get_l1_gas_price";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
@@ -552,6 +552,7 @@ impl ZksNamespace {
             .0
             .batch_fee_input_provider
             .get_batch_fee_input()
+            .await
             .l1_gas_price();
 
         method_latency.observe();

@@ -163,7 +163,8 @@ impl StateKeeperIO for MempoolIO {
             self.filter = l2_tx_filter(
                 self.batch_fee_input_provider.as_ref(),
                 protocol_version.into(),
-            );
+            )
+            .await;
             // We only need to get the root hash when we're certain that we have a new transaction.
             if !self.mempool.has_next(&self.filter) {
                 tokio::time::sleep(self.delay_interval).await;
