@@ -80,6 +80,7 @@ pub struct MiniblockHeader {
     pub base_fee_per_gas: u64, // Min wei per gas that txs in this miniblock need to have.
 
     pub batch_fee_input: BatchFeeInput,
+    pub gas_per_pubdata_limit: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub protocol_version: Option<ProtocolVersionId>,
     /// The maximal number of virtual blocks to be created in the miniblock.

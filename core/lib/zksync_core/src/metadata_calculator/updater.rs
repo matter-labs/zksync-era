@@ -11,7 +11,9 @@ use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
-use zksync_types::{block::L1BatchHeader, writes::InitialStorageWrite, L1BatchNumber, H256, U256};
+use zksync_types::{
+    block::L1BatchHeader, writes::InitialStorageWrite, L1BatchNumber, ProtocolVersionId, H256, U256,
+};
 
 use super::{
     helpers::{AsyncTree, Delayer, L1BatchWithLogs},
@@ -204,14 +206,14 @@ impl TreeUpdater {
             .await
             .unwrap();
 
-        let is_pre_boojum = header
+        // TODO(PLA-731): ensure that the protocol version is always available.
+        let protocol_version = header
             .protocol_version
-            .map(|v| v.is_pre_boojum())
-            .unwrap_or(true);
-        let events_queue_commitment = (!is_pre_boojum).then(|| {
+            .unwrap_or(ProtocolVersionId::last_potentially_undefined());
+        let events_queue_commitment = (!protocol_version.is_pre_boojum()).then(|| {
             let events_queue =
                 events_queue.expect("Events queue is required for post-boojum batch");
-            events_queue_commitment(&events_queue, is_pre_boojum)
+            events_queue_commitment(&events_queue, protocol_version)
                 .expect("Events queue commitment is required for post-boojum batch")
         });
         events_queue_commitment_latency.observe();
@@ -225,7 +227,7 @@ impl TreeUpdater {
             .unwrap()
             .unwrap();
         let bootloader_initial_content_commitment =
-            bootloader_initial_content_commitment(&initial_bootloader_contents, is_pre_boojum);
+            bootloader_initial_content_commitment(&initial_bootloader_contents, protocol_version);
         bootloader_commitment_latency.observe();
 
         (

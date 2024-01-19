@@ -1,14 +1,16 @@
 //! Utility functions for vm
-use zksync_system_constants::MAX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::fee_model::L1PeggedBatchFeeModelInput;
 use zksync_utils::ceil_div;
 
 use crate::{
-    vm_latest::L1BatchEnv, vm_refunds_enhancement::old_vm::utils::eth_price_per_pubdata_byte,
+    vm_latest::L1BatchEnv,
+    vm_refunds_enhancement::{
+        constants::MAX_GAS_PER_PUBDATA_BYTE, old_vm::utils::eth_price_per_pubdata_byte,
+    },
 };
 
 /// Calculates the amount of gas required to publish one byte of pubdata
-pub fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
+pub(crate) fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
     let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
 
     ceil_div(eth_price_per_pubdata_byte, base_fee)
@@ -33,7 +35,7 @@ pub(crate) fn derive_base_fee_and_gas_per_pubdata(
 
     (
         base_fee,
-        base_fee_to_gas_per_pubdata(l1_gas_price, base_fee),
+        base_fee_to_gas_per_pubdata(fee_input.l1_gas_price, base_fee),
     )
 }
 

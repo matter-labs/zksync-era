@@ -13,3 +13,4 @@ categories = ["cryptography"]
 zksync_types = { path = "../../lib/types" }
 zksync_utils = { path = "../../lib/utils" }
 zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0" }
+multivm = { path = "../../lib/multivm" }

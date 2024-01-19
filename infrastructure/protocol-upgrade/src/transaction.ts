@@ -523,6 +523,11 @@ command
     .option('--zksync-address <zksyncAddress>')
     .option('--use-new-governance')
     .action(async (options) => {
+        if (!options.useNewGovernance) {
+            // TODO(X): remove old governance functionality from the protocol upgrade tool
+            throw new Error('Old governance is not supported anymore');
+        }
+
         let diamondUpgradeProposalId = options.diamondUpgradeProposalId;
         if (!diamondUpgradeProposalId && !options.useNewGovernance) {
             diamondUpgradeProposalId = await getNewDiamondUpgradeProposalId(options.l1rpc, options.zksyncAddress);
@@ -550,6 +555,11 @@ command
     .option('--l1rpc <l1prc>')
     .option('--new-governance <newGovernance>')
     .action(async (options) => {
+        if (!options.newGovernance) {
+            // TODO(X): remove old governance functionality from the protocol upgrade tool
+            throw new Error('Old governance is not supported anymore');
+        }
+
         await proposeUpgrade(
             options.privateKey,
             options.l1rpc,
@@ -571,6 +581,11 @@ command
     .option('--l1rpc <l1prc>')
     .option('--new-governance <newGovernance>')
     .action(async (options) => {
+        if (!options.newGovernance) {
+            // TODO(X): remove old governance functionality from the protocol upgrade tool
+            throw new Error('Old governance is not supported anymore');
+        }
+
         await executeUpgrade(
             options.privateKey,
             options.l1rpc,
@@ -593,6 +608,11 @@ command
     .option('--execute')
     .option('--new-governance <newGovernance>')
     .action(async (options) => {
+        if (!options.newGovernance) {
+            // TODO(X): remove old governance functionality from the protocol upgrade tool
+            throw new Error('Old governance is not supported anymore');
+        }
+
         await cancelUpgrade(
             options.privateKey,
             options.l1rpc,

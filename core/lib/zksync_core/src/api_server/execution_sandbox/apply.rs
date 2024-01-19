@@ -301,7 +301,7 @@ async fn read_l2_block_info(
 }
 
 #[derive(Debug)]
-struct ResolvedBlockInfo {
+pub(crate) struct ResolvedBlockInfo {
     pub state_l2_block_number: MiniblockNumber,
     pub vm_l1_batch_number: L1BatchNumber,
     pub l1_batch_timestamp: u64,
@@ -316,7 +316,7 @@ impl BlockArgs {
         )
     }
 
-    async fn resolve_block_info(
+    pub(crate) async fn resolve_block_info(
         &self,
         connection: &mut StorageProcessor<'_>,
     ) -> anyhow::Result<ResolvedBlockInfo> {
@@ -359,7 +359,8 @@ impl BlockArgs {
             .blocks_dal()
             .get_miniblock_protocol_version_id(state_l2_block_number)
             .await?
-            .unwrap_or(ProtocolVersionId::Version9);
+            .unwrap_or(ProtocolVersionId::last_potentially_undefined());
+
         Ok(ResolvedBlockInfo {
             state_l2_block_number,
             vm_l1_batch_number,

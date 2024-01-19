@@ -6,8 +6,11 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
 use zksync_types::{
-    block::BlockGasCount, fee_model::BatchFeeInput, tx::ExecutionMetrics, AccountTreeId, Address,
-    L1BatchNumber, MiniblockNumber, ProtocolVersionId, StorageKey, VmEvent, H256, U256,
+    block::BlockGasCount,
+    fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
+    tx::ExecutionMetrics,
+    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, StorageKey, VmEvent,
+    H256, U256,
 };
 use zksync_utils::time::seconds_since_epoch;
 
@@ -60,7 +63,11 @@ async fn test_filter_with_pending_batch() {
     // Inserting a pending miniblock that isn't included in a sealed batch means there is a pending batch.
     // The gas values are randomly chosen but so affect filter values calculation.
 
-    let fee_input = BatchFeeInput::l1_pegged(100, 1000);
+    let fee_input = BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+        l1_gas_price: 100,
+        fair_l2_gas_price: 1000,
+        fair_pubdata_price: 500,
+    });
 
     tester
         .insert_miniblock(&connection_pool, 2, 10, fee_input)
@@ -233,8 +240,11 @@ async fn processing_storage_logs_when_sealing_miniblock() {
         miniblock_number: MiniblockNumber(3),
         miniblock,
         first_tx_index: 0,
-        l1_gas_price: 100,
-        fair_l2_gas_price: 100,
+        fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+            l1_gas_price: 100,
+            fair_l2_gas_price: 100,
+            fair_pubdata_price: 100,
+        }),
         base_fee_per_gas: 10,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
@@ -309,8 +319,11 @@ async fn processing_events_when_sealing_miniblock() {
         miniblock_number,
         miniblock,
         first_tx_index: 0,
-        l1_gas_price: 100,
-        fair_l2_gas_price: 100,
+        fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+            l1_gas_price: 100,
+            fair_l2_gas_price: 100,
+            fair_pubdata_price: 100,
+        }),
         base_fee_per_gas: 10,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
