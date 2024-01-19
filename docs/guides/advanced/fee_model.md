@@ -12,23 +12,133 @@ The gas fee covers the following expenses:
 - Sending 'bytecode' to L1 (if not already there) - typically a one-time cost when deploying a new contract
 - Closing the batch and handling proofs - This aspect also relies on L1 costs (since proof publication must be covered).
 
+## Price configuration
+
+We have two pricing models:
+
+- the 'L1Pegged' - until protocol version 19
+- the 'PubdataIndependent' - from protocol version 20 (release 1.4.1)
+
+### L1 pegged ('old' fee model)
+
+Under this fee model, operator was providing `FeeParamsV1`, which contained:
+
+- l1_gas_price
+- minimal_l2_gas_price
+
+then, the system was computing `L1PeggedBatchFeeModelInput`, that contained
+
+- l1_gas_price
+- 'fair' l2 gas price - which in 99% of cases was equal to minimal_gas_price, and was greater from it only if l1 gas
+  price was huge, to guarantee that we can publish enough data in each transaction (see table below for details).
+
+Many other values, were 'hardcoded' within the system (for example how to compute the pubdata price based on l1 gas
+price, how much committing the proof to L1 costs etc).
+
+### PubdataIndependent ('new' fee model)
+
+This method is called `PubdataIndependent` and the change was done to allow more flexibility in pubdata costs (for
+example if pubdata is published to another Data Availability layer, or it not published at all - in case of validium).
+
+In this model, there are 8 config options, let's walk through them:
+
+`FeeParamsV2` contains 2 dynamic prices:
+
+- `l1_gas_price` - which is used to compute the cost of submitting the proofs on L1
+- `l1_pubdata_price` - which is the cost of submitting a single byte of pubdata
+
+And config options (`FeeModelConfigV2`) contain:
+
+- `minimal_l2_gas_price` - same as above, this should cover the $ costs of running the system
+
+2 fields around the maximum capacity of the batch:
+
+- `max_gas_per_batch` - maximum amount of gas in a batch - if you set this too high, you might exceed the circuits
+  limit.
+- `max_pubdata_per_batch` - the maximum amount of pubdata that we can put in a single batch (usually it is around 128kb
+  when using calldata, and 250 when using 2 blobs)
+
+the actual cost of the batch:
+
+- `batch_overhead_l1_gas` - how much gas operator will have to pay to handle the proof on L1 (this should include
+  commitBatch, proveBatch and executeBatch costs). This should NOT include any cost that is related to pubdata.
+
+And 2 fields about who contributed to closing the batch:
+
+- `pubdata_overhead_part` - from 0 - 1
+- `compute_overhead_part` - from 0 - 1
+
+#### Cost distribution between transactions
+
+Batches are closed, when we either run out of circuits (a.k.a gas / computation) or run out of pubdata capacity (too
+much data to publish to L1 in one transaction).
+
+Closing each batch, has some cost for the operator - especially the one related to L1 costs - where operator has to
+submit a bunch of transactions, including the one to verify the proof. (these costs are counted in
+`batch_overhead_l1_gas`).
+
+Now the problem that operator is facing is, who should pay for closing of the batch. In perfect world, we'd look at the
+reason for batch closure (for example pubdata) - and then charge the transactions proportionally to the amount of
+pubdata that they used. Unfortunately this is not feasible, as we have to charge the transactions as we go, rather than
+at the end of the batch (that can have 1000s of transactions).
+
+That's why we have the logic of `pubdata_overhead_part` and `compute_overhead_part`. These represent the 'odds' whether
+pubdata or compute were the reason for the batch closure - and based on this information, we distribute the costs to
+transactions:
+
+```
+cost_of_closing_the_batch * (compute_overhead_part * TX_GAS_USED / MAX_GAS_IN_BLOCK + pubdata_overhead_part * PUBDATA_USED / MAX_PUBDATA_IN_BLOCK)
+```
+
+#### Custom base token configurations
+
+When running a system based on a custom token, all the gas values above, should refer to YOUR custom token.
+
+Example, if you're running USDC as base token, and ETH currently costs 2000$, and current L1 gas price is 30 Gwei.
+
+- `l1_gas_price` param should be set to 30 \* 2000 == 60'000 Gwei
+- `l1_pubdata_price` should be also updated accordingly (probably also multiplied by 2'000)
+- `minimal_l2_gas_price` should be set in such way, that `minimal_l2_gas_price * max_gas_per_batch / 10**18 $` is enough
+  to pay for your CPUs and GPUs.
+
+#### Validium / Data-availability configurations
+
+If you're running a system with validium, you can just set the `l1_pubdata_price` to 0, `max_pubdata_per_batch` to some
+large value, and set `pubdata_overhead_part` to 0, and `compute_overhead_part` to 1.
+
+If you're running alternative DA, you should adjust the `l1_pubdata_price` to roughly cover the cost of writing one byte
+to the DA, and set
+
+Assumption: ETH costs 2'000$, L1 gas cost is 30 Gwei, blob costs 2Gwei (per byte), and DA allows 1MB payload that cost 1
+cent.
+
+| flag                    | rollup with calldata | rollup with 4844 (blobs) | value for validium | value for DA |
+| ----------------------- | -------------------- | ------------------------ | ------------------ | ------------ |
+| `l1_pubdata_price`      | 510'000'000'000      | 3'000'000'000            | 0                  | 5'000        |
+| `max_pubdata_per_batch` | 120'000              | 250'000                  | 1'000'000'000'000  | 1'000'000    |
+| `pubdata_overhead_part` | 0.7                  | 0.4                      | 0                  | 0.1          |
+| `compute_overhead_part` | 0.5                  | 0.7                      | 1                  | 1            |
+| `batch_overhead_l1_gas` | 1'000'000            | 1'000'000                | 1'000'000          | 1'400'000    |
+
+The cost of l1 batch overhead is higher for DA, as it has to cover the additional costs of checking on L1 if DA actually got the data.
+
 ## L1 vs L2 pricing
 
 Here is a simplified table displaying various scenarios that illustrate the relationship between L1 and L2 fees:
 
-| L1 gas price | L2 'fair price' | L2 'gas price' | L2 gas per pubdata | Note                                                                                                                                                  |
-| ------------ | --------------- | -------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0.25 Gwei    | 0.25 Gwei       | 0.25 Gwei      | 17                 | Gas prices are equal, so the charge is 17 gas, just like on L1.                                                                                       |
-| 10 Gwei      | 0.25 Gwei       | 0.25 Gwei      | 680                | L1 is 40 times more expensive, so we need to charge more L2 gas per pubdata byte to cover L1 publishing costs.                                        |
-| 250 Gwei     | 0.25 Gwei       | 0.25 Gwei      | 17000              | L1 is now very expensive (1000 times more than L2), so each pubdata costs a lot of gas.                                                               |
-| 10000 Gwei   | 0.25 Gwei       | 8.5 Gwei       | 20000              | L1 is so expensive that we have to raise the L2 gas price, so the gas needed for publishing doesn't exceed the 20k limit, ensuring L2 remains usable. |
+| L1 gas price | L2 'minimal price' | L2 'gas price' | L2 gas per pubdata | Note                                                                                                                                                  |
+| ------------ | ------------------ | -------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0.25 Gwei    | 0.25 Gwei          | 0.25 Gwei      | 17                 | Gas prices are equal, so the charge is 17 gas, just like on L1.                                                                                       |
+| 10 Gwei      | 0.25 Gwei          | 0.25 Gwei      | 680                | L1 is 40 times more expensive, so we need to charge more L2 gas per pubdata byte to cover L1 publishing costs.                                        |
+| 250 Gwei     | 0.25 Gwei          | 0.25 Gwei      | 17000              | L1 is now very expensive (1000 times more than L2), so each pubdata costs a lot of gas.                                                               |
+| 10000 Gwei   | 0.25 Gwei          | 8.5 Gwei       | 20000              | L1 is so expensive that we have to raise the L2 gas price, so the gas needed for publishing doesn't exceed the 20k limit, ensuring L2 remains usable. |
 
 **Why is there a 20k gas per pubdata limit?** - We want to make sure every transaction can publish at least 4kb of data
 to L1. The maximum gas for a transaction is 80 million (80M/4k = 20k).
 
 ### L2 Fair price
 
-The L2 fair gas price is currently determined by the StateKeeper/Sequencer configuration and is set at 0.25 Gwei (see
+The L2 fair gas price is currently determined by the StateKeeper/Sequencer configuration and is set at 0.10 Gwei (see
 `fair_l2_gas_price` in the config). This price is meant to cover the compute costs (CPU + GPU) for the sequencer and
 prover. It can be changed as needed, with a safety limit of 10k Gwei in the bootloader. Once the system is
 decentralized, more deterministic rules will be established for this price.
