@@ -93,7 +93,7 @@ jobs:
           ci_run rustup default nightly-2023-08-21
           platform=$(echo $PLATFORM | tr '/' '-')
           curl -s --request GET --url "https://api.github.com/repos/matter-labs/era-solidity/releases?per_page=200" --header "Authorization: Bearer $GH_TOKEN"
-          ci_run zk docker $DOCKER_ACTION --custom-tag=${IMAGE_TAG_SUFFIX} --platform=${PLATFORM} $COMPONENT
+          PASSED_ENV_VARS="GH_TOKEN" ci_run zk docker $DOCKER_ACTION --custom-tag=${IMAGE_TAG_SUFFIX} --platform=${PLATFORM} $COMPONENT
       - name: Show sccache stats
         if: always()
         run: |
