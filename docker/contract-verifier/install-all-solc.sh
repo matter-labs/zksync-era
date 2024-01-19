@@ -1,3 +1,5 @@
+#!/bin/bash
+
 set -e
 
 # Installs all solc versions from the github repo
