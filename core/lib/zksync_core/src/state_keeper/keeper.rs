@@ -136,17 +136,37 @@ impl ZkSyncStateKeeper {
 
         let previous_batch_protocol_version =
             self.io.load_previous_batch_version_id().await.unwrap();
-        let version_changed_or_first_batch = (protocol_version != previous_batch_protocol_version)
-            || (l1_batch_env.number == L1BatchNumber(1));
+
+        let first_batch = l1_batch_env.number == L1BatchNumber(1);
+        let version_changed = protocol_version != previous_batch_protocol_version;
+
+        let mut protocol_upgrade_tx = self.io.load_upgrade_tx(protocol_version).await;
+
+        // There has to be a setChainId upgrade transaction after the chain genesis.
+        // It has to be the first transaction of the first batch.
+        // If it's not present, we have to wait for it to be picked up by the event watcher.
+        // The setChainId upgrade does not bump the protocol version, rather attaches an upgrade
+        // transaction to the genesis protocol version.
+        while first_batch && protocol_upgrade_tx.is_none() {
+            tracing::info!("Waiting for setChainId upgrade transaction to be picked up");
+            tokio::select! {
+                _ = self.stop_receiver.changed() => {
+                    return Err(Error::Canceled);
+                }
+                _ = tokio::time::sleep(Duration::from_secs(1)) => {
+                    protocol_upgrade_tx = self.io.load_upgrade_tx(protocol_version).await;
+                }
+            }
+        }
 
         let mut protocol_upgrade_tx =
-            if pending_miniblocks.is_empty() && version_changed_or_first_batch {
+            if pending_miniblocks.is_empty() && (version_changed || first_batch) {
                 tracing::info!("We have upgrade tx to be executed in empty miniblock");
-                self.io.load_upgrade_tx(protocol_version).await
-            } else if !pending_miniblocks.is_empty() && version_changed_or_first_batch {
+                protocol_upgrade_tx
+            } else if !pending_miniblocks.is_empty() && (version_changed || first_batch) {
                 // Sanity check: if `txs_to_reexecute` is not empty and upgrade tx is present for this block
                 // then it must be the first one in `txs_to_reexecute`.
-                if self.io.load_upgrade_tx(protocol_version).await.is_some() {
+                if protocol_upgrade_tx.is_some() {
                     let first_tx_to_reexecute = &pending_miniblocks[0].txs[0];
                     assert_eq!(
                         first_tx_to_reexecute.tx_format(),

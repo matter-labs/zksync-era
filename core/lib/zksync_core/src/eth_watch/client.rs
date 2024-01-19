@@ -8,7 +8,7 @@ use zksync_types::{
     web3::{
         self,
         contract::tokens::Detokenize,
-        types::{BlockId, BlockNumber, FilterBuilder, Log},
+        types::{Block, BlockId, BlockNumber, FilterBuilder, Log},
     },
     Address, H256,
 };
@@ -44,6 +44,8 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
     async fn finalized_block_number(&self) -> Result<u64, Error>;
     /// Returns scheduler verification key hash by verifier address.
     async fn scheduler_vk_hash(&self, verifier_address: Address) -> Result<H256, Error>;
+    /// Gets block info by block hash.
+    async fn get_block(&self, block_hash: H256) -> Result<Option<Block<H256>>, Error>;
     /// Sets list of topics to return events for.
     fn set_topics(&mut self, topics: Vec<H256>);
 }
@@ -57,6 +59,7 @@ pub struct EthHttpQueryClient {
     client: Box<dyn EthInterface>,
     topics: Vec<H256>,
     state_transition_chain_contract_addr: Address,
+    state_transition_manager_contract_addr: Address,
     /// Address of the `Governance` contract. It's optional because it is present only for post-boojum chains.
     /// If address is some then client will listen to events coming from it.
     governance_address: Option<Address>,
@@ -68,6 +71,7 @@ impl EthHttpQueryClient {
     pub fn new(
         client: Box<dyn EthInterface>,
         state_transition_chain_contract_addr: Address,
+        state_transition_manager_contract_addr: Address,
         governance_address: Option<Address>,
         confirmations_for_eth_event: Option<u64>,
     ) -> Self {
@@ -80,6 +84,7 @@ impl EthHttpQueryClient {
             client,
             topics: Vec::new(),
             state_transition_chain_contract_addr,
+            state_transition_manager_contract_addr,
             governance_address,
             verifier_contract_abi: verifier_contract(),
             confirmations_for_eth_event,
@@ -96,6 +101,7 @@ impl EthHttpQueryClient {
             .address(
                 [
                     Some(self.state_transition_chain_contract_addr),
+                    Some(self.state_transition_manager_contract_addr),
                     self.governance_address,
                 ]
                 .iter()
@@ -114,6 +120,13 @@ impl EthHttpQueryClient {
 
 #[async_trait::async_trait]
 impl EthClient for EthHttpQueryClient {
+    async fn get_block(&self, block_hash: H256) -> Result<Option<Block<H256>>, Error> {
+        self.client
+            .block(BlockId::Hash(block_hash), "watch")
+            .await
+            .map_err(Into::into)
+    }
+
     async fn scheduler_vk_hash(&self, verifier_address: Address) -> Result<H256, Error> {
         // This is here for backward compatibility with the old verifier:
         // Legacy verifier returns the full verification key;

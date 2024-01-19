@@ -479,7 +479,10 @@ impl TryFrom<Log> for ProtocolUpgrade {
 impl ProtocolUpgrade {
     // type Error = crate::ethabi::Error;
 
-    pub fn decode_set_chain_id_event(event: Log) -> Result<Self, <Self as TryFrom<Log>>::Error> {
+    pub fn decode_set_chain_id_event(
+        event: Log,
+        timestamp: u64,
+    ) -> Result<Self, <Self as TryFrom<Log>>::Error> {
         let transaction_param_type = ParamType::Tuple(vec![
             ParamType::Uint(256),                                     // txType
             ParamType::Uint(256),                                     // sender
@@ -499,21 +502,12 @@ impl ProtocolUpgrade {
             ParamType::Bytes,                                         // reservedDynamic
         ]);
 
-        let mut decoded = decode(
-            &[
-                transaction_param_type,
-                ParamType::Uint(256),
-                ParamType::Uint(256),
-            ],
-            &event.data.0,
-        )?;
-        let transaction = match decoded.remove(0) {
-            Token::Tuple(x) => x,
-            _ => unreachable!(),
+        let Token::Tuple(transaction) = decode(&[transaction_param_type], &event.data.0)?.remove(0)
+        else {
+            unreachable!()
         };
 
-        let timestamp = decoded.remove(0).into_uint().unwrap();
-        let version_id = decoded.remove(0).into_uint().unwrap();
+        let version_id = event.topics[2].to_low_u64_be();
 
         let eth_hash = event
             .transaction_hash
@@ -529,13 +523,12 @@ impl ProtocolUpgrade {
             ProtocolUpgradeTx::decode_tx(transaction, eth_hash, eth_block, factory_deps);
 
         let upgrade = ProtocolUpgrade {
-            id: ProtocolVersionId::try_from(version_id.as_u32() as u16)
-                .expect("Version is not supported"),
+            id: ProtocolVersionId::try_from(version_id as u16).expect("Version is not supported"),
             bootloader_code_hash: None,
             default_account_code_hash: None,
             verifier_params: None,
             verifier_address: None,
-            timestamp: timestamp.as_u64(),
+            timestamp,
             tx: upgrade_tx,
         };
         Ok(upgrade)

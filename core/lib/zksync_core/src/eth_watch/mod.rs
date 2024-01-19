@@ -65,7 +65,7 @@ impl EthWatch {
         let priority_ops_processor =
             PriorityOpsEventProcessor::new(state.next_expected_priority_id);
         let upgrades_processor = UpgradesEventProcessor::new(state.last_seen_version_id);
-        let set_chain_id_processor = SetChainIDEventProcessor::new();
+        let set_chain_id_processor = SetChainIDEventProcessor::new(diamond_proxy_address);
         let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
             Box::new(upgrades_processor),
@@ -196,12 +196,14 @@ pub async fn start_eth_watch(
     pool: ConnectionPool,
     eth_gateway: Box<dyn EthInterface>,
     state_transition_chain_contract_addr: Address,
+    state_transition_manager_contract_addr: Address,
     governance: (Contract, Address),
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<JoinHandle<anyhow::Result<()>>> {
     let eth_client = EthHttpQueryClient::new(
         eth_gateway,
         state_transition_chain_contract_addr,
+        state_transition_manager_contract_addr,
         Some(governance.1),
         config.confirmations_for_eth_event,
     );

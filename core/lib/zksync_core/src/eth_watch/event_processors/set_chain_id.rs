@@ -3,7 +3,7 @@
 // use std::time::Instant;
 use zksync_contracts::state_transition_manager_contract;
 use zksync_dal::StorageProcessor;
-use zksync_types::{web3::types::Log, ProtocolUpgrade, H256};
+use zksync_types::{web3::types::Log, Address, ProtocolUpgrade, H256};
 
 use crate::eth_watch::{
     client::{Error, EthClient},
@@ -14,12 +14,14 @@ use crate::eth_watch::{
 /// Responsible for saving new protocol upgrade proposals to the database.
 #[derive(Debug)]
 pub struct SetChainIDEventProcessor {
+    diamond_proxy_address: Address,
     set_chain_id_signature: H256,
 }
 
 impl SetChainIDEventProcessor {
-    pub fn new() -> Self {
+    pub fn new(diamond_proxy_address: Address) -> Self {
         Self {
+            diamond_proxy_address,
             set_chain_id_signature: state_transition_manager_contract()
                 .event("SetChainIdUpgrade")
                 .expect("SetChainIdUpgrade event is missing in abi")
@@ -39,9 +41,19 @@ impl EventProcessor for SetChainIDEventProcessor {
         let mut upgrades = Vec::new();
         let events_iter = events.into_iter();
 
+        let filtered_events = events_iter.filter(|log| {
+            log.topics[0] == self.set_chain_id_signature
+                && log.topics[1] == self.diamond_proxy_address.into()
+        });
+
         // SetChainId does not go throught the governance contract, so we need to parse it separately.
-        for event in events_iter.filter(|event| event.topics[0] == self.set_chain_id_signature) {
-            let upgrade = ProtocolUpgrade::decode_set_chain_id_event(event)
+        for event in filtered_events {
+            let timestamp = client
+                .get_block(event.block_hash.expect("event without block_hash"))
+                .await?
+                .expect("event's block not found")
+                .timestamp;
+            let upgrade = ProtocolUpgrade::decode_set_chain_id_event(event, timestamp.as_u64())
                 .map_err(|err| Error::LogParse(format!("{:?}", err)))?;
 
             upgrades.push((upgrade, None));
@@ -62,7 +74,7 @@ impl EventProcessor for SetChainIDEventProcessor {
             let version_id = upgrade.id;
             let previous_version = storage
                 .protocol_versions_dal()
-                .get_protocol_version(version_id)
+                .get_protocol_version(dbg!(version_id))
                 .await
                 .expect("Expected the version to be in the DB");
             let new_version = previous_version.apply_upgrade(upgrade, scheduler_vk_hash);
