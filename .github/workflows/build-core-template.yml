@@ -54,8 +54,7 @@ jobs:
           echo $(pwd)/bin >> $GITHUB_PATH
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
-          echo GH_TOKEN=${{ secrets.DOCKERHUB_USER }} >> $GITHUB_ENV
-          echo GH_TOKEN=${{ secrets.DOCKERHUB_USER }} >> .env
+          echo GH_TOKEN=${{ secrets.GH_TOKEN }} >> .env
 
       - name: Download contracts
         uses: actions/download-artifact@v4
