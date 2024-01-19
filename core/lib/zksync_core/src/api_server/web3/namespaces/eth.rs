@@ -85,8 +85,7 @@ impl EthNamespace {
         let tx = L2Tx::from_request(request.into(), self.state.api_config.max_tx_size)?;
 
         let call_result = self.state.tx_sender.eth_call(block_args, tx).await;
-        let res_bytes = call_result
-            .map_err(|err| Web3Error::SubmitTransactionError(err.to_string(), err.data()))?;
+        let res_bytes = call_result.map_err(|err| err.into_web3_error(METHOD_NAME))?;
 
         let block_diff = self
             .state
@@ -149,8 +148,7 @@ impl EthNamespace {
             .tx_sender
             .get_txs_fee_in_wei(tx.into(), scale_factor, acceptable_overestimation)
             .await
-            .map_err(|err| Web3Error::SubmitTransactionError(err.to_string(), err.data()))?;
-
+            .map_err(|err| err.into_web3_error(METHOD_NAME))?;
         method_latency.observe();
         Ok(fee.gas_limit)
     }
@@ -646,7 +644,7 @@ impl EthNamespace {
         let submit_result = submit_result.map(|_| hash).map_err(|err| {
             tracing::debug!("Send raw transaction error: {err}");
             API_METRICS.submit_tx_error[&err.prom_error_code()].inc();
-            Web3Error::SubmitTransactionError(err.to_string(), err.data())
+            err.into_web3_error(METHOD_NAME)
         });
 
         method_latency.observe();
