@@ -8,6 +8,7 @@ use zksync_dal::ConnectionPool;
 use zksync_types::{
     block::{BlockGasCount, MiniblockHasher},
     fee::TransactionExecutionMetrics,
+    ProtocolVersion,
 };
 
 use super::*;
@@ -442,4 +443,90 @@ async fn loading_pending_batch_after_snapshot_recovery() {
         pending_batch.l1_batch_env.first_l2_block.prev_block_hash,
         snapshot_recovery.miniblock_hash
     );
+}
+
+#[tokio::test]
+async fn getting_batch_version_with_genesis() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.access_storage().await.unwrap();
+    let mut genesis_params = GenesisParams::mock();
+    genesis_params.protocol_version = ProtocolVersionId::Version5;
+    ensure_genesis_state(&mut storage, L2ChainId::default(), &genesis_params)
+        .await
+        .unwrap();
+
+    let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
+    let version = provider
+        .load_l1_batch_protocol_version(&mut storage, L1BatchNumber(0))
+        .await
+        .unwrap();
+    assert_eq!(version, Some(genesis_params.protocol_version));
+
+    assert!(provider
+        .load_l1_batch_protocol_version(&mut storage, L1BatchNumber(1))
+        .await
+        .unwrap()
+        .is_none());
+
+    storage
+        .protocol_versions_dal()
+        .save_protocol_version_with_tx(ProtocolVersion::default())
+        .await;
+    let new_l1_batch = create_l1_batch(1);
+    storage
+        .blocks_dal()
+        .insert_l1_batch(&new_l1_batch, &[], BlockGasCount::default(), &[], &[], 0)
+        .await
+        .unwrap();
+
+    let version = provider
+        .load_l1_batch_protocol_version(&mut storage, L1BatchNumber(1))
+        .await
+        .unwrap();
+    assert_eq!(version, new_l1_batch.protocol_version);
+}
+
+#[tokio::test]
+async fn getting_batch_version_after_snapshot_recovery() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.access_storage().await.unwrap();
+    let snapshot_recovery = prepare_empty_recovery_snapshot(&mut storage, 23).await;
+
+    let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
+    let version = provider
+        .load_l1_batch_protocol_version(&mut storage, snapshot_recovery.l1_batch_number)
+        .await
+        .unwrap();
+    assert_eq!(version, Some(snapshot_recovery.protocol_version));
+
+    assert!(provider
+        .load_l1_batch_protocol_version(&mut storage, L1BatchNumber(1))
+        .await
+        .is_err());
+    assert!(provider
+        .load_l1_batch_protocol_version(&mut storage, snapshot_recovery.l1_batch_number + 1)
+        .await
+        .unwrap()
+        .is_none());
+
+    storage
+        .protocol_versions_dal()
+        .save_protocol_version_with_tx(ProtocolVersion {
+            id: ProtocolVersionId::next(),
+            ..ProtocolVersion::default()
+        })
+        .await;
+    let mut new_l1_batch = create_l1_batch(snapshot_recovery.l1_batch_number.0 + 1);
+    new_l1_batch.protocol_version = Some(ProtocolVersionId::next());
+    storage
+        .blocks_dal()
+        .insert_l1_batch(&new_l1_batch, &[], BlockGasCount::default(), &[], &[], 0)
+        .await
+        .unwrap();
+
+    let version = provider
+        .load_l1_batch_protocol_version(&mut storage, snapshot_recovery.l1_batch_number + 1)
+        .await
+        .unwrap();
+    assert_eq!(version, new_l1_batch.protocol_version);
 }

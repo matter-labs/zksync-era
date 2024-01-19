@@ -342,11 +342,18 @@ impl StateKeeperIO for MempoolIO {
     }
 
     async fn load_previous_batch_version_id(&mut self) -> Option<ProtocolVersionId> {
-        let mut storage = self.pool.access_storage().await.unwrap();
-        storage
-            .blocks_dal()
-            .get_batch_protocol_version_id(self.current_l1_batch_number - 1)
+        let mut storage = self
+            .pool
+            .access_storage_tagged("state_keeper")
             .await
+            .unwrap();
+        let prev_l1_batch_number = self.current_l1_batch_number - 1;
+        self.l1_batch_params_provider
+            .load_l1_batch_protocol_version(&mut storage, prev_l1_batch_number)
+            .await
+            .with_context(|| {
+                format!("failed loading protocol version for L1 batch #{prev_l1_batch_number}")
+            })
             .unwrap()
     }
 

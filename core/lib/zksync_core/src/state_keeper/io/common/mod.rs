@@ -223,6 +223,29 @@ impl L1BatchParamsProvider {
         }
     }
 
+    pub(crate) async fn load_l1_batch_protocol_version(
+        &self,
+        storage: &mut StorageProcessor<'_>,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Option<ProtocolVersionId>> {
+        if let Some(snapshot) = &self.snapshot {
+            if l1_batch_number == snapshot.l1_batch_number {
+                return Ok(Some(snapshot.protocol_version));
+            }
+            anyhow::ensure!(
+                l1_batch_number > snapshot.l1_batch_number,
+                "Requested protocol version for pruned L1 batch #{l1_batch_number}; first retained batch is #{}",
+                snapshot.l1_batch_number + 1
+            );
+        }
+
+        storage
+            .blocks_dal()
+            .get_batch_protocol_version_id(l1_batch_number)
+            .await
+            .map_err(Into::into)
+    }
+
     /// Returns a header of the first miniblock in the specified L1 batch regardless of whether the batch is sealed or not.
     pub(crate) async fn load_first_miniblock_in_batch(
         &self,

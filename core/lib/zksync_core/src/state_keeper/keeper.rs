@@ -134,8 +134,11 @@ impl ZkSyncStateKeeper {
             protocol_version,
         );
 
-        let previous_batch_protocol_version =
-            self.io.load_previous_batch_version_id().await.unwrap();
+        let previous_batch_protocol_version = self
+            .io
+            .load_previous_batch_version_id()
+            .await
+            .expect("No protocol version defined for previous L1 batch");
         let version_changed = protocol_version != previous_batch_protocol_version;
 
         let mut protocol_upgrade_tx = if pending_miniblocks.is_empty() && version_changed {
