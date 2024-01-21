@@ -330,13 +330,6 @@ impl EthNamespace {
 
         let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
 
-        let transaction_count = self
-            .get_block_transaction_count_impl(block_id)
-            .await?
-            .ok_or(Web3Error::NoBlock)?;
-
-        let mut receipts = Vec::with_capacity(transaction_count.as_usize());
-
         let block = self
             .state
             .connection_pool
@@ -348,22 +341,26 @@ impl EthNamespace {
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 
-        if let Some(block) = block {
-            for transaction in block.transactions {
-                if let TransactionVariant::Hash(hash) = transaction {
-                    let receipt =
-                        self.get_transaction_receipt_impl(hash)
-                            .await?
-                            .ok_or_else(|| {
-                                internal_error(
-                                    METHOD_NAME,
-                                    anyhow::anyhow!("Transaction with hash {hash:?} disappeared"),
-                                )
-                            })?;
-                    receipts.push(receipt);
-                }
-            }
-        }
+        let hashes = block
+            .unwrap()
+            .transactions
+            .into_iter()
+            .map(|tx| match tx {
+                TransactionVariant::Full(tx) => tx.hash,
+                TransactionVariant::Hash(hash) => hash,
+            })
+            .collect::<Vec<H256>>();
+
+        let receipts = self
+            .state
+            .connection_pool
+            .access_storage_tagged("api")
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?
+            .transactions_web3_dal()
+            .get_transaction_receipts(hashes)
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
 
         method_latency.observe_without_diff();
 
@@ -562,7 +559,7 @@ impl EthNamespace {
             )
         })?;
 
-        Ok(receipt)
+        Ok(Some(receipt))
     }
 
     #[tracing::instrument(skip(self))]

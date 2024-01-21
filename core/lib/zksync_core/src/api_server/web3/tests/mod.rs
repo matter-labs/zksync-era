@@ -13,6 +13,7 @@ use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Storage
 use zksync_health_check::CheckHealth;
 use zksync_types::{
     api,
+    api::{BlockId, BlockNumber},
     block::{BlockGasCount, MiniblockHeader},
     fee::TransactionExecutionMetrics,
     get_nonce_key,
@@ -808,4 +809,60 @@ impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
 #[tokio::test]
 async fn getting_transaction_count_for_account_after_snapshot_recovery() {
     test_http_server(TransactionCountAfterSnapshotRecoveryTest).await;
+}
+
+#[derive(Debug)]
+struct TransactionReceipts;
+
+#[async_trait]
+impl HttpTest for TransactionReceipts {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+        let mut storage = pool.access_storage().await?;
+        let miniblock_number = MiniblockNumber(1);
+
+        let tx1 = create_l2_transaction(10, 200);
+        let tx2 = create_l2_transaction(10, 200);
+
+        let tx_results = vec![
+            execute_l2_transaction(tx1.clone()),
+            execute_l2_transaction(tx2.clone()),
+        ];
+
+        store_miniblock(&mut storage, miniblock_number, &tx_results).await?;
+
+        let mut expected_receipts = Vec::new();
+
+        for tx in &tx_results {
+            expected_receipts.push(
+                client
+                    .get_transaction_receipt(tx.hash)
+                    .await?
+                    .expect("Receipt found"),
+            );
+        }
+
+        assert_eq!(expected_receipts.len(), 2);
+        for index in 0..expected_receipts.len() {
+            assert_eq!(
+                expected_receipts[index].transaction_hash,
+                tx_results[index].hash
+            );
+        }
+
+        let receipts = client
+            .get_block_receipts(BlockId::Number(BlockNumber::Number(U64::from(
+                miniblock_number.0,
+            ))))
+            .await?;
+        assert_eq!(receipts.len(), 2);
+        for index in 0..receipts.len() {
+            assert_eq!(receipts[index], expected_receipts[index]);
+        }
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn transaction_receipts() {
+    test_http_server(TransactionReceipts).await;
 }

@@ -255,6 +255,5 @@ async fn remove_stuck_txs() {
         .unwrap()
         .get(0)
         .cloned()
-        .unwrap()
         .unwrap();
 }

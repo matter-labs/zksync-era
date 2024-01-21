@@ -21,7 +21,7 @@ use zksync_types::{
     Nonce, PackedEthSignature, PriorityOpId, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE,
     EIP_712_TX_TYPE, H160, H256, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
-use zksync_utils::bigdecimal_to_u256;
+use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
 
 use crate::BigDecimal;
 
@@ -319,6 +319,92 @@ impl From<StorageTransaction> for Transaction {
                 received_timestamp_ms,
             },
         }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct StorageTransactionReceipt {
+    #[serde(flatten)]
+    pub inner: api::TransactionReceipt,
+}
+
+impl From<StorageTransactionReceipt> for api::TransactionReceipt {
+    fn from(tx_receipt: StorageTransactionReceipt) -> Self {
+        tx_receipt.inner
+    }
+}
+
+impl<'r> FromRow<'r, PgRow> for StorageTransactionReceipt {
+    fn from_row(db_row: &'r PgRow) -> Result<Self, Error> {
+        let status = db_row
+            .try_get("error")
+            .ok()
+            .map(|_: &[u8]| U64::zero())
+            .unwrap_or_else(U64::one);
+
+        let tx_type = db_row
+            .try_get::<i64, &str>("tx_format")
+            .ok()
+            .map(U64::from)
+            .unwrap_or_default();
+        let transaction_index = U64::from(db_row.get::<i32, &str>("index_in_block"));
+
+        let block_hash = H256::from_slice(db_row.get("block_hash"));
+
+        Ok(StorageTransactionReceipt {
+            inner: api::TransactionReceipt {
+                transaction_hash: H256::from_slice(db_row.get("tx_hash")),
+                transaction_index,
+                block_hash,
+                block_number: U64::from(db_row.get::<i64, &str>("block_number")),
+                l1_batch_tx_index: db_row
+                    .try_get::<i64, &str>("l1_batch_tx_index")
+                    .ok()
+                    .map(U64::from),
+                l1_batch_number: db_row
+                    .try_get::<i64, &str>("l1_batch_number")
+                    .ok()
+                    .map(U64::from),
+                from: H160::from_slice(db_row.get("initiator_address")),
+                to: db_row
+                    .try_get("transfer_to")
+                    .or(db_row.try_get("execute_contract_address"))
+                    .map(|addr| {
+                        serde_json::from_value::<Address>(addr)
+                            .expect("invalid address value in the database")
+                    })
+                    .ok()
+                    // For better compatibility with various clients, we never return null.
+                    .or_else(|| Some(Address::default())),
+                cumulative_gas_used: Default::default(), // TODO: Should be actually calculated (SMA-1183).
+                gas_used: {
+                    let refunded_gas = U256::from(db_row.get::<i64, &str>("refunded_gas"));
+                    db_row.try_get("gas_limit").ok().map(|val| {
+                        let gas_limit = bigdecimal_to_u256(val);
+                        gas_limit - refunded_gas
+                    })
+                },
+                effective_gas_price: Some(
+                    db_row
+                        .try_get("effective_gas_price")
+                        .ok()
+                        .map(bigdecimal_to_u256)
+                        .unwrap_or_default(),
+                ),
+                contract_address: db_row
+                    .try_get("contract_address")
+                    .ok()
+                    .map(|addr| h256_to_account_address(&H256::from_slice(addr))),
+                logs: vec![],
+                l2_to_l1_logs: vec![],
+                status,
+                root: block_hash,
+                logs_bloom: Default::default(),
+                // Even though the Rust SDK recommends us to supply "None" for legacy transactions
+                // we always supply some number anyway to have the same behavior as most popular RPCs
+                transaction_type: Some(tx_type),
+            },
+        })
     }
 }
 
