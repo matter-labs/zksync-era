@@ -284,7 +284,7 @@ impl TxSender {
         stage_latency.observe();
 
         let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::DryRun].start();
-        let shared_args = self.shared_args();
+        let shared_args = self.shared_args().await;
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
         let mut connection = self
@@ -401,10 +401,10 @@ impl TxSender {
         }
     }
 
-    fn shared_args(&self) -> TxSharedArgs {
+    async fn shared_args(&self) -> TxSharedArgs {
         TxSharedArgs {
             operator_account: AccountTreeId::new(self.0.sender_config.fee_account_addr),
-            fee_input: self.0.batch_fee_input_provider.get_batch_fee_input(),
+            fee_input: self.0.batch_fee_input_provider.get_batch_fee_input().await,
             base_system_contracts: self.0.api_contracts.eth_call.clone(),
             caches: self.storage_caches(),
             validation_computational_gas_limit: self
@@ -423,7 +423,7 @@ impl TxSender {
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
 
-        let fee_input = self.0.batch_fee_input_provider.get_batch_fee_input();
+        let fee_input = self.0.batch_fee_input_provider.get_batch_fee_input().await;
 
         // TODO (SMA-1715): do not subsidize the overhead for the transaction
 
@@ -684,10 +684,14 @@ impl TxSender {
 
         let fee_input = {
             // For now, both L1 gas price and pubdata price are scaled with the same coefficient
-            let fee_input = self.0.batch_fee_input_provider.get_batch_fee_input_scaled(
-                self.0.sender_config.gas_price_scale_factor,
-                self.0.sender_config.gas_price_scale_factor,
-            );
+            let fee_input = self
+                .0
+                .batch_fee_input_provider
+                .get_batch_fee_input_scaled(
+                    self.0.sender_config.gas_price_scale_factor,
+                    self.0.sender_config.gas_price_scale_factor,
+                )
+                .await;
             adjust_pubdata_price_for_tx(
                 fee_input,
                 tx.gas_per_pubdata_byte_limit(),
@@ -908,7 +912,7 @@ impl TxSender {
             .executor
             .execute_tx_eth_call(
                 vm_permit,
-                self.shared_args(),
+                self.shared_args().await,
                 self.0.replica_connection_pool.clone(),
                 tx,
                 block_args,
@@ -936,10 +940,13 @@ impl TxSender {
 
         let (base_fee, _) = derive_base_fee_and_gas_per_pubdata(
             // For now, both the L1 gas price and the L1 pubdata price are scaled with the same coefficient
-            self.0.batch_fee_input_provider.get_batch_fee_input_scaled(
-                self.0.sender_config.gas_price_scale_factor,
-                self.0.sender_config.gas_price_scale_factor,
-            ),
+            self.0
+                .batch_fee_input_provider
+                .get_batch_fee_input_scaled(
+                    self.0.sender_config.gas_price_scale_factor,
+                    self.0.sender_config.gas_price_scale_factor,
+                )
+                .await,
             protocol_version.into(),
         );
         base_fee
