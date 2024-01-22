@@ -29,7 +29,7 @@ impl StorageWeb3Log {
         self,
         api_eth_transfer_events: ApiEthTransferEvents,
     ) -> Option<ExtendedStorageWeb3Log> {
-        return if api_eth_transfer_events == ApiEthTransferEvents::Disabled
+        if api_eth_transfer_events == ApiEthTransferEvents::Disabled
             && self.address == L2_ETH_TOKEN_ADDRESS.as_bytes()
             && self.topic1 == TRANSFER_EVENT_TOPIC.as_bytes()
         {
@@ -39,7 +39,7 @@ impl StorageWeb3Log {
                 self.clone(),
                 api_eth_transfer_events,
             ))
-        };
+        }
     }
 }
 
