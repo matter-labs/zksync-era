@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
-use zk_evm_1_4_1::{
+use zk_evm_1_5_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
     vm_state::VmLocalState,
@@ -18,7 +18,7 @@ use zksync_utils::{bytecode::bytecode_len_in_bytes, ceil_div_u256, u256_to_h256}
 
 use crate::{
     interface::{
-        traits::tracers::dyn_tracers::vm_1_4_1::DynTracer, types::tracer::TracerExecutionStatus,
+        traits::tracers::dyn_tracers::vm_1_5_0::DynTracer, types::tracer::TracerExecutionStatus,
         L1BatchEnv, Refunds,
     },
     vm_latest::{
@@ -257,16 +257,19 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
             );
 
             self.pubdata_published = pubdata_published;
-            let current_ergs_per_pubdata_byte = state.local_state.current_ergs_per_pubdata_byte;
 
-            let tx_body_refund = self.tx_body_refund(
-                bootloader_refund,
-                gas_spent_on_pubdata,
-                tx_gas_limit,
-                current_ergs_per_pubdata_byte,
-                pubdata_published,
-                bootloader_state.last_l2_block().txs.last().unwrap().hash,
-            );
+            // TODO: implement correct refunds
+            let tx_body_refund = 0;
+
+            // let current_ergs_per_pubdata_byte = 0;
+            // self.tx_body_refund(
+            //     bootloader_refund,
+            //     gas_spent_on_pubdata,
+            //     tx_gas_limit,
+            //     current_ergs_per_pubdata_byte,
+            //     pubdata_published,
+            //     bootloader_state.last_l2_block().txs.last().unwrap().hash,
+            // );
 
             if tx_body_refund < bootloader_refund {
                 tracing::error!(

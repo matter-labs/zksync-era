@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use zk_evm_1_4_1::{
+use zk_evm_1_5_0::{
     abstractions::{DecommittmentProcessor, Memory, MemoryType},
     aux_structures::{
         DecommittmentQuery, MemoryIndex, MemoryLocation, MemoryPage, MemoryQuery, Timestamp,
@@ -168,7 +168,7 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
         memory: &mut M,
     ) -> Result<
         (
-            zk_evm_1_4_1::aux_structures::DecommittmentQuery,
+            zk_evm_1_5_0::aux_structures::DecommittmentQuery,
             Option<Vec<U256>>,
         ),
         anyhow::Error,

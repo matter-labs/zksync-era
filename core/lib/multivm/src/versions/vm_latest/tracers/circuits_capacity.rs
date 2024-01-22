@@ -1,3 +1,4 @@
+// FIXME: this is incorrect
 use zkevm_test_harness_1_4_1::{geometry_config::get_geometry_config, toolset::GeometryConfig};
 
 const GEOMETRY_CONFIG: GeometryConfig = get_geometry_config();

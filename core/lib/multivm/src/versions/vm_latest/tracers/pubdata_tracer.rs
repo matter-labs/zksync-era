@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use zk_evm_1_4_1::{
+use zk_evm_1_5_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
@@ -18,7 +18,7 @@ use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
 
 use crate::{
     interface::{
-        dyn_tracers::vm_1_4_1::DynTracer,
+        dyn_tracers::vm_1_5_0::DynTracer,
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         types::inputs::L1BatchEnv,
         VmExecutionMode,

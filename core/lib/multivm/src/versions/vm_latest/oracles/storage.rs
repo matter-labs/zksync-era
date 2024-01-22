@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use zk_evm_1_4_1::{
-    abstractions::{RefundType, RefundedAmounts, Storage as VmStorageOracle},
-    aux_structures::{LogQuery, Timestamp},
+use zk_evm_1_5_0::{
+    abstractions::{Storage as VmStorageOracle, StorageAccessRefund},
+    aux_structures::{LogQuery, PubdataCost, Timestamp},
     zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
 use zksync_state::{StoragePtr, WriteStorage};
@@ -342,7 +342,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         &mut self,
         _monotonic_cycle_counter: u32,
         mut query: LogQuery,
-    ) -> LogQuery {
+    ) -> (LogQuery, PubdataCost) {
         // ```
         // tracing::trace!(
         //     "execute partial query cyc {:?} addr {:?} key {:?}, rw {:?}, wr {:?}, tx {:?}",
@@ -374,41 +374,58 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
                     query.timestamp,
                 );
             }
-            self.write_value(query)
+
+            // TODO: use normal pubdata cost
+            (self.write_value(query), PubdataCost(64))
         } else {
-            self.read_value(query)
+            (self.read_value(query), PubdataCost(0))
         }
     }
 
-    // We can return the size of the refund before each storage query.
-    // Note, that while the `RefundType` allows to provide refunds both in
-    // `ergs` and `pubdata`, only refunds in pubdata will be compensated for the users
-    fn estimate_refunds_for_write(
+    // We can evaluate a query cost (or more precisely - get expected refunds)
+    // before actually executing query
+    fn get_access_refund(
         &mut self, // to avoid any hacks inside, like prefetch
-        _monotonic_cycle_counter: u32,
+        monotonic_cycle_counter: u32,
         partial_query: &LogQuery,
-    ) -> RefundType {
-        let storage_key = storage_key_of_log(partial_query);
-        let mut partial_query = *partial_query;
-        let read_value = self.storage.read_from_storage(&storage_key);
-        partial_query.read_value = read_value;
+    ) -> StorageAccessRefund {
+        // TODO: implement storage access refund
+        self.returned_refunds
+            .apply_historic_record(VectorHistoryEvent::Push(0), partial_query.timestamp);
 
-        let price_to_pay = self
-            .value_update_price(&partial_query)
-            .min(INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32);
-
-        let refund = RefundType::RepeatedWrite(RefundedAmounts {
-            ergs: 0,
-            // `INITIAL_STORAGE_WRITE_PUBDATA_BYTES` is the default amount of pubdata bytes the user pays for.
-            pubdata_bytes: (INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32) - price_to_pay,
-        });
-        self.returned_refunds.apply_historic_record(
-            VectorHistoryEvent::Push(refund.pubdata_refund()),
-            partial_query.timestamp,
-        );
-
-        refund
+        // TODO: implement it correctly
+        StorageAccessRefund::Cold
     }
+
+    // // We can return the size of the refund before each storage query.
+    // // Note, that while the `RefundType` allows to provide refunds both in
+    // // `ergs` and `pubdata`, only refunds in pubdata will be compensated for the users
+    // fn estimate_refunds_for_write(
+    //     &mut self, // to avoid any hacks inside, like prefetch
+    //     _monotonic_cycle_counter: u32,
+    //     partial_query: &LogQuery,
+    // ) -> RefundType {
+    //     let storage_key = storage_key_of_log(partial_query);
+    //     let mut partial_query = *partial_query;
+    //     let read_value = self.storage.read_from_storage(&storage_key);
+    //     partial_query.read_value = read_value;
+
+    //     let price_to_pay = self
+    //         .value_update_price(&partial_query)
+    //         .min(INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32);
+
+    //     let refund = RefundType::RepeatedWrite(RefundedAmounts {
+    //         ergs: 0,
+    //         // `INITIAL_STORAGE_WRITE_PUBDATA_BYTES` is the default amount of pubdata bytes the user pays for.
+    //         pubdata_bytes: (INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32) - price_to_pay,
+    //     });
+    //     self.returned_refunds.apply_historic_record(
+    //         VectorHistoryEvent::Push(refund.pubdata_refund()),
+    //         partial_query.timestamp,
+    //     );
+
+    //     refund
+    // }
 
     // Indicate a start of execution frame for rollback purposes
     fn start_frame(&mut self, timestamp: Timestamp) {
@@ -457,6 +474,10 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
                 .move_rollback_to_forward(|_| true, timestamp);
         }
         self.frames_stack.merge_frame(timestamp);
+    }
+
+    fn start_new_tx(&mut self) {
+        // TODO: implement tstore
     }
 }
 

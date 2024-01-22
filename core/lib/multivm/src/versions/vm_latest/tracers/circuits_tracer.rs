@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use zk_evm_1_4_1::{
+use zk_evm_1_5_0::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zk_evm_abstractions::precompiles::PrecompileAddress,
     zkevm_opcode_defs::{LogOpcode, Opcode, UMAOpcode},
@@ -9,7 +9,7 @@ use zksync_state::{StoragePtr, WriteStorage};
 
 use super::circuits_capacity::*;
 use crate::{
-    interface::{dyn_tracers::vm_1_4_1::DynTracer, tracer::TracerExecutionStatus},
+    interface::{dyn_tracers::vm_1_5_0::DynTracer, tracer::TracerExecutionStatus},
     vm_latest::{
         bootloader_state::BootloaderState,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
@@ -61,6 +61,10 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
             | Opcode::Shift(_)
             | Opcode::Ptr(_) => RICH_ADDRESSING_OPCODE_FRACTION,
             Opcode::Context(_) | Opcode::Ret(_) | Opcode::NearCall(_) => AVERAGE_OPCODE_FRACTION,
+            // TODO: Add more precise estimation for these opcodes.
+            Opcode::Log(LogOpcode::Decommit)
+            | Opcode::Log(LogOpcode::TransientStorageRead)
+            | Opcode::Log(LogOpcode::TransientStorageWrite) => AVERAGE_OPCODE_FRACTION,
             Opcode::Log(LogOpcode::StorageRead) => STORAGE_READ_BASE_FRACTION,
             Opcode::Log(LogOpcode::StorageWrite) => STORAGE_WRITE_BASE_FRACTION,
             Opcode::Log(LogOpcode::ToL1Message) | Opcode::Log(LogOpcode::Event) => {
@@ -182,6 +186,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
                 PrecompileAddress::Ecrecover => ECRECOVER_CYCLE_FRACTION,
                 PrecompileAddress::SHA256 => SHA256_CYCLE_FRACTION,
                 PrecompileAddress::Keccak256 => KECCAK256_CYCLE_FRACTION,
+                PrecompileAddress::Secp256r1Verify => todo!(),
             };
             self.estimated_circuits_used += (*cycles as f32) * fraction;
         }
