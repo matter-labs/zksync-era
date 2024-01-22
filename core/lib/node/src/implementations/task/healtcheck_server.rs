@@ -36,8 +36,9 @@ impl IntoZkSyncTask for HealthCheckTaskBuilder {
         self: Box<Self>,
         mut node: NodeContext<'_>,
     ) -> Result<Box<dyn ZkSyncTask>, TaskInitError> {
-        let healthchecks =
-            node.get_resource_or_default::<ResourceCollection<HealthCheckResource>>();
+        let healthchecks = node
+            .get_resource_or_default::<ResourceCollection<HealthCheckResource>>()
+            .await;
 
         let task = HealthCheckTask {
             config: self.0,

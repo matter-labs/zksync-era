@@ -37,8 +37,9 @@ impl MainNodeResourceProvider {
     }
 }
 
+#[async_trait::async_trait]
 impl ResourceProvider for MainNodeResourceProvider {
-    fn get_resource(&self, name: &ResourceId) -> Option<Box<dyn StoredResource>> {
+    async fn get_resource(&self, name: &ResourceId) -> Option<Box<dyn StoredResource>> {
         match name {
             name if name == &MasterPoolResource::resource_id() => {
                 let resource =

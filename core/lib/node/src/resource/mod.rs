@@ -69,6 +69,7 @@ impl dyn StoredResource {
 /// Node will only call `get_resource` method once per resource, and will cache the result. This guarantees that
 /// all the resource consumers will interact with the same resource instance, which may be important for getting
 /// the consistent state (e.g. to make sure that L1 gas price is the same for all the tasks).
+#[async_trait::async_trait]
 pub trait ResourceProvider: 'static + Send + Sync + fmt::Debug {
     /// Returns a resource with the given name.
     ///
@@ -76,5 +77,5 @@ pub trait ResourceProvider: 'static + Send + Sync + fmt::Debug {
     /// the provider is free to either return `None` (if it assumes that the node can continue without this resource),
     /// or to panic.
     // Note: we have to use `Box<dyn Any>` here, since we can't use `Box<dyn Resource>` due to it not being object-safe.
-    fn get_resource(&self, resource: &ResourceId) -> Option<Box<dyn StoredResource>>;
+    async fn get_resource(&self, resource: &ResourceId) -> Option<Box<dyn StoredResource>>;
 }

@@ -47,7 +47,7 @@ impl<'a> NodeContext<'a> {
     /// ## Panics
     ///
     /// Panics if the resource with the specified name exists, but is not of the requested type.
-    pub fn get_resource<T: Resource + Clone>(&mut self) -> Option<T> {
+    pub async fn get_resource<T: Resource + Clone>(&mut self) -> Option<T> {
         #[allow(clippy::borrowed_box)]
         let downcast_clone = |resource: &Box<dyn StoredResource>| {
             resource
@@ -69,7 +69,7 @@ impl<'a> NodeContext<'a> {
         }
 
         // Try to fetch the resource from the provider.
-        if let Some(resource) = self.node.resource_provider.get_resource(&name) {
+        if let Some(resource) = self.node.resource_provider.get_resource(&name).await {
             // First, ensure the type matches.
             let downcasted = downcast_clone(&resource);
             // Then, add it to the local resources.
@@ -96,11 +96,11 @@ impl<'a> NodeContext<'a> {
 
     /// Attempts to retrieve the resource with the specified name.
     /// If the resource is not available, it is created using the provided closure.
-    pub fn get_resource_or_insert_with<T: Resource + Clone, F: FnOnce() -> T>(
+    pub async fn get_resource_or_insert_with<T: Resource + Clone, F: FnOnce() -> T>(
         &mut self,
         f: F,
     ) -> T {
-        if let Some(resource) = self.get_resource::<T>() {
+        if let Some(resource) = self.get_resource::<T>().await {
             return resource;
         }
 
@@ -114,7 +114,7 @@ impl<'a> NodeContext<'a> {
 
     /// Attempts to retrieve the resource with the specified name.
     /// If the resource is not available, it is created using `T::default()`.
-    pub fn get_resource_or_default<T: Resource + Clone + Default>(&mut self) -> T {
-        self.get_resource_or_insert_with(T::default)
+    pub async fn get_resource_or_default<T: Resource + Clone + Default>(&mut self) -> T {
+        self.get_resource_or_insert_with(T::default).await
     }
 }

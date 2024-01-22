@@ -31,13 +31,11 @@ impl IntoZkSyncTask for MetadataCalculatorTaskBuilder {
         self: Box<Self>,
         mut node: NodeContext<'_>,
     ) -> Result<Box<dyn ZkSyncTask>, TaskInitError> {
-        let pool =
-            node.get_resource::<MasterPoolResource>()
-                .ok_or(TaskInitError::ResourceLacking(
-                    MasterPoolResource::resource_id(),
-                ))?;
+        let pool = node.get_resource::<MasterPoolResource>().await.ok_or(
+            TaskInitError::ResourceLacking(MasterPoolResource::resource_id()),
+        )?;
         let main_pool = pool.get().await.unwrap();
-        let object_store = node.get_resource::<ObjectStoreResource>(); // OK to be None.
+        let object_store = node.get_resource::<ObjectStoreResource>().await; // OK to be None.
 
         if object_store.is_none() {
             tracing::info!(
@@ -48,8 +46,9 @@ impl IntoZkSyncTask for MetadataCalculatorTaskBuilder {
         let metadata_calculator =
             MetadataCalculator::new(self.0, object_store.map(|os| os.0)).await;
 
-        let healthchecks =
-            node.get_resource_or_default::<ResourceCollection<HealthCheckResource>>();
+        let healthchecks = node
+            .get_resource_or_default::<ResourceCollection<HealthCheckResource>>()
+            .await;
         healthchecks
             .push(HealthCheckResource::new(
                 metadata_calculator.tree_health_check(),
