@@ -1,22 +1,12 @@
-use zk_evm::{
-    aux_structures::Timestamp as Timestamp_1_4_0,
-    zk_evm_abstractions::queries::LogQuery as LogQuery_1_4_0,
+use zk_evm_1_3_3::{
+    aux_structures::Timestamp as Timestamp_1_3_3,
+    zk_evm_abstractions::queries::LogQuery as LogQuery_1_3_3,
 };
 use zk_evm_1_4_1::{
     aux_structures::Timestamp as Timestamp_1_4_1,
     zk_evm_abstractions::queries::LogQuery as LogQuery_1_4_1,
 };
 use zksync_basic_types::{Address, U256};
-
-// #[derive(Clone, Copy)]
-// pub struct EventMessage {
-//     pub shard_id: u8,
-//     pub is_first: bool,
-//     pub tx_number_in_block: u16,
-//     pub address: Address,
-//     pub key: U256,
-//     pub value: U256,
-// }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
@@ -47,10 +37,10 @@ pub struct LogQuery {
     pub is_service: bool,
 }
 
-impl From<LogQuery> for LogQuery_1_4_0 {
+impl From<LogQuery> for LogQuery_1_3_3 {
     fn from(log_query: LogQuery) -> Self {
         Self {
-            timestamp: Timestamp_1_4_0(log_query.timestamp.0),
+            timestamp: Timestamp_1_3_3(log_query.timestamp.0),
             tx_number_in_block: log_query.tx_number_in_block,
             aux_byte: log_query.aux_byte,
             shard_id: log_query.shard_id,
@@ -65,8 +55,8 @@ impl From<LogQuery> for LogQuery_1_4_0 {
     }
 }
 
-impl From<LogQuery_1_4_0> for LogQuery {
-    fn from(log_query: LogQuery_1_4_0) -> Self {
+impl From<LogQuery_1_3_3> for LogQuery {
+    fn from(log_query: LogQuery_1_3_3) -> Self {
         Self {
             timestamp: Timestamp(log_query.timestamp.0),
             tx_number_in_block: log_query.tx_number_in_block,

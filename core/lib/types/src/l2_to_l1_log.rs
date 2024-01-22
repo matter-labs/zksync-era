@@ -1,6 +1,4 @@
 use serde::{Deserialize, Serialize};
-use zk_evm::reference_impls::event_sink::EventMessage;
-use zk_evm_1_4_0::reference_impls::event_sink::EventMessage as EventMessage_1_4_0;
 use zk_evm_1_4_1::reference_impls::event_sink::EventMessage as EventMessage_1_4_1;
 use zksync_utils::u256_to_h256;
 
@@ -65,17 +63,6 @@ impl L2ToL1Log {
         res.extend(self.value.as_bytes());
         res
     }
-
-    // pub fn from_event_message(message: EventMessage) -> Self {
-    //     Self {
-    //         shard_id: message.shard_id,
-    //         is_service: message.is_first,
-    //         tx_number_in_block: message.tx_number_in_block,
-    //         sender: message.address,
-    //         key: u256_to_h256(message.key),
-    //         value: u256_to_h256(message.value),
-    //     }
-    // }
 }
 
 impl From<EventMessage_1_4_1> for L2ToL1Log {
