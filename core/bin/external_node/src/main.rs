@@ -196,8 +196,11 @@ async fn init_tasks(
             let pool = connection_pool.clone();
             let mut stop_receiver = stop_receiver.clone();
             let sync_state = sync_state.clone();
+            #[allow(clippy::redundant_locals)]
             tokio::spawn(async move {
-                scope::run!(&ctx::root(), |ctx, s| async move {
+                let sync_state = sync_state;
+                let main_node_client = main_node_client;
+                scope::run!(&ctx::root(), |ctx, s| async {
                     s.spawn_bg(async {
                         let res = cfg.run(ctx, pool, action_queue_sender).await;
                         tracing::info!("Consensus actor stopped");
@@ -207,8 +210,6 @@ async fn init_tasks(
                     // (currently just the main node)
                     // should also be provided over the gossip network.
                     s.spawn_bg(async {
-                        let sync_state = sync_state;
-                        let main_node_client = main_node_client;
                         consensus::run_main_node_state_fetcher(ctx, &main_node_client, &sync_state)
                             .await?;
                         Ok(())
