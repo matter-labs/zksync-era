@@ -87,7 +87,7 @@ mod tests {
     use crate::ConnectionPool;
 
     #[tokio::test]
-    async fn resolving_earliest_block_id() {
+    async fn manipulating_snapshot_recovery_table() {
         let connection_pool = ConnectionPool::test_pool().await;
         let mut conn = connection_pool.access_storage().await.unwrap();
         let mut applied_status_dal = conn.snapshot_recovery_dal();

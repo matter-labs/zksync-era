@@ -5,7 +5,7 @@ component responsible for handling transaction execution and creating miniblocks
 
 All state keeper data is currently stored in Postgres. (Beside it, we provide an in-memory implementation for
 benchmarking / testing purposes.) We also keep a secondary copy for part of it in RocksDB for performance reasons.
-Currently, we only duplicate the data needed by the [`vm`] crate.
+Currently, we only duplicate the data needed by the [`multivm`] crate.
 
 [`zksync_core`]: ../zksync_core
-[`vm`]: ../vm
+[`multivm`]: ../multivm
