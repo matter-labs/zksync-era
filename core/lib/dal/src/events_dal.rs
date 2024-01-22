@@ -57,7 +57,7 @@ impl EventsDal<'_, '_> {
         let mut buffer = String::new();
         let now = Utc::now().naive_utc().to_string();
         let mut event_index_in_block = 0_u32;
-        let mut event_index_in_block_without_eth_transfer = 1_u32;
+        let mut event_index_in_block_without_eth_transfer = 0_u32;
 
         for (tx_location, events) in all_block_events {
             let IncludedTxLocation {
@@ -66,7 +66,7 @@ impl EventsDal<'_, '_> {
                 tx_initiator_address,
             } = tx_location;
 
-            let mut event_index_in_tx_without_eth_transfer = 1_u32;
+            let mut event_index_in_tx_without_eth_transfer = 0_u32;
             for (event_index_in_tx, event) in events.iter().enumerate() {
                 write_str!(
                     &mut buffer,
@@ -93,7 +93,7 @@ impl EventsDal<'_, '_> {
                 );
 
                 if !(event.address == L2_ETH_TOKEN_ADDRESS
-                    && event.indexed_topics.get(0) == Some(TRANSFER_EVENT_TOPIC))
+                    && event.indexed_topics.get(0) == Some(&TRANSFER_EVENT_TOPIC))
                 {
                     event_index_in_block_without_eth_transfer += 1;
                     event_index_in_tx_without_eth_transfer += 1;
@@ -237,7 +237,6 @@ impl EventsDal<'_, '_> {
 // Temporary methods for the migration of the event indexes without ETH transfer
 impl EventsDal<'_, '_> {
     /// Method assigns indexes, that should be present without ETH transfer events for all the events in the given range.
-    /// Note, that indexes are assigned starting from 1 to understand whether indexes were migrated.
     pub async fn assign_indexes_without_eth_transfer(
         &mut self,
         numbers: ops::RangeInclusive<MiniblockNumber>,
@@ -267,14 +266,14 @@ impl EventsDal<'_, '_> {
                                 miniblock_number
                             ORDER BY
                                 event_index_in_block ASC
-                        ) AS event_index_in_block_without_eth_transfer,
+                        ) - 1 AS event_index_in_block_without_eth_transfer,
                         ROW_NUMBER() OVER (
                             PARTITION BY
                                 miniblock_number,
                                 tx_hash
                             ORDER BY
                                 event_index_in_tx ASC
-                        ) AS event_index_in_tx_without_eth_transfer
+                        ) - 1 AS event_index_in_tx_without_eth_transfer
                     FROM
                         events
                     WHERE
@@ -284,8 +283,8 @@ impl EventsDal<'_, '_> {
                             AND topic1 = $4
                         )
                         AND (
-                            event_index_in_tx_without_eth_transfer = 0
-                            OR event_index_in_block_without_eth_transfer = 0
+                            event_index_in_tx_without_eth_transfer IS NULL
+                            OR event_index_in_block_without_eth_transfer IS NULL
                         )
                 ) AS subquery
             WHERE
@@ -305,8 +304,8 @@ impl EventsDal<'_, '_> {
 
         Ok(result.rows_affected() + count_eth_transfer_events)
     }
-    // FIXME: not sure that this is the best way to work, pretty error-prone
-    /// Method that assigns some non-zero index (1) for all the events with ETH transfer.
+
+    /// Method that assigns 0 for all the events with ETH transfer.
     async fn assign_eth_transfer_event_indexes(
         &mut self,
         numbers: ops::RangeInclusive<MiniblockNumber>,
@@ -315,15 +314,15 @@ impl EventsDal<'_, '_> {
             r#"
             UPDATE events
             SET
-                event_index_in_block_without_eth_transfer = 1,
-                event_index_in_tx_without_eth_transfer = 1
+                event_index_in_block_without_eth_transfer = 0,
+                event_index_in_tx_without_eth_transfer = 0
             WHERE
                 miniblock_number BETWEEN $1 AND $2
                 AND address = $3
                 AND topic1 = $4
                 AND (
-                    event_index_in_tx_without_eth_transfer = 0
-                    OR event_index_in_block_without_eth_transfer = 0
+                    event_index_in_tx_without_eth_transfer IS NULL
+                    OR event_index_in_block_without_eth_transfer IS NULL
                 )
             "#,
             numbers.start().0 as i64,
@@ -337,36 +336,36 @@ impl EventsDal<'_, '_> {
         Ok(result.rows_affected())
     }
 
-    /// Method checks, whether any event in the miniblock has `index_without_eth_transfer` equal to 0, which means that indexes are not migrated.
+    /// Method checks, whether any event in the miniblock has `index_without_eth_transfer` equal to NULL, which means that indexes are not migrated.
     pub async fn are_event_indexes_migrated(
         &mut self,
-        miniblock: MiniblockNumber,
+        range: ops::RangeInclusive<MiniblockNumber>,
     ) -> sqlx::Result<bool> {
         let result = sqlx::query!(
             r#"
             SELECT
-                COUNT(*)
+                tx_hash
             FROM
                 events
             WHERE
-                miniblock_number = $1
+                miniblock_number BETWEEN $1 AND $2
                 AND (
-                    event_index_in_block_without_eth_transfer = 0
-                    OR event_index_in_tx_without_eth_transfer = 0
+                    event_index_in_block_without_eth_transfer IS NULL
+                    OR event_index_in_tx_without_eth_transfer IS NULL
                 )
+            LIMIT
+                1
             "#,
-            miniblock.0 as i64
+            range.start().0 as i64,
+            range.end().0 as i64,
         )
-        .fetch_one(self.storage.conn())
+        .fetch_optional(self.storage.conn())
         .await?;
 
-        // FIXME: i guess better to change/remove the error here
-        let count = result.count.ok_or(sqlx::Error::RowNotFound)?;
-
-        Ok(count == 0)
+        Ok(result.is_none())
     }
 
-    /// Method sets `index_without_eth_transfer` equal to 0, which means that indexes are not migrated.
+    /// Method sets `index_without_eth_transfer` equal to NULL, which means that indexes are not migrated.
     /// Should be used only in tests!!!
     pub async fn remove_event_indexes_without_eth_transfer(
         &mut self,
@@ -376,8 +375,8 @@ impl EventsDal<'_, '_> {
             r#"
             UPDATE events
             SET
-                event_index_in_block_without_eth_transfer = 0,
-                event_index_in_tx_without_eth_transfer = 0
+                event_index_in_block_without_eth_transfer = NULL,
+                event_index_in_tx_without_eth_transfer = NULL
             WHERE
                 miniblock_number BETWEEN $1 AND $2
             "#,
@@ -602,9 +601,9 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(conn
+        assert!(!conn
             .events_dal()
-            .are_event_indexes_migrated(MiniblockNumber(0))
+            .are_event_indexes_migrated(MiniblockNumber(0)..=MiniblockNumber(1))
             .await
             .unwrap());
 
@@ -632,16 +631,22 @@ mod tests {
             if log.address == L2_ETH_TOKEN_ADDRESS.as_bytes()
                 && log.topic1 == TRANSFER_EVENT_TOPIC.as_bytes()
             {
-                assert_eq!(log.event_index_in_block_without_eth_transfer, 1);
-                assert_eq!(log.event_index_in_tx_without_eth_transfer, 1);
+                assert_eq!(log.event_index_in_block_without_eth_transfer, Some(0));
+                assert_eq!(log.event_index_in_tx_without_eth_transfer, Some(0));
             } else if i < first_events.len() {
-                assert_eq!(log.event_index_in_block_without_eth_transfer, i as i32 + 1);
-                assert_eq!(log.event_index_in_tx_without_eth_transfer, i as i32 + 1);
+                assert_eq!(
+                    log.event_index_in_block_without_eth_transfer,
+                    Some(i as i32)
+                );
+                assert_eq!(log.event_index_in_tx_without_eth_transfer, Some(i as i32));
             } else {
-                assert_eq!(log.event_index_in_block_without_eth_transfer, i as i32 - 1);
+                assert_eq!(
+                    log.event_index_in_block_without_eth_transfer,
+                    Some(i as i32 - 2)
+                );
                 assert_eq!(
                     log.event_index_in_tx_without_eth_transfer,
-                    (i - first_events.len() - 1) as i32
+                    Some((i - first_events.len() - 2) as i32)
                 );
             }
         }

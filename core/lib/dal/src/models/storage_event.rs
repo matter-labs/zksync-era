@@ -20,8 +20,8 @@ pub struct StorageWeb3Log {
     pub tx_index_in_block: i32,
     pub event_index_in_block: i32,
     pub event_index_in_tx: i32,
-    pub event_index_in_block_without_eth_transfer: i32,
-    pub event_index_in_tx_without_eth_transfer: i32,
+    pub event_index_in_block_without_eth_transfer: Option<i32>,
+    pub event_index_in_tx_without_eth_transfer: Option<i32>,
 }
 
 impl StorageWeb3Log {
@@ -43,7 +43,7 @@ impl StorageWeb3Log {
     }
 }
 
-struct ExtendedStorageWeb3Log(pub StorageWeb3Log, pub ApiEthTransferEvents);
+pub struct ExtendedStorageWeb3Log(pub StorageWeb3Log, pub ApiEthTransferEvents);
 
 impl From<ExtendedStorageWeb3Log> for Log {
     fn from(log_with_transfer_events_mode: ExtendedStorageWeb3Log) -> Log {
@@ -53,23 +53,13 @@ impl From<ExtendedStorageWeb3Log> for Log {
         let event_index_in_block = match api_eth_transfer_events {
             ApiEthTransferEvents::Enabled => log.event_index_in_block,
             ApiEthTransferEvents::Disabled => {
-                // reducing it by 1 here, because index 0 in DB means that events weren't migrated
-                if log.event_index_in_block_without_eth_transfer > 0 {
-                    log.event_index_in_block_without_eth_transfer - 1
-                } else {
-                    log.event_index_in_block_without_eth_transfer
-                }
+                log.event_index_in_block_without_eth_transfer.unwrap_or(0)
             }
         };
         let event_index_in_tx = match api_eth_transfer_events {
             ApiEthTransferEvents::Enabled => log.event_index_in_tx,
             ApiEthTransferEvents::Disabled => {
-                // reducing it by 1 here, because index 0 in DB means that events weren't migrated
-                if log.event_index_in_tx_without_eth_transfer > 0 {
-                    log.event_index_in_tx_without_eth_transfer - 1
-                } else {
-                    log.event_index_in_tx_without_eth_transfer
-                }
+                log.event_index_in_tx_without_eth_transfer.unwrap_or(0)
             }
         };
 
@@ -94,7 +84,7 @@ impl From<ExtendedStorageWeb3Log> for Log {
             transaction_hash: Some(H256::from_slice(&log.tx_hash)),
             transaction_index: Some(Index::from(log.tx_index_in_block as u32)),
             log_index: Some(U256::from(event_index_in_block as u32)),
-            transaction_log_index: Some(U256::from(event_index_in_block as u32)),
+            transaction_log_index: Some(U256::from(event_index_in_tx as u32)),
             log_type: None,
             removed: Some(false),
         }

@@ -1,6 +1,6 @@
 //! Temporary module for migrating fee addresses from L1 batches to miniblocks.
 
-use std::time::Duration;
+use std::{ops, time::Duration};
 
 use anyhow::Context as _;
 use tokio::sync::watch;
@@ -54,7 +54,7 @@ async fn migrate_miniblocks_inner(
         let chunk = chunk_start..=chunk_end;
 
         let mut storage = pool.access_storage().await?;
-        let is_chunk_migrated = are_event_indexes_migrated(&mut storage, chunk_start).await?;
+        let is_chunk_migrated = are_event_indexes_migrated(&mut storage, chunk.clone()).await?;
 
         if is_chunk_migrated {
             tracing::debug!("Event indexes are migrated for chunk {chunk:?}");
@@ -90,13 +90,19 @@ async fn migrate_miniblocks_inner(
 #[allow(deprecated)]
 async fn are_event_indexes_migrated(
     storage: &mut StorageProcessor<'_>,
-    miniblock: MiniblockNumber,
+    range: ops::RangeInclusive<MiniblockNumber>,
 ) -> anyhow::Result<bool> {
     storage
         .events_dal()
-        .are_event_indexes_migrated(miniblock)
+        .are_event_indexes_migrated(range.clone())
         .await
-        .with_context(|| format!("Failed getting event indexes for miniblock #{miniblock}"))
+        .with_context(|| {
+            format!(
+                "Failed getting event indexes for miniblocks in range #{}..=#{}",
+                range.start().0,
+                range.end().0
+            )
+        })
 }
 
 #[cfg(test)]
@@ -206,11 +212,13 @@ mod tests {
     }
 
     async fn assert_migration(storage: &mut StorageProcessor<'_>) {
-        for number in 0..5 {
-            assert!(are_event_indexes_migrated(storage, MiniblockNumber(number))
+        assert!(
+            are_event_indexes_migrated(storage, MiniblockNumber(0)..=MiniblockNumber(5))
                 .await
-                .unwrap());
+                .unwrap()
+        );
 
+        for number in 0..5 {
             let filter = GetLogsFilter {
                 from_block: number.into(),
                 to_block: number.into(),
@@ -230,14 +238,23 @@ mod tests {
                 if log.address == L2_ETH_TOKEN_ADDRESS.as_bytes()
                     && log.topic1 == TRANSFER_EVENT_TOPIC.as_bytes()
                 {
-                    assert_eq!(log.event_index_in_block_without_eth_transfer, 1);
-                    assert_eq!(log.event_index_in_tx_without_eth_transfer, 1);
+                    assert_eq!(log.event_index_in_block_without_eth_transfer, Some(0));
+                    assert_eq!(log.event_index_in_tx_without_eth_transfer, Some(0));
                 } else if i < 4 {
-                    assert_eq!(log.event_index_in_block_without_eth_transfer, i as i32 + 1);
-                    assert_eq!(log.event_index_in_tx_without_eth_transfer, i as i32 + 1);
+                    assert_eq!(
+                        log.event_index_in_block_without_eth_transfer,
+                        Some(i as i32)
+                    );
+                    assert_eq!(log.event_index_in_tx_without_eth_transfer, Some(i as i32));
                 } else {
-                    assert_eq!(log.event_index_in_block_without_eth_transfer, i as i32);
-                    assert_eq!(log.event_index_in_tx_without_eth_transfer, i as i32);
+                    assert_eq!(
+                        log.event_index_in_block_without_eth_transfer,
+                        Some(i as i32 - 1)
+                    );
+                    assert_eq!(
+                        log.event_index_in_tx_without_eth_transfer,
+                        Some(i as i32 - 1)
+                    );
                 }
             }
         }
