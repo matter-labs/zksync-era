@@ -25,7 +25,7 @@
 
 mod file;
 mod gcs;
-mod gcs_unauthenticated;
+mod gcs_public;
 mod metrics;
 mod mock;
 mod objects;

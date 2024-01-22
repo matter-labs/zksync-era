@@ -5,7 +5,7 @@ use zksync_config::configs::object_store::{ObjectStoreConfig, ObjectStoreMode};
 
 use crate::{
     file::FileBackedObjectStore, gcs::GoogleCloudStorage,
-    gcs_unauthenticated::UnauthenticatedGoogleCloudStorage, mock::MockStore,
+    gcs_public::PublicReadOnlyGoogleCloudStorage, mock::MockStore,
 };
 
 /// Bucket for [`ObjectStore`] in which objects can be placed.
@@ -221,11 +221,14 @@ impl ObjectStoreFactory {
                 let store = FileBackedObjectStore::new(config.file_backed_base_path.clone()).await;
                 Arc::new(store)
             }
-            ObjectStoreMode::GCSUnauthenticated => {
-                tracing::trace!("Initialized GoogleCloudStorageUnauthenticated store");
-                let store = UnauthenticatedGoogleCloudStorage::new(
+            ObjectStoreMode::GCSPublicReadOnly => {
+                tracing::trace!("Initialized GoogleCloudStoragePublicReadOnly store");
+                let store = PublicReadOnlyGoogleCloudStorage::new(
+                    "https://storage.googleapis.com".to_string(),
                     config.bucket_base_url.clone(),
                     config.max_retries,
+                    600,
+                    5,
                 );
                 Arc::new(store)
             }
