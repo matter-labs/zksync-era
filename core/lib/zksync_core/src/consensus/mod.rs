@@ -61,6 +61,8 @@ impl MainNodeConfig {
     }
 }
 
+/// Periodically fetches the head of the main node
+/// and updates `SyncState` accordingly.
 pub async fn run_main_node_state_fetcher(
     ctx: &ctx::Ctx,
     client: &dyn MainNodeClient,
