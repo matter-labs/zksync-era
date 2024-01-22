@@ -11,8 +11,7 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
     commitment::{L1BatchMetadata, L1BatchWithMetadata},
-    Address, L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256,
-    MAX_GAS_PER_PUBDATA_BYTE, U256,
+    Address, L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256, U256,
 };
 
 use crate::{
@@ -61,8 +60,8 @@ impl BlocksDal<'_, '_> {
         Ok(row.number.map(|num| L1BatchNumber(num as u32)))
     }
 
-    pub async fn get_sealed_miniblock_number(&mut self) -> sqlx::Result<MiniblockNumber> {
-        let number: i64 = sqlx::query!(
+    pub async fn get_sealed_miniblock_number(&mut self) -> sqlx::Result<Option<MiniblockNumber>> {
+        let row = sqlx::query!(
             r#"
             SELECT
                 MAX(number) AS "number"
@@ -73,10 +72,9 @@ impl BlocksDal<'_, '_> {
         .instrument("get_sealed_miniblock_number")
         .report_latency()
         .fetch_one(self.storage.conn())
-        .await?
-        .number
-        .unwrap_or(0);
-        Ok(MiniblockNumber(number as u32))
+        .await?;
+
+        Ok(row.number.map(|number| MiniblockNumber(number as u32)))
     }
 
     /// Returns the number of the earliest L1 batch present in the DB, or `None` if there are no L1 batches.
@@ -596,6 +594,7 @@ impl BlocksDal<'_, '_> {
     ) -> anyhow::Result<()> {
         let base_fee_per_gas = BigDecimal::from_u64(miniblock_header.base_fee_per_gas)
             .context("base_fee_per_gas should fit in u64")?;
+
         sqlx::query!(
             r#"
             INSERT INTO
@@ -613,11 +612,12 @@ impl BlocksDal<'_, '_> {
                     default_aa_code_hash,
                     protocol_version,
                     virtual_blocks,
+                    fair_pubdata_price,
                     created_at,
                     updated_at
                 )
             VALUES
-                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())
+                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
             "#,
             miniblock_header.number.0 as i64,
             miniblock_header.timestamp as i64,
@@ -627,7 +627,7 @@ impl BlocksDal<'_, '_> {
             base_fee_per_gas,
             miniblock_header.batch_fee_input.l1_gas_price() as i64,
             miniblock_header.batch_fee_input.fair_l2_gas_price() as i64,
-            MAX_GAS_PER_PUBDATA_BYTE as i64,
+            miniblock_header.gas_per_pubdata_limit as i64,
             miniblock_header
                 .base_system_contracts_hashes
                 .bootloader
@@ -638,6 +638,7 @@ impl BlocksDal<'_, '_> {
                 .as_bytes(),
             miniblock_header.protocol_version.map(|v| v as i32),
             miniblock_header.virtual_blocks as i64,
+            miniblock_header.batch_fee_input.fair_pubdata_price() as i64,
         )
         .execute(self.storage.conn())
         .await?;
@@ -659,10 +660,12 @@ impl BlocksDal<'_, '_> {
                 base_fee_per_gas,
                 l1_gas_price,
                 l2_fair_gas_price,
+                gas_per_pubdata_limit,
                 bootloader_code_hash,
                 default_aa_code_hash,
                 protocol_version,
-                virtual_blocks
+                virtual_blocks,
+                fair_pubdata_price
             FROM
                 miniblocks
             ORDER BY
@@ -692,10 +695,12 @@ impl BlocksDal<'_, '_> {
                 base_fee_per_gas,
                 l1_gas_price,
                 l2_fair_gas_price,
+                gas_per_pubdata_limit,
                 bootloader_code_hash,
                 default_aa_code_hash,
                 protocol_version,
-                virtual_blocks
+                virtual_blocks,
+                fair_pubdata_price
             FROM
                 miniblocks
             WHERE

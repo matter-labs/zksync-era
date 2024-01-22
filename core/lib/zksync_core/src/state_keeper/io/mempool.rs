@@ -163,7 +163,8 @@ impl StateKeeperIO for MempoolIO {
             self.filter = l2_tx_filter(
                 self.batch_fee_input_provider.as_ref(),
                 protocol_version.into(),
-            );
+            )
+            .await;
             // We only need to get the root hash when we're certain that we have a new transaction.
             if !self.mempool.has_next(&self.filter) {
                 tokio::time::sleep(self.delay_interval).await;
@@ -426,7 +427,8 @@ impl MempoolIO {
             .blocks_dal()
             .get_sealed_miniblock_number()
             .await
-            .unwrap();
+            .unwrap()
+            .expect("empty storage not supported"); // FIXME (PLA-703): handle empty storage
 
         drop(storage);
 

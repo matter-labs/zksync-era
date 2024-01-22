@@ -26,13 +26,24 @@ pub mod error;
 pub enum TransactionType {
     // Native ECDSA Transaction
     LegacyTransaction = 0,
-
     EIP2930Transaction = 1,
     EIP1559Transaction = 2,
     // EIP 712 transaction with additional fields specified for zkSync
     EIP712Transaction = EIP_712_TX_TYPE as u32,
     PriorityOpTransaction = PRIORITY_OPERATION_L2_TX_TYPE as u32,
     ProtocolUpgradeTransaction = PROTOCOL_UPGRADE_TX_TYPE as u32,
+}
+
+impl TransactionType {
+    /// Returns whether a transaction type is an Ethereum transaction type.
+    pub fn is_ethereum_type(&self) -> bool {
+        matches!(
+            self,
+            TransactionType::LegacyTransaction
+                | TransactionType::EIP2930Transaction
+                | TransactionType::EIP1559Transaction
+        )
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

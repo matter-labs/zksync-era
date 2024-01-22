@@ -74,6 +74,7 @@ impl MockMainNodeClient {
                 timestamp: number.into(),
                 l1_gas_price: 2,
                 l2_fair_gas_price: 3,
+                fair_pubdata_price: Some(24),
                 base_system_contracts_hashes: BaseSystemContractsHashes::default(),
                 operator_address: Address::repeat_byte(2),
                 transactions: Some(transactions),
@@ -234,6 +235,7 @@ impl StateKeeper {
                 timestamp: self.last_timestamp,
                 l1_gas_price: 2,
                 l2_fair_gas_price: 3,
+                fair_pubdata_price: Some(24),
                 operator_address: self.operator_address,
                 protocol_version: ProtocolVersionId::latest(),
                 first_miniblock_info: (self.last_block, 1),
@@ -297,6 +299,7 @@ impl StateKeeper {
     // Wait for all pushed miniblocks to be produced.
     pub async fn wait_for_miniblocks(&self, ctx: &ctx::Ctx) -> ctx::Result<()> {
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
+
         loop {
             let mut storage = CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
             if storage

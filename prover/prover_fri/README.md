@@ -43,8 +43,9 @@ flowchart LR
 
 ### Prerequisites
 
-Make sure these dependencies are installed and available on your machine: [Installing dependencies](./setup-dev.md) Once
-that is done, before starting, make sure you go into the root of the repository, then run
+Make sure these dependencies are installed and available on your machine:
+[Installing dependencies](../../docs/guides/setup-dev.md) Once that is done, before starting, make sure you go into the
+root of the repository, then run
 
 ```
 export ZKSYNC_HOME=$(pwd)
@@ -231,8 +232,8 @@ Performing circuit upgrade requires crypto library to be updated and generating 
 finalization hints if the circuit changes. Below steps can be used to perform circuit upgrade:
 
 1. checkout if the circuit geometry has changed in the new version of the circuit by running the
-   [workflow](https://github.com/matter-labs/zkevm_test_harness/actions/workflows/geometry-config-generator.yml) in
-   harness and merge the generated PR.
+   [workflow](https://github.com/matter-labs/era-zkevm_test_harness/blob/v1.4.0/.github/workflows/.github/workflows/geometry-config-generator.yml)
+   in harness and merge the generated PR.
 2. update the relevant crypto dependencies(boojum, zkevm_circuit, harness, etc) in `Cargo.lock`, for example:
    `cargo update -p zkevm_test_harness@1.4.0`
 3. prepare an PR with the updated dependencies [sample PR](https://github.com/matter-labs/zksync-2-dev/pull/2481).
@@ -250,8 +251,5 @@ finalization hints if the circuit changes. Below steps can be used to perform ci
    PR to generate the gpu setup data.
 8. Once the setup data generation workflows are successful, update the PR with `setup_keys_id` id in
    [build-docker-from-tag.yml](../../.github/workflows/build-docker-from-tag.yml) and in
-   [fri-gpu-prover-integration-test.yml](../../.github/workflows/fri-gpu-prover-integration-test.yml), make sure to only
-   do it from `FRI prover` not old.
-9. Run the GPU integration test
-   [workflow](https://github.com/matter-labs/zksync-era/actions/workflows/fri-gpu-prover-integration-test.yml) against
-   the PR to verify the GPU prover is working fine with new circuits.
+   [fri-gpu-prover-integration-test.yml](https://github.com/matter-labs/zksync-2-dev/blob/main/.github/workflows/fri-gpu-prover-integration-test.yml),
+   make sure to only do it from `FRI prover` not old.

@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
+use zksync_config::configs::chain::{FeeModelVersion, StateKeeperConfig};
 use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
+
+use crate::ProtocolVersionId;
 
 /// Fee input to be provided into the VM. It contains two options:
 /// - `L1Pegged`: L1 gas price is provided to the VM, and the pubdata price is derived from it. Using this option is required for the
@@ -25,6 +28,18 @@ impl BatchFeeInput {
         Self::L1Pegged(L1PeggedBatchFeeModelInput {
             l1_gas_price,
             fair_l2_gas_price,
+        })
+    }
+
+    pub fn pubdata_independent(
+        l1_gas_price: u64,
+        fair_l2_gas_price: u64,
+        fair_pubdata_price: u64,
+    ) -> Self {
+        Self::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+            l1_gas_price,
+            fair_l2_gas_price,
+            fair_pubdata_price,
         })
     }
 }
@@ -75,6 +90,48 @@ impl BatchFeeInput {
                 fair_pubdata_price: input.l1_gas_price * L1_GAS_PER_PUBDATA_BYTE as u64,
                 l1_gas_price: input.l1_gas_price,
             },
+        }
+    }
+
+    pub fn for_protocol_version(
+        protocol_version: ProtocolVersionId,
+        fair_l2_gas_price: u64,
+        fair_pubdata_price: Option<u64>,
+        l1_gas_price: u64,
+    ) -> Self {
+        if protocol_version.is_post_1_4_1() {
+            Self::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+                fair_l2_gas_price,
+                fair_pubdata_price: fair_pubdata_price
+                    .expect("Pubdata price must be provided for protocol version 1.4.1"),
+                l1_gas_price,
+            })
+        } else {
+            Self::L1Pegged(L1PeggedBatchFeeModelInput {
+                fair_l2_gas_price,
+                l1_gas_price,
+            })
+        }
+    }
+
+    pub fn stricter(self, other: BatchFeeInput) -> Self {
+        match (self, other) {
+            (BatchFeeInput::L1Pegged(first), BatchFeeInput::L1Pegged(second)) => Self::l1_pegged(
+                first.l1_gas_price.max(second.l1_gas_price),
+                first.fair_l2_gas_price.max(second.fair_l2_gas_price),
+            ),
+            input @ (_, _) => {
+                let (first, second) = (
+                    input.0.into_pubdata_independent(),
+                    input.1.into_pubdata_independent(),
+                );
+
+                Self::pubdata_independent(
+                    first.l1_gas_price.max(second.l1_gas_price),
+                    first.fair_l2_gas_price.max(second.fair_l2_gas_price),
+                    first.fair_pubdata_price.max(second.fair_pubdata_price),
+                )
+            }
         }
     }
 }
@@ -150,6 +207,24 @@ impl Default for FeeModelConfig {
         Self::V1(FeeModelConfigV1 {
             minimal_l2_gas_price: 100_000_000,
         })
+    }
+}
+
+impl FeeModelConfig {
+    pub fn from_state_keeper_config(state_keeper_config: &StateKeeperConfig) -> Self {
+        match state_keeper_config.fee_model_version {
+            FeeModelVersion::V1 => Self::V1(FeeModelConfigV1 {
+                minimal_l2_gas_price: state_keeper_config.minimal_l2_gas_price,
+            }),
+            FeeModelVersion::V2 => Self::V2(FeeModelConfigV2 {
+                minimal_l2_gas_price: state_keeper_config.minimal_l2_gas_price,
+                compute_overhead_part: state_keeper_config.compute_overhead_part,
+                pubdata_overhead_part: state_keeper_config.pubdata_overhead_part,
+                batch_overhead_l1_gas: state_keeper_config.batch_overhead_l1_gas,
+                max_gas_per_batch: state_keeper_config.max_gas_per_batch,
+                max_pubdata_per_batch: state_keeper_config.max_pubdata_per_batch,
+            }),
+        }
     }
 }
 
