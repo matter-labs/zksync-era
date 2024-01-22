@@ -89,7 +89,10 @@ impl TransactionsWeb3Dal<'_, '_> {
             .await?
             .into_iter()
             .map(|db_row| {
-                api::TransactionReceipt::from(StorageTransactionReceipt::from_row(&db_row).unwrap())
+                api::TransactionReceipt::from(
+                    StorageTransactionReceipt::from_row(&db_row)
+                        .expect("Failed to parse transaction receipt from DB row"),
+                )
             })
             .collect();
 

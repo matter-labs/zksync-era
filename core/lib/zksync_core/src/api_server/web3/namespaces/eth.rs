@@ -548,18 +548,11 @@ impl EthNamespace {
             .transactions_web3_dal()
             .get_transaction_receipts(vec![hash])
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err));
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
 
         method_latency.observe();
 
-        let receipt = receipts?.into_iter().next().ok_or_else(|| {
-            internal_error(
-                METHOD_NAME,
-                anyhow::anyhow!("No receipt found for transaction {hash:?}"),
-            )
-        })?;
-
-        Ok(Some(receipt))
+        Ok(receipts.into_iter().next())
     }
 
     #[tracing::instrument(skip(self))]
