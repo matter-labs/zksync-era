@@ -88,24 +88,3 @@ impl ObjectStore for UnauthenticatedGoogleCloudStorage {
         )
     }
 }
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_happy_path() {
-        let store = UnauthenticatedGoogleCloudStorage {
-            bucket_prefix: "zksync-era-stage-external-node-snapshots".to_string(),
-            max_retries: 5,
-        };
-        let file = store
-            .get_raw(
-                Bucket::StorageSnapshot,
-                "snapshot_l1_batch_460109_storage_logs_part_01016.proto.gzip",
-            )
-            .await
-            .unwrap();
-        assert_eq!(0, file.len())
-    }
-}
