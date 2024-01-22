@@ -103,7 +103,7 @@ async fn test_validator() {
             .await
             .context("sk.wait_for_miniblocks(<1st phase>)")?;
 
-        let cfg = ValidatorNode::for_single_validator(&mut ctx.rng());
+        let cfg = ValidatorNode::new(&mut ctx.rng());
         let validators = cfg.node.validators.clone();
 
         // Restart consensus actor a couple times, making it process a bunch of blocks each time.
@@ -166,7 +166,7 @@ async fn test_fetcher() {
 
     // topology:
     // validator <-> fetcher <-> fetcher <-> ...
-    let cfg = ValidatorNode::for_single_validator(rng);
+    let cfg = ValidatorNode::new(rng);
     let validators = cfg.node.validators.clone();
     let mut cfg = MainNodeConfig {
         executor: cfg.node,
@@ -262,7 +262,7 @@ async fn test_fetcher_backfill_certs() {
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
 
-    let cfg = ValidatorNode::for_single_validator(rng);
+    let cfg = ValidatorNode::new(rng);
     let mut cfg = MainNodeConfig {
         executor: cfg.node,
         validator: cfg.validator,
@@ -331,5 +331,5 @@ async fn test_fetcher_backfill_certs() {
 fn test_schema_encoding() {
     let ctx = ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
-    test_encode_random::<_, config::Config>(rng);
+    test_encode_random::<config::Config>(rng);
 }

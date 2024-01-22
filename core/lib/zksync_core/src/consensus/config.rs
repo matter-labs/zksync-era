@@ -39,9 +39,12 @@ pub struct Config {
     /// Validators participating in consensus.
     pub validators: validator::ValidatorSet,
 
+    /// Maximal allowed size of the payload in bytes.
+    pub max_payload_size: usize,
+
     /// Limit on the number of inbound connections outside
     /// of the `static_inbound` set.
-    pub gossip_dynamic_inbound_limit: u64,
+    pub gossip_dynamic_inbound_limit: usize,
     /// Inbound gossip connections that should be unconditionally accepted.
     pub gossip_static_inbound: BTreeSet<node::PublicKey>,
     /// Outbound gossip connections that the node should actively try to
@@ -54,6 +57,7 @@ impl Config {
         executor::Config {
             server_addr: self.server_addr,
             validators: self.validators.clone(),
+            max_payload_size: self.max_payload_size,
             node_key,
             gossip_dynamic_inbound_limit: self.gossip_dynamic_inbound_limit,
             gossip_static_inbound: self.gossip_static_inbound.clone().into_iter().collect(),
@@ -107,7 +111,11 @@ impl ProtoFmt for Config {
             server_addr: read_required_text(&r.server_addr).context("server_addr")?,
             public_addr: read_required_text(&r.public_addr).context("public_addr")?,
             validators,
-            gossip_dynamic_inbound_limit: *required(&r.gossip_dynamic_inbound_limit)
+            max_payload_size: required(&r.max_payload_size)
+                .and_then(|x| Ok((*x).try_into()?))
+                .context("max_payload_size")?,
+            gossip_dynamic_inbound_limit: required(&r.gossip_dynamic_inbound_limit)
+                .and_then(|x| Ok((*x).try_into()?))
                 .context("gossip_dynamic_inbound_limit")?,
             gossip_static_inbound,
             gossip_static_outbound,
@@ -119,6 +127,7 @@ impl ProtoFmt for Config {
             server_addr: Some(self.server_addr.encode()),
             public_addr: Some(self.public_addr.encode()),
             validators: self.validators.iter().map(TextFmt::encode).collect(),
+            max_payload_size: Some(self.max_payload_size.try_into().unwrap()),
             gossip_static_inbound: self
                 .gossip_static_inbound
                 .iter()
@@ -132,7 +141,9 @@ impl ProtoFmt for Config {
                     addr: Some(TextFmt::encode(addr)),
                 })
                 .collect(),
-            gossip_dynamic_inbound_limit: Some(self.gossip_dynamic_inbound_limit),
+            gossip_dynamic_inbound_limit: Some(
+                self.gossip_dynamic_inbound_limit.try_into().unwrap(),
+            ),
         }
     }
 }

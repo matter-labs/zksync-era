@@ -253,14 +253,22 @@ impl BlockStore {
             .await
             .wrap("payload()")?
             .context("miniblock disappeared")?;
-        let (genesis, _) = zksync_consensus_bft::testonly::make_genesis(
-            &[validator_key.clone()],
-            payload.encode(),
-            number,
-        );
-        txn.insert_certificate(ctx, &genesis.justification, self.inner.operator_address)
-            .await
-            .wrap("insert_certificate()")?;
+        let mut genesis = validator::testonly::GenesisSetup {
+            keys: vec![validator_key.clone()],
+            blocks: vec![],
+        };
+        genesis
+            .next_block()
+            .block_number(number)
+            .payload(payload.encode())
+            .push();
+        txn.insert_certificate(
+            ctx,
+            &genesis.blocks[0].justification,
+            self.inner.operator_address,
+        )
+        .await
+        .wrap("insert_certificate()")?;
         txn.commit(ctx).await.wrap("commit()")
     }
 

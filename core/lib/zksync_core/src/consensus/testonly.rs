@@ -45,6 +45,7 @@ impl Distribution<Config> for Standard {
             server_addr: make_addr(rng),
             public_addr: make_addr(rng),
             validators: rng.gen(),
+            max_payload_size: usize::MAX,
             gossip_dynamic_inbound_limit: rng.gen(),
             gossip_static_inbound: (0..3).map(|_| make_node_key(rng)).collect(),
             gossip_static_outbound: (0..5)

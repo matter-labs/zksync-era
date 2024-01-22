@@ -20,8 +20,8 @@ package zksync.core.consensus;
 
 // (public key, ip address) of a gossip network node. 
 message NodeAddr {
-  optional string key = 1; // [required] NodePublicKey
-  optional string addr = 2; // [required] IpAddr
+  optional string key = 1; // required; NodePublicKey
+  optional string addr = 2; // required; IpAddr
 }
 
 message ConsensusConfig {
@@ -35,16 +35,19 @@ message ConsensusConfig {
  
   // Public keys of all validators.
   // Currently it has to be a singleton with a public key corresponding to secret key in CONSENSUS_VALIDATOR_KEY env var.
-  repeated string validators = 5; // [required] ValidatorPublicKey
+  repeated string validators = 3; // required; ValidatorPublicKey
+
+  // Maximal allowed size of the payload.
+  optional uint64 max_payload_size = 4; // required; bytes
 
   // Inbound connections that should be unconditionally accepted on the gossip network.
-  repeated string gossip_static_inbound = 3; // NodePublicKey
+  repeated string gossip_static_inbound = 5; // required; NodePublicKey
   
   // Limit on the number of gossip network inbound connections outside
   // of the `gossip_static_inbound` set.
-  optional uint64 gossip_dynamic_inbound_limit = 4; // required
+  optional uint64 gossip_dynamic_inbound_limit = 6; // required
 
   // Outbound gossip network connections that the node should actively try to
   // establish and maintain.
-  repeated NodeAddr gossip_static_outbound = 10;
+  repeated NodeAddr gossip_static_outbound = 7;
 }
