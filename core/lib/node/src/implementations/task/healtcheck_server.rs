@@ -4,7 +4,7 @@ use zksync_config::configs::api::HealthCheckConfig;
 use zksync_core::api_server::healthcheck::HealthCheckHandle;
 
 use crate::{
-    healthcheck::CheckHealth,
+    implementations::resource::healthcheck::{CheckHealth, HealthCheckResource},
     node::{NodeContext, StopReceiver},
     resource::ResourceCollection,
     task::{IntoZkSyncTask, TaskInitError, ZkSyncTask},
@@ -12,7 +12,7 @@ use crate::{
 
 pub struct HealthCheckTask {
     config: HealthCheckConfig,
-    healthchecks: ResourceCollection<Box<dyn CheckHealth>>,
+    healthchecks: ResourceCollection<HealthCheckResource>,
 }
 
 impl HealthCheckTask {
@@ -36,7 +36,7 @@ impl IntoZkSyncTask for HealthCheckTask {
         config: Self::Config,
     ) -> Result<Box<dyn ZkSyncTask>, TaskInitError> {
         let healthchecks =
-            node.get_resource_collection::<Box<dyn CheckHealth>>(Self::HEALTHCHECK_COLLECTION_NAME);
+            node.get_resource_or_default::<ResourceCollection<HealthCheckResource>>();
 
         let self_ = Self {
             config,

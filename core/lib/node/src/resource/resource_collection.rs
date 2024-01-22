@@ -1,10 +1,12 @@
 use std::{
     fmt,
-    sync::{atomic::AtomicBool, Arc, RwLock},
+    sync::{Arc, Mutex},
 };
 
 use thiserror::Error;
 use tokio::sync::watch;
+
+use super::{Resource, ResourceId};
 
 /// Collection of resources that can be extended during the initialization phase,
 /// and then resolved once the wiring is complete.
@@ -24,20 +26,34 @@ use tokio::sync::watch;
 /// The purpose of this container is to allow different tasks to register their resource in a single place for some
 /// other task to consume. For example, tasks may register their healthchecks, and then healthcheck task will observe
 /// all the provided healthchecks.
-pub struct ResourceCollection<T: 'static> {
+pub struct ResourceCollection<T> {
     /// Collection of the resources.
-    resources: Arc<RwLock<Vec<T>>>,
-    /// Whether someone took the value from this collection.
-    resolved: Arc<AtomicBool>,
-    /// Whether the wiring process has been completed.
+    resources: Arc<Mutex<Vec<T>>>,
+    /// Sender indicating that the wiring is complete.
+    wiring_complete_sender: Arc<watch::Sender<bool>>,
+    /// Flag indicating that the collection has been resolved.
     wired: watch::Receiver<bool>,
+}
+
+impl<T: Resource> Resource for ResourceCollection<T> {
+    fn resource_id() -> ResourceId {
+        ResourceId::new("collection") + T::resource_id()
+    }
+
+    fn on_resoure_wired(&mut self) {}
+}
+
+impl<T: Resource + Clone> Default for ResourceCollection<T> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<T> Clone for ResourceCollection<T> {
     fn clone(&self) -> Self {
         Self {
             resources: self.resources.clone(),
-            resolved: self.resolved.clone(),
+            wiring_complete_sender: self.wiring_complete_sender.clone(),
             wired: self.wired.clone(),
         }
     }
@@ -47,8 +63,6 @@ impl<T> fmt::Debug for ResourceCollection<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ResourceCollection")
             .field("resources", &"{..}")
-            .field("resolved", &self.resolved)
-            .field("wired", &self.wired)
             .finish_non_exhaustive()
     }
 }
@@ -57,15 +71,14 @@ impl<T> fmt::Debug for ResourceCollection<T> {
 pub enum ResourceCollectionError {
     #[error("Adding resources to the collection is not allowed after the wiring is complete")]
     AlreadyWired,
-    #[error("Resource collection is already resolved by the component {0}")]
-    AlreadyResolved(&'static str),
 }
 
-impl<T: 'static> ResourceCollection<T> {
-    pub(crate) fn new(wired: watch::Receiver<bool>) -> Self {
+impl<T: Resource + Clone> ResourceCollection<T> {
+    pub(crate) fn new() -> Self {
+        let (wiring_complete_sender, wired) = watch::channel(false);
         Self {
-            resources: Default::default(),
-            resolved: Default::default(),
+            resources: Arc::default(),
+            wiring_complete_sender: Arc::new(wiring_complete_sender),
             wired,
         }
     }
@@ -76,30 +89,19 @@ impl<T: 'static> ResourceCollection<T> {
             return Err(ResourceCollectionError::AlreadyWired);
         }
 
-        let mut handle = self.resources.write().unwrap();
+        let mut handle = self.resources.lock().unwrap();
         handle.push(resource);
         Ok(())
     }
 
     pub async fn resolve(mut self) -> Result<Vec<T>, ResourceCollectionError> {
-        // Guaranteed not to hang on server shutdown, since the node will change the value before any task is
-        // actually spawned (per framework rules). For most cases, this check will resolve immediately, unless
+        // Guaranteed not to hang on server shutdown, since the node will invoke the `on_wiring_complete` before any task
+        // is actually spawned (per framework rules). For most cases, this check will resolve immediately, unless
         // some tasks would spawn something from the `IntoZkSyncTask` impl.
-        self.wired
-            .changed()
-            .await
-            .map_err(|_| ResourceCollectionError::AlreadyResolved(std::any::type_name::<T>()))?;
+        self.wired.changed().await.expect("Sender can't be dropped");
 
-        let mut handle = self.resources.write().unwrap();
-        if self.resolved.load(std::sync::atomic::Ordering::Relaxed) {
-            return Err(ResourceCollectionError::AlreadyResolved(
-                std::any::type_name::<T>(),
-            ));
-        }
-        let resources = std::mem::take(&mut *handle);
-        self.resolved
-            .store(true, std::sync::atomic::Ordering::Relaxed);
-        drop(handle);
+        let handle = self.resources.lock().unwrap();
+        let resources = (*handle).clone();
 
         Ok(resources)
     }

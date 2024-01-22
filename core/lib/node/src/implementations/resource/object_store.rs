@@ -9,5 +9,7 @@ use crate::resource::Resource;
 pub struct ObjectStoreResource(pub Arc<dyn ObjectStore>);
 
 impl Resource for ObjectStoreResource {
-    const RESOURCE_NAME: &'static str = "common/object_store";
+    fn resource_id() -> crate::resource::ResourceId {
+        "common/object_store".into()
+    }
 }

@@ -1,20 +1,63 @@
-use std::{any::Any, fmt};
+use std::{any::TypeId, fmt};
 
-pub use self::resource_collection::ResourceCollection;
+pub use self::{
+    lazy_resource::LazyResource, resource_collection::ResourceCollection, resource_id::ResourceId,
+};
 
-pub mod lazy_resource;
-pub mod resource_collection;
+mod lazy_resource;
+mod resource_collection;
+mod resource_id;
 
 /// A marker trait for anything that can be stored (and retrieved) as a resource.
 /// Requires `Clone` since the same resource may be requested by several tasks.
-pub trait Resource: 'static + Clone + std::any::Any {
+pub trait Resource: 'static + std::any::Any {
     /// Unique identifier of the resource.
     /// Used to fetch the resource from the provider.
     ///
     /// It is recommended to name resources in form of `<scope>/<name>`, where `<scope>` is the name of the task
     /// that will use this resource, or 'common' in case it is used by several tasks, and `<name>` is the name
     /// of the resource itself.
-    const RESOURCE_NAME: &'static str;
+    fn resource_id() -> ResourceId;
+
+    fn on_resoure_wired(&mut self) {}
+}
+
+/// Internal, object-safe version of [`Resource`].
+/// Used to store resources in the node without knowing their exact type.
+///
+/// This trait is implemented for any type that implements [`Resource`], so there is no need to
+/// implement it manually.
+pub trait StoredResource: 'static + std::any::Any {
+    /// An object-safe version of [`Resource::resource_id`].
+    fn stored_resource_id(&self) -> ResourceId;
+
+    /// An object-safe version of [`Resource::on_resoure_wired`].
+    fn stored_resource_wired(&mut self);
+}
+
+impl<T: Resource> StoredResource for T {
+    fn stored_resource_id(&self) -> ResourceId {
+        T::resource_id()
+    }
+
+    fn stored_resource_wired(&mut self) {
+        Resource::on_resoure_wired(self);
+    }
+}
+
+impl dyn StoredResource {
+    /// Reimplementation of `Any::downcast_ref`.
+    /// Returns `Some` if the type is correct, and `None` otherwise.
+    // Note: This method is required as we cannot store objects as, for example, `dyn StoredResource + Any`,
+    // so we don't have access to `Any::downcast_ref` within the node.
+    pub(crate) fn downcast_ref<T: Resource>(&self) -> Option<&T> {
+        if self.type_id() == TypeId::of::<T>() {
+            // SAFETY: We just checked that the type is correct.
+            unsafe { Some(&*(self as *const dyn StoredResource as *const T)) }
+        } else {
+            None
+        }
+    }
 }
 
 /// An entity that knows how to initialize resources.
@@ -33,5 +76,5 @@ pub trait ResourceProvider: 'static + Send + Sync + fmt::Debug {
     /// the provider is free to either return `None` (if it assumes that the node can continue without this resource),
     /// or to panic.
     // Note: we have to use `Box<dyn Any>` here, since we can't use `Box<dyn Resource>` due to it not being object-safe.
-    fn get_resource(&self, name: &str) -> Option<Box<dyn Any>>;
+    fn get_resource(&self, resource: &ResourceId) -> Option<Box<dyn StoredResource>>;
 }

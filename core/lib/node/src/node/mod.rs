@@ -1,11 +1,11 @@
-use std::{any::Any, collections::HashMap, fmt};
+use std::{collections::HashMap, fmt};
 
 use futures::{future::BoxFuture, FutureExt};
 use tokio::{runtime::Runtime, sync::watch};
 
 pub use self::{context::NodeContext, stop_receiver::StopReceiver};
 use crate::{
-    resource::ResourceProvider,
+    resource::{ResourceId, ResourceProvider, StoredResource},
     task::{IntoZkSyncTask, TaskInitError, ZkSyncTask},
 };
 
@@ -35,15 +35,7 @@ pub struct ZkSyncNode {
     /// Primary source of resources for tasks.
     resource_provider: Box<dyn ResourceProvider>,
     /// Cache of resources that have been requested at least by one task.
-    resources: HashMap<String, Box<dyn Any>>,
-    /// List of lazy resources.
-    // Note: Internally stored as `Box<dyn Any>` to erase the type a resource is parameterized with.
-    // TODO (QIT-25): May contain names present in other collections. Names should be globally unique.
-    lazy_resources: HashMap<String, Box<dyn Any>>,
-    /// Resource collections that tasks would fill.
-    // Note: Internally stored as `Box<dyn Any>` to erase the type a collection is parameterized with.
-    // TODO (QIT-25): May contain names present in other collections. Names should be globally unique.
-    resource_collections: HashMap<String, Box<dyn Any>>,
+    resources: HashMap<ResourceId, Box<dyn StoredResource>>,
     /// List of task constructors.
     task_constructors: Vec<(String, TaskConstructor)>,
 
@@ -80,8 +72,6 @@ impl ZkSyncNode {
         let self_ = Self {
             resource_provider: Box::new(resource_provider),
             resources: HashMap::default(),
-            lazy_resources: HashMap::default(),
-            resource_collections: HashMap::default(),
             task_constructors: Vec::new(),
             wired_sender,
             stop_sender,

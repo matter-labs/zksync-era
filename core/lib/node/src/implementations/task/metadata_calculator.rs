@@ -28,7 +28,7 @@ impl IntoZkSyncTask for MetadataCalculatorTask {
         let pool =
             node.get_resource::<MasterPoolResource>()
                 .ok_or(TaskInitError::ResourceLacking(
-                    MasterPoolResource::RESOURCE_NAME,
+                    MasterPoolResource::resource_id(),
                 ))?;
         let main_pool = node.runtime_handle().block_on(pool.get()).unwrap();
         let object_store = node.get_resource::<ObjectStoreResource>(); // OK to be None.
@@ -43,9 +43,8 @@ impl IntoZkSyncTask for MetadataCalculatorTask {
             .runtime_handle()
             .block_on(MetadataCalculator::new(config, object_store.map(|os| os.0)));
 
-        let healthchecks = node.get_resource_collection::<Box<dyn CheckHealth>>(
-            HealthCheckTask::HEALTHCHECK_COLLECTION_NAME,
-        );
+        let healthcheck_id = todo!();
+        let healthchecks = node.get_resource_collection::<Box<dyn CheckHealth>>(healthcheck_id);
         healthchecks
             .push(Box::new(metadata_calculator.tree_health_check()))
             .expect("Wiring stage");

@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use thiserror::Error;
 use tokio::sync::watch;
 
-use super::Resource;
+use super::{Resource, ResourceId};
 use crate::node::StopReceiver;
 
 /// A lazy resource represent a resource that isn't available at the time when the tasks start.
@@ -18,6 +18,16 @@ pub struct LazyResource<T: Resource> {
     stop_receiver: StopReceiver,
 }
 
+impl<T: Resource> Resource for LazyResource<T> {
+    fn resource_id() -> ResourceId {
+        ResourceId::new("lazy") + T::resource_id()
+    }
+
+    fn on_resoure_wired(&mut self) {
+        todo!()
+    }
+}
+
 impl<T: Resource> Clone for LazyResource<T> {
     fn clone(&self) -> Self {
         Self {
@@ -29,7 +39,7 @@ impl<T: Resource> Clone for LazyResource<T> {
     }
 }
 
-impl<T: Resource> LazyResource<T> {
+impl<T: Resource + Clone> LazyResource<T> {
     /// Creates a new lazy resource.
     /// Expected to be called by the node itself.
     pub(crate) fn new(stop_receiver: StopReceiver) -> Self {

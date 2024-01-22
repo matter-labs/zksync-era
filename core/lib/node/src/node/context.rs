@@ -1,10 +1,8 @@
-use std::any::Any;
-
 use thiserror::Error;
 
 use crate::{
     node::ZkSyncNode,
-    resource::{lazy_resource::LazyResource, Resource, ResourceCollection},
+    resource::{Resource, StoredResource},
     task::IntoZkSyncTask,
 };
 
@@ -49,32 +47,33 @@ impl<'a> NodeContext<'a> {
     /// ## Panics
     ///
     /// Panics if the resource with the specified name exists, but is not of the requested type.
-    pub fn get_resource<T: Resource>(&mut self) -> Option<T> {
-        let downcast_clone = |resource: &Box<dyn Any>| {
+    pub fn get_resource<T: Resource + Clone>(&mut self) -> Option<T> {
+        #[allow(clippy::borrowed_box)]
+        let downcast_clone = |resource: &Box<dyn StoredResource>| {
             resource
                 .downcast_ref::<T>()
                 .unwrap_or_else(|| {
                     panic!(
                         "Resource {} is not of type {}",
-                        T::RESOURCE_NAME,
+                        T::resource_id(),
                         std::any::type_name::<T>()
                     )
                 })
                 .clone()
         };
 
-        let name = T::RESOURCE_NAME;
+        let name = T::resource_id();
         // Check whether the resource is already available.
-        if let Some(resource) = self.node.resources.get(name) {
+        if let Some(resource) = self.node.resources.get(&name) {
             return Some(downcast_clone(resource));
         }
 
         // Try to fetch the resource from the provider.
-        if let Some(resource) = self.node.resource_provider.get_resource(name) {
+        if let Some(resource) = self.node.resource_provider.get_resource(&name) {
             // First, ensure the type matches.
             let downcasted = downcast_clone(&resource);
             // Then, add it to the local resources.
-            self.node.resources.insert(name.into(), resource);
+            self.node.resources.insert(name, resource);
             return Some(downcasted);
         }
 
@@ -83,54 +82,24 @@ impl<'a> NodeContext<'a> {
         None
     }
 
-    /// Returns a handle to a lazy resource.
-    /// Lazy resource are always available, and expected to be initialized by one of the tasks
-    /// that requests it.
-    ///
-    /// ## Panics
-    ///
-    /// Panics if the resource with the specified name exists, but is not of the requested type.
-    pub fn get_lazy_resource<T: Resource>(&mut self) -> LazyResource<T> {
-        let downcast_clone = |resource: &Box<dyn Any>| {
-            resource
-                .downcast_ref::<LazyResource<T>>()
-                .unwrap_or_else(|| {
-                    panic!(
-                        "Lazy resource {} is not of type {}",
-                        T::RESOURCE_NAME,
-                        std::any::type_name::<T>()
-                    )
-                })
-                .clone()
-        };
-
-        let name = T::RESOURCE_NAME;
-        if let Some(resource) = self.node.lazy_resources.get(name) {
-            return downcast_clone(resource);
-        }
-
-        let resource = LazyResource::new(self.node.stop_receiver());
-        self.node
-            .lazy_resources
-            .insert(name.into(), Box::new(resource.clone()));
-        resource
-    }
-
     /// Adds a new resource to the node.
     /// Returns an error if the resource with the same name is already added.
     pub fn add_resource<T: Resource>(&mut self, resource: T) -> Result<(), NodeContextError> {
-        let name = T::RESOURCE_NAME;
-        if self.node.resources.get(name).is_some() {
+        let name = T::resource_id();
+        if self.node.resources.get(&name).is_some() {
             return Err(NodeContextError::ResourceAlreadyAdded);
         }
 
-        self.node.resources.insert(name.into(), Box::new(resource));
+        self.node.resources.insert(name, Box::new(resource));
         Ok(())
     }
 
     /// Attempts to retrieve the resource with the specified name.
     /// If the resource is not available, it is created using the provided closure.
-    pub fn get_resource_or_insert_with<T: Resource, F: FnOnce() -> T>(&mut self, f: F) -> T {
+    pub fn get_resource_or_insert_with<T: Resource + Clone, F: FnOnce() -> T>(
+        &mut self,
+        f: F,
+    ) -> T {
         if let Some(resource) = self.get_resource::<T>() {
             return resource;
         }
@@ -139,37 +108,13 @@ impl<'a> NodeContext<'a> {
         let resource = f();
         self.node
             .resources
-            .insert(T::RESOURCE_NAME.into(), Box::new(resource.clone()));
+            .insert(T::resource_id(), Box::new(resource.clone()));
         resource
     }
 
-    /// Gets an existing resource collection or creates a new one.
-    ///
-    /// ## Panics
-    ///
-    /// Panics if the resource collection with the specified name exists, but is not of the requested type.
-    pub fn get_resource_collection<T>(&mut self, name: &str) -> ResourceCollection<T> {
-        let downcast_clone = |resource: &Box<dyn Any>| {
-            resource
-                .downcast_ref::<ResourceCollection<T>>()
-                .unwrap_or_else(|| {
-                    panic!(
-                        "Resource collection {} is not of type {}",
-                        name,
-                        std::any::type_name::<T>()
-                    )
-                })
-                .clone()
-        };
-
-        if let Some(collection) = self.node.resource_collections.get(name) {
-            return downcast_clone(collection);
-        }
-
-        let collection = ResourceCollection::new(self.node.wired_sender.subscribe());
-        self.node
-            .resource_collections
-            .insert(name.into(), Box::new(collection.clone()) as Box<dyn Any>);
-        collection
+    /// Attempts to retrieve the resource with the specified name.
+    /// If the resource is not available, it is created using `T::default()`.
+    pub fn get_resource_or_default<T: Resource + Clone + Default>(&mut self) -> T {
+        self.get_resource_or_insert_with(T::default)
     }
 }

@@ -11,7 +11,7 @@ use zksync_node::{
         task::{healtcheck_server::HealthCheckTask, metadata_calculator::MetadataCalculatorTask},
     },
     node::ZkSyncNode,
-    resource::{Resource, ResourceProvider},
+    resource::{Resource, ResourceId, ResourceProvider, StoredResource},
 };
 
 /// Resource provider for the main node.
@@ -35,9 +35,9 @@ impl MainNodeResourceProvider {
 }
 
 impl ResourceProvider for MainNodeResourceProvider {
-    fn get_resource(&self, name: &str) -> Option<Box<dyn std::any::Any>> {
+    fn get_resource(&self, name: &ResourceId) -> Option<Box<dyn StoredResource>> {
         match name {
-            MasterPoolResource::RESOURCE_NAME => {
+            name if name == &MasterPoolResource::resource_id() => {
                 let resource =
                     Self::master_pool_resource().expect("Failed to create pools resource");
                 Some(Box::new(resource))

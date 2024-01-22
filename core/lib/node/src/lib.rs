@@ -18,7 +18,6 @@
 //! - If needed, add a specific healthcheck task to the node.
 //! - Run it.
 
-pub mod healthcheck;
 pub mod implementations;
 pub mod node;
 pub mod resource;

@@ -7,7 +7,9 @@ use crate::resource::Resource;
 pub struct MasterPoolResource(ConnectionPoolBuilder);
 
 impl Resource for MasterPoolResource {
-    const RESOURCE_NAME: &'static str = "common/master_pool";
+    fn resource_id() -> crate::resource::ResourceId {
+        "common/master_pool".into()
+    }
 }
 
 impl MasterPoolResource {
@@ -29,7 +31,9 @@ impl MasterPoolResource {
 pub struct ReplicaPoolResource(ConnectionPoolBuilder);
 
 impl Resource for ReplicaPoolResource {
-    const RESOURCE_NAME: &'static str = "common/replica_pool";
+    fn resource_id() -> crate::resource::ResourceId {
+        "common/replica_pool".into()
+    }
 }
 
 impl ReplicaPoolResource {
@@ -51,7 +55,9 @@ impl ReplicaPoolResource {
 pub struct ProverPoolResource(ConnectionPoolBuilder);
 
 impl Resource for ProverPoolResource {
-    const RESOURCE_NAME: &'static str = "common/prover_pool";
+    fn resource_id() -> crate::resource::ResourceId {
+        "common/prover_pool".into()
+    }
 }
 
 impl ProverPoolResource {

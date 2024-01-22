@@ -6,7 +6,10 @@
 
 use futures::future::BoxFuture;
 
-use crate::node::{NodeContext, StopReceiver};
+use crate::{
+    node::{NodeContext, StopReceiver},
+    resource::ResourceId,
+};
 
 /// Factory that can create a task.
 // Note: This have to be a separate trait, since `ZkSyncTask` has to be object-safe.
@@ -67,7 +70,7 @@ pub trait ZkSyncTask: 'static + Send + Sync {
 #[non_exhaustive]
 pub enum TaskInitError {
     #[error("Resource {0} is not provided")]
-    ResourceLacking(&'static str),
+    ResourceLacking(ResourceId),
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
 }

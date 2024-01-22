@@ -24,9 +24,8 @@ impl IntoZkSyncTask for PrometheusExporterTask {
         let (prometheus_health_check, prometheus_health_updater) =
             ReactiveHealthCheck::new("prometheus_exporter");
 
-        let healthchecks = node.get_resource_collection::<Box<dyn CheckHealth>>(
-            HealthCheckTask::HEALTHCHECK_COLLECTION_NAME,
-        );
+        let healthcheck_id = todo!();
+        let healthchecks = node.get_resource_collection::<Box<dyn CheckHealth>>(healthcheck_id);
         healthchecks
             .push(Box::new(prometheus_health_check))
             .expect("Wiring stage");
