@@ -35,8 +35,8 @@ impl<'a> NodeContext<'a> {
 
     /// Adds an additional task to the node.
     /// This may be used if some task or its resource requires an additional routine for maintenance.
-    pub fn add_task<T: IntoZkSyncTask>(&mut self, config: T::Config) -> &mut Self {
-        self.node.add_task::<T>(config);
+    pub fn add_task<T: IntoZkSyncTask>(&mut self, builder: T) -> &mut Self {
+        self.node.add_task(builder);
         self
     }
 

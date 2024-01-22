@@ -6,14 +6,11 @@ use tokio::{runtime::Runtime, sync::watch};
 pub use self::{context::NodeContext, stop_receiver::StopReceiver};
 use crate::{
     resource::{ResourceId, ResourceProvider, StoredResource},
-    task::{IntoZkSyncTask, TaskInitError, ZkSyncTask},
+    task::{IntoZkSyncTask, TaskInitError},
 };
 
 mod context;
 mod stop_receiver;
-
-type TaskConstructor =
-    Box<dyn FnOnce(NodeContext<'_>) -> Result<Box<dyn ZkSyncTask>, TaskInitError>>;
 
 /// "Manager" class of the node. Collects all the resources and tasks,
 /// then runs tasks until completion.
@@ -36,8 +33,8 @@ pub struct ZkSyncNode {
     resource_provider: Box<dyn ResourceProvider>,
     /// Cache of resources that have been requested at least by one task.
     resources: HashMap<ResourceId, Box<dyn StoredResource>>,
-    /// List of task constructors.
-    task_constructors: Vec<(String, TaskConstructor)>,
+    /// List of task builders.
+    task_builders: Vec<Box<dyn IntoZkSyncTask>>,
 
     /// Sender used to stop the tasks.
     stop_sender: watch::Sender<bool>,
@@ -69,7 +66,7 @@ impl ZkSyncNode {
         let self_ = Self {
             resource_provider: Box::new(resource_provider),
             resources: HashMap::default(),
-            task_constructors: Vec::new(),
+            task_builders: Vec::new(),
             stop_sender,
             runtime,
         };
@@ -82,24 +79,23 @@ impl ZkSyncNode {
     /// The task is not created at this point, instead, the constructor is stored in the node
     /// and will be invoked during [`ZkSyncNode::run`] method. Any error returned by the constructor
     /// will prevent the node from starting and will be propagated by the [`ZkSyncNode::run`] method.
-    pub fn add_task<T: IntoZkSyncTask>(&mut self, config: T::Config) -> &mut Self {
-        let task_constructor = move |node_context: NodeContext<'_>| T::create(node_context, config);
-        self.task_constructors
-            .push((T::NAME.into(), Box::new(task_constructor)));
+    pub fn add_task<T: IntoZkSyncTask>(&mut self, builder: T) -> &mut Self {
+        self.task_builders.push(Box::new(builder));
         self
     }
 
     /// Runs the system.
     pub fn run(mut self) -> anyhow::Result<()> {
         // Initialize tasks.
-        let task_constructors = std::mem::take(&mut self.task_constructors);
+        let task_builders = std::mem::take(&mut self.task_builders);
 
         let mut tasks = Vec::new();
 
         let mut errors: Vec<(String, TaskInitError)> = Vec::new();
 
-        for (name, task_constructor) in task_constructors {
-            let task = match task_constructor(NodeContext::new(&mut self)) {
+        for task_builder in task_builders {
+            let name = task_builder.task_name().to_string();
+            let task = match task_builder.create(NodeContext::new(&mut self)) {
                 Ok(task) => task,
                 Err(err) => {
                     // We don't want to bail on the first error, since it'll provide worse DevEx:

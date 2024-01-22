@@ -13,18 +13,22 @@ use crate::{
 };
 
 #[derive(Debug)]
+pub struct MetadataCalculatorTaskBuilder(pub MetadataCalculatorConfig);
+
+#[derive(Debug)]
 pub struct MetadataCalculatorTask {
     metadata_calculator: MetadataCalculator,
     main_pool: ConnectionPool,
 }
 
-impl IntoZkSyncTask for MetadataCalculatorTask {
-    const NAME: &'static str = "metadata_calculator";
-    type Config = MetadataCalculatorConfig;
+impl IntoZkSyncTask for MetadataCalculatorTaskBuilder {
+    fn task_name(&self) -> &'static str {
+        "metadata_calculator"
+    }
 
     fn create(
+        self: Box<Self>,
         mut node: NodeContext<'_>,
-        config: Self::Config,
     ) -> Result<Box<dyn ZkSyncTask>, TaskInitError> {
         let pool =
             node.get_resource::<MasterPoolResource>()
@@ -42,7 +46,7 @@ impl IntoZkSyncTask for MetadataCalculatorTask {
 
         let metadata_calculator = node
             .runtime_handle()
-            .block_on(MetadataCalculator::new(config, object_store.map(|os| os.0)));
+            .block_on(MetadataCalculator::new(self.0, object_store.map(|os| os.0)));
 
         let healthchecks =
             node.get_resource_or_default::<ResourceCollection<HealthCheckResource>>();
@@ -52,7 +56,7 @@ impl IntoZkSyncTask for MetadataCalculatorTask {
             ))
             .expect("Wiring stage");
 
-        Ok(Box::new(Self {
+        Ok(Box::new(MetadataCalculatorTask {
             metadata_calculator,
             main_pool,
         }))

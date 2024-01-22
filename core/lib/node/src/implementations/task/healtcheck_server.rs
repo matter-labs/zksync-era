@@ -10,6 +10,9 @@ use crate::{
     task::{IntoZkSyncTask, TaskInitError, ZkSyncTask},
 };
 
+#[derive(Debug)]
+pub struct HealthCheckTaskBuilder(pub HealthCheckConfig);
+
 pub struct HealthCheckTask {
     config: HealthCheckConfig,
     healthchecks: ResourceCollection<HealthCheckResource>,
@@ -23,23 +26,24 @@ impl fmt::Debug for HealthCheckTask {
     }
 }
 
-impl IntoZkSyncTask for HealthCheckTask {
-    const NAME: &'static str = "healthcheck_server";
-    type Config = HealthCheckConfig;
+impl IntoZkSyncTask for HealthCheckTaskBuilder {
+    fn task_name(&self) -> &'static str {
+        "healthcheck_server"
+    }
 
     fn create(
+        self: Box<Self>,
         mut node: NodeContext<'_>,
-        config: Self::Config,
     ) -> Result<Box<dyn ZkSyncTask>, TaskInitError> {
         let healthchecks =
             node.get_resource_or_default::<ResourceCollection<HealthCheckResource>>();
 
-        let self_ = Self {
-            config,
+        let task = HealthCheckTask {
+            config: self.0,
             healthchecks,
         };
 
-        Ok(Box::new(self_))
+        Ok(Box::new(task))
     }
 }
 

@@ -15,11 +15,7 @@ use crate::{
 // Note: This have to be a separate trait, since `ZkSyncTask` has to be object-safe.
 pub trait IntoZkSyncTask: 'static + Send + Sync {
     /// Unique name of the task.
-    const NAME: &'static str;
-
-    /// Config type for the task.
-    /// It is highly recommended for tasks to have dedicated configs, not shared with other tasks and resources.
-    type Config: 'static + Send + Sync;
+    fn task_name(&self) -> &'static str;
 
     /// Creates a new task.
     ///
@@ -27,10 +23,8 @@ pub trait IntoZkSyncTask: 'static + Send + Sync {
     /// calls, or access to the resources.
     ///
     /// It is OK to invoke blocking code during this method (e.g. call `node.runtime_handle().block_on(...)`).
-    fn create(
-        node: NodeContext<'_>,
-        config: Self::Config,
-    ) -> Result<Box<dyn ZkSyncTask>, TaskInitError>;
+    fn create(self: Box<Self>, node: NodeContext<'_>)
+        -> Result<Box<dyn ZkSyncTask>, TaskInitError>;
 }
 
 /// A task implementation.
