@@ -39,8 +39,6 @@ pub struct ZkSyncNode {
     /// Sender used to stop the tasks.
     stop_sender: watch::Sender<bool>,
     /// Tokio runtime used to spawn tasks.
-    /// During the node initialization the implicit tokio context is not available, so tasks
-    /// are expected to use the handle provided by [`NodeContext`].
     runtime: Runtime,
 }
 

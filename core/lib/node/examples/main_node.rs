@@ -2,7 +2,8 @@
 //! This example defines a `ResourceProvider` that works using the main node env config, and
 //! initializes a single task with a health check server.
 
-use zksync_config::PostgresConfig;
+use zksync_config::{configs::chain::OperationsManagerConfig, DBConfig, PostgresConfig};
+use zksync_core::metadata_calculator::MetadataCalculatorConfig;
 use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;
 use zksync_node::{
@@ -58,20 +59,18 @@ fn main() -> anyhow::Result<()> {
         .with_log_format(log_format)
         .build();
 
-    // Create the node with specified resource provider. We don't need to add any resourced explicitly,
+    // Create the node with specified resource provider. We don't need to add any resources explicitly,
     // the task will request what they actually need. The benefit here is that we won't instantiate resources
     // that are not used, which would be complex otherwise, since the task set is often dynamic.
     let mut node = ZkSyncNode::new(MainNodeResourceProvider)?;
 
     // Add the metadata calculator task.
-    let merkle_tree_env_config = zksync_config::DBConfig::from_env()?.merkle_tree;
-    let operations_manager_env_config =
-        zksync_config::configs::chain::OperationsManagerConfig::from_env()?;
-    let metadata_calculator_config =
-        zksync_core::metadata_calculator::MetadataCalculatorConfig::for_main_node(
-            &merkle_tree_env_config,
-            &operations_manager_env_config,
-        );
+    let merkle_tree_env_config = DBConfig::from_env()?.merkle_tree;
+    let operations_manager_env_config = OperationsManagerConfig::from_env()?;
+    let metadata_calculator_config = MetadataCalculatorConfig::for_main_node(
+        &merkle_tree_env_config,
+        &operations_manager_env_config,
+    );
     node.add_task(MetadataCalculatorTaskBuilder(metadata_calculator_config));
 
     // Add the healthcheck server.
