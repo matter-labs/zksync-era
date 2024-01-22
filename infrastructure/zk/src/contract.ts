@@ -275,6 +275,10 @@ export async function registerHyperchain(args: any[]) {
 }
 
 export async function deployVerifier(args: any[]) {
+    const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
+    if (deployerPrivateKey) {
+        args.concat(['--private-key', deployerPrivateKey]);
+    }
     await deployL1([...args, '--only-verifier']);
 }
 

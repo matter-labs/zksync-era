@@ -48,8 +48,8 @@ export interface BasePromptOptions {
 let isLocalhost = false;
 
 // An init command that allows configuring and spinning up a new hyperchain network.
-async function initHyperchain() {
-    await announced('Initializing hyperchain creation', setupConfiguration());
+async function initHyperchain(envName: string) {
+    await announced('Initializing hyperchain creation', setupConfiguration(envName));
 
     const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
     const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
@@ -99,26 +99,30 @@ async function initHyperchain() {
     await announced('Start server', startServer());
 }
 
-async function setupConfiguration() {
-    const CONFIGURE = 'Configure new chain';
-    const USE_EXISTING = 'Use existing configuration';
-    const questions: BasePromptOptions[] = [
-        {
-            message: 'Do you want to configure a new chain or use an existing configuration?',
-            name: 'config',
-            type: 'select',
-            choices: [CONFIGURE, USE_EXISTING]
+async function setupConfiguration(envName: string) {
+    if (!envName) {
+        const CONFIGURE = 'Configure new chain';
+        const USE_EXISTING = 'Use existing configuration';
+        const questions: BasePromptOptions[] = [
+            {
+                message: 'Do you want to configure a new chain or use an existing configuration?',
+                name: 'config',
+                type: 'select',
+                choices: [CONFIGURE, USE_EXISTING]
+            }
+        ];
+
+        const results: any = await enquirer.prompt(questions);
+
+        if (results.config === CONFIGURE) {
+            await announced('Setting hyperchain configuration', setHyperchainMetadata());
+            await announced('Validating information and balances to deploy hyperchain', checkReadinessToDeploy());
+        } else {
+            const envName = await selectHyperchainConfiguration();
+
+            env.set(envName);
         }
-    ];
-
-    const results: any = await enquirer.prompt(questions);
-
-    if (results.config === CONFIGURE) {
-        await announced('Setting hyperchain configuration', setHyperchainMetadata());
-        await announced('Validating information and balances to deploy hyperchain', checkReadinessToDeploy());
     } else {
-        const envName = await selectHyperchainConfiguration();
-
         env.set(envName);
     }
 }
@@ -156,6 +160,7 @@ async function setHyperchainMetadata() {
     ];
 
     const results: any = await enquirer.prompt(questions);
+    // kl todo add random chainId generation here if user does not want to pick chainId.
 
     let deployer, governor, ethOperator, feeReceiver: ethers.Wallet | undefined;
     let feeReceiverAddress, l1Rpc, l1Id, databaseUrl;
@@ -294,8 +299,8 @@ async function setHyperchainMetadata() {
         await announced('Ensuring databases are up', db.wait());
     }
 
-    await initializeTestERC20s();
-    await initializeWethTokenForHyperchain();
+    // await initializeTestERC20s();
+    // await initializeWethTokenForHyperchain();
 
     console.log('\n');
 
@@ -404,90 +409,90 @@ function printAddressInfo(name: string, address: string) {
     console.log('');
 }
 
-async function initializeTestERC20s() {
-    // TODO: For now selecting NO breaks server-core deployment, should be always YES or create empty-mock file for v2-core
-    // PLA-595
-    const questions: BasePromptOptions[] = [
-        {
-            message:
-                'Do you want to deploy some test ERC20s to your hyperchain? NB: Temporary broken, always select YES',
-            name: 'deployERC20s',
-            type: 'confirm'
-        }
-    ];
+// async function initializeTestERC20s() {
+//     // TODO: For now selecting NO breaks server-core deployment, should be always YES or create empty-mock file for v2-core
+//     // PLA-595
+//     const questions: BasePromptOptions[] = [
+//         {
+//             message:
+//                 'Do you want to deploy some test ERC20s to your hyperchain? NB: Temporary broken, always select YES',
+//             name: 'deployERC20s',
+//             type: 'confirm'
+//         }
+//     ];
 
-    const results: any = await enquirer.prompt(questions);
+//     const results: any = await enquirer.prompt(questions);
 
-    if (results.deployERC20s) {
-        env.modify('DEPLOY_TEST_TOKENS', 'true', 'etc/env/l1-inits/.init.env');
-        console.log(
-            warning(
-                `The addresses for the generated test ECR20 tokens will be available at the /etc/tokens/${getEnv(
-                    process.env.CHAIN_ETH_NETWORK!
-                )}.json file.`
-            )
-        );
-    }
-}
+//     if (results.deployERC20s) {
+//         env.modify('DEPLOY_TEST_TOKENS', 'true', 'etc/env/l1-inits/.init.env');
+//         console.log(
+//             warning(
+//                 `The addresses for the generated test ECR20 tokens will be available at the /etc/tokens/${getEnv(
+//                     process.env.CHAIN_ETH_NETWORK!
+//                 )}.json file.`
+//             )
+//         );
+//     }
+// }
 
-async function initializeWethTokenForHyperchain() {
-    const questions: BasePromptOptions[] = [
-        {
-            message: 'Do you want to deploy Wrapped ETH to your hyperchain?',
-            name: 'deployWeth',
-            type: 'confirm'
-        }
-    ];
+// async function initializeWethTokenForHyperchain() {
+//     const questions: BasePromptOptions[] = [
+//         {
+//             message: 'Do you want to deploy Wrapped ETH to your hyperchain?',
+//             name: 'deployWeth',
+//             type: 'confirm'
+//         }
+//     ];
 
-    const results: any = await enquirer.prompt(questions);
+//     const results: any = await enquirer.prompt(questions);
 
-    if (results.deployWeth) {
-        env.modify('DEPLOY_L2_WETH', 'true', `etc/env/l2-inits/${process.env.ZKSYNC_ENV}.init.env`);
+//     if (results.deployWeth) {
+//         env.modify('DEPLOY_L2_WETH', 'true', `etc/env/l2-inits/${process.env.ZKSYNC_ENV}.init.env`);
 
-        if (!process.env.DEPLOY_TEST_TOKENS) {
-            // Only try to fetch this info if no test tokens will be deployed, otherwise WETH address will be defined later.
-            const tokens = getTokens(process.env.CHAIN_ETH_NETWORK!);
+//         if (!process.env.DEPLOY_TEST_TOKENS) {
+//             // Only try to fetch this info if no test tokens will be deployed, otherwise WETH address will be defined later.
+//             const tokens = getTokens(process.env.CHAIN_ETH_NETWORK!);
 
-            let baseWethToken = tokens.find((token: { symbol: string }) => token.symbol == 'WETH')?.address;
+//             let baseWethToken = tokens.find((token: { symbol: string }) => token.symbol == 'WETH')?.address;
 
-            if (!baseWethToken) {
-                const wethQuestions = [
-                    {
-                        message: 'What is the address of the Wrapped ETH on the base chain?',
-                        name: 'l1Weth',
-                        type: 'input',
-                        required: true
-                    }
-                ];
+//             if (!baseWethToken) {
+//                 const wethQuestions = [
+//                     {
+//                         message: 'What is the address of the Wrapped ETH on the base chain?',
+//                         name: 'l1Weth',
+//                         type: 'input',
+//                         required: true
+//                     }
+//                 ];
 
-                const wethResults: any = await enquirer.prompt(wethQuestions);
+//                 const wethResults: any = await enquirer.prompt(wethQuestions);
 
-                baseWethToken = wethResults.l1Weth;
+//                 baseWethToken = wethResults.l1Weth;
 
-                if (fs.existsSync(`/etc/tokens/${getEnv(process.env.ZKSYNC_ENV!)}.json`)) {
-                    tokens.push({
-                        name: 'Wrapped Ether',
-                        symbol: 'WETH',
-                        decimals: 18,
-                        address: baseWethToken!
-                    });
-                    fs.writeFileSync(
-                        `/etc/tokens/${getEnv(process.env.ZKSYNC_ENV!)}.json`,
-                        JSON.stringify(tokens, null, 4)
-                    );
-                }
-            }
+//                 if (fs.existsSync(`/etc/tokens/${getEnv(process.env.ZKSYNC_ENV!)}.json`)) {
+//                     tokens.push({
+//                         name: 'Wrapped Ether',
+//                         symbol: 'WETH',
+//                         decimals: 18,
+//                         address: baseWethToken!
+//                     });
+//                     fs.writeFileSync(
+//                         `/etc/tokens/${getEnv(process.env.ZKSYNC_ENV!)}.json`,
+//                         JSON.stringify(tokens, null, 4)
+//                     );
+//                 }
+//             }
 
-            env.modify('CONTRACTS_L1_WETH_TOKEN_ADDR', baseWethToken!, 'etc/env/l1-inits/.init.env');
-        }
-        const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
+//             env.modify('CONTRACTS_L1_WETH_TOKEN_ADDR', baseWethToken!, 'etc/env/l1-inits/.init.env');
+//         }
+//         const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
 
-        await announced(
-            'Initializing L2 WETH token',
-            contract.initializeWethToken(['--private-key', governorPrivateKey])
-        );
-    }
-}
+//         await announced(
+//             'Initializing L2 WETH token',
+//             contract.initializeWethToken(['--private-key', governorPrivateKey])
+//         );
+//     }
+// }
 
 async function startServer() {
     const YES_DEFAULT = 'Yes (default components)';
@@ -868,8 +873,11 @@ export const initHyperchainCommand = new Command('stack')
 
 initHyperchainCommand
     .command('init')
+    .option('--env-name <env-name>', 'chain name to use for initialization')
     .description('Wizard for hyperchain creation/configuration')
-    .action(initHyperchain);
+    .action(async (cmd: Command) => {
+        initHyperchain(cmd.envName);
+    });
 initHyperchainCommand
     .command('docker-setup')
     .option('--custom-docker-org <value>', 'Custom organization name for the docker images')
