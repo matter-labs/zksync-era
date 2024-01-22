@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use std::fmt;
+use std::{collections::HashMap, fmt};
 
 use sqlx::types::chrono::Utc;
 use zksync_types::{
@@ -9,8 +8,10 @@ use zksync_types::{
     MiniblockNumber, VmEvent, H256,
 };
 
-use crate::models::storage_event::StorageWeb3Log;
-use crate::{models::storage_event::StorageL2ToL1Log, SqlxError, StorageProcessor};
+use crate::{
+    models::storage_event::{StorageL2ToL1Log, StorageWeb3Log},
+    SqlxError, StorageProcessor,
+};
 
 /// Wrapper around an optional event topic allowing to hex-format it for `COPY` instructions.
 #[derive(Debug)]
