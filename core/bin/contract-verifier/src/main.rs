@@ -28,9 +28,9 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool) {
         .unwrap()
         .filter_map(|file| {
             let file = file.unwrap();
-            let Ok(file_type) = file.file_type() else {
+            let file_type = file.file_type().unwrap_or_else(|_| {
                 return None;
-            };
+            });
             if file_type.is_dir() {
                 file.file_name().into_string().ok()
             } else {
