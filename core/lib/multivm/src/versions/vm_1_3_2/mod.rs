@@ -3,7 +3,7 @@
 pub use zk_evm_1_3_3::{self, block_properties::BlockProperties};
 pub use zksync_types::vm_trace::VmExecutionTrace;
 
-pub(crate) use self::vm_instance::{VmBlockResult, VmExecutionResult, VmInstance};
+pub(crate) use self::vm_instance::VmInstance;
 pub use self::{
     errors::TxRevertReason,
     history_recorder::{HistoryDisabled, HistoryEnabled, HistoryMode},

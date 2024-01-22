@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use itertools::Itertools;
 use zk_evm_1_4_1::{
-    aux_structures::{LogQuery, Timestamp},
+    aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
 use zkevm_test_harness_1_4_1::witness::sort_storage_access::sort_storage_access_queries;
@@ -18,7 +18,6 @@ use zksync_types::{
 use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
 
 use crate::{
-    glue::GlueInto,
     interface::{
         dyn_tracers::vm_1_4_1::DynTracer,
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},

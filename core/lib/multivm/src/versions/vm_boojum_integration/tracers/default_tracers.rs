@@ -16,7 +16,6 @@ use zksync_state::{StoragePtr, WriteStorage};
 
 use super::PubdataTracer;
 use crate::{
-    glue::GlueInto,
     interface::{
         tracer::{TracerExecutionStopReason, VmExecutionStopReason},
         traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,

@@ -13,16 +13,13 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 
 use super::OracleWithHistory;
-use crate::{
-    glue::GlueInto,
-    vm_m5::{
-        history_recorder::{
-            AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryRecorder, StorageWrapper,
-        },
-        storage::{Storage, StoragePtr},
-        utils::StorageLogQuery,
-        vm_instance::MultiVMSubversion,
+use crate::vm_m5::{
+    history_recorder::{
+        AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryRecorder, StorageWrapper,
     },
+    storage::{Storage, StoragePtr},
+    utils::StorageLogQuery,
+    vm_instance::MultiVMSubversion,
 };
 
 // While the storage does not support different shards, it was decided to write the

@@ -4,7 +4,7 @@ use zksync_types::{zk_evm_types::LogQuery, ProtocolVersionId, VmVersion, H256, U
 use zksync_utils::expand_memory_contents;
 
 pub fn events_queue_commitment(
-    events_queue: &Vec<LogQuery>,
+    events_queue: &[LogQuery],
     protocol_version: ProtocolVersionId,
 ) -> Option<H256> {
     match VmVersion::from(protocol_version) {
