@@ -1,13 +1,14 @@
 use zksync_core::metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig};
 use zksync_dal::ConnectionPool;
-use zksync_health_check::CheckHealth;
 use zksync_storage::RocksDB;
 
-use super::healtcheck_server::HealthCheckTask;
 use crate::{
-    implementations::resource::{object_store::ObjectStoreResource, pools::MasterPoolResource},
+    implementations::resource::{
+        healthcheck::HealthCheckResource, object_store::ObjectStoreResource,
+        pools::MasterPoolResource,
+    },
     node::{NodeContext, StopReceiver},
-    resource::Resource,
+    resource::{Resource, ResourceCollection},
     task::{IntoZkSyncTask, TaskInitError, ZkSyncTask},
 };
 
@@ -43,10 +44,12 @@ impl IntoZkSyncTask for MetadataCalculatorTask {
             .runtime_handle()
             .block_on(MetadataCalculator::new(config, object_store.map(|os| os.0)));
 
-        let healthcheck_id = todo!();
-        let healthchecks = node.get_resource_collection::<Box<dyn CheckHealth>>(healthcheck_id);
+        let healthchecks =
+            node.get_resource_or_default::<ResourceCollection<HealthCheckResource>>();
         healthchecks
-            .push(Box::new(metadata_calculator.tree_health_check()))
+            .push(HealthCheckResource::new(
+                metadata_calculator.tree_health_check(),
+            ))
             .expect("Wiring stage");
 
         Ok(Box::new(Self {

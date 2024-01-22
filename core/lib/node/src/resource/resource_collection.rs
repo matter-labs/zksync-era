@@ -40,7 +40,9 @@ impl<T: Resource> Resource for ResourceCollection<T> {
         ResourceId::new("collection") + T::resource_id()
     }
 
-    fn on_resoure_wired(&mut self) {}
+    fn on_resoure_wired(&mut self) {
+        self.wiring_complete_sender.send(true).ok();
+    }
 }
 
 impl<T: Resource + Clone> Default for ResourceCollection<T> {

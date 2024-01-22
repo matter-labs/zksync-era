@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use thiserror::Error;
 use tokio::sync::watch;
@@ -12,9 +12,7 @@ use crate::node::StopReceiver;
 /// if the resource is never provided: the resolve future will fail once the stop signal is sent by the node.
 #[derive(Debug)]
 pub struct LazyResource<T: Resource> {
-    resource: Arc<Mutex<Option<T>>>,
-    resolve_receiver: watch::Receiver<bool>,
-    resolve_sender: Arc<Mutex<watch::Sender<bool>>>,
+    resolve_sender: Arc<watch::Sender<Option<T>>>,
     stop_receiver: StopReceiver,
 }
 
@@ -22,17 +20,11 @@ impl<T: Resource> Resource for LazyResource<T> {
     fn resource_id() -> ResourceId {
         ResourceId::new("lazy") + T::resource_id()
     }
-
-    fn on_resoure_wired(&mut self) {
-        todo!()
-    }
 }
 
 impl<T: Resource> Clone for LazyResource<T> {
     fn clone(&self) -> Self {
         Self {
-            resource: self.resource.clone(),
-            resolve_receiver: self.resolve_receiver.clone(),
             resolve_sender: self.resolve_sender.clone(),
             stop_receiver: self.stop_receiver.clone(),
         }
@@ -41,14 +33,11 @@ impl<T: Resource> Clone for LazyResource<T> {
 
 impl<T: Resource + Clone> LazyResource<T> {
     /// Creates a new lazy resource.
-    /// Expected to be called by the node itself.
-    pub(crate) fn new(stop_receiver: StopReceiver) -> Self {
-        let (resolve_sender, resolve_receiver) = watch::channel(false);
+    pub fn new(stop_receiver: StopReceiver) -> Self {
+        let (resolve_sender, _resolve_receiver) = watch::channel(None);
 
         Self {
-            resource: Arc::new(Mutex::new(None)),
-            resolve_receiver,
-            resolve_sender: Arc::new(Mutex::new(resolve_sender)),
+            resolve_sender: Arc::new(resolve_sender),
             stop_receiver,
         }
     }
@@ -56,14 +45,19 @@ impl<T: Resource + Clone> LazyResource<T> {
     /// Returns a future that resolves to the resource once it is provided.
     /// If the resource is never provided, the method will return an error once the node is shutting down.
     pub async fn resolve(mut self) -> Result<T, LazyResourceError> {
+        let mut resolve_receiver = self.resolve_sender.subscribe();
+        if let Some(resource) = resolve_receiver.borrow().as_ref() {
+            return Ok(resource.clone());
+        }
+
         tokio::select! {
             _ = self.stop_receiver.0.changed() => {
                 Err(LazyResourceError::NodeShutdown)
             }
-            _ = self.resolve_receiver.changed() => {
-                let handle = self.resource.lock().unwrap();
-                let resource = handle.as_ref().expect("Resource must be some, it was marked as provided");
-                Ok(resource.clone())
+            _ = resolve_receiver.changed() => {
+                // ^ we can ignore the error on `changed`, since we hold a strong reference to the sender.
+                let resource = resolve_receiver.borrow().as_ref().expect("Can only change if provided").clone();
+                Ok(resource)
             }
         }
     }
@@ -71,15 +65,17 @@ impl<T: Resource + Clone> LazyResource<T> {
     /// Provides the resource.
     /// May be called at most once. Subsequent calls will return an error.
     pub async fn provide(&mut self, resource: T) -> Result<(), LazyResourceError> {
-        let mut handle = self.resource.lock().unwrap();
-        if handle.is_some() {
+        let sent = self.resolve_sender.send_if_modified(|current| {
+            if current.is_some() {
+                return false;
+            }
+            *current = Some(resource.clone());
+            true
+        });
+
+        if !sent {
             return Err(LazyResourceError::ResourceAlreadyProvided);
         }
-
-        *handle = Some(resource);
-
-        let sender = self.resolve_sender.lock().unwrap();
-        sender.send(true).unwrap();
 
         Ok(())
     }

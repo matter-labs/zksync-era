@@ -4,7 +4,7 @@ use zksync_config::configs::api::HealthCheckConfig;
 use zksync_core::api_server::healthcheck::HealthCheckHandle;
 
 use crate::{
-    implementations::resource::healthcheck::{CheckHealth, HealthCheckResource},
+    implementations::resource::healthcheck::HealthCheckResource,
     node::{NodeContext, StopReceiver},
     resource::ResourceCollection,
     task::{IntoZkSyncTask, TaskInitError, ZkSyncTask},
@@ -13,10 +13,6 @@ use crate::{
 pub struct HealthCheckTask {
     config: HealthCheckConfig,
     healthchecks: ResourceCollection<HealthCheckResource>,
-}
-
-impl HealthCheckTask {
-    pub const HEALTHCHECK_COLLECTION_NAME: &'static str = "collection/healthchecks";
 }
 
 impl fmt::Debug for HealthCheckTask {

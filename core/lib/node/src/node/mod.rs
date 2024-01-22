@@ -39,8 +39,6 @@ pub struct ZkSyncNode {
     /// List of task constructors.
     task_constructors: Vec<(String, TaskConstructor)>,
 
-    /// Sender used to signal that the wiring is complete.
-    wired_sender: watch::Sender<bool>,
     /// Sender used to stop the tasks.
     stop_sender: watch::Sender<bool>,
     /// Tokio runtime used to spawn tasks.
@@ -68,12 +66,10 @@ impl ZkSyncNode {
             .unwrap();
 
         let (stop_sender, _stop_receiver) = watch::channel(false);
-        let (wired_sender, _wired_receiver) = watch::channel(false);
         let self_ = Self {
             resource_provider: Box::new(resource_provider),
             resources: HashMap::default(),
             task_constructors: Vec::new(),
-            wired_sender,
             stop_sender,
             runtime,
         };
@@ -136,7 +132,9 @@ impl ZkSyncNode {
         }
 
         // Wiring is now complete.
-        self.wired_sender.send(true).ok();
+        for resource in self.resources.values_mut() {
+            resource.stored_resource_wired();
+        }
 
         // Prepare tasks for running.
         let rt_handle = self.runtime.handle().clone();

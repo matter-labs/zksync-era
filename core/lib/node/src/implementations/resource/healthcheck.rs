@@ -8,6 +8,12 @@ use crate::resource::Resource;
 #[derive(Clone)]
 pub struct HealthCheckResource(Arc<dyn CheckHealth>);
 
+impl HealthCheckResource {
+    pub fn new(check: impl CheckHealth + 'static) -> Self {
+        Self(Arc::new(check))
+    }
+}
+
 impl fmt::Debug for HealthCheckResource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("HealthCheckResource")

@@ -1,9 +1,10 @@
 use prometheus_exporter::PrometheusExporterConfig;
-use zksync_health_check::{CheckHealth, HealthStatus, HealthUpdater, ReactiveHealthCheck};
+use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
 
-use super::healtcheck_server::HealthCheckTask;
 use crate::{
+    implementations::resource::healthcheck::HealthCheckResource,
     node::{NodeContext, StopReceiver},
+    resource::ResourceCollection,
     task::{IntoZkSyncTask, TaskInitError, ZkSyncTask},
 };
 
@@ -24,10 +25,10 @@ impl IntoZkSyncTask for PrometheusExporterTask {
         let (prometheus_health_check, prometheus_health_updater) =
             ReactiveHealthCheck::new("prometheus_exporter");
 
-        let healthcheck_id = todo!();
-        let healthchecks = node.get_resource_collection::<Box<dyn CheckHealth>>(healthcheck_id);
+        let healthchecks =
+            node.get_resource_or_default::<ResourceCollection<HealthCheckResource>>();
         healthchecks
-            .push(Box::new(prometheus_health_check))
+            .push(HealthCheckResource::new(prometheus_health_check))
             .expect("Wiring stage");
 
         Ok(Box::new(Self {
