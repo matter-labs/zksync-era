@@ -12,6 +12,15 @@ pub struct UnauthenticatedGoogleCloudStorage {
     max_retries: u16,
 }
 
+impl UnauthenticatedGoogleCloudStorage {
+    pub fn new(bucket_prefix: String, max_retries: u16) -> UnauthenticatedGoogleCloudStorage {
+        Self {
+            bucket_prefix,
+            max_retries,
+        }
+    }
+}
+
 #[async_trait]
 impl ObjectStore for UnauthenticatedGoogleCloudStorage {
     async fn get_raw(&self, bucket: Bucket, key: &str) -> Result<Vec<u8>, ObjectStoreError> {

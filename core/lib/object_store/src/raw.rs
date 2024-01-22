@@ -3,6 +3,7 @@ use std::{error, fmt, sync::Arc};
 use async_trait::async_trait;
 use zksync_config::configs::object_store::{ObjectStoreConfig, ObjectStoreMode};
 
+use crate::gcs_unauthenticated::UnauthenticatedGoogleCloudStorage;
 use crate::{file::FileBackedObjectStore, gcs::GoogleCloudStorage, mock::MockStore};
 
 /// Bucket for [`ObjectStore`] in which objects can be placed.
@@ -216,6 +217,14 @@ impl ObjectStoreFactory {
             ObjectStoreMode::FileBacked => {
                 tracing::trace!("Initialized FileBacked Object store");
                 let store = FileBackedObjectStore::new(config.file_backed_base_path.clone()).await;
+                Arc::new(store)
+            }
+            ObjectStoreMode::GCSUnauthenticated => {
+                tracing::trace!("Initialized GoogleCloudStorageUnauthenticated store");
+                let store = UnauthenticatedGoogleCloudStorage::new(
+                    config.bucket_base_url.clone(),
+                    config.max_retries,
+                );
                 Arc::new(store)
             }
         }
