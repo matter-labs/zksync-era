@@ -49,6 +49,7 @@ log="""\
 warn,\
 zksync_consensus_bft=info,\
 zksync_consensus_network=info,\
+zksync_consensus_storage=info,\
 zksync_core=debug,\
 zksync_dal=info,\
 zksync_eth_client=info,\

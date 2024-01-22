@@ -7,6 +7,7 @@
 RUST_LOG="""\
 zksync_consensus_bft=info,\
 zksync_consensus_network=info,\
+zksync_consensus_storage=info,\
 zksync_core=debug,\
 zksync_server=debug,\
 zksync_contract_verifier=debug,\

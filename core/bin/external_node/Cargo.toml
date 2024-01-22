@@ -20,8 +20,8 @@ zksync_state = { path = "../../lib/state" }
 zksync_basic_types = { path = "../../lib/basic_types" }
 zksync_contracts = { path = "../../lib/contracts" }
 
-zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "4cb351b0638b93a5d66cb221f933af8f43f5af76" }
-zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "4cb351b0638b93a5d66cb221f933af8f43f5af76" }
+zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "53ede0ffd447b6a4b88afd701ac42c902cfc9192" }
+zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "53ede0ffd447b6a4b88afd701ac42c902cfc9192" }
 
 prometheus_exporter = { path = "../../lib/prometheus_exporter" }
 zksync_health_check = { path = "../../lib/health_check" }
