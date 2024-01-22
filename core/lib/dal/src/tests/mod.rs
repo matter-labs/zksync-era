@@ -32,7 +32,7 @@ pub(crate) fn create_miniblock_header(number: u32) -> MiniblockHeader {
     let protocol_version = ProtocolVersionId::default();
     MiniblockHeader {
         number,
-        timestamp: 0,
+        timestamp: number.0.into(),
         hash: MiniblockHasher::new(number, 0, H256::zero()).finalize(protocol_version),
         l1_tx_count: 0,
         l2_tx_count: 0,

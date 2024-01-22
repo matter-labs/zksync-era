@@ -3,7 +3,7 @@
 use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
-use fee_model::MainNodeFeeInputProvider;
+use fee_model::{ApiFeeInputProvider, MainNodeFeeInputProvider};
 use futures::channel::oneshot;
 use prometheus_exporter::PrometheusExporterConfig;
 use temp_config_store::TempConfigStore;
@@ -77,7 +77,7 @@ use crate::{
 pub mod api_server;
 pub mod basic_witness_input_producer;
 pub mod block_reverter;
-mod consensus;
+pub mod consensus;
 pub mod consistency_checker;
 pub mod eth_sender;
 pub mod eth_watch;
@@ -1006,16 +1006,17 @@ async fn build_tx_sender(
     storage_caches: PostgresStorageCaches,
 ) -> (TxSender, VmConcurrencyBarrier) {
     let sequencer_sealer = SequencerSealer::new(state_keeper_config.clone());
-    let tx_sender_builder = TxSenderBuilder::new(tx_sender_config.clone(), replica_pool)
+    let tx_sender_builder = TxSenderBuilder::new(tx_sender_config.clone(), replica_pool.clone())
         .with_main_connection_pool(master_pool)
         .with_sealer(Arc::new(sequencer_sealer));
 
     let max_concurrency = web3_json_config.vm_concurrency_limit();
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
 
-    let batch_fee_input_provider = MainNodeFeeInputProvider::new(
+    let batch_fee_input_provider = ApiFeeInputProvider::new(
         l1_gas_price_provider,
         FeeModelConfig::from_state_keeper_config(state_keeper_config),
+        replica_pool,
     );
 
     let tx_sender = tx_sender_builder

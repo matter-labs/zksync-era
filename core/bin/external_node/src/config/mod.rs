@@ -142,6 +142,15 @@ pub struct OptionalENConfig {
     /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
     #[serde(default = "OptionalENConfig::default_estimate_gas_acceptable_overestimation")]
     pub estimate_gas_acceptable_overestimation: u32,
+    /// Whether to use the compatibility mode for gas estimation for L1->L2 transactions.
+    /// During the migration to the 1.4.1 fee model, there will be a period, when the server
+    /// will already have the 1.4.1 fee model, while the L1 contracts will still expect the transactions
+    /// to use the previous fee model with much higher overhead.
+    ///
+    /// When set to `true`, the API will ensure to return gasLimit is high enough overhead for both the old
+    /// and the new fee model when estimating L1->L2 transactions.  
+    #[serde(default = "OptionalENConfig::default_l1_to_l2_transactions_compatibility_mode")]
+    pub l1_to_l2_transactions_compatibility_mode: bool,
     /// The multiplier to use when suggesting gas price. Should be higher than one,
     /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block
     #[serde(default = "OptionalENConfig::default_gas_price_scale_factor")]
@@ -212,6 +221,10 @@ impl OptionalENConfig {
 
     const fn default_estimate_gas_acceptable_overestimation() -> u32 {
         1_000
+    }
+
+    const fn default_l1_to_l2_transactions_compatibility_mode() -> bool {
+        true
     }
 
     const fn default_gas_price_scale_factor() -> f64 {
@@ -521,6 +534,9 @@ impl From<ExternalNodeConfig> for TxSenderConfig {
             max_allowed_l2_tx_gas_limit: u32::MAX,
             validation_computational_gas_limit: u32::MAX,
             chain_id: config.remote.l2_chain_id,
+            l1_to_l2_transactions_compatibility_mode: config
+                .optional
+                .l1_to_l2_transactions_compatibility_mode,
         }
     }
 }

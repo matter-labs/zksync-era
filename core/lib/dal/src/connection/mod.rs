@@ -10,14 +10,6 @@ use crate::{metrics::CONNECTION_METRICS, StorageProcessor};
 
 pub mod holder;
 
-/// Obtains the test database URL from the environment variable.
-fn get_test_database_url() -> anyhow::Result<String> {
-    env::var("TEST_DATABASE_URL").context(
-        "TEST_DATABASE_URL must be set. Normally, this is done by the 'zk' tool. \
-        Make sure that you are running the tests with 'zk test rust' command or equivalent.",
-    )
-}
-
 /// Builder for [`ConnectionPool`]s.
 pub struct ConnectionPoolBuilder {
     database_url: String,
@@ -68,66 +60,24 @@ impl ConnectionPoolBuilder {
             statement_timeout = self.statement_timeout
         );
         Ok(ConnectionPool {
+            database_url: self.database_url.clone(),
             inner: pool,
             max_size: self.max_size,
         })
     }
 }
 
-/// Constructs a new temporary database (with a randomized name)
-/// by cloning the database template pointed by TEST_DATABASE_URL env var.
-/// The template is expected to have all migrations from dal/migrations applied.
-/// For efficiency, the Postgres container of TEST_DATABASE_URL should be
-/// configured with option "fsync=off" - it disables waiting for disk synchronization
-/// whenever you write to the DBs, therefore making it as fast as an in-memory Postgres instance.
-/// The database is not cleaned up automatically, but rather the whole Postgres
-/// container is recreated whenever you call "zk test rust".
-pub(super) async fn create_test_db() -> anyhow::Result<url::Url> {
-    use rand::Rng as _;
-    use sqlx::{Connection as _, Executor as _};
-
-    const PREFIX: &str = "test-";
-
-    let db_url = get_test_database_url().unwrap();
-    let mut db_url = url::Url::parse(&db_url)
-        .with_context(|| format!("{} is not a valid database address", db_url))?;
-    let db_name = db_url
-        .path()
-        .strip_prefix('/')
-        .with_context(|| format!("{} is not a valid database address", db_url.as_ref()))?
-        .to_string();
-    let db_copy_name = format!("{PREFIX}{}", rand::thread_rng().gen::<u64>());
-    db_url.set_path("");
-    let mut attempts = 10;
-    let mut conn = loop {
-        match sqlx::PgConnection::connect(db_url.as_ref()).await {
-            Ok(conn) => break conn,
-            Err(err) => {
-                attempts -= 1;
-                if attempts == 0 {
-                    return Err(err).context("sqlx::PgConnection::connect()");
-                }
-            }
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-    };
-    conn.execute(
-        format!("CREATE DATABASE \"{db_copy_name}\" WITH TEMPLATE \"{db_name}\"").as_str(),
-    )
-    .await
-    .context("failed to create a temporary database")?;
-    db_url.set_path(&db_copy_name);
-    Ok(db_url)
-}
-
 #[derive(Clone)]
 pub struct ConnectionPool {
     pub(crate) inner: PgPool,
+    database_url: String,
     max_size: u32,
 }
 
 impl fmt::Debug for ConnectionPool {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // We don't print the `database_url`, as is may contain
+        // sensitive information (e.g. database password).
         formatter
             .debug_struct("ConnectionPool")
             .field("max_size", &self.max_size)
@@ -135,18 +85,92 @@ impl fmt::Debug for ConnectionPool {
     }
 }
 
-impl ConnectionPool {
-    pub async fn test_pool() -> ConnectionPool {
-        let db_url = create_test_db()
+pub struct TestTemplate(url::Url);
+
+impl TestTemplate {
+    fn db_name(&self) -> &str {
+        self.0.path().strip_prefix('/').unwrap()
+    }
+
+    fn url(&self, db_name: &str) -> url::Url {
+        let mut url = self.0.clone();
+        url.set_path(db_name);
+        url
+    }
+
+    async fn connect_to(db_url: &url::Url) -> sqlx::Result<sqlx::PgConnection> {
+        use sqlx::Connection as _;
+        let mut attempts = 10;
+        loop {
+            match sqlx::PgConnection::connect(db_url.as_ref()).await {
+                Ok(conn) => return Ok(conn),
+                Err(err) => {
+                    attempts -= 1;
+                    if attempts == 0 {
+                        return Err(err);
+                    }
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+    }
+
+    /// Obtains the test database URL from the environment variable.
+    pub fn empty() -> anyhow::Result<Self> {
+        let db_url = env::var("TEST_DATABASE_URL").context(
+            "TEST_DATABASE_URL must be set. Normally, this is done by the 'zk' tool. \
+            Make sure that you are running the tests with 'zk test rust' command or equivalent.",
+        )?;
+        Ok(Self(db_url.parse()?))
+    }
+
+    /// Closes the connection pool, disallows connecting to the underlying db,
+    /// so that the db can be used as a template.
+    pub async fn freeze(pool: ConnectionPool) -> anyhow::Result<Self> {
+        use sqlx::Executor as _;
+        let mut conn = pool.acquire_connection_retried().await?;
+        conn.execute(
+            "UPDATE pg_database SET datallowconn = false WHERE datname = current_database()",
+        )
+        .await
+        .context("SET dataallowconn = false")?;
+        drop(conn);
+        pool.inner.close().await;
+        Ok(Self(pool.database_url.parse()?))
+    }
+
+    /// Constructs a new temporary database (with a randomized name)
+    /// by cloning the database template pointed by TEST_DATABASE_URL env var.
+    /// The template is expected to have all migrations from dal/migrations applied.
+    /// For efficiency, the Postgres container of TEST_DATABASE_URL should be
+    /// configured with option "fsync=off" - it disables waiting for disk synchronization
+    /// whenever you write to the DBs, therefore making it as fast as an in-memory Postgres instance.
+    /// The database is not cleaned up automatically, but rather the whole Postgres
+    /// container is recreated whenever you call "zk test rust".
+    pub async fn create_db(&self) -> anyhow::Result<ConnectionPool> {
+        use rand::Rng as _;
+        use sqlx::Executor as _;
+
+        let mut conn = Self::connect_to(&self.url(""))
             .await
-            .expect("Unable to prepare test database")
-            .to_string();
+            .context("connect_to()")?;
+        let db_old = self.db_name();
+        let db_new = format!("test-{}", rand::thread_rng().gen::<u64>());
+        conn.execute(format!("CREATE DATABASE \"{db_new}\" WITH TEMPLATE \"{db_old}\"").as_str())
+            .await
+            .context("CREATE DATABASE")?;
 
         const TEST_MAX_CONNECTIONS: u32 = 50; // Expected to be enough for any unit test.
-        Self::builder(&db_url, TEST_MAX_CONNECTIONS)
+        ConnectionPool::builder(self.url(&db_new).as_ref(), TEST_MAX_CONNECTIONS)
             .build()
             .await
-            .unwrap()
+            .context("ConnectionPool::builder()")
+    }
+}
+
+impl ConnectionPool {
+    pub async fn test_pool() -> ConnectionPool {
+        TestTemplate::empty().unwrap().create_db().await.unwrap()
     }
 
     /// Initializes a builder for connection pools.
@@ -261,10 +285,12 @@ mod tests {
 
     #[tokio::test]
     async fn setting_statement_timeout() {
-        let db_url = create_test_db()
+        let db_url = TestTemplate::empty()
+            .unwrap()
+            .create_db()
             .await
-            .expect("Unable to prepare test database")
-            .to_string();
+            .unwrap()
+            .database_url;
 
         let pool = ConnectionPool::singleton(&db_url)
             .set_statement_timeout(Some(Duration::from_secs(1)))

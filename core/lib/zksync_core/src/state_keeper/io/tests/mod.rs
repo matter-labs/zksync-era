@@ -106,7 +106,8 @@ async fn test_filter_with_no_pending_batch() {
     let want_filter = l2_tx_filter(
         &tester.create_batch_fee_input_provider().await,
         ProtocolVersionId::latest().into(),
-    );
+    )
+    .await;
 
     // Create a mempool without pending batch and ensure that filter is not initialized just yet.
     let (mut mempool, mut guard) = tester.create_test_mempool_io(connection_pool, 1).await;
@@ -150,7 +151,8 @@ async fn test_timestamps_are_distinct(
     let tx_filter = l2_tx_filter(
         &tester.create_batch_fee_input_provider().await,
         ProtocolVersionId::latest().into(),
-    );
+    )
+    .await;
     tester.insert_tx(&mut guard, tx_filter.fee_per_gas, tx_filter.gas_per_pubdata);
 
     let batch_params = mempool
@@ -249,7 +251,6 @@ async fn processing_storage_logs_when_sealing_miniblock() {
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         l2_erc20_bridge_addr: Address::default(),
-        consensus: None,
         pre_insert_txs: false,
     };
     let mut conn = connection_pool
@@ -329,7 +330,6 @@ async fn processing_events_when_sealing_miniblock() {
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         l2_erc20_bridge_addr: Address::default(),
-        consensus: None,
         pre_insert_txs: false,
     };
     let mut conn = pool.access_storage_tagged("state_keeper").await.unwrap();
@@ -409,14 +409,14 @@ async fn test_miniblock_and_l1_batch_processing(
             .get_sealed_miniblock_number()
             .await
             .unwrap(),
-        MiniblockNumber(2) // + fictive miniblock
+        Some(MiniblockNumber(2)) // + fictive miniblock
     );
     let l1_batch_header = conn
         .blocks_dal()
         .get_l1_batch_header(L1BatchNumber(1))
         .await
         .unwrap()
-        .unwrap();
+        .expect("No L1 batch #1");
     assert_eq!(l1_batch_header.l2_tx_count, 1);
     assert!(l1_batch_header.is_finished);
 }
@@ -444,7 +444,6 @@ async fn miniblock_sealer_handle_blocking() {
         L1BatchNumber(1),
         MiniblockNumber(1),
         Address::default(),
-        None,
         false,
     );
     sealer_handle.submit(seal_command).await;
@@ -454,7 +453,6 @@ async fn miniblock_sealer_handle_blocking() {
         L1BatchNumber(1),
         MiniblockNumber(2),
         Address::default(),
-        None,
         false,
     );
     {
@@ -484,7 +482,6 @@ async fn miniblock_sealer_handle_blocking() {
         L1BatchNumber(2),
         MiniblockNumber(3),
         Address::default(),
-        None,
         false,
     );
     sealer_handle.submit(seal_command).await;
@@ -505,7 +502,6 @@ async fn miniblock_sealer_handle_parallel_processing() {
             L1BatchNumber(1),
             MiniblockNumber(i),
             Address::default(),
-            None,
             false,
         );
         sealer_handle.submit(seal_command).await;

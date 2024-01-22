@@ -498,7 +498,7 @@ impl L1BatchAuxiliaryOutput {
             result.extend(self.bootloader_heap_hash.as_bytes());
             result.extend(self.events_state_queue_hash.as_bytes());
 
-            // For now, we are using 0s as commitments to the KZG pubdata.
+            // For now, we are using zeroes as commitments to the KZG pubdata.
             result.extend(H256::zero().as_bytes());
             result.extend(H256::zero().as_bytes());
             result.extend(H256::zero().as_bytes());

@@ -138,7 +138,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
 
         self.frames_stack.push_forward(
             Box::new(StorageLogQuery {
-                log_query: query,
+                log_query: query.glue_into(),
                 log_type: StorageLogQueryType::Read,
             }),
             query.timestamp,
@@ -166,7 +166,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         self.set_initial_value(&key, current_value, query.timestamp);
 
         let mut storage_log_query = StorageLogQuery {
-            log_query: query,
+            log_query: query.glue_into(),
             log_type: log_query_type,
         };
         self.frames_stack
@@ -299,7 +299,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
 
         // Select all of the last elements where `l.log_query.timestamp >= from_timestamp`.
         // Note, that using binary search here is dangerous, because the logs are not sorted by timestamp.
-        logs.rsplit(|l| l.log_query.timestamp < from_timestamp)
+        logs.rsplit(|l| l.log_query.timestamp < from_timestamp.glue_into())
             .next()
             .unwrap_or(&[])
     }
@@ -436,7 +436,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
                     }
                 };
 
-                let LogQuery { written_value, .. } = query.log_query;
+                let LogQuery { written_value, .. } = query.log_query.glue_into();
                 let key = triplet_to_storage_key(
                     query.log_query.shard_id,
                     query.log_query.address,

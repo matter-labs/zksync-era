@@ -278,7 +278,7 @@ describe('Tests for L1 behavior', () => {
         }
 
         const contract = await deployContract(alice, contracts.writesAndMessages, []);
-        const MAX_PUBDATA_PER_BATCH = ethers.BigNumber.from(SYSTEM_CONFIG['MAX_PUBDATA_PER_BATCH']);
+        const MAX_PUBDATA_PER_BATCH = ethers.BigNumber.from(SYSTEM_CONFIG['PRIORITY_TX_PUBDATA_PER_BATCH']);
         // We check that we will run out of gas if we send a bit
         // smaller than `MAX_PUBDATA_PER_BATCH` amount of pubdata in a single tx.
         const calldata = contract.interface.encodeFunctionData('big_l2_l1_message', [

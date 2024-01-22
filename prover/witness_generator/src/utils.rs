@@ -22,7 +22,7 @@ use zksync_prover_fri_types::{
     },
     CircuitWrapper, FriProofWrapper,
 };
-use zksync_types::{proofs::AggregationRound, L1BatchNumber, U256};
+use zksync_types::{proofs::AggregationRound, L1BatchNumber, ProtocolVersionId, U256};
 
 pub fn expand_bootloader_contents(
     packed: &[(usize, U256)],

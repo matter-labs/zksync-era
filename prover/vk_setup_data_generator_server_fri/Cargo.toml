@@ -29,7 +29,7 @@ zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harn
 circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.1", features = [
     "log_tracing",
 ] }
-shivini = { git = "https://github.com/matter-labs/era-shivini.git", branch = "main", optional = true }
+shivini = { git = "https://github.com/matter-labs/era-shivini.git", branch = "v1.4.1", optional = true }
 zksync_config = { path = "../../core/lib/config" }
 zksync_env_config = { path = "../../core/lib/env_config" }
 

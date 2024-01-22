@@ -63,7 +63,7 @@ impl From<Transaction> for TransactionData {
                 // Ethereum transactions do not sign gas per pubdata limit, and so for them we need to use
                 // some default value. We use the maximum possible value that is allowed by the bootloader
                 // (i.e. we can not use u64::MAX, because the bootloader requires gas per pubdata for such
-                // transactions to be higher than MAX_GAS_PER_PUBDATA_BYTE).
+                // transactions to be higher than `MAX_GAS_PER_PUBDATA_BYTE`).
                 let gas_per_pubdata_limit = if common_data.transaction_type.is_ethereum_type() {
                     MAX_GAS_PER_PUBDATA_BYTE.into()
                 } else {

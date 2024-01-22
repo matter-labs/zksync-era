@@ -18,7 +18,7 @@ use zksync_types::{
     L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
 
-// For configs we will use the default value of 800_000k to represent the rough amount of L1 gas
+// For configs we will use the default value of `800_000` to represent the rough amount of L1 gas
 // needed to cover the batch expenses.
 const BLOCK_OVERHEAD_L1_GAS: u32 = 800_000;
 
