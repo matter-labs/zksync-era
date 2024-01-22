@@ -17,6 +17,7 @@ use zksync_core::{
         web3::{ApiBuilder, Namespace},
     },
     block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert},
+    consensus,
     consistency_checker::ConsistencyChecker,
     l1_gas_price::MainNodeFeeParamsFetcher,
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
@@ -194,12 +195,23 @@ async fn init_tasks(
         Some(cfg) => {
             let pool = connection_pool.clone();
             let mut stop_receiver = stop_receiver.clone();
+            let sync_state = sync_state.clone();
             tokio::spawn(async move {
                 scope::run!(&ctx::root(), |ctx, s| async move {
                     s.spawn_bg(async {
                         let res = cfg.run(ctx, pool, action_queue_sender).await;
                         tracing::info!("Consensus actor stopped");
                         res
+                    });
+                    // TODO: information about the head block of the validators
+                    // (currently just the main node)
+                    // should also be provided over the gossip network.
+                    s.spawn_bg(async {
+                        let sync_state = sync_state;
+                        let main_node_client = main_node_client;
+                        consensus::run_main_node_state_fetcher(ctx, &main_node_client, &sync_state)
+                            .await?;
+                        Ok(())
                     });
                     ctx.wait(stop_receiver.wait_for(|stop| *stop)).await??;
                     Ok(())

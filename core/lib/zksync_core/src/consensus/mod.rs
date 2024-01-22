@@ -1,6 +1,6 @@
 //! Consensus-related functionality.
 #![allow(clippy::redundant_locals)]
-use zksync_concurrency::{ctx, error::Wrap as _, scope};
+use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::BlockStore;
@@ -8,7 +8,7 @@ use zksync_dal::ConnectionPool;
 use zksync_types::Address;
 
 use self::storage::Store;
-use crate::sync_layer::sync_action::ActionQueueSender;
+use crate::sync_layer::{sync_action::ActionQueueSender, MainNodeClient, SyncState};
 
 pub mod config;
 pub mod proto;
@@ -58,6 +58,27 @@ impl MainNodeConfig {
             executor.run(ctx).await
         })
         .await
+    }
+}
+
+pub async fn run_main_node_state_fetcher(
+    ctx: &ctx::Ctx,
+    client: &dyn MainNodeClient,
+    sync_state: &SyncState,
+) -> ctx::OrCanceled<()> {
+    const DELAY_INTERVAL: time::Duration = time::Duration::milliseconds(500);
+    const RETRY_DELAY_INTERVAL: time::Duration = time::Duration::seconds(5);
+    loop {
+        match ctx.wait(client.fetch_l2_block_number()).await? {
+            Ok(head) => {
+                sync_state.set_main_node_block(head);
+                ctx.sleep(DELAY_INTERVAL).await?;
+            }
+            Err(err) => {
+                tracing::warn!("main_node_client.fetch_l2_block_number(): {err}");
+                ctx.sleep(RETRY_DELAY_INTERVAL).await?;
+            }
+        }
     }
 }
 
