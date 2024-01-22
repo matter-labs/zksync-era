@@ -3,6 +3,7 @@
 use async_trait::async_trait;
 use jsonrpsee::core::{client::ClientT, params::BatchRequestBuilder, ClientError};
 use reqwest::StatusCode;
+use test_casing::test_casing;
 use tokio::sync::watch;
 use zksync_config::configs::chain::NetworkConfig;
 use zksync_dal::ConnectionPool;
@@ -76,8 +77,12 @@ async fn notifiers_start_after_snapshot_recovery() {
     let (events_sender, mut events_receiver) = mpsc::unbounded_channel();
     let mut subscribe_logic = EthSubscribe::new();
     subscribe_logic.set_events_sender(events_sender);
-    let notifier_handles =
-        subscribe_logic.spawn_notifiers(pool.clone(), POLL_INTERVAL, stop_receiver);
+    let notifier_handles = subscribe_logic.spawn_notifiers(
+        pool.clone(),
+        POLL_INTERVAL,
+        stop_receiver,
+        ApiEthTransferEvents::Disabled,
+    );
     assert!(!notifier_handles.is_empty());
 
     // Wait a little doing nothing and check that notifier tasks are still active (i.e., have not panicked).
@@ -125,6 +130,10 @@ trait WsTest: Send + Sync {
     fn websocket_requests_per_minute_limit(&self) -> Option<NonZeroU32> {
         None
     }
+
+    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents {
+        ApiEthTransferEvents::Disabled
+    }
 }
 
 async fn test_ws_server(test: impl WsTest) {
@@ -143,6 +152,7 @@ async fn test_ws_server(test: impl WsTest) {
         pool.clone(),
         stop_receiver,
         test.websocket_requests_per_minute_limit(),
+        test.api_eth_transfer_events(),
     )
     .await;
     server_handles.wait_until_ready().await;
@@ -282,6 +292,7 @@ async fn basic_subscriptions_after_snapshot_recovery() {
 #[derive(Debug)]
 struct LogSubscriptionsTest {
     snapshot_recovery: bool,
+    api_eth_transfer_events: ApiEthTransferEvents,
 }
 
 #[derive(Debug)]
@@ -362,9 +373,15 @@ impl WsTest for LogSubscriptionsTest {
         };
         let (tx_location, events) = store_events(&mut storage, miniblock_number, 0).await?;
         drop(storage);
-        let events: Vec<_> = events.iter().collect();
+        let events: Vec<_> =
+            get_expected_events(events.iter().collect(), self.api_eth_transfer_events());
 
-        let all_logs = collect_logs(&mut all_logs_subscription, 4).await?;
+        let expected_count = match self.api_eth_transfer_events() {
+            ApiEthTransferEvents::Disabled => 6,
+            ApiEthTransferEvents::Enabled => 7,
+        };
+
+        let all_logs = collect_logs(&mut all_logs_subscription, expected_count).await?;
         for (i, log) in all_logs.iter().enumerate() {
             assert_eq!(log.transaction_index, Some(0.into()));
             assert_eq!(log.log_index, Some(i.into()));
@@ -393,6 +410,10 @@ impl WsTest for LogSubscriptionsTest {
             .unwrap_err();
         Ok(())
     }
+
+    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents {
+        self.api_eth_transfer_events
+    }
 }
 
 async fn collect_logs(
@@ -410,24 +431,28 @@ async fn collect_logs(
     Ok(logs)
 }
 
+#[test_casing(2, [ApiEthTransferEvents::Disabled, ApiEthTransferEvents::Enabled])]
 #[tokio::test]
-async fn log_subscriptions() {
+async fn log_subscriptions(api_eth_transfer_events: ApiEthTransferEvents) {
     test_ws_server(LogSubscriptionsTest {
         snapshot_recovery: false,
+        api_eth_transfer_events,
     })
     .await;
 }
 
+#[test_casing(2, [ApiEthTransferEvents::Disabled, ApiEthTransferEvents::Enabled])]
 #[tokio::test]
-async fn log_subscriptions_after_snapshot_recovery() {
+async fn log_subscriptions_after_snapshot_recovery(api_eth_transfer_events: ApiEthTransferEvents) {
     test_ws_server(LogSubscriptionsTest {
         snapshot_recovery: true,
+        api_eth_transfer_events,
     })
     .await;
 }
 
 #[derive(Debug)]
-struct LogSubscriptionsWithNewBlockTest;
+struct LogSubscriptionsWithNewBlockTest(ApiEthTransferEvents);
 
 #[async_trait]
 impl WsTest for LogSubscriptionsWithNewBlockTest {
@@ -446,18 +471,30 @@ impl WsTest for LogSubscriptionsWithNewBlockTest {
         let mut storage = pool.access_storage().await?;
         let (_, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
-        let events: Vec<_> = events.iter().collect();
+        let events: Vec<_> =
+            get_expected_events(events.iter().collect(), self.api_eth_transfer_events());
 
-        let all_logs = collect_logs(&mut all_logs_subscription, 4).await?;
+        let expected_count = match self.api_eth_transfer_events() {
+            ApiEthTransferEvents::Disabled => 6,
+            ApiEthTransferEvents::Enabled => 7,
+        };
+
+        let all_logs = collect_logs(&mut all_logs_subscription, expected_count).await?;
         assert_logs_match(&all_logs, &events);
 
         // Create a new block and wait for the pub-sub notifier to run.
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
-        let new_events: Vec<_> = new_events.iter().collect();
+        let new_events: Vec<_> =
+            get_expected_events(new_events.iter().collect(), self.api_eth_transfer_events());
 
-        let all_new_logs = collect_logs(&mut all_logs_subscription, 4).await?;
+        let expected_count = match self.api_eth_transfer_events() {
+            ApiEthTransferEvents::Disabled => 6,
+            ApiEthTransferEvents::Enabled => 7,
+        };
+
+        let all_new_logs = collect_logs(&mut all_logs_subscription, expected_count).await?;
         assert_logs_match(&all_new_logs, &new_events);
 
         let address_logs = collect_logs(&mut address_subscription, 4).await?;
@@ -467,15 +504,20 @@ impl WsTest for LogSubscriptionsWithNewBlockTest {
         );
         Ok(())
     }
+
+    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents {
+        self.0
+    }
 }
 
+#[test_casing(2, [ApiEthTransferEvents::Disabled, ApiEthTransferEvents::Enabled])]
 #[tokio::test]
-async fn log_subscriptions_with_new_block() {
-    test_ws_server(LogSubscriptionsWithNewBlockTest).await;
+async fn log_subscriptions_with_new_block(api_eth_transfer_events: ApiEthTransferEvents) {
+    test_ws_server(LogSubscriptionsWithNewBlockTest(api_eth_transfer_events)).await;
 }
 
 #[derive(Debug)]
-struct LogSubscriptionsWithManyBlocksTest;
+struct LogSubscriptionsWithManyBlocksTest(ApiEthTransferEvents);
 
 #[async_trait]
 impl WsTest for LogSubscriptionsWithManyBlocksTest {
@@ -495,15 +537,22 @@ impl WsTest for LogSubscriptionsWithManyBlocksTest {
         let mut storage = pool.access_storage().await?;
         let mut transaction = storage.start_transaction().await?;
         let (_, events) = store_events(&mut transaction, 1, 0).await?;
-        let events: Vec<_> = events.iter().collect();
+        let events: Vec<_> =
+            get_expected_events(events.iter().collect(), self.api_eth_transfer_events());
         let (_, new_events) = store_events(&mut transaction, 2, 4).await?;
-        let new_events: Vec<_> = new_events.iter().collect();
+        let new_events: Vec<_> =
+            get_expected_events(new_events.iter().collect(), self.api_eth_transfer_events());
         transaction.commit().await?;
         drop(storage);
 
-        let all_logs = collect_logs(&mut all_logs_subscription, 4).await?;
+        let expected_count = match self.api_eth_transfer_events() {
+            ApiEthTransferEvents::Disabled => 6,
+            ApiEthTransferEvents::Enabled => 7,
+        };
+
+        let all_logs = collect_logs(&mut all_logs_subscription, expected_count).await?;
         assert_logs_match(&all_logs, &events);
-        let all_new_logs = collect_logs(&mut all_logs_subscription, 4).await?;
+        let all_new_logs = collect_logs(&mut all_logs_subscription, expected_count).await?;
         assert_logs_match(&all_new_logs, &new_events);
 
         let address_logs = collect_logs(&mut address_subscription, 4).await?;
@@ -513,15 +562,22 @@ impl WsTest for LogSubscriptionsWithManyBlocksTest {
         );
         Ok(())
     }
+
+    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents {
+        self.0
+    }
 }
 
+#[test_casing(2, [ApiEthTransferEvents::Disabled, ApiEthTransferEvents::Enabled])]
 #[tokio::test]
-async fn log_subscriptions_with_many_new_blocks_at_once() {
-    test_ws_server(LogSubscriptionsWithManyBlocksTest).await;
+async fn log_subscriptions_with_many_new_blocks_at_once(
+    api_eth_transfer_events: ApiEthTransferEvents,
+) {
+    test_ws_server(LogSubscriptionsWithManyBlocksTest(api_eth_transfer_events)).await;
 }
 
 #[derive(Debug)]
-struct LogSubscriptionsWithDelayTest;
+struct LogSubscriptionsWithDelayTest(ApiEthTransferEvents);
 
 #[async_trait]
 impl WsTest for LogSubscriptionsWithDelayTest {
@@ -560,9 +616,15 @@ impl WsTest for LogSubscriptionsWithDelayTest {
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
-        let new_events: Vec<_> = new_events.iter().collect();
+        let new_events: Vec<_> =
+            get_expected_events(new_events.iter().collect(), self.api_eth_transfer_events());
 
-        let all_logs = collect_logs(&mut all_logs_subscription, 4).await?;
+        let expected_count = match self.api_eth_transfer_events() {
+            ApiEthTransferEvents::Disabled => 6,
+            ApiEthTransferEvents::Enabled => 7,
+        };
+
+        let all_logs = collect_logs(&mut all_logs_subscription, expected_count).await?;
         assert_logs_match(&all_logs, &new_events);
         let address_and_topic_logs = collect_logs(&mut address_and_topic_subscription, 1).await?;
         assert_logs_match(&address_and_topic_logs, &[new_events[3]]);
@@ -571,17 +633,24 @@ impl WsTest for LogSubscriptionsWithDelayTest {
         all_logs_subscription.unsubscribe().await?;
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 3, 8).await?;
+        let new_events =
+            get_expected_events(new_events.iter().collect(), self.api_eth_transfer_events());
         drop(storage);
 
         let address_and_topic_logs = collect_logs(&mut address_and_topic_subscription, 1).await?;
         assert_logs_match(&address_and_topic_logs, &[&new_events[3]]);
         Ok(())
     }
+
+    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents {
+        self.0
+    }
 }
 
+#[test_casing(2, [ApiEthTransferEvents::Disabled, ApiEthTransferEvents::Enabled])]
 #[tokio::test]
-async fn log_subscriptions_with_delay() {
-    test_ws_server(LogSubscriptionsWithDelayTest).await;
+async fn log_subscriptions_with_delay(api_eth_transfer_events: ApiEthTransferEvents) {
+    test_ws_server(LogSubscriptionsWithDelayTest(api_eth_transfer_events)).await;
 }
 
 #[derive(Debug)]

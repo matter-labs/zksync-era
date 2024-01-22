@@ -1,5 +1,6 @@
 //! Tests for filter-related methods in the `eth` namespace.
 
+use test_casing::test_casing;
 use zksync_web3_decl::{jsonrpsee::core::ClientError as RpcError, types::FilterChanges};
 
 use super::*;
@@ -85,6 +86,7 @@ async fn basic_filter_changes_after_snapshot_recovery() {
 #[derive(Debug)]
 struct LogFilterChangesTest {
     snapshot_recovery: bool,
+    api_eth_transfer_events: ApiEthTransferEvents,
 }
 
 #[async_trait]
@@ -118,7 +120,7 @@ impl HttpTest for LogFilterChangesTest {
         };
         let (_, events) = store_events(&mut storage, first_local_miniblock, 0).await?;
         drop(storage);
-        let events: Vec<_> = events.iter().collect();
+        let events = get_expected_events(events.iter().collect(), self.api_eth_transfer_events());
 
         let all_logs = client.get_filter_changes(all_logs_filter_id).await?;
         let FilterChanges::Logs(all_logs) = all_logs else {
@@ -145,26 +147,34 @@ impl HttpTest for LogFilterChangesTest {
         assert!(new_all_logs.is_empty());
         Ok(())
     }
+
+    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents {
+        self.api_eth_transfer_events
+    }
 }
 
+#[test_casing(2, [ApiEthTransferEvents::Disabled, ApiEthTransferEvents::Enabled])]
 #[tokio::test]
-async fn log_filter_changes() {
+async fn log_filter_changes(api_eth_transfer_events: ApiEthTransferEvents) {
     test_http_server(LogFilterChangesTest {
         snapshot_recovery: false,
+        api_eth_transfer_events,
     })
     .await;
 }
 
+#[test_casing(2, [ApiEthTransferEvents::Disabled, ApiEthTransferEvents::Enabled])]
 #[tokio::test]
-async fn log_filter_changes_after_snapshot_recovery() {
+async fn log_filter_changes_after_snapshot_recovery(api_eth_transfer_events: ApiEthTransferEvents) {
     test_http_server(LogFilterChangesTest {
         snapshot_recovery: true,
+        api_eth_transfer_events,
     })
     .await;
 }
 
 #[derive(Debug)]
-struct LogFilterChangesWithBlockBoundariesTest;
+struct LogFilterChangesWithBlockBoundariesTest(ApiEthTransferEvents);
 
 #[async_trait]
 impl HttpTest for LogFilterChangesWithBlockBoundariesTest {
@@ -189,7 +199,8 @@ impl HttpTest for LogFilterChangesWithBlockBoundariesTest {
         let mut storage = pool.access_storage().await?;
         let (_, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
-        let events: Vec<_> = events.iter().collect();
+        let events: Vec<_> =
+            get_expected_events(events.iter().collect(), self.api_eth_transfer_events());
 
         let lower_bound_logs = client.get_filter_changes(lower_bound_filter_id).await?;
         assert_matches!(
@@ -214,7 +225,8 @@ impl HttpTest for LogFilterChangesWithBlockBoundariesTest {
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
-        let new_events: Vec<_> = new_events.iter().collect();
+        let new_events: Vec<_> =
+            get_expected_events(new_events.iter().collect(), self.api_eth_transfer_events());
 
         let lower_bound_logs = client.get_filter_changes(lower_bound_filter_id).await?;
         let FilterChanges::Logs(lower_bound_logs) = lower_bound_logs else {
@@ -232,7 +244,8 @@ impl HttpTest for LogFilterChangesWithBlockBoundariesTest {
         let mut storage = pool.access_storage().await?;
         let (_, new_events) = store_events(&mut storage, 3, 8).await?;
         drop(storage);
-        let new_events: Vec<_> = new_events.iter().collect();
+        let new_events: Vec<_> =
+            get_expected_events(new_events.iter().collect(), self.api_eth_transfer_events());
 
         let bounded_logs = client.get_filter_changes(bounded_filter_id).await?;
         let FilterChanges::Hashes(bounded_logs) = bounded_logs else {
@@ -253,9 +266,17 @@ impl HttpTest for LogFilterChangesWithBlockBoundariesTest {
         assert_logs_match(&lower_bound_logs, &new_events);
         Ok(())
     }
+
+    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents {
+        self.0
+    }
 }
 
+#[test_casing(2, [ApiEthTransferEvents::Disabled, ApiEthTransferEvents::Enabled])]
 #[tokio::test]
-async fn log_filter_changes_with_block_boundaries() {
-    test_http_server(LogFilterChangesWithBlockBoundariesTest).await;
+async fn log_filter_changes_with_block_boundaries(api_eth_transfer_events: ApiEthTransferEvents) {
+    test_http_server(LogFilterChangesWithBlockBoundariesTest(
+        api_eth_transfer_events,
+    ))
+    .await;
 }

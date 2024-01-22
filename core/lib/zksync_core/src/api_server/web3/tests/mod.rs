@@ -11,8 +11,10 @@ use zksync_config::configs::{
 };
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, StorageProcessor};
 use zksync_health_check::CheckHealth;
+use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
 use zksync_types::{
     api,
+    api::ApiEthTransferEvents,
     block::{BlockGasCount, MiniblockHeader},
     fee::TransactionExecutionMetrics,
     get_nonce_key,
@@ -94,6 +96,7 @@ pub(crate) async fn spawn_http_server(
     pool: ConnectionPool,
     tx_executor: MockTransactionExecutor,
     stop_receiver: watch::Receiver<bool>,
+    api_eth_transfer_events: ApiEthTransferEvents,
 ) -> ApiServerHandles {
     spawn_server(
         ApiTransportLabel::Http,
@@ -102,6 +105,7 @@ pub(crate) async fn spawn_http_server(
         None,
         tx_executor,
         stop_receiver,
+        api_eth_transfer_events,
     )
     .await
     .0
@@ -112,6 +116,7 @@ async fn spawn_ws_server(
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
+    api_eth_transfer_events: ApiEthTransferEvents,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
     spawn_server(
         ApiTransportLabel::Ws,
@@ -120,6 +125,7 @@ async fn spawn_ws_server(
         websocket_requests_per_minute_limit,
         MockTransactionExecutor::default(),
         stop_receiver,
+        api_eth_transfer_events,
     )
     .await
 }
@@ -131,9 +137,19 @@ async fn spawn_server(
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
     tx_executor: MockTransactionExecutor,
     stop_receiver: watch::Receiver<bool>,
+    api_eth_transfer_events: ApiEthTransferEvents,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
     let contracts_config = ContractsConfig::for_tests();
-    let web3_config = Web3JsonRpcConfig::for_tests();
+    let mut web3_config = Web3JsonRpcConfig::for_tests();
+    let api_eth_transfer_events = match api_eth_transfer_events {
+        ApiEthTransferEvents::Enabled => zksync_config::configs::api::ApiEthTransferEvents::Enabled,
+        ApiEthTransferEvents::Disabled => {
+            zksync_config::configs::api::ApiEthTransferEvents::Disabled
+        }
+    };
+
+    web3_config.api_eth_transfer_events = api_eth_transfer_events;
+
     let api_config = InternalApiConfig::new(network_config, &web3_config, &contracts_config);
     let (tx_sender, vm_barrier) =
         create_test_tx_sender(pool.clone(), api_config.l2_chain_id, tx_executor.into()).await;
@@ -178,6 +194,10 @@ trait HttpTest: Send + Sync {
     }
 
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()>;
+
+    fn api_eth_transfer_events(&self) -> ApiEthTransferEvents {
+        ApiEthTransferEvents::Disabled
+    }
 }
 
 /// Storage initialization strategy.
@@ -250,6 +270,7 @@ async fn test_http_server(test: impl HttpTest) {
         pool.clone(),
         test.transaction_executor(),
         stop_receiver,
+        test.api_eth_transfer_events(),
     )
     .await;
     server_handles.wait_until_ready().await;
@@ -379,6 +400,26 @@ async fn store_events(
             indexed_topics: vec![H256::repeat_byte(42), H256::repeat_byte(111)],
             value: (start_idx + 3).to_le_bytes().to_vec(),
         },
+        VmEvent {
+            location: (L1BatchNumber(1), start_idx + 4),
+            address: L2_ETH_TOKEN_ADDRESS,
+            indexed_topics: vec![TRANSFER_EVENT_TOPIC],
+            value: (start_idx + 4).to_le_bytes().to_vec(),
+        },
+        // ETH Transfer event with only topic matching
+        VmEvent {
+            location: (L1BatchNumber(1), start_idx + 5),
+            address: Address::repeat_byte(12),
+            indexed_topics: vec![TRANSFER_EVENT_TOPIC],
+            value: (start_idx + 5).to_le_bytes().to_vec(),
+        },
+        // ETH Transfer event with only address matching
+        VmEvent {
+            location: (L1BatchNumber(1), start_idx + 6),
+            address: L2_ETH_TOKEN_ADDRESS,
+            indexed_topics: vec![H256::repeat_byte(25)],
+            value: (start_idx + 6).to_le_bytes().to_vec(),
+        },
     ];
     storage
         .events_dal()
@@ -388,6 +429,26 @@ async fn store_events(
         )
         .await;
     Ok((tx_location, events))
+}
+
+fn get_expected_events(
+    events: Vec<&VmEvent>,
+    api_eth_transfer_events: ApiEthTransferEvents,
+) -> Vec<&VmEvent> {
+    match api_eth_transfer_events {
+        ApiEthTransferEvents::Enabled => events,
+        ApiEthTransferEvents::Disabled => {
+            // filter out all the ETH Transfer
+            events
+                .into_iter()
+                .filter(|event| {
+                    !(event.address == L2_ETH_TOKEN_ADDRESS
+                        && !event.indexed_topics.is_empty()
+                        && event.indexed_topics[0] == TRANSFER_EVENT_TOPIC)
+                })
+                .collect()
+        }
+    }
 }
 
 #[derive(Debug)]
