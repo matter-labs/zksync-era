@@ -343,6 +343,7 @@ impl EthNamespace {
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 
         let hashes = block
+            .clone()
             .unwrap()
             .transactions
             .into_iter()
@@ -363,7 +364,10 @@ impl EthNamespace {
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 
-        method_latency.observe_without_diff();
+        self.report_latency_with_block_id(
+            method_latency,
+            MiniblockNumber(block.unwrap().number.as_u32()),
+        );
 
         Ok(receipts)
     }
