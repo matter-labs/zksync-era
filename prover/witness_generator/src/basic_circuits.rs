@@ -7,29 +7,35 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use circuit_definitions::aux_definitions::witness_oracle::VmWitnessOracle;
-use circuit_definitions::boojum::implementations::poseidon2::Poseidon2Goldilocks;
-use circuit_definitions::circuit_definitions::base_layer::{ZkSyncBaseLayerStorage, ZkSyncBaseLayerCircuit};
-use circuit_definitions::encodings::recursion_request::RecursionQueueSimulator;
-use circuit_definitions::zkevm_circuits::fsm_input_output::ClosedFormInputCompactFormWitness;
-use rand::Rng;
-use serde::{Deserialize, Serialize};
-use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::{GoldilocksExt2, GoldilocksField};
-use zksync_prover_fri_types::circuit_definitions::boojum::gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge;
-use zkevm_test_harness::geometry_config::get_geometry_config;
-use zkevm_test_harness::toolset::GeometryConfig;
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness;
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness;
-use zksync_prover_fri_types::AuxOutputWitnessWrapper;
-
-use crate::storage_oracle::StorageOracle;
+use circuit_definitions::{
+    aux_definitions::witness_oracle::VmWitnessOracle,
+    boojum::implementations::poseidon2::Poseidon2Goldilocks,
+    circuit_definitions::base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerStorage},
+    encodings::recursion_request::RecursionQueueSimulator,
+    zkevm_circuits::fsm_input_output::ClosedFormInputCompactFormWitness,
+};
 use multivm::vm_latest::{
     constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
 };
+use rand::Rng;
+use serde::{Deserialize, Serialize};
+use zkevm_test_harness::{geometry_config::get_geometry_config, toolset::GeometryConfig};
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::{fri_witness_generator_dal::FriWitnessJobStatus, ConnectionPool};
 use zksync_object_store::{
     Bucket, ClosedFormInputKey, ObjectStore, ObjectStoreFactory, StoredObject,
+};
+use zksync_prover_fri_types::{
+    circuit_definitions::{
+        boojum::{
+            field::goldilocks::{GoldilocksExt2, GoldilocksField},
+            gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge,
+        },
+        zkevm_circuits::scheduler::{
+            block_header::BlockAuxilaryOutputWitness, input::SchedulerCircuitInstanceWitness,
+        },
+    },
+    AuxOutputWitnessWrapper,
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_queued_job_processor::JobProcessor;
@@ -41,10 +47,14 @@ use zksync_types::{
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
-use crate::metrics::WITNESS_GENERATOR_METRICS;
-use crate::precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider;
-use crate::utils::{
-    expand_bootloader_contents, save_circuit, ClosedFormInputWrapper, SchedulerPartialInputWrapper,
+use crate::{
+    metrics::WITNESS_GENERATOR_METRICS,
+    precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
+    storage_oracle::StorageOracle,
+    utils::{
+        expand_bootloader_contents, save_circuit, ClosedFormInputWrapper,
+        SchedulerPartialInputWrapper,
+    },
 };
 
 pub struct BasicCircuitArtifacts {
