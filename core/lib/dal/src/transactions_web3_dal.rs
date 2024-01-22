@@ -8,7 +8,6 @@ use crate::{
     instrument::InstrumentExt,
     models::{
         storage_block::{bind_block_where_sql_params, web3_block_where_sql},
-        storage_event::StorageWeb3Log,
         storage_transaction::{
             extract_web3_transaction, web3_transaction_select_sql, StorageTransaction,
             StorageTransactionDetails, StorageTransactionReceipt,
@@ -85,7 +84,7 @@ impl TransactionsWeb3Dal<'_, '_> {
             query = query.bind(hash.as_bytes());
         }
 
-        let receipts: Vec<api::TransactionReceipt> = query
+        let mut receipts: Vec<api::TransactionReceipt> = query
             .fetch_all(self.storage.conn())
             .await?
             .into_iter()
@@ -94,75 +93,32 @@ impl TransactionsWeb3Dal<'_, '_> {
             })
             .collect();
 
-        if receipts.len() != hashes.len() {
-            return Err(SqlxError::RowNotFound);
+        let logs = self
+            .storage
+            .events_dal()
+            .get_logs_by_hashes(hashes.clone())
+            .await?;
+
+        let l2_to_l1_logs = self
+            .storage
+            .events_dal()
+            .get_l2_to_l1_logs_by_hashes(hashes)
+            .await?;
+
+        for receipt in receipts.iter_mut() {
+            let logs_for_tx = logs.get(&receipt.transaction_hash);
+
+            if let Some(logs) = logs_for_tx {
+                receipt.logs = logs.clone();
+            }
+
+            let l2_to_l1_logs_for_tx = l2_to_l1_logs.get(&receipt.transaction_hash);
+            if let Some(l2_to_l1_logs) = l2_to_l1_logs_for_tx {
+                receipt.l2_to_l1_logs = l2_to_l1_logs.clone();
+            }
         }
 
-        let mut result = Vec::new();
-
-        for receipt in receipts {
-            let mut receipt = receipt;
-            let logs: Vec<_> = sqlx::query_as!(
-                StorageWeb3Log,
-                r#"
-                SELECT
-                    address,
-                    topic1,
-                    topic2,
-                    topic3,
-                    topic4,
-                    value,
-                    NULL::bytea AS "block_hash",
-                    NULL::BIGINT AS "l1_batch_number?",
-                    miniblock_number,
-                    tx_hash,
-                    tx_index_in_block,
-                    event_index_in_block,
-                    event_index_in_tx
-                FROM
-                    events
-                WHERE
-                    tx_hash = $1
-                ORDER BY
-                    miniblock_number ASC,
-                    event_index_in_block ASC
-                "#,
-                receipt.transaction_hash.as_bytes()
-            )
-            .instrument("get_transaction_receipt_events")
-            .with_arg("hashes", &hashes)
-            .fetch_all(self.storage.conn())
-            .await?
-            .into_iter()
-            .map(|storage_log| {
-                let mut log = api::Log::from(storage_log);
-                log.block_hash = Some(receipt.block_hash);
-                log.l1_batch_number = receipt.l1_batch_number;
-                log
-            })
-            .collect();
-
-            receipt.logs = logs;
-
-            let l2_to_l1_logs = self
-                .storage
-                .events_dal()
-                .l2_to_l1_logs(receipt.transaction_hash)
-                .await?;
-            let l2_to_l1_logs: Vec<_> = l2_to_l1_logs
-                .into_iter()
-                .map(|storage_l2_to_l1_log| {
-                    let mut l2_to_l1_log = api::L2ToL1Log::from(storage_l2_to_l1_log);
-                    l2_to_l1_log.block_hash = Some(receipt.block_hash);
-                    l2_to_l1_log.l1_batch_number = receipt.l1_batch_number;
-                    l2_to_l1_log
-                })
-                .collect();
-            receipt.l2_to_l1_logs = l2_to_l1_logs;
-            result.push(receipt);
-        }
-
-        Ok(result)
+        Ok(receipts)
     }
 
     pub async fn get_transaction(
