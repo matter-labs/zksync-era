@@ -16,6 +16,10 @@ pub enum CircuitBreakerError {
     FailedL1Transaction,
     #[error("Replication lag ({0:?}) is above the threshold ({1:?})")]
     ReplicationLag(u32, u32),
+    #[error("Failed to access storage")]
+    StorageAccessFailed,
+    #[error("Failed to check transactions")]
+    FailedTransactionCheck,
 }
 
 /// Checks circuit breakers

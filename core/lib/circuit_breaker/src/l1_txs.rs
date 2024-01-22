@@ -10,17 +10,10 @@ pub struct FailedL1TransactionChecker {
 #[async_trait::async_trait]
 impl CircuitBreaker for FailedL1TransactionChecker {
     async fn check(&self) -> Result<(), CircuitBreakerError> {
-        if self
-            .pool
-            .access_storage()
-            .await
-            .unwrap()
-            .eth_sender_dal()
-            .get_number_of_failed_transactions()
-            .await
-            .unwrap()
-            > 0
-        {
+        let storage = self.pool.access_storage().await.map_err(|_| CircuitBreakerError::StorageAccessFailed)?;
+        let failed_transactions = storage.eth_sender_dal().get_number_of_failed_transactions().await.map_err(|_| CircuitBreakerError::FailedTransactionCheck)?;
+        
+        if failed_transactions > 0 {
             return Err(CircuitBreakerError::FailedL1Transaction);
         }
         Ok(())
