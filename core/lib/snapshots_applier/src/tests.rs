@@ -139,8 +139,8 @@ mod snapshots_applier_tests {
     async fn snapshots_creator_can_successfully_recover_db() {
         let pool = ConnectionPool::test_pool().await;
         let object_store_factory = ObjectStoreFactory::mock();
-        let object_store = Box::new(object_store_factory.create_store().await);
-        let mut client = Box::<MockMainNodeClient>::default();
+        let object_store = object_store_factory.create_store().await;
+        let mut client = MockMainNodeClient::default();
         let miniblock_number = MiniblockNumber(1234);
         let l1_batch_number = L1BatchNumber(123);
         let l1_root_hash = H256::random();
@@ -194,7 +194,7 @@ mod snapshots_applier_tests {
             miniblock_metadata(miniblock_number, l1_batch_number, l2_root_hash),
         );
 
-        SnapshotsApplier::load_snapshot(&pool, client, object_store)
+        SnapshotsApplier::load_snapshot(&pool, &client, &object_store)
             .await
             .unwrap();
 
@@ -213,15 +213,15 @@ mod snapshots_applier_tests {
         assert_eq!(current_db_status.unwrap(), expected_status);
 
         let all_initial_writes = storage
-            .storage_logs_dal()
-            .get_all_initial_writes_for_tests()
+            .storage_logs_dedup_dal()
+            .dump_all_initial_writes_for_tests()
             .await;
 
         assert_eq!(all_initial_writes.len(), all_snapshot_storage_logs.len());
 
         let all_storage_logs = storage
             .storage_logs_dal()
-            .get_all_storage_logs_for_tests()
+            .dump_all_storage_logs_for_tests()
             .await;
 
         assert_eq!(all_storage_logs.len(), all_snapshot_storage_logs.len());

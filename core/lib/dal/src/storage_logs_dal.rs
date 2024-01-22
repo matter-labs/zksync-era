@@ -10,6 +10,10 @@ use zksync_types::{
     MiniblockNumber, StorageKey, StorageKey, StorageLog, StorageLog,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256,
     H256, U256,
+    get_code_key,
+    snapshots::{SnapshotStorageLog, StorageLogDbRow},
+    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, StorageLog,
+    FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256, U256,
 };
 
 pub use crate::models::storage_log::StorageRecoveryLogEntry;
@@ -549,8 +553,8 @@ impl StorageLogsDal<'_, '_> {
             .collect())
     }
 
-    // Retrieves all storage log entries for testing purposes.
-    pub async fn get_all_storage_logs_for_tests(&mut self) -> Vec<StorageLogDbRow> {
+    /// Retrieves all storage log entries for testing purposes.
+    pub async fn dump_all_storage_logs_for_tests(&mut self) -> Vec<StorageLogDbRow> {
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -578,32 +582,6 @@ impl StorageLogsDal<'_, '_> {
                 operation_number: row.operation_number as u64,
                 tx_hash: H256::from_slice(&row.tx_hash),
                 miniblock_number: MiniblockNumber(row.miniblock_number as u32),
-            })
-            .collect()
-    }
-
-    // Retrieves all initial write entries for testing purposes.
-    pub async fn get_all_initial_writes_for_tests(&mut self) -> Vec<InitialWriteDbRow> {
-        let rows = sqlx::query!(
-            r#"
-            SELECT
-                hashed_key,
-                l1_batch_number,
-                INDEX
-            FROM
-                initial_writes
-            "#
-        )
-        .fetch_all(self.storage.conn())
-        .await
-        .context("get_all_initial_writes_for_tests")
-        .unwrap();
-
-        rows.into_iter()
-            .map(|row| InitialWriteDbRow {
-                hashed_key: H256::from_slice(&row.hashed_key),
-                l1_batch_number: L1BatchNumber(row.l1_batch_number as u32),
-                index: row.index as u64,
             })
             .collect()
     }

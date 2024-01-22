@@ -1,9 +1,12 @@
 use std::collections::HashSet;
 
+use anyhow::Context;
 use sqlx::types::chrono::Utc;
 use zksync_types::{
     snapshots::SnapshotStorageLog, zk_evm_types::LogQuery, AccountTreeId, Address, L1BatchNumber,
     LogQuery, StorageKey, H256,
+    snapshots::{InitialWriteDbRow, SnapshotStorageLog},
+    AccountTreeId, Address, L1BatchNumber, LogQuery, StorageKey, H256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -47,7 +50,6 @@ impl StorageLogsDedupDal<'_, '_> {
 
     /// Insert initial writes and assigns indices to them.
     /// Assumes indices are already assigned for all saved initial_writes, so must be called only after the migration.
-
     pub async fn insert_initial_writes_from_snapshot(
         &mut self,
         snapshot_storage_logs: &[SnapshotStorageLog],
@@ -226,5 +228,31 @@ impl StorageLogsDedupDal<'_, '_> {
         .into_iter()
         .map(|row| H256::from_slice(&row.hashed_key))
         .collect()
+    }
+
+    /// Retrieves all initial write entries for testing purposes.
+    pub async fn dump_all_initial_writes_for_tests(&mut self) -> Vec<InitialWriteDbRow> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT
+                hashed_key,
+                l1_batch_number,
+                INDEX
+            FROM
+                initial_writes
+            "#
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .context("get_all_initial_writes_for_tests")
+        .unwrap();
+
+        rows.into_iter()
+            .map(|row| InitialWriteDbRow {
+                hashed_key: H256::from_slice(&row.hashed_key),
+                l1_batch_number: L1BatchNumber(row.l1_batch_number as u32),
+                index: row.index as u64,
+            })
+            .collect()
     }
 }

@@ -8859,7 +8859,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_core",
  "zksync_dal",
  "zksync_object_store",
  "zksync_types",

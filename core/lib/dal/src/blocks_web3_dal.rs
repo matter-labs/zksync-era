@@ -766,7 +766,7 @@ mod tests {
             l1_batch_root_hash: H256::zero(),
             miniblock_number: MiniblockNumber(42),
             miniblock_root_hash: H256::zero(),
-            storage_logs_chunks_processed: (0..100).map(|_| true).collect(),
+            storage_logs_chunks_processed: vec![true; 100],
         };
         conn.snapshot_recovery_dal()
             .insert_initial_recovery_status(&snapshot_recovery)

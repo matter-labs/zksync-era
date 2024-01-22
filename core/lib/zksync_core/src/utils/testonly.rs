@@ -153,7 +153,7 @@ pub(crate) async fn prepare_recovery_snapshot(
         l1_batch_root_hash,
         miniblock_number: miniblock.number,
         miniblock_root_hash: H256::zero(), // not used
-        storage_logs_chunks_processed: (0..100).map(|_| true).collect(),
+        storage_logs_chunks_processed: vec![true; 100],
     };
     storage
         .snapshot_recovery_dal()
@@ -179,7 +179,7 @@ pub(crate) async fn prepare_empty_recovery_snapshot(
         l1_batch_root_hash: H256::zero(),
         miniblock_number: l1_batch_number.into(),
         miniblock_root_hash: H256::zero(), // not used
-        storage_logs_chunks_processed: (0..100).map(|_| true).collect(),
+        storage_logs_chunks_processed: vec![true; 100],
     };
     storage
         .snapshot_recovery_dal()

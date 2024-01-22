@@ -33,7 +33,7 @@ pub(crate) enum InitialStage {
 }
 
 #[derive(Debug, Metrics)]
-#[metrics(prefix = "snapshots_creator")]
+#[metrics(prefix = "snapshots_applier")]
 pub(crate) struct SnapshotsApplierMetrics {
     /// Number of chunks in the applied snapshot. Set when snapshots applier starts.
     pub storage_logs_chunks_count: Gauge<usize>,
@@ -63,51 +63,46 @@ pub enum SnapshotsApplierError {
     Canceled(String),
     #[error(transparent)]
     Fatal(#[from] anyhow::Error),
-    #[error("retryable")]
-    Retryable(String),
+    #[error(transparent)]
+    Retryable(anyhow::Error),
 }
 pub struct SnapshotsApplier<'a> {
     connection_pool: &'a ConnectionPool,
-    blob_store: Box<dyn ObjectStore>,
+    blob_store: &'a dyn ObjectStore,
     applied_snapshot_status: SnapshotRecoveryStatus,
 }
 
 impl From<ObjectStoreError> for SnapshotsApplierError {
     fn from(error: ObjectStoreError) -> Self {
         match error {
-            ObjectStoreError::KeyNotFound(_) => SnapshotsApplierError::Fatal(error.into()),
-            ObjectStoreError::Serialization(_) => SnapshotsApplierError::Fatal(error.into()),
-            ObjectStoreError::Other(_) => SnapshotsApplierError::Retryable(
-                "An error occurred while accessing object store".to_string(),
-            ),
+            ObjectStoreError::KeyNotFound(_) | ObjectStoreError::Serialization(_) => {
+                Self::Fatal(error.into())
+            }
+            ObjectStoreError::Other(_) => Self::Retryable(error.into()),
         }
     }
 }
 
 impl From<SqlxError> for SnapshotsApplierError {
-    fn from(err: SqlxError) -> Self {
-        match err {
+    fn from(error: SqlxError) -> Self {
+        match error {
             SqlxError::Database(_)
             | SqlxError::RowNotFound
             | SqlxError::ColumnNotFound(_)
             | SqlxError::Configuration(_)
-            | SqlxError::TypeNotFound { type_name: _ } => SnapshotsApplierError::Fatal(err.into()),
-            _ => SnapshotsApplierError::Retryable(format!(
-                "An error occured when accessing DB: {err}"
-            )),
+            | SqlxError::TypeNotFound { .. } => Self::Fatal(error.into()),
+            _ => Self::Retryable(error.into()),
         }
     }
 }
 
 impl From<RpcError> for SnapshotsApplierError {
-    fn from(err: RpcError) -> Self {
-        match err {
+    fn from(error: RpcError) -> Self {
+        match error {
             Error::Transport(_) | Error::RequestTimeout | Error::RestartNeeded(_) => {
-                SnapshotsApplierError::Retryable(
-                    "An error occurred while accessing main node".to_string(),
-                )
+                Self::Retryable(error.into())
             }
-            _ => SnapshotsApplierError::Fatal(err.into()),
+            _ => Self::Fatal(error.into()),
         }
     }
 }
@@ -121,8 +116,8 @@ pub trait SnapshotsApplierMainNodeClient: fmt::Debug + Send + Sync {
 impl<'a> SnapshotsApplier<'a> {
     pub async fn load_snapshot(
         connection_pool: &'a ConnectionPool,
-        main_node_client: Box<dyn SnapshotsApplierMainNodeClient>,
-        blob_store: Box<dyn ObjectStore>,
+        main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
+        blob_store: &'a dyn ObjectStore,
     ) -> anyhow::Result<(), SnapshotsApplierError> {
         let latency =
             METRICS.initial_stage_duration[&InitialStage::FetchMetadataFromMainNode].start();
@@ -143,7 +138,7 @@ impl<'a> SnapshotsApplier<'a> {
             ));
         }
 
-        if let Some(applied_snapshot_status) = applied_snapshot_status.as_ref() {
+        if let Some(applied_snapshot_status) = applied_snapshot_status {
             if !applied_snapshot_status
                 .storage_logs_chunks_processed
                 .contains(&false)
@@ -152,52 +147,60 @@ impl<'a> SnapshotsApplier<'a> {
                     "This node has already been initialized from a snapshot".to_string(),
                 ));
             }
+
+            let recovery = Self {
+                connection_pool,
+                blob_store,
+                applied_snapshot_status,
+            };
+
+            recovery.recover_storage_logs().await?;
         } else {
             applied_snapshot_status =
-                Some(SnapshotsApplier::create_fresh_recovery_status(main_node_client).await?)
+                Some(SnapshotsApplier::create_fresh_recovery_status(main_node_client).await?);
+
+            let mut recovery = Self {
+                connection_pool,
+                blob_store,
+                applied_snapshot_status: applied_snapshot_status.unwrap(),
+            };
+
+            let latency = latency.observe();
+            tracing::info!("Initialized snapshots applier in {latency:?}");
+
+            METRICS.storage_logs_chunks_count.set(
+                recovery
+                    .applied_snapshot_status
+                    .storage_logs_chunks_processed
+                    .len(),
+            );
+
+            METRICS.storage_logs_chunks_left_to_process.set(
+                recovery
+                    .applied_snapshot_status
+                    .storage_logs_chunks_processed
+                    .iter()
+                    .filter(|x| !(**x))
+                    .count(),
+            );
+
+            recovery.recover_factory_deps(&mut storage).await?;
+
+            storage
+                .snapshot_recovery_dal()
+                .insert_initial_recovery_status(&recovery.applied_snapshot_status)
+                .await?;
+
+            storage.commit().await?;
+
+            recovery.recover_storage_logs().await?;
         }
-
-        let mut recovery = Self {
-            connection_pool,
-            blob_store,
-            applied_snapshot_status: applied_snapshot_status.unwrap(),
-        };
-
-        let latency = latency.observe();
-        tracing::info!("Initialized snapshots creator in {latency:?}");
-
-        METRICS.storage_logs_chunks_count.set(
-            recovery
-                .applied_snapshot_status
-                .storage_logs_chunks_processed
-                .len(),
-        );
-
-        METRICS.storage_logs_chunks_left_to_process.set(
-            recovery
-                .applied_snapshot_status
-                .storage_logs_chunks_processed
-                .iter()
-                .filter(|x| !(**x))
-                .count(),
-        );
-
-        recovery.recover_factory_deps(&mut storage).await?;
-
-        storage
-            .snapshot_recovery_dal()
-            .insert_initial_recovery_status(&recovery.applied_snapshot_status)
-            .await?;
-
-        storage.commit().await?;
-
-        recovery.recover_storage_logs().await?;
 
         Ok(())
     }
 
     async fn create_fresh_recovery_status(
-        main_node_client: Box<dyn SnapshotsApplierMainNodeClient>,
+        main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
     ) -> anyhow::Result<SnapshotRecoveryStatus> {
         let snapshot_response = main_node_client.fetch_newest_snapshot().await?;
 
@@ -226,18 +229,14 @@ impl<'a> SnapshotsApplier<'a> {
             l1_batch_root_hash: snapshot.last_l1_batch_with_metadata.metadata.root_hash,
             miniblock_number: snapshot.miniblock_number,
             miniblock_root_hash,
-            storage_logs_chunks_processed: snapshot
-                .storage_logs_chunks
-                .iter()
-                .map(|_| false)
-                .collect(),
+            storage_logs_chunks_processed: vec![false; snapshot.storage_logs_chunks.len()],
         })
     }
 
     async fn recover_factory_deps(
         &mut self,
         storage: &mut StorageProcessor<'_>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<(), SnapshotsApplierError> {
         let latency = METRICS.initial_stage_duration[&InitialStage::ApplyFactoryDeps].start();
 
         let factory_deps: SnapshotFactoryDependencies = self
@@ -268,7 +267,7 @@ impl<'a> SnapshotsApplier<'a> {
         &mut self,
         storage_logs: &[SnapshotStorageLog],
         storage: &mut StorageProcessor<'_>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<(), SnapshotsApplierError> {
         tracing::info!("Loading {} storage logs into postgres", storage_logs.len());
         storage
             .storage_logs_dedup_dal()
@@ -280,7 +279,7 @@ impl<'a> SnapshotsApplier<'a> {
         &mut self,
         storage_logs: &[SnapshotStorageLog],
         storage: &mut StorageProcessor<'_>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<(), SnapshotsApplierError> {
         storage
             .storage_logs_dal()
             .insert_storage_logs_from_snapshot(
@@ -291,7 +290,10 @@ impl<'a> SnapshotsApplier<'a> {
         Ok(())
     }
 
-    async fn recover_storage_logs_single_chunk(&mut self, chunk_id: u64) -> anyhow::Result<()> {
+    async fn recover_storage_logs_single_chunk(
+        &mut self,
+        chunk_id: u64,
+    ) -> anyhow::Result<(), SnapshotsApplierError> {
         let latency =
             METRICS.storage_logs_chunks_duration[&StorageLogsChunksStage::LoadFromGcs].start();
 
@@ -338,7 +340,7 @@ impl<'a> SnapshotsApplier<'a> {
         Ok(())
     }
 
-    pub async fn recover_storage_logs(mut self) -> anyhow::Result<()> {
+    pub async fn recover_storage_logs(mut self) -> anyhow::Result<(), SnapshotsApplierError> {
         for chunk_id in 0..self
             .applied_snapshot_status
             .storage_logs_chunks_processed
