@@ -3,6 +3,8 @@ use std::{
     ops::{Add, AddAssign},
 };
 
+/// A unique identifier of the resource.
+/// Typically, represented as a path-like string, e.g. `common/master_pool`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ResourceId {
     id: Vec<&'static str>,

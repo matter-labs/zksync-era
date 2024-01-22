@@ -8,8 +8,10 @@ mod lazy_resource;
 mod resource_collection;
 mod resource_id;
 
-/// A marker trait for anything that can be stored (and retrieved) as a resource.
-/// Requires `Clone` since the same resource may be requested by several tasks.
+/// A trait for anything that can be stored (and retrieved) as a resource.
+/// Typically, the type that implements this trait also should implement `Clone`
+/// since the same resource may be requested by several tasks and thus it would be an additional
+/// bound on most methods that work with [`Resource`].
 pub trait Resource: 'static + Send + Sync + std::any::Any {
     /// Unique identifier of the resource.
     /// Used to fetch the resource from the provider.

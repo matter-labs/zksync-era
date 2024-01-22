@@ -6,7 +6,7 @@ use tokio::sync::watch;
 use super::{Resource, ResourceId};
 use crate::node::StopReceiver;
 
-/// A lazy resource represent a resource that isn't available at the time when the tasks start.
+/// A lazy resource represents a resource that isn't available at the time when the tasks start.
 ///
 /// Normally it's used to represent the resources that should be provided by one task to another one.
 /// Lazy resources are aware of the node lifecycle, so attempt to resolve the resource won't hang

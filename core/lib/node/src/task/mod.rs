@@ -1,8 +1,9 @@
 //! Tasks define the "runnable" concept of the node, e.g. something that can be launched and runs until the node
 //! is stopped.
 //!
-//! Task is normally defined by implementing two traits [`IntoZkSyncTask`], which acts like a constructor, and
-//! [`ZkSyncTask`], which provides an interface for `ZkSyncNode` to implement the task lifecycle.
+//! Task is normally defined by two types, one implementing two traits [`IntoZkSyncTask`], which acts like a
+//! constructor, and another one, which implements [`ZkSyncTask`], providing an interface for `ZkSyncNode` to
+//! implement the task lifecycle.
 
 use futures::future::BoxFuture;
 
