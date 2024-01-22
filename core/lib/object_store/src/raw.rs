@@ -3,8 +3,10 @@ use std::{error, fmt, sync::Arc};
 use async_trait::async_trait;
 use zksync_config::configs::object_store::{ObjectStoreConfig, ObjectStoreMode};
 
-use crate::gcs_unauthenticated::UnauthenticatedGoogleCloudStorage;
-use crate::{file::FileBackedObjectStore, gcs::GoogleCloudStorage, mock::MockStore};
+use crate::{
+    file::FileBackedObjectStore, gcs::GoogleCloudStorage,
+    gcs_unauthenticated::UnauthenticatedGoogleCloudStorage, mock::MockStore,
+};
 
 /// Bucket for [`ObjectStore`] in which objects can be placed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
