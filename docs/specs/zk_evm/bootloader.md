@@ -298,8 +298,9 @@ L1->L2 transactions are transactions that were initiated on L1. We assume that `
 transactions. It also has its L1 pubdata price as well as ergsPrice set on L1.
 
 Most of the steps from the execution of L2 transactions are omitted and we set `tx.origin` to the `from`, and
-`ergsPrice` to the one provided by transaction. After that, we use [mimicCall](#zksync-specific-opcodes) to provide the
-operation itself from the name of the sender account.
+`ergsPrice` to the one provided by transaction. After that, we use
+[mimicCall](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/advanced/0_alternative_vm_intro.md#zkevm-specific-opcodes)
+to provide the operation itself from the name of the sender account.
 
 Note, that for L1→L2 transactions, `reserved0` field denotes the amount of ETH that should be minted on L2 as a result
 of this transaction. `reserved1` is the refund receiver address, i.e. the address that would receive the refund for the

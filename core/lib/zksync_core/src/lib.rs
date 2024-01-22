@@ -3,7 +3,7 @@
 use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
-use fee_model::MainNodeFeeInputProvider;
+use fee_model::{ApiFeeInputProvider, MainNodeFeeInputProvider};
 use futures::channel::oneshot;
 use prometheus_exporter::PrometheusExporterConfig;
 use temp_config_store::TempConfigStore;
@@ -35,7 +35,7 @@ use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
-    fee_model::FeeModelConfigV1,
+    fee_model::FeeModelConfig,
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
     web3::contract::tokens::Detokenize,
@@ -697,9 +697,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
 
     let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
         gas_adjuster,
-        zksync_types::fee_model::FeeModelConfig::V1(FeeModelConfigV1 {
-            minimal_l2_gas_price: state_keeper_config.fair_l2_gas_price,
-        }),
+        FeeModelConfig::from_state_keeper_config(&state_keeper_config),
     ));
 
     let miniblock_sealer_pool = pool_builder
@@ -1008,18 +1006,17 @@ async fn build_tx_sender(
     storage_caches: PostgresStorageCaches,
 ) -> (TxSender, VmConcurrencyBarrier) {
     let sequencer_sealer = SequencerSealer::new(state_keeper_config.clone());
-    let tx_sender_builder = TxSenderBuilder::new(tx_sender_config.clone(), replica_pool)
+    let tx_sender_builder = TxSenderBuilder::new(tx_sender_config.clone(), replica_pool.clone())
         .with_main_connection_pool(master_pool)
         .with_sealer(Arc::new(sequencer_sealer));
 
     let max_concurrency = web3_json_config.vm_concurrency_limit();
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
 
-    let batch_fee_input_provider = MainNodeFeeInputProvider::new(
+    let batch_fee_input_provider = ApiFeeInputProvider::new(
         l1_gas_price_provider,
-        zksync_types::fee_model::FeeModelConfig::V1(FeeModelConfigV1 {
-            minimal_l2_gas_price: state_keeper_config.fair_l2_gas_price,
-        }),
+        FeeModelConfig::from_state_keeper_config(state_keeper_config),
+        replica_pool,
     );
 
     let tx_sender = tx_sender_builder
@@ -1034,7 +1031,7 @@ async fn build_tx_sender(
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
+async fn run_http_api<G: L1GasPriceProvider>(
     postgres_config: &PostgresConfig,
     tx_sender_config: &TxSenderConfig,
     state_keeper_config: &StateKeeperConfig,

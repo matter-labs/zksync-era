@@ -2,6 +2,7 @@
 
 use std::{cmp, sync::Arc, time::Instant};
 
+use anyhow::Context as _;
 use multivm::{
     interface::VmExecutionResultAndLogs,
     utils::{adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead},
@@ -11,25 +12,27 @@ use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
 use zksync_state::PostgresStorageCaches;
+use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     fee::{Fee, TransactionExecutionMetrics},
     fee_model::BatchFeeInput,
     get_code_key, get_intrinsic_constants,
+    l1::is_l1_tx_type,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     utils::storage_key_for_eth_balance,
-    AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, Nonce, PackedEthSignature,
-    ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_GAS_PER_PUBDATA_BYTE,
-    MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS, U256,
+    AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, MiniblockNumber, Nonce,
+    PackedEthSignature, ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_L2_TX_GAS_LIMIT,
+    MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::h256_to_u256;
 
 pub(super) use self::{proxy::TxProxy, result::SubmitTxError};
-use super::execution_sandbox::execute_tx_in_sandbox;
 use crate::{
     api_server::{
         execution_sandbox::{
-            execute_tx_eth_call, get_pubdata_for_factory_deps, BlockArgs, SubmitTxStage,
-            TxExecutionArgs, TxSharedArgs, VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
+            get_pubdata_for_factory_deps, BlockArgs, BlockStartInfo, SubmitTxStage,
+            TransactionExecutor, TxExecutionArgs, TxSharedArgs, VmConcurrencyLimiter, VmPermit,
+            SANDBOX_METRICS,
         },
         tx_sender::result::ApiCallResult,
     },
@@ -40,6 +43,8 @@ use crate::{
 
 mod proxy;
 mod result;
+#[cfg(test)]
+pub(crate) mod tests;
 
 #[derive(Debug, Clone)]
 pub struct MultiVMBaseSystemContracts {
@@ -53,6 +58,8 @@ pub struct MultiVMBaseSystemContracts {
     pub(crate) post_boojum: BaseSystemContracts,
     /// Contracts to be used after the allow-list removal upgrade
     pub(crate) post_allowlist_removal: BaseSystemContracts,
+    /// Contracts to be used after the 1.4.1 upgrade
+    pub(crate) post_1_4_1: BaseSystemContracts,
 }
 
 impl MultiVMBaseSystemContracts {
@@ -77,9 +84,8 @@ impl MultiVMBaseSystemContracts {
             | ProtocolVersionId::Version16
             | ProtocolVersionId::Version17 => self.post_virtual_blocks_finish_upgrade_fix,
             ProtocolVersionId::Version18 => self.post_boojum,
-            ProtocolVersionId::Version19 | ProtocolVersionId::Version20 => {
-                self.post_allowlist_removal
-            }
+            ProtocolVersionId::Version19 => self.post_allowlist_removal,
+            ProtocolVersionId::Version20 | ProtocolVersionId::Version21 => self.post_1_4_1,
         }
     }
 }
@@ -111,6 +117,7 @@ impl ApiContracts {
                     BaseSystemContracts::estimate_gas_post_virtual_blocks_finish_upgrade_fix(),
                 post_boojum: BaseSystemContracts::estimate_gas_post_boojum(),
                 post_allowlist_removal: BaseSystemContracts::estimate_gas_post_allowlist_removal(),
+                post_1_4_1: BaseSystemContracts::estimate_gas_post_1_4_1(),
             },
             eth_call: MultiVMBaseSystemContracts {
                 pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
@@ -119,6 +126,7 @@ impl ApiContracts {
                     BaseSystemContracts::playground_post_virtual_blocks_finish_upgrade_fix(),
                 post_boojum: BaseSystemContracts::playground_post_boojum(),
                 post_allowlist_removal: BaseSystemContracts::playground_post_allowlist_removal(),
+                post_1_4_1: BaseSystemContracts::playground_post_1_4_1(),
             },
         }
     }
@@ -190,6 +198,7 @@ impl TxSenderBuilder {
             vm_concurrency_limiter,
             storage_caches,
             sealer,
+            executor: TransactionExecutor::Real,
         }))
     }
 }
@@ -204,9 +213,9 @@ pub struct TxSenderConfig {
     pub gas_price_scale_factor: f64,
     pub max_nonce_ahead: u32,
     pub max_allowed_l2_tx_gas_limit: u32,
-    pub fair_l2_gas_price: u64,
     pub vm_execution_cache_misses_limit: Option<usize>,
     pub validation_computational_gas_limit: u32,
+    pub l1_to_l2_transactions_compatibility_mode: bool,
     pub chain_id: L2ChainId,
 }
 
@@ -221,10 +230,11 @@ impl TxSenderConfig {
             gas_price_scale_factor: web3_json_config.gas_price_scale_factor,
             max_nonce_ahead: web3_json_config.max_nonce_ahead,
             max_allowed_l2_tx_gas_limit: state_keeper_config.max_allowed_l2_tx_gas_limit,
-            fair_l2_gas_price: state_keeper_config.fair_l2_gas_price,
             vm_execution_cache_misses_limit: web3_json_config.vm_execution_cache_misses_limit,
             validation_computational_gas_limit: state_keeper_config
                 .validation_computational_gas_limit,
+            l1_to_l2_transactions_compatibility_mode: web3_json_config
+                .l1_to_l2_transactions_compatibility_mode,
             chain_id,
         }
     }
@@ -245,6 +255,7 @@ pub struct TxSenderInner {
     storage_caches: PostgresStorageCaches,
     /// Batch sealer used to check whether transaction can be executed by the sequencer.
     sealer: Arc<dyn ConditionalSealer>,
+    pub(super) executor: TransactionExecutor,
 }
 
 #[derive(Clone)]
@@ -265,6 +276,7 @@ impl TxSender {
         self.0.storage_caches.clone()
     }
 
+    // TODO (PLA-725): propagate DB errors instead of panicking
     #[tracing::instrument(skip(self, tx))]
     pub async fn submit_tx(&self, tx: L2Tx) -> Result<L2TxSubmissionResult, SubmitTxError> {
         let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::Validate].start();
@@ -272,7 +284,7 @@ impl TxSender {
         stage_latency.observe();
 
         let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::DryRun].start();
-        let shared_args = self.shared_args();
+        let shared_args = self.shared_args().await;
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
         let mut connection = self
@@ -284,17 +296,20 @@ impl TxSender {
         let block_args = BlockArgs::pending(&mut connection).await;
         drop(connection);
 
-        let (_, tx_metrics, published_bytecodes) = execute_tx_in_sandbox(
-            vm_permit.clone(),
-            shared_args.clone(),
-            true,
-            TxExecutionArgs::for_validation(&tx),
-            self.0.replica_connection_pool.clone(),
-            tx.clone().into(),
-            block_args,
-            vec![],
-        )
-        .await;
+        let (_, tx_metrics, published_bytecodes) = self
+            .0
+            .executor
+            .execute_tx_in_sandbox(
+                vm_permit.clone(),
+                shared_args.clone(),
+                true,
+                TxExecutionArgs::for_validation(&tx),
+                self.0.replica_connection_pool.clone(),
+                tx.clone().into(),
+                block_args,
+                vec![],
+            )
+            .await;
 
         tracing::info!(
             "Submit tx {:?} with execution metrics {:?}",
@@ -305,11 +320,14 @@ impl TxSender {
 
         let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::VerifyExecute].start();
         let computational_gas_limit = self.0.sender_config.validation_computational_gas_limit;
-        let validation_result = shared_args
+        let validation_result = self
+            .0
+            .executor
             .validate_tx_in_sandbox(
                 self.0.replica_connection_pool.clone(),
                 vm_permit,
                 tx.clone(),
+                shared_args,
                 block_args,
                 computational_gas_limit,
             )
@@ -349,7 +367,7 @@ impl TxSender {
 
         let nonce = tx.common_data.nonce.0;
         let hash = tx.hash();
-        let expected_nonce = self.get_expected_nonce(&tx).await;
+        let initiator_account = tx.initiator_account();
         let submission_res_handle = self
             .0
             .master_connection_pool
@@ -365,11 +383,15 @@ impl TxSender {
         APP_METRICS.processed_txs[&TxStage::Mempool(submission_res_handle)].inc();
 
         match submission_res_handle {
-            L2TxSubmissionResult::AlreadyExecuted => Err(SubmitTxError::NonceIsTooLow(
-                expected_nonce.0,
-                expected_nonce.0 + self.0.sender_config.max_nonce_ahead,
-                nonce,
-            )),
+            L2TxSubmissionResult::AlreadyExecuted => {
+                let Nonce(expected_nonce) =
+                    self.get_expected_nonce(initiator_account).await.unwrap();
+                Err(SubmitTxError::NonceIsTooLow(
+                    expected_nonce,
+                    expected_nonce + self.0.sender_config.max_nonce_ahead,
+                    nonce,
+                ))
+            }
             L2TxSubmissionResult::Duplicate => Err(SubmitTxError::IncorrectTx(TxDuplication(hash))),
             _ => {
                 SANDBOX_METRICS.submit_tx[&SubmitTxStage::DbInsert]
@@ -379,10 +401,10 @@ impl TxSender {
         }
     }
 
-    fn shared_args(&self) -> TxSharedArgs {
+    async fn shared_args(&self) -> TxSharedArgs {
         TxSharedArgs {
             operator_account: AccountTreeId::new(self.0.sender_config.fee_account_addr),
-            fee_input: self.0.batch_fee_input_provider.get_batch_fee_input(),
+            fee_input: self.0.batch_fee_input_provider.get_batch_fee_input().await,
             base_system_contracts: self.0.api_contracts.eth_call.clone(),
             caches: self.storage_caches(),
             validation_computational_gas_limit: self
@@ -401,6 +423,8 @@ impl TxSender {
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
 
+        let fee_input = self.0.batch_fee_input_provider.get_batch_fee_input().await;
+
         // TODO (SMA-1715): do not subsidize the overhead for the transaction
 
         if tx.common_data.fee.gas_limit > self.0.sender_config.max_allowed_l2_tx_gas_limit.into() {
@@ -411,7 +435,7 @@ impl TxSender {
             );
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
-        if tx.common_data.fee.max_fee_per_gas < self.0.sender_config.fair_l2_gas_price.into() {
+        if tx.common_data.fee.max_fee_per_gas < fee_input.fair_l2_gas_price().into() {
             tracing::info!(
                 "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
                 tx.hash(),
@@ -454,19 +478,22 @@ impl TxSender {
     }
 
     async fn validate_account_nonce(&self, tx: &L2Tx) -> Result<(), SubmitTxError> {
-        let expected_nonce = self.get_expected_nonce(tx).await;
+        let Nonce(expected_nonce) = self
+            .get_expected_nonce(tx.initiator_account())
+            .await
+            .unwrap();
 
-        if tx.common_data.nonce.0 < expected_nonce.0 {
+        if tx.common_data.nonce.0 < expected_nonce {
             Err(SubmitTxError::NonceIsTooLow(
-                expected_nonce.0,
-                expected_nonce.0 + self.0.sender_config.max_nonce_ahead,
+                expected_nonce,
+                expected_nonce + self.0.sender_config.max_nonce_ahead,
                 tx.nonce().0,
             ))
         } else {
-            let max_nonce = expected_nonce.0 + self.0.sender_config.max_nonce_ahead;
-            if !(expected_nonce.0..=max_nonce).contains(&tx.common_data.nonce.0) {
+            let max_nonce = expected_nonce + self.0.sender_config.max_nonce_ahead;
+            if !(expected_nonce..=max_nonce).contains(&tx.common_data.nonce.0) {
                 Err(SubmitTxError::NonceIsTooHigh(
-                    expected_nonce.0,
+                    expected_nonce,
                     max_nonce,
                     tx.nonce().0,
                 ))
@@ -476,25 +503,37 @@ impl TxSender {
         }
     }
 
-    async fn get_expected_nonce(&self, tx: &L2Tx) -> Nonce {
-        let mut connection = self
+    async fn get_expected_nonce(&self, initiator_account: Address) -> anyhow::Result<Nonce> {
+        let mut storage = self
             .0
             .replica_connection_pool
             .access_storage_tagged("api")
-            .await
-            .unwrap();
+            .await?;
 
-        let latest_block_number = connection
-            .blocks_web3_dal()
+        let latest_block_number = storage
+            .blocks_dal()
             .get_sealed_miniblock_number()
             .await
-            .unwrap();
-        let nonce = connection
+            .context("failed getting sealed miniblock number")?;
+        let latest_block_number = match latest_block_number {
+            Some(number) => number,
+            None => {
+                // We don't have miniblocks in the storage yet. Use the snapshot miniblock number instead.
+                let start = BlockStartInfo::new(&mut storage).await?;
+                MiniblockNumber(start.first_miniblock.saturating_sub(1))
+            }
+        };
+
+        let nonce = storage
             .storage_web3_dal()
-            .get_address_historical_nonce(tx.initiator_account(), latest_block_number)
+            .get_address_historical_nonce(initiator_account, latest_block_number)
             .await
-            .unwrap();
-        Nonce(nonce.as_u32())
+            .with_context(|| {
+                format!("failed getting nonce for address {initiator_account:?} at miniblock #{latest_block_number}")
+            })?;
+        let nonce = u32::try_from(nonce)
+            .map_err(|err| anyhow::anyhow!("failed converting nonce to u32: {err}"))?;
+        Ok(Nonce(nonce))
     }
 
     async fn validate_enough_balance(&self, tx: &L2Tx) -> Result<(), SubmitTxError> {
@@ -509,11 +548,7 @@ impl TxSender {
         let balance = self.get_balance(&tx.common_data.initiator_address).await;
 
         // Estimate the minimum fee price user will agree to.
-        let gas_price = cmp::min(
-            tx.common_data.fee.max_fee_per_gas,
-            U256::from(self.0.sender_config.fair_l2_gas_price)
-                + tx.common_data.fee.max_priority_fee_per_gas,
-        );
+        let gas_price = tx.common_data.fee.max_fee_per_gas;
         let max_fee = tx.common_data.fee.gas_limit * gas_price;
         let max_fee_and_value = max_fee + tx.execute.value;
 
@@ -552,9 +587,9 @@ impl TxSender {
         &self,
         vm_permit: VmPermit,
         mut tx: Transaction,
-        gas_per_pubdata_byte: u64,
         tx_gas_limit: u32,
-        fee_input: BatchFeeInput,
+        gas_price_per_pubdata: u32,
+        fee_model_params: BatchFeeInput,
         block_args: BlockArgs,
         base_fee: u64,
         vm_version: VmVersion,
@@ -562,7 +597,7 @@ impl TxSender {
         let gas_limit_with_overhead = tx_gas_limit
             + derive_overhead(
                 tx_gas_limit,
-                gas_per_pubdata_byte as u32,
+                gas_price_per_pubdata,
                 tx.encoding_len(),
                 tx.tx_format() as u8,
                 vm_version,
@@ -588,27 +623,31 @@ impl TxSender {
             }
         }
 
-        let shared_args = self.shared_args_for_gas_estimate(fee_input);
+        let shared_args = self.shared_args_for_gas_estimate(fee_model_params);
         let vm_execution_cache_misses_limit = self.0.sender_config.vm_execution_cache_misses_limit;
         let execution_args =
             TxExecutionArgs::for_gas_estimate(vm_execution_cache_misses_limit, &tx, base_fee);
-        let (exec_result, tx_metrics, _) = execute_tx_in_sandbox(
-            vm_permit,
-            shared_args,
-            true,
-            execution_args,
-            self.0.replica_connection_pool.clone(),
-            tx.clone(),
-            block_args,
-            vec![],
-        )
-        .await;
+        let (exec_result, tx_metrics, _) = self
+            .0
+            .executor
+            .execute_tx_in_sandbox(
+                vm_permit,
+                shared_args,
+                true,
+                execution_args,
+                self.0.replica_connection_pool.clone(),
+                tx.clone(),
+                block_args,
+                vec![],
+            )
+            .await;
 
         (exec_result, tx_metrics)
     }
 
     fn shared_args_for_gas_estimate(&self, fee_input: BatchFeeInput) -> TxSharedArgs {
         let config = &self.0.sender_config;
+
         TxSharedArgs {
             operator_account: AccountTreeId::new(config.fee_account_addr),
             fee_input,
@@ -635,21 +674,24 @@ impl TxSender {
             .await
             .unwrap();
         let block_args = BlockArgs::pending(&mut connection).await;
-        // If protocol version is not present, we'll use the pre-boojum one
-        let protocol_version = connection
-            .blocks_dal()
-            .get_miniblock_protocol_version_id(block_args.resolved_block_number())
+        let protocol_version = block_args
+            .resolve_block_info(&mut connection)
             .await
             .unwrap()
-            .unwrap_or(ProtocolVersionId::last_pre_boojum());
+            .protocol_version;
+
         drop(connection);
 
         let fee_input = {
             // For now, both L1 gas price and pubdata price are scaled with the same coefficient
-            let fee_input = self.0.batch_fee_input_provider.get_batch_fee_input_scaled(
-                self.0.sender_config.gas_price_scale_factor,
-                self.0.sender_config.gas_price_scale_factor,
-            );
+            let fee_input = self
+                .0
+                .batch_fee_input_provider
+                .get_batch_fee_input_scaled(
+                    self.0.sender_config.gas_price_scale_factor,
+                    self.0.sender_config.gas_price_scale_factor,
+                )
+                .await;
             adjust_pubdata_price_for_tx(
                 fee_input,
                 tx.gas_per_pubdata_byte_limit(),
@@ -706,7 +748,8 @@ impl TxSender {
                 l2_common_data.signature = PackedEthSignature::default().serialize_packed().into();
             }
 
-            l2_common_data.fee.gas_per_pubdata_limit = MAX_GAS_PER_PUBDATA_BYTE.into();
+            l2_common_data.fee.gas_per_pubdata_limit =
+                U256::from(DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE);
         }
 
         // Acquire the vm token for the whole duration of the binary search.
@@ -762,8 +805,8 @@ impl TxSender {
                 .estimate_gas_step(
                     vm_permit.clone(),
                     tx.clone(),
-                    gas_per_pubdata_byte,
                     try_gas_limit,
+                    gas_per_pubdata_byte as u32,
                     fee_input,
                     block_args,
                     base_fee,
@@ -801,8 +844,8 @@ impl TxSender {
             .estimate_gas_step(
                 vm_permit,
                 tx.clone(),
-                gas_per_pubdata_byte,
                 suggested_gas_limit,
+                gas_per_pubdata_byte as u32,
                 fee_input,
                 block_args,
                 base_fee,
@@ -813,13 +856,29 @@ impl TxSender {
         result.into_api_call_result()?;
         self.ensure_tx_executable(tx.clone(), &tx_metrics, false)?;
 
-        let overhead = derive_overhead(
-            suggested_gas_limit,
-            gas_per_pubdata_byte as u32,
-            tx.encoding_len(),
-            tx.tx_format() as u8,
-            protocol_version.into(),
-        );
+        // Now, we need to calculate the final overhead for the transaction. We need to take into account the fact
+        // that the migration of 1.4.1 may be still going on.
+        let overhead = if self
+            .0
+            .sender_config
+            .l1_to_l2_transactions_compatibility_mode
+        {
+            derive_pessimistic_overhead(
+                suggested_gas_limit,
+                gas_per_pubdata_byte as u32,
+                tx.encoding_len(),
+                tx.tx_format() as u8,
+                protocol_version.into(),
+            )
+        } else {
+            derive_overhead(
+                suggested_gas_limit,
+                gas_per_pubdata_byte as u32,
+                tx.encoding_len(),
+                tx.tx_format() as u8,
+                protocol_version.into(),
+            )
+        };
 
         let full_gas_limit =
             match tx_body_gas_limit.overflowing_add(gas_for_bytecodes_pubdata + overhead) {
@@ -849,17 +908,19 @@ impl TxSender {
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
 
         let vm_execution_cache_misses_limit = self.0.sender_config.vm_execution_cache_misses_limit;
-        execute_tx_eth_call(
-            vm_permit,
-            self.shared_args(),
-            self.0.replica_connection_pool.clone(),
-            tx,
-            block_args,
-            vm_execution_cache_misses_limit,
-            vec![],
-        )
-        .await
-        .into_api_call_result()
+        self.0
+            .executor
+            .execute_tx_eth_call(
+                vm_permit,
+                self.shared_args().await,
+                self.0.replica_connection_pool.clone(),
+                tx,
+                block_args,
+                vm_execution_cache_misses_limit,
+                vec![],
+            )
+            .await
+            .into_api_call_result()
     }
 
     pub async fn gas_price(&self) -> u64 {
@@ -870,21 +931,22 @@ impl TxSender {
             .await
             .unwrap();
         let block_args = BlockArgs::pending(&mut connection).await;
-        // If protocol version is not present, we'll use the pre-boojum one
-        let protocol_version = connection
-            .blocks_dal()
-            .get_miniblock_protocol_version_id(block_args.resolved_block_number())
+        let protocol_version = block_args
+            .resolve_block_info(&mut connection)
             .await
             .unwrap()
-            .unwrap_or(ProtocolVersionId::last_pre_boojum());
+            .protocol_version;
         drop(connection);
 
         let (base_fee, _) = derive_base_fee_and_gas_per_pubdata(
             // For now, both the L1 gas price and the L1 pubdata price are scaled with the same coefficient
-            self.0.batch_fee_input_provider.get_batch_fee_input_scaled(
-                self.0.sender_config.gas_price_scale_factor,
-                self.0.sender_config.gas_price_scale_factor,
-            ),
+            self.0
+                .batch_fee_input_provider
+                .get_batch_fee_input_scaled(
+                    self.0.sender_config.gas_price_scale_factor,
+                    self.0.sender_config.gas_price_scale_factor,
+                )
+                .await,
             protocol_version.into(),
         );
         base_fee
@@ -923,5 +985,42 @@ impl TxSender {
             return Err(SubmitTxError::Unexecutable(message));
         }
         Ok(())
+    }
+}
+
+/// During switch to the 1.4.1 protocol version, there will be a moment of discrepancy, when while
+/// the L2 has already upgraded to 1.4.1 (and thus suggests smaller overhead), the L1 is still on the previous version.
+///
+/// This might lead to situations when L1->L2 transactions estimated with the new versions would work on the state keeper side,
+/// but they won't even make it there, but the protection mechanisms for L1->L2 transactions will reject them on L1.
+/// TODO(X): remove this function after the upgrade is complete
+fn derive_pessimistic_overhead(
+    gas_limit: u32,
+    gas_price_per_pubdata: u32,
+    encoded_len: usize,
+    tx_type: u8,
+    vm_version: VmVersion,
+) -> u32 {
+    let current_overhead = derive_overhead(
+        gas_limit,
+        gas_price_per_pubdata,
+        encoded_len,
+        tx_type,
+        vm_version,
+    );
+
+    if is_l1_tx_type(tx_type) {
+        // We are in the L1->L2 transaction, so we need to account for the fact that the L1 is still on the previous version.
+        // We assume that the overhead will be the same as for the previous version.
+        let previous_overhead = derive_overhead(
+            gas_limit,
+            gas_price_per_pubdata,
+            encoded_len,
+            tx_type,
+            VmVersion::VmBoojumIntegration,
+        );
+        current_overhead.max(previous_overhead)
+    } else {
+        current_overhead
     }
 }

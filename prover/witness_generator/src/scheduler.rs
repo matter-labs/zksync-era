@@ -91,6 +91,9 @@ impl SchedulerWitnessGenerator {
             witness: job.scheduler_witness,
             config,
             transcript_params: (),
+            eip4844_proof_config: None,
+            eip4844_vk: None,
+            eip4844_vk_fixed_parameters: None,
             _marker: std::marker::PhantomData,
         };
         WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::Scheduler.into()]
