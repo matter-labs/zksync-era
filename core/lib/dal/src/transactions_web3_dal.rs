@@ -38,7 +38,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         let query = format!(
             r#"
                 WITH sl AS (
-                    SELECT
+                    SELECT DISTINCT ON (storage_logs.tx_hash)
                         *
                     FROM
                         storage_logs
@@ -46,6 +46,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                         storage_logs.address = $1
                         AND storage_logs.tx_hash IN {in_clause}
                     ORDER BY
+                        storage_logs.tx_hash,
                         storage_logs.miniblock_number DESC,
                         storage_logs.operation_number DESC
                 )

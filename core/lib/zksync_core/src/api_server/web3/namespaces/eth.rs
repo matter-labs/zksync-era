@@ -322,6 +322,7 @@ impl EthNamespace {
         Ok(tx_count?.map(|(_, count)| count))
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn get_block_receipts_impl(
         &self,
         block_id: BlockId,
@@ -358,7 +359,7 @@ impl EthNamespace {
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?
             .transactions_web3_dal()
-            .get_transaction_receipts(hashes)
+            .get_transaction_receipts(hashes.clone())
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 
