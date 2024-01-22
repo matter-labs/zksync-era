@@ -46,7 +46,8 @@ impl<'a> CtxStorage<'a> {
         let number = ctx
             .wait(self.0.blocks_dal().get_sealed_miniblock_number())
             .await?
-            .context("sqlx")?;
+            .context("sqlx")?
+            .context("no miniblocks in storage")?; // FIXME (PLA-703): handle empty storage
         Ok(validator::BlockNumber(number.0.into()))
     }
 
@@ -177,6 +178,7 @@ impl Cursor {
             reference_hash: Some(payload.hash),
             l1_gas_price: payload.l1_gas_price,
             l2_fair_gas_price: payload.l2_fair_gas_price,
+            fair_pubdata_price: payload.fair_pubdata_price,
             virtual_blocks: payload.virtual_blocks,
             operator_address: payload.operator_address,
             transactions: payload.transactions,

@@ -14,19 +14,26 @@ use zksync_types::{l2::L2Tx, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_S
 
 use super::{
     apply,
+    execute::TransactionExecutor,
     vm_metrics::{SandboxStage, EXECUTION_METRICS, SANDBOX_METRICS},
     BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
 
-impl TxSharedArgs {
+impl TransactionExecutor {
     pub(crate) async fn validate_tx_in_sandbox(
-        self,
+        &self,
         connection_pool: ConnectionPool,
         vm_permit: VmPermit,
         tx: L2Tx,
+        shared_args: TxSharedArgs,
         block_args: BlockArgs,
         computational_gas_limit: u32,
     ) -> Result<(), ValidationError> {
+        #[cfg(test)]
+        if let Self::Mock(mock) = self {
+            return mock.validate_tx(&tx);
+        }
+
         let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::ValidateInSandbox].start();
         let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
         let validation_params =
@@ -40,7 +47,7 @@ impl TxSharedArgs {
             let span = tracing::debug_span!("validate_in_sandbox").entered();
             let result = apply::apply_vm_in_sandbox(
                 vm_permit,
-                self,
+                shared_args,
                 true,
                 &execution_args,
                 &connection_pool,

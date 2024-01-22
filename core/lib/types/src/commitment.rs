@@ -24,7 +24,7 @@ use crate::{
         compress_state_diffs, InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord,
         PADDED_ENCODED_STORAGE_DIFF_LEN_BYTES,
     },
-    H256, KNOWN_CODES_STORAGE_ADDRESS, U256,
+    ProtocolVersionId, H256, KNOWN_CODES_STORAGE_ADDRESS, U256,
 };
 
 /// Type that can be serialized for commitment.
@@ -361,7 +361,7 @@ struct L1BatchAuxiliaryOutput {
     state_diffs_compressed: Vec<u8>,
     bootloader_heap_hash: H256,
     events_state_queue_hash: H256,
-    is_pre_boojum: bool,
+    protocol_version: ProtocolVersionId,
 }
 
 impl L1BatchAuxiliaryOutput {
@@ -374,7 +374,7 @@ impl L1BatchAuxiliaryOutput {
         state_diffs: Vec<StateDiffRecord>,
         bootloader_heap_hash: H256,
         events_state_queue_hash: H256,
-        is_pre_boojum: bool,
+        protocol_version: ProtocolVersionId,
     ) -> Self {
         let state_diff_hash_from_logs = system_logs.iter().find_map(|log| {
             if log.0.key == u256_to_h256(STATE_DIFF_HASH_KEY.into()) {
@@ -398,7 +398,7 @@ impl L1BatchAuxiliaryOutput {
             repeated_writes_compressed,
             system_logs_compressed,
             state_diffs_packed,
-        ) = if is_pre_boojum {
+        ) = if protocol_version.is_pre_boojum() {
             (
                 pre_boojum_serialize_commitments(&l2_l1_logs),
                 pre_boojum_serialize_commitments(&initial_writes),
@@ -424,7 +424,7 @@ impl L1BatchAuxiliaryOutput {
         let repeated_writes_hash = H256::from(keccak256(&repeated_writes_compressed));
         let state_diffs_hash = H256::from(keccak256(&(state_diffs_packed)));
 
-        let serialized_logs = if is_pre_boojum {
+        let serialized_logs = if protocol_version.is_pre_boojum() {
             &l2_l1_logs_compressed[4..]
         } else {
             &l2_l1_logs_compressed
@@ -434,7 +434,7 @@ impl L1BatchAuxiliaryOutput {
             .chunks(UserL2ToL1Log::SERIALIZED_SIZE)
             .map(|chunk| <[u8; UserL2ToL1Log::SERIALIZED_SIZE]>::try_from(chunk).unwrap());
         // ^ Skip first 4 bytes of the serialized logs (i.e., the number of logs).
-        let min_tree_size = if is_pre_boojum {
+        let min_tree_size = if protocol_version.is_pre_boojum() {
             L2ToL1Log::PRE_BOOJUM_MIN_L2_L1_LOGS_TREE_SIZE
         } else {
             L2ToL1Log::MIN_L2_L1_LOGS_TREE_SIZE
@@ -473,7 +473,7 @@ impl L1BatchAuxiliaryOutput {
 
             bootloader_heap_hash,
             events_state_queue_hash,
-            is_pre_boojum,
+            protocol_version,
         }
     }
 
@@ -482,16 +482,27 @@ impl L1BatchAuxiliaryOutput {
         const SERIALIZED_SIZE: usize = 128;
         let mut result = Vec::with_capacity(SERIALIZED_SIZE);
 
-        if self.is_pre_boojum {
+        if self.protocol_version.is_pre_boojum() {
             result.extend(self.l2_l1_logs_merkle_root.as_bytes());
             result.extend(self.l2_l1_logs_linear_hash.as_bytes());
             result.extend(self.initial_writes_hash.as_bytes());
             result.extend(self.repeated_writes_hash.as_bytes());
+        } else if self.protocol_version.is_1_4_0() {
+            result.extend(self.system_logs_linear_hash.as_bytes());
+            result.extend(self.state_diffs_hash.as_bytes());
+            result.extend(self.bootloader_heap_hash.as_bytes());
+            result.extend(self.events_state_queue_hash.as_bytes());
         } else {
             result.extend(self.system_logs_linear_hash.as_bytes());
             result.extend(self.state_diffs_hash.as_bytes());
             result.extend(self.bootloader_heap_hash.as_bytes());
             result.extend(self.events_state_queue_hash.as_bytes());
+
+            // For now, we are using zeroes as commitments to the KZG pubdata.
+            result.extend(H256::zero().as_bytes());
+            result.extend(H256::zero().as_bytes());
+            result.extend(H256::zero().as_bytes());
+            result.extend(H256::zero().as_bytes());
         }
         result
     }
@@ -586,7 +597,7 @@ impl L1BatchCommitment {
         state_diffs: Vec<StateDiffRecord>,
         bootloader_heap_hash: H256,
         events_state_queue_hash: H256,
-        is_pre_boojum: bool,
+        protocol_version: ProtocolVersionId,
     ) -> Self {
         let meta_parameters = L1BatchMetaParameters {
             zkporter_is_available: ZKPORTER_IS_AVAILABLE,
@@ -616,7 +627,7 @@ impl L1BatchCommitment {
                 state_diffs,
                 bootloader_heap_hash,
                 events_state_queue_hash,
-                is_pre_boojum,
+                protocol_version,
             ),
             meta_parameters,
         }
@@ -693,7 +704,7 @@ mod tests {
         },
         l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
         writes::{InitialStorageWrite, RepeatedStorageWrite},
-        H256, U256,
+        ProtocolVersionId, H256, U256,
     };
 
     #[serde_as]
@@ -775,7 +786,7 @@ mod tests {
             vec![],
             H256::zero(),
             H256::zero(),
-            false,
+            ProtocolVersionId::latest(),
         );
 
         let commitment = L1BatchCommitment {

@@ -16,6 +16,7 @@ pub(crate) struct StorageSyncBlock {
     pub l1_gas_price: i64,
     // L2 gas price assumed in the corresponding batch
     pub l2_fair_gas_price: i64,
+    pub fair_pubdata_price: Option<i64>,
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
     pub fee_account_address: Option<Vec<u8>>, // May be None if the block is not yet sealed
@@ -39,6 +40,7 @@ pub(crate) struct SyncBlock {
     pub timestamp: u64,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
+    pub fair_pubdata_price: Option<u64>,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub fee_account_address: Option<Address>,
     pub virtual_blocks: u32,
@@ -64,6 +66,10 @@ impl TryFrom<StorageSyncBlock> for SyncBlock {
                 .l2_fair_gas_price
                 .try_into()
                 .context("l2_fair_gas_price")?,
+            fair_pubdata_price: block
+                .fair_pubdata_price
+                .map(|v| v.try_into().context("fair_pubdata_price"))
+                .transpose()?,
             // TODO (SMA-1635): Make these fields non optional in database
             base_system_contracts_hashes: BaseSystemContractsHashes {
                 bootloader: parse_h256(
@@ -107,6 +113,7 @@ impl SyncBlock {
             timestamp: self.timestamp,
             l1_gas_price: self.l1_gas_price,
             l2_fair_gas_price: self.l2_fair_gas_price,
+            fair_pubdata_price: self.fair_pubdata_price,
             base_system_contracts_hashes: self.base_system_contracts_hashes,
             operator_address: self.fee_account_address.unwrap_or(current_operator_address),
             transactions,
@@ -128,6 +135,7 @@ impl SyncBlock {
             timestamp: self.timestamp,
             l1_gas_price: self.l1_gas_price,
             l2_fair_gas_price: self.l2_fair_gas_price,
+            fair_pubdata_price: self.fair_pubdata_price,
             virtual_blocks: self.virtual_blocks,
             operator_address: self.fee_account_address.unwrap_or(current_operator_address),
             transactions,
@@ -145,6 +153,7 @@ pub struct Payload {
     pub timestamp: u64,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
+    pub fair_pubdata_price: Option<u64>,
     pub virtual_blocks: u32,
     pub operator_address: Address,
     pub transactions: Vec<Transaction>,
@@ -178,6 +187,7 @@ impl ProtoFmt for Payload {
             l1_gas_price: *required(&message.l1_gas_price).context("l1_gas_price")?,
             l2_fair_gas_price: *required(&message.l2_fair_gas_price)
                 .context("l2_fair_gas_price")?,
+            fair_pubdata_price: message.fair_pubdata_price,
             virtual_blocks: *required(&message.virtual_blocks).context("virtual_blocks")?,
             operator_address: required(&message.operator_address)
                 .and_then(|a| parse_h160(a))
@@ -186,6 +196,7 @@ impl ProtoFmt for Payload {
             last_in_batch: *required(&message.last_in_batch).context("last_in_batch")?,
         })
     }
+
     fn build(&self) -> Self::Proto {
         Self::Proto {
             protocol_version: Some((self.protocol_version as u16).into()),
@@ -194,6 +205,7 @@ impl ProtoFmt for Payload {
             timestamp: Some(self.timestamp),
             l1_gas_price: Some(self.l1_gas_price),
             l2_fair_gas_price: Some(self.l2_fair_gas_price),
+            fair_pubdata_price: self.fair_pubdata_price,
             virtual_blocks: Some(self.virtual_blocks),
             operator_address: Some(self.operator_address.as_bytes().into()),
             // Transactions are stored in execution order, therefore order is deterministic.
