@@ -12,7 +12,7 @@ use crate::{
 };
 
 /// Factory that can create a task.
-// Note: This have to be a separate trait, since `ZkSyncTask` has to be object-safe.
+#[async_trait::async_trait]
 pub trait IntoZkSyncTask: 'static + Send + Sync {
     /// Unique name of the task.
     fn task_name(&self) -> &'static str;
@@ -23,8 +23,10 @@ pub trait IntoZkSyncTask: 'static + Send + Sync {
     /// calls, or access to the resources.
     ///
     /// It is OK to invoke blocking code during this method (e.g. call `node.runtime_handle().block_on(...)`).
-    fn create(self: Box<Self>, node: NodeContext<'_>)
-        -> Result<Box<dyn ZkSyncTask>, TaskInitError>;
+    async fn create(
+        self: Box<Self>,
+        node: NodeContext<'_>,
+    ) -> Result<Box<dyn ZkSyncTask>, TaskInitError>;
 }
 
 /// A task implementation.

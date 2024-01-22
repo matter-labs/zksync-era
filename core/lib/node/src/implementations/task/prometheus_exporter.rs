@@ -17,12 +17,13 @@ pub struct PrometheusExporterTask {
     prometheus_health_updater: HealthUpdater,
 }
 
+#[async_trait::async_trait]
 impl IntoZkSyncTask for PrometheusExporterTaskBuilder {
     fn task_name(&self) -> &'static str {
         "prometheus_exporter"
     }
 
-    fn create(
+    async fn create(
         self: Box<Self>,
         mut node: NodeContext<'_>,
     ) -> Result<Box<dyn ZkSyncTask>, TaskInitError> {

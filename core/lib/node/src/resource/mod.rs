@@ -10,7 +10,7 @@ mod resource_id;
 
 /// A marker trait for anything that can be stored (and retrieved) as a resource.
 /// Requires `Clone` since the same resource may be requested by several tasks.
-pub trait Resource: 'static + std::any::Any {
+pub trait Resource: 'static + Send + Sync + std::any::Any {
     /// Unique identifier of the resource.
     /// Used to fetch the resource from the provider.
     ///
@@ -27,7 +27,7 @@ pub trait Resource: 'static + std::any::Any {
 ///
 /// This trait is implemented for any type that implements [`Resource`], so there is no need to
 /// implement it manually.
-pub trait StoredResource: 'static + std::any::Any {
+pub trait StoredResource: 'static + std::any::Any + Send + Sync {
     /// An object-safe version of [`Resource::resource_id`].
     fn stored_resource_id(&self) -> ResourceId;
 

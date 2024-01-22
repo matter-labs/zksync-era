@@ -93,9 +93,12 @@ impl ZkSyncNode {
 
         let mut errors: Vec<(String, TaskInitError)> = Vec::new();
 
+        let runtime_handle = self.runtime.handle().clone();
         for task_builder in task_builders {
             let name = task_builder.task_name().to_string();
-            let task = match task_builder.create(NodeContext::new(&mut self)) {
+            let task_result =
+                runtime_handle.block_on(task_builder.create(NodeContext::new(&mut self)));
+            let task = match task_result {
                 Ok(task) => task,
                 Err(err) => {
                     // We don't want to bail on the first error, since it'll provide worse DevEx:

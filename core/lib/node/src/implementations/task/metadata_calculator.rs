@@ -21,12 +21,13 @@ pub struct MetadataCalculatorTask {
     main_pool: ConnectionPool,
 }
 
+#[async_trait::async_trait]
 impl IntoZkSyncTask for MetadataCalculatorTaskBuilder {
     fn task_name(&self) -> &'static str {
         "metadata_calculator"
     }
 
-    fn create(
+    async fn create(
         self: Box<Self>,
         mut node: NodeContext<'_>,
     ) -> Result<Box<dyn ZkSyncTask>, TaskInitError> {
@@ -35,7 +36,7 @@ impl IntoZkSyncTask for MetadataCalculatorTaskBuilder {
                 .ok_or(TaskInitError::ResourceLacking(
                     MasterPoolResource::resource_id(),
                 ))?;
-        let main_pool = node.runtime_handle().block_on(pool.get()).unwrap();
+        let main_pool = pool.get().await.unwrap();
         let object_store = node.get_resource::<ObjectStoreResource>(); // OK to be None.
 
         if object_store.is_none() {
@@ -44,9 +45,8 @@ impl IntoZkSyncTask for MetadataCalculatorTaskBuilder {
             );
         }
 
-        let metadata_calculator = node
-            .runtime_handle()
-            .block_on(MetadataCalculator::new(self.0, object_store.map(|os| os.0)));
+        let metadata_calculator =
+            MetadataCalculator::new(self.0, object_store.map(|os| os.0)).await;
 
         let healthchecks =
             node.get_resource_or_default::<ResourceCollection<HealthCheckResource>>();

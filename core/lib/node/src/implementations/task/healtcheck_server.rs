@@ -26,12 +26,13 @@ impl fmt::Debug for HealthCheckTask {
     }
 }
 
+#[async_trait::async_trait]
 impl IntoZkSyncTask for HealthCheckTaskBuilder {
     fn task_name(&self) -> &'static str {
         "healthcheck_server"
     }
 
-    fn create(
+    async fn create(
         self: Box<Self>,
         mut node: NodeContext<'_>,
     ) -> Result<Box<dyn ZkSyncTask>, TaskInitError> {
