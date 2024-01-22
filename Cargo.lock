@@ -9259,6 +9259,7 @@ dependencies = [
  "google-cloud-storage",
  "http",
  "prost",
+ "reqwest",
  "serde_json",
  "tempdir",
  "tokio",
