@@ -12,6 +12,7 @@ use crate::{
     task::{IntoZkSyncTask, TaskInitError, ZkSyncTask},
 };
 
+/// Builder for a metadata calculator.
 #[derive(Debug)]
 pub struct MetadataCalculatorTaskBuilder(pub MetadataCalculatorConfig);
 

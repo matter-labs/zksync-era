@@ -8,6 +8,7 @@ use crate::{
     task::{IntoZkSyncTask, TaskInitError, ZkSyncTask},
 };
 
+/// Builder for a prometheus exporter.
 #[derive(Debug)]
 pub struct PrometheusExporterTaskBuilder(pub PrometheusExporterConfig);
 

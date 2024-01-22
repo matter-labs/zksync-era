@@ -5,6 +5,7 @@ pub use zksync_health_check::{CheckHealth, ReactiveHealthCheck};
 
 use crate::resource::Resource;
 
+/// Wrapper for a generic health check.
 #[derive(Clone)]
 pub struct HealthCheckResource(Arc<dyn CheckHealth>);
 

@@ -7,6 +7,7 @@ use super::{Resource, ResourceId};
 use crate::node::StopReceiver;
 
 /// A lazy resource represent a resource that isn't available at the time when the tasks start.
+///
 /// Normally it's used to represent the resources that should be provided by one task to another one.
 /// Lazy resources are aware of the node lifecycle, so attempt to resolve the resource won't hang
 /// if the resource is never provided: the resolve future will fail once the stop signal is sent by the node.
@@ -33,6 +34,7 @@ impl<T: Resource> Clone for LazyResource<T> {
 
 impl<T: Resource + Clone> LazyResource<T> {
     /// Creates a new lazy resource.
+    /// Provided stop receiver will be used to prevent resolving from hanging if the resource is never provided.
     pub fn new(stop_receiver: StopReceiver) -> Self {
         let (resolve_sender, _resolve_receiver) = watch::channel(None);
 

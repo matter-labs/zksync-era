@@ -15,13 +15,8 @@ use super::{Resource, ResourceId};
 /// to push new elements there. Once the initialization is complete, it is no longer possible to push
 /// new elements, and the collection can be resolved into a vector of resources.
 ///
-/// Collections are meant to be consumed by a single task: if multiple tasks will try to resolve the
-/// same collection, the first one to do so will succeed, and the rest will receive an error. If you need a
-/// collection that will be used by multiple tasks, consider creating a dedicated resource which would wrap
-/// some collection, like `Arc<RwLock<T>>`.
-///
-/// Note that the collection type doesn't have to implement the [Resource] trait, since it is the collection
-/// itself that is a resource, not the elements it contains.
+/// Collections implement `Clone`, so they can be consumed by several tasks. Every task that resolves the collection
+/// is guaranteed to have the same set of resources.
 ///
 /// The purpose of this container is to allow different tasks to register their resource in a single place for some
 /// other task to consume. For example, tasks may register their healthchecks, and then healthcheck task will observe
@@ -85,6 +80,8 @@ impl<T: Resource + Clone> ResourceCollection<T> {
         }
     }
 
+    /// Adds a new element to the resource collection.
+    /// Returns an error if the wiring is already complete.
     pub fn push(&self, resource: T) -> Result<(), ResourceCollectionError> {
         // This check is sufficient, since no task is guaranteed to be running when the value changes.
         if *self.wired.borrow() {
@@ -96,15 +93,14 @@ impl<T: Resource + Clone> ResourceCollection<T> {
         Ok(())
     }
 
-    pub async fn resolve(mut self) -> Result<Vec<T>, ResourceCollectionError> {
+    /// Waits until the wiring is complete, and resolves the collection into a vector of resources.
+    pub async fn resolve(mut self) -> Vec<T> {
         // Guaranteed not to hang on server shutdown, since the node will invoke the `on_wiring_complete` before any task
         // is actually spawned (per framework rules). For most cases, this check will resolve immediately, unless
         // some tasks would spawn something from the `IntoZkSyncTask` impl.
         self.wired.changed().await.expect("Sender can't be dropped");
 
         let handle = self.resources.lock().unwrap();
-        let resources = (*handle).clone();
-
-        Ok(resources)
+        (*handle).clone()
     }
 }

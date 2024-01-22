@@ -19,10 +19,8 @@ pub trait IntoZkSyncTask: 'static + Send + Sync {
 
     /// Creates a new task.
     ///
-    /// `NodeContext` provides an interface to the utilities that task may need, e.g. the runtime handle to perform asynchronous
-    /// calls, or access to the resources.
-    ///
-    /// It is OK to invoke blocking code during this method (e.g. call `node.runtime_handle().block_on(...)`).
+    /// `NodeContext` provides an interface to the utilities that task may need, e.g. ability to get resources
+    /// or spawn additional tasks.
     async fn create(
         self: Box<Self>,
         node: NodeContext<'_>,
@@ -42,8 +40,7 @@ pub trait ZkSyncTask: 'static + Send + Sync {
     /// a shutdown. Every task is expected to either await or periodically check the state of channel and stop
     /// its execution once the channel is changed.
     ///
-    /// Each task is expected to perform the required cleanup after receiving the stop signal (e.g. make sure that
-    /// spawned sub-tasks are awaited).
+    /// Each task is expected to perform the required cleanup after receiving the stop signal.
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()>;
 
     /// Asynchronous hook that will be called after *each task* has finished their cleanup.
