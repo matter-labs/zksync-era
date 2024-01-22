@@ -64,11 +64,11 @@ impl TransactionsWeb3Dal<'_, '_> {
                     transactions.gas_limit AS gas_limit,
                     miniblocks.hash AS "block_hash",
                     miniblocks.l1_batch_number AS "l1_batch_number",
-                    sl.key as "contract_address"
+                    sl.key AS "contract_address"
                 FROM
                     transactions
                     JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
-                    LEFT JOIN sl ON sl.tx_hash = transactions.hash AND sl.value != $2
+                    LEFT JOIN sl ON sl.value != $2 AND sl.tx_hash = transactions.hash
                 WHERE
                     transactions.hash IN {in_clause}
                 ORDER BY
@@ -112,12 +112,28 @@ impl TransactionsWeb3Dal<'_, '_> {
             let logs_for_tx = logs.get(&receipt.transaction_hash);
 
             if let Some(logs) = logs_for_tx {
-                receipt.logs = logs.clone();
+                receipt.logs = logs
+                    .clone()
+                    .into_iter()
+                    .map(|mut log| {
+                        log.block_hash = Some(receipt.block_hash);
+                        log.l1_batch_number = receipt.l1_batch_number;
+                        log
+                    })
+                    .collect();
             }
 
             let l2_to_l1_logs_for_tx = l2_to_l1_logs.get(&receipt.transaction_hash);
             if let Some(l2_to_l1_logs) = l2_to_l1_logs_for_tx {
-                receipt.l2_to_l1_logs = l2_to_l1_logs.clone();
+                receipt.l2_to_l1_logs = l2_to_l1_logs
+                    .clone()
+                    .into_iter()
+                    .map(|mut log| {
+                        log.block_hash = Some(receipt.block_hash);
+                        log.l1_batch_number = receipt.l1_batch_number;
+                        log
+                    })
+                    .collect();
             }
         }
 

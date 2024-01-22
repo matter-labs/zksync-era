@@ -339,11 +339,11 @@ impl<'r> FromRow<'r, PgRow> for StorageTransactionReceipt {
         let status = db_row
             .try_get("error")
             .ok()
-            .map(|_: &[u8]| U64::zero())
+            .map(|_: &str| U64::zero())
             .unwrap_or_else(U64::one);
 
         let tx_type = db_row
-            .try_get::<i64, &str>("tx_format")
+            .try_get::<i32, &str>("tx_format")
             .ok()
             .map(U64::from)
             .unwrap_or_default();
@@ -358,7 +358,7 @@ impl<'r> FromRow<'r, PgRow> for StorageTransactionReceipt {
                 block_hash,
                 block_number: U64::from(db_row.get::<i64, &str>("block_number")),
                 l1_batch_tx_index: db_row
-                    .try_get::<i64, &str>("l1_batch_tx_index")
+                    .try_get::<i32, &str>("l1_batch_tx_index")
                     .ok()
                     .map(U64::from),
                 l1_batch_number: db_row
