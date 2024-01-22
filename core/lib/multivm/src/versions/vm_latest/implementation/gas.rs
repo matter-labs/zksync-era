@@ -20,7 +20,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
 
     pub(crate) fn calculate_computational_gas_used(
         &self,
-        tracer: &DefaultExecutionTracer<S, H::VmLatest>,
+        tracer: &DefaultExecutionTracer<S, H::Vm1_4_1>,
         gas_remaining_before: u32,
         spent_pubdata_counter_before: u32,
     ) -> u32 {

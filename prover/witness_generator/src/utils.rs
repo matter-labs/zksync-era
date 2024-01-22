@@ -1,3 +1,4 @@
+use multivm::utils::get_used_bootloader_memory_bytes;
 use zkevm_test_harness::{
     boojum::field::goldilocks::GoldilocksField, witness::full_block_artifact::BlockBasicCircuits,
 };
@@ -21,11 +22,15 @@ use zksync_prover_fri_types::{
     },
     CircuitWrapper, FriProofWrapper,
 };
-use zksync_system_constants::USED_BOOTLOADER_MEMORY_BYTES;
-use zksync_types::{proofs::AggregationRound, L1BatchNumber, U256};
+use zksync_types::{proofs::AggregationRound, L1BatchNumber, ProtocolVersionId, U256};
 
-pub fn expand_bootloader_contents(packed: &[(usize, U256)]) -> Vec<u8> {
-    let mut result = vec![0u8; USED_BOOTLOADER_MEMORY_BYTES];
+pub fn expand_bootloader_contents(
+    packed: &[(usize, U256)],
+    protocol_version: ProtocolVersionId,
+) -> Vec<u8> {
+    let full_length = get_used_bootloader_memory_bytes(protocol_version.into());
+
+    let mut result = vec![0u8; full_length];
 
     for (offset, value) in packed {
         value.to_big_endian(&mut result[(offset * 32)..(offset + 1) * 32]);

@@ -20,6 +20,7 @@ pub enum VmInstance<S: WriteStorage, H: HistoryMode> {
     VmVirtualBlocks(crate::vm_virtual_blocks::Vm<S, H>),
     VmVirtualBlocksRefundsEnhancement(crate::vm_refunds_enhancement::Vm<S, H>),
     VmBoojumIntegration(crate::vm_boojum_integration::Vm<S, H>),
+    Vm1_4_1(crate::vm_latest::Vm<S, H>),
 }
 
 macro_rules! dispatch_vm {
@@ -31,6 +32,7 @@ macro_rules! dispatch_vm {
             VmInstance::VmVirtualBlocks(vm) => vm.$function($($params)*),
             VmInstance::VmVirtualBlocksRefundsEnhancement(vm) => vm.$function($($params)*),
             VmInstance::VmBoojumIntegration(vm) => vm.$function($($params)*),
+            VmInstance::Vm1_4_1(vm) => vm.$function($($params)*),
         }
     };
 }
@@ -197,6 +199,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInstance<S, H> {
                 let vm =
                     crate::vm_boojum_integration::Vm::new(l1_batch_env, system_env, storage_view);
                 VmInstance::VmBoojumIntegration(vm)
+            }
+            VmVersion::Vm1_4_1 => {
+                let vm = crate::vm_latest::Vm::new(l1_batch_env, system_env, storage_view);
+                VmInstance::Vm1_4_1(vm)
             }
         }
     }

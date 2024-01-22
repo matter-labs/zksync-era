@@ -1,4 +1,4 @@
-use zk_evm_1_4_0::zk_evm_abstractions::precompiles::PrecompileAddress;
+use zk_evm_1_4_1::zk_evm_abstractions::precompiles::PrecompileAddress;
 use zksync_types::{Address, Execute};
 
 use crate::{

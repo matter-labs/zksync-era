@@ -6,7 +6,7 @@
 # Here we use TOML multiline strings: newlines will be trimmed.
 RUST_LOG="""\
 zksync_consensus_bft=info,\
-zksync_consensus_network=debug,\
+zksync_consensus_network=info,\
 zksync_core=debug,\
 zksync_server=debug,\
 zksync_contract_verifier=debug,\

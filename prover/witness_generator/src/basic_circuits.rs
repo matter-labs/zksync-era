@@ -44,7 +44,7 @@ use zksync_state::{PostgresStorage, StorageView};
 use zksync_types::{
     proofs::{AggregationRound, BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
     protocol_version::FriProtocolVersionId,
-    Address, L1BatchNumber, BOOTLOADER_ADDRESS, H256, U256,
+    Address, L1BatchNumber, ProtocolVersionId, BOOTLOADER_ADDRESS, H256, U256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
@@ -531,6 +531,10 @@ async fn generate_witness(
         .unwrap()
         .unwrap();
 
+    let protocol_version = header
+        .protocol_version
+        .unwrap_or(ProtocolVersionId::last_potentially_undefined());
+
     let previous_batch_with_metadata = connection
         .blocks_dal()
         .get_l1_batch_metadata(zksync_types::L1BatchNumber(
@@ -552,7 +556,8 @@ async fn generate_witness(
         .await
         .expect("Default aa bytecode should exist");
     let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
-    let bootloader_contents = expand_bootloader_contents(&input.initial_heap_content);
+    let bootloader_contents =
+        expand_bootloader_contents(&input.initial_heap_content, protocol_version);
     let account_code_hash = h256_to_u256(header.base_system_contracts_hashes.default_aa);
 
     let hashes: HashSet<H256> = input
