@@ -3,11 +3,11 @@
  */
 import { TestMaster } from '../src/index';
 
-import * as zksync from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
 import { scaledGasPrice, waitUntilBlockFinalized } from '../src/helpers';
 import { WETH9, WETH9Factory } from 'l1-contracts/typechain';
 import { L2Weth, L2WethFactory } from 'l2-contracts/typechain';
-import { BigNumber, ethers } from 'ethers';
+import { BigNumber, BigNumberish, ethers } from 'ethers';
 import {
     shouldChangeETHBalances,
     shouldChangeTokenBalances,
@@ -21,11 +21,13 @@ describe('Tests for the WETH bridge/token behavior', () => {
     let bob: zksync.Wallet;
     let aliceL1Weth: WETH9;
     let aliceL2Weth: L2Weth;
+    let chainId: BigNumberish;
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         bob = testMaster.newEmptyAccount();
+        chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
 
         const l1WethTokenAddress = testMaster.environment().wethToken.l1Address;
         aliceL1Weth = WETH9Factory.connect(l1WethTokenAddress, alice._signerL1());

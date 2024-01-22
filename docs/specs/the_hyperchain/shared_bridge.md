@@ -192,7 +192,7 @@ A chain registers in the Bridgehub, this is where the chain ID is determined. Th
 Transition that they plan to use. In the first version only a single State Transition contract will be available for
 use, our with Boojum proof verification.
 
-At initialization we prepare the `StateTransitionChain` contract. We store the genesis batch hash in the ST contract,
+At initialization we prepare the `ZkSyncStateTransition` contract. We store the genesis batch hash in the ST contract,
 all chains start out with the same state. A diamond proxy is deployed and initialised with this initial value, along
 with predefined facets which are made available by the ST contract. These facets contain the proof verification and
 other features required to process proofs. The chain ID is set in the VM in a special system transaction sent from L1.

@@ -4,7 +4,7 @@ import { down } from './down';
 import fs from 'fs';
 
 // Make sure that the volumes exists before starting the containers.
-function createVolumes() {
+export function createVolumes() {
     fs.mkdirSync(`${process.env.ZKSYNC_HOME}/volumes/geth`, { recursive: true });
     fs.mkdirSync(`${process.env.ZKSYNC_HOME}/volumes/prysm/beacon`, { recursive: true });
     fs.mkdirSync(`${process.env.ZKSYNC_HOME}/volumes/prysm/validator`, { recursive: true });

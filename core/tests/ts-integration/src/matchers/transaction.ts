@@ -1,6 +1,6 @@
 import { TestMessage } from './matcher-helpers';
 import { MatcherModifier } from '../modifiers';
-import * as zksync from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
 
 // This file contains implementation of matchers for zkSync/ethereum transaction.
 // For actual doc-comments, see `typings/jest.d.ts` file.

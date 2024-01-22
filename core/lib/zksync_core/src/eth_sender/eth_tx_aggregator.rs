@@ -48,7 +48,7 @@ pub struct EthTxAggregator {
     config: SenderConfig,
     timelock_contract_address: Address,
     l1_multicall3_address: Address,
-    pub(super) main_zksync_contract_address: Address,
+    pub(super) state_transition_chain_contract: Address,
     functions: ZkSyncFunctions,
     base_nonce: u64,
 }
@@ -60,7 +60,7 @@ impl EthTxAggregator {
         eth_client: Arc<dyn BoundEthInterface>,
         timelock_contract_address: Address,
         l1_multicall3_address: Address,
-        main_zksync_contract_address: Address,
+        state_transition_chain_contract: Address,
         base_nonce: u64,
     ) -> Self {
         let functions = ZkSyncFunctions::default();
@@ -70,7 +70,7 @@ impl EthTxAggregator {
             eth_client,
             timelock_contract_address,
             l1_multicall3_address,
-            main_zksync_contract_address,
+            state_transition_chain_contract,
             functions,
             base_nonce,
         }
@@ -123,7 +123,7 @@ impl EthTxAggregator {
             .encode_input(&[])
             .unwrap();
         let get_bootloader_hash_call = Multicall3Call {
-            target: self.main_zksync_contract_address,
+            target: self.state_transition_chain_contract,
             allow_failure: ALLOW_FAILURE,
             calldata: get_l2_bootloader_hash_input,
         };
@@ -135,7 +135,7 @@ impl EthTxAggregator {
             .encode_input(&[])
             .unwrap();
         let get_default_aa_hash_call = Multicall3Call {
-            target: self.main_zksync_contract_address,
+            target: self.state_transition_chain_contract,
             allow_failure: ALLOW_FAILURE,
             calldata: get_l2_default_aa_hash_input,
         };
@@ -147,7 +147,7 @@ impl EthTxAggregator {
             .encode_input(&[])
             .unwrap();
         let get_verifier_params_call = Multicall3Call {
-            target: self.main_zksync_contract_address,
+            target: self.state_transition_chain_contract,
             allow_failure: ALLOW_FAILURE,
             calldata: get_verifier_params_input,
         };
@@ -155,7 +155,7 @@ impl EthTxAggregator {
         // Fourth zksync contract call
         let get_verifier_input = self.functions.get_verifier.encode_input(&[]).unwrap();
         let get_verifier_call = Multicall3Call {
-            target: self.main_zksync_contract_address,
+            target: self.state_transition_chain_contract,
             allow_failure: ALLOW_FAILURE,
             calldata: get_verifier_input,
         };
@@ -167,7 +167,7 @@ impl EthTxAggregator {
             .encode_input(&[])
             .unwrap();
         let get_protocol_version_call = Multicall3Call {
-            target: self.main_zksync_contract_address,
+            target: self.state_transition_chain_contract,
             allow_failure: ALLOW_FAILURE,
             calldata: get_protocol_version_input,
         };
@@ -296,7 +296,6 @@ impl EthTxAggregator {
         // This is here for backward compatibility with the old verifier:
         // Pre-boojum verifier returns the full verification key;
         // New verifier returns the hash of the verification key
-        tracing::debug!("Calling get_verification_key");
         if contracts_are_pre_boojum {
             let abi = Contract {
                 functions: [(
@@ -313,7 +312,6 @@ impl EthTxAggregator {
             Ok(l1_vk_commitment(Token::from_tokens(vk)?))
         } else {
             let get_vk_hash = self.functions.verification_key_hash.as_ref();
-            tracing::debug!("Calling verificationKeyHash");
             let args = CallFunctionArgs::new(&get_vk_hash.unwrap().name, ())
                 .for_contract(verifier_address, self.functions.verifier_contract.clone());
             let vk_hash = self.eth_client.call_contract_function(args).await?;

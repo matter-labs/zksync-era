@@ -137,8 +137,9 @@ impl ConsistencyChecker {
 
     pub fn new(web3_url: &str, max_batches_to_recheck: u32, pool: ConnectionPool) -> Self {
         let web3 = QueryClient::new(web3_url).unwrap();
+        let contract = zksync_contracts::state_transition_chain_contract();
         Self {
-            contract: zksync_contracts::zksync_contract(),
+            contract,
             max_batches_to_recheck,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
             l1_client: Box::new(web3),

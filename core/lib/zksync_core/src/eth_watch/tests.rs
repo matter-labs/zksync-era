@@ -1,13 +1,13 @@
 use std::{collections::HashMap, convert::TryInto, sync::Arc};
 
 use tokio::sync::RwLock;
-use zksync_contracts::{governance_contract, zksync_contract};
+use zksync_contracts::{governance_contract, state_transition_chain_contract};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
     ethabi::{encode, Hash, Token},
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     protocol_version::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
-    web3::types::{Address, BlockNumber, Log},
+    web3::types::{Address, Block, BlockNumber, Log},
     Execute, L1TxCommonData, PriorityOpId, ProtocolUpgrade, ProtocolVersion, ProtocolVersionId,
     Transaction, H256, U256,
 };
@@ -113,6 +113,10 @@ impl FakeEthClient {
 
 #[async_trait::async_trait]
 impl EthClient for FakeEthClient {
+    async fn get_block(&self, _hash: H256) -> Result<Option<Block<H256>>, Error> {
+        unimplemented!()
+    }
+
     async fn get_events(
         &self,
         from: BlockNumber,
@@ -569,7 +573,7 @@ fn tx_into_log(tx: L1Tx) -> Log {
 
     Log {
         address: Address::repeat_byte(0x1),
-        topics: vec![zksync_contract()
+        topics: vec![state_transition_chain_contract()
             .event("NewPriorityRequest")
             .expect("NewPriorityRequest event is missing in abi")
             .signature()],
@@ -605,7 +609,7 @@ fn upgrade_into_diamond_proxy_log(upgrade: ProtocolUpgrade, eth_block: u64) -> L
 
 fn upgrade_into_governor_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
     let diamond_cut = upgrade_into_diamond_cut(upgrade);
-    let execute_upgrade_selector = zksync_contract()
+    let execute_upgrade_selector = state_transition_chain_contract()
         .function("executeUpgrade")
         .unwrap()
         .short_signature();

@@ -22,6 +22,10 @@ export async function deployERC20(
             destinationFile = args[args.indexOf('--envFile') + 1];
             args.splice(args.indexOf('--envFile'), 2);
         }
+        const governorPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
+        if (governorPrivateKey) {
+            args.push('--private-key', governorPrivateKey);
+        }
         await utils.spawn(`yarn --silent --cwd contracts/l1-contracts deploy-erc20 add-multi '
             [
                 { "name": "DAI",  "symbol": "DAI",  "decimals": 18 },
@@ -42,7 +46,11 @@ export async function deployERC20(
                 { "name": "Wrapped Ether", "symbol": "WETH", "decimals": 18, "implementation": "WETH9"}
             ]' ${args.join(' ')} > ./etc/tokens/${destinationFile}.json`);
         const WETH = getTokens(destinationFile).find((token) => token.symbol === 'WETH')!;
-        env.modify('CONTRACTS_L1_WETH_TOKEN_ADDR', `CONTRACTS_L1_WETH_TOKEN_ADDR=${WETH.address}`);
+        env.modify(
+            'CONTRACTS_L1_WETH_TOKEN_ADDR',
+            `CONTRACTS_L1_WETH_TOKEN_ADDR=${WETH.address}`,
+            'etc/env/l1-inits/.init.env'
+        );
     } else if (command == 'new') {
         await utils.spawn(
             `yarn --silent --cwd contracts/l1-contracts deploy-erc20 add --token-name ${name} --symbol ${symbol} --decimals ${decimals}`

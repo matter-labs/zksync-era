@@ -280,7 +280,7 @@ pub(crate) struct BlockArgs {
 }
 
 impl BlockArgs {
-    pub(crate) async fn pending(connection: &mut StorageProcessor<'_>) -> Self {
+    pub async fn pending(connection: &mut StorageProcessor<'_>) -> Self {
         let (block_id, resolved_block_number) = get_pending_state(connection).await;
         Self {
             block_id,

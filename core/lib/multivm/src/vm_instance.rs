@@ -204,6 +204,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInstance<S, H> {
                 let vm = crate::vm_latest::Vm::new(l1_batch_env, system_env, storage_view);
                 VmInstance::Vm1_4_1(vm)
             }
+            VmVersion::Local => {
+                let vm = crate::vm_latest::Vm::new(l1_batch_env, system_env, storage_view);
+                VmInstance::Vm1_4_1(vm)
+            }
         }
     }
 }

@@ -6,10 +6,10 @@
  * and waiting for the block finalization).
  */
 import { TestMaster } from '../src/index';
-import * as zksync from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { deployContract, getTestContract, scaledGasPrice, waitForNewL1Batch } from '../src/helpers';
-import { getHashedL2ToL1Msg, L1_MESSENGER, L1_MESSENGER_ADDRESS } from 'zksync-web3/build/src/utils';
+import { getHashedL2ToL1Msg, L1_MESSENGER, L1_MESSENGER_ADDRESS } from 'zksync-ethers/build/src/utils';
 
 const SYSTEM_CONFIG = require(`${process.env.ZKSYNC_HOME}/contracts/SystemConfig.json`);
 
@@ -26,6 +26,7 @@ const DEFAULT_L2_GAS_LIMIT = 5000000;
 describe('Tests for L1 behavior', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
+    let chainId: ethers.BigNumberish;
 
     let counterContract: zksync.Contract;
     let contextContract: zksync.Contract;
@@ -34,6 +35,7 @@ describe('Tests for L1 behavior', () => {
     beforeAll(() => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
+        chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
     });
 
     test('Should deploy required contracts', async () => {
@@ -116,12 +118,12 @@ describe('Tests for L1 behavior', () => {
         expect(accumutatedRoot).toBe(root);
 
         // Ensure that provided proof is accepted by the main zkSync contract.
-        const zkSyncContract = await alice.getMainContract();
-        const acceptedByContract = await zkSyncContract.proveL2MessageInclusion(
+        const chainContract = await alice.getMainContract();
+        const acceptedByContract = await chainContract.proveL2MessageInclusion(
             receipt.l1BatchNumber,
             id,
             {
-                txNumberInBlock: receipt.l1BatchTxIndex,
+                txNumberInBatch: receipt.l1BatchTxIndex,
                 sender: alice.address,
                 data: message
             },

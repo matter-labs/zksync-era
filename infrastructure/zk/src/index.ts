@@ -7,8 +7,14 @@ import { command as contractVerifier } from './contract_verifier';
 import { command as up } from './up';
 import { command as down } from './down';
 import { command as contract } from './contract';
-import { initCommand as init, reinitCommand as reinit, lightweightInitCommand as lightweightInit } from './init';
-import { initHyperchainCommand as initHyperchain } from './hyperchain_wizard';
+import {
+    initCommand as init,
+    reinitCommand as reinit,
+    lightweightInitCommand as lightweightInit,
+    initHyperCommand as initHyper,
+    finishBridgeInitCommand as finishBridgeInit
+} from './init';
+import { initHyperchainCommand } from './hyperchain_wizard';
 import { command as run } from './run/run';
 import { command as test } from './test/test';
 import { command as docker } from './docker';
@@ -37,7 +43,9 @@ const COMMANDS = [
     init,
     reinit,
     lightweightInit,
-    initHyperchain,
+    initHyperchainCommand,
+    initHyper,
+    finishBridgeInit,
     run,
     test,
     fmt,
