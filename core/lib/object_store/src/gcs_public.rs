@@ -153,13 +153,16 @@ mod tests {
             .unwrap();
         assert_eq!(bytes, some_bytes);
 
-        let not_found = storage.get_raw(Bucket::StorageSnapshot, "some_key1").await;
+        let not_found = storage
+            .get_raw(Bucket::StorageSnapshot, "some_key2")
+            .await
+            .unwrap_err();
         assert!(matches!(not_found, ObjectStoreError::KeyNotFound { .. }));
 
         let server_error = storage
-            .get_raw(Bucket::StorageSnapshot, "some_key1")
+            .get_raw(Bucket::StorageSnapshot, "some_key3")
             .await
-            .unwrap();
-        assert!(matches!(not_found, ObjectStoreError::Other { .. }));
+            .unwrap_err();
+        assert!(matches!(server_error, ObjectStoreError::Other { .. }));
     }
 }
