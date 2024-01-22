@@ -43,11 +43,11 @@ impl EventsDal<'_, '_> {
                 "COPY events(
                     miniblock_number, tx_hash, tx_index_in_block, address,
                     event_index_in_block, event_index_in_tx,
+                    event_index_in_block_without_eth_transfer,
+                    event_index_in_tx_without_eth_transfer,
                     topic1, topic2, topic3, topic4, value,
                     tx_initiator_address,
-                    created_at, updated_at,
-                    event_index_in_block_without_eth_transfer,
-                    event_index_in_tx_without_eth_transfer
+                    created_at, updated_at
                 )
                 FROM STDIN WITH (DELIMITER '|')",
             )
@@ -76,20 +76,20 @@ impl EventsDal<'_, '_> {
                 write_str!(&mut buffer, "{event_index_in_block}|{event_index_in_tx}|");
                 write_str!(
                     &mut buffer,
+                    "{event_index_in_block_without_eth_transfer}|{event_index_in_tx_without_eth_transfer}|",
+                );
+                write_str!(
+                    &mut buffer,
                     r"\\x{topic0:x}|\\x{topic1:x}|\\x{topic2:x}|\\x{topic3:x}|",
                     topic0 = EventTopic(event.indexed_topics.get(0)),
                     topic1 = EventTopic(event.indexed_topics.get(1)),
                     topic2 = EventTopic(event.indexed_topics.get(2)),
                     topic3 = EventTopic(event.indexed_topics.get(3))
                 );
-                write_str!(
-                    &mut buffer,
-                    r"\\x{value}|\\x{tx_initiator_address:x}|{now}|{now}|",
-                    value = hex::encode(&event.value)
-                );
                 writeln_str!(
                     &mut buffer,
-                    "{event_index_in_block_without_eth_transfer}|{event_index_in_tx_without_eth_transfer}",
+                    r"\\x{value}|\\x{tx_initiator_address:x}|{now}|{now}",
+                    value = hex::encode(&event.value)
                 );
 
                 if !(event.address == L2_ETH_TOKEN_ADDRESS
