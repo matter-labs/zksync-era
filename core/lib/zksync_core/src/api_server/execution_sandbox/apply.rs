@@ -53,14 +53,14 @@ pub(super) fn apply_vm_in_sandbox<T>(
         &mut VmInstance<StorageView<PostgresStorage<'_>>, HistoryDisabled>,
         Transaction,
     ) -> T,
-) -> T {
+) -> anyhow::Result<T> {
     let stage_started_at = Instant::now();
     let span = tracing::debug_span!("initialization").entered();
 
     let rt_handle = vm_permit.rt_handle();
     let mut connection = rt_handle
         .block_on(connection_pool.access_storage_tagged("api"))
-        .unwrap();
+        .context("failed acquiring DB connection")?;
     let connection_acquire_time = stage_started_at.elapsed();
     // We don't want to emit too many logs.
     if connection_acquire_time > Duration::from_millis(10) {
@@ -78,7 +78,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
         protocol_version,
     } = rt_handle
         .block_on(block_args.resolve_block_info(&mut connection))
-        .expect("Failed resolving block numbers");
+        .with_context(|| format!("failed resolving block numbers for {block_args:?}"))?;
     let resolve_time = resolve_started_at.elapsed();
     // We don't want to emit too many logs.
     if resolve_time > Duration::from_millis(10) {
@@ -95,8 +95,12 @@ pub(super) fn apply_vm_in_sandbox<T>(
     }
 
     let mut l2_block_info_to_reset = None;
-    let current_l2_block_info =
-        rt_handle.block_on(read_l2_block_info(&mut connection, state_l2_block_number));
+    let current_l2_block_info = rt_handle
+        .block_on(StoredL2BlockInfo::new(
+            &mut connection,
+            state_l2_block_number,
+        ))
+        .context("failed reading L2 block info")?;
     let next_l2_block_info = if block_args.is_pending_miniblock() {
         L2BlockEnv {
             number: current_l2_block_info.l2_block_number + 1,
@@ -120,10 +124,13 @@ pub(super) fn apply_vm_in_sandbox<T>(
     } else {
         // We need to reset L2 block info in storage to process transaction in the current block context.
         // Actual resetting will be done after `storage_view` is created.
-        let prev_l2_block_info = rt_handle.block_on(read_l2_block_info(
-            &mut connection,
-            state_l2_block_number - 1,
-        ));
+        let prev_l2_block_info = rt_handle
+            .block_on(StoredL2BlockInfo::new(
+                &mut connection,
+                state_l2_block_number - 1,
+            ))
+            .context("failed reading previous L2 block info")?;
+
         l2_block_info_to_reset = Some(prev_l2_block_info);
         L2BlockEnv {
             number: current_l2_block_info.l2_block_number,
@@ -209,7 +216,6 @@ pub(super) fn apply_vm_in_sandbox<T>(
         default_validation_computational_gas_limit: validation_computational_gas_limit,
         chain_id,
     };
-
     let l1_batch_env = L1BatchEnv {
         previous_batch_hash: None,
         number: vm_l1_batch_number,
@@ -249,54 +255,56 @@ pub(super) fn apply_vm_in_sandbox<T>(
     );
     drop(vm_permit); // Ensure that the permit lives until this point
 
-    result
+    Ok(result)
 }
 
 #[derive(Debug, Clone, Copy)]
 struct StoredL2BlockInfo {
-    pub l2_block_number: u32,
-    pub l2_block_timestamp: u64,
-    pub l2_block_hash: H256,
-    pub txs_rolling_hash: H256,
+    l2_block_number: u32,
+    l2_block_timestamp: u64,
+    l2_block_hash: H256,
+    txs_rolling_hash: H256,
 }
 
-async fn read_l2_block_info(
-    connection: &mut StorageProcessor<'_>,
-    miniblock_number: MiniblockNumber,
-) -> StoredL2BlockInfo {
-    let l2_block_info_key = StorageKey::new(
-        AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
-        SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
-    );
-    let l2_block_info = connection
-        .storage_web3_dal()
-        .get_historical_value_unchecked(&l2_block_info_key, miniblock_number)
-        .await
-        .unwrap();
-    let (l2_block_number, l2_block_timestamp) = unpack_block_info(h256_to_u256(l2_block_info));
+impl StoredL2BlockInfo {
+    async fn new(
+        connection: &mut StorageProcessor<'_>,
+        miniblock_number: MiniblockNumber,
+    ) -> anyhow::Result<Self> {
+        let l2_block_info_key = StorageKey::new(
+            AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+            SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+        );
+        let l2_block_info = connection
+            .storage_web3_dal()
+            .get_historical_value_unchecked(&l2_block_info_key, miniblock_number)
+            .await
+            .context("failed reading L2 block info from VM state")?;
+        let (l2_block_number, l2_block_timestamp) = unpack_block_info(h256_to_u256(l2_block_info));
 
-    let l2_block_txs_rolling_hash_key = StorageKey::new(
-        AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
-        SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
-    );
-    let txs_rolling_hash = connection
-        .storage_web3_dal()
-        .get_historical_value_unchecked(&l2_block_txs_rolling_hash_key, miniblock_number)
-        .await
-        .unwrap();
+        let l2_block_txs_rolling_hash_key = StorageKey::new(
+            AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+            SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
+        );
+        let txs_rolling_hash = connection
+            .storage_web3_dal()
+            .get_historical_value_unchecked(&l2_block_txs_rolling_hash_key, miniblock_number)
+            .await
+            .context("failed reading transaction rolling hash from VM state")?;
 
-    let l2_block_hash = connection
-        .blocks_web3_dal()
-        .get_miniblock_hash(miniblock_number)
-        .await
-        .unwrap()
-        .unwrap();
+        let l2_block_hash = connection
+            .blocks_web3_dal()
+            .get_miniblock_hash(miniblock_number)
+            .await
+            .with_context(|| format!("failed getting hash for miniblock #{miniblock_number}"))?
+            .with_context(|| format!("miniblock #{miniblock_number} disappeared from Postgres"))?;
 
-    StoredL2BlockInfo {
-        l2_block_number: l2_block_number as u32,
-        l2_block_timestamp,
-        l2_block_hash,
-        txs_rolling_hash,
+        Ok(Self {
+            l2_block_number: l2_block_number as u32,
+            l2_block_timestamp,
+            l2_block_hash,
+            txs_rolling_hash,
+        })
     }
 }
 
