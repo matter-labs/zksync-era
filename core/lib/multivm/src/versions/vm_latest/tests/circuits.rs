@@ -1,4 +1,4 @@
-use zkevm_test_harness_1_4_0::geometry_config::get_geometry_config;
+use zkevm_test_harness_1_4_1::geometry_config::get_geometry_config;
 use zksync_types::{Address, Execute, U256};
 
 use crate::{
