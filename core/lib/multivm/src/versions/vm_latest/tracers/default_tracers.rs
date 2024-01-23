@@ -108,10 +108,6 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         self.computational_gas_used > self.tx_validation_gas_limit
     }
 
-    pub(crate) fn gas_spent_on_pubdata(&self, vm_local_state: &VmLocalState) -> u32 {
-        self.gas_spent_on_bytecodes_and_long_messages + vm_local_state.spent_pubdata_counter
-    }
-
     fn set_fictive_l2_block(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,

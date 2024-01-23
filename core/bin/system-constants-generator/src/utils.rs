@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use multivm::{
     interface::{
-        dyn_tracers::vm_1_4_1::DynTracer, tracer::VmExecutionStopReason, L1BatchEnv, L2BlockEnv,
+        dyn_tracers::vm_1_5_0::DynTracer, tracer::VmExecutionStopReason, L1BatchEnv, L2BlockEnv,
         SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
     },
     vm_latest::{
@@ -10,7 +10,7 @@ use multivm::{
         BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, Vm, VmTracer,
         ZkSyncVmState,
     },
-    zk_evm_1_4_1::aux_structures::Timestamp,
+    zk_evm_1_5_0::aux_structures::Timestamp,
 };
 use once_cell::sync::Lazy;
 use zksync_contracts::{

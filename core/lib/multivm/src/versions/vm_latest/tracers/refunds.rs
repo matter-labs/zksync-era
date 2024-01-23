@@ -36,20 +36,26 @@ use crate::{
     },
 };
 
+#[derive(Debug, Clone, Copy)]
+struct RefundRequest {
+    refund: u32,
+    gas_spent_on_pubdata: u32,
+    used_gas_per_pubdata_byte: u32,
+}
+
 /// Tracer responsible for collecting information about refunds.
 #[derive(Debug, Clone)]
 pub(crate) struct RefundsTracer<S> {
     // Some(x) means that the bootloader has asked the operator
     // to provide the refund the user, where `x` is the refund proposed
     // by the bootloader itself.
-    pending_operator_refund: Option<u32>,
+    pending_refund_request: Option<RefundRequest>,
     refund_gas: u32,
     operator_refund: Option<u32>,
     timestamp_initial: Timestamp,
     timestamp_before_cycle: Timestamp,
     gas_remaining_before: u32,
     spent_pubdata_counter_before: u32,
-    gas_spent_on_bytecodes_and_long_messages: u32,
     l1_batch: L1BatchEnv,
     pubdata_published: u32,
     _phantom: PhantomData<S>,
@@ -58,14 +64,13 @@ pub(crate) struct RefundsTracer<S> {
 impl<S> RefundsTracer<S> {
     pub(crate) fn new(l1_batch: L1BatchEnv) -> Self {
         Self {
-            pending_operator_refund: None,
+            pending_refund_request: None,
             refund_gas: 0,
             operator_refund: None,
             timestamp_initial: Timestamp(0),
             timestamp_before_cycle: Timestamp(0),
             gas_remaining_before: 0,
             spent_pubdata_counter_before: 0,
-            gas_spent_on_bytecodes_and_long_messages: 0,
             l1_batch,
             pubdata_published: 0,
             _phantom: PhantomData,
@@ -74,12 +79,12 @@ impl<S> RefundsTracer<S> {
 }
 
 impl<S> RefundsTracer<S> {
-    fn requested_refund(&self) -> Option<u32> {
-        self.pending_operator_refund
+    fn requested_refund(&self) -> Option<RefundRequest> {
+        self.pending_refund_request
     }
 
     fn set_refund_as_done(&mut self) {
-        self.pending_operator_refund = None;
+        self.pending_refund_request = None;
     }
 
     fn block_overhead_refund(&mut self) -> u32 {
@@ -156,10 +161,6 @@ impl<S> RefundsTracer<S> {
         ceil_div_u256(refund_eth, effective_gas_price.into()).as_u32()
     }
 
-    pub(crate) fn gas_spent_on_pubdata(&self, vm_local_state: &VmLocalState) -> u32 {
-        self.gas_spent_on_bytecodes_and_long_messages + vm_local_state.spent_pubdata_counter
-    }
-
     pub(crate) fn pubdata_published(&self) -> u32 {
         self.pubdata_published
     }
@@ -178,13 +179,14 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for RefundsTracer<S> {
         match hook {
             VmHook::NotifyAboutRefund => self.refund_gas = get_vm_hook_params(memory)[0].as_u32(),
             VmHook::AskOperatorForRefund => {
-                self.pending_operator_refund = Some(get_vm_hook_params(memory)[0].as_u32())
+                self.pending_refund_request = Some(RefundRequest {
+                    refund: get_vm_hook_params(memory)[0].as_u32(),
+                    gas_spent_on_pubdata: get_vm_hook_params(memory)[1].as_u32(),
+                    used_gas_per_pubdata_byte: get_vm_hook_params(memory)[2].as_u32(),
+                })
             }
             _ => {}
         }
-
-        self.gas_spent_on_bytecodes_and_long_messages +=
-            gas_spent_on_bytecodes_and_long_messages_this_opcode(&state, &data);
     }
 }
 
@@ -230,8 +232,6 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
                 self.operator_refund.is_none(),
                 "Operator was asked for refund two times"
             );
-            let gas_spent_on_pubdata =
-                self.gas_spent_on_pubdata(&state.local_state) - self.spent_pubdata_counter_before;
 
             let current_tx_index = bootloader_state.current_tx();
             let tx_description_offset =
@@ -262,19 +262,21 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
             let tx_body_refund = 0;
 
             // let current_ergs_per_pubdata_byte = 0;
-            // self.tx_body_refund(
-            //     bootloader_refund,
-            //     gas_spent_on_pubdata,
-            //     tx_gas_limit,
-            //     current_ergs_per_pubdata_byte,
-            //     pubdata_published,
-            //     bootloader_state.last_l2_block().txs.last().unwrap().hash,
-            // );
+            self.tx_body_refund(
+                bootloader_refund.refund,
+                bootloader_refund.gas_spent_on_pubdata,
+                tx_gas_limit,
+                bootloader_refund.used_gas_per_pubdata_byte,
+                pubdata_published,
+                bootloader_state.last_l2_block().txs.last().unwrap().hash,
+            );
 
-            if tx_body_refund < bootloader_refund {
+            if tx_body_refund < bootloader_refund.refund {
                 tracing::error!(
-                    "Suggested tx body refund is less than bootloader refund. Tx body refund: {tx_body_refund}, \
-                     bootloader refund: {bootloader_refund}"
+                    "Suggested tx body refund is less than bootloader refund. Tx body refund: {}, \
+                     bootloader refund: {}",
+                    tx_body_refund,
+                    bootloader_refund.refund
                 );
             }
 
@@ -293,10 +295,12 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
             self.operator_refund = Some(refund_to_propose);
             self.set_refund_as_done();
 
-            if tx_gas_limit < bootloader_refund {
+            if tx_gas_limit < bootloader_refund.refund {
                 tracing::error!(
-                    "Tx gas limit is less than bootloader refund. Tx gas limit: {tx_gas_limit}, \
-                    bootloader refund: {bootloader_refund}"
+                    "Tx gas limit is less than bootloader refund. Tx gas limit: {}, \
+                    bootloader refund: {}",
+                    tx_gas_limit,
+                    bootloader_refund.refund
                 );
             }
             if tx_gas_limit < refund_to_propose {
@@ -307,11 +311,12 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
             }
 
             METRICS.refund[&RefundType::Bootloader]
-                .observe(bootloader_refund as f64 / tx_gas_limit as f64 * 100.0);
+                .observe(bootloader_refund.refund as f64 / tx_gas_limit as f64 * 100.0);
             METRICS.refund[&RefundType::Operator]
                 .observe(refund_to_propose as f64 / tx_gas_limit as f64 * 100.0);
-            let refund_diff =
-                (refund_to_propose as f64 - bootloader_refund as f64) / tx_gas_limit as f64 * 100.0;
+            let refund_diff = (refund_to_propose as f64 - bootloader_refund.refund as f64)
+                / tx_gas_limit as f64
+                * 100.0;
             METRICS.refund_diff.observe(refund_diff);
         }
         TracerExecutionStatus::Continue

@@ -112,7 +112,7 @@ pub const BOOTLOADER_HEAP_PAGE: u32 = heap_page_from_base(MemoryPage(INITIAL_BAS
 /// So the layout looks like this:
 /// `[param 0][param 1][vmhook opcode]`
 pub const VM_HOOK_POSITION: u32 = RESULT_SUCCESS_FIRST_SLOT - 1;
-pub const VM_HOOK_PARAMS_COUNT: u32 = 2;
+pub const VM_HOOK_PARAMS_COUNT: u32 = 3;
 pub const VM_HOOK_PARAMS_START_POSITION: u32 = VM_HOOK_POSITION - VM_HOOK_PARAMS_COUNT;
 
 /// Arbitrary space in memory closer to the end of the page
