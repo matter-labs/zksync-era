@@ -30,7 +30,6 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
-    /// Tracers are not supported for vm 1.3.2. So we use `()` as a placeholder
     type TracerDispatcher = TracerDispatcher;
 
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
