@@ -32,7 +32,7 @@
 
 use zksync_state::WriteStorage;
 
-use crate::HistoryMode;
+use crate::{tracers::old_tracers::OldTracers, HistoryMode};
 
 pub type MultiVmTracerPointer<S, H> = Box<dyn MultiVMTracer<S, H>>;
 
@@ -41,6 +41,7 @@ pub trait MultiVMTracer<S: WriteStorage, H: HistoryMode>:
     + IntoVmVirtualBlocksTracer<S, H>
     + IntoVmRefundsEnhancementTracer<S, H>
     + IntoVmBoojumIntegrationTracer<S, H>
+    + IntoOldVmTracer
 {
     fn into_tracer_pointer(self) -> MultiVmTracerPointer<S, H>
     where
@@ -70,6 +71,12 @@ pub trait IntoVmBoojumIntegrationTracer<S: WriteStorage, H: HistoryMode> {
     fn vm_boojum_integration(
         &self,
     ) -> Box<dyn crate::vm_boojum_integration::VmTracer<S, H::VmBoojumIntegration>>;
+}
+
+pub trait IntoOldVmTracer {
+    fn old_tracer(&self) -> OldTracers {
+        OldTracers::None
+    }
 }
 
 impl<S, T, H> IntoLatestTracer<S, H> for T
@@ -132,6 +139,7 @@ where
     T: IntoLatestTracer<S, H>
         + IntoVmVirtualBlocksTracer<S, H>
         + IntoVmRefundsEnhancementTracer<S, H>
-        + IntoVmBoojumIntegrationTracer<S, H>,
+        + IntoVmBoojumIntegrationTracer<S, H>
+        + IntoOldVmTracer,
 {
 }
