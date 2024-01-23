@@ -20,20 +20,22 @@
 // Copied from parity-crypto 0.9.0 src/publickey/keypair.rs
 // Key pair (public + secret) description.
 
-use crate::web3::{
-    signing::keccak256,
-    types::{Address, H256, H512, H520},
-};
-use secp256k1::{
-    ecdsa::{RecoverableSignature, RecoveryId},
-    Message as SecpMessage, PublicKey, SecretKey, SECP256K1,
-};
 use std::{
     cmp::PartialEq,
     fmt,
     hash::{Hash, Hasher},
     ops::{Deref, DerefMut},
     str::FromStr,
+};
+
+use secp256k1::{
+    ecdsa::{RecoverableSignature, RecoveryId},
+    Message as SecpMessage, PublicKey, SecretKey, SECP256K1,
+};
+
+use crate::web3::{
+    signing::keccak256,
+    types::{Address, H256, H512, H520},
 };
 
 type Message = H256;
@@ -270,8 +272,9 @@ pub(super) fn recover(signature: &Signature, message: &Message) -> Result<Public
 
 #[cfg(test)]
 mod tests {
-    use super::{recover, sign, KeyPair, Message, Secret, Signature};
     use std::str::FromStr;
+
+    use super::{recover, sign, KeyPair, Message, Secret, Signature};
 
     #[test]
     fn from_secret() {

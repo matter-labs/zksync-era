@@ -3,14 +3,16 @@ use thiserror::Error;
 use zksync_basic_types::{Address, H256};
 use zksync_utils::ZeroPrefixHexSerde;
 
-use crate::tx::primitives::{
-    ecdsa_signature::{
-        public_to_address, recover, sign, Error as ParityCryptoError, KeyPair,
-        Signature as ETHSignature,
+use crate::{
+    tx::primitives::{
+        ecdsa_signature::{
+            public_to_address, recover, sign, Error as ParityCryptoError, KeyPair,
+            Signature as ETHSignature,
+        },
+        eip712_signature::typed_structure::{EIP712TypedStructure, Eip712Domain},
     },
-    eip712_signature::typed_structure::{EIP712TypedStructure, Eip712Domain},
+    web3::signing::keccak256,
 };
-use crate::web3::signing::keccak256;
 
 /// Struct used for working with Ethereum signatures created using eth_sign (using geth, ethers.js, etc)
 /// message is serialized as 65 bytes long `0x` prefixed string.
