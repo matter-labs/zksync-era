@@ -64,7 +64,7 @@ impl ObjectStore for PublicReadOnlyGoogleCloudStorage {
                             continue;
                         }
                     }
-                    let bytes = response.bytes().await.map(|bytes| bytes.into());
+                    let bytes = response.bytes().await.map(std::convert::Into::into);
                     match bytes {
                         Ok(bytes) => return Ok(bytes),
                         Err(error) => {
@@ -114,8 +114,6 @@ impl ObjectStore for PublicReadOnlyGoogleCloudStorage {
 }
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use crate::{
         gcs_public::PublicReadOnlyGoogleCloudStorage, Bucket, ObjectStore, ObjectStoreError,
     };
@@ -123,12 +121,9 @@ mod tests {
     #[tokio::test]
     async fn start_server() {
         let mut server = mockito::Server::new();
-
-        // Use one of these addresses to configure your client
-        let host = server.host_with_port();
         let url = server.url();
-
         let some_bytes = [1, 5, 124, 51];
+
         server
             .mock("GET", "/test-url/storage_logs_snapshots/some_key1")
             .with_status(200)
