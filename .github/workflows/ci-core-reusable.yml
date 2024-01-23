@@ -118,6 +118,10 @@ jobs:
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
   integration:
+    strategy:
+      matrix:
+        # Whether to enable consensus or not.
+        consensus_env_vars: ["","CONSENSUS_CONFIG_PATH=etc/env/consensus_config.json"],
     runs-on: [matterlabs-ci-runner]
 
     steps:
@@ -181,6 +185,8 @@ jobs:
         run: |
           ci_run zk server &>server.log &
           ci_run sleep 5
+        env:
+          PASSED_ENV_VARS: "${{ matrix.consensus_env_vars }}"
 
       - name: Run contract verifier
         run: |
@@ -230,6 +236,10 @@ jobs:
           ci_run cat /tmp/sccache_log.txt
 
   external-node:
+    strategy:
+      matrix:
+        # Whether to enable consensus or not.
+        consensus_env_vars: ["","CONSENSUS_CONFIG_PATH=etc/env/consensus_config.json,EN_CONSENSUS_CONFIG_PATH=etc/env/en_consensus_config.json"],
     runs-on: [matterlabs-ci-runner]
 
     steps:
@@ -293,13 +303,17 @@ jobs:
         run: |
           ci_run zk server &>server.log &
           ci_run sleep 30
-
+        env:
+          PASSED_ENV_VARS: "${{ matrix.consensus_env_vars }}"
+      
       - name: Run external node
         run: |
           ci_run zk env ext-node-docker
           ci_run zk db setup
           ci_run zk external-node &>ext-node.log &
           ci_run sleep 30
+        env:
+          PASSED_ENV_VARS: "${{ matrix.consensus_env_vars }}"
 
       # TODO(PLA-653): Restore bridge tests for EN.
       - name: Integration tests
