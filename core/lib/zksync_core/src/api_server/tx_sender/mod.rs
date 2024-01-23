@@ -10,7 +10,7 @@ use multivm::{
 };
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
-use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
+use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, StorageProcessor};
 use zksync_state::PostgresStorageCaches;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
@@ -276,7 +276,14 @@ impl TxSender {
         self.0.storage_caches.clone()
     }
 
-    // TODO (PLA-725): propagate DB errors instead of panicking
+    async fn acquire_replica_connection(&self) -> anyhow::Result<StorageProcessor<'_>> {
+        self.0
+            .replica_connection_pool
+            .access_storage_tagged("api")
+            .await
+            .context("failed acquiring connection to replica DB")
+    }
+
     #[tracing::instrument(skip(self, tx))]
     pub async fn submit_tx(&self, tx: L2Tx) -> Result<L2TxSubmissionResult, SubmitTxError> {
         let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::Validate].start();
@@ -287,16 +294,11 @@ impl TxSender {
         let shared_args = self.shared_args().await;
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
-        let mut connection = self
-            .0
-            .replica_connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap();
-        let block_args = BlockArgs::pending(&mut connection).await;
+        let mut connection = self.acquire_replica_connection().await?;
+        let block_args = BlockArgs::pending(&mut connection).await?;
         drop(connection);
 
-        let (_, tx_metrics, published_bytecodes) = self
+        let execution_output = self
             .0
             .executor
             .execute_tx_in_sandbox(
@@ -309,12 +311,12 @@ impl TxSender {
                 block_args,
                 vec![],
             )
-            .await;
+            .await?;
 
         tracing::info!(
             "Submit tx {:?} with execution metrics {:?}",
             tx.hash(),
-            tx_metrics
+            execution_output.metrics
         );
         stage_latency.observe();
 
@@ -337,13 +339,12 @@ impl TxSender {
         if let Err(err) = validation_result {
             return Err(err.into());
         }
-
-        if !published_bytecodes {
+        if !execution_output.are_published_bytecodes_ok {
             return Err(SubmitTxError::FailedToPublishCompressedBytecodes);
         }
 
         let stage_started_at = Instant::now();
-        self.ensure_tx_executable(tx.clone().into(), &tx_metrics, true)?;
+        self.ensure_tx_executable(tx.clone().into(), &execution_output.metrics, true)?;
 
         if let Some(proxy) = &self.0.proxy {
             // We're running an external node: we have to proxy the transaction to the main node.
@@ -377,15 +378,19 @@ impl TxSender {
             .await
             .unwrap()
             .transactions_dal()
-            .insert_transaction_l2(tx, tx_metrics)
+            .insert_transaction_l2(tx, execution_output.metrics)
             .await;
 
         APP_METRICS.processed_txs[&TxStage::Mempool(submission_res_handle)].inc();
 
         match submission_res_handle {
             L2TxSubmissionResult::AlreadyExecuted => {
-                let Nonce(expected_nonce) =
-                    self.get_expected_nonce(initiator_account).await.unwrap();
+                let Nonce(expected_nonce) = self
+                    .get_expected_nonce(initiator_account)
+                    .await
+                    .with_context(|| {
+                        format!("failed getting expected nonce for {initiator_account:?}")
+                    })?;
                 Err(SubmitTxError::NonceIsTooLow(
                     expected_nonce,
                     expected_nonce + self.0.sender_config.max_nonce_ahead,
@@ -481,7 +486,12 @@ impl TxSender {
         let Nonce(expected_nonce) = self
             .get_expected_nonce(tx.initiator_account())
             .await
-            .unwrap();
+            .with_context(|| {
+                format!(
+                    "failed getting expected nonce for {:?}",
+                    tx.initiator_account()
+                )
+            })?;
 
         if tx.common_data.nonce.0 < expected_nonce {
             Err(SubmitTxError::NonceIsTooLow(
@@ -504,12 +514,7 @@ impl TxSender {
     }
 
     async fn get_expected_nonce(&self, initiator_account: Address) -> anyhow::Result<Nonce> {
-        let mut storage = self
-            .0
-            .replica_connection_pool
-            .access_storage_tagged("api")
-            .await?;
-
+        let mut storage = self.acquire_replica_connection().await?;
         let latest_block_number = storage
             .blocks_dal()
             .get_sealed_miniblock_number()
@@ -538,15 +543,12 @@ impl TxSender {
 
     async fn validate_enough_balance(&self, tx: &L2Tx) -> Result<(), SubmitTxError> {
         let paymaster = tx.common_data.paymaster_params.paymaster;
-
-        // The paymaster is expected to pay for the tx,
-        // whatever balance the user has, we don't care.
+        // The paymaster is expected to pay for the tx; whatever balance the user has, we don't care.
         if paymaster != Address::default() {
             return Ok(());
         }
 
-        let balance = self.get_balance(&tx.common_data.initiator_address).await;
-
+        let balance = self.get_balance(&tx.common_data.initiator_address).await?;
         // Estimate the minimum fee price user will agree to.
         let gas_price = tx.common_data.fee.max_fee_per_gas;
         let max_fee = tx.common_data.fee.gas_limit * gas_price;
@@ -563,21 +565,16 @@ impl TxSender {
         }
     }
 
-    async fn get_balance(&self, initiator_address: &H160) -> U256 {
+    async fn get_balance(&self, initiator_address: &H160) -> anyhow::Result<U256> {
         let eth_balance_key = storage_key_for_eth_balance(initiator_address);
-
         let balance = self
-            .0
-            .replica_connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap()
+            .acquire_replica_connection()
+            .await?
             .storage_dal()
             .get_by_key(&eth_balance_key)
-            .await
+            .await?
             .unwrap_or_default();
-
-        h256_to_u256(balance)
+        Ok(h256_to_u256(balance))
     }
 
     /// Given the gas_limit to be used for the body of the transaction,
@@ -593,7 +590,7 @@ impl TxSender {
         block_args: BlockArgs,
         base_fee: u64,
         vm_version: VmVersion,
-    ) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics) {
+    ) -> anyhow::Result<(VmExecutionResultAndLogs, TransactionExecutionMetrics)> {
         let gas_limit_with_overhead = tx_gas_limit
             + derive_overhead(
                 tx_gas_limit,
@@ -627,7 +624,7 @@ impl TxSender {
         let vm_execution_cache_misses_limit = self.0.sender_config.vm_execution_cache_misses_limit;
         let execution_args =
             TxExecutionArgs::for_gas_estimate(vm_execution_cache_misses_limit, &tx, base_fee);
-        let (exec_result, tx_metrics, _) = self
+        let execution_output = self
             .0
             .executor
             .execute_tx_in_sandbox(
@@ -640,9 +637,8 @@ impl TxSender {
                 block_args,
                 vec![],
             )
-            .await;
-
-        (exec_result, tx_metrics)
+            .await?;
+        Ok((execution_output.vm, execution_output.metrics))
     }
 
     fn shared_args_for_gas_estimate(&self, fee_input: BatchFeeInput) -> TxSharedArgs {
@@ -667,19 +663,13 @@ impl TxSender {
     ) -> Result<Fee, SubmitTxError> {
         let estimation_started_at = Instant::now();
 
-        let mut connection = self
-            .0
-            .replica_connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap();
-        let block_args = BlockArgs::pending(&mut connection).await;
+        let mut connection = self.acquire_replica_connection().await?;
+        let block_args = BlockArgs::pending(&mut connection).await?;
         let protocol_version = block_args
             .resolve_block_info(&mut connection)
             .await
-            .unwrap()
+            .with_context(|| format!("failed resolving block info for {block_args:?}"))?
             .protocol_version;
-
         drop(connection);
 
         let fee_input = {
@@ -715,23 +705,25 @@ impl TxSender {
         }
 
         let hashed_key = get_code_key(&tx.initiator_account());
-        // if the default account does not have enough funds
-        // for transferring tx.value, without taking into account the fee,
-        // there is no sense to estimate the fee
+        // If the default account does not have enough funds for transferring `tx.value`, without taking into account the fee,
+        // there is no sense to estimate the fee.
         let account_code_hash = self
-            .0
-            .replica_connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap()
+            .acquire_replica_connection()
+            .await?
             .storage_dal()
             .get_by_key(&hashed_key)
             .await
+            .with_context(|| {
+                format!(
+                    "failed getting code hash for account {:?}",
+                    tx.initiator_account()
+                )
+            })?
             .unwrap_or_default();
 
         if !tx.is_l1()
             && account_code_hash == H256::zero()
-            && tx.execute.value > self.get_balance(&tx.initiator_account()).await
+            && tx.execute.value > self.get_balance(&tx.initiator_account()).await?
         {
             tracing::info!(
                 "fee estimation failed on validation step.
@@ -768,7 +760,7 @@ impl TxSender {
                 tx.execute.factory_deps.as_deref().unwrap_or_default(),
                 self.storage_caches(),
             )
-            .await;
+            .await?;
 
             if pubdata_for_factory_deps > MAX_PUBDATA_PER_BLOCK {
                 return Err(SubmitTxError::Unexecutable(
@@ -801,7 +793,7 @@ impl TxSender {
             // gas limit will make the transaction successful
             let iteration_started_at = Instant::now();
             let try_gas_limit = gas_for_bytecodes_pubdata + mid;
-            let (result, _execution_metrics) = self
+            let (result, _) = self
                 .estimate_gas_step(
                     vm_permit.clone(),
                     tx.clone(),
@@ -812,7 +804,8 @@ impl TxSender {
                     base_fee,
                     protocol_version.into(),
                 )
-                .await;
+                .await
+                .context("estimate_gas step failed")?;
 
             if result.result.is_failed() {
                 lower_bound = mid + 1;
@@ -851,7 +844,8 @@ impl TxSender {
                 base_fee,
                 protocol_version.into(),
             )
-            .await;
+            .await
+            .context("final estimate_gas step failed")?;
 
         result.into_api_call_result()?;
         self.ensure_tx_executable(tx.clone(), &tx_metrics, false)?;
@@ -919,22 +913,17 @@ impl TxSender {
                 vm_execution_cache_misses_limit,
                 vec![],
             )
-            .await
+            .await?
             .into_api_call_result()
     }
 
-    pub async fn gas_price(&self) -> u64 {
-        let mut connection = self
-            .0
-            .replica_connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap();
-        let block_args = BlockArgs::pending(&mut connection).await;
+    pub async fn gas_price(&self) -> anyhow::Result<u64> {
+        let mut connection = self.acquire_replica_connection().await?;
+        let block_args = BlockArgs::pending(&mut connection).await?;
         let protocol_version = block_args
             .resolve_block_info(&mut connection)
             .await
-            .unwrap()
+            .with_context(|| format!("failed resolving block info for {block_args:?}"))?
             .protocol_version;
         drop(connection);
 
@@ -949,7 +938,7 @@ impl TxSender {
                 .await,
             protocol_version.into(),
         );
-        base_fee
+        Ok(base_fee)
     }
 
     fn ensure_tx_executable(
