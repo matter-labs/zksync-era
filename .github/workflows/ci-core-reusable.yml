@@ -237,8 +237,7 @@ jobs:
   external-node:
     strategy:
       matrix:
-        # Whether to enable consensus or not.
-        consensus_env_vars: ["","CONSENSUS_CONFIG_PATH=etc/env/consensus_config.json,EN_CONSENSUS_CONFIG_PATH=etc/env/en_consensus_config.json"],
+        consensus_env_vars: ["","CONSENSUS_CONFIG_PATH=etc/env/consensus_config.json,EN_CONSENSUS_CONFIG_PATH=etc/env/en_consensus_config.json"]
     runs-on: [matterlabs-ci-runner]
 
     steps:
