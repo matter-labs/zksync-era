@@ -41,7 +41,7 @@ hex = "0.4"
 prost = "0.12.1"
 
 # Crypto stuff
-secp256k1 = { version = "0.27", features = ["recovery", "global-context", "rand"] }
+secp256k1 = { version = "0.27", features = ["recovery", "global-context"] }
 blake2 = "0.10"
 
 [dev-dependencies]
