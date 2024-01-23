@@ -412,7 +412,7 @@ impl BlocksWeb3Dal<'_, '_> {
         Ok(result)
     }
 
-    /// Returns call traces for all transactions in the specified miniblock in th order
+    /// Returns call traces for all transactions in the specified miniblock in the order of their execution.
     pub async fn get_traces_for_miniblock(
         &mut self,
         block_number: MiniblockNumber,
