@@ -21,7 +21,7 @@ pub trait Resource: 'static + Send + Sync + std::any::Any {
     /// of the resource itself.
     fn resource_id() -> ResourceId;
 
-    fn on_resoure_wired(&mut self) {}
+    fn on_resource_wired(&mut self) {}
 }
 
 /// Internal, object-safe version of [`Resource`].
@@ -43,7 +43,7 @@ impl<T: Resource> StoredResource for T {
     }
 
     fn stored_resource_wired(&mut self) {
-        Resource::on_resoure_wired(self);
+        Resource::on_resource_wired(self);
     }
 }
 

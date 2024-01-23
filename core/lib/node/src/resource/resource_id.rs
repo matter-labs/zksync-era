@@ -7,6 +7,9 @@ use std::{
 /// Typically, represented as a path-like string, e.g. `common/master_pool`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ResourceId {
+    /// Path-like representation of the resource identifier.
+    /// Represented as a `Vec` for ID composability (e.g. collection IDs can be defined as
+    /// `ResourceId::from("collection") + Resource::resource_id()`).
     id: Vec<&'static str>,
 }
 

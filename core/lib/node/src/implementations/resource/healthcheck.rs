@@ -18,6 +18,7 @@ impl HealthCheckResource {
 impl fmt::Debug for HealthCheckResource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("HealthCheckResource")
+            .field("name", &self.0.name())
             .finish_non_exhaustive()
     }
 }
