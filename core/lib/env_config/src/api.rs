@@ -75,6 +75,7 @@ mod tests {
                 estimate_gas_scale_factor: 1.0f64,
                 gas_price_scale_factor: 1.2,
                 estimate_gas_acceptable_overestimation: 1000,
+                l1_to_l2_transactions_compatibility_mode: true,
                 max_tx_size: 1000000,
                 vm_execution_cache_misses_limit: None,
                 vm_concurrency_limit: Some(512),
@@ -119,6 +120,7 @@ mod tests {
             API_WEB3_JSON_RPC_ACCOUNT_PKS="0x0000000000000000000000000000000000000000000000000000000000000001,0x0000000000000000000000000000000000000000000000000000000000000002"
             API_WEB3_JSON_RPC_ESTIMATE_GAS_SCALE_FACTOR=1.0
             API_WEB3_JSON_RPC_ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION=1000
+            API_WEB3_JSON_RPC_L1_TO_L2_TRANSACTIONS_COMPATIBILITY_MODE=true
             API_WEB3_JSON_RPC_MAX_TX_SIZE=1000000
             API_WEB3_JSON_RPC_VM_CONCURRENCY_LIMIT=512
             API_WEB3_JSON_RPC_FACTORY_DEPS_CACHE_SIZE_MB=128

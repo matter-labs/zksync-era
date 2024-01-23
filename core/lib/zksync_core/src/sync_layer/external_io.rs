@@ -83,9 +83,10 @@ impl ExternalIO {
             .blocks_dal()
             .get_sealed_miniblock_number()
             .await
-            .unwrap();
-        // We must run the migration for pending miniblocks synchronously, since we use `fee_account_address`
-        // from a pending miniblock in `load_pending_batch()` implementation.
+            .unwrap()
+            .expect("empty storage not supported"); // FIXME (PLA-703): handle empty storage
+                                                    // We must run the migration for pending miniblocks synchronously, since we use `fee_account_address`
+                                                    // from a pending miniblock in `load_pending_batch()` implementation.
         fee_address_migration::migrate_pending_miniblocks(&mut storage).await;
         drop(storage);
 
@@ -305,6 +306,7 @@ impl StateKeeperIO for ExternalIO {
                     timestamp,
                     l1_gas_price,
                     l2_fair_gas_price,
+                    fair_pubdata_price,
                     operator_address,
                     protocol_version,
                     first_miniblock_info: (miniblock_number, virtual_blocks),
@@ -331,7 +333,12 @@ impl StateKeeperIO for ExternalIO {
                         operator_address,
                         timestamp,
                         previous_l1_batch_hash,
-                        BatchFeeInput::l1_pegged(l1_gas_price, l2_fair_gas_price),
+                        BatchFeeInput::for_protocol_version(
+                            protocol_version,
+                            l2_fair_gas_price,
+                            fair_pubdata_price,
+                            l1_gas_price,
+                        ),
                         miniblock_number,
                         previous_miniblock_hash,
                         base_system_contracts,

@@ -75,6 +75,7 @@ pub(crate) async fn create_miniblock(
         fee_account_address: Address::default(),
         base_fee_per_gas: 0,
         batch_fee_input: Default::default(),
+        gas_per_pubdata_limit: 0,
         base_system_contracts_hashes: Default::default(),
         protocol_version: Some(Default::default()),
         virtual_blocks: 0,

@@ -1,42 +1,32 @@
 //! Utility functions for vm
-use zksync_system_constants::MAX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
-    fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
+    fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     U256,
 };
 use zksync_utils::ceil_div;
 
-use crate::vm_latest::{old_vm::utils::eth_price_per_pubdata_byte, L1BatchEnv};
-
-/// Calculates the amount of gas required to publish one byte of pubdata
-pub fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
-    let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
-
-    ceil_div(eth_price_per_pubdata_byte, base_fee)
-}
+use crate::vm_latest::{constants::MAX_GAS_PER_PUBDATA_BYTE, L1BatchEnv};
 
 /// Calculates the base fee and gas per pubdata for the given L1 gas price.
 pub(crate) fn derive_base_fee_and_gas_per_pubdata(
-    fee_input: L1PeggedBatchFeeModelInput,
+    fee_input: PubdataIndependentBatchFeeModelInput,
 ) -> (u64, u64) {
-    let L1PeggedBatchFeeModelInput {
-        l1_gas_price,
+    let PubdataIndependentBatchFeeModelInput {
         fair_l2_gas_price,
+        fair_pubdata_price,
+        ..
     } = fee_input;
-
-    let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
 
     // The `baseFee` is set in such a way that it is always possible for a transaction to
     // publish enough public data while compensating us for it.
     let base_fee = std::cmp::max(
         fair_l2_gas_price,
-        ceil_div(eth_price_per_pubdata_byte, MAX_GAS_PER_PUBDATA_BYTE),
+        ceil_div(fair_pubdata_price, MAX_GAS_PER_PUBDATA_BYTE),
     );
 
-    (
-        base_fee,
-        base_fee_to_gas_per_pubdata(l1_gas_price, base_fee),
-    )
+    let gas_per_pubdata = ceil_div(fair_pubdata_price, base_fee);
+
+    (base_fee, gas_per_pubdata)
 }
 
 pub(crate) fn get_batch_base_fee(l1_batch_env: &L1BatchEnv) -> u64 {
@@ -44,12 +34,8 @@ pub(crate) fn get_batch_base_fee(l1_batch_env: &L1BatchEnv) -> u64 {
         return base_fee;
     }
     let (base_fee, _) =
-        derive_base_fee_and_gas_per_pubdata(l1_batch_env.fee_input.into_l1_pegged());
+        derive_base_fee_and_gas_per_pubdata(l1_batch_env.fee_input.into_pubdata_independent());
     base_fee
-}
-
-pub(crate) fn get_batch_gas_per_pubdata(l1_batch_env: &L1BatchEnv) -> u64 {
-    derive_base_fee_and_gas_per_pubdata(l1_batch_env.fee_input.into_l1_pegged()).1
 }
 
 /// Changes the fee model output so that the expected gas per pubdata is smaller than or the `tx_gas_per_pubdata_limit`.
