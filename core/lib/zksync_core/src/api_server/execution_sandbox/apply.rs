@@ -322,11 +322,20 @@ impl BlockArgs {
         )
     }
 
+    pub(crate) fn is_estimate_like(&self) -> bool {
+        matches!(
+            self.block_id,
+            api::BlockId::Number(api::BlockNumber::Pending)
+                | api::BlockId::Number(api::BlockNumber::Latest)
+                | api::BlockId::Number(api::BlockNumber::Committed)
+        )
+    }
+
     pub(crate) async fn resolve_block_info(
         &self,
         connection: &mut StorageProcessor<'_>,
     ) -> anyhow::Result<ResolvedBlockInfo> {
-        let (state_l2_block_number, vm_l1_batch_number, l1_batch_timestamp, historical_fee_input);
+        let (state_l2_block_number, vm_l1_batch_number, l1_batch_timestamp);
 
         if self.is_pending_miniblock() {
             let sealed_l1_batch_number =
@@ -344,13 +353,7 @@ impl BlockArgs {
             state_l2_block_number = sealed_miniblock_header.number;
             // Timestamp of the next L1 batch must be greater than the timestamp of the last miniblock.
             l1_batch_timestamp = seconds_since_epoch().max(sealed_miniblock_header.timestamp + 1);
-            historical_fee_input = None;
         } else {
-            let miniblock_header = connection
-                .blocks_dal()
-                .get_miniblock_header(self.resolved_block_number)
-                .await?
-                .context("The resolved miniblock is not in storage")?;
             vm_l1_batch_number = connection
                 .storage_web3_dal()
                 .resolve_l1_batch_number_of_miniblock(self.resolved_block_number)
@@ -363,7 +366,18 @@ impl BlockArgs {
                 );
             });
             state_l2_block_number = self.resolved_block_number;
-            historical_fee_input = Some(miniblock_header.batch_fee_input);
+        };
+
+        let historical_fee_input = if !self.is_estimate_like() {
+            let miniblock_header = connection
+                .blocks_dal()
+                .get_miniblock_header(self.resolved_block_number)
+                .await?
+                .context("The resolved miniblock is not in storage")?;
+
+            Some(miniblock_header.batch_fee_input)
+        } else {
+            None
         };
 
         // Blocks without version specified are considered to be of `Version9`.
