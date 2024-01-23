@@ -55,6 +55,7 @@ export async function setup() {
     }
     if (process.env.TEMPLATE_DATABASE_URL !== undefined) {
         // Dump and restore from template database (simulate backup)
+        console.log(`Template DB URL provided. Creating a DB via dump from ${process.env.TEMPLATE_DATABASE_URL}`);
         await utils.spawn('cargo sqlx database drop -y');
         await utils.spawn('cargo sqlx database create');
         await utils.spawn(

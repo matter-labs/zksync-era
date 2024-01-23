@@ -264,11 +264,24 @@ async fn test_http_server(test: impl HttpTest) {
 }
 
 fn assert_logs_match(actual_logs: &[api::Log], expected_logs: &[&VmEvent]) {
-    assert_eq!(actual_logs.len(), expected_logs.len());
+    assert_eq!(
+        actual_logs.len(),
+        expected_logs.len(),
+        "expected: {expected_logs:?}, actual: {actual_logs:?}"
+    );
     for (actual_log, &expected_log) in actual_logs.iter().zip(expected_logs) {
-        assert_eq!(actual_log.address, expected_log.address);
-        assert_eq!(actual_log.topics, expected_log.indexed_topics);
-        assert_eq!(actual_log.data.0, expected_log.value);
+        assert_eq!(
+            actual_log.address, expected_log.address,
+            "expected: {expected_logs:?}, actual: {actual_logs:?}"
+        );
+        assert_eq!(
+            actual_log.topics, expected_log.indexed_topics,
+            "expected: {expected_logs:?}, actual: {actual_logs:?}"
+        );
+        assert_eq!(
+            actual_log.data.0, expected_log.value,
+            "expected: {expected_logs:?}, actual: {actual_logs:?}"
+        );
     }
 }
 
