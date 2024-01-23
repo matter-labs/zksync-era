@@ -812,10 +812,10 @@ async fn getting_transaction_count_for_account_after_snapshot_recovery() {
 }
 
 #[derive(Debug)]
-struct TransactionReceipts;
+struct TransactionReceiptsTest;
 
 #[async_trait]
-impl HttpTest for TransactionReceipts {
+impl HttpTest for TransactionReceiptsTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
         let mut storage = pool.access_storage().await?;
         let miniblock_number = MiniblockNumber(1);
@@ -841,12 +841,8 @@ impl HttpTest for TransactionReceipts {
             );
         }
 
-        assert_eq!(expected_receipts.len(), 2);
-        for index in 0..expected_receipts.len() {
-            assert_eq!(
-                expected_receipts[index].transaction_hash,
-                tx_results[index].hash
-            );
+        for (tx_result, receipt) in tx_results.iter().zip(&expected_receipts) {
+            assert_eq!(tx_result.hash, receipt.transaction_hash);
         }
 
         let receipts = client
@@ -855,8 +851,8 @@ impl HttpTest for TransactionReceipts {
             ))))
             .await?;
         assert_eq!(receipts.len(), 2);
-        for index in 0..receipts.len() {
-            assert_eq!(receipts[index], expected_receipts[index]);
+        for (receipt, expected_receipt) in receipts.iter().zip(&expected_receipts) {
+            assert_eq!(receipt, expected_receipt);
         }
         Ok(())
     }
@@ -864,5 +860,5 @@ impl HttpTest for TransactionReceipts {
 
 #[tokio::test]
 async fn transaction_receipts() {
-    test_http_server(TransactionReceipts).await;
+    test_http_server(TransactionReceiptsTest).await;
 }

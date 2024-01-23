@@ -342,10 +342,12 @@ impl EthNamespace {
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 
-        let hashes = block
-            .clone()
-            .unwrap()
-            .transactions
+        let transactions = match block.clone() {
+            Some(block) => block.transactions,
+            None => vec![],
+        };
+
+        let hashes = transactions
             .into_iter()
             .map(|tx| match tx {
                 TransactionVariant::Full(tx) => tx.hash,
@@ -360,7 +362,7 @@ impl EthNamespace {
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?
             .transactions_web3_dal()
-            .get_transaction_receipts(hashes.clone())
+            .get_transaction_receipts(hashes)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 

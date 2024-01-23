@@ -97,24 +97,23 @@ impl TransactionsWeb3Dal<'_, '_> {
             })
             .collect();
 
-        let logs = self
+        let mut logs = self
             .storage
             .events_dal()
             .get_logs_by_hashes(hashes.clone())
             .await?;
 
-        let l2_to_l1_logs = self
+        let mut l2_to_l1_logs = self
             .storage
             .events_dal()
             .get_l2_to_l1_logs_by_hashes(hashes)
             .await?;
 
-        for receipt in receipts.iter_mut() {
-            let logs_for_tx = logs.get(&receipt.transaction_hash);
+        for receipt in &mut receipts {
+            let logs_for_tx = logs.remove(&receipt.transaction_hash);
 
             if let Some(logs) = logs_for_tx {
                 receipt.logs = logs
-                    .clone()
                     .into_iter()
                     .map(|mut log| {
                         log.block_hash = Some(receipt.block_hash);
@@ -124,10 +123,9 @@ impl TransactionsWeb3Dal<'_, '_> {
                     .collect();
             }
 
-            let l2_to_l1_logs_for_tx = l2_to_l1_logs.get(&receipt.transaction_hash);
+            let l2_to_l1_logs_for_tx = l2_to_l1_logs.remove(&receipt.transaction_hash);
             if let Some(l2_to_l1_logs) = l2_to_l1_logs_for_tx {
                 receipt.l2_to_l1_logs = l2_to_l1_logs
-                    .clone()
                     .into_iter()
                     .map(|mut log| {
                         log.block_hash = Some(receipt.block_hash);

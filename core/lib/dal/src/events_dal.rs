@@ -239,13 +239,7 @@ impl EventsDal<'_, '_> {
         for storage_log in logs {
             let current_log = api::Log::from(storage_log);
             let tx_hash = current_log.transaction_hash.unwrap();
-            let logs = result.get_mut(&tx_hash);
-            match logs {
-                Some(logs) => logs.push(current_log),
-                None => {
-                    result.insert(tx_hash, vec![current_log]);
-                }
-            }
+            result.entry(tx_hash).or_default().push(current_log);
         }
 
         Ok(result)
@@ -302,13 +296,10 @@ impl EventsDal<'_, '_> {
 
         for storage_log in logs {
             let current_log = api::L2ToL1Log::from(storage_log);
-            let logs = result.get_mut(&current_log.transaction_hash);
-            match logs {
-                Some(logs) => logs.push(current_log),
-                None => {
-                    result.insert(current_log.transaction_hash, vec![current_log]);
-                }
-            }
+            result
+                .entry(current_log.transaction_hash)
+                .or_default()
+                .push(current_log);
         }
 
         Ok(result)
