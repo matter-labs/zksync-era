@@ -1,54 +1,48 @@
-use std::collections::HashMap;
-
-use async_trait::async_trait;
-use zksync_types::{api::en::SyncBlock, snapshots::SnapshotHeader, MiniblockNumber};
-use zksync_web3_decl::jsonrpsee::core::ClientError as RpcError;
-
-use crate::SnapshotsApplierMainNodeClient;
-
-#[derive(Debug, Default)]
-struct MockMainNodeClient {
-    fetch_l2_block_responses: HashMap<MiniblockNumber, SyncBlock>,
-    fetch_newest_snapshot_response: Option<SnapshotHeader>,
-}
-
-#[async_trait]
-impl SnapshotsApplierMainNodeClient for MockMainNodeClient {
-    async fn fetch_l2_block(&self, number: MiniblockNumber) -> Result<Option<SyncBlock>, RpcError> {
-        if let Some(response) = self.fetch_l2_block_responses.get(&number) {
-            Ok(Some((*response).clone()))
-        } else {
-            Ok(None)
-        }
-    }
-
-    async fn fetch_newest_snapshot(&self) -> Result<Option<SnapshotHeader>, RpcError> {
-        if let Some(response) = self.fetch_newest_snapshot_response.clone() {
-            Ok(Some(response))
-        } else {
-            Ok(None)
-        }
-    }
-}
 #[cfg(test)]
-mod snapshots_applier_tests {
-    use zksync_dal::ConnectionPool;
-    use zksync_object_store::ObjectStoreFactory;
+mod utils {
+    use std::collections::HashMap;
+
+    use async_trait::async_trait;
     use zksync_types::{
         api::en::SyncBlock,
         block::L1BatchHeader,
         commitment::{L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata},
-        snapshots::{
-            SnapshotFactoryDependencies, SnapshotFactoryDependency, SnapshotHeader,
-            SnapshotRecoveryStatus, SnapshotStorageLog, SnapshotStorageLogsChunk,
-            SnapshotStorageLogsChunkMetadata, SnapshotStorageLogsStorageKey,
-        },
-        AccountTreeId, Bytes, L1BatchNumber, MiniblockNumber, StorageKey, StorageValue, H160, H256,
+        snapshots::{SnapshotHeader, SnapshotStorageLog},
+        AccountTreeId, L1BatchNumber, MiniblockNumber, StorageKey, StorageValue, H160, H256,
     };
+    use zksync_web3_decl::jsonrpsee::core::ClientError as RpcError;
 
-    use crate::{tests::MockMainNodeClient, SnapshotsApplier};
+    use crate::SnapshotsApplierMainNodeClient;
 
-    fn miniblock_metadata(
+    #[derive(Debug, Default)]
+    pub(crate) struct MockMainNodeClient {
+        pub(crate) fetch_l2_block_responses: HashMap<MiniblockNumber, SyncBlock>,
+        pub(crate) fetch_newest_snapshot_response: Option<SnapshotHeader>,
+    }
+
+    #[async_trait]
+    impl SnapshotsApplierMainNodeClient for MockMainNodeClient {
+        async fn fetch_l2_block(
+            &self,
+            number: MiniblockNumber,
+        ) -> Result<Option<SyncBlock>, RpcError> {
+            if let Some(response) = self.fetch_l2_block_responses.get(&number) {
+                Ok(Some((*response).clone()))
+            } else {
+                Ok(None)
+            }
+        }
+
+        async fn fetch_newest_snapshot(&self) -> Result<Option<SnapshotHeader>, RpcError> {
+            if let Some(response) = self.fetch_newest_snapshot_response.clone() {
+                Ok(Some(response))
+            } else {
+                Ok(None)
+            }
+        }
+    }
+
+    pub(crate) fn miniblock_metadata(
         miniblock_number: MiniblockNumber,
         l1_batch_number: L1BatchNumber,
         root_hash: H256,
@@ -70,28 +64,18 @@ mod snapshots_applier_tests {
         }
     }
 
-    fn l1_block_metadata(l1_batch_number: L1BatchNumber, root_hash: H256) -> L1BatchWithMetadata {
+    pub(crate) fn l1_block_metadata(
+        l1_batch_number: L1BatchNumber,
+        root_hash: H256,
+    ) -> L1BatchWithMetadata {
         L1BatchWithMetadata {
-            header: L1BatchHeader {
-                number: l1_batch_number,
-                is_finished: false,
-                timestamp: 0,
-                fee_account_address: Default::default(),
-                l1_tx_count: 0,
-                l2_tx_count: 0,
-                priority_ops_onchain_data: vec![],
-                l2_to_l1_logs: vec![],
-                l2_to_l1_messages: vec![],
-                bloom: Default::default(),
-                used_contract_hashes: vec![],
-                base_fee_per_gas: 0,
-                l1_gas_price: 0,
-                l2_fair_gas_price: 0,
-                base_system_contracts_hashes: Default::default(),
-                system_logs: vec![],
-                protocol_version: None,
-                pubdata_input: None,
-            },
+            header: L1BatchHeader::new(
+                l1_batch_number,
+                0,
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ),
             metadata: L1BatchMetadata {
                 root_hash,
                 rollup_last_leaf_index: 0,
@@ -117,7 +101,7 @@ mod snapshots_applier_tests {
         }
     }
 
-    fn random_storage_logs(
+    pub(crate) fn random_storage_logs(
         l1_batch_number: L1BatchNumber,
         chunk_id: u64,
         logs_per_chunk: u64,
@@ -134,6 +118,27 @@ mod snapshots_applier_tests {
             })
             .collect()
     }
+}
+
+#[cfg(test)]
+mod snapshots_applier_tests {
+    use zksync_dal::ConnectionPool;
+    use zksync_object_store::ObjectStoreFactory;
+    use zksync_types::{
+        snapshots::{
+            SnapshotFactoryDependencies, SnapshotFactoryDependency, SnapshotHeader,
+            SnapshotRecoveryStatus, SnapshotStorageLog, SnapshotStorageLogsChunk,
+            SnapshotStorageLogsChunkMetadata, SnapshotStorageLogsStorageKey,
+        },
+        Bytes, L1BatchNumber, MiniblockNumber, H256,
+    };
+
+    use crate::{
+        tests::utils::{
+            l1_block_metadata, miniblock_metadata, random_storage_logs, MockMainNodeClient,
+        },
+        SnapshotsApplier,
+    };
 
     #[tokio::test]
     async fn snapshots_creator_can_successfully_recover_db() {
