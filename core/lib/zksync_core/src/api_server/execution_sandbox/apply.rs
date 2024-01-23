@@ -192,7 +192,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     } = shared_args;
 
     // In case we are executing in a past block, we'll
-    //
+    // use the historical fee data.
     let fee_input = historical_fee_input.unwrap_or(fee_input);
     let fee_input = if adjust_pubdata_price {
         adjust_pubdata_price_for_tx(
