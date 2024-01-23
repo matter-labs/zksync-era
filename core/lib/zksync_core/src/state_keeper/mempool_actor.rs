@@ -1,5 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
+use anyhow::Context as _;
 use multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use tokio::sync::watch;
 use zksync_config::configs::chain::MempoolConfig;
@@ -57,15 +58,20 @@ impl<G: BatchFeeModelInputProvider> MempoolFetcher<G> {
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         {
-            let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
+            let mut storage = pool.access_storage_tagged("state_keeper").await?;
             if remove_stuck_txs {
                 let removed_txs = storage
                     .transactions_dal()
                     .remove_stuck_txs(stuck_tx_timeout)
-                    .await;
-                tracing::info!("Number of stuck txs was removed: {}", removed_txs);
+                    .await
+                    .context("failed removing stuck transactions")?;
+                tracing::info!("Number of stuck txs was removed: {removed_txs}");
             }
-            storage.transactions_dal().reset_mempool().await;
+            storage
+                .transactions_dal()
+                .reset_mempool()
+                .await
+                .context("failed resetting mempool")?;
         }
 
         loop {
@@ -74,14 +80,16 @@ impl<G: BatchFeeModelInputProvider> MempoolFetcher<G> {
                 break;
             }
             let latency = KEEPER_METRICS.mempool_sync.start();
-            let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
+            let mut storage = pool.access_storage_tagged("state_keeper").await?;
             let mempool_info = self.mempool.get_mempool_info();
 
-            let latest_miniblock = BlockArgs::pending(&mut storage).await;
+            let latest_miniblock = BlockArgs::pending(&mut storage)
+                .await
+                .context("failed obtaining latest miniblock")?;
             let protocol_version = latest_miniblock
                 .resolve_block_info(&mut storage)
                 .await
-                .unwrap()
+                .with_context(|| format!("failed resolving block info for {latest_miniblock:?}"))?
                 .protocol_version;
 
             let l2_tx_filter = l2_tx_filter(
@@ -93,13 +101,16 @@ impl<G: BatchFeeModelInputProvider> MempoolFetcher<G> {
             let (transactions, nonces) = storage
                 .transactions_dal()
                 .sync_mempool(
-                    mempool_info.stashed_accounts,
-                    mempool_info.purged_accounts,
+                    &mempool_info.stashed_accounts,
+                    &mempool_info.purged_accounts,
                     l2_tx_filter.gas_per_pubdata,
                     l2_tx_filter.fee_per_gas,
                     self.sync_batch_size,
                 )
-                .await;
+                .await
+                .context("failed syncing mempool")?;
+            drop(storage);
+
             let all_transactions_loaded = transactions.len() < self.sync_batch_size;
             self.mempool.insert(transactions, nonces);
             latency.observe();

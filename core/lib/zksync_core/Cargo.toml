@@ -89,7 +89,7 @@ actix-web = "4.0.0-beta.8"
 tracing = "0.1.26"
 
 [dev-dependencies]
-zksync_test_account = { path = "../test_account" }
+zksync_test_account = { path = "../../tests/test_account" }
 
 assert_matches = "1.5"
 jsonrpsee = "0.21.0"
