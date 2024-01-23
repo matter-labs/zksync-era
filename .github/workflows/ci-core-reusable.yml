@@ -120,8 +120,12 @@ jobs:
   integration:
     strategy:
       matrix:
-        consensus_env_vars: ["","CONSENSUS_CONFIG_PATH=etc/env/consensus_config.json"]
+        consensus_env_vars: ["","CONSENSUS_CONFIG_PATH"]
     runs-on: [matterlabs-ci-runner]
+
+    env:
+      CONSENSUS_CONFIG_PATH: "etc/env/consensus_config.json"
+      PASSED_VARIABLES: "${{ consensus_env_vars }}"
 
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
@@ -237,8 +241,13 @@ jobs:
   external-node:
     strategy:
       matrix:
-        consensus_env_vars: ["","CONSENSUS_CONFIG_PATH=etc/env/consensus_config.json,EN_CONSENSUS_CONFIG_PATH=etc/env/en_consensus_config.json"]
+        consensus_env_vars: ["","CONSENSUS_CONFIG_PATH,EN_CONSENSUS_CONFIG_PATH"]
     runs-on: [matterlabs-ci-runner]
+    
+    env:
+      CONSENSUS_CONFIG_PATH: "etc/env/consensus_config.json"
+      EN_CONSENSUS_CONFIG_PATH: "etc/env/en_consensus_config.json"
+      PASSED_VARIABLES: "${{ consensus_env_vars }}"
 
     steps:
       - name: Checkout code # Checks out the repository under $GITHUB_WORKSPACE, so the job can access it.
@@ -301,8 +310,6 @@ jobs:
         run: |
           ci_run zk server &>server.log &
           ci_run sleep 30
-        env:
-          PASSED_ENV_VARS: "${{ matrix.consensus_env_vars }}"
       
       - name: Run external node
         run: |
@@ -310,8 +317,6 @@ jobs:
           ci_run zk db setup
           ci_run zk external-node &>ext-node.log &
           ci_run sleep 30
-        env:
-          PASSED_ENV_VARS: "${{ matrix.consensus_env_vars }}"
 
       # TODO(PLA-653): Restore bridge tests for EN.
       - name: Integration tests
