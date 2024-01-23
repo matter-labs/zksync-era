@@ -24,6 +24,7 @@ use zksync_system_constants::{
 use zksync_types::{
     api,
     block::{pack_block_info, unpack_block_info, MiniblockHasher},
+    fee_model::BatchFeeInput,
     get_nonce_key,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     AccountTreeId, L1BatchNumber, MiniblockNumber, Nonce, ProtocolVersionId, StorageKey,
@@ -76,6 +77,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
         vm_l1_batch_number,
         l1_batch_timestamp,
         protocol_version,
+        historical_fee_input,
     } = rt_handle
         .block_on(block_args.resolve_block_info(&mut connection))
         .expect("Failed resolving block numbers");
@@ -189,6 +191,9 @@ pub(super) fn apply_vm_in_sandbox<T>(
         ..
     } = shared_args;
 
+    // In case we are executing in a past block, we'll
+    //
+    let fee_input = historical_fee_input.unwrap_or(fee_input);
     let fee_input = if adjust_pubdata_price {
         adjust_pubdata_price_for_tx(
             fee_input,
@@ -306,6 +311,7 @@ pub(crate) struct ResolvedBlockInfo {
     pub vm_l1_batch_number: L1BatchNumber,
     pub l1_batch_timestamp: u64,
     pub protocol_version: ProtocolVersionId,
+    pub historical_fee_input: Option<BatchFeeInput>,
 }
 
 impl BlockArgs {
@@ -320,7 +326,7 @@ impl BlockArgs {
         &self,
         connection: &mut StorageProcessor<'_>,
     ) -> anyhow::Result<ResolvedBlockInfo> {
-        let (state_l2_block_number, vm_l1_batch_number, l1_batch_timestamp);
+        let (state_l2_block_number, vm_l1_batch_number, l1_batch_timestamp, historical_fee_input);
 
         if self.is_pending_miniblock() {
             let sealed_l1_batch_number =
@@ -338,7 +344,13 @@ impl BlockArgs {
             state_l2_block_number = sealed_miniblock_header.number;
             // Timestamp of the next L1 batch must be greater than the timestamp of the last miniblock.
             l1_batch_timestamp = seconds_since_epoch().max(sealed_miniblock_header.timestamp + 1);
+            historical_fee_input = None;
         } else {
+            let miniblock_header = connection
+                .blocks_dal()
+                .get_miniblock_header(self.resolved_block_number)
+                .await?
+                .context("The resolved miniblock is not in storage")?;
             vm_l1_batch_number = connection
                 .storage_web3_dal()
                 .resolve_l1_batch_number_of_miniblock(self.resolved_block_number)
@@ -351,6 +363,7 @@ impl BlockArgs {
                 );
             });
             state_l2_block_number = self.resolved_block_number;
+            historical_fee_input = Some(miniblock_header.batch_fee_input);
         };
 
         // Blocks without version specified are considered to be of `Version9`.
@@ -366,6 +379,7 @@ impl BlockArgs {
             vm_l1_batch_number,
             l1_batch_timestamp,
             protocol_version,
+            historical_fee_input,
         })
     }
 }
