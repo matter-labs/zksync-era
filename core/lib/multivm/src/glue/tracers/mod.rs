@@ -73,6 +73,12 @@ pub trait IntoVmBoojumIntegrationTracer<S: WriteStorage, H: HistoryMode> {
     ) -> Box<dyn crate::vm_boojum_integration::VmTracer<S, H::VmBoojumIntegration>>;
 }
 
+/// Into tracers for old VM versions.
+/// Even though number of tracers is limited, we still need to have this trait to be able to convert
+/// tracers to old VM tracers.
+/// Unfortunately we can't implement this trait for `T`, because specialization is not stable yet.
+/// You can follow the conversation here: https://github.com/rust-lang/rust/issues/31844
+/// For all new tracers we need to implement this trait manually.
 pub trait IntoOldVmTracer {
     fn old_tracer(&self) -> OldTracers {
         OldTracers::None

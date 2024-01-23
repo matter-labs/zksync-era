@@ -3,10 +3,13 @@ use std::sync::Arc;
 use once_cell::sync::OnceCell;
 use zksync_types::vm_trace::Call;
 
+/// For backward compatibility with vm before vm with virtual blocks.
+/// These tracers are tightly coupled with the VM implementation and we have to pass only params for them and not tracers by itself.
 #[derive(Debug, Clone)]
 pub enum OldTracers {
     CallTracer(Arc<OnceCell<Vec<Call>>>),
     StorageInvocations(usize),
+    /// Special cases for not supported tracers.
     None,
 }
 
@@ -25,6 +28,7 @@ impl OldTracers {
     }
 }
 
+/// Tracer dispatcher is a tracer that can convert list of tracers to params for old VM.
 #[derive(Debug, Default, Clone)]
 pub struct TracerDispatcher {
     pub(crate) call_tracer: Option<Arc<OnceCell<Vec<Call>>>>,
