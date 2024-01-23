@@ -236,13 +236,6 @@ pub struct BasicCircuitWitnessGeneratorInput {
 }
 
 #[derive(Clone)]
-pub struct PrepareLeafAggregationCircuitsJob {
-    pub basic_circuits: BlockBasicCircuits<Bn256>,
-    pub basic_circuits_inputs: BlockBasicCircuitsPublicInputs<Bn256>,
-    pub basic_circuits_proofs: Vec<Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>>,
-}
-
-#[derive(Clone)]
 pub struct PrepareNodeAggregationCircuitJob {
     pub previous_level_proofs: Vec<Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>>,
     pub previous_level_leafs_aggregations: Vec<LeafAggregationOutputDataWitness<Bn256>>,
