@@ -7,8 +7,11 @@ use anyhow::Context as _;
 use multivm::interface::{Halt, L1BatchEnv, SystemEnv};
 use tokio::sync::watch;
 use zksync_types::{
-    block::MiniblockExecutionData, l2::TransactionType, protocol_version::ProtocolUpgradeTx,
-    storage_writes_deduplicator::StorageWritesDeduplicator, Transaction,
+    block::MiniblockExecutionData,
+    l2::TransactionType,
+    protocol_version::{ProtocolUpgradeTx, ProtocolVersionId},
+    storage_writes_deduplicator::StorageWritesDeduplicator,
+    L1BatchNumber, Transaction,
 };
 
 use super::{
@@ -136,25 +139,50 @@ impl ZkSyncStateKeeper {
 
         let previous_batch_protocol_version =
             self.io.load_previous_batch_version_id().await.unwrap();
+
+        let first_batch_in_shared_bridge = l1_batch_env.number == L1BatchNumber(1)
+            && protocol_version > ProtocolVersionId::Vm1_4_1;
         let version_changed = protocol_version != previous_batch_protocol_version;
 
-        let mut protocol_upgrade_tx = if pending_miniblocks.is_empty() && version_changed {
-            self.io.load_upgrade_tx(protocol_version).await
-        } else if !pending_miniblocks.is_empty() && version_changed {
-            // Sanity check: if `txs_to_reexecute` is not empty and upgrade tx is present for this block
-            // then it must be the first one in `txs_to_reexecute`.
-            if self.io.load_upgrade_tx(protocol_version).await.is_some() {
-                let first_tx_to_reexecute = &pending_miniblocks[0].txs[0];
-                assert_eq!(
-                    first_tx_to_reexecute.tx_format(),
-                    TransactionType::ProtocolUpgradeTransaction
-                )
-            }
+        let mut protocol_upgrade_tx = self.io.load_upgrade_tx(protocol_version).await;
 
-            None
-        } else {
-            None
-        };
+        // After the Shared Bridge is integrated,
+        // there has to be a setChainId upgrade transaction after the chain genesis.
+        // It has to be the first transaction of the first batch.
+        // If it's not present, we have to wait for it to be picked up by the event watcher.
+        // The setChainId upgrade does not bump the protocol version, rather attaches an upgrade
+        // transaction to the genesis protocol version.
+        while first_batch_in_shared_bridge && protocol_upgrade_tx.is_none() {
+            tracing::info!("Waiting for setChainId upgrade transaction to be picked up");
+            if self.is_canceled().await {
+                return Err(Error::Canceled);
+            }
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            protocol_upgrade_tx = self.io.load_upgrade_tx(protocol_version).await;
+        }
+
+        let mut protocol_upgrade_tx =
+            if pending_miniblocks.is_empty() && (version_changed || first_batch_in_shared_bridge) {
+                tracing::info!("We have upgrade tx to be executed in empty miniblock");
+                protocol_upgrade_tx
+            } else if !pending_miniblocks.is_empty()
+                && (version_changed || first_batch_in_shared_bridge)
+            {
+                // Sanity check: if `txs_to_reexecute` is not empty and upgrade tx is present for this block
+                // then it must be the first one in `txs_to_reexecute`.
+                if protocol_upgrade_tx.is_some() {
+                    let first_tx_to_reexecute = &pending_miniblocks[0].txs[0];
+                    assert_eq!(
+                        first_tx_to_reexecute.tx_format(),
+                        TransactionType::ProtocolUpgradeTransaction
+                    )
+                }
+                tracing::info!("We have no upgrade tx to execute");
+                None
+            } else {
+                tracing::info!("We are not changing protocol version");
+                None
+            };
 
         let mut batch_executor = self
             .batch_executor_base
@@ -213,9 +241,10 @@ impl ZkSyncStateKeeper {
                 .init_batch(l1_batch_env.clone(), system_env.clone())
                 .await;
 
-            let version_changed = system_env.version != sealed_batch_protocol_version;
+            let version_changed_or_first_batch =
+                system_env.version != sealed_batch_protocol_version || first_batch_in_shared_bridge;
 
-            protocol_upgrade_tx = if version_changed {
+            protocol_upgrade_tx = if version_changed_or_first_batch {
                 self.io.load_upgrade_tx(system_env.version).await
             } else {
                 None

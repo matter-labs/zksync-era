@@ -296,7 +296,6 @@ impl EthTxAggregator {
         // This is here for backward compatibility with the old verifier:
         // Pre-boojum verifier returns the full verification key;
         // New verifier returns the hash of the verification key
-        tracing::debug!("Calling get_verification_key");
         if contracts_are_pre_boojum {
             let abi = Contract {
                 functions: [(
@@ -313,7 +312,6 @@ impl EthTxAggregator {
             Ok(l1_vk_commitment(Token::from_tokens(vk)?))
         } else {
             let get_vk_hash = self.functions.verification_key_hash.as_ref();
-            tracing::debug!("Calling verificationKeyHash");
             let args = CallFunctionArgs::new(&get_vk_hash.unwrap().name, ())
                 .for_contract(verifier_address, self.functions.verifier_contract.clone());
             let vk_hash = self.eth_client.call_contract_function(args).await?;
