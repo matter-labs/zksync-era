@@ -1,17 +1,21 @@
 use std::{sync::Arc, time::Duration};
 
+use anyhow::Context as _;
 use tokio::runtime::Handle;
-use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
 use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
-use zksync_types::{api, fee_model::BatchFeeInput, AccountTreeId, L2ChainId, MiniblockNumber};
+use zksync_types::{
+    api, fee_model::BatchFeeInput, AccountTreeId, L1BatchNumber, L2ChainId, MiniblockNumber,
+};
 use zksync_utils::bytecode::{compress_bytecode, hash_bytecode};
 
 use self::vm_metrics::SandboxStage;
 pub(super) use self::{
     error::SandboxExecutionError,
-    execute::{execute_tx_eth_call, execute_tx_in_sandbox, TxExecutionArgs},
+    execute::{TransactionExecutor, TxExecutionArgs},
     tracers::ApiTracer,
+    validate::ValidationError,
     vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
 };
 use super::tx_sender::MultiVMBaseSystemContracts;
@@ -20,6 +24,10 @@ use super::tx_sender::MultiVMBaseSystemContracts;
 mod apply;
 mod error;
 mod execute;
+#[cfg(test)]
+pub(super) mod testonly;
+#[cfg(test)]
+mod tests;
 mod tracers;
 mod validate;
 mod vm_metrics;
@@ -142,15 +150,15 @@ impl VmConcurrencyLimiter {
 
 async fn get_pending_state(
     connection: &mut StorageProcessor<'_>,
-) -> (api::BlockId, MiniblockNumber) {
+) -> anyhow::Result<(api::BlockId, MiniblockNumber)> {
     let block_id = api::BlockId::Number(api::BlockNumber::Pending);
     let resolved_block_number = connection
         .blocks_web3_dal()
         .resolve_block_id(block_id)
         .await
-        .unwrap()
-        .expect("Pending block should be present");
-    (block_id, resolved_block_number)
+        .with_context(|| format!("failed resolving block ID {block_id:?}"))?
+        .context("pending block should always be present in Postgres")?;
+    Ok((block_id, resolved_block_number))
 }
 
 /// Returns the number of the pubdata that the transaction will spend on factory deps.
@@ -159,14 +167,17 @@ pub(super) async fn get_pubdata_for_factory_deps(
     connection_pool: &ConnectionPool,
     factory_deps: &[Vec<u8>],
     storage_caches: PostgresStorageCaches,
-) -> u32 {
+) -> anyhow::Result<u32> {
     if factory_deps.is_empty() {
-        return 0; // Shortcut for the common case allowing to not acquire DB connections etc.
+        return Ok(0); // Shortcut for the common case allowing to not acquire DB connections etc.
     }
 
-    let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
-    let (_, block_number) = get_pending_state(&mut connection).await;
-    drop(connection);
+    let mut storage = connection_pool
+        .access_storage_tagged("api")
+        .await
+        .context("failed acquiring DB connection")?;
+    let (_, block_number) = get_pending_state(&mut storage).await?;
+    drop(storage);
 
     let rt_handle = Handle::current();
     let connection_pool = connection_pool.clone();
@@ -174,7 +185,7 @@ pub(super) async fn get_pubdata_for_factory_deps(
     tokio::task::spawn_blocking(move || {
         let connection = rt_handle
             .block_on(connection_pool.access_storage_tagged("api"))
-            .unwrap();
+            .context("failed acquiring DB connection")?;
         let storage = PostgresStorage::new(rt_handle, connection, block_number, false)
             .with_caches(storage_caches);
         let mut storage_view = StorageView::new(storage);
@@ -191,10 +202,10 @@ pub(super) async fn get_pubdata_for_factory_deps(
             };
             length as u32 + PUBLISH_BYTECODE_OVERHEAD
         });
-        effective_lengths.sum()
+        anyhow::Ok(effective_lengths.sum())
     })
     .await
-    .unwrap()
+    .context("computing pubdata dependencies size panicked")?
 }
 
 /// Arguments for VM execution not specific to a particular transaction.
@@ -208,6 +219,62 @@ pub(crate) struct TxSharedArgs {
     pub chain_id: L2ChainId,
 }
 
+/// Information about first L1 batch / miniblock in the node storage.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct BlockStartInfo {
+    /// Projected number of the first locally available miniblock. This miniblock is **not**
+    /// guaranteed to be present in the storage!
+    pub first_miniblock: MiniblockNumber,
+    /// Projected number of the first locally available L1 batch. This L1 batch is **not**
+    /// guaranteed to be present in the storage!
+    pub first_l1_batch: L1BatchNumber,
+}
+
+impl BlockStartInfo {
+    pub async fn new(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
+        let snapshot_recovery = storage
+            .snapshot_recovery_dal()
+            .get_applied_snapshot_status()
+            .await
+            .context("failed getting snapshot recovery status")?;
+        let snapshot_recovery = snapshot_recovery.as_ref();
+        Ok(Self {
+            first_miniblock: snapshot_recovery
+                .map_or(MiniblockNumber(0), |recovery| recovery.miniblock_number + 1),
+            first_l1_batch: snapshot_recovery
+                .map_or(L1BatchNumber(0), |recovery| recovery.l1_batch_number + 1),
+        })
+    }
+
+    /// Checks whether a block with the specified ID is pruned and returns an error if it is.
+    /// The `Err` variant wraps the first non-pruned miniblock.
+    pub fn ensure_not_pruned_block(&self, block: api::BlockId) -> Result<(), MiniblockNumber> {
+        match block {
+            api::BlockId::Number(api::BlockNumber::Number(number))
+                if number < self.first_miniblock.0.into() =>
+            {
+                Err(self.first_miniblock)
+            }
+            api::BlockId::Number(api::BlockNumber::Earliest)
+                if self.first_miniblock > MiniblockNumber(0) =>
+            {
+                Err(self.first_miniblock)
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum BlockArgsError {
+    #[error("Block is pruned; first retained block is {0}")]
+    Pruned(MiniblockNumber),
+    #[error("Block is missing, but can appear in the future")]
+    Missing,
+    #[error("Database error")]
+    Database(#[from] anyhow::Error),
+}
+
 /// Information about a block provided to VM.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct BlockArgs {
@@ -217,50 +284,63 @@ pub(crate) struct BlockArgs {
 }
 
 impl BlockArgs {
-    pub(crate) async fn pending(connection: &mut StorageProcessor<'_>) -> Self {
-        let (block_id, resolved_block_number) = get_pending_state(connection).await;
-        Self {
+    pub(crate) async fn pending(connection: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
+        let (block_id, resolved_block_number) = get_pending_state(connection).await?;
+        Ok(Self {
             block_id,
             resolved_block_number,
             l1_batch_timestamp_s: None,
-        }
+        })
     }
 
     /// Loads block information from DB.
     pub async fn new(
         connection: &mut StorageProcessor<'_>,
         block_id: api::BlockId,
-    ) -> Result<Option<Self>, SqlxError> {
+        start_info: BlockStartInfo,
+    ) -> Result<Self, BlockArgsError> {
+        // We need to check that `block_id` is present in Postgres or can be present in the future
+        // (i.e., it does not refer to a pruned block). If called for a pruned block, the returned value
+        // (specifically, `l1_batch_timestamp_s`) will be nonsensical.
+        start_info
+            .ensure_not_pruned_block(block_id)
+            .map_err(BlockArgsError::Pruned)?;
+
         if block_id == api::BlockId::Number(api::BlockNumber::Pending) {
-            return Ok(Some(BlockArgs::pending(connection).await));
+            return Ok(BlockArgs::pending(connection).await?);
         }
 
         let resolved_block_number = connection
             .blocks_web3_dal()
             .resolve_block_id(block_id)
-            .await?;
+            .await
+            .with_context(|| format!("failed resolving block ID {block_id:?}"))?;
         let Some(resolved_block_number) = resolved_block_number else {
-            return Ok(None);
+            return Err(BlockArgsError::Missing);
         };
 
-        let l1_batch_number = connection
+        let l1_batch = connection
             .storage_web3_dal()
             .resolve_l1_batch_number_of_miniblock(resolved_block_number)
-            .await?
-            .expected_l1_batch();
+            .await
+            .with_context(|| {
+                format!("failed resolving L1 batch number of miniblock #{resolved_block_number}")
+            })?;
         let l1_batch_timestamp_s = connection
             .blocks_web3_dal()
-            .get_expected_l1_batch_timestamp(l1_batch_number)
-            .await?;
-        assert!(
-            l1_batch_timestamp_s.is_some(),
-            "Missing batch timestamp for non-pending block"
-        );
-        Ok(Some(Self {
+            .get_expected_l1_batch_timestamp(&l1_batch)
+            .await
+            .with_context(|| format!("failed getting timestamp for {l1_batch:?}"))?;
+        if l1_batch_timestamp_s.is_none() {
+            // Can happen after snapshot recovery if no miniblocks are persisted yet. In this case,
+            // we cannot proceed; the issue will be resolved shortly.
+            return Err(BlockArgsError::Missing);
+        }
+        Ok(Self {
             block_id,
             resolved_block_number,
             l1_batch_timestamp_s,
-        }))
+        })
     }
 
     pub fn resolved_block_number(&self) -> MiniblockNumber {

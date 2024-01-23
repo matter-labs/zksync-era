@@ -1,32 +1,30 @@
 use std::marker::PhantomData;
 
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
-use zk_evm_1_4_0::{
+use zk_evm_1_4_1::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
     vm_state::VmLocalState,
+    zkevm_opcode_defs::system_params::L1_MESSAGE_PUBDATA_BYTES,
 };
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::{PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS};
 use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
     l2_to_l1_log::L2ToL1Log,
-    L1BatchNumber, U256,
+    L1BatchNumber, H256, U256,
 };
 use zksync_utils::{bytecode::bytecode_len_in_bytes, ceil_div_u256, u256_to_h256};
 
 use crate::{
     interface::{
-        traits::tracers::dyn_tracers::vm_1_4_0::DynTracer, types::tracer::TracerExecutionStatus,
+        traits::tracers::dyn_tracers::vm_1_4_1::DynTracer, types::tracer::TracerExecutionStatus,
         L1BatchEnv, Refunds,
     },
     vm_latest::{
         bootloader_state::BootloaderState,
         constants::{BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET},
-        old_vm::{
-            events::merge_events, history_recorder::HistoryMode, memory::SimpleMemory,
-            utils::eth_price_per_pubdata_byte,
-        },
+        old_vm::{events::merge_events, history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::{
             traits::VmTracer,
             utils::{
@@ -102,6 +100,7 @@ impl<S> RefundsTracer<S> {
         tx_gas_limit: u32,
         current_ergs_per_pubdata_byte: u32,
         pubdata_published: u32,
+        tx_hash: H256,
     ) -> u32 {
         let total_gas_spent = tx_gas_limit - bootloader_refund;
 
@@ -122,9 +121,8 @@ impl<S> RefundsTracer<S> {
         let bootloader_eth_price_per_pubdata_byte =
             U256::from(effective_gas_price) * U256::from(current_ergs_per_pubdata_byte);
 
-        let fair_eth_price_per_pubdata_byte = U256::from(eth_price_per_pubdata_byte(
-            self.l1_batch.fee_input.l1_gas_price(),
-        ));
+        let fair_eth_price_per_pubdata_byte =
+            U256::from(self.l1_batch.fee_input.fair_pubdata_price());
 
         // For now, L1 originated transactions are allowed to pay less than fair fee per pubdata,
         // so we should take it into account.
@@ -145,6 +143,15 @@ impl<S> RefundsTracer<S> {
             );
             U256::zero()
         });
+
+        tracing::trace!(
+            "Fee benchmark for transaction with hash {}",
+            hex::encode(tx_hash.as_bytes())
+        );
+        tracing::trace!("Gas Limit: {}", tx_gas_limit);
+        tracing::trace!("Gas spent on computation: {}", gas_spent_on_computation);
+        tracing::trace!("Gas spent on pubdata: {}", gas_spent_on_pubdata);
+        tracing::trace!("Pubdata published: {}", pubdata_published);
 
         ceil_div_u256(refund_eth, effective_gas_price.into()).as_u32()
     }
@@ -251,12 +258,14 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
 
             self.pubdata_published = pubdata_published;
             let current_ergs_per_pubdata_byte = state.local_state.current_ergs_per_pubdata_byte;
+
             let tx_body_refund = self.tx_body_refund(
                 bootloader_refund,
                 gas_spent_on_pubdata,
                 tx_gas_limit,
                 current_ergs_per_pubdata_byte,
                 pubdata_published,
+                bootloader_state.last_l2_block().txs.last().unwrap().hash,
             );
 
             if tx_body_refund < bootloader_refund {
@@ -334,7 +343,7 @@ pub(crate) fn pubdata_published<S: WriteStorage, H: HistoryMode>(
         })
         .filter(|log| log.sender != SYSTEM_CONTEXT_ADDRESS)
         .count() as u32)
-        * zk_evm_1_4_0::zkevm_opcode_defs::system_params::L1_MESSAGE_PUBDATA_BYTES;
+        * L1_MESSAGE_PUBDATA_BYTES;
     let l2_l1_long_messages_bytes: u32 = extract_long_l2_to_l1_messages(&events)
         .iter()
         .map(|event| event.len() as u32)

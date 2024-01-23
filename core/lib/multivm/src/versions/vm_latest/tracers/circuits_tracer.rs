@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use zk_evm_1_4_0::{
+use zk_evm_1_4_1::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zk_evm_abstractions::precompiles::PrecompileAddress,
     zkevm_opcode_defs::{LogOpcode, Opcode, UMAOpcode},
@@ -10,7 +10,7 @@ use zksync_types::circuit::CircuitCycleStatistic;
 
 use super::circuits_capacity::*;
 use crate::{
-    interface::{dyn_tracers::vm_1_4_0::DynTracer, tracer::TracerExecutionStatus},
+    interface::{dyn_tracers::vm_1_4_1::DynTracer, tracer::TracerExecutionStatus},
     vm_latest::{
         bootloader_state::BootloaderState,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},

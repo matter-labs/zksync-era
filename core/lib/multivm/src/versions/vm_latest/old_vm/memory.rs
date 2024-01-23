@@ -1,4 +1,4 @@
-use zk_evm_1_4_0::{
+use zk_evm_1_4_1::{
     abstractions::{Memory, MemoryType},
     aux_structures::{MemoryPage, MemoryQuery, Timestamp},
     vm_state::PrimitiveValue,
