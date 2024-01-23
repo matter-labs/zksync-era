@@ -1,5 +1,6 @@
 use std::{fmt, sync::Arc};
 
+use zksync_dal::ConnectionPool;
 use zksync_types::{
     fee_model::{
         BatchFeeInput, FeeModelConfig, FeeModelConfigV2, FeeParams, FeeParamsV1, FeeParamsV2,
@@ -12,10 +13,11 @@ use zksync_utils::ceil_div_u256;
 use crate::l1_gas_price::L1GasPriceProvider;
 
 /// Trait responsible for providing fee info for a batch
+#[async_trait::async_trait]
 pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
     /// Returns the batch fee with scaling applied. This may be used to account for the fact that the L1 gas and pubdata prices may fluctuate, esp.
     /// in API methods that should return values that are valid for some period of time after the estimation was done.
-    fn get_batch_fee_input_scaled(
+    async fn get_batch_fee_input_scaled(
         &self,
         l1_gas_price_scale_factor: f64,
         l1_pubdata_price_scale_factor: f64,
@@ -38,8 +40,8 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
     }
 
     /// Returns the batch fee input as-is, i.e. without any scaling for the L1 gas and pubdata prices.
-    fn get_batch_fee_input(&self) -> BatchFeeInput {
-        self.get_batch_fee_input_scaled(1.0, 1.0)
+    async fn get_batch_fee_input(&self) -> BatchFeeInput {
+        self.get_batch_fee_input_scaled(1.0, 1.0).await
     }
 
     /// Returns the fee model parameters.
@@ -74,6 +76,59 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
 impl MainNodeFeeInputProvider {
     pub(crate) fn new(provider: Arc<dyn L1GasPriceProvider>, config: FeeModelConfig) -> Self {
         Self { provider, config }
+    }
+}
+
+/// The fee model provider to be used in the API. It returns the maximal batch fee input between the projected main node one and
+/// the one from the last sealed miniblock.
+#[derive(Debug)]
+pub(crate) struct ApiFeeInputProvider {
+    inner: MainNodeFeeInputProvider,
+    connection_pool: ConnectionPool,
+}
+
+impl ApiFeeInputProvider {
+    pub fn new(
+        provider: Arc<dyn L1GasPriceProvider>,
+        config: FeeModelConfig,
+        connection_pool: ConnectionPool,
+    ) -> Self {
+        Self {
+            inner: MainNodeFeeInputProvider::new(provider, config),
+            connection_pool,
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl BatchFeeModelInputProvider for ApiFeeInputProvider {
+    async fn get_batch_fee_input_scaled(
+        &self,
+        l1_gas_price_scale_factor: f64,
+        l1_pubdata_price_scale_factor: f64,
+    ) -> BatchFeeInput {
+        let inner_input = self
+            .inner
+            .get_batch_fee_input_scaled(l1_gas_price_scale_factor, l1_pubdata_price_scale_factor)
+            .await;
+        let last_miniblock_params = self
+            .connection_pool
+            .access_storage_tagged("api_fee_input_provider")
+            .await
+            .unwrap()
+            .blocks_dal()
+            .get_last_sealed_miniblock_header()
+            .await
+            .unwrap();
+
+        last_miniblock_params
+            .map(|header| inner_input.stricter(header.batch_fee_input))
+            .unwrap_or(inner_input)
+    }
+
+    /// Returns the fee model parameters.
+    fn get_fee_model_params(&self) -> FeeParams {
+        self.inner.get_fee_model_params()
     }
 }
 

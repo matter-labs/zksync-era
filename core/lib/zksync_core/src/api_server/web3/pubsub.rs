@@ -44,6 +44,7 @@ impl IdProvider for EthSubscriptionIdProvider {
 pub(super) enum PubSubEvent {
     Subscribed(SubscriptionType),
     NotifyIterationFinished(SubscriptionType),
+    MiniblockAdvanced(SubscriptionType, MiniblockNumber),
 }
 
 /// Manager of notifications for a certain type of subscriptions.
@@ -103,6 +104,10 @@ impl PubSubNotifier {
                 last_block_number = MiniblockNumber(last_block.number.unwrap().as_u32());
                 let new_blocks = new_blocks.into_iter().map(PubSubResult::Header).collect();
                 self.send_pub_sub_results(new_blocks, SubscriptionType::Blocks);
+                self.emit_event(PubSubEvent::MiniblockAdvanced(
+                    SubscriptionType::Blocks,
+                    last_block_number,
+                ));
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(
                 SubscriptionType::Blocks,
@@ -188,6 +193,10 @@ impl PubSubNotifier {
                 last_block_number = MiniblockNumber(last_log.block_number.unwrap().as_u32());
                 let new_logs = new_logs.into_iter().map(PubSubResult::Log).collect();
                 self.send_pub_sub_results(new_logs, SubscriptionType::Logs);
+                self.emit_event(PubSubEvent::MiniblockAdvanced(
+                    SubscriptionType::Logs,
+                    last_block_number,
+                ));
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(SubscriptionType::Logs));
         }

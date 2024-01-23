@@ -1,3 +1,4 @@
+use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
         BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
@@ -8,8 +9,7 @@ use zksync_types::{
     utils::decompose_full_nonce,
     web3,
     web3::types::{FeeHistory, SyncInfo, SyncState},
-    AccountTreeId, Bytes, MiniblockNumber, StorageKey, H256, L2_ETH_TOKEN_ADDRESS,
-    MAX_GAS_PER_PUBDATA_BYTE, U256,
+    AccountTreeId, Bytes, MiniblockNumber, StorageKey, H256, L2_ETH_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
@@ -79,13 +79,13 @@ impl EthNamespace {
             .state
             .resolve_block_args(&mut connection, block_id, METHOD_NAME)
             .await?;
+
         drop(connection);
 
         let tx = L2Tx::from_request(request.into(), self.state.api_config.max_tx_size)?;
 
         let call_result = self.state.tx_sender.eth_call(block_args, tx).await;
-        let res_bytes = call_result
-            .map_err(|err| Web3Error::SubmitTransactionError(err.to_string(), err.data()))?;
+        let res_bytes = call_result.map_err(|err| err.into_web3_error(METHOD_NAME))?;
 
         let block_diff = self
             .state
@@ -111,7 +111,7 @@ impl EthNamespace {
 
         if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
             if eip712_meta.gas_per_pubdata == U256::zero() {
-                eip712_meta.gas_per_pubdata = MAX_GAS_PER_PUBDATA_BYTE.into();
+                eip712_meta.gas_per_pubdata = DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE.into();
             }
         }
 
@@ -133,7 +133,9 @@ impl EthNamespace {
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
 
-        tx.common_data.fee.max_fee_per_gas = self.state.tx_sender.gas_price().await.into();
+        let gas_price = self.state.tx_sender.gas_price().await;
+        let gas_price = gas_price.map_err(|err| internal_error(METHOD_NAME, err))?;
+        tx.common_data.fee.max_fee_per_gas = gas_price.into();
         tx.common_data.fee.max_priority_fee_per_gas = tx.common_data.fee.max_fee_per_gas;
 
         // Modify the l1 gas price with the scale factor
@@ -146,8 +148,7 @@ impl EthNamespace {
             .tx_sender
             .get_txs_fee_in_wei(tx.into(), scale_factor, acceptable_overestimation)
             .await
-            .map_err(|err| Web3Error::SubmitTransactionError(err.to_string(), err.data()))?;
-
+            .map_err(|err| err.into_web3_error(METHOD_NAME))?;
         method_latency.observe();
         Ok(fee.gas_limit)
     }
@@ -157,9 +158,10 @@ impl EthNamespace {
         const METHOD_NAME: &str = "gas_price";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let price = self.state.tx_sender.gas_price().await;
+        let gas_price = self.state.tx_sender.gas_price().await;
+        let gas_price = gas_price.map_err(|err| internal_error(METHOD_NAME, err))?;
         method_latency.observe();
-        Ok(price.into())
+        Ok(gas_price.into())
     }
 
     #[tracing::instrument(skip(self))]
@@ -642,7 +644,7 @@ impl EthNamespace {
         let submit_result = submit_result.map(|_| hash).map_err(|err| {
             tracing::debug!("Send raw transaction error: {err}");
             API_METRICS.submit_tx_error[&err.prom_error_code()].inc();
-            Web3Error::SubmitTransactionError(err.to_string(), err.data())
+            err.into_web3_error(METHOD_NAME)
         });
 
         method_latency.observe();

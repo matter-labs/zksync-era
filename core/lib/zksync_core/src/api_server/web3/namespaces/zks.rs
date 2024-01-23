@@ -3,6 +3,7 @@ use std::{collections::HashMap, convert::TryInto};
 use bigdecimal::{BigDecimal, Zero};
 use zksync_dal::StorageProcessor;
 use zksync_mini_merkle_tree::MiniMerkleTree;
+use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
         BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof, Proof,
@@ -16,8 +17,7 @@ use zksync_types::{
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
     AccountTreeId, L1BatchNumber, MiniblockNumber, StorageKey, Transaction, L1_MESSENGER_ADDRESS,
-    L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
-    U64,
+    L2_ETH_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 use zksync_utils::{address_to_h256, ratio_to_big_decimal_normalized};
 use zksync_web3_decl::{
@@ -63,7 +63,7 @@ impl ZksNamespace {
             .await?;
 
         if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
-            eip712_meta.gas_per_pubdata = MAX_GAS_PER_PUBDATA_BYTE.into();
+            eip712_meta.gas_per_pubdata = U256::from(DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE);
         }
 
         let mut tx = L2Tx::from_request(
@@ -74,9 +74,9 @@ impl ZksNamespace {
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
         tx.common_data.fee.max_priority_fee_per_gas = 0u64.into();
-        tx.common_data.fee.gas_per_pubdata_limit = MAX_GAS_PER_PUBDATA_BYTE.into();
+        tx.common_data.fee.gas_per_pubdata_limit = U256::from(DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE);
 
-        let fee = self.estimate_fee(tx.into()).await?;
+        let fee = self.estimate_fee(tx.into(), METHOD_NAME).await?;
         method_latency.observe();
         Ok(fee)
     }
@@ -102,24 +102,25 @@ impl ZksNamespace {
             .try_into()
             .map_err(Web3Error::SerializationError)?;
 
-        let fee = self.estimate_fee(tx.into()).await?;
+        let fee = self.estimate_fee(tx.into(), METHOD_NAME).await?;
         method_latency.observe();
         Ok(fee.gas_limit)
     }
 
-    async fn estimate_fee(&self, tx: Transaction) -> Result<Fee, Web3Error> {
+    async fn estimate_fee(
+        &self,
+        tx: Transaction,
+        method_name: &'static str,
+    ) -> Result<Fee, Web3Error> {
         let scale_factor = self.state.api_config.estimate_gas_scale_factor;
         let acceptable_overestimation =
             self.state.api_config.estimate_gas_acceptable_overestimation;
 
-        let fee = self
-            .state
+        self.state
             .tx_sender
             .get_txs_fee_in_wei(tx, scale_factor, acceptable_overestimation)
             .await
-            .map_err(|err| Web3Error::SubmitTransactionError(err.to_string(), err.data()))?;
-
-        Ok(fee)
+            .map_err(|err| err.into_web3_error(method_name))
     }
 
     #[tracing::instrument(skip(self))]
@@ -542,7 +543,7 @@ impl ZksNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_l1_gas_price_impl(&self) -> U64 {
+    pub async fn get_l1_gas_price_impl(&self) -> U64 {
         const METHOD_NAME: &str = "get_l1_gas_price";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
@@ -552,6 +553,7 @@ impl ZksNamespace {
             .0
             .batch_fee_input_provider
             .get_batch_fee_input()
+            .await
             .l1_gas_price();
 
         method_latency.observe();

@@ -154,7 +154,7 @@ impl SendRawTransactionTest {
             to: Some(Address::repeat_byte(2)),
             value: 123_456.into(),
             gas: (get_intrinsic_constants().l2_tx_intrinsic_gas * 2).into(),
-            gas_price: StateKeeperConfig::for_tests().fair_l2_gas_price.into(),
+            gas_price: StateKeeperConfig::for_tests().minimal_l2_gas_price.into(),
             input: vec![1, 2, 3, 4].into(),
             ..api::TransactionRequest::default()
         };
