@@ -255,7 +255,7 @@ impl BlockStore {
             .await
             .wrap("payload()")?
             .context("miniblock disappeared")?;
-        let mut genesis = validator::testonly::GenesisSetup {
+        let mut genesis = validator::GenesisSetup {
             keys: vec![validator_key.clone()],
             blocks: vec![],
         };

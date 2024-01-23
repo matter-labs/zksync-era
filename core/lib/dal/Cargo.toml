@@ -18,9 +18,9 @@ zksync_system_constants = { path = "../constants" }
 zksync_contracts = { path = "../contracts" }
 zksync_types = { path = "../types" }
 zksync_health_check = { path = "../health_check" }
-zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "53ede0ffd447b6a4b88afd701ac42c902cfc9192" }
-zksync_consensus_storage = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "53ede0ffd447b6a4b88afd701ac42c902cfc9192" }
-zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "53ede0ffd447b6a4b88afd701ac42c902cfc9192" }
+zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "c4425c9be2062f0e6eff29d0dd949e2807c2789e" }
+zksync_consensus_storage = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "c4425c9be2062f0e6eff29d0dd949e2807c2789e" }
+zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "c4425c9be2062f0e6eff29d0dd949e2807c2789e" }
 
 itertools = "0.10.1"
 thiserror = "1.0"
@@ -55,4 +55,4 @@ tracing = "0.1"
 assert_matches = "1.5.0"
 
 [build-dependencies]
-zksync_protobuf_build = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "53ede0ffd447b6a4b88afd701ac42c902cfc9192" }
+zksync_protobuf_build = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "c4425c9be2062f0e6eff29d0dd949e2807c2789e" }
