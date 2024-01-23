@@ -3,10 +3,7 @@ use std::{error, fmt, sync::Arc};
 use async_trait::async_trait;
 use zksync_config::configs::object_store::{ObjectStoreConfig, ObjectStoreMode};
 
-use crate::{
-    file::FileBackedObjectStore, gcs::GoogleCloudStorage,
-    gcs_public::PublicReadOnlyGoogleCloudStorage, mock::MockStore,
-};
+use crate::{file::FileBackedObjectStore, gcs::GoogleCloudStorage, mock::MockStore};
 
 /// Bucket for [`ObjectStore`] in which objects can be placed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -202,6 +199,7 @@ impl ObjectStoreFactory {
                     gcs_credential_file_path,
                     config.bucket_base_url.clone(),
                     config.max_retries,
+                    false,
                 )
                 .await;
                 Arc::new(store)
@@ -212,6 +210,7 @@ impl ObjectStoreFactory {
                     gcs_credential_file_path,
                     config.bucket_base_url.clone(),
                     config.max_retries,
+                    false,
                 )
                 .await;
                 Arc::new(store)
@@ -221,15 +220,15 @@ impl ObjectStoreFactory {
                 let store = FileBackedObjectStore::new(config.file_backed_base_path.clone()).await;
                 Arc::new(store)
             }
-            ObjectStoreMode::GCSPublicReadOnly => {
+            ObjectStoreMode::GCSAnonymousReadOnly => {
                 tracing::trace!("Initialized GoogleCloudStoragePublicReadOnly store");
-                let store = PublicReadOnlyGoogleCloudStorage::new(
-                    "https://storage.googleapis.com".to_string(),
+                let store = GoogleCloudStorage::new(
+                    None,
                     config.bucket_base_url.clone(),
                     config.max_retries,
-                    600,
-                    5,
-                );
+                    true,
+                )
+                .await;
                 Arc::new(store)
             }
         }

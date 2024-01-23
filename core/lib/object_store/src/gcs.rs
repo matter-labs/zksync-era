@@ -68,9 +68,10 @@ impl GoogleCloudStorage {
         credential_file_path: Option<String>,
         bucket_prefix: String,
         max_retries: u16,
+        is_anonymous: bool,
     ) -> Self {
         let client_config = retry(max_retries, || {
-            Self::get_client_config(credential_file_path.clone())
+            Self::get_client_config(credential_file_path.clone(), is_anonymous)
         })
         .await
         .expect("failed fetching GCS client config after retries");
@@ -84,6 +85,7 @@ impl GoogleCloudStorage {
 
     async fn get_client_config(
         credential_file_path: Option<String>,
+        is_anonymous: bool,
     ) -> Result<ClientConfig, Error> {
         if let Some(path) = credential_file_path {
             let cred_file = CredentialsFile::new_from_file(path)
@@ -91,7 +93,11 @@ impl GoogleCloudStorage {
                 .expect("failed loading GCS credential file");
             ClientConfig::default().with_credentials(cred_file).await
         } else {
-            ClientConfig::default().with_auth().await
+            if !is_anonymous {
+                ClientConfig::default().with_auth().await
+            } else {
+                Ok(ClientConfig::default().anonymous())
+            }
         }
     }
 
