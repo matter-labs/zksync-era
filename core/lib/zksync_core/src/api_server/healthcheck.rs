@@ -4,9 +4,9 @@ use axum::{extract::State, http::StatusCode, routing::get, Json, Router};
 use tokio::sync::watch;
 use zksync_health_check::{AppHealth, CheckHealth};
 
-type SharedHealthchecks = Arc<[Box<dyn CheckHealth>]>;
-
-async fn check_health(health_checks: State<SharedHealthchecks>) -> (StatusCode, Json<AppHealth>) {
+async fn check_health<T: AsRef<dyn CheckHealth>>(
+    health_checks: State<Arc<[T]>>,
+) -> (StatusCode, Json<AppHealth>) {
     let response = AppHealth::new(&health_checks).await;
     let response_code = if response.is_ready() {
         StatusCode::OK
@@ -16,14 +16,16 @@ async fn check_health(health_checks: State<SharedHealthchecks>) -> (StatusCode, 
     (response_code, Json(response))
 }
 
-async fn run_server(
+async fn run_server<T>(
     bind_address: &SocketAddr,
-    health_checks: Vec<Box<dyn CheckHealth>>,
+    health_checks: Vec<T>,
     mut stop_receiver: watch::Receiver<bool>,
-) {
+) where
+    T: AsRef<dyn CheckHealth> + Send + Sync + 'static,
+{
     let mut health_check_names = HashSet::with_capacity(health_checks.len());
     for check in &health_checks {
-        let health_check_name = check.name();
+        let health_check_name = check.as_ref().name();
         if !health_check_names.insert(health_check_name) {
             tracing::warn!(
                 "Health check with name `{health_check_name}` is defined multiple times; only the last mention \
@@ -35,7 +37,7 @@ async fn run_server(
         "Starting healthcheck server with checks {health_check_names:?} on {bind_address}"
     );
 
-    let health_checks = SharedHealthchecks::from(health_checks);
+    let health_checks = Arc::from(health_checks);
     let app = Router::new()
         .route("/health", get(check_health))
         .with_state(health_checks);
@@ -60,7 +62,10 @@ pub struct HealthCheckHandle {
 }
 
 impl HealthCheckHandle {
-    pub fn spawn_server(addr: SocketAddr, healthchecks: Vec<Box<dyn CheckHealth>>) -> Self {
+    pub fn spawn_server<T>(addr: SocketAddr, healthchecks: Vec<T>) -> Self
+    where
+        T: AsRef<dyn CheckHealth> + Send + Sync + 'static,
+    {
         let (stop_sender, stop_receiver) = watch::channel(false);
         let server = tokio::spawn(async move {
             run_server(&addr, healthchecks, stop_receiver).await;

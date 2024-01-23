@@ -36,6 +36,6 @@ vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev
 
 [dev-dependencies]
 tokio = { version = "1", features = ["time"] }
-zksync_test_account = { path = "../test_account" }
+zksync_test_account = { path = "../../tests/test_account" }
 ethabi = "18.0.0"
 zksync_eth_signer = { path = "../eth_signer" }
