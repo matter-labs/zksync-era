@@ -881,3 +881,8 @@ plookup
 shivini
 EIP4844
 KZG
+secp256k1
+vendoring
+publickey
+keypair
+Electrum
