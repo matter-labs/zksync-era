@@ -8696,7 +8696,7 @@ dependencies = [
  "crossbeam 0.8.2",
  "curl",
  "derivative",
- "env_logger 0.10.0",
+ "env_logger 0.9.3",
  "hex",
  "lazy_static",
  "rand 0.4.6",
