@@ -204,11 +204,11 @@ async fn remove_stuck_txs() {
         .await;
 
     // Get all txs
-    transactions_dal.reset_mempool().await;
-    let txs = transactions_dal
-        .sync_mempool(vec![], vec![], 0, 0, 1000)
+    transactions_dal.reset_mempool().await.unwrap();
+    let (txs, _) = transactions_dal
+        .sync_mempool(&[], &[], 0, 0, 1000)
         .await
-        .0;
+        .unwrap();
     assert_eq!(txs.len(), 4);
 
     let storage = transactions_dal.storage;
@@ -227,23 +227,24 @@ async fn remove_stuck_txs() {
         .await;
 
     // Get all txs
-    transactions_dal.reset_mempool().await;
-    let txs = transactions_dal
-        .sync_mempool(vec![], vec![], 0, 0, 1000)
+    transactions_dal.reset_mempool().await.unwrap();
+    let (txs, _) = transactions_dal
+        .sync_mempool(&[], &[], 0, 0, 1000)
         .await
-        .0;
+        .unwrap();
     assert_eq!(txs.len(), 3);
 
     // Remove one stuck tx
     let removed_txs = transactions_dal
         .remove_stuck_txs(Duration::from_secs(500))
-        .await;
-    assert_eq!(removed_txs, 1);
-    transactions_dal.reset_mempool().await;
-    let txs = transactions_dal
-        .sync_mempool(vec![], vec![], 0, 0, 1000)
         .await
-        .0;
+        .unwrap();
+    assert_eq!(removed_txs, 1);
+    transactions_dal.reset_mempool().await.unwrap();
+    let (txs, _) = transactions_dal
+        .sync_mempool(&[], &[], 0, 0, 1000)
+        .await
+        .unwrap();
     assert_eq!(txs.len(), 2);
 
     // We shouldn't collect executed tx

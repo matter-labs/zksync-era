@@ -20,12 +20,12 @@ use zksync_types::{
     l2::L2Tx,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     protocol_version::ProtocolUpgradeTx,
+    sort_storage_access::sort_storage_access_queries,
     storage_writes_deduplicator::{ModifiedSlot, StorageWritesDeduplicator},
     tx::{
         tx_execution_info::DeduplicatedWritesMetrics, IncludedTxLocation,
         TransactionExecutionResult,
     },
-    zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
     AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, LogQuery,
     MiniblockNumber, ProtocolVersionId, StorageKey, StorageLog, StorageLogQuery, StorageValue,
     Transaction, VmEvent, CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS,
@@ -462,6 +462,7 @@ impl MiniblockSealCommand {
                 CURRENT_VIRTUAL_BLOCK_INFO_POSITION,
             ))
             .await
+            .expect("failed getting virtual block info from VM state")
             .unwrap_or_default();
         let (current_l2_virtual_block_number, _) =
             unpack_block_info(h256_to_u256(current_l2_virtual_block_info));
