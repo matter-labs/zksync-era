@@ -563,6 +563,11 @@ pub async fn initialize_components(
             contracts_config.l1_multicall3_addr,
             state_transition_chain_contract,
             nonce.as_u64(),
+            configs
+                .network_config
+                .as_ref()
+                .context("netowrk_config")?
+                .zksync_network_id,
         );
         task_futures.push(tokio::spawn(
             eth_tx_aggregator_actor.run(eth_sender_pool, stop_receiver.clone()),
