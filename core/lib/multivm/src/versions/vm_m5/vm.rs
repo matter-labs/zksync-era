@@ -158,8 +158,8 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
 
         let storage_log_queries = self.vm.get_final_log_queries();
 
-        // To allow calling the vm-1.3.3. method, the 1.3.1's LogQuery has to be converted
-        // to the vm-1.3.3's LogQuery. Then, we need to convert it back.
+        // To allow calling the `vm-1.3.3`s. method, the `v1.3.1`'s `LogQuery` has to be converted
+        // to the `vm-1.3.3`'s `LogQuery`. Then, we need to convert it back.
         let deduplicated_logs: Vec<LogQuery> = sort_storage_access_queries(
             &storage_log_queries
                 .iter()

@@ -63,19 +63,6 @@ impl L2ToL1Log {
     }
 }
 
-// impl From<EventMessage_1_4_1> for L2ToL1Log {
-//     fn from(m: EventMessage_1_4_1) -> Self {
-//         Self {
-//             shard_id: m.shard_id,
-//             is_service: m.is_first,
-//             tx_number_in_block: m.tx_number_in_block,
-//             sender: m.address,
-//             key: u256_to_h256(m.key),
-//             value: u256_to_h256(m.value),
-//         }
-//     }
-// }
-
 #[cfg(test)]
 mod tests {
     use zksync_basic_types::U256;

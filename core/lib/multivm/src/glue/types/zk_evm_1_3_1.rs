@@ -74,8 +74,8 @@ impl GlueFrom<zksync_types::zk_evm_types::FarCallOpcode>
     }
 }
 
-// Special for zk_evm_1_3_1: it re-used the same sorting function from zkevm_test_harness as the 1.3.3 used.
-// To continue calling this functions, we need to add the conversion for Timestamp and LogQuery.
+// Special for `zk_evm_1_3_1`: it re-used the same sorting function from `zkevm_test_harness` as the `v1.3.3` used.
+// To continue calling this functions, we need to add the conversion for `Timestamp` and `LogQuery`.
 impl GlueFrom<zk_evm_1_3_1::aux_structures::Timestamp> for zk_evm_1_3_3::aux_structures::Timestamp {
     fn glue_from(timestamp: zk_evm_1_3_1::aux_structures::Timestamp) -> Self {
         zk_evm_1_3_3::aux_structures::Timestamp(timestamp.0)
