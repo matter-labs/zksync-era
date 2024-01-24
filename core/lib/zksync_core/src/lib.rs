@@ -231,6 +231,8 @@ pub enum Component {
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
+    /// Component generating BFT consensus certificates for miniblocks.
+    Consensus,
 }
 
 #[derive(Debug)]
@@ -506,7 +508,11 @@ pub async fn initialize_components(
         tracing::info!("initialized State Keeper in {elapsed:?}");
     }
 
-    if let Some(cfg) = configs.consensus_config.clone() {
+    if components.contains(&Component::Consensus) {
+        let cfg = configs
+            .consensus_config
+            .clone()
+            .context("consensus component's config is missing")?;
         let started_at = Instant::now();
         tracing::info!("initializing Consensus");
         let pool = connection_pool.clone();

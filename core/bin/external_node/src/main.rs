@@ -381,6 +381,8 @@ async fn shutdown_components(
 struct Cli {
     #[arg(long)]
     revert_pending_l1_batch: bool,
+    #[arg(long)]
+    enable_consensus: bool,
 }
 
 #[tokio::main]
@@ -411,9 +413,13 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("No sentry URL was provided");
     }
 
-    let config = ExternalNodeConfig::collect()
+    let mut config = ExternalNodeConfig::collect()
         .await
         .context("Failed to load external node config")?;
+    if opt.enable_consensus {
+        config.consensus =
+            Some(config::read_consensus_config().context("read_consensus_config()")?);
+    }
     let main_node_url = config
         .required
         .main_node_url()

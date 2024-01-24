@@ -420,18 +420,17 @@ fn read_operator_address() -> anyhow::Result<Address> {
     Ok(std::env::var("EN_OPERATOR_ADDR")?.parse()?)
 }
 
-pub(crate) fn read_consensus_config() -> anyhow::Result<Option<consensus::FetcherConfig>> {
-    let Ok(path) = std::env::var("EN_CONSENSUS_CONFIG_PATH") else {
-        return Ok(None);
-    };
+pub(crate) fn read_consensus_config() -> anyhow::Result<consensus::FetcherConfig> {
+    let path = std::env::var("EN_CONSENSUS_CONFIG_PATH")
+        .context("EN_CONSENSUS_CONFIG_PATH env variable is not set")?;
     let cfg = std::fs::read_to_string(&path).context(path)?;
     let cfg: consensus::config::Config =
         consensus::config::decode_json(&cfg).context("failed decoding JSON")?;
     let node_key: node::SecretKey = consensus::config::read_secret("EN_CONSENSUS_NODE_KEY")?;
-    Ok(Some(consensus::FetcherConfig {
+    Ok(consensus::FetcherConfig {
         executor: cfg.executor_config(node_key),
         operator_address: read_operator_address().context("read_operator_address()")?,
-    }))
+    })
 }
 
 /// External Node Config contains all the configuration required for the EN operation.
@@ -507,7 +506,7 @@ impl ExternalNodeConfig {
             postgres,
             required,
             optional,
-            consensus: read_consensus_config().context("read_consensus_config()")?,
+            consensus: None,
         })
     }
 }
