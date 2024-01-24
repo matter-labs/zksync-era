@@ -36,6 +36,6 @@ jobs:
         run: |
           ci_run zk
 
-      - name: Run link checker
+      - name: Run zk linkcheck
         run: |
           ci_run zk linkcheck
