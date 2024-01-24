@@ -11,7 +11,6 @@ use multivm::{
     interface::{FinishedL1Batch, L1BatchEnv},
     utils::{get_batch_base_fee, get_max_gas_per_pubdata_byte},
 };
-use vm_utils::storage::wait_for_prev_l1_batch_params;
 use zksync_dal::StorageProcessor;
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
@@ -38,6 +37,7 @@ use crate::{
     metrics::{BlockStage, MiniblockStage, APP_METRICS},
     state_keeper::{
         extractors,
+        io::common::wait_for_prev_l1_batch_params,
         metrics::{L1BatchSealStage, MiniblockSealStage, L1_BATCH_METRICS, MINIBLOCK_METRICS},
         types::ExecutionMetricsForCriteria,
         updates::{MiniblockSealCommand, UpdatesManager},

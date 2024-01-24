@@ -1,62 +1,10 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use multivm::{
-    interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode},
-    vm_latest::constants::BLOCK_GAS_LIMIT,
-};
 use vm_utils::storage::load_l1_batch_params;
-use zksync_contracts::BaseSystemContracts;
 use zksync_dal::StorageProcessor;
-use zksync_types::{
-    fee_model::BatchFeeInput, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
-    ProtocolVersionId, H256, U256, ZKPORTER_IS_AVAILABLE,
-};
-use zksync_utils::u256_to_h256;
+use zksync_types::{Address, L1BatchNumber, L2ChainId, H256};
 
 use super::PendingBatchData;
-
-/// Returns the parameters required to initialize the VM for the next L1 batch.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn l1_batch_params(
-    current_l1_batch_number: L1BatchNumber,
-    fee_account: Address,
-    l1_batch_timestamp: u64,
-    previous_batch_hash: U256,
-    fee_input: BatchFeeInput,
-    first_miniblock_number: MiniblockNumber,
-    prev_miniblock_hash: H256,
-    base_system_contracts: BaseSystemContracts,
-    validation_computational_gas_limit: u32,
-    protocol_version: ProtocolVersionId,
-    virtual_blocks: u32,
-    chain_id: L2ChainId,
-) -> (SystemEnv, L1BatchEnv) {
-    (
-        SystemEnv {
-            zk_porter_available: ZKPORTER_IS_AVAILABLE,
-            version: protocol_version,
-            base_system_smart_contracts: base_system_contracts,
-            gas_limit: BLOCK_GAS_LIMIT,
-            execution_mode: TxExecutionMode::VerifyExecute,
-            default_validation_computational_gas_limit: validation_computational_gas_limit,
-            chain_id,
-        },
-        L1BatchEnv {
-            previous_batch_hash: Some(u256_to_h256(previous_batch_hash)),
-            number: current_l1_batch_number,
-            timestamp: l1_batch_timestamp,
-            fee_input,
-            fee_account,
-            enforced_base_fee: None,
-            first_l2_block: L2BlockEnv {
-                number: first_miniblock_number.0,
-                timestamp: l1_batch_timestamp,
-                prev_block_hash: prev_miniblock_hash,
-                max_virtual_blocks_to_create: virtual_blocks,
-            },
-        },
-    )
-}
 
 /// Returns the amount of iterations `delay_interval` fits into `max_wait`, rounding up.
 pub(crate) fn poll_iters(delay_interval: Duration, max_wait: Duration) -> usize {
@@ -75,6 +23,9 @@ pub(crate) async fn load_pending_batch(
     validation_computational_gas_limit: u32,
     chain_id: L2ChainId,
 ) -> Option<PendingBatchData> {
+    let previous_l1_batch_hash = wait_for_prev_l1_batch_params(storage, current_l1_batch_number)
+        .await
+        .0;
     let (system_env, l1_batch_env) = load_l1_batch_params(
         storage,
         current_l1_batch_number,
@@ -82,6 +33,7 @@ pub(crate) async fn load_pending_batch(
         validation_computational_gas_limit,
         chain_id,
         None,
+        previous_l1_batch_hash,
     )
     .await?;
 
@@ -96,6 +48,45 @@ pub(crate) async fn load_pending_batch(
         system_env,
         pending_miniblocks,
     })
+}
+
+pub(crate) async fn wait_for_prev_l1_batch_params(
+    storage: &mut StorageProcessor<'_>,
+    number: L1BatchNumber,
+) -> (H256, u64) {
+    if number == L1BatchNumber(0) {
+        return (H256::default(), 0);
+    }
+    wait_for_l1_batch_params_unchecked(storage, number - 1).await
+}
+
+/// # Warning
+///
+/// If invoked for a `L1BatchNumber` of a non-existent l1 batch, will block current thread indefinitely.
+async fn wait_for_l1_batch_params_unchecked(
+    storage: &mut StorageProcessor<'_>,
+    number: L1BatchNumber,
+) -> (H256, u64) {
+    // If the state root is not known yet, this duration will be used to back off in the while loops
+    const SAFE_STATE_ROOT_INTERVAL: Duration = Duration::from_millis(100);
+
+    let stage_started_at: Instant = Instant::now();
+    loop {
+        let data = storage
+            .blocks_dal()
+            .get_l1_batch_state_root_and_timestamp(number)
+            .await
+            .unwrap();
+        if let Some((root_hash, timestamp)) = data {
+            tracing::trace!(
+                "Waiting for hash of L1 batch #{number} took {:?}",
+                stage_started_at.elapsed()
+            );
+            return (root_hash, timestamp);
+        }
+
+        tokio::time::sleep(SAFE_STATE_ROOT_INTERVAL).await;
+    }
 }
 
 #[cfg(test)]

@@ -10,7 +10,7 @@ use multivm::{
     interface::{FinishedL1Batch, L1BatchEnv, SystemEnv},
     utils::derive_base_fee_and_gas_per_pubdata,
 };
-use vm_utils::storage::wait_for_prev_l1_batch_params;
+use vm_utils::storage::l1_batch_params;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
@@ -18,7 +18,7 @@ use zksync_object_store::ObjectStore;
 use zksync_types::{
     block::MiniblockHeader, protocol_version::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
-    ProtocolVersionId, Transaction, U256,
+    ProtocolVersionId, Transaction, H256,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::time::millis_since_epoch;
@@ -28,7 +28,7 @@ use crate::{
     state_keeper::{
         extractors,
         io::{
-            common::{l1_batch_params, load_pending_batch, poll_iters},
+            common::{load_pending_batch, poll_iters, wait_for_prev_l1_batch_params},
             MiniblockParams, MiniblockSealerHandle, PendingBatchData, StateKeeperIO,
         },
         mempool_actor::l2_tx_filter,
@@ -454,7 +454,7 @@ impl MempoolIO {
         }
     }
 
-    async fn load_previous_l1_batch_hash(&self) -> U256 {
+    async fn load_previous_l1_batch_hash(&self) -> H256 {
         tracing::info!(
             "Getting previous L1 batch hash for L1 batch #{}",
             self.current_l1_batch_number

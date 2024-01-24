@@ -3,13 +3,13 @@ use std::{collections::HashMap, convert::TryInto, iter::FromIterator, time::Dura
 use async_trait::async_trait;
 use futures::future;
 use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
-use vm_utils::storage::wait_for_prev_l1_batch_params;
+use vm_utils::storage::l1_batch_params;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
     ethabi::Address, fee_model::BatchFeeInput, protocol_version::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, L1BatchNumber, L2ChainId, MiniblockNumber,
-    ProtocolVersionId, Transaction, H256, U256,
+    ProtocolVersionId, Transaction, H256,
 };
 use zksync_utils::{be_words_to_bytes, bytes_to_be_words};
 
@@ -22,7 +22,7 @@ use crate::{
     metrics::{BlockStage, APP_METRICS},
     state_keeper::{
         io::{
-            common::{l1_batch_params, load_pending_batch, poll_iters},
+            common::{load_pending_batch, poll_iters, wait_for_prev_l1_batch_params},
             MiniblockParams, MiniblockSealerHandle, PendingBatchData, StateKeeperIO,
         },
         metrics::KEEPER_METRICS,
@@ -108,7 +108,7 @@ impl ExternalIO {
         }
     }
 
-    async fn load_previous_l1_batch_hash(&self) -> U256 {
+    async fn load_previous_l1_batch_hash(&self) -> H256 {
         let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
         let wait_latency = KEEPER_METRICS.wait_for_prev_hash_time.start();
         let (hash, _) =

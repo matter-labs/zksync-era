@@ -31,6 +31,15 @@ pub async fn create_vm<H: HistoryMode>(
             format!("l1_batch_number {l1_batch_number:?} must have fee_address_account")
         })?;
 
+    let Some((prev_l1_batch_hash, _)) = connection
+        .blocks_dal()
+        .get_l1_batch_state_root_and_timestamp(l1_batch_number - 1)
+        .await
+        .unwrap()
+    else {
+        anyhow::bail!("l1_batch_number {l1_batch_number:?} must exists")
+    };
+
     // In the state keeper, this value is used to reject execution.
     // All batches ran by BasicWitnessInputProducer have already been executed by State Keeper.
     // This means we don't want to reject any execution, therefore we're using MAX as an allow all.
@@ -42,6 +51,7 @@ pub async fn create_vm<H: HistoryMode>(
         validation_computational_gas_limit,
         l2_chain_id,
         miniblock_number,
+        prev_l1_batch_hash,
     )
     .await
     .context("expected miniblock to be executed and sealed")?;
