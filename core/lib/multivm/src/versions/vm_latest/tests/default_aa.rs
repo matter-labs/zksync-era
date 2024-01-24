@@ -4,7 +4,7 @@ use zksync_types::{
     system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREMENT},
     AccountTreeId, U256,
 };
-use zksync_utils::u256_to_h256;
+use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
@@ -42,6 +42,7 @@ fn test_default_aa_interaction() {
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
     vm.vm.execute(VmExecutionMode::Batch);
+
     vm.vm.get_current_execution_state();
 
     // Both deployment and ordinary nonce should be incremented by one.

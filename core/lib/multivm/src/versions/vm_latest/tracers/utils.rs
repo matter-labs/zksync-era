@@ -2,7 +2,8 @@ use zk_evm_1_5_0::{
     aux_structures::MemoryPage,
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{
-        FarCallABI, FarCallForwardPageType, FatPointer, LogOpcode, Opcode, UMAOpcode,
+        FarCallABI, FarCallForwardPageType, FatPointer, LogOpcode, Opcode, PrecompileAuxData,
+        UMAOpcode,
     },
 };
 use zksync_system_constants::{
@@ -118,22 +119,25 @@ pub(crate) fn read_pointer<H: HistoryMode>(
     memory: &SimpleMemory<H>,
     pointer: FatPointer,
 ) -> Vec<u8> {
-    let FatPointer {
-        offset,
-        length,
-        start,
-        memory_page,
-    } = pointer;
+    // FIXME
+    vec![]
 
-    // The actual bounds of the returndata ptr is [start+offset..start+length]
-    let mem_region_start = start + offset;
-    let mem_region_length = length - offset;
+    // let FatPointer {
+    //     offset,
+    //     length,
+    //     start,
+    //     memory_page,
+    // } = pointer;
 
-    memory.read_unaligned_bytes(
-        memory_page as usize,
-        mem_region_start as usize,
-        mem_region_length as usize,
-    )
+    // // The actual bounds of the returndata ptr is [start+offset..start+length]
+    // let mem_region_start = start + offset;
+    // let mem_region_length = length - offset;
+
+    // memory.read_unaligned_bytes(
+    //     memory_page as usize,
+    //     mem_region_start as usize,
+    //     mem_region_length as usize,
+    // )
 }
 
 /// Outputs the returndata for the latest call.
@@ -186,26 +190,6 @@ pub(crate) fn computational_gas_price(
         _ => 0,
     };
     base_price + precompile_price
-}
-
-pub(crate) fn gas_spent_on_bytecodes_and_long_messages_this_opcode(
-    state: &VmLocalStateData<'_>,
-    data: &BeforeExecutionData,
-) -> u32 {
-    if data.opcode.variant.opcode == Opcode::Log(LogOpcode::PrecompileCall) {
-        let current_stack = state.vm_local_state.callstack.get_current_stack();
-        // Trace for precompile calls from `KNOWN_CODES_STORAGE_ADDRESS` and `L1_MESSENGER_ADDRESS` that burn some gas.
-        // Note, that if there is less gas left than requested to burn it will be burnt anyway.
-        if current_stack.this_address == KNOWN_CODES_STORAGE_ADDRESS
-            || current_stack.this_address == L1_MESSENGER_ADDRESS
-        {
-            std::cmp::min(data.src1_value.value.as_u32(), current_stack.ergs_remaining)
-        } else {
-            0
-        }
-    } else {
-        0
-    }
 }
 
 pub(crate) fn get_calldata_page_via_abi(far_call_abi: &FarCallABI, base_page: MemoryPage) -> u32 {

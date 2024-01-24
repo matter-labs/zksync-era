@@ -29,10 +29,7 @@ use crate::{
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::{
             dispatcher::TracerDispatcher,
-            utils::{
-                computational_gas_price, gas_spent_on_bytecodes_and_long_messages_this_opcode,
-                print_debug_if_needed, VmHook,
-            },
+            utils::{computational_gas_price, print_debug_if_needed, VmHook},
             CircuitsTracer, RefundsTracer, ResultTracer,
         },
         types::internals::ZkSyncVmState,
@@ -45,7 +42,6 @@ pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     tx_has_been_processed: bool,
     execution_mode: VmExecutionMode,
 
-    pub(crate) gas_spent_on_bytecodes_and_long_messages: u32,
     // Amount of gas used during account validation.
     pub(crate) computational_gas_used: u32,
     // Maximum number of gas that we're allowed to use during account validation.
@@ -84,7 +80,6 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         Self {
             tx_has_been_processed: false,
             execution_mode,
-            gas_spent_on_bytecodes_and_long_messages: 0,
             computational_gas_used: 0,
             tx_validation_gas_limit: computational_gas_limit,
             in_account_validation: false,
@@ -223,9 +218,6 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
             VmHook::FinalBatchInfo => self.final_batch_info_requested = true,
             _ => {}
         }
-
-        self.gas_spent_on_bytecodes_and_long_messages +=
-            gas_spent_on_bytecodes_and_long_messages_this_opcode(&state, &data);
 
         dispatch_tracers!(self.before_execution(state, data, memory, self.storage.clone()));
     }

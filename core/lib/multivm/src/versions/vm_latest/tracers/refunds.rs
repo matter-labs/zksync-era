@@ -27,9 +27,7 @@ use crate::{
         old_vm::{events::merge_events, history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::{
             traits::VmTracer,
-            utils::{
-                gas_spent_on_bytecodes_and_long_messages_this_opcode, get_vm_hook_params, VmHook,
-            },
+            utils::{get_vm_hook_params, VmHook},
         },
         types::internals::ZkSyncVmState,
         utils::fee::get_batch_base_fee,
@@ -258,11 +256,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
 
             self.pubdata_published = pubdata_published;
 
-            // TODO: implement correct refunds
-            let tx_body_refund = 0;
-
             // let current_ergs_per_pubdata_byte = 0;
-            self.tx_body_refund(
+            let tx_body_refund = self.tx_body_refund(
                 bootloader_refund.refund,
                 bootloader_refund.gas_spent_on_pubdata,
                 tx_gas_limit,

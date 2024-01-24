@@ -7,13 +7,16 @@ use zk_evm_1_5_0::{
     },
 };
 use zksync_state::{ReadStorage, StoragePtr};
-use zksync_types::U256;
-use zksync_utils::{bytecode::bytecode_len_in_words, bytes_to_be_words, u256_to_h256};
+use zksync_types::{H256, U256};
+use zksync_utils::{
+    bytecode::bytecode_len_in_words, bytes_to_be_words, h256_to_u256, u256_to_h256,
+};
 
 use super::OracleWithHistory;
 use crate::vm_latest::old_vm::history_recorder::{
     HistoryEnabled, HistoryMode, HistoryRecorder, WithHistory,
 };
+
 /// The main job of the DecommiterOracle is to implement the DecommittmentProcessor trait - that is
 /// used by the VM to 'load' bytecodes into memory.
 #[derive(Debug)]
@@ -56,7 +59,7 @@ impl<S: ReadStorage, const B: bool, H: HistoryMode> DecommitterOracle<B, S, H> {
                     .storage
                     .borrow_mut()
                     .load_factory_dep(u256_to_h256(hash))
-                    .expect("Trying to decode unexisting hash");
+                    .unwrap_or_else(|| panic!("Trying to decommit unexisting hash: {}", hash));
 
                 let value = bytes_to_be_words(value);
                 self.known_bytecodes.insert(hash, value.clone(), timestamp);
@@ -70,14 +73,6 @@ impl<S: ReadStorage, const B: bool, H: HistoryMode> DecommitterOracle<B, S, H> {
         for (hash, bytecode) in bytecodes {
             self.known_bytecodes.insert(hash, bytecode, timestamp);
         }
-    }
-
-    pub fn get_used_bytecode_hashes(&self) -> Vec<U256> {
-        self.decommitted_code_hashes
-            .inner()
-            .iter()
-            .map(|item| *item.0)
-            .collect()
     }
 
     pub fn get_decommitted_bytecodes_after_timestamp(&self, timestamp: Timestamp) -> usize {
@@ -174,23 +169,31 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
         anyhow::Error,
     > {
         self.decommitment_requests.push((), partial_query.timestamp);
+
+        // erasing the constructor marker
+        // FIXME: a better code could be used
+        let hash_for_query = {
+            let mut hash = u256_to_h256(partial_query.hash);
+            hash.0[1] = 0;
+            h256_to_u256(hash)
+        };
+
         // First - check if we didn't fetch this bytecode in the past.
         // If we did - we can just return the page that we used before (as the memory is readonly).
         if let Some(memory_page) = self
             .decommitted_code_hashes
             .inner()
-            .get(&partial_query.hash)
+            .get(&hash_for_query)
             .copied()
         {
             partial_query.is_fresh = false;
             partial_query.memory_page = MemoryPage(memory_page);
-            partial_query.decommitted_length =
-                bytecode_len_in_words(&u256_to_h256(partial_query.hash));
+            partial_query.decommitted_length = bytecode_len_in_words(&u256_to_h256(hash_for_query));
 
             Ok((partial_query, None))
         } else {
             // We are fetching a fresh bytecode that we didn't read before.
-            let values = self.get_bytecode(partial_query.hash, partial_query.timestamp);
+            let values = self.get_bytecode(hash_for_query, partial_query.timestamp);
             let page_to_use = partial_query.memory_page;
             let timestamp = partial_query.timestamp;
             partial_query.decommitted_length = values.len() as u16;
@@ -210,7 +213,7 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
                 rw_flag: true,
             };
             self.decommitted_code_hashes
-                .insert(partial_query.hash, page_to_use.0, timestamp);
+                .insert(hash_for_query, page_to_use.0, timestamp);
 
             // Copy the bytecode (that is stored in 'values' Vec) into the memory page.
             if B {
