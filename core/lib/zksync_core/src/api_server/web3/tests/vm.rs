@@ -7,6 +7,7 @@ use zksync_types::{
     get_intrinsic_constants, transaction_request::CallRequest, L2ChainId, PackedEthSignature, U256,
 };
 use zksync_utils::u256_to_h256;
+use zksync_web3_decl::namespaces::DebugNamespaceClient;
 
 use super::*;
 
@@ -19,6 +20,8 @@ impl CallTest {
             from: Some(Address::repeat_byte(1)),
             to: Some(Address::repeat_byte(2)),
             data: Some(data.to_vec().into()),
+            value: Some(4321.into()),
+            gas: Some(123.into()),
             ..CallRequest::default()
         }
     }
@@ -266,4 +269,150 @@ async fn send_raw_transaction_after_snapshot_recovery() {
         snapshot_recovery: true,
     })
     .await;
+}
+
+#[derive(Debug)]
+struct TraceCallTest;
+
+impl TraceCallTest {
+    fn assert_debug_call(call_request: &CallRequest, call_result: &api::DebugCall) {
+        assert_eq!(call_result.from, Address::zero());
+        assert_eq!(call_result.gas, call_request.gas.unwrap());
+        assert_eq!(call_result.value, call_request.value.unwrap());
+        assert_eq!(call_result.input, *call_request.data.as_ref().unwrap());
+        assert_eq!(call_result.output.0, b"output");
+    }
+}
+
+#[async_trait]
+impl HttpTest for TraceCallTest {
+    fn transaction_executor(&self) -> MockTransactionExecutor {
+        CallTest::create_executor(MiniblockNumber(0))
+    }
+
+    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
+        let call_request = CallTest::call_request(b"pending");
+        let call_result = client.trace_call(call_request.clone(), None, None).await?;
+        Self::assert_debug_call(&call_request, &call_result);
+        let pending_block_number = api::BlockId::Number(api::BlockNumber::Pending);
+        let call_result = client
+            .trace_call(call_request.clone(), Some(pending_block_number), None)
+            .await?;
+        Self::assert_debug_call(&call_request, &call_result);
+
+        let genesis_block_numbers = [
+            api::BlockNumber::Earliest,
+            api::BlockNumber::Latest,
+            0.into(),
+        ];
+        let call_request = CallTest::call_request(b"first");
+        for number in genesis_block_numbers {
+            let call_result = client
+                .trace_call(
+                    call_request.clone(),
+                    Some(api::BlockId::Number(number)),
+                    None,
+                )
+                .await?;
+            Self::assert_debug_call(&call_request, &call_result);
+        }
+
+        let invalid_block_number = api::BlockNumber::from(100);
+        let error = client
+            .trace_call(
+                CallTest::call_request(b"100"),
+                Some(api::BlockId::Number(invalid_block_number)),
+                None,
+            )
+            .await
+            .unwrap_err();
+        if let ClientError::Call(error) = error {
+            assert_eq!(error.code(), ErrorCode::InvalidParams.code());
+        } else {
+            panic!("Unexpected error: {error:?}");
+        }
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn trace_call_basics() {
+    test_http_server(TraceCallTest).await;
+}
+
+#[derive(Debug)]
+struct TraceCallTestAfterSnapshotRecovery;
+
+#[async_trait]
+impl HttpTest for TraceCallTestAfterSnapshotRecovery {
+    fn storage_initialization(&self) -> StorageInitialization {
+        StorageInitialization::empty_recovery()
+    }
+
+    fn transaction_executor(&self) -> MockTransactionExecutor {
+        let number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
+        CallTest::create_executor(MiniblockNumber(number))
+    }
+
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+        let call_request = CallTest::call_request(b"first");
+        let call_result = client.trace_call(call_request.clone(), None, None).await?;
+        TraceCallTest::assert_debug_call(&call_request, &call_result);
+        let pending_block_number = api::BlockId::Number(api::BlockNumber::Pending);
+        let call_result = client
+            .trace_call(call_request.clone(), Some(pending_block_number), None)
+            .await?;
+        TraceCallTest::assert_debug_call(&call_request, &call_result);
+
+        let first_local_miniblock = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
+        let first_miniblock_numbers = [api::BlockNumber::Latest, first_local_miniblock.into()];
+        for number in first_miniblock_numbers {
+            let number = api::BlockId::Number(number);
+            let error = client
+                .trace_call(CallTest::call_request(b"first"), Some(number), None)
+                .await
+                .unwrap_err();
+            if let ClientError::Call(error) = error {
+                assert_eq!(error.code(), ErrorCode::InvalidParams.code());
+            } else {
+                panic!("Unexpected error: {error:?}");
+            }
+        }
+
+        let pruned_block_numbers = [0, 1, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK];
+        for number in pruned_block_numbers {
+            let number = api::BlockIdVariant::BlockNumber(number.into());
+            let error = client
+                .call(CallTest::call_request(b"pruned"), Some(number))
+                .await
+                .unwrap_err();
+            assert_pruned_block_error(&error, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1);
+        }
+
+        let mut storage = pool.access_storage().await?;
+        store_miniblock(&mut storage, MiniblockNumber(first_local_miniblock), &[]).await?;
+        drop(storage);
+
+        let call_request = CallTest::call_request(b"pending");
+        let call_result = client
+            .trace_call(call_request.clone(), Some(pending_block_number), None)
+            .await?;
+        TraceCallTest::assert_debug_call(&call_request, &call_result);
+
+        let call_request = CallTest::call_request(b"first");
+        for number in first_miniblock_numbers {
+            let number = api::BlockId::Number(number);
+            let call_result = client
+                .trace_call(call_request.clone(), Some(number), None)
+                .await?;
+            TraceCallTest::assert_debug_call(&call_request, &call_result);
+        }
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn trace_call_after_snapshot_recovery() {
+    test_http_server(TraceCallTestAfterSnapshotRecovery).await;
 }
