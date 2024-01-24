@@ -907,13 +907,13 @@ dependencies = [
 [[package]]
 name = "boojum"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#93b5e0f0dbff0a9b606d9025e207c8405c141bd9"
+source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#84754b066959c8fdfb77edf730fc13ed87404907"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "const_format",
- "convert_case",
+ "convert_case 0.6.0",
  "crossbeam 0.8.2",
  "crypto-bigint 0.5.3",
  "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum.git?branch=main)",
@@ -1206,11 +1206,10 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#de2ecad62ac8c12777e576dca20311ad8ec770d1"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#43aeb53d7d9c909508a98f9fc140edff0e9d2357"
 dependencies = [
  "crossbeam 0.8.2",
  "derivative",
- "seq-macro",
  "serde",
  "snark_wrapper",
  "zk_evm 1.4.0",
@@ -1420,6 +1419,15 @@ name = "convert_case"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
+
+[[package]]
+name = "convert_case"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec182b0ca2f35d8fc196cf3404988fd8b8c739a4d270ff118a398feb0cbec1ca"
+dependencies = [
+ "unicode-segmentation",
+]
 
 [[package]]
 name = "cookie"
@@ -1728,7 +1736,7 @@ dependencies = [
 [[package]]
 name = "cs_derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#93b5e0f0dbff0a9b606d9025e207c8405c141bd9"
+source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#84754b066959c8fdfb77edf730fc13ed87404907"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.69",
@@ -1931,7 +1939,7 @@ version = "0.99.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fb810d30a7c1953f91334de7244731fc3f3c10d7fe163338a35b9f640960321"
 dependencies = [
- "convert_case",
+ "convert_case 0.4.0",
  "proc-macro2 1.0.69",
  "quote 1.0.33",
  "rustc_version",
@@ -2421,7 +2429,7 @@ dependencies = [
 [[package]]
 name = "franklin-crypto"
 version = "0.0.5"
-source = "git+https://github.com/matter-labs/franklin-crypto?branch=snark_wrapper#2546c63b91b59bdb0ad342d26f03fb57477550b2"
+source = "git+https://github.com/matter-labs/franklin-crypto?branch=snark_wrapper#900332b8c2fe528b5008bb4e6bf2d3f206a9ae56"
 dependencies = [
  "arr_macro",
  "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=snark-wrapper)",
@@ -4418,7 +4426,7 @@ dependencies = [
 [[package]]
 name = "pairing_ce"
 version = "0.28.5"
-source = "git+https://github.com/matter-labs/pairing.git#f55393fd366596eac792d78525d26e9c4d6ed1ca"
+source = "git+https://github.com/matter-labs/pairing.git#d06c2a112913b0abfb75996cc29a6b6075717e99"
 dependencies = [
  "byteorder",
  "cfg-if 1.0.0",
@@ -6153,7 +6161,7 @@ dependencies = [
 [[package]]
 name = "snark_wrapper"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/snark-wrapper.git?branch=main#42661a9ff9d00853441589679c101f71e3785f55"
+source = "git+https://github.com/matter-labs/snark-wrapper.git?branch=main#52f9ef98a7e6c86b405dd0ec42291dacf6e2bcb4"
 dependencies = [
  "derivative",
  "rand 0.4.6",
@@ -8029,7 +8037,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.4.0"
-source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=main#fb3e2574b5c890342518fc930c145443f039a105"
+source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=main#4fba537ccecc238e2da9c80844dc8c185e42466f"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
@@ -8040,7 +8048,6 @@ dependencies = [
  "itertools 0.10.5",
  "rand 0.4.6",
  "rand 0.8.5",
- "seq-macro",
  "serde",
  "serde_json",
  "smallvec",
@@ -8050,7 +8057,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.4.1"
-source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.4.1#1ad655514b69edcb6ad70205a1f6bd7f89a39e72"
+source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.4.1#70234e99c2492740226b9f40091e7fccc7ef28e9"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
@@ -8117,7 +8124,7 @@ dependencies = [
  "codegen 0.2.0",
  "crossbeam 0.8.2",
  "derivative",
- "env_logger 0.10.0",
+ "env_logger 0.9.3",
  "hex",
  "num-bigint 0.4.4",
  "num-integer",
@@ -8168,7 +8175,7 @@ dependencies = [
  "crossbeam 0.8.2",
  "curl",
  "derivative",
- "env_logger 0.10.0",
+ "env_logger 0.9.3",
  "hex",
  "lazy_static",
  "rand 0.4.6",
