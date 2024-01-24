@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 
-use anyhow::Context;
 use sqlx::types::chrono::Utc;
 use zksync_types::{
     snapshots::SnapshotStorageLog, zk_evm_types::LogQuery, AccountTreeId, Address, L1BatchNumber,
@@ -244,8 +243,7 @@ impl StorageLogsDedupDal<'_, '_> {
         )
         .fetch_all(self.storage.conn())
         .await
-        .context("get_all_initial_writes_for_tests")
-        .unwrap();
+        .expect("get_all_initial_writes_for_tests");
 
         rows.into_iter()
             .map(|row| InitialWriteDbRow {

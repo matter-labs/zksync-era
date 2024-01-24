@@ -1,6 +1,5 @@
 use std::{collections::HashMap, fmt, time::Duration};
 
-use anyhow::Context;
 use async_trait::async_trait;
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics, Unit};
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
@@ -16,6 +15,7 @@ use zksync_types::{
 use zksync_utils::bytecode::hash_bytecode;
 use zksync_web3_decl::jsonrpsee::core::{client::Error, ClientError as RpcError};
 
+#[cfg(test)]
 mod tests;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
@@ -66,9 +66,11 @@ pub enum SnapshotsApplierError {
     #[error(transparent)]
     Retryable(anyhow::Error),
 }
-pub struct SnapshotsApplier<'a> {
+
+#[derive(Debug)]
+pub struct SnapshotsApplier<'a, 'b> {
     connection_pool: &'a ConnectionPool,
-    blob_store: &'a dyn ObjectStore,
+    blob_store: &'b dyn ObjectStore,
     applied_snapshot_status: SnapshotRecoveryStatus,
 }
 
@@ -113,11 +115,11 @@ pub trait SnapshotsApplierMainNodeClient: fmt::Debug + Send + Sync {
 
     async fn fetch_newest_snapshot(&self) -> Result<Option<SnapshotHeader>, RpcError>;
 }
-impl<'a> SnapshotsApplier<'a> {
+impl<'a, 'b> SnapshotsApplier<'a, 'b> {
     pub async fn prepare_applied_snapshot_status(
-        storage: &mut StorageProcessor<'a>,
-        main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
-    ) -> anyhow::Result<(SnapshotRecoveryStatus, bool), SnapshotsApplierError> {
+        storage: &mut StorageProcessor<'_>,
+        main_node_client: &'_ dyn SnapshotsApplierMainNodeClient,
+    ) -> Result<(SnapshotRecoveryStatus, bool), SnapshotsApplierError> {
         let latency =
             METRICS.initial_stage_duration[&InitialStage::FetchMetadataFromMainNode].start();
 
@@ -137,7 +139,7 @@ impl<'a> SnapshotsApplier<'a> {
             }
 
             let latency = latency.observe();
-            tracing::info!("Re-initialized snapshots applier  after reset/failure in {latency:?}");
+            tracing::info!("Re-initialized snapshots applier after reset/failure in {latency:?}");
 
             Ok((applied_snapshot_status, false))
         } else {
@@ -160,9 +162,9 @@ impl<'a> SnapshotsApplier<'a> {
 
     pub async fn load_snapshot(
         connection_pool: &'a ConnectionPool,
-        main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
-        blob_store: &'a dyn ObjectStore,
-    ) -> anyhow::Result<(), SnapshotsApplierError> {
+        main_node_client: &'_ dyn SnapshotsApplierMainNodeClient,
+        blob_store: &'b dyn ObjectStore,
+    ) -> Result<(), SnapshotsApplierError> {
         let mut storage = connection_pool
             .access_storage_tagged("snapshots_applier")
             .await?;
@@ -211,14 +213,14 @@ impl<'a> SnapshotsApplier<'a> {
     }
 
     async fn create_fresh_recovery_status(
-        main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
-    ) -> anyhow::Result<SnapshotRecoveryStatus> {
+        main_node_client: &'_ dyn SnapshotsApplierMainNodeClient,
+    ) -> Result<SnapshotRecoveryStatus, SnapshotsApplierError> {
         let snapshot_response = main_node_client.fetch_newest_snapshot().await?;
 
         let snapshot = snapshot_response.ok_or(SnapshotsApplierError::Canceled(
             "Main node does not have any ready snapshots, skipping initialization from snapshot!"
                 .to_string(),
-        )).context("No snapshots were found in main node")?;
+        ))?;
 
         let l1_batch_number = snapshot.l1_batch_number;
         tracing::info!(
@@ -248,7 +250,7 @@ impl<'a> SnapshotsApplier<'a> {
     async fn recover_factory_deps(
         &mut self,
         storage: &mut StorageProcessor<'_>,
-    ) -> anyhow::Result<(), SnapshotsApplierError> {
+    ) -> Result<(), SnapshotsApplierError> {
         let latency = METRICS.initial_stage_duration[&InitialStage::ApplyFactoryDeps].start();
 
         let factory_deps: SnapshotFactoryDependencies = self
@@ -270,7 +272,7 @@ impl<'a> SnapshotsApplier<'a> {
             .await?;
 
         let latency = latency.observe();
-        tracing::info!("Applied factory dependencies in {latency:?}",);
+        tracing::info!("Applied factory dependencies in {latency:?}");
 
         Ok(())
     }
@@ -279,8 +281,7 @@ impl<'a> SnapshotsApplier<'a> {
         &mut self,
         storage_logs: &[SnapshotStorageLog],
         storage: &mut StorageProcessor<'_>,
-    ) -> anyhow::Result<(), SnapshotsApplierError> {
-        tracing::info!("Loading {} storage logs into postgres", storage_logs.len());
+    ) -> Result<(), SnapshotsApplierError> {
         storage
             .storage_logs_dedup_dal()
             .insert_initial_writes_from_snapshot(storage_logs)
@@ -291,7 +292,7 @@ impl<'a> SnapshotsApplier<'a> {
         &mut self,
         storage_logs: &[SnapshotStorageLog],
         storage: &mut StorageProcessor<'_>,
-    ) -> anyhow::Result<(), SnapshotsApplierError> {
+    ) -> Result<(), SnapshotsApplierError> {
         storage
             .storage_logs_dal()
             .insert_storage_logs_from_snapshot(
@@ -305,7 +306,7 @@ impl<'a> SnapshotsApplier<'a> {
     async fn recover_storage_logs_single_chunk(
         &mut self,
         chunk_id: u64,
-    ) -> anyhow::Result<(), SnapshotsApplierError> {
+    ) -> Result<(), SnapshotsApplierError> {
         let latency =
             METRICS.storage_logs_chunks_duration[&StorageLogsChunksStage::LoadFromGcs].start();
 
@@ -332,6 +333,9 @@ impl<'a> SnapshotsApplier<'a> {
         let mut storage = storage.start_transaction().await?;
 
         let storage_logs = &storage_snapshot_chunk.storage_logs;
+
+        tracing::info!("Loading {} storage logs into postgres", storage_logs.len());
+
         self.insert_storage_logs_chunk(storage_logs, &mut storage)
             .await?;
 
@@ -354,7 +358,7 @@ impl<'a> SnapshotsApplier<'a> {
         Ok(())
     }
 
-    pub async fn recover_storage_logs(mut self) -> anyhow::Result<(), SnapshotsApplierError> {
+    pub async fn recover_storage_logs(mut self) -> Result<(), SnapshotsApplierError> {
         for chunk_id in 0..self
             .applied_snapshot_status
             .storage_logs_chunks_processed

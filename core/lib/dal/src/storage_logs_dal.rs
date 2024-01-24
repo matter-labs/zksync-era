@@ -571,8 +571,7 @@ impl StorageLogsDal<'_, '_> {
         )
         .fetch_all(self.storage.conn())
         .await
-        .context("get_all_storage_logs_for_tests")
-        .unwrap();
+        .expect("get_all_storage_logs_for_tests");
         rows.into_iter()
             .map(|row| StorageLogDbRow {
                 hashed_key: H256::from_slice(&row.hashed_key),

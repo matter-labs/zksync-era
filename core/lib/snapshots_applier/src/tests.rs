@@ -1,4 +1,3 @@
-#[cfg(test)]
 mod utils {
     use std::collections::HashMap;
 
@@ -34,11 +33,7 @@ mod utils {
         }
 
         async fn fetch_newest_snapshot(&self) -> Result<Option<SnapshotHeader>, RpcError> {
-            if let Some(response) = self.fetch_newest_snapshot_response.clone() {
-                Ok(Some(response))
-            } else {
-                Ok(None)
-            }
+            Ok(self.fetch_newest_snapshot_response.clone())
         }
     }
 
@@ -120,7 +115,6 @@ mod utils {
     }
 }
 
-#[cfg(test)]
 mod snapshots_applier_tests {
     use zksync_dal::ConnectionPool;
     use zksync_object_store::ObjectStoreFactory;
