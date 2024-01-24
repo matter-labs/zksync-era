@@ -1,43 +1,47 @@
 use std::collections::HashMap;
 
-use multivm::{
-    interface::{ExecutionResult, VmExecutionResultAndLogs},
-    tracers::validator::ValidationError,
-};
+use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use zksync_types::{
     fee::TransactionExecutionMetrics, l2::L2Tx, ExecuteTransactionCommon, Transaction, H256,
 };
 
-use super::TransactionExecutor;
-
-type MockExecutionOutput = (VmExecutionResultAndLogs, TransactionExecutionMetrics, bool);
+use super::{
+    execute::{TransactionExecutionOutput, TransactionExecutor},
+    validate::ValidationError,
+};
 
 #[derive(Debug, Default)]
 pub(crate) struct MockTransactionExecutor {
-    call_responses: HashMap<Vec<u8>, MockExecutionOutput>,
-    tx_responses: HashMap<H256, MockExecutionOutput>,
+    call_responses: HashMap<Vec<u8>, TransactionExecutionOutput>,
+    tx_responses: HashMap<H256, TransactionExecutionOutput>,
 }
 
 impl MockTransactionExecutor {
     pub fn insert_call_response(&mut self, calldata: Vec<u8>, result: ExecutionResult) {
-        let result = VmExecutionResultAndLogs {
-            result,
-            logs: Default::default(),
-            statistics: Default::default(),
-            refunds: Default::default(),
+        let output = TransactionExecutionOutput {
+            vm: VmExecutionResultAndLogs {
+                result,
+                logs: Default::default(),
+                statistics: Default::default(),
+                refunds: Default::default(),
+            },
+            metrics: TransactionExecutionMetrics::default(),
+            are_published_bytecodes_ok: true,
         };
-        let output = (result, TransactionExecutionMetrics::default(), true);
         self.call_responses.insert(calldata, output);
     }
 
     pub fn insert_tx_response(&mut self, tx_hash: H256, result: ExecutionResult) {
-        let result = VmExecutionResultAndLogs {
-            result,
-            logs: Default::default(),
-            statistics: Default::default(),
-            refunds: Default::default(),
+        let output = TransactionExecutionOutput {
+            vm: VmExecutionResultAndLogs {
+                result,
+                logs: Default::default(),
+                statistics: Default::default(),
+                refunds: Default::default(),
+            },
+            metrics: TransactionExecutionMetrics::default(),
+            are_published_bytecodes_ok: true,
         };
-        let output = (result, TransactionExecutionMetrics::default(), true);
         self.tx_responses.insert(tx_hash, output);
     }
 
@@ -48,22 +52,23 @@ impl MockTransactionExecutor {
         Ok(())
     }
 
-    pub fn execute_tx(&self, tx: &Transaction) -> MockExecutionOutput {
+    pub fn execute_tx(&self, tx: &Transaction) -> anyhow::Result<TransactionExecutionOutput> {
         if let ExecuteTransactionCommon::L2(data) = &tx.common_data {
             if data.input.is_none() {
                 // `Transaction` was obtained from a `CallRequest`
-                return self
+                return Ok(self
                     .call_responses
                     .get(tx.execute.calldata())
                     .unwrap_or_else(|| panic!("Executing unexpected call: {tx:?}"))
-                    .clone();
+                    .clone());
             }
         }
 
-        self.tx_responses
+        Ok(self
+            .tx_responses
             .get(&tx.hash())
             .unwrap_or_else(|| panic!("Executing unexpected transaction: {tx:?}"))
-            .clone()
+            .clone())
     }
 }
 

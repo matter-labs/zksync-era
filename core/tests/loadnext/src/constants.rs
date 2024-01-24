@@ -36,3 +36,8 @@ pub const MIN_PAYMASTER_BALANCE: u128 = 10u128.pow(18) * 50;
 /// If the paymaster balance is lower than MIN_PAYMASTER_BALANCE,
 /// loadtest will deposit funds to the paymaster account so that its balance reaches this value
 pub const TARGET_PAYMASTER_BALANCE: u128 = 10u128.pow(18) * 60;
+
+/// Min allowance for estimating the price for the paymaster transaction.
+/// It should be roughly equal (or maybe a bit higher) than the actual used tokens in the transaction for the most precise
+/// estimations. Note, however that is must not be higher than the ERC20 balance of the account.
+pub const MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE: u128 = 10u128.pow(18);
