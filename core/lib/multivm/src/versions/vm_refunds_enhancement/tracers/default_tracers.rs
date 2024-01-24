@@ -1,6 +1,7 @@
 use std::fmt::{Debug, Formatter};
 
 use zk_evm_1_3_3::{
+    aux_structures::Timestamp,
     tracing::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
     },
@@ -9,7 +10,6 @@ use zk_evm_1_3_3::{
     zkevm_opcode_defs::{decoding::EncodingModeProduction, Opcode, RetOpcode},
 };
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::Timestamp;
 
 use crate::{
     interface::{
