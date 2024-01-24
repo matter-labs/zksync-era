@@ -1,4 +1,4 @@
-use sqlx::{types::chrono::NaiveDateTime, FromRow};
+use sqlx::types::chrono::NaiveDateTime;
 use zksync_types::{
     api, api::TransactionReceipt, Address, L2ChainId, MiniblockNumber, Transaction,
     ACCOUNT_CODE_STORAGE_ADDRESS, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256, U256,
@@ -24,18 +24,10 @@ pub struct TransactionsWeb3Dal<'a, 'c> {
 impl TransactionsWeb3Dal<'_, '_> {
     pub async fn get_transaction_receipts(
         &mut self,
-        hashes: Vec<H256>,
+        hashes: &[H256],
     ) -> Result<Vec<TransactionReceipt>, SqlxError> {
-        let mut in_clause = String::from("(");
-        for i in 0..hashes.len() {
-            in_clause += &format!("${}", i + 3);
-            if i != hashes.len() - 1 {
-                in_clause += ", ";
-            }
-        }
-        in_clause += ")";
-
-        let query = format!(
+        let mut receipts: Vec<_> = sqlx::query_as!(
+            StorageTransactionReceipt,
             r#"
                 WITH sl AS (
                     SELECT DISTINCT ON (storage_logs.tx_hash)
@@ -44,7 +36,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                         storage_logs
                     WHERE
                         storage_logs.address = $1
-                        AND storage_logs.tx_hash IN {in_clause}
+                        AND storage_logs.tx_hash = ANY($3)
                     ORDER BY
                         storage_logs.tx_hash,
                         storage_logs.miniblock_number DESC,
@@ -54,59 +46,50 @@ impl TransactionsWeb3Dal<'_, '_> {
                     transactions.hash AS tx_hash,
                     transactions.index_in_block AS index_in_block,
                     transactions.l1_batch_tx_index AS l1_batch_tx_index,
-                    transactions.miniblock_number AS "block_number",
+                    transactions.miniblock_number AS "block_number!",
                     transactions.error AS error,
                     transactions.effective_gas_price AS effective_gas_price,
                     transactions.initiator_address AS initiator_address,
-                    transactions.data -> 'to' AS "transfer_to",
-                    transactions.data -> 'contractAddress' AS "execute_contract_address",
-                    transactions.tx_format AS "tx_format",
+                    transactions.data -> 'to' AS "transfer_to?",
+                    transactions.data -> 'contractAddress' AS "execute_contract_address?",
+                    transactions.tx_format AS "tx_format?",
                     transactions.refunded_gas AS refunded_gas,
                     transactions.gas_limit AS gas_limit,
                     miniblocks.hash AS "block_hash",
-                    miniblocks.l1_batch_number AS "l1_batch_number",
-                    sl.key AS "contract_address"
+                    miniblocks.l1_batch_number AS "l1_batch_number?",
+                    sl.key AS "contract_address?"
                 FROM
                     transactions
                     JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
                     LEFT JOIN sl ON sl.value != $2 AND sl.tx_hash = transactions.hash
                 WHERE
-                    transactions.hash IN {in_clause}
+                    transactions.hash = ANY($3)
                 ORDER BY
                     transactions.index_in_block ASC
                 "#,
-        );
-
-        let mut query = sqlx::query(&query);
-        query = query.bind(ACCOUNT_CODE_STORAGE_ADDRESS.as_bytes());
-        query = query.bind(FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes());
-
-        for hash in &hashes {
-            query = query.bind(hash.as_bytes());
-        }
-
-        let mut receipts: Vec<api::TransactionReceipt> = query
-            .fetch_all(self.storage.conn())
-            .await?
-            .into_iter()
-            .map(|db_row| {
-                api::TransactionReceipt::from(
-                    StorageTransactionReceipt::from_row(&db_row)
-                        .expect("Failed to parse transaction receipt from DB row"),
-                )
-            })
-            .collect();
+            ACCOUNT_CODE_STORAGE_ADDRESS.as_bytes(),
+            FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
+            &hashes
+                .iter()
+                .map(|h| h.as_bytes().to_vec())
+                .collect::<Vec<_>>()[..]
+        )
+        .fetch_all(self.storage.conn())
+        .await?
+        .into_iter()
+        .map(|receipt| TransactionReceipt::from(receipt))
+        .collect();
 
         let mut logs = self
             .storage
             .events_dal()
-            .get_logs_by_hashes(hashes.clone())
+            .get_logs_by_hashes(&hashes)
             .await?;
 
         let mut l2_to_l1_logs = self
             .storage
             .events_dal()
-            .get_l2_to_l1_logs_by_hashes(hashes)
+            .get_l2_to_l1_logs_by_hashes(&hashes)
             .await?;
 
         for receipt in &mut receipts {
@@ -474,7 +457,7 @@ mod tests {
 
         let receipts = conn
             .transactions_web3_dal()
-            .get_transaction_receipts(vec![tx1_hash, tx2_hash])
+            .get_transaction_receipts(&vec![tx1_hash, tx2_hash])
             .await
             .unwrap();
 

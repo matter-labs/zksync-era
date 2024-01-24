@@ -7,6 +7,7 @@ use sqlx::{
     types::chrono::{DateTime, NaiveDateTime, Utc},
     Error, FromRow, Row,
 };
+use zksync_types::api::TransactionReceipt;
 use zksync_types::{
     api,
     api::{TransactionDetails, TransactionStatus},
@@ -322,89 +323,82 @@ impl From<StorageTransaction> for Transaction {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, sqlx::FromRow)]
 pub struct StorageTransactionReceipt {
-    #[serde(flatten)]
-    pub inner: api::TransactionReceipt,
+    pub error: Option<String>,
+    pub tx_format: Option<i32>,
+    pub index_in_block: Option<i32>,
+    pub block_hash: Vec<u8>,
+    pub tx_hash: Vec<u8>,
+    pub block_number: i64,
+    pub l1_batch_tx_index: Option<i32>,
+    pub l1_batch_number: Option<i64>,
+    pub transfer_to: Option<sqlx::types::JsonValue>,
+    pub execute_contract_address: Option<sqlx::types::JsonValue>,
+    pub refunded_gas: i64,
+    pub gas_limit: Option<BigDecimal>,
+    pub effective_gas_price: Option<BigDecimal>,
+    pub contract_address: Option<Vec<u8>>,
+    pub initiator_address: Vec<u8>,
 }
 
-impl From<StorageTransactionReceipt> for api::TransactionReceipt {
-    fn from(tx_receipt: StorageTransactionReceipt) -> Self {
-        tx_receipt.inner
-    }
-}
-
-impl<'r> FromRow<'r, PgRow> for StorageTransactionReceipt {
-    fn from_row(db_row: &'r PgRow) -> Result<Self, Error> {
-        let status = db_row
-            .try_get("error")
-            .ok()
-            .map(|_: &str| U64::zero())
+impl From<StorageTransactionReceipt> for TransactionReceipt {
+    fn from(storage_receipt: StorageTransactionReceipt) -> Self {
+        let status = storage_receipt
+            .error
+            .map(|_| U64::zero())
             .unwrap_or_else(U64::one);
 
-        let tx_type = db_row
-            .try_get::<i32, &str>("tx_format")
-            .ok()
+        let tx_type = storage_receipt.tx_format.map(U64::from).unwrap_or_default();
+        let transaction_index = storage_receipt
+            .index_in_block
             .map(U64::from)
             .unwrap_or_default();
-        let transaction_index = U64::from(db_row.get::<i32, &str>("index_in_block"));
 
-        let block_hash = H256::from_slice(db_row.get("block_hash"));
-
-        Ok(StorageTransactionReceipt {
-            inner: api::TransactionReceipt {
-                transaction_hash: H256::from_slice(db_row.get("tx_hash")),
-                transaction_index,
-                block_hash,
-                block_number: U64::from(db_row.get::<i64, &str>("block_number")),
-                l1_batch_tx_index: db_row
-                    .try_get::<i32, &str>("l1_batch_tx_index")
-                    .ok()
-                    .map(U64::from),
-                l1_batch_number: db_row
-                    .try_get::<i64, &str>("l1_batch_number")
-                    .ok()
-                    .map(U64::from),
-                from: H160::from_slice(db_row.get("initiator_address")),
-                to: db_row
-                    .try_get("transfer_to")
-                    .or(db_row.try_get("execute_contract_address"))
-                    .map(|addr| {
-                        serde_json::from_value::<Address>(addr)
-                            .expect("invalid address value in the database")
-                    })
-                    .ok()
-                    // For better compatibility with various clients, we never return null.
-                    .or_else(|| Some(Address::default())),
-                cumulative_gas_used: Default::default(), // TODO: Should be actually calculated (SMA-1183).
-                gas_used: {
-                    let refunded_gas = U256::from(db_row.get::<i64, &str>("refunded_gas"));
-                    db_row.try_get("gas_limit").ok().map(|val| {
-                        let gas_limit = bigdecimal_to_u256(val);
-                        gas_limit - refunded_gas
-                    })
-                },
-                effective_gas_price: Some(
-                    db_row
-                        .try_get("effective_gas_price")
-                        .ok()
-                        .map(bigdecimal_to_u256)
-                        .unwrap_or_default(),
-                ),
-                contract_address: db_row
-                    .try_get("contract_address")
-                    .ok()
-                    .map(|addr| h256_to_account_address(&H256::from_slice(addr))),
-                logs: vec![],
-                l2_to_l1_logs: vec![],
-                status,
-                root: block_hash,
-                logs_bloom: Default::default(),
-                // Even though the Rust SDK recommends us to supply "None" for legacy transactions
-                // we always supply some number anyway to have the same behavior as most popular RPCs
-                transaction_type: Some(tx_type),
+        let block_hash = H256::from_slice(&storage_receipt.block_hash);
+        TransactionReceipt {
+            transaction_hash: H256::from_slice(&storage_receipt.tx_hash),
+            transaction_index,
+            block_hash,
+            block_number: storage_receipt.block_number.into(),
+            l1_batch_tx_index: storage_receipt.l1_batch_tx_index.map(U64::from),
+            l1_batch_number: storage_receipt.l1_batch_number.map(U64::from),
+            from: H160::from_slice(&storage_receipt.initiator_address),
+            to: storage_receipt
+                .transfer_to
+                .or(storage_receipt.execute_contract_address)
+                .map(|addr| {
+                    serde_json::from_value::<Address>(addr)
+                        .expect("invalid address value in the database")
+                })
+                // For better compatibility with various clients, we never return null.
+                .or_else(|| Some(Address::default())),
+            cumulative_gas_used: Default::default(), // TODO: Should be actually calculated (SMA-1183).
+            gas_used: {
+                let refunded_gas: U256 = storage_receipt.refunded_gas.into();
+                storage_receipt.gas_limit.map(|val| {
+                    let gas_limit = bigdecimal_to_u256(val);
+                    gas_limit - refunded_gas
+                })
             },
-        })
+            effective_gas_price: Some(
+                storage_receipt
+                    .effective_gas_price
+                    .map(bigdecimal_to_u256)
+                    .unwrap_or_default(),
+            ),
+            contract_address: storage_receipt
+                .contract_address
+                .map(|addr| h256_to_account_address(&H256::from_slice(&addr))),
+            logs: vec![],
+            l2_to_l1_logs: vec![],
+            status,
+            root: block_hash,
+            logs_bloom: Default::default(),
+            // Even though the Rust SDK recommends us to supply "None" for legacy transactions
+            // we always supply some number anyway to have the same behavior as most popular RPCs
+            transaction_type: Some(tx_type),
+        }
     }
 }
 

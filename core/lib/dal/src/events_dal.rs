@@ -188,18 +188,14 @@ impl EventsDal<'_, '_> {
 
     pub(crate) async fn get_logs_by_hashes(
         &mut self,
-        hashes: Vec<H256>,
+        hashes: &[H256],
     ) -> Result<HashMap<H256, Vec<api::Log>>, SqlxError> {
-        let mut in_clause = String::from("(");
-        for i in 0..hashes.len() {
-            in_clause += &format!("${}", i + 1);
-            if i != hashes.len() - 1 {
-                in_clause += ", ";
-            }
-        }
-        in_clause += ")";
-
-        let query = format!(
+        let hashes = hashes
+            .iter()
+            .map(|hash| hash.as_bytes().to_vec())
+            .collect::<Vec<_>>();
+        let logs: Vec<_> = sqlx::query_as!(
+            StorageWeb3Log,
             r#"
                 SELECT
                     address,
@@ -218,21 +214,16 @@ impl EventsDal<'_, '_> {
                 FROM
                     events
                 WHERE
-                    tx_hash IN {in_clause}
+                    tx_hash = ANY($1)
                 ORDER BY
                     miniblock_number ASC,
                     tx_index_in_block ASC,
                     event_index_in_block ASC
-                "#
-        );
-
-        let mut query = sqlx::query_as(&query);
-
-        for hash in &hashes {
-            query = query.bind(hash.as_bytes());
-        }
-
-        let logs: Vec<StorageWeb3Log> = query.fetch_all(self.storage.conn()).await?;
+                "#,
+            &hashes[..],
+        )
+        .fetch_all(self.storage.conn())
+        .await?;
 
         let mut result = HashMap::<H256, Vec<api::Log>>::new();
 
@@ -247,18 +238,14 @@ impl EventsDal<'_, '_> {
 
     pub(crate) async fn get_l2_to_l1_logs_by_hashes(
         &mut self,
-        hashes: Vec<H256>,
+        hashes: &[H256],
     ) -> Result<HashMap<H256, Vec<api::L2ToL1Log>>, SqlxError> {
-        let mut in_clause = String::from("(");
-        for i in 0..hashes.len() {
-            in_clause += &format!("${}", i + 1);
-            if i != hashes.len() - 1 {
-                in_clause += ", ";
-            }
-        }
-        in_clause += ")";
-
-        let query = format!(
+        let hashes = &hashes
+            .iter()
+            .map(|hash| hash.as_bytes().to_vec())
+            .collect::<Vec<_>>();
+        let logs: Vec<_> = sqlx::query_as!(
+            StorageL2ToL1Log,
             r#"
                 SELECT
                     miniblock_number,
@@ -277,20 +264,15 @@ impl EventsDal<'_, '_> {
                 FROM
                     l2_to_l1_logs
                 WHERE
-                    tx_hash IN {in_clause}
+                    tx_hash = ANY($1)
                 ORDER BY
                     tx_index_in_l1_batch ASC,
                     log_index_in_tx ASC
-                "#
-        );
-
-        let mut query = sqlx::query_as(&query);
-
-        for hash in &hashes {
-            query = query.bind(hash.as_bytes());
-        }
-
-        let logs: Vec<StorageL2ToL1Log> = query.fetch_all(self.storage.conn()).await?;
+                "#,
+            &hashes[..]
+        )
+        .fetch_all(self.storage.conn())
+        .await?;
 
         let mut result = HashMap::<H256, Vec<api::L2ToL1Log>>::new();
 
@@ -444,7 +426,7 @@ mod tests {
 
         let logs = conn
             .events_dal()
-            .get_l2_to_l1_logs_by_hashes(vec![H256([1; 32])])
+            .get_l2_to_l1_logs_by_hashes(&vec![H256([1; 32])])
             .await
             .unwrap();
 
@@ -463,7 +445,7 @@ mod tests {
 
         let logs = conn
             .events_dal()
-            .get_l2_to_l1_logs_by_hashes(vec![H256([2; 32])])
+            .get_l2_to_l1_logs_by_hashes(&vec![H256([2; 32])])
             .await
             .unwrap()
             .get(&H256([2; 32]))
