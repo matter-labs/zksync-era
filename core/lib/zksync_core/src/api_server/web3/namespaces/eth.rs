@@ -554,7 +554,7 @@ impl EthNamespace {
             .await
             .unwrap()
             .transactions_web3_dal()
-            .get_transaction_receipts(&vec![hash])
+            .get_transaction_receipts(&[hash])
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 
