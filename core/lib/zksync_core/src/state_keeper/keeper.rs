@@ -141,7 +141,7 @@ impl ZkSyncStateKeeper {
             self.io.load_previous_batch_version_id().await.unwrap();
 
         let first_batch_in_shared_bridge = l1_batch_env.number == L1BatchNumber(1)
-            && protocol_version > ProtocolVersionId::Version21;
+            && protocol_version >= ProtocolVersionId::Version21;
         let version_changed = protocol_version != previous_batch_protocol_version;
 
         let mut protocol_upgrade_tx = self.io.load_upgrade_tx(protocol_version).await;

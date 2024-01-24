@@ -20,9 +20,9 @@ impl SetChainIDEventProcessor {
             diamond_proxy_address,
             set_chain_id_signature: H256::default(),
             // TODO: uncomment when we merge the Shared Bridge contracts.
-            // set_chain_id_signature: state_transition_manager_contract()
+            // state_transition_manager_contract()
             //     .event("SetChainIdUpgrade")
-            //     .expect("SetChainIdUpgrade event is missing in abi")
+            //     .expect("SetChainIdUpgrade event is missing in ABI")
             //     .signature(),
         }
     }
@@ -44,7 +44,7 @@ impl EventProcessor for SetChainIDEventProcessor {
                 && log.topics[1] == self.diamond_proxy_address.into()
         });
 
-        // SetChainId does not go throught the governance contract, so we need to parse it separately.
+        // SetChainId does not go through the governance contract, so we need to parse it separately.
         for event in filtered_events {
             let timestamp = client
                 .get_block(event.block_hash.expect("event without block_hash"))
