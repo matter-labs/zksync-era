@@ -1,8 +1,8 @@
 //! Tests for the VM-instantiating methods (e.g., `eth_call`).
 
-// TODO: Test other VM methods (`debug_traceCall`, `eth_estimateGas`)
+use std::sync::atomic::{AtomicU32, Ordering};
 
-use multivm::interface::ExecutionResult;
+use multivm::interface::{ExecutionResult, VmRevertReason};
 use zksync_types::{
     get_intrinsic_constants, transaction_request::CallRequest, L2ChainId, PackedEthSignature, U256,
 };
@@ -28,11 +28,11 @@ impl CallTest {
 
     fn create_executor(only_block: MiniblockNumber) -> MockTransactionExecutor {
         let mut tx_executor = MockTransactionExecutor::default();
-        tx_executor.set_call_responses(move |data, block_args| {
-            let expected_block_number = match data {
+        tx_executor.set_call_responses(move |tx, block_args| {
+            let expected_block_number = match tx.execute.calldata() {
                 b"pending" => only_block + 1,
                 b"first" => only_block,
-                _ => panic!("Unexpected calldata: {data:?}"),
+                data => panic!("Unexpected calldata: {data:?}"),
             };
             assert_eq!(block_args.resolved_block_number(), expected_block_number);
 
@@ -171,9 +171,7 @@ struct SendRawTransactionTest {
 
 impl SendRawTransactionTest {
     fn transaction_bytes_and_hash() -> (Vec<u8>, H256) {
-        let private_key = H256::repeat_byte(11);
-        let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
-
+        let (private_key, address) = Self::private_key_and_address();
         let tx_request = api::TransactionRequest {
             chain_id: Some(L2ChainId::default().as_u64()),
             from: Some(address),
@@ -198,9 +196,14 @@ impl SendRawTransactionTest {
         (data.into(), tx_hash)
     }
 
-    fn balance_storage_log() -> StorageLog {
+    fn private_key_and_address() -> (H256, Address) {
         let private_key = H256::repeat_byte(11);
         let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
+        (private_key, address)
+    }
+
+    fn balance_storage_log() -> StorageLog {
+        let (_, address) = Self::private_key_and_address();
         let balance_key = storage_key_for_eth_balance(&address);
         StorageLog::new_write_log(balance_key, u256_to_h256(U256::one() << 64))
     }
@@ -415,4 +418,108 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
 #[tokio::test]
 async fn trace_call_after_snapshot_recovery() {
     test_http_server(TraceCallTestAfterSnapshotRecovery).await;
+}
+
+#[derive(Debug)]
+struct EstimateGasTest {
+    gas_limit_threshold: Arc<AtomicU32>,
+    snapshot_recovery: bool,
+}
+
+impl EstimateGasTest {
+    fn new(snapshot_recovery: bool) -> Self {
+        Self {
+            gas_limit_threshold: Arc::default(),
+            snapshot_recovery,
+        }
+    }
+}
+
+#[async_trait]
+impl HttpTest for EstimateGasTest {
+    fn storage_initialization(&self) -> StorageInitialization {
+        let snapshot_recovery = self.snapshot_recovery;
+        SendRawTransactionTest { snapshot_recovery }.storage_initialization()
+    }
+
+    fn transaction_executor(&self) -> MockTransactionExecutor {
+        let mut tx_executor = MockTransactionExecutor::default();
+        let expected_block_number = if self.snapshot_recovery {
+            MiniblockNumber(StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1)
+        } else {
+            MiniblockNumber(1)
+        };
+        let gas_limit_threshold = self.gas_limit_threshold.clone();
+        tx_executor.set_call_responses(move |tx, block_args| {
+            assert_eq!(tx.execute.calldata(), [] as [u8; 0]);
+            assert_eq!(tx.nonce(), Some(Nonce(0)));
+            assert_eq!(block_args.resolved_block_number(), expected_block_number);
+
+            let gas_limit_threshold = gas_limit_threshold.load(Ordering::SeqCst);
+            if tx.gas_limit() >= U256::from(gas_limit_threshold) {
+                ExecutionResult::Success { output: vec![] }
+            } else {
+                ExecutionResult::Revert {
+                    output: VmRevertReason::VmError,
+                }
+            }
+        });
+        tx_executor
+    }
+
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+        let l2_transaction = create_l2_transaction(10, 100);
+        for threshold in [10_000, 50_000, 100_000, 1_000_000] {
+            self.gas_limit_threshold.store(threshold, Ordering::Relaxed);
+            let output = client
+                .estimate_gas(l2_transaction.clone().into(), None)
+                .await?;
+            assert!(
+                output >= U256::from(threshold),
+                "{output} for threshold {threshold}"
+            );
+            assert!(
+                output < U256::from(threshold) * 2,
+                "{output} for threshold {threshold}"
+            );
+        }
+
+        // Check transaction with value.
+        if !self.snapshot_recovery {
+            // Manually set sufficient balance for the transaction account.
+            let storage_log = SendRawTransactionTest::balance_storage_log();
+            let mut storage = pool.access_storage().await?;
+            storage
+                .storage_dal()
+                .apply_storage_logs(&[(H256::zero(), vec![storage_log])])
+                .await;
+        }
+        let mut call_request = CallRequest::from(l2_transaction);
+        call_request.from = Some(SendRawTransactionTest::private_key_and_address().1);
+        call_request.value = Some(1_000_000.into());
+        client.estimate_gas(call_request.clone(), None).await?;
+
+        call_request.value = Some(U256::max_value());
+        let error = client.estimate_gas(call_request, None).await.unwrap_err();
+        if let ClientError::Call(error) = error {
+            let error_msg = error.message();
+            assert!(
+                error_msg.to_lowercase().contains("insufficient"),
+                "{error_msg}"
+            );
+        } else {
+            panic!("Unexpected error: {error:?}");
+        }
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn estimate_gas_basics() {
+    test_http_server(EstimateGasTest::new(false)).await;
+}
+
+#[tokio::test]
+async fn estimate_gas_after_snapshot_recovery() {
+    test_http_server(EstimateGasTest::new(true)).await;
 }
