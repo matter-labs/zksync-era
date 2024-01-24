@@ -881,6 +881,11 @@ plookup
 shivini
 EIP4844
 KZG
+secp256k1
+vendoring
+publickey
+keypair
+Electrum
 healthcheck
 healthchecks
 after_node_shutdown

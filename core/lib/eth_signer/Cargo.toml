@@ -18,8 +18,6 @@ serde_json = "1.0.0"
 hex = "0.4.2"
 secp256k1 = "0.27.0"
 
-# TODO (PLA-440): remove parity-crypto
-parity-crypto = { version = "0.9", features = ["publickey"] }
 rlp = "0.5"
 
 reqwest = { version = "0.11", features = ["json", "blocking"] }

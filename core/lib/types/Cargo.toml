@@ -40,16 +40,10 @@ hex = "0.4"
 prost = "0.12.1"
 
 # Crypto stuff
-# TODO (PLA-440): remove parity-crypto
-parity-crypto = { version = "0.9", features = ["publickey"] }
+secp256k1 = { version = "0.27", features = ["recovery", "global-context"] }
 blake2 = "0.10"
 
-# TODO (PLA-440): remove parity-crypto
-# `ethereum-types` version used in `parity-crypto`
-ethereum_types_old = { package = "ethereum-types", version = "0.12.0" }
-
 [dev-dependencies]
-secp256k1 = { version = "0.27", features = ["recovery"] }
 tokio = { version = "1", features = ["rt", "macros"] }
 serde_with = { version = "1", features = ["hex"] }
 
