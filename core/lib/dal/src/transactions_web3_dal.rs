@@ -26,7 +26,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         hashes: &[H256],
     ) -> Result<Vec<TransactionReceipt>, SqlxError> {
-        let mut receipts: Vec<_> = sqlx::query_as!(
+        let mut receipts: Vec<TransactionReceipt> = sqlx::query_as!(
             StorageTransactionReceipt,
             r#"
             WITH
@@ -79,7 +79,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         .fetch_all(self.storage.conn())
         .await?
         .into_iter()
-        .map(|receipt| TransactionReceipt::from(receipt))
+        .map(Into::into)
         .collect();
 
         let mut logs = self.storage.events_dal().get_logs_by_hashes(hashes).await?;
@@ -455,7 +455,7 @@ mod tests {
 
         let receipts = conn
             .transactions_web3_dal()
-            .get_transaction_receipts(&vec![tx1_hash, tx2_hash])
+            .get_transaction_receipts(&[tx1_hash, tx2_hash])
             .await
             .unwrap();
 
