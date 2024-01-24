@@ -26,6 +26,7 @@ pub use zk_evm::{
     reference_impls::event_sink::EventMessage,
     zkevm_opcode_defs::FarCallOpcode,
 };
+pub use zkevm_test_harness;
 pub use zksync_basic_types::*;
 
 use crate::{l2::TransactionType, protocol_version::ProtocolUpgradeTxCommonData};
