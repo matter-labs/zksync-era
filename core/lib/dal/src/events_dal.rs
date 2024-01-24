@@ -197,29 +197,29 @@ impl EventsDal<'_, '_> {
         let logs: Vec<_> = sqlx::query_as!(
             StorageWeb3Log,
             r#"
-                SELECT
-                    address,
-                    topic1,
-                    topic2,
-                    topic3,
-                    topic4,
-                    value,
-                    NULL::bytea AS "block_hash",
-                    NULL::BIGINT AS "l1_batch_number",
-                    miniblock_number,
-                    tx_hash,
-                    tx_index_in_block,
-                    event_index_in_block,
-                    event_index_in_tx
-                FROM
-                    events
-                WHERE
-                    tx_hash = ANY($1)
-                ORDER BY
-                    miniblock_number ASC,
-                    tx_index_in_block ASC,
-                    event_index_in_block ASC
-                "#,
+            SELECT
+                address,
+                topic1,
+                topic2,
+                topic3,
+                topic4,
+                value,
+                NULL::bytea AS "block_hash",
+                NULL::BIGINT AS "l1_batch_number",
+                miniblock_number,
+                tx_hash,
+                tx_index_in_block,
+                event_index_in_block,
+                event_index_in_tx
+            FROM
+                events
+            WHERE
+                tx_hash = ANY ($1)
+            ORDER BY
+                miniblock_number ASC,
+                tx_index_in_block ASC,
+                event_index_in_block ASC
+            "#,
             &hashes[..],
         )
         .fetch_all(self.storage.conn())
@@ -247,28 +247,28 @@ impl EventsDal<'_, '_> {
         let logs: Vec<_> = sqlx::query_as!(
             StorageL2ToL1Log,
             r#"
-                SELECT
-                    miniblock_number,
-                    log_index_in_miniblock,
-                    log_index_in_tx,
-                    tx_hash,
-                    NULL::bytea AS "block_hash",
-                    NULL::BIGINT AS "l1_batch_number",
-                    shard_id,
-                    is_service,
-                    tx_index_in_miniblock,
-                    tx_index_in_l1_batch,
-                    sender,
-                    key,
-                    value
-                FROM
-                    l2_to_l1_logs
-                WHERE
-                    tx_hash = ANY($1)
-                ORDER BY
-                    tx_index_in_l1_batch ASC,
-                    log_index_in_tx ASC
-                "#,
+            SELECT
+                miniblock_number,
+                log_index_in_miniblock,
+                log_index_in_tx,
+                tx_hash,
+                NULL::bytea AS "block_hash",
+                NULL::BIGINT AS "l1_batch_number",
+                shard_id,
+                is_service,
+                tx_index_in_miniblock,
+                tx_index_in_l1_batch,
+                sender,
+                key,
+                value
+            FROM
+                l2_to_l1_logs
+            WHERE
+                tx_hash = ANY ($1)
+            ORDER BY
+                tx_index_in_l1_batch ASC,
+                log_index_in_tx ASC
+            "#,
             &hashes[..]
         )
         .fetch_all(self.storage.conn())

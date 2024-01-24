@@ -7,10 +7,9 @@ use sqlx::{
     types::chrono::{DateTime, NaiveDateTime, Utc},
     Error, FromRow, Row,
 };
-use zksync_types::api::TransactionReceipt;
 use zksync_types::{
     api,
-    api::{TransactionDetails, TransactionStatus},
+    api::{TransactionDetails, TransactionReceipt, TransactionStatus},
     fee::Fee,
     l1::{OpProcessingType, PriorityQueueType},
     l2::TransactionType,

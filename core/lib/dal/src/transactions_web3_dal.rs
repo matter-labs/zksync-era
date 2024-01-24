@@ -29,44 +29,46 @@ impl TransactionsWeb3Dal<'_, '_> {
         let mut receipts: Vec<_> = sqlx::query_as!(
             StorageTransactionReceipt,
             r#"
-                WITH sl AS (
-                    SELECT DISTINCT ON (storage_logs.tx_hash)
-                        *
+            WITH
+                sl AS (
+                    SELECT DISTINCT
+                        ON (storage_logs.tx_hash) *
                     FROM
                         storage_logs
                     WHERE
                         storage_logs.address = $1
-                        AND storage_logs.tx_hash = ANY($3)
+                        AND storage_logs.tx_hash = ANY ($3)
                     ORDER BY
                         storage_logs.tx_hash,
                         storage_logs.miniblock_number DESC,
                         storage_logs.operation_number DESC
                 )
-                SELECT
-                    transactions.hash AS tx_hash,
-                    transactions.index_in_block AS index_in_block,
-                    transactions.l1_batch_tx_index AS l1_batch_tx_index,
-                    transactions.miniblock_number AS "block_number!",
-                    transactions.error AS error,
-                    transactions.effective_gas_price AS effective_gas_price,
-                    transactions.initiator_address AS initiator_address,
-                    transactions.data -> 'to' AS "transfer_to?",
-                    transactions.data -> 'contractAddress' AS "execute_contract_address?",
-                    transactions.tx_format AS "tx_format?",
-                    transactions.refunded_gas AS refunded_gas,
-                    transactions.gas_limit AS gas_limit,
-                    miniblocks.hash AS "block_hash",
-                    miniblocks.l1_batch_number AS "l1_batch_number?",
-                    sl.key AS "contract_address?"
-                FROM
-                    transactions
-                    JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
-                    LEFT JOIN sl ON sl.value != $2 AND sl.tx_hash = transactions.hash
-                WHERE
-                    transactions.hash = ANY($3)
-                ORDER BY
-                    transactions.index_in_block ASC
-                "#,
+            SELECT
+                transactions.hash AS tx_hash,
+                transactions.index_in_block AS index_in_block,
+                transactions.l1_batch_tx_index AS l1_batch_tx_index,
+                transactions.miniblock_number AS "block_number!",
+                transactions.error AS error,
+                transactions.effective_gas_price AS effective_gas_price,
+                transactions.initiator_address AS initiator_address,
+                transactions.data -> 'to' AS "transfer_to?",
+                transactions.data -> 'contractAddress' AS "execute_contract_address?",
+                transactions.tx_format AS "tx_format?",
+                transactions.refunded_gas AS refunded_gas,
+                transactions.gas_limit AS gas_limit,
+                miniblocks.hash AS "block_hash",
+                miniblocks.l1_batch_number AS "l1_batch_number?",
+                sl.key AS "contract_address?"
+            FROM
+                transactions
+                JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
+                LEFT JOIN sl ON sl.value != $2
+                AND sl.tx_hash = transactions.hash
+            WHERE
+                transactions.hash = ANY ($3)
+            ORDER BY
+                transactions.index_in_block ASC
+            "#,
             ACCOUNT_CODE_STORAGE_ADDRESS.as_bytes(),
             FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
             &hashes
