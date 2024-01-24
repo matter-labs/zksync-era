@@ -439,7 +439,8 @@ describe('web3 API compatibility tests', () => {
 
         const sentTx = await alice.deposit({
             token: zksync.utils.ETH_ADDRESS,
-            amount
+            amount,
+            approveBaseERC20: true
         });
         const receipt = await sentTx.wait();
 

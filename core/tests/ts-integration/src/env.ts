@@ -75,7 +75,7 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
     // wBTC is chosen because it has decimals different from ETH (8 instead of 18).
     // Using this token will help us to detect decimals-related errors.
     // but if it's not available, we'll use the first token from the list.
-    let token = tokens.find((token: { symbol: string }) => token.symbol == 'wBTC')!;
+    let token = tokens.find((token: { symbol: string }) => token.symbol == 'BAT')!;
     if (!token) {
         token = tokens[0];
     }
