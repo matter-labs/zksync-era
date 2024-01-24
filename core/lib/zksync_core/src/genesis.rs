@@ -14,9 +14,9 @@ use zksync_types::{
     fee_model::BatchFeeInput,
     get_code_key, get_system_context_init_logs,
     protocol_version::{L1VerifierConfig, ProtocolVersion},
+    sort_storage_access::sort_storage_access_queries,
     tokens::{TokenInfo, TokenMetadata, ETHEREUM_ADDRESS},
     zk_evm_types::{LogQuery, Timestamp},
-    zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
     AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId,
     StorageKey, StorageLog, StorageLogKind, H256,
 };

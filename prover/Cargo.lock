@@ -888,7 +888,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#49028029f0a9a4b399ada3f0c5bdbc31cd368a3e"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#ef77c44f919ba161df5976ec3899cf57a1585e7c"
 dependencies = [
  "crossbeam 0.8.4",
  "derivative",
@@ -3284,6 +3284,7 @@ dependencies = [
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zk_evm 1.4.0",
  "zk_evm 1.4.1",
+ "zkevm_test_harness 1.3.3",
  "zkevm_test_harness 1.4.0",
  "zkevm_test_harness 1.4.1",
  "zksync_contracts",
@@ -6704,6 +6705,7 @@ dependencies = [
  "toml_edit 0.14.4",
  "tracing",
  "vlog",
+ "zkevm_test_harness 1.3.3",
  "zkevm_test_harness 1.4.1",
  "zksync_config",
  "zksync_env_config",
@@ -7425,7 +7427,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.4.1"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#49028029f0a9a4b399ada3f0c5bdbc31cd368a3e"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#ef77c44f919ba161df5976ec3899cf57a1585e7c"
 dependencies = [
  "bincode",
  "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
@@ -7569,7 +7571,6 @@ dependencies = [
 name = "zksync_crypto"
 version = "0.1.0"
 dependencies = [
- "base64 0.13.1",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex",
  "once_cell",
@@ -7682,6 +7683,7 @@ dependencies = [
  "vise",
  "vk_setup_data_generator_server_fri",
  "vlog",
+ "zkevm_test_harness 1.3.3",
  "zkevm_test_harness 1.4.1",
  "zksync_config",
  "zksync_dal",
@@ -7855,15 +7857,9 @@ name = "zksync_system_constants"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bigdecimal",
- "hex",
  "num 0.3.1",
  "once_cell",
- "serde",
- "serde_json",
- "url",
  "zksync_basic_types",
- "zksync_contracts",
  "zksync_utils",
 ]
 
@@ -7894,7 +7890,6 @@ dependencies = [
  "zkevm_test_harness 1.3.3",
  "zksync_basic_types",
  "zksync_config",
- "zksync_consensus_roles",
  "zksync_contracts",
  "zksync_mini_merkle_tree",
  "zksync_protobuf",

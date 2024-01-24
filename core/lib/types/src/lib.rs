@@ -54,6 +54,7 @@ pub mod helpers;
 pub mod proofs;
 pub mod proto;
 pub mod prover_server_api;
+pub mod sort_storage_access;
 pub mod transaction_request;
 pub mod utils;
 pub mod vk_transform;
