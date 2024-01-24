@@ -245,7 +245,7 @@ async fn handle_send_result(
                  reason: {err}"
             );
 
-            // mark prover instance in gpu_prover_queue dead
+            // mark prover instance in `gpu_prover_queue` dead
             pool.access_storage()
                 .await
                 .unwrap()

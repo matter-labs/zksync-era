@@ -65,14 +65,14 @@ proptest! {
 
 }
 
-// Test get_base_path method
+// Test `get_base_path` method
 #[test]
 fn test_get_base_path() {
     let base_path = get_base_path();
     assert!(!base_path.is_empty(), "Base path should not be empty");
 }
 
-// Test get_file_path method
+// Test `get_file_path` method
 #[test]
 fn test_get_file_path() {
     let key = ProverServiceDataKey::new(1, AggregationRound::BasicCircuits);
@@ -80,7 +80,7 @@ fn test_get_file_path() {
     assert!(!file_path.is_empty(), "File path should not be empty");
 }
 
-// Test ProverServiceDataKey::new method
+// Test `ProverServiceDataKey::new` method
 #[test]
 fn test_proverservicedatakey_new() {
     let key = ProverServiceDataKey::new(1, AggregationRound::BasicCircuits);
@@ -95,7 +95,7 @@ fn test_proverservicedatakey_new() {
     );
 }
 
-// Test get_round_for_recursive_circuit_type method
+// Test `get_round_for_recursive_circuit_type` method
 #[test]
 fn test_get_round_for_recursive_circuit_type() {
     let round = get_round_for_recursive_circuit_type(

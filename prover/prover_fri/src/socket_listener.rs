@@ -136,7 +136,7 @@ pub mod gpu_socket_listener {
                 witness_vector_artifacts: witness_vector,
                 assembly,
             };
-            // acquiring lock from queue and updating db must be done atomically otherwise it results in TOCTTOU
+            // acquiring lock from queue and updating db must be done atomically otherwise it results in `TOCTTOU`
             // Time-of-Check to Time-of-Use
             let mut queue = self.queue.lock().await;
 
