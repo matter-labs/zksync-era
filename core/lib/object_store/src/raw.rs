@@ -3,7 +3,11 @@ use std::{error, fmt, sync::Arc};
 use async_trait::async_trait;
 use zksync_config::configs::object_store::{ObjectStoreConfig, ObjectStoreMode};
 
-use crate::{file::FileBackedObjectStore, gcs::GoogleCloudStorage, mock::MockStore};
+use crate::{
+    file::FileBackedObjectStore,
+    gcs::{GoogleCloudStorage, GoogleCloudStorageAuthMode},
+    mock::MockStore,
+};
 
 /// Bucket for [`ObjectStore`] in which objects can be placed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -196,7 +200,7 @@ impl ObjectStoreFactory {
                     "Initialized GoogleCloudStorage Object store without credential file"
                 );
                 let store = GoogleCloudStorage::new(
-                    gcs_credential_file_path,
+                    GoogleCloudStorageAuthMode::Authenticated,
                     config.bucket_base_url.clone(),
                     config.max_retries,
                 )
@@ -206,7 +210,10 @@ impl ObjectStoreFactory {
             ObjectStoreMode::GCSWithCredentialFile => {
                 tracing::trace!("Initialized GoogleCloudStorage Object store with credential file");
                 let store = GoogleCloudStorage::new(
-                    gcs_credential_file_path,
+                    GoogleCloudStorageAuthMode::AuthenticatedWithCredentialFile(
+                        gcs_credential_file_path
+                            .expect("Credentials path must be provided for GCSWithCredentialFile"),
+                    ),
                     config.bucket_base_url.clone(),
                     config.max_retries,
                 )
@@ -216,6 +223,16 @@ impl ObjectStoreFactory {
             ObjectStoreMode::FileBacked => {
                 tracing::trace!("Initialized FileBacked Object store");
                 let store = FileBackedObjectStore::new(config.file_backed_base_path.clone()).await;
+                Arc::new(store)
+            }
+            ObjectStoreMode::GCSAnonymousReadOnly => {
+                tracing::trace!("Initialized GoogleCloudStoragePublicReadOnly store");
+                let store = GoogleCloudStorage::new(
+                    GoogleCloudStorageAuthMode::Anonymous,
+                    config.bucket_base_url.clone(),
+                    config.max_retries,
+                )
+                .await;
                 Arc::new(store)
             }
         }

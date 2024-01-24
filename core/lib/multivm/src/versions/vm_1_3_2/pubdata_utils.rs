@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
 use zk_evm_1_3_3::aux_structures::Timestamp;
+use zkevm_test_harness_1_3_3::witness::sort_storage_access::sort_storage_access_queries;
 use zksync_state::WriteStorage;
 use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
-    zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
     StorageKey, PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_utils::bytecode::bytecode_len_in_bytes;
