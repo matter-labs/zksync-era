@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use zk_evm_1_4_1::{aux_structures::Timestamp, vm_state::VmLocalState};
 use zksync_state::WriteStorage;
-use zksync_types::{StorageKey, StorageLogQuery, StorageValue, U256};
+use zksync_types::{StorageKey, StorageValue, U256};
 
 use crate::{
     vm_latest::{
@@ -10,6 +10,7 @@ use crate::{
             event_sink::InMemoryEventSink,
             history_recorder::{AppDataFrameManagerWithHistory, HistoryRecorder},
         },
+        utils::logs::StorageLogQuery,
         HistoryEnabled, HistoryMode, SimpleMemory, Vm,
     },
     HistoryMode as CommonHistoryMode,

@@ -35,7 +35,7 @@ and suggestions here too. Some resources to help:
 
 1. [In-repo docs aimed at developers](docs)
 2. [zkSync Era docs!](https://era.zksync.io/docs/)
-3. Company links can be found in the [repo's readme](README.md)
+3. Company links can be found in the [repositories' readme](README.md)
 
 ## Code of Conduct
 

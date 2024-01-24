@@ -1,4 +1,8 @@
 database_url = "postgres://postgres@postgres/zksync_local_ext_node"
+# Optional variable. If set, "zk db setup" will recreate "database_url" db by
+# cloning "template_database_url" db instead of creating an empty db.
+# "template_database_url" is not used by EN itself.
+template_database_url = "postgres://postgres@postgres/zksync_local"
 test_database_url = "postgres://postgres@host:5433/zksync_local_test_ext_node"
 database_pool_size = 50
 zksync_action="dont_ask"

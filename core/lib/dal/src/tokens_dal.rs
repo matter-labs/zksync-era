@@ -112,25 +112,22 @@ impl TokensDal<'_, '_> {
         }
     }
 
-    pub async fn get_all_l2_token_addresses(&mut self) -> Vec<Address> {
-        {
-            let records = sqlx::query!(
-                r#"
-                SELECT
-                    l2_address
-                FROM
-                    tokens
-                "#
-            )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap();
-            let addresses: Vec<Address> = records
-                .into_iter()
-                .map(|record| Address::from_slice(&record.l2_address))
-                .collect();
-            addresses
-        }
+    pub async fn get_all_l2_token_addresses(&mut self) -> sqlx::Result<Vec<Address>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT
+                l2_address
+            FROM
+                tokens
+            "#
+        )
+        .fetch_all(self.storage.conn())
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| Address::from_slice(&row.l2_address))
+            .collect())
     }
 
     pub async fn get_unknown_l1_token_addresses(&mut self) -> Vec<Address> {

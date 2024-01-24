@@ -4,6 +4,7 @@ use zk_evm_1_4_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
+use zkevm_test_harness_1_4_0::witness::sort_storage_access::sort_storage_access_queries;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     event::{
@@ -11,7 +12,6 @@ use zksync_types::{
         extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages, L1MessengerL2ToL1Log,
     },
     writes::StateDiffRecord,
-    zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
     AccountTreeId, StorageKey, L1_MESSENGER_ADDRESS,
 };
 use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};

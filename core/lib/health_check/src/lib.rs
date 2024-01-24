@@ -80,10 +80,13 @@ pub struct AppHealth {
 
 impl AppHealth {
     /// Aggregates health info from the provided checks.
-    pub async fn new(health_checks: &[Box<dyn CheckHealth>]) -> Self {
+    pub async fn new<T: AsRef<dyn CheckHealth>>(health_checks: &[T]) -> Self {
         let check_futures = health_checks.iter().map(|check| {
-            let check_name = check.name();
-            check.check_health().map(move |health| (check_name, health))
+            let check_name = check.as_ref().name();
+            check
+                .as_ref()
+                .check_health()
+                .map(move |health| (check_name, health))
         });
         let components: HashMap<_, _> = future::join_all(check_futures).await.into_iter().collect();
 
