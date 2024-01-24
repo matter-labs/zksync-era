@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n                SELECT\n                    miniblock_number,\n                    log_index_in_miniblock,\n                    log_index_in_tx,\n                    tx_hash,\n                    NULL::bytea AS \"block_hash\",\n                    NULL::BIGINT AS \"l1_batch_number\",\n                    shard_id,\n                    is_service,\n                    tx_index_in_miniblock,\n                    tx_index_in_l1_batch,\n                    sender,\n                    key,\n                    value\n                FROM\n                    l2_to_l1_logs\n                WHERE\n                    tx_hash = ANY($1)\n                ORDER BY\n                    tx_index_in_l1_batch ASC,\n                    log_index_in_tx ASC\n                ",
+  "query": "\n            SELECT\n                miniblock_number,\n                log_index_in_miniblock,\n                log_index_in_tx,\n                tx_hash,\n                NULL::bytea AS \"block_hash\",\n                NULL::BIGINT AS \"l1_batch_number\",\n                shard_id,\n                is_service,\n                tx_index_in_miniblock,\n                tx_index_in_l1_batch,\n                sender,\n                key,\n                value\n            FROM\n                l2_to_l1_logs\n            WHERE\n                tx_hash = ANY ($1)\n            ORDER BY\n                tx_index_in_l1_batch ASC,\n                log_index_in_tx ASC\n            ",
   "describe": {
     "columns": [
       {
@@ -90,5 +90,5 @@
       false
     ]
   },
-  "hash": "7aa2f0d3f0454d4fcd756c9d5943aac7d56c4d9ca720d9db183bae9f001d948b"
+  "hash": "037d2d007670efc566c362019a7f8b9756372a31e9cde1ec6035d1a24a6cbf05"
 }

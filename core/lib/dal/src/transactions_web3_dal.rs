@@ -82,16 +82,12 @@ impl TransactionsWeb3Dal<'_, '_> {
         .map(|receipt| TransactionReceipt::from(receipt))
         .collect();
 
-        let mut logs = self
-            .storage
-            .events_dal()
-            .get_logs_by_hashes(&hashes)
-            .await?;
+        let mut logs = self.storage.events_dal().get_logs_by_hashes(hashes).await?;
 
         let mut l2_to_l1_logs = self
             .storage
             .events_dal()
-            .get_l2_to_l1_logs_by_hashes(&hashes)
+            .get_l2_to_l1_logs_by_hashes(hashes)
             .await?;
 
         for receipt in &mut receipts {

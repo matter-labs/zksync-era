@@ -426,7 +426,7 @@ mod tests {
 
         let logs = conn
             .events_dal()
-            .get_l2_to_l1_logs_by_hashes(&vec![H256([1; 32])])
+            .get_l2_to_l1_logs_by_hashes(&[H256([1; 32])])
             .await
             .unwrap();
 
@@ -445,7 +445,7 @@ mod tests {
 
         let logs = conn
             .events_dal()
-            .get_l2_to_l1_logs_by_hashes(&vec![H256([2; 32])])
+            .get_l2_to_l1_logs_by_hashes(&[H256([2; 32])])
             .await
             .unwrap()
             .get(&H256([2; 32]))
