@@ -18,10 +18,13 @@ pub async fn load_l1_batch_params(
     fee_account: Address,
     validation_computational_gas_limit: u32,
     chain_id: L2ChainId,
+    miniblock_number: Option<MiniblockNumber>,
 ) -> Option<(SystemEnv, L1BatchEnv)> {
-    // If miniblock doesn't exist (for instance if it's pending), it means that there is no unsynced state (i.e. no transactions
-    // were executed after the last sealed batch).
-    let pending_miniblock_number = {
+    let pending_miniblock_number = if let Some(pending_miniblock_number) = miniblock_number {
+        pending_miniblock_number
+    } else {
+        // If miniblock doesn't exist (for instance if it's pending), it means that there is no unsynced state (i.e. no transactions
+        // were executed after the last sealed batch).
         let (_, last_miniblock_number_included_in_l1_batch) = storage
             .blocks_dal()
             .get_miniblock_range_of_l1_batch(current_l1_batch_number - 1)

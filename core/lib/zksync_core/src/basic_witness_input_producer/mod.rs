@@ -2,12 +2,16 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context;
 use async_trait::async_trait;
-use multivm::interface::{L2BlockEnv, VmInterface};
+use multivm::{
+    interface::{L2BlockEnv, VmInterface},
+    vm_latest::HistoryEnabled,
+};
 use tokio::{runtime::Handle, task::JoinHandle};
 use vm_utils::{create_vm, execute_tx};
 use zksync_dal::{basic_witness_input_producer_dal::JOB_MAX_ATTEMPT, ConnectionPool};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
+use zksync_state::PostgresStorage;
 use zksync_types::{witness_block_state::WitnessBlockState, L1BatchNumber, L2ChainId};
 
 use self::metrics::METRICS;
@@ -55,9 +59,30 @@ impl BasicWitnessInputProducer {
                 .get_miniblocks_to_execute_for_l1_batch(l1_batch_number),
         )?;
 
-        let (mut vm, storage_view) =
-            create_vm(rt_handle.clone(), l1_batch_number, connection, l2_chain_id)
-                .context("failed to create vm for BasicWitnessInputProducer")?;
+        let prev_l1_batch_number = l1_batch_number - 1;
+        let (_, miniblock_number) = rt_handle
+            .block_on(
+                connection
+                    .blocks_dal()
+                    .get_miniblock_range_of_l1_batch(prev_l1_batch_number),
+            )?
+            .with_context(|| {
+                format!(
+                "l1_batch_number {l1_batch_number:?} must have a previous miniblock to start from"
+            )
+            })?;
+
+        let pg_storage =
+            PostgresStorage::new(rt_handle.clone(), connection, miniblock_number, true);
+
+        let (mut vm, storage_view) = rt_handle
+            .block_on(create_vm::<HistoryEnabled>(
+                l1_batch_number,
+                Some(miniblock_number + 1),
+                l2_chain_id,
+                pg_storage,
+            ))
+            .context("failed to create vm for BasicWitnessInputProducer")?;
 
         tracing::info!("Started execution of l1_batch: {l1_batch_number:?}");
 

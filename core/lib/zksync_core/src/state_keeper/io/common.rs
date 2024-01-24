@@ -81,6 +81,7 @@ pub(crate) async fn load_pending_batch(
         fee_account,
         validation_computational_gas_limit,
         chain_id,
+        None,
     )
     .await?;
 
