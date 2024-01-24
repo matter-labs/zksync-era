@@ -1,3 +1,5 @@
+pub mod storage;
+
 use anyhow::{anyhow, Context};
 use multivm::{
     interface::{VmInterface, VmInterfaceHistoryEnabled},
@@ -9,14 +11,14 @@ use zksync_dal::StorageProcessor;
 use zksync_state::{PostgresStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{L1BatchNumber, L2ChainId, Transaction};
 
-use crate::state_keeper::io::common::load_l1_batch_params;
+use crate::storage::load_l1_batch_params;
 
-pub(super) type VmAndStorage<'a> = (
+pub type VmAndStorage<'a> = (
     VmInstance<StorageView<PostgresStorage<'a>>, HistoryEnabled>,
     StoragePtr<StorageView<PostgresStorage<'a>>>,
 );
 
-pub(super) fn create_vm(
+pub fn create_vm(
     rt_handle: Handle,
     l1_batch_number: L1BatchNumber,
     mut connection: StorageProcessor<'_>,
@@ -66,7 +68,7 @@ pub(super) fn create_vm(
     Ok((vm, storage_view))
 }
 
-pub(super) fn execute_tx<S: WriteStorage>(
+pub fn execute_tx<S: WriteStorage>(
     tx: &Transaction,
     vm: &mut VmInstance<S, HistoryEnabled>,
 ) -> anyhow::Result<()> {

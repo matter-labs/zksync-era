@@ -1,0 +1,17 @@
+[package]
+name = "vm_utils"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+multivm = { path = "../multivm" }
+zksync_types = { path = "../types" }
+zksync_dal = { path = "../dal" }
+zksync_state = { path = "../state" }
+tokio = { version = "1" }
+anyhow = "1.0"
+tracing = "0.1"
+zksync_utils = { path = "../utils" }
+zksync_contracts = { path = "../contracts" }

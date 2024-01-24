@@ -7461,6 +7461,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "vm_utils"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "multivm",
+ "tokio",
+ "tracing",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_state",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "walkdir"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8503,6 +8518,7 @@ dependencies = [
  "tracing",
  "vise",
  "vlog",
+ "vm_utils",
  "zksync_circuit_breaker",
  "zksync_commitment_utils",
  "zksync_concurrency",
