@@ -3,7 +3,7 @@ use std::{collections::HashMap, convert::TryInto, iter::FromIterator, time::Dura
 use async_trait::async_trait;
 use futures::future;
 use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
-use vm_utils::storage::l1_batch_params;
+use vm_utils::vm_env::l1_batch_params;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::ConnectionPool;
 use zksync_types::{

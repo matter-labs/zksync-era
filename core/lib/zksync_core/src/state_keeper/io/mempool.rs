@@ -10,7 +10,7 @@ use multivm::{
     interface::{FinishedL1Batch, L1BatchEnv, SystemEnv},
     utils::derive_base_fee_and_gas_per_pubdata,
 };
-use vm_utils::storage::l1_batch_params;
+use vm_utils::vm_env::l1_batch_params;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;

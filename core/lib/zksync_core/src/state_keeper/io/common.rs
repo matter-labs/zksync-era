@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use vm_utils::storage::load_l1_batch_params;
+use vm_utils::vm_env::VmEnvBuilder;
 use zksync_dal::StorageProcessor;
 use zksync_types::{Address, L1BatchNumber, L2ChainId, H256};
 
@@ -26,15 +26,15 @@ pub(crate) async fn load_pending_batch(
     let previous_l1_batch_hash = wait_for_prev_l1_batch_params(storage, current_l1_batch_number)
         .await
         .0;
-    let (system_env, l1_batch_env) = load_l1_batch_params(
-        storage,
+
+    let vm_env = VmEnvBuilder::new(
         current_l1_batch_number,
-        fee_account,
         validation_computational_gas_limit,
         chain_id,
-        None,
-        previous_l1_batch_hash,
     )
+    .with_fee_account(fee_account)
+    .with_prev_batch_hash(previous_l1_batch_hash)
+    .build(storage)
     .await?;
 
     let pending_miniblocks = storage
@@ -44,8 +44,8 @@ pub(crate) async fn load_pending_batch(
         .unwrap();
 
     Some(PendingBatchData {
-        l1_batch_env,
-        system_env,
+        l1_batch_env: vm_env.l1_batch_env,
+        system_env: vm_env.system_env,
         pending_miniblocks,
     })
 }

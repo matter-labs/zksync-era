@@ -1,4 +1,4 @@
-pub mod storage;
+pub mod vm_env;
 
 use anyhow::{anyhow, Context};
 use multivm::{
@@ -7,62 +7,15 @@ use multivm::{
     HistoryMode, VmInstance,
 };
 use tokio::runtime::Handle;
+use vm_env::VmEnvBuilder;
 use zksync_dal::StorageProcessor;
 use zksync_state::{PostgresStorage, StoragePtr, StorageView, WriteStorage};
-use zksync_types::{L1BatchNumber, L2ChainId, MiniblockNumber, Transaction};
+use zksync_types::{L1BatchNumber, L2ChainId, Transaction};
 
-use crate::storage::load_l1_batch_params;
-
-pub type VmAndStorage<'a, H> = (
+type VmAndStorage<'a, H> = (
     VmInstance<StorageView<PostgresStorage<'a>>, H>,
     StoragePtr<StorageView<PostgresStorage<'a>>>,
 );
-
-pub async fn create_vm<H: HistoryMode>(
-    l1_batch_number: L1BatchNumber,
-    miniblock_number: Option<MiniblockNumber>,
-    l2_chain_id: L2ChainId,
-    mut pg_storage: PostgresStorage<'_>,
-) -> anyhow::Result<VmAndStorage<H>> {
-    let connection = pg_storage.connection();
-    let fee_account_addr = connection
-        .blocks_dal()
-        .get_fee_address_for_l1_batch(l1_batch_number)
-        .await?
-        .with_context(|| {
-            format!("l1_batch_number {l1_batch_number:?} must have fee_address_account")
-        })?;
-
-    let Some((prev_l1_batch_hash, _)) = connection
-        .blocks_dal()
-        .get_l1_batch_state_root_and_timestamp(l1_batch_number - 1)
-        .await
-        .unwrap()
-    else {
-        anyhow::bail!("l1_batch_number {l1_batch_number:?} must exists")
-    };
-
-    // In the state keeper, this value is used to reject execution.
-    // All batches ran by BasicWitnessInputProducer have already been executed by State Keeper.
-    // This means we don't want to reject any execution, therefore we're using MAX as an allow all.
-    let validation_computational_gas_limit = u32::MAX;
-    let (system_env, l1_batch_env) = load_l1_batch_params(
-        connection,
-        l1_batch_number,
-        fee_account_addr,
-        validation_computational_gas_limit,
-        l2_chain_id,
-        miniblock_number,
-        prev_l1_batch_hash,
-    )
-    .await
-    .context("expected miniblock to be executed and sealed")?;
-
-    let storage_view = StorageView::new(pg_storage).to_rc_ptr();
-    let vm = VmInstance::new(l1_batch_env, system_env, storage_view.clone());
-
-    Ok((vm, storage_view))
-}
 
 pub fn execute_tx<S: WriteStorage>(
     tx: &Transaction,
@@ -108,13 +61,18 @@ pub async fn create_vm_for_l1_batch<H: HistoryMode>(
             )
         })?;
 
-    let pg_storage = PostgresStorage::new(rt_handle.clone(), connection, miniblock_number, true);
+    let mut pg_storage =
+        PostgresStorage::new(rt_handle.clone(), connection, miniblock_number, true);
 
-    create_vm::<H>(
-        l1_batch_number,
-        Some(miniblock_number + 1),
-        l2_chain_id,
-        pg_storage,
-    )
-    .await
+    let vm_env = VmEnvBuilder::new(l1_batch_number, u32::MAX, l2_chain_id)
+        .with_miniblock_number(miniblock_number)
+        .build(pg_storage.connection())
+        .await
+        .with_context(|| {
+            format!("failed to create vm env for l1_batch_number {l1_batch_number:?}")
+        })?;
+
+    let storage_view = StorageView::new(pg_storage).to_rc_ptr();
+    let vm = VmInstance::new(vm_env.l1_batch_env, vm_env.system_env, storage_view.clone());
+    Ok((vm, storage_view))
 }
