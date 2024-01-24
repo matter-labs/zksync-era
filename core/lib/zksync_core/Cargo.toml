@@ -12,6 +12,7 @@ categories = ["cryptography"]
 [dependencies]
 vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
 zksync_state = { path = "../state" }
+vm_utils = { path = "../vm_utils" }
 zksync_types = { path = "../types" }
 zksync_dal = { path = "../dal" }
 zksync_config = { path = "../config" }

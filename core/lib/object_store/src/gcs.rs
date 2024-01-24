@@ -63,17 +63,22 @@ impl fmt::Debug for GoogleCloudStorage {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum GoogleCloudStorageAuthMode {
+    AuthenticatedWithCredentialFile(String),
+    Authenticated,
+    Anonymous,
+}
+
 impl GoogleCloudStorage {
     pub async fn new(
-        credential_file_path: Option<String>,
+        auth_mode: GoogleCloudStorageAuthMode,
         bucket_prefix: String,
         max_retries: u16,
     ) -> Self {
-        let client_config = retry(max_retries, || {
-            Self::get_client_config(credential_file_path.clone())
-        })
-        .await
-        .expect("failed fetching GCS client config after retries");
+        let client_config = retry(max_retries, || Self::get_client_config(auth_mode.clone()))
+            .await
+            .expect("failed fetching GCS client config after retries");
 
         Self {
             client: Client::new(client_config),
@@ -83,15 +88,17 @@ impl GoogleCloudStorage {
     }
 
     async fn get_client_config(
-        credential_file_path: Option<String>,
+        auth_mode: GoogleCloudStorageAuthMode,
     ) -> Result<ClientConfig, Error> {
-        if let Some(path) = credential_file_path {
-            let cred_file = CredentialsFile::new_from_file(path)
-                .await
-                .expect("failed loading GCS credential file");
-            ClientConfig::default().with_credentials(cred_file).await
-        } else {
-            ClientConfig::default().with_auth().await
+        match auth_mode {
+            GoogleCloudStorageAuthMode::AuthenticatedWithCredentialFile(path) => {
+                let cred_file = CredentialsFile::new_from_file(path)
+                    .await
+                    .expect("failed loading GCS credential file");
+                ClientConfig::default().with_credentials(cred_file).await
+            }
+            GoogleCloudStorageAuthMode::Authenticated => ClientConfig::default().with_auth().await,
+            GoogleCloudStorageAuthMode::Anonymous => Ok(ClientConfig::default().anonymous()),
         }
     }
 

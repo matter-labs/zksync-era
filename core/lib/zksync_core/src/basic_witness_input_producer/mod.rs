@@ -4,19 +4,15 @@ use anyhow::Context;
 use async_trait::async_trait;
 use multivm::interface::{L2BlockEnv, VmInterface};
 use tokio::{runtime::Handle, task::JoinHandle};
+use vm_utils::{create_vm, execute_tx};
 use zksync_dal::{basic_witness_input_producer_dal::JOB_MAX_ATTEMPT, ConnectionPool};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{witness_block_state::WitnessBlockState, L1BatchNumber, L2ChainId};
 
-use self::{
-    metrics::METRICS,
-    vm_interactions::{create_vm, execute_tx},
-};
+use self::metrics::METRICS;
 
 mod metrics;
-mod vm_interactions;
-
 /// Component that extracts all data (from DB) necessary to run a Basic Witness Generator.
 /// Does this by rerunning an entire L1Batch and extracting information from both the VM run and DB.
 /// This component will upload Witness Inputs to the object store.
