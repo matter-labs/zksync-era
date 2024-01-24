@@ -1,4 +1,4 @@
-use zkevm_test_harness_1_4_1::{geometry_config::get_geometry_config, toolset::GeometryConfig};
+use geometry_config_1_4_1::{get_geometry_config, GeometryConfig};
 
 const GEOMETRY_CONFIG: GeometryConfig = get_geometry_config();
 const OVERESTIMATE_PERCENT: f32 = 1.05;
