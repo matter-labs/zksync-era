@@ -1,6 +1,5 @@
 use std::{collections::HashMap, ops, time::Instant};
 
-use anyhow::Context;
 use sqlx::{types::chrono::Utc, Row};
 use zksync_types::{
     get_code_key, get_code_key,
