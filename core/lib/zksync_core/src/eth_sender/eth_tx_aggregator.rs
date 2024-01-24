@@ -9,14 +9,13 @@ use zksync_types::{
     aggregated_operations::AggregatedOperation,
     contracts::{Multicall3Call, Multicall3Result},
     eth_sender::EthTx,
-    ethabi::{Contract, Token},
+    ethabi::Token,
     protocol_version::{L1VerifierConfig, VerifierParams},
-    vk_transform::l1_vk_commitment,
     web3::contract::{
         tokens::{Detokenize, Tokenizable},
         Error,
     },
-    Address, ProtocolVersionId, H256, U256,
+    Address, L2ChainId, ProtocolVersionId, H256, U256,
 };
 
 use crate::{
@@ -51,6 +50,7 @@ pub struct EthTxAggregator {
     pub(super) state_transition_chain_contract: Address,
     functions: ZkSyncFunctions,
     base_nonce: u64,
+    rollup_chain_id: L2ChainId,
 }
 
 impl EthTxAggregator {
@@ -62,6 +62,7 @@ impl EthTxAggregator {
         l1_multicall3_address: Address,
         state_transition_chain_contract: Address,
         base_nonce: u64,
+        rollup_chain_id: L2ChainId,
     ) -> Self {
         let functions = ZkSyncFunctions::default();
         Self {
@@ -73,6 +74,7 @@ impl EthTxAggregator {
             state_transition_chain_contract,
             functions,
             base_nonce,
+            rollup_chain_id,
         }
     }
 
@@ -291,32 +293,12 @@ impl EthTxAggregator {
     async fn get_recursion_scheduler_level_vk_hash(
         &mut self,
         verifier_address: Address,
-        contracts_are_pre_boojum: bool,
     ) -> Result<H256, ETHSenderError> {
-        // This is here for backward compatibility with the old verifier:
-        // Pre-boojum verifier returns the full verification key;
-        // New verifier returns the hash of the verification key
-        if contracts_are_pre_boojum {
-            let abi = Contract {
-                functions: [(
-                    self.functions.get_verification_key.name.clone(),
-                    vec![self.functions.get_verification_key.clone()],
-                )]
-                .into(),
-                ..Default::default()
-            };
-            let args = CallFunctionArgs::new(&self.functions.get_verification_key.name, ())
-                .for_contract(verifier_address, abi);
-
-            let vk = self.eth_client.call_contract_function(args).await?;
-            Ok(l1_vk_commitment(Token::from_tokens(vk)?))
-        } else {
-            let get_vk_hash = self.functions.verification_key_hash.as_ref();
-            let args = CallFunctionArgs::new(&get_vk_hash.unwrap().name, ())
-                .for_contract(verifier_address, self.functions.verifier_contract.clone());
-            let vk_hash = self.eth_client.call_contract_function(args).await?;
-            Ok(H256::from_tokens(vk_hash)?)
-        }
+        let get_vk_hash = &self.functions.verification_key_hash;
+        let args = CallFunctionArgs::new(&get_vk_hash.name, ())
+            .for_contract(verifier_address, self.functions.verifier_contract.clone());
+        let vk_hash = self.eth_client.call_contract_function(args).await?;
+        Ok(H256::from_tokens(vk_hash)?)
     }
 
     #[tracing::instrument(skip(self, storage))]
@@ -333,10 +315,10 @@ impl EthTxAggregator {
             tracing::error!("Failed to get multicall data {err:?}");
             err
         })?;
-        let contracts_are_pre_boojum = protocol_version_id.is_pre_boojum();
+        let contracts_are_pre_shared_bridge = protocol_version_id.is_pre_shared_bridge();
 
         let recursion_scheduler_level_vk_hash = self
-            .get_recursion_scheduler_level_vk_hash(verifier_address, contracts_are_pre_boojum)
+            .get_recursion_scheduler_level_vk_hash(verifier_address)
             .await
             .map_err(|err| {
                 tracing::error!("Failed to get VK hash from the Verifier {err:?}");
@@ -357,7 +339,7 @@ impl EthTxAggregator {
             .await
         {
             let tx = self
-                .save_eth_tx(storage, &agg_op, contracts_are_pre_boojum)
+                .save_eth_tx(storage, &agg_op, contracts_are_pre_shared_bridge)
                 .await?;
             Self::report_eth_tx_saving(storage, agg_op, &tx).await;
         }
@@ -398,47 +380,65 @@ impl EthTxAggregator {
     fn encode_aggregated_op(
         &self,
         op: &AggregatedOperation,
-        contracts_are_pre_boojum: bool,
+        contracts_are_pre_shared_bridge: bool,
     ) -> Vec<u8> {
-        let operation_is_pre_boojum = op.protocol_version().is_pre_boojum();
+        let operation_is_pre_shared_bridge = op.protocol_version().is_pre_shared_bridge();
+        assert_eq!(
+            contracts_are_pre_shared_bridge,
+            operation_is_pre_shared_bridge
+        );
 
-        // For "commit" and "prove" operations it's necessary that the contracts are of the same version as L1 batches are.
-        // For "execute" it's not required, i.e. we can "execute" pre-boojum batches with post-boojum contracts.
+        let mut args = vec![Token::Uint(self.rollup_chain_id.as_u64().into())];
+
         match &op {
             AggregatedOperation::Commit(op) => {
-                assert_eq!(contracts_are_pre_boojum, operation_is_pre_boojum);
-                let f = if contracts_are_pre_boojum {
-                    &self.functions.pre_boojum_commit
-                } else {
+                let op_args = op.get_eth_tx_args();
+                if contracts_are_pre_shared_bridge {
                     self.functions
-                        .post_boojum_commit
+                        .pre_shared_bridge_commit
+                        .encode_input(&op_args)
+                } else {
+                    let func = self
+                        .functions
+                        .post_shared_bridge_commit
                         .as_ref()
-                        .expect("Missing ABI for commitBatches")
-                };
-                f.encode_input(&op.get_eth_tx_args())
+                        .expect("Missing ABI for commitBatchesSharedBridge");
+                    args.extend(op_args);
+                    func.encode_input(&args)
+                }
             }
             AggregatedOperation::PublishProofOnchain(op) => {
-                assert_eq!(contracts_are_pre_boojum, operation_is_pre_boojum);
-                let f = if contracts_are_pre_boojum {
-                    &self.functions.pre_boojum_prove
-                } else {
+                let op_args = op.get_eth_tx_args();
+                if contracts_are_pre_shared_bridge {
                     self.functions
-                        .post_boojum_prove
+                        .pre_shared_bridge_prove
+                        .encode_input(&op_args)
+                } else {
+                    let func = self
+                        .functions
+                        .post_shared_bridge_prove
                         .as_ref()
-                        .expect("Missing ABI for proveBatches")
-                };
-                f.encode_input(&op.get_eth_tx_args())
+                        .expect("Missing ABI for proveBatchesSharedBridge");
+                    args.extend(op_args);
+                    func.encode_input(&args)
+                }
             }
             AggregatedOperation::Execute(op) => {
-                let f = if contracts_are_pre_boojum {
-                    &self.functions.pre_boojum_execute
-                } else {
+                let op_args = op.get_eth_tx_args();
+                if contracts_are_pre_shared_bridge {
                     self.functions
-                        .post_boojum_execute
+                        .pre_shared_bridge_execute
+                        .encode_input(&op_args)
+                } else {
+                    let func = self
+                        .functions
+                        .post_shared_bridge_execute
                         .as_ref()
-                        .expect("Missing ABI for executeBatches")
-                };
-                f.encode_input(&op.get_eth_tx_args())
+                        .expect("Missing ABI for executeBatchesSharedBridge");
+
+                    args.extend(op_args);
+                    func.encode_input(&args)
+                }
             }
         }
         .expect("Failed to encode transaction data")
@@ -448,11 +448,11 @@ impl EthTxAggregator {
         &self,
         storage: &mut StorageProcessor<'_>,
         aggregated_op: &AggregatedOperation,
-        contracts_are_pre_boojum: bool,
+        contracts_are_pre_shared_bridge: bool,
     ) -> Result<EthTx, ETHSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
         let nonce = self.get_next_nonce(&mut transaction).await?;
-        let calldata = self.encode_aggregated_op(aggregated_op, contracts_are_pre_boojum);
+        let calldata = self.encode_aggregated_op(aggregated_op, contracts_are_pre_shared_bridge);
         let l1_batch_number_range = aggregated_op.l1_batch_range();
         let op_type = aggregated_op.get_action_type();
 

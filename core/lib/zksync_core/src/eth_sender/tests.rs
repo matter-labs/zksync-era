@@ -111,6 +111,7 @@ impl EthSenderTester {
             contracts_config.l1_multicall3_addr,
             Address::random(),
             0,
+            270.into(),
         );
 
         let manager = EthTxManager::new(
