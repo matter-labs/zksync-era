@@ -131,7 +131,7 @@ pub(crate) async fn prepare_recovery_snapshot(
     let l1_batch = create_l1_batch(l1_batch_number);
     storage
         .blocks_dal()
-        .insert_l1_batch(&l1_batch, &[], Default::default(), &[], &[], 0)
+        .insert_mock_l1_batch(&l1_batch)
         .await
         .unwrap();
 

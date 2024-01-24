@@ -13,7 +13,7 @@ use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Storage
 use zksync_health_check::CheckHealth;
 use zksync_types::{
     api,
-    block::{BlockGasCount, MiniblockHeader},
+    block::MiniblockHeader,
     fee::TransactionExecutionMetrics,
     get_nonce_key,
     l2::L2Tx,

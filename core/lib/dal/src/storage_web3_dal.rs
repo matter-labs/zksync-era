@@ -258,9 +258,7 @@ impl StorageWeb3Dal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        block::{BlockGasCount, L1BatchHeader},
-        snapshots::SnapshotRecoveryStatus,
-        ProtocolVersion, ProtocolVersionId,
+        block::L1BatchHeader, snapshots::SnapshotRecoveryStatus, ProtocolVersion, ProtocolVersionId,
     };
 
     use super::*;
@@ -285,7 +283,7 @@ mod tests {
             ProtocolVersionId::latest(),
         );
         conn.blocks_dal()
-            .insert_l1_batch(&l1_batch_header, &[], BlockGasCount::default(), &[], &[], 0)
+            .insert_mock_l1_batch(&l1_batch_header)
             .await
             .unwrap();
         conn.blocks_dal()
@@ -390,7 +388,7 @@ mod tests {
             ProtocolVersionId::latest(),
         );
         conn.blocks_dal()
-            .insert_l1_batch(&l1_batch_header, &[], BlockGasCount::default(), &[], &[], 0)
+            .insert_mock_l1_batch(&l1_batch_header)
             .await
             .unwrap();
         conn.blocks_dal()
