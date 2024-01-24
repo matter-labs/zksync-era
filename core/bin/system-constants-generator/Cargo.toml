@@ -16,6 +16,7 @@ zksync_types = { path = "../../lib/types" }
 zksync_utils = { path = "../../lib/utils" }
 zksync_contracts = { path = "../../lib/contracts" }
 multivm = { path = "../../lib/multivm" }
+zkevm_test_harness_1_3_3 = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.3", package = "zkevm_test_harness" }
 
 codegen = "0.2.0"
 

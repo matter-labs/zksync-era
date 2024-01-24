@@ -9,6 +9,13 @@ use circuit_definitions::circuit_definitions::aux_layer::{
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use zkevm_test_harness::prover_utils::create_base_layer_setup_data;
+use zkevm_test_harness_1_3_3::{
+    abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
+    bellman::{
+        bn256::Bn256, plonk::better_better_cs::setup::VerificationKey as SnarkVerificationKey,
+    },
+    witness::oracle::VmWitnessOracle as SnarkWitnessOracle,
+};
 use zksync_config::configs::FriProverConfig;
 use zksync_env_config::FromEnv;
 use zksync_prover_fri_types::{
@@ -44,16 +51,7 @@ use zksync_prover_fri_types::{
     },
     ProverServiceDataKey,
 };
-use zksync_types::{
-    proofs::AggregationRound,
-    zkevm_test_harness::{
-        abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
-        bellman::{
-            bn256::Bn256, plonk::better_better_cs::setup::VerificationKey as SnarkVerificationKey,
-        },
-        witness::oracle::VmWitnessOracle as SnarkWitnessOracle,
-    },
-};
+use zksync_types::proofs::AggregationRound;
 #[cfg(feature = "gpu")]
 use {shivini::cs::GpuSetup, std::alloc::Global};
 
