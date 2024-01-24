@@ -11,6 +11,9 @@ pub struct CurrentExecutionState {
     pub events: Vec<VmEvent>,
     /// Storage logs produced by the VM.
     pub storage_log_queries: Vec<StorageLogQuery>,
+    /// The dudplicated storage logs produced by the VM.
+    /// It is the deduplicated version of the `storage_log_queries` field.
+    pub deduplicated_storage_log_queries: Vec<LogQuery>,
     /// Hashes of the contracts used by the VM.
     pub used_contract_hashes: Vec<U256>,
     /// L2 to L1 logs produced by the VM.

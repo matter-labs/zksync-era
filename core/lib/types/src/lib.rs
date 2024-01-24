@@ -21,7 +21,6 @@ pub use protocol_version::{ProtocolUpgrade, ProtocolVersion, ProtocolVersionId};
 pub use storage::*;
 pub use tx::{primitives::*, Execute};
 pub use vm_version::VmVersion;
-pub use zkevm_test_harness;
 pub use zksync_basic_types::*;
 
 use crate::{l2::TransactionType, protocol_version::ProtocolUpgradeTxCommonData};
@@ -54,7 +53,6 @@ pub mod helpers;
 pub mod proofs;
 pub mod proto;
 pub mod prover_server_api;
-pub mod sort_storage_access;
 pub mod transaction_request;
 pub mod utils;
 pub mod vk_transform;

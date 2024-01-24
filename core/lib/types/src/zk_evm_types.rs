@@ -90,3 +90,21 @@ impl From<LogQuery> for LogQuery_1_4_1 {
         }
     }
 }
+
+impl From<LogQuery_1_4_1> for LogQuery {
+    fn from(log_query: LogQuery_1_4_1) -> Self {
+        Self {
+            timestamp: Timestamp(log_query.timestamp.0),
+            tx_number_in_block: log_query.tx_number_in_block,
+            aux_byte: log_query.aux_byte,
+            shard_id: log_query.shard_id,
+            address: log_query.address,
+            key: log_query.key,
+            read_value: log_query.read_value,
+            written_value: log_query.written_value,
+            rw_flag: log_query.rw_flag,
+            rollback: log_query.rollback,
+            is_service: log_query.is_service,
+        }
+    }
+}

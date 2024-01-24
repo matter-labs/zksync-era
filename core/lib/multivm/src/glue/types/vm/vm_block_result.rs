@@ -1,3 +1,6 @@
+use itertools::Itertools;
+use zk_evm_1_3_1::aux_structures::LogQuery as LogQuery_1_3_1;
+use zkevm_test_harness_1_3_3::witness::sort_storage_access::sort_storage_access_queries as sort_storage_access_queries_1_3_3;
 use zksync_types::l2_to_l1_log::UserL2ToL1Log;
 
 use crate::{
@@ -15,6 +18,21 @@ use crate::{
 
 impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult> for crate::interface::FinishedL1Batch {
     fn glue_from(value: crate::vm_m5::vm_instance::VmBlockResult) -> Self {
+        let storage_log_queries = value.full_result.storage_log_queries.clone();
+        let deduplicated_storage_log_queries: Vec<LogQuery_1_3_1> =
+            sort_storage_access_queries_1_3_3(
+                &storage_log_queries
+                    .iter()
+                    .map(|log| {
+                        GlueInto::<zk_evm_1_3_3::aux_structures::LogQuery>::glue_into(log.log_query)
+                    })
+                    .collect_vec(),
+            )
+            .1
+            .into_iter()
+            .map(GlueInto::<LogQuery_1_3_1>::glue_into)
+            .collect();
+
         crate::interface::FinishedL1Batch {
             block_tip_execution_result: VmExecutionResultAndLogs {
                 result: value.block_tip_result.revert_reason.glue_into(),
@@ -32,9 +50,11 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult> for crate::interface::Fi
             },
             final_execution_state: CurrentExecutionState {
                 events: value.full_result.events,
-                storage_log_queries: value
-                    .full_result
-                    .storage_log_queries
+                storage_log_queries: storage_log_queries
+                    .into_iter()
+                    .map(GlueInto::glue_into)
+                    .collect(),
+                deduplicated_storage_log_queries: deduplicated_storage_log_queries
                     .into_iter()
                     .map(GlueInto::glue_into)
                     .collect(),
@@ -59,6 +79,21 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult> for crate::interface::Fi
 
 impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult> for crate::interface::FinishedL1Batch {
     fn glue_from(value: crate::vm_m6::vm_instance::VmBlockResult) -> Self {
+        let storage_log_queries = value.full_result.storage_log_queries.clone();
+        let deduplicated_storage_log_queries: Vec<LogQuery_1_3_1> =
+            sort_storage_access_queries_1_3_3(
+                &storage_log_queries
+                    .iter()
+                    .map(|log| {
+                        GlueInto::<zk_evm_1_3_3::aux_structures::LogQuery>::glue_into(log.log_query)
+                    })
+                    .collect_vec(),
+            )
+            .1
+            .into_iter()
+            .map(GlueInto::<LogQuery_1_3_1>::glue_into)
+            .collect();
+
         crate::interface::FinishedL1Batch {
             block_tip_execution_result: VmExecutionResultAndLogs {
                 result: value.block_tip_result.revert_reason.glue_into(),
@@ -76,9 +111,11 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult> for crate::interface::Fi
             },
             final_execution_state: CurrentExecutionState {
                 events: value.full_result.events,
-                storage_log_queries: value
-                    .full_result
-                    .storage_log_queries
+                storage_log_queries: storage_log_queries
+                    .into_iter()
+                    .map(GlueInto::glue_into)
+                    .collect(),
+                deduplicated_storage_log_queries: deduplicated_storage_log_queries
                     .into_iter()
                     .map(GlueInto::glue_into)
                     .collect(),
@@ -103,6 +140,13 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult> for crate::interface::Fi
 
 impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult> for crate::interface::FinishedL1Batch {
     fn glue_from(value: crate::vm_1_3_2::vm_instance::VmBlockResult) -> Self {
+        let storage_log_queries = value.full_result.storage_log_queries.clone();
+        let deduplicated_storage_log_queries =
+            zkevm_test_harness_1_3_3::witness::sort_storage_access::sort_storage_access_queries(
+                storage_log_queries.iter().map(|log| &log.log_query),
+            )
+            .1;
+
         crate::interface::FinishedL1Batch {
             block_tip_execution_result: VmExecutionResultAndLogs {
                 result: value.block_tip_result.revert_reason.glue_into(),
@@ -126,9 +170,11 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult> for crate::interface:
             },
             final_execution_state: CurrentExecutionState {
                 events: value.full_result.events,
-                storage_log_queries: value
-                    .full_result
-                    .storage_log_queries
+                storage_log_queries: storage_log_queries
+                    .into_iter()
+                    .map(GlueInto::glue_into)
+                    .collect(),
+                deduplicated_storage_log_queries: deduplicated_storage_log_queries
                     .into_iter()
                     .map(GlueInto::glue_into)
                     .collect(),

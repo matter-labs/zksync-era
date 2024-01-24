@@ -20,7 +20,6 @@ use zksync_types::{
     l2::L2Tx,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     protocol_version::ProtocolUpgradeTx,
-    sort_storage_access::sort_storage_access_queries,
     storage_writes_deduplicator::{ModifiedSlot, StorageWritesDeduplicator},
     tx::{
         tx_execution_info::DeduplicatedWritesMetrics, IncludedTxLocation,
@@ -83,31 +82,23 @@ impl UpdatesManager {
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::LogDeduplication);
 
-        // To reuse the zkevm_test_harness's log query, we need to convert our `StorageLogQuery` to it and then convert it back
-        let deduped_log_queries: Vec<LogQuery> = sort_storage_access_queries(
-            &finished_batch
+        progress.observe(
+            finished_batch
                 .final_execution_state
-                .storage_log_queries
-                .iter()
-                .map(|log| {
-                    zksync_types::zkevm_test_harness::zk_evm::aux_structures::LogQuery::from(
-                        log.log_query,
-                    )
-                })
-                .collect_vec(),
-        )
-        .1
-        .into_iter()
-        .map(Into::into)
-        .collect();
-        progress.observe(deduped_log_queries.len());
+                .deduplicated_storage_log_queries
+                .len(),
+        );
 
         let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&self.l1_batch.executed_transactions);
         let (writes_count, reads_count) = storage_log_query_write_read_counts(
             &finished_batch.final_execution_state.storage_log_queries,
         );
-        let (dedup_writes_count, dedup_reads_count) =
-            log_query_write_read_counts(deduped_log_queries.iter());
+        let (dedup_writes_count, dedup_reads_count) = log_query_write_read_counts(
+            finished_batch
+                .final_execution_state
+                .deduplicated_storage_log_queries
+                .iter(),
+        );
 
         tracing::info!(
             "Sealing L1 batch {current_l1_batch_number} with {total_tx_count} \
@@ -198,7 +189,9 @@ impl UpdatesManager {
         progress.observe(None);
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertProtectiveReads);
-        let (deduplicated_writes, protective_reads): (Vec<_>, Vec<_>) = deduped_log_queries
+        let (deduplicated_writes, protective_reads): (Vec<_>, Vec<_>) = finished_batch
+            .final_execution_state
+            .deduplicated_storage_log_queries
             .into_iter()
             .partition(|log_query| log_query.rw_flag);
         transaction
