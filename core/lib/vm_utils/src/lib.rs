@@ -6,6 +6,8 @@ use multivm::{
     vm_latest::HistoryEnabled,
     HistoryMode, VmInstance,
 };
+use tokio::runtime::Handle;
+use zksync_dal::StorageProcessor;
 use zksync_state::{PostgresStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{L1BatchNumber, L2ChainId, MiniblockNumber, Transaction};
 
@@ -87,4 +89,32 @@ pub fn execute_tx<S: WriteStorage>(
         return Err(anyhow!("compression can't fail if we don't apply it"));
     }
     Ok(())
+}
+
+pub async fn create_vm_for_l1_batch<H: HistoryMode>(
+    l1_batch_number: L1BatchNumber,
+    l2_chain_id: L2ChainId,
+    rt_handle: Handle,
+    mut connection: StorageProcessor<'_>,
+) -> anyhow::Result<VmAndStorage<H>> {
+    let prev_l1_batch_number = l1_batch_number - 1;
+    let (_, miniblock_number) = connection
+        .blocks_dal()
+        .get_miniblock_range_of_l1_batch(prev_l1_batch_number)
+        .await?
+        .with_context(|| {
+            format!(
+                "l1_batch_number {l1_batch_number:?} must have a previous miniblock to start from"
+            )
+        })?;
+
+    let pg_storage = PostgresStorage::new(rt_handle.clone(), connection, miniblock_number, true);
+
+    create_vm::<H>(
+        l1_batch_number,
+        Some(miniblock_number + 1),
+        l2_chain_id,
+        pg_storage,
+    )
+    .await
 }
