@@ -122,7 +122,7 @@ jobs:
       matrix:
         consensus: [false,true]
     env:
-      SERVER_COMPONENTS: ${{ "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer" + {true:",consensus", false:""}[matrix.consensus] }}
+      SERVER_COMPONENTS: ${{ 'api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer' + {true:',consensus', false:''}[matrix.consensus] }}
 
     runs-on: [matterlabs-ci-runner]
     steps:
