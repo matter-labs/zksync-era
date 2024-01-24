@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 
-use itertools::Itertools;
 use zk_evm_1_4_1::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
@@ -120,11 +119,10 @@ impl<S: WriteStorage> PubdataTracer<S> {
     // State diffs needed to be published on L1
     fn get_state_diffs<H: HistoryMode>(storage: &StorageOracle<S, H>) -> Vec<StateDiffRecord> {
         sort_storage_access_queries(
-            &storage
+            storage
                 .storage_log_queries_after_timestamp(Timestamp(0))
                 .iter()
-                .map(|log| log.log_query)
-                .collect_vec(),
+                .map(|log| &log.log_query),
         )
         .1
         .into_iter()

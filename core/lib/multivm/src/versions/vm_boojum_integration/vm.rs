@@ -1,4 +1,3 @@
-use itertools::Itertools;
 use zkevm_test_harness_1_4_0::witness::sort_storage_access::sort_storage_access_queries;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
@@ -108,13 +107,8 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
 
         let storage_log_queries = self.state.storage.get_final_log_queries();
 
-        let deduped_storage_log_queries = sort_storage_access_queries(
-            &storage_log_queries
-                .iter()
-                .map(|log| log.log_query)
-                .collect_vec(),
-        )
-        .1;
+        let deduped_storage_log_queries =
+            sort_storage_access_queries(storage_log_queries.iter().map(|log| &log.log_query)).1;
 
         CurrentExecutionState {
             events,
