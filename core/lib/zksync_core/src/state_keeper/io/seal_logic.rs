@@ -11,6 +11,7 @@ use multivm::{
     interface::{FinishedL1Batch, L1BatchEnv},
     utils::{get_batch_base_fee, get_max_gas_per_pubdata_byte},
 };
+use vm_utils::storage::wait_for_prev_l1_batch_params;
 use zksync_dal::StorageProcessor;
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
@@ -116,7 +117,7 @@ impl UpdatesManager {
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertL1BatchHeader);
         let (_prev_hash, prev_timestamp) =
-            extractors::wait_for_prev_l1_batch_params(&mut transaction, l1_batch_env.number).await;
+            wait_for_prev_l1_batch_params(&mut transaction, l1_batch_env.number).await;
         assert!(
             prev_timestamp < l1_batch_env.timestamp,
             "Cannot seal L1 batch #{}: Timestamp of previous L1 batch ({}) >= provisional L1 batch timestamp ({}), \
