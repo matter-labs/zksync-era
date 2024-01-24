@@ -7,6 +7,7 @@ use zksync_types::{
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::{
+    glue::GlueInto,
     interface::{
         BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch,
         L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
@@ -93,7 +94,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events);
         let system_logs = l1_messages
             .into_iter()
-            .map(|log| SystemL2ToL1Log(log.into()))
+            .map(|log| SystemL2ToL1Log(log.glue_into()))
             .collect();
         let total_log_queries = self.state.event_sink.get_log_queries()
             + self

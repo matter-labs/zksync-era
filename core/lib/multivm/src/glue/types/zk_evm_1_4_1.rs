@@ -1,8 +1,9 @@
 use zk_evm_1_4_1::{
     aux_structures::{LogQuery as LogQuery_1_4_1, Timestamp as Timestamp_1_4_1},
+    reference_impls::event_sink::EventMessage as EventMessage_1_4_1,
     zkevm_opcode_defs::FarCallOpcode as FarCallOpcode_1_4_1,
 };
-use zksync_types::{FarCallOpcode, LogQuery, Timestamp};
+use zksync_types::{l2_to_l1_log::L2ToL1Log, FarCallOpcode, LogQuery, Timestamp};
 
 use crate::glue::{GlueFrom, GlueInto};
 
@@ -60,6 +61,19 @@ impl GlueFrom<LogQuery> for LogQuery_1_4_1 {
             rw_flag: value.rw_flag,
             rollback: value.rollback,
             is_service: value.is_service,
+        }
+    }
+}
+
+impl GlueFrom<EventMessage_1_4_1> for L2ToL1Log {
+    fn glue_from(m: EventMessage_1_4_1) -> Self {
+        Self {
+            shard_id: m.shard_id,
+            is_service: m.is_first,
+            tx_number_in_block: m.tx_number_in_block,
+            sender: m.address,
+            key: zksync_utils::u256_to_h256(m.key),
+            value: zksync_utils::u256_to_h256(m.value),
         }
     }
 }

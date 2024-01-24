@@ -3,6 +3,7 @@ use zksync_state::WriteStorage;
 use zksync_types::{l2_to_l1_log::L2ToL1Log, VmEvent};
 
 use crate::{
+    glue::GlueInto,
     interface::L1BatchEnv,
     vm_latest::{
         old_vm::{events::merge_events, history_recorder::HistoryMode},
@@ -22,5 +23,8 @@ pub(crate) fn collect_events_and_l1_system_logs_after_timestamp<S: WriteStorage,
         .into_iter()
         .map(|e| e.into_vm_event(batch_env.number))
         .collect();
-    (events, l1_messages.into_iter().map(Into::into).collect())
+    (
+        events,
+        l1_messages.into_iter().map(GlueInto::glue_into).collect(),
+    )
 }
