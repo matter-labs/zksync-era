@@ -242,7 +242,7 @@ jobs:
    
     env:
       SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer${{ matrix.consensus && ',consensus' || '' }}"
-      EXT_NODE_FLAGS: "--enable-consensus=${{ matrix.consensus }}"
+      EXT_NODE_FLAGS: "${{ matrix.consensus && '--enable-consensus' || '' }}"
 
     steps:
       - name: Checkout code # Checks out the repository under $GITHUB_WORKSPACE, so the job can access it.

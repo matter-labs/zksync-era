@@ -267,6 +267,7 @@ impl FromStr for Components {
             "eth_tx_aggregator" => Ok(Components(vec![Component::EthTxAggregator])),
             "eth_tx_manager" => Ok(Components(vec![Component::EthTxManager])),
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
+            "consensus" => Ok(Components(vec![Component::Consensus])),
             other => Err(format!("{} is not a valid component name", other)),
         }
     }
