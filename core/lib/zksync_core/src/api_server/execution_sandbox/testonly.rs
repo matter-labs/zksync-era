@@ -11,11 +11,10 @@ use super::{
     BlockArgs,
 };
 
-type CallResponseFn = dyn Fn(&[u8], &BlockArgs) -> ExecutionResult + Send + Sync;
 type TxResponseFn = dyn Fn(&Transaction, &BlockArgs) -> ExecutionResult + Send + Sync;
 
 pub(crate) struct MockTransactionExecutor {
-    call_responses: Box<CallResponseFn>,
+    call_responses: Box<TxResponseFn>,
     tx_responses: Box<TxResponseFn>,
 }
 
@@ -30,8 +29,11 @@ impl fmt::Debug for MockTransactionExecutor {
 impl Default for MockTransactionExecutor {
     fn default() -> Self {
         Self {
-            call_responses: Box::new(|calldata, _| {
-                panic!("Unexpected call with data {}", hex::encode(calldata));
+            call_responses: Box::new(|tx, _| {
+                panic!(
+                    "Unexpected call with data {}",
+                    hex::encode(tx.execute.calldata())
+                );
             }),
             tx_responses: Box::new(|tx, _| {
                 panic!("Unexpect transaction call: {tx:?}");
@@ -43,7 +45,7 @@ impl Default for MockTransactionExecutor {
 impl MockTransactionExecutor {
     pub fn set_call_responses<F>(&mut self, responses: F)
     where
-        F: Fn(&[u8], &BlockArgs) -> ExecutionResult + 'static + Send + Sync,
+        F: Fn(&Transaction, &BlockArgs) -> ExecutionResult + 'static + Send + Sync,
     {
         self.call_responses = Box::new(responses);
     }
@@ -87,7 +89,7 @@ impl MockTransactionExecutor {
     fn get_execution_result(&self, tx: &Transaction, block_args: &BlockArgs) -> ExecutionResult {
         if let ExecuteTransactionCommon::L2(data) = &tx.common_data {
             if data.input.is_none() {
-                return (self.call_responses)(tx.execute.calldata(), block_args);
+                return (self.call_responses)(tx, block_args);
             }
         }
         (self.tx_responses)(tx, block_args)

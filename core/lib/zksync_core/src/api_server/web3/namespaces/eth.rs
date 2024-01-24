@@ -109,7 +109,7 @@ impl EthNamespace {
             .set_nonce_for_call_request(&mut request_with_gas_per_pubdata_overridden)
             .await?;
 
-        if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
+        if let Some(eip712_meta) = &mut request_with_gas_per_pubdata_overridden.eip712_meta {
             if eip712_meta.gas_per_pubdata == U256::zero() {
                 eip712_meta.gas_per_pubdata = DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE.into();
             }
@@ -132,7 +132,6 @@ impl EthNamespace {
 
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
-
         let gas_price = self.state.tx_sender.gas_price().await;
         let gas_price = gas_price.map_err(|err| internal_error(METHOD_NAME, err))?;
         tx.common_data.fee.max_fee_per_gas = gas_price.into();

@@ -339,7 +339,8 @@ impl BlockArgs {
         )
     }
 
-    pub(crate) async fn resolve_block_info(
+    // FIXME: needs to support snapshot recovery (otherwise, empty storage will lead to panics)
+    async fn resolve_block_info(
         &self,
         connection: &mut StorageProcessor<'_>,
     ) -> anyhow::Result<ResolvedBlockInfo> {

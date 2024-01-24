@@ -6,7 +6,7 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_types::L1BatchNumber;
+use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
 #[cfg(test)]
 pub(crate) mod testonly;
@@ -124,6 +124,32 @@ pub(crate) async fn projected_first_l1_batch(
         .await
         .context("failed getting snapshot recovery status")?;
     Ok(snapshot_recovery.map_or(L1BatchNumber(0), |recovery| recovery.l1_batch_number + 1))
+}
+
+/// Obtains a protocol version projected to be applied for the next miniblock. This is either the version used by the last
+/// sealed miniblock, or (if there are no miniblocks), one referenced in the snapshot recovery record.
+pub(crate) async fn pending_protocol_version(
+    storage: &mut StorageProcessor<'_>,
+) -> anyhow::Result<ProtocolVersionId> {
+    let last_miniblock = storage
+        .blocks_dal()
+        .get_last_sealed_miniblock_header()
+        .await
+        .context("failed getting last sealed miniblock")?;
+    if let Some(last_miniblock) = last_miniblock {
+        return last_miniblock.protocol_version.with_context(|| {
+            format!("protocol version not set for recent miniblock: {last_miniblock:?}")
+        });
+    }
+    // No miniblocks in the storage; use snapshot recovery information.
+    let _snapshot_recovery = storage
+        .snapshot_recovery_dal()
+        .get_applied_snapshot_status()
+        .await
+        .context("failed getting snapshot recovery status")?
+        .context("storage contains neither miniblocks, nor snapshot recovery info")?;
+    // FIXME: actually get version from snapshot recovery
+    Ok(ProtocolVersionId::latest())
 }
 
 #[cfg(test)]
