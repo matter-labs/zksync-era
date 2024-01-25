@@ -29,7 +29,7 @@ them to "benches/iai.rs".
 ## Profiling (Linux only)
 
 You can also use `sh perf.sh bytecode_file` to produce data that can be fed into the
-[firefox profiler](profiler.firefox.com) for a specific bytecode.
+[firefox profiler](https://profiler.firefox.com/) for a specific bytecode.
 
 ## Fuzzing
 

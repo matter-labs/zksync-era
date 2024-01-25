@@ -27,9 +27,9 @@ constraint system. Next, we define a helper function:
 To help run the test, we have a helper function called configure that returns a builder. The builder knows all of the
 gates and gate placement strategy, which will be useful for setting up the constraint system.
 
-![Contest(6).png](<./img/img/circuit_testing/Contest(6).png>)
+![Contest(6).png](<./img/circuit_testing/Contest(6).png>)
 
-The constaint system is almost ready! We still need to add the lookup tables for common boolean functions:
+The constraint system is almost ready! We still need to add the lookup tables for common boolean functions:
 
 ![Contest(7).png](<./img/circuit_testing/Contest(7).png>)
 

@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use zkevm_test_harness_1_3_3::witness::sort_storage_access::sort_storage_access_queries;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
@@ -143,9 +144,21 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             .cloned()
             .collect();
 
+        let storage_log_queries = self.vm.state.storage.get_final_log_queries();
+
+        let deduped_storage_log_queries =
+            sort_storage_access_queries(storage_log_queries.iter().map(|log| &log.log_query)).1;
+
         CurrentExecutionState {
             events,
-            storage_log_queries: self.vm.state.storage.get_final_log_queries(),
+            storage_log_queries: storage_log_queries
+                .into_iter()
+                .map(GlueInto::glue_into)
+                .collect(),
+            deduplicated_storage_log_queries: deduped_storage_log_queries
+                .into_iter()
+                .map(GlueInto::glue_into)
+                .collect(),
             used_contract_hashes,
             user_l2_to_l1_logs: l2_to_l1_logs,
             system_logs: vec![],
@@ -204,20 +217,31 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         };
 
         // Even that call tracer is supported here, we don't use it.
-        let result = self.vm.execute_next_tx(
-            self.system_env.default_validation_computational_gas_limit,
-            false,
-        );
+        let result = match self.system_env.execution_mode {
+            TxExecutionMode::VerifyExecute => self
+                .vm
+                .execute_next_tx(
+                    self.system_env.default_validation_computational_gas_limit,
+                    false,
+                )
+                .glue_into(),
+            TxExecutionMode::EstimateFee | TxExecutionMode::EthCall => self
+                .vm
+                .execute_till_block_end(
+                    crate::vm_1_3_2::vm_with_bootloader::BootloaderJobType::TransactionExecution,
+                )
+                .glue_into(),
+        };
         if bytecodes
             .iter()
             .any(|info| !self.vm.is_bytecode_known(info))
         {
             (
                 Err(BytecodeCompressionError::BytecodeCompressionFailed),
-                result.glue_into(),
+                result,
             )
         } else {
-            (Ok(()), result.glue_into())
+            (Ok(()), result)
         }
     }
 

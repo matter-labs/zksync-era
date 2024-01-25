@@ -51,6 +51,14 @@ pub struct Web3JsonRpcConfig {
     pub estimate_gas_scale_factor: f64,
     /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
     pub estimate_gas_acceptable_overestimation: u32,
+    /// Whether to use the compatibility mode for gas estimation for L1->L2 transactions.
+    /// During the migration to the 1.4.1 fee model, there will be a period, when the server
+    /// will already have the 1.4.1 fee model, while the L1 contracts will still expect the transactions
+    /// to use the previous fee model with much higher overhead.
+    ///
+    /// When set to `true`, the API will ensure to return gasLimit is high enough overhead for both the old
+    /// and the new fee model when estimating L1->L2 transactions.  
+    pub l1_to_l2_transactions_compatibility_mode: bool,
     ///  Max possible size of an ABI encoded tx (in bytes).
     pub max_tx_size: usize,
     /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the API server panics.
@@ -101,6 +109,7 @@ impl Web3JsonRpcConfig {
             account_pks: Default::default(),
             estimate_gas_scale_factor: 1.2,
             estimate_gas_acceptable_overestimation: 1000,
+            l1_to_l2_transactions_compatibility_mode: true,
             max_tx_size: 1000000,
             vm_execution_cache_misses_limit: Default::default(),
             vm_concurrency_limit: Default::default(),

@@ -38,7 +38,7 @@ const IERC20_CONTRACT_FILE: &str =
 const FAIL_ON_RECEIVE_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/dev-contracts/FailOnReceive.sol/FailOnReceive.json";
 const L2_BRIDGE_CONTRACT_FILE: &str =
-    "contracts/l2-contracts/artifacts-zk/cache-zk/solpp-generated-contracts/bridge/interfaces/IL2Bridge.sol/IL2Bridge.json";
+    "contracts/l2-contracts/artifacts-zk/contracts-preprocessed/bridge/interfaces/IL2Bridge.sol/IL2Bridge.json";
 const LOADNEXT_CONTRACT_FILE: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/LoadnextContract.json";
 const LOADNEXT_SIMPLE_CONTRACT_FILE: &str =
@@ -145,6 +145,10 @@ pub fn fail_on_receive_contract() -> Contract {
 
 pub fn deployer_contract() -> Contract {
     load_sys_contract("ContractDeployer")
+}
+
+pub fn l1_messenger_contract() -> Contract {
+    load_sys_contract("L1Messenger")
 }
 
 pub fn eth_contract() -> Contract {
@@ -370,6 +374,13 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
+    pub fn playground_post_1_4_1() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_1_4_1/playground_batch.yul/playground_batch.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
     /// BaseSystemContracts with playground bootloader - used for handling eth_calls.
     pub fn estimate_gas() -> Self {
         let bootloader_bytecode = read_bootloader_code("fee_estimate");
@@ -407,6 +418,13 @@ impl BaseSystemContracts {
     pub fn estimate_gas_post_allowlist_removal() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_remove_allowlist/fee_estimate.yul/fee_estimate.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn estimate_gas_post_1_4_1() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_1_4_1/fee_estimate.yul/fee_estimate.yul.zbin",
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }

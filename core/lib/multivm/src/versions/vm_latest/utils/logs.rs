@@ -1,7 +1,9 @@
+use zk_evm_1_4_1::aux_structures::{LogQuery, Timestamp};
 use zksync_state::WriteStorage;
-use zksync_types::{l2_to_l1_log::L2ToL1Log, Timestamp, VmEvent};
+use zksync_types::{l2_to_l1_log::L2ToL1Log, StorageLogQueryType, VmEvent};
 
 use crate::{
+    glue::GlueInto,
     interface::L1BatchEnv,
     vm_latest::{
         old_vm::{events::merge_events, history_recorder::HistoryMode},
@@ -21,5 +23,15 @@ pub(crate) fn collect_events_and_l1_system_logs_after_timestamp<S: WriteStorage,
         .into_iter()
         .map(|e| e.into_vm_event(batch_env.number))
         .collect();
-    (events, l1_messages.into_iter().map(Into::into).collect())
+    (
+        events,
+        l1_messages.into_iter().map(GlueInto::glue_into).collect(),
+    )
+}
+
+/// Log query, which handle initial and repeated writes to the storage
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct StorageLogQuery {
+    pub log_query: LogQuery,
+    pub log_type: StorageLogQueryType,
 }

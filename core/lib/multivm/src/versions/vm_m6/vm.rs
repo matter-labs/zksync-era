@@ -1,5 +1,8 @@
 use std::collections::HashSet;
 
+use itertools::Itertools;
+use zk_evm_1_3_1::aux_structures::LogQuery;
+use zkevm_test_harness_1_3_3::witness::sort_storage_access::sort_storage_access_queries;
 use zksync_state::StoragePtr;
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
@@ -160,9 +163,35 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             .cloned()
             .collect();
 
+        let storage_log_queries = self.vm.get_final_log_queries();
+
+        // To allow calling the `vm-1.3.3`s. method, the `v1.3.1`'s `LogQuery` has to be converted
+        // to the `vm-1.3.3`'s `LogQuery`. Then, we need to convert it back.
+        let deduplicated_logs: Vec<LogQuery> = sort_storage_access_queries(
+            &storage_log_queries
+                .iter()
+                .map(|log| {
+                    GlueInto::<zk_evm_1_3_3::aux_structures::LogQuery>::glue_into(log.log_query)
+                })
+                .collect_vec(),
+        )
+        .1
+        .into_iter()
+        .map(GlueInto::<zk_evm_1_3_1::aux_structures::LogQuery>::glue_into)
+        .collect();
+
         CurrentExecutionState {
             events,
-            storage_log_queries: self.vm.get_final_log_queries(),
+            storage_log_queries: self
+                .vm
+                .get_final_log_queries()
+                .into_iter()
+                .map(GlueInto::glue_into)
+                .collect(),
+            deduplicated_storage_log_queries: deduplicated_logs
+                .into_iter()
+                .map(GlueInto::glue_into)
+                .collect(),
             used_contract_hashes,
             system_logs: vec![],
             total_log_queries,
@@ -221,20 +250,31 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         };
 
         // Even that call tracer is supported here, we don't use it.
-        let result = self.vm.execute_next_tx(
-            self.system_env.default_validation_computational_gas_limit,
-            false,
-        );
+        let result = match self.system_env.execution_mode {
+            TxExecutionMode::VerifyExecute => self
+                .vm
+                .execute_next_tx(
+                    self.system_env.default_validation_computational_gas_limit,
+                    false,
+                )
+                .glue_into(),
+            TxExecutionMode::EstimateFee | TxExecutionMode::EthCall => self
+                .vm
+                .execute_till_block_end(
+                    crate::vm_m6::vm_with_bootloader::BootloaderJobType::TransactionExecution,
+                )
+                .glue_into(),
+        };
         if bytecodes
             .iter()
             .any(|info| !self.vm.is_bytecode_exists(info))
         {
             (
                 Err(BytecodeCompressionError::BytecodeCompressionFailed),
-                result.glue_into(),
+                result,
             )
         } else {
-            (Ok(()), result.glue_into())
+            (Ok(()), result)
         }
     }
 

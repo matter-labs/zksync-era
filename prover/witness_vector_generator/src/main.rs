@@ -27,7 +27,7 @@ mod metrics;
     about = "Tool for generating witness vectors for circuits"
 )]
 struct Opt {
-    /// Number of times witness_vector_generator should be run.
+    /// Number of times `witness_vector_generator` should be run.
     #[structopt(short = "n", long = "n_iterations")]
     number_of_iterations: Option<usize>,
 }
