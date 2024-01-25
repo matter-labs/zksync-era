@@ -7,6 +7,7 @@ use std::{
     time::Duration,
 };
 
+use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 #[cfg(test)]
 use tokio::sync::mpsc;
@@ -45,7 +46,7 @@ pub(super) async fn create_db(
     memtable_capacity: usize,
     stalled_writes_timeout: Duration,
     multi_get_chunk_size: usize,
-) -> RocksDBWrapper {
+) -> anyhow::Result<RocksDBWrapper> {
     tokio::task::spawn_blocking(move || {
         create_db_sync(
             &path,
@@ -56,7 +57,7 @@ pub(super) async fn create_db(
         )
     })
     .await
-    .unwrap()
+    .context("panicked creating Merkle tree RocksDB")?
 }
 
 fn create_db_sync(
@@ -65,7 +66,7 @@ fn create_db_sync(
     memtable_capacity: usize,
     stalled_writes_timeout: Duration,
     multi_get_chunk_size: usize,
-) -> RocksDBWrapper {
+) -> anyhow::Result<RocksDBWrapper> {
     tracing::info!(
         "Initializing Merkle tree database at `{path}` with {multi_get_chunk_size} multi-get chunk size, \
          {block_cache_capacity}B block cache, {memtable_capacity}B memtable capacity, \
@@ -80,7 +81,7 @@ fn create_db_sync(
             large_memtable_capacity: Some(memtable_capacity),
             stalled_writes_retries: StalledWritesRetries::new(stalled_writes_timeout),
         },
-    );
+    )?;
     if cfg!(test) {
         // We need sync writes for the unit tests to execute reliably. With the default config,
         // some writes to RocksDB may occur, but not be visible to the test code.
@@ -88,7 +89,7 @@ fn create_db_sync(
     }
     let mut db = RocksDBWrapper::from(db);
     db.set_multi_get_chunk_size(multi_get_chunk_size);
-    db
+    Ok(db)
 }
 
 /// Wrapper around the "main" tree implementation used by [`MetadataCalculator`].
@@ -382,7 +383,8 @@ impl L1BatchWithLogs {
         let mut touched_slots = storage
             .storage_logs_dal()
             .get_touched_slots_for_l1_batch(l1_batch_number)
-            .await;
+            .await
+            .unwrap();
         touched_slots_latency.observe_with_count(touched_slots.len());
 
         let leaf_indices_latency = METRICS.start_load_stage(LoadChangesStage::LoadLeafIndices);
@@ -391,7 +393,8 @@ impl L1BatchWithLogs {
         let l1_batches_for_initial_writes = storage
             .storage_logs_dal()
             .get_l1_batches_and_indices_for_initial_writes(&hashed_keys_for_writes)
-            .await;
+            .await
+            .unwrap();
         leaf_indices_latency.observe_with_count(hashed_keys_for_writes.len());
 
         let mut storage_logs = BTreeMap::new();
@@ -460,7 +463,8 @@ mod tests {
             let touched_slots = storage
                 .storage_logs_dal()
                 .get_touched_slots_for_l1_batch(l1_batch_number)
-                .await;
+                .await
+                .unwrap();
 
             let mut storage_logs = BTreeMap::new();
 
@@ -472,11 +476,13 @@ mod tests {
             let previous_values = storage
                 .storage_logs_dal()
                 .get_previous_storage_values(&hashed_keys, l1_batch_number)
-                .await;
+                .await
+                .unwrap();
             let l1_batches_for_initial_writes = storage
                 .storage_logs_dal()
                 .get_l1_batches_and_indices_for_initial_writes(&hashed_keys)
-                .await;
+                .await
+                .unwrap();
 
             for storage_key in protective_reads {
                 let previous_value = previous_values[&storage_key.hashed_key()].unwrap_or_default();
@@ -566,7 +572,8 @@ mod tests {
             Duration::ZERO, // writes should never be stalled in tests
             500,
         )
-        .await;
+        .await
+        .unwrap();
         AsyncTree::new(db, MerkleTreeMode::Full)
     }
 

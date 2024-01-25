@@ -221,12 +221,15 @@ fn test_factory_deps_cache(pool: &ConnectionPool, rt_handle: Handle) {
     // insert the contracts
     let mut contracts = HashMap::new();
     contracts.insert(H256::zero(), vec![1, 2, 3]);
-    storage.rt_handle.block_on(
-        storage
-            .connection
-            .storage_dal()
-            .insert_factory_deps(MiniblockNumber(0), &contracts),
-    );
+    storage
+        .rt_handle
+        .block_on(
+            storage
+                .connection
+                .storage_dal()
+                .insert_factory_deps(MiniblockNumber(0), &contracts),
+        )
+        .unwrap();
 
     // Create the storage that should have the cache filled.
     let mut storage = PostgresStorage::new(

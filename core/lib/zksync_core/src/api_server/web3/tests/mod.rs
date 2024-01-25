@@ -227,7 +227,7 @@ impl StorageInitialization {
                         MiniblockNumber(Self::SNAPSHOT_RECOVERY_BLOCK),
                         factory_deps,
                     )
-                    .await;
+                    .await?;
             }
         }
         Ok(())
