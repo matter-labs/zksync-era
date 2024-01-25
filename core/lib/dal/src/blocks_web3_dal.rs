@@ -411,7 +411,8 @@ impl BlocksWeb3Dal<'_, '_> {
         Ok(result)
     }
 
-    pub async fn get_trace_for_miniblock(
+    /// Returns call traces for all transactions in the specified miniblock in the order of their execution.
+    pub async fn get_traces_for_miniblock(
         &mut self,
         block_number: MiniblockNumber,
     ) -> sqlx::Result<Vec<Call>> {
@@ -419,18 +420,14 @@ impl BlocksWeb3Dal<'_, '_> {
             CallTrace,
             r#"
             SELECT
-                *
+                call_trace
             FROM
                 call_traces
+                INNER JOIN transactions ON tx_hash = transactions.hash
             WHERE
-                tx_hash IN (
-                    SELECT
-                        hash
-                    FROM
-                        transactions
-                    WHERE
-                        miniblock_number = $1
-                )
+                transactions.miniblock_number = $1
+            ORDER BY
+                transactions.index_in_block
             "#,
             block_number.0 as i64
         )
@@ -599,12 +596,16 @@ impl BlocksWeb3Dal<'_, '_> {
 mod tests {
     use zksync_types::{
         block::{MiniblockHasher, MiniblockHeader},
+        fee::TransactionExecutionMetrics,
         snapshots::SnapshotRecoveryStatus,
         MiniblockNumber, ProtocolVersion, ProtocolVersionId,
     };
 
     use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool};
+    use crate::{
+        tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction},
+        ConnectionPool,
+    };
 
     #[tokio::test]
     async fn getting_web3_block_and_tx_count() {
@@ -786,10 +787,6 @@ mod tests {
     async fn resolving_block_by_hash() {
         let connection_pool = ConnectionPool::test_pool().await;
         let mut conn = connection_pool.access_storage().await.unwrap();
-        conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -813,5 +810,48 @@ mod tests {
             .resolve_block_id(api::BlockId::Hash(hash))
             .await;
         assert_eq!(miniblock_number.unwrap(), None);
+    }
+
+    #[tokio::test]
+    async fn getting_traces_for_block() {
+        let connection_pool = ConnectionPool::test_pool().await;
+        let mut conn = connection_pool.access_storage().await.unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .await;
+        conn.blocks_dal()
+            .insert_miniblock(&create_miniblock_header(1))
+            .await
+            .unwrap();
+
+        let transactions = [mock_l2_transaction(), mock_l2_transaction()];
+        let mut tx_results = vec![];
+        for (i, tx) in transactions.into_iter().enumerate() {
+            conn.transactions_dal()
+                .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
+                .await;
+            let mut tx_result = mock_execution_result(tx);
+            tx_result.call_traces.push(Call {
+                from: Address::from_low_u64_be(i as u64),
+                to: Address::from_low_u64_be(i as u64 + 1),
+                value: i.into(),
+                ..Call::default()
+            });
+            tx_results.push(tx_result);
+        }
+        conn.transactions_dal()
+            .mark_txs_as_executed_in_miniblock(MiniblockNumber(1), &tx_results, 1.into())
+            .await;
+
+        let traces = conn
+            .blocks_web3_dal()
+            .get_traces_for_miniblock(MiniblockNumber(1))
+            .await
+            .unwrap();
+        assert_eq!(traces.len(), 2);
+        for (trace, tx_result) in traces.iter().zip(&tx_results) {
+            let expected_trace = tx_result.call_trace().unwrap();
+            assert_eq!(*trace, expected_trace);
+        }
     }
 }

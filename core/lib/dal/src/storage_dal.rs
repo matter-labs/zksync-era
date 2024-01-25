@@ -134,8 +134,8 @@ impl StorageDal<'_, '_> {
     pub async fn get_factory_deps_for_revert(
         &mut self,
         block_number: MiniblockNumber,
-    ) -> Vec<H256> {
-        sqlx::query!(
+    ) -> sqlx::Result<Vec<H256>> {
+        Ok(sqlx::query!(
             r#"
             SELECT
                 bytecode_hash
@@ -147,11 +147,10 @@ impl StorageDal<'_, '_> {
             block_number.0 as i64
         )
         .fetch_all(self.storage.conn())
-        .await
-        .unwrap()
+        .await?
         .into_iter()
         .map(|row| H256::from_slice(&row.bytecode_hash))
-        .collect()
+        .collect())
     }
 
     /// Applies the specified storage logs for a miniblock. Returns the map of unique storage updates.

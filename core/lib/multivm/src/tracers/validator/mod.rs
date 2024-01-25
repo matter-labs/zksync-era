@@ -12,8 +12,11 @@ use zksync_types::{
 };
 use zksync_utils::{be_bytes_to_safe_address, u256_to_account_address, u256_to_h256};
 
-use crate::tracers::validator::types::{NewTrustedValidationItems, ValidationTracerMode};
 pub use crate::tracers::validator::types::{ValidationError, ValidationTracerParams};
+use crate::{
+    glue::tracers::IntoOldVmTracer,
+    tracers::validator::types::{NewTrustedValidationItems, ValidationTracerMode},
+};
 
 mod types;
 mod vm_boojum_integration;
@@ -216,3 +219,5 @@ fn valid_eth_token_call(address: Address, msg_sender: Address) -> bool {
         || msg_sender == BOOTLOADER_ADDRESS;
     address == L2_ETH_TOKEN_ADDRESS && is_valid_caller
 }
+
+impl<H> IntoOldVmTracer for ValidationTracer<H> {}
