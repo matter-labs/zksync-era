@@ -115,7 +115,7 @@ impl ProtocolVersionsDal<'_, '_> {
         .unwrap();
     }
 
-    /// Attaches a transaction used to set chainId to the genesis protocol version.
+    /// Attaches a transaction used to set ChainId to the genesis protocol version.
     /// Also inserts that transaction into the database.
     pub async fn save_genesis_upgrade_with_tx(
         &mut self,

@@ -58,7 +58,7 @@ pub struct EthHttpQueryClient {
     topics: Vec<H256>,
     zksync_contract_addr: Address,
     /// Address of the `StateTransitionManager` contract. It's optional because it is present only
-    /// for post shared brige chains. If address is some then client will listen to `SetChainId` events coming from it.
+    /// for post shared bridge chains. If address is some then client will listen to `SetChainId` events coming from it.
     state_transition_manager_contract_addr: Option<Address>,
     /// Address of the `Governance` contract. It's optional because it is present only for post-boojum chains.
     /// If address is some then client will listen to events coming from it.

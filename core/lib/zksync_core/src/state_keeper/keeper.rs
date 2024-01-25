@@ -7,11 +7,8 @@ use anyhow::Context as _;
 use multivm::interface::{Halt, L1BatchEnv, SystemEnv};
 use tokio::sync::watch;
 use zksync_types::{
-    block::MiniblockExecutionData,
-    l2::TransactionType,
-    protocol_version::{ProtocolUpgradeTx, ProtocolVersionId},
-    storage_writes_deduplicator::StorageWritesDeduplicator,
-    L1BatchNumber, Transaction,
+    block::MiniblockExecutionData, l2::TransactionType, protocol_version::ProtocolUpgradeTx,
+    storage_writes_deduplicator::StorageWritesDeduplicator, L1BatchNumber, Transaction,
 };
 
 use super::{

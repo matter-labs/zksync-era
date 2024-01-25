@@ -22,7 +22,7 @@ const BYTES_IN_MEGABYTE: usize = 1_024 * 1_024;
 /// This part of the external node config is fetched directly from the main node.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct RemoteENConfig {
-    pub bridgehub_proxy_addr: Address,
+    pub bridgehub_proxy_addr: Option<Address>,
     pub diamond_proxy_addr: Address,
     pub l1_erc20_bridge_proxy_addr: Address,
     pub l2_erc20_bridge_addr: Address,

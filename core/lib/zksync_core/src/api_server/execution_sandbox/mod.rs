@@ -284,7 +284,7 @@ pub(crate) struct BlockArgs {
 }
 
 impl BlockArgs {
-    pub async fn pending(connection: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
+    pub(crate) async fn pending(connection: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
         let (block_id, resolved_block_number) = get_pending_state(connection).await?;
         Ok(Self {
             block_id,

@@ -1,3 +1,4 @@
+use zksync_contracts::SET_CHAIN_ID_EVENT;
 use zksync_dal::StorageProcessor;
 use zksync_types::{protocol_version::decode_set_chain_id_event, web3::types::Log, Address, H256};
 
@@ -7,10 +8,13 @@ use crate::eth_watch::{
     metrics::{PollStage, METRICS},
 };
 
-/// Responsible for saving new protocol upgrade proposals to the database.
+/// Responsible for saving `setChainId` upgrade transactions to the database.
 #[derive(Debug)]
 pub struct SetChainIDEventProcessor {
+    /// Address of the `DiamondProxy` contract of the chain that the `SetChainId` event is for.
     diamond_proxy_address: Address,
+    /// Signature of the `SetChainIdUpgrade` event.
+    /// The event is emitted by the `StateTransitionManager` contract.
     set_chain_id_signature: H256,
 }
 
@@ -18,12 +22,7 @@ impl SetChainIDEventProcessor {
     pub fn new(diamond_proxy_address: Address) -> Self {
         Self {
             diamond_proxy_address,
-            set_chain_id_signature: H256::default(),
-            // TODO: uncomment when we merge the Shared Bridge contracts.
-            // state_transition_manager_contract()
-            //     .event("SetChainIdUpgrade")
-            //     .expect("SetChainIdUpgrade event is missing in ABI")
-            //     .signature(),
+            set_chain_id_signature: SET_CHAIN_ID_EVENT.signature(),
         }
     }
 }
