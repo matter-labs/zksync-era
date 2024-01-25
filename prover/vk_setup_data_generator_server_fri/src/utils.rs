@@ -7,6 +7,7 @@ use anyhow::Context as _;
 use circuit_definitions::circuit_definitions::recursion_layer::scheduler::SchedulerCircuit;
 use itertools::Itertools;
 use zkevm_test_harness::{
+    compute_setups::{generate_base_layer_vks_and_proofs, generate_recursive_layer_vks_and_proofs},
     data_source::{in_memory_data_source::InMemoryDataSource, BlockDataSource},
     ethereum_types::{Address, U256},
     external_calls::run,
@@ -14,6 +15,10 @@ use zkevm_test_harness::{
     sha3::{Digest, Keccak256},
     toolset::GeometryConfig,
     witness::{
+        full_block_artifact::{
+            BlockBasicCircuits, BlockBasicCircuitsPublicCompactFormsWitnesses,
+            BlockBasicCircuitsPublicInputs,
+        },
         recursive_aggregation::compute_leaf_params,
         tree::{BinarySparseStorageTree, ZKSyncTestingTree},
     },
@@ -72,7 +77,7 @@ fn read_witness_artifact(filepath: &str) -> anyhow::Result<TestArtifact> {
         .with_context(|| format!("Failed to read witness artifact from path: {filepath}"))?;
     serde_json::from_str(text.as_str()).context("serde_json::from_str()")
 }
-/*
+
 pub fn get_basic_circuits(
     cycle_limit: usize,
     geometry: GeometryConfig,
@@ -89,7 +94,8 @@ pub fn get_basic_circuits(
     let test_artifact = read_witness_artifact(&path).context("read_withess_artifact()")?;
     let (base_layer_circuit, _, _, _) = get_circuits(test_artifact, cycle_limit, geometry);
     Ok(base_layer_circuit
-        .into_flat_iterator()
+        .into_flattened_set()
+        .into_iter()
         .dedup_by(|a, b| a.numeric_circuit_type() == b.numeric_circuit_type())
         .collect())
 }
@@ -134,7 +140,7 @@ pub fn get_leaf_circuits() -> anyhow::Result<Vec<ZkSyncRecursiveLayerCircuit>> {
         circuits.push(circuit)
     }
     Ok(circuits)
-}*/
+}
 
 pub fn get_node_circuit() -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
     let input = RecursionNodeInput::placeholder_witness();
@@ -197,7 +203,6 @@ pub fn get_scheduler_circuit() -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
     ))
 }
 
-/*
 #[allow(dead_code)]
 fn get_recursive_layer_proofs() -> Vec<ZkSyncRecursionProof> {
     let mut in_memory_source = InMemoryDataSource::new();
@@ -214,7 +219,7 @@ fn get_recursive_layer_proofs() -> Vec<ZkSyncRecursionProof> {
         scheduler_proofs.push(proof.into_inner());
     }
     scheduler_proofs
-}*/
+}
 
 pub fn get_leaf_vk_params(
 ) -> anyhow::Result<Vec<(u8, RecursionLeafParametersWitness<GoldilocksField>)>> {
@@ -237,7 +242,7 @@ pub fn get_leaf_vk_params(
     }
     Ok(leaf_vk_commits)
 }
-/*
+
 #[allow(clippy::type_complexity)]
 fn get_circuits(
     mut test_artifact: TestArtifact,
@@ -349,4 +354,3 @@ fn get_circuits(
         scheduler_partial_input,
     )
 }
-*/

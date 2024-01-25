@@ -2,7 +2,11 @@
 
 use anyhow::Context as _;
 use circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerVerificationKey;
-use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource};
+use zkevm_test_harness::{
+    compute_setups::{generate_base_layer_vks_and_proofs, generate_recursive_layer_vks_and_proofs},
+    data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource},
+    proof_wrapper_utils::{get_wrapper_setup_and_vk_from_scheduler_vk, WrapperConfig},
+};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
