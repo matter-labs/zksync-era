@@ -408,7 +408,8 @@ impl MiniblockSealCommand {
             transaction
                 .storage_dal()
                 .insert_factory_deps(miniblock_number, new_factory_deps)
-                .await;
+                .await
+                .unwrap();
         }
         progress.observe(new_factory_deps_count);
 

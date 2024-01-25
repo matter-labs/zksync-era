@@ -124,8 +124,7 @@ async fn prepare_recovery_snapshot_with_genesis(
         l1_batch_root_hash,
         miniblock_number: MiniblockNumber(1),
         miniblock_root_hash: H256::zero(), // not used
-        last_finished_chunk_id: Some(0),
-        total_chunk_count: 1,
+        storage_logs_chunks_processed: vec![],
     }
 }
 

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                l1_batch_number,\n                l1_batch_root_hash,\n                miniblock_number,\n                miniblock_root_hash,\n                last_finished_chunk_id,\n                total_chunk_count\n            FROM\n                snapshot_recovery\n            ",
+  "query": "\n            SELECT\n                l1_batch_number,\n                l1_batch_root_hash,\n                miniblock_number,\n                miniblock_root_hash,\n                storage_logs_chunks_processed\n            FROM\n                snapshot_recovery\n            ",
   "describe": {
     "columns": [
       {
@@ -25,13 +25,8 @@
       },
       {
         "ordinal": 4,
-        "name": "last_finished_chunk_id",
-        "type_info": "Int4"
-      },
-      {
-        "ordinal": 5,
-        "name": "total_chunk_count",
-        "type_info": "Int4"
+        "name": "storage_logs_chunks_processed",
+        "type_info": "BoolArray"
       }
     ],
     "parameters": {
@@ -42,9 +37,8 @@
       false,
       false,
       false,
-      true,
       false
     ]
   },
-  "hash": "47c2f23d9209d155f3f32fd21ef7931a02fe5ffaf2c4dc2f1e7a48c0e932c060"
+  "hash": "73f0401ac19c4e1efd73d02b8dcdd913ed9fbd69b8354b7d18b01d3fb62f6be8"
 }

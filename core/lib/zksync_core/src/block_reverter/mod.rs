@@ -278,6 +278,11 @@ impl BlockReverter {
             .delete_l1_batches(last_l1_batch_to_keep)
             .await
             .unwrap();
+        transaction
+            .blocks_dal()
+            .delete_initial_writes(last_l1_batch_to_keep)
+            .await
+            .unwrap();
         tracing::info!("rolling back miniblocks...");
         transaction
             .blocks_dal()
