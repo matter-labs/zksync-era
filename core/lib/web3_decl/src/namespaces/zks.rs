@@ -35,7 +35,7 @@ pub trait ZksNamespace {
     async fn estimate_gas_l1_to_l2(&self, req: CallRequest) -> RpcResult<U256>;
 
     #[method(name = "getBridgehubContract")]
-    async fn get_bridgehub_contract(&self) -> RpcResult<Address>;
+    async fn get_bridgehub_contract(&self) -> RpcResult<Option<Address>>;
 
     #[method(name = "getMainContract")]
     async fn get_main_contract(&self) -> RpcResult<Address>;

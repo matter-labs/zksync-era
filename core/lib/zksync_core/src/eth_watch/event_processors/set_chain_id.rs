@@ -1,5 +1,5 @@
 use zksync_dal::StorageProcessor;
-use zksync_types::{web3::types::Log, Address, ProtocolUpgrade, H256};
+use zksync_types::{protocol_version::decode_set_chain_id_event, web3::types::Log, Address, H256};
 
 use crate::eth_watch::{
     client::{Error, EthClient},
@@ -33,29 +33,21 @@ impl EventProcessor for SetChainIDEventProcessor {
     async fn process_events(
         &mut self,
         storage: &mut StorageProcessor<'_>,
-        client: &dyn EthClient,
+        _client: &dyn EthClient,
         events: Vec<Log>,
     ) -> Result<(), Error> {
-        let mut upgrades = Vec::new();
-        let events_iter = events.into_iter();
-
-        let filtered_events = events_iter.filter(|log| {
-            log.topics[0] == self.set_chain_id_signature
-                && log.topics[1] == self.diamond_proxy_address.into()
-        });
-
         // SetChainId does not go through the governance contract, so we need to parse it separately.
-        for event in filtered_events {
-            let timestamp = client
-                .get_block(event.block_hash.expect("event without block_hash"))
-                .await?
-                .expect("event's block not found")
-                .timestamp;
-            let upgrade = ProtocolUpgrade::decode_set_chain_id_event(event, timestamp.as_u64())
-                .map_err(|err| Error::LogParse(format!("{:?}", err)))?;
-
-            upgrades.push((upgrade, None));
-        }
+        let upgrades = events
+            .into_iter()
+            .filter(|log| {
+                log.topics[0] == self.set_chain_id_signature
+                    && log.topics[1] == self.diamond_proxy_address.into()
+            })
+            .map(|event| {
+                decode_set_chain_id_event(event)
+                    .map_err(|err| Error::LogParse(format!("{:?}", err)))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         if upgrades.is_empty() {
             return Ok(());
@@ -63,30 +55,19 @@ impl EventProcessor for SetChainIDEventProcessor {
 
         let ids_str: Vec<_> = upgrades
             .iter()
-            .map(|(u, _)| format!("{}", u.id as u16))
+            .map(|(id, _tx)| format!("{}", *id as u16))
             .collect();
-        tracing::debug!("Received set chain upgrade with id: {}", ids_str.join(", "));
+        tracing::debug!(
+            "Received setChainId upgrade with version_id: {}",
+            ids_str.join(", ")
+        );
 
         let stage_latency = METRICS.poll_eth_node[&PollStage::PersistUpgrades].start();
-        for (upgrade, scheduler_vk_hash) in upgrades {
-            let version_id = upgrade.id;
-            let previous_version = storage
+        for (version_id, tx) in upgrades {
+            storage
                 .protocol_versions_dal()
-                .get_protocol_version(dbg!(version_id))
-                .await
-                .expect("Expected the version to be in the DB");
-            let new_version = previous_version.apply_upgrade(upgrade, scheduler_vk_hash);
-
-            if let Some(tx) = new_version.tx.clone() {
-                storage
-                    .transactions_dal()
-                    .insert_system_transaction(tx.clone())
-                    .await;
-                storage
-                    .protocol_versions_dal()
-                    .save_genesis_upgrade_with_tx(version_id, tx)
-                    .await;
-            }
+                .save_genesis_upgrade_with_tx(version_id, tx)
+                .await;
         }
         stage_latency.observe();
         Ok(())

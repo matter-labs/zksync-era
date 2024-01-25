@@ -196,7 +196,7 @@ pub async fn start_eth_watch(
     pool: ConnectionPool,
     eth_gateway: Box<dyn EthInterface>,
     diamond_proxy_addr: Address,
-    state_transition_manager_contract_addr: Address,
+    state_transition_manager_contract_addr: Option<Address>,
     governance: (Contract, Address),
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<JoinHandle<anyhow::Result<()>>> {

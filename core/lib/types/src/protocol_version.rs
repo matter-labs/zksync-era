@@ -368,61 +368,51 @@ impl TryFrom<Log> for ProtocolUpgrade {
     }
 }
 
-impl ProtocolUpgrade {
-    pub fn decode_set_chain_id_event(
-        event: Log,
-        timestamp: u64,
-    ) -> Result<Self, <Self as TryFrom<Log>>::Error> {
-        let transaction_param_type = ParamType::Tuple(vec![
-            ParamType::Uint(256),                                     // tx type
-            ParamType::Uint(256),                                     // sender
-            ParamType::Uint(256),                                     // to
-            ParamType::Uint(256),                                     // gas limit
-            ParamType::Uint(256),                                     // gas per pubdata limit
-            ParamType::Uint(256),                                     // max fee per gas
-            ParamType::Uint(256),                                     // max priority fee per gas
-            ParamType::Uint(256),                                     // paymaster
-            ParamType::Uint(256),                                     // nonce (serial ID)
-            ParamType::Uint(256),                                     // value
-            ParamType::FixedArray(Box::new(ParamType::Uint(256)), 4), // reserved
-            ParamType::Bytes,                                         // calldata
-            ParamType::Bytes,                                         // signature
-            ParamType::Array(Box::new(ParamType::Uint(256))),         // factory deps
-            ParamType::Bytes,                                         // paymaster input
-            ParamType::Bytes,                                         // reserved dynamic
-        ]);
+pub fn decode_set_chain_id_event(
+    event: Log,
+) -> Result<(ProtocolVersionId, ProtocolUpgradeTx), crate::ethabi::Error> {
+    let transaction_param_type = ParamType::Tuple(vec![
+        ParamType::Uint(256),                                     // tx type
+        ParamType::Uint(256),                                     // sender
+        ParamType::Uint(256),                                     // to
+        ParamType::Uint(256),                                     // gas limit
+        ParamType::Uint(256),                                     // gas per pubdata limit
+        ParamType::Uint(256),                                     // max fee per gas
+        ParamType::Uint(256),                                     // max priority fee per gas
+        ParamType::Uint(256),                                     // paymaster
+        ParamType::Uint(256),                                     // nonce (serial ID)
+        ParamType::Uint(256),                                     // value
+        ParamType::FixedArray(Box::new(ParamType::Uint(256)), 4), // reserved
+        ParamType::Bytes,                                         // calldata
+        ParamType::Bytes,                                         // signature
+        ParamType::Array(Box::new(ParamType::Uint(256))),         // factory deps
+        ParamType::Bytes,                                         // paymaster input
+        ParamType::Bytes,                                         // reserved dynamic
+    ]);
 
-        let Token::Tuple(transaction) = decode(&[transaction_param_type], &event.data.0)?.remove(0)
-        else {
-            unreachable!()
-        };
+    let Token::Tuple(transaction) = decode(&[transaction_param_type], &event.data.0)?.remove(0)
+    else {
+        unreachable!()
+    };
 
-        let version_id = event.topics[2].to_low_u64_be();
+    let version_id = event.topics[2].to_low_u64_be();
 
-        let eth_hash = event
-            .transaction_hash
-            .expect("Event transaction hash is missing");
-        let eth_block = event
-            .block_number
-            .expect("Event block number is missing")
-            .as_u64();
+    let eth_hash = event
+        .transaction_hash
+        .expect("Event transaction hash is missing");
+    let eth_block = event
+        .block_number
+        .expect("Event block number is missing")
+        .as_u64();
 
-        let factory_deps: Vec<Token> = Vec::new();
+    let factory_deps: Vec<Token> = Vec::new();
 
-        let upgrade_tx =
-            ProtocolUpgradeTx::decode_tx(transaction, eth_hash, eth_block, factory_deps);
+    let upgrade_tx = ProtocolUpgradeTx::decode_tx(transaction, eth_hash, eth_block, factory_deps)
+        .expect("Upgrade tx is missing");
+    let version_id =
+        ProtocolVersionId::try_from(version_id as u16).expect("Version is not supported");
 
-        let upgrade = ProtocolUpgrade {
-            id: ProtocolVersionId::try_from(version_id as u16).expect("Version is not supported"),
-            bootloader_code_hash: None,
-            default_account_code_hash: None,
-            verifier_params: None,
-            verifier_address: None,
-            timestamp,
-            tx: upgrade_tx,
-        };
-        Ok(upgrade)
-    }
+    Ok((version_id, upgrade_tx))
 }
 
 impl ProtocolUpgradeTx {

@@ -31,7 +31,7 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(into_jsrpc_error)
     }
 
-    async fn get_bridgehub_contract(&self) -> RpcResult<Address> {
+    async fn get_bridgehub_contract(&self) -> RpcResult<Option<Address>> {
         Ok(self.get_bridgehub_contract_impl())
     }
 

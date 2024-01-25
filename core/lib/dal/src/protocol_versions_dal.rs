@@ -98,7 +98,7 @@ impl ProtocolVersionsDal<'_, '_> {
         db_transaction.commit().await.unwrap();
     }
 
-    pub async fn save_genesis_upgrade(&mut self, id: ProtocolVersionId, tx_hash: Option<H256>) {
+    async fn save_genesis_upgrade(&mut self, id: ProtocolVersionId, tx_hash: Option<H256>) {
         sqlx::query!(
             r#"
             UPDATE protocol_versions
@@ -115,6 +115,8 @@ impl ProtocolVersionsDal<'_, '_> {
         .unwrap();
     }
 
+    /// Attaches a transaction used to set chainId to the genesis protocol version.
+    /// Also inserts that transaction into the database.
     pub async fn save_genesis_upgrade_with_tx(
         &mut self,
         id: ProtocolVersionId,
