@@ -2,17 +2,10 @@ use std::{collections::HashMap, ops, time::Instant};
 
 use sqlx::{types::chrono::Utc, Row};
 use zksync_types::{
-    get_code_key, get_code_key,
-    snapshots::SnapshotStorageLog,
-    snapshots::{InitialWriteDbRow, SnapshotStorageLog, StorageLogDbRow},
-    AccountTreeId, AccountTreeId, Address, Address, L1BatchNumber, L1BatchNumber, MiniblockNumber,
-    MiniblockNumber, StorageKey, StorageKey, StorageLog, StorageLog,
-    FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256,
-    H256, U256,
     get_code_key,
     snapshots::{SnapshotStorageLog, StorageLogDbRow},
     AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, StorageLog,
-    FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256, U256,
+    FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256,
 };
 
 pub use crate::models::storage_log::StorageRecoveryLogEntry;

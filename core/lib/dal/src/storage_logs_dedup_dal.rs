@@ -2,10 +2,9 @@ use std::collections::HashSet;
 
 use sqlx::types::chrono::Utc;
 use zksync_types::{
-    snapshots::SnapshotStorageLog, zk_evm_types::LogQuery, AccountTreeId, Address, L1BatchNumber,
-    LogQuery, StorageKey, H256,
     snapshots::{InitialWriteDbRow, SnapshotStorageLog},
-    AccountTreeId, Address, L1BatchNumber, LogQuery, StorageKey, H256,
+    zk_evm_types::LogQuery,
+    AccountTreeId, Address, L1BatchNumber, StorageKey, H256,
 };
 use zksync_utils::u256_to_h256;
 
